@@ -10,6 +10,8 @@ consumers:
     keyauth_credentials:
       - key: __KONG_PUBLIC_API_KEY__
   - username: service_role
+    acls:
+      - group: service_role
     keyauth_credentials:
       - key: __KONG_SERVICE_API_KEY__
   # JWT consumer — matches GoTrue-issued tokens via the "iss" claim.
@@ -34,9 +36,19 @@ plugins:
         - __KONG_CORS_ORIGIN_FRONTEND__
       methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
       headers:
-        [Authorization, Content-Type, Content-Profile, apikey, x-client-info,
-         X-Request-ID, Prefer, Range, Accept, Accept-Profile,
-         x-supabase-api-version]
+        [
+          Authorization,
+          Content-Type,
+          Content-Profile,
+          apikey,
+          x-client-info,
+          X-Request-ID,
+          Prefer,
+          Range,
+          Accept,
+          Accept-Profile,
+          x-supabase-api-version,
+        ]
       exposed_headers:
         [X-Kong-Upstream-Latency, X-Kong-Proxy-Latency, X-Request-ID]
       credentials: true
@@ -331,6 +343,9 @@ services:
 
   - name: trino
     url: http://trino:8080
+    connect_timeout: 5000
+    read_timeout: 120000
+    write_timeout: 10000
     routes:
       - name: trino-route
         paths: [/sql]
@@ -347,6 +362,14 @@ services:
               claims_to_verify: [exp]
               run_on_preflight: false
               anonymous: __KONG_ANON_UUID__
+          - name: acl
+            config:
+              allow: [service_role]
+              hide_groups_header: true
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 1
+              size_unit: megabytes
           - name: request-transformer
             config:
               remove:
@@ -356,8 +379,8 @@ services:
             config:
               policy: local
               limit_by: ip
-              minute: 60
-              hour: 1000
+              minute: 20
+              hour: 300
 
   - name: admin-studio
     url: http://studio:3000
@@ -406,7 +429,7 @@ services:
               hour: 200
 
   - name: storage-sign
-    url: http://storage-router:3040
+    url: http://storage-router:3040/sign
     routes:
       - name: storage-sign-routes
         paths: [/storage/v1/sign]
@@ -433,6 +456,25 @@ services:
               limit_by: ip
               minute: 60
               hour: 1500
+
+  - name: storage-router-health
+    url: http://storage-router:3040
+    routes:
+      - name: storage-router-health-routes
+        paths: [/storage-router/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
 
   - name: permission-engine
     url: http://permission-engine:3050

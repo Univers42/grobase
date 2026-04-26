@@ -58,6 +58,7 @@ sed \
   -e "s|http://trino:8080|${TRINO_UPSTREAM_URL}|g" \
   -e "s|http://studio:3000|${STUDIO_UPSTREAM_URL}|g" \
   -e "s|http://email-service:3030|${EMAIL_SERVICE_UPSTREAM_URL}|g" \
+  -e "s|http://storage-router:3040/sign|${STORAGE_ROUTER_UPSTREAM_URL}/sign|g" \
   -e "s|http://storage-router:3040|${STORAGE_ROUTER_UPSTREAM_URL}|g" \
   -e "s|http://permission-engine:3050|${PERMISSION_ENGINE_UPSTREAM_URL}|g" \
   -e "s|http://schema-service:3060|${SCHEMA_SERVICE_UPSTREAM_URL}|g" \
