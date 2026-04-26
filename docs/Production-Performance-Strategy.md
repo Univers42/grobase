@@ -24,25 +24,25 @@ The SDK remains a UX layer. The query-router is an orchestrator, not an all-powe
 
 Implemented controls:
 
-| Control                   | Environment variable                   | Default | Purpose                                                  |
-| ------------------------- | -------------------------------------- | ------- | -------------------------------------------------------- |
-| Control-plane timeout     | `CONTROL_PLANE_TIMEOUT_MS`             | `2000`  | Bound latency to permission-engine and adapter-registry  |
-| Control-plane retries     | `CONTROL_PLANE_RETRY_ATTEMPTS`         | `2`     | Retry transient control-plane failures                   |
-| Adapter metadata cache    | `QUERY_ROUTER_ADAPTER_CACHE_TTL_MS`    | `30000` | Avoid repeated adapter-registry lookups                  |
-| Permission decision cache | `QUERY_ROUTER_PERMISSION_CACHE_TTL_MS` | `5000`  | Reduce authZ latency while keeping short-lived decisions |
-| Read-result cache         | `QUERY_ROUTER_READ_CACHE_TTL_MS`       | `3000`  | Absorb repeated read bursts                              |
-| Cache max entries         | `QUERY_ROUTER_CACHE_MAX_ENTRIES`       | `2000`  | Bound L1 memory usage                                    |
-| Redis L2 cache            | `QUERY_ROUTER_REDIS_CACHE_ENABLED`     | `true`* | Share safe cache entries across query-router instances   |
-| Redis URL                 | `QUERY_ROUTER_REDIS_URL`               | Redis   | Shared cache backend                                     |
-| Redis key prefix          | `QUERY_ROUTER_REDIS_KEY_PREFIX`        | `query-router:` | Namespace shared keys                             |
-| Circuit breakers          | `QUERY_ROUTER_CIRCUIT_BREAKER_ENABLED` | `true`  | Stop cascading failures to control-plane services        |
-| Circuit failure threshold | `QUERY_ROUTER_CIRCUIT_BREAKER_FAILURE_THRESHOLD` | `5` | Open circuit after repeated failures            |
-| Circuit success threshold | `QUERY_ROUTER_CIRCUIT_BREAKER_SUCCESS_THRESHOLD` | `2` | Close circuit after half-open recovery          |
-| Circuit open window       | `QUERY_ROUTER_CIRCUIT_BREAKER_OPEN_MS` | `10000` | Cooldown before half-open probes                         |
-| Async event queue         | `QUERY_ROUTER_ASYNC_EVENTS_ENABLED`    | `true`  | Keep logs/analytics out of the synchronous request path  |
-| Async flush interval      | `QUERY_ROUTER_ASYNC_EVENT_FLUSH_MS`    | `1000`  | Batch non-critical event emission                        |
-| Async batch size          | `QUERY_ROUTER_ASYNC_EVENT_BATCH_SIZE`  | `25`    | Bound each background flush                              |
-| Async queue max entries   | `QUERY_ROUTER_ASYNC_EVENT_MAX_ENTRIES` | `1000`  | Drop oldest events before impacting request latency      |
+| Control                   | Environment variable                             | Default         | Purpose                                                  |
+| ------------------------- | ------------------------------------------------ | --------------- | -------------------------------------------------------- |
+| Control-plane timeout     | `CONTROL_PLANE_TIMEOUT_MS`                       | `2000`          | Bound latency to permission-engine and adapter-registry  |
+| Control-plane retries     | `CONTROL_PLANE_RETRY_ATTEMPTS`                   | `2`             | Retry transient control-plane failures                   |
+| Adapter metadata cache    | `QUERY_ROUTER_ADAPTER_CACHE_TTL_MS`              | `30000`         | Avoid repeated adapter-registry lookups                  |
+| Permission decision cache | `QUERY_ROUTER_PERMISSION_CACHE_TTL_MS`           | `5000`          | Reduce authZ latency while keeping short-lived decisions |
+| Read-result cache         | `QUERY_ROUTER_READ_CACHE_TTL_MS`                 | `3000`          | Absorb repeated read bursts                              |
+| Cache max entries         | `QUERY_ROUTER_CACHE_MAX_ENTRIES`                 | `2000`          | Bound L1 memory usage                                    |
+| Redis L2 cache            | `QUERY_ROUTER_REDIS_CACHE_ENABLED`               | `true`\*        | Share safe cache entries across query-router instances   |
+| Redis URL                 | `QUERY_ROUTER_REDIS_URL`                         | Redis           | Shared cache backend                                     |
+| Redis key prefix          | `QUERY_ROUTER_REDIS_KEY_PREFIX`                  | `query-router:` | Namespace shared keys                                    |
+| Circuit breakers          | `QUERY_ROUTER_CIRCUIT_BREAKER_ENABLED`           | `true`          | Stop cascading failures to control-plane services        |
+| Circuit failure threshold | `QUERY_ROUTER_CIRCUIT_BREAKER_FAILURE_THRESHOLD` | `5`             | Open circuit after repeated failures                     |
+| Circuit success threshold | `QUERY_ROUTER_CIRCUIT_BREAKER_SUCCESS_THRESHOLD` | `2`             | Close circuit after half-open recovery                   |
+| Circuit open window       | `QUERY_ROUTER_CIRCUIT_BREAKER_OPEN_MS`           | `10000`         | Cooldown before half-open probes                         |
+| Async event queue         | `QUERY_ROUTER_ASYNC_EVENTS_ENABLED`              | `true`          | Keep logs/analytics out of the synchronous request path  |
+| Async flush interval      | `QUERY_ROUTER_ASYNC_EVENT_FLUSH_MS`              | `1000`          | Batch non-critical event emission                        |
+| Async batch size          | `QUERY_ROUTER_ASYNC_EVENT_BATCH_SIZE`            | `25`            | Bound each background flush                              |
+| Async queue max entries   | `QUERY_ROUTER_ASYNC_EVENT_MAX_ENTRIES`           | `1000`          | Drop oldest events before impacting request latency      |
 
 `*` Redis L2 is enabled in Docker Compose. Fly keeps it disabled by default until a managed/internal Redis app is provisioned.
 
