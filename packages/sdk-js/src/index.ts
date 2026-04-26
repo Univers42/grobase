@@ -1,135 +1,108 @@
+import { AnalyticsClient } from './domains/analytics.js';
+import { AuthClient } from './domains/auth.js';
+import { QueryClient, ResourceQueryBuilder } from './domains/query.js';
+import { StorageClient } from './domains/storage.js';
+import { HttpClient } from './core/http.js';
+import {
+  createBrowserStorageAdapter,
+  createMemoryStorageAdapter,
+  type SessionStorageAdapter,
+} from './core/storage.js';
+import type { ClientSession, SessionInput } from './core/session.js';
+
+export type {
+  AuthSession,
+  ClientSession,
+  SessionInput,
+  User,
+} from './core/session.js';
+export type { SessionStorageAdapter } from './core/storage.js';
+export { MiniBaasError, MiniBaasTimeoutError } from './core/errors.js';
+export type {
+  AnalyticsTrackInput,
+  PresignInput,
+  QueryRunInput,
+  QueryRunResponse,
+  SignInWithPasswordInput,
+} from './types.js';
+
+export interface RetryOptions {
+  attempts?: number;
+  delayMs?: number;
+  retryOn?: number[];
+}
+
 export interface MiniBaasClientOptions {
   url: string;
   anonKey: string;
   fetch?: typeof fetch;
   accessToken?: string;
-}
-
-export interface SignInWithPasswordInput {
-  email: string;
-  password: string;
-}
-
-export interface QueryInput {
-  database_id: string;
-  action: string;
-  resource: string;
-  payload?: Record<string, unknown>;
-}
-
-export interface PresignInput {
-  bucket: string;
-  key: string;
-  method?: 'GET' | 'PUT';
-  contentType?: string;
-}
-
-export class MiniBaasError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly body: unknown,
-  ) {
-    super(message);
-    this.name = 'MiniBaasError';
-  }
+  refreshToken?: string;
+  defaultDatabaseId?: string;
+  persistSession?: boolean;
+  storage?: SessionStorageAdapter;
+  storageKey?: string;
+  timeoutMs?: number;
+  retry?: number | RetryOptions;
 }
 
 export class MiniBaasClient {
-  private readonly baseUrl: string;
+  readonly auth: AuthClient;
+  readonly query: QueryClient;
+  readonly storage: StorageClient;
+  readonly analytics: AnalyticsClient;
+
+  private readonly http: HttpClient;
   private readonly anonKey: string;
-  private readonly fetchImpl: typeof fetch;
-  private accessToken?: string;
 
   constructor(options: MiniBaasClientOptions) {
-    this.baseUrl = options.url.replace(/\/+$/, '');
+    const sessionStorage = resolveSessionStorage(options);
+    const initialSession = sessionStorage.load() ??
+      (options.accessToken
+        ? { accessToken: options.accessToken, refreshToken: options.refreshToken }
+        : undefined);
+
     this.anonKey = options.anonKey;
-    this.fetchImpl = options.fetch ?? fetch;
-    this.accessToken = options.accessToken;
+    this.http = new HttpClient({
+      baseUrl: options.url,
+      anonKey: options.anonKey,
+      fetch: options.fetch,
+      sessionStorage,
+      session: initialSession,
+      timeoutMs: options.timeoutMs,
+      retry: options.retry,
+    });
+
+    this.auth = new AuthClient(this.http);
+    this.query = new QueryClient(this.http, options.defaultDatabaseId ?? 'default');
+    this.storage = new StorageClient(this.http);
+    this.analytics = new AnalyticsClient(this.http);
   }
 
-  setSession(accessToken: string): void {
-    this.accessToken = accessToken;
+  from<Row = Record<string, unknown>>(resource: string, databaseId?: string): ResourceQueryBuilder<Row> {
+    return this.query.from<Row>(resource, databaseId);
+  }
+
+  setSession(session: SessionInput): void {
+    this.http.setSession(session);
+  }
+
+  getSession(): ClientSession | undefined {
+    return this.http.getSession();
   }
 
   clearSession(): void {
-    this.accessToken = undefined;
+    this.http.clearSession();
   }
 
-  readonly auth = {
-    signInWithPassword: (input: SignInWithPasswordInput) =>
-      this.request('/auth/v1/token?grant_type=password', {
-        method: 'POST',
-        body: input,
-      }),
-    signOut: () => this.request('/auth/v1/logout', { method: 'POST' }),
-    user: () => this.request('/auth/v1/user'),
-  };
-
-  readonly query = {
-    execute: (input: QueryInput) =>
-      this.request('/query/v1/execute', {
-        method: 'POST',
-        body: input,
-      }),
-  };
-
-  readonly storage = {
-    presign: (input: PresignInput) => {
-      const path = `/storage/v1/sign/${encodeURIComponent(input.bucket)}/${input.key}`;
-      return this.request(path, {
-        method: 'POST',
-        body: {
-          method: input.method ?? 'PUT',
-          contentType: input.contentType,
-        },
-      });
-    },
-  };
-
-  readonly analytics = {
-    track: (eventType: string, data: Record<string, unknown> = {}) =>
-      this.request('/analytics/v1/events', {
-        method: 'POST',
-        body: { eventType, data },
-      }),
-  };
-
-  realtimeUrl(path = '/realtime/v1/ws'): string {
-    const url = new URL(path, this.baseUrl);
-    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  realtimeUrl(channel = 'default'): string {
+    const url = this.http.createRealtimeUrl(channel);
     url.searchParams.set('apikey', this.anonKey);
-    if (this.accessToken) url.searchParams.set('access_token', this.accessToken);
+
+    const session = this.http.getSession();
+    if (session?.accessToken) url.searchParams.set('access_token', session.accessToken);
+
     return url.toString();
-  }
-
-  private async request<T = unknown>(
-    path: string,
-    init: { method?: string; body?: unknown; headers?: HeadersInit } = {},
-  ): Promise<T> {
-    const headers = new Headers(init.headers);
-    headers.set('apikey', this.anonKey);
-    headers.set('Authorization', `Bearer ${this.accessToken ?? this.anonKey}`);
-    if (init.body !== undefined) headers.set('Content-Type', 'application/json');
-
-    const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
-      method: init.method ?? 'GET',
-      headers,
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
-    });
-
-    const text = await response.text();
-    const body = text ? safeJsonParse(text) : undefined;
-
-    if (!response.ok) {
-      throw new MiniBaasError(
-        extractErrorMessage(body) ?? response.statusText,
-        response.status,
-        body,
-      );
-    }
-
-    return body as T;
   }
 }
 
@@ -137,17 +110,9 @@ export function createClient(options: MiniBaasClientOptions): MiniBaasClient {
   return new MiniBaasClient(options);
 }
 
-function safeJsonParse(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
-}
+function resolveSessionStorage(options: MiniBaasClientOptions): SessionStorageAdapter {
+  if (options.storage) return options.storage;
+  if (options.persistSession === false) return createMemoryStorageAdapter();
 
-function extractErrorMessage(body: unknown): string | undefined {
-  if (!body || typeof body !== 'object') return undefined;
-  const value = (body as { message?: unknown; error?: unknown }).message ??
-    (body as { error?: unknown }).error;
-  return typeof value === 'string' ? value : undefined;
+  return createBrowserStorageAdapter(options.storageKey) ?? createMemoryStorageAdapter();
 }

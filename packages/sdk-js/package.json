@@ -1,7 +1,7 @@
 {
   "name": "@mini-baas/js",
-  "version": "0.1.0",
-  "description": "JavaScript SDK for mini-BaaS gateway APIs",
+  "version": "0.2.0",
+  "description": "Product SDK for mini-BaaS applications",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

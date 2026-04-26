@@ -27,7 +27,8 @@ Architecture guides, operational runbooks, and validation reports for the mini-b
 | --------------------------------------------------------- | ----------------------------------------------------------------- |
 | [MVP Schema Specification](MVP-Schema-Specification.md)   | Endpoint contracts, data models, and validation rules for the MVP |
 | [MongoDB Service Validation](Mongo-Service-Validation.md) | Line-by-line audit of mongo-api against the specification         |
-| [JavaScript SDK](../packages/sdk-js/README.md)            | Initial `@mini-baas/js` client package for external applications  |
+| [SDK v2 Design](SDK-v2-Design.md)                         | Product SDK architecture, layering, auth/session strategy         |
+| [JavaScript SDK](../packages/sdk-js/README.md)            | `@mini-baas/js` product SDK for external applications             |
 
 ## Operations and Development
 
