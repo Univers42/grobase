@@ -15,8 +15,12 @@ scrape_configs:
       - targets: ["mongo-api:3010"]
     metrics_path: /metrics
 
-  # adapter-registry and query-router no longer expose /metrics;
-  # HTTP metrics are now collected by Kong's prometheus plugin.
+  - job_name: "query-router"
+    static_configs:
+      - targets: ["query-router:4001"]
+    metrics_path: /metrics
+
+  # adapter-registry HTTP metrics are collected by Kong's prometheus plugin.
 
   - job_name: "permission-engine"
     static_configs:
