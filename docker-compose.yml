@@ -25,11 +25,12 @@ services:
     mem_limit: 256m
     cpus: 0.5
 
-  # ─── HashiCorp Vault (Secrets Management) ────────────────────────
+  # ─── HashiCorp Vault (control plane: boot/CI secrets) ─────────────
   vault:
     build:
       context: ./docker/services/vault
       dockerfile: Dockerfile
+    profiles: [control-plane]
     container_name: mini-baas-vault
     cap_add:
       - IPC_LOCK
@@ -53,11 +54,12 @@ services:
     mem_limit: 256m
     cpus: 0.5
 
-  # ─── Vault Bootstrap (one-shot init + unseal + seed) ─────────────
+  # ─── Vault Bootstrap (control plane one-shot) ─────────────────────
   vault-init:
     build:
       context: ./docker/services/vault
       dockerfile: Dockerfile
+    profiles: [control-plane]
     container_name: mini-baas-vault-init
     env_file: [.env]
     environment:
@@ -124,27 +126,7 @@ services:
         condition: service_healthy
       postgrest:
         condition: service_started
-      mongo-api:
-        condition: service_healthy
       realtime:
-        condition: service_healthy
-      email-service:
-        condition: service_started
-      permission-engine:
-        condition: service_healthy
-      schema-service:
-        condition: service_healthy
-      analytics-service:
-        condition: service_healthy
-      gdpr-service:
-        condition: service_healthy
-      newsletter-service:
-        condition: service_healthy
-      ai-service:
-        condition: service_healthy
-      log-service:
-        condition: service_healthy
-      session-service:
         condition: service_healthy
     networks:
       - mini-baas
@@ -156,7 +138,7 @@ services:
   trino:
     image: trinodb/trino:467
     container_name: mini-baas-trino
-    profiles: [extras]
+    profiles: [analytics, data-plane, extras]
     env_file: [.env]
     volumes:
       - ./docker/services/trino/conf/config.properties:/etc/trino/config.properties:ro
@@ -235,6 +217,7 @@ services:
   mongo:
     image: mongo:7
     container_name: mini-baas-mongo
+    profiles: [data-plane]
     env_file: [.env]
     command: ["--replSet", "rs0", "--bind_ip_all", "--keyFile", "/etc/mongo/rs-keyfile"]
     depends_on:
@@ -265,6 +248,7 @@ services:
   mongo-keyfile:
     image: mongo:7
     container_name: mini-baas-mongo-keyfile
+    profiles: [data-plane]
     volumes:
       - mongo-keyfile:/etc/mongo
     networks:
@@ -288,6 +272,7 @@ services:
   mongo-init:
     image: mongo:7
     container_name: mini-baas-mongo-init
+    profiles: [data-plane]
     depends_on:
       mongo:
         condition: service_healthy
@@ -325,6 +310,7 @@ services:
       dockerfile: Dockerfile
       args:
         APP: mongo-api
+    profiles: [data-plane]
     container_name: mini-baas-mongo-api
     env_file: [.env]
     environment:
@@ -447,11 +433,11 @@ services:
     mem_limit: 128m
     cpus: 0.25
 
-  # ─── PostgreSQL Metadata (extras) ────────────────────────────────
+  # ─── PostgreSQL Metadata (control plane / extras) ─────────────────
   pg-meta:
     image: supabase/postgres-meta:v0.91.0
     container_name: mini-baas-pg-meta
-    profiles: [extras]
+    profiles: [control-plane, extras]
     env_file: [.env]
     environment:
       PG_META_PORT: 8080
@@ -483,15 +469,11 @@ services:
       REALTIME_JWT_AUDIENCE: ""
       REALTIME_PG_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
       REALTIME_PG_CHANNEL: realtime_events
-      REALTIME_MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017/?replicaSet=rs0&authSource=admin
-      REALTIME_MONGO_DB: ${MONGO_DB:-syncspace}
       RUST_LOG: ${RUST_LOG:-info}
     volumes:
       - ./docker/services/realtime/realtime-agnostic/realtime.toml:/etc/realtime/realtime.toml:ro
     depends_on:
       db-bootstrap:
-        condition: service_completed_successfully
-      mongo-init:
         condition: service_completed_successfully
     networks:
       - mini-baas
@@ -521,13 +503,14 @@ services:
     mem_limit: 128m
     cpus: 0.25
 
-  # ─── Adapter Registry (NestJS — DB credential store) ─────────────
+  # ─── Adapter Registry (control plane — DB credential store) ───────
   adapter-registry:
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: adapter-registry
+    profiles: [adapter-plane, control-plane]
     container_name: mini-baas-adapter-registry
     env_file: [.env]
     environment:
@@ -554,13 +537,14 @@ services:
     mem_limit: 128m
     cpus: 0.25
 
-  # ─── Query Router (NestJS — universal data plane) ────────────────
+  # ─── Query Router (adapter plane — normalized data API) ───────────
   query-router:
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: query-router
+    profiles: [adapter-plane]
     container_name: mini-baas-query-router
     env_file: [.env]
     environment:
@@ -596,11 +580,10 @@ services:
       permission-engine:
         condition: service_healthy
       log-service:
-        condition: service_healthy
+        condition: service_started
+        required: false
       redis:
         condition: service_started
-      kong:
-        condition: service_healthy
     networks:
       - mini-baas
     restart: unless-stopped
@@ -613,13 +596,14 @@ services:
     mem_limit: 128m
     cpus: 0.25
 
-  # ─── Email Service (NestJS) ───────────────────────────────────────
+  # ─── Email Service (background plane) ─────────────────────────────
   email-service:
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: email-service
+    profiles: [background]
     container_name: mini-baas-email-service
     env_file: [.env]
     environment:
@@ -651,6 +635,7 @@ services:
       dockerfile: Dockerfile
       args:
         APP: storage-router
+    profiles: [storage, data-plane, extras]
     container_name: mini-baas-storage-router
     env_file: [.env]
     environment:
@@ -665,7 +650,6 @@ services:
     depends_on:
       minio:
         condition: service_started
-    profiles: [extras]
     networks:
       - mini-baas
     restart: unless-stopped
@@ -678,13 +662,14 @@ services:
     mem_limit: 128m
     cpus: 0.25
 
-  # ─── Permission Engine (NestJS — ABAC) ───────────────────────────
+  # ─── Permission Engine (control plane — ABAC) ─────────────────────
   permission-engine:
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: permission-engine
+    profiles: [adapter-plane, control-plane]
     container_name: mini-baas-permission-engine
     env_file: [.env]
     environment:
@@ -707,13 +692,14 @@ services:
     mem_limit: 128m
     cpus: 0.25
 
-  # ─── Schema Service (NestJS — DDL management) ────────────────────
+  # ─── Schema Service (control plane — DDL management) ──────────────
   schema-service:
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: schema-service
+    profiles: [control-plane]
     container_name: mini-baas-schema-service
     env_file: [.env]
     environment:
@@ -738,13 +724,14 @@ services:
     mem_limit: 128m
     cpus: 0.25
 
-  # ─── Analytics Service (NestJS — event tracking) ─────────────────
+  # ─── Analytics Service (analytics/background plane) ───────────────
   analytics-service:
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: analytics-service
+    profiles: [analytics, background, data-plane]
     container_name: mini-baas-analytics-service
     env_file: [.env]
     environment:
@@ -769,13 +756,14 @@ services:
     mem_limit: 128m
     cpus: 0.25
 
-  # ─── GDPR Service (NestJS — consent & data rights) ──────────────
+  # ─── GDPR Service (background/control plane) ─────────────────────
   gdpr-service:
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: gdpr-service
+    profiles: [background, control-plane]
     container_name: mini-baas-gdpr-service
     env_file: [.env]
     environment:
@@ -800,13 +788,14 @@ services:
     mem_limit: 128m
     cpus: 0.25
 
-  # ─── Newsletter Service (NestJS — subscriptions & campaigns) ─────
+  # ─── Newsletter Service (background plane) ────────────────────────
   newsletter-service:
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: newsletter-service
+    profiles: [background]
     container_name: mini-baas-newsletter-service
     env_file: [.env]
     environment:
@@ -833,13 +822,14 @@ services:
     mem_limit: 128m
     cpus: 0.25
 
-  # ─── AI Service (NestJS — LLM conversation engine) ──────────────
+  # ─── AI Service (background/data plane) ──────────────────────────
   ai-service:
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: ai-service
+    profiles: [background, data-plane]
     container_name: mini-baas-ai-service
     env_file: [.env]
     environment:
@@ -869,13 +859,14 @@ services:
     mem_limit: 256m
     cpus: 0.5
 
-  # ─── Log Service (NestJS — centralized log streaming) ────────────
+  # ─── Log Service (observability/background plane) ────────────────
   log-service:
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: log-service
+    profiles: [observability, background]
     container_name: mini-baas-log-service
     env_file: [.env]
     environment:
@@ -896,13 +887,14 @@ services:
     mem_limit: 128m
     cpus: 0.25
 
-  # ─── Session Service (NestJS — session lifecycle) ────────────────
+  # ─── Session Service (background plane) ──────────────────────────
   session-service:
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: session-service
+    profiles: [background]
     container_name: mini-baas-session-service
     env_file: [.env]
     environment:
@@ -930,7 +922,7 @@ services:
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1
     container_name: mini-baas-minio
-    profiles: [extras]
+    profiles: [storage, data-plane, extras]
     env_file: [.env]
     command: server /data --console-address ":9001"
     ports:
@@ -945,11 +937,11 @@ services:
       - mini-baas
     restart: unless-stopped
 
-  # ─── Connection Pooler (extras) ──────────────────────────────────
+  # ─── Connection Pooler (control plane / close to Postgres) ────────
   supavisor:
     image: supabase/supavisor:2.7.4
     container_name: mini-baas-supavisor
-    profiles: [extras]
+    profiles: [control-plane, extras]
     env_file: [.env]
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
@@ -968,7 +960,7 @@ services:
   studio:
     image: supabase/studio:2026.03.30-sha-12a43e5
     container_name: mini-baas-studio
-    profiles: [extras]
+    profiles: [control-plane, extras]
     env_file: [.env]
     environment:
       HOSTNAME: 0.0.0.0

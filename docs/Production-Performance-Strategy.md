@@ -7,18 +7,18 @@ This document defines the next production layer for mini-BaaS: cache, routing, f
 ```text
 SDK
   ↓ intent only
-Kong / WAF
-  ↓ auth, rate limits, request IDs
-Query Router
-  ↓ orchestration, cache, timeout, retry
-Permission Engine / Adapter Registry
-  ↓ control-plane decisions
-Adapter Layer
-  ↓ execution
-PostgreSQL / MongoDB / Trino
+WAF
+  ↓ public edge protection
+Kong Gateway
+  ↓ auth, rate limits, routing, request IDs
+  ├─ hot path: GoTrue / PostgREST / Realtime → PostgreSQL / Redis
+  ├─ adapter path: Query Router → Permission Engine / Adapter Registry → adapters
+  └─ data/analytics path: Mongo / MinIO / Trino / background services
 ```
 
 The SDK remains a UX layer. The query-router is an orchestrator, not an all-powerful monolith. Permission checks, database mapping, and execution are delegated to dedicated services/layers.
+
+The deployment model is no longer flat: the default Docker Compose stack starts only the critical BaaS path, and secondary planes are enabled with profiles. See [Supabase-Style Deployment Tiers](Supabase-Style-Deployment-Tiers.md).
 
 ## Query-router performance controls
 
@@ -91,6 +91,18 @@ Rules:
 The L2 cache is intentionally best-effort. Redis read/write/invalidation failures degrade to L1 cache only instead of blocking the request path.
 
 ## Routing and failover
+
+### Criticality tiers
+
+| Tier | Path | Runtime rule |
+| ---- | ---- | ------------ |
+| Core BaaS | `WAF → Kong → GoTrue/PostgREST/Realtime → PostgreSQL/Redis` | Always hot, scaled and monitored together |
+| Adapter plane | `Kong → query-router → permission-engine/adapter-registry → DB adapters` | Opt-in for normalized multi-engine data APIs |
+| Control plane | Vault, pg-meta, Supavisor, schema-service, Studio | Admin/boot/metadata flows only |
+| Data/analytics plane | Mongo, MinIO, Trino, analytics/AI | Isolated from CRUD/auth latency |
+| Background/observability | email, newsletter, GDPR, logs, Prometheus/Grafana/Loki | Must not block the synchronous request path |
+
+Default Compose now starts only the core path. Use profiles such as `adapter-plane`, `control-plane`, `data-plane`, `analytics`, `storage`, `background`, and `observability` for additional layers.
 
 ### Gateway layer
 

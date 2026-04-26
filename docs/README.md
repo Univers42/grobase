@@ -11,6 +11,7 @@ Architecture guides, operational runbooks, and validation reports for the mini-b
 | [Infrastructure Overview](Insfrastructure.md)                         | Service topology, network model, Compose profiles, and startup order     |
 | [Container Roles](Docker-Container-Purposes.md)                       | Purpose of every container in the stack                                  |
 | [Production BaaS Architecture](Production-BaaS-Architecture.md)       | Production-grade gateway-only microservices architecture and reuse model |
+| [Supabase-Style Deployment Tiers](Supabase-Style-Deployment-Tiers.md) | Critical path, control plane, data plane, and Compose profile strategy   |
 | [Production Performance Strategy](Production-Performance-Strategy.md) | Cache, routing, failover, observability, versioning, and Trino rules     |
 | [Fly Deployment](Fly-Deployment.md)                                   | Multi-app Fly.io deployment strategy, secrets, status, and smoke testing |
 
