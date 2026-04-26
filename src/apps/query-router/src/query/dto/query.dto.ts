@@ -4,10 +4,32 @@ import { Type } from 'class-transformer';
 
 export class ExecuteQueryDto {
   @ApiProperty({
-    enum: ['select', 'insert', 'update', 'delete', 'find', 'insertOne', 'updateMany', 'deleteMany'],
-    description: 'Query action — select/insert/update/delete for SQL, find/insertOne/updateMany/deleteMany for MongoDB',
+    enum: [
+      'read',
+      'create',
+      'select',
+      'insert',
+      'update',
+      'delete',
+      'find',
+      'insertOne',
+      'updateMany',
+      'deleteMany',
+    ],
+    description: 'Product action — read/create/update/delete. Legacy engine-specific actions are still accepted.',
   })
-  @IsEnum(['select', 'insert', 'update', 'delete', 'find', 'insertOne', 'updateMany', 'deleteMany'])
+  @IsEnum([
+    'read',
+    'create',
+    'select',
+    'insert',
+    'update',
+    'delete',
+    'find',
+    'insertOne',
+    'updateMany',
+    'deleteMany',
+  ])
   action!: string;
 
   @ApiPropertyOptional({ description: 'Row data for insert/update, or update payload for updateMany' })

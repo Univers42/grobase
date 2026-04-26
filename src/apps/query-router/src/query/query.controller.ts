@@ -20,7 +20,7 @@ export class QueryController {
     @Param('table') table: string,
     @Body() dto: ExecuteQueryDto,
   ) {
-    return this.service.executeQuery(dbId, table, user.id, dto);
+    return this.service.executeQuery(dbId, table, user.id, user.role, dto);
   }
 
   @Get(':dbId/tables')
@@ -30,6 +30,6 @@ export class QueryController {
     @CurrentUser() user: UserContext,
     @Param('dbId', ParseUUIDPipe) dbId: string,
   ) {
-    return this.service.listTables(dbId, user.id);
+    return this.service.listTables(dbId, user.id, user.role);
   }
 }
