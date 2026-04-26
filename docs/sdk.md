@@ -12,6 +12,8 @@ SDKs are designed to simplify the development process and enable developers to q
 
 in this context, the mini-BaaS SDK would be a collection of tools and libraries that developers can use to interact with the mini-BaaS platform, allowing them to easily integrate its functionalities into their applications.
 
+The canonical SDK now lives as the `packages/mini-baas-sdk` submodule in the infra repository. It is still published/consumed as `@mini-baas/js`.
+
 example for baas:
 without sdk
 

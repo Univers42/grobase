@@ -6,12 +6,13 @@ Architecture guides, operational runbooks, and validation reports for the mini-b
 
 ## Architecture and Infrastructure
 
-| Document                                                        | Description                                                              |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| [Infrastructure Overview](Insfrastructure.md)                   | Service topology, network model, Compose profiles, and startup order     |
-| [Container Roles](Docker-Container-Purposes.md)                 | Purpose of every container in the stack                                  |
-| [Production BaaS Architecture](Production-BaaS-Architecture.md) | Production-grade gateway-only microservices architecture and reuse model |
-| [Fly Deployment](Fly-Deployment.md)                             | Multi-app Fly.io deployment strategy, secrets, status, and smoke testing |
+| Document                                                              | Description                                                              |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| [Infrastructure Overview](Insfrastructure.md)                         | Service topology, network model, Compose profiles, and startup order     |
+| [Container Roles](Docker-Container-Purposes.md)                       | Purpose of every container in the stack                                  |
+| [Production BaaS Architecture](Production-BaaS-Architecture.md)       | Production-grade gateway-only microservices architecture and reuse model |
+| [Production Performance Strategy](Production-Performance-Strategy.md) | Cache, routing, failover, observability, versioning, and Trino rules     |
+| [Fly Deployment](Fly-Deployment.md)                                   | Multi-app Fly.io deployment strategy, secrets, status, and smoke testing |
 
 ## Gateway and Routing
 
@@ -23,12 +24,13 @@ Architecture guides, operational runbooks, and validation reports for the mini-b
 
 ## API Specification and Validation
 
-| Document                                                  | Description                                                       |
-| --------------------------------------------------------- | ----------------------------------------------------------------- |
-| [MVP Schema Specification](MVP-Schema-Specification.md)   | Endpoint contracts, data models, and validation rules for the MVP |
-| [MongoDB Service Validation](Mongo-Service-Validation.md) | Line-by-line audit of mongo-api against the specification         |
-| [SDK v2 Design](SDK-v2-Design.md)                         | Product SDK architecture, layering, auth/session strategy         |
-| [JavaScript SDK](../packages/sdk-js/README.md)            | `@mini-baas/js` product SDK for external applications             |
+| Document                                                        | Description                                                       |
+| --------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [MVP Schema Specification](MVP-Schema-Specification.md)         | Endpoint contracts, data models, and validation rules for the MVP |
+| [MongoDB Service Validation](Mongo-Service-Validation.md)       | Line-by-line audit of mongo-api against the specification         |
+| [SDK v2 Design](SDK-v2-Design.md)                               | Product SDK architecture, layering, auth/session strategy         |
+| [SDK Backend Service Coverage](SDK-Backend-Service-Coverage.md) | Docker/Fly service coverage matrix for the SDK                    |
+| [JavaScript SDK](../packages/mini-baas-sdk/README.md)           | `@mini-baas/js` product SDK for external applications             |
 
 ## Operations and Development
 
