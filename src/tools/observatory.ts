@@ -10,9 +10,9 @@
  *   logs                   Stream-only, no interactive prompt.
  *
  * Usage:
- *   npx ts-node -r tsconfig-paths/register tools/observatory.ts
- *   npx ts-node -r tsconfig-paths/register tools/observatory.ts --headless
- *   npx ts-node -r tsconfig-paths/register tools/observatory.ts --logs
+ *   pnpm exec ts-node -r tsconfig-paths/register tools/observatory.ts
+ *   pnpm exec ts-node -r tsconfig-paths/register tools/observatory.ts --headless
+ *   pnpm exec ts-node -r tsconfig-paths/register tools/observatory.ts --logs
  *
  * Requires: Docker socket access (/var/run/docker.sock)
  */

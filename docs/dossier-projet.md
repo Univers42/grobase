@@ -149,7 +149,7 @@ mais aussi kanban avec lequel nous avons mis en place un tableau de tâches visu
 
 - système d'exploitation: j'ai opéré sur un environnement Linux (Ubuntu) pour le développement, offrant une compatibilité optimale avec les outils et technologies utilisés dans le projet.
 - IDE: Mon environnement de développement principal était **Visual Studio Code**, complété par des extensions pour l'investigation de code, la gestion de Git et le développement en React et Node.js.
-- Environnement: J'ai utilisé l'environnement Node.js LTS (version stable recommandée) et l'outil npm pour gérer l'intégralité des dépendances nécessaires aux parties `front-end` et `back-end`
+- Environnement: les dépendances applicatives sont gérées avec pnpm dans Docker afin d'éviter les écarts entre postes de développement; la dépendance locale attendue est Docker.
 
 ##### pile applicative (conforme aux choix architecturaux)
 

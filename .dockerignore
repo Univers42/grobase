@@ -70,9 +70,8 @@ temp/
 .env.production
 .env.staging
 
-# Package locks (optional - depends on your strategy)
-# package-lock.json
-# yarn.lock
+# Package locks: pnpm-lock.yaml is intentionally kept for reproducible Docker builds.
+# package-lock.json and yarn.lock must not be used in this repository.
 # Gemfile.lock
 
 # Node-specific

@@ -378,8 +378,8 @@ projet/
 
 Avant de commencer, assurez-vous d'avoir installé :
 
-- [Node.js](https://nodejs.org/) v18+
-- [npm](https://www.npmjs.com/) ou [yarn](https://yarnpkg.com/)
+- Docker et Docker Compose
+- pnpm exécuté dans Docker pour les tâches projet
 - _(autres prérequis spécifiques à votre projet)_
 
 ### 8.2 Installation
@@ -391,13 +391,13 @@ git clone https://github.com/votre-utilisateur/nom-du-projet.git
 # 2. Accéder au répertoire du projet
 cd nom-du-projet
 
-# 3. Installer les dépendances (front-end)
+# 3. Vérifier les dépendances (front-end) avec pnpm dans Docker
 cd frontend
-npm install
+docker run --rm -v "$PWD:/app" -w /app node:20-alpine sh -lc 'corepack enable && pnpm install --frozen-lockfile'
 
-# 4. Installer les dépendances (back-end)
+# 4. Vérifier les dépendances (back-end) avec pnpm dans Docker
 cd ../backend
-npm install
+docker run --rm -v "$PWD:/app" -w /app node:20-alpine sh -lc 'corepack enable && pnpm install --frozen-lockfile'
 
 # 5. Configurer les variables d'environnement
 cp .env.example .env
@@ -409,11 +409,11 @@ cp .env.example .env
 ```bash
 # Lancer le back-end
 cd backend
-npm run dev
+docker run --rm -it -v "$PWD:/app" -w /app node:20-alpine sh -lc 'corepack enable && pnpm install --frozen-lockfile && pnpm run dev'
 
 # Lancer le front-end (dans un autre terminal)
 cd frontend
-npm run dev
+docker run --rm -it -v "$PWD:/app" -w /app node:20-alpine sh -lc 'corepack enable && pnpm install --frozen-lockfile && pnpm run dev'
 ```
 
 L'application sera accessible à l'adresse : `http://localhost:3000`

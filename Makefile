@@ -25,6 +25,7 @@ COMPOSE_FILE   ?= docker-compose.yml
 SERVICE        ?=
 STEPS          ?= 1
 HOOKS_DIR      := vendor/scripts/hooks
+NODE_IMAGE     ?= node:20-alpine
 
 # Image map — local_name=upstream_ref  (single source of truth, pinned versions)
 IMAGES_CORE := \
@@ -444,9 +445,7 @@ adapter-ls: ## List registered databases
 		-H "apikey: $$(grep KONG_SERVICE_API_KEY .env | cut -d= -f2)" | jq .
 
 play-css: ## Build libcss CSS assets
-	@command -v npm >/dev/null 2>&1 || { echo >&2 "npm is required to build CSS."; exit 1; }
-	@npm --prefix ./vendor/libcss install --legacy-peer-deps
-	@npm --prefix ./vendor/libcss run build:min
+	@docker run --rm -v $(CURDIR)/vendor/libcss:/src:ro -v $(CURDIR)/vendor/libcss:/out -w /tmp $(NODE_IMAGE) sh -lc 'cp -a /src app && cd app && corepack enable >/dev/null && pnpm install --store-dir /pnpm-store && pnpm run build:min && cp -a dist /out/ 2>/dev/null || true'
 	@echo -e "$(_G)✓ CSS ready$(_0)"
 
 play: _require-compose play-css ## Build CSS & start playground
@@ -491,7 +490,7 @@ audit-scan: ## Run SonarCloud scanner (requires TOK_SONARCLOUD in .env)
 	@echo -e "$(_B)Running SonarCloud scan…$(_0)"
 	@SONAR_TOKEN=$$(grep TOK_SONARCLOUD .env | cut -d= -f2); \
 	[ -n "$$SONAR_TOKEN" ] || { echo -e "$(_R)TOK_SONARCLOUD not found in .env$(_0)"; exit 1; }; \
-	npx sonar-scanner \
+	docker run --rm -e SONAR_TOKEN="$$SONAR_TOKEN" -v $(CURDIR):/usr/src sonarsource/sonar-scanner-cli \
 		-Dsonar.token="$$SONAR_TOKEN" \
 		-Dsonar.qualitygate.wait=true 2>&1 | tee audit/scan.log; \
 	echo -e "$(_G)✓ Scan complete — log at audit/scan.log$(_0)"
@@ -504,45 +503,39 @@ audit: audit-scan audit-fetch ## Full audit: scan + fetch issues
 	@echo -e "$(_G)✓ Audit complete — see audit/summary.txt$(_0)"
 
 nestjs-install: ## Install NestJS monorepo dependencies
-	@echo -e "$(_B)Installing NestJS dependencies…$(_0)"
-	@cd src && corepack enable && pnpm install
-	@echo -e "$(_G)✓ Dependencies installed$(_0)"
+	@echo -e "$(_B)Checking NestJS dependencies in Docker…$(_0)"
+	@docker run --rm -v $(CURDIR)/src:/src:ro -w /tmp $(NODE_IMAGE) sh -lc 'cp -a /src app && cd app && corepack enable >/dev/null && pnpm install --frozen-lockfile --store-dir /pnpm-store'
+	@echo -e "$(_G)✓ Dependencies install cleanly in Docker$(_0)"
 
 nestjs-lint: ## Run ESLint on NestJS monorepo
 	@echo -e "$(_B)Linting NestJS monorepo…$(_0)"
-	@cd src && npx eslint 'apps/**/*.ts' 'libs/**/*.ts' --fix
+	@docker run --rm -v $(CURDIR)/src:/src -w /tmp $(NODE_IMAGE) sh -lc 'cp -a /src app && cd app && corepack enable >/dev/null && pnpm install --frozen-lockfile --store-dir /pnpm-store >/dev/null && pnpm exec eslint "apps/**/*.ts" "libs/**/*.ts" --fix && cp -a apps libs /src/'
 	@echo -e "$(_G)✓ Lint passed$(_0)"
 
 nestjs-typecheck: ## TypeScript strict type-check (no emit)
 	@echo -e "$(_B)Type-checking NestJS monorepo…$(_0)"
-	@cd src && npx tsc --noEmit
+	@docker run --rm -v $(CURDIR)/src:/src:ro -w /tmp $(NODE_IMAGE) sh -lc 'cp -a /src app && cd app && corepack enable >/dev/null && pnpm install --frozen-lockfile --store-dir /pnpm-store >/dev/null && pnpm exec tsc --noEmit'
 	@echo -e "$(_G)✓ Type-check passed$(_0)"
 
 nestjs-format: ## Prettier format check
-	@cd src && npx prettier --check 'apps/**/*.ts' 'libs/**/*.ts'
+	@docker run --rm -v $(CURDIR)/src:/src:ro -w /tmp $(NODE_IMAGE) sh -lc 'cp -a /src app && cd app && corepack enable >/dev/null && pnpm install --frozen-lockfile --store-dir /pnpm-store >/dev/null && pnpm exec prettier --check "apps/**/*.ts" "libs/**/*.ts"'
 	@echo -e "$(_G)✓ Format OK$(_0)"
 
 nestjs-build: ## Build all NestJS apps
 	@echo -e "$(_B)Building all NestJS apps…$(_0)"
-	@cd src && npx nest build adapter-registry && \
-		npx nest build mongo-api && \
-		npx nest build query-router && \
-		npx nest build email-service && \
-		npx nest build storage-router && \
-		npx nest build permission-engine && \
-		npx nest build schema-service
+	@docker run --rm -v $(CURDIR)/src:/src:ro -w /tmp $(NODE_IMAGE) sh -lc 'cp -a /src app && cd app && corepack enable >/dev/null && pnpm install --frozen-lockfile --store-dir /pnpm-store >/dev/null && pnpm exec nest build adapter-registry && pnpm exec nest build mongo-api && pnpm exec nest build query-router && pnpm exec nest build email-service && pnpm exec nest build storage-router && pnpm exec nest build permission-engine && pnpm exec nest build schema-service'
 	@echo -e "$(_G)✓ All apps built$(_0)"
 
 nestjs-build-%: ## Build one NestJS app (e.g. make nestjs-build-mongo-api)
 	@echo -e "$(_B)Building $*…$(_0)"
-	@cd src && npx nest build $*
+	@docker run --rm -v $(CURDIR)/src:/src:ro -w /tmp $(NODE_IMAGE) sh -lc 'cp -a /src app && cd app && corepack enable >/dev/null && pnpm install --frozen-lockfile --store-dir /pnpm-store >/dev/null && pnpm exec nest build $*'
 	@echo -e "$(_G)✓ $* built$(_0)"
 
 nestjs-dev-%: ## Run one NestJS app locally in dev mode (e.g. make nestjs-dev-mongo-api)
-	@cd src && npx nest start $* --watch
+	@docker run --rm -it -v $(CURDIR)/src:/src:ro -w /tmp $(NODE_IMAGE) sh -lc 'cp -a /src app && cd app && corepack enable >/dev/null && pnpm install --frozen-lockfile --store-dir /pnpm-store >/dev/null && pnpm exec nest start $* --watch'
 
 nestjs-test: ## Run all NestJS unit tests
-	@cd src && npx jest --passWithNoTests
+	@docker run --rm -v $(CURDIR)/src:/src:ro -w /tmp $(NODE_IMAGE) sh -lc 'cp -a /src app && cd app && corepack enable >/dev/null && pnpm install --frozen-lockfile --store-dir /pnpm-store >/dev/null && pnpm exec jest --passWithNoTests'
 	@echo -e "$(_G)✓ Tests passed$(_0)"
 
 nestjs-ci: nestjs-install nestjs-typecheck nestjs-lint nestjs-test ## Full NestJS CI pipeline
@@ -595,7 +588,7 @@ watch: _require-compose _rm-stale ## Build, start stack & launch interactive obs
 	@eval "$$(bash scripts/resolve-ports.sh)"; \
 	$(DC) up -d --build 2>&1 | grep -v "^$$" || echo -e "$(_Y)⚠  Some containers may need time — observatory will show details$(_0)"
 	@echo -e "$(_G)▶ Starting mini-BaaS Observatory (interactive)…$(_0)"
-	cd src && npx ts-node -r tsconfig-paths/register tools/observatory.ts
+	docker run --rm -it -v $(CURDIR)/src:/src:ro -w /tmp $(NODE_IMAGE) sh -lc 'cp -a /src app && cd app && corepack enable >/dev/null && pnpm install --frozen-lockfile --store-dir /pnpm-store >/dev/null && pnpm exec ts-node -r tsconfig-paths/register tools/observatory.ts'
 
 watch-logs: _require-compose _rm-stale ## Build, start stack & stream logs only (no interactive prompt)
 	@eval "$$(bash scripts/resolve-ports.sh)"; \
@@ -603,7 +596,7 @@ watch-logs: _require-compose _rm-stale ## Build, start stack & stream logs only 
 	@eval "$$(bash scripts/resolve-ports.sh)"; \
 	$(DC) up -d --build 2>&1 | tail -5 || true
 	@echo -e "$(_G)▶ Starting log stream…$(_0)"
-	cd src && npx ts-node -r tsconfig-paths/register tools/observatory.ts --logs
+	docker run --rm -it -v $(CURDIR)/src:/src:ro -w /tmp $(NODE_IMAGE) sh -lc 'cp -a /src app && cd app && corepack enable >/dev/null && pnpm install --frozen-lockfile --store-dir /pnpm-store >/dev/null && pnpm exec ts-node -r tsconfig-paths/register tools/observatory.ts --logs'
 
 watch-headless: _require-compose _rm-stale ## Build, start stack & launch observatory in background
 	@eval "$$(bash scripts/resolve-ports.sh)"; \
@@ -611,7 +604,7 @@ watch-headless: _require-compose _rm-stale ## Build, start stack & launch observ
 	@eval "$$(bash scripts/resolve-ports.sh)"; \
 	$(DC) up -d --build 2>&1 | tail -5 || true
 	@echo -e "$(_G)▶ Starting headless observatory…$(_0)"
-	@cd src && nohup npx ts-node -r tsconfig-paths/register tools/observatory.ts --headless \
+	@nohup docker run --rm -v $(CURDIR)/src:/src:ro -w /tmp $(NODE_IMAGE) sh -lc 'cp -a /src app && cd app && corepack enable >/dev/null && pnpm install --frozen-lockfile --store-dir /pnpm-store >/dev/null && pnpm exec ts-node -r tsconfig-paths/register tools/observatory.ts --headless' \
 		> ../observatory.log 2>&1 & echo "$$!" > ../.observatory.pid
 	@echo -e "$(_G)  PID: $$(cat .observatory.pid)  •  Log: observatory.log$(_0)"
 	@echo -e "$(_Y)  Use 'make kill-watch' to stop$(_0)"
@@ -631,7 +624,7 @@ kill-watch: ## Stop a headless observatory process
 
 watch-attach: ## Attach interactive observatory to an already-running stack (no build)
 	@echo -e "$(_G)▶ Attaching mini-BaaS Observatory…$(_0)"
-	cd src && npx ts-node -r tsconfig-paths/register tools/observatory.ts
+	docker run --rm -it -v $(CURDIR)/src:/src:ro -w /tmp $(NODE_IMAGE) sh -lc 'cp -a /src app && cd app && corepack enable >/dev/null && pnpm install --frozen-lockfile --store-dir /pnpm-store >/dev/null && pnpm exec ts-node -r tsconfig-paths/register tools/observatory.ts'
 
 watch-docker: ## Simple docker compose log tail (all services)
 	docker compose logs -f --tail=100

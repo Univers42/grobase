@@ -45,11 +45,8 @@ curl -sf http://localhost:4000/v1/health | jq .
 ### Using wscat
 
 ```bash
-# Install wscat
-npm install -g wscat
-
 # Connect to the Realtime WebSocket
-wscat -c "ws://localhost:4000/v1/ws"
+docker run --rm -it ghcr.io/vi/websocat:latest "ws://host.docker.internal:4000/v1/ws"
 
 # Subscribe to a channel (send as JSON):
 # {"action":"subscribe","channel":"public.todos","adapter":"postgresql"}

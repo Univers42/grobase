@@ -351,15 +351,16 @@ ARG APP=adapter-registry
 
 FROM node:${NODE_VERSION}-alpine AS deps
 WORKDIR /app
-COPY --link package.json package-lock.json ./
-RUN npm ci
+RUN corepack enable
+COPY --link package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
 ARG APP
 COPY --link tsconfig.json tsconfig.build.json nest-cli.json ./
 COPY --link libs/ ./libs/
 COPY --link apps/ ./apps/
-RUN npx nest build ${APP}
+RUN pnpm exec nest build ${APP}
 ```
 
 Ce choix évite de maintenir un Dockerfile par microservice, diminue la duplication et renforce la cohérence du monorepo.
@@ -1698,10 +1699,8 @@ cd mini-baas-infra
 # 2. Générer les variables d'environnement
 bash scripts/generate-env.sh
 
-# 3. (Optionnel) Installer les dépendances du monorepo NestJS
-cd src
-npm install
-cd ..
+# 3. (Optionnel) Vérifier les dépendances du monorepo NestJS dans Docker
+make nestjs-install
 
 # 4. Vérifier la configuration
 bash scripts/validate-all.sh

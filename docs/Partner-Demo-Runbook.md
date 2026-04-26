@@ -53,7 +53,7 @@ flowchart LR
 ## Prerequisites
 
 - Docker and Docker Compose installed
-- Node.js / npm available (for playground CSS build)
+- No local Node.js package manager required; pnpm runs inside Docker for project tasks
 - Ports available: `8000` (Kong), `3100` (Playground), `5432` (PostgreSQL), `27017` (MongoDB)
 
 ---

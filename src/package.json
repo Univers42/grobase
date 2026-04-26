@@ -4,6 +4,7 @@
   "private": true,
   "description": "Mini BaaS — NestJS monorepo",
   "license": "MIT",
+  "packageManager": "pnpm@10.33.2",
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "nest build",
@@ -118,5 +119,10 @@
       "^@mini-baas/database(|/.*)$": "<rootDir>/libs/database/src/$1",
       "^@mini-baas/health(|/.*)$": "<rootDir>/libs/health/src/$1"
     }
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core"
+    ]
   }
 }

@@ -172,9 +172,9 @@ Dependencies include:
 CF "2026-04-10T08:54:00+02:00" \
 "chore(deps): lock NestJS monorepo dependency versions
 
-Auto-generated lockfile from npm install.
+Auto-generated lockfile from pnpm install.
 Pins all transitive dependencies for reproducible builds." \
-    src/package-lock.json
+    src/pnpm-lock.yaml
 
 CF "2026-04-10T08:59:00+02:00" \
 "chore(lint): add ESLint configuration with NestJS recommended rules
@@ -529,7 +529,7 @@ Extends root tsconfig for adapter-registry build target." \
 MS "2026-04-10T11:30:00+02:00" \
 "chore(adapter-registry): verify TypeScript compilation and crypto tests
 
-npx tsc --project apps/adapter-registry/tsconfig.app.json --noEmit
+pnpm exec tsc --project apps/adapter-registry/tsconfig.app.json --noEmit
 Result: 0 errors. AES-256-GCM encrypt/decrypt passes round-trip test.
 All DTOs validate correctly with class-validator decorators."
 
@@ -603,7 +603,7 @@ Extends root tsconfig for email-service build target." \
 MS "2026-04-10T12:04:00+02:00" \
 "chore(email-service): verify TypeScript compilation and DTO validation
 
-npx tsc --project apps/email-service/tsconfig.app.json --noEmit
+pnpm exec tsc --project apps/email-service/tsconfig.app.json --noEmit
 Result: 0 errors. SendEmailDto validates correctly with class-validator.
 SMTP transport configuration resolves from environment."
 
@@ -717,7 +717,7 @@ Extends root tsconfig for schema-service build target." \
 MS "2026-04-10T14:20:00+02:00" \
 "chore(schema-service): verify dual-engine TypeScript compilation
 
-npx tsc --project apps/schema-service/tsconfig.app.json --noEmit
+pnpm exec tsc --project apps/schema-service/tsconfig.app.json --noEmit
 Result: 0 errors. Engine factory resolves both PostgreSQL and MongoDB.
 JSON Schema validation constraints pass type checking."
 
@@ -927,7 +927,7 @@ Extends root tsconfig for query-router build target." \
 MS "2026-04-10T16:06:00+02:00" \
 "chore(query-router): verify multi-engine query dispatch compilation
 
-npx tsc --project apps/query-router/tsconfig.app.json --noEmit
+pnpm exec tsc --project apps/query-router/tsconfig.app.json --noEmit
 Result: 0 errors. PostgreSQL and MongoDB engines resolve correctly.
 Query DTO validates engine enum and parameter types."
 
@@ -1044,7 +1044,7 @@ Extends root tsconfig for mongo-api build target." \
 MS "2026-04-10T17:05:00+02:00" \
 "chore(mongo-api): verify admin and collections module compilation
 
-npx tsc --project apps/mongo-api/tsconfig.app.json --noEmit
+pnpm exec tsc --project apps/mongo-api/tsconfig.app.json --noEmit
 Result: 0 errors. All 12 collection + admin endpoints type-safe.
 Bulk operations and aggregation pipeline types resolve."
 
@@ -1852,7 +1852,7 @@ MS "2026-04-11T14:45:00+02:00" \
 "chore: verify NestJS monorepo TypeScript compilation
 
 All 7 apps + 3 libs compile successfully:
-  npx tsc --project tsconfig.json --noEmit
+    pnpm exec tsc --project tsconfig.json --noEmit
   0 errors, 0 warnings
 
 Path aliases resolve correctly:
@@ -1863,14 +1863,14 @@ Path aliases resolve correctly:
 MS "2026-04-11T14:52:00+02:00" \
 "chore: run ESLint across NestJS monorepo — 0 errors
 
-npx eslint 'apps/**/*.ts' 'libs/**/*.ts' --max-warnings 0
+pnpm exec eslint 'apps/**/*.ts' 'libs/**/*.ts' --max-warnings 0
 Result: 0 errors, 0 warnings across 70 source files.
 All imports ordered, no unused variables."
 
 MS "2026-04-11T14:58:00+02:00" \
 "chore: run Prettier format check across NestJS codebase
 
-npx prettier --check 'apps/**/*.ts' 'libs/**/*.ts'
+pnpm exec prettier --check 'apps/**/*.ts' 'libs/**/*.ts'
 All 70 files formatted correctly. No changes needed."
 
 MS "2026-04-11T15:05:00+02:00" \
