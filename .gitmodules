@@ -3,7 +3,7 @@
 	url = https://github.com/Univers42/libcss.git
 [submodule "vendor/scripts"]
 	path = vendor/scripts
-	url = https://github.com/Univers42/scripts.git
+	url = git@github.com:Univers42/scripts.git
 [submodule "vendor/tinte"]
 	path = vendor/tinte
 	url = https://github.com/Melvynx/tinte.git

@@ -46,16 +46,16 @@ A production-ready backend platform that any application can consume via plain H
 
 ### Core design decisions
 
-| Decision | Reason |
-|---|---|
-| Single internal Docker network | All services communicate by name, no exposed ports unless explicitly needed |
-| One gateway for all HTTP traffic | Kong is the only ingress; clients talk to Kong, never to upstream services directly |
-| DB-less Kong (declarative YAML) | No database dependency for the gateway; config is rendered at container start from a template |
-| JWT shared secret | GoTrue issues JWTs; every service validates the same `JWT_SECRET`; no OAuth server needed |
-| Two API keys (anon + service_role) | Public frontend key is safe to expose; service key is for internal M2M calls only |
-| RLS enforced at the database | PostgreSQL row-level security uses `auth.uid()` extracted from the request JWT — the app layer cannot bypass it |
-| Owner-id pattern in MongoDB | The API layer auto-injects `owner_id` from the JWT on write and enforces it on read/update/delete |
-| AES-256-GCM for stored credentials | Connection strings in the Adapter Registry are encrypted at rest with scrypt key derivation |
+| Decision                           | Reason                                                                                                          |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Single internal Docker network     | All services communicate by name, no exposed ports unless explicitly needed                                     |
+| One gateway for all HTTP traffic   | Kong is the only ingress; clients talk to Kong, never to upstream services directly                             |
+| DB-less Kong (declarative YAML)    | No database dependency for the gateway; config is rendered at container start from a template                   |
+| JWT shared secret                  | GoTrue issues JWTs; every service validates the same `JWT_SECRET`; no OAuth server needed                       |
+| Two API keys (anon + service_role) | Public frontend key is safe to expose; service key is for internal M2M calls only                               |
+| RLS enforced at the database       | PostgreSQL row-level security uses `auth.uid()` extracted from the request JWT — the app layer cannot bypass it |
+| Owner-id pattern in MongoDB        | The API layer auto-injects `owner_id` from the JWT on write and enforces it on read/update/delete               |
+| AES-256-GCM for stored credentials | Connection strings in the Adapter Registry are encrypted at rest with scrypt key derivation                     |
 
 ---
 
@@ -263,9 +263,9 @@ Response flows back through Kong → Client
 
 **Two levels of auth** are always enforced separately and independently:
 
-| Level | Mechanism | Validated by |
-|---|---|---|
-| Gateway access | `apikey` header | Kong key-auth plugin |
+| Level          | Mechanism                   | Validated by                                  |
+| -------------- | --------------------------- | --------------------------------------------- |
+| Gateway access | `apikey` header             | Kong key-auth plugin                          |
 | Data ownership | `Authorization: Bearer JWT` | Individual upstream services + PostgreSQL RLS |
 
 A request with a valid `apikey` but no JWT can reach public read endpoints (e.g., `GET /rest/v1/animals` with anon RLS policy). A request with an invalid JWT is always rejected by the upstream before hitting the database.
@@ -276,11 +276,11 @@ A request with a valid `apikey` but no JWT can reach public read endpoints (e.g.
 
 ### Kong — API Gateway
 
-| Property | Value |
-|---|---|
-| Port (host) | `${KONG_HTTP_PORT}` (default `8000`) |
-| Admin API | `127.0.0.1:8001` (local only) |
-| Mode | DB-less declarative (`kong.yml`) |
+| Property        | Value                                                 |
+| --------------- | ----------------------------------------------------- |
+| Port (host)     | `${KONG_HTTP_PORT}` (default `8000`)                  |
+| Admin API       | `127.0.0.1:8001` (local only)                         |
+| Mode            | DB-less declarative (`kong.yml`)                      |
 | Config rendered | At container start via `sed` substitution of env vars |
 
 Kong is the **only** entry point. Clients must never call upstream services directly. Kong enforces:
@@ -293,10 +293,10 @@ Kong is the **only** entry point. Clients must never call upstream services dire
 
 ### GoTrue — Authentication
 
-| Property | Value |
-|---|---|
-| Kong path | `/auth/v1` |
-| Upstream | `gotrue:9999` |
+| Property   | Value            |
+| ---------- | ---------------- |
+| Kong path  | `/auth/v1`       |
+| Upstream   | `gotrue:9999`    |
 | JWT expiry | 3 600 s (1 hour) |
 
 GoTrue (by Supabase) manages the full identity lifecycle: signup, login, JWT issuance, refresh, password recovery, email confirmation. It stores users in the `auth` schema on PostgreSQL.
@@ -305,51 +305,55 @@ The JWT payload includes `sub` (user UUID), `role` (anon / authenticated), and o
 
 ### PostgREST — PostgreSQL REST API
 
-| Property | Value |
-|---|---|
-| Kong path | `/rest/v1` |
-| Upstream | `postgrest:3000` |
-| Schema | `public` |
+| Property  | Value            |
+| --------- | ---------------- |
+| Kong path | `/rest/v1`       |
+| Upstream  | `postgrest:3000` |
+| Schema    | `public`         |
 
 PostgREST automatically generates a full REST API from the PostgreSQL `public` schema. It reads the JWT, sets `request.jwt.claims` as a PostgreSQL session variable, and lets row-level security policies evaluate `auth.uid()` to enforce data isolation. No code needed for CRUD — define your schema and RLS, and you get a REST API instantly.
 
 ### mongo-api — MongoDB REST API (custom service)
 
-| Property | Value |
-|---|---|
-| Kong path | `/mongo/v1` |
-| Upstream | `mongo-api:3010` |
-| Max body | 256 KB |
+| Property  | Value            |
+| --------- | ---------------- |
+| Kong path | `/mongo/v1`      |
+| Upstream  | `mongo-api:3010` |
+| Max body  | 256 KB           |
 
 A custom Node.js/Express service that provides a REST interface to MongoDB. It mirrors the PostgREST ownership pattern: on every write, `owner_id` is set to the JWT's `sub` claim server-side. On every read, update, and delete, the query is automatically scoped to `{ owner_id: req.user.id }`. Clients cannot read or modify another user's documents even if they know the document `_id`.
 
 **Response envelope** (always):
+
 ```json
 {
   "success": true,
-  "data": { },
+  "data": {},
   "error": null,
-  "meta": { "request_id": "uuid", "pagination": { "limit": 20, "offset": 0, "total": 100 } }
+  "meta": {
+    "request_id": "uuid",
+    "pagination": { "limit": 20, "offset": 0, "total": 100 }
+  }
 }
 ```
 
 ### realtime-agnostic — Realtime WebSocket
 
-| Property | Value |
-|---|---|
-| Kong path | `/realtime/v1` |
-| Upstream | `realtime:4000/v1` |
-| Supports | WebSocket upgrades |
+| Property  | Value              |
+| --------- | ------------------ |
+| Kong path | `/realtime/v1`     |
+| Upstream  | `realtime:4000/v1` |
+| Supports  | WebSocket upgrades |
 
 A custom Rust-based service (`dlesieur/realtime-agnostic`) that provides WebSocket subscriptions over PostgreSQL logical replication and MongoDB change streams. Clients subscribe using a valid JWT; the service enforces the same identity model as the rest of the stack.
 
 ### adapter-registry — External Database Credential Store
 
-| Property | Value |
-|---|---|
-| Kong path | `/admin/v1/databases` |
-| Upstream | `adapter-registry:3020` |
-| Internal-only path | via service token |
+| Property           | Value                   |
+| ------------------ | ----------------------- |
+| Kong path          | `/admin/v1/databases`   |
+| Upstream           | `adapter-registry:3020` |
+| Internal-only path | via service token       |
 
 Stores encrypted connection strings for external databases. Each record is scoped to a `tenant_id` (the user's JWT `sub`). Connection strings are encrypted with AES-256-GCM using a key derived from `VAULT_ENC_KEY` via scrypt — they are never returned to clients in plaintext. The adapter-registry uses PostgreSQL RLS (`tenant_databases`) to ensure users can only see their own registrations.
 
@@ -357,10 +361,10 @@ Supported engines: `postgresql`, `mongodb`, `mysql`, `redis`, `sqlite`.
 
 ### query-router — Universal Query Plane
 
-| Property | Value |
-|---|---|
-| Kong path | `/query/v1` |
-| Upstream | `query-router:4001` |
+| Property  | Value               |
+| --------- | ------------------- |
+| Kong path | `/query/v1`         |
+| Upstream  | `query-router:4001` |
 
 The query-router bridges authenticated clients to their externally registered databases. On every request:
 
@@ -372,44 +376,44 @@ The query-router bridges authenticated clients to their externally registered da
 
 ### email-service — Transactional Email
 
-| Property | Value |
-|---|---|
-| Kong path | `/email/v1` |
-| Upstream | `email-service:3030` |
-| SMTP | Configurable (Mailpit in dev, any SMTP in prod) |
+| Property  | Value                                           |
+| --------- | ----------------------------------------------- |
+| Kong path | `/email/v1`                                     |
+| Upstream  | `email-service:3030`                            |
+| SMTP      | Configurable (Mailpit in dev, any SMTP in prod) |
 
 JWT-protected email dispatch service. Validates the caller's identity before sending.
 
 ### storage-router — Presigned URL Generator
 
-| Property | Value |
-|---|---|
-| Kong path | `/storage/v1/sign` |
-| Upstream | `storage-router:3040` |
-| Profile | extras |
+| Property  | Value                 |
+| --------- | --------------------- |
+| Kong path | `/storage/v1/sign`    |
+| Upstream  | `storage-router:3040` |
+| Profile   | extras                |
 
 Generates time-limited S3 presigned URLs for MinIO. Validates the JWT, checks ownership, then returns a signed URL valid for `PRESIGN_EXPIRES_SECONDS` (default 1 hour). The client uses the URL to upload or download directly from MinIO without any proxy overhead.
 
 ### MinIO — Object Storage
 
-| Property | Value |
-|---|---|
-| Kong path | `/storage/v1` |
-| Upstream | `minio:9000` |
-| Console | `minio:9001` (extras) |
-| Profile | extras |
+| Property  | Value                 |
+| --------- | --------------------- |
+| Kong path | `/storage/v1`         |
+| Upstream  | `minio:9000`          |
+| Console   | `minio:9001` (extras) |
+| Profile   | extras                |
 
 S3-compatible object storage. All client requests to `/storage/v1` route through Kong key-auth. For presigned operations, use `storage-router` instead.
 
 ### PostgreSQL — Relational Database
 
-| Role | Details |
-|---|---|
-| Primary store | All application data |
-| Auth store | `auth` schema used by GoTrue |
+| Role           | Details                                       |
+| -------------- | --------------------------------------------- |
+| Primary store  | All application data                          |
+| Auth store     | `auth` schema used by GoTrue                  |
 | Registry store | `tenant_databases` table for adapter-registry |
-| Health check | `pg_isready` |
-| Bootstrap | `db-bootstrap` runs once on first start |
+| Health check   | `pg_isready`                                  |
+| Bootstrap      | `db-bootstrap` runs once on first start       |
 
 The `db-bootstrap` container runs `scripts/db-bootstrap.sql` on first startup. It creates required roles (`anon`, `authenticated`, `supabase_admin`), the `auth` schema, the `auth.uid()` helper function, the `realtime` database, and the seed tables (`users`, `posts`, `projects`, etc.).
 
@@ -419,61 +423,61 @@ Used by the realtime service for subscription state and message brokering. Also 
 
 ### analytics-service — Event Tracking
 
-| Property | Value |
-|---|---|
-| Kong path | `/analytics/v1` |
-| Upstream | `analytics-service:3070` |
-| Storage | MongoDB (TTL auto-cleanup) |
+| Property  | Value                      |
+| --------- | -------------------------- |
+| Kong path | `/analytics/v1`            |
+| Upstream  | `analytics-service:3070`   |
+| Storage   | MongoDB (TTL auto-cleanup) |
 
 Tracks arbitrary events with optional user attribution. Provides aggregation stats and distinct event type listing. Events auto-expire after `ANALYTICS_RETENTION_DAYS` (default 90).
 
 ### gdpr-service — Privacy & Compliance
 
-| Property | Value |
-|---|---|
-| Kong path | `/gdpr/v1` |
-| Upstream | `gdpr-service:3080` |
-| Storage | PostgreSQL (RLS-enforced) |
+| Property  | Value                     |
+| --------- | ------------------------- |
+| Kong path | `/gdpr/v1`                |
+| Upstream  | `gdpr-service:3080`       |
+| Storage   | PostgreSQL (RLS-enforced) |
 
 Manages user consent records, data deletion requests (with status machine), and data export. Uses webhooks (`GDPR_DELETION_WEBHOOK_URL`, `GDPR_EXPORT_WEBHOOK_URL`) so consuming apps handle domain-specific logic.
 
 ### newsletter-service — Email Subscriptions
 
-| Property | Value |
-|---|---|
-| Kong path | `/newsletter/v1` |
-| Upstream | `newsletter-service:3090` |
-| Storage | PostgreSQL |
+| Property  | Value                     |
+| --------- | ------------------------- |
+| Kong path | `/newsletter/v1`          |
+| Upstream  | `newsletter-service:3090` |
+| Storage   | PostgreSQL                |
 
 Double opt-in subscription management and batch campaign sending. Delegates email delivery to the existing `email-service` via internal HTTP.
 
 ### ai-service — LLM Conversation Engine
 
-| Property | Value |
-|---|---|
-| Kong path | `/ai/v1` |
-| Upstream | `ai-service:3100` |
-| Storage | MongoDB (conversations with TTL) |
+| Property  | Value                            |
+| --------- | -------------------------------- |
+| Kong path | `/ai/v1`                         |
+| Upstream  | `ai-service:3100`                |
+| Storage   | MongoDB (conversations with TTL) |
 
 Multi-turn chat with any OpenAI-compatible LLM (Groq, OpenAI, Ollama). **No hardcoded prompts** — consuming apps register prompt "modes" via admin API and inject domain context per-request.
 
 ### log-service — Centralized Log Streaming
 
-| Property | Value |
-|---|---|
-| Kong path | `/logs/v1` |
-| Upstream | `log-service:3110` |
-| Storage | In-memory ring buffer |
+| Property  | Value                 |
+| --------- | --------------------- |
+| Kong path | `/logs/v1`            |
+| Upstream  | `log-service:3110`    |
+| Storage   | In-memory ring buffer |
 
 Accepts structured log ingestion from any service. Provides real-time SSE streaming for admin dashboards and queryable buffered logs.
 
 ### session-service — Session Lifecycle
 
-| Property | Value |
-|---|---|
-| Kong path | `/sessions/v1` |
-| Upstream | `session-service:3120` |
-| Storage | PostgreSQL (RLS-enforced) |
+| Property  | Value                     |
+| --------- | ------------------------- |
+| Kong path | `/sessions/v1`            |
+| Upstream  | `session-service:3120`    |
+| Storage   | PostgreSQL (RLS-enforced) |
 
 Token-based session management with create/validate/extend/revoke lifecycle. Admin endpoints for force-revocation, cleanup, and statistics.
 
@@ -562,6 +566,7 @@ DELETE /rest/v1/posts?id=eq.abc123
 ```
 
 Headers always required:
+
 ```
 apikey: <KONG_PUBLIC_API_KEY>
 Authorization: Bearer <JWT>     ← required for RLS to know the caller
@@ -583,6 +588,7 @@ Collection names must match `^[a-zA-Z0-9_-]{1,64}$`. Keys `_id` and `owner_id` a
 ### External databases via query-router
 
 Register a database first:
+
 ```
 POST /admin/v1/databases
 { "engine": "postgresql", "name": "my-analytics", "connection_string": "postgres://..." }
@@ -590,6 +596,7 @@ POST /admin/v1/databases
 ```
 
 Then query it:
+
 ```
 POST /query/v1/{dbId}/tables/{tableName}
 { "filter": { "status": "active" }, "sort": "created_at:desc", "limit": 20, "offset": 0 }
@@ -645,6 +652,7 @@ graph LR
 ```
 
 Every custom service (mongo-api, adapter-registry, query-router, email-service, storage-router) exposes:
+
 - **Structured JSON logs** via `pino` — level, service name, version, ISO timestamp, `X-Request-ID`
 - **Prometheus metrics** at `/metrics` via `prom-client`
 - **Health endpoints** at `/health/live` (liveness) and `/health/ready` (readiness)
@@ -663,13 +671,13 @@ docker compose --profile extras --profile observability up   ← combine any pro
 
 ### Core stack (no profile)
 
-| Service | Internal port | Host port |
-|---|---|---|
-| Kong proxy | 8000 | `8000` (or `KONG_HTTP_PORT`) |
-| Kong admin | 8001 | `127.0.0.1:8001` |
-| PostgreSQL | 5432 | `5432` (or `PG_PORT`) |
-| MongoDB | 27017 | `27017` (or `MONGO_PORT`) |
-| Redis | 6379 | `6379` (or `REDIS_PORT`) |
+| Service    | Internal port | Host port                    |
+| ---------- | ------------- | ---------------------------- |
+| Kong proxy | 8000          | `8000` (or `KONG_HTTP_PORT`) |
+| Kong admin | 8001          | `127.0.0.1:8001`             |
+| PostgreSQL | 5432          | `5432` (or `PG_PORT`)        |
+| MongoDB    | 27017         | `27017` (or `MONGO_PORT`)    |
+| Redis      | 6379          | `6379` (or `REDIS_PORT`)     |
 
 All other services are internal-only (no host port).
 
@@ -775,24 +783,24 @@ curl -s -X POST http://localhost:8000/mongo/v1/collections/notes/documents \
 
 Below are the critical variables. See `.env.example` for the complete list.
 
-| Variable | Required | Description |
-|---|---|---|
-| `JWT_SECRET` | **yes** | Shared HS256 secret — GoTrue issues tokens, all services verify them |
-| `VAULT_ENC_KEY` | **yes** | 32-char key for AES-256-GCM encryption of stored connection strings |
-| `ADAPTER_REGISTRY_SERVICE_TOKEN` | **yes** | Internal M2M bearer token: query-router → adapter-registry |
-| `KONG_PUBLIC_API_KEY` | **yes** | The `anon` consumer key (safe to put in frontend code) |
-| `KONG_SERVICE_API_KEY` | **yes** | The `service_role` consumer key (backend only) |
-| `POSTGRES_PASSWORD` | **yes** | PostgreSQL superuser password |
-| `MONGO_INITDB_ROOT_PASSWORD` | **yes** | MongoDB root password |
-| `KONG_HTTP_PORT` | no | Kong proxy host port (default `8000`) |
-| `KONG_ADMIN_PORT` | no | Kong admin host port (default `8001`) |
-| `PG_PORT` | no | PostgreSQL host port (default `5432`) |
-| `MONGO_PORT` | no | MongoDB host port (default `27017`) |
-| `REDIS_PORT` | no | Redis host port (default `6379`) |
-| `GOTRUE_MAILER_AUTOCONFIRM` | no | `true` in dev to skip email confirmation (default `true`) |
-| `LOG_LEVEL` | no | Log verbosity for custom services: `debug`/`info`/`warn`/`error` (default `info`) |
-| `KONG_CORS_ORIGIN_APP` | no | Allowed CORS origin for the app frontend |
-| `KONG_CORS_ORIGIN_PLAYGROUND` | no | Allowed CORS origin for the playground |
+| Variable                         | Required | Description                                                                       |
+| -------------------------------- | -------- | --------------------------------------------------------------------------------- |
+| `JWT_SECRET`                     | **yes**  | Shared HS256 secret — GoTrue issues tokens, all services verify them              |
+| `VAULT_ENC_KEY`                  | **yes**  | 32-char key for AES-256-GCM encryption of stored connection strings               |
+| `ADAPTER_REGISTRY_SERVICE_TOKEN` | **yes**  | Internal M2M bearer token: query-router → adapter-registry                        |
+| `KONG_PUBLIC_API_KEY`            | **yes**  | The `anon` consumer key (safe to put in frontend code)                            |
+| `KONG_SERVICE_API_KEY`           | **yes**  | The `service_role` consumer key (backend only)                                    |
+| `POSTGRES_PASSWORD`              | **yes**  | PostgreSQL superuser password                                                     |
+| `MONGO_INITDB_ROOT_PASSWORD`     | **yes**  | MongoDB root password                                                             |
+| `KONG_HTTP_PORT`                 | no       | Kong proxy host port (default `8000`)                                             |
+| `KONG_ADMIN_PORT`                | no       | Kong admin host port (default `8001`)                                             |
+| `PG_PORT`                        | no       | PostgreSQL host port (default `5432`)                                             |
+| `MONGO_PORT`                     | no       | MongoDB host port (default `27017`)                                               |
+| `REDIS_PORT`                     | no       | Redis host port (default `6379`)                                                  |
+| `GOTRUE_MAILER_AUTOCONFIRM`      | no       | `true` in dev to skip email confirmation (default `true`)                         |
+| `LOG_LEVEL`                      | no       | Log verbosity for custom services: `debug`/`info`/`warn`/`error` (default `info`) |
+| `KONG_CORS_ORIGIN_APP`           | no       | Allowed CORS origin for the app frontend                                          |
+| `KONG_CORS_ORIGIN_PLAYGROUND`    | no       | Allowed CORS origin for the playground                                            |
 
 Secrets must never be committed. Use `scripts/generate-env.sh` to generate a `.env` with safe random values for local dev.
 

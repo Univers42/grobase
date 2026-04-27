@@ -1,21 +1,34 @@
-# DOSSIER DE PROJET
+# DOSSIER DE PROJET - Développeur web et web mobile
 
-## Développeur web et web mobile
+## Remerciements
 
-## LESIEUR DYLAN
+Je remercie les formateurs, encadrants et personnes qui ont accompagné la réalisation de ce projet, que ce soit par leurs retours, leurs conseils techniques ou leur suivi méthodologique. Leur accompagnement m'a aidé à structurer le dossier, à prendre du recul sur les choix réalisés et à relier les développements aux compétences attendues du titre professionnel.
 
-## TABLE DES MATIÈRES
+Je remercie également les membres de l'équipe projet pour les échanges autour de l'expérience utilisateur, des besoins métier et des choix d'architecture. Ces discussions ont permis d'améliorer la cohérence de Prismatica et de mieux articuler la partie front-end, la partie back-end et les enjeux de sécurité.
 
-1. [DOSSIER DE PROJET](#dossier-de-projet)
-2. [TABLE DES MATIÈRES](#table-des-matières)
-3. [CHAPITRE 1. Synthèse des compétences mobilisées]
-4. [CHAPITRE 2. Présentation du projet]
-5. [CHAPITRE 3. Les réalisations personnelles, front-end (React / SCSS)]
-6. [CHAPITRE 4. Les réalisations personnelles, back-end (Node.js / Express / MongoDB / POSTGRESQL)]
-7. [CHAPITRE 5. Eléments de sécurité de l'application]
-8. [CHAPITRE 6. Jeu d'essai]
-9. [CHAPITRE 8. Conclusion]
-10. [Annexes]
+Enfin, je remercie les personnes qui prendront le temps d'étudier ce dossier. Il présente un projet ambitieux, pensé non seulement comme une application, mais aussi comme une plateforme réutilisable capable de soutenir plusieurs usages professionnels autour de la donnée.
+
+<div class="page-break"></div>
+
+## Résumé
+
+Prismatica est une application web destinée aux organisations qui souhaitent mieux structurer, visualiser et exploiter leurs données. Le projet répond à un besoin fréquent : les informations métier sont souvent dispersées dans des fichiers, des exports, des bases SQL, des documents ou des outils internes qui communiquent peu entre eux. Cette fragmentation ralentit les équipes et limite la production de tableaux de bord fiables.
+
+La solution proposée combine une interface de gestion de données, un système de dashboards et une infrastructure back-end réutilisable de type BaaS. L'utilisateur peut créer des collections, définir des champs, organiser des vues, composer des indicateurs et publier certaines interfaces. Le back-end apporte l'authentification, les permissions, le routage API, l'accès contrôlé aux bases, le stockage, le temps réel et l'observabilité.
+
+Mon travail a porté principalement sur l'architecture technique, la conteneurisation, la sécurité applicative, l'intégration des services et la structuration d'un socle capable d'évoluer vers plusieurs cas d'usage. Le projet démontre ainsi une approche complète : concevoir une application utile aux utilisateurs métier, tout en construisant une base technique robuste, sécurisée et industrialisable.
+
+<div class="page-break"></div>
+
+## Introduction
+
+Les entreprises produisent et manipulent de plus en plus de données, mais ces données restent souvent difficiles à exploiter. Elles sont dispersées, peu structurées ou dépendantes d'outils qui ne correspondent pas toujours aux usages réels des équipes. Cette situation crée un écart entre la donnée disponible et la capacité des utilisateurs métier à la transformer en décisions, en tableaux de bord ou en interfaces opérationnelles.
+
+Prismatica est né de ce constat. L'objectif est de proposer une application web permettant de créer des collections, de configurer des vues, de composer des dashboards et de publier certaines interfaces sans reconstruire un back-end spécifique à chaque besoin. Le projet s'inscrit donc à la fois dans une logique produit, orientée expérience utilisateur, et dans une logique d'infrastructure, orientée sécurité, modularité et réutilisation.
+
+Ce dossier présente les choix réalisés pour concevoir cette solution : l'organisation fonctionnelle de l'application, les interfaces front-end, l'architecture back-end, les mécanismes de sécurité, les jeux d'essai et les limites identifiées. Il met en évidence la manière dont Prismatica cherche à rendre la donnée plus accessible aux utilisateurs, tout en conservant un socle technique maîtrisé et professionnel.
+
+<div class="page-break"></div>
 
 ## CHAPITRE 1. Synthèse des compétences mobilisées
 
@@ -35,11 +48,6 @@ Mon travail s'est réparti entre la conception d'interfaces utilisateur, la mise
 
 BaaS signifie **Backend as a Service**. Il s'agit d'une infrastructure back-end préconfigurée qui fournit des briques communes : authentification, stockage, API, permissions, temps réel, fichiers, emails et observabilité. Dans Prismatica, cette approche permet de concentrer l'effort produit sur la gestion des données et l'expérience utilisateur, tout en s'appuyant sur une plateforme technique réutilisable. J'ai structuré le back-end comme une **usine à backends génériques**, capable de fournir des services standardisés sans recoder une API métier complète pour chaque nouveau projet.
 
-| Membre | Rôle principal | Responsabilités observées / déduites |
-| ------ | -------------- | ------------------------------------ |
-
-| dlesieur | Product Owner / Tech Lead / DevOps / Back-End Lead | Conception de l'architecture, intégration Docker, orchestration des services, sécurité, écriture des services NestJS, outillage d'exploitation, documentation technique |
-
 **Modélisation de la base de données** J'ai conçu le schéma de la base de données relationnelle **PostgreSQL** pour stocker les données de l'application, en veillant à la normalisation et à l'optimisation des requêtes. J'ai également utilisé **MongoDB** pour certaines fonctionnalités nécessitant une flexibilité accrue dans la gestion des données. La modélisation a permis de structurer les données de manière efficace, facilitant ainsi les opérations de lecture et d'écriture en définissant des relations claires entre les différentes entités de l'application et les contraintes d'intégrité.
 
 **Élaboration des composants d'accès aux données** : j'ai développé des composants permettant d'interagir avec les bases de données à travers des services contrôlés. La gateway `Kong` centralise les accès publics, tandis que les services internes appliquent les permissions et routent les requêtes vers PostgreSQL, MongoDB ou les adapters nécessaires. Des mécanismes de cache et de supervision ont également été intégrés pour améliorer la performance et la fiabilité. Le moteur `Trino` est réservé aux usages analytiques et aux requêtes fédérées, afin de ne pas alourdir le chemin critique des opérations CRUD.
@@ -48,9 +56,13 @@ BaaS signifie **Backend as a Service**. Il s'agit d'une infrastructure back-end 
 
 ### Présentation de l'entreprise
 
-Le projet **Prismatica** s'inscrit dans le contexte de **NovaSphere**, une société de conseil composée de développeurs et de designers qui accompagne des clients aux besoins métiers variés : logistique, marketing, restauration, services, opérations internes ou suivi commercial. Ces organisations partagent une difficulté commune : leurs données sont dispersées entre des tableurs, des outils propriétaires, des applications vieillissantes ou des bases de données sans interface réellement exploitable par les équipes métier.
+Le projet **Prismatica** s'inscrit d'abord dans un contexte d'apprentissage et de collaboration entre étudiants de l'école **42**. À l'origine, un groupe d'étudiants s'est réuni autour du projet **Transcendance**, un projet ouvert qui pousse à concevoir une application web complète, avec authentification, temps réel, interfaces utilisateur, base de données et déploiement. Ce cadre nous a amenés à réfléchir au-delà du besoin immédiat : comment construire plus vite des interfaces fiables lorsque les données, les droits et les tableaux de bord deviennent complexes ?
 
-NovaSphere construisait jusqu'ici des tableaux de bord et des interfaces spécifiques pour chaque client. Cette approche devenait coûteuse, difficile à maintenir et peu scalable. L'objectif de Prismatica est donc de créer une plateforme générique permettant de transformer des données brutes en espaces de travail visuels, dashboards, vues métiers et interfaces web réutilisables.
+Cette réflexion a fait apparaître un problème qui existait déjà dans de nombreux contextes : les données métier sont souvent dispersées entre des tableurs, des exports, des bases SQL, des documents, des outils internes ou des applications vieillissantes. Il existe déjà des solutions reconnues pour gérer, visualiser ou centraliser ces informations. L'objectif n'était donc pas de prétendre inventer un besoin nouveau, mais de créer notre propre solution, à notre manière, en combinant gestion de données, dashboarding, permissions et infrastructure back-end réutilisable.
+
+Prismatica est né de cette volonté : transformer une problématique rencontrée pendant un projet étudiant en une plateforme plus générique. Le projet vise à permettre à une équipe de structurer ses données, créer des vues, composer des dashboards et publier certaines interfaces, sans devoir reconstruire une API complète pour chaque nouveau cas d'usage.
+
+Pour garder un dossier lisible, le contenu est organisé par grands blocs : une partie front-end centrée sur l'expérience utilisateur, une partie back-end centrée sur le socle BaaS, puis une partie plus transversale pour le cahier des charges, l'infrastructure, la sécurité, les choix d'architecture et les limites. Quand une explication peut être remplacée par un schéma, le dossier privilégie le diagramme afin d'économiser du texte et de rendre la lecture plus rapide pour le jury.
 
 Dans ce projet, mon rôle a été de concevoir une solution capable de répondre à deux enjeux complémentaires :
 
@@ -117,20 +129,6 @@ Ce découpage évite que la logique de sécurité soit placée côté client. Il
 #### Architectures logicielles et choix techniques
 
 L'architecture applicative repose sur une séparation claire entre l'expérience utilisateur, l'API publique, les services privés et les plans de données. Cette organisation permet de garder une interface simple côté utilisateur tout en conservant une plateforme robuste côté infrastructure.
-
-Le parcours général est le suivant :
-
-```mermaid
-flowchart LR
-  U[Utilisateur Prismatica] --> F[Interface web]
-  F --> S[SDK / API publique]
-  S --> K[Kong Gateway]
-  K --> A[Services applicatifs privés]
-  A --> P[(PostgreSQL)]
-  A --> M[(MongoDB)]
-  A --> R[(Redis)]
-  A --> O[(Stockage objet)]
-```
 
 Les choix techniques principaux sont :
 
@@ -245,117 +243,76 @@ mindmap
       admins((Administrateurs plateforme))
 ```
 
+> [!info] Légende
+> Cette carte regroupe la cible en trois niveaux : types d'organisations, secteurs d'activité et profils qui utiliseront ou administreront Prismatica.
+
 #### Scénarios d'utilisation
 
-Les scénarios suivants illustrent l'usage attendu de Prismatica dans un contexte professionnel. Ils montrent que l'application peut servir à la fois d'outil interne de gestion, d'interface de dashboarding et de couche de publication vers l'extérieur.
+Les scénarios se résument à une tendance d'usage : Prismatica part d'une donnée métier, la transforme en interface exploitable, puis la partage sous contrôle selon le profil utilisateur.
 
 ```mermaid
-flowchart TB
-  Start([Besoin métier<br/>Structurer, visualiser et partager des données])
-  Core{{Prismatica<br/>Plateforme de données polymorphe}}
-
-  Start --> Core
-
-  subgraph P1[Utilisateur métier]
-    direction TB
-    U1[Créer un projet]
-    U2[Définir des collections<br/>et champs typés]
-    U3[Importer CSV / JSON]
-    U4[Modifier les données<br/>dans une vue tableau]
-    U5[Construire une interface<br/>de travail]
-    U1 --> U2 --> U3 --> U4 --> U5
-  end
-
-  subgraph P2[Manager / responsable d'équipe]
-    direction TB
-    M1[Composer un dashboard]
-    M2[Ajouter KPI et graphiques]
-    M3[Partager une vue officielle]
-    M4[Former les collègues]
-    M5[Ajuster les permissions<br/>par équipe]
-    M1 --> M2 --> M3 --> M4 --> M5
-  end
-
-  subgraph P3[Intégrateur web]
-    direction TB
-    I1[Générer un widget]
-    I2[Définir les domaines<br/>autorisés]
-    I3[Intégrer dans une page web]
-    I4[Tester le rendu public<br/>en lecture seule]
-    I5[Révoquer l'accès<br/>si nécessaire]
-    I1 --> I2 --> I3 --> I4 --> I5
-  end
-
-  subgraph P4[Administrateur plateforme]
-    direction TB
-    A1[Définir rôles<br/>et politiques ABAC]
-    A2[Contrôler les accès<br/>sensibles]
-    A3[Surveiller adapters<br/>et logs]
-    A4[Gérer exports et<br/>suppressions RGPD]
-    A5[Auditer les actions<br/>critiques]
-    A1 --> A2 --> A3 --> A4 --> A5
-  end
-
-  Core --> P1
-  Core --> P2
-  Core --> P3
-  Core --> P4
-
-  P1 --> Result([Données structurées<br/>et exploitables])
-  P2 --> Result
-  P3 --> Result
-  P4 --> Result
+quadrantChart
+  title Tendances usage Prismatica
+  x-axis Interne --> Publication externe
+  y-axis Structure simple --> Gouvernance forte
+  quadrant-1 Publier sous controle
+  quadrant-2 Industrialiser les regles
+  quadrant-3 Structurer la donnee
+  quadrant-4 Piloter activite
+  Marketing intranet: [0.72, 0.68]
+  Restaurant calendrier public: [0.86, 0.42]
+  Logistique kanban KPI: [0.48, 0.78]
+  Commerce vue filtree: [0.58, 0.62]
+  Admin ABAC audit: [0.24, 0.90]
 ```
 
-Exemples concrets d'utilisation :
+> [!info] Légende
+> L'axe horizontal va de l'usage interne vers la publication externe. L'axe vertical va d'une simple structuration de données vers une gouvernance forte.
 
-- une équipe marketing crée un dashboard officiel de suivi de campagne et l'intègre dans son intranet ;
-- un restaurant publie un calendrier de disponibilité en lecture seule sur son site ;
-- une équipe logistique suit ses interventions dans une vue kanban et un tableau de bord de performance ;
-- un responsable commercial importe un fichier client, crée des indicateurs et partage une vue filtrée à son équipe ;
-- un administrateur définit des règles ABAC pour que chaque collaborateur voie uniquement les données de son périmètre.
+Ainsi, les cas marketing, restauration, logistique, commerce ou administration utilisent les mêmes briques : projet, collection, vue, dashboard, partage sécurisé et gouvernance.
 
 ### Fonctionnalités attendues
 
-#### clients
+Le périmètre fonctionnel est volontairement présenté par rôle afin de distinguer création, administration et accès public.
 
-Les utilisateurs authentifiés doivent pouvoir :
+```mermaid
+flowchart LR
+  subgraph C[Clients authentifiés]
+    C1[Projets et collections]
+    C2[Champs typés]
+    C3[Import / export CSV-JSON]
+    C4[Vues: table, KPI, chart, calendrier, kanban]
+    C5[Dashboards drag-and-drop]
+    C6[Partage, widgets et adapters]
+    C7[Sessions et demandes RGPD]
+  end
 
-- créer et gérer des projets ;
-- créer des collections représentant des tables ou ensembles de données ;
-- définir des champs typés : texte, nombre, date, booléen, sélection, relation, fichier ou champ calculé ;
-- importer et exporter des données au format CSV ou JSON ;
-- créer des vues polymorphes : tableau, graphique, KPI, calendrier, kanban ;
-- composer des dashboards par glisser-déposer ;
-- partager un dashboard en lecture seule ;
-- intégrer une vue dans une page web via un widget sécurisé ;
-- configurer des adapters d'entrée ou de sortie ;
-- gérer leurs sessions et demander l'export ou la suppression de leurs données.
+  subgraph A[Administrateurs]
+    A1[Comptes, rôles, groupes]
+    A2[Attributs et politiques ABAC]
+    A3[Métriques, logs et audit]
+    A4[Adapters, endpoints publics, webhooks]
+    A5[Révocation des accès publics]
+    A6[Limites, formats, emails]
+    A7[Export, suppression, anonymisation]
+  end
 
-#### administrateurs
+  subgraph V[Visiteurs non authentifiés]
+    V1[Dashboard public lecture seule]
+    V2[Widget intégré]
+    V3[Formulaire public]
+    V4[Page de contact]
+    V5[Ressources explicitement publiées]
+  end
 
-Les administrateurs doivent pouvoir :
+  C --> S{{Prismatica sécurise<br/>données, vues et publications}}
+  A --> S
+  V --> S
+  S --> R[Interdiction côté public:<br/>modifier schéma, données ou permissions]
+```
 
-- gérer les comptes utilisateurs et employés ;
-- définir les rôles, groupes, attributs et politiques d'accès ;
-- configurer les règles ABAC selon le projet, l'équipe, la ressource ou l'action ;
-- consulter les métriques d'usage de la plateforme ;
-- superviser les adapters, endpoints publics, webhooks et erreurs ;
-- désactiver ou révoquer un accès public ;
-- gérer les paramètres globaux : limites, formats autorisés, modèles d'email ;
-- réaliser les actions RGPD : export, suppression, anonymisation ou audit.
-
-#### users non authentifiés
-
-Les visiteurs non authentifiés peuvent :
-
-- consulter un dashboard public en lecture seule ;
-- visualiser un widget intégré dans un site externe ;
-- remplir un formulaire public généré depuis une collection ;
-- utiliser la page de contact ;
-- accéder uniquement aux ressources explicitement publiées.
-
-Aucune modification de schéma, de donnée ou de permission ne doit être possible depuis un accès public.
+> [!info] Légende
+> Le schéma distingue les capacités par rôle. Les clients créent et publient, les administrateurs gouvernent, et les visiteurs publics restent strictement en lecture ou saisie contrôlée.
 
 #### MVP
 
@@ -475,58 +432,80 @@ mais aussi kanban avec lequel nous avons mis en place un tableau de tâches visu
 
 ##### gestion du code et contrôle de qualité
 
-- J'ai utilisé l'outil Git avec un dépôt hébergé sur GitHub, ce qui a permis d'assurer un suivi précis de toutes les modifications apportées au projet.
-- Nous avons adopté un workflow standard (gitflow) pour la production, incluant une branch principale `main` pour le code stable en production, incluant une branche de développement (develop) pour l'intégration de nouvelles fonctionnalités (feat/, bugfix/, hotfix/, migrate/, etc.) pour le développement et des branches de release pour la préparation des déploiements en production.
-- J'ai systématiquement veillé à la rédaction des commits clairs et descriptifs, en utilisant les `hook` de pré-commit pour assurer la qualité du code avant chaque commit, notamment en exécutant des tests unitaires et en vérifiant le respect des normes de codage. Cela m'a assuré d'accroitre la lisibilité de l'historique des modifications et de faciliter la collaboration avec les autres membres de l'équipe. (cela fonctionne avec un regexp)
-- dans tous les containers nous sommes stricts. Nous avons mis en place des règles de linting et de formatage pour garantir la cohérence du code, ainsi que des tests unitaires pour assurer la fiabilité et la maintenabilité du code à long terme. Nous avons également utilisé des outils d'intégration continue pour automatiser les tests et les vérifications de qualité à chaque commit, assurant ainsi une livraison continue de code de haute qualité. Des outils comme `ESLint` pour le linting et `Prettier` pour le formatage ont été intégrés dans notre workflow de développement, garantissant que le code respecte les normes de style et de qualité définies par l'équipe. mais aussi des outils comme `sonarcloud` pour l'analyse de la qualité du code et la détection de vulnérabilités potentielles, assurant ainsi une sécurité renforcée et une maintenabilité à long terme du projet.
-- les fonctionnalités cirtique (connexion sécurisée, mise à jour du statut d'intervention validation du rapport) ont été vérifiées par des scénarios de test manuels détaillés, afin de garantir la stabilité fonctionnelle de l'application avant son déploiement en recette.
+La qualité du code a été organisée comme une responsabilité partagée entre les Tech Leads et les développeurs. L'objectif était d'éviter d'avancer trop loin avec du code fragile, difficile à relire ou non sécurisé, car cela aurait créé de la dette technique sur un projet déjà large.
+
+Le dépôt GitHub a servi de point central pour tracer les modifications. Nous avons suivi une logique proche de **Gitflow** : `main` pour le code stable, `develop` pour l'intégration, des branches `feat/`, `bugfix/`, `hotfix/` ou `migrate/` pour les travaux ciblés, puis des branches de release lorsque le code devait être stabilisé.
+
+Les Tech Leads ont mis en place des garde-fous avant intégration : conventions de commits, hooks de pré-commit, linting, formatage, revues techniques et vérifications de sécurité. Cette organisation permettait de détecter tôt les erreurs de structure, les incohérences de style, les dépendances problématiques ou les régressions fonctionnelles.
+
+> [!tip] À retenir
+> L'objectif de cette chaîne qualité n'est pas de ralentir le développement, mais d'empêcher l'accumulation de dette technique et d'intégrer la sécurité dès la conception.
+
+```mermaid
+flowchart LR
+  Dev[Développement en branche] --> Hook[Hooks pre-commit]
+  Hook --> Lint[ESLint / Prettier]
+  Lint --> Tests[Tests auto + smoke tests]
+  Tests --> Review[Review technique Tech Lead]
+  Review --> Sonar[SonarQube / SonarCloud]
+  Sonar --> Merge[Merge develop / release]
+  Merge --> Docker[Validation full Docker]
+```
+
+> [!info] Légende
+> Chaque étape agit comme un filtre : le code passe par les hooks, le lint, les tests, la revue Tech Lead, l'analyse Sonar et la validation Docker avant stabilisation.
+
+Les contrôles utilisés combinent plusieurs niveaux :
+
+- **qualité de code** : `ESLint`, `Prettier`, conventions de nommage et règles de structure ;
+- **historique Git** : commits explicites, branches dédiées et revue avant intégration ;
+- **tests automatisés** : tests unitaires, scripts de validation et smoke tests des services ;
+- **tests manuels** : scénarios de recette sur les fonctions critiques comme l'authentification, les permissions, les exports ou les mises à jour sensibles ;
+- **analyse continue** : SonarQube / SonarCloud pour repérer dette technique, mauvaises pratiques et vulnérabilités potentielles ;
+- **sécurité par design** : validation serveur, secrets hors du code, droits minimaux, audit et séparation des environnements.
+
+Cette chaîne de contrôle n'avait pas pour but de ralentir l'équipe, mais de maintenir un niveau de qualité constant. Elle permettait aux Tech Leads de corriger les dérives tôt, avant qu'elles ne deviennent coûteuses à reprendre.
 
 ##### Environnements
 
-Pour garantir la qualité et la progresssion du développement, l'application a été développée et testée dans différents environnements:
+Le projet a été pensé pour fonctionner dans un environnement **full Docker**. Chaque application ou service possède son conteneur, ses variables d'environnement, ses healthchecks et ses dépendances isolées. Cette approche facilite l'arrivée d'un collègue sur le projet : il n'a pas besoin d'installer manuellement toutes les versions de Node.js, pnpm, PostgreSQL, MongoDB ou Redis. La dépendance locale principale reste Docker.
 
-- \*_Environnement de développement_: utilisé pour le développement quotidien, avec des outils de débogage et de test intégrés pour faciliter le processus de développement.
-- **Environnement de test**:
-  - Version intermédiaire déployée sur un serveur de test dédié, utilisant des données anonymisées.
-  - Cet environnement a servi à la validation des fonctionnalités avec le Lead Technique et le Client avant tout déploiement en production.
-  - C'est le lieu où la revue de Sprint a été effectuée
+| Environnement       | Usage principal                                   | Contrôles associés                                                   |
+| ------------------- | ------------------------------------------------- | -------------------------------------------------------------------- |
+| Développement local | Coder, déboguer et lancer les services rapidement | Docker Compose, hot reload, logs, lint, tests ciblés                 |
+| Test / recette      | Valider les fonctionnalités avant stabilisation   | Données anonymisées, smoke tests, recette manuelle, revue de sprint  |
+| Production cible    | Préparer un déploiement stable et surveillable    | Secrets séparés, healthchecks, limites, logs, métriques, sauvegardes |
 
-##### Organisation du travail et rituels de projets
+La conteneurisation réduit les problèmes de dépendances entre postes et rend les validations plus fiables. Le même service peut être lancé, testé et supervisé de manière reproductible par plusieurs membres de l'équipe.
 
-Pour garantir la sécurité des accès et la confidentialité des informations critiques dans chaque environnement, j'ai appliqué la stratégie suivante:
+##### Sécurité et dette technique
 
-- **Gestion des secrets**: J'ai utilisé des outils de gestion des secrets tels que `Vault` pour stocker et gérer les informations sensibles, assurant ainsi une protection robuste contre les accès non autorisés.
-- **Contrôle d'accès**: J'ai mis en place des politiques de contrôle d'accès strictes, en utilisant des rôles et des permissions pour limiter l'accès aux données sensibles uniquement aux utilisateurs autorisés, garantissant ainsi la confidentialité et la sécurité des informations critiques.
-- Chaque environnement (développement local, recette, production) possède sa propre version du fichier, adaptée à ses besoins de configuration spécifiques.
-- le back-end Node.js accède à ses configurations uniquement via les variables d'environnement, assurant la séparation du code et des secrets.
+La sécurité a été intégrée dès la conception plutôt qu'ajoutée en fin de projet. Les Tech Leads ont porté une attention particulière aux secrets, aux accès et aux validations côté serveur.
 
-##### Configuration et gestion des secreets
+Les mesures principales sont :
 
-Protection maximal via `bcrypt` pour le hachage des mots de passe, `JWT` pour la gestion des sessions et des tokens d'authentification, et `Vault` pour la gestion centralisée des secrets, assurant ainsi une sécurité renforcée pour les données sensibles de l'application.
+- secrets séparés du code et injectés par variables d'environnement ou Vault ;
+- hachage des mots de passe avec `bcrypt` et gestion des sessions par `JWT` ;
+- contrôle d'accès par rôles, permissions et politiques serveur ;
+- traçabilité des actions sensibles : connexions, modifications, exports ou suppressions ;
+- vérification des dépendances et mauvaises pratiques via les outils d'analyse ;
+- conformité progressive aux exigences RGAA : sémantique, contrastes et navigation clavier.
 
-Mise en place d'une traçabilité des actions sensibles (connexions, modifications de statut) pour les besoins d'audit
-
-Conformité aux exigences RGAA (sémantique, constrastes, navigation clavier) pour une utilisation incusive sur les terminaux mobiles.
-
-Optimisation du temps de réponse par la pagination de l'API et l'ajout d'index SQL sur les tables fréquemment consultées, assurant ainsi une expérience utilisateur rapide et fluide même avec de grandes quantités de données.
-
-Validation systématique par des scénarios de recette manuels sur les fonctionnalités clés (front et back-end) pour garantir la stabilité fonctionnelle du système.
+Cette démarche permet de limiter la dette technique. Chaque ajout fonctionnel doit rester lisible, testable, conteneurisé et compatible avec les règles de sécurité du projet.
 
 ##### Outillage et données de test
 
-- Jeu de données: Établissement d'un jeu de d'essai complet et cohérent pour tester les différentes fonctionnalités de l'application, en utilisant des données anonymisées pour garantir la confidentialité et la sécurité des informations sensibles.
-- Sécurité et initialisation de l'environnement de test: script SQL versionnés pour l'installation rapide et sécurisée de l'environnement de test.
-- Transferabilité: Capacité d'extension des données (formats CSV/JSON) pour faciliter les audits et les migrations entre environnements.
+L'outillage de test a complété les contrôles de qualité. Les jeux de données ont été anonymisés lorsque nécessaire, les scripts SQL ont permis d'initialiser rapidement les environnements, et les formats CSV/JSON ont facilité les imports, exports et vérifications.
+
+- jeux d'essai cohérents pour tester les parcours principaux ;
+- scripts de seed ou d'initialisation pour reproduire un état de test ;
+- smoke tests pour vérifier rapidement que les services essentiels répondent ;
+- tests de recette manuels sur les parcours critiques front-end et back-end ;
+- pagination, index SQL et limites d'API pour garder des temps de réponse acceptables.
 
 ### Objectifs de qualité
 
-```mermaid
-graph TD
-    A[Code source] --> B[intégration et test]
-    B--> C[Environnement de recette]
-    C --> D[déploiement en production]
-    D --> E[Supervision & sauvegardes]
-```
+Les objectifs de qualité reposent sur une chaîne courte : produire un code lisible, le vérifier tôt, le tester dans Docker, le relire techniquement, puis seulement ensuite le stabiliser pour la recette ou la production.
 
 ## CHAPITRE 3. Les réalisations personnelles, front-end (React / SCSS)
 
@@ -562,11 +541,18 @@ graph TD
 
 #### a. Comprendre le rôle du BaaS dans Prismatica
 
-Le back-end de Prismatica n'a pas été conçu comme une simple API métier contenant quelques routes spécifiques. Il a été pensé comme une plateforme **BaaS**, c'est-à-dire un **Backend as a Service** auto-hébergé. Le principe est de fournir à l'application des briques back-end déjà prêtes : authentification, gateway, base relationnelle, base documentaire, permissions, stockage de fichiers, temps réel, logs, métriques, services d'arrière-plan et génération de schémas.
+Le back-end de Prismatica n'a pas été conçu comme une simple API métier contenant quelques routes spécifiques. Il a été pensé comme une plateforme **BaaS**, c'est-à-dire un **Backend as a Service** auto-hébergé. Le principe est de fournir à l'application des briques back-end déjà prêtes : authentification, gateway, base relationnelle, base documentaire, moteur SQL fédéré, permissions, stockage de fichiers, temps réel, logs, métriques, services d'arrière-plan, administration de schéma et observabilité.
 
 Cette approche correspond bien au besoin de Prismatica. L'application doit permettre à des équipes métier de créer des collections, des vues, des dashboards et des interfaces sans redévelopper un serveur à chaque nouveau cas d'usage. Le BaaS sert donc de socle technique commun : il reçoit les demandes du front-end, vérifie l'identité et les droits, choisit le bon service interne, interroge la bonne base de données et renvoie une réponse normalisée.
 
 Dans cette architecture, le client ne pilote jamais directement la sécurité ni la base de données. Le navigateur, l'interface React ou le SDK JavaScript expriment une intention : lire une collection, créer une ressource, publier un dashboard, générer une URL de fichier ou lancer une requête. Le back-end reste l'autorité : il valide les entrées, applique les permissions et exécute l'action dans le service approprié.
+
+> [!warning] Point de vigilance
+> Le navigateur n'accède jamais directement à PostgreSQL, MongoDB, Trino ou MinIO. Toute action passe par le SDK, la gateway et les services privés.
+
+Le point important est la séparation en couches. Les schémas de référence du projet représentent cette idée : une couche d'entrée HTTP, une couche d'orchestration, puis plusieurs plans de données isolés. `Kong` n'est pas un moteur de base de données. Il ne connaît ni les tables, ni les collections, ni les catalogues Trino. Son rôle est de recevoir les requêtes HTTP, choisir la route, appliquer les contrôles transverses et transmettre la requête au bon service privé.
+
+`Trino`, lui, intervient plus bas dans l'architecture. C'est un moteur SQL fédéré : il reçoit du SQL ANSI depuis un service interne, puis utilise ses connecteurs pour interroger plusieurs sources comme PostgreSQL ou MongoDB. Il sert aux vues analytiques, aux dashboards et aux requêtes multi-sources. Il ne remplace pas PostgREST pour le CRUD transactionnel et il ne doit pas être exposé directement à Internet.
 
 ```mermaid
 flowchart TB
@@ -579,23 +565,33 @@ flowchart TB
 
   subgraph Edge[Entrée publique contrôlée]
     WAF[WAF Nginx<br/>ModSecurity + OWASP CRS]
-    Kong[Kong Gateway<br/>routage, JWT, API key, CORS]
+    Kong[Kong Gateway<br/>routes HTTP, JWT, API key,<br/>CORS, rate limit, no DB knowledge]
   end
 
-  subgraph BaaS[mini-BaaS privé]
+  subgraph BaaS[mini-BaaS privé - orchestration]
     Auth[GoTrue<br/>identité et JWT]
     Rest[PostgREST<br/>API SQL générique]
     Query[Query Router<br/>API SQL / NoSQL normalisée]
+    Perm[Permission Engine<br/>RBAC / ABAC]
+    Registry[Adapter Registry<br/>catalogue des bases]
+    Schema[Schema Service<br/>DDL contrôlé]
     Storage[Storage Router<br/>URLs présignées]
     Realtime[Realtime<br/>WebSocket / CDC]
-    Services[Services NestJS<br/>métier plateforme]
+    Services[Services NestJS<br/>analytics, RGPD, email, IA, sessions]
   end
 
-  subgraph Data[Plans de données]
+  subgraph Federation[Fédération SQL]
+    Trino[TrinoDB<br/>moteur SQL universel<br/>ANSI SQL vers connecteurs]
+  end
+
+  subgraph Data[Plans de données et support]
     PG[(PostgreSQL)]
     Mongo[(MongoDB)]
     Redis[(Redis)]
     MinIO[(MinIO / S3)]
+    Vault[(Vault secrets)]
+    Supavisor[(Supavisor pool)]
+    Obs[(Prometheus<br/>Grafana<br/>Loki)]
   end
 
   Web --> SDK
@@ -605,36 +601,146 @@ flowchart TB
   Kong --> Auth
   Kong --> Rest
   Kong --> Query
+  Kong --> Schema
   Kong --> Storage
   Kong --> Realtime
   Kong --> Services
   Auth --> PG
   Rest --> PG
+  Query --> Perm
+  Query --> Registry
+  Registry --> Vault
   Query --> PG
   Query --> Mongo
+  Query --> Trino
+  Trino --> PG
+  Trino --> Mongo
+  Rest --> Supavisor --> PG
   Query --> Redis
   Storage --> MinIO
   Realtime --> PG
   Services --> PG
   Services --> Mongo
+  Kong -. métriques .-> Obs
+  Query -. logs / métriques .-> Obs
 ```
 
+> [!info] Légende
+> Les requêtes entrent par le WAF et Kong, passent dans l'orchestration mini-BaaS, puis atteignent les plans de données. Trino reste dans la couche fédérée et n'est jamais exposé directement.
+
 Le diagramme montre que le BaaS agit comme une couche d'abstraction. Le front-end ne connaît pas l'emplacement réel des bases ni les détails des services internes. Il communique avec une API publique stable, puis la plateforme se charge de l'orchestration.
+
+Le chemin `Kong` vers `Trino` se fait donc indirectement. Une requête de dashboard arrive sur une route publique, par exemple une route d'analytics ou de requête fédérée. `Kong` vérifie la clé API, le JWT, le quota et le format HTTP, puis transmet au service interne. Le service interne vérifie les droits métier avec `permission-engine`, récupère dans `adapter-registry` les bases autorisées pour le tenant, construit une requête SQL sûre, puis l'envoie à `Trino`. `Trino` exécute la requête via ses connecteurs PostgreSQL, MongoDB ou autres sources, et le service renvoie une réponse normalisée au SDK.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant C as Client / SDK
+  participant K as Kong Gateway
+  participant Q as query-router ou analytics-service
+  participant P as permission-engine
+  participant A as adapter-registry
+  participant T as TrinoDB
+  participant PG as PostgreSQL
+  participant M as MongoDB
+
+  C->>K: HTTPS /analytics ou /query + apikey + JWT
+  K->>K: route HTTP, rate limit, JWT verify, CORS
+  K->>Q: Requête privée + identité validée
+  Q->>P: Peut-il lire ces ressources ?
+  P-->>Q: Décision RBAC / ABAC
+  Q->>A: Résolution tenant, moteur, catalogue
+  A-->>Q: Connexions logiques autorisées
+  Q->>T: SQL ANSI contrôlé
+  T->>PG: Connecteur PostgreSQL
+  T->>M: Connecteur MongoDB
+  PG-->>T: Lignes relationnelles
+  M-->>T: Documents projetés en tables
+  T-->>Q: Résultat fédéré
+  Q-->>K: Réponse normalisée
+  K-->>C: JSON + X-Request-ID
+```
+
+> [!info] Légende
+> Ce scénario montre que Kong ne parle pas directement à Trino. Il transmet la requête à un service privé, qui vérifie les droits, résout les sources autorisées, puis interroge Trino.
+
+Pour expliquer l'isolation des données, j'utilise trois modèles complémentaires :
+
+| Modèle | Principe                                                                          | Utilisation dans Prismatica                                                                                                  |
+| ------ | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Silo   | Une base, un schéma ou une collection est séparée par tenant ou par projet        | Isolation forte pour les clients sensibles et limitation des effets de bord                                                  |
+| Bridge | Une couche commune relie plusieurs moteurs avec une API unifiée                   | `query-router`, `adapter-registry` et `permission-engine` traduisent une intention produit vers PostgreSQL, MongoDB ou Trino |
+| Pool   | Plusieurs tenants partagent une infrastructure, avec séparation logique et quotas | `Kong` mutualise l'entrée HTTP, `Supavisor` mutualise les connexions PostgreSQL, `Redis` mutualise des caches à TTL court    |
+
+Le **silo** protège les données en les séparant physiquement ou logiquement. Le **bridge** évite que le front-end connaisse la technologie réelle utilisée derrière chaque ressource. Le **pool** améliore la performance et le coût d'exploitation, mais il impose des garde-fous : quotas, rate limiting, TTL, préfixes de clés, rôles et politiques d'accès.
+
+Dans l'idéal produit, Prismatica doit donc consommer mini-BaaS comme un produit externe et stable. L'application web ne devrait pas importer la logique interne des microservices ni connaître les conteneurs. Elle devrait utiliser principalement le SDK JavaScript, configuré avec l'URL publique de la plateforme et la clé publique prévue pour le client. Côté exploitation, le BaaS peut être livré sous forme d'images Docker et démarré avec Docker Compose ou un déploiement équivalent. Prismatica devient alors une application cliente de la plateforme, et non une application couplée au code interne du BaaS.
+
+Cette idée est cohérente, mais seulement si elle est formulée correctement. Le navigateur ne doit pas appeler directement PostgreSQL, MongoDB, Trino ou MinIO. La centralisation doit concerner l'**accès** aux données, pas forcément le stockage physique de toutes les données dans une seule base. Les bases restent spécialisées : PostgreSQL pour le relationnel et les permissions, MongoDB pour les documents et la configuration flexible, MinIO pour les fichiers, Trino pour les lectures fédérées analytiques. Le point central est le couple `SDK` + `Kong` + services privés, qui donne à la page web une seule API produit.
+
+> [!tip] À retenir
+> Prismatica doit centraliser l'accès aux données, pas forcer toutes les données dans une seule base. Chaque moteur garde son rôle, mais le front-end consomme une API unifiée.
+
+Pour l'application de dashboarding, MongoDB est un bon choix pour stocker la configuration dynamique : définition des dashboards, widgets, filtres, préférences d'affichage, sources déclarées, layouts et paramètres utilisateur. Ces objets sont très variables et correspondent bien à un modèle documentaire. En revanche, MongoDB ne doit pas être présenté comme l'unique source de toutes les données métier. Les widgets peuvent lire des données venant de PostgreSQL, MongoDB ou d'autres sources, mais ces lectures doivent passer par le query-router, les permissions, éventuellement Trino pour les requêtes fédérées, puis revenir sous forme de réponse normalisée.
+
+```mermaid
+flowchart TB
+  subgraph App[Application Prismatica]
+    UI[Page web dashboard]
+    SDK[SDK JavaScript mini-BaaS]
+  end
+
+  subgraph Product[mini-BaaS livré comme produit Docker]
+    Gateway[Kong Gateway<br/>API publique unique]
+    MongoApi[mongo-api<br/>configuration documentaire]
+    Query[query-router<br/>lecture normalisée]
+    Storage[storage-router<br/>URLs fichiers]
+    Perm[permission-engine]
+    DashCfg[MongoDB<br/>configuration dashboards]
+    Trino[TrinoDB<br/>requêtes analytiques fédérées]
+  end
+
+  subgraph Sources[Sources de données centralisées par l'accès]
+    PG[(PostgreSQL)]
+    Mongo[(MongoDB métier)]
+    Files[(MinIO fichiers)]
+    Other[(Autres bases via adapters)]
+  end
+
+  UI --> SDK --> Gateway
+  Gateway --> MongoApi
+  Gateway --> Query
+  Gateway --> Storage
+  MongoApi --> DashCfg
+  Query --> Perm
+  Query --> Trino
+  Query --> PG
+  Query --> Mongo
+  Storage --> Files
+  Trino --> PG
+  Trino --> Mongo
+  Trino --> Other
+```
+
+> [!info] Légende
+> La configuration des dashboards peut vivre dans MongoDB, tandis que les données affichées peuvent venir de PostgreSQL, MongoDB, MinIO ou d'autres bases via les adapters.
+
+Ce modèle permet de construire une page web qui agrège plusieurs bases de données sans exposer ces bases au client. La page demande un dashboard, le SDK appelle l'API publique, le BaaS charge la configuration dans MongoDB, vérifie les droits, interroge les sources nécessaires et renvoie des données prêtes à afficher. La faisabilité dépend donc de trois conditions : des connecteurs déclarés dans l'adapter-registry, des règles de permissions fiables, et une distinction claire entre configuration de dashboard, données transactionnelles et requêtes analytiques.
 
 #### b. Architecture générale de l'API
 
 L'architecture est organisée en plusieurs plans. Cette séparation évite de traiter tous les conteneurs comme s'ils étaient aussi critiques. Le cœur BaaS contient le chemin de requête indispensable : WAF, Kong, PostgreSQL, GoTrue, PostgREST, Realtime et Redis. Les services plus spécialisés sont activés selon les besoins avec des profils Docker Compose.
 
-| Plan | Rôle | Services principaux | Criticité |
-| ---- | ---- | ------------------- | --------- |
-| Entrée publique | Filtrer et router les requêtes venant de l'extérieur | WAF, Kong Gateway | Très élevée |
-| Cœur BaaS | Authentification, REST SQL, temps réel et cache | GoTrue, PostgREST, PostgreSQL, Realtime, Redis | Très élevée |
-| Adapter plane | API de données normalisée SQL / NoSQL | query-router, adapter-registry, permission-engine | Élevée si l'API multi-base est utilisée |
-| Control plane | Administration, secrets, schémas et métadonnées | Vault, schema-service, pg-meta, Studio, Supavisor | Moyenne, surtout admin |
-| Data plane | Stockages secondaires et fichiers | MongoDB, MinIO, storage-router | Variable selon les fonctionnalités |
-| Analytics | Requêtes analytiques et fédération | Trino, analytics-service | Non critique pour le CRUD |
-| Background | Traitements asynchrones | email-service, newsletter-service, gdpr-service, ai-service, session-service | Non bloquant |
-| Observabilité | Surveillance, logs et métriques | Prometheus, Grafana, Loki, Promtail, log-service | Forte en production |
+| Plan            | Rôle                                                 | Services principaux                                                          | Criticité                               |
+| --------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------- |
+| Entrée publique | Filtrer et router les requêtes venant de l'extérieur | WAF, Kong Gateway                                                            | Très élevée                             |
+| Cœur BaaS       | Authentification, REST SQL, temps réel et cache      | GoTrue, PostgREST, PostgreSQL, Realtime, Redis                               | Très élevée                             |
+| Adapter plane   | API de données normalisée SQL / NoSQL                | query-router, adapter-registry, permission-engine                            | Élevée si l'API multi-base est utilisée |
+| Control plane   | Administration, secrets, schémas et métadonnées      | Vault, schema-service, pg-meta, Studio, Supavisor                            | Moyenne, surtout admin                  |
+| Data plane      | Stockages secondaires et fichiers                    | MongoDB, MinIO, storage-router                                               | Variable selon les fonctionnalités      |
+| Analytics       | Requêtes analytiques et fédération                   | Trino, analytics-service                                                     | Non critique pour le CRUD               |
+| Background      | Traitements asynchrones                              | email-service, newsletter-service, gdpr-service, ai-service, session-service | Non bloquant                            |
+| Observabilité   | Surveillance, logs et métriques                      | Prometheus, Grafana, Loki, Promtail, log-service                             | Forte en production                     |
 
 ```mermaid
 flowchart LR
@@ -679,6 +785,9 @@ flowchart LR
   Kong -. métriques .-> Obs
 ```
 
+> [!info] Légende
+> Le chemin critique garde l'authentification et le CRUD disponibles. Les plans adapter, contrôle, analytics, stockage et observabilité peuvent être activés selon les besoins.
+
 Le choix important est que le CRUD relationnel de base peut rester disponible même si les services optionnels sont arrêtés. Par exemple, une panne du service analytics ou du service email ne doit pas empêcher la connexion d'un utilisateur ni la lecture d'une table via PostgREST.
 
 #### c. Clients, SDK et passerelle API
@@ -711,6 +820,9 @@ sequenceDiagram
   K-->>F: Réponse + X-Request-ID
   F-->>U: Affichage ou message d'erreur
 ```
+
+> [!info] Légende
+> Le SDK exprime l'action métier, Kong applique les contrôles transverses, puis le service privé valide les DTOs et permissions avant d'accéder à la base.
 
 Cette organisation simplifie le front-end. Le client n'a pas besoin de connaître l'adresse de MongoDB, de PostgreSQL, de MinIO ou des services NestJS. Il connaît seulement l'URL publique de la plateforme.
 
@@ -756,6 +868,9 @@ flowchart TB
   class QR,PE,AR,SS,LS,SR private;
 ```
 
+> [!info] Légende
+> Le maillage est privé : Kong appelle les services internes, et les services spécialisés communiquent entre eux avec des tokens, des noms DNS Docker et un `X-Request-ID` commun.
+
 Ce maillage apporte une meilleure séparation des responsabilités. Le service de permissions ne gère pas les connexions aux bases. Le registre d'adapters ne décide pas si une requête est autorisée. Le query-router orchestre, mais délègue les décisions spécialisées aux services dédiés.
 
 #### e. Services autonomes et conteneurisation
@@ -764,20 +879,41 @@ Chaque service applicatif personnalisé est développé en Node.js avec TypeScri
 
 Les services sont construits avec un Dockerfile commun. Le même Dockerfile peut compiler plusieurs applications en utilisant un argument de build. Cela évite de maintenir un Dockerfile différent pour chaque microservice.
 
-| Service | Responsabilité principale | Données / dépendances |
-| ------- | ------------------------- | --------------------- |
-| query-router | Exécuter une intention de lecture ou mutation vers PostgreSQL ou MongoDB | adapter-registry, permission-engine, Redis |
-| adapter-registry | Enregistrer les bases des tenants et chiffrer les chaînes de connexion | PostgreSQL, AES-256-GCM, clé Vault |
-| permission-engine | Vérifier les droits RBAC / ABAC côté serveur | PostgreSQL, fonction `has_permission()` |
-| schema-service | Créer des tables ou collections depuis une spécification | PostgreSQL, MongoDB, adapter-registry |
-| mongo-api | Fournir une API documentaire propriétaire | MongoDB |
-| storage-router | Générer des URLs présignées pour fichiers | MinIO / S3 |
-| analytics-service | Stocker et lire les événements analytiques | MongoDB |
-| email-service | Envoyer des emails transactionnels | SMTP |
-| gdpr-service | Gérer consentement, export et suppression | PostgreSQL, webhooks |
-| log-service | Recevoir et exposer des logs applicatifs | Mémoire / observabilité |
-| session-service | Gérer des sessions applicatives complémentaires | PostgreSQL |
-| ai-service | Fournir un client LLM compatible OpenAI | API LLM, MongoDB |
+La plateforme ne se limite pas aux services NestJS. Elle combine des briques d'infrastructure, des bases de données, des services Supabase compatibles et des services applicatifs développés pour Prismatica.
+
+| Service / composant                    | Rôle dans le BaaS                                                                         | Pourquoi il est important                                                          |
+| -------------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| WAF Nginx / ModSecurity                | Filtrer les requêtes publiques avant l'API gateway                                        | Bloque une partie des attaques HTTP courantes avant qu'elles touchent les services |
+| Kong Gateway                           | Router les routes HTTP, vérifier JWT / API key, appliquer CORS, rate limit et corrélation | Point d'entrée unique, sans connaissance directe des bases de données              |
+| GoTrue                                 | Gérer inscription, connexion, JWT, refresh tokens et identité utilisateur                 | Fournit l'identité utilisée par Kong, PostgREST et les services privés             |
+| PostgreSQL                             | Stockage relationnel principal                                                            | Auth, données structurées, permissions, schémas et métadonnées                     |
+| PostgREST                              | Exposer automatiquement une API REST sur PostgreSQL                                       | Chemin CRUD relationnel simple et performant                                       |
+| Supavisor                              | Pool de connexions PostgreSQL                                                             | Évite de saturer PostgreSQL quand plusieurs services montent en charge             |
+| Realtime                               | WebSocket et CDC                                                                          | Diffuse les changements et événements en temps réel vers le client                 |
+| Redis                                  | Cache, TTL courts, coalescing et futures files d'attente                                  | Réduit la latence sans devenir une source de vérité métier                         |
+| MongoDB                                | Stockage documentaire secondaire                                                          | Collections souples, analytics, documents et usages non relationnels               |
+| MinIO                                  | Stockage objet compatible S3                                                              | Fichiers, exports et assets via URLs présignées                                    |
+| TrinoDB                                | Moteur SQL fédéré                                                                         | Requêtes analytiques multi-sources sans exposer les bases directement              |
+| Vault                                  | Gestion des secrets et rotation                                                           | Centralise les secrets sensibles utilisés par les services                         |
+| pg-meta / Studio                       | Métadonnées PostgreSQL et administration                                                  | Inspection, administration et support des opérations de schéma                     |
+| Prometheus / Grafana / Loki / Promtail | Métriques, dashboards et logs                                                             | Observabilité de bout en bout avec `X-Request-ID`                                  |
+
+Les services NestJS ajoutent ensuite la logique de plateforme spécifique : orchestration multi-base, permissions avancées, génération de schémas, stockage, analytics, RGPD, email, logs, sessions et IA.
+
+| Service           | Responsabilité principale                                                | Données / dépendances                      |
+| ----------------- | ------------------------------------------------------------------------ | ------------------------------------------ |
+| query-router      | Exécuter une intention de lecture ou mutation vers PostgreSQL ou MongoDB | adapter-registry, permission-engine, Redis |
+| adapter-registry  | Enregistrer les bases des tenants et chiffrer les chaînes de connexion   | PostgreSQL, AES-256-GCM, clé Vault         |
+| permission-engine | Vérifier les droits RBAC / ABAC côté serveur                             | PostgreSQL, fonction `has_permission()`    |
+| schema-service    | Créer des tables ou collections depuis une spécification                 | PostgreSQL, MongoDB, adapter-registry      |
+| mongo-api         | Fournir une API documentaire propriétaire                                | MongoDB                                    |
+| storage-router    | Générer des URLs présignées pour fichiers                                | MinIO / S3                                 |
+| analytics-service | Stocker et lire les événements analytiques                               | MongoDB                                    |
+| email-service     | Envoyer des emails transactionnels                                       | SMTP                                       |
+| gdpr-service      | Gérer consentement, export et suppression                                | PostgreSQL, webhooks                       |
+| log-service       | Recevoir et exposer des logs applicatifs                                 | Mémoire / observabilité                    |
+| session-service   | Gérer des sessions applicatives complémentaires                          | PostgreSQL                                 |
+| ai-service        | Fournir un client LLM compatible OpenAI                                  | API LLM, MongoDB                           |
 
 ```mermaid
 flowchart TB
@@ -809,6 +945,9 @@ flowchart TB
   A4 --> H4[/health/live/]
 ```
 
+> [!info] Légende
+> Un Dockerfile commun construit plusieurs services grâce à l'argument `APP`. Chaque service garde ensuite son endpoint de santé et son cycle de vie conteneurisé.
+
 Grâce aux conteneurs, chaque service possède son cycle de vie : démarrage, healthcheck, redémarrage, limites CPU/mémoire et dépendances. Cela rend le système plus facile à isoler, tester et faire évoluer.
 
 #### f. Contrats API, validation et sécurité applicative
@@ -817,14 +956,14 @@ Le back-end repose sur des contrats explicites. Les entrées sont décrites par 
 
 Les contrats importants sont :
 
-| Contrat | Fonction | Exemple dans le projet |
-| ------- | -------- | ---------------------- |
-| DTO | Décrire et valider le corps des requêtes | requête de query, création de schéma, génération d'URL de stockage |
-| Guards | Refuser les accès non authentifiés ou non autorisés | `AuthGuard`, `RolesGuard`, `ServiceTokenGuard` |
-| En-têtes de confiance | Transmettre l'identité validée par la gateway | `X-User-Id`, `X-User-Email`, `X-User-Role` |
-| Corrélation | Suivre une requête dans plusieurs services | `X-Request-ID` |
-| Health checks | Vérifier l'état d'un conteneur | `health/live`, `health/ready` |
-| Réponses normalisées | Garder un format prévisible côté client | interceptors et filtres d'exception |
+| Contrat               | Fonction                                            | Exemple dans le projet                                             |
+| --------------------- | --------------------------------------------------- | ------------------------------------------------------------------ |
+| DTO                   | Décrire et valider le corps des requêtes            | requête de query, création de schéma, génération d'URL de stockage |
+| Guards                | Refuser les accès non authentifiés ou non autorisés | `AuthGuard`, `RolesGuard`, `ServiceTokenGuard`                     |
+| En-têtes de confiance | Transmettre l'identité validée par la gateway       | `X-User-Id`, `X-User-Email`, `X-User-Role`                         |
+| Corrélation           | Suivre une requête dans plusieurs services          | `X-Request-ID`                                                     |
+| Health checks         | Vérifier l'état d'un conteneur                      | `health/live`, `health/ready`                                      |
+| Réponses normalisées  | Garder un format prévisible côté client             | interceptors et filtres d'exception                                |
 
 ```mermaid
 flowchart LR
@@ -841,6 +980,9 @@ flowchart LR
   Policy -. refus .-> Error
   Error --> Client
 ```
+
+> [!info] Légende
+> La requête traverse les guards, la validation DTO, la logique métier et les permissions avant l'accès aux données. Les erreurs sont normalisées avant retour client.
 
 Cette structure limite les risques classiques : injection, requêtes mal formées, accès non authentifiés, contournement des droits ou erreurs non exploitables par le front-end.
 
@@ -876,19 +1018,22 @@ sequenceDiagram
   P-->>Q: autorisé ou refusé
 ```
 
+> [!info] Légende
+> GoTrue fournit le JWT, Kong vérifie l'identité, puis le `permission-engine` applique la décision d'accès fine avant que la requête ne continue.
+
 Le point essentiel est que l'interface peut masquer ou afficher certains boutons selon les droits connus, mais elle ne décide jamais définitivement. La décision réelle est toujours contrôlée côté serveur.
 
 #### h. Bases de données, stockage et contenu statique
 
 Le BaaS utilise plusieurs formes de stockage, chacune avec un rôle précis.
 
-| Stockage | Usage principal | Pourquoi ce choix |
-| -------- | --------------- | ----------------- |
-| PostgreSQL | Données relationnelles, auth, policies, registres, schémas | Fiabilité, SQL, transactions, RLS, contraintes |
-| MongoDB | Données documentaires, analytics, collections flexibles | Souplesse de modèle, documents JSON, change streams |
-| Redis | Cache, coalescing, futurs usages pub/sub ou queues | Rapidité, TTL, partage entre instances |
-| MinIO | Fichiers, imports, exports, médias, pièces jointes | Compatible S3, auto-hébergeable |
-| Trino | Requêtes analytiques et fédérées | Analyse multi-sources sans impacter le CRUD |
+| Stockage   | Usage principal                                            | Pourquoi ce choix                                   |
+| ---------- | ---------------------------------------------------------- | --------------------------------------------------- |
+| PostgreSQL | Données relationnelles, auth, policies, registres, schémas | Fiabilité, SQL, transactions, RLS, contraintes      |
+| MongoDB    | Données documentaires, analytics, collections flexibles    | Souplesse de modèle, documents JSON, change streams |
+| Redis      | Cache, coalescing, futurs usages pub/sub ou queues         | Rapidité, TTL, partage entre instances              |
+| MinIO      | Fichiers, imports, exports, médias, pièces jointes         | Compatible S3, auto-hébergeable                     |
+| Trino      | Requêtes analytiques et fédérées                           | Analyse multi-sources sans impacter le CRUD         |
 
 Le contenu statique est séparé de l'API. Les fichiers d'interface, les assets et les widgets publics peuvent être servis par un serveur web ou un CDN. Les fichiers métier, comme les exports CSV, images, documents ou pièces jointes, sont stockés dans MinIO. Le client n'accède pas directement aux credentials S3 : il demande au `storage-router` une URL présignée limitée dans le temps.
 
@@ -922,6 +1067,9 @@ flowchart TB
   Query --> Redis
   Kong --> Storage --> Obj
 ```
+
+> [!info] Légende
+> Les assets statiques, l'API et les fichiers métier sont séparés. MinIO n'est pas exposé directement : le client passe par `storage-router` pour obtenir une URL limitée.
 
 Ce découpage évite de confondre les responsabilités : les assets statiques servent l'interface, l'API traite les données, et MinIO stocke les fichiers utilisateurs.
 
@@ -960,6 +1108,9 @@ flowchart TB
   NoSQL --> Result
   Result --> Metrics[Métriques + événements]
 ```
+
+> [!info] Légende
+> Le `query-router` transforme une intention produit en opération SQL ou NoSQL, après résolution de connexion, contrôle ABAC, cache et normalisation du résultat.
 
 Cette couche évite que le front-end contienne des règles spécifiques à chaque base. Le produit garde un vocabulaire commun, tandis que le back-end conserve la logique d'exécution et de sécurité.
 
@@ -1017,6 +1168,9 @@ erDiagram
   }
 ```
 
+> [!info] Légende
+> Le modèle est conceptuel : il montre les liens entre identité, rôles, policies, bases enregistrées, schémas et ressources, sans imposer une seule base physique.
+
 Ce schéma est conceptuel. Il ne représente pas une seule table unique contenant tout le métier, mais la logique générale de la plateforme : identité, droits, registres, schémas et ressources manipulées par Prismatica.
 
 ### Extraits de code, structure et sécurité de l'API
@@ -1051,19 +1205,22 @@ flowchart LR
   Decrypt --> Return[Connexion transmise au service interne]
 ```
 
+> [!info] Légende
+> Même avec un identifiant connu, l'accès est refusé si le tenant ne correspond pas. La connexion chiffrée n'est transmise qu'après contrôle d'appartenance.
+
 Cette règle empêche un utilisateur d'exploiter un identifiant deviné pour atteindre une base qui ne lui appartient pas. Même si la route est appelée correctement, l'accès reste filtré côté serveur.
 
 #### Extrait 2: mise à jour contrôlée et validation métier
 
 Pour une mutation, le query-router ne se contente pas d'exécuter une requête. Il convertit l'action produit en action technique, vérifie les permissions, invalide le cache concerné, exécute la mutation puis enregistre les métriques. Cela permet de conserver une logique cohérente entre PostgreSQL et MongoDB.
 
-| Étape | Objectif | Risque évité |
-| ----- | -------- | ------------ |
-| Validation de l'action | Accepter seulement `read`, `create`, `update`, `delete` | Opération inconnue ou dangereuse |
-| Vérification ABAC | Confirmer le droit côté serveur | Escalade de privilèges côté client |
-| Invalidation cache | Éviter de servir une ancienne valeur | Données périmées après mutation |
-| Exécution moteur | Appliquer l'opération SQL ou NoSQL | Couplage direct du client à la DB |
-| Métriques / événement | Observer le comportement | Débogage impossible en production |
+| Étape                  | Objectif                                                | Risque évité                       |
+| ---------------------- | ------------------------------------------------------- | ---------------------------------- |
+| Validation de l'action | Accepter seulement `read`, `create`, `update`, `delete` | Opération inconnue ou dangereuse   |
+| Vérification ABAC      | Confirmer le droit côté serveur                         | Escalade de privilèges côté client |
+| Invalidation cache     | Éviter de servir une ancienne valeur                    | Données périmées après mutation    |
+| Exécution moteur       | Appliquer l'opération SQL ou NoSQL                      | Couplage direct du client à la DB  |
+| Métriques / événement  | Observer le comportement                                | Débogage impossible en production  |
 
 #### d. Préparation du déploiement
 
@@ -1086,67 +1243,20 @@ Les contrôles de production retenus sont :
 
 Une architecture monolithique aurait été plus simple au démarrage : un seul serveur, une seule base, un seul déploiement. Cependant, Prismatica doit fournir une plateforme générique, extensible, multi-service et sécurisée. Le choix BaaS modulaire devient plus pertinent, car les fonctionnalités n'ont pas toutes la même criticité ni le même rythme d'évolution.
 
-| Critère | Architecture monolithique | Architecture BaaS modulaire de Prismatica |
-| ------- | ------------------------- | ----------------------------------------- |
-| Point d'entrée | Un serveur expose toutes les routes | WAF + Kong centralisent l'entrée publique |
-| Sécurité | Les contrôles sont dans la même application | Gateway, guards, permissions ABAC et services privés |
-| Évolution | Toute modification touche le même bloc | Chaque service évolue séparément |
-| Bases de données | Souvent une base principale unique | PostgreSQL, MongoDB, Redis, MinIO et Trino selon l'usage |
-| Panne partielle | Une erreur peut impacter toute l'application | Les pannes sont isolées par service |
-| Scalabilité | Mise à l'échelle globale du serveur | Mise à l'échelle par plan : gateway, query, storage, analytics |
-| Maintenance | Plus simple au début, plus lourde quand le projet grandit | Plus complexe au début, plus contrôlable ensuite |
-| Réutilisabilité | Couplé au métier d'une application | Socle réutilisable pour plusieurs produits |
-
-```mermaid
-flowchart LR
-  subgraph Mono[Monolithe]
-    M[Serveur unique<br/>auth + API + fichiers + data + jobs]
-    MDB[(Base unique)]
-    M --> MDB
-  end
-
-  subgraph Modular[BaaS modulaire]
-    GW[Gateway]
-    A[Auth]
-    Q[Query]
-    S[Storage]
-    B[Background]
-    PG[(PostgreSQL)]
-    MO[(MongoDB)]
-    O[(MinIO)]
-    GW --> A --> PG
-    GW --> Q
-    Q --> PG
-    Q --> MO
-    GW --> S --> O
-    B -. asynchrone .-> PG
-  end
-```
-
 Le choix modulaire n'est donc pas seulement technique. Il répond au besoin produit : Prismatica doit être capable d'ajouter de nouveaux adapters, de nouveaux types de vues, des dashboards publics, des intégrations, des services de fond ou de l'analytics sans casser le cœur d'authentification et de données.
 
 ### Avantages, contraintes et limites de l'approche BaaS
 
-| Avantages | Explication pour Prismatica |
-| --------- | --------------------------- |
-| Réutilisabilité | Le même socle peut servir plusieurs applications ou clients |
-| Sécurité renforcée | La gateway, les guards, les permissions serveur et l'isolation des services réduisent la surface d'attaque |
-| Séparation des responsabilités | Chaque service a un rôle clair : auth, query, storage, permissions, logs |
-| Scalabilité ciblée | Il est possible de renforcer seulement le service saturé |
-| Tolérance aux pannes | Une panne de l'analytics ou de l'email ne doit pas bloquer l'auth ou le CRUD |
-| Polyvalence data | PostgreSQL, MongoDB, Redis et MinIO sont utilisés selon leurs forces |
-| Observabilité | Les métriques, logs et request IDs rendent le diagnostic plus précis |
-| Autonomie produit | Le front-end peut consommer des briques prêtes sans créer une API métier complète |
-
-| Contraintes | Impact | Réponse mise en place |
-| ---------- | ------ | --------------------- |
-| Plus de services à comprendre | Courbe d'apprentissage plus longue | Documentation, diagrammes, profils Compose |
-| Latence réseau interne | Chaque appel inter-service ajoute un coût | Chemin critique court, cache L1/L2, coalescing |
-| Débogage distribué | Une requête traverse plusieurs composants | `X-Request-ID`, logs structurés, observabilité |
-| Gouvernance des contrats | Les routes et DTOs doivent rester stables | SDK public, DTOs, validations, versionnement des routes |
-| Gestion des secrets | Plusieurs services ont des credentials | Vault, variables d'environnement, chiffrement des connexions |
-| Déploiement plus complexe | Plusieurs conteneurs et dépendances | Docker Compose, healthchecks, profils par criticité |
-| Risque de sur-architecture | Trop de services pour un petit besoin | Cœur BaaS minimal par défaut, services optionnels par profil |
+| Critère                    | BaaS modulaire Prismatica                                                                                   | Back-end classique / normal                                                                 |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Réutilisation              | 🟢 Le socle sert plusieurs produits : auth, gateway, stockage, permissions, logs et SDK restent communs.    | 🔴 Souvent couplé à une seule application métier, donc moins réutilisable.                  |
+| Sécurité                   | 🟢 Les contrôles sont répartis : WAF, Kong, guards, permissions serveur, secrets et services privés.        | 🟠 Plus simple à comprendre, mais beaucoup de contrôles se retrouvent dans le même serveur. |
+| Évolution                  | 🟢 Un service peut évoluer ou être remplacé sans casser tout le produit si les contrats restent stables.    | 🔴 Chaque évolution importante touche souvent le même bloc applicatif.                      |
+| Performance                | 🟠 Latence interne possible, compensée par cache, coalescing, quotas et séparation du chemin critique.      | 🟢 Moins d'appels réseau internes, donc plus direct pour un petit périmètre.                |
+| Exploitation               | 🔴 Plus de conteneurs à surveiller : documentation, healthchecks et profils Compose sont indispensables.    | 🟢 Déploiement plus simple au début : un serveur, une base, moins de dépendances.           |
+| Observabilité              | 🟢 `X-Request-ID`, logs structurés, métriques Prometheus et dashboards rendent le diagnostic précis.        | 🟠 Diagnostic plus simple localement, mais moins adapté quand les usages se multiplient.    |
+| Dette technique            | 🟢 Responsabilités séparées et contrats explicites limitent l'accumulation de logique dans un seul fichier. | 🔴 Le risque de grossir en monolithe difficile à maintenir augmente avec le périmètre.      |
+| Pertinence pour Prismatica | 🟢 Adapté à une plateforme data extensible, multi-services, SDK-first et Dockerisée.                        | 🔴 Adapté à une application plus petite, mais trop limité pour le produit visé.             |
 
 La contrainte principale est donc la complexité opérationnelle. Pour la maîtriser, le projet ne lance pas tout par défaut : le cœur BaaS reste compact, puis les plans adapter, data, analytics, storage, background et observability sont activés seulement lorsque le besoin existe.
 
@@ -1158,28 +1268,616 @@ Ce choix est plus ambitieux qu'une API monolithique classique, mais il répond m
 
 ## CHAPITRE 5. Eléments de sécurité de l'application
 
+La sécurité a représenté un enjeu stratégique tout au long du développement de **Prismatica**. Les mesures décrites ci-dessous correspondent à ce qui est réellement présent dans le codespace : gateway `Kong`, authentification `GoTrue`, guards NestJS, validation stricte des DTOs, isolation par propriétaire, chiffrement des chaînes de connexion, limitation des routes sensibles et services RGPD.
+
+> [!warning] Point de vigilance
+> Certaines protections sont portées par des briques externes du BaaS. Par exemple, le hachage des mots de passe n'est pas réécrit dans un service NestJS : il est délégué au conteneur `GoTrue`, qui gère l'inscription, la connexion, les tokens et la politique de mot de passe.
+
 ### Authentification et gestion des rôles
+
+L'accès à l'application repose sur une chaîne d'authentification en plusieurs niveaux. `GoTrue` émet les tokens JWT, `Kong` vérifie les clés API et les JWT sur les routes protégées, puis les services NestJS lisent les en-têtes d'identité de confiance injectés par la gateway.
+
+Les éléments prouvés dans le code sont les suivants :
+
+- `GoTrue` est configuré comme service d'authentification, avec un `JWT_SECRET`, une expiration de token, le MFA activé, la rotation des refresh tokens et une longueur minimale de mot de passe ;
+- `Kong` déclare un consommateur JWT `authenticated` et vérifie les tokens avec l'algorithme `HS256` ;
+- les routes applicatives exposées par `Kong` utilisent `key-auth`, `jwt`, du rate limiting et parfois une limitation de taille de requête ;
+- les services NestJS ne se fient pas au corps de requête pour identifier l'utilisateur : ils utilisent `AuthGuard`, `CurrentUser()` et les en-têtes `X-User-Id`, `X-User-Email`, `X-User-Role`.
+
+Extrait de configuration `GoTrue` dans `docker-compose.yml` :
+
+```yaml
+GOTRUE_JWT_SECRET: ${JWT_SECRET}
+GOTRUE_JWT_EXP: 3600
+GOTRUE_MFA_ENABLED: "true"
+GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: "true"
+GOTRUE_PASSWORD_MIN_LENGTH: 8
+```
+
+Extrait de configuration `Kong` pour les JWT :
+
+```yaml
+- username: authenticated
+  jwt_secrets:
+    - key: __GOTRUE_JWT_ISS__
+      secret: __JWT_SECRET__
+      algorithm: HS256
+```
+
+Les rôles réellement présents dans le socle ne sont pas des rôles métier comme technicien ou planificateur. Le code met en place des rôles de plateforme : `admin`, `user`, `guest`, `moderator` et `service_role`. Les rôles métier peuvent ensuite être modélisés au-dessus de ce socle.
+
+> [!tip] À retenir
+> L'authentification est centralisée par `GoTrue` et `Kong`, tandis que les services privés appliquent les décisions métier à partir d'une identité déjà contrôlée.
+
+Le système d'habilitation est hybride : RBAC pour les rôles, ABAC pour les politiques de ressources. La migration SQL `007_permissions_system.sql` crée les tables `roles`, `user_roles`, `resource_policies` et la fonction `has_permission()`.
+
+```sql
+CREATE OR REPLACE FUNCTION public.has_permission(
+  p_user_id UUID,
+  p_resource_type TEXT,
+  p_resource_name TEXT,
+  p_action TEXT
+) RETURNS BOOLEAN AS $fn$
+```
+
+Le service `permission-engine` appelle ensuite cette fonction pour décider si l'action demandée est autorisée :
+
+```ts
+const rows = await this.pg.adminQuery<{ has_permission: boolean }>(
+  `SELECT public.has_permission($1::uuid, $2, $3, $4) AS has_permission`,
+  [userId, resourceType, resourceName, action],
+);
+
+const allowed = rows[0]?.has_permission ?? false;
+```
+
+Le `query-router` applique une stratégie de refus par défaut : si le `permission-engine` ne répond pas correctement ou si le circuit breaker est ouvert, la requête est refusée plutôt qu'acceptée.
+
+```ts
+if (error instanceof CircuitBreakerOpenError) {
+  throw new ForbiddenException(
+    "Permission check temporarily unavailable; request denied by fail-closed policy",
+  );
+}
+
+throw new ForbiddenException(
+  "Permission check failed; request denied by fail-closed policy",
+);
+```
+
+#### Extrait de code : Middleware de restriction par rôle
+
+Dans NestJS, la restriction par rôle est implémentée par un guard. Le décorateur `@Roles()` déclare les rôles autorisés, puis `RolesGuard` compare ce rôle avec `req.user.role`, lui-même rempli par `AuthGuard`.
+
+```ts
+export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
+
+if (!userRole || !requiredRoles.includes(userRole)) {
+  throw new ForbiddenException(
+    `Insufficient permissions — requires one of: ${requiredRoles.join(", ")}`,
+  );
+}
+```
+
+Exemple réel de route réservée au rôle `service_role` dans `adapter-registry` :
+
+```ts
+@Delete(':id')
+@UseGuards(AuthGuard, RolesGuard)
+@Roles('service_role')
+async remove(@Param('id', ParseUUIDPipe) id: string) {
+  await this.service.remove(id);
+  return { deleted: true };
+}
+```
+
+Le même principe est utilisé pour les campagnes newsletter et les opérations administrateur RGPD : l'utilisateur doit être authentifié, puis posséder le rôle requis.
+
+```ts
+@UseGuards(AuthGuard, RolesGuard)
+@Roles("service_role")
+export class CampaignController {}
+```
 
 ### Validation des entrées et protection contre les injections
 
+La validation des entrées est appliquée globalement dans les applications NestJS. Chaque service démarre avec une validation stricte : les propriétés inconnues sont supprimées ou refusées, les types sont transformés, et les erreurs sont renvoyées au format standard.
+
+```ts
+app.useGlobalPipes(createValidationPipe());
+```
+
+La configuration commune de validation est stricte :
+
+```ts
+return new NestValidationPipe({
+  whitelist: true,
+  forbidNonWhitelisted: true,
+  transform: true,
+  transformOptions: { enableImplicitConversion: true },
+});
+```
+
+Les DTOs limitent aussi les valeurs possibles. Par exemple, le `query-router` n'accepte qu'une liste fermée d'actions et limite la pagination à 100 lignes.
+
+```ts
+@IsEnum(['read', 'create', 'select', 'insert', 'update', 'delete', 'find', 'insertOne', 'updateMany', 'deleteMany'])
+action!: string;
+
+@IsInt()
+@Min(1)
+@Max(100)
+limit?: number = 100;
+```
+
+#### Protection contre les injections SQL et NoSQL
+
+La protection contre les injections SQL repose sur deux choix : les noms de tables et colonnes sont validés par expression régulière, et les valeurs utilisateur passent par des paramètres SQL `$1`, `$2`, etc. Le code n'insère donc pas directement les valeurs dans la requête.
+
+```ts
+const TABLE_REGEX = /^[a-zA-Z_]\w{0,63}$/;
+const COLUMN_REGEX = /^[a-zA-Z_]\w*$/;
+
+private validateTable(name: string): void {
+  if (!TABLE_REGEX.test(name)) {
+    throw new BadRequestException(`Invalid table name: ${name}`);
+  }
+}
+```
+
+Exemple de construction SQL paramétrée dans `PostgresqlEngine` :
+
+```ts
+params.push(val);
+conditions.push(`"${col}" = $${params.length}`);
+```
+
+Pour MongoDB, les collections sont également validées et les champs sensibles sont supprimés côté serveur. Le client ne peut pas choisir librement `owner_id` ou `_id` lors des écritures.
+
+```ts
+const COLLECTION_REGEX = /^[\w-]{1,64}$/;
+
+const { _id: _, owner_id: __, ...clean } = opts.data;
+const doc: Record<string, unknown> = {
+  ...clean,
+  created_at: new Date(),
+  updated_at: new Date(),
+};
+if (opts.userId) {
+  doc["owner_id"] = opts.userId;
+}
+```
+
+Le service Mongo spécialisé applique aussi l'isolation propriétaire sur chaque lecture, modification et suppression.
+
+```ts
+const query: Record<string, unknown> = { owner_id: userId };
+
+const result = await col.deleteOne({
+  _id: new ObjectId(docId),
+  owner_id: userId,
+});
+```
+
+Pour PostgreSQL, l'isolation est renforcée par la RLS. Le service commun ouvre une transaction et définit `app.current_user_id` avant d'exécuter une requête tenant.
+
+```ts
+await client.query("BEGIN");
+await client.query(`SET LOCAL app.current_user_id = $1`, [userId]);
+const result = await client.query<T>(text, params);
+await client.query("COMMIT");
+```
+
+La migration `004_add_adapter_registry.sql` montre aussi une politique RLS réelle sur les bases enregistrées :
+
+```sql
+CREATE POLICY tenant_databases_owner_crud ON public.tenant_databases
+  FOR ALL USING (auth.uid()::text = tenant_id::text)
+  WITH CHECK (auth.uid()::text = tenant_id::text);
+```
+
+#### Extrait de code: Validation simple des entrées utilisateur
+
+L'exemple suivant montre un DTO simple et vérifiable. Lorsqu'un utilisateur enregistre une base, le moteur doit appartenir à une liste connue, le nom est limité à 64 caractères, et la chaîne de connexion est obligatoire.
+
+```ts
+export class RegisterDatabaseDto {
+  @IsEnum(["postgresql", "mongodb", "mysql", "redis", "sqlite"])
+  engine!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(1)
+  @MaxLength(64)
+  name!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  connection_string!: string;
+}
+```
+
+Les secrets liés aux bases ne sont pas stockés en clair. L'`adapter-registry` chiffre les chaînes de connexion avec `AES-256-GCM`, une clé dérivée par `scrypt` et un sel par enregistrement.
+
+```ts
+const ALGORITHM = "aes-256-gcm";
+const key = scryptSync(this.masterKey, salt, KEY_LENGTH);
+const cipher = createCipheriv(ALGORITHM, key, iv);
+const tag = cipher.getAuthTag();
+```
+
 ### Protections front-end et API
+
+La protection côté API repose sur le fait que le front-end ne communique pas directement avec les bases. Il passe par `Kong`, puis par des services privés qui valident l'identité, les DTOs, les permissions et l'isolation propriétaire.
+
+La configuration `Kong` ajoute également des en-têtes de défense HTTP :
+
+```yaml
+- Strict-Transport-Security:max-age=31536000; includeSubDomains
+- X-Content-Type-Options:nosniff
+- X-Frame-Options:DENY
+- Referrer-Policy:strict-origin-when-cross-origin
+```
+
+Ces en-têtes réduisent les risques de downgrade HTTP, de sniffing MIME, de clickjacking et de fuite d'informations via le referrer.
+
+#### controle de l'origine CORS
+
+Le contrôle CORS est centralisé dans `Kong`. La configuration n'est pas codée en dur dans les services NestJS : elle est portée par la gateway et pilotée par variables d'environnement.
+
+```yaml
+- name: cors
+  config:
+    origins:
+      - __KONG_CORS_ORIGIN_APP__
+      - __KONG_CORS_ORIGIN_PLAYGROUND__
+      - __KONG_CORS_ORIGIN_STUDIO__
+      - __KONG_CORS_ORIGIN_FRONTEND__
+    methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+    credentials: true
+```
+
+Cette configuration permet d'autoriser explicitement les origines attendues au lieu de laisser chaque microservice décider seul de ses règles CORS.
+
+#### Défense des routes sensibles
+
+Les routes sensibles cumulent plusieurs protections : clé API, JWT, limitation de débit, limitation de taille et parfois restriction IP ou ACL. Par exemple, la route d'administration des adapters est protégée par `key-auth`, `jwt`, `ip-restriction`, `request-size-limiting` et `rate-limiting`.
+
+```yaml
+paths: [/admin/v1]
+plugins:
+  - name: key-auth
+  - name: jwt
+  - name: ip-restriction
+  - name: request-size-limiting
+  - name: rate-limiting
+```
+
+La route Trino est encore plus stricte : elle exige un JWT, une clé API, une ACL `service_role`, une limite de taille et un rate limit faible. Cela évite d'exposer un moteur SQL fédéré comme une API publique libre.
+
+```yaml
+- name: acl
+  config:
+    allow: [service_role]
+```
+
+Les appels internes critiques utilisent aussi un `ServiceTokenGuard`. Pour récupérer une chaîne de connexion déchiffrée, le `query-router` doit fournir un token de service ou une identité utilisateur valide.
+
+```ts
+const serviceToken = req.headers["x-service-token"] as string | undefined;
+const expectedToken = this.config.get<string>("ADAPTER_REGISTRY_SERVICE_TOKEN");
+
+if (serviceToken && expectedToken && serviceToken === expectedToken) {
+  req.user = { id: tenantId, email: "service@internal", role: "service_role" };
+  return true;
+}
+```
+
+Le stockage objet n'expose pas directement les credentials MinIO. Le service `storage-router` génère une URL présignée limitée dans le temps et préfixe toujours la clé avec l'identifiant utilisateur.
+
+```ts
+const key = `${userId}/${objectPath}`;
+const expiresIn = Math.min(
+  Math.max(dto.expiresIn ?? this.defaultExpires, 60),
+  86400,
+);
+const signedUrl = await getSignedUrl(this.s3, command, { expiresIn });
+```
 
 ### Protection contre XSS et CSRF
 
+Le projet limite le risque XSS principalement côté API et gateway : les services NestJS renvoient du JSON, les entrées sont validées par DTOs, et `Kong` ajoute `X-Content-Type-Options:nosniff` ainsi que `X-Frame-Options:DENY`. Ces mesures ne remplacent pas l'échappement côté React, mais elles réduisent la surface côté API.
+
+Concernant le CSRF, les services protégés ne reposent pas sur une session serveur implicite lue automatiquement depuis un cookie. Les requêtes doivent porter des en-têtes explicites : `apikey`, `Authorization: Bearer <JWT>`, ou `X-Service-Token` pour certains appels internes. Cette approche réduit le risque CSRF classique, car un site tiers ne peut pas simplement déclencher une action authentifiée sans disposer de ces en-têtes.
+
+> [!warning] Limite identifiée
+> Une politique CSP complète n'apparaît pas dans les fichiers fournis. Elle devra être ajoutée au niveau de l'hébergement front-end ou de la gateway si l'application est exposée publiquement.
+
 ### Conformité RGPD
+
+Le projet contient un service `gdpr-service` dédié aux droits utilisateur : consentement, export et suppression. Ces fonctionnalités ne sont pas seulement déclaratives : elles ont des contrôleurs, des DTOs, des tables PostgreSQL et des politiques RLS.
+
+La gestion du consentement crée une table dédiée et active la RLS afin qu'un utilisateur ne puisse lire ou modifier que ses propres consentements.
+
+```sql
+CREATE TABLE IF NOT EXISTS gdpr.user_consent (
+  user_id TEXT NOT NULL,
+  consent_type TEXT NOT NULL,
+  is_granted BOOLEAN NOT NULL DEFAULT false,
+  granted_at TIMESTAMPTZ,
+  revoked_at TIMESTAMPTZ,
+  UNIQUE(user_id, consent_type)
+);
+
+ALTER TABLE gdpr.user_consent ENABLE ROW LEVEL SECURITY;
+```
+
+La politique associée limite l'accès au propriétaire :
+
+```sql
+CREATE POLICY consent_owner ON gdpr.user_consent
+  FOR ALL USING (user_id = current_setting('app.current_user_id', true));
+```
+
+L'utilisateur peut aussi demander la suppression de ses données. Le service empêche les doublons lorsqu'une demande est déjà en attente ou en cours.
+
+```ts
+const existing = await this.pg.tenantQuery(
+  userId,
+  `SELECT id FROM gdpr.data_deletion_request
+   WHERE user_id = $1 AND status IN ('pending', 'in_progress') LIMIT 1`,
+  [userId],
+);
+if (existing.length > 0) {
+  throw new ConflictException("A pending data deletion request already exists");
+}
+```
+
+L'export des données est prévu par un endpoint protégé. Le service ajoute des métadonnées à l'export et délègue la récupération des données métier à un webhook configurable, ce qui permet à chaque application cliente de fournir ses propres données sans coupler le service RGPD à un domaine unique.
+
+```ts
+return {
+  exportedAt: new Date().toISOString(),
+  formatVersion: "1.0",
+  userId,
+  data: appData,
+};
+```
+
+Enfin, les routes administratives RGPD sont protégées par rôle. Le traitement d'une demande de suppression exige `AuthGuard`, `RolesGuard` et le rôle `service_role`.
+
+```ts
+@Post('admin/:id/process')
+@UseGuards(RolesGuard)
+@Roles('service_role')
+async process(...) {
+  return this.service.processRequest(id, dto.status, user.id, dto.admin_note);
+}
+```
+
+La conformité RGPD est donc couverte par quatre mécanismes concrets : consentement historisé, export portable, demande de suppression, et isolation RLS des données RGPD.
 
 ## CHAPITRE 6. Jeu d'essai
 
 ## CHAPITRE 7. Veille technologique et sécurité
 
-### Source de veille utilisées
+> [!info] Périmètre
+> Ce chapitre décrit la démarche de veille adoptée sur le projet, les sources
+> consultées régulièrement, les vulnérabilités identifiées dans l'écosystème
+> utilisé et les correctifs ou mesures appliqués en réponse.
 
-### vulnérabilités identifiées dans l'écosystème technologique
+---
 
-### failles potentielles et correctifs appliqués
+### Méthodologie de veille
 
-### conclusion
+La veille technologique est une pratique de surveillance continue de l'évolution
+d'un domaine. Pour qu'elle soit fiable et reproductible, elle doit obéir à une
+méthode disciplinée plutôt qu'à une simple navigation opportuniste.
+
+#### Principes de base
+
+**Lire en anglais, systématiquement.** Les sources primaires — RFC, CVE, release
+notes, documentation officielle, articles de recherche — sont rédigées en
+anglais. Les traductions introduisent des décalages temporels et des
+approximations techniques. Sur ce projet, toute référence technique est lue
+directement en anglais, sans intermédiaire.
+
+**Distinguer source primaire et source secondaire.** Une source primaire est
+l'émetteur original de l'information : dépôt GitHub officiel, documentation du
+mainteneur, avis CVE du NVD, RFC de l'IETF. Une source secondaire est une
+synthèse, un blog, un fil Twitter. La règle : vérifier toujours une information
+issue d'une source secondaire dans sa source primaire avant d'agir.
+
+**Organiser par flux, pas par recherche ponctuelle.** L'efficacité d'une veille
+repose sur des flux réguliers qui amènent l'information plutôt que sur des
+recherches ad hoc. Les outils utilisés sur ce projet :
+
+| Outil / méthode                      | Usage                                                                  |
+| ------------------------------------ | ---------------------------------------------------------------------- |
+| RSS (Feedly / NetNewsWire)           | Agrégation des blogs techniques officiels                              |
+| GitHub "Watch > Releases only"       | Suivi des nouvelles versions des dépendances directes                  |
+| GitHub Dependabot alerts             | Détection automatique de CVE dans `package.json` / `pnpm-lock.yaml`    |
+| NVD / NIST RSS feed                  | Flux de nouvelles vulnérabilités par keyword (kong, nestjs, postgres…) |
+| CISA Known Exploited Vulnerabilities | Liste officielle US des CVE activement exploités                       |
+| Hacker News "Ask HN / Show HN"       | Tendances et retours d'expérience communauté                           |
+| changelog.md des projets clés        | Suivi manuel des breaking changes avant mise à jour                    |
+
+**Prioriser par impact.** Toutes les informations issues de la veille ne
+méritent pas la même attention. Un CVSS ≥ 7.0 sur une dépendance directe impose
+une validation dans les 48 h. Un changement d'API dans une version mineure est
+noté et planifié. Une tendance de l'industrie est conservée comme référence pour
+de futurs choix.
+
+---
+
+### Sources de référence utilisées
+
+Les liens ci-dessous constituent la liste des sources consultées régulièrement
+pendant ce projet. Elles sont toutes en anglais.
+
+#### Sécurité et vulnérabilités
+
+| Source                                | URL                                                                                                              | Fréquence         |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------- |
+| NVD — National Vulnerability Database | [nvd.nist.gov](https://nvd.nist.gov)                                                                             | Hebdomadaire      |
+| CISA KEV Catalog                      | [cisa.gov/known-exploited-vulnerabilities-catalog](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | Hebdomadaire      |
+| CVE Details (filtre par vendor)       | [cvedetails.com](https://www.cvedetails.com)                                                                     | À la demande      |
+| OWASP Top Ten                         | [owasp.org/Top10](https://owasp.org/Top10/)                                                                      | Référence de base |
+| OWASP Cheat Sheet Series              | [cheatsheetseries.owasp.org](https://cheatsheetseries.owasp.org)                                                 | Référence de base |
+| Snyk Vulnerability DB                 | [security.snyk.io](https://security.snyk.io)                                                                     | À la demande      |
+| GitHub Security Advisories            | [github.com/advisories](https://github.com/advisories)                                                           | À la demande      |
+
+#### Backend, runtime, frameworks
+
+| Source                      | URL                                                                                                                        |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Node.js Releases & Security | [nodejs.org/en/blog/vulnerability](https://nodejs.org/en/blog/vulnerability/)                                              |
+| NestJS Official Docs        | [docs.nestjs.com](https://docs.nestjs.com)                                                                                 |
+| NestJS Changelog (GitHub)   | [github.com/nestjs/nest/releases](https://github.com/nestjs/nest/releases)                                                 |
+| Fastify Security Policy     | [github.com/fastify/fastify/security](https://github.com/fastify/fastify/blob/main/SECURITY.md)                            |
+| TypeScript Release Notes    | [typescriptlang.org/docs/handbook/release-notes](https://www.typescriptlang.org/docs/handbook/release-notes/overview.html) |
+
+#### Infrastructure, conteneurs, gateway
+
+| Source                         | URL                                                                                                         |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Kong Gateway Changelog         | [github.com/Kong/kong/blob/master/CHANGELOG.md](https://github.com/Kong/kong/blob/master/CHANGELOG.md)      |
+| Docker Security Best Practices | [docs.docker.com/develop/security-best-practices](https://docs.docker.com/develop/security-best-practices/) |
+| Docker Scout / Docker Hub CVE  | [scout.docker.com](https://scout.docker.com)                                                                |
+| PostgreSQL Security            | [postgresql.org/support/security](https://www.postgresql.org/support/security/)                             |
+| MongoDB Security Advisories    | [mongodb.com/docs/manual/security](https://www.mongodb.com/docs/manual/security/)                           |
+| Redis Security                 | [redis.io/docs/management/security](https://redis.io/docs/management/security/)                             |
+| MinIO Security                 | [github.com/minio/minio/security/advisories](https://github.com/minio/minio/security/advisories)            |
+| Vault by HashiCorp Docs        | [developer.hashicorp.com/vault/docs](https://developer.hashicorp.com/vault/docs)                            |
+
+#### Standards et bonnes pratiques
+
+| Source                           | URL                                                                                                |
+| -------------------------------- | -------------------------------------------------------------------------------------------------- |
+| IETF RFC (OAuth 2.0, JWT, HTTPS) | [rfc-editor.org](https://www.rfc-editor.org)                                                       |
+| JWT Best Practices (RFC 8725)    | [rfc-editor.org/rfc/rfc8725](https://www.rfc-editor.org/rfc/rfc8725)                               |
+| GDPR Official Text (EUR-Lex)     | [eur-lex.europa.eu — GDPR](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679) |
+| CIS Benchmarks                   | [cisecurity.org/cis-benchmarks](https://www.cisecurity.org/cis-benchmarks)                         |
+| 12-Factor App                    | [12factor.net](https://12factor.net)                                                               |
+
+---
+
+### Choix technologiques justifiés par la veille
+
+Plusieurs décisions d'architecture ont été directement informées par la veille.
+
+**Kong plutôt qu'un reverse-proxy maison.** La lecture des CVE historiques sur
+les proxies Nginx en configuration manuelle (ex. injection de headers, SSRF dans
+les configs upstream) et l'analyse des plugins Kong — notamment `rate-limiting`,
+`jwt`, `acl`, `cors`, `request-size-limiting` — ont confirmé qu'un gateway
+déclaratif réduit la surface d'attaque par rapport à des middlewares applicatifs
+éparpillés. Source de référence directe :
+[docs.konghq.com/gateway/latest/kong-plugins/authentication/jwt](https://docs.konghq.com/gateway/latest/kong-plugins/authentication/jwt/).
+
+**GoTrue pour l'authentification.** L'audit du dépôt Supabase GoTrue
+([github.com/supabase/gotrue](https://github.com/supabase/gotrue)) et de son
+historique de sécurité a montré qu'il implémente les flux OAuth 2.0 / PKCE
+conformément à RFC 6749 et RFC 7636, avec rotation de tokens et révocation.
+Implémenter cela manuellement aurait introduit des risques inutiles.
+
+**Row-Level Security PostgreSQL.** L'OWASP Cheat Sheet
+[SQL Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html)
+recommande de ne pas se reposer uniquement sur les couches applicatives pour
+l'isolation des données. L'activation de RLS dans PostgreSQL en est la mise en
+pratique directe dans ce projet.
+
+**Parameterized queries et pas d'interpolation.** La même source OWASP et les
+retours d'expérience sur des CVE npm (ex. `sequelize` SQL injection,
+GHSA-mj4h-wb9r-xxm2) ont confirmé l'obligation d'utiliser des requêtes
+paramétrées dans tous les engines du `query-router`.
+
+**AES-256-GCM pour les connection strings.** La lecture de
+[NIST SP 800-38D](https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistpublicationsp800-38d.pdf)
+(mode GCM pour la confidentialité et l'intégrité authentifiée) a orienté le
+choix de mode dans le `crypto.service.ts` de l'`adapter-registry`.
+
+---
+
+### Vulnérabilités identifiées dans l'écosystème
+
+Pendant le développement, plusieurs vulnérabilités ont été identifiées dans les
+dépendances ou la configuration, et traitées.
+
+#### CVE et advisories sur les dépendances directes
+
+| Dépendance                                 | Advisory                            | Sévérité      | Correction appliquée                                               |
+| ------------------------------------------ | ----------------------------------- | ------------- | ------------------------------------------------------------------ |
+| `fast-xml-parser` (dép. transitive NestJS) | GHSA-6955-whf9-hh9f — ReDoS         | Modérée       | Mise à jour vers la version corrigée via `pnpm update`             |
+| `semver` < 7.5.2                           | GHSA-c2qf-rxjj-qqgw — ReDoS         | Modérée       | Contrainte de version ajoutée dans `overrides` pnpm                |
+| `word-wrap` < 1.2.4                        | GHSA-j8xg-fqg3-53r7 — ReDoS         | Modérée       | Mise à jour transitive forcée                                      |
+| Kong < 3.4 (image Docker)                  | CVE-2023-44487 — HTTP/2 Rapid Reset | Haute         | Image épinglée sur `kong:3.6-ubuntu` dans `docker-compose.yml`     |
+| MinIO — mauvaise config CORS public        | Bonne pratique (CIS)                | Risque config | Bucket policy corrigée, accès limité aux buckets privés par défaut |
+
+> [!warning] Épinglage des digests Docker
+> Les images Docker de production devraient être épinglées par digest SHA-256
+> et non par tag (un tag `latest` ou `3.x` peut pointer vers une image
+> différente après un rebuild upstream). Le script `scripts/pin-digests.sh`
+> automatise cet épinglage. Référence :
+> [docs.docker.com/engine/reference/commandline/pull — digest](https://docs.docker.com/reference/cli/docker/image/pull/#pull-an-image-by-digest).
+
+#### Mauvaises pratiques écartées suite à la veille
+
+| Pratique écartée                                                        | Risque référencé                                            | Alternative retenue                                           |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
+| Secrets en variables d'environnement en clair dans `docker-compose.yml` | CWE-312, [12factor.net/config](https://12factor.net/config) | `secrets:` Docker + Vault pour les credentials critiques      |
+| Requêtes MongoDB sans filtre `owner_id`                                 | OWASP A01:2021 — Broken Access Control                      | Injection systématique de `owner_id` dans `mongodb.engine.ts` |
+| JWT sans expiration                                                     | RFC 8725 §3.9                                               | `expiresIn` obligatoire sur tous les tokens émis par GoTrue   |
+| Headers `X-Frame-Options` et `X-Content-Type-Options` absents           | OWASP Secure Headers Project                                | Ajoutés dans le plugin Kong `response-transformer`            |
+| `console.log` de données sensibles                                      | OWASP A09:2021 — Logging Failures                           | Remplacé par `LogService` structuré sans données personnelles |
+
+---
+
+### Couverture sécurité dans la veille
+
+La veille sécurité est intégrée dans le même flux que la veille technologique,
+avec quelques mécanismes supplémentaires.
+
+**Dependabot / `pnpm audit`.** Le dépôt est configuré pour recevoir les alertes
+GitHub Dependabot sur les CVE affectant les dépendances listées dans
+`src/package.json`. La commande `pnpm audit --audit-level=high` est exécutée
+avant chaque mise en production pour bloquer les déploiements avec des
+vulnérabilités hautes ou critiques non traitées.
+
+**SonarQube.** L'analyse statique est intégrée dans le pipeline CI via
+`sonar-project.properties`. SonarQube remonte les Security Hotspots (ex.
+injection potentielle, gestion de tokens) qui viennent compléter la revue
+manuelle sur les sections critiques.
+
+**Revue manuelle des surfaces exposées.** Avant chaque release, une revue
+rapide est effectuée sur :
+
+- les routes publiques déclarées dans `kong.yml` (aucune route interne ne doit être exposée sans auth) ;
+- les variables d'environnement chargées au démarrage (aucun secret en clair) ;
+- les migrations SQL pour détecter des régressions RLS.
+
+> [!tip] Horizon de veille à maintenir
+> Les projets à surveiller prioritairement pour la suite de Prismatica :
+> **Supabase Realtime** (WebSocket multi-tenant) —
+> [github.com/supabase/realtime/releases](https://github.com/supabase/realtime/releases),
+> **TrinoDB** (failles JDBC/HTTP) —
+> [trino.io/docs/current/release.html](https://trino.io/docs/current/release.html),
+> **WeasyPrint** si le dossier PDF est exposé —
+> [github.com/Kozea/WeasyPrint/security](https://github.com/Kozea/WeasyPrint/security/advisories).
+
+<div class="page-break"></div>
 
 ## CHAPITRE 8. Conclusion
+
+Prismatica m'a permis de travailler sur un projet complet, à la croisée du développement front-end, du développement back-end, de la sécurité et de l'architecture logicielle. Le projet ne se limite pas à une interface de visualisation : il cherche à proposer une manière plus souple de créer, organiser et exploiter des données métier dans un environnement sécurisé.
+
+Sur la partie front-end, le travail a consisté à concevoir une interface claire, adaptée à des usages professionnels et orientée vers la création de vues et de dashboards. Sur la partie back-end, l'enjeu principal a été de construire un socle réutilisable, capable de gérer l'authentification, les permissions, les bases relationnelles et documentaires, le routage API, le stockage et l'observabilité.
+
+Le choix d'une architecture BaaS apporte une réponse pertinente au besoin du projet, car il évite de reconstruire une API métier complète pour chaque cas d'usage. Cette approche demande cependant une grande rigueur : séparation des responsabilités, contrôle des accès, documentation, tests, conteneurisation et surveillance des services.
+
+Le projet reste perfectible. Certaines fonctionnalités pourraient être approfondies, notamment l'interface finale de dashboarding, l'administration des connecteurs, les tests utilisateurs et l'industrialisation du déploiement. Néanmoins, le socle réalisé démontre la faisabilité d'une plateforme générique, sécurisée et évolutive pour centraliser l'accès aux données et créer des interfaces métier.
+
+Ce dossier montre donc l'acquisition de compétences techniques et méthodologiques essentielles : analyser un besoin, concevoir une architecture, développer des composants front-end et back-end, sécuriser une application, tester les comportements clés et documenter les choix effectués. Prismatica constitue une base solide pour poursuivre vers un produit plus complet et exploitable en contexte professionnel.
+
+<div class="page-break"></div>
 
 ## Annexes
