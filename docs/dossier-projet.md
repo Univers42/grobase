@@ -8,7 +8,7 @@
 
 1. [DOSSIER DE PROJET](#dossier-de-projet)
 2. [TABLE DES MATIÈRES](#table-des-matières)
-3. [CHAPITRE 1. Synthpere des compétences mobilisées]
+3. [CHAPITRE 1. Synthèse des compétences mobilisées]
 4. [CHAPITRE 2. Présentation du projet]
 5. [CHAPITRE 3. Les réalisations personnelles, front-end (React / SCSS)]
 6. [CHAPITRE 4. Les réalisations personnelles, back-end (Node.js / Express / MongoDB / POSTGRESQL)]
@@ -19,21 +19,21 @@
 
 ## CHAPITRE 1. Synthèse des compétences mobilisées
 
-La réalisation du projet **prismatica**, une applicaiton de gestion de base de données pour les entreprises, a mobilisé un large éventail de compétences techniques et méthodologiques. Voici une synthèse des compétences clés utilisées tout au long du projet. Mon intervention a porté sur la conception d'une solution robute, sécurisée et optimisée pour l'usage desktop.
+La réalisation du projet **Prismatica**, une application de gestion de bases de données et de création de dashboards pour les entreprises, a mobilisé un large éventail de compétences techniques et méthodologiques. Mon intervention a porté sur la conception d'une solution robuste, sécurisée et optimisée pour un usage professionnel principalement desktop.
 
-Mon travail s'est équilibré entre la production d'interfaces utilistateur (front-end) et la mise en place de l'infrastructure de données et de la logique métier (back-end).
+Mon travail s'est réparti entre la conception d'interfaces utilisateur, la mise en place de l'infrastructure de données, la définition des règles de sécurité et la construction d'une logique back-end générique capable de soutenir plusieurs cas d'usage métier.
 
-> Actvité type n°1 : Développer la partie front-end d'une application web ou web mobile sécurisée.
+> Activité type n°1 : Développer la partie front-end d'une application web ou web mobile sécurisée.
 
-**Conception des interfaces utilisateur (MAQUETTER)** j'ai initié le projet par la création des maquettes. J'ai utilisé des outils de design pour élaborer des maquettes visuelles de l'application, en tenant compte de l'expérience utilisateur (UX) et de l'interface utilisateur (UI). Ces maquettes ont servi de guide pour le développement front-end, assurant une cohérence visuelle et une navigation intuitive. Dans le contexte de ce projet, utilisé la technique "mobile first" n'était pas la bonne stratégie pour le manque de temps et la nature desktop de l'application. J'ai donc opté pour une approche "desktop first", en me concentrant sur la création d'une interface optimisée pour les utilisateurs de bureau, tout en veillant à ce qu'elle soit responsive pour les appareils mobiles. Le choix de conception est plutot logique.. due aux contraintes liés à la complexité de l'application, utiliser la technique mobile first aurait pu compliquer et engendrer une dette technique importante. Elle n'est toutefois pas mise de côté car dans le futur, une fois totalement stable et fonctionnelle. nous envisageronns une refonte de l'interface pour adopter une approche mobile first, afin d'améliorer l'expérience utilisateur sur les appareils mobiles. En plus l'autre avantae indéniable que donne cette approche est la possibilité de débugger rapidement et incrémenter la valeur ajouter de l'application en se concentrant sur les fonctionnalités essentielles pour les utilisateurs de bureau, qui sont la cible principale de l'application.
+**Conception des interfaces utilisateur (maquetter)** : j'ai initié le projet par la création de maquettes et de parcours utilisateurs. Ces supports ont permis de définir l'expérience utilisateur, la hiérarchie des écrans et les interactions principales : création de collections, configuration de vues, composition de dashboards et gestion des permissions. Dans le contexte de Prismatica, une approche **desktop first** a été privilégiée, car l'application manipule des tableaux, graphiques, formulaires complexes et interfaces de configuration qui sont plus adaptés à un écran large. Le responsive design reste néanmoins prévu afin de permettre la consultation et certains usages simples sur tablette ou mobile.
 
-\*\*Intégration des interfaces statiques (Réaliser) J'ai structuré l'application en utilisant le HTML sémantique pour le contenu et le SCSS pour l'organisation des styles. J'ai mis en place des grilles flexibles et des requêtes média pour assurer l'adaptation de l'affichage sur tous les supports, garantissant ainsi l'aspect responsive de l'application.
+**Intégration des interfaces statiques (réaliser)** : j'ai structuré l'application avec du HTML sémantique et du SCSS afin d'obtenir une base lisible, maintenable et cohérente. Les composants ont été pensés pour être réutilisables : cartes, tableaux, formulaires, panneaux latéraux, modales et widgets de dashboard.
 
-**Développement de l'interactivité (Développer la partie dynamique)** J'ai utilisé la bibliothèque **React** pour donner vie aux interfaces. Mon rôle a consisté à gérer les appels asyncrhones vers l'API, les mises à jour conditionnelles de l'interface (suite aux changement de statut d'intervention) et l'implémentation de formulaires réactifs pour une expérience utilisateur rapide.
+**Développement de l'interactivité (développer la partie dynamique)** : j'ai utilisé **React** pour rendre l'interface dynamique. Mon rôle a consisté à gérer les appels asynchrones vers l'API, les états de chargement, les formulaires réactifs, les retours d'erreur, les mises à jour conditionnelles de l'interface et la préparation des interactions nécessaires au builder de données et de dashboards.
 
 > Activité type n°2 : Développer la partie back-end d'une application web ou web mobile sécurisée.
 
-BaaS (Backend as a Service) est une solution qui fournit une infrastructure de back-end préconfigurée, permettant aux développeurs de se concentrer sur la logique métier plutôt que sur la gestion de l'infrastructure. En adoptant une approche orientée `data mesh`, j'ai structuré le back-end de manière à favoriser la décentralisation et la distribution des données, facilitant ainsi la scalabilité et la résilience de l'application. orientée Docker Compose, conçue comme une **usine à backend génériques** capable de fournir authentification, données relationnelles, données documentaires, requêtage multi-tenant, temps réel, stockage objet, email transactionnel, politique de sécurité unifiées sans développement d'API métier spécifique pour chaque nouveau projet.
+BaaS signifie **Backend as a Service**. Il s'agit d'une infrastructure back-end préconfigurée qui fournit des briques communes : authentification, stockage, API, permissions, temps réel, fichiers, emails et observabilité. Dans Prismatica, cette approche permet de concentrer l'effort produit sur la gestion des données et l'expérience utilisateur, tout en s'appuyant sur une plateforme technique réutilisable. J'ai structuré le back-end comme une **usine à backends génériques**, capable de fournir des services standardisés sans recoder une API métier complète pour chaque nouveau projet.
 
 | Membre | Rôle principal | Responsabilités observées / déduites |
 | ------ | -------------- | ------------------------------------ |
@@ -42,73 +42,360 @@ BaaS (Backend as a Service) est une solution qui fournit une infrastructure de b
 
 **Modélisation de la base de données** J'ai conçu le schéma de la base de données relationnelle **PostgreSQL** pour stocker les données de l'application, en veillant à la normalisation et à l'optimisation des requêtes. J'ai également utilisé **MongoDB** pour certaines fonctionnalités nécessitant une flexibilité accrue dans la gestion des données. La modélisation a permis de structurer les données de manière efficace, facilitant ainsi les opérations de lecture et d'écriture en définissant des relations claires entre les différentes entités de l'application et les contraintes d'intégrité.
 
-**Élaboration des composants d'accès aux données**, j'ai développé des composants d'accès aux données pour interagir avec les bases de données. J'ai utilisé des API gateway telles que `kong` pour gérer les requêtes et assurer une communication fluide entre le front-end et le back-end. J'ai également mis en place des mécanismes de cache pour améliorer les performances de l'application. Pour que l'application bass soit robuste, j'ai utilisé un moteur SQL distribué `trino` pour gérer les requêtes complexes et les grandes quantités de données, assurant ainsi une performance optimale même avec des volumes de données importants.
+**Élaboration des composants d'accès aux données** : j'ai développé des composants permettant d'interagir avec les bases de données à travers des services contrôlés. La gateway `Kong` centralise les accès publics, tandis que les services internes appliquent les permissions et routent les requêtes vers PostgreSQL, MongoDB ou les adapters nécessaires. Des mécanismes de cache et de supervision ont également été intégrés pour améliorer la performance et la fiabilité. Le moteur `Trino` est réservé aux usages analytiques et aux requêtes fédérées, afin de ne pas alourdir le chemin critique des opérations CRUD.
 
 ## CHAPITRE 2. Présentation du projet
 
 ### Présentation de l'entreprise
 
-**Prismatica** est une entreprise spécialisée dans le dashboarding et la gestion de données pour les entreprises. Elle propose des solutions innovantes pour aider les entreprises à visualiser et à analyser leurs données de manière efficace, facilitant ainsi la prise de décision stratégique. L'entreprise se distingue par son approche centrée sur l'utilisateur, offrant des interfaces intuitives et personnalisables pour répondre aux besoins spécifiques de chaque client. Prismatica s'engage à fournir des outils puissants et flexibles pour permettre aux entreprises de tirer le meilleur parti de leurs données, en mettant l'accent sur la sécurité, la performance et la facilité d'utilisation en centralisant les données de l'entreprise dans une plateforme unique et accessible qui permet de visualiser et de modifier les données en temps réel et interactivement.
+Le projet **Prismatica** s'inscrit dans le contexte de **NovaSphere**, une société de conseil composée de développeurs et de designers qui accompagne des clients aux besoins métiers variés : logistique, marketing, restauration, services, opérations internes ou suivi commercial. Ces organisations partagent une difficulté commune : leurs données sont dispersées entre des tableurs, des outils propriétaires, des applications vieillissantes ou des bases de données sans interface réellement exploitable par les équipes métier.
 
-Le rôle de l'équipe est de moderniser les applications de gestion de données déjà existantes en adoptant une approche orientée `data mesh` et en utilisant des technologies modernes telles que Docker Compose pour créer une usine à backend génériques. L'objectif est de fournir une solution robuste, sécurisée et évolutive qui répond aux besoins spécifiques des entreprises tout en facilitant la maintenance et l'évolution future de l'application.
+NovaSphere construisait jusqu'ici des tableaux de bord et des interfaces spécifiques pour chaque client. Cette approche devenait coûteuse, difficile à maintenir et peu scalable. L'objectif de Prismatica est donc de créer une plateforme générique permettant de transformer des données brutes en espaces de travail visuels, dashboards, vues métiers et interfaces web réutilisables.
+
+Dans ce projet, mon rôle a été de concevoir une solution capable de répondre à deux enjeux complémentaires :
+
+- offrir une interface de gestion de données compréhensible par des utilisateurs non développeurs ;
+- fournir une infrastructure back-end robuste, sécurisée et réutilisable, capable de supporter des données relationnelles, documentaires, temps réel et des règles d'accès avancées.
+
+Prismatica n'est donc pas seulement un outil de visualisation. C'est une application de **database management orientée métier** : elle permet de créer des collections, de structurer des champs, de visualiser les informations sous plusieurs formes, de composer des dashboards et de publier certaines vues dans une page web ou dans un espace applicatif autonome.
+
+L'infrastructure mini-BaaS développée autour du projet apporte la couche technique nécessaire : authentification, API gateway, base relationnelle, base documentaire, permissions, routage des requêtes, stockage, observabilité et déploiement Dockerisé.
 
 ### Cahier des charges du projet
 
 #### contexte et objectifs
 
-Le projet **prismatica** vise à développer une application de gestion de base de données pour les entreprises, offrant une interface utilisateur intuitive et des fonctionnalités avancées pour la visualisation et la manipulation des données. Le projet a été initié poiur pallier les lourdeurs d'un processus des interventions techniques basé sur des outils anciens et hétérogènes. à la manière de clickup ou notion l'application se veut versatile en laissant les utilisateurs créer et composer leurs dashbboard d'application directment dans leurs pages web, localement ou dans le cloud. Cette fragmentation engendrait une latence importante entre la réalisation d'une intervention et sa remontée dans le système de facturation.
+Le projet **Prismatica** vise à développer une application web permettant aux entreprises de créer, organiser, visualiser et exploiter leurs données sans dépendre systématiquement d'un développeur pour chaque modification d'interface, de structure ou de tableau de bord.
 
-L'application a été conçue pour centraliser et numémirer l'ensemble des opérations logistiques, remplaçant les processus basés sur des outils anciens.
+Le besoin initial vient d'un constat fréquent en entreprise : les équipes métier manipulent quotidiennement des informations importantes, mais ces informations sont souvent stockées dans des outils non reliés entre eux. Les données peuvent être présentes dans des fichiers CSV, des tableurs, des exports logiciels, des bases SQL, des documents ou des applications internes anciennes. Cette fragmentation rend les processus plus lents, complique la collaboration et limite la capacité à produire des dashboards fiables.
 
-Cette refonte visait principalement à fluidifier l'activité. il fallait rendre la consultation et la mise à jour des missios quotidiennes instantannées pour le technicien, opérant directement depuis le terrain.
+Prismatica répond à ce problème avec une interface web visuelle et user-friendly. L'utilisateur peut créer un projet, définir ses collections comme dans une base de données, ajouter des champs typés, importer des données, construire des vues, composer des dashboards et publier certaines interfaces sous forme de page autonome ou de composant intégré dans un site existant.
 
-Un autre objectif majeur était de sécuriser les données, en assurant la traçabilité complète du cycle de vie de chaque intervention et en protégeant les informations sensibles contre les accès non autorisés.
+Le positionnement est volontairement hybride :
 
-Enfin un autre objectif était d'améliorer la performance de l'application, en optimisant les requêtes et en utilisant des technologies modernes pour garantir une expérience utilisateur rapide et réactive, même avec de grandes quantités de données.
+- une couche **database management** pour structurer les données ;
+- une couche **CMS métier** pour créer des interfaces adaptées à un usage opérationnel ;
+- une couche **dashboarding** pour visualiser les indicateurs ;
+- une couche **adapter/embed** pour exposer une vue, un formulaire, un endpoint ou un widget à l'extérieur ;
+- une couche **permissions** pour contrôler précisément qui peut voir, modifier, publier ou administrer chaque ressource.
+
+L'enjeu principal est l'autonomie. Un manager, un responsable métier ou un collaborateur formé doit pouvoir faire évoluer son espace de travail, ajouter un tableau, modifier une vue, filtrer des données ou publier un dashboard sans attendre une intervention technique lourde. Les développeurs restent nécessaires pour l'infrastructure, les intégrations complexes et la sécurité, mais les ajustements métier courants deviennent accessibles aux utilisateurs autorisés.
+
+Les objectifs du projet sont donc les suivants :
+
+- centraliser les données d'un projet ou d'une équipe dans un espace sécurisé ;
+- permettre la création de schémas de données visuels et compréhensibles ;
+- proposer plusieurs représentations d'une même donnée : tableau, graphique, KPI, calendrier, kanban ou carte ;
+- créer rapidement des dashboards utilisables en interne, en démonstration client ou intégrés dans une page web ;
+- rendre les utilisateurs métier plus autonomes dans l'organisation de leurs données ;
+- garantir la traçabilité, la sécurité et la séparation des accès ;
+- fournir une base technique réutilisable pour d'autres applications métiers.
 
 #### objectifs du projet et choix architecturaux
 
-Le projet **prismatica** poursuivait différents objectifs:
+Le projet poursuit un objectif produit et un objectif technique.
 
-- la centralisation des données de l'entreprise dont prismatica pourrait faciliter la visualisation et la manipulation en temps réel et de manière interactive.
-- la sécurisation des données, en assurant la traçabilité complète du cycle de vie
+Sur le plan produit, Prismatica doit permettre de créer des applications de données rapidement : un utilisateur définit un modèle, crée des vues, assemble une interface, partage un dashboard et forme ses collègues à l'utiliser. La même donnée peut servir plusieurs usages sans duplication : suivi interne, reporting direction, widget public, formulaire, export ou API.
 
-Pour le backend, plusieurs problèmes s'étaient posés:
+Sur le plan technique, le back-end ne devait pas être limité à un seul métier ou à un seul modèle de données. Il devait rester générique, sécurisé et extensible. C'est pourquoi l'architecture a été pensée comme une plateforme **BaaS** auto-hébergée, orientée Docker Compose, capable de fournir des briques réutilisables : authentification, données relationnelles, données documentaires, requêtage multi-tenant, temps réel, stockage objet, email transactionnel, logs, métriques et politiques de sécurité unifiées.
 
-- le back ne devait jamais savoir le type de données qu'il manipule, il devait être générique et orienté data mesh pour permettre une scalabilité et une flexibilité maximale.
-- le back devait être orienté docker compose pour permettre une orchestration facile des services et une gestion efficace des dépendances.
+Les principes retenus sont les suivants :
 
-au final il est devenu logique pour nous même de créer un baas (backend as a service) orienté docker compose, conçue comme une usine à backend génériques capable de fournir authentification, données relationnelles, données documentaires, requêtage multi-tenant, temps réel, stockage objet, email transactionnel, politique de sécurité unifiées sans développement d'API métier spécifique pour chaque nouveau projet, ABAC, RBAC, PBAC, etc.
+- le SDK et l'interface front-end expriment une intention utilisateur ;
+- la gateway sécurise l'entrée publique et applique les contrôles transverses ;
+- le back-end reste l'autorité pour les permissions et l'exécution des requêtes ;
+- le `query-router` orchestre les accès SQL/NoSQL sans exposer directement les bases ;
+- le `permission-engine` applique les règles RBAC/ABAC côté serveur ;
+- l'`adapter-registry` conserve les métadonnées nécessaires aux connexions et aux mappings ;
+- PostgreSQL porte les données relationnelles et les contrôles forts ;
+- MongoDB peut porter les données documentaires ou analytiques ;
+- Trino est réservé aux usages analytiques et fédérés, pas au CRUD transactionnel ;
+- Docker Compose permet de lancer les plans de service selon leur criticité.
 
-Chaque choix technologique a été validé non seulement pour sa capacité à délivrer les fonctionnalités attendues, mais également pour sa résilience et sa sécurité face aux contraintes du projet.
+Ce découpage évite que la logique de sécurité soit placée côté client. Il permet aussi de rendre la plateforme réutilisable : Prismatica devient une application construite sur mini-BaaS, mais mini-BaaS peut également servir de base à d'autres produits métiers.
 
-#### Architectures logicielles et choix tecnhniques
+#### Architectures logicielles et choix techniques
+
+L'architecture applicative repose sur une séparation claire entre l'expérience utilisateur, l'API publique, les services privés et les plans de données. Cette organisation permet de garder une interface simple côté utilisateur tout en conservant une plateforme robuste côté infrastructure.
+
+Le parcours général est le suivant :
+
+```mermaid
+flowchart LR
+  U[Utilisateur Prismatica] --> F[Interface web]
+  F --> S[SDK / API publique]
+  S --> K[Kong Gateway]
+  K --> A[Services applicatifs privés]
+  A --> P[(PostgreSQL)]
+  A --> M[(MongoDB)]
+  A --> R[(Redis)]
+  A --> O[(Stockage objet)]
+```
+
+Les choix techniques principaux sont :
+
+- **React / SCSS** pour construire une interface dynamique, responsive et adaptée aux usages desktop complexes ;
+- **Node.js / TypeScript / NestJS** pour développer des services back-end modulaires ;
+- **Kong Gateway** pour centraliser les routes publiques, l'authentification, le rate limiting et les contrôles transverses ;
+- **PostgreSQL** pour les données relationnelles, les règles fortes, les schémas et les contrôles d'intégrité ;
+- **MongoDB** pour certains usages documentaires, analytiques ou flexibles ;
+- **Redis** pour le cache, les files ou les usages temps réel légers ;
+- **MinIO** pour le stockage objet compatible S3 ;
+- **Prometheus, Grafana, Loki et Promtail** pour l'observabilité ;
+- **Docker Compose** pour orchestrer l'ensemble des services de manière reproductible.
+
+La pile est divisée en plans de criticité. Le cœur BaaS contient les services indispensables : gateway, authentification, PostgreSQL, PostgREST, Realtime et Redis. Les plans adapter, control, data, analytics, background et observability peuvent être activés selon les besoins. Cette séparation évite de rendre toute l'application dépendante de services secondaires.
 
 #### outillage de développement et de déploiement
 
+L'environnement de développement a été conçu pour être reproductible. La dépendance locale attendue est **Docker**. Les dépendances Node.js sont installées avec **pnpm** à l'intérieur des conteneurs afin d'éviter les écarts entre machines de développement.
+
+Les outils principaux sont :
+
+- **Git / GitHub** pour le versionnement et la traçabilité des commits ;
+- **Docker Compose** pour le lancement local des services ;
+- **Makefile** pour standardiser les commandes de validation, build, test et démarrage ;
+- **pnpm** comme gestionnaire de paquets dans Docker ;
+- **ESLint / Prettier** pour la qualité et l'homogénéité du code ;
+- **SonarQube / SonarCloud** pour l'analyse de qualité et de sécurité ;
+- **scripts shell** pour les smoke tests, la validation des secrets et les tests de phases ;
+- **documentation Markdown** pour conserver les décisions techniques et fonctionnelles.
+
+Cette approche permet à un membre de l'équipe de récupérer le projet, lancer les conteneurs et exécuter les vérifications sans dépendre d'une installation locale spécifique de Node.js ou npm.
+
 #### stratégie de sécurisation
+
+La stratégie de sécurité repose sur un principe : le client ne décide jamais seul de ses droits. L'interface et le SDK expriment une demande, mais les décisions de permission sont prises côté serveur.
+
+Les mesures principales sont :
+
+- authentification par JWT et sessions renouvelables ;
+- gateway publique unique, les microservices restant privés ;
+- validation des entrées côté API ;
+- rate limiting sur les routes sensibles ;
+- séparation des données par utilisateur, projet ou tenant ;
+- contrôle d'accès RBAC et ABAC ;
+- journalisation des actions sensibles ;
+- stockage des secrets hors du code source ;
+- chiffrement ou hachage des informations sensibles ;
+- accès publics limités à la lecture seule ;
+- révocation possible des liens publics et clés d'adapters ;
+- prise en compte des exigences RGPD : export, suppression, portabilité et minimisation des données.
+
+L'ABAC est particulièrement important pour Prismatica, car l'application doit permettre des règles fines : un utilisateur peut avoir le droit de modifier une ressource dans un projet, mais seulement si elle appartient à son équipe, si elle n'est pas publiée, ou si son rôle contient un attribut spécifique. Cette logique reste côté back-end pour éviter toute falsification depuis le navigateur.
 
 ### Public cible et profils utilisateurs
 
 #### définition du public cible
 
+L'application **Prismatica** s'adresse aux organisations qui ont besoin de transformer des données dispersées en interfaces exploitables, sans engager un développement spécifique à chaque changement métier. Le public cible principal est constitué d'équipes professionnelles qui utilisent déjà des données au quotidien mais qui manquent d'un outil unifié pour les structurer, les visualiser, les partager et les maintenir.
+
+Les entreprises concernées peuvent être des TPE, PME, associations, équipes internes de grands groupes ou agences qui accompagnent plusieurs clients. Les secteurs les plus pertinents sont ceux où les données évoluent régulièrement et doivent être comprises rapidement : logistique, opérations terrain, marketing, restauration, gestion commerciale, ressources humaines, suivi de production, support client, gestion de projets, inventaire ou reporting.
+
+La cible principale n'est pas uniquement le développeur. Prismatica vise surtout les **utilisateurs métier** : responsables d'équipe, coordinateurs, analystes, administrateurs fonctionnels, collaborateurs opérationnels et décideurs. Ces profils connaissent leurs données et leurs processus, mais n'ont pas toujours les compétences ou le temps pour écrire du SQL, développer une API ou maintenir une interface sur mesure.
+
+Prismatica leur donne une autonomie encadrée : ils peuvent créer des espaces de données, composer des dashboards, modifier des vues et former leurs collègues, tout en restant dans un cadre sécurisé par les permissions, la traçabilité et les règles ABAC.
+
+Les besoins principaux du public cible sont :
+
+- remplacer des tableurs isolés par une base structurée ;
+- créer rapidement une interface de consultation et de modification des données ;
+- visualiser les indicateurs importants sans outil de BI complexe ;
+- publier un dashboard officiel pour une équipe ou un client ;
+- intégrer une vue ou un widget dans une page web existante ;
+- limiter l'accès aux données selon le rôle, l'équipe, le projet, le contexte ou la propriété de la ressource ;
+- réduire la dépendance aux développeurs pour les évolutions courantes ;
+- conserver une architecture robuste pour les intégrations plus techniques.
+
 #### détails des profils utilisateurs
+
+Les profils utilisateurs de Prismatica sont organisés selon leur niveau d'autonomie, leur responsabilité sur les données et leur périmètre d'accès. Le système de permissions doit permettre de personnaliser ces profils finement grâce à une approche ABAC : l'accès ne dépend pas seulement d'un rôle global, mais aussi d'attributs comme le projet, l'équipe, le propriétaire de la donnée, le type de ressource, l'environnement ou l'action demandée.
+
+| Profil | Objectif principal | Besoins fonctionnels | Droits typiques |
+| ------ | ------------------ | -------------------- | --------------- |
+| Visiteur non authentifié | Consulter une ressource publique ou contacter l'organisation | Voir un dashboard public, remplir un formulaire, lire une vue intégrée | Lecture publique limitée, aucune modification |
+| Utilisateur métier | Gérer ses propres projets de données | Créer des collections, importer des données, créer des vues, composer des dashboards | CRUD sur ses projets, partage contrôlé, gestion de ses adapters |
+| Collaborateur opérationnel | Utiliser l'interface au quotidien | Consulter les données utiles, mettre à jour des statuts, filtrer, commenter ou compléter des lignes | Lecture/écriture limitée selon le projet, l'équipe ou les lignes autorisées |
+| Manager ou responsable d'équipe | Piloter une activité et former les collègues | Créer des dashboards, suivre des KPI, organiser les vues, partager les espaces de travail | Gestion des vues et dashboards d'équipe, invitation et formation des utilisateurs |
+| Analyste / data-oriented user | Exploiter les données pour produire des indicateurs | Construire des graphiques, agrégations, exports, comparaisons, rapports | Lecture étendue, création de vues analytiques, exports contrôlés |
+| Intégrateur / webmaster / product owner | Relier Prismatica à un site ou une application | Générer un embed, configurer un endpoint, intégrer un formulaire ou un widget | Gestion des adapters, restrictions de domaines, clés API limitées |
+| Employé support plateforme | Accompagner les utilisateurs et surveiller la plateforme | Consulter l'état des projets, diagnostiquer les adapters, modérer un dashboard public | Lecture transverse encadrée, actions de support tracées |
+| Administrateur plateforme | Garantir la sécurité et la gouvernance globale | Gérer les comptes, rôles, politiques, limites, configuration et conformité | Administration complète, actions sensibles auditées |
+
+Cette répartition permet d'adapter Prismatica à plusieurs contextes. Une petite entreprise peut utiliser seulement quelques profils simples, tandis qu'une organisation plus structurée peut définir des règles avancées : par exemple, un manager peut modifier les dashboards de son équipe mais pas ceux d'un autre service ; un collaborateur peut modifier uniquement les lignes dont il est responsable ; un client externe peut consulter un dashboard public sans accéder aux données sources.
+
+```mermaid
+mindmap
+  root((Public cible))
+    organisations((Organisations))
+      tpe((TPE / PME))
+      agences((Agences et cabinets))
+      grands_comptes((Equipes internes de grands groupes))
+    secteurs((Secteurs d'activité))
+      logistique((Logistique et opérations))
+      marketing((Marketing et reporting))
+      restauration((Restauration et réservation))
+      services((Services et support client))
+      industrie((Production et inventaire))
+    utilisateurs((Utilisateurs finaux))
+      metier((Utilisateurs métier))
+      managers((Managers et superviseurs))
+      analystes((Analystes data))
+      integrateurs((Intégrateurs web))
+      admins((Administrateurs plateforme))
+```
+
+#### Scénarios d'utilisation
+
+Les scénarios suivants illustrent l'usage attendu de Prismatica dans un contexte professionnel. Ils montrent que l'application peut servir à la fois d'outil interne de gestion, d'interface de dashboarding et de couche de publication vers l'extérieur.
+
+```mermaid
+journey
+title Scénarios d'utilisation
+section Utilisateur métier
+  Créer un projet de données: 5: Utilisateur
+  Définir des collections et des champs: 5: Utilisateur
+  Importer un fichier CSV ou JSON: 4: Utilisateur
+  Corriger les données dans une vue tableau: 4: Utilisateur
+  Construire une première interface de travail: 5: Utilisateur
+section Manager
+  Composer un dashboard d'équipe: 5: Manager
+  Ajouter des KPI et graphiques: 5: Manager
+  Partager une vue officielle: 4: Manager
+  Former les collègues à utiliser l'espace: 4: Manager
+  Ajuster les permissions par équipe: 5: Manager
+section Intégrateur
+  Générer un widget embarqué: 5: Intégrateur
+  Configurer les domaines autorisés: 4: Intégrateur
+  Publier la vue dans une page web: 5: Intégrateur
+  Tester le rendu public en lecture seule: 4: Intégrateur
+  Révoquer l'accès si nécessaire: 5: Intégrateur
+section Administrateur
+  Définir les rôles et politiques ABAC: 5: Administrateur
+  Contrôler les accès sensibles: 5: Administrateur
+  Surveiller les adapters et les logs: 4: Administrateur
+  Exporter ou supprimer des données RGPD: 4: Administrateur
+  Auditer les actions critiques: 5: Administrateur
+```
+
+Exemples concrets d'utilisation :
+
+- une équipe marketing crée un dashboard officiel de suivi de campagne et l'intègre dans son intranet ;
+- un restaurant publie un calendrier de disponibilité en lecture seule sur son site ;
+- une équipe logistique suit ses interventions dans une vue kanban et un tableau de bord de performance ;
+- un responsable commercial importe un fichier client, crée des indicateurs et partage une vue filtrée à son équipe ;
+- un administrateur définit des règles ABAC pour que chaque collaborateur voie uniquement les données de son périmètre.
 
 ### Fonctionnalités attendues
 
 #### clients
 
+Les utilisateurs authentifiés doivent pouvoir :
+
+- créer et gérer des projets ;
+- créer des collections représentant des tables ou ensembles de données ;
+- définir des champs typés : texte, nombre, date, booléen, sélection, relation, fichier ou champ calculé ;
+- importer et exporter des données au format CSV ou JSON ;
+- créer des vues polymorphes : tableau, graphique, KPI, calendrier, kanban ;
+- composer des dashboards par glisser-déposer ;
+- partager un dashboard en lecture seule ;
+- intégrer une vue dans une page web via un widget sécurisé ;
+- configurer des adapters d'entrée ou de sortie ;
+- gérer leurs sessions et demander l'export ou la suppression de leurs données.
+
 #### administrateurs
+
+Les administrateurs doivent pouvoir :
+
+- gérer les comptes utilisateurs et employés ;
+- définir les rôles, groupes, attributs et politiques d'accès ;
+- configurer les règles ABAC selon le projet, l'équipe, la ressource ou l'action ;
+- consulter les métriques d'usage de la plateforme ;
+- superviser les adapters, endpoints publics, webhooks et erreurs ;
+- désactiver ou révoquer un accès public ;
+- gérer les paramètres globaux : limites, formats autorisés, modèles d'email ;
+- réaliser les actions RGPD : export, suppression, anonymisation ou audit.
 
 #### users non authentifiés
 
+Les visiteurs non authentifiés peuvent :
+
+- consulter un dashboard public en lecture seule ;
+- visualiser un widget intégré dans un site externe ;
+- remplir un formulaire public généré depuis une collection ;
+- utiliser la page de contact ;
+- accéder uniquement aux ressources explicitement publiées.
+
+Aucune modification de schéma, de donnée ou de permission ne doit être possible depuis un accès public.
+
 #### MVP
+
+Le MVP se concentre sur les fonctionnalités qui démontrent la valeur principale de Prismatica : transformer rapidement une donnée en interface exploitable.
+
+Périmètre MVP :
+
+- authentification et gestion de session ;
+- création d'un projet ;
+- création de collections et de champs ;
+- import simple de données ;
+- vue tableau filtrable et éditable ;
+- au moins deux vues de visualisation : graphique et KPI ;
+- création d'un dashboard ;
+- partage en lecture seule ;
+- permissions de base complétées par une structure compatible ABAC ;
+- traçabilité des actions sensibles ;
+- documentation d'installation Docker et pnpm.
 
 #### perspective d'évolution
 
+Les évolutions prévues concernent l'industrialisation de la plateforme et l'enrichissement de l'expérience utilisateur :
+
+- éditeur de schéma visuel avec diagramme relationnel ;
+- vues avancées : calendrier, kanban, carte, graphiques multi-séries ;
+- génération d'endpoints REST contrôlés ;
+- webhooks et imports planifiés ;
+- bibliothèque de templates métiers ;
+- système complet d'embed avec thème, langue et restrictions de domaines ;
+- analytics avancées via plan de données dédié ;
+- collaboration temps réel ;
+- versioning des schémas et rollback ;
+- marketplace d'adapters ;
+- assistant de configuration pour guider les utilisateurs non techniques.
+
 ### Contraintes et risques
 
+Le projet présente plusieurs contraintes liées à son ambition fonctionnelle et technique.
+
+| Contrainte / risque | Impact possible | Réponse prévue |
+| ------------------- | --------------- | -------------- |
+| Largeur fonctionnelle du produit | Risque de dispersion et de MVP trop vaste | Priorisation autour du triptyque collections, vues, dashboards |
+| Données dynamiques créées par les utilisateurs | Complexité de modélisation et de validation | Schéma contrôlé, types limités, migrations encadrées |
+| Permissions personnalisables | Risque de faille d'accès si la logique est côté client | Permissions serveur, ABAC, audit et tests d'accès |
+| Dashboards publics et embeds | Risque d'exposition involontaire de données | Lecture seule, tokens opaques, révocation, restrictions de domaines |
+| Volumétrie des données | Risque de lenteur sur les vues et graphiques | Pagination, agrégations serveur, cache et limites par plan |
+| Multiplication des services Docker | Complexité de maintenance | Profils Compose par criticité et documentation d'exploitation |
+| Hétérogénéité SQL/NoSQL | Risque d'abstraction trop générale | Adapters spécialisés et vocabulaire API normalisé côté produit |
+| Conformité RGPD | Risque juridique et fonctionnel | Export, suppression, traçabilité et minimisation des données |
+
+La principale limite du projet concerne le temps disponible. Prismatica couvre un périmètre vaste : base de données visuelle, interface de type CMS métier, dashboards, adapters, embeds, permissions et infrastructure BaaS. Le MVP doit donc rester concentré sur les fonctionnalités qui prouvent la valeur du produit sans chercher à finaliser toutes les évolutions avancées.
+
 ### les livrables
+
+Les livrables attendus pour le projet sont les suivants :
+
+- dépôt GitHub contenant le code source, l'infrastructure et la documentation ;
+- documentation d'installation et de lancement avec Docker Compose ;
+- dossier projet décrivant le contexte, le besoin, la cible, l'architecture et les choix techniques ;
+- documentation back-end de la plateforme mini-BaaS ;
+- scripts de validation et de smoke tests ;
+- configuration des services principaux : gateway, base de données, authentification, API, observabilité ;
+- maquettes ou captures des interfaces principales ;
+- jeu de données de test ou scripts de seed ;
+- description des profils utilisateurs et des scénarios d'utilisation ;
+- éléments de sécurité : authentification, permissions, séparation des accès, gestion des secrets ;
+- procédure de déploiement ou d'exécution locale reproductible.
+
+Ces livrables doivent permettre à un évaluateur, un développeur ou un membre d'équipe de comprendre le produit, de lancer l'environnement, de vérifier les choix techniques et d'identifier clairement les fonctionnalités réalisées ou prévues.
 
 ### Environnement humain et technique
 
