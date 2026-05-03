@@ -13,6 +13,7 @@ COPY scripts/           /vault/scripts/
 RUN chmod +x /vault/scripts/*.sh 2>/dev/null || true
 
 EXPOSE 8200
+USER vault
 
 HEALTHCHECK --interval=5s --timeout=3s --start-period=10s --retries=5 \
   CMD vault status -address=http://127.0.0.1:8200 2>/dev/null | grep -q 'Sealed.*false' || exit 1

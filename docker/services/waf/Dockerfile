@@ -10,9 +10,9 @@ FROM owasp/modsecurity-crs:4-nginx-202604040104
 USER root
 RUN rm -f /etc/nginx/templates/conf.d/default.conf.template
 
-COPY --chown=nginx:root conf/nginx.conf        /etc/nginx/conf.d/default.conf
-COPY --chown=nginx:root conf/modsecurity.conf  /etc/modsecurity.d/modsecurity-override.conf
-COPY --chown=nginx:root conf/crs-setup.conf    /etc/modsecurity.d/owasp-crs/crs-setup-override.conf
+COPY --chown=nginx:root --chmod=0444 conf/nginx.conf        /etc/nginx/conf.d/default.conf
+COPY --chown=nginx:root --chmod=0444 conf/modsecurity.conf  /etc/modsecurity.d/modsecurity-override.conf
+COPY --chown=nginx:root --chmod=0444 conf/crs-setup.conf    /etc/modsecurity.d/owasp-crs/crs-setup-override.conf
 USER nginx
 
 EXPOSE 80

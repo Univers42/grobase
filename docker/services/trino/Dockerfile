@@ -4,3 +4,4 @@
 FROM trinodb/trino:467
 COPY --link conf/config.properties /etc/trino/config.properties
 EXPOSE 8080
+USER trino

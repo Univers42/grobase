@@ -602,7 +602,7 @@ function tryTextParsers(raw: string): ParsedLog | null {
 	match = REALTIME_RE.exec(raw);
 	if (match) {
 		const [, level = '', moduleName = '', rawMsg = ''] = match;
-		const module = moduleName.replace(/:$/, '');
+		const module = moduleName.endsWith(':') ? moduleName.slice(0, -1) : moduleName;
 		const msg = rawMsg.trim();
 		return {
 			level: strLevel(level),

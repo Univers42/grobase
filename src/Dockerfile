@@ -34,7 +34,7 @@ COPY --link package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy compiled output
-COPY --from=build --chown=appuser:appgroup /app/dist/ ./dist/
+COPY --from=build --chown=appuser:appgroup --chmod=0555 /app/dist/ ./dist/
 
 USER appuser
 
