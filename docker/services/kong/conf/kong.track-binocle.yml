@@ -1,0 +1,120 @@
+# Kong Declarative Configuration — track-binocle profile
+_format_version: "3.0"
+_transform: true
+
+consumers:
+  - username: anon
+    keyauth_credentials:
+      - key: __KONG_PUBLIC_API_KEY__
+  - username: service_role
+    acls:
+      - group: service_role
+    keyauth_credentials:
+      - key: __KONG_SERVICE_API_KEY__
+  - username: authenticated
+    jwt_secrets:
+      - key: __GOTRUE_JWT_ISS__
+        secret: __JWT_SECRET__
+        algorithm: HS256
+      - key: supabase
+        secret: __JWT_SECRET__
+        algorithm: HS256
+
+plugins:
+  - name: cors
+    config:
+      origins:
+        - __KONG_CORS_ORIGIN_APP__
+        - __KONG_CORS_ORIGIN_PLAYGROUND__
+        - __KONG_CORS_ORIGIN_STUDIO__
+        - __KONG_CORS_ORIGIN_FRONTEND__
+      methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+      headers: [Authorization, Content-Type, Content-Profile, apikey, x-client-info, X-Request-ID, Prefer, Range, Accept, Accept-Profile, x-supabase-api-version]
+      exposed_headers: [X-Kong-Upstream-Latency, X-Kong-Proxy-Latency, X-Request-ID]
+      credentials: true
+      max_age: 3600
+  - name: correlation-id
+    config:
+      header_name: X-Request-ID
+      generator: uuid#counter
+      echo_downstream: true
+  - name: response-transformer
+    config:
+      add:
+        headers:
+          - Strict-Transport-Security:max-age=31536000; includeSubDomains
+          - X-Content-Type-Options:nosniff
+          - X-Frame-Options:DENY
+          - Referrer-Policy:strict-origin-when-cross-origin
+
+services:
+  - name: auth
+    url: http://gotrue:9999
+    routes:
+      - name: auth-routes
+        paths: [/auth/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 120
+              hour: 3000
+
+  - name: rest
+    url: http://postgrest:3000
+    routes:
+      - name: rest-routes
+        paths: [/rest/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 180
+              hour: 5000
+
+  - name: admin-meta
+    url: http://pg-meta:8080
+    routes:
+      - name: meta-routes
+        paths: [/meta/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: ip-restriction
+            config:
+              allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1]
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 120
+              hour: 3000

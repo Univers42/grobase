@@ -1,0 +1,256 @@
+# Track-binocle project profile: only Postgres, Supavisor, PostgREST, pg-meta, Kong, and Redis.
+name: mini-baas-track-binocle
+
+services:
+  postgres:
+    build:
+      context: ./docker/services/postgres
+      dockerfile: Dockerfile
+    container_name: mini-baas-track-binocle-postgres
+    env_file: [.env]
+    ports:
+      - "127.0.0.1:${PG_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    volumes:
+      - track-binocle-postgres-data:/var/lib/postgresql/data
+    command: >
+      postgres
+        -c shared_preload_libraries=pg_net
+        -c pg_net.database_name=${POSTGRES_DB:-postgres}
+    networks:
+      track-binocle-baas:
+        aliases:
+          - db
+          - postgres
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  db-bootstrap:
+    image: postgres:16-alpine
+    container_name: mini-baas-track-binocle-db-bootstrap
+    env_file: [.env]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      REALTIME_DB_NAME: realtime
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    command: >
+      sh -ec '
+        until pg_isready -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"; do sleep 1; done;
+        psql -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" -v ON_ERROR_STOP=1 -v pwd="$${POSTGRES_PASSWORD}" -v realtime_db="$${REALTIME_DB_NAME}" -f /bootstrap/db-bootstrap.sql;
+      '
+    volumes:
+      - ./scripts/db-bootstrap.sql:/bootstrap/db-bootstrap.sql:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - track-binocle-baas
+    restart: "no"
+
+  project-db-init:
+    image: postgres:16-alpine
+    container_name: mini-baas-track-binocle-project-db-init
+    env_file: [.env]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PROJECT_INIT_MARKER: ${PROJECT_INIT_MARKER:-track_binocle_20260503}
+      APP_SCHEMA: ${APP_SCHEMA:-public}
+    command: ["sh", "/bootstrap/apply-project-sql.sh"]
+    volumes:
+      - ./scripts/apply-project-sql.sh:/bootstrap/apply-project-sql.sh:ro
+      - ../../../models/user.sql:/project-init/01-schema.sql:ro
+      - ../../../models/seeds.sql:/project-init/02-seed.sql:ro
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - track-binocle-baas
+    restart: "no"
+
+  redis:
+    image: redis:7-alpine
+    container_name: mini-baas-track-binocle-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - track-binocle-redis-data:/data
+    networks:
+      - track-binocle-baas
+    restart: unless-stopped
+
+  gotrue:
+    image: supabase/gotrue:v2.188.1
+    container_name: mini-baas-track-binocle-gotrue
+    env_file: [.env]
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}
+      GOTRUE_SITE_URL: ${GOTRUE_SITE_URL:-http://localhost:4322}
+      GOTRUE_URI_ALLOW_LIST: ${GOTRUE_URI_ALLOW_LIST:-http://localhost:4322/**,http://localhost:5173/**}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      GOTRUE_DB_MIGRATIONS_PATH: ${GOTRUE_DB_MIGRATIONS_PATH:-/usr/local/etc/auth/migrations}
+      GOTRUE_DISABLE_SIGNUP: ${GOTRUE_DISABLE_SIGNUP:-false}
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: ${GOTRUE_EXTERNAL_EMAIL_ENABLED:-true}
+      GOTRUE_MAILER_AUTOCONFIRM: ${GOTRUE_MAILER_AUTOCONFIRM:-false}
+      GOTRUE_SMTP_HOST: ${SMTP_HOST:-mailpit}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT:-1025}
+      GOTRUE_SMTP_USER: ${SMTP_USERNAME:-}
+      GOTRUE_SMTP_PASS: ${SMTP_PASSWORD:-}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_FROM_ADDRESS:-noreply@mini-baas.local}
+      GOTRUE_SMTP_SENDER_NAME: ${SMTP_FROM_NAME:-Prismatica}
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: /etc/gotrue/templates/email-verification.html
+      GOTRUE_MAILER_TEMPLATES_RECOVERY: /etc/gotrue/templates/password-reset.html
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_ISSUER: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}
+    volumes:
+      - ../../../opposite-osiris/src/email-templates:/etc/gotrue/templates:ro
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - track-binocle-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9999/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 15s
+      retries: 8
+
+  postgrest:
+    image: postgrest/postgrest:v12.2.3
+    container_name: mini-baas-track-binocle-postgrest
+    env_file: [.env]
+    environment:
+      PGRST_DB_URI: ${PGRST_DB_URI:-postgres://postgres:postgres@postgres:5432/postgres}
+      PGRST_DB_SCHEMA: ${PGRST_DB_SCHEMA:-public}
+      PGRST_DB_SCHEMAS: ${PGRST_DB_SCHEMAS:-public}
+      PGRST_DB_ANON_ROLE: ${PGRST_DB_ANON_ROLE:-anon}
+      PGRST_SERVER_PORT: 3000
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      project-db-init:
+        condition: service_completed_successfully
+    networks:
+      - track-binocle-baas
+    restart: unless-stopped
+
+  pg-meta:
+    image: supabase/postgres-meta:v0.91.0
+    container_name: mini-baas-track-binocle-pg-meta
+    env_file: [.env]
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: ${PG_META_DB_HOST:-postgres}
+      PG_META_DB_PORT: ${PG_META_DB_PORT:-5432}
+      PG_META_DB_NAME: ${PG_META_DB_NAME:-postgres}
+      PG_META_DB_USER: ${PG_META_DB_USER:-postgres}
+      PG_META_DB_PASSWORD: ${PG_META_DB_PASSWORD:-postgres}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      project-db-init:
+        condition: service_completed_successfully
+    networks:
+      - track-binocle-baas
+    restart: unless-stopped
+
+  supavisor:
+    image: supabase/supavisor:2.7.4
+    container_name: mini-baas-track-binocle-supavisor
+    env_file: [.env]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-super-secret-key-base}
+      VAULT_ENC_KEY: ${VAULT_ENC_KEY:-0123456789abcdef0123456789abcdef}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - track-binocle-baas
+    restart: unless-stopped
+
+  kong:
+    image: kong:3.8
+    container_name: mini-baas-track-binocle-kong
+    env_file: [.env]
+    ports:
+      - "127.0.0.1:${KONG_HTTP_PORT:-8000}:8000"
+      - "127.0.0.1:${KONG_ADMIN_PORT:-8001}:8001"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /tmp/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_NGINX_WORKER_PROCESSES: "1"
+      KONG_MEM_CACHE_SIZE: "64m"
+      KONG_UNTRUSTED_LUA_SANDBOX_REQUIRES: "cjson.safe"
+      JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_ISS: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}
+      KONG_ANON_UUID: ${KONG_ANON_UUID:-cd4f782c-ac87-5081-b322-b54834d15651}
+    volumes:
+      - ./docker/services/kong/conf/kong.track-binocle.yml:/etc/kong/kong.yml.tmpl:ro
+    command: >
+      sh -ec '
+        sed \
+          -e "s|__KONG_PUBLIC_API_KEY__|$${KONG_PUBLIC_API_KEY}|g" \
+          -e "s|__KONG_SERVICE_API_KEY__|$${KONG_SERVICE_API_KEY}|g" \
+          -e "s|__KONG_CORS_ORIGIN_APP__|$${KONG_CORS_ORIGIN_APP}|g" \
+          -e "s|__KONG_CORS_ORIGIN_PLAYGROUND__|$${KONG_CORS_ORIGIN_PLAYGROUND}|g" \
+          -e "s|__KONG_CORS_ORIGIN_STUDIO__|$${KONG_CORS_ORIGIN_STUDIO}|g" \
+          -e "s|__KONG_CORS_ORIGIN_FRONTEND__|$${KONG_CORS_ORIGIN_FRONTEND}|g" \
+          -e "s|__JWT_SECRET__|$${JWT_SECRET}|g" \
+          -e "s|__GOTRUE_JWT_ISS__|$${GOTRUE_JWT_ISS}|g" \
+          -e "s|__KONG_ANON_UUID__|$${KONG_ANON_UUID}|g" \
+          /etc/kong/kong.yml.tmpl > /tmp/kong.yml;
+        exec /docker-entrypoint.sh kong docker-start
+      '
+    healthcheck:
+      test: ["CMD-SHELL", "kong health"]
+      interval: 5s
+      timeout: 3s
+      start_period: 20s
+      retries: 10
+    depends_on:
+      gotrue:
+        condition: service_healthy
+      postgrest:
+        condition: service_started
+      pg-meta:
+        condition: service_started
+    networks:
+      - track-binocle-baas
+    restart: unless-stopped
+
+networks:
+  track-binocle-baas:
+    driver: bridge
+
+volumes:
+  track-binocle-postgres-data:
+  track-binocle-redis-data:
