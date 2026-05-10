@@ -51,6 +51,10 @@ else
   echo "[=] Vault already initialized"
 fi
 
+# The env helper runs as the host user so generated files are not root-owned.
+# Keep this local-dev key file readable inside the Docker volume.
+chmod 0644 "${KEYS_FILE}" 2>/dev/null || true
+
 # ── 4. Unseal ─────────────────────────────────────────────────────
 SEAL_OUTPUT=$(vault status -address="${VAULT_ADDR}" 2>&1) || true
 if echo "${SEAL_OUTPUT}" | grep -q 'Sealed.*true'; then
@@ -135,7 +139,7 @@ echo "[+] All secrets seeded"
 # ── 10. Create per-service AppRoles ────────────────────────────────
 echo "[*] Creating service AppRoles…"
 
-SERVICES="kong gotrue postgrest mongo-api adapter-registry query-router email-service storage-router permission-engine schema-service"
+SERVICES="kong gotrue postgrest mongo-api adapter-registry query-router email-service storage-router permission-engine schema-service postgres db-bootstrap project-db-init pg-meta supavisor osionos-bridge osionos-app auth-gateway opposite-osiris"
 
 for svc in ${SERVICES}; do
   vault write -address="${VAULT_ADDR}" "auth/approle/role/${svc}" \
@@ -157,5 +161,5 @@ done
 echo "[+] All AppRoles created"
 echo ""
 echo "=== Vault Bootstrap Complete ==="
-echo "Root token: ${ROOT_TOKEN:0:8}…"
+echo "Root token stored in: ${KEYS_FILE}"
 echo "Unseal key stored in: ${KEYS_FILE}"
