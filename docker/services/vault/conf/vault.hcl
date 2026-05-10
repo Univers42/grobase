@@ -18,8 +18,9 @@ cluster_addr = "https://0.0.0.0:8201"
 
 ui = true
 
-# Disable memory locking warning (we use cap_add: IPC_LOCK instead)
-disable_mlock = false
+# Local Docker environments may not allow the Vault image entrypoint to set
+# IPC_LOCK capabilities. Disable mlock for this single-node dev server.
+disable_mlock = true
 
 # Telemetry for Prometheus scraping
 telemetry {
