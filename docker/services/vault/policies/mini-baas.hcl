@@ -9,3 +9,11 @@ path "secret/data/mini-baas/*" {
 path "secret/metadata/mini-baas/*" {
   capabilities = ["list"]
 }
+
+path "secret/data/track-binocle/*" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/metadata/track-binocle/*" {
+  capabilities = ["list"]
+}
