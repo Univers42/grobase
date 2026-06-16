@@ -527,10 +527,13 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
       REALTIME_DB_NAME: realtime
       PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Password for the non-superuser PostgREST `authenticator` role created by
+      # db-bootstrap.psql (see migration 065 — safe-by-construction REST isolation).
+      AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD:-}
     command: >
       sh -ec '
         until pg_isready -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"; do sleep 1; done;
-        psql -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" -v ON_ERROR_STOP=1 -v pwd="$${POSTGRES_PASSWORD}" -v realtime_db="$${REALTIME_DB_NAME}" -f /bootstrap/db-bootstrap.psql;
+        psql -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" -v ON_ERROR_STOP=1 -v pwd="$${POSTGRES_PASSWORD}" -v realtime_db="$${REALTIME_DB_NAME}" -v authenticator_pwd="$${AUTHENTICATOR_PASSWORD}" -f /bootstrap/db-bootstrap.psql;
       '
     volumes:
       - ./scripts/db-bootstrap.psql:/bootstrap/db-bootstrap.psql:ro
@@ -761,7 +764,12 @@ services:
     # Kong's /rest/v1 route + `make health` probe it over HTTP.
     env_file: [.env]
     environment:
-      PGRST_DB_URI: ${PGRST_DB_URI:-postgres://postgres:postgres@postgres:5432/postgres}
+      # PostgREST connects as the dedicated non-superuser `authenticator` role
+      # (NOBYPASSRLS), so RLS + FORCE RLS always bind the public REST/GraphQL
+      # surface. The superuser DSN is NEVER used here (a superuser bypasses RLS
+      # unconditionally). The fallback below mirrors the .env that
+      # scripts/generate-env.sh writes; it still uses the authenticator role.
+      PGRST_DB_URI: ${PGRST_DB_URI:-postgres://authenticator:${AUTHENTICATOR_PASSWORD:-authenticator}@postgres:5432/postgres}
       PGRST_DB_SCHEMA: ${PGRST_DB_SCHEMA:-public}
       PGRST_SERVER_PORT: 3000
       PGRST_JWT_SECRET: ${JWT_SECRET}

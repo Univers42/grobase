@@ -65,16 +65,20 @@ func (rt *readRoutes) usage(w http.ResponseWriter, r *http.Request) {
 }
 
 // tokenOrSelf authorises read of a tenant's usage by either a control-plane
-// service token (admin) or a matching X-Baas-Tenant-Id / X-Tenant-Id header (a
+// service token (admin) or a tenant-self assertion via X-Baas-Tenant-Id (a
 // tenant reading its own usage) — byte-identical to tenants.routes.tokenOrSelf,
-// which guards GET /v1/tenants/{id}. The ISOLATION guarantee is enforced twice:
-// here at the edge (a tenant can only ASK for its own id) and again in the SQL
-// (tenant_id is always bound in the WHERE), atop the RLS policy on the table.
+// which guards GET /v1/tenants/{id}. The self arm goes through
+// shared.TenantSelfMatch: when TENANT_HEADER_IDENTITY_HMAC is set a forged
+// header alone cannot authorize (a valid X-Baas-Identity-Auth signature over the
+// asserted id is required); OFF (default) it is the unchanged `header == id`
+// check. The ISOLATION guarantee is now enforced THREE ways: the optional HMAC
+// at the edge, the edge id-match (a tenant can only ASK for its own id), and the
+// SQL (tenant_id is always bound in the WHERE), atop the RLS policy on the table.
 func (rt *readRoutes) tokenOrSelf(w http.ResponseWriter, r *http.Request, id string) bool {
 	if shared.VerifyServiceRequest(r, rt.serviceToken) {
 		return true
 	}
-	if r.Header.Get("X-Baas-Tenant-Id") == id || r.Header.Get("X-Tenant-Id") == id {
+	if shared.TenantSelfMatch(r, rt.serviceToken, id) {
 		return true
 	}
 	shared.WriteError(w, http.StatusUnauthorized, "unauthorized",

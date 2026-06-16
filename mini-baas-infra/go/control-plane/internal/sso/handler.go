@@ -165,15 +165,22 @@ func (rt *routes) writeErr(w http.ResponseWriter, err error) {
 	}
 }
 
-// tokenOrSelf authorises an admin call by either a control-plane service token or
-// a matching X-Baas-Tenant-Id / X-Tenant-Id header — the same shape
+// tokenOrSelf authorises an admin call (register/list a tenant's IdP connections,
+// keyed by the {id} path segment) by either a control-plane service token or a
+// tenant-self assertion via X-Baas-Tenant-Id — the same shape
 // passkeys.routes.tokenOrSelf / audit use. For an untenanted (empty) deployment a
-// bare service token is required.
+// bare service token is required (TenantSelfMatch never matches an empty id).
+//
+// The self arm goes through shared.TenantSelfMatch: when TENANT_HEADER_IDENTITY_HMAC
+// is set, a forged X-Baas-Tenant-Id cannot register/list ANOTHER tenant's SSO
+// connections on its own (a valid X-Baas-Identity-Auth signature over the asserted
+// {id} is required); OFF (default) it is the unchanged `tenantID != "" && header
+// == id` check (parity). The service-token (admin) arm never relies on the header.
 func (rt *routes) tokenOrSelf(w http.ResponseWriter, r *http.Request, tenantID string) bool {
 	if shared.VerifyServiceRequest(r, rt.serviceToken) {
 		return true
 	}
-	if tenantID != "" && (r.Header.Get("X-Baas-Tenant-Id") == tenantID || r.Header.Get("X-Tenant-Id") == tenantID) {
+	if shared.TenantSelfMatch(r, rt.serviceToken, tenantID) {
 		return true
 	}
 	shared.WriteError(w, http.StatusUnauthorized, "unauthorized",

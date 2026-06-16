@@ -297,12 +297,22 @@ func (rt *routes) verifyKey(w http.ResponseWriter, r *http.Request) {
 }
 
 // tokenOrSelf authorises read of a tenant by either a service token or by a
-// matching X-Baas-Tenant-Id header (a tenant fetching its own row).
+// tenant-self assertion via X-Baas-Tenant-Id (a tenant fetching its own row).
+//
+// The self arm goes through shared.TenantSelfMatch: the raw header must equal
+// id, AND — when TENANT_HEADER_IDENTITY_HMAC is set — a valid X-Baas-Identity-Auth
+// signature over the asserted identity is required, so a FORGED header cannot
+// authorize a cross-tenant read on its own. With the flag OFF (default) this is
+// byte-identical to the previous `header == id` check (parity). The service-token
+// arm (admin) never relies on the header. The deeper fix — deriving the tenant
+// from a verified credential, as selfServe.selfAuth does (no path {id}) — needs
+// each caller to forward a credential this internal {id} route does not receive
+// today; the HMAC envelope closes the forge vector without that wider change.
 func (rt *routes) tokenOrSelf(w http.ResponseWriter, r *http.Request, id string) bool {
 	if shared.VerifyServiceRequest(r, rt.serviceToken) {
 		return true
 	}
-	if r.Header.Get("X-Baas-Tenant-Id") == id || r.Header.Get("X-Tenant-Id") == id {
+	if shared.TenantSelfMatch(r, rt.serviceToken, id) {
 		return true
 	}
 	shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token or matching tenant header required")

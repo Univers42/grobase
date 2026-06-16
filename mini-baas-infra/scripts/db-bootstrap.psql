@@ -34,6 +34,49 @@ GRANT USAGE ON SCHEMA public TO service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
 
+-- ─── PostgREST `authenticator` login role (security: NOBYPASSRLS) ─────────────
+-- PostgREST connects to Postgres as THIS role instead of the `postgres` superuser
+-- (which bypasses RLS unconditionally). authenticator is a NOINHERIT, NOBYPASSRLS,
+-- NON-superuser login role that holds no privilege of its own; PostgREST does
+-- `SET ROLE` to anon/authenticated/service_role per request from the verified JWT
+-- `role` claim. Created HERE (not in the numbered-migration loop) because its
+-- password is the generated AUTHENTICATOR_PASSWORD and this bootstrap step runs
+-- before PostgREST first connects. Migration 065 re-affirms the attributes +
+-- grants idempotently. The :'authenticator_pwd' var is passed by the db-bootstrap
+-- compose command; if absent/empty we still create the role but without LOGIN, so
+-- it can never authenticate until a password is set.
+-- Default authenticator_pwd to empty when the caller did not pass `-v
+-- authenticator_pwd=…` (e.g. an overlay that hasn't wired the secret yet), so
+-- :'authenticator_pwd' never expands to an undefined-variable error below.
+\if :{?authenticator_pwd}
+\else
+\set authenticator_pwd ''
+\endif
+
+SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticator') AS authenticator_exists
+\gset
+SELECT (:'authenticator_pwd' <> '') AS have_authenticator_pwd
+\gset
+
+\if :authenticator_exists
+  \if :have_authenticator_pwd
+ALTER ROLE authenticator WITH LOGIN NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD :'authenticator_pwd';
+  \else
+ALTER ROLE authenticator WITH NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE;
+  \endif
+\else
+  \if :have_authenticator_pwd
+CREATE ROLE authenticator LOGIN NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD :'authenticator_pwd';
+  \else
+CREATE ROLE authenticator NOINHERIT NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE;
+  \endif
+\endif
+
+-- authenticator must be able to BECOME the three PostgREST request roles.
+GRANT anon, authenticated, service_role TO authenticator;
+GRANT CONNECT ON DATABASE postgres TO authenticator;
+GRANT USAGE ON SCHEMA public TO authenticator;
+
 SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_admin') AS role_exists
 \gset
 

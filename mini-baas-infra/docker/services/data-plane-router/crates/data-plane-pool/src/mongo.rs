@@ -885,8 +885,13 @@ impl MongoPool {
         let data = op.data.as_ref().ok_or_else(|| DataPlaneError::InvalidRequest {
             message: "update requires operation.data".to_string(),
         })?;
-        reject_top_level_operators(data)?;
-        let set_doc = json_to_doc(data)?;
+        // Strip RESERVED_FIELDS (`_id`/`owner_id`/`tenant_id`) from the client
+        // `$set` and re-inject the trusted owner/tenant, exactly as insert/upsert
+        // do via `build_owned_doc`. Without this a client could `$set` a foreign
+        // `owner_id`/`tenant_id` on its OWN (correctly owner-scoped) document and
+        // re-home it into another tenant's namespace. `build_owned_doc` also runs
+        // `reject_top_level_operators`, so the `$`-key rejection is preserved.
+        let set_doc = build_owned_doc(data, identity, &identity.tenant_id)?;
         let update = bson::doc! { "$set": set_doc };
         let result = col.update_many(filter, update).await.map_err(mongo_err)?;
         Ok(DataResult {
@@ -1451,6 +1456,39 @@ mod tests {
         let filt_b = build_tenant_filter(Some(&json!({})), &id_b, &id_b.tenant_id).unwrap();
         assert_eq!(filt_b.get_str("tenant_id").unwrap(), "tenant-b");
         assert_eq!(filt_b.get_str("owner_id").unwrap(), "api-key:b");
+    }
+
+    #[test]
+    fn update_set_strips_owner_and_tenant_and_reinjects_trusted() {
+        // Re-homing fix: `run_update` builds its `$set` from `build_owned_doc`
+        // (same as insert/upsert), so a client `data` carrying a foreign
+        // `owner_id`/`tenant_id` CANNOT move its own document into another
+        // tenant's namespace. The reserved fields are stripped and re-injected
+        // from the verified identity (mirrors the postgres `update` test that
+        // asserts the client `owner_id` is never settable). `_id` is reserved
+        // too — a client cannot rewrite the row's `_id` through `$set`.
+        let client = json!({
+            "name": "ok",
+            "owner_id": "api-key:victim",
+            "tenant_id": "victim-tenant",
+            "_id": "spoofed",
+        });
+        let set_doc = build_owned_doc(&client, &probe_identity(), "t1").unwrap();
+        // The legitimate field survives.
+        assert_eq!(set_doc.get_str("name").unwrap(), "ok");
+        // The spoofed owner/tenant are replaced by the verified identity, never
+        // the attacker's values.
+        assert_eq!(set_doc.get_str("owner_id").unwrap(), "api-key:k1");
+        assert_eq!(set_doc.get_str("tenant_id").unwrap(), "t1");
+        assert_ne!(set_doc.get_str("owner_id").unwrap(), "api-key:victim");
+        assert_ne!(set_doc.get_str("tenant_id").unwrap(), "victim-tenant");
+        // `_id` is a reserved field — stripped, never carried into `$set`.
+        assert!(!set_doc.contains_key("_id"), "client `_id` must not reach $set: {set_doc:?}");
+        // Operator keys in update data are still a clean 400 (rejection preserved).
+        assert!(matches!(
+            build_owned_doc(&json!({ "$rename": { "a": "b" } }), &probe_identity(), "t1").unwrap_err(),
+            DataPlaneError::InvalidRequest { .. }
+        ));
     }
 
     #[test]

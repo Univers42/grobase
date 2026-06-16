@@ -205,15 +205,21 @@ func (rt *routes) writeErr(w http.ResponseWriter, err error) {
 }
 
 // tokenOrSelf authorises a begin call by either a control-plane service token
-// (admin) or a matching X-Baas-Tenant-Id / X-Tenant-Id header (a tenant acting
+// (admin) or a tenant-self assertion via X-Baas-Tenant-Id (a tenant acting
 // WITHIN its own tenant) — byte-identical to audit.routes.tokenOrSelf. For an
-// untenanted (empty) deployment a bare service token is required (no header to
-// match), so a public unauthenticated begin is impossible.
+// untenanted (empty) deployment a bare service token is required (TenantSelfMatch
+// never matches an empty id), so a public unauthenticated begin is impossible.
+//
+// The self arm goes through shared.TenantSelfMatch: when TENANT_HEADER_IDENTITY_HMAC
+// is set, a forged X-Baas-Tenant-Id cannot START a ceremony for another tenant's
+// user on its own (a valid X-Baas-Identity-Auth signature over the asserted id is
+// required); OFF (default) it is the unchanged `tenantID != "" && header == id`
+// check (parity). The service-token (admin) arm never relies on the header.
 func (rt *routes) tokenOrSelf(w http.ResponseWriter, r *http.Request, tenantID string) bool {
 	if shared.VerifyServiceRequest(r, rt.serviceToken) {
 		return true
 	}
-	if tenantID != "" && (r.Header.Get("X-Baas-Tenant-Id") == tenantID || r.Header.Get("X-Tenant-Id") == tenantID) {
+	if shared.TenantSelfMatch(r, rt.serviceToken, tenantID) {
 		return true
 	}
 	shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
