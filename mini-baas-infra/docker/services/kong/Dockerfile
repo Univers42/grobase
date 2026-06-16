@@ -33,7 +33,13 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends /tmp/kong.deb; \
     rm -f /tmp/kong.deb; \
     apt-get purge -y --auto-remove curl; \
-    rm -rf /var/lib/apt/lists/*; \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/* /tmp/* /var/tmp/*; \
+    # Docs/man/info/locale are never read at runtime. Includes the OpenResty POD
+    # docs (/usr/local/openresty/pod) and luajit man pages — Perl/man source the
+    # nginx/kong runtime never loads. nginx/html (the default page) is kept.
+    rm -rf /usr/share/doc /usr/share/man /usr/share/info /usr/share/groff \
+           /usr/share/lintian /usr/share/linda /usr/share/locale/* \
+           /usr/local/openresty/pod /usr/local/openresty/luajit/share/man; \
     # Convenience symlinks the official image ships (resty/luajit/lua/nginx).
     ln -sf /usr/local/openresty/bin/resty /usr/local/bin/resty; \
     ln -sf /usr/local/openresty/luajit/bin/luajit /usr/local/bin/luajit; \

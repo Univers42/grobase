@@ -8,12 +8,26 @@
 # (github.com/supabase/auth/blob/v2.188.1/Dockerfile): same toolchain image,
 # same `make deps` + `make build` (ldflags inject utilities.Version), same
 # `auth`→`gotrue` symlink, same migrations layout + GOTRUE_DB_MIGRATIONS_PATH,
-# same minimal Alpine runtime + ca-certificates, same non-root user, same
-# `CMD ["auth"]` (no subcommand = run migrations then serve on :9999).
+# same non-root user, same `CMD ["auth"]` (no subcommand = run migrations then
+# serve on :9999).
 #
-# Final stage is Alpine (not distroless) on purpose: docker-compose.yml probes
-# health with `wget -qO- http://localhost:9999/health`, which needs busybox
-# wget — distroless has no wget/shell and would break that healthcheck.
+# Final stage is SCRATCH (not Alpine, not distroless). The `auth` binary is
+# CGO-free + fully statically linked (verified: `ldd` reports "Not a valid
+# dynamic program"), so it needs no libc/loader and runs on scratch directly —
+# dropping the ~8 MB Alpine layer + its shell/apk attack surface. The three
+# things gotrue actually needs at runtime are carried in explicitly:
+#   • ca-certificates → gotrue makes OUTBOUND TLS to Postgres / SMTP / external
+#     OAuth providers (42, Google, GitHub), so it MUST have a CA bundle; we copy
+#     just /etc/ssl/certs/ca-certificates.crt (the file, not the apk package);
+#   • the migrations dir + GOTRUE_DB_MIGRATIONS_PATH → the binary auto-runs
+#     migrations on boot (root command = migrate then serve);
+#   • a static busybox → docker-compose.yml probes health with
+#     `wget -qO- http://localhost:9999/health`; scratch has no shell, so we ship
+#     ONE static busybox to provide `wget` (same pattern as
+#     docker/services/postgrest/Dockerfile).
+# scratch has no /etc/passwd, so the non-root user is numeric (uid 1000, the
+# uid of upstream's `supabase` user). The `auth`/`gotrue` pair is staged as a
+# symlink in the builder and COPY'd (scratch can't `RUN ln -s`).
 #
 #   docker build -t gr-gotrue:sb docker/services/gotrue
 #   docker run --rm gr-gotrue:sb gotrue version      # -> v2.188.1
@@ -50,17 +64,39 @@ RUN --mount=type=cache,id=gomod-gotrue,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,id=gobuild-gotrue,target=/root/.cache/go-build,sharing=locked \
     RELEASE_VERSION="${AUTH_VERSION}" make build
 
-# ── Runtime ─────────────────────────────────────────────────────────────────
-# Pinned slim Alpine WE control. ca-certificates: TLS to Postgres / SMTP /
-# external OAuth providers (42, Google, GitHub). Non-root uid 1000 (upstream's
-# `supabase` user). Keeps busybox wget for the compose healthcheck.
-FROM alpine:3.21 AS runtime
-RUN adduser -D -u 1000 supabase \
-    && apk add --no-cache ca-certificates
+# Stage everything the scratch runtime needs, in the builder (which HAS a shell):
+#   • ca-certificates → the CA bundle file for outbound TLS;
+#   • busybox-static  → ONE static binary that we expose as /bin/{busybox,sh,wget}
+#     applet symlinks. This is load-bearing: docker-compose.yml's healthcheck is
+#     a CMD-SHELL form — `["CMD-SHELL", "wget -qO- http://localhost:9999/health
+#     || exit 1"]` — which Docker runs via `/bin/sh -c "<string>"`. So scratch
+#     must resolve BOTH a bare `/bin/sh` AND a bare `wget` on PATH, not just an
+#     absolute `/bin/busybox wget`. busybox provides both applets, so the exact
+#     compose contract keeps working byte-for-byte without touching compose.
+#   • /stage/usr/local/bin/{auth,gotrue} → binary + symlink alias, so the scratch
+#     COPY brings the link across (scratch can't `RUN ln -s`).
+RUN apk add --no-cache ca-certificates busybox-static \
+ && install -d /stage/usr/local/bin /stage/etc/ssl/certs /stage/bin \
+ && cp /go/src/github.com/supabase/auth/auth /stage/usr/local/bin/auth \
+ && ln -s auth /stage/usr/local/bin/gotrue \
+ && cp /etc/ssl/certs/ca-certificates.crt /stage/etc/ssl/certs/ca-certificates.crt \
+ && cp /bin/busybox.static /stage/bin/busybox \
+ && ln -s busybox /stage/bin/sh \
+ && ln -s busybox /stage/bin/wget
 
-# Binary + symlink (`gotrue` kept as a stable alias for tooling/compat).
-COPY --from=build /go/src/github.com/supabase/auth/auth /usr/local/bin/auth
-RUN ln -s /usr/local/bin/auth /usr/local/bin/gotrue
+# ── Runtime ─────────────────────────────────────────────────────────────────
+# SCRATCH: the static `auth` binary + the staged CA bundle, migrations, and a
+# static busybox (see header). Non-root uid 1000 (upstream's `supabase` user),
+# numeric because scratch has no /etc/passwd.
+FROM scratch AS runtime
+
+# Binary + `gotrue` alias symlink (staged together so the link resolves).
+COPY --from=build /stage/usr/local/bin/ /usr/local/bin/
+# CA bundle for outbound TLS (Postgres / SMTP / OAuth).
+COPY --from=build /stage/etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+# Static busybox + its /bin/{sh,wget} applet symlinks → satisfies the compose
+# CMD-SHELL healthcheck (`/bin/sh -c "wget …"`) byte-for-byte.
+COPY --from=build /stage/bin/ /bin/
 
 # Migrations shipped + pointed at, exactly like upstream — the binary auto-runs
 # them on boot (root command = migrate then serve).
@@ -68,12 +104,14 @@ COPY --from=build /go/src/github.com/supabase/auth/migrations /usr/local/etc/aut
 ENV GOTRUE_DB_MIGRATIONS_PATH=/usr/local/etc/auth/migrations
 
 EXPOSE 9999
-USER supabase
+# scratch has no /etc/passwd, so the non-root user must be a numeric uid:gid.
+USER 1000:1000
 
-# In-image healthcheck mirrors compose's contract; harmless if compose's own
-# healthcheck overrides it. Alpine busybox provides wget.
+# In-image healthcheck mirrors compose's CMD-SHELL contract exactly (bare `wget`
+# resolved via the busybox applet); harmless if compose's own healthcheck
+# overrides it.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost:9999/health >/dev/null 2>&1 || exit 1
+  CMD ["/bin/sh", "-c", "wget -qO- http://localhost:9999/health || exit 1"]
 
 # No subcommand => `migrate` then `serve` on :9999 (reads GOTRUE_* env).
 CMD ["auth"]

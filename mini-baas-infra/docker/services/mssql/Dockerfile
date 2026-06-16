@@ -48,10 +48,17 @@ RUN set -eux; \
   # EULA must be pre-accepted for the unattended tools install.
   ACCEPT_EULA=Y apt-get install -y --no-install-recommends \
     mssql-server mssql-tools18 unixodbc-dev; \
-  # locale (sqlservr wants a UTF-8 locale).
+  # locale (sqlservr wants a UTF-8 locale). The compiled en_US.UTF-8 lives in
+  # /usr/lib/locale/locale-archive — KEEP that; LANG/LC_ALL below depend on it.
   locale-gen en_US.UTF-8; \
   apt-get clean; \
-  rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+  rm -rf /var/lib/apt/lists/* /var/cache/apt/* /tmp/* /var/tmp/*; \
+  # Docs/man/info are never read at runtime (sqlservr + sqlcmd only).
+  # /usr/share/locale holds GNU gettext .mo app translations (apt/dpkg/coreutils
+  # messages) — NOT the en_US.UTF-8 runtime locale (that's the compiled archive
+  # in /usr/lib/locale, left intact) — so pruning it is safe and keeps en_US.
+  rm -rf /usr/share/doc /usr/share/man /usr/share/info /usr/share/groff \
+         /usr/share/lintian /usr/share/linda /usr/share/locale/*
 
 # sqlcmd / bcp on PATH for interactive + healthcheck use.
 ENV PATH="/opt/mssql-tools18/bin:${PATH}" \

@@ -78,9 +78,13 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000
 WORKDIR /app
-# Non-root parity with the compose `USER 1001`.
+# Non-root parity with the compose `USER 1001`. Also strip docs/man/info/locale
+# the base ships — never read at runtime (Next.js standalone node server only).
 RUN groupadd -g 1001 appgroup \
-  && useradd -u 1001 -g appgroup -M -s /usr/sbin/nologin appuser
+  && useradd -u 1001 -g appgroup -M -s /usr/sbin/nologin appuser \
+  && rm -rf /usr/share/doc /usr/share/man /usr/share/info /usr/share/groff \
+            /usr/share/lintian /usr/share/linda /usr/share/locale/* \
+            /var/lib/apt/lists/* /var/cache/apt/* /tmp/* /var/tmp/*
 COPY --from=builder --chown=1001:1001 /app/apps/studio/public ./apps/studio/public
 COPY --from=builder --chown=1001:1001 /app/apps/studio/.next/standalone ./
 COPY --from=builder --chown=1001:1001 /app/apps/studio/.next/static ./apps/studio/.next/static

@@ -30,6 +30,9 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends mongodb-mongosh; \
     apt-get purge -y --auto-remove curl gnupg; \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/* /tmp/* /var/tmp/*; \
+    # Docs/man/info/locale are never needed at runtime (mongosh + bash only).
+    rm -rf /usr/share/doc /usr/share/man /usr/share/info /usr/share/groff \
+           /usr/share/lintian /usr/share/linda /usr/share/locale/*; \
     # mongo-init only opens a plain network connection to run rs.initiate — it
     # never uses client-side field-level encryption, so drop the 114 MB FLE
     # crypto shared lib. mongosh runs fine without it for this use.

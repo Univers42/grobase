@@ -56,8 +56,11 @@ WORKDIR /app
 # runtime ships no build-tool CVE surface (mirrors src/Dockerfile).
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates \
-  && rm -rf /var/lib/apt/lists/* \
-  && rm -rf /usr/local/bin/npm /usr/local/bin/npx /usr/local/lib/node_modules/npm
+  && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /tmp/* /var/tmp/* \
+  && rm -rf /usr/local/bin/npm /usr/local/bin/npx /usr/local/lib/node_modules/npm \
+  # Docs/man/info/locale are never read at runtime (node server only).
+  && rm -rf /usr/share/doc /usr/share/man /usr/share/info /usr/share/groff \
+            /usr/share/lintian /usr/share/linda /usr/share/locale/*
 
 # Non-root: keep parity with the compose `USER 1001`. node:*-slim ships a
 # `node` user (uid 1000); add a dedicated uid-1001 user to match.

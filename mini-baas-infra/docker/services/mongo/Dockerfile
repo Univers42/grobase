@@ -35,6 +35,9 @@ RUN set -eux; \
         mongodb-mongosh; \
     apt-get purge -y --auto-remove curl gnupg; \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/* /tmp/* /var/tmp/*; \
+    # Docs/man/info/locale are never read at runtime (mongod + mongosh only).
+    rm -rf /usr/share/doc /usr/share/man /usr/share/info /usr/share/groff \
+           /usr/share/lintian /usr/share/linda /usr/share/locale/*; \
     # Drop bulky log/data dirs the package ships; we mount our own volumes.
     rm -rf /var/log/mongodb /var/lib/mongodb
 
