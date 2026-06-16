@@ -285,27 +285,25 @@ jobs:
         run: bash scripts/verify/run-gate-battery.sh m120
 
   # ─── Job 5: SDKs — build + test each SDK like a consumer ───────
-  # Python and Kotlin commit their generated client, so they build + test from a
-  # clean checkout the way a consumer would. The other three SDKs are NOT gated
-  # here because they cannot build from a clean checkout today:
-  #   • @mini-baas/js (sdk/)  — src/generated is gitignored; codegen needs the live
-  #     stack (scripts/openapi-collect.sh + /query/v1/engines), and the type-tests
-  #     depend on the live engine matrix.
-  #   • grobase (sdk-dart/)   — lib/ (the whole client) is gitignored/uncommitted,
-  #     so the committed tests import a non-existent package:grobase/api.dart.
-  #   • Grobase (sdk-swift/)  — a generated Model fails to compile on current Swift
-  #     (AuthSignUp200Response declared Identifiable without an id).
-  # Re-add each once its generated source is committed (or a codegen+stack job is
-  # wired) so the gate proves real behaviour, not a vacuous pass.
+  # Each SDK is exercised the way a consumer installs it. Python and Kotlin commit
+  # their generated client. Dart's client (lib/) is gitignored, so we regenerate it
+  # from the committed OpenAPI spec with the same generator before testing. Swift
+  # targets Apple platforms (imports MobileCoreServices), so it builds on macOS.
+  # JavaScript (@mini-baas/js) is the separate sdk-js-live job — its codegen and
+  # type-tests need a running stack (the live /query/v1/engines matrix).
   sdk-tests:
     name: SDK ${{ matrix.sdk }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     needs: [shellcheck]
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        sdk: [python, kotlin]
+        include:
+          - { sdk: python, os: ubuntu-latest }
+          - { sdk: kotlin, os: ubuntu-latest }
+          - { sdk: dart,   os: ubuntu-latest }
+          - { sdk: swift,  os: macos-latest }
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
@@ -333,6 +331,25 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew build test --no-daemon
+
+      # Dart — grobase. lib/ is gitignored, so regenerate the client from the
+      # committed OpenAPI spec (same generator the committed tests came from), then
+      # analyze + test the regenerated package.
+      - if: matrix.sdk == 'dart'
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - if: matrix.sdk == 'dart'
+        run: |
+          docker run --rm -v "$PWD/mini-baas-infra/openapi:/spec:ro" -v "$PWD/sdk-dart:/out" \
+            openapitools/openapi-generator-cli:latest generate \
+            -i /spec/grobase-public.json -g dart -o /out --additional-properties=pubName=grobase
+          cd sdk-dart && dart pub get && dart analyze && dart test
+
+      # Swift — Grobase (Apple platforms; macOS runner ships Swift via Xcode).
+      - if: matrix.sdk == 'swift'
+        working-directory: sdk-swift
+        run: swift build
 
   # ─── Job 6: Offers — compile each product shape like a user ─────
   # Prove the headline shapes a user can choose actually compile / are enforced:

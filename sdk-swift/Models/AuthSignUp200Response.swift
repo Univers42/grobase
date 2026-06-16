@@ -37,5 +37,5 @@ public enum AuthSignUp200Response: Codable, JSONEncodable, Hashable {
 }
 
 
-@available(iOS 13, tvOS 13, watchOS 6, macOS 10.15, *)
-extension AuthSignUp200Response: Identifiable {}
+// NOTE: AuthSignUp200Response is a oneOf enum with no `id` property, so it cannot
+// conform to Identifiable — the generator's extension was a compile error on Swift 6.
