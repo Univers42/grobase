@@ -465,6 +465,7 @@ services:
 
   # ─── Relational Database (custom image with pg_net) ───────────────
   postgres:
+    image: ghcr.io/univers42/grobase-postgres:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/postgres
       dockerfile: Dockerfile
@@ -992,6 +993,7 @@ services:
 
   # ─── Rust Data Plane Router (live cutover — see parity-probe.sh) ──
   data-plane-router-rust:
+    image: ghcr.io/univers42/grobase-data-plane-router:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/data-plane-router
       dockerfile: Dockerfile

@@ -169,6 +169,12 @@ jobs:
           - { service: pg-meta,      context: mini-baas-infra/docker/services/pg-meta }
           - { service: studio,       context: mini-baas-infra/docker/services/studio }
           - { service: mssql,        context: mini-baas-infra/docker/services/mssql }
+          # The two slowest source builds (Rust cold-compile + postgres pg_net/pgvector
+          # from source) — published so a fresh clone pulls them instead of compiling.
+          # data-plane-router is also built by docker-build (integration's gate); here it
+          # is additionally PUBLISHED. Shared buildx cache key makes the rebuild cheap.
+          - { service: postgres,     context: mini-baas-infra/docker/services/postgres }
+          - { service: data-plane-router, context: mini-baas-infra/docker/services/data-plane-router }
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
