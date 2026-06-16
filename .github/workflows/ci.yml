@@ -173,6 +173,13 @@ jobs:
             sed '/^#/d' "$f" | docker compose -f docker-compose.yml exec -T postgres \
               psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f -
           done
+          # PostgREST cached its schema at startup (it depends_on db-bootstrap, which
+          # runs BEFORE these migrations), so the migrated tables (users, posts,
+          # user_profiles, …) aren't yet servable on /rest/v1 — phases 6/10 write to
+          # them and get 404. Tell PostgREST to reload its schema cache.
+          docker compose -f docker-compose.yml exec -T postgres \
+            psql -U postgres -d postgres -c "NOTIFY pgrst, 'reload schema';"
+          sleep 3
 
       - name: Wait for gateway + mongo-api health (max 150s each)
         run: |
