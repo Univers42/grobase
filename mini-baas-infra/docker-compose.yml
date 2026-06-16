@@ -81,6 +81,7 @@ services:
 
   # ─── API Gateway ─────────────────────────────────────────────────
   kong:
+    image: ghcr.io/univers42/grobase-kong:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/kong
       dockerfile: Dockerfile
@@ -147,6 +148,7 @@ services:
 
   # ─── SQL Federation (M2) ─────────────────────────────────────────
   trino:
+    image: ghcr.io/univers42/grobase-trino:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/trino
       dockerfile: Dockerfile
@@ -191,6 +193,7 @@ services:
 
   # ─── MySQL (M2 federation — analytical + tenant CRUD via query-router) ──
   mysql:
+    image: ghcr.io/univers42/grobase-mysql:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/mysql
       dockerfile: Dockerfile
@@ -225,6 +228,7 @@ services:
   # `mariadb` engine id. Lives in the optional `engines-extra` profile (the
   # `engines` plane / Max package), never in default editions.
   mariadb:
+    image: ghcr.io/univers42/grobase-mariadb:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/mariadb
       dockerfile: Dockerfile
@@ -259,6 +263,7 @@ services:
   # node; RAM-capped via --cache/--max-sql-memory so it stays inside mem_limit.
   # Optional `engines-extra` profile (the `engines` plane / Max package).
   cockroach:
+    image: ghcr.io/univers42/grobase-cockroach:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/cockroach
       dockerfile: Dockerfile
@@ -292,6 +297,7 @@ services:
   # needs ~2 GB; lives in the optional `engines-extra` profile (the `engines`
   # plane / Max package), NEVER in default editions. Developer edition (free).
   mssql:
+    image: ghcr.io/univers42/grobase-mssql:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/mssql
       dockerfile: Dockerfile
@@ -319,6 +325,7 @@ services:
 
   # ─── Iceberg REST Catalog (M2 federation) ────────────────────────
   iceberg-rest:
+    image: ghcr.io/univers42/grobase-iceberg-rest:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/iceberg-rest
       dockerfile: Dockerfile
@@ -398,6 +405,7 @@ services:
 
   # ─── Debezium outbox CDC (M8 coherence — PG outbox → Redis Streams) ──
   debezium:
+    image: ghcr.io/univers42/grobase-debezium:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/debezium
       dockerfile: Dockerfile
@@ -429,6 +437,7 @@ services:
 
   # ─── Iceberg warehouse bucket bootstrap (M2 federation) ──────────
   minio-iceberg-init:
+    image: ghcr.io/univers42/grobase-mc:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/mc
       dockerfile: Dockerfile
@@ -498,6 +507,7 @@ services:
 
   # ─── Database Bootstrap ──────────────────────────────────────────
   db-bootstrap:
+    image: ghcr.io/univers42/grobase-db-bootstrap:latest   # pull-fallback (built from ./build context below)
     # Self-built: an init container that only runs psql/pg_isready then exits, so it
     # needs a postgres CLIENT (~13 MB) not the 438 MB pgvector engine image. The
     # `vector` extension lives in the postgres SERVER image (docker/services/postgres).
@@ -528,6 +538,7 @@ services:
 
   # ─── Document Database ───────────────────────────────────────────
   mongo:
+    image: ghcr.io/univers42/grobase-mongo:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/mongo
       dockerfile: Dockerfile
@@ -561,6 +572,7 @@ services:
   # ─── MongoDB keyfile generator (runs once, exits) ────────────────
   # Generates a shared keyfile for replica set internal auth.
   mongo-keyfile:
+    image: ghcr.io/univers42/grobase-mongo-keyfile:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/mongo-keyfile
       dockerfile: Dockerfile
@@ -587,6 +599,7 @@ services:
   # Required for Change Streams (used by realtime CDC producer).
   # Runs once and exits with code 0.
   mongo-init:
+    image: ghcr.io/univers42/grobase-mongo-init:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/mongo-init
       dockerfile: Dockerfile
@@ -655,6 +668,7 @@ services:
 
   # ─── Authentication ──────────────────────────────────────────────
   gotrue:
+    image: ghcr.io/univers42/grobase-gotrue:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/gotrue
       dockerfile: Dockerfile
@@ -731,6 +745,7 @@ services:
 
   # ─── PostgreSQL REST API ─────────────────────────────────────────
   postgrest:
+    image: ghcr.io/univers42/grobase-postgrest:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/postgrest
       dockerfile: Dockerfile
@@ -761,6 +776,7 @@ services:
 
   # ─── PostgreSQL Metadata (control plane / extras) ─────────────────
   pg-meta:
+    image: ghcr.io/univers42/grobase-pg-meta:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/pg-meta
       dockerfile: Dockerfile
@@ -844,6 +860,7 @@ services:
 
   # ─── In-Memory Cache ─────────────────────────────────────────────
   redis:
+    image: ghcr.io/univers42/grobase-redis:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/redis
       dockerfile: Dockerfile
@@ -1691,6 +1708,7 @@ services:
 
   # ─── Object Storage (extras) ─────────────────────────────────────
   minio:
+    image: ghcr.io/univers42/grobase-minio:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/minio
       dockerfile: Dockerfile
@@ -1794,6 +1812,7 @@ services:
 
   # ─── Connection Pooler (control plane / close to Postgres) ────────
   supavisor:
+    image: ghcr.io/univers42/grobase-supavisor:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/supavisor
       dockerfile: Dockerfile
@@ -1825,6 +1844,7 @@ services:
   # container reports healthy. The DEFAULT_* env vars skip the first-run
   # wizard so the dashboard loads straight into the dev project.
   studio:
+    image: ghcr.io/univers42/grobase-studio:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/studio
       dockerfile: Dockerfile
@@ -1868,6 +1888,7 @@ services:
 
   # ─── Observability: Prometheus ───────────────────────────────────
   prometheus:
+    image: ghcr.io/univers42/grobase-prometheus:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/prometheus
       dockerfile: Dockerfile
@@ -1891,6 +1912,7 @@ services:
 
   # ─── Observability: Grafana ──────────────────────────────────────
   grafana:
+    image: ghcr.io/univers42/grobase-grafana:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/grafana
       dockerfile: Dockerfile
@@ -1916,6 +1938,7 @@ services:
 
   # ─── Observability: Loki ─────────────────────────────────────────
   loki:
+    image: ghcr.io/univers42/grobase-loki:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/loki
       dockerfile: Dockerfile
@@ -1944,6 +1967,7 @@ services:
 
   # ─── Observability: Promtail ─────────────────────────────────────
   promtail:
+    image: ghcr.io/univers42/grobase-promtail:latest   # pull-fallback (built from ./build context below)
     # No healthcheck BY DESIGN: the promtail image ships neither curl nor wget.
     # It is a push-only agent — failure is visible as missing log streams, and
     # Loki's own /ready healthcheck covers the receiving end of the pipeline.
