@@ -221,6 +221,53 @@ jobs:
           rm -rf /tmp/.buildx-cache/${{ matrix.service }}
           mv /tmp/.buildx-cache-new/${{ matrix.service }} /tmp/.buildx-cache/${{ matrix.service }} 2>/dev/null || true
 
+  # ─── Job 2c: Publish lightweight app/control images to GHCR ──────────────────
+  # The NestJS app + Go control-plane services build in seconds, so they're not in
+  # the heavy infra-build matrix — but publishing them too gives a fresh clone 100%
+  # pull coverage (make pull, zero local compile). One runner, compose-driven
+  # (compose already knows each service's context + APP build-arg). Build always
+  # (validates), push only on main. Nothing depends on this job — no skip-cascade.
+  app-publish:
+    name: Publish app images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      # The app/control services are profile-gated; `docker compose build/push <name>`
+      # only resolves a service whose profile is active — so activate every profile
+      # these 23 live in. (Naming them still builds ONLY the 23; profiles just make
+      # them resolvable.)
+      COMPOSE_PROFILES: control-plane,go-control-plane,background,adapter-plane,legacy-node,data-plane,storage,extras,analytics,functions,backups,ops
+      APP_SVCS: >-
+        waf vault vault-init outbox-relay mongo-api query-router
+        adapter-registry-go tenant-control webhook-dispatcher orchestrator function-scheduler
+        email-service storage-router permission-engine schema-service analytics-service
+        gdpr-service newsletter-service ai-service log-service session-service
+        functions-runtime pg-backup
+    defaults:
+      run:
+        working-directory: mini-baas-infra
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+                      /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
+
+      - name: Generate env (compose interpolation)
+        run: FORCE=1 bash scripts/generate-env.sh .env
+
+      - name: Build app images (validates the lightweight layer)
+        run: docker compose -f docker-compose.yml build $APP_SVCS
+
+      - name: Log in to GHCR + push (main only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker compose -f docker-compose.yml push $APP_SVCS
+
   # ─── Job 3: Integration tests ──────────────────────────────────
   integration-tests:
     name: Integration Tests
