@@ -1,0 +1,17 @@
+#!/bin/bash
+# File: docker/services/trino/bin/run-trino
+#
+# Vendored copy of Trino's container launcher (upstream core/docker/bin/run-trino).
+# We do NOT pull the trinodb/trino image; this image is built from the official
+# server tarball on a JRE-Alpine base, so we ship the launcher ourselves. It
+# assigns a node.id (the hostname) when one is not already configured, then
+# hands off to the tarball's bin/launcher pointed at /etc/trino (where compose
+# mounts config.properties + the catalog/*.properties).
+set -euo pipefail
+
+launcher_opts=(--etc-dir /etc/trino)
+if ! grep -q -s '^node.id' /etc/trino/node.properties; then
+  launcher_opts+=("-Dnode.id=${HOSTNAME}")
+fi
+
+exec /usr/lib/trino/bin/launcher run "${launcher_opts[@]}" "$@"

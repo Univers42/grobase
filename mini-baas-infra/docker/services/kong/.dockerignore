@@ -1,3 +1,6 @@
+# Build context allowlist for the self-built Kong image.
+# Ignore everything, then re-include only what the Dockerfile COPYs.
 *
 !Dockerfile
-!kong.yml
+!conf/kong.yml
+!tools/docker-entrypoint.sh

@@ -95,8 +95,94 @@ jobs:
           - service: data-plane-router   # Rust — slow cold build (minutes)
             context: mini-baas-infra/docker/services/data-plane-router
             build-args: ""
+          # ── Self-built infra services (42-Inception: our Dockerfile, slim base).
+          # These are profile-gated (not booted by the default integration stack),
+          # so building each here is the parity gate that a slim Dockerfile actually
+          # compiles — a broken FROM/download is a real red, not a false green.
+          - service: redis              # alpine + apk redis
+            context: mini-baas-infra/docker/services/redis
+            build-args: ""
+          - service: postgrest          # scratch + static musl release binary
+            context: mini-baas-infra/docker/services/postgrest
+            build-args: ""
+          - service: db-bootstrap       # alpine + postgresql16-client
+            context: mini-baas-infra/docker/services/db-bootstrap
+            build-args: ""
+          - service: mongo-keyfile      # alpine + openssl
+            context: mini-baas-infra/docker/services/mongo-keyfile
+            build-args: ""
+          - service: kong               # debian-slim + official kong .deb
+            context: mini-baas-infra/docker/services/kong
+            build-args: ""
+          - service: gotrue             # Go source build → alpine
+            context: mini-baas-infra/docker/services/gotrue
+            build-args: ""
+          - service: mongo              # debian-slim + mongodb-org apt (glibc)
+            context: mini-baas-infra/docker/services/mongo
+            build-args: ""
+          - service: mongo-init         # debian-slim + mongosh only
+            context: mini-baas-infra/docker/services/mongo-init
+            build-args: ""
+          - service: mysql              # alpine + mariadb (mysql wire)
+            context: mini-baas-infra/docker/services/mysql
+            build-args: ""
+          - service: mariadb            # alpine + mariadb
+            context: mini-baas-infra/docker/services/mariadb
+            build-args: ""
+          - service: minio              # static minio release binary
+            context: mini-baas-infra/docker/services/minio
+            build-args: ""
+          - service: mc                 # static mc release binary
+            context: mini-baas-infra/docker/services/mc
+            build-args: ""
+          - service: cockroach          # static cockroach release binary
+            context: mini-baas-infra/docker/services/cockroach
+            build-args: ""
+          - service: prometheus         # static prometheus release binary
+            context: mini-baas-infra/docker/services/prometheus
+            build-args: ""
+          - service: grafana            # grafana release
+            context: mini-baas-infra/docker/services/grafana
+            build-args: ""
+          - service: loki               # static loki release binary
+            context: mini-baas-infra/docker/services/loki
+            build-args: ""
+          - service: promtail           # static promtail release binary
+            context: mini-baas-infra/docker/services/promtail
+            build-args: ""
+          - service: trino              # temurin-alpine JRE + trino tarball (heavy)
+            context: mini-baas-infra/docker/services/trino
+            build-args: ""
+          - service: debezium           # temurin-alpine JRE + debezium tarball (heavy)
+            context: mini-baas-infra/docker/services/debezium
+            build-args: ""
+          - service: iceberg-rest       # temurin source gradle build
+            context: mini-baas-infra/docker/services/iceberg-rest
+            build-args: ""
+          - service: supavisor          # Elixir release → alpine
+            context: mini-baas-infra/docker/services/supavisor
+            build-args: ""
+          - service: pg-meta            # node:20-slim source build
+            context: mini-baas-infra/docker/services/pg-meta
+            build-args: ""
+          - service: studio             # node:22-slim next build (heavy)
+            context: mini-baas-infra/docker/services/studio
+            build-args: ""
+          - service: mssql              # ubuntu + Microsoft apt mssql-server (heavy)
+            context: mini-baas-infra/docker/services/mssql
+            build-args: ""
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      # The JVM/SQL-Server/Next.js images (trino, debezium, mssql, studio) peak at
+      # 2–3 GiB during build; the stock runner has ~14 GiB free. Reclaim the
+      # preinstalled Android/.NET/GHC/boost trees (~25 GiB) so heavy slims fit.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+                      /usr/local/share/boost /usr/local/share/powershell \
+                      /usr/lib/jvm "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
+          df -h / | tail -1
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 

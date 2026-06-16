@@ -81,7 +81,9 @@ services:
 
   # ─── API Gateway ─────────────────────────────────────────────────
   kong:
-    image: kong:3.8
+    build:
+      context: ./docker/services/kong
+      dockerfile: Dockerfile
     container_name: mini-baas-kong
     env_file: [.env]
     ports:
@@ -145,7 +147,9 @@ services:
 
   # ─── SQL Federation (M2) ─────────────────────────────────────────
   trino:
-    image: trinodb/trino:467
+    build:
+      context: ./docker/services/trino
+      dockerfile: Dockerfile
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/v1/info >/dev/null || exit 1"]
       interval: 15s
@@ -187,7 +191,9 @@ services:
 
   # ─── MySQL (M2 federation — analytical + tenant CRUD via query-router) ──
   mysql:
-    image: mysql:8.4
+    build:
+      context: ./docker/services/mysql
+      dockerfile: Dockerfile
     container_name: mini-baas-mysql
     profiles: [analytics, data-plane, extras]
     env_file: [.env]
@@ -219,7 +225,9 @@ services:
   # `mariadb` engine id. Lives in the optional `engines-extra` profile (the
   # `engines` plane / Max package), never in default editions.
   mariadb:
-    image: mariadb:11
+    build:
+      context: ./docker/services/mariadb
+      dockerfile: Dockerfile
     container_name: mini-baas-mariadb
     profiles: [engines-extra]
     env_file: [.env]
@@ -251,7 +259,9 @@ services:
   # node; RAM-capped via --cache/--max-sql-memory so it stays inside mem_limit.
   # Optional `engines-extra` profile (the `engines` plane / Max package).
   cockroach:
-    image: cockroachdb/cockroach:v24.3.5
+    build:
+      context: ./docker/services/cockroach
+      dockerfile: Dockerfile
     container_name: mini-baas-cockroach
     profiles: [engines-extra]
     # --advertise-addr=cockroach (the in-network alias) lets it listen on all
@@ -282,7 +292,9 @@ services:
   # needs ~2 GB; lives in the optional `engines-extra` profile (the `engines`
   # plane / Max package), NEVER in default editions. Developer edition (free).
   mssql:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    build:
+      context: ./docker/services/mssql
+      dockerfile: Dockerfile
     container_name: mini-baas-mssql
     profiles: [engines-extra]
     environment:
@@ -307,7 +319,9 @@ services:
 
   # ─── Iceberg REST Catalog (M2 federation) ────────────────────────
   iceberg-rest:
-    image: apache/iceberg-rest-fixture:1.8.1
+    build:
+      context: ./docker/services/iceberg-rest
+      dockerfile: Dockerfile
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8181/v1/config >/dev/null || exit 1"]
       interval: 15s
@@ -384,7 +398,9 @@ services:
 
   # ─── Debezium outbox CDC (M8 coherence — PG outbox → Redis Streams) ──
   debezium:
-    image: quay.io/debezium/server:3.0
+    build:
+      context: ./docker/services/debezium
+      dockerfile: Dockerfile
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/q/health >/dev/null || exit 1"]
       interval: 15s
@@ -413,7 +429,9 @@ services:
 
   # ─── Iceberg warehouse bucket bootstrap (M2 federation) ──────────
   minio-iceberg-init:
-    image: minio/mc:RELEASE.2025-04-08T15-39-49Z
+    build:
+      context: ./docker/services/mc
+      dockerfile: Dockerfile
     container_name: mini-baas-minio-iceberg-init
     profiles: [analytics, extras, storage]
     env_file: [.env]
@@ -510,7 +528,9 @@ services:
 
   # ─── Document Database ───────────────────────────────────────────
   mongo:
-    image: mongo:7
+    build:
+      context: ./docker/services/mongo
+      dockerfile: Dockerfile
     container_name: mini-baas-mongo
     profiles: [data-plane]
     env_file: [.env]
@@ -567,7 +587,9 @@ services:
   # Required for Change Streams (used by realtime CDC producer).
   # Runs once and exits with code 0.
   mongo-init:
-    image: mongo:7
+    build:
+      context: ./docker/services/mongo-init
+      dockerfile: Dockerfile
     container_name: mini-baas-mongo-init
     profiles: [data-plane]
     depends_on:
@@ -633,7 +655,9 @@ services:
 
   # ─── Authentication ──────────────────────────────────────────────
   gotrue:
-    image: supabase/gotrue:v2.188.1
+    build:
+      context: ./docker/services/gotrue
+      dockerfile: Dockerfile
     container_name: mini-baas-gotrue
     env_file: [.env]
     environment:
@@ -737,7 +761,9 @@ services:
 
   # ─── PostgreSQL Metadata (control plane / extras) ─────────────────
   pg-meta:
-    image: supabase/postgres-meta:v0.91.0
+    build:
+      context: ./docker/services/pg-meta
+      dockerfile: Dockerfile
     healthcheck:
       # node-based image (no curl/wget) — probe with node fetch, supabase's own pattern
       test: ["CMD-SHELL", "node -e \"fetch('http://localhost:8080/health').then(r=>{if(r.status!==200)throw 1}).catch(()=>process.exit(1))\""]
@@ -1665,7 +1691,9 @@ services:
 
   # ─── Object Storage (extras) ─────────────────────────────────────
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1
+    build:
+      context: ./docker/services/minio
+      dockerfile: Dockerfile
     container_name: mini-baas-minio
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
@@ -1766,7 +1794,9 @@ services:
 
   # ─── Connection Pooler (control plane / close to Postgres) ────────
   supavisor:
-    image: supabase/supavisor:2.7.4
+    build:
+      context: ./docker/services/supavisor
+      dockerfile: Dockerfile
     healthcheck:
       test: ["CMD-SHELL", "curl -sSfL --head -o /dev/null http://127.0.0.1:4000/api/health || exit 1"]
       interval: 15s
@@ -1795,7 +1825,9 @@ services:
   # container reports healthy. The DEFAULT_* env vars skip the first-run
   # wizard so the dashboard loads straight into the dev project.
   studio:
-    image: supabase/studio:2026.03.30-sha-12a43e5
+    build:
+      context: ./docker/services/studio
+      dockerfile: Dockerfile
     container_name: mini-baas-studio
     profiles: [control-plane, extras, studio]
     env_file: [.env]
@@ -1836,7 +1868,9 @@ services:
 
   # ─── Observability: Prometheus ───────────────────────────────────
   prometheus:
-    image: prom/prometheus:v2.52.0
+    build:
+      context: ./docker/services/prometheus
+      dockerfile: Dockerfile
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy >/dev/null || exit 1"]
       interval: 15s
@@ -1857,7 +1891,9 @@ services:
 
   # ─── Observability: Grafana ──────────────────────────────────────
   grafana:
-    image: grafana/grafana:10.4.2
+    build:
+      context: ./docker/services/grafana
+      dockerfile: Dockerfile
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health >/dev/null || exit 1"]
       interval: 15s
@@ -1880,7 +1916,9 @@ services:
 
   # ─── Observability: Loki ─────────────────────────────────────────
   loki:
-    image: grafana/loki:3.0.0
+    build:
+      context: ./docker/services/loki
+      dockerfile: Dockerfile
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready >/dev/null || exit 1"]
       interval: 15s
@@ -1909,7 +1947,9 @@ services:
     # No healthcheck BY DESIGN: the promtail image ships neither curl nor wget.
     # It is a push-only agent — failure is visible as missing log streams, and
     # Loki's own /ready healthcheck covers the receiving end of the pipeline.
-    image: grafana/promtail:3.0.0
+    build:
+      context: ./docker/services/promtail
+      dockerfile: Dockerfile
     container_name: mini-baas-promtail
     profiles: ["observability"]
     volumes:
