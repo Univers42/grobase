@@ -532,13 +532,17 @@ jobs:
       # Rust — data-plane workspace (data-plane-core/pool/server + engine-conformance)
       - if: matrix.suite == 'rust-data-plane'
         run: |
-          docker run --rm -v "$PWD/mini-baas-infra/docker/services/data-plane-router:/src" -w /src \
+          # CARGO_HTTP_MULTIPLEXING=false forces HTTP/1.1 (avoids the intermittent
+          # crates.io "Error in the HTTP2 framing layer" flake); NET_RETRY rides out blips.
+          docker run --rm -e CARGO_NET_RETRY=10 -e CARGO_HTTP_MULTIPLEXING=false \
+            -v "$PWD/mini-baas-infra/docker/services/data-plane-router:/src" -w /src \
             rust:1-bookworm cargo test --workspace
 
       # Rust — realtime workspace (event bus + IRC bridge)
       - if: matrix.suite == 'rust-realtime'
         run: |
-          docker run --rm -v "$PWD/mini-baas-infra/docker/services/realtime/realtime-agnostic:/src" -w /src \
+          docker run --rm -e CARGO_NET_RETRY=10 -e CARGO_HTTP_MULTIPLEXING=false \
+            -v "$PWD/mini-baas-infra/docker/services/realtime/realtime-agnostic:/src" -w /src \
             rust:1-bookworm cargo test --workspace
 
       # NestJS — apps + libs (jest)
