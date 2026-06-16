@@ -236,7 +236,7 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3020" "${TC_IMG}" >/dev/null
 wait_ready_http "${TC_ON}" "${PORT_ON}" /health/live || fail "IPGUARD-ON tenant-control not ready (line: wait TC_ON)"
-docker logs "${TC_ON}" 2>&1 | grep -q "tenant IP allowlist enabled" \
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "tenant IP allowlist enabled" \
   || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "ip-allowlist never reported enabled (line: ip enabled log)"; }
 ok "IPGUARD-ON tenant-control up (/v1/ipguard* + ip-allowlist routes mounted)"
 
@@ -332,7 +332,7 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3020" "${TC_IMG}" >/dev/null
 wait_ready_http "${TC_OFF}" "${PORT_OFF}" /health/live || fail "IPGUARD-OFF tenant-control not ready (line: wait TC_OFF)"
-docker logs "${TC_OFF}" 2>&1 | grep -q "tenant IP allowlist disabled" \
+{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "tenant IP allowlist disabled" \
   || { docker logs "${TC_OFF}" 2>&1 | tail -20; fail "(C) OFF instance did not report ip-allowlist disabled (flag default not OFF?) (line: C disabled log)"; }
 ok "IPGUARD-OFF tenant-control up (flag default OFF)"
 

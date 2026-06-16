@@ -7,6 +7,11 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Manual trigger + nightly sweep for the heavy enterprise battery (gates-full).
+  # The per-PR path stays fast; the full m103..m145 suite runs once a day + on demand.
+  workflow_dispatch:
+  schedule:
+    - cron: '30 2 * * *'
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -365,3 +370,34 @@ jobs:
 
       - name: Compile/enforce ${{ matrix.offer }}
         run: ${{ matrix.run }}
+
+  # ─── Job 7: Full enterprise gate battery (nightly + manual) ─────
+  # The heavy enterprise + parity suite (m103..m145): orgs/RBAC, audit chain,
+  # hard-erase, IP allowlist, passkeys, SOC2 evidence, tenant export, SSO/OIDC,
+  # SCIM, trust center, CMEK, read-replica, ABAC masks, compliance posture. Each
+  # gate builds its own scratch stack and self-cleans. Runs ONLY on the nightly
+  # schedule and manual dispatch — never on push/PR — so it never blocks a merge.
+  gates-full:
+    name: Full gate battery (enterprise m103..m145)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: [shellcheck]
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: mini-baas-infra
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Run enterprise battery (m103..m145)
+        run: bash scripts/verify/run-gate-battery.sh --enterprise
+
+      - name: Upload per-gate logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-battery-logs-${{ github.run_id }}
+          path: mini-baas-infra/artifacts/gate-battery/
+          retention-days: 14

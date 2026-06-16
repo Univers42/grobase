@@ -218,7 +218,7 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -v "${FIX_DIR}/gitlog.txt:/evidence/gitlog.txt:ro" \
   -p "127.0.0.1:${PORT_ON}:3080" "${TC_IMG}" >/dev/null
 wait_ready "${TC_ON}" "${PORT_ON}" || fail "ENABLED tenant-control not ready"
-docker logs "${TC_ON}" 2>&1 | grep -q "compliance evidence collector enabled" \
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "compliance evidence collector enabled" \
   || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "compliance collector never reported enabled"; }
 ok "tenant-control up with compliance API mounted (/v1/compliance*)"
 
@@ -378,7 +378,7 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3080" "${TC_IMG}" >/dev/null
 wait_ready "${TC_OFF}" "${PORT_OFF}" || fail "PARITY tenant-control not ready"
-docker logs "${TC_OFF}" 2>&1 | grep -q "compliance evidence collector disabled" \
+{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "compliance evidence collector disabled" \
   || { docker logs "${TC_OFF}" 2>&1 | tail -20; fail "OFF tenant-control did not report collector disabled (flag default not OFF?)"; }
 ROWS_BEFORE="$(psql_val "SELECT count(*) FROM public.compliance_evidence")"
 # every /v1/compliance* verb → 404 (routes not mounted).

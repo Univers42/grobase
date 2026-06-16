@@ -174,7 +174,7 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3060" "${TC_IMG}" >/dev/null
 wait_ready "${TC_ON}" "${PORT_ON}" || fail "ENABLED tenant-control not ready"
-docker logs "${TC_ON}" 2>&1 | grep -q "tenant audit log enabled" \
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "tenant audit log enabled" \
   || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "audit log never reported enabled"; }
 ok "tenant-control up with audit API mounted (/v1/audit*)"
 
@@ -268,7 +268,7 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3060" "${TC_IMG}" >/dev/null
 wait_ready "${TC_OFF}" "${PORT_OFF}" || fail "PARITY tenant-control not ready"
-docker logs "${TC_OFF}" 2>&1 | grep -q "tenant audit log disabled" \
+{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "tenant audit log disabled" \
   || { docker logs "${TC_OFF}" 2>&1 | tail -20; fail "OFF tenant-control did not report audit disabled (flag default not OFF?)"; }
 ROWS_BEFORE="$(psql_val "SELECT count(*) FROM public.tenant_audit_log")"
 # every /v1/audit* verb → 404 (routes not mounted).

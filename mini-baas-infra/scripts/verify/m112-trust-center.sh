@@ -187,7 +187,7 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -v "${TRUST_DIR}:/trust:ro" \
   -p "127.0.0.1:${PORT_ON}:3090" "${TC_IMG}" >/dev/null
 wait_ready "${TC_ON}" "${PORT_ON}" || fail "trust-ON tenant-control not ready (line: wait_ready TC_ON)"
-docker logs "${TC_ON}" 2>&1 | grep -qi "trust center enabled" \
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -qi "trust center enabled" \
   || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "trust center never reported enabled (line: TC_ON enabled log)"; }
 ok "trust-ON tenant-control up (/v1/trust* mounted, manifest from /trust/posture.json)"
 
@@ -313,7 +313,7 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3090" "${TC_IMG}" >/dev/null
 wait_ready "${TC_OFF}" "${PORT_OFF}" || fail "trust-OFF tenant-control not ready (line: wait_ready TC_OFF)"
-docker logs "${TC_OFF}" 2>&1 | grep -qi "trust center disabled" \
+{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -qi "trust center disabled" \
   || { docker logs "${TC_OFF}" 2>&1 | tail -20; fail "OFF tenant-control did not report trust center disabled (flag default not OFF?) (line: TC_OFF disabled log)"; }
 ok "trust-OFF tenant-control up (TRUST_CENTER_ENABLED unset)"
 

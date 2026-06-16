@@ -253,7 +253,7 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3070" "${TC_IMG}" >/dev/null
 wait_ready "${TC_ON}" "${PORT_ON}" || fail "erase-ON tenant-control not ready (line: wait_ready TC_ON)"
-docker logs "${TC_ON}" 2>&1 | grep -q "hard-erase enabled" \
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "hard-erase enabled" \
   || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "hard-erase never reported enabled (line: TC_ON enabled log)"; }
 ok "erase-ON tenant-control up (POST /v1/tenants/{id}/erase + /v1/audit* mounted)"
 
@@ -414,7 +414,7 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3070" "${TC_IMG}" >/dev/null
 wait_ready "${TC_OFF}" "${PORT_OFF}" || fail "erase-OFF tenant-control not ready (line: wait_ready TC_OFF)"
-docker logs "${TC_OFF}" 2>&1 | grep -q "hard-erase disabled" \
+{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "hard-erase disabled" \
   || { docker logs "${TC_OFF}" 2>&1 | tail -20; fail "OFF tenant-control did not report hard-erase disabled (flag default not OFF?) (line: TC_OFF disabled log)"; }
 # POST .../erase → 404 (route NOT mounted) WHILE base admin GET /v1/tenants/{id} → 200.
 C="$(admin_req POST "${PORT_OFF}" "/v1/tenants/${TENANT_C}/erase")"

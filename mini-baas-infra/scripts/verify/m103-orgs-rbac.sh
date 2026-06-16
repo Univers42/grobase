@@ -277,7 +277,7 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3020" "${TC_IMG}" >/dev/null
 wait_ready_http "${TC_ON}" "${PORT_ON}" /health/live || fail "ORG-ON tenant-control not ready (line: wait TC_ON)"
-docker logs "${TC_ON}" 2>&1 | grep -q "organizations API enabled" \
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "organizations API enabled" \
   || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "org API never reported enabled (line: org enabled log)"; }
 ok "ORG-ON tenant-control up (/v1/orgs* mounted, JWT verifier configured)"
 
@@ -422,7 +422,7 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3020" "${TC_IMG}" >/dev/null
 wait_ready_http "${TC_OFF}" "${PORT_OFF}" /health/live || fail "ORG-OFF tenant-control not ready (line: wait TC_OFF)"
-docker logs "${TC_OFF}" 2>&1 | grep -q "organizations API disabled" \
+{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "organizations API disabled" \
   || { docker logs "${TC_OFF}" 2>&1 | tail -20; fail "(C1) OFF instance did not report org API disabled (flag default not OFF?) (line: C1 disabled log)"; }
 # Every /v1/orgs* route → 404 (not mounted).
 C="$(org_req GET "${PORT_OFF}" /v1/orgs "${JWT_U1}")"

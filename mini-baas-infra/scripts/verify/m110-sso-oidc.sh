@@ -455,7 +455,7 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3070" "${TC_IMG}" >/dev/null
 wait_ready "${TC_ON}" "${PORT_ON}" || fail "SSO-ON tenant-control not ready (line: wait_ready TC_ON)"
-docker logs "${TC_ON}" 2>&1 | grep -qi "sso .*enabled" \
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -qi "sso .*enabled" \
   || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "SSO never reported enabled (line: TC_ON enabled log)"; }
 ok "SSO-ON tenant-control up (/v1/auth/sso/* mounted)"
 
@@ -565,7 +565,7 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3070" "${TC_IMG}" >/dev/null
 wait_ready "${TC_OFF}" "${PORT_OFF}" || fail "SSO-OFF tenant-control not ready (line: wait_ready TC_OFF)"
-docker logs "${TC_OFF}" 2>&1 | grep -qi "sso .*disabled" \
+{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -qi "sso .*disabled" \
   || { docker logs "${TC_OFF}" 2>&1 | tail -20; fail "OFF tenant-control did not report SSO disabled (flag default not OFF?) (line: TC_OFF disabled log)"; }
 ok "SSO-OFF tenant-control up (SSO_ENABLED unset)"
 
