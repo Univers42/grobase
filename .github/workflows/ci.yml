@@ -203,7 +203,10 @@ jobs:
           # or phase 2's preflight check sees no access-control-allow-origin header.
           export APIKEY PUBLIC_APIKEY="$APIKEY" BASE_URL="http://localhost:8000" TEST_ORIGIN="https://localhost:3000"
           rc_all=0
-          for phase in 1 2 3 4 14 15; do
+          # 5-8,10,16 use only /rest + /auth (the default stack); 14-15 are Mongo.
+          # Phases 9 (storage) and 11-13 (realtime) need extra planes — added once
+          # those services are wired into this job.
+          for phase in 1 2 3 4 5 6 7 8 10 14 15 16; do
             script=$(ls scripts/phase${phase}-*.sh scripts/phase${phase}-*.py 2>/dev/null | head -1 || true)
             if [ -z "$script" ]; then
               echo "No test script for phase ${phase}, skipping"; continue
@@ -395,12 +398,11 @@ jobs:
   # The heavy enterprise + parity suite (m103..m145): orgs/RBAC, audit chain,
   # hard-erase, IP allowlist, passkeys, SOC2 evidence, tenant export, SSO/OIDC,
   # SCIM, trust center, CMEK, read-replica, ABAC masks, compliance posture. Each
-  # gate builds its own scratch stack and self-cleans. Runs ONLY on the nightly
-  # schedule and manual dispatch — never on push/PR — so it never blocks a merge.
+  # gate builds its own scratch stack and self-cleans. Runs on every push/PR (and
+  # nightly) so the full enterprise suite is always part of the gate — never skipped.
   gates-full:
     name: Full gate battery (enterprise m103..m145)
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     needs: [shellcheck]
     timeout-minutes: 180
     defaults:
@@ -423,3 +425,47 @@ jobs:
           name: gate-battery-logs-${{ github.run_id }}
           path: mini-baas-infra/artifacts/gate-battery/
           retention-days: 14
+
+  # ─── Job 8: Unit tests — the repo's own source-level tests ─────
+  # The actual code tests a contributor runs: Go control-plane (go test ./...), the
+  # Rust data-plane and realtime workspaces (cargo test), and the NestJS apps + libs
+  # (jest). Run in containers (Docker-first), independent so they start immediately.
+  unit-tests:
+    name: Unit tests (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [go, rust-data-plane, rust-realtime, nestjs]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      # Go — control plane (~30 packages)
+      - if: matrix.suite == 'go'
+        run: |
+          docker run --rm -v "$PWD/mini-baas-infra/go/control-plane:/src" -w /src \
+            golang:1.25-bookworm go test ./...
+
+      # Rust — data-plane workspace (data-plane-core/pool/server + engine-conformance)
+      - if: matrix.suite == 'rust-data-plane'
+        run: |
+          docker run --rm -v "$PWD/mini-baas-infra/docker/services/data-plane-router:/src" -w /src \
+            rust:1-bookworm cargo test --workspace
+
+      # Rust — realtime workspace (event bus + IRC bridge)
+      - if: matrix.suite == 'rust-realtime'
+        run: |
+          docker run --rm -v "$PWD/mini-baas-infra/docker/services/realtime/realtime-agnostic:/src" -w /src \
+            rust:1-bookworm cargo test --workspace
+
+      # NestJS — apps + libs (jest)
+      - if: matrix.suite == 'nestjs'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - if: matrix.suite == 'nestjs'
+        working-directory: mini-baas-infra/src
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx jest
