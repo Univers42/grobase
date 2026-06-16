@@ -25,8 +25,9 @@ RUN curl -fSL "${DEBEZIUM_TARBALL}" -o debezium.tar.gz \
  && rm debezium.tar.gz \
  && mkdir -p /debezium/config
 
-# ── runtime: Java 21 JRE on Alpine ──────────────────────────────────────────
-FROM eclipse-temurin:21-jre-alpine
+# ── runtime: Java 23 JRE on Alpine (shared with trino/iceberg to dedup the
+#    ~200 MB JRE layer; Debezium Server 3.0 runs on Java 11+, validated on 23) ─
+FROM eclipse-temurin:23-jre-alpine
 
 # bash → run.sh; curl → the /q/health healthcheck.
 RUN apk add --no-cache bash curl \

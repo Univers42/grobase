@@ -39,8 +39,9 @@ RUN set -eux; \
     cp open-api/build/libs/iceberg-open-api-test-fixtures-runtime-*.jar \
        /iceberg-rest-adapter.jar
 
-# ── runtime: Java 17 JRE on Alpine ──────────────────────────────────────────
-FROM eclipse-temurin:17-jre-alpine
+# ── runtime: Java 23 JRE on Alpine (shared with trino/debezium to dedup the
+#    ~200 MB JRE layer; shadowJar is plain bytecode, runs on the newer JRE) ────
+FROM eclipse-temurin:23-jre-alpine
 RUN apk add --no-cache curl \
  && addgroup -g 1000 iceberg \
  && adduser -u 1000 -G iceberg -h /home/iceberg -D iceberg \
