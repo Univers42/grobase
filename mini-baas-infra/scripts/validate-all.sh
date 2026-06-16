@@ -100,7 +100,7 @@ check "docker compose config --quiet" \
 echo -e "${BOLD}4. Secrets${NC}"
 if [[ -f "$ROOT_DIR/.env" ]]; then
   if [[ -x "$ROOT_DIR/scripts/secrets/validate-secrets.sh" ]] || \
-     [ -f "$ROOT_DIR/scripts/secrets/validate-secrets.sh" ]]; then
+     [[ -f "$ROOT_DIR/scripts/secrets/validate-secrets.sh" ]]; then
     check "make secrets-validate" \
       bash "$ROOT_DIR/scripts/secrets/validate-secrets.sh"
   else

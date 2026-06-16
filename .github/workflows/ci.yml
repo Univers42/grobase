@@ -17,7 +17,7 @@ env:
   COMPOSE_DOCKER_CLI_BUILD: 1
 
 jobs:
-  # ─── Job 1: Shellcheck on all .sh files ────────────────────────
+  # ─── Job 1: Shellcheck on repo-owned scripts ───────────────────
   shellcheck:
     name: Shellcheck
     runs-on: ubuntu-latest
@@ -27,15 +27,32 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
 
-      - name: Shellcheck all .sh files
+      - name: Shellcheck repo scripts
         run: |
           set -euo pipefail
-          shfiles=$(find scripts vendor/scripts -type f -name '*.sh' 2>/dev/null)
-          if [ -z "$shfiles" ]; then
+          # Lint the repo's own shell scripts: root host-helpers + mini-baas-infra.
+          # Robust to a missing root (so a pruned path can't abort under set -e) and
+          # prunes third-party/generated trees. Ignored codes: SC1091 (sourced file
+          # not followed), SC2034 (unused vars — colour constants), SC1128 (the
+          # uniform 42-school header banner above the shebang — cosmetic, scripts are
+          # always invoked as `bash <file>` so the shebang line is never honoured).
+          roots=()
+          for d in scripts mini-baas-infra/scripts; do
+            [ -d "$d" ] && roots+=("$d")
+          done
+          if [ "${#roots[@]}" -eq 0 ]; then
+            echo "No script roots present; nothing to lint"; exit 0
+          fi
+          mapfile -d '' shfiles < <(
+            find "${roots[@]}" \
+              \( -path '*/vendor/*' -o -path '*/node_modules/*' -o -path '*/__pycache__/*' \) -prune \
+              -o -type f -name '*.sh' -print0
+          )
+          if [ "${#shfiles[@]}" -eq 0 ]; then
             echo "No .sh files found"; exit 0
           fi
-          echo "$shfiles" | xargs shellcheck -S error -e SC1091 -e SC2034
-          echo "✓ shellcheck passed on $(echo "$shfiles" | wc -l) files"
+          printf '%s\0' "${shfiles[@]}" | xargs -0 shellcheck -S error -e SC1091 -e SC2034 -e SC1128
+          echo "shellcheck passed on ${#shfiles[@]} files"
 
   # ─── Job 2: Docker build (no-cache) for all services ──────────
   docker-build:
