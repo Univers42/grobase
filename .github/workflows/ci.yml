@@ -140,6 +140,12 @@ jobs:
           # the phase tests can sign up and immediately log in. This is exactly what
           # the GOTRUE_MAILER_AUTOCONFIRM override exists for.
           echo "GOTRUE_MAILER_AUTOCONFIRM=true" >> .env
+          # mongo-api ships NODE_ENV=production, which forces strict identity mode:
+          # it then rejects the JWT-derived identity headers it sets for a Bearer
+          # caller ("Raw identity headers are not trusted in strict mode"). Use the
+          # dev/test default (compat) so phases 14/15 exercise real JWT-authenticated
+          # Mongo CRUD — a missing/invalid JWT still yields no identity, hence 401.
+          echo "IDENTITY_HEADER_MODE=compat" >> .env
 
       - name: Build and start core stack
         run: |
