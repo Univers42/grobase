@@ -480,11 +480,12 @@ services:
 
   # ─── Database Bootstrap ──────────────────────────────────────────
   db-bootstrap:
-    # pgvector/pgvector:pg16 = stock Postgres 16 + the `vector` extension (volume-
-    # compatible with postgres:16-alpine — same PGDATA). Ships pgvector so
-    # op=vector_search (k-NN) works out of the box; `CREATE EXTENSION vector` is
-    # enabled per-DB on first use. (A running stack keeps its image until recreated.)
-    image: pgvector/pgvector:pg16
+    # Self-built: an init container that only runs psql/pg_isready then exits, so it
+    # needs a postgres CLIENT (~13 MB) not the 438 MB pgvector engine image. The
+    # `vector` extension lives in the postgres SERVER image (docker/services/postgres).
+    build:
+      context: ./docker/services/db-bootstrap
+      dockerfile: Dockerfile
     container_name: mini-baas-db-bootstrap
     env_file: [.env]
     environment:
@@ -540,7 +541,9 @@ services:
   # ─── MongoDB keyfile generator (runs once, exits) ────────────────
   # Generates a shared keyfile for replica set internal auth.
   mongo-keyfile:
-    image: mongo:7
+    build:
+      context: ./docker/services/mongo-keyfile
+      dockerfile: Dockerfile
     container_name: mini-baas-mongo-keyfile
     profiles: [data-plane]
     volumes:
@@ -704,7 +707,9 @@ services:
 
   # ─── PostgreSQL REST API ─────────────────────────────────────────
   postgrest:
-    image: postgrest/postgrest:v12.2.3
+    build:
+      context: ./docker/services/postgrest
+      dockerfile: Dockerfile
     container_name: mini-baas-postgrest
     # No healthcheck BY DESIGN: the postgrest image is shell-less (no sh/curl/
     # wget), so an exec probe is impossible. Its health is observed upstream —
@@ -813,7 +818,9 @@ services:
 
   # ─── In-Memory Cache ─────────────────────────────────────────────
   redis:
-    image: redis:7-alpine
+    build:
+      context: ./docker/services/redis
+      dockerfile: Dockerfile
     container_name: mini-baas-redis
     env_file: [.env]
     ports:
@@ -1927,7 +1934,6 @@ services:
     volumes:
       - ./playground:/usr/share/nginx/html
       - ./playground/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./vendor/libcss/dist/css/libcss.min.css:/usr/share/nginx/html/libcss.min.css:ro
     depends_on:
       kong:
         condition: service_started

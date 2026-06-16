@@ -44,6 +44,20 @@ RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
   && apk del .pg-net-build-deps \
   && rm -rf /tmp/pg_net /tmp/pg_net.tar.gz /var/cache/apk/*
 
+# pgvector — built here from source (musl-OK C extension) so the SERVER carries the
+# `vector` type/ops. This is what lets db-bootstrap drop the 438 MB pgvector image
+# for a 13 MB postgres-client: the extension lives in the engine, not the bootstrap.
+ARG PGVECTOR_VERSION=0.8.0
+ADD https://github.com/pgvector/pgvector/archive/refs/tags/v${PGVECTOR_VERSION}.tar.gz /tmp/pgvector.tar.gz
+RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
+    apk add --no-cache --virtual .pgvector-build-deps build-base \
+  && tar -xzf /tmp/pgvector.tar.gz -C /tmp \
+  && cd "/tmp/pgvector-${PGVECTOR_VERSION}" \
+  && make with_llvm=no \
+  && make install with_llvm=no \
+  && apk del .pgvector-build-deps \
+  && rm -rf /tmp/pgvector* /var/cache/apk/*
+
 FROM public.ecr.aws/docker/library/postgres:16-alpine AS postgres_runtime
 
 ARG MYSQL_FDW_VERSION=2_9_2
@@ -84,6 +98,8 @@ RUN mkdir -p /usr/local/share/mini-baas/fdw \
 
 COPY --from=pg_net_builder /usr/local/lib/postgresql/pg_net.so /usr/local/lib/postgresql/
 COPY --from=pg_net_builder /usr/local/share/postgresql/extension/pg_net* /usr/local/share/postgresql/extension/
+COPY --from=pg_net_builder /usr/local/lib/postgresql/vector.so /usr/local/lib/postgresql/
+COPY --from=pg_net_builder /usr/local/share/postgresql/extension/vector* /usr/local/share/postgresql/extension/
 
 EXPOSE 5432
 
