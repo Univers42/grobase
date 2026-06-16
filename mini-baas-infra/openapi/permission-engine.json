@@ -1,0 +1,753 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/health/live": {
+      "get": {
+        "operationId": "HealthController_live",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Liveness probe",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "HealthController_ready",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The Health Check is successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {},
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Health Check is not successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "error"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        },
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Readiness — checks Postgres connectivity",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "PrometheusController_index",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Prometheus"
+        ]
+      }
+    },
+    "/permissions/check": {
+      "post": {
+        "operationId": "PermissionsController_check",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckPermissionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Check if the current user has a specific permission",
+        "tags": [
+          "permissions"
+        ]
+      }
+    },
+    "/permissions/roles": {
+      "get": {
+        "operationId": "PermissionsController_myRoles",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Get roles assigned to the current user",
+        "tags": [
+          "permissions"
+        ]
+      }
+    },
+    "/permissions/roles/{userId}": {
+      "get": {
+        "operationId": "PermissionsController_userRoles",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Get roles of any user (admin only)",
+        "tags": [
+          "permissions"
+        ]
+      }
+    },
+    "/permissions/roles/assign": {
+      "post": {
+        "operationId": "PermissionsController_assign",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Assign a role to a user (admin only)",
+        "tags": [
+          "permissions"
+        ]
+      }
+    },
+    "/permissions/roles/{userId}/{roleName}": {
+      "delete": {
+        "operationId": "PermissionsController_revoke",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "roleName",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Revoke a role from a user (admin only)",
+        "tags": [
+          "permissions"
+        ]
+      }
+    },
+    "/policies": {
+      "get": {
+        "operationId": "PoliciesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List all resource policies",
+        "tags": [
+          "policies"
+        ]
+      },
+      "post": {
+        "operationId": "PoliciesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePolicyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Create a new resource policy",
+        "tags": [
+          "policies"
+        ]
+      }
+    },
+    "/policies/role/{roleId}": {
+      "get": {
+        "operationId": "PoliciesController_byRole",
+        "parameters": [
+          {
+            "name": "roleId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List policies for a specific role",
+        "tags": [
+          "policies"
+        ]
+      }
+    },
+    "/policies/{id}": {
+      "delete": {
+        "operationId": "PoliciesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Delete a resource policy",
+        "tags": [
+          "policies"
+        ]
+      }
+    },
+    "/permissions/decide": {
+      "post": {
+        "operationId": "DecisionsController_decide",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecidePermissionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "service-token": []
+          }
+        ],
+        "summary": "Central ABAC decision endpoint for gateway pre-dispatch checks",
+        "tags": [
+          "permissions"
+        ]
+      }
+    },
+    "/permissions/bundles/latest": {
+      "get": {
+        "operationId": "BundlesController_latest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "service-token": []
+          }
+        ],
+        "summary": "Policy bundle (user_roles + policies) for the Rust ABAC evaluator",
+        "tags": [
+          "bundles"
+        ]
+      }
+    },
+    "/permissions/bundles/roles": {
+      "get": {
+        "operationId": "BundlesController_roles",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "service-token": []
+          }
+        ],
+        "summary": "All roles with id/name/description/metadata (admin matrix rows)",
+        "tags": [
+          "bundles"
+        ]
+      }
+    },
+    "/permissions/bundles/policies": {
+      "get": {
+        "operationId": "BundlesController_listPolicies",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "service-token": []
+          }
+        ],
+        "summary": "All resource policies including ids (admin matrix cells)",
+        "tags": [
+          "bundles"
+        ]
+      },
+      "post": {
+        "operationId": "BundlesController_createPolicy",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePolicyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "service-token": []
+          }
+        ],
+        "summary": "Create a resource policy (admin matrix mutation)",
+        "tags": [
+          "bundles"
+        ]
+      }
+    },
+    "/permissions/bundles/policies/{id}": {
+      "delete": {
+        "operationId": "BundlesController_removePolicy",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "service-token": []
+          }
+        ],
+        "summary": "Delete a resource policy by id",
+        "tags": [
+          "bundles"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Permission Engine",
+    "description": "ABAC Policy Decision Point — evaluates access policies in real time",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "CheckPermissionDto": {
+        "type": "object",
+        "properties": {
+          "resource_type": {
+            "type": "string",
+            "example": "table",
+            "description": "Resource type: table, collection, bucket, endpoint, …"
+          },
+          "resource_name": {
+            "type": "string",
+            "example": "documents",
+            "description": "Resource name / identifier"
+          },
+          "action": {
+            "type": "string",
+            "example": "read",
+            "description": "Action to check: read, create, update, delete"
+          }
+        },
+        "required": [
+          "resource_type",
+          "resource_name",
+          "action"
+        ]
+      },
+      "AssignRoleDto": {
+        "type": "object",
+        "properties": {
+          "role_name": {
+            "type": "string",
+            "example": "moderator",
+            "description": "Role name to assign"
+          },
+          "target_user_id": {
+            "type": "string",
+            "example": "550e8400-e29b-41d4-a716-446655440000",
+            "description": "Target user UUID"
+          }
+        },
+        "required": [
+          "role_name",
+          "target_user_id"
+        ]
+      },
+      "CreatePolicyDto": {
+        "type": "object",
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "example": "550e8400-…",
+            "description": "Role UUID"
+          },
+          "resource_type": {
+            "type": "string",
+            "example": "table"
+          },
+          "resource_name": {
+            "type": "string",
+            "example": "*",
+            "description": "* for all, or specific name"
+          },
+          "actions": {
+            "example": [
+              "read",
+              "create"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "conditions": {
+            "type": "object",
+            "example": {
+              "owner_only": true
+            },
+            "description": "JSONB conditions (owner_only, ip_range, mfa_required, time_window)"
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "deny"
+            ],
+            "default": "allow"
+          },
+          "priority": {
+            "type": "number",
+            "default": 0
+          }
+        },
+        "required": [
+          "role_id",
+          "resource_type",
+          "resource_name",
+          "actions",
+          "effect"
+        ]
+      },
+      "DecisionUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000009"
+          },
+          "role": {
+            "type": "string",
+            "example": "authenticated"
+          },
+          "email": {
+            "type": "string",
+            "example": "user@example.com"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "DecidePermissionDto": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/DecisionUserDto"
+          },
+          "tenant_id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000002"
+          },
+          "project_id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000002"
+          },
+          "app_id": {
+            "type": "string",
+            "example": "verify"
+          },
+          "resource_type": {
+            "type": "string",
+            "example": "postgresql"
+          },
+          "resource_name": {
+            "type": "string",
+            "example": "crm_contacts"
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "list",
+              "get",
+              "insert",
+              "update",
+              "delete",
+              "upsert"
+            ],
+            "example": "insert"
+          },
+          "attributes": {
+            "type": "object",
+            "example": {
+              "ip": "127.0.0.1",
+              "request_id": "req-1"
+            }
+          }
+        },
+        "required": [
+          "user",
+          "resource_type",
+          "resource_name",
+          "op"
+        ]
+      }
+    }
+  }
+}

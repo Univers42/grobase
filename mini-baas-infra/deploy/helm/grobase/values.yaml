@@ -1,0 +1,260 @@
+# Grobase PRODUCTION values (Track C / C3). Hand-authored; sane prod defaults.
+#
+# This is the SCALE/HA topology, NOT the generated edition chart. Override per
+# environment with --values or --set. For a laptop kind/minikube run use
+# values-dev.yaml (HPA + Ingress + Vault-CSI off, single replicas, tiny PVCs).
+#
+# PARITY NOTE: this chart is a NEW deploy target. It does not touch the compose
+# stack, the generated mini-baas chart, or any default env — installing nothing
+# from here leaves today's byte-parity baseline untouched.
+
+global:
+  imageRegistry: ghcr.io/les-baas
+  imageTag: "1.2.0"
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets: []          # e.g. [{ name: ghcr-pull }]
+  # Applied to every pod. Prod default = run as non-root with a read-only-ish
+  # posture; the per-plane templates can still mount writable volumes (PVCs,
+  # emptyDir) where a process needs them.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+
+# Env + secrets: the K8s equivalent of compose `env_file: [.env]`. Non-secret
+# config goes in a ConfigMap, secrets in a Secret. Both are referenced via
+# envFrom on every plane (optional:true so pods schedule before populated).
+env:
+  # Inline non-secret defaults rendered into the release ConfigMap. Anything
+  # here is BUILD-time public config; never put a credential in this map.
+  configMap:
+    DATA_PLANE_ROUTER_PRODUCT_MODE: "enabled"
+    DATA_PLANE_BYPASS_ENABLED: "1"
+    SECURITY_MODE: "max"        # prod: strict TLS for external engine mounts
+    RUST_LOG: "info"
+  # Plain secret refs. In prod prefer Vault-CSI (see `vault:` below) and leave
+  # this empty; this map is the fallback for clusters without the CSI driver.
+  secret:
+    create: false              # set true to render a Secret from .data
+    data: {}                   # { JWT_SECRET: "...", ... } — base64'd by Helm
+
+# HashiCorp Vault CSI provider (preferred prod secret path). When enabled, a
+# SecretProviderClass is rendered and every plane mounts it at /vault/secrets;
+# set `vault.syncToK8sSecret` to also project it into envFrom.
+vault:
+  enabled: false               # OFF by default — requires the CSI driver + provider installed
+  roleName: grobase
+  vaultAddress: "https://vault.vault.svc:8200"
+  syncToK8sSecret: true        # mirror mounted keys into a K8s Secret for envFrom
+  k8sSecretName: grobase-secrets
+  # objects rendered into the SecretProviderClass `objects:` list
+  objects:
+    - objectName: JWT_SECRET
+      secretPath: secret/data/grobase
+      secretKey: JWT_SECRET
+    - objectName: POSTGRES_PASSWORD
+      secretPath: secret/data/grobase
+      secretKey: POSTGRES_PASSWORD
+
+# ── Ingress (managed cloud front door → kong) ───────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+  hosts:
+    - host: api.grobase.example
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: grobase-api-tls
+      hosts:
+        - api.grobase.example
+
+# ── deny-by-default NetworkPolicy ───────────────────────────────────────────
+# When enabled: a baseline policy denies ALL ingress to every grobase pod, then
+# per-plane policies open exactly the edges the topology needs. DNS egress is
+# always allowed (a hard deny breaks service discovery).
+networkPolicy:
+  enabled: true
+  # CIDR/namespace the ingress controller lives in (so kong can be reached).
+  ingressControllerNamespace: ingress-nginx
+
+# ── Zero-downtime app deploys (Track-C / C1) ────────────────────────────────
+# Rollout strategy for the STATELESS Deployment planes (data/control/realtime/
+# kong). The safe default is a surge-then-drain RollingUpdate that never lets the
+# old ReplicaSet shrink below full capacity:
+#   maxUnavailable: 0  → never take a Ready pod out before its replacement is Ready
+#   maxSurge: 1        → bring exactly one extra pod up first
+# Combined with the readiness probes already declared per plane (a pod only joins
+# the Service Endpoints once Ready), a `helm upgrade` rolls pods one-at-a-time
+# with continuous capacity — i.e. zero-downtime for app (image/env) changes.
+# This applies ONLY to kind=Deployment planes; StatefulSets keep K8s's ordered,
+# one-at-a-time default updateStrategy (changing that needs an operator — C4).
+#
+# Proof: documented in deploy/ha/README.md (zero-downtime row); the rendered
+# strategy is visible in `helm template`. Per-plane override: set
+# planes.<name>.strategy to a full Deployment.spec.strategy object.
+deployStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+
+# ── PodDisruptionBudget (Track-C / C1) ──────────────────────────────────────
+# Protects availability during VOLUNTARY disruptions (node drain / cluster
+# upgrade / autoscaler eviction) by capping how many pods of a stateless plane
+# can be down at once. minAvailable: 1 means a drain can never evict the last
+# replica of a plane — the kubelet waits. Rendered only for kind=Deployment
+# planes with replicas>1 (or HPA minReplicas>1); a single-replica plane gets no
+# PDB (one would make a drain hang forever). OFF by default to keep the baseline
+# byte-parity; turn on for HA clusters.
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1            # integer or a percentage string like "50%"
+
+# ── Planes ──────────────────────────────────────────────────────────────────
+# Each plane: workload kind, replicas/autoscaling, image, ports, resources,
+# probe, and (for stateful) a PVC. Disabling a plane drops all its manifests.
+planes:
+
+  # Stateful: system Postgres (StatefulSet + per-replica PVC). In a true managed
+  # deploy you point the data/control planes at an external managed PG and set
+  # postgres.enabled=false (C4). The in-chart StatefulSet is the self-managed
+  # default so the chart stands alone.
+  postgres:
+    enabled: true
+    kind: StatefulSet
+    imageName: postgres
+    replicas: 1                 # >1 needs an operator (Patroni/CNPG) — see C4
+    port: 5432
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: ""          # "" = cluster default
+      accessModes: ["ReadWriteOnce"]
+      mountPath: /var/lib/postgresql/data
+    resources:
+      requests: { cpu: 500m, memory: 512Mi }
+      limits:   { cpu: "2",  memory: 2Gi }
+    probe:
+      exec: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+
+  # Stateful: Redis (rate-limiter + cache). StatefulSet with a small PVC.
+  redis:
+    enabled: true
+    kind: StatefulSet
+    imageName: redis
+    image: redis:7-alpine
+    port: 6379
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClass: ""
+      accessModes: ["ReadWriteOnce"]
+      mountPath: /data
+    resources:
+      requests: { cpu: 125m, memory: 128Mi }
+      limits:   { cpu: 500m, memory: 512Mi }
+    probe:
+      exec: ["redis-cli", "ping"]
+
+  # Stateless data plane (Rust). HPA target — the C2 "2 stateless DP replicas"
+  # shape. Holds NO per-tenant state (isolation is per-request), so it scales
+  # horizontally cleanly.
+  data-plane-router-rust:
+    enabled: true
+    kind: Deployment
+    port: 4011
+    replicas: 2
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+    resources:
+      requests: { cpu: 125m, memory: 96Mi }
+      limits:   { cpu: 500m, memory: 192Mi }
+    probe:
+      exec: ["/app/data-plane-router", "--healthcheck"]
+
+  # Stateless control plane (Go) — tenancy/provision/metering/backup authority.
+  tenant-control:
+    enabled: true
+    kind: Deployment
+    imageName: tenant-control
+    port: 3022
+    replicas: 2
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 6
+      targetCPUUtilizationPercentage: 70
+    resources:
+      requests: { cpu: 250m, memory: 96Mi }
+      limits:   { cpu: 500m, memory: 192Mi }
+    probe:
+      exec: ["/app/app", "--healthcheck"]
+
+  # Adapter registry (Go) — per-mount DSN authority for the data plane.
+  adapter-registry-go:
+    enabled: true
+    kind: Deployment
+    imageName: adapter-registry-go
+    port: 3021
+    replicas: 2
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 6
+      targetCPUUtilizationPercentage: 70
+    resources:
+      requests: { cpu: 250m, memory: 96Mi }
+      limits:   { cpu: "1",  memory: 192Mi }
+    probe:
+      exec: ["/app/app", "--healthcheck"]
+
+  # Realtime plane (Rust). HTTP+WS; scale with care (presence is per-node until
+  # E2 cross-node broadcast lands).
+  realtime:
+    enabled: true
+    kind: Deployment
+    image: dlesieur/realtime-agnostic:0.2.1
+    port: 4000
+    replicas: 2
+    autoscaling:
+      enabled: false           # presence not yet cross-node (Track E2) — keep manual
+      minReplicas: 2
+      maxReplicas: 4
+      targetCPUUtilizationPercentage: 70
+    resources:
+      requests: { cpu: 125m, memory: 128Mi }
+      limits:   { cpu: 500m, memory: 256Mi }
+    probe:
+      exec: ["/app/realtime-server", "--healthcheck"]
+
+  # API gateway (Kong) — the in-cluster front door the Ingress targets.
+  kong:
+    enabled: true
+    kind: Deployment
+    image: kong:3.8
+    port: 8000
+    adminPort: 8001
+    replicas: 2
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70
+    resources:
+      requests: { cpu: 500m, memory: 512Mi }
+      limits:   { cpu: "1",  memory: 1Gi }
+    probe:
+      exec: ["sh", "-c", "kong health"]

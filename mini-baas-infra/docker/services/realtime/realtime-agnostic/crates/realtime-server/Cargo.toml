@@ -1,0 +1,35 @@
+[package]
+name = "realtime-server"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "realtime-server"
+path = "src/main.rs"
+
+[dependencies]
+realtime-core = { path = "../realtime-core" }
+realtime-engine = { path = "../realtime-engine" }
+realtime-bus-inprocess = { path = "../realtime-bus-inprocess" }
+realtime-bus-irc = { path = "../realtime-bus-irc" }
+realtime-auth = { path = "../realtime-auth" }
+realtime-gateway = { path = "../realtime-gateway" }
+realtime-db-postgres = { path = "../realtime-db-postgres" }
+realtime-db-mongodb = { path = "../realtime-db-mongodb" }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+
+[lints]
+workspace = true

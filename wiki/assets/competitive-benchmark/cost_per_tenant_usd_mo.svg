@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="Cost per tenant per month">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Cost per tenant per month</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">cost  ·  (USD/mo)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">9.91</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">19.8</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">29.7</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">39.6</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">49.6</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">USD/mo</text>
+  <rect x="89.3" y="358.4" width="63.0" height="15.6" fill="#0d9488" fill-opacity="0.35" stroke="#0d9488" stroke-width="1.5" stroke-dasharray="2 3" rx="2"/>
+  <rect x="89.3" y="358.4" width="63.0" height="15.6" fill="url(#dots)" rx="2"/>
+  <text x="120.8" y="336.4" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="120.8" y="352.4" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">2.5 (model)</text>
+  <text x="120.8" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 120.8 390)">grobase-nano</text>
+  <rect x="191.0" y="333.3" width="63.0" height="40.7" fill="#0ea5e9" fill-opacity="0.35" stroke="#0ea5e9" stroke-width="1.5" stroke-dasharray="2 3" rx="2"/>
+  <rect x="191.0" y="333.3" width="63.0" height="40.7" fill="url(#dots)" rx="2"/>
+  <text x="222.5" y="327.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">6.5 (model)</text>
+  <text x="222.5" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 222.5 390)">grobase-basic</text>
+  <rect x="292.7" y="292.7" width="63.0" height="81.3" fill="#2563eb" fill-opacity="0.35" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="2 3" rx="2"/>
+  <rect x="292.7" y="292.7" width="63.0" height="81.3" fill="url(#dots)" rx="2"/>
+  <text x="324.2" y="286.7" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">13 (model)</text>
+  <text x="324.2" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 324.2 390)">grobase-essential</text>
+  <rect x="394.3" y="242.6" width="63.0" height="131.4" fill="#7c3aed" fill-opacity="0.35" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="2 3" rx="2"/>
+  <rect x="394.3" y="242.6" width="63.0" height="131.4" fill="url(#dots)" rx="2"/>
+  <text x="425.8" y="236.6" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">21 (model)</text>
+  <text x="425.8" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 425.8 390)">grobase-pro</text>
+  <rect x="496.0" y="111.3" width="63.0" height="262.7" fill="#9333ea" fill-opacity="0.35" stroke="#9333ea" stroke-width="1.5" stroke-dasharray="2 3" rx="2"/>
+  <rect x="496.0" y="111.3" width="63.0" height="262.7" fill="url(#dots)" rx="2"/>
+  <text x="527.5" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">42 (model)</text>
+  <text x="527.5" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 527.5 390)">grobase-max</text>
+  <rect x="597.7" y="358.4" width="63.0" height="15.6" fill="#f59e0b" fill-opacity="0.35" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="2 3" rx="2"/>
+  <rect x="597.7" y="358.4" width="63.0" height="15.6" fill="url(#dots)" rx="2"/>
+  <text x="629.2" y="336.4" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="629.2" y="352.4" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">2.5 (model)</text>
+  <text x="629.2" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 629.2 390)">pocketbase</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: grobase-nano</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(lower is better)</text>
+
+  <text x="12" y="450" font-family="sans-serif" font-size="10" fill="#94a3b8">n/a (omitted): supabase-selfhost (Self-host has no per-tenant price (you run it). Its INFRA cost on Fly would be modelable from its 2884 MiB RSS (~3–4 GB VM ≈ $20–25/mo for ONE project, since Supabase self-host is single-project), but that is per-project not per-tenant — left na to avoid a misleading per-tenant figure.); supabase-cloud (Supabase Cloud prices per-PROJECT + usage (e.g. published Free / Pro $25/project/mo base + compute/usage add-ons), not per-tenant. A $/tenant comparison would be apples-to-oranges; na with this note rather than fabricate.); firebase (Firebase prices per-usage (reads/writes/storage/egress) and Identity Platform per-MAU (50K free then per-MAU) — no per-tenant unit. na with this note.)</text>
+</svg>

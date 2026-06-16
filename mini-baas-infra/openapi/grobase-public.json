@@ -1,0 +1,1619 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Grobase Public API",
+    "version": "0.2.0",
+    "summary": "Kong-fronted public surfaces of the Grobase BaaS (mini-baas).",
+    "description": "Hand-authored, codegen-ready spec for the five public surfaces a client SDK consumes, at the exact Kong-routed paths the `@mini-baas/js` SDK targets (`/auth/v1`, `/rest/v1`, `/storage/v1`, `/query/v1`, `/functions/v1`).\n\nThis is the canonical spec for **A4 multi-language SDK codegen** (Python, Dart). It is deliberately separate from the per-service `*.json` documents collected by `openapi-collect.sh`, which describe each NestJS service at its *internal* port/path (not the public Kong prefix). Where a route is gotrue/PostgREST/Deno (not NestJS), only this hand-authored spec describes it — those services emit no `/docs-json`.\n\nVerified against `sdk/src/core/routes.ts` (the SDK's route table) and the live stack on 2026-06-13.",
+    "contact": {
+      "name": "Grobase",
+      "url": "https://grobase.dev"
+    },
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8002",
+      "description": "Local Kong gateway (mini-baas-infra)"
+    },
+    {
+      "url": "https://{host}",
+      "description": "Deployed gateway",
+      "variables": {
+        "host": {
+          "default": "api.grobase.dev"
+        }
+      }
+    }
+  ],
+  "tags": [
+    {
+      "name": "auth",
+      "description": "gotrue authentication (/auth/v1): password, OAuth, MFA."
+    },
+    {
+      "name": "rest",
+      "description": "PostgREST auto-REST over the Postgres schema (/rest/v1)."
+    },
+    {
+      "name": "storage",
+      "description": "Object storage via storage-router + MinIO (/storage/v1)."
+    },
+    {
+      "name": "query",
+      "description": "Engine-agnostic multi-engine data plane (/query/v1)."
+    },
+    {
+      "name": "functions",
+      "description": "Deno edge functions (/functions/v1)."
+    }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    },
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/auth/v1/token": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "authToken",
+        "summary": "Exchange credentials for a session (password or refresh_token grant).",
+        "parameters": [
+          {
+            "name": "grant_type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "password",
+                "refresh_token"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/auth/v1/signup": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "authSignUp",
+        "summary": "Register a new user (email + password).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignUpRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session or pending user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/Session"
+                    },
+                    {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/auth/v1/recover": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "authRecover",
+        "summary": "Send a password-recovery email.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted."
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/auth/v1/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "authVerify",
+        "summary": "Verify a signup/recovery/magiclink token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session or user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/Session"
+                    },
+                    {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/auth/v1/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "authLogout",
+        "summary": "Revoke the current session.",
+        "responses": {
+          "204": {
+            "description": "Logged out."
+          }
+        }
+      }
+    },
+    "/auth/v1/user": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "authGetUser",
+        "summary": "Get the authenticated user.",
+        "responses": {
+          "200": {
+            "description": "User.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "authUpdateUser",
+        "summary": "Update the authenticated user (email / password / metadata).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/authorize": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "authAuthorize",
+        "summary": "Begin a social/OIDC OAuth flow (302 to the provider).",
+        "description": "The SDK's `auth.signInWithOAuth()` builds this URL; the browser is redirected here, gotrue 302s to the provider, then back to `redirect_to`.",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "examples": [
+                "google",
+                "github",
+                "fortytwo"
+              ]
+            }
+          },
+          {
+            "name": "redirect_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "scopes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to the OAuth provider.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/factors": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "mfaEnroll",
+        "summary": "Enroll an MFA factor (TOTP or phone).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaEnrollRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Enrolled factor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaEnrollResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/factors/{factorId}": {
+      "parameters": [
+        {
+          "name": "factorId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "mfaUnenroll",
+        "summary": "Remove an MFA factor.",
+        "responses": {
+          "200": {
+            "description": "Removed."
+          }
+        }
+      }
+    },
+    "/auth/v1/factors/{factorId}/challenge": {
+      "parameters": [
+        {
+          "name": "factorId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "mfaChallenge",
+        "summary": "Open a verification challenge for an enrolled factor.",
+        "responses": {
+          "200": {
+            "description": "Challenge.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaChallengeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/v1/factors/{factorId}/verify": {
+      "parameters": [
+        {
+          "name": "factorId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "mfaVerify",
+        "summary": "Verify a challenge with a code; on success upgrades the session AAL.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaVerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upgraded session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rest/v1/{resource}": {
+      "parameters": [
+        {
+          "name": "resource",
+          "in": "path",
+          "required": true,
+          "description": "Table or view name.",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "rest"
+        ],
+        "operationId": "restSelect",
+        "summary": "Select rows (PostgREST filters via query params).",
+        "description": "Filters are PostgREST `column=op.value` query params (`eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `like`, `ilike`, `is`, `in`), plus `select`, `order`, `limit`, `offset`, and `or`. Send `Accept: application/vnd.pgrst.object+json` for `.single()`.",
+        "parameters": [
+          {
+            "name": "select",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching rows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "description": "A row (free-form JSON object)."
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "rest"
+        ],
+        "operationId": "restInsert",
+        "summary": "Insert one or many rows.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Row to insert (column→value). A JSON array of such objects is also accepted at runtime for bulk insert (PostgREST)."
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Inserted rows (Prefer: return=representation)."
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "rest"
+        ],
+        "operationId": "restUpdate",
+        "summary": "Update rows matching the filter.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated rows."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "rest"
+        ],
+        "operationId": "restDelete",
+        "summary": "Delete rows matching the filter.",
+        "responses": {
+          "200": {
+            "description": "Deleted rows."
+          }
+        }
+      }
+    },
+    "/rest/v1/rpc/{fn}": {
+      "parameters": [
+        {
+          "name": "fn",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "rest"
+        ],
+        "operationId": "restRpc",
+        "summary": "Call a Postgres stored function (PostgREST RPC).",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Function result."
+          }
+        }
+      }
+    },
+    "/storage/v1/object/{bucket}/{key}": {
+      "parameters": [
+        {
+          "name": "bucket",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "key",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "put": {
+        "tags": [
+          "storage"
+        ],
+        "operationId": "storageUpload",
+        "summary": "Upload (owner-prefixed) — body is the raw object bytes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored object.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResult"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "storage"
+        ],
+        "operationId": "storageDownload",
+        "summary": "Download object bytes (owner-scoped).",
+        "responses": {
+          "200": {
+            "description": "Object bytes.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "storage"
+        ],
+        "operationId": "storageDelete",
+        "summary": "Delete an object.",
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          }
+        }
+      }
+    },
+    "/storage/v1/list/{bucket}": {
+      "parameters": [
+        {
+          "name": "bucket",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "prefix",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "storage"
+        ],
+        "operationId": "storageList",
+        "summary": "List objects under a prefix (owner-scoped).",
+        "responses": {
+          "200": {
+            "description": "Objects.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "objects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/StorageObject"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/sign/{bucket}/{key}": {
+      "parameters": [
+        {
+          "name": "bucket",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "key",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "storage"
+        ],
+        "operationId": "storageSign",
+        "summary": "Create a presigned URL (PUT or GET, TTL-clamped).",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "GET",
+                      "PUT"
+                    ]
+                  },
+                  "expiresIn": {
+                    "type": "integer"
+                  },
+                  "contentType": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedUrl"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/bucket": {
+      "get": {
+        "tags": [
+          "storage"
+        ],
+        "operationId": "storageListBuckets",
+        "summary": "List buckets.",
+        "responses": {
+          "200": {
+            "description": "Buckets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "buckets": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BucketInfo"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/bucket/{name}": {
+      "parameters": [
+        {
+          "name": "name",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "storage"
+        ],
+        "operationId": "storageCreateBucket",
+        "summary": "Create a bucket.",
+        "responses": {
+          "200": {
+            "description": "Created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "created": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/query/v1/execute": {
+      "post": {
+        "tags": [
+          "query"
+        ],
+        "operationId": "queryExecute",
+        "summary": "Run one engine-agnostic data operation against a mount.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Query result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/query/v1/txn": {
+      "post": {
+        "tags": [
+          "query"
+        ],
+        "operationId": "queryTxn",
+        "summary": "Single-mount atomic write batch (all-or-nothing).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TxnRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Atomic result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TxnResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/query/v1/{dbId}/schema": {
+      "parameters": [
+        {
+          "name": "dbId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "query"
+        ],
+        "operationId": "querySchema",
+        "summary": "Introspect a mount's tables + live engine capabilities.",
+        "responses": {
+          "200": {
+            "description": "Normalized schema.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/query/v1/{dbId}/schema/ddl": {
+      "parameters": [
+        {
+          "name": "dbId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "query"
+        ],
+        "operationId": "querySchemaDdl",
+        "summary": "Apply ONE schema-DDL operation to a mount.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied."
+          }
+        }
+      }
+    },
+    "/query/v1/engines": {
+      "get": {
+        "tags": [
+          "query"
+        ],
+        "operationId": "queryEngines",
+        "summary": "List registered engines + capabilities.",
+        "responses": {
+          "200": {
+            "description": "Engines.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "engines": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/functions/v1/{name}": {
+      "parameters": [
+        {
+          "name": "name",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "functions"
+        ],
+        "operationId": "functionGet",
+        "summary": "Get a deployed function's source.",
+        "responses": {
+          "200": {
+            "description": "Source.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "functions"
+        ],
+        "operationId": "functionDelete",
+        "summary": "Delete a deployed function.",
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          }
+        }
+      }
+    },
+    "/functions/v1/{name}/invoke": {
+      "parameters": [
+        {
+          "name": "name",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "functions"
+        ],
+        "operationId": "functionInvoke",
+        "summary": "Invoke a deployed edge function.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Function output (passthrough)."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "apikey",
+        "description": "Tenant publishable (anon) or service-role key."
+      },
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "gotrue access token (or the anon key when unauthenticated)."
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Error envelope.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          }
+        }
+      },
+      "TokenRequest": {
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string"
+          },
+          "refresh_token": {
+            "type": "string"
+          }
+        }
+      },
+      "SignUpRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "VerifyRequest": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "signup",
+              "recovery",
+              "magiclink",
+              "email_change"
+            ]
+          },
+          "token": {
+            "type": "string"
+          },
+          "token_hash": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateUserRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "Session": {
+        "type": "object",
+        "required": [
+          "access_token"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer"
+          },
+          "expires_at": {
+            "type": "integer"
+          },
+          "refresh_token": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "role": {
+            "type": "string"
+          },
+          "aud": {
+            "type": "string"
+          },
+          "app_metadata": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "user_metadata": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "MfaEnrollRequest": {
+        "type": "object",
+        "properties": {
+          "factor_type": {
+            "type": "string",
+            "enum": [
+              "totp",
+              "phone"
+            ],
+            "default": "totp"
+          },
+          "friendly_name": {
+            "type": "string"
+          },
+          "issuer": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          }
+        }
+      },
+      "MfaEnrollResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "type"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "totp",
+              "phone"
+            ]
+          },
+          "friendly_name": {
+            "type": "string"
+          },
+          "totp": {
+            "type": "object",
+            "properties": {
+              "qr_code": {
+                "type": "string"
+              },
+              "secret": {
+                "type": "string"
+              },
+              "uri": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "MfaChallengeResponse": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "integer"
+          }
+        }
+      },
+      "MfaVerifyRequest": {
+        "type": "object",
+        "required": [
+          "challenge_id",
+          "code"
+        ],
+        "properties": {
+          "challenge_id": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "UploadResult": {
+        "type": "object",
+        "properties": {
+          "bucket": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          }
+        }
+      },
+      "StorageObject": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "lastModified": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "etag": {
+            "type": "string"
+          }
+        }
+      },
+      "BucketInfo": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "SignedUrl": {
+        "type": "object",
+        "properties": {
+          "signedUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "bucket": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          }
+        }
+      },
+      "QueryRequest": {
+        "type": "object",
+        "required": [
+          "database_id",
+          "action",
+          "resource"
+        ],
+        "properties": {
+          "database_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "examples": [
+              "select",
+              "insert",
+              "update",
+              "delete",
+              "upsert",
+              "aggregate"
+            ]
+          },
+          "resource": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "QueryResponse": {
+        "type": "object",
+        "properties": {
+          "data": {},
+          "count": {
+            "type": "integer"
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "TxnRequest": {
+        "type": "object",
+        "required": [
+          "databaseId",
+          "operations"
+        ],
+        "properties": {
+          "databaseId": {
+            "type": "string"
+          },
+          "operations": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "required": [
+                "op",
+                "resource"
+              ],
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "insert",
+                    "update",
+                    "delete",
+                    "upsert"
+                  ]
+                },
+                "resource": {
+                  "type": "string"
+                },
+                "data": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "filter": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "idempotencyKey": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "TxnResponse": {
+        "type": "object",
+        "properties": {
+          "guarantee": {
+            "type": "string",
+            "enum": [
+              "atomic"
+            ]
+          },
+          "mount": {
+            "type": "string"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string"
+                },
+                "resource": {
+                  "type": "string"
+                },
+                "rowCount": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,893 @@
+{
+  "schemaVersion": 1,
+  "title": "Grobase vs Supabase vs Firebase vs PocketBase — sourced comparison dataset",
+  "generated": "2026-06-15",
+  "meta": {
+    "method": "scripts/bench/METHOD.md",
+    "env": {
+      "nproc": 20,
+      "mem_total_mib": 31929,
+      "kernel": "6.17.0-14-generic",
+      "git_sha": "3e83348",
+      "note": "env block copied from artifacts/bench/grobase-vs-supabase.json (the most recent comparative head-to-head). Per-artifact git_sha varies by capture date; each datapoint cites its own artifact, whose own env block is authoritative for that number."
+    },
+    "legend": {
+      "measured": "We ran it on this box under scripts/bench/METHOD.md and the number lives in the cited artifact under artifacts/. This is OUR measurement.",
+      "published": "Number originates from the vendor (docs / pricing page / architecture). Never presented as our measurement; the note states the origin.",
+      "modeled": "Derived by a stated formula/method from measured inputs (e.g. the Fly.io $/tenant cost model, or a defended extrapolation). The note states the method.",
+      "na": "We have no honest number. Either the architecture makes the metric meaningless (Firebase is fully managed → no self-host footprint) or no defensible figure exists. Never fabricated."
+    },
+    "caveats": [
+      "The dev box is shared (20 vCPU / 31.9 GiB) and the load generator (k6/Chrome) runs ON the same box. High-rps and at-density tail latencies (p95/p99) are load-generator-CPU-bound, NOT stack latency — see scale-slo.md §2 and §5. The 10K zipf run's second-scale p50/p95/p99 are k6/Chrome timeouts, not server latency; the run's value is the SERVER-side facts it nails (1 pool, 30 MiB RSS, 0 evicted, 0 5xx).",
+      "A clean 100K LOAD-latency SLO is NOT credibly measurable on this box (scale-slo.md §5). The 100000 tenant-count points are MODELED extrapolations of the serve path (RSS/pools/5xx are functions of concurrent working set, not tenant count, so none grows with N); the 100K load p99 is deliberately omitted, not invented.",
+      "Competitor cloud (supabase-cloud, firebase) latency/footprint/cost-per-tenant are mostly 'na': we did not measure their managed cloud and their pricing is per-project/per-usage/per-MAU, not per-tenant. Supabase SELF-HOST is a separate contender we DID measure.",
+      "Tier idle footprints (basic/essential/pro/max) here are the MEASURED ram_mib_total from artifacts/footprint-<tier>.json (2026-06-12). They differ slightly from the earlier figures in wiki/cost-analysis.md (a 2026-06-11 run); the artifacts cited here are the authoritative measurement.",
+      "'nanobase' in the user's request is interpreted as our binocle-nano edition (the 5 MB single binary). It is a first-class contender below under key grobase-nano."
+    ]
+  },
+  "contenders": {
+    "grobase-nano": {
+      "label": "Grobase nano (binocle-nano)",
+      "kind": "ours",
+      "note": "The 5 MB single-binary edition. This is the user's 'nanobase' (interpretation noted in meta.caveats). SQLite in-process; CRUD+schema+graph+scoped keys+SSE."
+    },
+    "grobase-basic": {
+      "label": "Grobase basic",
+      "kind": "ours",
+      "note": "Lean microservice stack, SQLite-first + Postgres, Node-free."
+    },
+    "grobase-essential": {
+      "label": "Grobase essential",
+      "kind": "ours",
+      "note": "One full-feature product, Postgres engine."
+    },
+    "grobase-pro": {
+      "label": "Grobase pro",
+      "kind": "ours",
+      "note": "Multi-engine (Postgres+MySQL+Mongo+Redis+MinIO+realtime)."
+    },
+    "grobase-max": {
+      "label": "Grobase max",
+      "kind": "ours",
+      "note": "All engines + analytics (Cockroach/MSSQL/Trino/Debezium)."
+    },
+    "pocketbase": {
+      "label": "PocketBase v0.39.3",
+      "kind": "competitor-selfhost",
+      "note": "Single Go binary, SQLite. Pinned v0.39.3."
+    },
+    "supabase-selfhost": {
+      "label": "Supabase self-host",
+      "kind": "competitor-selfhost",
+      "note": "supabase/docker v1.24.09 — 13 containers, Postgres-only. We measured this same-box."
+    },
+    "supabase-cloud": {
+      "label": "Supabase Cloud (managed)",
+      "kind": "competitor-cloud",
+      "note": "Vendor-managed. We did NOT measure it; figures are published or na."
+    },
+    "firebase": {
+      "label": "Firebase (managed)",
+      "kind": "competitor-cloud",
+      "note": "Fully managed, serverless, Firestore document model — NOT relational, NOT self-hostable. Footprint/RSS/cold-start/pools are architecturally na."
+    }
+  },
+  "metrics": {
+    "idle_footprint_mib": {
+      "label": "Idle footprint (RSS)",
+      "unit": "MiB",
+      "lowerIsBetter": true,
+      "context": "resources",
+      "description": "At-rest resident memory of the whole stack (single binary for nano/PB; sum of container RSS for the multi-service tiers / Supabase self-host).",
+      "values": {
+        "grobase-nano": {
+          "value": 2.008,
+          "source": "measured",
+          "artifact": "artifacts/nano-vs-pocketbase.json",
+          "note": "field .nano.rss = '2.008MiB' (n=100)"
+        },
+        "grobase-basic": {
+          "value": 309.8,
+          "source": "measured",
+          "artifact": "artifacts/footprint-basic.json",
+          "note": "field .ram_mib_total (2026-06-12)"
+        },
+        "grobase-essential": {
+          "value": 821.7,
+          "source": "measured",
+          "artifact": "artifacts/footprint-essential.json",
+          "note": "field .ram_mib_total (2026-06-12)"
+        },
+        "grobase-pro": {
+          "value": 1188.4,
+          "source": "measured",
+          "artifact": "artifacts/footprint-pro.json",
+          "note": "field .ram_mib_total (2026-06-12)"
+        },
+        "grobase-max": {
+          "value": 3634,
+          "source": "measured",
+          "artifact": "artifacts/footprint-max.json",
+          "note": "field .ram_mib_total (2026-06-12)"
+        },
+        "pocketbase": {
+          "value": 13.11,
+          "source": "measured",
+          "artifact": "artifacts/nano-vs-pocketbase.json",
+          "note": "field .pocketbase.rss = '13.11MiB' (n=100)"
+        },
+        "supabase-selfhost": {
+          "value": 2884,
+          "source": "measured",
+          "artifact": "artifacts/bench/grobase-vs-supabase.json",
+          "note": "field .supabase.total_rss_mib = sum of docker stats RSS over 13 supabase-* containers (breakdown in artifacts/bench/supabase-footprint-breakdown.txt; kong alone 1.526 GiB)"
+        },
+        "supabase-cloud": {
+          "value": null,
+          "source": "na",
+          "note": "Managed cloud — no self-host RSS to measure; vendor does not publish a per-deployment RSS figure."
+        },
+        "firebase": {
+          "value": null,
+          "source": "na",
+          "note": "Fully managed serverless — no self-host process, RSS is architecturally undefined."
+        }
+      }
+    },
+    "binary_or_image_mb": {
+      "label": "Binary / image size on disk",
+      "unit": "MB",
+      "lowerIsBetter": true,
+      "context": "resources",
+      "description": "Shipping size: single-binary/image MB for nano/one/PB; for multi-service tiers and Supabase self-host this is total image MB on disk (a different unit of bulk — compared with care).",
+      "values": {
+        "grobase-nano": {
+          "value": 4.9,
+          "source": "measured",
+          "artifact": "artifacts/nano-vs-pocketbase.json",
+          "note": "field .nano.image_mb (the 5 MB single binary)"
+        },
+        "grobase-basic": {
+          "value": 1182,
+          "source": "measured",
+          "artifact": "artifacts/footprint-basic.json",
+          "note": "field .img_mib_total — total container images on disk (NOT a single binary; different bulk unit than nano/PB)"
+        },
+        "grobase-essential": {
+          "value": 3198,
+          "source": "measured",
+          "artifact": "artifacts/footprint-essential.json",
+          "note": "field .img_mib_total — total container images on disk"
+        },
+        "grobase-pro": {
+          "value": 5599,
+          "source": "measured",
+          "artifact": "artifacts/footprint-pro.json",
+          "note": "field .img_mib_total — total container images on disk"
+        },
+        "grobase-max": {
+          "value": 12292,
+          "source": "measured",
+          "artifact": "artifacts/footprint-max.json",
+          "note": "field .img_mib_total — total container images on disk"
+        },
+        "pocketbase": {
+          "value": 30.1,
+          "source": "measured",
+          "artifact": "artifacts/nano-vs-pocketbase.json",
+          "note": "field .pocketbase.binary_mb (single binary, pinned v0.39.3)"
+        },
+        "supabase-selfhost": {
+          "value": null,
+          "source": "na",
+          "note": "We measured Supabase self-host RSS but did not record a total-image-on-disk figure in any artifact; would be 'measured' only if captured. Left na to avoid an unsourced number."
+        },
+        "supabase-cloud": {
+          "value": null,
+          "source": "na",
+          "note": "Managed cloud — nothing to download."
+        },
+        "firebase": {
+          "value": null,
+          "source": "na",
+          "note": "Managed cloud — nothing to download."
+        }
+      }
+    },
+    "read_p95_ms": {
+      "label": "Read p95 latency (warm, list-30 filtered)",
+      "unit": "ms",
+      "lowerIsBetter": true,
+      "context": "speed",
+      "description": "p95 latency of a warm filtered list-30 read. For grobase-* the figure is the PostgREST-path head-to-head probe OR the essential CRUD list op; nano/PB are the load-sweep c16 list p95. Cloud competitors are na (we did not measure their managed read path and they do not publish a directly comparable list-30 p95).",
+      "values": {
+        "grobase-nano": {
+          "value": 1.8,
+          "source": "measured",
+          "artifact": "artifacts/nano-vs-pocketbase-load.json",
+          "note": "field .sweep['nano/list/c16'].p95_ms (concurrency 16, n per METHOD)"
+        },
+        "grobase-basic": {
+          "value": null,
+          "source": "na",
+          "note": "No dedicated basic-tier read-p95 artifact; basic shares the same Rust data plane as essential but was not separately load-measured. Left na rather than copy essential's number."
+        },
+        "grobase-essential": {
+          "value": 2.19,
+          "source": "measured",
+          "artifact": "artifacts/bench/load-essential-crud.json",
+          "note": "field .median.ops.list.p95 = 2.185 (rounded 2.19); the SLO warm-read p95 (scale-slo.md §1)"
+        },
+        "grobase-pro": {
+          "value": null,
+          "source": "na",
+          "note": "No dedicated pro-tier read-p95 artifact captured; same Rust data plane, not separately measured."
+        },
+        "grobase-max": {
+          "value": null,
+          "source": "na",
+          "note": "No dedicated max-tier read-p95 artifact captured."
+        },
+        "pocketbase": {
+          "value": 1.7,
+          "source": "measured",
+          "artifact": "artifacts/nano-vs-pocketbase-load.json",
+          "note": "field .sweep['pb/list/c16'].p95_ms (concurrency 16). PocketBase's list mean of 5.6 ms in nano-vs-pocketbase.json is a single-op MEAN, not a p95 — the load-sweep p95 is the honest comparable."
+        },
+        "supabase-selfhost": {
+          "value": 2.57,
+          "source": "measured",
+          "artifact": "artifacts/bench/grobase-vs-supabase.json",
+          "note": "field .supabase.read_p95_ms — same curl GET /rest/v1/bench_items?limit=30 probe, n=60. (Grobase's same-probe PostgREST path measured 2.20 ms — at parity, ±0.1–0.4 ms across runs.)"
+        },
+        "supabase-cloud": {
+          "value": null,
+          "source": "na",
+          "note": "We did not measure Supabase Cloud; vendor does not publish a comparable warm list-30 p95. Not fabricated."
+        },
+        "firebase": {
+          "value": null,
+          "source": "na",
+          "note": "We did not measure Firebase; Firestore document reads are not a comparable relational list-30 p95, and no comparable vendor p95 is published."
+        }
+      }
+    },
+    "insert_p95_ms": {
+      "label": "Insert p95 latency (single row)",
+      "unit": "ms",
+      "lowerIsBetter": true,
+      "context": "speed",
+      "description": "p95 latency of a single-row insert. nano/PB from the load-sweep c16; essential from the CRUD load artifact.",
+      "values": {
+        "grobase-nano": {
+          "value": 1.2,
+          "source": "measured",
+          "artifact": "artifacts/nano-vs-pocketbase-load.json",
+          "note": "field .sweep['nano/ins/c16'].p95_ms (concurrency 16)"
+        },
+        "grobase-basic": {
+          "value": null,
+          "source": "na",
+          "note": "No dedicated basic-tier insert-p95 artifact."
+        },
+        "grobase-essential": {
+          "value": 9.09,
+          "source": "measured",
+          "artifact": "artifacts/bench/load-essential-crud.json",
+          "note": "field .median.ops.insert.p95 = 9.0888 (rounded 9.09)"
+        },
+        "grobase-pro": {
+          "value": null,
+          "source": "na",
+          "note": "No dedicated pro-tier insert-p95 artifact."
+        },
+        "grobase-max": {
+          "value": null,
+          "source": "na",
+          "note": "No dedicated max-tier insert-p95 artifact."
+        },
+        "pocketbase": {
+          "value": 4.6,
+          "source": "measured",
+          "artifact": "artifacts/nano-vs-pocketbase-load.json",
+          "note": "field .sweep['pb/ins/c16'].p95_ms (concurrency 16). Note PB's c16 insert p99 is 104.5 ms vs nano's 3.0 ms — the write-tail gap widens sharply at p99."
+        },
+        "supabase-selfhost": {
+          "value": null,
+          "source": "na",
+          "note": "The head-to-head artifact measured READ p50/p95 only; no insert-p95 figure was captured for Supabase. Left na rather than invent one."
+        },
+        "supabase-cloud": {
+          "value": null,
+          "source": "na",
+          "note": "Not measured; no comparable published figure."
+        },
+        "firebase": {
+          "value": null,
+          "source": "na",
+          "note": "Not measured; Firestore writes are not a comparable single-row relational insert."
+        }
+      }
+    },
+    "sustained_rps": {
+      "label": "Sustained throughput",
+      "unit": "rps",
+      "lowerIsBetter": false,
+      "context": "throughput",
+      "description": "Sustained requests/sec. nano/PB from the load-sweep c16 insert RPS (a fixed mixed comparable); essential is the measured max_sustained_rps (read ramp to the SLO wall). These are box-bound (load gen on the same machine) — treat as a same-box comparison, not an absolute ceiling.",
+      "values": {
+        "grobase-nano": {
+          "value": 6437,
+          "source": "measured",
+          "artifact": "artifacts/nano-vs-pocketbase-load.json",
+          "note": "field .sweep['nano/ins/c16'].rps (insert, concurrency 16)"
+        },
+        "grobase-basic": {
+          "value": null,
+          "source": "na",
+          "note": "No dedicated basic-tier capacity artifact."
+        },
+        "grobase-essential": {
+          "value": 400,
+          "source": "measured",
+          "artifact": "artifacts/bench/capacity-essential.json",
+          "note": "field .max_sustained_rps — read ramp, p95<2ms at 400 rps; cliff at 500+ (server_errors). This is the SLO read-capacity figure (scale-slo.md §1)."
+        },
+        "grobase-pro": {
+          "value": null,
+          "source": "na",
+          "note": "No dedicated pro-tier capacity artifact captured (budgets.json advertises 200 rps as a smoke bar, but that is a budget, not a measured ceiling)."
+        },
+        "grobase-max": {
+          "value": null,
+          "source": "na",
+          "note": "No dedicated max-tier capacity artifact captured (budgets.json holds 800 rps as a placeholder smoke bar pending a true measurement)."
+        },
+        "pocketbase": {
+          "value": 2513,
+          "source": "measured",
+          "artifact": "artifacts/nano-vs-pocketbase-load.json",
+          "note": "field .sweep['pb/ins/c16'].rps (insert, concurrency 16) — same probe as nano above"
+        },
+        "supabase-selfhost": {
+          "value": null,
+          "source": "na",
+          "note": "The head-to-head measured latency only; no sustained-RPS ramp was run against Supabase. Left na."
+        },
+        "supabase-cloud": {
+          "value": null,
+          "source": "na",
+          "note": "Not measured; vendor publishes plan limits, not a comparable sustained-RPS."
+        },
+        "firebase": {
+          "value": null,
+          "source": "na",
+          "note": "Not measured; Firebase autoscales — there is no fixed self-host RPS ceiling."
+        }
+      }
+    },
+    "cold_start_s": {
+      "label": "Cold start (boot to first 200)",
+      "unit": "s",
+      "lowerIsBetter": true,
+      "context": "ops",
+      "description": "Time from process start to first successful request. Only nano and PocketBase have a measured boot figure; multi-service tiers and managed clouds are na.",
+      "values": {
+        "grobase-nano": {
+          "value": 0.006,
+          "source": "measured",
+          "artifact": "artifacts/nano-vs-pocketbase-load.json",
+          "note": "field .boot_ms.nano = 6 ms → 0.006 s"
+        },
+        "grobase-basic": {
+          "value": null,
+          "source": "na",
+          "note": "Multi-container stack; no single boot-to-first-200 figure captured (dominated by Postgres/Kong startup, not measured as one number)."
+        },
+        "grobase-essential": {
+          "value": null,
+          "source": "na",
+          "note": "Multi-container stack; no aggregate cold-start artifact."
+        },
+        "grobase-pro": {
+          "value": null,
+          "source": "na",
+          "note": "Multi-container stack; no aggregate cold-start artifact."
+        },
+        "grobase-max": {
+          "value": null,
+          "source": "na",
+          "note": "Multi-container stack; no aggregate cold-start artifact."
+        },
+        "pocketbase": {
+          "value": 0.566,
+          "source": "measured",
+          "artifact": "artifacts/nano-vs-pocketbase-load.json",
+          "note": "field .boot_ms.pocketbase = 566 ms → 0.566 s"
+        },
+        "supabase-selfhost": {
+          "value": null,
+          "source": "na",
+          "note": "13-container stack; no single boot figure captured."
+        },
+        "supabase-cloud": {
+          "value": null,
+          "source": "na",
+          "note": "Managed — boot is the vendor's concern; no published self-host-equivalent figure."
+        },
+        "firebase": {
+          "value": null,
+          "source": "na",
+          "note": "Managed serverless; cold-start is per-function (Cloud Functions) and not a stack boot — not comparable."
+        }
+      }
+    },
+    "cost_per_tenant_usd_mo": {
+      "label": "Cost per tenant per month",
+      "unit": "USD/mo",
+      "lowerIsBetter": true,
+      "context": "cost",
+      "description": "Modeled infra $/tenant/mo. Grobase figures are the dedicated-stack Fly.io cost MODEL from wiki/cost-analysis.md (compute = $0.77/vCPU + $5.00/GB RAM + volume + egress). Competitor clouds price per-project/per-usage/per-MAU, NOT per-tenant — so a like-for-like $/tenant is na for them (forcing one would be a fabricated comparison).",
+      "values": {
+        "grobase-nano": {
+          "value": 2.5,
+          "source": "modeled",
+          "note": "wiki/cost-analysis.md §3(A): nano dedicated = 1 vCPU·256MB → ≈ $2–3/tenant/mo (<$1 idle, scale-to-zero). Midpoint 2.5. Fly model = $0.77/vCPU + $5/GB + vol + egress."
+        },
+        "grobase-basic": {
+          "value": 6.5,
+          "source": "modeled",
+          "note": "wiki/cost-analysis.md §3(A): basic dedicated = 1 vCPU·1GB → ≈ $6–7/mo (<$2 idle). Midpoint 6.5."
+        },
+        "grobase-essential": {
+          "value": 13,
+          "source": "modeled",
+          "note": "wiki/cost-analysis.md §3(A): essential dedicated = 2 vCPU·2GB → ≈ $12–14/mo. Midpoint 13."
+        },
+        "grobase-pro": {
+          "value": 21,
+          "source": "modeled",
+          "note": "wiki/cost-analysis.md §3(A): pro dedicated = 4 vCPU·3GB → ≈ $20–23/mo (<$1/tenant amortized multi-tenant per §3B). Dedicated midpoint 21."
+        },
+        "grobase-max": {
+          "value": 42,
+          "source": "modeled",
+          "note": "wiki/cost-analysis.md §3(A): max dedicated = 8 vCPU·6GB → ≈ $40–45/mo (<$1/tenant amortized per §3B). Dedicated midpoint 42."
+        },
+        "pocketbase": {
+          "value": 2.5,
+          "source": "modeled",
+          "note": "PocketBase is self-host (no vendor cloud). Applying the SAME Fly model to its nano-class footprint (~13 MiB RSS, single binary) → same 1 vCPU·256MB class as grobase-nano ≈ $2–3/mo. Marked modeled (our model, their footprint), not measured."
+        },
+        "supabase-selfhost": {
+          "value": null,
+          "source": "na",
+          "note": "Self-host has no per-tenant price (you run it). Its INFRA cost on Fly would be modelable from its 2884 MiB RSS (~3–4 GB VM ≈ $20–25/mo for ONE project, since Supabase self-host is single-project), but that is per-project not per-tenant — left na to avoid a misleading per-tenant figure."
+        },
+        "supabase-cloud": {
+          "value": null,
+          "source": "na",
+          "note": "Supabase Cloud prices per-PROJECT + usage (e.g. published Free / Pro $25/project/mo base + compute/usage add-ons), not per-tenant. A $/tenant comparison would be apples-to-oranges; na with this note rather than fabricate."
+        },
+        "firebase": {
+          "value": null,
+          "source": "na",
+          "note": "Firebase prices per-usage (reads/writes/storage/egress) and Identity Platform per-MAU (50K free then per-MAU) — no per-tenant unit. na with this note."
+        }
+      }
+    }
+  },
+  "scaleCurves": {
+    "rss_vs_tenants": {
+      "label": "Data-plane RSS vs tenant count (the density moat)",
+      "yUnit": "MiB",
+      "xUnit": "tenants",
+      "yLowerIsBetter": true,
+      "description": "Resident memory of the data plane as the provisioned tenant fleet grows. Grobase: RSS is a function of concurrent working set, not tenant count (per-request isolation, SHARE_POOLS) → flat. Competitors that are single-project-per-backend would need N backends → linear; represented as modeled with an explicit architectural note.",
+      "x": [
+        200,
+        1000,
+        10000,
+        24887,
+        100000
+      ],
+      "series": {
+        "grobase-shared_rls": {
+          "label": "Grobase data plane (shared_rls, SHARE_POOLS)",
+          "points": [
+            {
+              "x": 200,
+              "y": null,
+              "source": "na",
+              "note": "No standalone data-plane RSS captured at the 200-tenant run; the multitenant-200.json artifact records request latency/errors, not data-plane RSS. The RSS density facts were captured at 10K and 24,887."
+            },
+            {
+              "x": 1000,
+              "y": null,
+              "source": "na",
+              "note": "Same — multitenant-1000.json holds latency/errors, not a data-plane RSS sample."
+            },
+            {
+              "x": 10000,
+              "y": 30,
+              "source": "measured",
+              "artifact": "artifacts/bench/multitenant-10000-sharepools.json",
+              "note": "data-plane RSS 30 MiB under load at 10K (scale-slo.md §2, gate m46); 1 pool, 0 evicted, 0 5xx"
+            },
+            {
+              "x": 24887,
+              "y": 2.6,
+              "source": "measured",
+              "artifact": "artifacts/scale/footprint-live-24887.json",
+              "note": ".data_plane_router_rust.rss_mib = 2.6 AT REST (24,887 tenants, pools_open 0). Lower than the 10K figure because that 10K number was under load; this is the at-rest holding cost."
+            },
+            {
+              "x": 100000,
+              "y": 300,
+              "source": "modeled",
+              "note": "scale-slo.md §4: ~300 MiB extrapolated (< 1 GiB), 1 pool / 0 idle. Serve-path RSS is a function of concurrent working set, NOT tenant count — proven flat at 24,887; the 100K point is a conservative extrapolation, not a measurement. The wall at 100K is SEED time (Argon2id-bound provisioning), not serve RSS."
+            }
+          ]
+        },
+        "supabase-selfhost-modeled": {
+          "label": "Supabase self-host (1 project per backend — modeled)",
+          "points": [
+            {
+              "x": 200,
+              "y": null,
+              "source": "na",
+              "note": "Supabase self-host is single-project-per-backend (architectural, competitive-matrix.md). A per-tenant RSS curve requires N independent ~2884 MiB stacks; we did not measure a multi-tenant Supabase deployment. Shown only as a modeled architectural note below, not as measured points."
+            },
+            {
+              "x": 1000,
+              "y": null,
+              "source": "na",
+              "note": "see x=200 note"
+            },
+            {
+              "x": 10000,
+              "y": null,
+              "source": "na",
+              "note": "Modeling N×2884 MiB would imply ~28 TiB at 10K tenants (one stack each) — architecturally true but not a defensible single number; left na with the architectural note rather than print a shock figure we did not measure."
+            },
+            {
+              "x": 24887,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            },
+            {
+              "x": 100000,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            }
+          ],
+          "architecturalNote": "Supabase self-host is one project per backend (Postgres-only, single-project-per-stack — competitive-matrix.md). Dense multi-tenancy is NOT its model: each tenant is a separate ~2884 MiB stack. We deliberately do NOT plot a fabricated N×RSS line — the honest statement is architectural, not a measured curve."
+        },
+        "firebase-modeled": {
+          "label": "Firebase (managed, no self-host)",
+          "points": [
+            {
+              "x": 200,
+              "y": null,
+              "source": "na",
+              "note": "Fully managed serverless — there is no self-host RSS at any tenant count."
+            },
+            {
+              "x": 1000,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            },
+            {
+              "x": 10000,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            },
+            {
+              "x": 24887,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            },
+            {
+              "x": 100000,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            }
+          ],
+          "architecturalNote": "Firebase is fully managed (serverless, Firestore document model). It has no self-host footprint to plot — RSS-vs-tenants is architecturally undefined."
+        }
+      }
+    },
+    "read_p95_vs_tenants": {
+      "label": "Read p95 vs tenant count (under zipf load)",
+      "yUnit": "ms",
+      "xUnit": "tenants",
+      "yLowerIsBetter": true,
+      "description": "p95 of the zipf-distributed multitenant read workload as the fleet grows. CRITICAL HONESTY: these p95 values are k6/Chrome-CPU-bound on the shared box (scale-slo.md §2/§5), NOT stack latency — the SERVER-side facts (0 5xx, 1 pool, flat RSS) are the real result. The flat ~2.4 ms warm-read SLO comes from the single-tenant capacity run, unchanged at density because pool count is independent of tenant count.",
+      "x": [
+        200,
+        1000,
+        10000,
+        24887,
+        100000
+      ],
+      "series": {
+        "grobase-shared_rls": {
+          "label": "Grobase zipf multitenant read p95 (box-bound — see note)",
+          "points": [
+            {
+              "x": 200,
+              "y": 11.47,
+              "source": "measured",
+              "artifact": "artifacts/bench/multitenant-200.json",
+              "note": ".http.p95 = 11.47 ms at rps 200, 200 tenants, 7.78% err (load-gen saturation). Box-bound."
+            },
+            {
+              "x": 1000,
+              "y": 10001.82,
+              "source": "measured",
+              "artifact": "artifacts/bench/multitenant-1000.json",
+              "note": ".http.p95 = 10001.82 ms — this is a 10s k6 TIMEOUT wall (err_pct 97.96), i.e. load-generator collapse, NOT stack latency. Included for honesty; do NOT read as server p95."
+            },
+            {
+              "x": 10000,
+              "y": 4410.14,
+              "source": "measured",
+              "artifact": "artifacts/bench/multitenant-10000-sharepools.json",
+              "note": ".http.p95 = 4410.14 ms at rps 17, 9775 tenants, err 1.95%, server_errors 0. SECONDS not ms — k6/Chrome starved on the loaded box (scale-slo.md §2). The real result is server_errors=0, 1 pool, 30 MiB RSS."
+            },
+            {
+              "x": 24887,
+              "y": null,
+              "source": "na",
+              "note": "The 24,887 capture was an AT-REST footprint probe (footprint-live-24887.json), not a load run — no read p95 was measured at this fleet size."
+            },
+            {
+              "x": 100000,
+              "y": null,
+              "source": "na",
+              "note": "scale-slo.md §5: a clean 100K LOAD p99/p95 is NOT credibly measurable on the shared box (needs a quiet/off-box load generator). Deliberately na — NOT extrapolated, because a fabricated competitor-grade tail would violate the honesty rule. The serve path is N-independent; the warm-read SLO (2.4 ms) is the honest at-density read figure, measured single-tenant (capacity-essential.json)."
+            }
+          ]
+        },
+        "supabase-selfhost": {
+          "label": "Supabase self-host read p95 at density",
+          "points": [
+            {
+              "x": 200,
+              "y": null,
+              "source": "na",
+              "note": "We measured Supabase single-project warm read p95 (2.57 ms, head-to-head) but ran NO multi-tenant density load against it. No p95-at-density figure exists; na rather than fabricate."
+            },
+            {
+              "x": 1000,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            },
+            {
+              "x": 10000,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            },
+            {
+              "x": 24887,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            },
+            {
+              "x": 100000,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            }
+          ]
+        },
+        "firebase": {
+          "label": "Firebase read p95 at density",
+          "points": [
+            {
+              "x": 200,
+              "y": null,
+              "source": "na",
+              "note": "Not measured; no comparable published density p95."
+            },
+            {
+              "x": 1000,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            },
+            {
+              "x": 10000,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            },
+            {
+              "x": 24887,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            },
+            {
+              "x": 100000,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            }
+          ]
+        }
+      }
+    },
+    "pools_open_vs_tenants": {
+      "label": "Open connection pools vs tenant count (the SHARE_POOLS differentiator)",
+      "yUnit": "pools",
+      "xUnit": "tenants",
+      "yLowerIsBetter": true,
+      "description": "Number of open DB connection pools held by the data plane as the tenant fleet grows. This is Grobase's structural moat: isolation is per-request (apply_rls_context re-stamps tenant+owner on every request), so a shared pool holds no tenant state → pool count is decoupled from tenant count. Single-project-per-backend competitors instead need one pool-set per project → linear in tenants.",
+      "x": [
+        200,
+        1000,
+        10000,
+        24887,
+        100000
+      ],
+      "series": {
+        "grobase-shared_rls": {
+          "label": "Grobase open pools (SHARE_POOLS=1)",
+          "points": [
+            {
+              "x": 200,
+              "y": null,
+              "source": "na",
+              "note": "Pools metric not separately captured at the 200-tenant run; the moat was proven at 10K (under load) and 24,887 (at rest)."
+            },
+            {
+              "x": 1000,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            },
+            {
+              "x": 10000,
+              "y": 1,
+              "source": "measured",
+              "artifact": "artifacts/bench/multitenant-10000-sharepools.json",
+              "note": "1 pool UNDER LOAD at 10K with SHARE_POOLS=1, 0 evicted (scale-slo.md §2, gate m46 + /metrics baas_data_plane_pools_open)"
+            },
+            {
+              "x": 24887,
+              "y": 0,
+              "source": "measured",
+              "artifact": "artifacts/scale/footprint-live-24887.json",
+              "note": ".data_plane_router_rust.pools_open = 0 AT REST (24,887 tenants; lifetime 16 created / 0 evicted / 16 reaped after TTL)"
+            },
+            {
+              "x": 100000,
+              "y": 1,
+              "source": "modeled",
+              "note": "scale-slo.md §4: 1 pool / 0 idle projected at 100K. Pool count is a function of concurrent working set, not tenant count — measured flat at 1 (load) / 0 (rest) through 24,887; modeled identical at 100K."
+            }
+          ]
+        },
+        "grobase-no-share-pools": {
+          "label": "Grobase open pools (SHARE_POOLS=0 — naive per-tenant, base-compose DEFAULT)",
+          "points": [
+            {
+              "x": 200,
+              "y": null,
+              "source": "na",
+              "note": "not separately captured"
+            },
+            {
+              "x": 1000,
+              "y": null,
+              "source": "na",
+              "note": "not separately captured"
+            },
+            {
+              "x": 10000,
+              "y": 256,
+              "source": "measured",
+              "artifact": "artifacts/bench/multitenant-10000-nosharepools-today.json",
+              "note": "SHARE_POOLS OFF (base-compose default): the per-tenant pool cache THRASHES against its LRU cap (~256 open). 2 fresh zipf runs (2026-06-15) created 468+480 pools / evicted 212+224 in 25s each -> ~12% 5xx from evict<->reopen churn (served requests still fast, p99 ~40ms). Repair = DATA_PLANE_SHARE_POOLS=1 (scale overlay) -> the flat 0-1 line. See FINDING-share-pools-default-off.md."
+            },
+            {
+              "x": 24887,
+              "y": null,
+              "source": "na",
+              "note": "at rest the cache reaps to 0 regardless; the thrash is strictly an under-load effect"
+            },
+            {
+              "x": 100000,
+              "y": null,
+              "source": "na",
+              "note": "box is load-gen-bound; the 10K result already demonstrates the thrash mode"
+            }
+          ],
+          "architecturalNote": "WITHOUT SHARE_POOLS, Grobase opens a pool per tenant capped by an LRU (~256). Under a 10K-tenant zipf spread this thrashes (DISCOVERED 2026-06-15) -> ~12% 5xx. This is structurally the SAME failure single-project-per-backend competitors have; DATA_PLANE_SHARE_POOLS=1 (the flat SHARE_POOLS=1 line) is the documented, gate-proven fix (m46) for dense fleets."
+        },
+        "supabase-selfhost-modeled": {
+          "label": "Supabase self-host (1 backend per project — modeled)",
+          "points": [
+            {
+              "x": 200,
+              "y": null,
+              "source": "na",
+              "note": "Single-project-per-backend: each tenant is its own Postgres backend with its own pool-set. Not a single shared-pool number; we did not run multi-tenant Supabase. Architectural note only."
+            },
+            {
+              "x": 1000,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            },
+            {
+              "x": 10000,
+              "y": null,
+              "source": "na",
+              "note": "Modeling 1 pool-set per project → pools grow linearly with tenants (the opposite of Grobase's flat line), but we print no fabricated count; the honest statement is architectural."
+            },
+            {
+              "x": 24887,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            },
+            {
+              "x": 100000,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            }
+          ],
+          "architecturalNote": "Supabase self-host runs one Postgres backend per project (and supavisor pools per project). Pool count therefore scales WITH tenant/project count — it does not decouple. This is the structural difference Grobase's per-request isolation removes; we state it architecturally rather than plot a fabricated linear count we did not measure."
+        },
+        "firebase-modeled": {
+          "label": "Firebase (managed, no pools)",
+          "points": [
+            {
+              "x": 200,
+              "y": null,
+              "source": "na",
+              "note": "Serverless document store — no client-managed connection pools exist. The metric is architecturally undefined for Firebase."
+            },
+            {
+              "x": 1000,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            },
+            {
+              "x": 10000,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            },
+            {
+              "x": 24887,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            },
+            {
+              "x": 100000,
+              "y": null,
+              "source": "na",
+              "note": "see above"
+            }
+          ],
+          "architecturalNote": "Firebase is serverless (Firestore) — there are no connection pools to count. Architecturally undefined."
+        }
+      }
+    }
+  }
+}

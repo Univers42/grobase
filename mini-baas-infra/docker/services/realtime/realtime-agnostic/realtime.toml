@@ -1,0 +1,87 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Realtime Engine — Configuration File
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# This file configures the realtime-server binary.
+#
+# Loading order:
+#   1. This TOML file (when REALTIME_CONFIG points to it)
+#   2. Environment variables override any value set here
+#
+# Docker usage:
+#   docker run -v /path/to/realtime.toml:/etc/realtime/realtime.toml \
+#       dlesieur/realtime-agnostic:latest
+#
+# Every section is optional — sensible defaults are used when omitted.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ─── Server ──────────────────────────────────────────────────────────────────
+
+# Bind address and port.  Override via REALTIME_HOST / REALTIME_PORT env vars.
+host       = "0.0.0.0"
+port       = 4000
+
+# Directory that serves static assets via the fallback HTTP handler.
+# Override via REALTIME_STATIC_DIR env var.
+static_dir = "/app/static"
+
+# ─── Authentication ──────────────────────────────────────────────────────────
+
+[auth]
+type = "none"            # "none" | "jwt"
+# secret   = ""          # Required when type = "jwt" (HMAC-SHA256 key)
+# issuer   = ""          # Optional: validate the `iss` JWT claim
+# audience = ""          # Optional: validate the `aud` JWT claim
+
+# ─── Event Bus ───────────────────────────────────────────────────────────────
+
+[event_bus]
+type     = "inprocess"   # Currently the only backend
+capacity = 65536         # Channel capacity (events)
+
+# ─── Performance Tuning ──────────────────────────────────────────────────────
+
+[performance]
+send_queue_capacity       = 256    # Per-connection outgoing buffer (messages)
+fanout_workers            = 4      # Number of fan-out worker tasks (0 = auto-detect)
+dispatch_channel_capacity = 65536  # Internal dispatch channel capacity
+
+# ─── Engine Limits ───────────────────────────────────────────────────────────
+#
+# Hard caps that protect the filter index against resource exhaustion.
+# All values below are the defaults — tune them for your workload.
+
+[engine.limits]
+max_patterns                    = 10000      # Unique topic patterns
+max_subscriptions_per_pattern   = 100000     # Subs per single topic pattern
+max_subscriptions_per_connection = 200       # Subs per WebSocket connection
+max_composite_keys              = 2000000    # Total composite index keys
+max_fields_per_pattern          = 64         # Indexed fields per pattern
+max_total_subscriptions         = 1000000    # Global subscription cap
+evaluation_slow_threshold_us    = 5000       # Slow-eval threshold (µs)
+circuit_breaker_trip_count      = 50         # Consecutive slow evals to trip
+circuit_breaker_cooldown_ms     = 5000       # Circuit-breaker cooldown (ms)
+
+# ─── Database Producers ──────────────────────────────────────────────────────
+#
+# Each [[databases]] entry configures one CDC producer.
+# The `config.*` keys are adapter-specific and passed through as-is.
+#
+# Alternatively, use REALTIME_PG_URL / REALTIME_MONGO_URI env vars for
+# quick single-database setups (they are additive with file-based config).
+
+# ── PostgreSQL (uncomment to enable) ──
+# [[databases]]
+# adapter                   = "postgresql"
+# config.connection_string  = "postgres://user:password@localhost:5432/mydb"
+# config.channel            = "realtime_events"
+# config.topic_prefix       = "pg"
+# config.poll_interval_ms   = 100
+
+# ── MongoDB (uncomment to enable) ──
+# [[databases]]
+# adapter                   = "mongodb"
+# config.uri                = "mongodb://localhost:27017"
+# config.database           = "mydb"
+# config.topic_prefix       = "mongo"
+# config.full_document      = "updateLookup"

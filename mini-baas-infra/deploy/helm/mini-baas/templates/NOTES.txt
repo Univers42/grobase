@@ -1,0 +1,51 @@
+mini-baas edition "{{ .Values.edition | default "lean" }}" rendered into namespace
+"{{ include "mini-baas.namespace" . }}".
+
+Enabled services ({{ len .Values.services }} defined):
+{{- range $name, $svc := .Values.services }}
+{{- if $svc.enabled }}
+  • {{ $name }}{{ with $svc.ports }} (ports: {{ join "," . }}){{ end }}
+{{- end }}
+{{- end }}
+
+Namespace:
+{{- if .Values.namespace }}
+  Pinned to "{{ .Values.namespace }}" via values.namespace.
+{{- else }}
+  Following the install namespace "{{ .Release.Namespace }}". This chart never
+  hardcodes `default` (Checkov CKV_K8S_21) — always install into a dedicated
+  namespace, e.g.:
+    helm install <rel> . --namespace mini-baas --create-namespace
+  or pin one with `--set namespace=mini-baas`.
+{{- end }}
+
+Pod posture:
+  Every pod runs as a non-root, high UID/GID (10001) with a RuntimeDefault
+  seccomp profile; every container drops ALL Linux capabilities and disallows
+  privilege escalation (values.global.{pod,container}SecurityContext). To make a
+  stateless service's rootfs read-only, set
+  services.<name>.securityContext.readOnlyRootFilesystem=true (it merges over the
+  global container context) — DBs/caches that write to their rootfs are left
+  writable on purpose.
+
+Network posture:
+{{- if .Values.networkPolicy.enabled }}
+  deny-by-default NetworkPolicy ACTIVE — external ingress is denied; intra-release
+  pod-to-pod traffic is allowed, and the ingress controller may reach
+  {{ join ", " .Values.networkPolicy.ingressTargets }}.
+  NOTE: requires a CNI that enforces NetworkPolicy (Calico/Cilium/etc.).
+{{- else }}
+  NetworkPolicy DISABLED — all pod-to-pod traffic is open.
+  Re-enable with `--set networkPolicy.enabled=true` on a NetworkPolicy-capable CNI.
+{{- end }}
+
+Env/secrets: this chart sources env from the (optional) ConfigMap
+"{{ .Release.Name }}-env" and Secret "{{ .Release.Name }}-secrets" — the K8s
+equivalent of compose `env_file: [.env]`. Create them before traffic:
+  kubectl create configmap {{ .Release.Name }}-env   --from-env-file=.env --namespace {{ include "mini-baas.namespace" . }}
+  kubectl create secret generic {{ .Release.Name }}-secrets --from-env-file=.env.secret --namespace {{ include "mini-baas.namespace" . }}
+
+These manifests are GENERATED — change the edition definitions in the Makefile or
+service facts in docker-compose.yml, then re-run `make deploy-gen` (the
+securityContext / namespace / networkPolicy defaults live in gen-deploy.py and
+survive regeneration).

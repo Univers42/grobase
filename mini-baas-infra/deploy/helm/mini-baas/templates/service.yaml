@@ -1,0 +1,27 @@
+{{- /* A ClusterIP Service for every enabled service that exposes ports, so
+intra-cluster DNS (e.g. http://<release>-adapter-registry-go:3021) matches the
+compose service-name addressing the planes already use. */ -}}
+{{- range $name, $svc := .Values.services }}
+{{- if and $svc.enabled $svc.ports }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $.Release.Name }}-{{ $name }}
+  namespace: {{ include "mini-baas.namespace" $ }}
+  labels:
+    {{- include "mini-baas.commonLabels" $ | nindent 4 }}
+    {{- include "mini-baas.selectorLabels" (dict "root" $ "name" $name) | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "mini-baas.selectorLabels" (dict "root" $ "name" $name) | nindent 4 }}
+  ports:
+    {{- range $svc.ports }}
+    - name: p{{ . }}
+      port: {{ . }}
+      targetPort: {{ . }}
+      protocol: TCP
+    {{- end }}
+{{- end }}
+{{- end }}

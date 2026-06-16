@@ -1,0 +1,1051 @@
+# File: docker/services/kong/conf/kong.yml
+# Kong Declarative Configuration — mini-BaaS Gateway
+# Env vars are substituted at runtime via sed in the Kong entrypoint
+_format_version: "3.0"
+_transform: true
+
+# ─── Consumers ────────────────────────────────────────────────────
+consumers:
+  - username: anon
+    keyauth_credentials:
+      - key: __KONG_PUBLIC_API_KEY__
+  - username: service_role
+    keyauth_credentials:
+      - key: __KONG_SERVICE_API_KEY__
+  # JWT consumer — matches GoTrue-issued tokens via the "iss" claim.
+  # GoTrue sets iss = API_EXTERNAL_URL (default: http://localhost:8000/auth/v1)
+  - username: authenticated
+    jwt_secrets:
+      - key: __GOTRUE_JWT_ISS__
+        secret: __JWT_SECRET__
+        algorithm: HS256
+      - key: supabase
+        secret: __JWT_SECRET__
+        algorithm: HS256
+
+# ─── Global Plugins ──────────────────────────────────────────────
+plugins:
+  - name: cors
+    config:
+      origins:
+        - __KONG_CORS_ORIGIN_APP__
+        - __KONG_CORS_ORIGIN_PLAYGROUND__
+        - __KONG_CORS_ORIGIN_STUDIO__
+        - __KONG_CORS_ORIGIN_FRONTEND__
+        # osionos second-brain Vite dev server — plain http in dev (no TLS).
+        # Lets the in-browser BaaS graph mode call /query/v1/* across origins.
+        - http://localhost:3001
+        - http://127.0.0.1:3001
+      methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+      headers:
+        # X-Baas-Tenant-Id: the in-browser mount catalog (osionos
+        # liveMountCatalog → GET /admin/v1/databases) scopes by tenant header;
+        # without it in the preflight allow-list that path can never work.
+        [Authorization, Content-Type, Content-Profile, apikey, X-Baas-Api-Key,
+         X-Baas-Tenant-Id, x-client-info, X-Request-ID, Prefer, Range, Accept,
+         Accept-Profile, x-supabase-api-version]
+      exposed_headers:
+        [X-Kong-Upstream-Latency, X-Kong-Proxy-Latency, X-Request-ID]
+      credentials: true
+      max_age: 3600
+
+  - name: correlation-id
+    config:
+      header_name: X-Request-ID
+      generator: uuid#counter
+      echo_downstream: true
+
+  - name: response-transformer
+    config:
+      # Add hardening headers — covers OWASP ZAP findings:
+      #  • Permissions-Policy (Low: header not set)
+      #  • Cross-Origin-* round out the modern set
+      #  • HSTS bumped to 2y + preload
+      add:
+        headers:
+          - X-Content-Type-Options:nosniff
+          - X-Frame-Options:DENY
+          - Referrer-Policy:strict-origin-when-cross-origin
+          - Permissions-Policy:accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(self), usb=(), web-share=(), xr-spatial-tracking=()
+          - Cross-Origin-Opener-Policy:same-origin
+          - Cross-Origin-Resource-Policy:same-site
+          - Strict-Transport-Security:max-age=63072000; includeSubDomains; preload
+      # Strip headers that leak server identity (ZAP: Server Leaks Version
+      # Information, In Page Banner Info Leak).
+      remove:
+        headers:
+          - Server
+          - X-Powered-By
+          - Via
+
+  # ── Prometheus metrics (replaces per-service prom-client) ───────
+  - name: prometheus
+    config:
+      status_code_metrics: true
+      latency_metrics: true
+      bandwidth_metrics: true
+      upstream_health_metrics: true
+      per_consumer: true
+
+  # ── Pre-Function: decode verified JWT and forward claims as headers ──
+  # Kong's JWT plugin already verified the signature; we just base64-decode
+  # the payload and set trusted headers so upstreams can read user identity
+  # without importing jsonwebtoken themselves.
+  - name: pre-function
+    config:
+      access:
+        - |
+          -- Strip any client-supplied identity headers up front; only a
+          -- verified JWT below may set them. Without this, a request on the
+          -- anonymous path (or with no/invalid bearer) could forge X-User-*
+          -- and impersonate a user at any compat-mode upstream.
+          kong.service.request.clear_header("X-User-Id")
+          kong.service.request.clear_header("X-User-Email")
+          kong.service.request.clear_header("X-User-Role")
+          -- On the PUBLIC app routes the tenant is ALWAYS server-derived (from
+          -- the verified api-key principal / JWT `sub`), never client-supplied.
+          --  * /functions/ : the runtime namespaces by the first of
+          --    X-Baas-Tenant-Id / X-Baas-User-Id / X-Tenant-Id / X-User-Id, so a
+          --    forged *-Tenant-Id would read/deploy ANOTHER tenant's functions.
+          --  * /query/ : the legacy TS query-router defaults to compat identity
+          --    mode (NODE_ENV unset), which trusts a raw X-Baas-Tenant-Id; the
+          --    api-key middleware re-derives the authoritative tenant from the
+          --    verified key once the forged header is gone.
+          -- Strip the forgeable namespace headers on both (admin/* routes are
+          -- service-role + ip-restricted and the internal dispatcher invoke
+          -- bypasses Kong, so neither legitimate path is affected).
+          local _p = kong.request.get_path()
+          if _p and (_p:sub(1, 11) == "/functions/" or _p:sub(1, 7) == "/query/") then
+            kong.service.request.clear_header("X-Baas-Tenant-Id")
+            kong.service.request.clear_header("X-Baas-User-Id")
+            kong.service.request.clear_header("X-Tenant-Id")
+          end
+          local auth = kong.request.get_header("authorization")
+          if not auth then return end
+          local token = auth:match("^[Bb]earer%s+(.+)$")
+          if not token then return end
+          local parts = {}
+          for p in token:gmatch("[^%.]+") do parts[#parts + 1] = p end
+          if #parts < 2 then return end
+          -- base64url decode the payload
+          local b64 = parts[2]:gsub("-", "+"):gsub("_", "/")
+          local pad = 4 - #b64 % 4
+          if pad < 4 then b64 = b64 .. ("="):rep(pad) end
+          local ok, payload = pcall(ngx.decode_base64, b64)
+          if not ok or not payload then return end
+          local cjson = require("cjson.safe")
+          local claims, err = cjson.decode(payload)
+          if not claims then return end
+          if claims.sub then
+            kong.service.request.set_header("X-User-Id", claims.sub)
+          end
+          if claims.email then
+            kong.service.request.set_header("X-User-Email", claims.email)
+          end
+          if claims.role then
+            kong.service.request.set_header("X-User-Role", claims.role)
+          end
+
+# ─── Services & Routes ───────────────────────────────────────────
+services:
+  # Note: The auth service (GoTrue) does NOT get the jwt plugin — it
+  # issues JWTs; clients hit it to log in before they have a token.
+  - name: auth
+    url: http://gotrue:9999
+    routes:
+      - name: auth-routes
+        paths: [/auth/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 300
+              hour: 5000
+
+  - name: rest
+    url: http://postgrest:3000
+    routes:
+      - name: rest-routes
+        paths: [/rest/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 180
+              hour: 5000
+
+  # GraphQL — PostgREST's native GraphQL endpoint (powered by the pg_graphql
+  # Postgres extension). /graphql/v1 → upstream /graphql (strip_path). Same
+  # auth/rate-limit posture as the REST route since it executes over the same
+  # PostgREST role + RLS. NOTE: requires `CREATE EXTENSION pg_graphql;` in
+  # Postgres — see scripts/migrations/postgresql/0006_pg_graphql.sql. The
+  # vendored `postgres:16-alpine` image does NOT ship the extension, so this
+  # route returns an error until an image that bundles pg_graphql is used.
+  - name: graphql
+    url: http://postgrest:3000/rpc/graphql
+    routes:
+      - name: graphql-routes
+        paths: [/graphql/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          # graphql_public is not PostgREST's default schema; force the RPC to
+          # resolve graphql_public.graphql() so SDK clients POST plain {query}.
+          - name: request-transformer
+            config:
+              add:
+                headers: ["Content-Profile:graphql_public"]
+              replace:
+                headers: ["Content-Profile:graphql_public"]
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 180
+              hour: 5000
+
+  # Realtime — custom WebSocket CDC server.
+  # The upstream exposes / (dashboard) and /ws (WebSocket endpoint).
+  # The API route maps /realtime/v1 → upstream /ws.
+  - name: realtime
+    url: http://realtime:4000/ws
+    routes:
+      - name: realtime-api
+        paths: [/realtime/v1]
+        strip_path: true
+        protocols: [http, https]
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 120
+              hour: 3000
+
+  # Realtime WebSocket — separate service so it can skip auth plugins.
+  # WS auth happens in-band inside the WebSocket protocol.
+  - name: realtime-ws
+    url: http://realtime:4000/ws
+    routes:
+      - name: realtime-ws-route
+        paths: [/realtime/v1/ws]
+        strip_path: true
+        protocols: [http, https]
+
+  - name: storage
+    url: http://minio:9000
+    routes:
+      - name: storage-routes
+        paths: [/storage/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 60
+              hour: 1500
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 10
+              size_unit: megabytes
+
+  - name: admin-meta
+    url: http://pg-meta:8080
+    routes:
+      - name: meta-routes
+        paths: [/meta/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: ip-restriction
+            config:
+              allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1]
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 120
+              hour: 3000
+
+  - name: mongo-api
+    url: http://mongo-api:3010
+    routes:
+      - name: mongo-api-routes
+        paths: [/mongo/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 180
+              hour: 5000
+
+  - name: tenant-control-admin
+    # Control-plane admin: POST /admin/v1/provision -> tenant-control /v1/provision.
+    # The service URL carries the target path so strip_path on this exact route
+    # leaves /v1/provision (tenant-control uses a /v1 prefix, unlike adapter-
+    # registry's bare paths). This path is more specific than /admin/v1, so Kong
+    # matches it first. Provision is additionally X-Service-Token gated by
+    # tenant-control. See wiki/03-control-plane.md §2.3.
+    url: http://tenant-control:3022/v1/provision
+    routes:
+      - name: admin-provision
+        paths: [/admin/v1/provision]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: ip-restriction
+            config:
+              allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1]
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 64
+              size_unit: kilobytes
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 30
+              hour: 500
+
+  # ── Control/Admin API (G4): coherent /admin/v1/* surface over the Go/Rust
+  # control plane. Each route is MORE specific than the /admin/v1 catch-all below
+  # (Kong matches longest path first), strip_path leaves the upstream's own path
+  # (carried in the service url), and all are internal-only via ip-restriction +
+  # the upstream's own service-token. service_role apikey + internal network only.
+  - name: admin-tenants
+    url: http://tenant-control:3022/v1/tenants
+    routes:
+      - name: admin-tenants
+        paths: [/admin/v1/tenants]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config: { key_names: [apikey], hide_credentials: false }
+          - name: ip-restriction
+            config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: request-size-limiting
+            config: { allowed_payload_size: 64, size_unit: kilobytes }
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 60, hour: 1000 }
+
+  # ── B4b-2: tenant self-service console surface (Track-B B4a, /v1/tenants/me*).
+  # PUBLIC by design: the app authenticates ITSELF (Authorization: Bearer mbk_… /
+  # X-API-Key / GoTrue JWT) and Kong forwards that header unchanged — so NO key-auth
+  # and NO ip-restriction here (unlike the INTERNAL /admin/v1/tenants route, which is
+  # service_role apikey + ip-restricted). tenant-control's selfAuth resolves the
+  # caller's OWN tenant (no path id) → cross-tenant impossible by construction.
+  #
+  # PATH SAFETY (two independent guarantees, belt-and-suspenders):
+  #   1. REGEX-TIGHT at the gate: the paths are regex (Kong 3.x: a leading `~` makes
+  #      the value a PCRE, start-anchored). `~/v1/tenants/me$` matches ONLY the bare
+  #      endpoint; `~/v1/tenants/me/.*` matches ONLY the /me/ subtree. Neither
+  #      matches /v1/tenants/members or /v1/tenants/mexico (prefix over-match is
+  #      rejected at Kong — those 404 at the gateway, never reaching the upstream).
+  #      (NB: do NOT add a literal `^` after the `~` — Kong already start-anchors the
+  #      regex, so `~/^/…` makes the `^` a mid-pattern anchor that never matches;
+  #      proven by m84 arm 4 returning 404 with the `^` form.)
+  #   2. UPSTREAM-SAFE even if (1) regressed: tenant-control's {id} handler (findOne)
+  #      requires a service token OR a matching X-Tenant-Id header — a public request
+  #      carries neither, so an over-matched /v1/tenants/{id} returns 401/404, NEVER
+  #      another tenant's body.
+  #
+  # PATH MAPPING — bare url + strip_path:false → the request path is forwarded
+  # VERBATIM (the data-plane-direct / storage-sign precedent), NOT the admin-tenants
+  # url-carries-path + strip_path:true form. WHY: with a REGEX path, strip_path strips
+  # the ENTIRE regex match; the greedy `~/v1/tenants/me/.*` would match all of
+  # /v1/tenants/me/keys and strip it to "" → the sub-route would be LOST. strip_path
+  # :false forwards the path untouched, so the upstream sees the full path:
+  #   /v1/tenants/me            → upstream /v1/tenants/me
+  #   /v1/tenants/me/usage      → upstream /v1/tenants/me/usage
+  #   /v1/tenants/me/keys       → upstream /v1/tenants/me/keys
+  #   /v1/tenants/me/keys/{id}  → upstream /v1/tenants/me/keys/{id}
+  #   (DELETE …/keys/{id} and PATCH /me ride the same two regexes — method is
+  #    orthogonal to path matching.) Proven by scripts/verify/m84-console-route.sh.
+  #
+  # CORS is inherited from the global cors plugin (already allows Authorization +
+  # the osionos origins http://localhost:3001 / http://127.0.0.1:3001) — no per-route
+  # cors needed. The /me handlers mount at the upstream ONLY when
+  # TENANT_SELFSERVE_ENABLED is truthy on tenant-control; OFF → upstream 404/401 =
+  # byte-parity (this Kong route is harmless when the feature is off).
+  - name: tenant-selfserve
+    url: http://tenant-control:3022
+    routes:
+      - name: tenant-selfserve
+        paths:
+          - ~/v1/tenants/me$
+          - ~/v1/tenants/me/.*
+        strip_path: false
+        plugins:
+          - name: request-size-limiting
+            config: { allowed_payload_size: 64, size_unit: kilobytes }
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 120, hour: 3000 }
+
+  - name: admin-keys
+    url: http://tenant-control:3022/v1/keys
+    routes:
+      - name: admin-keys
+        paths: [/admin/v1/keys]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config: { key_names: [apikey], hide_credentials: false }
+          - name: ip-restriction
+            config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: request-size-limiting
+            config: { allowed_payload_size: 64, size_unit: kilobytes }
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 60, hour: 1000 }
+
+  - name: admin-webhooks
+    url: http://webhook-dispatcher:3025/v1/webhooks
+    routes:
+      - name: admin-webhooks
+        paths: [/admin/v1/webhooks]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config: { key_names: [apikey], hide_credentials: false }
+          - name: ip-restriction
+            config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: request-size-limiting
+            config: { allowed_payload_size: 64, size_unit: kilobytes }
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 60, hour: 1000 }
+
+  # A2 Functions DX: DB-event -> function triggers, scheduled invocation, and
+  # per-function secrets. All three are served by the webhook-dispatcher (it
+  # already owns the DB pool + Redis + VAULT_ENC_KEY). Same internal-only guard
+  # as admin-webhooks; more specific than the /admin/v1 catch-all below.
+  - name: admin-function-triggers
+    url: http://webhook-dispatcher:3025/v1/function-triggers
+    routes:
+      - name: admin-function-triggers
+        paths: [/admin/v1/function-triggers]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config: { key_names: [apikey], hide_credentials: false }
+          - name: ip-restriction
+            config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: request-size-limiting
+            config: { allowed_payload_size: 64, size_unit: kilobytes }
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 60, hour: 1000 }
+
+  - name: admin-function-schedules
+    url: http://function-scheduler:3027/v1/function-schedules
+    routes:
+      - name: admin-function-schedules
+        paths: [/admin/v1/function-schedules]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config: { key_names: [apikey], hide_credentials: false }
+          - name: ip-restriction
+            config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: request-size-limiting
+            config: { allowed_payload_size: 64, size_unit: kilobytes }
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 60, hour: 1000 }
+
+  - name: admin-function-secrets
+    url: http://webhook-dispatcher:3025/v1/function-secrets
+    routes:
+      - name: admin-function-secrets
+        paths: [/admin/v1/function-secrets]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config: { key_names: [apikey], hide_credentials: false }
+          - name: ip-restriction
+            config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: request-size-limiting
+            config: { allowed_payload_size: 64, size_unit: kilobytes }
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 60, hour: 1000 }
+
+  - name: admin-migrate
+    url: http://data-plane-router-rust:4011/v1/admin/migrate
+    routes:
+      - name: admin-migrate
+        paths: [/admin/v1/migrate]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config: { key_names: [apikey], hide_credentials: false }
+          - name: ip-restriction
+            config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: request-size-limiting
+            config: { allowed_payload_size: 256, size_unit: kilobytes }
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 30, hour: 500 }
+
+  # G8 credential rotation: drains the stale per-mount pool + evicts the cached
+  # DSN after a credential_ref.version bump. Same internal-only guard as migrate.
+  - name: admin-rotate
+    url: http://data-plane-router-rust:4011/v1/admin/rotate
+    routes:
+      - name: admin-rotate
+        paths: [/admin/v1/rotate]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config: { key_names: [apikey], hide_credentials: false }
+          - name: ip-restriction
+            config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: request-size-limiting
+            config: { allowed_payload_size: 256, size_unit: kilobytes }
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 30, hour: 500 }
+
+  - name: adapter-registry
+    # Go control plane (go-control-plane profile). The NestJS adapter-registry:3020
+    # was retired after parity-probe.sh. strip_path on /admin/v1 leaves
+    # /databases and /databases/{id}/connect, which match the Go handler's route
+    # surface exactly. See wiki/03-control-plane.md §2.3 (gap G4).
+    url: http://adapter-registry-go:3021
+    routes:
+      - name: admin-adapters
+        paths: [/admin/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: ip-restriction
+            config:
+              allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1]
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 64
+              size_unit: kilobytes
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 60
+              hour: 1000
+
+  - name: query-router
+    url: http://query-router:4001
+    # /query/v1/{capabilities,engines} are the SDK introspection surface (G6):
+    # both are served at the query-router ROOT and reached through this same
+    # `/query/v1` route (strip_path drops the prefix) — no extra route needed.
+    routes:
+      - name: query-routes
+        paths: [/query/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 1
+              size_unit: megabytes
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 300
+              hour: 8000
+
+  # Phase 7 cutover: the DIRECT data path. Kong → Rust data plane, bypassing the
+  # TS query-router. ADDITIVE — /query/v1 above is untouched, so a client cuts
+  # over by switching base path /query/v1 → /data/v1 (and the {db_id,operation}
+  # body shape). Rust verifies X-Baas-Api-Key itself (tenant-control) and emits
+  # the outbox event, so realtime/webhooks keep firing. strip_path:false so the
+  # router receives the full /data/v1/query path it serves. Same key-auth +
+  # jwt-anon + rate-limit posture as /query/v1.
+  - name: data-plane-direct
+    url: http://data-plane-router-rust:4011
+    routes:
+      - name: data-direct-routes
+        paths: [/data/v1]
+        strip_path: false
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 1
+              size_unit: megabytes
+          # Per-IP DoS shield ONLY — the real product limiter is the per-tenant
+          # token bucket in the Rust plane (ratelimit.rs, tier-mask rps/burst).
+          # This bound must sit ABOVE the largest tier ceiling (max: 2000 rps =
+          # 120000/min): a single-IP app server is the NORMAL deployment shape,
+          # so an edge limit below the tier rate silently voids the offer
+          # (measured 2026-06-11: the previous 300/min rejected 76% of a 20 rps
+          # single-IP run — see scripts/bench/load.sh).
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 150000
+              hour: 9000000
+
+  - name: trino
+    url: http://trino:8080
+    routes:
+      - name: trino-route
+        paths: [/sql]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: request-transformer
+            config:
+              remove:
+                headers:
+                  - x-forwarded-for
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 60
+              hour: 1000
+
+  - name: admin-studio
+    url: http://studio:3000
+    routes:
+      - name: studio-routes
+        paths: [/studio]
+        strip_path: false
+        plugins:
+          - name: ip-restriction
+            config:
+              allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1]
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 300
+              hour: 5000
+
+  - name: email
+    url: http://orchestrator:3026          # A4 cutover (was email-service:3030)
+    routes:
+      - name: email-routes
+        paths: [/email/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 64
+              size_unit: kilobytes
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 10
+              hour: 200
+
+  - name: storage-sign
+    url: http://storage-router:3040
+    routes:
+      - name: storage-sign-routes
+        # strip_path:false — storage-router controllers are mounted at the full
+        # public path (@Controller('storage/v1')); forward the path verbatim.
+        # (Previously strip_path:true on [/storage/v1/sign] 404'd: Kong stripped
+        # the whole prefix, leaving /<bucket>/<key> which the controller never
+        # matched.) These op-paths are more specific than the minio /storage/v1
+        # route, so they win for the storage-router API surface.
+        paths: [/storage/v1/sign, /storage/v1/object, /storage/v1/list, /storage/v1/bucket]
+        strip_path: false
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 16
+              size_unit: kilobytes
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 60
+              hour: 1500
+
+  - name: permission-engine
+    url: http://permission-engine:3050
+    routes:
+      - name: permissions-routes
+        paths: [/permissions/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 120
+              hour: 3000
+
+  - name: schema-service
+    url: http://schema-service:3060
+    routes:
+      - name: schema-routes
+        paths: [/schemas/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 64
+              size_unit: kilobytes
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 60
+              hour: 1000
+
+  # ─── New BaaS Services ──────────────────────────────────────────
+
+  - name: analytics-service
+    url: http://analytics-service:3070
+    routes:
+      - name: analytics-routes
+        paths: [/analytics/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 64
+              size_unit: kilobytes
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 300
+              hour: 8000
+
+  # Edge Functions Runtime (G9). The Deno runtime serves /v1/functions...;
+  # strip_path drops /functions/v1 and the upstream url re-adds /v1/functions, so
+  # /functions/v1            -> /v1/functions            (list/deploy)
+  # /functions/v1/<name>     -> /v1/functions/<name>     (read/delete)
+  # /functions/v1/<name>/invoke -> /v1/functions/<name>/invoke
+  # Tenant identity: the global pre-function plugin forwards X-User-Id from the
+  # verified JWT, which the runtime accepts as a tenant fallback. Plugins mirror
+  # an app route (key-auth + jwt(iss) + rate-limiting + request-size-limiting).
+  - name: functions
+    url: http://functions-runtime:3060/v1/functions
+    routes:
+      - name: functions-routes
+        paths: [/functions/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 120
+              hour: 3000
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 512
+              size_unit: kilobytes
+
+  - name: gdpr-service
+    url: http://orchestrator:3026          # A4 cutover (was gdpr-service:3080)
+    routes:
+      - name: gdpr-routes
+        paths: [/gdpr/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 30
+              hour: 500
+
+  - name: newsletter-service
+    url: http://orchestrator:3026          # A4 cutover (was newsletter-service:3090)
+    routes:
+      - name: newsletter-routes
+        paths: [/newsletter/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 30
+              hour: 500
+
+  - name: ai-service
+    url: http://ai-service:3100
+    routes:
+      - name: ai-routes
+        paths: [/ai/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 64
+              size_unit: kilobytes
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 30
+              hour: 500
+
+  - name: log-service
+    url: http://orchestrator:3026/logs     # A4 cutover (was log-service:3110; orchestrator namespaces /logs)
+    routes:
+      - name: log-routes
+        paths: [/logs/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 120
+              hour: 3000
+
+  - name: session-service
+    url: http://orchestrator:3026/sessions # A4 cutover (was session-service:3120; orchestrator namespaces /sessions)
+    routes:
+      - name: session-routes
+        paths: [/sessions/v1]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: jwt
+            config:
+              header_names: [authorization]
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              run_on_preflight: false
+              anonymous: __KONG_ANON_UUID__
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 120
+              hour: 3000

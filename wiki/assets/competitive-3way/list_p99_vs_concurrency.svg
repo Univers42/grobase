@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img" aria-label="List/read p99 tail vs concurrency (ms, lower better)">
+  <rect x="0" y="0" width="880" height="480" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">List/read p99 tail vs concurrency (ms, lower better)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">(ms)</text>
+
+  <line x1="74" y1="410.0" x2="670" y2="410.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="414.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="74" y1="340.8" x2="670" y2="340.8" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="344.8" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">6.28</text>
+  <line x1="74" y1="271.6" x2="670" y2="271.6" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="275.6" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">12.6</text>
+  <line x1="74" y1="202.4" x2="670" y2="202.4" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="206.4" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">18.8</text>
+  <line x1="74" y1="133.2" x2="670" y2="133.2" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="137.2" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">25.1</text>
+  <line x1="74" y1="64.0" x2="670" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">31.4</text>
+  <line x1="74.0" y1="64" x2="74.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="74.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">1</text>
+  <line x1="471.3" y1="64" x2="471.3" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="471.3" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">16</text>
+  <line x1="670.0" y1="64" x2="670.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="670.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">64</text>
+  <line x1="74" y1="64" x2="74" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="74" y1="410" x2="670" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="372" y="454" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569">concurrency (log scale)</text>
+  <text x="18" y="237" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 237)">ms</text>
+  <polyline points="74.0,406.7 471.3,388.0 670.0,324.0" fill="none" stroke="#475569" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="406.7" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="388.0" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="324.0" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="327.0" font-family="sans-serif" font-size="10" fill="#475569">7.8</text>
+  <polyline points="74.0,406.7 471.3,388.0 670.0,326.2" fill="none" stroke="#be123c" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="406.7" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="388.0" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="326.2" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="329.2" font-family="sans-serif" font-size="10" fill="#be123c">7.6</text>
+  <polyline points="74.0,401.2 471.3,381.3 670.0,109.1" fill="none" stroke="#f59e0b" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="401.2" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="381.3" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="109.1" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="112.1" font-family="sans-serif" font-size="10" fill="#f59e0b">27.3</text>
+  <line x1="688" y1="70" x2="714" y2="70" stroke="#475569" stroke-width="2.5" />
+  <text x="720" y="74" font-family="sans-serif" font-size="11" fill="#334155">binocle-nano</text>
+  <line x1="688" y1="90" x2="714" y2="90" stroke="#be123c" stroke-width="2.5" />
+  <text x="720" y="94" font-family="sans-serif" font-size="11" fill="#334155">binocle-one</text>
+  <line x1="688" y1="110" x2="714" y2="110" stroke="#f59e0b" stroke-width="2.5" />
+  <text x="720" y="114" font-family="sans-serif" font-size="11" fill="#334155">pocketbase</text>
+
+</svg>

@@ -1,0 +1,88 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/realtime-core",
+    "crates/realtime-engine",
+    "crates/realtime-bus-inprocess",
+    "crates/realtime-bus-irc",
+    "crates/realtime-auth",
+    "crates/realtime-gateway",
+    "crates/realtime-db-postgres",
+    "crates/realtime-db-mongodb",
+    "crates/realtime-server",
+    "crates/realtime-client",
+    "tests/integration",
+]
+
+[workspace.lints.clippy]
+pedantic    = { level = "warn", priority = -1 }
+nursery     = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic       = "deny"
+
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.75"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+tokio-stream = "0.1"
+futures = "0.3"
+async-trait = "0.1"
+pin-project-lite = "0.2"
+
+# HTTP and WebSocket
+axum = { version = "0.7", features = ["ws"] }
+axum-extra = "0.9"
+tokio-tungstenite = "0.24"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "fs"] }
+
+# gRPC
+tonic = "0.12"
+prost = "0.13"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rmp-serde = "1"
+bytes = "1"
+
+# Concurrent data structures
+dashmap = "6"
+roaring = "0.10"
+arc-swap = "1"
+
+# Auth
+jsonwebtoken = "9"
+
+# Database adapters
+tokio-postgres = { version = "0.7", features = ["with-serde_json-1", "with-uuid-1", "with-chrono-0_4"] }
+mongodb = "3"
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+
+# Utilities
+uuid = { version = "1", features = ["v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+ahash = "0.8"
+smol_str = { version = "0.3", features = ["serde"] }
+thiserror = "2"
+anyhow = "1"
+config = "0.14"
+toml = "0.8"
+rand = "0.8"
+
+# Metrics
+metrics = "0.24"
+metrics-exporter-prometheus = "0.16"
+
+# Testing
+criterion = "0.5"

@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img" aria-label="Read p95 vs tenant count (under zipf load)">
+  <rect x="0" y="0" width="880" height="480" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Read p95 vs tenant count (under zipf load)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">p95 of the zipf-distributed multitenant read workload as the fleet grows. CRITICAL HONESTY: these p95 values are k6/Chrome-CPU-bound on the shared box (scale-slo.md §2/§5), NOT stack latency — the SERVER-side facts (0 5xx, 1 pool, flat RSS) are the real result. The flat ~2.4 ms warm-read SLO comes from the single-tenant capacity run, unchanged at density because pool count is independent of tenant count.  ·  (ms)</text>
+
+  <line x1="74" y1="410.0" x2="670" y2="410.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="414.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="74" y1="340.8" x2="670" y2="340.8" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="344.8" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">2,300</text>
+  <line x1="74" y1="271.6" x2="670" y2="271.6" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="275.6" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">4,601</text>
+  <line x1="74" y1="202.4" x2="670" y2="202.4" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="206.4" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">6,901</text>
+  <line x1="74" y1="133.2" x2="670" y2="133.2" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="137.2" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">9,202</text>
+  <line x1="74" y1="64.0" x2="670" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">11,502</text>
+  <line x1="74.0" y1="64" x2="74.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="74.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">200</text>
+  <line x1="319.2" y1="64" x2="319.2" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="319.2" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">1,000</text>
+  <line x1="670.0" y1="64" x2="670.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="670.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">10,000</text>
+  <line x1="74" y1="64" x2="74" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="74" y1="410" x2="670" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="372" y="454" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569">tenant count (log scale)</text>
+  <text x="18" y="237" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 237)">ms</text>
+  <polyline points="74.0,409.7 319.2,109.1 670.0,277.3" fill="none" stroke="#475569" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="409.7" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="319.2" cy="109.1" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="277.3" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="280.3" font-family="sans-serif" font-size="10" fill="#475569">4,410</text>
+  <line x1="688" y1="70" x2="714" y2="70" stroke="#475569" stroke-width="2.5" />
+  <text x="720" y="74" font-family="sans-serif" font-size="11" fill="#334155">Grobase zipf multitenant …</text>
+
+  <text x="12" y="470" font-family="sans-serif" font-size="10" fill="#94a3b8">n/a (omitted): supabase-selfhost; firebase</text>
+</svg>

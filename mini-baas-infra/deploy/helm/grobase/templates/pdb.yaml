@@ -1,0 +1,44 @@
+{{- /*
+PodDisruptionBudget per stateless plane (Track-C / C1 — HA during VOLUNTARY
+disruptions: node drain, cluster upgrade, autoscaler eviction).
+
+Rendered only when podDisruptionBudget.enabled=true, for kind=Deployment planes
+that run more than one replica (replicas>1 OR autoscaling.minReplicas>1). A PDB
+on a single-replica plane is a footgun — minAvailable:1 would make every node
+drain block forever — so we deliberately skip it. StatefulSets (postgres/redis)
+get no PDB here: their HA story is the managed-PG / operator boundary (C4), not a
+budget on a single primary.
+
+OFF by default so the committed baseline renders byte-identically to before.
+Proof of the availability property: deploy/ha/README.md (zero-downtime row).
+*/ -}}
+{{- if .Values.podDisruptionBudget.enabled }}
+{{- $root := . -}}
+{{- range $name, $plane := .Values.planes }}
+{{- if $plane.enabled }}
+{{- if eq ($plane.kind | default "Deployment") "Deployment" }}
+{{- $min := $plane.replicas | default 1 -}}
+{{- if and $plane.autoscaling $plane.autoscaling.enabled }}
+{{- $min = $plane.autoscaling.minReplicas | default 2 -}}
+{{- end }}
+{{- if gt (int $min) 1 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $root.Release.Name }}-{{ $name }}
+  labels:
+    {{- include "grobase.commonLabels" $root | nindent 4 }}
+    {{- include "grobase.selectorLabels" (dict "root" $root "name" $name) | nindent 4 }}
+spec:
+  {{- $perPlane := dict -}}
+  {{- with $plane.podDisruptionBudget }}{{ $perPlane = . }}{{- end }}
+  minAvailable: {{ $perPlane.minAvailable | default $root.Values.podDisruptionBudget.minAvailable | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "grobase.selectorLabels" (dict "root" $root "name" $name) | nindent 6 }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

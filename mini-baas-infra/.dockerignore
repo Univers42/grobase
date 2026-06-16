@@ -1,0 +1,93 @@
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.circleci
+Jenkinsfile
+.travis.yml
+
+# Documentation
+README.md
+docs/
+*.md
+LICENSE
+CHANGELOG.md
+
+# Dependencies
+node_modules/
+vendor/
+.cargo/
+
+# Build artifacts
+dist/
+build/
+target/
+out/
+bin/
+obj/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.code-workspace
+.env.local
+.env.*.local
+
+# Testing and coverage
+coverage/
+.nyc_output/
+.pytest_cache/
+__pycache__/
+*.egg-info
+.coverage
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Deployment descriptors
+*.yaml
+*.yml
+kubeconfig
+
+# Temporary files
+*.log
+*.tmp
+tmp/
+temp/
+
+# Environment files (except .env.example)
+.env
+.env.production
+.env.staging
+
+# Package locks (optional - depends on your strategy)
+# package-lock.json
+# yarn.lock
+# Gemfile.lock
+
+# Node-specific
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Python-specific
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Go-specific
+go.sum

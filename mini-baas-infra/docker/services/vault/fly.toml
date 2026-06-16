@@ -1,0 +1,37 @@
+app = "track-binocle-vault"
+primary_region = "cdg"
+kill_signal = "SIGINT"
+kill_timeout = "5s"
+
+[build]
+  dockerfile = "Dockerfile.fly"
+
+[env]
+  VAULT_API_ADDR = "https://track-binocle-vault.fly.dev"
+  VAULT_CLUSTER_ADDR = "https://track-binocle-vault.internal:8201"
+  VAULT_GITHUB_OIDC_AUTH_PATH = "jwt"
+  VAULT_GITHUB_OIDC_ROLE = "track-binocle-github-actions"
+  VAULT_GITHUB_OIDC_REPOSITORY = "Univers42/track-binocle"
+  VAULT_GITHUB_OIDC_AUDIENCE = "vault://track-binocle"
+  VAULT_GITHUB_AUTH_PATH = "github"
+  VAULT_GITHUB_ORG = "Univers42"
+  VAULT_GITHUB_TEAM = "transcendance"
+
+[[mounts]]
+  source = "vault_data"
+  destination = "/vault/data"
+
+[http_service]
+  internal_port = 8200
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "30s"
+    method = "GET"
+    path = "/v1/sys/health?standbyok=true&sealedcode=503&uninitcode=503"

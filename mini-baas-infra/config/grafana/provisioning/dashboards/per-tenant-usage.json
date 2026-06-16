@@ -1,0 +1,259 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "B5 Pillar 2 \u2014 per-tenant USAGE driven by public.tenant_usage (the B1 metering truth) via the Postgres-Usage datasource. Zero Prometheus cardinality: select ONE tenant via the $tenant_id variable (read from the dense, bounded public.tenants), then every panel filters to that single tenant. Default window is narrow (24h) because Loki/usage scans are field filters, not label series.",
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "postgres-usage"
+      },
+      "title": "Usage over time \u2014 $tenant_id",
+      "description": "qty per metric over the selected window for the single selected tenant (public.tenant_usage filtered to $tenant_id).",
+      "type": "timeseries",
+      "id": 1,
+      "gridPos": {
+        "h": 9,
+        "w": 16,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "auto"
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "postgres-usage"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT window_start AS time, metric, qty FROM public.tenant_usage WHERE tenant_id = '$tenant_id' AND window_start >= $__timeFrom() ORDER BY window_start",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "postgres-usage"
+      },
+      "title": "Current-period usage \u2014 $tenant_id",
+      "description": "Total qty across all metrics in the selected window for the selected tenant.",
+      "type": "gauge",
+      "id": 2,
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100000
+              },
+              {
+                "color": "red",
+                "value": 1000000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "postgres-usage"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(SUM(qty), 0) AS value FROM public.tenant_usage WHERE tenant_id = '$tenant_id' AND window_start >= $__timeFrom()",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "postgres-usage"
+      },
+      "title": "Usage vs tier quota \u2014 $tenant_id",
+      "description": "Per-metric used qty for the selected tenant alongside the tenant's plan (from public.tenants). Quota enforcement (B2) compares used vs the plan's entitlement; this table is the human-readable usage-vs-tier view.",
+      "type": "table",
+      "id": 3,
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "postgres-usage"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT u.metric, SUM(u.qty) AS used, t.plan AS tier FROM public.tenant_usage u JOIN public.tenants t ON t.id::text = u.tenant_id::text WHERE u.tenant_id = '$tenant_id' AND u.window_start >= $__timeFrom() GROUP BY u.metric, t.plan ORDER BY u.metric",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "title": "Logs \u2014 $tenant_id (field filter, no label series)",
+      "description": "Loki logs for the data plane filtered to the selected tenant via the tenant_id FIELD (| json | tenant_id=\"...\"), never a label. Creates zero new Loki streams \u2014 the B5 cardinality invariant.",
+      "type": "logs",
+      "id": 4,
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{compose_service=\"data-plane-router\"} | json | tenant_id=\"$tenant_id\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": [
+    "baas",
+    "per-tenant",
+    "usage",
+    "b5"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "tenant_id",
+        "label": "Tenant",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "postgres-usage"
+        },
+        "definition": "SELECT id AS __value FROM public.tenants ORDER BY id",
+        "query": "SELECT id AS __value FROM public.tenants ORDER BY id",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {},
+        "options": [],
+        "hide": 0
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Per-Tenant Usage (B5)",
+  "uid": "per-tenant-usage",
+  "version": 1
+}

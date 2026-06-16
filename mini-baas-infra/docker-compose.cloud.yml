@@ -1,0 +1,68 @@
+# File: docker-compose.cloud.yml
+# Grobase CLOUD EDITION overlay — turns the managed-cloud feature flags ON.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.cloud.yml \
+#          --profile <prod planes…> --profile cloud up -d
+#   or simply: make cloud-up   (from apps/baas/mini-baas-infra/)
+#
+# Design: wiki/cloud-edition-design.md §1.3. Decision: this is an ENV-ONLY overlay,
+# NOT a new EDITION — the Makefile's EDITION/PACKAGE machinery only selects compose
+# profiles, it cannot inject env. The cloud edition is the SAME services as
+# EDITION=prod with the cloud flags ON, so it is layered with `-f` exactly like the
+# existing docker-compose.{prod,scale,pooler,netseg,graphql}.yml overlays. The
+# default docker-compose.yml stays BYTE-UNTOUCHED (kernel rule #5 — flag-OFF parity):
+# a non-cloud `make up EDITION=…` never passes `-f docker-compose.cloud.yml`, so it
+# never reads flags.env.cloud and never starts stripe-mock (it lives in a `cloud`
+# profile no non-cloud edition activates).
+#
+# WHAT THIS OVERLAY DOES (and nothing else):
+#   1. Adds config/cloud/flags.env.cloud as a per-service env_file (AFTER .env so the
+#      cloud values win) on the three services that read a cloud flag —
+#      orchestrator (metering-ingest + quota-guard + billing-reporter + spend-cap),
+#      tenant-control (self-serve + backup + abuse-guard + the /me plan-change view),
+#      and data-plane-router-rust (metering producer + quota 402 + per-tenant obs).
+#   2. Adds ONE new service, stripe-mock — the in-tree zero-dep Node mock of the
+#      Stripe Meter Events API — behind a NEW `cloud` profile so it never starts for
+#      a non-cloud edition. The BillingReporter targets it via STRIPE_API_BASE.
+# It adds NO new app images and changes NO default-stack value.
+
+services:
+  # ── orchestrator — hosts metering-ingest, quota-guard, billing-reporter, spend-cap.
+  #    The cloud flags it reads: METERING_ENABLED / METERING_INGEST, QUOTA_ENFORCEMENT,
+  #    BILLING_ENABLED + STRIPE_* + BILLING_METER_*, SPEND_CAPS_ENABLED + SPEND_RATE_*.
+  orchestrator:
+    env_file:
+      - .env
+      - config/cloud/flags.env.cloud
+
+  # ── tenant-control — hosts /v1/tenants/me* (self-serve), backup/restore, /v1/abuse/*.
+  #    Cloud flags: TENANT_SELFSERVE_ENABLED, TENANT_BACKUP_ENABLED + *_SELFSERVE,
+  #    ABUSE_GUARD_ENABLED + ABUSE_*, BILLING_ENABLED (the /me plan-change view).
+  tenant-control:
+    env_file:
+      - .env
+      - config/cloud/flags.env.cloud
+
+  # ── data-plane-router-rust — the metering producer + the quota-402 reject + B5 obs.
+  #    Cloud flags: DATA_PLANE_METERING (+_FLUSH_MS), DATA_PLANE_QUOTA_ENFORCEMENT
+  #    (+_REFRESH_MS), DATA_PLANE_TENANT_OBS.
+  data-plane-router-rust:
+    env_file:
+      - .env
+      - config/cloud/flags.env.cloud
+
+  # ── stripe-mock — local Stripe Meter Events mock (NO live account, design §2).
+  #    Records every POST /v1/billing/meter_events; serves the recorded list at
+  #    GET /_events. The BillingReporter points STRIPE_API_BASE here. In a `cloud`
+  #    profile ONLY → a non-cloud edition never starts it.
+  stripe-mock:
+    image: node:20-alpine
+    command: ["node", "/srv/server.mjs"]
+    container_name: mini-baas-stripe-mock
+    profiles: [cloud]
+    environment:
+      PORT: "8080"
+    volumes:
+      - ./scripts/verify/m82-mock-stripe/server.mjs:/srv/server.mjs:ro
+    networks:
+      - mini-baas
+    restart: unless-stopped

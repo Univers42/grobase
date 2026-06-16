@@ -1,0 +1,19 @@
+FROM public.ecr.aws/hashicorp/vault:1.16
+
+# hadolint global ignore=DL3002,DL3018
+
+USER root
+
+RUN apk add --no-cache bash curl jq \
+  && mkdir -p /vault/config /vault/data /vault/policies /vault/scripts \
+  && chown -R vault:vault /vault
+
+COPY conf/ /vault/config/
+COPY policies/ /vault/policies/
+COPY scripts/ /vault/scripts/
+
+RUN chmod +x /vault/scripts/*.sh
+
+EXPOSE 8200
+
+ENTRYPOINT ["/vault/scripts/fly-entrypoint.sh"]

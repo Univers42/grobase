@@ -1,0 +1,20 @@
+apiVersion: v2
+name: grobase
+description: >-
+  Grobase — PRODUCTION Helm chart for the managed-cloud / HA deployment of the
+  Grobase BaaS (Track C / C3). Hand-authored (NOT generated): a StatefulSet for
+  stateful planes (postgres, redis), a Deployment per stateless plane
+  (control / data / realtime / kong) with HorizontalPodAutoscaler, a managed
+  Ingress, PersistentVolumeClaims, Vault-CSI secret mounts (or plain secret
+  refs), and a deny-by-default NetworkPolicy with explicit allows.
+
+  This is the SCALE/HA chart. The edition-selectable, GENERATED dev chart lives
+  beside it at ../mini-baas (driven by `make deploy-gen`); this one is the prod
+  topology. Pick prod defaults via values.yaml; iterate locally with
+  values-dev.yaml (kind/minikube — HPA + Ingress + Vault-CSI off).
+type: application
+version: 0.1.0
+appVersion: "1.2.0"
+keywords: [baas, postgres, multi-plane, scale, ha, production]
+maintainers:
+  - name: dlesieur

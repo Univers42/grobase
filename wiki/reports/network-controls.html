@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Network controls &amp; Cloudflare front-door</title>
+<style>
+:root{
+  --win:#1f9d57;--parity:#d99a16;--gap:#c64242;--brand:#5b6cff;
+  --ink:#0e1726;--muted:#5b6781;--bg:#f6f8fc;--card:#ffffff;
+  --line:#e3e8f2;--accent:#5b6cff;
+  --shadow:0 1px 2px rgba(16,23,38,.04),0 6px 24px rgba(16,23,38,.07);
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);line-height:1.55;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,
+    "Apple Color Emoji","Segoe UI Emoji",sans-serif;
+  font-size:15px;-webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:960px;margin:0 auto;padding:0 20px 64px}
+header.site{
+  position:sticky;top:0;z-index:50;
+  background:linear-gradient(110deg,var(--accent),color-mix(in srgb,var(--accent) 55%,#1b2447));
+  color:#fff;box-shadow:0 4px 18px rgba(16,23,38,.18);
+}
+@supports not (background:color-mix(in srgb,#000,#fff)){
+  header.site{background:linear-gradient(110deg,var(--accent),#2a3566)}
+}
+.site .inner{max-width:960px;margin:0 auto;padding:22px 20px}
+.site h1{margin:0;font-size:24px;font-weight:700;letter-spacing:-.01em}
+.site .sub{margin:6px 0 0;opacity:.92;font-size:14.5px;font-weight:400}
+.site .upd{margin-top:10px;font-size:12px;opacity:.8;font-variant-numeric:tabular-nums}
+section{margin-top:30px}
+section>h2{
+  font-size:18px;margin:0 0 4px;letter-spacing:-.01em;
+  padding-bottom:8px;border-bottom:2px solid var(--line);
+}
+section .intro{color:var(--muted);margin:8px 0 16px;font-size:14.5px}
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:18px;
+}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-top:6px}
+.kpi{
+  background:var(--card);border:1px solid var(--line);border-left:4px solid var(--muted);
+  border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 16px 14px;
+}
+.kpi.win{border-left-color:var(--win)} .kpi.parity{border-left-color:var(--parity)}
+.kpi.gap{border-left-color:var(--gap)} .kpi.neutral{border-left-color:var(--muted)}
+.kpi .label{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.kpi .value{font-size:27px;font-weight:700;margin:4px 0 2px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.kpi .sub{font-size:12.5px;color:var(--muted)}
+.kpi.win .value{color:var(--win)} .kpi.gap .value{color:var(--gap)} .kpi.parity .value{color:var(--parity)}
+.scoreboard{
+  display:flex;flex-wrap:wrap;gap:0;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-top:6px;
+}
+.scoreboard .sb-title{padding:14px 16px;font-weight:600;font-size:13px;color:var(--muted);
+  align-self:center;border-right:1px solid var(--line)}
+.scoreboard .stat{padding:12px 18px;border-right:1px solid var(--line);min-width:96px}
+.scoreboard .stat:last-child{border-right:none}
+.scoreboard .stat .v{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.scoreboard .stat .l{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.scoreboard .stat.win .v{color:var(--win)} .scoreboard .stat.gap .v{color:var(--gap)}
+.scoreboard .stat.parity .v{color:var(--parity)}
+.badge{
+  display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;
+  line-height:1.5;border:1px solid transparent;vertical-align:middle;
+}
+.badge.win{background:rgba(31,157,87,.12);color:var(--win);border-color:rgba(31,157,87,.25)}
+.badge.parity{background:rgba(217,154,22,.13);color:#9a6b07;border-color:rgba(217,154,22,.3)}
+.badge.gap{background:rgba(198,66,66,.12);color:var(--gap);border-color:rgba(198,66,66,.25)}
+.badge.brand{background:rgba(91,108,255,.12);color:var(--brand);border-color:rgba(91,108,255,.25)}
+.badge.neutral{background:rgba(91,103,129,.1);color:var(--muted);border-color:rgba(91,103,129,.22)}
+figure.chart{margin:0;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:16px 16px 12px}
+figure.chart .chart-title{font-weight:600;font-size:14.5px;margin:0 0 10px}
+figure.chart figcaption{color:var(--muted);font-size:12px;margin-top:8px}
+figure.chart svg{display:block;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:12.5px;color:var(--muted)}
+.legend .li{display:inline-flex;align-items:center;gap:6px}
+.legend .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+table.matrix{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);font-size:13.5px}
+table.matrix th,table.matrix td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);
+  vertical-align:top}
+table.matrix thead th{background:#eef2fb;font-size:12px;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);font-weight:600}
+table.matrix tbody tr:nth-child(even){background:#fbfcfe}
+table.matrix tbody tr:last-child td{border-bottom:none}
+td.t-win{background:rgba(31,157,87,.1)} td.t-parity{background:rgba(217,154,22,.12)}
+td.t-gap{background:rgba(198,66,66,.1)} td.t-brand{background:rgba(91,108,255,.1)}
+.callouts{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.callout{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--muted);
+  border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px}
+.callout.win{border-left-color:var(--win)} .callout.parity{border-left-color:var(--parity)}
+.callout.gap{border-left-color:var(--gap)} .callout.brand{border-left-color:var(--brand)}
+.callout .c-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.callout .c-title{font-weight:650;font-size:14.5px}
+.callout .c-body{color:var(--muted);font-size:13px;margin-top:6px}
+.layers{display:flex;flex-direction:column;gap:8px}
+.layer{border:1px solid var(--line);border-radius:10px;padding:12px 16px;background:var(--card);
+  box-shadow:var(--shadow);position:relative}
+.layer .ln{font-weight:650;font-size:14px} .layer .ld{color:var(--muted);font-size:12.5px;margin-top:2px}
+.layer.win{border-left:4px solid var(--win)} .layer.parity{border-left:4px solid var(--parity)}
+.layer.gap{border-left:4px solid var(--gap)} .layer.brand{border-left:4px solid var(--brand)}
+.evidence{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:16px}
+.evidence .e-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.evidence .e-title{font-weight:650;font-size:14.5px}
+.evidence pre{margin:0;background:#0e1726;color:#d7e2f7;border-radius:10px;padding:12px 14px;
+  font-size:12.5px;line-height:1.55;overflow:auto;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.evidence .e-gate{margin-top:10px;font-size:12px;color:var(--muted)}
+.evidence .e-gate code{background:#eef2fb;padding:2px 6px;border-radius:5px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+footer.site{margin-top:48px;border-top:1px solid var(--line);padding:22px 20px;color:var(--muted);
+  font-size:12.5px;text-align:center}
+footer.site .wrap{padding-bottom:0}
+@media (max-width:560px){
+  .scoreboard{flex-direction:column}
+  .scoreboard .sb-title,.scoreboard .stat{border-right:none;border-bottom:1px solid var(--line)}
+  .scoreboard .stat:last-child{border-bottom:none}
+  .site h1{font-size:21px}
+}
+@media print{
+  body{background:#fff}
+  header.site{position:static;box-shadow:none;color:#0e1726;background:#fff;border-bottom:2px solid var(--accent)}
+  .card,.kpi,figure.chart,.evidence,table.matrix,.scoreboard,.callout,.layer{box-shadow:none}
+  section{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<header class="site"><div class="inner">
+  <h1>Network controls &amp; Cloudflare front-door</h1>
+  <p class="sub">In-stack OWASP-CRS WAF · per-plane segmentation · per-tenant IP allowlist — vs Supabase</p>
+  <div class="upd">Updated 2026-06-15</div>
+</div></header>
+<main class="wrap">
+<section id="overview">
+  <h2>Perimeter at a glance</h2>
+  <p class="intro">Grobase ships, <em>in its own self-hostable stack</em>, an OWASP-CRS WAF as the sole public listener, per-plane network segmentation, and per-tenant IP allow-listing — perimeter controls Supabase does <strong>not</strong> ship in its OSS/self-host stack (its <code>supabase/supabase</code> compose has no WAF and one flat Docker network). <span class="badge win">WIN (in-stack)</span> <span class="badge parity">1 honest parity note</span></p>
+  <div class="grid kpis"><div class="kpi win">
+    <div class="label">In-stack WAF</div>
+    <div class="value">YES</div>
+    <div class="sub">OWASP CRS v4 — Supabase OSS: none</div>
+  </div>
+<div class="kpi win">
+    <div class="label">Plane isolation</div>
+    <div class="value">YES</div>
+    <div class="sub">4 isolated bridges, edge↛data refused</div>
+  </div>
+<div class="kpi parity">
+    <div class="label">IP allowlist</div>
+    <div class="value">per-tenant</div>
+    <div class="sub">control-plane, gate m106</div>
+  </div>
+<div class="kpi parity">
+    <div class="label">Cloudflare recipe</div>
+    <div class="value">READY</div>
+    <div class="sub">ROADMAP — hosted front-door</div>
+  </div></div>
+<div class="scoreboard">
+  <div class="sb-title">perimeter</div>
+  <div class="stat win">
+    <div class="v">4/4</div>
+    <div class="l">WAF probes</div>
+  </div>
+<div class="stat win">
+    <div class="v">1</div>
+    <div class="l">public listeners</div>
+  </div>
+<div class="stat win">
+    <div class="v">4</div>
+    <div class="l">segmented planes</div>
+  </div>
+<div class="stat win">
+    <div class="v">3</div>
+    <div class="l">in-stack gates</div>
+  </div>
+<div class="stat parity">
+    <div class="v">6</div>
+    <div class="l">CF recipe knobs</div>
+  </div>
+</div>
+</section>
+<section id="layers">
+  <h2>1 · Defense-in-depth perimeter (outer → inner)</h2>
+  <p class="intro">The outermost ring is the optional Cloudflare front-door <span class="badge parity">ROADMAP — §4 recipe</span>; everything from the in-stack WAF inward is <span class="badge win">measured / gate-proven</span>. A request crosses every ring in order; the in-stack WAF is the <strong>sole public listener</strong> (Kong sits behind it).</p>
+  <div class="layers"><div class="layer parity">
+    <div class="ln">Cloudflare front-door  (ROADMAP — hosted only)</div>
+    <div class="ld">DNS-proxy (orange-cloud) · managed WAF + OWASP ruleset · rate-limit 600/60s · Turnstile bot-challenge · Full-strict TLS + authenticated origin pull (mTLS).</div>
+  </div>
+<div class="layer win">
+    <div class="ln">In-stack OWASP-CRS WAF  (sole public listener)</div>
+    <div class="ld">nginx + ModSecurity v3 + CRS v4 (owasp/modsecurity-crs:4-nginx). SecRuleEngine On, paranoia 2, inbound anomaly threshold 5. Only container binding a public port.</div>
+  </div>
+<div class="layer brand">
+    <div class="ln">Kong edge gateway  (behind the WAF)</div>
+    <div class="ld">Bound to 127.0.0.1 for dev, never 0.0.0.0. ip-restriction on /admin/v1/* + tenant-control + adapter-registry (private CIDRs only).</div>
+  </div>
+<div class="layer brand">
+    <div class="ln">net-edge plane  (public-facing services)</div>
+    <div class="ld">waf, kong, studio, playground, gotrue, postgrest, realtime, grafana — WAN ingress.</div>
+  </div>
+<div class="layer win">
+    <div class="ln">net-control plane  (internal: true — no WAN egress)</div>
+    <div class="ld">tenant-control, orchestrator, permission-engine, schema-service, webhook-dispatcher, function-scheduler, vault. Reachable only via the dual-attached routers.</div>
+  </div>
+<div class="layer win">
+    <div class="ln">net-data plane  (internal: true — no WAN egress)</div>
+    <div class="ld">postgres, mysql, mariadb, cockroach, mssql, mongo, redis, minio. Owner-scope/RLS ABAC enforced per request at the front-door routers — no raw socket from the edge.</div>
+  </div></div>
+</section>
+<section id="waf">
+  <h2>2 · In-stack OWASP-CRS WAF — live block results (gate m140)</h2>
+  <p class="intro">The only container binding a public port is the WAF: nginx + ModSecurity v3 + OWASP CRS v4, <code>SecRuleEngine On</code> (blocking, not detect-only). The gate probes the running WAF and records the <strong>real</strong> HTTP status and the CRS rule IDs that fired (from the ModSecurity JSON audit log). <span class="badge gap">Supabase OSS: no WAF container</span></p>
+  <table class="matrix"><thead><tr><th>Probe (request)</th><th>Expected</th><th>Result</th><th>CRS rule ID(s)</th></tr></thead><tbody><tr><td class="td">?id=1&#39; OR &#39;1&#39;=&#39;1 -- UNION SELECT … (SQLi)</td><td>block</td><td class="td t-win">403</td><td class="td">942100 (libinjection SQLi)</td></tr><tr><td class="td">?q=&lt;script&gt;alert(1)&lt;/script&gt; (XSS)</td><td>block</td><td class="td t-win">403</td><td class="td">941100 / 941110 / 941160 / 941390</td></tr><tr><td class="td">?file=../../../../etc/passwd (path traversal)</td><td>block</td><td class="td t-win">403</td><td class="td">930100 / 930110 / 930120 (LFI) + 932160</td></tr><tr><td class="td">GET /waf-health (benign liveness)</td><td>pass</td><td class="td t-win">200</td><td class="td">bypass (static liveness)</td></tr><tr><td class="td">GET /data/v1/health (benign real route)</td><td>pass WAF</td><td class="td t-win">200</td><td class="td">— (Kong 401 auth, not 403)</td></tr></tbody></table>
+<div style="margin-top:14px"></div>
+<figure class="chart">
+  <p class="chart-title">CRS rules fired per probe (m140 — live ModSecurity audit log)</p>
+  <svg viewBox="0 0 720 222" role="img" aria-label="CRS rules fired per probe (m140 — live ModSecurity audit log)">
+    <line x1="150.0" y1="8" x2="150.0" y2="198" stroke="#e3e8f2" stroke-width="1"/><text x="150.0" y="210" font-size="10" fill="#5b6781" text-anchor="middle">0</text><line x1="275.0" y1="8" x2="275.0" y2="198" stroke="#e3e8f2" stroke-width="1"/><text x="275.0" y="210" font-size="10" fill="#5b6781" text-anchor="middle">1</text><line x1="400.0" y1="8" x2="400.0" y2="198" stroke="#e3e8f2" stroke-width="1"/><text x="400.0" y="210" font-size="10" fill="#5b6781" text-anchor="middle">2</text><line x1="525.0" y1="8" x2="525.0" y2="198" stroke="#e3e8f2" stroke-width="1"/><text x="525.0" y="210" font-size="10" fill="#5b6781" text-anchor="middle">3</text><line x1="650.0" y1="8" x2="650.0" y2="198" stroke="#e3e8f2" stroke-width="1"/><text x="650.0" y="210" font-size="10" fill="#5b6781" text-anchor="middle">4</text>
+    <text x="140" y="27.0" font-size="12" fill="#0e1726" text-anchor="end">XSS</text><rect x="150" y="8.0" width="500.0" height="30" rx="5" fill="#1f9d57"/><text x="658.0" y="27.0" font-size="11.5" fill="#0e1726" text-anchor="start">4 rules <tspan fill="#5b6781">· 403</tspan></text><text x="140" y="67.0" font-size="12" fill="#0e1726" text-anchor="end">path traversal</text><rect x="150" y="48.0" width="500.0" height="30" rx="5" fill="#1f9d57"/><text x="658.0" y="67.0" font-size="11.5" fill="#0e1726" text-anchor="start">4 rules <tspan fill="#5b6781">· 403</tspan></text><text x="140" y="107.0" font-size="12" fill="#0e1726" text-anchor="end">SQLi</text><rect x="150" y="88.0" width="125.0" height="30" rx="5" fill="#1f9d57"/><text x="283.0" y="107.0" font-size="11.5" fill="#0e1726" text-anchor="start">1 rules <tspan fill="#5b6781">· 403</tspan></text><text x="140" y="147.0" font-size="12" fill="#0e1726" text-anchor="end">benign /data/v1/health</text><rect x="150" y="128.0" width="1.0" height="30" rx="5" fill="#5b6781"/><text x="159.0" y="147.0" font-size="11.5" fill="#0e1726" text-anchor="start">0 rules <tspan fill="#5b6781">· passes WAF</tspan></text><text x="140" y="187.0" font-size="12" fill="#0e1726" text-anchor="end">benign /waf-health</text><rect x="150" y="168.0" width="1.0" height="30" rx="5" fill="#5b6781"/><text x="159.0" y="187.0" font-size="11.5" fill="#0e1726" text-anchor="start">0 rules <tspan fill="#5b6781">· 200 bypass</tspan></text>
+  </svg>
+  <figcaption>Bars show rules — higher is better.</figcaption>
+</figure>
+<div style="margin-top:14px"></div>
+<div class="evidence">
+  <div class="e-head"><span class="e-title">Negative control — the 403 originates at the WAF, not Kong</span><span class="badge win">PASS</span></div>
+  <pre># same SQLi sent DIRECTLY to Kong (bypassing the WAF):
+GET kong:8000  ?id=1&#39; OR &#39;1&#39;=&#39;1 -- …   →  404   (NOT 403)
+
+# through the WAF:
+GET waf:8881   ?id=1&#39; OR &#39;1&#39;=&#39;1 -- …   →  403   rule 942100
+# block exceeds CRS anomaly threshold → 949110 (score ≥ 5)
+#   ⇒ the CRS scoring engine does the work, not an ad-hoc rule.</pre>
+  <div class="e-gate">Gate: <code>bash mini-baas-infra/scripts/verify/m140-network-controls.sh</code></div>
+</div>
+</section>
+<section id="segmentation">
+  <h2>3 · Per-plane network segmentation (m66 / m140)</h2>
+  <p class="intro">The additive overlay <code>docker-compose.netseg.yml</code> splits the stack into four default-deny bridges; two containers reach each other <em>iff</em> they share a bridge. <strong>Legend:</strong> in this matrix the blocked outcome is the <em>desired</em> one, so REFUSED-from-edge and ALLOWED-from-front-door are both <span class="badge win">tone WIN</span> (green = correct posture, not "open"). <span class="badge gap">Supabase OSS: one flat network</span></p>
+  <table class="matrix"><thead><tr><th>From →</th><th>to postgres:5432 (data)</th><th>to control plane (e.g. vault:8200)</th></tr></thead><tbody><tr><td class="td">edge — Kong (net-edge only)</td><td class="td t-win">REFUSED  ✓ (no bridge)</td><td class="td t-win">REFUSED  ✓ (no bridge)</td></tr><tr><td class="td">front-door — query-router (edge+control+data)</td><td class="td t-win">CONNECTS  ✓ (legal path)</td><td class="td t-win">CONNECTS  ✓ (legal path)</td></tr></tbody></table>
+<div style="margin-top:14px"></div>
+<div class="grid callouts"><div class="callout win">
+    <div class="c-head">
+      <span class="c-title">REFUSED from the edge = the goal</span>
+      <span class="badge win">good</span>
+    </div>
+    <div class="c-body">A compromised edge container (e.g. a Kong RCE) cannot open a raw socket to postgres:5432, vault:8200 or redis:6379 — it has no bridge to them. Both cells are tone-win because blocking is the desired outcome here.</div>
+  </div>
+<div class="callout win">
+    <div class="c-head">
+      <span class="c-title">ALLOWED from the front-door = by design</span>
+      <span class="badge win">good</span>
+    </div>
+    <div class="c-body">query-router and data-plane-router-rust are dual/triple-attached (net-edge + net-control + net-data) — the ONLY legal edge→data path, where owner-scope/RLS ABAC is enforced per request. Reaching data here is correct, so it is also tone-win.</div>
+  </div></div>
+</section>
+<section id="controls">
+  <h2>4 · Headline controls vs Supabase OSS</h2>
+  <p class="intro">Four perimeter controls, each measured/gate-proven in-stack — and where the close-path is a recipe, it is labelled ROADMAP. The donut tallies all six §5 verdict rows.</p>
+  <div class="grid kpis"><div class="kpi win">
+    <div class="label">in-stack WAF</div>
+    <div class="value">yes</div>
+    <div class="sub">Supabase OSS: no — they front managed cloud with their own Cloudflare</div>
+  </div>
+<div class="kpi win">
+    <div class="label">plane isolation</div>
+    <div class="value">yes</div>
+    <div class="sub">4 bridges, edge↛data refused (m66/m140)</div>
+  </div>
+<div class="kpi parity">
+    <div class="label">IP allowlist</div>
+    <div class="value">per-tenant</div>
+    <div class="sub">control-plane, enforced on every API call (m106)</div>
+  </div>
+<div class="kpi parity">
+    <div class="label">Cloudflare recipe</div>
+    <div class="value">ready</div>
+    <div class="sub">copy-pasteable Terraform/nginx — hosted deploy</div>
+  </div></div>
+<div style="margin-top:14px"></div>
+<figure class="chart">
+  <p class="chart-title">vs Supabase — §5 verdict tally (6 perimeter controls)</p>
+  <svg viewBox="0 0 220 220" role="img" aria-label="vs Supabase — §5 verdict tally (6 perimeter controls)" style="max-width:260px;margin:0 auto">
+    <path d="M 110.00 18.00 A 92 92 0 0 1 110.00 202.00 L 110.00 166.00 A 56 56 0 0 0 110.00 54.00 Z" fill="#1f9d57"/><path d="M 110.00 202.00 A 92 92 0 0 1 110.00 18.00 L 110.00 54.00 A 56 56 0 0 0 110.00 166.00 Z" fill="#d99a16"/>
+    <text x="110" y="106" font-size="20" font-weight="700" fill="#0e1726" text-anchor="middle">3 / 6</text>
+       <text x="110" y="126" font-size="11" fill="#5b6781" text-anchor="middle">total 6</text>
+  </svg>
+  <div class="legend"><span class="li"><span class="sw" style="background:#1f9d57"></span>WIN (self-host) — <strong style="color:#0e1726">3</strong> (50%)</span><span class="li"><span class="sw" style="background:#d99a16"></span>parity / parity-with-caveat — <strong style="color:#0e1726">3</strong> (50%)</span></div>
+</figure>
+</section>
+<section id="cloudflare">
+  <h2>5 · Cloudflare front-door recipe (ROADMAP — hosted/managed deploy)</h2>
+  <p class="intro">For a <strong>hosted</strong> Grobase deploy, put Cloudflare in front of the in-stack WAF as a second, defense-in-depth perimeter (the in-stack WAF stays on — belt and braces). These are a <span class="badge parity">deployment recipe — ROADMAP</span>, not a measured in-stack control. The real config knobs from §4 of the doc:</p>
+  <div class="grid callouts"><div class="callout brand">
+    <div class="c-head">
+      <span class="c-title">1 · DNS — proxied (orange-cloud)</span>
+      <span class="badge brand">step 1</span>
+    </div>
+    <div class="c-body">cloudflare_record: type=A, value=origin_ip (host running the in-stack WAF :443), proxied=true (ORANGE cloud), ttl=1. Origin :443 firewalled to Cloudflare IP ranges only.</div>
+  </div>
+<div class="callout brand">
+    <div class="c-head">
+      <span class="c-title">2 · WAF managed + custom rules</span>
+      <span class="badge brand">step 2</span>
+    </div>
+    <div class="c-body">cloudflare_ruleset phase=http_request_firewall_managed: execute Cloudflare Managed Ruleset (id efb7b8c9…) + OWASP Core Ruleset (id 4814384a…). Custom rule blocks /admin/v1/ at the edge too (defense in depth).</div>
+  </div>
+<div class="callout brand">
+    <div class="c-head">
+      <span class="c-title">3 · Rate-limiting</span>
+      <span class="badge brand">step 3</span>
+    </div>
+    <div class="c-body">phase=http_ratelimit on /data/v1/: characteristics [cf.colo.id, ip.src], period 60s, 600 req/period, mitigation_timeout 600. Complements the in-stack per-tenant token bucket (m51).</div>
+  </div>
+<div class="callout brand">
+    <div class="c-head">
+      <span class="c-title">4 · Bot management / Turnstile</span>
+      <span class="badge brand">step 4</span>
+    </div>
+    <div class="c-body">managed_challenge on /auth/v1/signup or cf.client.bot_score &lt; 30. Pair with a Turnstile widget; verify cf-turnstile-response server-side before issuing a session.</div>
+  </div>
+<div class="callout brand">
+    <div class="c-head">
+      <span class="c-title">5 · Full-strict TLS + AOP (mTLS to origin)</span>
+      <span class="badge brand">step 5</span>
+    </div>
+    <div class="c-body">ssl=&quot;strict&quot; (Full strict), min_tls 1.2, tls_1_3 on, always_use_https. authenticated_origin_pulls enabled; on the WAF nginx: ssl_client_certificate cloudflare-origin-pull-ca.pem + ssl_verify_client on → cryptographic origin lock.</div>
+  </div>
+<div class="callout brand">
+    <div class="c-head">
+      <span class="c-title">6 · Cache rules</span>
+      <span class="badge brand">step 6</span>
+    </div>
+    <div class="c-body">phase=http_request_cache_settings: NEVER cache /data/v1/ or /auth/v1/ (per-tenant + authenticated); cache static assets (js/css/png/svg/woff2) at edge_ttl 86400.</div>
+  </div></div>
+</section>
+<section id="caveat">
+  <h2>6 · Honest framing — the one parity note</h2>
+  <p class="intro">Where Grobase does <em>not</em> outright win in-stack, the path is explicit and labelled.</p>
+  <div class="grid callouts"><div class="callout win">
+    <div class="c-head">
+      <span class="c-title">Self-host perimeter — Grobase WINS</span>
+      <span class="badge win">WIN</span>
+    </div>
+    <div class="c-body">For a self-hosted deploy Grobase ships an OWASP-CRS WAF as the sole public listener and per-plane segmentation that Supabase OSS simply does not have. Plus full data residency: all of the above runs entirely in the operator&#39;s own infra.</div>
+  </div>
+<div class="callout parity">
+    <div class="c-head">
+      <span class="c-title">Volumetric DDoS scrubbing — parity-via-Cloudflare</span>
+      <span class="badge parity">parity</span>
+    </div>
+    <div class="c-body">In-stack we have a per-tenant token bucket (m51) + WAF CRS. Edge volumetric DDoS scrubbing needs the §4 Cloudflare front-door. Supabase managed leans on its own Cloudflare; the §4 recipe gives a Grobase hosted deploy the same outer perimeter — on top of the in-stack WAF.</div>
+  </div>
+<div class="callout parity">
+    <div class="c-head">
+      <span class="c-title">Managed IP-restriction dashboard — parity-via-own-VPC</span>
+      <span class="badge parity">parity</span>
+    </div>
+    <div class="c-body">Supabase&#39;s network restrictions are a polished managed dashboard (paid). Grobase&#39;s per-tenant allowlist is config + a control-plane endpoint, enforced on every API call and re-verifiable by the operator (m106). A dashboard toggle is a DX nicety, not a control gap.</div>
+  </div>
+<div class="callout parity">
+    <div class="c-head">
+      <span class="c-title">Origin mTLS lock (AOP) — parity once §4.5 applied</span>
+      <span class="badge parity">parity</span>
+    </div>
+    <div class="c-body">Authenticated Origin Pulls is a deployment step (nginx ssl_verify_client on, mount Cloudflare&#39;s origin-pull CA). Once applied, a request that did not come through Cloudflare is rejected at TLS — parity with Supabase managed AOP.</div>
+  </div></div>
+</section>
+<section id="reproduce">
+  <h2>7 · Reproduce</h2>
+  <p class="intro">Every in-stack control above is re-verifiable by a self-contained gate.</p>
+  <div class="evidence">
+  <div class="e-head"><span class="e-title">In-stack network controls — gates</span><span class="badge win">PASS</span></div>
+  <pre># WAF block/pass (SQLi/XSS/traversal 403, benign 200) + edge↛data segmentation:
+bash mini-baas-infra/scripts/verify/m140-network-controls.sh
+
+# Segmentation parity/superset + hard-isolation (throwaway scratch):
+bash mini-baas-infra/scripts/verify/m66-netseg.sh
+
+# Per-tenant IP allowlist enforcement + parity:
+bash mini-baas-infra/scripts/verify/m106-ip-allowlist.sh</pre>
+  <div class="e-gate">Gate: <code>m140 · m66 · m106</code></div>
+</div>
+<div style="margin-top:14px"></div>
+<div class="grid callouts"><div class="callout win">
+    <div class="c-head">
+      <span class="c-title">WAF</span>
+      
+    </div>
+    <div class="c-body">docker/services/waf/Dockerfile + conf/{nginx,modsecurity,crs-setup}.conf</div>
+  </div>
+<div class="callout win">
+    <div class="c-head">
+      <span class="c-title">Segmentation</span>
+      
+    </div>
+    <div class="c-body">docker-compose.netseg.yml — 4 internal:true bridges</div>
+  </div>
+<div class="callout win">
+    <div class="c-head">
+      <span class="c-title">Edge IP-restrict</span>
+      
+    </div>
+    <div class="c-body">docker/services/kong/conf/kong.yml (ip-restriction on /admin/v1/*)</div>
+  </div>
+<div class="callout parity">
+    <div class="c-head">
+      <span class="c-title">Per-tenant allowlist</span>
+      
+    </div>
+    <div class="c-body">control-plane internal/… + migration 049, gate m106</div>
+  </div></div>
+</section>
+</main>
+<footer class="site"><div class="wrap">Grobase BaaS — measured, not claimed. Every figure traces to an artifact or doc.</div></footer>
+</body>
+</html>

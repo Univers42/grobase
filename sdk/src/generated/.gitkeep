@@ -1,0 +1,3 @@
+# Generated SDK clients land here via `npm run codegen:all`.
+# Files are produced from the OpenAPI documents collected at
+# apps/baas/mini-baas-infra/openapi/.

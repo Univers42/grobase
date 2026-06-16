@@ -1,0 +1,2440 @@
+[
+  {
+    "desc": "sum() on text column \"name\" — non-numeric aggregate is a client/422 error, never a 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"sum\",\"field\":\"name\",\"alias\":\"s\"}]}}",
+    "expectStatus": [
+      200,
+      400,
+      409,
+      422
+    ],
+    "jsonNotMatch": [
+      "(?i)\\b5\\d\\d\\b",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-001",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "avg() on text column \"name\" — non-numeric average rejected cleanly",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"avg\",\"field\":\"name\",\"alias\":\"a\"}]}}",
+    "expectStatus": [
+      400,
+      409,
+      422
+    ],
+    "id": "capability-tier-002",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "sum() on the PK text column \"id\" — text PK cannot be summed",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"sum\",\"field\":\"id\",\"alias\":\"s\"}]}}",
+    "expectStatus": [
+      400,
+      409,
+      422
+    ],
+    "id": "capability-tier-003",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "avg() on integer column \"n\" is a VALID aggregate — must succeed",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"avg\",\"field\":\"n\",\"alias\":\"avg_n\"}]}}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-004",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "count(*) with no field — canonical COUNT, must succeed",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409,
+      422
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-005",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "min() over text column \"name\" is valid (lexicographic) — succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"min\",\"field\":\"name\",\"alias\":\"mn\"}]}}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-006",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "max() over integer column \"n\" is valid — succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"max\",\"field\":\"n\",\"alias\":\"mx\"}]}}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-007",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregate func \"median\" not in AGG_FUNCS enum — 400 validation",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"median\",\"field\":\"n\",\"alias\":\"m\"}]}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-008",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregate func \"stddev\" not in AGG_FUNCS enum — 400 validation",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"stddev\",\"field\":\"n\",\"alias\":\"sd\"}]}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-009",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregate func uppercase \"SUM\" — enum is case-sensitive, 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"SUM\",\"field\":\"n\",\"alias\":\"s\"}]}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-010",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregate column missing required \"alias\" — 400 validation",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"count\",\"field\":\"n\"}]}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-011",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregate with empty aggregates array — AggregateDto requires >=1 logically",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[]}}",
+    "expectStatus": [
+      200,
+      400,
+      422
+    ],
+    "id": "capability-tier-012",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "id": "idempotency-concurrency-001",
+    "category": "idempotency-concurrency",
+    "desc": "insert a fixed id then re-insert SAME id -> first 200/201, this dup insert 409",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"dup-pk-fixed-0001\",\"label\":\"first\"}}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "jsonMatch": [
+      "rows|rowCount|results|guarantee|409|[Cc]onflict|duplicate|unique|already exists|violat"
+    ],
+    "jsonNotMatch": [
+      "(\"statusCode\"\\s*:\\s*5\\d\\d)|(\\bECONNREFUSED\\b)",
+      "at [A-Za-z0-9_$.]+ \\(.*:\\d+:\\d+\\)|\\bpanicked\\b|thread '.*' panicked|RUST_BACKTRACE"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "idempotency-concurrency-002",
+    "category": "idempotency-concurrency",
+    "desc": "re-insert the SAME literal id again (idempotent dup) -> 409 unique",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"dup-pk-fixed-0001\",\"label\":\"second\"}}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "jsonMatch": [
+      "409|[Cc]onflict|duplicate|unique|already exists|violat|rows|rowCount|results|guarantee"
+    ],
+    "jsonNotMatch": [
+      "(\"statusCode\"\\s*:\\s*5\\d\\d)|(\\bECONNREFUSED\\b)",
+      "at [A-Za-z0-9_$.]+ \\(.*:\\d+:\\d+\\)|\\bpanicked\\b|thread '.*' panicked|RUST_BACKTRACE"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "idempotency-concurrency-003",
+    "category": "idempotency-concurrency",
+    "desc": "insert id then immediately insert same id with different non-key cols -> 409",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"dup-pk-2\",\"label\":\"x\",\"n\":1}}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "jsonMatch": [
+      "rows|rowCount|results|guarantee|409|[Cc]onflict|duplicate|unique|already exists|violat"
+    ],
+    "jsonNotMatch": [
+      "(\"statusCode\"\\s*:\\s*5\\d\\d)|(\\bECONNREFUSED\\b)",
+      "at [A-Za-z0-9_$.]+ \\(.*:\\d+:\\d+\\)|\\bpanicked\\b|thread '.*' panicked|RUST_BACKTRACE"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "idempotency-concurrency-004",
+    "category": "idempotency-concurrency",
+    "desc": "insert numeric-string id collision candidate '42' -> success or 409 on repeat",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"42\",\"label\":\"answer\"}}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "jsonMatch": [
+      "rows|rowCount|results|guarantee|409|[Cc]onflict|duplicate|unique|already exists|violat"
+    ],
+    "jsonNotMatch": [
+      "(\"statusCode\"\\s*:\\s*5\\d\\d)|(\\bECONNREFUSED\\b)",
+      "at [A-Za-z0-9_$.]+ \\(.*:\\d+:\\d+\\)|\\bpanicked\\b|thread '.*' panicked|RUST_BACKTRACE"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "idempotency-concurrency-005",
+    "category": "idempotency-concurrency",
+    "desc": "insert with same id but cast as integer-looking key -> coerced, dup -> 409",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"0042\",\"label\":\"leading-zero\"}}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "jsonMatch": [
+      "rows|rowCount|results|guarantee|409|[Cc]onflict|duplicate|unique|already exists|violat"
+    ],
+    "jsonNotMatch": [
+      "(\"statusCode\"\\s*:\\s*5\\d\\d)|(\\bECONNREFUSED\\b)",
+      "at [A-Za-z0-9_$.]+ \\(.*:\\d+:\\d+\\)|\\bpanicked\\b|thread '.*' panicked|RUST_BACKTRACE"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "idempotency-concurrency-006",
+    "category": "idempotency-concurrency",
+    "desc": "insert UUID-shaped id twice in corpus -> dup 409 on second pass",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"11111111-1111-1111-1111-111111111111\",\"label\":\"u\"}}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "jsonMatch": [
+      "rows|rowCount|results|guarantee|409|[Cc]onflict|duplicate|unique|already exists|violat"
+    ],
+    "jsonNotMatch": [
+      "(\"statusCode\"\\s*:\\s*5\\d\\d)|(\\bECONNREFUSED\\b)",
+      "at [A-Za-z0-9_$.]+ \\(.*:\\d+:\\d+\\)|\\bpanicked\\b|thread '.*' panicked|RUST_BACKTRACE"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "idempotency-concurrency-007",
+    "category": "idempotency-concurrency",
+    "desc": "insert id with surrounding whitespace ' dup-pk-fixed-0001 ' -> distinct or 409",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\" dup-pk-fixed-0001 \",\"label\":\"ws\"}}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "jsonMatch": [
+      "rows|rowCount|results|guarantee|409|[Cc]onflict|duplicate|unique|already exists|violat"
+    ],
+    "jsonNotMatch": [
+      "(\"statusCode\"\\s*:\\s*5\\d\\d)|(\\bECONNREFUSED\\b)",
+      "at [A-Za-z0-9_$.]+ \\(.*:\\d+:\\d+\\)|\\bpanicked\\b|thread '.*' panicked|RUST_BACKTRACE"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "idempotency-concurrency-008",
+    "category": "idempotency-concurrency",
+    "desc": "insert empty-string id '' twice -> dup 409 on the second",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"\",\"label\":\"empty-id\"}}",
+    "expectStatus": [
+      200,
+      201,
+      409,
+      400
+    ],
+    "jsonMatch": [
+      "rows|rowCount|results|guarantee|409|[Cc]onflict|duplicate|unique|already exists|violat|400|[Vv]alidation|[Bb]ad ?[Rr]equest|must|should|property"
+    ],
+    "jsonNotMatch": [
+      "(\"statusCode\"\\s*:\\s*5\\d\\d)|(\\bECONNREFUSED\\b)",
+      "at [A-Za-z0-9_$.]+ \\(.*:\\d+:\\d+\\)|\\bpanicked\\b|thread '.*' panicked|RUST_BACKTRACE"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "idempotency-concurrency-009",
+    "category": "idempotency-concurrency",
+    "desc": "insert id with unicode 'dup-é-1' twice -> dup 409",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"dup-\\u00e9-1\",\"label\":\"uni\"}}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "jsonMatch": [
+      "rows|rowCount|results|guarantee|409|[Cc]onflict|duplicate|unique|already exists|violat"
+    ],
+    "jsonNotMatch": [
+      "(\"statusCode\"\\s*:\\s*5\\d\\d)|(\\bECONNREFUSED\\b)",
+      "at [A-Za-z0-9_$.]+ \\(.*:\\d+:\\d+\\)|\\bpanicked\\b|thread '.*' panicked|RUST_BACKTRACE"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "idempotency-concurrency-010",
+    "category": "idempotency-concurrency",
+    "desc": "insert max-length-ish id (255 chars) twice -> dup 409 or 22001 length 409",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL\",\"label\":\"long\"}}",
+    "expectStatus": [
+      200,
+      201,
+      409,
+      400
+    ],
+    "jsonMatch": [
+      "rows|rowCount|results|guarantee|409|[Cc]onflict|duplicate|unique|already exists|violat|400|[Vv]alidation|[Bb]ad ?[Rr]equest|must|should|property"
+    ],
+    "jsonNotMatch": [
+      "(\"statusCode\"\\s*:\\s*5\\d\\d)|(\\bECONNREFUSED\\b)",
+      "at [A-Za-z0-9_$.]+ \\(.*:\\d+:\\d+\\)|\\bpanicked\\b|thread '.*' panicked|RUST_BACKTRACE"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "idempotency-concurrency-011",
+    "category": "idempotency-concurrency",
+    "desc": "upsert NEW key (no row exists) -> behaves as insert -> 200/201",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"upsert\",\"data\":{\"id\":\"ups-new-1\",\"label\":\"created\"},\"filter\":{\"id\":\"ups-new-1\"}}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "jsonMatch": [
+      "rows|rowCount|results|guarantee|409|[Cc]onflict|duplicate|unique|already exists|violat"
+    ],
+    "jsonNotMatch": [
+      "(\"statusCode\"\\s*:\\s*5\\d\\d)|(\\bECONNREFUSED\\b)",
+      "at [A-Za-z0-9_$.]+ \\(.*:\\d+:\\d+\\)|\\bpanicked\\b|thread '.*' panicked|RUST_BACKTRACE"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "idempotency-concurrency-012",
+    "category": "idempotency-concurrency",
+    "desc": "upsert EXISTING key (same as prior) -> behaves as update -> 200/201 rowCount>=1",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"upsert\",\"data\":{\"id\":\"ups-new-1\",\"label\":\"updated\"},\"filter\":{\"id\":\"ups-new-1\"}}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "jsonMatch": [
+      "rows|rowCount|results|guarantee|409|[Cc]onflict|duplicate|unique|already exists|violat"
+    ],
+    "jsonNotMatch": [
+      "(\"statusCode\"\\s*:\\s*5\\d\\d)|(\\bECONNREFUSED\\b)",
+      "at [A-Za-z0-9_$.]+ \\(.*:\\d+:\\d+\\)|\\bpanicked\\b|thread '.*' panicked|RUST_BACKTRACE"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "injection-security-001",
+    "category": "injection-security",
+    "desc": "SQLi value (tautology OR 1=1) in insert data must be escaped/stored, never executed",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"x' OR '1'='1\",\"note\":\"sqli-probe\"}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "(?:rowCount|rows|id|name)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(stack ?trace|at Object\\.|at async |java\\.|panicked|::core::|node:internal|ECONNREFUSED|getaddrinfo)",
+      "(?i)version\\(\\)",
+      "(?i)/etc/passwd",
+      "(?i)information_schema"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "injection-security-002",
+    "category": "injection-security",
+    "desc": "SQLi value (UNION SELECT) in insert data must be escaped/stored, never executed",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"a' UNION SELECT username,password FROM users-- \",\"note\":\"sqli-probe\"}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "(?:rowCount|rows|id|name)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(stack ?trace|at Object\\.|at async |java\\.|panicked|::core::|node:internal|ECONNREFUSED|getaddrinfo)",
+      "(?i)version\\(\\)",
+      "(?i)/etc/passwd",
+      "(?i)information_schema"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "injection-security-003",
+    "category": "injection-security",
+    "desc": "SQLi value (stacked DROP TABLE) in insert data must be escaped/stored, never executed",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"v'); DROP TABLE users;-- \",\"note\":\"sqli-probe\"}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "(?:rowCount|rows|id|name)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(stack ?trace|at Object\\.|at async |java\\.|panicked|::core::|node:internal|ECONNREFUSED|getaddrinfo)",
+      "(?i)version\\(\\)",
+      "(?i)/etc/passwd",
+      "(?i)information_schema"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "injection-security-004",
+    "category": "injection-security",
+    "desc": "SQLi value (comment-terminated) in insert data must be escaped/stored, never executed",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"name'--\",\"note\":\"sqli-probe\"}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "(?:rowCount|rows|id|name)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(stack ?trace|at Object\\.|at async |java\\.|panicked|::core::|node:internal|ECONNREFUSED|getaddrinfo)",
+      "(?i)version\\(\\)",
+      "(?i)/etc/passwd",
+      "(?i)information_schema"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "injection-security-005",
+    "category": "injection-security",
+    "desc": "SQLi value (double-dash inline comment) in insert data must be escaped/stored, never executed",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"val-- still here\",\"note\":\"sqli-probe\"}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "(?:rowCount|rows|id|name)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(stack ?trace|at Object\\.|at async |java\\.|panicked|::core::|node:internal|ECONNREFUSED|getaddrinfo)",
+      "(?i)version\\(\\)",
+      "(?i)/etc/passwd",
+      "(?i)information_schema"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "injection-security-006",
+    "category": "injection-security",
+    "desc": "SQLi value (hash comment (mysql)) in insert data must be escaped/stored, never executed",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"val# comment\",\"note\":\"sqli-probe\"}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "(?:rowCount|rows|id|name)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(stack ?trace|at Object\\.|at async |java\\.|panicked|::core::|node:internal|ECONNREFUSED|getaddrinfo)",
+      "(?i)version\\(\\)",
+      "(?i)/etc/passwd",
+      "(?i)information_schema"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "injection-security-007",
+    "category": "injection-security",
+    "desc": "SQLi value (block comment) in insert data must be escaped/stored, never executed",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"val/* injected */end\",\"note\":\"sqli-probe\"}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "(?:rowCount|rows|id|name)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(stack ?trace|at Object\\.|at async |java\\.|panicked|::core::|node:internal|ECONNREFUSED|getaddrinfo)",
+      "(?i)version\\(\\)",
+      "(?i)/etc/passwd",
+      "(?i)information_schema"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "injection-security-008",
+    "category": "injection-security",
+    "desc": "SQLi value (nested block comment) in insert data must be escaped/stored, never executed",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"a/*! UNION */b\",\"note\":\"sqli-probe\"}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "(?:rowCount|rows|id|name)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(stack ?trace|at Object\\.|at async |java\\.|panicked|::core::|node:internal|ECONNREFUSED|getaddrinfo)",
+      "(?i)version\\(\\)",
+      "(?i)/etc/passwd",
+      "(?i)information_schema"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "injection-security-009",
+    "category": "injection-security",
+    "desc": "SQLi value (quote escape backslash) in insert data must be escaped/stored, never executed",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"tail\\\\' OR 1=1 -- \",\"note\":\"sqli-probe\"}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "(?:rowCount|rows|id|name)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(stack ?trace|at Object\\.|at async |java\\.|panicked|::core::|node:internal|ECONNREFUSED|getaddrinfo)",
+      "(?i)version\\(\\)",
+      "(?i)/etc/passwd",
+      "(?i)information_schema"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "injection-security-010",
+    "category": "injection-security",
+    "desc": "SQLi value (double single quote) in insert data must be escaped/stored, never executed",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"O''Brien'; SELECT 1\",\"note\":\"sqli-probe\"}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "(?:rowCount|rows|id|name)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(stack ?trace|at Object\\.|at async |java\\.|panicked|::core::|node:internal|ECONNREFUSED|getaddrinfo)",
+      "(?i)version\\(\\)",
+      "(?i)/etc/passwd",
+      "(?i)information_schema"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "injection-security-011",
+    "category": "injection-security",
+    "desc": "SQLi value (semicolon stacked insert) in insert data must be escaped/stored, never executed",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"z'; INSERT INTO admins VALUES('x');-- \",\"note\":\"sqli-probe\"}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "(?:rowCount|rows|id|name)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(stack ?trace|at Object\\.|at async |java\\.|panicked|::core::|node:internal|ECONNREFUSED|getaddrinfo)",
+      "(?i)version\\(\\)",
+      "(?i)/etc/passwd",
+      "(?i)information_schema"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "injection-security-012",
+    "category": "injection-security",
+    "desc": "SQLi value (boolean blind AND sleep) in insert data must be escaped/stored, never executed",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"a' AND SLEEP(5)-- \",\"note\":\"sqli-probe\"}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "(?:rowCount|rows|id|name)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(stack ?trace|at Object\\.|at async |java\\.|panicked|::core::|node:internal|ECONNREFUSED|getaddrinfo)",
+      "(?i)version\\(\\)",
+      "(?i)/etc/passwd",
+      "(?i)information_schema"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "malformed-protocol-004",
+    "category": "malformed-protocol",
+    "desc": "Body is a bare number, not a JSON object",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "42",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "(?i)(bad request|validation|object|op)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(node_modules|TypeError|at Object\\.)"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "malformed-protocol-009",
+    "category": "malformed-protocol",
+    "desc": "Leading comma inside object — invalid JSON",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{,\"op\":\"list\"}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "(?i)(bad request|unexpected|json|parse)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(node_modules|at Object\\.)"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "malformed-protocol-010",
+    "category": "malformed-protocol",
+    "desc": "Single-quoted keys/values (not valid JSON)",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{'op':'list'}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "(?i)(bad request|unexpected|json|parse)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(node_modules|at Object\\.)"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "malformed-protocol-011",
+    "category": "malformed-protocol",
+    "desc": "Unquoted key — JS object literal, not JSON",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{op:\"list\"}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "(?i)(bad request|unexpected|json|parse)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(node_modules|at Object\\.)"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "malformed-protocol-014",
+    "category": "malformed-protocol",
+    "desc": "Undefined literal in JSON (invalid)",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":undefined}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "(?i)(bad request|unexpected|json|parse)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(node_modules|at Object\\.)"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "malformed-protocol-015",
+    "category": "malformed-protocol",
+    "desc": "Duplicate op keys with conflicting values",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"op\":\"nonsense\"}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "(?i)(bad request|validation|op)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(node_modules|at Object\\.)"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "malformed-protocol-016",
+    "category": "malformed-protocol",
+    "desc": "Only whitespace as body",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "   \n\t  ",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "(?i)(bad request|validation|op|empty|required)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(node_modules|at Object\\.)"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "malformed-protocol-017",
+    "category": "malformed-protocol",
+    "desc": "Unterminated string value in JSON",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"lis",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "(?i)(bad request|unexpected|json|parse)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(node_modules|at Object\\.)"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "malformed-protocol-018",
+    "category": "malformed-protocol",
+    "desc": "Extra closing brace after valid object",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\"}}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "(?i)(bad request|unexpected|json|parse)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(node_modules|at Object\\.)"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "malformed-protocol-019",
+    "category": "malformed-protocol",
+    "desc": "Two JSON objects concatenated in body",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\"}{\"op\":\"get\"}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "(?i)(bad request|unexpected|json|parse)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(node_modules|at Object\\.)"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "malformed-protocol-020",
+    "category": "malformed-protocol",
+    "desc": "BOM prefix before JSON object",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "﻿{\"op\":\"list\"}",
+    "expectStatus": [
+      200,
+      201,
+      400
+    ],
+    "jsonMatch": [
+      "(?i)(rows|bad request|unexpected|json)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(node_modules|at Object\\.|stack trace)"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "malformed-protocol-021",
+    "category": "malformed-protocol",
+    "desc": "Unknown op value 'fetch'",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"fetch\"}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "(?i)(validation|op|must be|enum|invalid)"
+    ],
+    "jsonNotMatch": [
+      "(?i)(node_modules|at Object\\.|rows)"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "numeric-boundary-006",
+    "category": "numeric-boundary",
+    "desc": "limit huge int32 max 2147483647 (above Max(500))",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":2147483647}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "400|Validation|limit"
+    ],
+    "jsonNotMatch": [
+      "statusCode\":5"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "numeric-boundary-007",
+    "category": "numeric-boundary",
+    "desc": "limit int64 max 9223372036854775807 (above Max(500))",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":9223372036854775807}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "400|Validation|limit"
+    ],
+    "jsonNotMatch": [
+      "statusCode\":5"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "numeric-boundary-008",
+    "category": "numeric-boundary",
+    "desc": "limit beyond int64 (overflow) 99999999999999999999",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":99999999999999999999}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "400|Validation|limit"
+    ],
+    "jsonNotMatch": [
+      "statusCode\":5"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "numeric-boundary-009",
+    "category": "numeric-boundary",
+    "desc": "limit as float 50.5 must fail IsInt",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":50.5}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "400|Validation|integer|limit"
+    ],
+    "jsonNotMatch": [
+      "statusCode\":5"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "numeric-boundary-010",
+    "category": "numeric-boundary",
+    "desc": "limit as numeric string \"100\" (implicit conversion may coerce to valid int)",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":\"100\"}",
+    "expectStatus": [
+      200,
+      400
+    ],
+    "jsonMatch": [
+      "\"rows\"|400|Validation"
+    ],
+    "jsonNotMatch": [
+      "statusCode\":5"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "numeric-boundary-011",
+    "category": "numeric-boundary",
+    "desc": "limit as numeric string out of range \"9999\"",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":\"9999\"}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "400|Validation|limit"
+    ],
+    "jsonNotMatch": [
+      "statusCode\":5",
+      "\"rows\""
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "numeric-boundary-014",
+    "category": "numeric-boundary",
+    "desc": "limit as null (should fall back to default or be ignored)",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":null}",
+    "expectStatus": [
+      200,
+      400
+    ],
+    "jsonMatch": [
+      "\"rows\"|400|Validation"
+    ],
+    "jsonNotMatch": [
+      "statusCode\":5"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "numeric-boundary-015",
+    "category": "numeric-boundary",
+    "desc": "limit as array [10] (type confusion)",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":[10]}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "400|Validation|limit"
+    ],
+    "jsonNotMatch": [
+      "statusCode\":5"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "numeric-boundary-016",
+    "category": "numeric-boundary",
+    "desc": "limit as object {} (type confusion)",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":{}}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "400|Validation|limit"
+    ],
+    "jsonNotMatch": [
+      "statusCode\":5"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "numeric-boundary-017",
+    "category": "numeric-boundary",
+    "desc": "limit in scientific notation 5e2 (=500, valid edge)",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":5e2}",
+    "expectStatus": [
+      200,
+      400
+    ],
+    "jsonMatch": [
+      "\"rows\"|400|Validation"
+    ],
+    "jsonNotMatch": [
+      "statusCode\":5"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "numeric-boundary-018",
+    "category": "numeric-boundary",
+    "desc": "limit in scientific notation 1e10 (huge, out of range)",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":1e10}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "400|Validation|limit"
+    ],
+    "jsonNotMatch": [
+      "statusCode\":5"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "numeric-boundary-019",
+    "category": "numeric-boundary",
+    "desc": "limit with leading zeros as string \"007\"",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":\"007\"}",
+    "expectStatus": [
+      200,
+      400
+    ],
+    "jsonMatch": [
+      "\"rows\"|400|Validation"
+    ],
+    "jsonNotMatch": [
+      "statusCode\":5"
+    ],
+    "neverServerError": true
+  },
+  {
+    "desc": "empty JSON object body (no op/action) -> 400 validation",
+    "auth": "key",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{}",
+    "expectStatus": [
+      400,
+      422
+    ],
+    "jsonMatch": [
+      "(Validation|error|message|op|action)"
+    ],
+    "id": "payload-limits-001",
+    "category": "payload-limits",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "\"statusCode\":50",
+      "Internal Server Error",
+      "at Object\\.",
+      "    at ",
+      "ECONNREFUSED",
+      "EADDRINUSE",
+      "TypeError:",
+      "ReferenceError:"
+    ]
+  },
+  {
+    "desc": "whitespace-only body (spaces) -> 400",
+    "auth": "key",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "   ",
+    "expectStatus": [
+      400
+    ],
+    "id": "payload-limits-003",
+    "category": "payload-limits",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "\"statusCode\":50",
+      "Internal Server Error",
+      "at Object\\.",
+      "    at ",
+      "ECONNREFUSED",
+      "EADDRINUSE",
+      "TypeError:",
+      "ReferenceError:"
+    ],
+    "jsonMatch": [
+      ".*"
+    ]
+  },
+  {
+    "desc": "whitespace-only body (tabs+newlines) -> 400",
+    "auth": "key",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "\t\n\t\n",
+    "expectStatus": [
+      400
+    ],
+    "id": "payload-limits-004",
+    "category": "payload-limits",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "\"statusCode\":50",
+      "Internal Server Error",
+      "at Object\\.",
+      "    at ",
+      "ECONNREFUSED",
+      "EADDRINUSE",
+      "TypeError:",
+      "ReferenceError:"
+    ],
+    "jsonMatch": [
+      ".*"
+    ]
+  },
+  {
+    "desc": "single newline body -> 400",
+    "auth": "key",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "\n",
+    "expectStatus": [
+      400
+    ],
+    "id": "payload-limits-005",
+    "category": "payload-limits",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "\"statusCode\":50",
+      "Internal Server Error",
+      "at Object\\.",
+      "    at ",
+      "ECONNREFUSED",
+      "EADDRINUSE",
+      "TypeError:",
+      "ReferenceError:"
+    ],
+    "jsonMatch": [
+      ".*"
+    ]
+  },
+  {
+    "desc": "JSON false literal as whole body -> 400",
+    "auth": "key",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "false",
+    "expectStatus": [
+      400
+    ],
+    "id": "payload-limits-008",
+    "category": "payload-limits",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "\"statusCode\":50",
+      "Internal Server Error",
+      "at Object\\.",
+      "    at ",
+      "ECONNREFUSED",
+      "EADDRINUSE",
+      "TypeError:",
+      "ReferenceError:"
+    ],
+    "jsonMatch": [
+      ".*"
+    ]
+  },
+  {
+    "desc": "bare number 0 as whole body -> 400",
+    "auth": "key",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "0",
+    "expectStatus": [
+      400
+    ],
+    "id": "payload-limits-009",
+    "category": "payload-limits",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "\"statusCode\":50",
+      "Internal Server Error",
+      "at Object\\.",
+      "    at ",
+      "ECONNREFUSED",
+      "EADDRINUSE",
+      "TypeError:",
+      "ReferenceError:"
+    ],
+    "jsonMatch": [
+      ".*"
+    ]
+  },
+  {
+    "desc": "bare quoted string as whole body -> 400",
+    "auth": "key",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "\"op\"",
+    "expectStatus": [
+      400
+    ],
+    "id": "payload-limits-011",
+    "category": "payload-limits",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "\"statusCode\":50",
+      "Internal Server Error",
+      "at Object\\.",
+      "    at ",
+      "ECONNREFUSED",
+      "EADDRINUSE",
+      "TypeError:",
+      "ReferenceError:"
+    ],
+    "jsonMatch": [
+      ".*"
+    ]
+  },
+  {
+    "desc": "JSON empty array as whole body -> 400 (object expected)",
+    "auth": "key",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "[]",
+    "expectStatus": [
+      400
+    ],
+    "id": "payload-limits-012",
+    "category": "payload-limits",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "\"statusCode\":50",
+      "Internal Server Error",
+      "at Object\\.",
+      "    at ",
+      "ECONNREFUSED",
+      "EADDRINUSE",
+      "TypeError:",
+      "ReferenceError:"
+    ],
+    "jsonMatch": [
+      ".*"
+    ]
+  },
+  {
+    "desc": "object with only unknown junk key -> 400 forbidNonWhitelisted",
+    "auth": "key",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"junk\":1}",
+    "expectStatus": [
+      400
+    ],
+    "jsonMatch": [
+      "(junk|Validation|property|should not exist|error)"
+    ],
+    "id": "payload-limits-014",
+    "category": "payload-limits",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "\"statusCode\":50",
+      "Internal Server Error",
+      "at Object\\.",
+      "    at ",
+      "ECONNREFUSED",
+      "EADDRINUSE",
+      "TypeError:",
+      "ReferenceError:"
+    ]
+  },
+  {
+    "desc": "object with only whitespace key name -> 400",
+    "auth": "key",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"   \":\"list\"}",
+    "expectStatus": [
+      400
+    ],
+    "id": "payload-limits-015",
+    "category": "payload-limits",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "\"statusCode\":50",
+      "Internal Server Error",
+      "at Object\\.",
+      "    at ",
+      "ECONNREFUSED",
+      "EADDRINUSE",
+      "TypeError:",
+      "ReferenceError:"
+    ],
+    "jsonMatch": [
+      ".*"
+    ]
+  },
+  {
+    "desc": "trailing data after valid JSON -> 400 parse",
+    "auth": "key",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\"} garbage",
+    "expectStatus": [
+      400
+    ],
+    "id": "payload-limits-019",
+    "category": "payload-limits",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "\"statusCode\":50",
+      "Internal Server Error",
+      "at Object\\.",
+      "    at ",
+      "ECONNREFUSED",
+      "EADDRINUSE",
+      "TypeError:",
+      "ReferenceError:"
+    ],
+    "jsonMatch": [
+      ".*"
+    ]
+  },
+  {
+    "desc": "unescaped control char in string -> 400 parse",
+    "auth": "key",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"idempotencyKey\":\"a\u0001b\"}",
+    "expectStatus": [
+      200,
+      400
+    ],
+    "id": "payload-limits-026",
+    "category": "payload-limits",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "\"statusCode\":50",
+      "Internal Server Error",
+      "at Object\\.",
+      "    at ",
+      "ECONNREFUSED",
+      "EADDRINUSE",
+      "TypeError:",
+      "ReferenceError:"
+    ],
+    "jsonMatch": [
+      ".*"
+    ]
+  },
+  {
+    "id": "tenant-isolation-001",
+    "category": "tenant-isolation",
+    "desc": "insert with client owner_id=foreign principal in data — must be stripped, write succeeds owner-scoped",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\": \"insert\", \"data\": {\"id\": \"ti-001\", \"name\": \"a\", \"n\": 1, \"owner_id\": \"api-key:00000000-feed-dead-beef-000000000000\"}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "ti-001"
+    ],
+    "jsonNotMatch": [
+      "\"errors\":\\s*\\[\\s*\\{[^}]*\"stack\"",
+      "TypeError",
+      "at Object\\.",
+      "ECONNREFUSED",
+      "Internal Server Error",
+      "500",
+      "api-key:00000000-feed-dead-beef-000000000000"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "tenant-isolation-002",
+    "category": "tenant-isolation",
+    "desc": "insert with owner_id=foreign tenant string in data — stripped, no foreign owner echoed",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\": \"insert\", \"data\": {\"id\": \"ti-002\", \"name\": \"b\", \"n\": 2, \"owner_id\": \"tenant:acme-corp-other-9999\"}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "ti-002"
+    ],
+    "jsonNotMatch": [
+      "\"errors\":\\s*\\[\\s*\\{[^}]*\"stack\"",
+      "TypeError",
+      "at Object\\.",
+      "ECONNREFUSED",
+      "Internal Server Error",
+      "500",
+      "tenant:acme-corp-other-9999"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "tenant-isolation-003",
+    "category": "tenant-isolation",
+    "desc": "insert with owner_id=foreign user string — stripped",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\": \"insert\", \"data\": {\"id\": \"ti-003\", \"name\": \"c\", \"n\": 3, \"owner_id\": \"user:victim-77777777\"}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "ti-003"
+    ],
+    "jsonNotMatch": [
+      "\"errors\":\\s*\\[\\s*\\{[^}]*\"stack\"",
+      "TypeError",
+      "at Object\\.",
+      "ECONNREFUSED",
+      "Internal Server Error",
+      "500",
+      "user:victim-77777777"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "tenant-isolation-004",
+    "category": "tenant-isolation",
+    "desc": "insert with owner_id=empty string — stripped, trusted value wins",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\": \"insert\", \"data\": {\"id\": \"ti-004\", \"name\": \"d\", \"n\": 4, \"owner_id\": \"\"}}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "jsonMatch": [
+      "ti-004|owner|rows|rowCount"
+    ],
+    "jsonNotMatch": [
+      "\"errors\":\\s*\\[\\s*\\{[^}]*\"stack\"",
+      "TypeError",
+      "at Object\\.",
+      "ECONNREFUSED",
+      "Internal Server Error",
+      "500"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "tenant-isolation-005",
+    "category": "tenant-isolation",
+    "desc": "insert with owner_id=null — stripped, not honored as NULL owner",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\": \"insert\", \"data\": {\"id\": \"ti-005\", \"name\": \"e\", \"n\": 5, \"owner_id\": null}}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "\"errors\":\\s*\\[\\s*\\{[^}]*\"stack\"",
+      "TypeError",
+      "at Object\\.",
+      "ECONNREFUSED",
+      "Internal Server Error",
+      "500"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "tenant-isolation-006",
+    "category": "tenant-isolation",
+    "desc": "insert with owner_id=numeric 0 — stripped (type-confusion attempt)",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\": \"insert\", \"data\": {\"id\": \"ti-006\", \"name\": \"f\", \"n\": 6, \"owner_id\": 0}}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "\"errors\":\\s*\\[\\s*\\{[^}]*\"stack\"",
+      "TypeError",
+      "at Object\\.",
+      "ECONNREFUSED",
+      "Internal Server Error",
+      "500"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "tenant-isolation-007",
+    "category": "tenant-isolation",
+    "desc": "insert with owner_id=boolean true — stripped",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\": \"insert\", \"data\": {\"id\": \"ti-007\", \"name\": \"g\", \"n\": 7, \"owner_id\": true}}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "\"errors\":\\s*\\[\\s*\\{[^}]*\"stack\"",
+      "TypeError",
+      "at Object\\.",
+      "ECONNREFUSED",
+      "Internal Server Error",
+      "500"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "tenant-isolation-008",
+    "category": "tenant-isolation",
+    "desc": "insert with owner_id as nested object — stripped, no crash",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\": \"insert\", \"data\": {\"id\": \"ti-008\", \"name\": \"h\", \"n\": 8, \"owner_id\": {\"$ne\": null}}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "\"errors\":\\s*\\[\\s*\\{[^}]*\"stack\"",
+      "TypeError",
+      "at Object\\.",
+      "ECONNREFUSED",
+      "Internal Server Error",
+      "500"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "tenant-isolation-009",
+    "category": "tenant-isolation",
+    "desc": "insert with owner_id as array — stripped, no crash",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\": \"insert\", \"data\": {\"id\": \"ti-009\", \"name\": \"i\", \"n\": 9, \"owner_id\": [\"api-key:00000000-feed-dead-beef-000000000000\"]}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "\"errors\":\\s*\\[\\s*\\{[^}]*\"stack\"",
+      "TypeError",
+      "at Object\\.",
+      "ECONNREFUSED",
+      "Internal Server Error",
+      "500",
+      "api-key:00000000-feed-dead-beef-000000000000"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "tenant-isolation-010",
+    "category": "tenant-isolation",
+    "desc": "insert with owner_id whitespace-padded foreign value — stripped (no trim-bypass)",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\": \"insert\", \"data\": {\"id\": \"ti-010\", \"name\": \"j\", \"n\": 10, \"owner_id\": \"  api-key:00000000-feed-dead-beef-000000000000  \"}}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "\"errors\":\\s*\\[\\s*\\{[^}]*\"stack\"",
+      "TypeError",
+      "at Object\\.",
+      "ECONNREFUSED",
+      "Internal Server Error",
+      "500",
+      "api-key:00000000-feed-dead-beef-000000000000"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "tenant-isolation-011",
+    "category": "tenant-isolation",
+    "desc": "insert with OWNER_ID uppercase key — non-canonical, reaches DB as unknown col => 4xx not honored",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\": \"insert\", \"data\": {\"id\": \"ti-011\", \"name\": \"k\", \"n\": 11, \"OWNER_ID\": \"api-key:00000000-feed-dead-beef-000000000000\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "\"errors\":\\s*\\[\\s*\\{[^}]*\"stack\"",
+      "TypeError",
+      "at Object\\.",
+      "ECONNREFUSED",
+      "Internal Server Error",
+      "500",
+      "api-key:00000000-feed-dead-beef-000000000000"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "tenant-isolation-012",
+    "category": "tenant-isolation",
+    "desc": "insert with Owner_Id mixed case key — non-canonical column => 4xx not cross-tenant",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\": \"insert\", \"data\": {\"id\": \"ti-012\", \"name\": \"l\", \"n\": 12, \"Owner_Id\": \"api-key:00000000-feed-dead-beef-000000000000\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "\"errors\":\\s*\\[\\s*\\{[^}]*\"stack\"",
+      "TypeError",
+      "at Object\\.",
+      "ECONNREFUSED",
+      "Internal Server Error",
+      "500",
+      "api-key:00000000-feed-dead-beef-000000000000"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "types-and-error-mapping-001",
+    "category": "types-and-error-mapping",
+    "desc": "insert numeric string into integer column coerces to int",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"coerce-int\",\"qty\":\"42\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400
+    ],
+    "jsonMatch": [
+      "."
+    ],
+    "jsonNotMatch": [
+      "Internal Server Error",
+      "at Object\\.",
+      "\\bpanicked\\b"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "types-and-error-mapping-002",
+    "category": "types-and-error-mapping",
+    "desc": "insert true integer into integer column",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"int-native\",\"qty\":7}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "rowCount|rows|id"
+    ],
+    "jsonNotMatch": [
+      "Internal Server Error",
+      "stack",
+      "panicked"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "types-and-error-mapping-003",
+    "category": "types-and-error-mapping",
+    "desc": "insert non-numeric string into integer column rejected (not 500)",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"bad-int\",\"qty\":\"not-a-number\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409,
+      422
+    ],
+    "jsonMatch": [
+      "."
+    ],
+    "jsonNotMatch": [
+      "Internal Server Error",
+      "panicked",
+      "\\bECONNREFUSED\\b"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "types-and-error-mapping-004",
+    "category": "types-and-error-mapping",
+    "desc": "insert float string into integer column",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"float-to-int\",\"qty\":\"3.99\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "jsonMatch": [
+      "."
+    ],
+    "jsonNotMatch": [
+      "Internal Server Error",
+      "panicked"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "types-and-error-mapping-005",
+    "category": "types-and-error-mapping",
+    "desc": "insert boolean true into text column coerces or rejects safely",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":true}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "jsonMatch": [
+      "."
+    ],
+    "jsonNotMatch": [
+      "Internal Server Error",
+      "panicked"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "types-and-error-mapping-006",
+    "category": "types-and-error-mapping",
+    "desc": "insert string 'true' into boolean-like value",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"bool-str\",\"active\":\"true\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "jsonMatch": [
+      "."
+    ],
+    "jsonNotMatch": [
+      "Internal Server Error",
+      "panicked"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "types-and-error-mapping-007",
+    "category": "types-and-error-mapping",
+    "desc": "insert integer 1 where boolean expected",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"bool-one\",\"active\":1}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "jsonMatch": [
+      "."
+    ],
+    "jsonNotMatch": [
+      "Internal Server Error",
+      "panicked"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "types-and-error-mapping-008",
+    "category": "types-and-error-mapping",
+    "desc": "insert explicit null into a column (nullable behavior)",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"null-val\",\"note\":null}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409,
+      422
+    ],
+    "jsonMatch": [
+      "."
+    ],
+    "jsonNotMatch": [
+      "Internal Server Error",
+      "panicked"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "types-and-error-mapping-011",
+    "category": "types-and-error-mapping",
+    "desc": "insert date as ISO-8601 string into datetime",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"iso-date\",\"created\":\"2026-06-15T12:34:56Z\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "jsonMatch": [
+      "."
+    ],
+    "jsonNotMatch": [
+      "Internal Server Error",
+      "panicked"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "types-and-error-mapping-012",
+    "category": "types-and-error-mapping",
+    "desc": "insert date-only string into datetime",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"date-only\",\"created\":\"2026-06-15\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "jsonMatch": [
+      "."
+    ],
+    "jsonNotMatch": [
+      "Internal Server Error",
+      "panicked"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "types-and-error-mapping-013",
+    "category": "types-and-error-mapping",
+    "desc": "insert epoch integer into date column",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"epoch\",\"created\":1718456096}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "jsonMatch": [
+      "."
+    ],
+    "jsonNotMatch": [
+      "Internal Server Error",
+      "panicked"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "types-and-error-mapping-014",
+    "category": "types-and-error-mapping",
+    "desc": "insert malformed date string into datetime rejected safely",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"bad-date\",\"created\":\"2026-13-45T99:99:99\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "jsonMatch": [
+      "."
+    ],
+    "jsonNotMatch": [
+      "Internal Server Error",
+      "panicked"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "unicode-encoding-001",
+    "category": "unicode-encoding",
+    "desc": "insert emoji value (simple emoji U+1F600) round-trips",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"emoji-0-\\\\ud83d\\\\ude00\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409,
+      422
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "stack\\s*trace",
+      "at Object\\.<anonymous>",
+      "ECONNREFUSED",
+      "ER_PARSE_ERROR",
+      "syntax error at",
+      "panicked at"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "unicode-encoding-002",
+    "category": "unicode-encoding",
+    "desc": "insert emoji value (emoji with variation selector heart) round-trips",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"emoji-1-\\\\u2764\\\\ufe0f\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409,
+      422
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "stack\\s*trace",
+      "at Object\\.<anonymous>",
+      "ECONNREFUSED",
+      "ER_PARSE_ERROR",
+      "syntax error at",
+      "panicked at"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "unicode-encoding-003",
+    "category": "unicode-encoding",
+    "desc": "insert emoji value (ZWJ family sequence) round-trips",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"emoji-2-\\\\ud83d\\\\udc68\\\\u200d\\\\ud83d\\\\udc69\\\\u200d\\\\ud83d\\\\udc67\\\\u200d\\\\ud83d\\\\udc66\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409,
+      422
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "stack\\s*trace",
+      "at Object\\.<anonymous>",
+      "ECONNREFUSED",
+      "ER_PARSE_ERROR",
+      "syntax error at",
+      "panicked at"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "unicode-encoding-004",
+    "category": "unicode-encoding",
+    "desc": "insert emoji value (skin-tone modifier wave) round-trips",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"emoji-3-\\\\ud83d\\\\udc4b\\\\ud83c\\\\udffd\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409,
+      422
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "stack\\s*trace",
+      "at Object\\.<anonymous>",
+      "ECONNREFUSED",
+      "ER_PARSE_ERROR",
+      "syntax error at",
+      "panicked at"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "unicode-encoding-005",
+    "category": "unicode-encoding",
+    "desc": "insert emoji value (regional-indicator flag FR) round-trips",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"emoji-4-\\\\ud83c\\\\udde6\\\\ud83c\\\\uddeb\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409,
+      422
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "stack\\s*trace",
+      "at Object\\.<anonymous>",
+      "ECONNREFUSED",
+      "ER_PARSE_ERROR",
+      "syntax error at",
+      "panicked at"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "unicode-encoding-006",
+    "category": "unicode-encoding",
+    "desc": "insert emoji value (keycap digit sequence) round-trips",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"emoji-5-1\\\\ufe0f\\\\u20e3\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409,
+      422
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "stack\\s*trace",
+      "at Object\\.<anonymous>",
+      "ECONNREFUSED",
+      "ER_PARSE_ERROR",
+      "syntax error at",
+      "panicked at"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "unicode-encoding-007",
+    "category": "unicode-encoding",
+    "desc": "insert emoji value (rainbow flag ZWJ) round-trips",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"emoji-6-\\\\ud83c\\\\udff3\\\\ufe0f\\\\u200d\\\\ud83c\\\\udf08\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409,
+      422
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "stack\\s*trace",
+      "at Object\\.<anonymous>",
+      "ECONNREFUSED",
+      "ER_PARSE_ERROR",
+      "syntax error at",
+      "panicked at"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "unicode-encoding-008",
+    "category": "unicode-encoding",
+    "desc": "insert emoji value (professional ZWJ woman-scientist) round-trips",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"emoji-7-\\\\ud83d\\\\udc69\\\\u200d\\\\ud83d\\\\udd2c\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409,
+      422
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "stack\\s*trace",
+      "at Object\\.<anonymous>",
+      "ECONNREFUSED",
+      "ER_PARSE_ERROR",
+      "syntax error at",
+      "panicked at"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "unicode-encoding-009",
+    "category": "unicode-encoding",
+    "desc": "insert emoji value (100 string of mixed emoji) round-trips",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"emoji-8-\\\\ud83d\\\\ude0e\\\\ud83d\\\\udd25\\\\ud83d\\\\udca5\\\\u2728\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409,
+      422
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "stack\\s*trace",
+      "at Object\\.<anonymous>",
+      "ECONNREFUSED",
+      "ER_PARSE_ERROR",
+      "syntax error at",
+      "panicked at"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "unicode-encoding-010",
+    "category": "unicode-encoding",
+    "desc": "insert emoji value (emoji-only column value) round-trips",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"name\":\"emoji-9-\\\\ud83e\\\\udd84\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409,
+      422
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "stack\\s*trace",
+      "at Object\\.<anonymous>",
+      "ECONNREFUSED",
+      "ER_PARSE_ERROR",
+      "syntax error at",
+      "panicked at"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "unicode-encoding-011",
+    "category": "unicode-encoding",
+    "desc": "list filter on emoji-valued column returns clean rows array",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"filter\":{\"name\":\"\\\\ud83d\\\\ude00\"},\"limit\":5}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "jsonNotMatch": [
+      "stack\\s*trace",
+      "at Object\\.<anonymous>",
+      "ECONNREFUSED",
+      "ER_PARSE_ERROR",
+      "syntax error at",
+      "panicked at"
+    ],
+    "neverServerError": true
+  },
+  {
+    "id": "unicode-encoding-013",
+    "category": "unicode-encoding",
+    "desc": "upsert with emoji value is idempotent-safe",
+    "auth": "key",
+    "method": "POST",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"upsert\",\"data\":{\"name\":\"em-up-\\\\ud83d\\\\ude43\",\"tag\":\"\\\\ud83c\\\\udf81\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409,
+      422
+    ],
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "stack\\s*trace",
+      "at Object\\.<anonymous>",
+      "ECONNREFUSED",
+      "ER_PARSE_ERROR",
+      "syntax error at",
+      "panicked at"
+    ],
+    "neverServerError": true
+  }
+]

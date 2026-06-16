@@ -1,0 +1,18 @@
+[package]
+name = "realtime-auth"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+realtime-core = { path = "../realtime-core" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+jsonwebtoken = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+anyhow = { workspace = true }
+
+[lints]
+workspace = true

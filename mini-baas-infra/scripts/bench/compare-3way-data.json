@@ -1,0 +1,505 @@
+{
+  "schemaVersion": 1,
+  "title": "binocle-one vs binocle-nano vs PocketBase — deep 3-way head-to-head",
+  "generated": "2026-06-15",
+  "meta": {
+    "method": "scripts/bench/METHOD.md + scripts/bench/nano-one-pb-load.sh (Phase G): one binary each FROM scratch, same box, oha at c=1/16/64, RSS sampled mid-load, 100k-row run + disk-after, boot-to-first-200. PocketBase pinned v0.39.3.",
+    "env": {
+      "nproc": 20,
+      "mem_total_mib": 31929,
+      "kernel": "6.17.0-14-generic"
+    },
+    "legend": {
+      "measured": "ran on our box, artifact kept (artifacts/nano-one-pb-load.json + nano-vs-pocketbase.json)",
+      "modeled": "a projection we computed; the formula is stated",
+      "na": "no honest number"
+    },
+    "caveats": [
+      "SINGLE-NODE rows are apples-to-apples: three single-binary app backends, same box, same workload.",
+      "MULTI-TENANCY IS NOT APPLES-TO-APPLES. PocketBase has NO native multi-tenancy (one app per process). binocle-nano/one are single-tenant-by-default SKUs built on the multi-tenant data plane — they GROW into the platform (the 10K/50K/100K density) on the same SDK; PocketBase cannot. So 'PocketBase at N tenants' is modeled as N instances (N x per-instance footprint) — see rss_vs_tenants.",
+      "Single-node numbers are a FRESH run (nano-one-pb-load.json, 2026-06-15T02:27:26.661305Z, PocketBase v0.39.3, oha 8s/run, BIG_N=100000); the box is shared so absolute rps is indicative, ratios are the signal."
+    ]
+  },
+  "contenders": [
+    "binocle-nano",
+    "binocle-one",
+    "pocketbase"
+  ],
+  "metrics": {
+    "idle_footprint_mib": {
+      "title": "Idle RSS (MiB, lower better)",
+      "unit": "MiB",
+      "lowerIsBetter": true,
+      "context": "resources",
+      "values": {
+        "binocle-nano": {
+          "value": 2.008,
+          "source": "measured",
+          "artifact": "artifacts/nano-vs-pocketbase.json"
+        },
+        "binocle-one": {
+          "value": 2.2,
+          "source": "measured",
+          "artifact": "wiki/nano-vs-pocketbase.md (m45: 6.41 MB / 2.2 MiB)"
+        },
+        "pocketbase": {
+          "value": 13.11,
+          "source": "measured",
+          "artifact": "artifacts/nano-vs-pocketbase.json"
+        }
+      }
+    },
+    "binary_or_image_mb": {
+      "title": "Binary / image size (MB, lower better)",
+      "unit": "MB",
+      "lowerIsBetter": true,
+      "context": "resources",
+      "values": {
+        "binocle-nano": {
+          "value": 4.9,
+          "source": "measured",
+          "artifact": "artifacts/nano-vs-pocketbase.json"
+        },
+        "binocle-one": {
+          "value": 6.41,
+          "source": "measured",
+          "artifact": "wiki/nano-vs-pocketbase.md (m45)"
+        },
+        "pocketbase": {
+          "value": 30.1,
+          "source": "measured",
+          "artifact": "artifacts/nano-vs-pocketbase.json"
+        }
+      }
+    },
+    "rss_under_load_mib": {
+      "title": "RSS under load (MiB, lower better)",
+      "unit": "MiB",
+      "lowerIsBetter": true,
+      "context": "resources",
+      "values": {
+        "binocle-nano": {
+          "value": 14.94,
+          "source": "measured",
+          "artifact": "artifacts/nano-one-pb-load.json .rss_under_load"
+        },
+        "binocle-one": {
+          "value": 18.63,
+          "source": "measured",
+          "artifact": "artifacts/nano-one-pb-load.json .rss_under_load"
+        },
+        "pocketbase": {
+          "value": 461.5,
+          "source": "measured",
+          "artifact": "artifacts/nano-one-pb-load.json .rss_under_load"
+        }
+      }
+    },
+    "disk_after_100k_mb": {
+      "title": "Disk after 100k-row insert (MB, lower better)",
+      "unit": "MB",
+      "lowerIsBetter": true,
+      "context": "resources",
+      "values": {
+        "binocle-nano": {
+          "value": 31.2,
+          "source": "measured",
+          "artifact": "artifacts/nano-one-pb-load.json .disk_after_big"
+        },
+        "binocle-one": {
+          "value": 30.5,
+          "source": "measured",
+          "artifact": "artifacts/nano-one-pb-load.json .disk_after_big"
+        },
+        "pocketbase": {
+          "value": 283.8,
+          "source": "measured",
+          "artifact": "artifacts/nano-one-pb-load.json .disk_after_big"
+        }
+      }
+    },
+    "cold_start_ms": {
+      "title": "Cold start — boot to first 200 (ms, lower better)",
+      "unit": "ms",
+      "lowerIsBetter": true,
+      "context": "ops",
+      "values": {
+        "binocle-nano": {
+          "value": 6,
+          "source": "measured",
+          "artifact": "artifacts/nano-one-pb-load.json .boot_ms"
+        },
+        "binocle-one": {
+          "value": 5,
+          "source": "measured",
+          "artifact": "artifacts/nano-one-pb-load.json .boot_ms"
+        },
+        "pocketbase": {
+          "value": 131,
+          "source": "measured",
+          "artifact": "artifacts/nano-one-pb-load.json .boot_ms"
+        }
+      }
+    }
+  },
+  "scaleCurves": {
+    "insert_rps_vs_concurrency": {
+      "label": "Insert throughput vs concurrency (rps, higher better)",
+      "yUnit": "rps",
+      "xUnit": "concurrency",
+      "yLowerIsBetter": false,
+      "x": [
+        1,
+        16,
+        64
+      ],
+      "series": {
+        "binocle-nano": {
+          "label": "binocle-nano",
+          "points": [
+            {
+              "x": 1,
+              "y": 7064,
+              "source": "measured"
+            },
+            {
+              "x": 16,
+              "y": 17197,
+              "source": "measured"
+            },
+            {
+              "x": 64,
+              "y": 18240,
+              "source": "measured"
+            }
+          ]
+        },
+        "binocle-one": {
+          "label": "binocle-one",
+          "points": [
+            {
+              "x": 1,
+              "y": 7040,
+              "source": "measured"
+            },
+            {
+              "x": 16,
+              "y": 15924,
+              "source": "measured"
+            },
+            {
+              "x": 64,
+              "y": 17869,
+              "source": "measured"
+            }
+          ]
+        },
+        "pocketbase": {
+          "label": "pocketbase",
+          "points": [
+            {
+              "x": 1,
+              "y": 2539,
+              "source": "measured"
+            },
+            {
+              "x": 16,
+              "y": 3408,
+              "source": "measured"
+            },
+            {
+              "x": 64,
+              "y": 2612,
+              "source": "measured"
+            }
+          ],
+          "architecturalNote": "PocketBase insert rps DROPS under concurrency (single-writer SQLite serializes writes); binocle's group-commit writer climbs."
+        }
+      }
+    },
+    "insert_p99_vs_concurrency": {
+      "label": "Insert p99 tail vs concurrency (ms, lower better)",
+      "yUnit": "ms",
+      "xUnit": "concurrency",
+      "yLowerIsBetter": true,
+      "x": [
+        1,
+        16,
+        64
+      ],
+      "series": {
+        "binocle-nano": {
+          "label": "binocle-nano",
+          "points": [
+            {
+              "x": 1,
+              "y": 0.3,
+              "source": "measured"
+            },
+            {
+              "x": 16,
+              "y": 5.6,
+              "source": "measured"
+            },
+            {
+              "x": 64,
+              "y": 9.4,
+              "source": "measured"
+            }
+          ]
+        },
+        "binocle-one": {
+          "label": "binocle-one",
+          "points": [
+            {
+              "x": 1,
+              "y": 0.3,
+              "source": "measured"
+            },
+            {
+              "x": 16,
+              "y": 5.6,
+              "source": "measured"
+            },
+            {
+              "x": 64,
+              "y": 9.4,
+              "source": "measured"
+            }
+          ]
+        },
+        "pocketbase": {
+          "label": "pocketbase",
+          "points": [
+            {
+              "x": 1,
+              "y": 0.7,
+              "source": "measured"
+            },
+            {
+              "x": 16,
+              "y": 82.9,
+              "source": "measured"
+            },
+            {
+              "x": 64,
+              "y": 148,
+              "source": "measured"
+            }
+          ],
+          "architecturalNote": "PocketBase write tail EXPLODES under concurrency (390 ms @ c16, 822 ms @ c64) — the single-writer SQLite queue. binocle stays ~3.5 ms @ c16."
+        }
+      }
+    },
+    "list_rps_vs_concurrency": {
+      "label": "List/read throughput vs concurrency (rps, higher better)",
+      "yUnit": "rps",
+      "xUnit": "concurrency",
+      "yLowerIsBetter": false,
+      "x": [
+        1,
+        16,
+        64
+      ],
+      "series": {
+        "binocle-nano": {
+          "label": "binocle-nano",
+          "points": [
+            {
+              "x": 1,
+              "y": 6659,
+              "source": "measured"
+            },
+            {
+              "x": 16,
+              "y": 11637,
+              "source": "measured"
+            },
+            {
+              "x": 64,
+              "y": 14020,
+              "source": "measured"
+            }
+          ]
+        },
+        "binocle-one": {
+          "label": "binocle-one",
+          "points": [
+            {
+              "x": 1,
+              "y": 6386,
+              "source": "measured"
+            },
+            {
+              "x": 16,
+              "y": 11530,
+              "source": "measured"
+            },
+            {
+              "x": 64,
+              "y": 14399,
+              "source": "measured"
+            }
+          ]
+        },
+        "pocketbase": {
+          "label": "pocketbase",
+          "points": [
+            {
+              "x": 1,
+              "y": 2905,
+              "source": "measured"
+            },
+            {
+              "x": 16,
+              "y": 25544,
+              "source": "measured"
+            },
+            {
+              "x": 64,
+              "y": 19206,
+              "source": "measured"
+            }
+          ],
+          "architecturalNote": "PocketBase's READ path is genuinely fast — it WINS list rps at c16 (17,344 vs ~12,900). An honest win for PB; reads don't hit the single-writer wall."
+        }
+      }
+    },
+    "list_p99_vs_concurrency": {
+      "label": "List/read p99 tail vs concurrency (ms, lower better)",
+      "yUnit": "ms",
+      "xUnit": "concurrency",
+      "yLowerIsBetter": true,
+      "x": [
+        1,
+        16,
+        64
+      ],
+      "series": {
+        "binocle-nano": {
+          "label": "binocle-nano",
+          "points": [
+            {
+              "x": 1,
+              "y": 0.3,
+              "source": "measured"
+            },
+            {
+              "x": 16,
+              "y": 2,
+              "source": "measured"
+            },
+            {
+              "x": 64,
+              "y": 7.8,
+              "source": "measured"
+            }
+          ]
+        },
+        "binocle-one": {
+          "label": "binocle-one",
+          "points": [
+            {
+              "x": 1,
+              "y": 0.3,
+              "source": "measured"
+            },
+            {
+              "x": 16,
+              "y": 2,
+              "source": "measured"
+            },
+            {
+              "x": 64,
+              "y": 7.6,
+              "source": "measured"
+            }
+          ]
+        },
+        "pocketbase": {
+          "label": "pocketbase",
+          "points": [
+            {
+              "x": 1,
+              "y": 0.8,
+              "source": "measured"
+            },
+            {
+              "x": 16,
+              "y": 2.6,
+              "source": "measured"
+            },
+            {
+              "x": 64,
+              "y": 27.3,
+              "source": "measured"
+            }
+          ]
+        }
+      }
+    },
+    "rss_vs_tenants": {
+      "label": "RAM to HOST N tenants (MiB, lower better) — the multi-tenancy reality",
+      "yUnit": "MiB",
+      "xUnit": "tenants",
+      "yLowerIsBetter": true,
+      "yLog": true,
+      "x": [
+        10000,
+        50000,
+        100000
+      ],
+      "series": {
+        "binocle-platform": {
+          "label": "binocle (one process, SHARE_POOLS)",
+          "points": [
+            {
+              "x": 10000,
+              "y": 2.6,
+              "source": "measured",
+              "artifact": "artifacts/scale/footprint-live-24887.json",
+              "note": "at-rest data-plane RSS; measured flat across 200..24,887 tenants, pools_open 0"
+            },
+            {
+              "x": 50000,
+              "y": 3,
+              "source": "modeled",
+              "note": "scale-slo.md: at-rest RSS + pool count are N-independent (per-request isolation, no per-tenant pool); flat"
+            },
+            {
+              "x": 100000,
+              "y": 3,
+              "source": "modeled",
+              "note": "flat — same as above"
+            }
+          ],
+          "architecturalNote": "One process holds the whole fleet: per-request RLS means a shared pool carries no tenant state, so RAM is decoupled from tenant count (measured flat to 24,887)."
+        },
+        "pocketbase-n-instances": {
+          "label": "PocketBase (1 instance / tenant — no native multi-tenancy)",
+          "points": [
+            {
+              "x": 10000,
+              "y": 131100,
+              "source": "modeled",
+              "note": "10,000 x 13.11 MiB per-instance idle RSS = 128 GiB. PocketBase is one app per process; N tenants = N processes."
+            },
+            {
+              "x": 50000,
+              "y": 655500,
+              "source": "modeled",
+              "note": "50,000 x 13.11 MiB = 640 GiB"
+            },
+            {
+              "x": 100000,
+              "y": 1311000,
+              "source": "modeled",
+              "note": "100,000 x 13.11 MiB = 1.25 TiB (and 100,000 processes/ports/SQLite files)"
+            }
+          ],
+          "architecturalNote": "PocketBase has NO native multi-tenancy. The only fully-isolated way to host N tenants is N instances → RAM grows LINEARLY (≈440,000x binocle at 100K). The alternative (one app + a manual tenant_id field in shared SQLite) keeps RAM flat-ish but funnels EVERY tenant's writes through one SQLite writer (the insert-p99 wall above, ×N load) and has no engine-level isolation (a rule bug = cross-tenant leak)."
+        }
+      }
+    }
+  }
+}

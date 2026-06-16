@@ -1,0 +1,641 @@
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    Makefile                                           :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2026/05/18 21:19:15 by dlesieur          #+#    #+#              #
+#    Updated: 2026/06/01 22:30:37 by dlesieur         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
+SHELL          := /bin/bash
+.SHELLFLAGS    := -ec
+.DEFAULT_GOAL  := help
+
+# --------------------------------------------------------------------------- #
+#  Variables                                                                   #
+# --------------------------------------------------------------------------- #
+
+PROJECT        := mini-baas
+
+# Colors
+_B := \033[0;34m
+_G := \033[0;32m
+_Y := \033[1;33m
+_R := \033[0;31m
+_C := \033[0;36m
+_W := \033[1m
+_D := \033[2m
+_0 := \033[0m
+
+# Tunables  (override via CLI: make up COMPOSE_FILE=docker-compose.prod.yml)
+IMAGE_TAG      ?= latest
+REGISTRY       ?= localhost:5000
+COMPOSE_FILE   ?= docker-compose.yml
+SERVICE        ?=
+STEPS          ?= 1
+HOOKS_DIR      := vendor/scripts/hooks
+
+# Image map — local_name=upstream_ref  (single source of truth, pinned versions)
+IMAGES_CORE := \
+	kong=kong:3.8 \
+	gotrue=supabase/gotrue:v2.188.1 \
+	postgrest=postgrest/postgrest:v12.2.3 \
+	postgres=postgres:16-alpine \
+	realtime=dlesieur/realtime-agnostic:latest \
+	redis=redis:7-alpine \
+	mongo=mongo:7
+
+IMAGES_EXTRAS := \
+	trino=trinodb/trino:467 \
+	pg-meta=supabase/postgres-meta:v0.91.0 \
+	minio=minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1 \
+	supavisor=supabase/supavisor:2.7.4 \
+	studio=supabase/studio:2026.03.30-sha-12a43e5
+
+# Set PROFILES=extras to include minio, supavisor, studio
+PROFILES       ?=
+ifneq ($(PROFILES),)
+  IMAGES := $(IMAGES_CORE) $(IMAGES_EXTRAS)
+  DC     := docker compose -f $(COMPOSE_FILE) --profile $(PROFILES)
+else
+  IMAGES := $(IMAGES_CORE)
+  DC     := docker compose -f $(COMPOSE_FILE)
+endif
+
+# --------------------------------------------------------------------------- #
+#  Internal prerequisites (no ## = hidden from help)                           #
+# --------------------------------------------------------------------------- #
+
+_require-docker:
+	@command -v docker >/dev/null 2>&1 \
+		|| { echo >&2 "Docker is not installed. Install Docker Engine/Desktop first."; exit 1; }
+
+_require-compose: _require-docker
+	@docker compose version >/dev/null 2>&1 \
+		|| { echo >&2 "Docker Compose v2 plugin is required."; exit 1; }
+
+_rm-stale:
+	@ids=$$(docker ps -a --format '{{.ID}} {{.Names}} {{.Status}}' \
+		| awk '/ mini-baas-/ && ($$3=="Created"||$$3=="Exited") {print $$1}'); \
+	[ -z "$$ids" ] || { echo -e "$(_Y)Removing stale containers…$(_0)"; docker rm -f $$ids >/dev/null; }
+
+# ========================================================================== #
+##@ 42 Classics
+# ========================================================================== #
+
+all: ## Build/pull core images & start stack (PROFILES=extras for full)
+	@$(MAKE) --no-print-directory build
+	@$(MAKE) --no-print-directory up
+
+all-full: ## Build/pull ALL images & start full stack
+	@$(MAKE) --no-print-directory PROFILES=extras all
+
+clean: down ## Stop the stack (alias for down)
+
+fclean: _require-compose ## Full cleanup — stop everything, prune containers, volumes, images and cache
+	@echo -e "$(_Y)$(_W)Running destructive Docker cleanup…$(_0)"
+	@$(DC) down --volumes --remove-orphans 2>/dev/null || true
+	@ids=$$(docker ps -aq); \
+	[ -z "$$ids" ] || { echo -e "$(_Y)Removing all Docker containers…$(_0)"; docker rm -f $$ids >/dev/null 2>&1 || true; }
+	@docker system prune -af --volumes >/dev/null 2>&1 || true
+	@docker builder prune -af >/dev/null 2>&1 || true
+	@echo -e "$(_G)✓ Full Docker clean complete$(_0)"
+
+re: ## Fully reset Docker state via fclean, then rebuild and restart the stack
+	@$(MAKE) --no-print-directory fclean
+	@$(MAKE) --no-print-directory all
+
+# ========================================================================== #
+##@ Stack
+# ========================================================================== #
+
+up: _require-compose _rm-stale ## Start stack in detached mode
+	@eval "$$(bash scripts/resolve-ports.sh)"; \
+	echo -e "$(_B)Starting stack from $(COMPOSE_FILE)…$(_0)"; \
+	$(DC) up -d; \
+	echo -e "$(_G)✓ Stack started$(_0)"
+bench-startup: _require-compose _rm-stale ## Time core stack startup until all health checks pass
+	@echo -e "$$(_B)Benchmarking core stack startup…$$(_0)"
+	@eval "$$(bash scripts/resolve-ports.sh)"; \
+	t0=$$(date +%s); \
+	$(DC) up -d; \
+	SERVICES="mini-baas-postgres mini-baas-mongo mini-baas-gotrue mini-baas-postgrest mini-baas-kong mini-baas-mongo-api mini-baas-realtime mini-baas-adapter-registry mini-baas-query-router mini-baas-permission-engine mini-baas-schema-service mini-baas-waf"; \
+	for svc in $$SERVICES; do \
+		printf "  Waiting: %-30s" "$$svc"; \
+		timeout 120 sh -c "\
+			while [ \"$$(docker inspect --format='{{.State.Health.Status}}' $$svc 2>/dev/null)\" != 'healthy' ]; do \
+				sleep 1; \
+			done" 2>/dev/null \
+		&& echo -e "$$(_G)✓$$(_0)" \
+		|| echo -e "$$(_R)✗ (timeout)$$(_0)"; \
+	done; \
+	t1=$$(date +%s); \
+	elapsed=$$((t1 - t0)); \
+	if [ "$$elapsed" -le 90 ]; then \
+		echo -e "\n$$(_G)$$(_W)✓ All healthy in $${elapsed}s (target ≤90s)$$(_0)"; \
+	else \
+		echo -e "\n$$(_R)$$(_W)✗ Took $${elapsed}s — exceeds 90s target$$(_0)"; \
+	fi
+down: _require-compose ## Stop and remove stack resources
+	@echo -e "$(_Y)Stopping stack…$(_0)"
+	@$(DC) down
+	@echo -e "$(_G)✓ Stack stopped$(_0)"
+
+restart: _require-compose ## Restart all services
+	@$(DC) restart
+	@echo -e "$(_G)✓ Restarted$(_0)"
+
+ps: _require-compose ## Show service status
+	@$(DC) ps
+
+logs: _require-compose ## Stream logs (SERVICE=<name> to filter)
+	@$(DC) logs -f --tail=100 $(SERVICE)
+
+pull: _require-compose ## Pull latest images for all services
+	@$(DC) pull
+	@echo -e "$(_G)✓ Pulled$(_0)"
+
+health: ## Quick health-check on gateway routes
+	@echo -e "$(_B)Checking endpoints…$(_0)"
+	@curl -fsS http://localhost:8000/auth/v1/health >/dev/null \
+		&& echo "  ✓ /auth/v1/health" || echo "  ✗ /auth/v1/health"
+	@curl -fsS http://localhost:8000/rest/v1/ >/dev/null \
+		&& echo "  ✓ /rest/v1/"       || echo "  ✗ /rest/v1/"
+	@curl -fsS http://localhost:5432 >/dev/null 2>&1 \
+		&& echo "  ✓ postgres:5432"   || echo "  • postgres TCP skipped"
+
+# ========================================================================== #
+##@ Docker Images
+# ========================================================================== #
+
+build: _require-docker ## Pull & tag all prebuilt images
+	@echo -e "$(_B)Pulling and tagging prebuilt images…$(_0)"
+	@pids=""; for pair in $(IMAGES); do \
+		( \
+			name=$${pair%%=*}; src=$${pair#*=}; \
+			tag=$(PROJECT)/$$name:$(IMAGE_TAG); \
+			if docker image inspect "$$tag" >/dev/null 2>&1; then \
+				echo -e "  $(_G)●$(_0) $$name  (cached)"; \
+			else \
+				echo -e "  $(_Y)↓$(_0) $$name  ($${src})"; \
+				t0=$$(date +%s); \
+				if docker pull -q "$$src" >/dev/null; then \
+					docker tag "$$src" "$$tag"; \
+					t1=$$(date +%s); \
+					echo -e "  $(_G)✓$(_0) $$name  [$$(( t1 - t0 ))s]"; \
+				else \
+					echo -e "  $(_R)✗$(_0) $$name  FAILED"; \
+					exit 1; \
+				fi; \
+			fi \
+		) & pids="$$pids $$!"; \
+	done; \
+	fail=0; for p in $$pids; do wait "$$p" || fail=1; done; \
+	[ "$$fail" -eq 0 ] || { echo -e "$(_R)✗ Some pulls failed — check output above$(_0)"; exit 1; }
+	@echo -e "$(_G)✓ All images ready$(_0)"
+
+build-%: _require-docker ## Pull/tag one image (e.g. make build-kong)
+	@src=""; for pair in $(IMAGES); do \
+		n=$${pair%%=*}; [ "$$n" = "$*" ] && src=$${pair#*=} && break; \
+	done; \
+	[ -n "$$src" ] || { echo -e "$(_R)Unknown image: $*$(_0)"; exit 1; }; \
+	echo -e "$(_B)Pulling $*…$(_0)"; \
+	docker pull "$$src"; \
+	docker tag "$$src" $(PROJECT)/$*:$(IMAGE_TAG); \
+	echo -e "$(_G)✓ $* ready$(_0)"
+
+build-optimized: _require-docker ## BuildKit parallel build with inline cache
+	@DOCKER_BUILDKIT=1 $(DC) build --build-arg BUILDKIT_INLINE_CACHE=1 --parallel
+	@echo -e "$(_G)✓ Optimized build complete$(_0)"
+
+tag: _require-docker ## Tag images for REGISTRY
+	@echo -e "$(_B)Tagging for $(REGISTRY)…$(_0)"
+	@for pair in $(IMAGES); do \
+		name=$${pair%%=*}; \
+		docker tag $(PROJECT)/$$name:$(IMAGE_TAG) $(REGISTRY)/$$name:$(IMAGE_TAG); \
+	done
+	@echo -e "$(_G)✓ Tagged$(_0)"
+
+push: tag ## Tag & push all images to REGISTRY
+	@echo -e "$(_B)Pushing to $(REGISTRY)…$(_0)"
+	@for pair in $(IMAGES); do \
+		name=$${pair%%=*}; \
+		docker push $(REGISTRY)/$$name:$(IMAGE_TAG); \
+	done
+	@echo -e "$(_G)✓ Pushed$(_0)"
+
+push-bake: ## Build & push via docker buildx bake
+	@docker buildx bake --file docker-bake.hcl --push \
+		--set "*.cache-to=type=registry,ref=$(REGISTRY)/cache,mode=max"
+	@echo -e "$(_G)✓ Bake push to $(REGISTRY) complete$(_0)"
+
+images: _require-docker ## List local $(PROJECT) images
+	@docker images | grep $(PROJECT) || echo "No images found. Run 'make build'."
+
+image-sizes: ## Show image sizes for the stack
+	@echo -e "$(_B)Image sizes:$(_0)"
+	@$(DC) images --format 'table {{.Repository}}\t{{.Tag}}\t{{.Size}}' 2>/dev/null \
+		|| docker images --filter=reference='$(PROJECT)*' \
+			--format 'table {{.Repository}}\t{{.Tag}}\t{{.Size}}'
+
+tests: ## Run all smoke tests (phase 1→15)
+	@export APIKEY=$${APIKEY:-$$(grep '^ANON_KEY=' .env 2>/dev/null | cut -d= -f2-)}; \
+	export PUBLIC_APIKEY=$${PUBLIC_APIKEY:-$$APIKEY}; \
+	export SERVICE_ROLE_KEY=$${SERVICE_ROLE_KEY:-$$(grep '^SERVICE_ROLE_KEY=' .env 2>/dev/null | cut -d= -f2-)}; \
+	total_p=0; total_f=0; rc_all=0; \
+	for script in $$(ls -1 ./scripts/phase*-*.sh ./scripts/phase*-*.py 2>/dev/null | sort -t/ -k3 -V); do \
+		[ -f "$$script" ] || continue; \
+		tmp=$$(mktemp); \
+		case "$$script" in \
+			*.py) FORCE_COLORS=1 python3 "$$script" | tee "$$tmp" ;; \
+			*)    FORCE_COLORS=1 bash    "$$script" | tee "$$tmp" ;; \
+		esac; \
+		rc=$${PIPESTATUS[0]}; \
+		clean=$$(sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "$$tmp"); \
+		p=$$(printf '%s\n' "$$clean" | awk -F: '/Passed:/{gsub(/[^0-9]/,"",$$2);v=$$2}END{print v+0}'); \
+		f=$$(printf '%s\n' "$$clean" | awk -F: '/Failed:/{gsub(/[^0-9]/,"",$$2);v=$$2}END{print v+0}'); \
+		total_p=$$((total_p + p)); total_f=$$((total_f + f)); \
+		rm -f "$$tmp"; \
+		[ "$$rc" -eq 0 ] || rc_all=1; \
+		sleep 2; \
+	done; \
+	echo ""; \
+	echo -e "$(_C)$(_W)╔════════════════════════════════════════════════╗$(_0)"; \
+	echo -e "$(_C)$(_W)║$(_0) $(_W)Tests Summary$(_0)"; \
+	echo -e "$(_C)$(_W)╠════════════════════════════════════════════════╣$(_0)"; \
+	echo -e "$(_C)$(_W)║$(_0) $(_G)$(_W)✔ Passed:$(_0) $(_G)$$total_p$(_0)"; \
+	echo -e "$(_C)$(_W)║$(_0) $(_R)$(_W)✖ Failed:$(_0) $(_R)$$total_f$(_0)"; \
+	echo -e "$(_C)$(_W)╚════════════════════════════════════════════════╝$(_0)"; \
+	[ "$$rc_all" -eq 0 ] \
+		&& echo -e "$(_G)$(_W)✔ All phases passed$(_0)" \
+		|| { echo -e "$(_R)$(_W)✖ Some phases failed$(_0)"; exit 1; }
+
+test-phase%: ## Run one phase (e.g. make test-phase3)
+	@export APIKEY=$${APIKEY:-$$(grep '^ANON_KEY=' .env 2>/dev/null | cut -d= -f2-)}; \
+	export PUBLIC_APIKEY=$${PUBLIC_APIKEY:-$$APIKEY}; \
+	export SERVICE_ROLE_KEY=$${SERVICE_ROLE_KEY:-$$(grep '^SERVICE_ROLE_KEY=' .env 2>/dev/null | cut -d= -f2-)}; \
+	script=$$(ls scripts/phase$*-*.sh 2>/dev/null | head -1); \
+	if [ -n "$$script" ]; then FORCE_COLORS=1 bash "$$script"; \
+	else \
+		script=$$(ls scripts/phase$*-*.py 2>/dev/null | head -1); \
+		[ -n "$$script" ] && FORCE_COLORS=1 python3 "$$script" \
+			|| { echo -e "$(_R)No test for phase $*$(_0)"; exit 1; }; \
+	fi
+
+test-postgres: ## Run PostgreSQL MVP happy-path flow
+	@FORCE_COLORS=1 bash ./scripts/postgres-mvp-flow.sh
+
+migrate: ## Run all pending PostgreSQL migrations
+	@echo -e "$(_B)Running PostgreSQL migrations…$(_0)"
+	@set -e; for f in $$(ls -1 scripts/migrations/postgresql/*.sql 2>/dev/null | sort); do \
+		echo "  Applying: $$f"; \
+		sed '/^#/d' "$$f" | docker compose exec -T postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f -; \
+	done
+	@echo -e "$(_G)✓ PostgreSQL migrations applied$(_0)"
+
+migrate-all: migrate migrate-mongo migrate-mysql ## Run PostgreSQL, MongoDB, and MySQL migrations
+	@echo -e "$(_G)✓ Cross-engine migrations applied$(_0)"
+
+migrate-mongo: ## Run all MongoDB migrations
+	@echo -e "$(_B)Running MongoDB migrations…$(_0)"
+	@for f in $$(ls -1 scripts/migrations/mongodb/*.js 2>/dev/null | sort); do \
+		echo "  Applying: $$f"; \
+		docker compose -f $(COMPOSE_FILE) --profile data-plane exec -T mongo mongosh mini_baas < "$$f"; \
+	done
+	@echo -e "$(_G)✓ MongoDB migrations applied$(_0)"
+
+migrate-mysql: ## Run all MySQL migrations
+	@echo -e "$(_B)Running MySQL migrations…$(_0)"
+	@set -e; for f in $$(ls -1 scripts/migrations/mysql/*.sql 2>/dev/null | sort); do \
+		echo "  Applying: $$f"; \
+		docker compose -f $(COMPOSE_FILE) --profile data-plane exec -T mysql sh -ec 'mysql -u"$${MYSQL_USER:-mini_baas}" -p"$${MYSQL_PASSWORD:-mini_baas_pw}" "$${MYSQL_DATABASE:-mini_baas}"' < "$$f"; \
+	done
+	@echo -e "$(_G)✓ MySQL migrations applied$(_0)"
+
+seed-mongo: _require-compose ## Seed MongoDB with demo data
+	@bash scripts/seed-mongo.sh
+
+migrate-down: ## Show rollback hints (STEPS=1)
+	@echo -e "$(_Y)Manual rollback required.$(_0)"
+	@echo "Check DOWN comments in the last $(STEPS) migration(s):"
+	@ls -1r scripts/migrations/postgresql/*.sql | head -n $(STEPS)
+
+migrate-status: ## Show applied migration versions
+	@echo -e "$(_B)PostgreSQL migrations$(_0)"
+	@docker compose exec -T postgres psql -U postgres -d postgres \
+		-c "SELECT version, name, applied_at FROM schema_migrations ORDER BY version;" \
+		2>/dev/null || echo "  No migrations table — run make migrate first."
+	@echo -e "$(_B)MongoDB migrations$(_0)"
+	@docker compose -f $(COMPOSE_FILE) --profile data-plane exec -T mongo mongosh mini_baas --quiet --eval 'db.schema_migrations.find({}, {_id:0}).sort({version:1}).forEach(printjson)' \
+		2>/dev/null || echo "  No MongoDB schema_migrations collection — run make migrate-mongo first."
+	@echo -e "$(_B)MySQL migrations$(_0)"
+	@docker compose -f $(COMPOSE_FILE) --profile data-plane exec -T mysql sh -ec 'mysql -u"$${MYSQL_USER:-mini_baas}" -p"$${MYSQL_PASSWORD:-mini_baas_pw}" "$${MYSQL_DATABASE:-mini_baas}" -e "SELECT version, name, applied_at FROM schema_migrations ORDER BY version"' \
+		2>/dev/null || echo "  No MySQL schema_migrations table — run make migrate-mysql first."
+
+
+secrets: ## Generate all secrets → .env
+	@bash scripts/secrets/generate-secrets.sh
+
+secrets-validate: ## Validate required secrets exist
+	@bash scripts/secrets/validate-secrets.sh
+
+secrets-rotate: ## Rotate JWT secret (zero-downtime)
+	@bash scripts/secrets/rotate-jwt.sh
+
+check-secrets: ## Scan source code for hardcoded secrets
+	@bash scripts/check-secrets.sh
+
+observe: _require-compose ## Start Prometheus + Grafana + Loki
+	@$(DC) --profile observability up -d
+	@echo -e "$(_G)✓ Observability started$(_0)"
+	@echo -e "  Grafana:    http://localhost:3030"
+	@echo -e "  Prometheus: http://localhost:9090"
+
+observe-down: ## Stop observability stack
+	@$(DC) --profile observability stop prometheus grafana loki promtail 2>/dev/null || true
+	@echo -e "$(_G)✓ Observability stopped$(_0)"
+
+grafana: ## Open Grafana in browser
+	@xdg-open http://localhost:3030 2>/dev/null \
+		|| open http://localhost:3030 2>/dev/null \
+		|| echo "http://localhost:3030"
+
+prometheus: ## Open Prometheus in browser
+	@xdg-open http://localhost:9090 2>/dev/null \
+		|| open http://localhost:9090 2>/dev/null \
+		|| echo "http://localhost:9090"
+
+adapter-add: ## Register a database  (ENGINE= NAME= DSN=)
+	@curl -sS -X POST http://localhost:8000/admin/v1/databases \
+		-H "apikey: $$(grep KONG_SERVICE_API_KEY .env | cut -d= -f2)" \
+		-H "Content-Type: application/json" \
+		-d '{"engine":"$(ENGINE)","name":"$(NAME)","connection_string":"$(DSN)"}'
+	@echo ""
+
+adapter-ls: ## List registered databases
+	@curl -sS http://localhost:8000/admin/v1/databases \
+		-H "apikey: $$(grep KONG_SERVICE_API_KEY .env | cut -d= -f2)" | jq .
+
+play-css: ## Build libcss CSS assets
+	@command -v npm >/dev/null 2>&1 || { echo >&2 "npm is required to build CSS."; exit 1; }
+	@npm --prefix ./vendor/libcss install --legacy-peer-deps
+	@npm --prefix ./vendor/libcss run build:min
+	@echo -e "$(_G)✓ CSS ready$(_0)"
+
+play: _require-compose play-css ## Build CSS & start playground
+	@$(DC) up -d playground
+	@echo -e "$(_G)✓ Playground → http://localhost:3100$(_0)"
+
+play-down: _require-compose ## Stop playground
+	@$(DC) stop playground 2>/dev/null || true
+	@$(DC) rm -f playground  2>/dev/null || true
+	@echo -e "$(_G)✓ Playground stopped$(_0)"
+
+play-logs: _require-compose ## Stream playground logs
+	@$(DC) logs -f --tail=100 playground
+
+env: ## Generate .env from template
+	@bash scripts/generate-env.sh
+
+preflight: ## Run all pre-deployment checks
+	@bash scripts/preflight-check.sh
+
+hooks: ## Activate git hooks
+	@if [ ! -d .git ]; then echo -e "  $(_Y)⚠$(_0) Not a git repo — skipping"; \
+	else \
+		cur=$$(git config --local core.hooksPath 2>/dev/null || echo ""); \
+		if [ "$$cur" = "$(HOOKS_DIR)" ]; then \
+			echo -e "  $(_G)✓$(_0) Git hooks active → $(HOOKS_DIR)"; \
+		else \
+			git config --local core.hooksPath $(HOOKS_DIR); \
+			chmod +x $(HOOKS_DIR)/*; \
+			echo -e "  $(_G)✓$(_0) Git hooks activated → $(HOOKS_DIR)"; \
+		fi; \
+		for old in commit-msg pre-commit pre-push post-checkout pre-merge-commit log_hook log_hook.sh; do \
+			[ -L ".git/hooks/$$old" ] && rm -f ".git/hooks/$$old"; \
+		done; \
+	fi
+
+update: ## Update git submodules
+	@git submodule update --remote --merge
+	@echo -e "$(_G)✓ Submodules updated$(_0)"
+
+audit-scan: ## Run SonarCloud scanner (requires TOK_SONARCLOUD in .env)
+	@echo -e "$(_B)Running SonarCloud scan…$(_0)"
+	@SONAR_TOKEN=$$(grep TOK_SONARCLOUD .env | cut -d= -f2); \
+	[ -n "$$SONAR_TOKEN" ] || { echo -e "$(_R)TOK_SONARCLOUD not found in .env$(_0)"; exit 1; }; \
+	npx sonar-scanner \
+		-Dsonar.token="$$SONAR_TOKEN" \
+		-Dsonar.qualitygate.wait=true 2>&1 | tee audit/scan.log; \
+	echo -e "$(_G)✓ Scan complete — log at audit/scan.log$(_0)"
+
+audit-fetch: ## Fetch SonarCloud issues → audit/*.json + audit/summary.txt
+	@SONAR_TOKEN=$$(grep TOK_SONARCLOUD .env | cut -d= -f2) \
+		bash scripts/sonar-fetch-issues.sh
+
+audit: audit-scan audit-fetch ## Full audit: scan + fetch issues
+	@echo -e "$(_G)✓ Audit complete — see audit/summary.txt$(_0)"
+
+nestjs-install: ## Install NestJS monorepo dependencies
+	@echo -e "$(_B)Installing NestJS dependencies…$(_0)"
+	@cd src && corepack enable && pnpm install
+	@echo -e "$(_G)✓ Dependencies installed$(_0)"
+
+nestjs-lint: ## Run ESLint on NestJS monorepo
+	@echo -e "$(_B)Linting NestJS monorepo…$(_0)"
+	@cd src && npx eslint 'apps/**/*.ts' 'libs/**/*.ts' --fix
+	@echo -e "$(_G)✓ Lint passed$(_0)"
+
+nestjs-typecheck: ## TypeScript strict type-check (no emit)
+	@echo -e "$(_B)Type-checking NestJS monorepo…$(_0)"
+	@cd src && npx tsc --noEmit
+	@echo -e "$(_G)✓ Type-check passed$(_0)"
+
+nestjs-format: ## Prettier format check
+	@cd src && npx prettier --check 'apps/**/*.ts' 'libs/**/*.ts'
+	@echo -e "$(_G)✓ Format OK$(_0)"
+
+nestjs-build: ## Build all NestJS apps
+	@echo -e "$(_B)Building all NestJS apps…$(_0)"
+	@cd src && npx nest build adapter-registry && \
+		npx nest build mongo-api && \
+		npx nest build query-router && \
+		npx nest build email-service && \
+		npx nest build storage-router && \
+		npx nest build permission-engine && \
+		npx nest build schema-service
+	@echo -e "$(_G)✓ All apps built$(_0)"
+
+nestjs-build-%: ## Build one NestJS app (e.g. make nestjs-build-mongo-api)
+	@echo -e "$(_B)Building $*…$(_0)"
+	@cd src && npx nest build $*
+	@echo -e "$(_G)✓ $* built$(_0)"
+
+nestjs-dev-%: ## Run one NestJS app locally in dev mode (e.g. make nestjs-dev-mongo-api)
+	@cd src && npx nest start $* --watch
+
+nestjs-test: ## Run all NestJS unit tests
+	@cd src && npx jest --passWithNoTests
+	@echo -e "$(_G)✓ Tests passed$(_0)"
+
+nestjs-ci: nestjs-install nestjs-typecheck nestjs-lint nestjs-test ## Full NestJS CI pipeline
+
+rust-data-plane-check: ## Check the Rust data-plane-router workspace
+	@echo -e "$(_B)Checking Rust data-plane-router…$(_0)"
+	@cd docker/services/data-plane-router && cargo check --workspace
+	@echo -e "$(_G)✓ Rust data-plane-router check passed$(_0)"
+
+rust-data-plane-build: ## Build the Rust data-plane-router release binary
+	@echo -e "$(_B)Building Rust data-plane-router…$(_0)"
+	@cd docker/services/data-plane-router && cargo build --release --bin data-plane-router
+	@echo -e "$(_G)✓ Rust data-plane-router built$(_0)"
+
+verify-rust-data-plane: ## Verify the Rust data-plane migration scaffold
+	@bash scripts/verify/m18-rust-data-plane.sh
+
+go-control-plane-check: ## Vet + test the Go control-plane module (via Docker if no local Go)
+	@echo -e "$(_B)Checking Go control-plane…$(_0)"
+	@if command -v go >/dev/null 2>&1; then \
+		cd go/control-plane && go vet ./... && go test ./...; \
+	else \
+		docker run --rm -v "$(PWD)/go/control-plane":/src -w /src golang:1.23-bookworm \
+			sh -c 'go mod tidy && go vet ./... && go test ./...'; \
+	fi
+	@echo -e "$(_G)✓ Go control-plane check passed$(_0)"
+
+go-control-plane-build: ## Build the Go adapter-registry image
+	@echo -e "$(_B)Building Go control-plane adapter-registry…$(_0)"
+	@docker compose --profile go-control-plane build adapter-registry-go
+	@echo -e "$(_G)✓ Go control-plane image built$(_0)"
+
+verify-go-control-plane: ## Verify the Go control-plane migration scaffold
+	@bash scripts/verify/m19-go-control-plane.sh
+
+verify-trust-boundary: ## Verify signed identity + tenant context guardrails
+	@bash scripts/verify/m11-trust-boundary.sh
+
+vault-init: _require-compose ## Run Vault init/unseal/seed manually
+	@echo -e "$(_B)Initializing Vault…$(_0)"
+	@$(DC) run --rm vault-init
+	@echo -e "$(_G)✓ Vault initialized$(_0)"
+
+vault-status: _require-compose ## Check Vault seal status
+	@docker exec mini-baas-vault vault status -address=http://127.0.0.1:8200 2>/dev/null \
+		|| echo -e "$(_R)Vault not running$(_0)"
+
+vault-unseal: _require-compose ## Unseal Vault with root key from .vault-keys
+	@key=$$(grep 'Unseal Key' .vault-keys 2>/dev/null | awk '{print $$NF}'); \
+	[ -n "$$key" ] && docker exec mini-baas-vault vault operator unseal -address=http://127.0.0.1:8200 "$$key" \
+		|| echo -e "$(_Y)No .vault-keys found — run make vault-init first$(_0)"
+
+vault-rotate: _require-compose ## Rotate all Vault secrets (GROUP=jwt|postgres|mongo|minio|kong|all)
+	@echo -e "$(_B)Rotating Vault secrets (group: $${GROUP:-all})…$(_0)"
+	@docker exec mini-baas-vault /vault/scripts/rotate-secrets.sh $${GROUP:-all}
+	@echo -e "$(_G)✓ Vault rotation complete$(_0)"
+
+vault-rotate-dry: _require-compose ## Dry-run secret rotation (preview without applying)
+	@docker exec -e DRY_RUN=1 mini-baas-vault /vault/scripts/rotate-secrets.sh $${GROUP:-all}
+
+waf-logs: _require-compose ## Stream WAF (ModSecurity) logs
+	@$(DC) logs -f --tail=200 waf
+
+waf-test: ## Quick WAF attack test (should be blocked)
+	@echo -e "$(_B)Testing WAF blocks…$(_0)"
+	@status=$$(curl -s -o /dev/null -w '%{http_code}' "http://localhost/rest/v1/?id=1%20OR%201=1"); \
+	if [ "$$status" = "403" ]; then \
+		echo -e "  $(_G)✓$(_0) SQL injection blocked (HTTP 403)"; \
+	else \
+		echo -e "  $(_R)✗$(_0) Expected 403, got $$status"; \
+	fi
+	@status=$$(curl -s -o /dev/null -w '%{http_code}' "http://localhost/rest/v1/<script>alert(1)</script>"); \
+	if [ "$$status" = "403" ]; then \
+		echo -e "  $(_G)✓$(_0) XSS blocked (HTTP 403)"; \
+	else \
+		echo -e "  $(_R)✗$(_0) Expected 403, got $$status"; \
+	fi
+
+watch: _require-compose _rm-stale ## Build, start stack & launch interactive observatory
+	@echo -e "$(_B)Stopping previous stack to ensure clean start…$(_0)"
+	@eval "$$(bash scripts/resolve-ports.sh)"; \
+	$(DC) down --remove-orphans 2>/dev/null || true
+	@echo -e "$(_B)Building & starting stack…$(_0)"
+	@eval "$$(bash scripts/resolve-ports.sh)"; \
+	$(DC) up -d --build 2>&1 | grep -v "^$$" || echo -e "$(_Y)⚠  Some containers may need time — observatory will show details$(_0)"
+	@echo -e "$(_G)▶ Starting mini-BaaS Observatory (interactive)…$(_0)"
+	cd src && npx ts-node -r tsconfig-paths/register tools/observatory.ts
+
+watch-logs: _require-compose _rm-stale ## Build, start stack & stream logs only (no interactive prompt)
+	@eval "$$(bash scripts/resolve-ports.sh)"; \
+	$(DC) down --remove-orphans 2>/dev/null || true
+	@eval "$$(bash scripts/resolve-ports.sh)"; \
+	$(DC) up -d --build 2>&1 | tail -5 || true
+	@echo -e "$(_G)▶ Starting log stream…$(_0)"
+	cd src && npx ts-node -r tsconfig-paths/register tools/observatory.ts --logs
+
+watch-headless: _require-compose _rm-stale ## Build, start stack & launch observatory in background
+	@eval "$$(bash scripts/resolve-ports.sh)"; \
+	$(DC) down --remove-orphans 2>/dev/null || true
+	@eval "$$(bash scripts/resolve-ports.sh)"; \
+	$(DC) up -d --build 2>&1 | tail -5 || true
+	@echo -e "$(_G)▶ Starting headless observatory…$(_0)"
+	@cd src && nohup npx ts-node -r tsconfig-paths/register tools/observatory.ts --headless \
+		> ../observatory.log 2>&1 & echo "$$!" > ../.observatory.pid
+	@echo -e "$(_G)  PID: $$(cat .observatory.pid)  •  Log: observatory.log$(_0)"
+	@echo -e "$(_Y)  Use 'make kill-watch' to stop$(_0)"
+
+kill-watch: ## Stop a headless observatory process
+	@if [ -f .observatory.pid ]; then \
+		pid=$$(cat .observatory.pid); \
+		if kill -0 "$$pid" 2>/dev/null; then \
+			kill "$$pid" && echo -e "$(_G)✓ Observatory (PID $$pid) stopped$(_0)"; \
+		else \
+			echo -e "$(_Y)Observatory (PID $$pid) is not running$(_0)"; \
+		fi; \
+		rm -f .observatory.pid; \
+	else \
+		echo -e "$(_Y)No .observatory.pid file found$(_0)"; \
+	fi
+
+watch-attach: ## Attach interactive observatory to an already-running stack (no build)
+	@echo -e "$(_G)▶ Attaching mini-BaaS Observatory…$(_0)"
+	cd src && npx ts-node -r tsconfig-paths/register tools/observatory.ts
+
+watch-docker: ## Simple docker compose log tail (all services)
+	docker compose logs -f --tail=100
+
+# ========================================================================== #
+##@ Help
+# ========================================================================== #
+
+help: ## Show this help
+	@echo ""
+	@echo -e "$(_W)$(_C)$(PROJECT) — Available Commands$(_0)"
+	@awk 'BEGIN {FS=":.*##"; printf ""} \
+		/^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0,5) } \
+		/^[a-zA-Z0-9_%.-]+:.*##/ { printf "  \033[1;32m%-20s\033[0m \033[2;37m%s\033[0m\n", $$1, $$2 }' \
+		$(MAKEFILE_LIST)
+	@echo ""
+
+# --------------------------------------------------------------------------- #
+.PHONY: all clean fclean re \
+	up down restart ps logs pull health bench-startup \
+	build build-% build-optimized tag push push-bake images image-sizes \
+	tests test-phase% test-postgres \
+	migrate migrate-mongo migrate-down migrate-status seed-mongo \
+	secrets secrets-validate secrets-rotate check-secrets \
+	observe observe-down grafana prometheus \
+	adapter-add adapter-ls \
+	play play-css play-down play-logs \
+	audit audit-scan audit-fetch \
+	nestjs-install nestjs-lint nestjs-typecheck nestjs-format \
+	nestjs-build nestjs-build-% nestjs-dev-% nestjs-test nestjs-ci \
+	rust-data-plane-check rust-data-plane-build verify-rust-data-plane \
+	go-control-plane-check go-control-plane-build verify-go-control-plane verify-trust-boundary \
+	vault-init vault-status vault-unseal vault-rotate vault-rotate-dry \
+	waf-logs waf-test \
+	watch watch-logs watch-headless kill-watch watch-attach watch-docker \
+	env preflight hooks update help \
+	_require-docker _require-compose _rm-stale

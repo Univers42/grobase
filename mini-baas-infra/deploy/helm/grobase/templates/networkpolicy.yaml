@@ -1,0 +1,183 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $root := . -}}
+{{- $rel := .Release.Name -}}
+{{- /*
+DENY-BY-DEFAULT network posture for the whole release.
+
+1. baseline-deny: select every grobase pod, allow NOTHING on ingress, and allow
+   ONLY DNS on egress. Every explicit allow below is additive on top.
+2. per-plane allows: open exactly the edges the topology needs —
+     kong            ⟵ ingress-controller         (the only externally-reachable plane)
+     data plane      ⟵ kong                        (front-door bypass /data/v1)
+     control planes  ⟵ kong + data plane           (identity + mount resolution)
+     postgres        ⟵ data + control planes       (DSN targets)
+     redis           ⟵ data + control + kong        (rate-limiter + cache)
+     realtime        ⟵ kong + data plane           (publish + WS)
+
+The selector key is the recommended label app.kubernetes.io/name=grobase, scoped
+to this release via app.kubernetes.io/instance, so a second release in the same
+namespace is isolated too.
+*/ -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-baseline-deny
+  labels:
+    {{- include "grobase.commonLabels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: grobase
+      app.kubernetes.io/instance: {{ $rel }}
+  policyTypes: [Ingress, Egress]
+  ingress: []                  # deny ALL ingress (allows are separate policies)
+  egress:
+    # DNS must stay open or service discovery breaks the whole stack.
+    - to: []
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    # Intra-release egress: any grobase pod may reach any other grobase pod
+    # (the per-plane INGRESS policies below are what actually constrain edges).
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: grobase
+              app.kubernetes.io/instance: {{ $rel }}
+{{- if .Values.planes.kong.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-allow-kong
+  labels:
+    {{- include "grobase.commonLabels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "grobase.selectorLabels" (dict "root" $root "name" "kong") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    # the ingress controller is the only external source allowed to reach kong
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $root.Values.networkPolicy.ingressControllerNamespace }}
+      ports:
+        - { protocol: TCP, port: {{ $root.Values.planes.kong.port }} }
+{{- end }}
+{{- if (index .Values.planes "data-plane-router-rust").enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-allow-data-plane
+  labels:
+    {{- include "grobase.commonLabels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "grobase.selectorLabels" (dict "root" $root "name" "data-plane-router-rust") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- include "grobase.fromPlanes" (dict "rel" $rel "components" (list "kong")) | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ (index $root.Values.planes "data-plane-router-rust").port }} }
+{{- end }}
+{{- if (index .Values.planes "tenant-control").enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-allow-tenant-control
+  labels:
+    {{- include "grobase.commonLabels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "grobase.selectorLabels" (dict "root" $root "name" "tenant-control") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- include "grobase.fromPlanes" (dict "rel" $rel "components" (list "kong" "data-plane-router-rust")) | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ (index $root.Values.planes "tenant-control").port }} }
+{{- end }}
+{{- if (index .Values.planes "adapter-registry-go").enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-allow-adapter-registry
+  labels:
+    {{- include "grobase.commonLabels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "grobase.selectorLabels" (dict "root" $root "name" "adapter-registry-go") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- include "grobase.fromPlanes" (dict "rel" $rel "components" (list "data-plane-router-rust" "tenant-control")) | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ (index $root.Values.planes "adapter-registry-go").port }} }
+{{- end }}
+{{- if .Values.planes.postgres.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-allow-postgres
+  labels:
+    {{- include "grobase.commonLabels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "grobase.selectorLabels" (dict "root" $root "name" "postgres") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- include "grobase.fromPlanes" (dict "rel" $rel "components" (list "data-plane-router-rust" "tenant-control" "adapter-registry-go" "realtime")) | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ $root.Values.planes.postgres.port }} }
+{{- end }}
+{{- if .Values.planes.redis.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-allow-redis
+  labels:
+    {{- include "grobase.commonLabels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "grobase.selectorLabels" (dict "root" $root "name" "redis") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- include "grobase.fromPlanes" (dict "rel" $rel "components" (list "kong" "data-plane-router-rust" "tenant-control")) | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ $root.Values.planes.redis.port }} }
+{{- end }}
+{{- if .Values.planes.realtime.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-allow-realtime
+  labels:
+    {{- include "grobase.commonLabels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "grobase.selectorLabels" (dict "root" $root "name" "realtime") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- include "grobase.fromPlanes" (dict "rel" $rel "components" (list "kong" "data-plane-router-rust")) | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ $root.Values.planes.realtime.port }} }
+{{- end }}
+{{- end }}

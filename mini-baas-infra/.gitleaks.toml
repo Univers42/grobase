@@ -1,0 +1,72 @@
+# gitleaks config for mini-baas (Grobase) — complements the TruffleHog CI gate
+# (mini-baas-security.yml secret-trufflehog) with regex/entropy scanning of the
+# working tree. Phase 0 / P0.3 of roadmap-to-market.md.
+#
+# NOTE: the BaaS keeps NO live secrets in git. `.env` / `.env.local` are
+# gitignored and runtime-generated (scripts/generate-env.sh), and the benchmark
+# `artifacts/` + local `certs/` are gitignored too — none exist in a clean CI
+# checkout. The allowlist below covers those generated paths (so local runs are
+# also clean) plus the deliberate PLACEHOLDERS / test fixtures in tracked files,
+# so the gate stays green and meaningful (a real key trips it; a documented
+# placeholder or an "invalid" test token does not).
+
+title = "mini-baas gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowlisted paths and documented placeholders (no live secrets)"
+
+paths = [
+  # generated / gitignored (absent in a clean checkout; skip for local runs too)
+  '''(.*/)?\.env(\..+)?$''',
+  '''(.*/)?[a-z0-9-]+-tenant\.env$''',
+  '''(.*/)?artifacts/''',
+  '''(.*/)?certs/''',
+  '''(.*/)?playground/''',
+  '''(.*/)?\.parity/''',
+  # vendored / build output / lockfiles
+  '''(.*/)?node_modules/''',
+  '''(.*/)?dist(-local|-native)?/''',
+  '''(.*/)?vendor/''',
+  '''(.*/)?target/''',
+  '''(.*/)?\.git/''',
+  '''(.*/)?package-lock\.json$''',
+  '''(.*/)?pnpm-lock\.yaml$''',
+  '''(.*/)?Cargo\.lock$''',
+  '''(.*/)?openapi/.*\.json$''',
+  # example/sample env templates carry placeholders by design
+  '''(.*/)?\.env\.example$''',
+  '''(.*/)?\.env\.sample$''',
+]
+
+# Documented non-secret placeholders, shell-var refs and deliberately-invalid
+# test fixtures that appear in tracked config/compose/docs/test-scripts/CI.
+# None are live credentials.
+regexes = [
+  '''replace-with-[a-z0-9-]+''',
+  '''anon-key-placeholder''',
+  '''(?i)public-anon-key''',
+  '''(?i)your[_-][a-z_]*key''',
+  '''(?i)invalid[._-][a-z0-9._-]*''',
+  '''(?i)not\.a\.valid\.jwt''',
+  '''\$\{?[A-Z_]*TOKEN\}?''',
+  '''your-super-secret-and-long-postgres-password''',
+  '''ci-jwt-secret-min-32-chars-long-xx''',
+  '''ci-adapter-token''',
+  '''minioadmin''',
+  '''(?i)changeme''',
+  '''(?i)example\.com''',
+  '''POSTGRES_PASSWORD=postgres\b''',
+]
+
+stopwords = [
+  "placeholder",
+  "example",
+  "changeme",
+  "sample",
+  "your-super-secret",
+  "replace-with",
+  "invalid",
+]

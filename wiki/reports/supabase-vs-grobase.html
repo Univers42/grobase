@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grobase vs Supabase — is our offer strong enough?</title>
+<style>
+:root{
+  --win:#1f9d57;--parity:#d99a16;--gap:#c64242;--brand:#5b6cff;
+  --ink:#0e1726;--muted:#5b6781;--bg:#f6f8fc;--card:#ffffff;
+  --line:#e3e8f2;--accent:#5b6cff;
+  --shadow:0 1px 2px rgba(16,23,38,.04),0 6px 24px rgba(16,23,38,.07);
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);line-height:1.55;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,
+    "Apple Color Emoji","Segoe UI Emoji",sans-serif;
+  font-size:15px;-webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:960px;margin:0 auto;padding:0 20px 64px}
+header.site{
+  position:sticky;top:0;z-index:50;
+  background:linear-gradient(110deg,var(--accent),color-mix(in srgb,var(--accent) 55%,#1b2447));
+  color:#fff;box-shadow:0 4px 18px rgba(16,23,38,.18);
+}
+@supports not (background:color-mix(in srgb,#000,#fff)){
+  header.site{background:linear-gradient(110deg,var(--accent),#2a3566)}
+}
+.site .inner{max-width:960px;margin:0 auto;padding:22px 20px}
+.site h1{margin:0;font-size:24px;font-weight:700;letter-spacing:-.01em}
+.site .sub{margin:6px 0 0;opacity:.92;font-size:14.5px;font-weight:400}
+.site .upd{margin-top:10px;font-size:12px;opacity:.8;font-variant-numeric:tabular-nums}
+section{margin-top:30px}
+section>h2{
+  font-size:18px;margin:0 0 4px;letter-spacing:-.01em;
+  padding-bottom:8px;border-bottom:2px solid var(--line);
+}
+section .intro{color:var(--muted);margin:8px 0 16px;font-size:14.5px}
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:18px;
+}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-top:6px}
+.kpi{
+  background:var(--card);border:1px solid var(--line);border-left:4px solid var(--muted);
+  border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 16px 14px;
+}
+.kpi.win{border-left-color:var(--win)} .kpi.parity{border-left-color:var(--parity)}
+.kpi.gap{border-left-color:var(--gap)} .kpi.neutral{border-left-color:var(--muted)}
+.kpi .label{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.kpi .value{font-size:27px;font-weight:700;margin:4px 0 2px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.kpi .sub{font-size:12.5px;color:var(--muted)}
+.kpi.win .value{color:var(--win)} .kpi.gap .value{color:var(--gap)} .kpi.parity .value{color:var(--parity)}
+.scoreboard{
+  display:flex;flex-wrap:wrap;gap:0;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-top:6px;
+}
+.scoreboard .sb-title{padding:14px 16px;font-weight:600;font-size:13px;color:var(--muted);
+  align-self:center;border-right:1px solid var(--line)}
+.scoreboard .stat{padding:12px 18px;border-right:1px solid var(--line);min-width:96px}
+.scoreboard .stat:last-child{border-right:none}
+.scoreboard .stat .v{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.scoreboard .stat .l{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.scoreboard .stat.win .v{color:var(--win)} .scoreboard .stat.gap .v{color:var(--gap)}
+.scoreboard .stat.parity .v{color:var(--parity)}
+.badge{
+  display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;
+  line-height:1.5;border:1px solid transparent;vertical-align:middle;
+}
+.badge.win{background:rgba(31,157,87,.12);color:var(--win);border-color:rgba(31,157,87,.25)}
+.badge.parity{background:rgba(217,154,22,.13);color:#9a6b07;border-color:rgba(217,154,22,.3)}
+.badge.gap{background:rgba(198,66,66,.12);color:var(--gap);border-color:rgba(198,66,66,.25)}
+.badge.brand{background:rgba(91,108,255,.12);color:var(--brand);border-color:rgba(91,108,255,.25)}
+.badge.neutral{background:rgba(91,103,129,.1);color:var(--muted);border-color:rgba(91,103,129,.22)}
+figure.chart{margin:0;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:16px 16px 12px}
+figure.chart .chart-title{font-weight:600;font-size:14.5px;margin:0 0 10px}
+figure.chart figcaption{color:var(--muted);font-size:12px;margin-top:8px}
+figure.chart svg{display:block;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:12.5px;color:var(--muted)}
+.legend .li{display:inline-flex;align-items:center;gap:6px}
+.legend .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+table.matrix{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);font-size:13.5px}
+table.matrix th,table.matrix td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);
+  vertical-align:top}
+table.matrix thead th{background:#eef2fb;font-size:12px;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);font-weight:600}
+table.matrix tbody tr:nth-child(even){background:#fbfcfe}
+table.matrix tbody tr:last-child td{border-bottom:none}
+td.t-win{background:rgba(31,157,87,.1)} td.t-parity{background:rgba(217,154,22,.12)}
+td.t-gap{background:rgba(198,66,66,.1)} td.t-brand{background:rgba(91,108,255,.1)}
+.callouts{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.callout{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--muted);
+  border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px}
+.callout.win{border-left-color:var(--win)} .callout.parity{border-left-color:var(--parity)}
+.callout.gap{border-left-color:var(--gap)} .callout.brand{border-left-color:var(--brand)}
+.callout .c-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.callout .c-title{font-weight:650;font-size:14.5px}
+.callout .c-body{color:var(--muted);font-size:13px;margin-top:6px}
+.layers{display:flex;flex-direction:column;gap:8px}
+.layer{border:1px solid var(--line);border-radius:10px;padding:12px 16px;background:var(--card);
+  box-shadow:var(--shadow);position:relative}
+.layer .ln{font-weight:650;font-size:14px} .layer .ld{color:var(--muted);font-size:12.5px;margin-top:2px}
+.layer.win{border-left:4px solid var(--win)} .layer.parity{border-left:4px solid var(--parity)}
+.layer.gap{border-left:4px solid var(--gap)} .layer.brand{border-left:4px solid var(--brand)}
+.evidence{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:16px}
+.evidence .e-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.evidence .e-title{font-weight:650;font-size:14.5px}
+.evidence pre{margin:0;background:#0e1726;color:#d7e2f7;border-radius:10px;padding:12px 14px;
+  font-size:12.5px;line-height:1.55;overflow:auto;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.evidence .e-gate{margin-top:10px;font-size:12px;color:var(--muted)}
+.evidence .e-gate code{background:#eef2fb;padding:2px 6px;border-radius:5px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+footer.site{margin-top:48px;border-top:1px solid var(--line);padding:22px 20px;color:var(--muted);
+  font-size:12.5px;text-align:center}
+footer.site .wrap{padding-bottom:0}
+@media (max-width:560px){
+  .scoreboard{flex-direction:column}
+  .scoreboard .sb-title,.scoreboard .stat{border-right:none;border-bottom:1px solid var(--line)}
+  .scoreboard .stat:last-child{border-bottom:none}
+  .site h1{font-size:21px}
+}
+@media print{
+  body{background:#fff}
+  header.site{position:static;box-shadow:none;color:#0e1726;background:#fff;border-bottom:2px solid var(--accent)}
+  .card,.kpi,figure.chart,.evidence,table.matrix,.scoreboard,.callout,.layer{box-shadow:none}
+  section{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<header class="site"><div class="inner">
+  <h1>Grobase vs Supabase — is our offer strong enough?</h1>
+  <p class="sub">A focused, decision-grade verdict. Every Grobase figure is measured + cites an artifact; every Supabase figure is published / self-host, never presented as our number.</p>
+  <div class="upd">Updated 2026-06-15</div>
+</div></header>
+<main class="wrap">
+<section id="verdict">
+  <h2>1 · The verdict — QUALIFIED YES</h2>
+  <p class="intro">Strong enough to <strong>win on every axis we can measure</strong> — multi-engine, footprint, read latency, and dense multi-tenancy — but <strong>not yet</strong> strong enough to displace Supabase as a <em>managed, certified, polished hosted product</em> today. The verdict gauge is the mean of two transparent sub-scores: <strong>Substrate 96/100</strong> (a feature-weighted tally over the 16 Supabase comparison rows: win=1·ok=0.8·partial=0.5·gap=0) and <strong>Hosted product 60/100</strong> (the 5 leads Supabase still holds — managed cloud, Studio, ecosystem, global edge, third-party certification — all built + gate-proven but flag-OFF, go-live in progress). Not a number invented to hit a target.</p>
+  <div class="grid kpis"><figure class="chart">
+  <p class="chart-title">Verdict — Grobase&#39;s Supabase-like offer</p>
+  <svg viewBox="0 0 240 150" role="img" aria-label="Verdict — Grobase&#39;s Supabase-like offer" style="max-width:280px;margin:0 auto">
+    <path d="M 28.00 122.00 A 92 92 0 0 1 212.00 122.00" fill="none" stroke="#e3e8f2" stroke-width="16" stroke-linecap="round"/><path d="M 28.00 122.00 A 92 92 0 0 1 190.89 180.64" fill="none" stroke="#1f9d57" stroke-width="16" stroke-linecap="round"/><text x="120" y="104" font-size="28" font-weight="700" fill="#1f9d57" text-anchor="middle">78</text><line x1="120" y1="122" x2="186.26" y2="176.82" stroke="#0e1726" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="120" cy="122" r="6" fill="#0e1726"/><text x="28" y="142" font-size="10" fill="#5b6781" text-anchor="middle">0</text>
+    <text x="212" y="142" font-size="10" fill="#5b6781" text-anchor="middle">100</text><text x="120" y="152" font-size="12" fill="#5b6781" text-anchor="middle">QUALIFIED YES — feature-weighted vs Supabase</text>
+  </svg>
+</figure></div><div class="grid kpis"><div class="kpi win">
+    <div class="label">Read p95 (warm list-30)</div>
+    <div class="value">2.19 ms</div>
+    <div class="sub">vs Supabase self-host 2.57 ms · measured same box</div>
+  </div>
+<div class="kpi win">
+    <div class="label">Idle footprint (essential)</div>
+    <div class="value">822 MiB</div>
+    <div class="sub">vs Supabase self-host 2,884 MiB (13 containers)</div>
+  </div>
+<div class="kpi win">
+    <div class="label">Density (per-request RLS)</div>
+    <div class="value">24,888</div>
+    <div class="sub">live tenants @ 2.918 MiB RSS · 0 pools · gate m46</div>
+  </div>
+<div class="kpi win">
+    <div class="label">Database engines</div>
+    <div class="value">9 vs 1</div>
+    <div class="sub">multi-engine + bring-your-own-DB vs Postgres-only</div>
+  </div></div><div class="scoreboard">
+  <div class="sb-title">How the verdict is built</div>
+  <div class="stat win">
+    <div class="v">96/100</div>
+    <div class="l">Substrate</div>
+  </div>
+<div class="stat parity">
+    <div class="v">60/100</div>
+    <div class="l">Hosted product</div>
+  </div>
+<div class="stat win">
+    <div class="v">78/100</div>
+    <div class="l">Verdict (mean)</div>
+  </div>
+<div class="stat win">
+    <div class="v">14</div>
+    <div class="l">Feature wins</div>
+  </div>
+<div class="stat neutral">
+    <div class="v">0</div>
+    <div class="l">Gaps</div>
+  </div>
+<div class="stat parity">
+    <div class="v">5</div>
+    <div class="l">Supabase leads</div>
+  </div>
+</div>
+</section>
+<section id="scoreboard">
+  <h2>2 · Feature scoreboard</h2>
+  <p class="intro">Counting outcome across every row of the Supabase comparison (<code>offers-compare-data.json</code> · field <code>grobaseLevel</code>). No row is a gap — the remaining non-wins are Dashboard/Studio polish (partial) and GraphQL (parity, same <code>pg_graphql</code> extension).</p>
+  <figure class="chart">
+  <p class="chart-title">Feature outcome across 16 Supabase comparison rows</p>
+  <svg viewBox="0 0 220 220" role="img" aria-label="Feature outcome across 16 Supabase comparison rows" style="max-width:260px;margin:0 auto">
+    <path d="M 110.00 18.00 A 92 92 0 1 1 44.95 44.95 L 70.40 70.40 A 56 56 0 1 0 110.00 54.00 Z" fill="#1f9d57"/><path d="M 44.95 44.95 A 92 92 0 0 1 74.79 25.00 L 88.57 58.26 A 56 56 0 0 0 70.40 70.40 Z" fill="#d99a16"/><path d="M 74.79 25.00 A 92 92 0 0 1 110.00 18.00 L 110.00 54.00 A 56 56 0 0 0 88.57 58.26 Z" fill="#b9842e"/>
+    <text x="110" y="106" font-size="20" font-weight="700" fill="#0e1726" text-anchor="middle">14/16</text>
+       <text x="110" y="126" font-size="11" fill="#5b6781" text-anchor="middle">total 16</text>
+  </svg>
+  <div class="legend"><span class="li"><span class="sw" style="background:#1f9d57"></span>Win — <strong style="color:#0e1726">14</strong> (87.5%)</span><span class="li"><span class="sw" style="background:#d99a16"></span>Parity (ok) — <strong style="color:#0e1726">1</strong> (6.3%)</span><span class="li"><span class="sw" style="background:#b9842e"></span>Partial — <strong style="color:#0e1726">1</strong> (6.3%)</span></div>
+</figure>
+</section>
+<section id="measured">
+  <h2>3 · Measured head-to-head</h2>
+  <p class="intro">Same box (20 vCPU / 31.9 GiB, kernel 6.17), same probe, per <code>scripts/bench/METHOD.md</code>. <strong>Grobase numbers are measured here.</strong> <strong>Supabase / PocketBase figures are their self-host, measured on the same box</strong> — never a managed-cloud number we attribute to them. The full-tier footprint bar sums Supabase's 13 <code>supabase-*</code> containers (kong alone 1.526 GiB).</p>
+  <figure class="chart">
+  <p class="chart-title">Read p95 latency — warm GET list-30 (lower is better)</p>
+  <svg viewBox="0 0 720 320" role="img" aria-label="Read p95 latency — warm GET list-30 (lower is better)">
+    <line x1="56" y1="274.0" x2="704" y2="274.0" stroke="#e3e8f2" stroke-width="1"/><text x="48" y="277.0" font-size="10" fill="#5b6781" text-anchor="end">0</text><line x1="56" y1="209.0" x2="704" y2="209.0" stroke="#e3e8f2" stroke-width="1"/><text x="48" y="212.0" font-size="10" fill="#5b6781" text-anchor="end">0.75</text><line x1="56" y1="144.0" x2="704" y2="144.0" stroke="#e3e8f2" stroke-width="1"/><text x="48" y="147.0" font-size="10" fill="#5b6781" text-anchor="end">1.5</text><line x1="56" y1="79.0" x2="704" y2="79.0" stroke="#e3e8f2" stroke-width="1"/><text x="48" y="82.0" font-size="10" fill="#5b6781" text-anchor="end">2.25</text><line x1="56" y1="14.0" x2="704" y2="14.0" stroke="#e3e8f2" stroke-width="1"/><text x="48" y="17.0" font-size="10" fill="#5b6781" text-anchor="end">3</text>
+    <line x1="56" y1="274" x2="704" y2="274" stroke="#5b6781" stroke-width="1"/>
+    <rect x="172.6" y="84.2" width="205.4" height="189.8" rx="3" fill="#5b6cff"/><text x="275.3" y="80.2" font-size="9.5" fill="#0e1726" text-anchor="middle">2.19</text><rect x="380.0" y="51.3" width="205.4" height="222.7" rx="3" fill="#3ecf8e"/><text x="482.7" y="47.3" font-size="9.5" fill="#0e1726" text-anchor="middle">2.57</text>
+    <text x="380.0" y="292" font-size="11" fill="#0e1726" text-anchor="middle">Read p95 (same probe, n=60, same box)</text>
+  </svg>
+  <div class="legend"><span class="li"><span class="sw" style="background:#5b6cff"></span>Grobase essential (measured)</span><span class="li"><span class="sw" style="background:#3ecf8e"></span>Supabase self-host (measured, same box)</span></div>
+  <figcaption>ms — lower is better.</figcaption>
+</figure><figure class="chart">
+  <p class="chart-title">Idle footprint RSS — lower is better</p>
+  <svg viewBox="0 0 720 320" role="img" aria-label="Idle footprint RSS — lower is better">
+    <line x1="56" y1="274.0" x2="704" y2="274.0" stroke="#e3e8f2" stroke-width="1"/><text x="48" y="277.0" font-size="10" fill="#5b6781" text-anchor="end">0</text><line x1="56" y1="209.0" x2="704" y2="209.0" stroke="#e3e8f2" stroke-width="1"/><text x="48" y="212.0" font-size="10" fill="#5b6781" text-anchor="end">750</text><line x1="56" y1="144.0" x2="704" y2="144.0" stroke="#e3e8f2" stroke-width="1"/><text x="48" y="147.0" font-size="10" fill="#5b6781" text-anchor="end">1,500</text><line x1="56" y1="79.0" x2="704" y2="79.0" stroke="#e3e8f2" stroke-width="1"/><text x="48" y="82.0" font-size="10" fill="#5b6781" text-anchor="end">2,250</text><line x1="56" y1="14.0" x2="704" y2="14.0" stroke="#e3e8f2" stroke-width="1"/><text x="48" y="17.0" font-size="10" fill="#5b6781" text-anchor="end">3,000</text>
+    <line x1="56" y1="274" x2="704" y2="274" stroke="#5b6781" stroke-width="1"/>
+    <rect x="114.3" y="202.8" width="101.7" height="71.2" rx="3" fill="#5b6cff"/><text x="165.2" y="198.8" font-size="9.5" fill="#0e1726" text-anchor="middle">821.7</text><rect x="218.0" y="24.1" width="101.7" height="249.9" rx="3" fill="#3ecf8e"/><text x="268.8" y="20.1" font-size="9.5" fill="#0e1726" text-anchor="middle">2,884</text><rect x="438.3" y="273.8" width="101.7" height="1.0" rx="3" fill="#5b6cff"/><text x="489.2" y="269.8" font-size="9.5" fill="#0e1726" text-anchor="middle">2.008</text><rect x="542.0" y="272.9" width="101.7" height="1.1" rx="3" fill="#3ecf8e"/><text x="592.8" y="268.9" font-size="9.5" fill="#0e1726" text-anchor="middle">13.11</text>
+    <text x="218.0" y="292" font-size="11" fill="#0e1726" text-anchor="middle">Full tier idle</text><text x="542.0" y="292" font-size="11" fill="#0e1726" text-anchor="middle">Single-binary floor idle</text>
+  </svg>
+  <div class="legend"><span class="li"><span class="sw" style="background:#5b6cff"></span>Grobase (measured)</span><span class="li"><span class="sw" style="background:#3ecf8e"></span>Rival self-host (measured)</span></div>
+  <figcaption>MiB — lower is better.</figcaption>
+</figure><figure class="chart">
+  <p class="chart-title">nano insert p99 write-tail — lower is better</p>
+  <svg viewBox="0 0 720 320" role="img" aria-label="nano insert p99 write-tail — lower is better">
+    <line x1="56" y1="274.0" x2="704" y2="274.0" stroke="#e3e8f2" stroke-width="1"/><text x="48" y="277.0" font-size="10" fill="#5b6781" text-anchor="end">0</text><line x1="56" y1="209.0" x2="704" y2="209.0" stroke="#e3e8f2" stroke-width="1"/><text x="48" y="212.0" font-size="10" fill="#5b6781" text-anchor="end">31.25</text><line x1="56" y1="144.0" x2="704" y2="144.0" stroke="#e3e8f2" stroke-width="1"/><text x="48" y="147.0" font-size="10" fill="#5b6781" text-anchor="end">62.5</text><line x1="56" y1="79.0" x2="704" y2="79.0" stroke="#e3e8f2" stroke-width="1"/><text x="48" y="82.0" font-size="10" fill="#5b6781" text-anchor="end">93.75</text><line x1="56" y1="14.0" x2="704" y2="14.0" stroke="#e3e8f2" stroke-width="1"/><text x="48" y="17.0" font-size="10" fill="#5b6781" text-anchor="end">125</text>
+    <line x1="56" y1="274" x2="704" y2="274" stroke="#5b6781" stroke-width="1"/>
+    <rect x="172.6" y="267.8" width="205.4" height="6.2" rx="3" fill="#5b6cff"/><text x="275.3" y="263.8" font-size="9.5" fill="#0e1726" text-anchor="middle">3</text><rect x="380.0" y="56.6" width="205.4" height="217.4" rx="3" fill="#8a8a8a"/><text x="482.7" y="52.6" font-size="9.5" fill="#0e1726" text-anchor="middle">104.5</text>
+    <text x="380.0" y="292" font-size="11" fill="#0e1726" text-anchor="middle">Insert p99 @ c16</text>
+  </svg>
+  <div class="legend"><span class="li"><span class="sw" style="background:#5b6cff"></span>Grobase nano (measured)</span><span class="li"><span class="sw" style="background:#8a8a8a"></span>PocketBase v0.39.3 (measured)</span></div>
+  <figcaption>ms — lower is better.</figcaption>
+</figure>
+</section>
+<section id="wins">
+  <h2>4 · Where Grobase wins</h2>
+  <p class="intro">Each with its artifact / gate. The two <span style="color:#1f9d57;font-weight:600">NEW</span> wins (first-class FTS · typed vector k-NN) close former Supabase strengths; the rest are standing structural advantages.</p>
+  <div class="grid callouts"><div class="callout win">
+    <div class="c-head">
+      <span class="c-title">First-class ranked FTS</span>
+      <span class="badge win">NEW · gate m101</span>
+    </div>
+    <div class="c-body">op=list + search:{query,columns,language} → ranked to_tsvector @@ websearch_to_tsquery over concat&#39;d columns, owner-scoped, a typed first-class op. Supabase&#39;s textSearch is a single-column filter operator.</div>
+  </div>
+<div class="callout win">
+    <div class="c-head">
+      <span class="c-title">Typed vector k-NN</span>
+      <span class="badge win">NEW · gate m102</span>
+    </div>
+    <div class="c-body">op=list + vector:{column,query,k,metric} → ORDER BY col &lt;=&gt;/&lt;-&gt;/&lt;#&gt; $vec LIMIT k, capability-gated. Supabase has pgvector but needs a hand-written SQL RPC to expose k-NN ergonomically.</div>
+  </div>
+<div class="callout win">
+    <div class="c-head">
+      <span class="c-title">Multi-engine + bring-your-own-DB</span>
+      <span class="badge win">9 vs 1</span>
+    </div>
+    <div class="c-body">One uniform API over up to 9 engines (pg, mysql, mariadb, mongo, mssql, cockroach, redis, sqlite, http); a tenant can mount their existing DB (tenant_owned). Supabase is Postgres-only. Reproduce: make conformance.</div>
+  </div>
+<div class="callout win">
+    <div class="c-head">
+      <span class="c-title">Dense multi-tenancy</span>
+      <span class="badge win">gate m46</span>
+    </div>
+    <div class="c-body">24,888 live tenants @ 2.918 MiB data-plane RSS, 0 standing pools — pool count independent of tenant count (per-request RLS, not pool-per-tenant). A Supabase project is one Postgres DB per project; our per-tenant holding cost is flat.</div>
+  </div>
+<div class="callout win">
+    <div class="c-head">
+      <span class="c-title">In-stack OWASP WAF</span>
+      <span class="badge win">gate m140</span>
+    </div>
+    <div class="c-body">ModSecurity v3 + OWASP CRS as the sole public listener (SQLi/XSS/traversal → 403 with CRS rule-IDs) + per-plane network segmentation. Supabase OSS self-host ships neither in-stack.</div>
+  </div>
+<div class="callout win">
+    <div class="c-head">
+      <span class="c-title">Footprint floor</span>
+      <span class="badge win">5 MB binary</span>
+    </div>
+    <div class="c-body">nano idles at 2.008 MiB (4.9 MB binary, 6 ms cold start). Supabase has no comparable single-binary self-host floor at all.</div>
+  </div></div>
+</section>
+<section id="leads">
+  <h2>5 · Where Supabase still leads</h2>
+  <p class="intro">Brutally honest. Every lead is real and stated plainly, each with its close-path. The pattern: <strong>productization of a hosted, certified offering</strong> — not the engineering substrate.</p>
+  <table class="matrix"><thead><tr><th>Supabase lead</th><th>Why it&#39;s real</th><th>Honest close-path</th></tr></thead><tbody><tr><td class="td t-gap">Managed-cloud maturity</td><td>Sign-up → project → API key → billed, all turnkey today.</td><td>Track B7 — turn the B1–B6 flags ON in a hosted product (live Stripe + hosted deploy + signup). Components built + gate-proven; go-live, not net-new code.</td></tr><tr><td class="td t-gap">Dashboard / Studio polish</td><td>Full hosted Studio: table editor, SQL editor, logs, GraphiQL.</td><td>Invest in a first-class hosted console; binocle-one admin UI at /_/ is capable but not Studio-class. Honest partial today.</td></tr><tr><td class="td t-gap">Ecosystem &amp; community</td><td>Large community, many integrations, tutorials, SO gravity. Grobase is new.</td><td>Time + OSS adoption; same open core (gotrue/postgrest/kong) ⇒ many Supabase guides transfer. Not a code fix.</td></tr><tr><td class="td t-gap">Global edge functions</td><td>Edge Functions run on Deno Deploy&#39;s global edge network.</td><td>Track C deepen: multi-region function distribution. Today we trade global edge for no invocation cap + data residency.</td></tr><tr><td class="td t-gap">Third-party SOC 2 / HIPAA</td><td>Team buys SOC 2 + ISO 27001; Enterprise adds a HIPAA BAA — externally attested today.</td><td>Grobase ships re-verifiable controls (tamper-evident audit m104, SOC2-lite evidence m108, GDPR m105/m109, trust center m112). External attestation = an audit engagement ($$, Track D4), not code.</td></tr></tbody></table>
+</section>
+<section id="choose">
+  <h2>6 · Choose Grobase if / Choose Supabase if</h2>
+  <p class="intro">The honest buyer-fit decision in two cards.</p>
+  <div class="grid callouts"><div class="callout win">
+    <div class="c-head">
+      <span class="c-title">Choose Grobase if…</span>
+      <span class="badge win">self-host · multi-engine · density</span>
+    </div>
+    <div class="c-body">you want one backend for any frontend across up to 9 engines (or bring your own DB); pack thousands of tenants on shared infra at flat cost (24,888 @ ~3 MiB, gate m46); start from a 5 MB / 2 MiB binary and grow to a 10K-tenant platform on one codebase, no rewrite; want an in-stack OWASP WAF + plane segmentation; need ranked multi-column FTS or typed vector k-NN as first-class ops; value data residency and independently re-verifiable compliance controls.</div>
+  </div>
+<div class="callout parity">
+    <div class="c-head">
+      <span class="c-title">Choose Supabase if…</span>
+      <span class="badge parity">managed · certified · polished</span>
+    </div>
+    <div class="c-body">you want a fully managed, turnkey hosted Postgres cloud today (sign up, get billed, no ops); a polished hosted Studio out of the box; third-party SOC 2 / ISO 27001 / HIPAA attestation as a hosted product today; globally edge-distributed functions; the largest community + ecosystem; or your workload is Postgres-only forever and you never need a second engine.</div>
+  </div></div>
+</section>
+<section id="evidence">
+  <h2>7 · Gate evidence</h2>
+  <p class="intro">The load-bearing claims, each as a reproducible gate. Measured, not claimed.</p>
+  <div class="grid kpis"><div class="evidence">
+  <div class="e-head"><span class="e-title">Dense multi-tenancy — pool collapse</span><span class="badge win">PASS</span></div>
+  <pre>24,888 live tenants → 0 standing pools @ 2.918 MiB data-plane RSS
+SHARE_POOLS=1: 2 tenants → 1 pool/engine   (vs 2 pools when =0)
+isolation enforced per request (apply_rls_context), not by pool state
+→ pool count INDEPENDENT of tenant count</pre>
+  <div class="e-gate">Gate: <code>SHARE_POOLS_PROBE=1 bash scripts/verify/m46-share-pools-isolation.sh</code></div>
+</div><div class="evidence">
+  <div class="e-head"><span class="e-title">First-class FTS + typed vector k-NN (NEW)</span><span class="badge win">PASS</span></div>
+  <pre>m101: multi-column ranked FTS live through Kong (websearch_to_tsquery, language-aware, owner-scoped)
+m102: vector k-NN live vs throwaway pgvector PG (cosine/l2/ip, ORDER BY &lt;=&gt; LIMIT k)
+both are typed first-class ops — not a single-column filter / hand-written RPC</pre>
+  <div class="e-gate">Gate: <code>bash scripts/verify/m101-fulltext-search.sh &amp;&amp; bash scripts/verify/m102-vector-search.sh</code></div>
+</div><div class="evidence">
+  <div class="e-head"><span class="e-title">Measured head-to-head vs Supabase self-host</span><span class="badge win">PASS</span></div>
+  <pre>read p95: 2.19 ms (Grobase) vs 2.57 ms (Supabase self-host) — same probe, n=60
+idle RSS: essential 822 MiB vs Supabase 2,884 MiB (13 containers)
+nano floor: 2.008 MiB idle / 4.9 MB binary / 6 ms cold start
+artifact: artifacts/bench/grobase-vs-supabase.json</pre>
+  <div class="e-gate">Gate: <code>make bench-load (vs-supabase harness) · make bench-footprint</code></div>
+</div></div>
+</section>
+</main>
+<footer class="site"><div class="wrap">Grobase BaaS — measured, not claimed. Every figure traces to an artifact or doc.</div></footer>
+</body>
+</html>

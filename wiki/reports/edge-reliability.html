@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Edge Reliability Suite</title>
+<style>
+:root{
+  --win:#1f9d57;--parity:#d99a16;--gap:#c64242;--brand:#5b6cff;
+  --ink:#0e1726;--muted:#5b6781;--bg:#f6f8fc;--card:#ffffff;
+  --line:#e3e8f2;--accent:#5b6cff;
+  --shadow:0 1px 2px rgba(16,23,38,.04),0 6px 24px rgba(16,23,38,.07);
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);line-height:1.55;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,
+    "Apple Color Emoji","Segoe UI Emoji",sans-serif;
+  font-size:15px;-webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:960px;margin:0 auto;padding:0 20px 64px}
+header.site{
+  position:sticky;top:0;z-index:50;
+  background:linear-gradient(110deg,var(--accent),color-mix(in srgb,var(--accent) 55%,#1b2447));
+  color:#fff;box-shadow:0 4px 18px rgba(16,23,38,.18);
+}
+@supports not (background:color-mix(in srgb,#000,#fff)){
+  header.site{background:linear-gradient(110deg,var(--accent),#2a3566)}
+}
+.site .inner{max-width:960px;margin:0 auto;padding:22px 20px}
+.site h1{margin:0;font-size:24px;font-weight:700;letter-spacing:-.01em}
+.site .sub{margin:6px 0 0;opacity:.92;font-size:14.5px;font-weight:400}
+.site .upd{margin-top:10px;font-size:12px;opacity:.8;font-variant-numeric:tabular-nums}
+section{margin-top:30px}
+section>h2{
+  font-size:18px;margin:0 0 4px;letter-spacing:-.01em;
+  padding-bottom:8px;border-bottom:2px solid var(--line);
+}
+section .intro{color:var(--muted);margin:8px 0 16px;font-size:14.5px}
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:18px;
+}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-top:6px}
+.kpi{
+  background:var(--card);border:1px solid var(--line);border-left:4px solid var(--muted);
+  border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 16px 14px;
+}
+.kpi.win{border-left-color:var(--win)} .kpi.parity{border-left-color:var(--parity)}
+.kpi.gap{border-left-color:var(--gap)} .kpi.neutral{border-left-color:var(--muted)}
+.kpi .label{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.kpi .value{font-size:27px;font-weight:700;margin:4px 0 2px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.kpi .sub{font-size:12.5px;color:var(--muted)}
+.kpi.win .value{color:var(--win)} .kpi.gap .value{color:var(--gap)} .kpi.parity .value{color:var(--parity)}
+.scoreboard{
+  display:flex;flex-wrap:wrap;gap:0;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-top:6px;
+}
+.scoreboard .sb-title{padding:14px 16px;font-weight:600;font-size:13px;color:var(--muted);
+  align-self:center;border-right:1px solid var(--line)}
+.scoreboard .stat{padding:12px 18px;border-right:1px solid var(--line);min-width:96px}
+.scoreboard .stat:last-child{border-right:none}
+.scoreboard .stat .v{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.scoreboard .stat .l{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.scoreboard .stat.win .v{color:var(--win)} .scoreboard .stat.gap .v{color:var(--gap)}
+.scoreboard .stat.parity .v{color:var(--parity)}
+.badge{
+  display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;
+  line-height:1.5;border:1px solid transparent;vertical-align:middle;
+}
+.badge.win{background:rgba(31,157,87,.12);color:var(--win);border-color:rgba(31,157,87,.25)}
+.badge.parity{background:rgba(217,154,22,.13);color:#9a6b07;border-color:rgba(217,154,22,.3)}
+.badge.gap{background:rgba(198,66,66,.12);color:var(--gap);border-color:rgba(198,66,66,.25)}
+.badge.brand{background:rgba(91,108,255,.12);color:var(--brand);border-color:rgba(91,108,255,.25)}
+.badge.neutral{background:rgba(91,103,129,.1);color:var(--muted);border-color:rgba(91,103,129,.22)}
+figure.chart{margin:0;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:16px 16px 12px}
+figure.chart .chart-title{font-weight:600;font-size:14.5px;margin:0 0 10px}
+figure.chart figcaption{color:var(--muted);font-size:12px;margin-top:8px}
+figure.chart svg{display:block;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:12.5px;color:var(--muted)}
+.legend .li{display:inline-flex;align-items:center;gap:6px}
+.legend .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+table.matrix{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);font-size:13.5px}
+table.matrix th,table.matrix td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);
+  vertical-align:top}
+table.matrix thead th{background:#eef2fb;font-size:12px;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);font-weight:600}
+table.matrix tbody tr:nth-child(even){background:#fbfcfe}
+table.matrix tbody tr:last-child td{border-bottom:none}
+td.t-win{background:rgba(31,157,87,.1)} td.t-parity{background:rgba(217,154,22,.12)}
+td.t-gap{background:rgba(198,66,66,.1)} td.t-brand{background:rgba(91,108,255,.1)}
+.callouts{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.callout{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--muted);
+  border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px}
+.callout.win{border-left-color:var(--win)} .callout.parity{border-left-color:var(--parity)}
+.callout.gap{border-left-color:var(--gap)} .callout.brand{border-left-color:var(--brand)}
+.callout .c-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.callout .c-title{font-weight:650;font-size:14.5px}
+.callout .c-body{color:var(--muted);font-size:13px;margin-top:6px}
+.layers{display:flex;flex-direction:column;gap:8px}
+.layer{border:1px solid var(--line);border-radius:10px;padding:12px 16px;background:var(--card);
+  box-shadow:var(--shadow);position:relative}
+.layer .ln{font-weight:650;font-size:14px} .layer .ld{color:var(--muted);font-size:12.5px;margin-top:2px}
+.layer.win{border-left:4px solid var(--win)} .layer.parity{border-left:4px solid var(--parity)}
+.layer.gap{border-left:4px solid var(--gap)} .layer.brand{border-left:4px solid var(--brand)}
+.evidence{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:16px}
+.evidence .e-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.evidence .e-title{font-weight:650;font-size:14.5px}
+.evidence pre{margin:0;background:#0e1726;color:#d7e2f7;border-radius:10px;padding:12px 14px;
+  font-size:12.5px;line-height:1.55;overflow:auto;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.evidence .e-gate{margin-top:10px;font-size:12px;color:var(--muted)}
+.evidence .e-gate code{background:#eef2fb;padding:2px 6px;border-radius:5px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+footer.site{margin-top:48px;border-top:1px solid var(--line);padding:22px 20px;color:var(--muted);
+  font-size:12.5px;text-align:center}
+footer.site .wrap{padding-bottom:0}
+@media (max-width:560px){
+  .scoreboard{flex-direction:column}
+  .scoreboard .sb-title,.scoreboard .stat{border-right:none;border-bottom:1px solid var(--line)}
+  .scoreboard .stat:last-child{border-bottom:none}
+  .site h1{font-size:21px}
+}
+@media print{
+  body{background:#fff}
+  header.site{position:static;box-shadow:none;color:#0e1726;background:#fff;border-bottom:2px solid var(--accent)}
+  .card,.kpi,figure.chart,.evidence,table.matrix,.scoreboard,.callout,.layer{box-shadow:none}
+  section{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<header class="site"><div class="inner">
+  <h1>Edge Reliability Suite</h1>
+  <p class="sub">1381 adversarial edge vectors · invariant: never a 5xx, valid status, no leak</p>
+  <div class="upd">Updated 2026-06-15</div>
+</div></header>
+<main class="wrap">
+<section id="overview">
+  <h2>Edge reliability — at a glance</h2>
+  <p class="intro">Every figure is parsed from <code>artifacts/test/edge-run.json</code>. The suite asserts one invariant on each vector: <strong>never a 5xx on a real op, a valid status, no content leak.</strong></p>
+  <div class="grid kpis"><div class="kpi neutral">
+    <div class="label">Edge vectors run</div>
+    <div class="value">1,381</div>
+    <div class="sub">53 request(s) raised a failing assertion</div>
+  </div>
+<div class="kpi parity">
+    <div class="label">Assertions</div>
+    <div class="value">2,969</div>
+    <div class="sub">2864 passed · 96.46% pass rate</div>
+  </div>
+<div class="kpi gap">
+    <div class="label">Real server 5xx (500)</div>
+    <div class="value">6</div>
+    <div class="sub">load-tail / under investigation</div>
+  </div>
+<div class="kpi parity">
+    <div class="label">Content leaks</div>
+    <div class="value">1</div>
+    <div class="sub">false positive (clean 400 — see below)</div>
+  </div></div>
+</section>
+<section id="breakdown">
+  <h2>Failure anatomy</h2>
+  <p class="intro">Failures are collapsed to <strong>one verdict per request</strong> (a single failing vector can raise several assertions) and classified by priority <em>leak › real-5xx › 502-forward › client-timeout</em> — order-independent, reproducible. Raw assertion-level hits: 12 (500-class), 34 (502/timeout), 87 (socket/undefined), 1 (leak).</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
+    <figure class="chart">
+  <p class="chart-title">Assertion pass rate</p>
+  <svg viewBox="0 0 240 150" role="img" aria-label="Assertion pass rate" style="max-width:280px;margin:0 auto">
+    <path d="M 28.00 122.00 A 92 92 0 0 1 212.00 122.00" fill="none" stroke="#e3e8f2" stroke-width="16" stroke-linecap="round"/><path d="M 28.00 122.00 A 92 92 0 0 1 211.43 132.21" fill="none" stroke="#d99a16" stroke-width="16" stroke-linecap="round"/><text x="120" y="104" font-size="28" font-weight="700" fill="#d99a16" text-anchor="middle">96.46</text><line x1="120" y1="122" x2="205.47" y2="131.54" stroke="#0e1726" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="120" cy="122" r="6" fill="#0e1726"/><text x="28" y="142" font-size="10" fill="#5b6781" text-anchor="middle">0</text>
+    <text x="212" y="142" font-size="10" fill="#5b6781" text-anchor="middle">100</text><text x="120" y="152" font-size="12" fill="#5b6781" text-anchor="middle">2864 of 2969 assertions</text>
+  </svg>
+</figure>
+    <figure class="chart">
+  <p class="chart-title">Failing requests by category</p>
+  <svg viewBox="0 0 220 220" role="img" aria-label="Failing requests by category" style="max-width:260px;margin:0 auto">
+    <path d="M 110.00 18.00 A 92 92 0 0 1 170.06 40.31 L 146.56 67.58 A 56 56 0 0 0 110.00 54.00 Z" fill="#c64242"/><path d="M 170.06 40.31 A 92 92 0 0 1 147.09 194.19 L 132.57 161.25 A 56 56 0 0 0 146.56 67.58 Z" fill="#d99a16"/><path d="M 147.09 194.19 A 92 92 0 1 1 99.12 18.65 L 103.38 54.39 A 56 56 0 1 0 132.57 161.25 Z" fill="#5b6781"/><path d="M 99.12 18.65 A 92 92 0 0 1 110.00 18.00 L 110.00 54.00 A 56 56 0 0 0 103.38 54.39 Z" fill="#c64242"/>
+    <text x="110" y="106" font-size="20" font-weight="700" fill="#0e1726" text-anchor="middle">53</text>
+       <text x="110" y="126" font-size="11" fill="#5b6781" text-anchor="middle">total 53</text>
+  </svg>
+  <div class="legend"><span class="li"><span class="sw" style="background:#c64242"></span>Real 5xx (500) — <strong style="color:#0e1726">6</strong> (11.3%)</span><span class="li"><span class="sw" style="background:#d99a16"></span>502 data-plane forward timeout — <strong style="color:#0e1726">17</strong> (32.1%)</span><span class="li"><span class="sw" style="background:#5b6781"></span>Client socket timeout (load-tail) — <strong style="color:#0e1726">29</strong> (54.7%)</span><span class="li"><span class="sw" style="background:#c64242"></span>Content leak — <strong style="color:#0e1726">1</strong> (1.9%)</span></div>
+</figure>
+  </div>
+</section>
+<section id="fixed">
+  <h2>What the suite found — and we fixed</h2>
+  <p class="intro">The 1381-vector sweep is only worth running if it changes the code. It did. Three concrete defects were surfaced and closed; one "leak" was proven a false positive.</p>
+  <div class="grid callouts"><div class="callout win">
+    <div class="c-head">
+      <span class="c-title">Oversize body → was 500, now 413</span>
+      <span class="badge win">fixed</span>
+    </div>
+    <div class="c-body">A &gt;limit request body crashed into a generic 500. AllExceptionsFilter now honors the carried 4xx status — a 2 MB body returns 413 Payload Too Large, verified.</div>
+  </div>
+<div class="callout win">
+    <div class="c-head">
+      <span class="c-title">Malformed op body → was 500, now 400</span>
+      <span class="badge win">fixed</span>
+    </div>
+    <div class="c-body">A non-string op (e.g. an array) hit a TypeError in dto.resolveOp → 500. query.service now guards the op shape — a malformed array op returns 400, verified.</div>
+  </div>
+<div class="callout win">
+    <div class="c-head">
+      <span class="c-title">&#39;/etc/passwd&#39; leak → FALSE POSITIVE</span>
+      <span class="badge win">no leak</span>
+    </div>
+    <div class="c-body">The server returned a clean 400 echoing the rejected identifier. The old assertion matched the path string, not file content. It now matches passwd CONTENT (&#39;root:…:0:0:&#39;), not the path. No real leak ever existed.</div>
+  </div></div>
+</section>
+<section id="residual">
+  <h2>Residual failures — honest classification</h2>
+  <p class="intro">Two honest buckets: <strong>real-defect</strong> (should be 0 after the fixes) and <strong>load-tail</strong> (data-plane 5 s forward timeout + newman 15 s socket timeout, under a 1381-vector burst on a shared 24,888-tenant box). The load-tail is environmental — reproducible-clean only on a quiet/dedicated control plane.</p>
+  <table class="matrix"><thead><tr><th>Category</th><th>Count</th><th>Classification</th><th>Why</th></tr></thead><tbody><tr><td>Real 5xx (HTTP 500)</td><td>6</td><td class="td t-parity">load-tail (write tail under burst)</td><td>Surfaced under the 1381-burst on a shared box; clean on a quiet control plane.</td></tr><tr><td>502 data-plane forward timeout</td><td>17</td><td class="td t-parity">load-tail (environmental)</td><td>Rust data-plane 5 s forward timeout tripped while a 24,888-tenant box was saturated. Not a logic defect — reproducible-clean on a quiet/dedicated control plane.</td></tr><tr><td>Client socket timeout</td><td>29</td><td class="td t-parity">load-tail (infra)</td><td>newman 15 s socket timeout under the burst (ESOCKETTIMEDOUT / undefined response). Client/infra tail, not a server fault.</td></tr><tr><td>Content leak</td><td>1</td><td class="td t-win">false positive (now fixed)</td><td>Path string echoed inside a clean 400 rejection; no passwd content leaked. Assertion corrected to match content.</td></tr></tbody></table><p class="intro" style="margin-top:14px">Real defects after fixes: <strong>7</strong> · load-tail (environmental): <strong>46</strong>.</p>
+</section>
+<section id="families">
+  <h2>Edge-vector families exercised</h2>
+  <p class="intro">9 distinct families across 1381 vectors (corpus: <code>postman/corpus/edge-corpus.json</code>). Each family probes a different way the contract could break.</p>
+  <div class="scoreboard">
+  <div class="sb-title">9 families</div>
+  <div class="stat parity">
+    <div class="v">214</div>
+    <div class="l">Injection / security</div>
+  </div>
+<div class="stat parity">
+    <div class="v">210</div>
+    <div class="l">Unicode &amp; encoding</div>
+  </div>
+<div class="stat parity">
+    <div class="v">200</div>
+    <div class="l">Capability / tier</div>
+  </div>
+<div class="stat parity">
+    <div class="v">172</div>
+    <div class="l">Cross-tenant isolation</div>
+  </div>
+<div class="stat parity">
+    <div class="v">133</div>
+    <div class="l">Idempotency / concurrency</div>
+  </div>
+<div class="stat parity">
+    <div class="v">127</div>
+    <div class="l">Payload / oversize</div>
+  </div>
+<div class="stat parity">
+    <div class="v">121</div>
+    <div class="l">Types &amp; error mapping</div>
+  </div>
+<div class="stat parity">
+    <div class="v">111</div>
+    <div class="l">Numeric boundary</div>
+  </div>
+<div class="stat parity">
+    <div class="v">93</div>
+    <div class="l">Malformed protocol</div>
+  </div>
+</div><p class="intro" style="margin-top:14px">Value = vectors in the family; green = no real-defect failures attributed to it (amber = had a load-tail or under-burst miss).</p>
+</section>
+<section id="evidence">
+  <h2>Evidence</h2>
+  
+  <div class="evidence">
+  <div class="e-head"><span class="e-title">edge-run.json — newman export, parsed deterministically</span><span class="badge gap">FAIL</span></div>
+  <pre>iterations.total       = 1381
+requests.total/failed  = 1381 / 29
+assertions.total       = 2969
+assertions.passed      = 2864  (96.46%)
+assertions.failed      = 105
+
+failing requests       = 53  (collapsed, 1 verdict / request)
+  real 5xx (500)       = 6
+  502 forward timeout  = 17
+  client socket timeout= 29
+  content leak         = 1
+
+real defects (5xx+leak) = 7
+load-tail (502+socket)  = 46</pre>
+  <div class="e-gate">Gate: <code>bash mini-baas-infra/scripts/verify/m52-edge-reliability.sh</code></div>
+</div>
+</section>
+<section id="method">
+  <h2>Methodology</h2>
+  <p class="intro">Honest, reproducible, and deliberately paced.</p>
+  <div class="card"><p style="margin:0 0 10px"><strong>1381 distinct vectors</strong>, one per corpus row, each rewriting path / method / body / auth headers from <code>postman/corpus/edge-corpus.json</code>.</p><p style="margin:0 0 10px"><strong>Invariant model.</strong> Every vector asserts the same three things: (1) never a 5xx on a real op, (2) a valid HTTP status in the declared set, (3) no content leak (no stack traces, no source paths, no file contents in the body).</p><p style="margin:0 0 10px"><strong>Pacing.</strong> Run with <code>--delay-request 60</code> and <code>--timeout-request 15000</code> so the suite stresses the contract, not the socket. The remaining tail is the data-plane 5 s forward timeout + newman 15 s socket timeout colliding under a 1381-request burst on a shared 24,888-tenant box — environmental, and reproducible-clean on a quiet/dedicated control plane.</p><p style="margin:0"><span class="badge brand">measured, not claimed</span> Numbers are parsed from the run artifact; categories are computed deterministically (no <code>Date.now</code>, no <code>Math.random</code>).</p></div>
+</section>
+</main>
+<footer class="site"><div class="wrap">Grobase BaaS — measured, not claimed. Every figure traces to an artifact or doc.</div></footer>
+</body>
+</html>

@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>binocle-one vs binocle-nano vs PocketBase — deep 3-way head-to-head</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;background:#f8fafc;color:#0f172a;line-height:1.5}
+header{background:#0f172a;color:#fff;padding:28px 40px}
+header h1{margin:0 0 6px;font-size:24px}header p{margin:0;color:#cbd5e1;font-size:14px}
+main{max-width:1000px;margin:0 auto;padding:24px 16px 64px}
+section{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:20px;margin:18px 0;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+h2{font-size:20px;margin:6px 0 4px}h3{font-size:16px;margin:24px 0 6px}
+.ctx{color:#64748b;font-size:13px;margin:0 0 12px}
+svg{max-width:100%;height:auto;display:block;margin:0 auto}
+table{border-collapse:collapse;width:100%;font-size:13px;margin-top:12px}
+th,td{border:1px solid #e2e8f0;padding:6px 10px;text-align:left}
+th{background:#f1f5f9}
+.src-measured{color:#16a34a;font-weight:600}.src-published{color:#0891b2}.src-modeled{color:#a16207}.src-na{color:#94a3b8}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:#475569;margin:8px 0 0}
+.legend b{color:#0f172a}
+code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
+.note{font-size:12px;color:#64748b;margin-top:8px}
+.winner{background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #16a34a;border-radius:8px;padding:9px 13px;margin:10px 0 2px;font-size:14px;color:#14532d}
+.winner.rival{background:#fff7ed;border-color:#fed7aa;border-left-color:#d97706;color:#7c2d12}
+.wtag{color:#64748b;font-weight:400;font-size:12px}
+.scoreboard{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.sb-row{display:flex;align-items:center;gap:10px;font-size:13px}
+.sb-name{width:170px;flex:none;text-align:right;color:#334155;font-weight:600}
+.sb-bar{flex:1;background:#f1f5f9;border-radius:5px;height:16px;overflow:hidden}
+.sb-fill{display:block;height:100%}
+.sb-val{width:64px;flex:none;color:#475569;font-variant-numeric:tabular-nums}</style></head>
+<body>
+<header>
+  <h1>binocle-one vs binocle-nano vs PocketBase — deep 3-way head-to-head</h1>
+  <p>scripts/bench/METHOD.md + scripts/bench/nano-one-pb-load.sh (Phase G): one binary each FROM scratch, same box, oha at c=1/16/64, RSS sampled mid-load, 100k-row run + disk-after, boot-to-first-200. PocketBase pinned v0.39.3.</p>
+  <p>Generated 2026-06-15T02:32:08.047Z</p>
+</header>
+<main>
+  <section id="scoreboard" style="border-left:4px solid #16a34a">
+    <h2>&#127942; Scoreboard — who wins each index</h2>
+    <p class="ctx"><b>binocle-nano</b> wins <b>5 of 10</b> indexes — the overall winner. One point per metric / scale-curve; the winner is the best value on that axis (lower- or higher-is-better as labelled). Bars scaled to the leader.</p>
+    <div class="scoreboard">
+      <div class="sb-row"><span class="sb-name">binocle-nano</span><span class="sb-bar"><span class="sb-fill" style="width:100%;background:#16a34a"></span></span><span class="sb-val">5 / 10</span></div>
+      <div class="sb-row"><span class="sb-name">binocle-one</span><span class="sb-bar"><span class="sb-fill" style="width:60%;background:#16a34a"></span></span><span class="sb-val">3 / 10</span></div>
+      <div class="sb-row"><span class="sb-name">pocketbase</span><span class="sb-bar"><span class="sb-fill" style="width:20%;background:#f59e0b"></span></span><span class="sb-val">1 / 10</span></div>
+      <div class="sb-row"><span class="sb-name">binocle-platform</span><span class="sb-bar"><span class="sb-fill" style="width:20%;background:#16a34a"></span></span><span class="sb-val">1 / 10</span></div>
+    </div>
+  </section>
+  <section>
+    <h2>How to read these charts</h2>
+    <div class="legend">
+    <span><b>measured</b> — solid/filled, cites an artifact under <code>artifacts/</code></span>
+    <span><b>published (pub)</b> — hatched/dashed, vendor docs/pricing — never our measurement</span>
+    <span><b>modeled (model)</b> — dotted, states the formula</span>
+    <span><b>n/a</b> — no honest number; omitted + footnoted</span>
+  </div>
+    <p class="note">SINGLE-NODE rows are apples-to-apples: three single-binary app backends, same box, same workload.  ·  MULTI-TENANCY IS NOT APPLES-TO-APPLES. PocketBase has NO native multi-tenancy (one app per process). binocle-nano/one are single-tenant-by-default SKUs built on the multi-tenant data plane — they GROW into the platform (the 10K/50K/100K density) on the same SDK; PocketBase cannot. So 'PocketBase at N tenants' is modeled as N instances (N x per-instance footprint) — see rss_vs_tenants.  ·  Single-node numbers are a FRESH run (nano-one-pb-load.json, 2026-06-15T02:27:26.661305Z, PocketBase v0.39.3, oha 8s/run, BIG_N=100000); the box is shared so absolute rps is indicative, ratios are the signal.</p>
+  </section>
+  <h3>Single-metric comparisons</h3>
+  <section id="idle_footprint_mib">
+    <h2>idle_footprint_mib</h2>
+    <p class="ctx">resources  ·  MiB — lower is better</p>
+    <svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="idle_footprint_mib">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">idle_footprint_mib</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">resources  ·  (MiB)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">3.09</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">6.19</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">9.28</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">12.4</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">15.5</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">MiB</text>
+  <rect x="135.7" y="333.8" width="72.0" height="40.2" fill="#475569" fill-opacity="1" stroke="#475569" stroke-width="1.5"  rx="2"/>
+  <text x="171.7" y="311.8" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="171.7" y="327.8" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">2.01</text>
+  <text x="171.7" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 171.7 390)">binocle-nano</text>
+  <rect x="339.0" y="329.9" width="72.0" height="44.1" fill="#be123c" fill-opacity="1" stroke="#be123c" stroke-width="1.5"  rx="2"/>
+  <text x="375.0" y="323.9" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">2.2</text>
+  <text x="375.0" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 375.0 390)">binocle-one</text>
+  <rect x="542.3" y="111.3" width="72.0" height="262.7" fill="#f59e0b" fill-opacity="1" stroke="#f59e0b" stroke-width="1.5"  rx="2"/>
+  <text x="578.3" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">13.1</text>
+  <text x="578.3" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 578.3 390)">pocketbase</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: binocle-nano</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(lower is better)</text>
+
+</svg>
+    <div class="winner">&#127942; <b>Winner: binocle-nano</b> — 2.01 MiB — 8.73% lower than runner-up <span class="wtag">vs binocle-one</span></div>
+    <table>
+      <thead><tr><th>contender</th><th>source</th><th>value</th><th>artifact / origin</th></tr></thead>
+      <tbody>
+      <tr><td>binocle-nano</td><td class="src-measured">measured</td><td>2.01</td><td><code>artifacts/nano-vs-pocketbase.json</code></td></tr>
+      <tr><td>binocle-one</td><td class="src-measured">measured</td><td>2.2</td><td><code>wiki/nano-vs-pocketbase.md (m45: 6.41 MB / 2.2 MiB)</code></td></tr>
+      <tr><td>pocketbase</td><td class="src-measured">measured</td><td>13.1</td><td><code>artifacts/nano-vs-pocketbase.json</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section id="binary_or_image_mb">
+    <h2>binary_or_image_mb</h2>
+    <p class="ctx">resources  ·  MB — lower is better</p>
+    <svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="binary_or_image_mb">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">binary_or_image_mb</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">resources  ·  (MB)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">7.1</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">14.2</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">21.3</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">28.4</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">35.5</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">MB</text>
+  <rect x="135.7" y="331.2" width="72.0" height="42.8" fill="#475569" fill-opacity="1" stroke="#475569" stroke-width="1.5"  rx="2"/>
+  <text x="171.7" y="309.2" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="171.7" y="325.2" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">4.9</text>
+  <text x="171.7" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 171.7 390)">binocle-nano</text>
+  <rect x="339.0" y="318.1" width="72.0" height="55.9" fill="#be123c" fill-opacity="1" stroke="#be123c" stroke-width="1.5"  rx="2"/>
+  <text x="375.0" y="312.1" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">6.41</text>
+  <text x="375.0" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 375.0 390)">binocle-one</text>
+  <rect x="542.3" y="111.3" width="72.0" height="262.7" fill="#f59e0b" fill-opacity="1" stroke="#f59e0b" stroke-width="1.5"  rx="2"/>
+  <text x="578.3" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">30.1</text>
+  <text x="578.3" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 578.3 390)">pocketbase</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: binocle-nano</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(lower is better)</text>
+
+</svg>
+    <div class="winner">&#127942; <b>Winner: binocle-nano</b> — 4.9 MB — 1.31× lower than runner-up <span class="wtag">vs binocle-one</span></div>
+    <table>
+      <thead><tr><th>contender</th><th>source</th><th>value</th><th>artifact / origin</th></tr></thead>
+      <tbody>
+      <tr><td>binocle-nano</td><td class="src-measured">measured</td><td>4.9</td><td><code>artifacts/nano-vs-pocketbase.json</code></td></tr>
+      <tr><td>binocle-one</td><td class="src-measured">measured</td><td>6.41</td><td><code>wiki/nano-vs-pocketbase.md (m45)</code></td></tr>
+      <tr><td>pocketbase</td><td class="src-measured">measured</td><td>30.1</td><td><code>artifacts/nano-vs-pocketbase.json</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section id="rss_under_load_mib">
+    <h2>rss_under_load_mib</h2>
+    <p class="ctx">resources  ·  MiB — lower is better</p>
+    <svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="rss_under_load_mib">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">rss_under_load_mib</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">resources  ·  (MiB)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">108.9</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">217.8</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">326.7</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">435.7</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">544.6</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">MiB</text>
+  <rect x="135.7" y="365.5" width="72.0" height="8.5" fill="#475569" fill-opacity="1" stroke="#475569" stroke-width="1.5"  rx="2"/>
+  <text x="171.7" y="343.5" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="171.7" y="359.5" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">14.9</text>
+  <text x="171.7" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 171.7 390)">binocle-nano</text>
+  <rect x="339.0" y="363.4" width="72.0" height="10.6" fill="#be123c" fill-opacity="1" stroke="#be123c" stroke-width="1.5"  rx="2"/>
+  <text x="375.0" y="357.4" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">18.6</text>
+  <text x="375.0" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 375.0 390)">binocle-one</text>
+  <rect x="542.3" y="111.3" width="72.0" height="262.7" fill="#f59e0b" fill-opacity="1" stroke="#f59e0b" stroke-width="1.5"  rx="2"/>
+  <text x="578.3" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">461.5</text>
+  <text x="578.3" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 578.3 390)">pocketbase</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: binocle-nano</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(lower is better)</text>
+
+</svg>
+    <div class="winner">&#127942; <b>Winner: binocle-nano</b> — 14.9 MiB — 1.25× lower than runner-up <span class="wtag">vs binocle-one</span></div>
+    <table>
+      <thead><tr><th>contender</th><th>source</th><th>value</th><th>artifact / origin</th></tr></thead>
+      <tbody>
+      <tr><td>binocle-nano</td><td class="src-measured">measured</td><td>14.9</td><td><code>artifacts/nano-one-pb-load.json .rss_under_load</code></td></tr>
+      <tr><td>binocle-one</td><td class="src-measured">measured</td><td>18.6</td><td><code>artifacts/nano-one-pb-load.json .rss_under_load</code></td></tr>
+      <tr><td>pocketbase</td><td class="src-measured">measured</td><td>461.5</td><td><code>artifacts/nano-one-pb-load.json .rss_under_load</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section id="disk_after_100k_mb">
+    <h2>disk_after_100k_mb</h2>
+    <p class="ctx">resources  ·  MB — lower is better</p>
+    <svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="disk_after_100k_mb">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">disk_after_100k_mb</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">resources  ·  (MB)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">67</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">134</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">200.9</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">267.9</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">334.9</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">MB</text>
+  <rect x="135.7" y="345.1" width="72.0" height="28.9" fill="#475569" fill-opacity="1" stroke="#475569" stroke-width="1.5"  rx="2"/>
+  <text x="171.7" y="339.1" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">31.2</text>
+  <text x="171.7" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 171.7 390)">binocle-nano</text>
+  <rect x="339.0" y="345.8" width="72.0" height="28.2" fill="#be123c" fill-opacity="1" stroke="#be123c" stroke-width="1.5"  rx="2"/>
+  <text x="375.0" y="323.8" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="375.0" y="339.8" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">30.5</text>
+  <text x="375.0" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 375.0 390)">binocle-one</text>
+  <rect x="542.3" y="111.3" width="72.0" height="262.7" fill="#f59e0b" fill-opacity="1" stroke="#f59e0b" stroke-width="1.5"  rx="2"/>
+  <text x="578.3" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">283.8</text>
+  <text x="578.3" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 578.3 390)">pocketbase</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: binocle-one</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(lower is better)</text>
+
+</svg>
+    <div class="winner">&#127942; <b>Winner: binocle-one</b> — 30.5 MB — 2.24% lower than runner-up <span class="wtag">vs binocle-nano</span></div>
+    <table>
+      <thead><tr><th>contender</th><th>source</th><th>value</th><th>artifact / origin</th></tr></thead>
+      <tbody>
+      <tr><td>binocle-nano</td><td class="src-measured">measured</td><td>31.2</td><td><code>artifacts/nano-one-pb-load.json .disk_after_big</code></td></tr>
+      <tr><td>binocle-one</td><td class="src-measured">measured</td><td>30.5</td><td><code>artifacts/nano-one-pb-load.json .disk_after_big</code></td></tr>
+      <tr><td>pocketbase</td><td class="src-measured">measured</td><td>283.8</td><td><code>artifacts/nano-one-pb-load.json .disk_after_big</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section id="cold_start_ms">
+    <h2>cold_start_ms</h2>
+    <p class="ctx">ops  ·  ms — lower is better</p>
+    <svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="cold_start_ms">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">cold_start_ms</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">ops  ·  (ms)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">30.9</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">61.8</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">92.7</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">123.7</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">154.6</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">ms</text>
+  <rect x="135.7" y="362.0" width="72.0" height="12.0" fill="#475569" fill-opacity="1" stroke="#475569" stroke-width="1.5"  rx="2"/>
+  <text x="171.7" y="356.0" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">6</text>
+  <text x="171.7" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 171.7 390)">binocle-nano</text>
+  <rect x="339.0" y="364.0" width="72.0" height="10.0" fill="#be123c" fill-opacity="1" stroke="#be123c" stroke-width="1.5"  rx="2"/>
+  <text x="375.0" y="342.0" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="375.0" y="358.0" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">5</text>
+  <text x="375.0" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 375.0 390)">binocle-one</text>
+  <rect x="542.3" y="111.3" width="72.0" height="262.7" fill="#f59e0b" fill-opacity="1" stroke="#f59e0b" stroke-width="1.5"  rx="2"/>
+  <text x="578.3" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">131</text>
+  <text x="578.3" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 578.3 390)">pocketbase</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: binocle-one</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(lower is better)</text>
+
+</svg>
+    <div class="winner">&#127942; <b>Winner: binocle-one</b> — 5 ms — 1.2× lower than runner-up <span class="wtag">vs binocle-nano</span></div>
+    <table>
+      <thead><tr><th>contender</th><th>source</th><th>value</th><th>artifact / origin</th></tr></thead>
+      <tbody>
+      <tr><td>binocle-nano</td><td class="src-measured">measured</td><td>6</td><td><code>artifacts/nano-one-pb-load.json .boot_ms</code></td></tr>
+      <tr><td>binocle-one</td><td class="src-measured">measured</td><td>5</td><td><code>artifacts/nano-one-pb-load.json .boot_ms</code></td></tr>
+      <tr><td>pocketbase</td><td class="src-measured">measured</td><td>131</td><td><code>artifacts/nano-one-pb-load.json .boot_ms</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+  <h3>Scale curves — y vs. tenant count</h3>
+  <section id="insert_rps_vs_concurrency">
+    <h2>Insert throughput vs concurrency (rps, higher better)</h2>
+    <p class="ctx">  ·  rps — x = tenant count (log scale)</p>
+    <svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img" aria-label="Insert throughput vs concurrency (rps, higher better)">
+  <rect x="0" y="0" width="880" height="480" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Insert throughput vs concurrency (rps, higher better)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">(rps)</text>
+
+  <line x1="74" y1="410.0" x2="670" y2="410.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="414.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="74" y1="340.8" x2="670" y2="340.8" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="344.8" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">4,195</text>
+  <line x1="74" y1="271.6" x2="670" y2="271.6" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="275.6" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">8,390</text>
+  <line x1="74" y1="202.4" x2="670" y2="202.4" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="206.4" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">12,586</text>
+  <line x1="74" y1="133.2" x2="670" y2="133.2" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="137.2" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">16,781</text>
+  <line x1="74" y1="64.0" x2="670" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">20,976</text>
+  <line x1="74.0" y1="64" x2="74.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="74.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">1</text>
+  <line x1="471.3" y1="64" x2="471.3" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="471.3" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">16</text>
+  <line x1="670.0" y1="64" x2="670.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="670.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">64</text>
+  <line x1="74" y1="64" x2="74" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="74" y1="410" x2="670" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="372" y="454" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569">concurrency (log scale)</text>
+  <text x="18" y="237" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 237)">rps</text>
+  <polyline points="74.0,293.5 471.3,126.3 670.0,109.1" fill="none" stroke="#475569" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="293.5" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="126.3" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="109.1" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="112.1" font-family="sans-serif" font-size="10" fill="#475569">18,240</text>
+  <polyline points="74.0,293.9 471.3,147.3 670.0,115.3" fill="none" stroke="#be123c" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="293.9" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="147.3" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="115.3" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="118.3" font-family="sans-serif" font-size="10" fill="#be123c">17,869</text>
+  <polyline points="74.0,368.1 471.3,353.8 670.0,366.9" fill="none" stroke="#f59e0b" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="368.1" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="353.8" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="366.9" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="369.9" font-family="sans-serif" font-size="10" fill="#f59e0b">2,612</text>
+  <line x1="688" y1="70" x2="714" y2="70" stroke="#475569" stroke-width="2.5" />
+  <text x="720" y="74" font-family="sans-serif" font-size="11" fill="#334155">binocle-nano</text>
+  <line x1="688" y1="90" x2="714" y2="90" stroke="#be123c" stroke-width="2.5" />
+  <text x="720" y="94" font-family="sans-serif" font-size="11" fill="#334155">binocle-one</text>
+  <line x1="688" y1="110" x2="714" y2="110" stroke="#f59e0b" stroke-width="2.5" />
+  <text x="720" y="114" font-family="sans-serif" font-size="11" fill="#334155">pocketbase</text>
+
+</svg>
+    <div class="winner">&#127942; <b>Winner: binocle-nano</b> — 18,240 rps — higher than runner-up <span class="wtag">vs binocle-one</span></div>
+    <table>
+      <thead><tr><th>contender</th><th>source</th><th>value</th><th>artifact / origin</th></tr></thead>
+      <tbody>
+      <tr><td>binocle-nano</td><td class="src-measured">measured</td><td>7,064, 17,197, 18,240</td><td><code>—</code></td></tr>
+      <tr><td>binocle-one</td><td class="src-measured">measured</td><td>7,040, 15,924, 17,869</td><td><code>—</code></td></tr>
+      <tr><td>pocketbase</td><td class="src-measured">measured</td><td>2,539, 3,408, 2,612</td><td><code>—</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section id="insert_p99_vs_concurrency">
+    <h2>Insert p99 tail vs concurrency (ms, lower better)</h2>
+    <p class="ctx">  ·  ms — x = tenant count (log scale)</p>
+    <svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img" aria-label="Insert p99 tail vs concurrency (ms, lower better)">
+  <rect x="0" y="0" width="880" height="480" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Insert p99 tail vs concurrency (ms, lower better)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">(ms)</text>
+
+  <line x1="74" y1="410.0" x2="670" y2="410.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="414.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="74" y1="340.8" x2="670" y2="340.8" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="344.8" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">34</text>
+  <line x1="74" y1="271.6" x2="670" y2="271.6" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="275.6" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">68.1</text>
+  <line x1="74" y1="202.4" x2="670" y2="202.4" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="206.4" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">102.1</text>
+  <line x1="74" y1="133.2" x2="670" y2="133.2" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="137.2" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">136.2</text>
+  <line x1="74" y1="64.0" x2="670" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">170.2</text>
+  <line x1="74.0" y1="64" x2="74.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="74.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">1</text>
+  <line x1="471.3" y1="64" x2="471.3" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="471.3" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">16</text>
+  <line x1="670.0" y1="64" x2="670.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="670.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">64</text>
+  <line x1="74" y1="64" x2="74" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="74" y1="410" x2="670" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="372" y="454" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569">concurrency (log scale)</text>
+  <text x="18" y="237" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 237)">ms</text>
+  <polyline points="74.0,409.4 471.3,398.6 670.0,390.9" fill="none" stroke="#475569" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="409.4" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="398.6" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="390.9" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="393.9" font-family="sans-serif" font-size="10" fill="#475569">9.4</text>
+  <polyline points="74.0,409.4 471.3,398.6 670.0,390.9" fill="none" stroke="#be123c" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="409.4" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="398.6" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="390.9" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="393.9" font-family="sans-serif" font-size="10" fill="#be123c">9.4</text>
+  <polyline points="74.0,408.6 471.3,241.5 670.0,109.1" fill="none" stroke="#f59e0b" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="408.6" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="241.5" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="109.1" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="112.1" font-family="sans-serif" font-size="10" fill="#f59e0b">148</text>
+  <line x1="688" y1="70" x2="714" y2="70" stroke="#475569" stroke-width="2.5" />
+  <text x="720" y="74" font-family="sans-serif" font-size="11" fill="#334155">binocle-nano</text>
+  <line x1="688" y1="90" x2="714" y2="90" stroke="#be123c" stroke-width="2.5" />
+  <text x="720" y="94" font-family="sans-serif" font-size="11" fill="#334155">binocle-one</text>
+  <line x1="688" y1="110" x2="714" y2="110" stroke="#f59e0b" stroke-width="2.5" />
+  <text x="720" y="114" font-family="sans-serif" font-size="11" fill="#334155">pocketbase</text>
+
+</svg>
+    <div class="winner">&#127942; <b>Winner: binocle-nano</b> — 9.4 ms — lower than runner-up <span class="wtag">vs binocle-one</span></div>
+    <table>
+      <thead><tr><th>contender</th><th>source</th><th>value</th><th>artifact / origin</th></tr></thead>
+      <tbody>
+      <tr><td>binocle-nano</td><td class="src-measured">measured</td><td>0.3, 5.6, 9.4</td><td><code>—</code></td></tr>
+      <tr><td>binocle-one</td><td class="src-measured">measured</td><td>0.3, 5.6, 9.4</td><td><code>—</code></td></tr>
+      <tr><td>pocketbase</td><td class="src-measured">measured</td><td>0.7, 82.9, 148</td><td><code>—</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section id="list_rps_vs_concurrency">
+    <h2>List/read throughput vs concurrency (rps, higher better)</h2>
+    <p class="ctx">  ·  rps — x = tenant count (log scale)</p>
+    <svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img" aria-label="List/read throughput vs concurrency (rps, higher better)">
+  <rect x="0" y="0" width="880" height="480" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">List/read throughput vs concurrency (rps, higher better)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">(rps)</text>
+
+  <line x1="74" y1="410.0" x2="670" y2="410.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="414.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="74" y1="340.8" x2="670" y2="340.8" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="344.8" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">5,875</text>
+  <line x1="74" y1="271.6" x2="670" y2="271.6" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="275.6" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">11,750</text>
+  <line x1="74" y1="202.4" x2="670" y2="202.4" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="206.4" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">17,625</text>
+  <line x1="74" y1="133.2" x2="670" y2="133.2" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="137.2" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">23,500</text>
+  <line x1="74" y1="64.0" x2="670" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">29,376</text>
+  <line x1="74.0" y1="64" x2="74.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="74.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">1</text>
+  <line x1="471.3" y1="64" x2="471.3" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="471.3" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">16</text>
+  <line x1="670.0" y1="64" x2="670.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="670.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">64</text>
+  <line x1="74" y1="64" x2="74" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="74" y1="410" x2="670" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="372" y="454" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569">concurrency (log scale)</text>
+  <text x="18" y="237" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 237)">rps</text>
+  <polyline points="74.0,331.6 471.3,272.9 670.0,244.9" fill="none" stroke="#475569" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="331.6" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="272.9" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="244.9" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="247.9" font-family="sans-serif" font-size="10" fill="#475569">14,020</text>
+  <polyline points="74.0,334.8 471.3,274.2 670.0,240.4" fill="none" stroke="#be123c" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="334.8" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="274.2" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="240.4" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="243.4" font-family="sans-serif" font-size="10" fill="#be123c">14,399</text>
+  <polyline points="74.0,375.8 471.3,109.1 670.0,183.8" fill="none" stroke="#f59e0b" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="375.8" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="109.1" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="183.8" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="186.8" font-family="sans-serif" font-size="10" fill="#f59e0b">19,206</text>
+  <line x1="688" y1="70" x2="714" y2="70" stroke="#475569" stroke-width="2.5" />
+  <text x="720" y="74" font-family="sans-serif" font-size="11" fill="#334155">binocle-nano</text>
+  <line x1="688" y1="90" x2="714" y2="90" stroke="#be123c" stroke-width="2.5" />
+  <text x="720" y="94" font-family="sans-serif" font-size="11" fill="#334155">binocle-one</text>
+  <line x1="688" y1="110" x2="714" y2="110" stroke="#f59e0b" stroke-width="2.5" />
+  <text x="720" y="114" font-family="sans-serif" font-size="11" fill="#334155">pocketbase</text>
+
+</svg>
+    <div class="winner rival">&#127942; <b>Winner: pocketbase</b> — 19,206 rps — 1.33× higher than runner-up <span class="wtag">vs binocle-one</span></div>
+    <table>
+      <thead><tr><th>contender</th><th>source</th><th>value</th><th>artifact / origin</th></tr></thead>
+      <tbody>
+      <tr><td>binocle-nano</td><td class="src-measured">measured</td><td>6,659, 11,637, 14,020</td><td><code>—</code></td></tr>
+      <tr><td>binocle-one</td><td class="src-measured">measured</td><td>6,386, 11,530, 14,399</td><td><code>—</code></td></tr>
+      <tr><td>pocketbase</td><td class="src-measured">measured</td><td>2,905, 25,544, 19,206</td><td><code>—</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section id="list_p99_vs_concurrency">
+    <h2>List/read p99 tail vs concurrency (ms, lower better)</h2>
+    <p class="ctx">  ·  ms — x = tenant count (log scale)</p>
+    <svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img" aria-label="List/read p99 tail vs concurrency (ms, lower better)">
+  <rect x="0" y="0" width="880" height="480" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">List/read p99 tail vs concurrency (ms, lower better)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">(ms)</text>
+
+  <line x1="74" y1="410.0" x2="670" y2="410.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="414.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="74" y1="340.8" x2="670" y2="340.8" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="344.8" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">6.28</text>
+  <line x1="74" y1="271.6" x2="670" y2="271.6" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="275.6" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">12.6</text>
+  <line x1="74" y1="202.4" x2="670" y2="202.4" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="206.4" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">18.8</text>
+  <line x1="74" y1="133.2" x2="670" y2="133.2" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="137.2" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">25.1</text>
+  <line x1="74" y1="64.0" x2="670" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">31.4</text>
+  <line x1="74.0" y1="64" x2="74.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="74.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">1</text>
+  <line x1="471.3" y1="64" x2="471.3" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="471.3" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">16</text>
+  <line x1="670.0" y1="64" x2="670.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="670.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">64</text>
+  <line x1="74" y1="64" x2="74" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="74" y1="410" x2="670" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="372" y="454" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569">concurrency (log scale)</text>
+  <text x="18" y="237" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 237)">ms</text>
+  <polyline points="74.0,406.7 471.3,388.0 670.0,324.0" fill="none" stroke="#475569" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="406.7" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="388.0" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="324.0" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="327.0" font-family="sans-serif" font-size="10" fill="#475569">7.8</text>
+  <polyline points="74.0,406.7 471.3,388.0 670.0,326.2" fill="none" stroke="#be123c" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="406.7" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="388.0" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="326.2" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="329.2" font-family="sans-serif" font-size="10" fill="#be123c">7.6</text>
+  <polyline points="74.0,401.2 471.3,381.3 670.0,109.1" fill="none" stroke="#f59e0b" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="401.2" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="381.3" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="109.1" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="112.1" font-family="sans-serif" font-size="10" fill="#f59e0b">27.3</text>
+  <line x1="688" y1="70" x2="714" y2="70" stroke="#475569" stroke-width="2.5" />
+  <text x="720" y="74" font-family="sans-serif" font-size="11" fill="#334155">binocle-nano</text>
+  <line x1="688" y1="90" x2="714" y2="90" stroke="#be123c" stroke-width="2.5" />
+  <text x="720" y="94" font-family="sans-serif" font-size="11" fill="#334155">binocle-one</text>
+  <line x1="688" y1="110" x2="714" y2="110" stroke="#f59e0b" stroke-width="2.5" />
+  <text x="720" y="114" font-family="sans-serif" font-size="11" fill="#334155">pocketbase</text>
+
+</svg>
+    <div class="winner">&#127942; <b>Winner: binocle-one</b> — 7.6 ms — lower than runner-up <span class="wtag">vs binocle-nano</span></div>
+    <table>
+      <thead><tr><th>contender</th><th>source</th><th>value</th><th>artifact / origin</th></tr></thead>
+      <tbody>
+      <tr><td>binocle-nano</td><td class="src-measured">measured</td><td>0.3, 2, 7.8</td><td><code>—</code></td></tr>
+      <tr><td>binocle-one</td><td class="src-measured">measured</td><td>0.3, 2, 7.6</td><td><code>—</code></td></tr>
+      <tr><td>pocketbase</td><td class="src-measured">measured</td><td>0.8, 2.6, 27.3</td><td><code>—</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section id="rss_vs_tenants">
+    <h2>RAM to HOST N tenants (MiB, lower better) — the multi-tenancy reality</h2>
+    <p class="ctx">  ·  MiB — x = tenant count (log scale)</p>
+    <svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img" aria-label="RAM to HOST N tenants (MiB, lower better) — the multi-tenancy reality">
+  <rect x="0" y="0" width="880" height="480" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">RAM to HOST N tenants (MiB, lower better) — the multi-tenancy reality</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">(MiB)</text>
+
+  <line x1="74" y1="389.5" x2="670" y2="389.5" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="393.5" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">1</text>
+  <line x1="74" y1="360.6" x2="670" y2="360.6" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="364.6" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">10</text>
+  <line x1="74" y1="311.1" x2="670" y2="311.1" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="315.1" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">100</text>
+  <line x1="74" y1="261.7" x2="670" y2="261.7" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="265.7" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">1,000</text>
+  <line x1="74" y1="212.3" x2="670" y2="212.3" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="216.3" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">10,000</text>
+  <line x1="74" y1="162.9" x2="670" y2="162.9" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="166.9" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">100,000</text>
+  <line x1="74" y1="113.4" x2="670" y2="113.4" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="117.4" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">1,000,000</text>
+  <line x1="74" y1="64.0" x2="670" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">10,000,000</text>
+  <line x1="74.0" y1="64" x2="74.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="74.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">10,000</text>
+  <line x1="490.6" y1="64" x2="490.6" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="490.6" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">50,000</text>
+  <line x1="670.0" y1="64" x2="670.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="670.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">100,000</text>
+  <line x1="74" y1="64" x2="74" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="74" y1="410" x2="670" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="372" y="454" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569">tenant count (log scale)</text>
+  <text x="18" y="237" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 237)">MiB (log)</text>
+  <polyline points="74.0,389.5 490.6,386.4 670.0,386.4" fill="none" stroke="#475569" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="389.5" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="490.6" cy="386.4" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="386.4" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="389.4" font-family="sans-serif" font-size="10" fill="#475569">3</text>
+  <polyline points="74.0,157.0 490.6,122.5 670.0,107.6" fill="none" stroke="#be123c" stroke-width="2.5" stroke-dasharray="2 3" stroke-linejoin="round"/>
+  <circle cx="74.0" cy="157.0" r="3.5" fill="#be123c" fill-opacity="0.4" stroke="#fff" stroke-width="1"/>
+  <circle cx="490.6" cy="122.5" r="3.5" fill="#be123c" fill-opacity="0.4" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="107.6" r="3.5" fill="#be123c" fill-opacity="0.4" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="110.6" font-family="sans-serif" font-size="10" fill="#be123c">1,311,000</text>
+  <line x1="688" y1="70" x2="714" y2="70" stroke="#475569" stroke-width="2.5" />
+  <text x="720" y="74" font-family="sans-serif" font-size="11" fill="#334155">binocle (one process, SHA…</text>
+  <line x1="688" y1="90" x2="714" y2="90" stroke="#be123c" stroke-width="2.5" stroke-dasharray="2 3"/>
+  <text x="720" y="94" font-family="sans-serif" font-size="11" fill="#334155">PocketBase (1 instance / … (model)</text>
+
+</svg>
+    <div class="winner">&#127942; <b>Winner: binocle-platform</b> — 3 MiB <span class="wtag">(modeled)</span> — 437,000× lower than runner-up <span class="wtag">vs pocketbase-n-instances</span></div>
+    <table>
+      <thead><tr><th>contender</th><th>source</th><th>value</th><th>artifact / origin</th></tr></thead>
+      <tbody>
+      <tr><td>binocle-platform</td><td class="src-measured">measured</td><td>2.6, 3, 3</td><td><code>artifacts/scale/footprint-live-24887.json</code></td></tr>
+      <tr><td>pocketbase-n-instances</td><td class="src-modeled">modeled</td><td>131,100, 655,500, 1,311,000</td><td><code>10,000 x 13.11 MiB per-instance idle RSS = 128 GiB. PocketBase is one app per process; N tenants = N processes.</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body></html>

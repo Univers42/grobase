@@ -1,0 +1,101 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $root := . -}}
+{{- $rel := .Release.Name -}}
+{{- $ns := include "mini-baas.namespace" . -}}
+{{- /*
+DENY-BY-DEFAULT network posture for the whole edition (Checkov CKV2_K8S_6).
+
+The generated mini-baas chart selects its services dynamically per edition, so —
+unlike the hand-authored ../grobase chart, which models every plane edge — this
+policy is intentionally coarse but covers EVERY pod:
+
+1. baseline-deny  — select every mini-baas pod in this release, allow NOTHING on
+   ingress, and allow ONLY DNS on egress. Every allow below is additive.
+2. allow-intra    — any mini-baas pod may receive from any other mini-baas pod
+   in the SAME release (the service mesh keeps working); external sources stay
+   denied. This is what makes every pod CKV2_K8S_6-covered while still closing
+   the cluster boundary.
+3. allow-ingress  — the front-door services (networkPolicy.ingressTargets, e.g.
+   kong/waf) may additionally be reached from the ingress-controller namespace.
+
+OFF by default (values.networkPolicy.enabled=false) so the chart stays
+byte-parity with the compose stack. Requires a CNI that enforces NetworkPolicy
+(Calico/Cilium/etc.) — on a CNI that ignores it, this is inert, not harmful.
+*/ -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-baseline-deny
+  namespace: {{ $ns }}
+  labels:
+    {{- include "mini-baas.commonLabels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mini-baas
+      app.kubernetes.io/instance: {{ $rel }}
+  policyTypes: [Ingress, Egress]
+  ingress: []                  # deny ALL ingress (allows are separate policies)
+  egress:
+    # DNS must stay open or service discovery breaks the whole stack.
+    - to: []
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    # Intra-release egress: any mini-baas pod may reach any other mini-baas pod
+    # (the per-release INGRESS policy below is what actually scopes the edge).
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mini-baas
+              app.kubernetes.io/instance: {{ $rel }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-allow-intra
+  namespace: {{ $ns }}
+  labels:
+    {{- include "mini-baas.commonLabels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mini-baas
+      app.kubernetes.io/instance: {{ $rel }}
+  policyTypes: [Ingress]
+  ingress:
+    # any pod in this release may receive from any other pod in this release
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mini-baas
+              app.kubernetes.io/instance: {{ $rel }}
+{{- range $tname := ($root.Values.networkPolicy.ingressTargets | default list) }}
+{{- $svc := index $root.Values.services $tname }}
+{{- if and $svc $svc.enabled $svc.ports }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $rel }}-allow-ingress-{{ $tname }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "mini-baas.commonLabels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "mini-baas.selectorLabels" (dict "root" $root "name" $tname) | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    # the ingress controller may reach this front-door service on its port(s)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $root.Values.networkPolicy.ingressControllerNamespace }}
+      ports:
+        {{- range $svc.ports }}
+        - { protocol: TCP, port: {{ . }} }
+        {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

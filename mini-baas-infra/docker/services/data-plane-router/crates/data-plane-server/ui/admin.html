@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>binocle — admin</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--line:#21262d;--fg:#e6edf3;--dim:#8b949e;--acc:#3fb6a8;--bad:#f85149;--ok:#56d364}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+a{color:var(--acc)}
+header{display:flex;align-items:center;gap:12px;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:15px;font-weight:600}
+header h1 b{color:var(--acc)}
+header .right{margin-left:auto;color:var(--dim);font-size:12px;display:flex;gap:10px;align-items:center}
+nav{display:flex;gap:2px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+nav button{background:none;border:none;color:var(--dim);padding:9px 13px;cursor:pointer;font:inherit;border-bottom:2px solid transparent}
+nav button.on{color:var(--fg);border-bottom-color:var(--acc)}
+main{padding:18px;max-width:1180px;margin:0 auto}
+section{display:none}section.on{display:block}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:14px}
+.card h2{font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:6px 9px;border-bottom:1px solid var(--line);vertical-align:top;word-break:break-word}
+th{color:var(--dim);font-weight:500}
+tr:hover td{background:#1c2128}
+input,select{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font:inherit}
+input:focus,select:focus{outline:none;border-color:var(--acc)}
+button.b{background:var(--acc);color:#06231f;border:none;border-radius:6px;padding:7px 13px;font:inherit;font-weight:600;cursor:pointer}
+button.b.ghost{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+button.b.red{background:transparent;color:var(--bad);border:1px solid var(--bad);padding:3px 9px;font-size:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.msg{padding:8px 11px;border-radius:6px;margin:8px 0;font-size:13px;display:none}
+.msg.err{display:block;background:#3d1d20;color:var(--bad)}
+.msg.ok{display:block;background:#12261e;color:var(--ok)}
+.pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;border:1px solid var(--line);color:var(--dim)}
+.pill.g{color:var(--ok);border-color:var(--ok)}
+#login{max-width:430px;margin:12vh auto}
+#tail{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px;height:340px;overflow:auto;font-size:12px;white-space:pre-wrap}
+#tail div{border-bottom:1px dashed var(--line);padding:3px 0;color:var(--dim)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:900px){.cols{grid-template-columns:1fr}}
+code{color:var(--acc)}
+</style>
+</head>
+<body>
+<div id="login">
+  <div class="card">
+    <h1 style="margin-bottom:10px">⬡ <b style="color:var(--acc)">binocle</b> admin</h1>
+    <p style="color:var(--dim);margin-bottom:12px">Paste an <b>admin API key</b>. First boot printed one to the console; <code>NANO_ADMIN_KEY</code> pins it. The key stays in this browser only.</p>
+    <div class="row"><input id="key" type="password" placeholder="nbk_…" style="flex:1"><button class="b" onclick="login()">Open</button></div>
+    <div id="lmsg" class="msg"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+<header>
+  <h1>⬡ <b>binocle</b> admin</h1>
+  <span class="right"><span id="who"></span><button class="b ghost" onclick="logout()">lock</button></span>
+</header>
+<nav>
+  <button data-s="overview" class="on" onclick="show(this)">Overview</button>
+  <button data-s="collections" onclick="show(this)">Collections</button>
+  <button data-s="grid" onclick="show(this)">Data</button>
+  <button data-s="users" onclick="show(this)">Users</button>
+  <button data-s="keys" onclick="show(this)">Keys</button>
+  <button data-s="files" onclick="show(this)">Files</button>
+  <button data-s="tail" onclick="show(this)">Realtime</button>
+</nav>
+<main>
+<div id="gmsg" class="msg"></div>
+
+<section id="s-overview" class="on">
+  <div class="card"><h2>Deployment</h2><div id="ov"></div></div>
+  <div class="card"><h2>What this is</h2>
+    <p style="color:var(--dim)">binocle-one — the single-binary backend: data plane + accounts (password/OAuth/OTP/TOTP) + files + realtime, ~6 MB. This dashboard drives the same public API your apps use; nothing here is a private door except the admin-scope endpoints.</p>
+  </div>
+</section>
+
+<section id="s-collections">
+  <div class="row">
+    <label>mount <select id="c-mount" onchange="loadSchema()"></select></label>
+    <button class="b ghost" onclick="loadSchema()">refresh</button>
+  </div>
+  <div class="cols">
+    <div class="card"><h2>Tables</h2><div id="c-tables"></div></div>
+    <div class="card"><h2>Create table</h2>
+      <div class="row"><input id="ct-name" placeholder="table name"></div>
+      <div id="ct-cols"></div>
+      <div class="row">
+        <button class="b ghost" onclick="addColRow()">+ column</button>
+        <button class="b" onclick="createTable()">create</button>
+      </div>
+      <p style="color:var(--dim);font-size:12px">An <code>owner_id TEXT NOT NULL</code> column is what makes per-user isolation work — keep it for user-facing tables.</p>
+    </div>
+  </div>
+</section>
+
+<section id="s-grid">
+  <div class="row">
+    <label>mount <select id="g-mount"></select></label>
+    <input id="g-table" placeholder="table">
+    <input id="g-where" placeholder="WHERE … (optional, raw)" style="flex:1">
+    <button class="b" onclick="loadGrid()">query</button>
+  </div>
+  <p style="color:var(--dim);font-size:12px;margin-bottom:8px">Admin grid reads via <code>/nano/v1/raw</code> — the escape hatch that sees ACROSS users (normal CRUD stays owner-scoped, even for this key).</p>
+  <div class="card" style="overflow:auto"><div id="g-out"></div></div>
+</section>
+
+<section id="s-users">
+  <div class="card"><h2>Accounts</h2><div id="u-out"></div></div>
+</section>
+
+<section id="s-keys">
+  <div class="card"><h2>Mint key</h2>
+    <div class="row">
+      <input id="k-name" placeholder="name">
+      <label><input type="checkbox" id="k-read" checked> read</label>
+      <label><input type="checkbox" id="k-write" checked> write</label>
+      <label><input type="checkbox" id="k-admin"> admin</label>
+      <button class="b" onclick="mintKey()">mint</button>
+    </div>
+    <div id="k-new"></div>
+  </div>
+  <div class="card"><h2>Keys</h2><div id="k-out"></div></div>
+</section>
+
+<section id="s-files">
+  <div class="card"><h2>Files</h2><div id="f-out"></div></div>
+</section>
+
+<section id="s-tail">
+  <div class="row">
+    <input id="t-topics" placeholder="topics (e.g. notes,db:main — empty = all)" style="flex:1">
+    <button class="b" id="t-btn" onclick="toggleTail()">start</button>
+  </div>
+  <div id="tail"></div>
+</section>
+</main>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+let KEY=localStorage.getItem("binocle_admin_key")||"";
+let MOUNTS=[];let ES=null;
+
+function flash(el,cls,text){el.className="msg "+cls;el.textContent=text;setTimeout(()=>{el.className="msg"},5000)}
+const gmsg=(c,t)=>flash($("gmsg"),c,t);
+
+async function api(path,opts={}){
+  opts.headers=Object.assign({"Content-Type":"application/json","X-Baas-Api-Key":KEY},opts.headers||{});
+  const r=await fetch(path,opts);
+  if(r.status===204)return{};
+  const body=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(body.message||body.error||r.status);
+  return body;
+}
+
+async function login(){
+  KEY=$("key").value.trim();
+  try{
+    const info=await api("/nano/v1/info");
+    localStorage.setItem("binocle_admin_key",KEY);
+    boot(info);
+  }catch(e){flash($("lmsg"),"err","rejected: "+e.message)}
+}
+function logout(){localStorage.removeItem("binocle_admin_key");location.reload()}
+
+function boot(info){
+  $("login").style.display="none";$("app").style.display="block";
+  MOUNTS=info.mounts||[];
+  $("who").textContent=info.edition+" v"+info.version;
+  $("ov").innerHTML=`<table><tr><th>edition</th><td>${esc(info.edition)}</td></tr>
+    <tr><th>version</th><td>${esc(info.version)}</td></tr>
+    <tr><th>mounts</th><td>${MOUNTS.map(m=>`<span class=pill>${esc(m)}</span>`).join(" ")}</td></tr>
+    <tr><th>realtime</th><td>${esc(info.realtime||"")}</td></tr></table>`;
+  for(const sel of["c-mount","g-mount"]){
+    $(sel).innerHTML=MOUNTS.map(m=>`<option>${esc(m)}</option>`).join("");
+  }
+  addColRow();loadSchema();loadUsers();loadKeys();loadFiles();
+}
+
+function show(btn){
+  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b===btn));
+  document.querySelectorAll("main section").forEach(s=>s.classList.toggle("on",s.id==="s-"+btn.dataset.s));
+}
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ── collections ── */
+async function loadSchema(){
+  const db=$("c-mount").value;if(!db)return;
+  try{
+    const s=await api("/data/v1/schema",{method:"POST",body:JSON.stringify({db_id:db})});
+    const tables=s.tables||s.schemas||[];
+    $("c-tables").innerHTML=tables.length?tables.map(t=>{
+      const cols=(t.columns||[]).map(c=>`<tr><td>${esc(c.name)}</td><td style="color:var(--dim)">${esc(c.normalized_type||c.data_type||"")}</td><td>${c.nullable===false?"<span class=pill>req</span>":""}</td></tr>`).join("");
+      return`<details><summary style="cursor:pointer;padding:5px 0"><b>${esc(t.name)}</b> <span style="color:var(--dim)">${(t.columns||[]).length} cols</span></summary><table>${cols}</table></details>`;
+    }).join(""):"<p style='color:var(--dim)'>no tables yet</p>";
+  }catch(e){gmsg("err","schema: "+e.message)}
+}
+const TYPES=["text","integer","real","boolean","timestamp","json","enum"];
+function addColRow(){
+  const d=document.createElement("div");d.className="row";
+  d.innerHTML=`<input placeholder="column" class="cc-n" style="width:130px">
+    <select class="cc-t" onchange="this.nextElementSibling.style.display=this.value==='enum'?'':'none'">${TYPES.map(t=>`<option>${t}</option>`).join("")}</select>
+    <input placeholder="a,b,c" class="cc-e" style="display:none;width:110px">
+    <label><input type="checkbox" class="cc-pk"> pk</label>
+    <label><input type="checkbox" class="cc-req"> required</label>
+    <button class="b red" onclick="this.parentNode.remove()">×</button>`;
+  $("ct-cols").appendChild(d);
+}
+async function createTable(){
+  const db=$("c-mount").value,name=$("ct-name").value.trim();
+  if(!name)return gmsg("err","table name required");
+  const columns=[],pk=[];
+  for(const r of $("ct-cols").children){
+    const n=r.querySelector(".cc-n").value.trim();if(!n)continue;
+    const t=r.querySelector(".cc-t").value;
+    const col={name:n,normalized_type:t,nullable:!r.querySelector(".cc-req").checked};
+    if(t==="enum")col.enum_values=r.querySelector(".cc-e").value.split(",").map(s=>s.trim()).filter(Boolean);
+    columns.push(col);
+    if(r.querySelector(".cc-pk").checked){pk.push(n);col.nullable=false}
+  }
+  if(!columns.length)return gmsg("err","at least one column");
+  try{
+    await api("/data/v1/schema/ddl",{method:"POST",body:JSON.stringify({db_id:db,ddl:{op:"create_table",table:name,columns,primary_key:pk}})});
+    gmsg("ok","table "+name+" created");$("ct-name").value="";$("ct-cols").innerHTML="";addColRow();loadSchema();
+  }catch(e){gmsg("err","create: "+e.message)}
+}
+
+/* ── data grid (admin: raw, cross-user) ── */
+async function loadGrid(){
+  const db=$("g-mount").value,t=$("g-table").value.trim();
+  if(!/^[A-Za-z0-9_]+$/.test(t))return gmsg("err","table must be [A-Za-z0-9_]");
+  const where=$("g-where").value.trim();
+  const sql=`SELECT * FROM ${t}${where?" WHERE "+where:""} LIMIT 100`;
+  try{
+    const r=await api("/nano/v1/raw",{method:"POST",body:JSON.stringify({db_id:db,statement:sql,expect_rows:true})});
+    const rows=r.rows||[];
+    if(!rows.length){$("g-out").innerHTML="<p style='color:var(--dim)'>no rows</p>";return}
+    const cols=Object.keys(rows[0]);
+    $("g-out").innerHTML=`<table><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join("")}</tr>`+
+      rows.map(row=>`<tr>${cols.map(c=>`<td>${esc(typeof row[c]==="object"?JSON.stringify(row[c]):row[c])}</td>`).join("")}</tr>`).join("")+"</table>";
+  }catch(e){gmsg("err","query: "+e.message)}
+}
+
+/* ── users ── */
+async function loadUsers(){
+  try{
+    const r=await api("/one/v1/admin/users");
+    const u=r.users||[];
+    $("u-out").innerHTML=u.length?`<table><tr><th>email</th><th>verified</th><th>created</th><th>id</th><th></th></tr>`+
+      u.map(x=>`<tr><td>${esc(x.email)}</td><td>${x.verified?'<span class="pill g">yes</span>':'<span class=pill>no</span>'}</td><td style="color:var(--dim)">${esc(x.created_at.slice(0,19))}</td><td style="color:var(--dim)">${esc(x.id)}</td>
+      <td><button class="b red" onclick="delUser('${esc(x.id)}','${esc(x.email)}')">delete</button></td></tr>`).join("")+"</table>"
+      :"<p style='color:var(--dim)'>no accounts yet (POST /one/v1/auth/register)</p>";
+  }catch(e){gmsg("err","users: "+e.message)}
+}
+async function delUser(id,email){
+  if(!confirm("Delete account "+email+"? Sessions, identities, MFA all go with it."))return;
+  try{await api("/one/v1/admin/users/"+id,{method:"DELETE"});gmsg("ok","deleted "+email);loadUsers()}
+  catch(e){gmsg("err",e.message)}
+}
+
+/* ── keys ── */
+async function loadKeys(){
+  try{
+    const r=await api("/nano/v1/keys");
+    const k=r.keys||[];
+    $("k-out").innerHTML=`<table><tr><th>name</th><th>scopes</th><th>created</th><th>id</th><th></th></tr>`+
+      k.map(x=>`<tr style="${x.revoked?'opacity:.45':''}"><td>${esc(x.name)}</td><td>${x.scopes.map(s=>`<span class=pill>${esc(s)}</span>`).join(" ")}</td><td style="color:var(--dim)">${esc(x.created_at.slice(0,19))}</td><td style="color:var(--dim)">${esc(x.id)}</td>
+      <td>${x.revoked?"revoked":`<button class="b red" onclick="revokeKey('${esc(x.id)}')">revoke</button>`}</td></tr>`).join("")+"</table>";
+  }catch(e){gmsg("err","keys: "+e.message)}
+}
+async function mintKey(){
+  const scopes=[["k-read","read"],["k-write","write"],["k-admin","admin"]].filter(([i])=>$(i).checked).map(([,s])=>s);
+  try{
+    const r=await api("/nano/v1/keys",{method:"POST",body:JSON.stringify({name:$("k-name").value.trim(),scopes})});
+    $("k-new").innerHTML=`<div class="msg ok" style="display:block">new key (shown ONCE): <code>${esc(r.key)}</code></div>`;
+    $("k-name").value="";loadKeys();
+  }catch(e){gmsg("err","mint: "+e.message)}
+}
+async function revokeKey(id){
+  if(!confirm("Revoke key "+id+"?"))return;
+  try{await api("/nano/v1/keys/"+id,{method:"DELETE"});loadKeys()}catch(e){gmsg("err",e.message)}
+}
+
+/* ── files ── */
+async function loadFiles(){
+  try{
+    const r=await api("/one/v1/admin/files");
+    const f=r.files||[];
+    $("f-out").innerHTML=f.length?`<table><tr><th>file</th><th>coordinate</th><th>type</th><th>size</th><th>owner</th><th></th></tr>`+
+      f.map(x=>`<tr><td>${esc(x.filename)}</td><td style="color:var(--dim)">${esc(x.table_name)}/${esc(x.record_id)}/${esc(x.field)}</td><td style="color:var(--dim)">${esc(x.content_type)}</td><td>${(x.size/1024).toFixed(1)} KB</td><td style="color:var(--dim)">${esc(x.owner)}</td>
+      <td><button class="b ghost" style="padding:3px 9px;font-size:12px" onclick="openFile('${esc(x.id)}')">open</button> <button class="b red" onclick="delFile('${esc(x.id)}')">delete</button></td></tr>`).join("")+"</table>"
+      :"<p style='color:var(--dim)'>no files yet (POST /one/v1/files/{table}/{record}/{field})</p>";
+  }catch(e){gmsg("err","files: "+e.message)}
+}
+async function openFile(id){
+  try{
+    const r=await api("/one/v1/file/"+id+"/token",{method:"POST"});
+    window.open("/one/v1/file/"+id+"?token="+encodeURIComponent(r.token),"_blank");
+  }catch(e){gmsg("err",e.message)}
+}
+async function delFile(id){
+  if(!confirm("Delete file "+id+"?"))return;
+  try{await api("/one/v1/file/"+id,{method:"DELETE"});loadFiles()}catch(e){gmsg("err",e.message)}
+}
+
+/* ── realtime tail ── */
+function toggleTail(){
+  if(ES){ES.close();ES=null;$("t-btn").textContent="start";return}
+  const topics=encodeURIComponent($("t-topics").value.trim());
+  ES=new EventSource(`/nano/v1/realtime?key=${encodeURIComponent(KEY)}${topics?"&topics="+topics:""}`);
+  ES.addEventListener("mutation",e=>{
+    const d=document.createElement("div");d.textContent=e.data;
+    $("tail").prepend(d);
+    while($("tail").children.length>200)$("tail").lastChild.remove();
+  });
+  $("t-btn").textContent="stop";
+}
+
+/* boot */
+if(KEY){api("/nano/v1/info").then(boot).catch(()=>{localStorage.removeItem("binocle_admin_key");KEY=""})}
+$("key").addEventListener("keydown",e=>{if(e.key==="Enter")login()});
+</script>
+</body>
+</html>

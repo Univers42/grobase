@@ -1,0 +1,42 @@
+Grobase PRODUCTION chart installed as release "{{ .Release.Name }}".
+
+Planes enabled:
+{{- range $name, $plane := .Values.planes }}
+{{- if $plane.enabled }}
+  • {{ $name }} ({{ $plane.kind | default "Deployment" }}, port {{ $plane.port }}
+    {{- if and $plane.autoscaling $plane.autoscaling.enabled }}, HPA {{ $plane.autoscaling.minReplicas }}–{{ $plane.autoscaling.maxReplicas }}{{ else }}, replicas {{ $plane.replicas | default 1 }}{{ end }})
+{{- end }}
+{{- end }}
+
+Front door:
+{{- if .Values.ingress.enabled }}
+  Ingress → {{ .Release.Name }}-kong:{{ .Values.planes.kong.port }}
+  {{- range .Values.ingress.hosts }}
+    https://{{ .host }}
+  {{- end }}
+{{- else }}
+  Ingress DISABLED — reach kong via `kubectl port-forward svc/{{ .Release.Name }}-kong {{ .Values.planes.kong.port }}`
+{{- end }}
+
+Network posture:
+{{- if .Values.networkPolicy.enabled }}
+  deny-by-default NetworkPolicy ACTIVE (only the listed edges are open).
+  NOTE: requires a CNI that enforces NetworkPolicy (Calico/Cilium/etc.).
+{{- else }}
+  NetworkPolicy DISABLED — all pod-to-pod traffic is open.
+{{- end }}
+
+Secrets:
+{{- if .Values.vault.enabled }}
+  Vault-CSI ACTIVE — secrets mounted at /vault/secrets via SecretProviderClass
+  "{{ .Release.Name }}-spc". Requires the Secrets Store CSI driver + Vault provider.
+{{- else if .Values.env.secret.create }}
+  Plain K8s Secret "{{ .Release.Name }}-secrets" (Vault-CSI off — dev fallback).
+{{- else }}
+  No secret source configured. Create one before traffic, e.g.:
+    kubectl create secret generic {{ .Release.Name }}-secrets --from-env-file=.env.secret
+{{- end }}
+
+This is the SCALE/HA chart (Track C / C3). The edition-selectable dev chart is
+the GENERATED ../mini-baas chart (`make deploy-gen`). See ./README.md for the
+honest translation limits + the kind smoke path.

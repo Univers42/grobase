@@ -1,0 +1,23 @@
+[package]
+name = "realtime-db-mongodb"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+realtime-core = { path = "../realtime-core" }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+async-trait = { workspace = true }
+mongodb = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bytes = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+futures = { workspace = true }
+
+[lints]
+workspace = true

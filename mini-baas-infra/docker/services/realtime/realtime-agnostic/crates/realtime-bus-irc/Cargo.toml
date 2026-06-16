@@ -1,0 +1,18 @@
+[package]
+name = "realtime-bus-irc"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+realtime-core = { path = "../realtime-core" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+bytes = { workspace = true }
+dashmap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

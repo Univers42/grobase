@@ -1,0 +1,33 @@
+[package]
+name = "realtime-integration-tests"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+realtime-core = { path = "../../crates/realtime-core" }
+realtime-engine = { path = "../../crates/realtime-engine" }
+realtime-bus-inprocess = { path = "../../crates/realtime-bus-inprocess" }
+realtime-auth = { path = "../../crates/realtime-auth" }
+realtime-gateway = { path = "../../crates/realtime-gateway" }
+realtime-server = { path = "../../crates/realtime-server" }
+realtime-client = { path = "../../crates/realtime-client" }
+tokio = { workspace = true }
+tokio-tungstenite = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bytes = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+axum = { workspace = true }
+tower-http = { workspace = true }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "http2"] }
+jsonwebtoken = { workspace = true }
+chrono = { workspace = true }
+smol_str = { workspace = true }
+async-trait = { workspace = true }
+
+[lints]
+workspace = true

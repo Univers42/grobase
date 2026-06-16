@@ -1,0 +1,81 @@
+# ============================================================================ #
+#  Grobase API version contract — DEPRECATION OVERLAY (RFC 8594)                #
+#  Track-B B7.11 · plan: apps/baas/.claude/plans/managed-cloud-enterprise.md    #
+# ============================================================================ #
+#
+# This is an ADDITIVE, OPT-IN overlay. It is NOT loaded by the default stack.
+# The live kong.yml is UNTOUCHED — no route is marked deprecated by default, so
+# the default proxy emits ZERO Sunset/Deprecation headers = byte-parity.
+#
+# WHAT IT DOES
+#   Stamps RFC 8594 lifecycle headers on responses from a route that is being
+#   retired, via Kong's `response-transformer` plugin scoped TO THAT ONE ROUTE
+#   (never the global plugin block — global stamping would hit every route and
+#   break parity, which is exactly the reject arm of m91):
+#
+#     Deprecation: <RFC 9651 date / true>   (the resource is deprecated)
+#     Sunset: <RFC 1123 / HTTP-date>        (after this instant it may be removed)
+#     Link: <…>; rel="deprecation"          (points at the migration doc)
+#     Link: <…>; rel="successor-version"    (points at the replacement, e.g. /v2)
+#
+#   (RFC 8594 defines Sunset + the deprecation/successor-version Link relations;
+#    the Deprecation header field is the companion draft, widely deployed. We
+#    emit a fixed future HTTP-date for Sunset so a client can parse + plan.)
+#
+# HOW TO APPLY (operator, opt-in — one of):
+#   • DECLARATIVE merge: append the `services:`/`routes:` entry below into the
+#     rendered /tmp/kong.yml before `kong docker-start` (the compose entrypoint
+#     already sed-renders kong.yml; an overlay step can `cat` this in), OR
+#   • ADMIN API (DB mode): POST the response-transformer plugin onto the target
+#     route id — `curl -s :8001/routes/<route>/plugins -d name=response-transformer ...`.
+#
+#   In DBLESS (the default mode) the cleanest path is to add the per-route
+#   `plugins:` block to that route in the rendered config. This file shows the
+#   exact shape to copy; it is intentionally a separate route-fragment so the
+#   live kong.yml diff stays empty until an operator deliberately marks a route
+#   deprecated.
+#
+# WHEN TO USE
+#   Only when a specific /v1 route is on the deprecation timeline toward /v2
+#   (see wiki/api-versioning-policy.md). Mark the route, ship the headers for the
+#   full skew window, then cut over. NEVER stamp a route that is not deprecated.
+#
+# ---------------------------------------------------------------------------- #
+# EXAMPLE — deprecating a hypothetical legacy route `/legacy/v1` in favour of
+# `/v2/...`. Replace the service url / paths / dates with the real target. The
+# per-route response-transformer is the ONLY change; everything else on the
+# route (auth, rate-limit) is copied from its canonical kong.yml block so the
+# overlay is a faithful superset, not a behaviour change beyond the headers.
+# ---------------------------------------------------------------------------- #
+_format_version: "3.0"
+
+services:
+  - name: legacy-deprecated-example
+    url: http://query-router:4001
+    routes:
+      - name: legacy-v1-deprecated
+        paths: [/legacy/v1]
+        strip_path: true
+        plugins:
+          # ── THE CONTRACT: RFC 8594 lifecycle headers, ROUTE-SCOPED ──────────
+          # Scoped to THIS route only (a plugin under a route entry, NOT under
+          # the top-level `plugins:` block). A non-deprecated route carries no
+          # such plugin and therefore no header — the m91 reject arm.
+          - name: response-transformer
+            config:
+              add:
+                headers:
+                  # Deprecation: the resource is deprecated as of now.
+                  - "Deprecation:true"
+                  # Sunset: a VALID FUTURE HTTP-date after which the route may be
+                  # removed. Set this to the timeline end from the policy doc.
+                  - "Sunset:Wed, 31 Dec 2025 23:59:59 GMT"
+                  # Link rel=deprecation → migration guide; rel=successor-version → /v2.
+                  - 'Link:<https://docs.grobase.dev/api/deprecations#legacy-v1>; rel="deprecation"'
+                  - 'Link:<https://api.grobase.dev/v2>; rel="successor-version"'
+          # Auth / limits mirror the canonical route (copy from kong.yml). Shown
+          # minimal here; replicate the real route's key-auth/jwt/rate-limiting.
+          - name: key-auth
+            config: { key_names: [apikey], hide_credentials: false }
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 300, hour: 8000 }

@@ -1,0 +1,13 @@
+{
+  "name": "data-plane-contract",
+  "description": "The Rust data-plane capability contract — the engine-agnosticism surface any data-plane layer-swap must preserve. Auth-light: hits the router directly (NEW=http://localhost:4011), so it works before the gateway key is provisioned. The engines[] matrix (per-engine read/write/aggregate/stream/transactions + cost model) is the parity-critical payload; volatile/deployment-specific router runtime fields are normalized out.",
+  "normalize": "{ engines: ((.engines // []) | sort_by(.engine)) }",
+  "requests": [
+    {
+      "name": "capabilities",
+      "method": "GET",
+      "path": "/v1/capabilities",
+      "headers": {}
+    }
+  ]
+}

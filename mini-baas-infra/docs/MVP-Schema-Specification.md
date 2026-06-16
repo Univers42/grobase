@@ -1,0 +1,214 @@
+# MVP Schema Specification
+
+This document defines the endpoint contracts, data models, and validation rules for the MVP release. It serves as the authoritative reference for what each API route accepts, returns, and enforces. Every implementation decision in the data plane should trace back to a rule specified here.
+
+---
+
+## Table of Contents
+
+- [Authentication Routes](#authentication-routes)
+- [PostgreSQL Data Routes](#postgresql-data-routes)
+- [MongoDB Data Routes](#mongodb-data-routes)
+- [Data Models](#data-models)
+  - [PostgreSQL: Projects Table](#postgresql-projects-table)
+  - [PostgreSQL: Additional Tables](#postgresql-additional-tables)
+  - [MongoDB: Document Schema](#mongodb-document-schema)
+- [Cross-Engine Comparison](#cross-engine-comparison)
+- [Schema Variation Rules](#schema-variation-rules)
+
+---
+
+## Authentication Routes
+
+**Upstream:** GoTrue (`/auth/v1` via Kong)
+
+| Endpoint | Method | Protection | Purpose |
+|----------|--------|------------|---------|
+| `/auth/v1/signup` | `POST` | API key | User registration |
+| `/auth/v1/token?grant_type=password` | `POST` | API key | Login — returns access and refresh tokens |
+| `/auth/v1/token?grant_type=refresh_token` | `POST` | API key | Token refresh |
+| `/auth/v1/health` | `GET` | API key | Service health check |
+
+**Required headers:**
+
+```
+apikey: <ANON_KEY>
+Content-Type: application/json
+```
+
+**Success response:** `200` or `201` with `{ user, access_token, refresh_token, expires_in }`.
+
+**Error response:** Standard HTTP status with error envelope.
+
+---
+
+## PostgreSQL Data Routes
+
+**Upstream:** PostgREST (`/rest/v1` via Kong)
+
+| Endpoint | Method | Protection | Purpose |
+|----------|--------|------------|---------|
+| `/rest/v1/projects?select=*` | `GET` | API key + JWT | List projects (RLS filtered) |
+| `/rest/v1/projects` | `POST` | API key + JWT | Create project |
+| `/rest/v1/projects?id=eq.<id>` | `PATCH` | API key + JWT | Update project |
+| `/rest/v1/projects?id=eq.<id>` | `DELETE` | API key + JWT | Delete project |
+
+**Required headers:**
+
+```
+apikey: <ANON_KEY>
+Authorization: Bearer <JWT>
+```
+
+**RLS enforcement:** Every query is filtered at the database layer by `owner_id = auth.uid()::text`. The client never specifies ownership — the database infers it from the JWT.
+
+---
+
+## MongoDB Data Routes
+
+**Upstream:** mongo-api (`/mongo/v1` via Kong)
+
+| Endpoint | Method | Protection | Purpose |
+|----------|--------|------------|---------|
+| `/mongo/v1/health` | `GET` | API key | Service health check |
+| `/mongo/v1/collections/:name/documents` | `POST` | API key + JWT | Create document (`owner_id` auto-injected) |
+| `/mongo/v1/collections/:name/documents` | `GET` | API key + JWT | List documents (filtered by `owner_id`) |
+| `/mongo/v1/collections/:name/documents/:id` | `GET` | API key + JWT | Get single document |
+| `/mongo/v1/collections/:name/documents/:id` | `PATCH` | API key + JWT | Update document |
+| `/mongo/v1/collections/:name/documents/:id` | `DELETE` | API key + JWT | Delete document |
+
+**Required headers:**
+
+```
+apikey: <ANON_KEY>
+Authorization: Bearer <JWT>
+```
+
+**Response envelope:**
+
+```json
+{
+  "success": true,
+  "data": {},
+  "meta": { "total": 100, "limit": 20, "offset": 0 }
+}
+```
+
+**Validation rules:**
+
+| Rule | Detail |
+|------|--------|
+| Collection name | Must match `^[a-zA-Z0-9_-]{1,64}$` |
+| Maximum payload | 256 KB |
+| Forbidden keys | `_id` and `owner_id` — server-controlled, rejected if present in request body |
+
+---
+
+## Data Models
+
+### PostgreSQL: Projects Table
+
+This is the primary demo table for the relational data plane.
+
+```sql
+CREATE TABLE public.projects (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        TEXT NOT NULL,
+  status      TEXT DEFAULT 'active'
+                CHECK (status IN ('active', 'paused', 'archived')),
+  owner_id    TEXT NOT NULL,
+  description TEXT,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can CRUD their own projects"
+  ON public.projects FOR ALL
+  USING      (auth.uid()::text = owner_id)
+  WITH CHECK (auth.uid()::text = owner_id);
+```
+
+The `owner_id` column stores the JWT `sub` claim as text. The RLS policy ensures that every `SELECT`, `INSERT`, `UPDATE`, and `DELETE` operation is scoped to the authenticated user.
+
+### PostgreSQL: Additional Tables
+
+| Table | Purpose | RLS Policy |
+|-------|---------|-----------|
+| `auth.users` | User identity — managed by GoTrue | Internal to auth schema |
+| `public.user_profiles` | Extended user metadata (bio, avatar) | `auth.uid() = user_id` |
+| `public.posts` | Content model with visibility control | `auth.uid()::text = owner_id` |
+
+These tables follow the same RLS pattern as `projects`.
+
+### MongoDB: Document Schema
+
+**Database:** `mini_baas`
+**Collections:** User-defined (e.g., `tasks`, `notes`, `events`)
+
+Example document structure:
+
+```json
+{
+  "_id": "ObjectId (generated by MongoDB)",
+  "owner_id": "user-uuid (injected by service from JWT sub)",
+  "title": "Complete API docs",
+  "status": "in_progress",
+  "priority": "high",
+  "tags": ["docs", "urgent"],
+  "created_at": "2026-03-31T10:00:00Z",
+  "updated_at": "2026-03-31T15:30:00Z"
+}
+```
+
+**Invariants:**
+
+- `owner_id` is server-injected from the JWT `sub` claim. The client cannot set or override it.
+- `_id` is generated by MongoDB. The client cannot provide it.
+- `created_at` and `updated_at` are managed by the service automatically.
+- Collections are schemaless — different collections may store different document shapes.
+
+**Demo collections:**
+
+| Collection | Use Case | Example Fields |
+|-----------|----------|----------------|
+| `tasks` | Project task tracking | title, status, priority, due_date |
+| `notes` | User notes | content, tags, is_pinned |
+| `events` | Event logs | event_type, timestamp, metadata |
+
+---
+
+## Cross-Engine Comparison
+
+| Aspect | PostgreSQL | MongoDB |
+|--------|------------|---------|
+| Schema enforcement | Strict — column types and constraints | Flexible — any document shape |
+| Ownership isolation | RLS policy at the database layer | Application-layer `owner_id` filter |
+| Default values | SQL `DEFAULT` clauses | Application layer (`created_at`, `updated_at`) |
+| Pagination | Offset/limit via PostgREST query params | `limit`/`offset` in service query params |
+| Transactions | Full ACID | Deferred to post-MVP |
+| Aggregation | SQL `GROUP BY`, joins | Deferred to post-MVP |
+
+---
+
+## Schema Variation Rules
+
+### Allowed (MVP)
+
+- Add columns to existing PostgreSQL tables (backward-compatible).
+- Create new PostgreSQL tables following the same RLS pattern.
+- Use different document shapes across MongoDB collections (schemaless by design).
+- Add nested objects and arrays to MongoDB documents.
+
+### Not Allowed (MVP)
+
+- Cross-table joins or aggregation queries through the API.
+- MongoDB aggregation pipelines or multi-document transactions.
+- Nesting `owner_id` inside a sub-document — it must remain a top-level field.
+
+### Schema Migration
+
+1. **PostgreSQL:** Modify `scripts/db-bootstrap.psql` and recreate volumes for a fresh deploy (`make compose-down-volumes && make baas`).
+2. **MongoDB:** New collections accept any schema. Existing collections read documents as-is.
+3. **Breaking changes:** Document in the service contract READMEs under `docker/contracts/`.

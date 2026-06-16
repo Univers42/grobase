@@ -1,0 +1,89 @@
+{{- /*
+One Deployment per ENABLED service. The set of enabled services is what makes
+this an "edition": the values-<edition>.yaml overlay flips the flags, mirroring
+`docker compose --profile`. Env is sourced K8s-idiomatically from a release
+ConfigMap/Secret (the equivalent of compose `env_file: [.env]`), both optional
+so pods schedule before they are populated.
+*/ -}}
+{{- range $name, $svc := .Values.services }}
+{{- if $svc.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $.Release.Name }}-{{ $name }}
+  namespace: {{ include "mini-baas.namespace" $ }}
+  labels:
+    {{- include "mini-baas.commonLabels" $ | nindent 4 }}
+    {{- include "mini-baas.selectorLabels" (dict "root" $ "name" $name) | nindent 4 }}
+spec:
+  replicas: {{ $svc.replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "mini-baas.selectorLabels" (dict "root" $ "name" $name) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "mini-baas.selectorLabels" (dict "root" $ "name" $name) | nindent 8 }}
+    spec:
+      {{- with $.Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- /* POD securityContext: runAsNonRoot + high UID/GID + seccomp
+             (Checkov CKV_K8S_23/29/31/40). Mirrors ../grobase. */ -}}
+      {{- with $.Values.global.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $name }}
+          image: {{ $svc.image | default (printf "%s/mini-baas-%s:%s" $.Values.global.imageRegistry $name $.Values.global.imageTag) | quote }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy | default "IfNotPresent" }}
+          {{- /* CONTAINER securityContext: no privilege escalation, drop ALL
+                 capabilities (Checkov CKV_K8S_20/28/30/37). A per-service
+                 $svc.securityContext, when present, merges on top — e.g. to add
+                 readOnlyRootFilesystem for a stateless service that tolerates
+                 it, or to relax a setting a DB needs. */ -}}
+          {{- with merge (deepCopy ($svc.securityContext | default dict)) ($.Values.global.containerSecurityContext | default dict) }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ $.Release.Name }}-env
+                optional: true
+            - secretRef:
+                name: {{ $.Release.Name }}-secrets
+                optional: true
+          {{- with $svc.ports }}
+          ports:
+            {{- range . }}
+            - name: p{{ . }}
+              containerPort: {{ . }}
+            {{- end }}
+          {{- end }}
+          {{- with $svc.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $svc.probe }}
+          readinessProbe:
+            exec:
+              command:
+                {{- toYaml .exec | nindent 16 }}
+            initialDelaySeconds: {{ .initialDelaySeconds | default 10 }}
+            periodSeconds: {{ .periodSeconds | default 10 }}
+            timeoutSeconds: {{ .timeoutSeconds | default 3 }}
+            failureThreshold: {{ .failureThreshold | default 3 }}
+          livenessProbe:
+            exec:
+              command:
+                {{- toYaml .exec | nindent 16 }}
+            initialDelaySeconds: {{ add (.initialDelaySeconds | default 10) 10 }}
+            periodSeconds: {{ mul (.periodSeconds | default 10) 2 }}
+            timeoutSeconds: {{ .timeoutSeconds | default 3 }}
+            failureThreshold: {{ .failureThreshold | default 3 }}
+          {{- end }}
+{{- end }}
+{{- end }}

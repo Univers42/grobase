@@ -1,0 +1,396 @@
+{
+  "uid": "three-planes",
+  "title": "Three Planes \u2014 TS / Go / Rust",
+  "tags": [
+    "mini-baas",
+    "observability",
+    "three-planes"
+  ],
+  "timezone": "",
+  "schemaVersion": 39,
+  "editable": true,
+  "graphTooltip": 1,
+  "fiscalYearStartMonth": 0,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "title": "Three Planes \u2014 health & throughput",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "title": "Targets up by plane",
+      "type": "stat",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(up{job=~\"permission-engine|mongo-api|schema-service|newsletter-service|gdpr-service|session-service|email-service|log-service|ai-service|analytics-service|storage-router\"})",
+          "legendFormat": "TypeScript app",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(up{job=\"go-control-plane\"})",
+          "legendFormat": "Go control",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(up{job=\"rust-data-plane\"})",
+          "legendFormat": "Rust data",
+          "refId": "C"
+        }
+      ],
+      "description": "Scrape targets currently up, grouped by language plane."
+    },
+    {
+      "title": "Request rate \u2014 all planes (req/s)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 6,
+        "w": 10,
+        "x": 8,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "expr": "sum(rate(mini_baas_http_requests_total{job=~\"permission-engine|mongo-api|schema-service|newsletter-service|gdpr-service|session-service|email-service|log-service|ai-service|analytics-service|storage-router\"}[5m]))",
+          "legendFormat": "TypeScript app",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(baas_http_requests_total{job=\"go-control-plane\"}[5m]))",
+          "legendFormat": "Go control",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(baas_http_requests_total{job=\"rust-data-plane\"}[5m]))",
+          "legendFormat": "Rust data",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "title": "Plane uptime (h)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "expr": "max(baas_uptime_seconds{job=\"go-control-plane\"})/3600",
+          "legendFormat": "Go control",
+          "refId": "A"
+        },
+        {
+          "expr": "max(baas_uptime_seconds{job=\"rust-data-plane\"})/3600",
+          "legendFormat": "Rust data",
+          "refId": "B"
+        },
+        {
+          "expr": "max((time()-process_start_time_seconds{job=~\"permission-engine|mongo-api|schema-service|newsletter-service|gdpr-service|session-service|email-service|log-service|ai-service|analytics-service|storage-router\"}))/3600",
+          "legendFormat": "TypeScript app",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "title": "TypeScript app plane (NestJS)",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "panels": []
+    },
+    {
+      "title": "Request rate by service",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "expr": "sum by (job) (rate(mini_baas_http_requests_total{job=~\"permission-engine|mongo-api|schema-service|newsletter-service|gdpr-service|session-service|email-service|log-service|ai-service|analytics-service|storage-router\"}[5m]))",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "p95 latency by service",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le,job) (rate(mini_baas_http_request_duration_seconds_bucket{job=~\"permission-engine|mongo-api|schema-service|newsletter-service|gdpr-service|session-service|email-service|log-service|ai-service|analytics-service|storage-router\"}[5m])))",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Resident memory / event-loop lag",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes{job=~\"permission-engine|mongo-api|schema-service|newsletter-service|gdpr-service|session-service|email-service|log-service|ai-service|analytics-service|storage-router\"}",
+          "legendFormat": "mem {{job}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Go control plane",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "panels": []
+    },
+    {
+      "title": "Service up",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "expr": "baas_service_up{job=\"go-control-plane\"}",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Request rate by service",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(baas_http_requests_total{job=\"go-control-plane\"}[5m]))",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Avg HTTP latency (ms)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "expr": "baas_http_request_duration_ms_avg{job=\"go-control-plane\"}",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Rust data plane",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "panels": []
+    },
+    {
+      "title": "Service up & uptime",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "expr": "baas_service_up{job=\"rust-data-plane\"}",
+          "legendFormat": "up",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Request rate",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "expr": "sum(rate(baas_http_requests_total{job=\"rust-data-plane\"}[5m]))",
+          "legendFormat": "data-plane",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Pool connections",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "targets": [
+        {
+          "expr": "baas_data_plane_pool_connections",
+          "legendFormat": "{{mount}} {{state}}",
+          "refId": "A"
+        }
+      ],
+      "description": "Live data-plane pool connections per mount/state (bounded-LRU + idle reaper, G5). Empty when all pools have been reaped for idleness."
+    }
+  ]
+}

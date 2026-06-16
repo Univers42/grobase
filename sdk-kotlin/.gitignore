@@ -1,0 +1,14 @@
+# Gradle / Kotlin build artifacts — generated, never committed.
+.gradle/
+build/
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+out/
+
+# OS
+.DS_Store

@@ -1,0 +1,60 @@
+# Grobase DEV overlay — kind/minikube-friendly. Strips the prod-only edges so
+# the chart renders + installs on a laptop cluster (the C3 "kind smoke" path):
+#   helm install grobase . -f values-dev.yaml
+#
+#   - HPA off (a laptop cluster rarely runs metrics-server)
+#   - Ingress off (use `kubectl port-forward svc/grobase-kong 8000`)
+#   - NetworkPolicy off (kind's default CNI does not enforce it)
+#   - Vault-CSI off (no CSI driver) → plain in-chart Secret fallback
+#   - single replicas, tiny PVCs, relaxed security context
+
+global:
+  imageTag: "latest"
+  imagePullPolicy: IfNotPresent
+  # kind images frequently expect root; relax the hard non-root posture for dev.
+  podSecurityContext:
+    fsGroup: 10001
+
+env:
+  configMap:
+    SECURITY_MODE: "baseline"   # dev: libpq `require`, no Vault-backed engine creds
+    RUST_LOG: "debug"
+  secret:
+    create: true                # dev fallback Secret (Vault-CSI off)
+    data: {}                    # fill via --set or a dev-only values file
+
+vault:
+  enabled: false
+
+ingress:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+
+planes:
+  postgres:
+    replicas: 1
+    persistence:
+      size: 2Gi
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits:   { cpu: "1",  memory: 512Mi }
+  redis:
+    persistence:
+      size: 1Gi
+  data-plane-router-rust:
+    replicas: 1
+    autoscaling: { enabled: false }
+  tenant-control:
+    replicas: 1
+    autoscaling: { enabled: false }
+  adapter-registry-go:
+    replicas: 1
+    autoscaling: { enabled: false }
+  realtime:
+    replicas: 1
+    autoscaling: { enabled: false }
+  kong:
+    replicas: 1
+    autoscaling: { enabled: false }

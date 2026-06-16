@@ -1,0 +1,100 @@
+# Platform alert rules (Track-2 E2). Every expression targets a metric this
+# stack actually exposes — verified live against the running /metrics endpoints,
+# not guessed. Validate locally with:
+#   promtool check rules config/prometheus/rules/platform.yml
+# (the m52 gate runs exactly this.)
+groups:
+  # ── availability ────────────────────────────────────────────────────────────
+  - name: platform-availability
+    rules:
+      - alert: TargetDown
+        # Prometheus' own per-target up gauge — fires when a scrape fails
+        # (process crashed / unreachable), which baas_service_up cannot show
+        # (it's hardcoded 1 whenever the service is alive enough to be scraped).
+        expr: up == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $labels.job }}/{{ $labels.instance }} is down"
+          description: "Prometheus has failed to scrape this target for 2m."
+
+      - alert: High5xxRatio
+        # 5xx share of a service's traffic over 5m, guarded by a minimum request
+        # rate so a single error on an idle service doesn't page anyone.
+        expr: |
+          (
+            sum by (service) (rate(baas_http_requests_total{status="5xx"}[5m]))
+            /
+            sum by (service) (rate(baas_http_requests_total[5m]))
+          ) > 0.05
+          and
+          sum by (service) (rate(baas_http_requests_total[5m])) > 0.1
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.service }}: 5xx ratio above 5%"
+          description: "{{ $labels.service }} has served >5% 5xx over 5m at meaningful traffic."
+
+  # ── data integrity (event loss is never acceptable) ─────────────────────────
+  - name: platform-data-integrity
+    rules:
+      - alert: OutboxEventsDropped
+        # The data plane could not enqueue an outbox event — a lost change
+        # notification. Page immediately; this is correctness, not capacity.
+        expr: increase(baas_data_plane_outbox_events_total{stage="dropped"}[10m]) > 0
+        for: 0m
+        labels: { severity: critical }
+        annotations:
+          summary: "Data-plane dropped outbox events"
+          description: "{{ $value }} outbox event(s) dropped in 10m on {{ $labels.service }}."
+
+      - alert: OutboxWritesFailed
+        expr: increase(baas_data_plane_outbox_events_total{stage="failed"}[10m]) > 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Data-plane outbox write failures"
+          description: "{{ $value }} outbox write(s) failed in 10m on {{ $labels.service }} (will retry)."
+
+      - alert: WebhookDeadLettering
+        # Deliveries exhausting all retries → DLQ. Surfaced by the F2 counter.
+        expr: increase(baas_webhook_deliveries_total{outcome="dead"}[15m]) > 0
+        for: 0m
+        labels: { severity: warning }
+        annotations:
+          summary: "Webhook deliveries dead-lettering"
+          description: "{{ $value }} delivery(ies) gave up after max attempts in 15m on {{ $labels.service }}."
+
+      - alert: RealtimeEventsDropped
+        # Slow-consumer overflow = clients silently losing realtime updates
+        # (the C4 counter; was a bare debug! before).
+        expr: increase(baas_realtime_events_dropped_total{reason="overflow"}[10m]) > 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Realtime gateway dropping events to slow consumers"
+          description: "{{ $value }} event(s) dropped (overflow) in 10m — subscribers are missing updates."
+
+  # ── capacity ────────────────────────────────────────────────────────────────
+  - name: platform-capacity
+    rules:
+      - alert: DataPlanePoolsHigh
+        # Approaching the default MAX_POOLS=4096 ceiling. With SHARE_POOLS=1 the
+        # pool count is independent of tenant count, so a high value here means
+        # either per-tenant pools (self-host shape) under real fan-out or a leak.
+        expr: baas_data_plane_pools_open > 3500
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Data-plane open pools near the MAX_POOLS ceiling"
+          description: "{{ $value }} pools open on {{ $labels.service }} (ceiling 4096; consider SHARE_POOLS=1)."
+
+      - alert: WebhookRetryStorm
+        # Sustained high retry rate = a subscriber endpoint is flapping; informational.
+        expr: |
+          sum by (service) (rate(baas_webhook_deliveries_total{outcome="retry"}[10m])) > 1
+        for: 15m
+        labels: { severity: info }
+        annotations:
+          summary: "Sustained webhook retry rate"
+          description: ">1 retry/s over 10m for 15m on {{ $labels.service }} — a subscriber may be flapping."

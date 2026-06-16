@@ -1,0 +1,39 @@
+groups:
+  - name: mini-baas-observability
+    rules:
+      - alert: service_down
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "mini-BaaS service {{ $labels.service }} is down"
+
+      - alert: error_rate_high
+        expr: |
+          (
+            sum by (service) (rate(mini_baas_http_requests_total{status_code=~"5.."}[5m]))
+            /
+            clamp_min(sum by (service) (rate(mini_baas_http_requests_total[5m])), 1)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "mini-BaaS service {{ $labels.service }} 5xx rate is above 5%"
+
+      - alert: outbox_lag_high
+        expr: mini_baas_outbox_pending_events > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "mini-BaaS outbox pending lag is above 1000 events"
+
+      - alert: audit_log_write_failed
+        expr: increase(mini_baas_audit_log_write_failed_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "mini-BaaS audit_log writes are failing"

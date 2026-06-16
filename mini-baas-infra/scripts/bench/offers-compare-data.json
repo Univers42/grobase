@@ -1,0 +1,398 @@
+{
+  "generated": "2026-06-15",
+  "title": "Grobase offer comparison — vs Supabase and MongoDB Atlas",
+  "intro": "Grobase ships five honest tiers on one codebase — every number is measured against packages.json and the bench/scale artifacts. Here we line them up, dollar-for-dollar and feature-for-feature, against Supabase's published pricing and MongoDB Atlas (whose App Services BaaS layer reached end-of-life on 2025-09-30).",
+  "grobaseTiers": [
+    {
+      "id": "nano",
+      "label": "Nano",
+      "priceRetail": "Free / $5",
+      "engines": 1,
+      "engineList": "sqlite",
+      "rpsBurst": "50 / 100",
+      "maxMounts": 1,
+      "quota": "100k/mo",
+      "ramMiB": 2.1,
+      "capabilities": "CRUD + introspect",
+      "source": "packages.json + cost-analysis.md"
+    },
+    {
+      "id": "basic",
+      "label": "Basic",
+      "priceRetail": "Free / $9",
+      "engines": 2,
+      "engineList": "sqlite, postgresql",
+      "rpsBurst": "100 / 200",
+      "maxMounts": 1,
+      "quota": "500k/mo",
+      "ramMiB": 463,
+      "capabilities": "CRUD only",
+      "source": "packages.json + cost-analysis.md"
+    },
+    {
+      "id": "essential",
+      "label": "Essential",
+      "priceRetail": "$25 - $39",
+      "engines": 2,
+      "engineList": "postgresql, sqlite",
+      "rpsBurst": "200 / 400",
+      "maxMounts": 2,
+      "quota": "2M/mo",
+      "ramMiB": 822,
+      "capabilities": "CRUD + aggregate",
+      "source": "packages.json + cost-analysis.md + artifacts/footprint-*.json"
+    },
+    {
+      "id": "pro",
+      "label": "Pro",
+      "priceRetail": "$59 - $99",
+      "engines": 7,
+      "engineList": "postgresql, sqlite, mysql, mariadb, mongodb, redis, cockroachdb",
+      "rpsBurst": "400 / 800",
+      "maxMounts": 10,
+      "quota": "10M/mo",
+      "ramMiB": 1392,
+      "capabilities": "CRUD + aggregate + batch + transactions + schema/DDL; +realtime +analytics",
+      "source": "packages.json + cost-analysis.md + artifacts/footprint-*.json"
+    },
+    {
+      "id": "max",
+      "label": "Max",
+      "priceRetail": "$149 - $299",
+      "engines": 9,
+      "engineList": "+ mssql, + http (9 total)",
+      "rpsBurst": "800 / 1600",
+      "maxMounts": 50,
+      "quota": "unlimited",
+      "ramMiB": 3174,
+      "capabilities": "Everything incl. DDL; +realtime +analytics +observability +engines +functions +storage",
+      "source": "packages.json + cost-analysis.md + artifacts/footprint-*.json"
+    }
+  ],
+  "comparisons": [
+    {
+      "id": "supabase",
+      "rival": "Supabase",
+      "rivalTagline": "Postgres-only managed BaaS",
+      "verdict": "Supabase is an excellent, polished single-Postgres BaaS with a beautiful Studio, mature auth, and a big community — if you only ever need PostgreSQL and you want a hosted dashboard out of the box, pick them. Where Grobase wins: nine engines instead of one, four selectable isolation models, and per-request RLS that lets a single shared pool carry 24,887 measured tenants at 2.9 MiB of data-plane RSS — so our per-tenant cost stays flat where a Supabase project is one Postgres database per project. Their Team tier ($599/mo) buys SOC 2 + ISO 27001 and dashboard SSO that we do not yet certify; our growth/Pro tier covers the same engines-plus-realtime-plus-analytics surface at $79. Choose Supabase if you want a managed dashboard + formal compliance today; choose Grobase if you want engine choice, self-host parity, and flat-cost multi-tenancy you can measure.",
+      "priceLadder": [
+        {
+          "label": "Free / entry",
+          "grobaseUsd": 0,
+          "rivalUsd": 0,
+          "grobaseTier": "nano",
+          "rivalPlan": "Free",
+          "note": "Grobase Nano is a 5 MB / 2.1 MiB binary you self-host with zero standing cost; Supabase Free gives 2 projects, 500 MB DB, 50k MAU, and pauses a project after ~1 week of inactivity."
+        },
+        {
+          "label": "Single product",
+          "grobaseUsd": 29,
+          "rivalUsd": 25,
+          "grobaseTier": "essential",
+          "rivalPlan": "Pro (+$10 compute credit)",
+          "note": "Comparable price; Supabase Pro includes $10/mo compute credit (Small/Medium compute bills above it), 8 GB DB, 100k MAU. Grobase Essential adds a second engine + aggregate at 2 mounts."
+        },
+        {
+          "label": "Growth / team",
+          "grobaseUsd": 79,
+          "rivalUsd": 599,
+          "grobaseTier": "pro",
+          "rivalPlan": "Team",
+          "note": "Supabase Team ($599/mo) is priced for SOC 2 + ISO 27001 + 14-day backups + dashboard SSO. Grobase Pro ($79) delivers 7 engines, transactions, realtime + analytics; we do not yet sell formal compliance — that gap is honest."
+        }
+      ],
+      "features": [
+        {
+          "feature": "Database engines",
+          "grobase": "9 (pg, mysql, mariadb, mongo, mssql, cockroach, redis, sqlite, http)",
+          "grobaseLevel": "win",
+          "rival": "PostgreSQL only",
+          "rivalLevel": "ok",
+          "source": "packages.json / supabase.com/pricing"
+        },
+        {
+          "feature": "Multi-tenancy density",
+          "grobase": "24,887 tenants @ 2.9 MiB data-plane RSS, 0 standing pools (per-request RLS)",
+          "grobaseLevel": "win",
+          "rival": "One project = one Postgres DB; tenancy only via RLS inside a single project",
+          "rivalLevel": "partial",
+          "source": "gate m46-share-pools-isolation.sh + artifacts/scale/footprint-live-24888-today.json / supabase.com"
+        },
+        {
+          "feature": "Isolation models per mount",
+          "grobase": "4 selectable (shared_rls, schema, db, instance)",
+          "grobaseLevel": "win",
+          "rival": "RLS within a single project",
+          "rivalLevel": "ok",
+          "source": "m46-share-pools-isolation.sh / supabase.com docs"
+        },
+        {
+          "feature": "Realtime",
+          "grobase": "WS/SSE subscribe + publish (Rust event bus), Pro/Max add-on",
+          "grobaseLevel": "win",
+          "rival": "200 concurrent / 2M mess-mo on Free; Postgres CDC realtime",
+          "rivalLevel": "ok",
+          "source": "/realtime/v1/* gates / supabase.com/pricing"
+        },
+        {
+          "feature": "Object storage",
+          "grobase": "S3/MinIO (or any S3-compatible: R2/Backblaze/Wasabi/AWS) buckets, list, object, presigned sign + on-the-fly image transforms (resize/webp/jpeg/png/avif, gate m95) + per-bucket ABAC + per-request owner-scoping; self-host = NO per-GB / egress / total-storage cap (you pay only your own bucket)",
+          "grobaseLevel": "win",
+          "rival": "1 GB Free / 100 GB Pro (hard quota), mature managed CDN + image transforms",
+          "rivalLevel": "ok",
+          "source": "/storage/v1/* + image-transform.ts + gate m95 / supabase.com/pricing"
+        },
+        {
+          "feature": "Functions",
+          "grobase": "Deno runtime: deploy/list/invoke + DB-event triggers (cross-tenant-isolated) + per-fn secrets (AES-GCM) + warm pool + per-invoke mem-cap + live cron + baas CLI; self-host = NO invocation cap, data never leaves your infra",
+          "grobaseLevel": "win",
+          "rival": "Edge Functions, 500k invocations/mo Free (billing cap), globally distributed (Deno Deploy edge), mature managed runtime",
+          "rivalLevel": "win",
+          "source": "/functions/v1/* + functions-runtime/src/server.ts + gate m56/m79/m96 / supabase.com/pricing"
+        },
+        {
+          "feature": "Auth / MFA",
+          "grobase": "Same engine as Supabase (gotrue v2.188.1 vendored) + passkeys/WebAuthn (m107), per-tenant OIDC SSO (m110), SCIM 2.0 (m111), OAuth2/OIDC+PKCE+TOTP+recovery (m41/m42); self-host = no MAU cap",
+          "grobaseLevel": "win",
+          "rival": "Mature GoTrue-based auth, many OAuth providers, MFA, 50k-100k MAU — but SSO/SCIM are paid Team/Enterprise only, no first-class passkeys; SAML 2.0 + Studio auth UI win",
+          "rivalLevel": "ok",
+          "source": "Dockerfile FROM supabase/gotrue:v2.188.1; gates m107/m110/m111/m41/m42; supabase.com/pricing (SSO/SCIM = paid)"
+        },
+        {
+          "feature": "Backups / PITR",
+          "grobase": "Per-TENANT logical backup/restore (atomic Go-native COPY, restore one tenant in isolation, gate m87) + PITR restore-to-timestamp (WAL archive + recovery_target_time, tier retention nano1d…max90d, gate m99) + whole-cluster drill (m47); self-host = backups in your own bucket, no storage/egress markup",
+          "grobaseLevel": "win",
+          "rival": "Daily backups + 7-day PITR (Pro), 14-day retention (Team) — turnkey managed SLA, but whole-project only (no per-tenant restore)",
+          "rivalLevel": "ok",
+          "source": "internal/backup/* + 042_tenant_backups.sql + gates m87/m99/m47 / supabase.com/pricing"
+        },
+        {
+          "feature": "GraphQL",
+          "grobase": "pg_graphql (same extension as Supabase), RLS-isolation gate-proven (m59, two-tenant + anon-denied); self-host = no per-query/egress metering; opt-in glibc edition (docker-compose.graphql.yml)",
+          "grobaseLevel": "ok",
+          "rival": "pg_graphql auto-API, default-on + hosted GraphiQL Studio explorer",
+          "rivalLevel": "ok",
+          "source": "scripts/verify/m59-graphql-live.sh / 035_pg_graphql.sql / kong.yml / supabase.com docs"
+        },
+        {
+          "feature": "Vector / full-text search",
+          "grobase": "First-class op=fulltext_search (ranked to_tsvector @@ websearch_to_tsquery, multi-column, language-aware, owner-scoped — gate m101) + op=vector_search (pgvector kNN cosine/l2/ip — gate m102); engine-agnostic, capability-gated",
+          "grobaseLevel": "win",
+          "rival": "pgvector + tsvector (FTS is a single-column filter operator; vector needs a hand-written SQL RPC)",
+          "rivalLevel": "ok",
+          "source": "postgres.rs build_search/build_vector_order + gates m101/m102 / supabase.com"
+        },
+        {
+          "feature": "Dashboard / Studio",
+          "grobase": "binocle-one admin UI at /_/ ; tenant self-serve API",
+          "grobaseLevel": "partial",
+          "rival": "Full hosted Studio (table editor, SQL editor, logs)",
+          "rivalLevel": "win",
+          "source": "binocle-one edition / supabase.com"
+        },
+        {
+          "feature": "SDK languages",
+          "grobase": "TS/JS, Python, Kotlin, Swift, Dart",
+          "grobaseLevel": "win",
+          "rival": "JS/TS, Flutter/Dart, Swift, Python, C#, Kotlin (community)",
+          "rivalLevel": "win",
+          "source": "apps/baas/sdk* / supabase.com docs"
+        },
+        {
+          "feature": "Self-host parity",
+          "grobase": "Same single codebase nano→max; OSS self-host is the default, no rewrite",
+          "grobaseLevel": "win",
+          "rival": "Self-host exists but lags hosted; many features cloud-first",
+          "rivalLevel": "partial",
+          "source": "02-layer-edition-model.md / supabase.com/docs/self-hosting"
+        },
+        {
+          "feature": "WAF / network segmentation",
+          "grobase": "In-stack OWASP-CRS WAF as the sole public listener (SQLi/XSS/traversal → 403 with CRS rule-IDs, benign passes — gate m140) + per-plane network segmentation (public edge ↛ data/control plane REFUSED, gate m140) + per-tenant IP allowlist (m106) + a copy-paste Cloudflare front-door recipe. Supabase OSS self-host ships neither an in-stack WAF nor plane isolation.",
+          "grobaseLevel": "win",
+          "rival": "Network restrictions / IP allow-list (managed); fronted by their own Cloudflare; no in-stack WAF in the OSS self-host stack",
+          "rivalLevel": "partial",
+          "source": "gate m140 + m106 / wiki/network-controls.md"
+        },
+        {
+          "feature": "Compliance posture",
+          "grobase": "Buyer-recomputable, cryptographically tamper-evident hash-chained audit (m104) + continuous SOC2-lite evidence collector that reflects reality (m108) + GDPR hard-erase/export (m105/m109), unified into an ASVS 4.0 + SOC 2 TSC + GDPR control matrix, every row evidence-backed (gate m141). All self-host + independently re-verifiable. Honest caveat: no external SOC2/ISO/HIPAA attestation yet (an auditor + business milestone, not a code gap).",
+          "grobaseLevel": "win",
+          "rival": "External-attested SOC 2 Type II + ISO/IEC 27001:2022 + HIPAA BAA as a hosted product — wins on the paper cert; controls are not buyer-recomputable",
+          "rivalLevel": "win",
+          "source": "gate m141/m104/m108 + wiki/compliance-posture.md"
+        },
+        {
+          "feature": "Cost per tenant at scale",
+          "grobase": "Flat: 24,887 tenants share one pool @ 2.9 MiB; rps = measured_capacity × fair_share × 0.5",
+          "grobaseLevel": "win",
+          "rival": "Per-project Postgres + compute add-ons (Small ~$15, Medium ~$60 above the $10 credit)",
+          "rivalLevel": "partial",
+          "source": "cost-analysis.md + footprint-live-24888-today.json / supabase.com/pricing"
+        }
+      ]
+    },
+    {
+      "id": "atlas",
+      "rival": "MongoDB Atlas",
+      "rivalTagline": "Managed MongoDB (BaaS layer retired 2025)",
+      "verdict": "MongoDB Atlas is a first-class managed MongoDB — Atlas Search, vector search, Charts, and Stream Processing are genuinely strong, and if your workload is document-native and you want the best managed MongoDB operations, pick them. But the honest, decisive point for an app backend: Atlas App Services — the entire BaaS layer — reached end-of-life on 2025-09-30. The Data API, GraphQL API, Device Sync + Realm SDKs, App Services Functions, hosted Authentication/user management, Static Hosting, and Custom HTTPS Endpoints are all shut down; only Database Triggers survive. So in 2026 Atlas is a managed DATABASE, not a BaaS — the Firebase-style backend it once offered is gone. Grobase gives you that retired surface back (CRUD/aggregate API, GraphQL, auth/MFA, functions) on nine engines including MongoDB itself, self-hostable, on one codebase. Choose Atlas if you want premier managed MongoDB + Atlas Search/Charts; choose Grobase if you need the application backend Atlas no longer ships.",
+      "priceLadder": [
+        {
+          "label": "Free / entry",
+          "grobaseUsd": 0,
+          "rivalUsd": 0,
+          "grobaseTier": "nano",
+          "rivalPlan": "M0 Free",
+          "note": "Atlas M0 is 512 MB shared storage, ~100 ops/sec — a database only, no app backend. Grobase Nano is a self-hosted 2.1 MiB binary with a full CRUD + introspect API."
+        },
+        {
+          "label": "Single product",
+          "grobaseUsd": 29,
+          "rivalUsd": 30,
+          "grobaseTier": "essential",
+          "rivalPlan": "Flex ($8-$30)",
+          "note": "Atlas Flex (GA Feb 2025, base $8 usage-capped at $30) is a managed DB scaling 100→500 ops/sec, 5 GB — still no BaaS layer. Grobase Essential is a real backend API with aggregate at $25-$39."
+        },
+        {
+          "label": "Growth / team",
+          "grobaseUsd": 79,
+          "rivalUsd": 400,
+          "grobaseTier": "pro",
+          "rivalPlan": "Dedicated M30",
+          "note": "Atlas M30 (~$400/mo) is dedicated DB compute; you still build and host the application backend yourself since App Services is EOL. Grobase Pro ($79) ships the backend (7 engines incl. MongoDB, transactions, realtime, analytics)."
+        }
+      ],
+      "features": [
+        {
+          "feature": "Database engines",
+          "grobase": "9 (pg, mysql, mariadb, mongo, mssql, cockroach, redis, sqlite, http)",
+          "grobaseLevel": "win",
+          "rival": "MongoDB only",
+          "rivalLevel": "ok",
+          "source": "packages.json / mongodb.com/pricing"
+        },
+        {
+          "feature": "Data API (REST over data)",
+          "grobase": "POST /data/v1/query — op = list/get/insert/update/delete/upsert/aggregate, all engines",
+          "grobaseLevel": "win",
+          "rival": "Atlas Data API SHUT DOWN — App Services EOL 2025-09-30",
+          "rivalLevel": "gap",
+          "source": "scripts/verify/m22-live-database.sh / mongodb.com App Services data-api-deprecation (EOL 2025-09-30)"
+        },
+        {
+          "feature": "GraphQL API",
+          "grobase": "GraphQL edition (RLS-aware, gate m59)",
+          "grobaseLevel": "win",
+          "rival": "Atlas GraphQL API SHUT DOWN — App Services EOL 2025-09-30",
+          "rivalLevel": "gap",
+          "source": "docker-compose.graphql.yml / mongodb.com App Services EOL 2025-09-30"
+        },
+        {
+          "feature": "Auth / user management",
+          "grobase": "gotrue surface (signup, password grant, recover, verify, MFA); binocle-one OAuth2 + admin UI",
+          "grobaseLevel": "win",
+          "rival": "App Services Authentication SHUT DOWN — EOL 2025-09-30 (Atlas is DB-only now)",
+          "rivalLevel": "gap",
+          "source": "/auth/v1/* gates / mongodb.com App Services EOL 2025-09-30"
+        },
+        {
+          "feature": "Serverless functions",
+          "grobase": "deploy / list / invoke (Max add-on)",
+          "grobaseLevel": "win",
+          "rival": "App Services Functions SHUT DOWN — EOL 2025-09-30",
+          "rivalLevel": "gap",
+          "source": "/functions/v1/* / mongodb.com App Services EOL 2025-09-30"
+        },
+        {
+          "feature": "Device Sync / offline mobile",
+          "grobase": "Realtime WS/SSE subscribe + publish (not full offline conflict-sync)",
+          "grobaseLevel": "win",
+          "rival": "Device Sync + Realm SDKs SHUT DOWN — EOL 2025-09-30",
+          "rivalLevel": "gap",
+          "source": "/realtime/v1/* / mongodb.com App Services EOL 2025-09-30 (Realm/Device Sync retired)"
+        },
+        {
+          "feature": "Database triggers",
+          "grobase": "Function triggers (Go control plane: functriggers)",
+          "grobaseLevel": "ok",
+          "rival": "Database Triggers — the ONE App Services feature that survives",
+          "rivalLevel": "win",
+          "source": "go/control-plane functriggers / mongodb.com (Database Triggers retained)"
+        },
+        {
+          "feature": "Multi-tenancy density",
+          "grobase": "24,887 tenants @ 2.9 MiB data-plane RSS, 0 standing pools",
+          "grobaseLevel": "win",
+          "rival": "Per-cluster; no app-level multi-tenant BaaS layer",
+          "rivalLevel": "partial",
+          "source": "m46-share-pools-isolation.sh + footprint-live-24888-today.json / mongodb.com"
+        },
+        {
+          "feature": "Isolation models",
+          "grobase": "4 selectable per mount",
+          "grobaseLevel": "win",
+          "rival": "Cluster/DB separation only",
+          "rivalLevel": "ok",
+          "source": "m46-share-pools-isolation.sh / mongodb.com docs"
+        },
+        {
+          "feature": "Search (full-text + vector)",
+          "grobase": "Engine-dependent (pgvector + FTS on Postgres)",
+          "grobaseLevel": "partial",
+          "rival": "Atlas Search + vector search — first-class, still offered",
+          "rivalLevel": "win",
+          "source": "engine-dependent / mongodb.com (Atlas Search retained)"
+        },
+        {
+          "feature": "Object / static hosting",
+          "grobase": "S3/MinIO buckets + presigned (Max add-on)",
+          "grobaseLevel": "ok",
+          "rival": "Static Hosting SHUT DOWN — EOL 2025-09-30",
+          "rivalLevel": "gap",
+          "source": "/storage/v1/* / mongodb.com App Services EOL 2025-09-30"
+        },
+        {
+          "feature": "Charts / BI",
+          "grobase": "Analytics add-on + osionos chart/dashboard client",
+          "grobaseLevel": "ok",
+          "rival": "Atlas Charts — strong, still offered",
+          "rivalLevel": "win",
+          "source": "analytics plane / mongodb.com (Atlas Charts retained)"
+        },
+        {
+          "feature": "SDK languages",
+          "grobase": "TS/JS, Python, Kotlin, Swift, Dart",
+          "grobaseLevel": "win",
+          "rival": "Driver SDKs (DB only); Realm app SDKs retired with Device Sync",
+          "rivalLevel": "partial",
+          "source": "apps/baas/sdk* / mongodb.com (Realm SDKs EOL 2025-09-30)"
+        },
+        {
+          "feature": "Self-host",
+          "grobase": "OSS self-host default, nano→max one codebase no rewrite",
+          "grobaseLevel": "win",
+          "rival": "Atlas is managed-only; Community Server is DB-only, no App Services",
+          "rivalLevel": "partial",
+          "source": "02-layer-edition-model.md / mongodb.com"
+        },
+        {
+          "feature": "Custom HTTPS endpoints",
+          "grobase": "http engine adapter + functions invoke",
+          "grobaseLevel": "win",
+          "rival": "Custom HTTPS Endpoints SHUT DOWN — EOL 2025-09-30",
+          "rivalLevel": "gap",
+          "source": "data-plane-pool http adapter / mongodb.com App Services EOL 2025-09-30"
+        },
+        {
+          "feature": "Pricing transparency",
+          "grobase": "5 honest tiers, packages.json single source; rps measured",
+          "grobaseLevel": "win",
+          "rival": "Flex usage-billed ($8-$30); Dedicated M10 ~$57 → M60 $1,500+ per-hour",
+          "rivalLevel": "ok",
+          "source": "packages.json + cost-analysis.md / mongodb.com/pricing"
+        }
+      ]
+    }
+  ]
+}

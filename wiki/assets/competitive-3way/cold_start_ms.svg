@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="cold_start_ms">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">cold_start_ms</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">ops  ·  (ms)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">30.9</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">61.8</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">92.7</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">123.7</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">154.6</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">ms</text>
+  <rect x="135.7" y="362.0" width="72.0" height="12.0" fill="#475569" fill-opacity="1" stroke="#475569" stroke-width="1.5"  rx="2"/>
+  <text x="171.7" y="356.0" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">6</text>
+  <text x="171.7" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 171.7 390)">binocle-nano</text>
+  <rect x="339.0" y="364.0" width="72.0" height="10.0" fill="#be123c" fill-opacity="1" stroke="#be123c" stroke-width="1.5"  rx="2"/>
+  <text x="375.0" y="342.0" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="375.0" y="358.0" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">5</text>
+  <text x="375.0" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 375.0 390)">binocle-one</text>
+  <rect x="542.3" y="111.3" width="72.0" height="262.7" fill="#f59e0b" fill-opacity="1" stroke="#f59e0b" stroke-width="1.5"  rx="2"/>
+  <text x="578.3" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">131</text>
+  <text x="578.3" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 578.3 390)">pocketbase</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: binocle-one</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(lower is better)</text>
+
+</svg>

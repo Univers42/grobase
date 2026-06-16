@@ -1,0 +1,97 @@
+# File: docker-compose.prod.yml
+# Production overlay — no direct dev ports, limits for everything.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Design (rewritten 2026-06-12 — the previous overlay was REJECTED by compose:
+# base shorthand `cpus:`/`mem_limit:` conflicted with `deploy.resources.*`,
+# and it still configured the retired TS `adapter-registry`):
+#   • The BASE compose already carries mem_limit/cpus for every long-running
+#     service and `restart: unless-stopped` — those ARE the production budgets.
+#   • This overlay therefore only (a) strips direct dev ports — the gateway is
+#     the single public door — and (b) fills in limits for the services the
+#     base leaves uncapped (observability + infra helpers).
+#   • Same shorthand keys as the base (mem_limit/cpus), never deploy.resources,
+#     so the merge can never conflict.
+# Kept exposed on purpose: kong (the product), grafana :3030 (operator
+# dashboard — firewall it), minio :9000 (S3 API for presigned URLs; console
+# stripped).
+
+services:
+  # ── strip direct data-store ports (reachable in-network only) ──────────────
+  postgres:
+    ports: []
+  mongo:
+    ports: []
+  redis:
+    ports: []
+  mysql:
+    ports: []
+  mariadb:
+    ports: []
+  cockroach:
+    ports: []
+  mssql:
+    ports: []
+  iceberg-rest:
+    ports: []
+
+  # ── strip direct service ports (everything flows through Kong) ─────────────
+  gotrue:
+    ports: []
+  postgrest:
+    ports: []
+  studio:
+    ports: []
+
+  # ── observability + infra: strip ports AND cap the uncapped ────────────────
+  prometheus:
+    ports: []          # scraped in-network; expose via Grafana only
+    mem_limit: 512m
+    cpus: 0.50
+  loki:
+    ports: []          # queried by Grafana in-network
+    mem_limit: 384m
+    cpus: 0.50
+  grafana:
+    mem_limit: 256m    # stays on :3030 — the operator dashboard; firewall it
+    cpus: 0.25
+  promtail:
+    mem_limit: 128m
+    cpus: 0.25
+  pg-meta:
+    mem_limit: 256m
+    cpus: 0.25
+  supavisor:
+    mem_limit: 512m
+    cpus: 0.50
+  minio:
+    ports:
+      - "9000:9000"    # keep the S3 API (presigned URLs), strip the console
+    mem_limit: 512m
+    cpus: 0.50
+
+  # ── multi-tenant prod lever (Track-2 C5) ───────────────────────────────────
+  data-plane-router-rust:
+    environment:
+      # Default OFF (isolation-first). A MULTI-TENANT prod operator should turn
+      # this ON: shared_rls tenants on one DB collapse to a single pool keyed by
+      # connection target, not tenant — pool count becomes independent of tenant
+      # count (the 100K-on-one-box property), isolation proven byte-identical to
+      # per-tenant pools across all 7 engines (gate m46). Decision matrix:
+      # wiki/product-plan/07 §C5. Uncomment to enable:
+      # DATA_PLANE_SHARE_POOLS: "1"
+      # Multi-replica deploys: also set the limiter backend to Redis so a tenant
+      # cannot burst its tier once per replica (gate m51):
+      # DATA_PLANE_RATELIMIT_BACKEND: redis
+      DATA_PLANE_SHARE_POOLS: ${DATA_PLANE_SHARE_POOLS:-0}
+
+  # ── tier enforcement (Track-2 F1) ──────────────────────────────────────────
+  adapter-registry-go:
+    environment:
+      # Default OFF — a single-operator self-host should not gate its own
+      # tenant. A SaaS operator SELLING tiers turns this ON to enforce the
+      # engine allowlist + mount quota + capability/rate mask (gate m53).
+      # Assign tenant plans FIRST: with it on, a tenant's plan decides its
+      # engines (free→nano = sqlite only). Uncomment to enable:
+      # PACKAGE_ENFORCEMENT: "1"
+      PACKAGE_ENFORCEMENT: ${PACKAGE_ENFORCEMENT:-0}

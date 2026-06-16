@@ -1,0 +1,1043 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/health/live": {
+      "get": {
+        "operationId": "HealthController_live",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Liveness probe",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "HealthController_ready",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The Health Check is successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {},
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Health Check is not successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "error"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        },
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Readiness — checks adapter-registry reachability",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "PrometheusController_index",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Prometheus"
+        ]
+      }
+    },
+    "/{dbId}/tables/{table}": {
+      "post": {
+        "operationId": "QueryController_execute",
+        "parameters": [
+          {
+            "name": "dbId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "table",
+            "required": true,
+            "in": "path",
+            "description": "Table or collection name",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteQueryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Execute a query on a registered database",
+        "tags": [
+          "query"
+        ]
+      }
+    },
+    "/{dbId}/tables": {
+      "get": {
+        "operationId": "QueryController_listTables",
+        "parameters": [
+          {
+            "name": "dbId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List tables/collections in a registered database",
+        "tags": [
+          "query"
+        ]
+      }
+    },
+    "/txn": {
+      "post": {
+        "operationId": "TxnController_txn",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TxnRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Run a single-mount atomic write batch (all-or-nothing). Engine must be transactional (postgresql/mysql).",
+        "tags": [
+          "query"
+        ]
+      }
+    },
+    "/engines": {
+      "get": {
+        "description": "Returns the engine name (e.g. postgresql, mongodb, mysql, redis, http) and its capability descriptor for each adapter currently mounted. Forwarded-engine capabilities are the live, proxied Rust /v1/capabilities (G6) — no longer a hand-written stub.",
+        "operationId": "EnginesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List engines registered with this query-router",
+        "tags": [
+          "introspection"
+        ]
+      }
+    },
+    "/capabilities": {
+      "get": {
+        "description": "Returns the Rust data-plane-router /v1/capabilities payload verbatim: per-engine read/write/upsert/stream/transactions flags plus the cost model (latency_class, pattern_search, joins). The source of truth the SDK is typed against.",
+        "operationId": "CapabilitiesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Live engine capability descriptors (proxied from the Rust data plane)",
+        "tags": [
+          "introspection"
+        ]
+      }
+    },
+    "/{dbId}/schema": {
+      "get": {
+        "description": "Returns the mount’s tables/collections with normalized column types (text|integer|float|decimal|boolean|date|datetime|json|uuid|enum|array|objectid|unknown), primary/foreign keys and enum values, plus the engine’s live capability descriptor. Mongo collections without a $jsonSchema validator are sample-inferred (`inferred: true`). Engines without an introspection surface (redis/http) return 422 unsupported_capability.",
+        "operationId": "SchemaController_describe",
+        "parameters": [
+          {
+            "name": "dbId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Describe the schema of a registered database (engine-agnostic)",
+        "tags": [
+          "query"
+        ]
+      }
+    },
+    "/{dbId}/schema/ddl": {
+      "post": {
+        "description": "Single operation per request (add_column | drop_column | alter_column_type | create_table | drop_table) — deliberate, MySQL DDL is non-transactional. Destructive ops (drop_column, drop_table) require `\"confirm\": true`. For alter_column_type the FULL target definition is composed server-side: attributes omitted from `column` are preserved from the current column. When the existing data is incompatible with the requested type the engine rejects with 409 Conflict; engines without a DDL surface (redis/http) return 422 unsupported_capability. On success the schema cache for this database is busted.",
+        "operationId": "SchemaController_applyDdl",
+        "parameters": [
+          {
+            "name": "dbId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchemaDdlRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Apply ONE schema-DDL operation to a registered database (engine-agnostic)",
+        "tags": [
+          "query"
+        ]
+      }
+    },
+    "/{dbId}/automations": {
+      "get": {
+        "operationId": "AutomationsController_list",
+        "parameters": [
+          {
+            "name": "dbId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List the automation rules stored for a registered database",
+        "tags": [
+          "query"
+        ]
+      },
+      "put": {
+        "description": "PUT semantics: the body is the FULL rule set. Rules fire server-side after every successful write (any client), with loop safety (follow-up writes never re-trigger) and HTTPS-only SSRF-guarded webhooks.",
+        "operationId": "AutomationsController_put",
+        "parameters": [
+          {
+            "name": "dbId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutAutomationsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Replace the automation rules of a registered database",
+        "tags": [
+          "query"
+        ]
+      }
+    },
+    "/graph": {
+      "post": {
+        "operationId": "GraphController_graph",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Assemble a node-link subgraph around a focus node (Obsidian-style local graph)",
+        "tags": [
+          "graph"
+        ]
+      }
+    },
+    "/graph/overview": {
+      "post": {
+        "operationId": "GraphController_overview",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphOverviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Assemble the global (focus-less) graph from a set of resources (Obsidian vault view)",
+        "tags": [
+          "graph"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Query Router",
+    "description": "Universal data plane — routes queries to registered databases",
+    "version": "2.0.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "AggregateColumnDto": {
+        "type": "object",
+        "properties": {
+          "func": {
+            "type": "string",
+            "enum": [
+              "count",
+              "sum",
+              "avg",
+              "min",
+              "max"
+            ]
+          },
+          "field": {
+            "type": "string",
+            "description": "Column to aggregate; omit for count(*)"
+          },
+          "distinct": {
+            "type": "boolean",
+            "description": "`func(DISTINCT field)` — requires `field`"
+          },
+          "alias": {
+            "type": "string",
+            "description": "Output column name"
+          }
+        },
+        "required": [
+          "func",
+          "alias"
+        ]
+      },
+      "AggregateDto": {
+        "type": "object",
+        "properties": {
+          "groupBy": {
+            "description": "GROUP BY columns",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "aggregates": {
+            "description": "Aggregate output columns (≥1)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AggregateColumnDto"
+            }
+          }
+        },
+        "required": [
+          "aggregates"
+        ]
+      },
+      "BatchOperationDto": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "list",
+              "get",
+              "insert",
+              "update",
+              "delete",
+              "upsert",
+              "aggregate"
+            ]
+          },
+          "resource": {
+            "type": "string",
+            "description": "Target table/collection — defaults to the URL resource."
+          },
+          "data": {
+            "type": "object",
+            "description": "Row data for insert / update / upsert."
+          },
+          "filter": {
+            "type": "object",
+            "description": "WHERE conditions (SQL) or query filter (MongoDB)."
+          },
+          "sort": {
+            "type": "object",
+            "description": "Sort directive, e.g. `{ created_at: \"desc\" }`."
+          },
+          "limit": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "offset": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "op"
+        ]
+      },
+      "ExecuteQueryDto": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "list",
+              "get",
+              "insert",
+              "update",
+              "delete",
+              "upsert",
+              "aggregate",
+              "batch"
+            ],
+            "description": "Canonical adapter operation. Use this in preference to the deprecated `action` field. One of `op` or `action` is required."
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "select",
+              "insert",
+              "update",
+              "delete",
+              "find",
+              "insertOne",
+              "updateMany",
+              "deleteMany"
+            ],
+            "deprecated": true,
+            "description": "Deprecated alias kept for one minor version — prefer `op`. Routes legacy SQL/Mongo verbs onto the canonical operation set."
+          },
+          "data": {
+            "type": "object",
+            "description": "Row data for insert / update / upsert."
+          },
+          "filter": {
+            "type": "object",
+            "description": "WHERE conditions (SQL) or query filter (MongoDB)."
+          },
+          "sort": {
+            "type": "object",
+            "description": "Sort directive, e.g. `{ created_at: \"desc\" }`.",
+            "example": {
+              "created_at": "desc"
+            }
+          },
+          "limit": {
+            "type": "number",
+            "default": 100,
+            "minimum": 1,
+            "maximum": 500
+          },
+          "offset": {
+            "type": "number",
+            "default": 0,
+            "minimum": 0
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "description": "Idempotency key forwarded to adapters that support it (HTTP engine, M3 outbox). Same key + same payload = single side-effect."
+          },
+          "aggregate": {
+            "description": "Aggregation spec — required when `op: \"aggregate\"` (COUNT/SUM/AVG/MIN/MAX + GROUP BY).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AggregateDto"
+              }
+            ]
+          },
+          "operations": {
+            "description": "Sub-operations — required when `op: \"batch\"`. SQL engines run them in ONE transaction (atomic); mongo/redis run them ordered and stop at the first error. Size is capped by the engine's max_batch_size.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchOperationDto"
+            }
+          }
+        }
+      },
+      "TxnOpDto": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "insert",
+              "update",
+              "delete",
+              "upsert"
+            ],
+            "description": "Write operation"
+          },
+          "resource": {
+            "type": "string",
+            "description": "Target resource (table/collection) on the mount"
+          },
+          "data": {
+            "type": "object",
+            "description": "Row data for insert / update / upsert"
+          },
+          "filter": {
+            "type": "object",
+            "description": "WHERE / filter for update / delete"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "description": "Idempotency key forwarded to the engine"
+          }
+        },
+        "required": [
+          "op",
+          "resource"
+        ]
+      },
+      "TxnRequestDto": {
+        "type": "object",
+        "properties": {
+          "mount": {
+            "type": "string",
+            "description": "Mount id (dbId); all operations run in one transaction on it"
+          },
+          "operations": {
+            "description": "1–50 write ops applied atomically (all-or-nothing)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TxnOpDto"
+            }
+          }
+        },
+        "required": [
+          "mount",
+          "operations"
+        ]
+      },
+      "SchemaDdlColumnDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Column name"
+          },
+          "normalized_type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "integer",
+              "float",
+              "decimal",
+              "boolean",
+              "date",
+              "datetime",
+              "json",
+              "uuid",
+              "enum",
+              "array"
+            ],
+            "description": "Target normalized type"
+          },
+          "nullable": {
+            "type": "boolean",
+            "description": "Whether NULLs are allowed (default true on create/add)"
+          },
+          "default": {
+            "type": "object",
+            "description": "Raw engine default expression (`0`, `'pending'`, `now()`); `null` clears the default",
+            "nullable": true
+          },
+          "enum_values": {
+            "description": "Allowed values — required when normalized_type is `enum`",
+            "nullable": true,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "normalized_type"
+        ]
+      },
+      "SchemaDdlRequestDto": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "add_column",
+              "drop_column",
+              "alter_column_type",
+              "create_table",
+              "drop_table"
+            ],
+            "description": "The DDL operation"
+          },
+          "table": {
+            "type": "string",
+            "description": "Target table / collection"
+          },
+          "column": {
+            "description": "add_column: the new column; alter_column_type: the target definition (attributes omitted here are preserved from the current column)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SchemaDdlColumnDto"
+              }
+            ]
+          },
+          "column_name": {
+            "type": "string",
+            "description": "drop_column: the column to drop"
+          },
+          "columns": {
+            "description": "create_table: the table columns (owner_id is auto-appended if absent)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SchemaDdlColumnDto"
+            }
+          },
+          "primary_key": {
+            "description": "create_table: primary key column(s) — required for create_table",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "confirm": {
+            "type": "boolean",
+            "description": "Must be `true` for destructive ops (drop_column, drop_table)"
+          }
+        },
+        "required": [
+          "op",
+          "table"
+        ]
+      },
+      "AutomationConditionDto": {
+        "type": "object",
+        "properties": {
+          "column": {
+            "type": "string",
+            "description": "Column the condition reads"
+          },
+          "operator": {
+            "type": "string",
+            "enum": [
+              "equals",
+              "not_equals",
+              "contains",
+              "greater_than",
+              "less_than",
+              "is_empty",
+              "is_not_empty"
+            ]
+          },
+          "value": {
+            "type": "object",
+            "description": "Comparison value (operator-dependent)"
+          }
+        },
+        "required": [
+          "column",
+          "operator"
+        ]
+      },
+      "AutomationActionDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "set_property",
+              "notify",
+              "webhook"
+            ]
+          },
+          "column": {
+            "type": "string",
+            "description": "set_property: target column"
+          },
+          "value": {
+            "type": "object",
+            "description": "set_property: value to write"
+          },
+          "message": {
+            "type": "string",
+            "description": "notify: message broadcast to subscribers"
+          },
+          "url": {
+            "type": "string",
+            "description": "webhook: HTTPS endpoint (SSRF-guarded)"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "AutomationRuleDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable rule id (client-generated uuid)"
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "table": {
+            "type": "string",
+            "description": "Table/collection the rule watches"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "row_added",
+              "row_updated",
+              "row_deleted"
+            ]
+          },
+          "condition": {
+            "$ref": "#/components/schemas/AutomationConditionDto"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutomationActionDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "enabled",
+          "table",
+          "trigger",
+          "actions"
+        ]
+      },
+      "PutAutomationsDto": {
+        "type": "object",
+        "properties": {
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutomationRuleDto"
+            }
+          }
+        },
+        "required": [
+          "rules"
+        ]
+      },
+      "GraphRequestDto": {
+        "type": "object",
+        "properties": {
+          "focus": {
+            "type": "string",
+            "description": "Focus node id `mount:resource:pk`",
+            "example": "db-1:notes:42"
+          },
+          "depth": {
+            "type": "number",
+            "description": "Neighbourhood radius (0–3)",
+            "default": 1
+          },
+          "edgesDbId": {
+            "type": "string",
+            "description": "Mount id (dbId) holding the `edges` records"
+          },
+          "edgesTable": {
+            "type": "string",
+            "description": "Edge resource name",
+            "default": "edges"
+          },
+          "generators": {
+            "type": "object",
+            "description": "Secondary edge generators derived from node data: `{ noteField?, tags?: {field,mount,resource}, references?: [{field,mount,resource}] }`"
+          }
+        },
+        "required": [
+          "focus",
+          "edgesDbId"
+        ]
+      },
+      "GraphOverviewDto": {
+        "type": "object",
+        "properties": {
+          "resources": {
+            "description": "Node sources to load, each `{ dbId, table }` (one resource per mount)",
+            "example": [
+              {
+                "dbId": "db-1",
+                "table": "notes"
+              }
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "edgesDbId": {
+            "type": "string",
+            "description": "Mount id (dbId) holding the `edges` records"
+          },
+          "edgesTable": {
+            "type": "string",
+            "description": "Edge resource name",
+            "default": "edges"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max rows loaded per resource (1–2000)",
+            "default": 500
+          },
+          "generators": {
+            "type": "object",
+            "description": "Secondary edge generators (same shape as /graph)"
+          }
+        },
+        "required": [
+          "resources",
+          "edgesDbId"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,3677 @@
+[
+  {
+    "desc": "sum() on text column \"name\" — non-numeric aggregate is a client/422 error, never a 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"sum\",\"field\":\"name\",\"alias\":\"s\"}]}}",
+    "expectStatus": [
+      400,
+      409,
+      422
+    ],
+    "jsonNotMatch": [
+      "(?i)\\b5\\d\\d\\b",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-001",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "avg() on text column \"name\" — non-numeric average rejected cleanly",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"avg\",\"field\":\"name\",\"alias\":\"a\"}]}}",
+    "expectStatus": [
+      400,
+      409,
+      422
+    ],
+    "id": "capability-tier-002",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "sum() on the PK text column \"id\" — text PK cannot be summed",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"sum\",\"field\":\"id\",\"alias\":\"s\"}]}}",
+    "expectStatus": [
+      400,
+      409,
+      422
+    ],
+    "id": "capability-tier-003",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "avg() on integer column \"n\" is a VALID aggregate — must succeed",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"avg\",\"field\":\"n\",\"alias\":\"avg_n\"}]}}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-004",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "count(*) with no field — canonical COUNT, must succeed",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-005",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "min() over text column \"name\" is valid (lexicographic) — succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"min\",\"field\":\"name\",\"alias\":\"mn\"}]}}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-006",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "max() over integer column \"n\" is valid — succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"max\",\"field\":\"n\",\"alias\":\"mx\"}]}}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-007",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregate func \"median\" not in AGG_FUNCS enum — 400 validation",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"median\",\"field\":\"n\",\"alias\":\"m\"}]}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-008",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregate func \"stddev\" not in AGG_FUNCS enum — 400 validation",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"stddev\",\"field\":\"n\",\"alias\":\"sd\"}]}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-009",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregate func uppercase \"SUM\" — enum is case-sensitive, 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"SUM\",\"field\":\"n\",\"alias\":\"s\"}]}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-010",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregate column missing required \"alias\" — 400 validation",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"count\",\"field\":\"n\"}]}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-011",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregate with empty aggregates array — AggregateDto requires >=1 logically",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[]}}",
+    "expectStatus": [
+      400,
+      422
+    ],
+    "id": "capability-tier-012",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "op:aggregate but no aggregate spec at all — 400 missing required",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\"}",
+    "expectStatus": [
+      400,
+      422
+    ],
+    "id": "capability-tier-013",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregate distinct:true with no field — distinct requires a field, 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"count\",\"distinct\":true,\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      200,
+      400,
+      422
+    ],
+    "id": "capability-tier-014",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "count(DISTINCT n) — valid distinct count, succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"count\",\"field\":\"n\",\"distinct\":true,\"alias\":\"dc\"}]}}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-015",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregate distinct as string \"true\" not boolean — 400 type",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"count\",\"field\":\"n\",\"distinct\":\"true\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-016",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregate alias as a number not string — 400 type",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"count\",\"field\":\"n\",\"alias\":7}]}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-017",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregate field as a number not string — 400 type",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"sum\",\"field\":9,\"alias\":\"s\"}]}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-018",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregate over unknown column \"missing_col\" — column does not exist",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"sum\",\"field\":\"missing_col\",\"alias\":\"s\"}]}}",
+    "expectStatus": [
+      400,
+      404,
+      422
+    ],
+    "id": "capability-tier-019",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregate with non-whitelisted property \"rollup\" — forbidNonWhitelisted 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]},\"rollup\":true}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-020",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "multiple aggregates in one request (count + max + min) — all valid, succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"},{\"func\":\"max\",\"field\":\"n\",\"alias\":\"mx\"},{\"func\":\"min\",\"field\":\"n\",\"alias\":\"mn\"}]}}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-021",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "aggregates value is an object not an array — 400 type",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":{\"func\":\"count\",\"alias\":\"c\"}}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-022",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "groupBy on integer column \"n\" with count — valid grouping, succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"groupBy\":[\"n\"],\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-023",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "groupBy on text column \"name\" — valid grouping, succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"groupBy\":[\"name\"],\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-024",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "groupBy on unknown column \"ghost\" — column does not exist",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"groupBy\":[\"ghost\"],\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      400,
+      404,
+      422
+    ],
+    "id": "capability-tier-025",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "groupBy empty array with aggregates — degenerates to plain aggregate, succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"groupBy\":[],\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-026",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "groupBy with a numeric element not string — 400 type (IsString each)",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"groupBy\":[5],\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-027",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "groupBy as a string not an array — 400 type",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"groupBy\":\"n\",\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-028",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "groupBy with duplicate columns [\"n\",\"n\"] — should not 5xx (dedup or accept)",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"groupBy\":[\"n\",\"n\"],\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      200,
+      400,
+      422
+    ],
+    "id": "capability-tier-029",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "groupBy a reserved column \"owner_id\" — must not leak cross-tenant; scoped or rejected",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"groupBy\":[\"owner_id\"],\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      200,
+      400,
+      403,
+      422
+    ],
+    "jsonNotMatch": [
+      "api-key:[0-9a-f]{8}-[0-9a-f]{4}",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-030",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "groupBy \"tenant_id\" reserved column — must not surface another tenant id",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"groupBy\":[\"tenant_id\"],\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      200,
+      400,
+      403,
+      422
+    ],
+    "id": "capability-tier-031",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "groupBy + filter scopes rows before grouping — valid, succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"filter\":{\"n\":1},\"aggregate\":{\"groupBy\":[\"name\"],\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-032",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "groupBy on three columns at once — valid multi-key grouping",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"groupBy\":[\"n\",\"name\",\"id\"],\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-033",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "groupBy with SQL-injection column name — must be quoted/rejected, never executed",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"groupBy\":[\"n; DROP TABLE foo\"],\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      400,
+      404,
+      422
+    ],
+    "jsonNotMatch": [
+      "(?i)drop table",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-034",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "DDL op create_table sent to the CRUD path (op not in ADAPTER_OPS) — 400 enum",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"create_table\",\"data\":{\"name\":\"x\"}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-035",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL op drop_table sent to the CRUD path — 400 invalid op enum",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"drop_table\"}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-036",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL op add_column sent to the CRUD path — 400 invalid op enum",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"add_column\",\"data\":{\"name\":\"c\"}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-037",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "CRUD op \"list\" sent to the DDL path — not a SCHEMA_DDL_OP, 400 enum",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"list\",\"table\":\"{{crudTable}}\"}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-038",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "CRUD op \"insert\" sent to the DDL path — 400 enum",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"insert\",\"table\":\"{{crudTable}}\",\"data\":{\"id\":\"z\"}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-039",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL drop_table WITHOUT confirm:true — destructive op must be 400 unconfirmed",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"drop_table\",\"table\":\"{{crudTable}}\"}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-040",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL drop_column WITHOUT confirm:true — destructive op must be 400 unconfirmed",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"drop_column\",\"table\":\"{{crudTable}}\",\"column_name\":\"name\"}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-041",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL drop_column with confirm:false explicitly — still unconfirmed, 400",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"drop_column\",\"table\":\"{{crudTable}}\",\"column_name\":\"name\",\"confirm\":false}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-042",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL create_table missing required primary_key — 400 validation",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"create_table\",\"table\":\"pm_nopk_{{$timestamp}}\",\"columns\":[{\"name\":\"id\",\"normalized_type\":\"text\"}]}",
+    "expectStatus": [
+      400,
+      422
+    ],
+    "id": "capability-tier-043",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL create_table with empty columns array — ArrayMinSize(1), 400",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"create_table\",\"table\":\"pm_empty_{{$timestamp}}\",\"columns\":[],\"primary_key\":[\"id\"]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-044",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL create_table column with unknown normalized_type \"blob\" — not in enum, 400",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"create_table\",\"table\":\"pm_blob_{{$timestamp}}\",\"columns\":[{\"name\":\"id\",\"normalized_type\":\"blob\"}],\"primary_key\":[\"id\"]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-045",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL create_table column normalized_type \"objectid\" (describe-only) — rejected 400",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"create_table\",\"table\":\"pm_oid_{{$timestamp}}\",\"columns\":[{\"name\":\"id\",\"normalized_type\":\"objectid\"}],\"primary_key\":[\"id\"]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-046",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL create_table column normalized_type \"unknown\" (describe-only) — rejected 400",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"create_table\",\"table\":\"pm_unk_{{$timestamp}}\",\"columns\":[{\"name\":\"id\",\"normalized_type\":\"unknown\"}],\"primary_key\":[\"id\"]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-047",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL add_column with no column object — missing required, 400",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"add_column\",\"table\":\"{{crudTable}}\"}",
+    "expectStatus": [
+      400,
+      422
+    ],
+    "id": "capability-tier-048",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL enum column without enum_values — enum requires values, 400/422",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"add_column\",\"table\":\"{{crudTable}}\",\"column\":{\"name\":\"status_{{$timestamp}}\",\"normalized_type\":\"enum\"}}",
+    "expectStatus": [
+      400,
+      422
+    ],
+    "id": "capability-tier-049",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL create_table with non-whitelisted top field \"engine\" — forbidNonWhitelisted 400",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"create_table\",\"table\":\"pm_x\",\"columns\":[{\"name\":\"id\",\"normalized_type\":\"text\"}],\"primary_key\":[\"id\"],\"engine\":\"mysql\"}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-050",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL column with non-whitelisted field \"auto_increment\" — 400 (forbidNonWhitelisted nested)",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"add_column\",\"table\":\"{{crudTable}}\",\"column\":{\"name\":\"c\",\"normalized_type\":\"integer\",\"auto_increment\":true}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-051",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL primary_key empty array — ArrayMinSize(1), 400",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"create_table\",\"table\":\"pm_pk0_{{$timestamp}}\",\"columns\":[{\"name\":\"id\",\"normalized_type\":\"text\"}],\"primary_key\":[]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-052",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL op as a number not string — 400 enum/type",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":3,\"table\":\"{{crudTable}}\"}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-053",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL table name missing entirely — required string, 400",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"add_column\",\"column\":{\"name\":\"c\",\"normalized_type\":\"text\"}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-054",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL columns over ArrayMaxSize(100) — 101 columns rejected 400",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"create_table\",\"table\":\"pm_big_{{$timestamp}}\",\"columns\":[{\"name\":\"c0\",\"normalized_type\":\"text\"},{\"name\":\"c1\",\"normalized_type\":\"text\"},{\"name\":\"c2\",\"normalized_type\":\"text\"},{\"name\":\"c3\",\"normalized_type\":\"text\"},{\"name\":\"c4\",\"normalized_type\":\"text\"},{\"name\":\"c5\",\"normalized_type\":\"text\"},{\"name\":\"c6\",\"normalized_type\":\"text\"},{\"name\":\"c7\",\"normalized_type\":\"text\"},{\"name\":\"c8\",\"normalized_type\":\"text\"},{\"name\":\"c9\",\"normalized_type\":\"text\"},{\"name\":\"c10\",\"normalized_type\":\"text\"},{\"name\":\"c11\",\"normalized_type\":\"text\"},{\"name\":\"c12\",\"normalized_type\":\"text\"},{\"name\":\"c13\",\"normalized_type\":\"text\"},{\"name\":\"c14\",\"normalized_type\":\"text\"},{\"name\":\"c15\",\"normalized_type\":\"text\"},{\"name\":\"c16\",\"normalized_type\":\"text\"},{\"name\":\"c17\",\"normalized_type\":\"text\"},{\"name\":\"c18\",\"normalized_type\":\"text\"},{\"name\":\"c19\",\"normalized_type\":\"text\"},{\"name\":\"c20\",\"normalized_type\":\"text\"},{\"name\":\"c21\",\"normalized_type\":\"text\"},{\"name\":\"c22\",\"normalized_type\":\"text\"},{\"name\":\"c23\",\"normalized_type\":\"text\"},{\"name\":\"c24\",\"normalized_type\":\"text\"},{\"name\":\"c25\",\"normalized_type\":\"text\"},{\"name\":\"c26\",\"normalized_type\":\"text\"},{\"name\":\"c27\",\"normalized_type\":\"text\"},{\"name\":\"c28\",\"normalized_type\":\"text\"},{\"name\":\"c29\",\"normalized_type\":\"text\"},{\"name\":\"c30\",\"normalized_type\":\"text\"},{\"name\":\"c31\",\"normalized_type\":\"text\"},{\"name\":\"c32\",\"normalized_type\":\"text\"},{\"name\":\"c33\",\"normalized_type\":\"text\"},{\"name\":\"c34\",\"normalized_type\":\"text\"},{\"name\":\"c35\",\"normalized_type\":\"text\"},{\"name\":\"c36\",\"normalized_type\":\"text\"},{\"name\":\"c37\",\"normalized_type\":\"text\"},{\"name\":\"c38\",\"normalized_type\":\"text\"},{\"name\":\"c39\",\"normalized_type\":\"text\"},{\"name\":\"c40\",\"normalized_type\":\"text\"},{\"name\":\"c41\",\"normalized_type\":\"text\"},{\"name\":\"c42\",\"normalized_type\":\"text\"},{\"name\":\"c43\",\"normalized_type\":\"text\"},{\"name\":\"c44\",\"normalized_type\":\"text\"},{\"name\":\"c45\",\"normalized_type\":\"text\"},{\"name\":\"c46\",\"normalized_type\":\"text\"},{\"name\":\"c47\",\"normalized_type\":\"text\"},{\"name\":\"c48\",\"normalized_type\":\"text\"},{\"name\":\"c49\",\"normalized_type\":\"text\"},{\"name\":\"c50\",\"normalized_type\":\"text\"},{\"name\":\"c51\",\"normalized_type\":\"text\"},{\"name\":\"c52\",\"normalized_type\":\"text\"},{\"name\":\"c53\",\"normalized_type\":\"text\"},{\"name\":\"c54\",\"normalized_type\":\"text\"},{\"name\":\"c55\",\"normalized_type\":\"text\"},{\"name\":\"c56\",\"normalized_type\":\"text\"},{\"name\":\"c57\",\"normalized_type\":\"text\"},{\"name\":\"c58\",\"normalized_type\":\"text\"},{\"name\":\"c59\",\"normalized_type\":\"text\"},{\"name\":\"c60\",\"normalized_type\":\"text\"},{\"name\":\"c61\",\"normalized_type\":\"text\"},{\"name\":\"c62\",\"normalized_type\":\"text\"},{\"name\":\"c63\",\"normalized_type\":\"text\"},{\"name\":\"c64\",\"normalized_type\":\"text\"},{\"name\":\"c65\",\"normalized_type\":\"text\"},{\"name\":\"c66\",\"normalized_type\":\"text\"},{\"name\":\"c67\",\"normalized_type\":\"text\"},{\"name\":\"c68\",\"normalized_type\":\"text\"},{\"name\":\"c69\",\"normalized_type\":\"text\"},{\"name\":\"c70\",\"normalized_type\":\"text\"},{\"name\":\"c71\",\"normalized_type\":\"text\"},{\"name\":\"c72\",\"normalized_type\":\"text\"},{\"name\":\"c73\",\"normalized_type\":\"text\"},{\"name\":\"c74\",\"normalized_type\":\"text\"},{\"name\":\"c75\",\"normalized_type\":\"text\"},{\"name\":\"c76\",\"normalized_type\":\"text\"},{\"name\":\"c77\",\"normalized_type\":\"text\"},{\"name\":\"c78\",\"normalized_type\":\"text\"},{\"name\":\"c79\",\"normalized_type\":\"text\"},{\"name\":\"c80\",\"normalized_type\":\"text\"},{\"name\":\"c81\",\"normalized_type\":\"text\"},{\"name\":\"c82\",\"normalized_type\":\"text\"},{\"name\":\"c83\",\"normalized_type\":\"text\"},{\"name\":\"c84\",\"normalized_type\":\"text\"},{\"name\":\"c85\",\"normalized_type\":\"text\"},{\"name\":\"c86\",\"normalized_type\":\"text\"},{\"name\":\"c87\",\"normalized_type\":\"text\"},{\"name\":\"c88\",\"normalized_type\":\"text\"},{\"name\":\"c89\",\"normalized_type\":\"text\"},{\"name\":\"c90\",\"normalized_type\":\"text\"},{\"name\":\"c91\",\"normalized_type\":\"text\"},{\"name\":\"c92\",\"normalized_type\":\"text\"},{\"name\":\"c93\",\"normalized_type\":\"text\"},{\"name\":\"c94\",\"normalized_type\":\"text\"},{\"name\":\"c95\",\"normalized_type\":\"text\"},{\"name\":\"c96\",\"normalized_type\":\"text\"},{\"name\":\"c97\",\"normalized_type\":\"text\"},{\"name\":\"c98\",\"normalized_type\":\"text\"},{\"name\":\"c99\",\"normalized_type\":\"text\"},{\"name\":\"c100\",\"normalized_type\":\"text\"}],\"primary_key\":[\"c0\"]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-055",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL alter_column_type on integer \"n\" to text — valid alter, applied",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"alter_column_type\",\"table\":\"{{crudTable}}\",\"column\":{\"name\":\"n\",\"normalized_type\":\"text\"}}",
+    "expectStatus": [
+      200,
+      409,
+      422
+    ],
+    "id": "capability-tier-056",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL alter_column_type to bad type \"money\" — not in enum, 400",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"alter_column_type\",\"table\":\"{{crudTable}}\",\"column\":{\"name\":\"n\",\"normalized_type\":\"money\"}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-057",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL drop_column of a non-existent column \"ghost\" with confirm — 4xx not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"drop_column\",\"table\":\"{{crudTable}}\",\"column_name\":\"ghost\",\"confirm\":true}",
+    "expectStatus": [
+      200,
+      400,
+      404,
+      422
+    ],
+    "id": "capability-tier-058",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL drop_table of a non-existent table with confirm — 4xx not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"drop_table\",\"table\":\"pm_does_not_exist_zzz\",\"confirm\":true}",
+    "expectStatus": [
+      200,
+      400,
+      404,
+      422
+    ],
+    "id": "capability-tier-059",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "batch of two valid inserts — atomic on pg, succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"batch\",\"operations\":[{\"op\":\"insert\",\"data\":{\"id\":\"b1_{{$timestamp}}\",\"name\":\"a\",\"n\":1}},{\"op\":\"insert\",\"data\":{\"id\":\"b2_{{$timestamp}}\",\"name\":\"b\",\"n\":2}}]}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "id": "capability-tier-060",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "batch containing a NESTED batch op — BATCH_ITEM_OPS excludes batch, 400 enum",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"batch\",\"operations\":[{\"op\":\"batch\",\"operations\":[]}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-061",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "batch with an unknown sub-op \"merge\" — not in BATCH_ITEM_OPS, 400 enum",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"batch\",\"operations\":[{\"op\":\"merge\",\"data\":{\"id\":\"x\"}}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-062",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "batch with empty operations array — should be 400/422, never 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"batch\",\"operations\":[]}",
+    "expectStatus": [
+      200,
+      400,
+      422
+    ],
+    "id": "capability-tier-063",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "batch operations missing entirely (op:batch alone) — 400/422",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"batch\"}",
+    "expectStatus": [
+      400,
+      422
+    ],
+    "id": "capability-tier-064",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "batch mixed insert+aggregate — heterogeneous ops, must not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"batch\",\"operations\":[{\"op\":\"insert\",\"data\":{\"id\":\"mix_{{$timestamp}}\",\"name\":\"m\",\"n\":5}},{\"op\":\"aggregate\"}]}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "id": "capability-tier-065",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "batch with a sub-op limit over Max(500) — 400 validation",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"batch\",\"operations\":[{\"op\":\"list\",\"limit\":501}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-066",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "batch sub-op with non-whitelisted field \"where\" — forbidNonWhitelisted 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"batch\",\"operations\":[{\"op\":\"list\",\"where\":{\"id\":\"x\"}}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-067",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "batch with second item conflicting PK — atomic rollback, 409 not partial",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"batch\",\"operations\":[{\"op\":\"insert\",\"data\":{\"id\":\"dup_pk_const\",\"name\":\"a\",\"n\":1}},{\"op\":\"insert\",\"data\":{\"id\":\"dup_pk_const\",\"name\":\"b\",\"n\":2}}]}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "id": "capability-tier-068",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "batch sub-op with negative offset — Min(0), 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"batch\",\"operations\":[{\"op\":\"list\",\"offset\":-1}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-069",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "batch operations as an object not array — 400 type",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"batch\",\"operations\":{\"op\":\"list\"}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-070",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "batch sub-op resource override to a different table — owner-scoped, no 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"batch\",\"operations\":[{\"op\":\"list\",\"resource\":\"pm_other_table_zzz\"}]}",
+    "expectStatus": [
+      200,
+      400,
+      404,
+      422
+    ],
+    "id": "capability-tier-071",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "batch sub-op data as an array not object — 400 type (IsObject)",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"batch\",\"operations\":[{\"op\":\"insert\",\"data\":[1,2,3]}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-072",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn with ZERO operations — ArrayMinSize(1), 400",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":[]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-073",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn with exactly ONE insert — lower boundary valid, 201 atomic",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":[{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx1_{{$timestamp}}\",\"name\":\"one\",\"n\":1}}]}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "jsonMatch": [
+      "(?i)atomic|results"
+    ],
+    "id": "capability-tier-074",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn with exactly 50 operations — upper boundary valid (ArrayMaxSize 50)",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":[{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_0_{{$timestamp}}\",\"name\":\"s\",\"n\":0}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_1_{{$timestamp}}\",\"name\":\"s\",\"n\":1}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_2_{{$timestamp}}\",\"name\":\"s\",\"n\":2}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_3_{{$timestamp}}\",\"name\":\"s\",\"n\":3}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_4_{{$timestamp}}\",\"name\":\"s\",\"n\":4}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_5_{{$timestamp}}\",\"name\":\"s\",\"n\":5}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_6_{{$timestamp}}\",\"name\":\"s\",\"n\":6}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_7_{{$timestamp}}\",\"name\":\"s\",\"n\":7}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_8_{{$timestamp}}\",\"name\":\"s\",\"n\":8}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_9_{{$timestamp}}\",\"name\":\"s\",\"n\":9}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_10_{{$timestamp}}\",\"name\":\"s\",\"n\":10}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_11_{{$timestamp}}\",\"name\":\"s\",\"n\":11}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_12_{{$timestamp}}\",\"name\":\"s\",\"n\":12}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_13_{{$timestamp}}\",\"name\":\"s\",\"n\":13}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_14_{{$timestamp}}\",\"name\":\"s\",\"n\":14}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_15_{{$timestamp}}\",\"name\":\"s\",\"n\":15}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_16_{{$timestamp}}\",\"name\":\"s\",\"n\":16}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_17_{{$timestamp}}\",\"name\":\"s\",\"n\":17}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_18_{{$timestamp}}\",\"name\":\"s\",\"n\":18}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_19_{{$timestamp}}\",\"name\":\"s\",\"n\":19}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_20_{{$timestamp}}\",\"name\":\"s\",\"n\":20}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_21_{{$timestamp}}\",\"name\":\"s\",\"n\":21}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_22_{{$timestamp}}\",\"name\":\"s\",\"n\":22}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_23_{{$timestamp}}\",\"name\":\"s\",\"n\":23}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_24_{{$timestamp}}\",\"name\":\"s\",\"n\":24}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_25_{{$timestamp}}\",\"name\":\"s\",\"n\":25}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_26_{{$timestamp}}\",\"name\":\"s\",\"n\":26}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_27_{{$timestamp}}\",\"name\":\"s\",\"n\":27}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_28_{{$timestamp}}\",\"name\":\"s\",\"n\":28}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_29_{{$timestamp}}\",\"name\":\"s\",\"n\":29}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_30_{{$timestamp}}\",\"name\":\"s\",\"n\":30}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_31_{{$timestamp}}\",\"name\":\"s\",\"n\":31}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_32_{{$timestamp}}\",\"name\":\"s\",\"n\":32}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_33_{{$timestamp}}\",\"name\":\"s\",\"n\":33}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_34_{{$timestamp}}\",\"name\":\"s\",\"n\":34}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_35_{{$timestamp}}\",\"name\":\"s\",\"n\":35}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_36_{{$timestamp}}\",\"name\":\"s\",\"n\":36}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_37_{{$timestamp}}\",\"name\":\"s\",\"n\":37}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_38_{{$timestamp}}\",\"name\":\"s\",\"n\":38}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_39_{{$timestamp}}\",\"name\":\"s\",\"n\":39}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_40_{{$timestamp}}\",\"name\":\"s\",\"n\":40}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_41_{{$timestamp}}\",\"name\":\"s\",\"n\":41}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_42_{{$timestamp}}\",\"name\":\"s\",\"n\":42}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_43_{{$timestamp}}\",\"name\":\"s\",\"n\":43}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_44_{{$timestamp}}\",\"name\":\"s\",\"n\":44}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_45_{{$timestamp}}\",\"name\":\"s\",\"n\":45}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_46_{{$timestamp}}\",\"name\":\"s\",\"n\":46}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_47_{{$timestamp}}\",\"name\":\"s\",\"n\":47}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_48_{{$timestamp}}\",\"name\":\"s\",\"n\":48}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx50_49_{{$timestamp}}\",\"name\":\"s\",\"n\":49}}]}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "id": "capability-tier-075",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn with 51 operations — ArrayMaxSize(50) exceeded, 400",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":[{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_0_{{$timestamp}}\",\"name\":\"s\",\"n\":0}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_1_{{$timestamp}}\",\"name\":\"s\",\"n\":1}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_2_{{$timestamp}}\",\"name\":\"s\",\"n\":2}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_3_{{$timestamp}}\",\"name\":\"s\",\"n\":3}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_4_{{$timestamp}}\",\"name\":\"s\",\"n\":4}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_5_{{$timestamp}}\",\"name\":\"s\",\"n\":5}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_6_{{$timestamp}}\",\"name\":\"s\",\"n\":6}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_7_{{$timestamp}}\",\"name\":\"s\",\"n\":7}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_8_{{$timestamp}}\",\"name\":\"s\",\"n\":8}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_9_{{$timestamp}}\",\"name\":\"s\",\"n\":9}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_10_{{$timestamp}}\",\"name\":\"s\",\"n\":10}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_11_{{$timestamp}}\",\"name\":\"s\",\"n\":11}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_12_{{$timestamp}}\",\"name\":\"s\",\"n\":12}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_13_{{$timestamp}}\",\"name\":\"s\",\"n\":13}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_14_{{$timestamp}}\",\"name\":\"s\",\"n\":14}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_15_{{$timestamp}}\",\"name\":\"s\",\"n\":15}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_16_{{$timestamp}}\",\"name\":\"s\",\"n\":16}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_17_{{$timestamp}}\",\"name\":\"s\",\"n\":17}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_18_{{$timestamp}}\",\"name\":\"s\",\"n\":18}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_19_{{$timestamp}}\",\"name\":\"s\",\"n\":19}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_20_{{$timestamp}}\",\"name\":\"s\",\"n\":20}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_21_{{$timestamp}}\",\"name\":\"s\",\"n\":21}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_22_{{$timestamp}}\",\"name\":\"s\",\"n\":22}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_23_{{$timestamp}}\",\"name\":\"s\",\"n\":23}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_24_{{$timestamp}}\",\"name\":\"s\",\"n\":24}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_25_{{$timestamp}}\",\"name\":\"s\",\"n\":25}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_26_{{$timestamp}}\",\"name\":\"s\",\"n\":26}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_27_{{$timestamp}}\",\"name\":\"s\",\"n\":27}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_28_{{$timestamp}}\",\"name\":\"s\",\"n\":28}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_29_{{$timestamp}}\",\"name\":\"s\",\"n\":29}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_30_{{$timestamp}}\",\"name\":\"s\",\"n\":30}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_31_{{$timestamp}}\",\"name\":\"s\",\"n\":31}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_32_{{$timestamp}}\",\"name\":\"s\",\"n\":32}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_33_{{$timestamp}}\",\"name\":\"s\",\"n\":33}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_34_{{$timestamp}}\",\"name\":\"s\",\"n\":34}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_35_{{$timestamp}}\",\"name\":\"s\",\"n\":35}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_36_{{$timestamp}}\",\"name\":\"s\",\"n\":36}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_37_{{$timestamp}}\",\"name\":\"s\",\"n\":37}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_38_{{$timestamp}}\",\"name\":\"s\",\"n\":38}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_39_{{$timestamp}}\",\"name\":\"s\",\"n\":39}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_40_{{$timestamp}}\",\"name\":\"s\",\"n\":40}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_41_{{$timestamp}}\",\"name\":\"s\",\"n\":41}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_42_{{$timestamp}}\",\"name\":\"s\",\"n\":42}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_43_{{$timestamp}}\",\"name\":\"s\",\"n\":43}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_44_{{$timestamp}}\",\"name\":\"s\",\"n\":44}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_45_{{$timestamp}}\",\"name\":\"s\",\"n\":45}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_46_{{$timestamp}}\",\"name\":\"s\",\"n\":46}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_47_{{$timestamp}}\",\"name\":\"s\",\"n\":47}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_48_{{$timestamp}}\",\"name\":\"s\",\"n\":48}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_49_{{$timestamp}}\",\"name\":\"s\",\"n\":49}},{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tx51_50_{{$timestamp}}\",\"name\":\"s\",\"n\":50}}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-076",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn op \"list\" — TXN_OPS is write-only (no reads), 400 enum",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":[{\"op\":\"list\",\"resource\":\"{{crudTable}}\"}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-077",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn op \"get\" — reads not offered in a txn, 400 enum",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":[{\"op\":\"get\",\"resource\":\"{{crudTable}}\",\"filter\":{\"id\":\"x\"}}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-078",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn op \"aggregate\" — not a write op, 400 enum",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":[{\"op\":\"aggregate\",\"resource\":\"{{crudTable}}\"}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-079",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn op \"batch\" — nested batch not allowed in txn, 400 enum",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":[{\"op\":\"batch\",\"resource\":\"{{crudTable}}\"}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-080",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn missing required \"mount\" field — 400 validation",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"operations\":[{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"x\"}}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-081",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn using legacy field \"databaseId\" instead of \"mount\" — non-whitelisted, 400",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"databaseId\":\"{{dbId}}\",\"operations\":[{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"x_{{$timestamp}}\"}}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-082",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn op missing required \"resource\" — 400 validation",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":[{\"op\":\"insert\",\"data\":{\"id\":\"x_{{$timestamp}}\"}}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-083",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn to a non-existent mount id — 404 mount_not_found, never 5xx",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"mnt_does_not_exist_zzz\",\"operations\":[{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"x_{{$timestamp}}\"}}]}",
+    "expectStatus": [
+      400,
+      403,
+      404,
+      422
+    ],
+    "id": "capability-tier-084",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn operations as an object not array — 400 type",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":{\"op\":\"insert\",\"resource\":\"{{crudTable}}\"}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-085",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn op with non-whitelisted field \"returning\" — forbidNonWhitelisted 400",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":[{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"x\"},\"returning\":[\"id\"]}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-086",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn update op with no filter — empty mutation filter is a safety violation, 4xx",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":[{\"op\":\"update\",\"resource\":\"{{crudTable}}\",\"data\":{\"name\":\"all\"}}]}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "id": "capability-tier-087",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn delete op with no filter — mass-delete guard, must not silently wipe",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":[{\"op\":\"delete\",\"resource\":\"{{crudTable}}\"}]}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "id": "capability-tier-088",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn upsert valid single op — succeeds atomically",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":[{\"op\":\"upsert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"tup_{{$timestamp}}\",\"name\":\"u\",\"n\":9}}]}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "id": "capability-tier-089",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn op op-field as number not string-enum — 400",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":[{\"op\":1,\"resource\":\"{{crudTable}}\"}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-090",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn mount as a number not string — 400 type",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":123,\"operations\":[{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"x\"}}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-091",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "op completely missing AND action missing — neither op nor action, 400/422",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"data\":{\"id\":\"noop_{{$timestamp}}\"}}",
+    "expectStatus": [
+      400,
+      422
+    ],
+    "id": "capability-tier-092",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "op as empty string \"\" — not a valid ADAPTER_OP, 400 enum",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"\",\"data\":{}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-093",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "op \"LIST\" uppercase — enum is lowercase, 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"LIST\"}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-094",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "op \"select\" used directly in op (it is a legacy ACTION, not an op) — 400 enum",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"select\"}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-095",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "legacy action \"select\" via action field — maps to list, succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"action\":\"select\",\"limit\":1}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-096",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "legacy action \"find\" via action field — maps to list, succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"action\":\"find\",\"limit\":1}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-097",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "legacy action \"deleteMany\" with no filter — maps to delete, guarded not mass-wipe",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"action\":\"deleteMany\"}",
+    "expectStatus": [
+      200,
+      400,
+      422
+    ],
+    "id": "capability-tier-098",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "legacy action \"truncate\" — not in LEGACY_ACTIONS, 400 enum",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"action\":\"truncate\"}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-099",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "both op and action set (op wins) — resolveOp prefers op, succeeds as list",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"action\":\"insert\",\"limit\":1}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-100",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "op as a JSON array [\"list\"] — 400 type/enum",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":[\"list\"]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-101",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "op as boolean true — 400 type/enum",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":true}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-102",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "op \"upsert\" with valid data — supported by pg, succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"upsert\",\"data\":{\"id\":\"ups_{{$timestamp}}\",\"name\":\"u\",\"n\":3}}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "id": "capability-tier-103",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "op \"get\" with no filter — under-specified read, no 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"get\"}",
+    "expectStatus": [
+      200,
+      400,
+      404,
+      422
+    ],
+    "id": "capability-tier-104",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "list limit at Max(500) boundary — valid, succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":500}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-105",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "list limit 501 — over Max(500), 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":501}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-106",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "list limit 0 — below Min(1), 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":0}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-107",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "list limit negative -5 — Min(1) violated, 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":-5}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-108",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "list limit as float 2.5 — IsInt violated, 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":2.5}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-109",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "list limit as string \"10\" — implicit conversion may coerce; must not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":\"10\"}",
+    "expectStatus": [
+      200,
+      400
+    ],
+    "id": "capability-tier-110",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "list limit as non-numeric string \"abc\" — 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":\"abc\"}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-111",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "list offset negative -1 — Min(0), 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"offset\":-1}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-112",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "list offset huge 999999999 — large but valid int, no 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"offset\":999999999,\"limit\":1}",
+    "expectStatus": [
+      200,
+      400
+    ],
+    "id": "capability-tier-113",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "list limit beyond int32 (9999999999) — oversized, 400 not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":9999999999}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-114",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "list offset as float 1.5 — IsInt, 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"offset\":1.5}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-115",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "list limit 1 minimum boundary — valid, succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":1}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-116",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "sort {n:\"asc\"} valid — succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"sort\":{\"n\":\"asc\"},\"limit\":5}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-117",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "sort {n:\"desc\"} valid — succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"sort\":{\"n\":\"desc\"},\"limit\":5}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-118",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "sort direction \"ASC\" uppercase — invalid direction, no 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"sort\":{\"n\":\"ASC\"},\"limit\":5}",
+    "expectStatus": [
+      200,
+      400,
+      422
+    ],
+    "id": "capability-tier-119",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "sort direction garbage \"sideways\" — invalid, no 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"sort\":{\"n\":\"sideways\"},\"limit\":5}",
+    "expectStatus": [
+      200,
+      400,
+      422
+    ],
+    "id": "capability-tier-120",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "sort by unknown column \"ghost\" — column does not exist, no 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"sort\":{\"ghost\":\"asc\"},\"limit\":5}",
+    "expectStatus": [
+      200,
+      400,
+      404,
+      422
+    ],
+    "id": "capability-tier-121",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "sort by reserved column \"owner_id\" — must not leak/scope-escape",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"sort\":{\"owner_id\":\"asc\"},\"limit\":5}",
+    "expectStatus": [
+      200,
+      400,
+      403,
+      422
+    ],
+    "jsonNotMatch": [
+      "api-key:[0-9a-f]{8}-[0-9a-f]{4}",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-122",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "sort as a string not object — 400 type (IsObject)",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"sort\":\"n\"}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-123",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "sort by SQL-injection column name — quoted/rejected, never executed",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"sort\":{\"n; DROP TABLE x\":\"asc\"},\"limit\":1}",
+    "expectStatus": [
+      200,
+      400,
+      404,
+      422
+    ],
+    "jsonNotMatch": [
+      "(?i)drop table",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-124",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "sort multi-column {n:\"asc\", name:\"desc\"} — valid composite sort",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"sort\":{\"n\":\"asc\",\"name\":\"desc\"},\"limit\":5}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-125",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "insert trying to set owner_id to another principal — stripped or rejected, never honored",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"rown_{{$timestamp}}\",\"name\":\"x\",\"n\":1,\"owner_id\":\"api-key:00000000-0000-0000-0000-000000000000\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      403,
+      422
+    ],
+    "jsonNotMatch": [
+      "\"owner_id\"\\s*:\\s*\"api-key:00000000",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-126",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "insert trying to set tenant_id — reserved, stripped or rejected",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"rten_{{$timestamp}}\",\"name\":\"x\",\"n\":1,\"tenant_id\":\"tenant-evil\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      403,
+      422
+    ],
+    "jsonNotMatch": [
+      "\"tenant_id\"\\s*:\\s*\"tenant-evil\"",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-127",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "upsert trying to override owner_id — reserved column, not honored",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"upsert\",\"data\":{\"id\":\"rupo_{{$timestamp}}\",\"name\":\"x\",\"owner_id\":\"api-key:ffffffff-ffff-ffff-ffff-ffffffffffff\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      403,
+      422
+    ],
+    "jsonNotMatch": [
+      "\"owner_id\"\\s*:\\s*\"api-key:ffffffff",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-128",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "update setting owner_id in data — must not reparent the row cross-tenant",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"update\",\"filter\":{\"id\":\"rown_seed\"},\"data\":{\"owner_id\":\"api-key:11111111-1111-1111-1111-111111111111\"}}",
+    "expectStatus": [
+      200,
+      400,
+      403,
+      404,
+      422
+    ],
+    "jsonNotMatch": [
+      "\"owner_id\"\\s*:\\s*\"api-key:11111111",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-129",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "update filtering by owner_id to reach another tenant row — owner-scope blocks it",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"update\",\"filter\":{\"owner_id\":\"api-key:22222222-2222-2222-2222-222222222222\"},\"data\":{\"name\":\"pwned\"}}",
+    "expectStatus": [
+      200,
+      400,
+      403,
+      404,
+      422
+    ],
+    "jsonNotMatch": [
+      "\"name\"\\s*:\\s*\"pwned\".*api-key:22222222",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-130",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "aggregate filter by tenant_id of another tenant — must return only own rows",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"filter\":{\"tenant_id\":\"other-tenant\"},\"aggregate\":{\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      200,
+      400,
+      403,
+      422
+    ],
+    "id": "capability-tier-131",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "batch insert with owner_id override in a sub-op — stripped, not cross-tenant",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"batch\",\"operations\":[{\"op\":\"insert\",\"data\":{\"id\":\"bown_{{$timestamp}}\",\"name\":\"x\",\"owner_id\":\"api-key:33333333-3333-3333-3333-333333333333\"}}]}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      403,
+      422
+    ],
+    "jsonNotMatch": [
+      "\"owner_id\"\\s*:\\s*\"api-key:33333333",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-132",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "txn insert with tenant_id override — reserved, not honored across mount",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":[{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"txten_{{$timestamp}}\",\"name\":\"x\",\"tenant_id\":\"evil\"}}]}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      403,
+      422
+    ],
+    "jsonNotMatch": [
+      "\"tenant_id\"\\s*:\\s*\"evil\"",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-133",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "data op with anon-only auth (no tenant key) — 401/403, no data leak",
+    "auth": "anon-only",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":1}",
+    "expectStatus": [
+      401,
+      403
+    ],
+    "jsonNotMatch": [
+      "\"rows\"\\s*:\\s*\\[\\s*\\{",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-134",
+    "category": "capability-tier",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "data op with NO auth headers — Kong key-auth rejects, 401",
+    "auth": "none",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":1}",
+    "expectStatus": [
+      401,
+      403
+    ],
+    "id": "capability-tier-135",
+    "category": "capability-tier",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "data op with a bad tenant key (mbk_invalid) — 401/403, no leak",
+    "auth": "badkey",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":1}",
+    "expectStatus": [
+      401,
+      403
+    ],
+    "jsonNotMatch": [
+      "\"rows\"\\s*:\\s*\\[\\s*\\{",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-136",
+    "category": "capability-tier",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "aggregate with anon-only auth — must not aggregate over another tenant",
+    "auth": "anon-only",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"aggregate\":{\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      401,
+      403
+    ],
+    "id": "capability-tier-137",
+    "category": "capability-tier",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "txn with badkey auth — 401/403 before any write",
+    "auth": "badkey",
+    "pathTemplate": "/query/v1/txn",
+    "body": "{\"mount\":\"{{dbId}}\",\"operations\":[{\"op\":\"insert\",\"resource\":\"{{crudTable}}\",\"data\":{\"id\":\"x_{{$timestamp}}\"}}]}",
+    "expectStatus": [
+      401,
+      403
+    ],
+    "id": "capability-tier-138",
+    "category": "capability-tier",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL with anon-only auth — schema change requires the tenant key, 401/403",
+    "auth": "anon-only",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"add_column\",\"table\":\"{{crudTable}}\",\"column\":{\"name\":\"c\",\"normalized_type\":\"text\"}}",
+    "expectStatus": [
+      401,
+      403
+    ],
+    "id": "capability-tier-139",
+    "category": "capability-tier",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL with no auth — 401",
+    "auth": "none",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"add_column\",\"table\":\"{{crudTable}}\",\"column\":{\"name\":\"c\",\"normalized_type\":\"text\"}}",
+    "expectStatus": [
+      401,
+      403
+    ],
+    "id": "capability-tier-140",
+    "category": "capability-tier",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "truncated/malformed JSON body — parser returns 400, never 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\"",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-141",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "trailing comma in JSON — strict parser 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-142",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "empty body on a POST data op — 400/422 missing op",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "",
+    "expectStatus": [
+      400,
+      422
+    ],
+    "id": "capability-tier-143",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "body is a bare JSON array not object — 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "[{\"op\":\"list\"}]",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-144",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "body is a bare string \"list\" — 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "\"list\"",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-145",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "body is JSON null — 400/422",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "null",
+    "expectStatus": [
+      400,
+      422
+    ],
+    "id": "capability-tier-146",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "body is a bare number 5 — 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "5",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-147",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "duplicate \"op\" keys in JSON — last-wins or 400, never 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"op\":\"insert\",\"data\":{\"id\":\"d_{{$timestamp}}\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      409,
+      422
+    ],
+    "id": "capability-tier-148",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "data field with deeply nested object (5 levels) — handled, no 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"nest_{{$timestamp}}\",\"name\":{\"a\":{\"b\":{\"c\":{\"d\":1}}}}}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "id": "capability-tier-149",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "filter as a JSON array not object — 400 type",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"filter\":[1,2]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-150",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "data as a JSON array not object — 400 type",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":[{\"id\":\"x\"}]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-151",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "idempotencyKey as a number not string — 400 type",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"idk_{{$timestamp}}\"},\"idempotencyKey\":12345}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-152",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "unknown top field \"select\" alongside op:list — forbidNonWhitelisted 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"select\":[\"id\"]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-153",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "unknown top field \"where\" instead of filter — 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"where\":{\"id\":\"x\"}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-154",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "unknown top field \"columns\" — 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"columns\":[\"id\",\"name\"]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-155",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "unknown top field \"returning\" on insert — 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"r_{{$timestamp}}\"},\"returning\":[\"id\"]}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-156",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "unknown top field \"orderBy\" instead of sort — 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"orderBy\":{\"n\":\"asc\"}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-157",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "unknown top field \"page\" — 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"page\":2}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-158",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "unknown top field \"__proto__\" pollution attempt — rejected, no 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"__proto__\":{\"polluted\":true}}",
+    "expectStatus": [
+      200,
+      400
+    ],
+    "id": "capability-tier-159",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "unknown top field \"groupBy\" at top level (belongs in aggregate) — 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"aggregate\",\"groupBy\":[\"n\"],\"aggregate\":{\"aggregates\":[{\"func\":\"count\",\"alias\":\"c\"}]}}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-160",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "unknown top field \"distinct\" at top level — 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"distinct\":true}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-161",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "unknown top field \"transaction\" on a CRUD op — 400",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"t_{{$timestamp}}\"},\"transaction\":true}",
+    "expectStatus": [
+      400
+    ],
+    "id": "capability-tier-162",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "insert with empty data {} — no columns, 4xx not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "id": "capability-tier-163",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "insert with no data field at all — 400/422",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\"}",
+    "expectStatus": [
+      400,
+      422
+    ],
+    "id": "capability-tier-164",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "insert with only an unknown column \"zzz\" — unknown column, 4xx not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"zzz\":\"v\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "id": "capability-tier-165",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "insert id as wrong type (object) into text PK — 4xx not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":{\"x\":1},\"name\":\"a\"}}",
+    "expectStatus": [
+      400,
+      409,
+      422
+    ],
+    "id": "capability-tier-166",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "insert n (integer col) as a string \"notanint\" — type mismatch, 4xx not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"badn_{{$timestamp}}\",\"n\":\"notanint\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "id": "capability-tier-167",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "insert with NULL into NOT-NULL PK id — constraint, 409/400 not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":null,\"name\":\"x\"}}",
+    "expectStatus": [
+      400,
+      409,
+      422
+    ],
+    "id": "capability-tier-168",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "update with empty data {} — nothing to set, 4xx not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"update\",\"filter\":{\"id\":\"x\"},\"data\":{}}",
+    "expectStatus": [
+      200,
+      400,
+      422
+    ],
+    "id": "capability-tier-169",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "update with no filter and no data — fully under-specified, 4xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"update\"}",
+    "expectStatus": [
+      400,
+      422
+    ],
+    "id": "capability-tier-170",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "delete with empty filter {} — mass-delete guard, must not silently wipe",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"delete\",\"filter\":{}}",
+    "expectStatus": [
+      200,
+      400,
+      422
+    ],
+    "id": "capability-tier-171",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "delete with no filter at all — guarded, no unscoped wipe",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"delete\"}",
+    "expectStatus": [
+      200,
+      400,
+      422
+    ],
+    "id": "capability-tier-172",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "upsert with empty data — 4xx not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"upsert\",\"data\":{}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "id": "capability-tier-173",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "get with filter on unknown column — 4xx not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"get\",\"filter\":{\"ghost\":\"x\"}}",
+    "expectStatus": [
+      200,
+      400,
+      404,
+      422
+    ],
+    "id": "capability-tier-174",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "insert duplicate primary key (same id twice in sequence) — second is 409 conflict",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"fixed_pk_dup\",\"name\":\"a\",\"n\":1}}",
+    "expectStatus": [
+      200,
+      201,
+      409
+    ],
+    "id": "capability-tier-175",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "insert oversized name (10KB string) into text — accepted or 4xx, never 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"big_{{$timestamp}}\",\"name\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"n\":1}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      413,
+      422
+    ],
+    "id": "capability-tier-176",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "insert n as float into integer column — coerced or 4xx, never 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"flo_{{$timestamp}}\",\"n\":3.7}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "id": "capability-tier-177",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "insert with filter present (filter ignored on insert) — no 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"inf_{{$timestamp}}\",\"name\":\"a\"},\"filter\":{\"id\":\"q\"}}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "id": "capability-tier-178",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "filter with $gt operator object on n — supported or 4xx, never 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"filter\":{\"n\":{\"$gt\":1}},\"limit\":5}",
+    "expectStatus": [
+      200,
+      400,
+      422
+    ],
+    "id": "capability-tier-179",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "filter with unknown operator $nuke — 4xx not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"filter\":{\"n\":{\"$nuke\":1}},\"limit\":5}",
+    "expectStatus": [
+      200,
+      400,
+      422
+    ],
+    "id": "capability-tier-180",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "filter equality on unknown column \"ghost\" — column missing, no 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"filter\":{\"ghost\":\"x\"},\"limit\":5}",
+    "expectStatus": [
+      200,
+      400,
+      404,
+      422
+    ],
+    "id": "capability-tier-181",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "filter value with SQL injection — parameterized, never executed",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"filter\":{\"name\":\"x' OR '1'='1\"},\"limit\":5}",
+    "expectStatus": [
+      200,
+      400,
+      422
+    ],
+    "jsonNotMatch": [
+      "(?i)syntax error at or near",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-182",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "filter with $in array on id — supported or 4xx, never 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"filter\":{\"id\":{\"$in\":[\"a\",\"b\"]}},\"limit\":5}",
+    "expectStatus": [
+      200,
+      400,
+      422
+    ],
+    "id": "capability-tier-183",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "filter deeply nested ($and of conditions) — handled, no 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"filter\":{\"$and\":[{\"n\":1},{\"name\":\"a\"}]},\"limit\":5}",
+    "expectStatus": [
+      200,
+      400,
+      422
+    ],
+    "id": "capability-tier-184",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "filter value null (IS NULL semantics) on name — handled, no 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"filter\":{\"name\":null},\"limit\":5}",
+    "expectStatus": [
+      200,
+      400,
+      422
+    ],
+    "id": "capability-tier-185",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "filter on reserved owner_id directly — owner-scope still applies, no cross-tenant",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"filter\":{\"owner_id\":\"api-key:44444444-4444-4444-4444-444444444444\"},\"limit\":5}",
+    "expectStatus": [
+      200,
+      400,
+      403,
+      422
+    ],
+    "jsonNotMatch": [
+      "api-key:44444444",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-186",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "DDL add_column \"extra1\" text nullable — valid add, applied",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"add_column\",\"table\":\"{{crudTable}}\",\"column\":{\"name\":\"extra1_{{$timestamp}}\",\"normalized_type\":\"text\",\"nullable\":true}}",
+    "expectStatus": [
+      200,
+      409
+    ],
+    "id": "capability-tier-187",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL add_column with a default expression — valid, applied",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"add_column\",\"table\":\"{{crudTable}}\",\"column\":{\"name\":\"extra2_{{$timestamp}}\",\"normalized_type\":\"integer\",\"default\":\"0\"}}",
+    "expectStatus": [
+      200,
+      409,
+      422
+    ],
+    "id": "capability-tier-188",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL add_column enum WITH enum_values — valid enum creation",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"add_column\",\"table\":\"{{crudTable}}\",\"column\":{\"name\":\"st_{{$timestamp}}\",\"normalized_type\":\"enum\",\"enum_values\":[\"a\",\"b\",\"c\"]}}",
+    "expectStatus": [
+      200,
+      409,
+      422
+    ],
+    "id": "capability-tier-189",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL add_column duplicate of existing column \"name\" — 409 conflict, not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"add_column\",\"table\":\"{{crudTable}}\",\"column\":{\"name\":\"name\",\"normalized_type\":\"text\"}}",
+    "expectStatus": [
+      200,
+      400,
+      409,
+      422
+    ],
+    "id": "capability-tier-190",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL add_column to a non-existent table — 404/400, never 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"add_column\",\"table\":\"pm_no_such_table_zzz\",\"column\":{\"name\":\"c\",\"normalized_type\":\"text\"}}",
+    "expectStatus": [
+      400,
+      404,
+      422
+    ],
+    "id": "capability-tier-191",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL create_table that already exists ({{crudTable}}) — 409 conflict, not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"create_table\",\"table\":\"{{crudTable}}\",\"columns\":[{\"name\":\"id\",\"normalized_type\":\"text\"}],\"primary_key\":[\"id\"]}",
+    "expectStatus": [
+      200,
+      400,
+      409,
+      422
+    ],
+    "id": "capability-tier-192",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL alter_column_type omitting attributes (merge with current) — valid",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"alter_column_type\",\"table\":\"{{crudTable}}\",\"column\":{\"name\":\"name\",\"normalized_type\":\"text\"}}",
+    "expectStatus": [
+      200,
+      409,
+      422
+    ],
+    "id": "capability-tier-193",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL alter_column_type of a non-existent column — 404/400, not 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"alter_column_type\",\"table\":\"{{crudTable}}\",\"column\":{\"name\":\"ghost\",\"normalized_type\":\"text\"}}",
+    "expectStatus": [
+      400,
+      404,
+      422
+    ],
+    "id": "capability-tier-194",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL create_table with a column named \"owner_id\" (reserved auto-append) — handled, no 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"create_table\",\"table\":\"pm_ro_{{$timestamp}}\",\"columns\":[{\"name\":\"id\",\"normalized_type\":\"text\"},{\"name\":\"owner_id\",\"normalized_type\":\"text\"}],\"primary_key\":[\"id\"]}",
+    "expectStatus": [
+      200,
+      400,
+      409,
+      422
+    ],
+    "id": "capability-tier-195",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "DDL create_table with an injection table name — sanitized/rejected, never executed",
+    "pathTemplate": "/query/v1/{{dbId}}/schema/ddl",
+    "body": "{\"op\":\"create_table\",\"table\":\"pm_x; DROP TABLE y\",\"columns\":[{\"name\":\"id\",\"normalized_type\":\"text\"}],\"primary_key\":[\"id\"]}",
+    "expectStatus": [
+      200,
+      400,
+      409,
+      422
+    ],
+    "jsonNotMatch": [
+      "(?i)drop table y",
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ],
+    "id": "capability-tier-196",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": []
+  },
+  {
+    "desc": "insert with idempotencyKey — same key+payload single side-effect, succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"idem_a_{{$timestamp}}\",\"name\":\"i\",\"n\":1},\"idempotencyKey\":\"idem-key-{{$timestamp}}\"}",
+    "expectStatus": [
+      200,
+      201
+    ],
+    "id": "capability-tier-197",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "insert with empty-string idempotencyKey — accepted or 4xx, never 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"insert\",\"data\":{\"id\":\"idem_b_{{$timestamp}}\",\"name\":\"i\"},\"idempotencyKey\":\"\"}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "id": "capability-tier-198",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "list with idempotencyKey (no-op on a read) — ignored, succeeds",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"list\",\"limit\":1,\"idempotencyKey\":\"read-idem\"}",
+    "expectStatus": [
+      200
+    ],
+    "jsonMatch": [
+      "rows"
+    ],
+    "id": "capability-tier-199",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  },
+  {
+    "desc": "upsert with idempotencyKey on integer col — valid, no 5xx",
+    "pathTemplate": "/query/v1/{{dbId}}/tables/{{crudTable}}",
+    "body": "{\"op\":\"upsert\",\"data\":{\"id\":\"idem_u_{{$timestamp}}\",\"n\":7},\"idempotencyKey\":\"u-idem-{{$timestamp}}\"}",
+    "expectStatus": [
+      200,
+      201,
+      400,
+      422
+    ],
+    "id": "capability-tier-200",
+    "category": "capability-tier",
+    "auth": "key",
+    "method": "POST",
+    "neverServerError": true,
+    "jsonMatch": [],
+    "jsonNotMatch": [
+      "(?i)(stack trace|panic|at Object\\.|node_modules/|/usr/src/|thread 'main'|RUST_BACKTRACE)"
+    ]
+  }
+]

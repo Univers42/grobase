@@ -1,0 +1,225 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Release — triggered on version tags  (e.g. git tag v1.2.0 && git push --tags)
+#
+# Features used:
+#   • dtolnay/rust-toolchain  → Rust SDK setup
+#   • Swatinem/rust-cache     → dependency cache
+#   • actions/upload-artifact → binary artifact attached to the GitHub Release
+#   • actions/download-artifact → binary re-used in the Docker layer
+#   • docker/build-push-action → publish to Docker Hub AND GitHub Packages (GHCR)
+#   • monitoring              → health-probe job after image is pushed
+# ─────────────────────────────────────────────────────────────────────────────
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"   # matches v1.0.0, v2.3.14, …
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # Docker Hub image
+  DOCKERHUB_IMAGE: dlesieur/realtime-agnostic
+  # GitHub Container Registry image (shows as a "Package" on the repo page)
+  GHCR_IMAGE: ghcr.io/univers42/realtime-agnostic
+
+jobs:
+  # ── Build release binary ────────────────────────────────────────────────────
+  build:
+    name: Build release binary
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Rust SDK setup ─────────────────────────────────────────────────────────
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # Dependency cache ───────────────────────────────────────────────────────
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build release binary
+        run: cargo build --release --bin realtime-server
+
+      - name: Strip binary
+        run: strip target/release/realtime-server
+
+      # Upload binary as workflow artifact (used by docker job + GitHub Release)
+      - name: Upload release binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: realtime-server-linux-amd64
+          path: target/release/realtime-server
+          retention-days: 90
+
+  # ── GitHub Release with binary attachment ──────────────────────────────────
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+    steps:
+      # Download the artifact produced by the build job
+      - name: Download release binary
+        uses: actions/download-artifact@v4
+        with:
+          name: realtime-server-linux-amd64
+          path: dist/
+
+      - name: Make binary executable
+        run: chmod +x dist/realtime-server
+
+      - name: Package binary as tarball
+        run: |
+          VERSION=${{ needs.build.outputs.version }}
+          tar -czf realtime-server-${VERSION}-linux-amd64.tar.gz \
+              -C dist realtime-server
+          sha256sum realtime-server-${VERSION}-linux-amd64.tar.gz \
+              > realtime-server-${VERSION}-linux-amd64.tar.gz.sha256
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "${{ github.ref_name }}"
+          generate_release_notes: true
+          files: |
+            realtime-server-${{ needs.build.outputs.version }}-linux-amd64.tar.gz
+            realtime-server-${{ needs.build.outputs.version }}-linux-amd64.tar.gz.sha256
+
+  # ── Docker image → Docker Hub + GitHub Packages (GHCR) ────────────────────
+  docker:
+    name: Publish Docker image
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      packages: write     # required to push to ghcr.io
+    steps:
+      - uses: actions/checkout@v4
+
+      # Download prebuilt binary so Docker build is fast (no Rust compile in CI).
+      - name: Download release binary
+        uses: actions/download-artifact@v4
+        with:
+          name: realtime-server-linux-amd64
+          path: prebuilt/
+
+      - name: Make binary executable
+        run: chmod +x prebuilt/realtime-server
+
+      # Write a lean Dockerfile that just packages the prebuilt binary.
+      - name: Write prebuilt Dockerfile
+        run: |
+          cat > Dockerfile.ci << 'EOF'
+          FROM debian:bookworm-slim
+          RUN apt-get update && \
+              apt-get install -y ca-certificates curl && \
+              rm -rf /var/lib/apt/lists/* && \
+              groupadd -r realtime && useradd -r -g realtime realtime
+          WORKDIR /app
+          COPY prebuilt/realtime-server /app/realtime-server
+          COPY sandbox/static/ /app/static/
+          USER realtime
+          EXPOSE 4000
+          ENV RUST_LOG="info" \
+              REALTIME_HOST="0.0.0.0" \
+              REALTIME_PORT="4000" \
+              REALTIME_STATIC_DIR="/app/static"
+          HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+              CMD curl -sf http://localhost:${REALTIME_PORT}/v1/health > /dev/null || exit 1
+          CMD ["/app/realtime-server"]
+          EOF
+
+      # Extract OCI image metadata (tags + labels) for both registries.
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.DOCKERHUB_IMAGE }}
+            ${{ env.GHCR_IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=realtime-agnostic
+            org.opencontainers.image.description=High-performance realtime pub/sub engine
+            org.opencontainers.image.vendor=LESdylan
+
+      # Log in to Docker Hub ───────────────────────────────────────────────────
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      # Log in to GitHub Container Registry — image appears in repo "Packages" tab
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build and push to BOTH registries in one step
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.ci
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Layer cache from GHCR to speed up subsequent builds
+          cache-from: type=registry,ref=${{ env.GHCR_IMAGE }}:cache
+          cache-to:   type=registry,ref=${{ env.GHCR_IMAGE }}:cache,mode=max
+
+  # ── Monitoring — smoke test after image is published ───────────────────────
+  monitor:
+    name: Monitoring (post-publish health probe)
+    runs-on: ubuntu-latest
+    needs: [build, docker]
+    steps:
+      - name: Pull and probe the published image
+        run: |
+          VERSION=${{ needs.build.outputs.version }}
+          echo "Pulling ${{ env.DOCKERHUB_IMAGE }}:${VERSION} ..."
+          docker pull ${{ env.DOCKERHUB_IMAGE }}:latest
+
+          echo "Starting container ..."
+          docker run -d --name probe \
+            -p 4000:4000 \
+            -e REALTIME_AUTH=noauth \
+            ${{ env.DOCKERHUB_IMAGE }}:latest
+
+          echo "Waiting for server to boot ..."
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:4000/v1/health; then
+              echo "✓ Health check passed"
+              docker rm -f probe
+              exit 0
+            fi
+            echo "  attempt $i/15 – sleeping 2s"
+            sleep 2
+          done
+
+          echo "✗ Health check failed after 30s"
+          docker logs probe
+          docker rm -f probe
+          exit 1

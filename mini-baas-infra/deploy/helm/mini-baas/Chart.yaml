@@ -1,0 +1,13 @@
+apiVersion: v2
+name: mini-baas
+description: >-
+  mini-baas — edition-selectable Backend-as-a-Service. This chart is GENERATED
+  from the same manifest that drives `make up EDITION=` (the Makefile planes/
+  editions + docker-compose.yml service facts). Select an edition with one of the
+  generated values-<edition>.yaml overlays.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords: [baas, postgres, multi-plane, edition]
+maintainers:
+  - name: dlesieur

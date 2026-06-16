@@ -1,0 +1,24 @@
+[package]
+name = "realtime-client"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+realtime-core = { path = "../realtime-core" }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-tungstenite = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+url = "2"
+rand = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

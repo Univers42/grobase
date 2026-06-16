@@ -1,0 +1,40 @@
+{{- /* HorizontalPodAutoscaler per plane that opts in (autoscaling.enabled).
+StatefulSet planes are intentionally NOT autoscaled here — stateful scale needs
+an operator (C4), so the chart only autoscales the stateless Deployments. */ -}}
+{{- $root := . -}}
+{{- range $name, $plane := .Values.planes }}
+{{- if and $plane.enabled $plane.autoscaling $plane.autoscaling.enabled }}
+{{- if eq ($plane.kind | default "Deployment") "Deployment" }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $root.Release.Name }}-{{ $name }}
+  labels:
+    {{- include "grobase.commonLabels" $root | nindent 4 }}
+    {{- include "grobase.selectorLabels" (dict "root" $root "name" $name) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $root.Release.Name }}-{{ $name }}
+  minReplicas: {{ $plane.autoscaling.minReplicas | default 2 }}
+  maxReplicas: {{ $plane.autoscaling.maxReplicas | default 10 }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $plane.autoscaling.targetCPUUtilizationPercentage | default 70 }}
+    {{- with $plane.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ . }}
+    {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

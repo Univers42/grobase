@@ -1,0 +1,31 @@
+# ── Build artifacts ────────────────────────────────────────────────────────
+target/
+.git/
+.gitignore
+
+# ── Dev tooling ────────────────────────────────────────────────────────────
+.env
+.env.*
+*.sh
+*.py
+bench_parallel.sh
+update_readmes.py
+make_commits.sh
+
+# ── Documentation ──────────────────────────────────────────────────────────
+*.md
+docs/
+prompt.md
+strategy.md
+PERFORMANCE_ANALYSIS.md
+
+# ── Sandbox (not needed in the published image) ────────────────────────────
+# We KEEP sandbox/static and sandbox/Dockerfile intentionally.
+# The root Dockerfile copies sandbox/static/ into the image.
+
+# ── IDE / OS noise ─────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store

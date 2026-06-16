@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grobase offer comparison — vs Supabase and MongoDB Atlas</title>
+<style>
+:root{--ink:#0f172a;--bg:#f8fafc;--line:#e2e8f0;--muted:#64748b;--head:#f1f5f9}
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:var(--bg);color:var(--ink);line-height:1.55}
+header{background:#0f172a;color:#fff;padding:32px 40px}
+header h1{margin:0 0 8px;font-size:25px;letter-spacing:-.01em}
+header .gen{margin:0;color:#94a3b8;font-size:13px}
+header .intro{margin:12px 0 0;color:#cbd5e1;font-size:14px;max-width:880px}
+main{max-width:1040px;margin:0 auto;padding:24px 16px 72px}
+section{background:#fff;border:1px solid var(--line);border-radius:10px;padding:22px;margin:20px 0;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+h2{font-size:21px;margin:4px 0 2px;letter-spacing:-.01em}
+h2 .tag{font-size:14px;font-weight:400;color:var(--muted)}
+h3{font-size:15px;margin:22px 0 8px;color:#334155;text-transform:uppercase;letter-spacing:.04em}
+.kicker{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px}
+.verdict{font-size:14px;color:#1e293b;background:#f8fafc;border-left:4px solid #0f172a;padding:12px 16px;border-radius:0 6px 6px 0;margin:0 0 18px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.card{display:block;text-decoration:none;color:inherit;border:1px solid var(--line);border-radius:9px;padding:16px;background:#fff;transition:border-color .15s,box-shadow .15s}
+.card:hover{border-color:#94a3b8;box-shadow:0 2px 8px rgba(15,23,42,.08)}
+.card .ct{font-weight:600;font-size:15px;color:#0f172a;margin:0 0 4px}
+.card .cd{font-size:12.5px;color:var(--muted);margin:0}
+.card .arrow{color:#2563eb;font-size:12.5px;margin-top:8px;display:block}
+table{border-collapse:collapse;width:100%;font-size:13px;margin-top:10px}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:var(--head);font-weight:600}
+tbody tr:nth-child(even){background:#fafcff}
+.badge{display:inline-block;color:#fff;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;text-transform:uppercase;letter-spacing:.03em}
+.ladder{margin:6px 0 20px}
+.rung{margin:0 0 16px;padding:0 0 14px;border-bottom:1px dashed var(--line)}
+.rung:last-child{border-bottom:none}
+.rung .rl{font-size:13px;font-weight:600;color:#0f172a;margin:0 0 8px}
+.bar-row{display:flex;align-items:center;gap:10px;margin:5px 0}
+.bar-who{flex:0 0 88px;font-size:12px;font-weight:600;text-align:right;color:#475569}
+.bar-track{flex:1 1 auto;background:#f1f5f9;border-radius:5px;height:26px;position:relative;overflow:hidden}
+.bar-fill{height:100%;border-radius:5px;display:flex;align-items:center;padding:0 9px;color:#fff;font-size:12px;font-weight:600;white-space:nowrap;min-width:max-content}
+.bar-g{background:#2563eb}
+.bar-r{background:#16a34a}
+.rung .rn{font-size:12px;color:var(--muted);margin:8px 0 0}
+footer{max-width:1040px;margin:0 auto;padding:8px 16px 48px;font-size:12px;color:var(--muted)}
+footer .sources{margin-top:8px}
+footer code{background:#eef2f7;padding:1px 6px;border-radius:4px;font-size:11px}
+footer ul{margin:6px 0 0;padding-left:18px}
+footer li{margin:2px 0}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:#475569;margin:0 0 4px}
+.legend .badge{margin-right:5px}
+.muted{color:var(--muted);font-size:12.5px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Grobase offer comparison — vs Supabase and MongoDB Atlas</h1>
+  <p class="gen">Generated 2026-06-15</p>
+  <p class="intro">Grobase ships five honest tiers on one codebase — every number is measured against packages.json and the bench/scale artifacts. Here we line them up, dollar-for-dollar and feature-for-feature, against Supabase&#39;s published pricing and MongoDB Atlas (whose App Services BaaS layer reached end-of-life on 2025-09-30).</p>
+</header>
+<main>
+  <section>
+    <p class="kicker">Reports</p>
+    <div class="cards">
+      <a class="card" href="comparison-report.html">
+        <p class="ct">★ Full comparison report</p>
+        <p class="cd">The detailed all-in-one: performance benchmarks + offers + the 91-row matrix + edge reliability + verdicts, with every chart.</p>
+        <span class="arrow">open &rarr;</span>
+      </a>
+      <a class="card" href="benchmark-3way.html">
+        <p class="ct">3-way deep benchmark</p>
+        <p class="cd">Grobase nano / one vs PocketBase — fresh images, latency by concurrency, multi-tenant scaling.</p>
+        <span class="arrow">open &rarr;</span>
+      </a>
+      <a class="card" href="benchmark-9way.html">
+        <p class="ct">9-way benchmark</p>
+        <p class="cd">Grobase tiers vs the field across footprint, latency, and 10K / 100K scale curves.</p>
+        <span class="arrow">open &rarr;</span>
+      </a>
+      <a class="card" href="postman-offers-report.html">
+        <p class="ct">Postman API-test report</p>
+        <p class="cd">Newman run of the offer-surface collection — auth, CRUD, aggregate, realtime, self-serve.</p>
+        <span class="arrow">open &rarr;</span>
+      </a>
+      <a class="card" href="supabase-vs-grobase.html">
+        <p class="ct">★ Supabase vs Grobase — strong enough? (visual)</p>
+        <p class="cd">Graphics-rich decision report: verdict gauge, win/parity/gap donut, measured head-to-head bars (read p95, footprint, density, insert p99), the new FTS m101 + vector m102 wins, and where Supabase still honestly leads.</p>
+        <span class="arrow">open &rarr;</span>
+      </a>
+      <a class="card" href="security-data-wins.html">
+        <p class="ct">★ Security &amp; data wins (visual)</p>
+        <p class="cd">The four just-landed, gate-backed wins — full-text (m101), vector k-NN (m102), network/WAF (m140), compliance (m141) — as evidence cards + GAP→WIN tone shifts + control-coverage donut + perimeter diagram.</p>
+        <span class="arrow">open &rarr;</span>
+      </a>
+      <a class="card" href="edge-reliability.html">
+        <p class="ct">★ Edge-case reliability (visual)</p>
+        <p class="cd">1,381 distinct edge vectors (9 families) under an invariant model: assertion pass-rate gauge, failure-category donut, and the 2 real 5xx bugs the suite found + we fixed (oversize→413, malformed-op→400) with the honest load-tail split (gate m142).</p>
+        <span class="arrow">open &rarr;</span>
+      </a>
+      <a class="card" href="benchmark-resources.html">
+        <p class="ct">★ Benchmark + resources (visual)</p>
+        <p class="cd">Measured same-box Grobase vs Supabase: read latency p50+p95, total RSS 822 vs 2,884 MiB (3.5× lighter) + Supabase&#39;s 13-container breakdown + the Grobase tier ladder, and a functional-parity matrix proving it&#39;s apples-to-apples.</p>
+        <span class="arrow">open &rarr;</span>
+      </a>
+      <a class="card" href="grobase-vs-supabase-allmetrics.html">
+        <p class="ct">★ All-metrics scorecard (visual)</p>
+        <p class="cd">The honest verdict: Grobase wins 10 of 11 measured metrics vs Supabase (footprint, read p95, density, engines, FTS m101, vector m102, WAF m140, audit m141) — one near-tie (read p50, Supabase +0.12 ms), zero measured Supabase wins.</p>
+        <span class="arrow">open &rarr;</span>
+      </a>
+      <a class="card" href="network-controls.html">
+        <p class="ct">Network controls + Cloudflare (visual)</p>
+        <p class="cd">Perimeter-layers diagram (Cloudflare → in-stack OWASP-CRS WAF → Kong → segmented planes), WAF block matrix (CRS rule-IDs, gate m140), segmentation matrix, and the copy-paste Cloudflare recipe.</p>
+        <span class="arrow">open &rarr;</span>
+      </a>
+      <a class="card" href="compliance-posture.html">
+        <p class="ct">Compliance posture — control matrix (visual)</p>
+        <p class="cd">Audit-ready gauge, ASVS/SOC2/GDPR coverage donut, the full evidence-backed control matrix (gate m141), and the tamper-evident hash-chain demo — with the honest formal-cert caveat.</p>
+        <span class="arrow">open &rarr;</span>
+      </a>
+      <a class="card" href="../offer-vs-supabase.md">
+        <p class="ct">Offer vs Supabase (doc)</p>
+        <p class="cd">Markdown deep-dive: tier-by-tier and feature-by-feature against Supabase.</p>
+        <span class="arrow">open &rarr;</span>
+      </a>
+      <a class="card" href="../offer-vs-mongodb-atlas.md">
+        <p class="ct">Offer vs MongoDB Atlas (doc)</p>
+        <p class="cd">Markdown deep-dive vs Atlas — and why the App Services BaaS layer is gone (EOL 2025-09-30).</p>
+        <span class="arrow">open &rarr;</span>
+      </a>
+      <a class="card" href="../competitive-matrix.md">
+        <p class="ct">Competitive matrix — 91 rows (doc)</p>
+        <p class="cd">The full capability matrix vs Supabase + Firebase, with the win/parity/gap status and a backing gate per row.</p>
+        <span class="arrow">open &rarr;</span>
+      </a>
+    </div>
+  </section>
+  <section>
+    <p class="kicker">Our offer</p>
+    <h2>Five tiers, one codebase</h2>
+    <p class="muted">Measured against <code>config/packages/packages.json</code> + <code>artifacts/footprint-*.json</code>. No invented numbers.</p>
+    <table>
+      <thead><tr><th>Tier</th><th>Price</th><th>Engines</th><th>rps / burst</th><th>Mounts</th><th>RAM MiB</th><th>Capabilities</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>Nano</b></td>
+          <td>Free / $5</td>
+          <td>1 <span class="muted">(sqlite)</span></td>
+          <td>50 / 100</td>
+          <td>1</td>
+          <td>2.1</td>
+          <td>CRUD + introspect</td>
+        </tr>
+        <tr>
+          <td><b>Basic</b></td>
+          <td>Free / $9</td>
+          <td>2 <span class="muted">(sqlite, postgresql)</span></td>
+          <td>100 / 200</td>
+          <td>1</td>
+          <td>463</td>
+          <td>CRUD only</td>
+        </tr>
+        <tr>
+          <td><b>Essential</b></td>
+          <td>$25 - $39</td>
+          <td>2 <span class="muted">(postgresql, sqlite)</span></td>
+          <td>200 / 400</td>
+          <td>2</td>
+          <td>822</td>
+          <td>CRUD + aggregate</td>
+        </tr>
+        <tr>
+          <td><b>Pro</b></td>
+          <td>$59 - $99</td>
+          <td>7 <span class="muted">(postgresql, sqlite, mysql, mariadb, mongodb, redis, cockroachdb)</span></td>
+          <td>400 / 800</td>
+          <td>10</td>
+          <td>1392</td>
+          <td>CRUD + aggregate + batch + transactions + schema/DDL; +realtime +analytics</td>
+        </tr>
+        <tr>
+          <td><b>Max</b></td>
+          <td>$149 - $299</td>
+          <td>9 <span class="muted">(+ mssql, + http (9 total))</span></td>
+          <td>800 / 1600</td>
+          <td>50</td>
+          <td>3174</td>
+          <td>Everything incl. DDL; +realtime +analytics +observability +engines +functions +storage</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+  <section id="supabase">
+    <h2>vs Supabase <span class="tag">— Postgres-only managed BaaS</span></h2>
+    <p class="verdict">Supabase is an excellent, polished single-Postgres BaaS with a beautiful Studio, mature auth, and a big community — if you only ever need PostgreSQL and you want a hosted dashboard out of the box, pick them. Where Grobase wins: nine engines instead of one, four selectable isolation models, and per-request RLS that lets a single shared pool carry 24,887 measured tenants at 2.9 MiB of data-plane RSS — so our per-tenant cost stays flat where a Supabase project is one Postgres database per project. Their Team tier ($599/mo) buys SOC 2 + ISO 27001 and dashboard SSO that we do not yet certify; our growth/Pro tier covers the same engines-plus-realtime-plus-analytics surface at $79. Choose Supabase if you want a managed dashboard + formal compliance today; choose Grobase if you want engine choice, self-host parity, and flat-cost multi-tenancy you can measure.</p>
+    <h3>Price ladder</h3>
+    <div class="ladder">
+      <div class="rung">
+        <p class="rl">Free / entry</p>
+        <div class="bar-row">
+          <span class="bar-who">Grobase</span>
+          <div class="bar-track"><div class="bar-fill bar-g" style="width:6.0%">Free · nano</div></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-who">Supabase</span>
+          <div class="bar-track"><div class="bar-fill bar-r" style="width:6.0%">Free · Free</div></div>
+        </div>
+        <p class="rn">Grobase Nano is a 5 MB / 2.1 MiB binary you self-host with zero standing cost; Supabase Free gives 2 projects, 500 MB DB, 50k MAU, and pauses a project after ~1 week of inactivity.</p>
+      </div>
+      <div class="rung">
+        <p class="rl">Single product</p>
+        <div class="bar-row">
+          <span class="bar-who">Grobase</span>
+          <div class="bar-track"><div class="bar-fill bar-g" style="width:6.0%">$29 · essential</div></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-who">Supabase</span>
+          <div class="bar-track"><div class="bar-fill bar-r" style="width:6.0%">$25 · Pro (+$10 compute credit)</div></div>
+        </div>
+        <p class="rn">Comparable price; Supabase Pro includes $10/mo compute credit (Small/Medium compute bills above it), 8 GB DB, 100k MAU. Grobase Essential adds a second engine + aggregate at 2 mounts.</p>
+      </div>
+      <div class="rung">
+        <p class="rl">Growth / team</p>
+        <div class="bar-row">
+          <span class="bar-who">Grobase</span>
+          <div class="bar-track"><div class="bar-fill bar-g" style="width:13.2%">$79 · pro</div></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-who">Supabase</span>
+          <div class="bar-track"><div class="bar-fill bar-r" style="width:100.0%">$599 · Team</div></div>
+        </div>
+        <p class="rn">Supabase Team ($599/mo) is priced for SOC 2 + ISO 27001 + 14-day backups + dashboard SSO. Grobase Pro ($79) delivers 7 engines, transactions, realtime + analytics; we do not yet sell formal compliance — that gap is honest.</p>
+      </div>
+    </div>
+    <h3>Feature comparison</h3>
+    <div class="legend">
+      <span><span class="badge" style="background:#16a34a">win</span> we lead</span>
+      <span><span class="badge" style="background:#0891b2">ok</span> on par / supported</span>
+      <span><span class="badge" style="background:#a16207">partial</span> partial</span>
+      <span><span class="badge" style="background:#dc2626">gap</span> honest gap / retired</span>
+    </div>
+    <table>
+      <thead><tr><th>Feature</th><th>Grobase</th><th>Supabase</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>Database engines</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> 9 (pg, mysql, mariadb, mongo, mssql, cockroach, redis, sqlite, http)</td>
+          <td><span class="badge" style="background:#0891b2">ok</span> PostgreSQL only</td>
+          <td class="muted">packages.json / supabase.com/pricing</td>
+        </tr>
+        <tr>
+          <td><b>Multi-tenancy density</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> 24,887 tenants @ 2.9 MiB data-plane RSS, 0 standing pools (per-request RLS)</td>
+          <td><span class="badge" style="background:#a16207">partial</span> One project = one Postgres DB; tenancy only via RLS inside a single project</td>
+          <td class="muted">gate m46-share-pools-isolation.sh + artifacts/scale/footprint-live-24888-today.json / supabase.com</td>
+        </tr>
+        <tr>
+          <td><b>Isolation models per mount</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> 4 selectable (shared_rls, schema, db, instance)</td>
+          <td><span class="badge" style="background:#0891b2">ok</span> RLS within a single project</td>
+          <td class="muted">m46-share-pools-isolation.sh / supabase.com docs</td>
+        </tr>
+        <tr>
+          <td><b>Realtime</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> WS/SSE subscribe + publish (Rust event bus), Pro/Max add-on</td>
+          <td><span class="badge" style="background:#0891b2">ok</span> 200 concurrent / 2M mess-mo on Free; Postgres CDC realtime</td>
+          <td class="muted">/realtime/v1/* gates / supabase.com/pricing</td>
+        </tr>
+        <tr>
+          <td><b>Object storage</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> S3/MinIO (or any S3-compatible: R2/Backblaze/Wasabi/AWS) buckets, list, object, presigned sign + on-the-fly image transforms (resize/webp/jpeg/png/avif, gate m95) + per-bucket ABAC + per-request owner-scoping; self-host = NO per-GB / egress / total-storage cap (you pay only your own bucket)</td>
+          <td><span class="badge" style="background:#0891b2">ok</span> 1 GB Free / 100 GB Pro (hard quota), mature managed CDN + image transforms</td>
+          <td class="muted">/storage/v1/* + image-transform.ts + gate m95 / supabase.com/pricing</td>
+        </tr>
+        <tr>
+          <td><b>Functions</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> Deno runtime: deploy/list/invoke + DB-event triggers (cross-tenant-isolated) + per-fn secrets (AES-GCM) + warm pool + per-invoke mem-cap + live cron + baas CLI; self-host = NO invocation cap, data never leaves your infra</td>
+          <td><span class="badge" style="background:#16a34a">win</span> Edge Functions, 500k invocations/mo Free (billing cap), globally distributed (Deno Deploy edge), mature managed runtime</td>
+          <td class="muted">/functions/v1/* + functions-runtime/src/server.ts + gate m56/m79/m96 / supabase.com/pricing</td>
+        </tr>
+        <tr>
+          <td><b>Auth / MFA</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> Same engine as Supabase (gotrue v2.188.1 vendored) + passkeys/WebAuthn (m107), per-tenant OIDC SSO (m110), SCIM 2.0 (m111), OAuth2/OIDC+PKCE+TOTP+recovery (m41/m42); self-host = no MAU cap</td>
+          <td><span class="badge" style="background:#0891b2">ok</span> Mature GoTrue-based auth, many OAuth providers, MFA, 50k-100k MAU — but SSO/SCIM are paid Team/Enterprise only, no first-class passkeys; SAML 2.0 + Studio auth UI win</td>
+          <td class="muted">Dockerfile FROM supabase/gotrue:v2.188.1; gates m107/m110/m111/m41/m42; supabase.com/pricing (SSO/SCIM = paid)</td>
+        </tr>
+        <tr>
+          <td><b>Backups / PITR</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> Per-TENANT logical backup/restore (atomic Go-native COPY, restore one tenant in isolation, gate m87) + PITR restore-to-timestamp (WAL archive + recovery_target_time, tier retention nano1d…max90d, gate m99) + whole-cluster drill (m47); self-host = backups in your own bucket, no storage/egress markup</td>
+          <td><span class="badge" style="background:#0891b2">ok</span> Daily backups + 7-day PITR (Pro), 14-day retention (Team) — turnkey managed SLA, but whole-project only (no per-tenant restore)</td>
+          <td class="muted">internal/backup/* + 042_tenant_backups.sql + gates m87/m99/m47 / supabase.com/pricing</td>
+        </tr>
+        <tr>
+          <td><b>GraphQL</b></td>
+          <td><span class="badge" style="background:#0891b2">ok</span> pg_graphql (same extension as Supabase), RLS-isolation gate-proven (m59, two-tenant + anon-denied); self-host = no per-query/egress metering; opt-in glibc edition (docker-compose.graphql.yml)</td>
+          <td><span class="badge" style="background:#0891b2">ok</span> pg_graphql auto-API, default-on + hosted GraphiQL Studio explorer</td>
+          <td class="muted">scripts/verify/m59-graphql-live.sh / 035_pg_graphql.sql / kong.yml / supabase.com docs</td>
+        </tr>
+        <tr>
+          <td><b>Vector / full-text search</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> First-class op=fulltext_search (ranked to_tsvector @@ websearch_to_tsquery, multi-column, language-aware, owner-scoped — gate m101) + op=vector_search (pgvector kNN cosine/l2/ip — gate m102); engine-agnostic, capability-gated</td>
+          <td><span class="badge" style="background:#0891b2">ok</span> pgvector + tsvector (FTS is a single-column filter operator; vector needs a hand-written SQL RPC)</td>
+          <td class="muted">postgres.rs build_search/build_vector_order + gates m101/m102 / supabase.com</td>
+        </tr>
+        <tr>
+          <td><b>Dashboard / Studio</b></td>
+          <td><span class="badge" style="background:#a16207">partial</span> binocle-one admin UI at /_/ ; tenant self-serve API</td>
+          <td><span class="badge" style="background:#16a34a">win</span> Full hosted Studio (table editor, SQL editor, logs)</td>
+          <td class="muted">binocle-one edition / supabase.com</td>
+        </tr>
+        <tr>
+          <td><b>SDK languages</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> TS/JS, Python, Kotlin, Swift, Dart</td>
+          <td><span class="badge" style="background:#16a34a">win</span> JS/TS, Flutter/Dart, Swift, Python, C#, Kotlin (community)</td>
+          <td class="muted">apps/baas/sdk* / supabase.com docs</td>
+        </tr>
+        <tr>
+          <td><b>Self-host parity</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> Same single codebase nano→max; OSS self-host is the default, no rewrite</td>
+          <td><span class="badge" style="background:#a16207">partial</span> Self-host exists but lags hosted; many features cloud-first</td>
+          <td class="muted">02-layer-edition-model.md / supabase.com/docs/self-hosting</td>
+        </tr>
+        <tr>
+          <td><b>WAF / network segmentation</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> In-stack OWASP-CRS WAF as the sole public listener (SQLi/XSS/traversal → 403 with CRS rule-IDs, benign passes — gate m140) + per-plane network segmentation (public edge ↛ data/control plane REFUSED, gate m140) + per-tenant IP allowlist (m106) + a copy-paste Cloudflare front-door recipe. Supabase OSS self-host ships neither an in-stack WAF nor plane isolation.</td>
+          <td><span class="badge" style="background:#a16207">partial</span> Network restrictions / IP allow-list (managed); fronted by their own Cloudflare; no in-stack WAF in the OSS self-host stack</td>
+          <td class="muted">gate m140 + m106 / wiki/network-controls.md</td>
+        </tr>
+        <tr>
+          <td><b>Compliance posture</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> Buyer-recomputable, cryptographically tamper-evident hash-chained audit (m104) + continuous SOC2-lite evidence collector that reflects reality (m108) + GDPR hard-erase/export (m105/m109), unified into an ASVS 4.0 + SOC 2 TSC + GDPR control matrix, every row evidence-backed (gate m141). All self-host + independently re-verifiable. Honest caveat: no external SOC2/ISO/HIPAA attestation yet (an auditor + business milestone, not a code gap).</td>
+          <td><span class="badge" style="background:#16a34a">win</span> External-attested SOC 2 Type II + ISO/IEC 27001:2022 + HIPAA BAA as a hosted product — wins on the paper cert; controls are not buyer-recomputable</td>
+          <td class="muted">gate m141/m104/m108 + wiki/compliance-posture.md</td>
+        </tr>
+        <tr>
+          <td><b>Cost per tenant at scale</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> Flat: 24,887 tenants share one pool @ 2.9 MiB; rps = measured_capacity × fair_share × 0.5</td>
+          <td><span class="badge" style="background:#a16207">partial</span> Per-project Postgres + compute add-ons (Small ~$15, Medium ~$60 above the $10 credit)</td>
+          <td class="muted">cost-analysis.md + footprint-live-24888-today.json / supabase.com/pricing</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+  <section id="atlas">
+    <h2>vs MongoDB Atlas <span class="tag">— Managed MongoDB (BaaS layer retired 2025)</span></h2>
+    <p class="verdict">MongoDB Atlas is a first-class managed MongoDB — Atlas Search, vector search, Charts, and Stream Processing are genuinely strong, and if your workload is document-native and you want the best managed MongoDB operations, pick them. But the honest, decisive point for an app backend: Atlas App Services — the entire BaaS layer — reached end-of-life on 2025-09-30. The Data API, GraphQL API, Device Sync + Realm SDKs, App Services Functions, hosted Authentication/user management, Static Hosting, and Custom HTTPS Endpoints are all shut down; only Database Triggers survive. So in 2026 Atlas is a managed DATABASE, not a BaaS — the Firebase-style backend it once offered is gone. Grobase gives you that retired surface back (CRUD/aggregate API, GraphQL, auth/MFA, functions) on nine engines including MongoDB itself, self-hostable, on one codebase. Choose Atlas if you want premier managed MongoDB + Atlas Search/Charts; choose Grobase if you need the application backend Atlas no longer ships.</p>
+    <h3>Price ladder</h3>
+    <div class="ladder">
+      <div class="rung">
+        <p class="rl">Free / entry</p>
+        <div class="bar-row">
+          <span class="bar-who">Grobase</span>
+          <div class="bar-track"><div class="bar-fill bar-g" style="width:6.0%">Free · nano</div></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-who">MongoDB Atlas</span>
+          <div class="bar-track"><div class="bar-fill bar-r" style="width:6.0%">Free · M0 Free</div></div>
+        </div>
+        <p class="rn">Atlas M0 is 512 MB shared storage, ~100 ops/sec — a database only, no app backend. Grobase Nano is a self-hosted 2.1 MiB binary with a full CRUD + introspect API.</p>
+      </div>
+      <div class="rung">
+        <p class="rl">Single product</p>
+        <div class="bar-row">
+          <span class="bar-who">Grobase</span>
+          <div class="bar-track"><div class="bar-fill bar-g" style="width:7.2%">$29 · essential</div></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-who">MongoDB Atlas</span>
+          <div class="bar-track"><div class="bar-fill bar-r" style="width:7.5%">$30 · Flex ($8-$30)</div></div>
+        </div>
+        <p class="rn">Atlas Flex (GA Feb 2025, base $8 usage-capped at $30) is a managed DB scaling 100→500 ops/sec, 5 GB — still no BaaS layer. Grobase Essential is a real backend API with aggregate at $25-$39.</p>
+      </div>
+      <div class="rung">
+        <p class="rl">Growth / team</p>
+        <div class="bar-row">
+          <span class="bar-who">Grobase</span>
+          <div class="bar-track"><div class="bar-fill bar-g" style="width:19.8%">$79 · pro</div></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-who">MongoDB Atlas</span>
+          <div class="bar-track"><div class="bar-fill bar-r" style="width:100.0%">$400 · Dedicated M30</div></div>
+        </div>
+        <p class="rn">Atlas M30 (~$400/mo) is dedicated DB compute; you still build and host the application backend yourself since App Services is EOL. Grobase Pro ($79) ships the backend (7 engines incl. MongoDB, transactions, realtime, analytics).</p>
+      </div>
+    </div>
+    <h3>Feature comparison</h3>
+    <div class="legend">
+      <span><span class="badge" style="background:#16a34a">win</span> we lead</span>
+      <span><span class="badge" style="background:#0891b2">ok</span> on par / supported</span>
+      <span><span class="badge" style="background:#a16207">partial</span> partial</span>
+      <span><span class="badge" style="background:#dc2626">gap</span> honest gap / retired</span>
+    </div>
+    <table>
+      <thead><tr><th>Feature</th><th>Grobase</th><th>MongoDB Atlas</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>Database engines</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> 9 (pg, mysql, mariadb, mongo, mssql, cockroach, redis, sqlite, http)</td>
+          <td><span class="badge" style="background:#0891b2">ok</span> MongoDB only</td>
+          <td class="muted">packages.json / mongodb.com/pricing</td>
+        </tr>
+        <tr>
+          <td><b>Data API (REST over data)</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> POST /data/v1/query — op = list/get/insert/update/delete/upsert/aggregate, all engines</td>
+          <td><span class="badge" style="background:#dc2626">gap</span> Atlas Data API SHUT DOWN — App Services EOL 2025-09-30</td>
+          <td class="muted">scripts/verify/m22-live-database.sh / mongodb.com App Services data-api-deprecation (EOL 2025-09-30)</td>
+        </tr>
+        <tr>
+          <td><b>GraphQL API</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> GraphQL edition (RLS-aware, gate m59)</td>
+          <td><span class="badge" style="background:#dc2626">gap</span> Atlas GraphQL API SHUT DOWN — App Services EOL 2025-09-30</td>
+          <td class="muted">docker-compose.graphql.yml / mongodb.com App Services EOL 2025-09-30</td>
+        </tr>
+        <tr>
+          <td><b>Auth / user management</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> gotrue surface (signup, password grant, recover, verify, MFA); binocle-one OAuth2 + admin UI</td>
+          <td><span class="badge" style="background:#dc2626">gap</span> App Services Authentication SHUT DOWN — EOL 2025-09-30 (Atlas is DB-only now)</td>
+          <td class="muted">/auth/v1/* gates / mongodb.com App Services EOL 2025-09-30</td>
+        </tr>
+        <tr>
+          <td><b>Serverless functions</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> deploy / list / invoke (Max add-on)</td>
+          <td><span class="badge" style="background:#dc2626">gap</span> App Services Functions SHUT DOWN — EOL 2025-09-30</td>
+          <td class="muted">/functions/v1/* / mongodb.com App Services EOL 2025-09-30</td>
+        </tr>
+        <tr>
+          <td><b>Device Sync / offline mobile</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> Realtime WS/SSE subscribe + publish (not full offline conflict-sync)</td>
+          <td><span class="badge" style="background:#dc2626">gap</span> Device Sync + Realm SDKs SHUT DOWN — EOL 2025-09-30</td>
+          <td class="muted">/realtime/v1/* / mongodb.com App Services EOL 2025-09-30 (Realm/Device Sync retired)</td>
+        </tr>
+        <tr>
+          <td><b>Database triggers</b></td>
+          <td><span class="badge" style="background:#0891b2">ok</span> Function triggers (Go control plane: functriggers)</td>
+          <td><span class="badge" style="background:#16a34a">win</span> Database Triggers — the ONE App Services feature that survives</td>
+          <td class="muted">go/control-plane functriggers / mongodb.com (Database Triggers retained)</td>
+        </tr>
+        <tr>
+          <td><b>Multi-tenancy density</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> 24,887 tenants @ 2.9 MiB data-plane RSS, 0 standing pools</td>
+          <td><span class="badge" style="background:#a16207">partial</span> Per-cluster; no app-level multi-tenant BaaS layer</td>
+          <td class="muted">m46-share-pools-isolation.sh + footprint-live-24888-today.json / mongodb.com</td>
+        </tr>
+        <tr>
+          <td><b>Isolation models</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> 4 selectable per mount</td>
+          <td><span class="badge" style="background:#0891b2">ok</span> Cluster/DB separation only</td>
+          <td class="muted">m46-share-pools-isolation.sh / mongodb.com docs</td>
+        </tr>
+        <tr>
+          <td><b>Search (full-text + vector)</b></td>
+          <td><span class="badge" style="background:#a16207">partial</span> Engine-dependent (pgvector + FTS on Postgres)</td>
+          <td><span class="badge" style="background:#16a34a">win</span> Atlas Search + vector search — first-class, still offered</td>
+          <td class="muted">engine-dependent / mongodb.com (Atlas Search retained)</td>
+        </tr>
+        <tr>
+          <td><b>Object / static hosting</b></td>
+          <td><span class="badge" style="background:#0891b2">ok</span> S3/MinIO buckets + presigned (Max add-on)</td>
+          <td><span class="badge" style="background:#dc2626">gap</span> Static Hosting SHUT DOWN — EOL 2025-09-30</td>
+          <td class="muted">/storage/v1/* / mongodb.com App Services EOL 2025-09-30</td>
+        </tr>
+        <tr>
+          <td><b>Charts / BI</b></td>
+          <td><span class="badge" style="background:#0891b2">ok</span> Analytics add-on + osionos chart/dashboard client</td>
+          <td><span class="badge" style="background:#16a34a">win</span> Atlas Charts — strong, still offered</td>
+          <td class="muted">analytics plane / mongodb.com (Atlas Charts retained)</td>
+        </tr>
+        <tr>
+          <td><b>SDK languages</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> TS/JS, Python, Kotlin, Swift, Dart</td>
+          <td><span class="badge" style="background:#a16207">partial</span> Driver SDKs (DB only); Realm app SDKs retired with Device Sync</td>
+          <td class="muted">apps/baas/sdk* / mongodb.com (Realm SDKs EOL 2025-09-30)</td>
+        </tr>
+        <tr>
+          <td><b>Self-host</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> OSS self-host default, nano→max one codebase no rewrite</td>
+          <td><span class="badge" style="background:#a16207">partial</span> Atlas is managed-only; Community Server is DB-only, no App Services</td>
+          <td class="muted">02-layer-edition-model.md / mongodb.com</td>
+        </tr>
+        <tr>
+          <td><b>Custom HTTPS endpoints</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> http engine adapter + functions invoke</td>
+          <td><span class="badge" style="background:#dc2626">gap</span> Custom HTTPS Endpoints SHUT DOWN — EOL 2025-09-30</td>
+          <td class="muted">data-plane-pool http adapter / mongodb.com App Services EOL 2025-09-30</td>
+        </tr>
+        <tr>
+          <td><b>Pricing transparency</b></td>
+          <td><span class="badge" style="background:#16a34a">win</span> 5 honest tiers, packages.json single source; rps measured</td>
+          <td><span class="badge" style="background:#0891b2">ok</span> Flex usage-billed ($8-$30); Dedicated M10 ~$57 → M60 $1,500+ per-hour</td>
+          <td class="muted">packages.json + cost-analysis.md / mongodb.com/pricing</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+<footer>
+  <p>Grobase numbers are <b>measured</b> (<code>config/packages/packages.json</code> + <code>artifacts/&hellip;</code>). Rival numbers are <b>published</b> as of June 2026 — the vendor's claim, not our measurement.</p>
+  <div class="sources">
+    <p>Published sources:</p>
+    <ul>
+      <li><code>https://supabase.com/pricing</code></li>
+      <li><code>https://www.mongodb.com/docs/atlas/app-services/data-api/data-api-deprecation/</code></li>
+      <li><code>https://www.mongodb.com/pricing</code></li>
+    </ul>
+  </div>
+</footer>
+</body></html>

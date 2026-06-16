@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grobase — Compliance Posture</title>
+<style>
+:root{
+  --win:#1f9d57;--parity:#d99a16;--gap:#c64242;--brand:#5b6cff;
+  --ink:#0e1726;--muted:#5b6781;--bg:#f6f8fc;--card:#ffffff;
+  --line:#e3e8f2;--accent:#5b6cff;
+  --shadow:0 1px 2px rgba(16,23,38,.04),0 6px 24px rgba(16,23,38,.07);
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);line-height:1.55;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,
+    "Apple Color Emoji","Segoe UI Emoji",sans-serif;
+  font-size:15px;-webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:960px;margin:0 auto;padding:0 20px 64px}
+header.site{
+  position:sticky;top:0;z-index:50;
+  background:linear-gradient(110deg,var(--accent),color-mix(in srgb,var(--accent) 55%,#1b2447));
+  color:#fff;box-shadow:0 4px 18px rgba(16,23,38,.18);
+}
+@supports not (background:color-mix(in srgb,#000,#fff)){
+  header.site{background:linear-gradient(110deg,var(--accent),#2a3566)}
+}
+.site .inner{max-width:960px;margin:0 auto;padding:22px 20px}
+.site h1{margin:0;font-size:24px;font-weight:700;letter-spacing:-.01em}
+.site .sub{margin:6px 0 0;opacity:.92;font-size:14.5px;font-weight:400}
+.site .upd{margin-top:10px;font-size:12px;opacity:.8;font-variant-numeric:tabular-nums}
+section{margin-top:30px}
+section>h2{
+  font-size:18px;margin:0 0 4px;letter-spacing:-.01em;
+  padding-bottom:8px;border-bottom:2px solid var(--line);
+}
+section .intro{color:var(--muted);margin:8px 0 16px;font-size:14.5px}
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:18px;
+}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-top:6px}
+.kpi{
+  background:var(--card);border:1px solid var(--line);border-left:4px solid var(--muted);
+  border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 16px 14px;
+}
+.kpi.win{border-left-color:var(--win)} .kpi.parity{border-left-color:var(--parity)}
+.kpi.gap{border-left-color:var(--gap)} .kpi.neutral{border-left-color:var(--muted)}
+.kpi .label{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.kpi .value{font-size:27px;font-weight:700;margin:4px 0 2px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.kpi .sub{font-size:12.5px;color:var(--muted)}
+.kpi.win .value{color:var(--win)} .kpi.gap .value{color:var(--gap)} .kpi.parity .value{color:var(--parity)}
+.scoreboard{
+  display:flex;flex-wrap:wrap;gap:0;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-top:6px;
+}
+.scoreboard .sb-title{padding:14px 16px;font-weight:600;font-size:13px;color:var(--muted);
+  align-self:center;border-right:1px solid var(--line)}
+.scoreboard .stat{padding:12px 18px;border-right:1px solid var(--line);min-width:96px}
+.scoreboard .stat:last-child{border-right:none}
+.scoreboard .stat .v{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.scoreboard .stat .l{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.scoreboard .stat.win .v{color:var(--win)} .scoreboard .stat.gap .v{color:var(--gap)}
+.scoreboard .stat.parity .v{color:var(--parity)}
+.badge{
+  display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;
+  line-height:1.5;border:1px solid transparent;vertical-align:middle;
+}
+.badge.win{background:rgba(31,157,87,.12);color:var(--win);border-color:rgba(31,157,87,.25)}
+.badge.parity{background:rgba(217,154,22,.13);color:#9a6b07;border-color:rgba(217,154,22,.3)}
+.badge.gap{background:rgba(198,66,66,.12);color:var(--gap);border-color:rgba(198,66,66,.25)}
+.badge.brand{background:rgba(91,108,255,.12);color:var(--brand);border-color:rgba(91,108,255,.25)}
+.badge.neutral{background:rgba(91,103,129,.1);color:var(--muted);border-color:rgba(91,103,129,.22)}
+figure.chart{margin:0;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:16px 16px 12px}
+figure.chart .chart-title{font-weight:600;font-size:14.5px;margin:0 0 10px}
+figure.chart figcaption{color:var(--muted);font-size:12px;margin-top:8px}
+figure.chart svg{display:block;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:12.5px;color:var(--muted)}
+.legend .li{display:inline-flex;align-items:center;gap:6px}
+.legend .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+table.matrix{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);font-size:13.5px}
+table.matrix th,table.matrix td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);
+  vertical-align:top}
+table.matrix thead th{background:#eef2fb;font-size:12px;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);font-weight:600}
+table.matrix tbody tr:nth-child(even){background:#fbfcfe}
+table.matrix tbody tr:last-child td{border-bottom:none}
+td.t-win{background:rgba(31,157,87,.1)} td.t-parity{background:rgba(217,154,22,.12)}
+td.t-gap{background:rgba(198,66,66,.1)} td.t-brand{background:rgba(91,108,255,.1)}
+.callouts{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.callout{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--muted);
+  border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px}
+.callout.win{border-left-color:var(--win)} .callout.parity{border-left-color:var(--parity)}
+.callout.gap{border-left-color:var(--gap)} .callout.brand{border-left-color:var(--brand)}
+.callout .c-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.callout .c-title{font-weight:650;font-size:14.5px}
+.callout .c-body{color:var(--muted);font-size:13px;margin-top:6px}
+.layers{display:flex;flex-direction:column;gap:8px}
+.layer{border:1px solid var(--line);border-radius:10px;padding:12px 16px;background:var(--card);
+  box-shadow:var(--shadow);position:relative}
+.layer .ln{font-weight:650;font-size:14px} .layer .ld{color:var(--muted);font-size:12.5px;margin-top:2px}
+.layer.win{border-left:4px solid var(--win)} .layer.parity{border-left:4px solid var(--parity)}
+.layer.gap{border-left:4px solid var(--gap)} .layer.brand{border-left:4px solid var(--brand)}
+.evidence{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:16px}
+.evidence .e-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.evidence .e-title{font-weight:650;font-size:14.5px}
+.evidence pre{margin:0;background:#0e1726;color:#d7e2f7;border-radius:10px;padding:12px 14px;
+  font-size:12.5px;line-height:1.55;overflow:auto;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.evidence .e-gate{margin-top:10px;font-size:12px;color:var(--muted)}
+.evidence .e-gate code{background:#eef2fb;padding:2px 6px;border-radius:5px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+footer.site{margin-top:48px;border-top:1px solid var(--line);padding:22px 20px;color:var(--muted);
+  font-size:12.5px;text-align:center}
+footer.site .wrap{padding-bottom:0}
+@media (max-width:560px){
+  .scoreboard{flex-direction:column}
+  .scoreboard .sb-title,.scoreboard .stat{border-right:none;border-bottom:1px solid var(--line)}
+  .scoreboard .stat:last-child{border-bottom:none}
+  .site h1{font-size:21px}
+}
+@media print{
+  body{background:#fff}
+  header.site{position:static;box-shadow:none;color:#0e1726;background:#fff;border-bottom:2px solid var(--accent)}
+  .card,.kpi,figure.chart,.evidence,table.matrix,.scoreboard,.callout,.layer{box-shadow:none}
+  section{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<header class="site"><div class="inner">
+  <h1>Grobase — Compliance Posture</h1>
+  <p class="sub">Control matrix · ASVS 4.0 × SOC 2 TSC × GDPR — every row evidence-backed, audit-ready (not &quot;certified&quot;)</p>
+  <div class="upd">Updated 2026-06-15</div>
+</div></header>
+<main class="wrap">
+<section id="posture">
+  <h2>Audit-ready posture</h2>
+  <p class="intro">A control matrix mapping <strong>shipped</strong> Grobase controls to OWASP ASVS 4.0, the SOC 2 Trust Services Criteria, and GDPR — every row backed by an in-repo artifact a buyer can run. <strong>Audit-ready</strong> means the controls exist, the evidence is in the repo, and CI gates keep it honest. It does <em>not</em> mean "SOC 2 certified" — formal attestation needs an external auditor (honest caveat, §below).</p>
+  <div class="grid" style="grid-template-columns:minmax(240px,1fr) 2fr;align-items:start">
+  <figure class="chart">
+  <p class="chart-title">Controls shipped &amp; gate-proven</p>
+  <svg viewBox="0 0 240 150" role="img" aria-label="Controls shipped &amp; gate-proven" style="max-width:280px;margin:0 auto">
+    <path d="M 28.00 122.00 A 92 92 0 0 1 212.00 122.00" fill="none" stroke="#e3e8f2" stroke-width="16" stroke-linecap="round"/><path d="M 28.00 122.00 A 92 92 0 0 1 190.89 180.64" fill="none" stroke="#1f9d57" stroke-width="16" stroke-linecap="round"/><text x="120" y="104" font-size="28" font-weight="700" fill="#1f9d57" text-anchor="middle">78</text><line x1="120" y1="122" x2="186.26" y2="176.82" stroke="#0e1726" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="120" cy="122" r="6" fill="#0e1726"/><text x="28" y="142" font-size="10" fill="#5b6781" text-anchor="middle">0</text>
+    <text x="212" y="142" font-size="10" fill="#5b6781" text-anchor="middle">100</text><text x="120" y="152" font-size="12" fill="#5b6781" text-anchor="middle">28 of 36 controls live (·proven)</text>
+  </svg>
+</figure>
+  <div class="grid kpis"><div class="kpi win">
+    <div class="label">Controls mapped</div>
+    <div class="value">36</div>
+    <div class="sub">ASVS × SOC 2 TSC × GDPR rows</div>
+  </div>
+<div class="kpi win">
+    <div class="label">Standards covered</div>
+    <div class="value">3</div>
+    <div class="sub">ASVS 4.0 · SOC 2 TSC · GDPR</div>
+  </div>
+<div class="kpi win">
+    <div class="label">GDPR article citations</div>
+    <div class="value">42</div>
+    <div class="sub">9 distinct articles referenced</div>
+  </div>
+<div class="kpi parity">
+    <div class="label">Formal certification</div>
+    <div class="value">pending</div>
+    <div class="sub">SOC 2 / ISO / HIPAA — needs auditor (D4)</div>
+  </div></div>
+  </div>
+  <div class="scoreboard">
+  <div class="sb-title">Control status</div>
+  <div class="stat win">
+    <div class="v">6</div>
+    <div class="l">Differentiator [+]</div>
+  </div>
+<div class="stat win">
+    <div class="v">22</div>
+    <div class="l">Implemented [v]</div>
+  </div>
+<div class="stat parity">
+    <div class="v">7</div>
+    <div class="l">Partial [~]</div>
+  </div>
+<div class="stat parity">
+    <div class="v">1</div>
+    <div class="l">Planned [plan]</div>
+  </div>
+</div>
+</section>
+<section id="coverage">
+  <h2>Control coverage by standard</h2>
+  <p class="intro">Each of the <strong>36</strong> controls maps into one or more standards families. A control commonly cites all three (e.g. owner-scoping → ASVS V4.1, SOC 2 CC6.1, GDPR Art. 25), so the counts below overlap by design — they show how many controls touch each family, not a partition.</p>
+  <div class="grid" style="grid-template-columns:minmax(240px,1fr) 1fr;align-items:center">
+  <figure class="chart">
+  <p class="chart-title">Controls referencing each standard</p>
+  <svg viewBox="0 0 220 220" role="img" aria-label="Controls referencing each standard" style="max-width:260px;margin:0 auto">
+    <path d="M 110.00 18.00 A 92 92 0 0 1 186.69 160.82 L 156.68 140.93 A 56 56 0 0 0 110.00 54.00 Z" fill="#5b6cff"/><path d="M 186.69 160.82 A 92 92 0 0 1 23.23 140.58 L 57.18 128.61 A 56 56 0 0 0 156.68 140.93 Z" fill="#1f9d57"/><path d="M 23.23 140.58 A 92 92 0 0 1 110.00 18.00 L 110.00 54.00 A 56 56 0 0 0 57.18 128.61 Z" fill="#d99a16"/>
+    <text x="110" y="106" font-size="20" font-weight="700" fill="#0e1726" text-anchor="middle">36</text>
+       <text x="110" y="126" font-size="11" fill="#5b6781" text-anchor="middle">total 102</text>
+  </svg>
+  <div class="legend"><span class="li"><span class="sw" style="background:#5b6cff"></span>OWASP ASVS 4.0 — <strong style="color:#0e1726">35</strong> (34.3%)</span><span class="li"><span class="sw" style="background:#1f9d57"></span>SOC 2 TSC — <strong style="color:#0e1726">36</strong> (35.3%)</span><span class="li"><span class="sw" style="background:#d99a16"></span>GDPR articles — <strong style="color:#0e1726">31</strong> (30.4%)</span></div>
+</figure>
+  <div class="grid callouts"><div class="callout brand">
+    <div class="c-head">
+      <span class="c-title">OWASP ASVS 4.0</span>
+      <span class="badge brand">35</span>
+    </div>
+    <div class="c-body">35 controls map to ASVS verification requirements (V1–V14). Full L1/L2 map in security-audit-asvs.md.</div>
+  </div>
+<div class="callout win">
+    <div class="c-head">
+      <span class="c-title">SOC 2 TSC</span>
+      <span class="badge win">36</span>
+    </div>
+    <div class="c-body">36 controls map to Trust Services Criteria (CC1–CC8, A1, C1, P). m108 collector seals the evidence set.</div>
+  </div>
+<div class="callout parity">
+    <div class="c-head">
+      <span class="c-title">GDPR</span>
+      <span class="badge parity">31</span>
+    </div>
+    <div class="c-body">31 controls cite GDPR articles (42 citations across 9 distinct articles incl. Art. 17/20/25/28/30/32/33/34/44–46).</div>
+  </div></div>
+  </div>
+</section>
+<section id="matrix">
+  <h2>Control matrix — ASVS × SOC 2 TSC × GDPR (36 controls)</h2>
+  <p class="intro">Status legend: <strong>[+]</strong> differentiator Supabase lacks · <strong>[v]</strong> implemented &amp; gate/CI-proven · <strong>[~]</strong> partial (real, with a named gap) · <strong>[plan]</strong> planned (honestly not yet proven). Every Evidence cell points at a numbered gate, a migration, a source path, or a CI job a buyer can run. Source of truth: <code>config/trust/posture.json</code> (served at <code>GET /v1/trust</code>); if this table and the JSON disagree, the JSON is canonical.</p>
+  <table class="matrix"><thead><tr><th>Control</th><th>ASVS</th><th>SOC 2 TSC</th><th>GDPR</th><th>Status</th><th>Evidence (gate / path)</th></tr></thead><tbody><tr><td>Customer owns deployment + data location (self-host)</td><td>V1.1, V14</td><td>CC1.x, C1.1</td><td>Art. 28, 44–46</td><td class="td t-win">[+] differentiator</td><td>self-host editions; no Grobase subprocessor sees data (Makefile editions; 02-layer-edition-model.md)</td></tr><tr><td>Single hardened public listener (defence in depth)</td><td>V1.14, V14.4</td><td>CC6.6</td><td>Art. 32</td><td class="td t-win">[+] differentiator</td><td>in-stack OWASP ModSecurity v3 + CRS as sole ingress (docker/services/waf/Dockerfile)</td></tr><tr><td>Per-plane network segmentation</td><td>V1.14</td><td>CC6.6</td><td>Art. 32</td><td class="td t-win">[v] implemented</td><td>docker-compose.netseg.yml isolates planes onto separate networks (opt-in overlay)</td></tr><tr><td>TLS verify-full to engines (no cert bypass at max)</td><td>V9.1, V9.2</td><td>CC6.7</td><td>Art. 32(1)(a)</td><td class="td t-win">[v] implemented</td><td>apply_mssql_tls + CA-pin DATA_PLANE_TLS_CA_FILE; insecure DSN rejected at max (audit #1/#4)</td></tr><tr><td>SSRF egress guard on the HTTP engine</td><td>V12.6, V5.2</td><td>CC6.7</td><td>Art. 32</td><td class="td t-win">[v] implemented</td><td>guard_and_resolve rejects loopback/private/CGNAT/ULA + metadata; pins public IPs (audit #2)</td></tr><tr><td>Stored credentials encrypted at rest</td><td>V6.2</td><td>CC6.7</td><td>Art. 32(1)(a)</td><td class="td t-win">[v] implemented</td><td>DSNs sealed AES-256-GCM, scrypt per-record key, tag verified (internal/adapterregistry/crypto.go)</td></tr><tr><td>Postgres TLS verify outside max</td><td>V9.2</td><td>CC6.7</td><td>Art. 32</td><td class="td t-parity">[~] partial</td><td>sslmode=require accept-any outside max (audit O4) → run SECURITY_MODE=max for multi-tenant. Gap, stated.</td></tr><tr><td>Per-tenant encryption at rest (volumes)</td><td>V6.x</td><td>CC6.7</td><td>Art. 32</td><td class="td t-parity">[plan] planned</td><td>disk/volume enc is operator/host today; per-tenant encrypted backups = roadmap B6 / solution #11</td></tr><tr><td>Owner-scoped predicates on every engine (RLS-equiv)</td><td>V4.1, V4.2</td><td>CC6.1, C1.1</td><td>Art. 25, 32</td><td class="td t-win">[v] implemented</td><td>owner predicate + GUC re-stamped per request; writes owner-stamped on all 8 adapters (isolation.rs)</td></tr><tr><td>ABAC policy decision point + field masks</td><td>V4.1, V4.3</td><td>CC6.1</td><td>Art. 25, 32</td><td class="td t-win">[v] implemented</td><td>per-principal ABAC + field masking (data-plane-server/src/abac.rs; orgs-rbac-design.md)</td></tr><tr><td>Per-request isolation under shared pools (10K→1 pool)</td><td>V4.2</td><td>CC6.1, A1.2</td><td>Art. 32</td><td class="td t-win">[+] differentiator</td><td>isolation per-request not pool-state → 10K tenants → 1 pool @ ~30 MiB, byte-identical (gate m46; scale-slo.md)</td></tr><tr><td>Organizations / teams / members / RBAC</td><td>V4.1</td><td>CC6.1, CC6.3</td><td>Art. 28</td><td class="td t-win">[v] implemented</td><td>control-plane org model with members/invites/roles (gate m103); org scoping stays control-plane</td></tr><tr><td>Phishing-resistant auth (WebAuthn passkeys)</td><td>V2.1, V2.7</td><td>CC6.1</td><td>Art. 32</td><td class="td t-win">[v] implemented</td><td>server-side WebAuthn register+auth; wrong-key/replay/cross-user rejected (gate m107, mig 050)</td></tr><tr><td>Per-tenant network access control (IP allowlist)</td><td>V1.14, V4.x</td><td>CC6.6</td><td>Art. 32</td><td class="td t-win">[v] implemented</td><td>control-plane per-tenant IP allowlist, enforced + parity-proven (gate m106)</td></tr><tr><td>Internal service auth bound per request (no static bearer)</td><td>V3.5, V13.2</td><td>CC6.1</td><td>Art. 32</td><td class="td t-win">[+] differentiator</td><td>X-Service-Auth: v1.&lt;ts&gt;.&lt;hmac&gt; binds ts/method/path/body, ±120s skew; token never on wire (audit O1)</td></tr><tr><td>Tamper-evident, hash-chained per-tenant audit log</td><td>V7.1, V7.2, V7.3</td><td>CC7.2, CC4.1</td><td>Art. 30, 33</td><td class="td t-win">[+] differentiator</td><td>hash=sha256(prev_hash ‖ canonical(row)) in Go; any tamper breaks chain at the link (mig 047; gate m104)</td></tr><tr><td>Append-only audit at the grant layer</td><td>V7.x</td><td>CC7.2</td><td>Art. 30</td><td class="td t-win">[v] implemented</td><td>authenticated has NO UPDATE/DELETE on tenant_audit_log (mig 047 grants); m141 asserts it</td></tr><tr><td>Exportable / portable audit bundle (self-verifiable)</td><td>V7.x</td><td>CC7.2</td><td>Art. 30</td><td class="td t-win">[v] implemented</td><td>GET /v1/audit/tenants/{id}/export → grobase.audit.v1 bundle re-runnable offline (audit/handler.go; m104)</td></tr><tr><td>SOC2-lite continuous evidence collector</td><td>V1.x</td><td>CC4.1, CC7.x</td><td>—</td><td class="td t-parity">[~] partial</td><td>seals signed snapshots of CI-gate/access/change-mgmt; stub → all_passing:false (gate m108, mig 051). Internal, NOT a formal report.</td></tr><tr><td>Vault-backed secrets + dynamic DB creds</td><td>V6.4, V2.10</td><td>CC6.1, CC6.7</td><td>Art. 32</td><td class="td t-parity">[~] partial</td><td>Vault present with credential_ref{provider:vault}; gap: plaintext DSNs possible outside max (audit O5)</td></tr><tr><td>High-entropy secrets → fast hash (not password hash)</td><td>V2.4, V6.2</td><td>CC6.1</td><td>Art. 32</td><td class="td t-win">[v] implemented</td><td>160-bit API keys verified SHA-256 + dual-scheme lazy upgrade; Argon2id only for passwords (scale FIX 1)</td></tr><tr><td>Constant-time secret comparison</td><td>V6.2</td><td>CC6.1</td><td>Art. 32</td><td class="td t-win">[v] implemented</td><td>shared.SecureCompare / crypto/subtle at all service-token sites (audit #3)</td></tr><tr><td>Atomic key-rotation primitive (no restart)</td><td>V6.4</td><td>CC6.1</td><td>Art. 32</td><td class="td t-parity">[~] partial</td><td>vault-rotate-approles exists; no-restart rotation for JWT_SECRET/service-token not wired (solution #9). Stated gap.</td></tr><tr><td>Frozen lockfiles + no install-time lifecycle hooks</td><td>V14.2</td><td>CC6.8</td><td>—</td><td class="td t-win">[v] implemented</td><td>npm ci --ignore-scripts; pnpm minimum-release-age=1440 + onlyBuiltDependencies; digest pinning (pin-digests.sh)</td></tr><tr><td>SCA in CI (blocking known-CVE gate)</td><td>V14.2</td><td>CC7.1</td><td>—</td><td class="td t-win">[v] implemented</td><td>cargo-audit + govulncheck + npm/pnpm audit + Trivy fs/image, all blocking (mini-baas-security.yml)</td></tr><tr><td>SAST + secret-scan in CI (blocking)</td><td>V14.2</td><td>CC7.1</td><td>—</td><td class="td t-win">[v] implemented</td><td>Semgrep p/owasp-top-ten → SARIF; TruffleHog --only-verified --fail + gitleaks --exit-code 1</td></tr><tr><td>Right to erasure (hard-erase + receipt)</td><td>V8.3</td><td>C1.2, P</td><td>Art. 17</td><td class="td t-win">[v] implemented</td><td>scoped hard delete + tamper-evident erasure receipt cross-linked to audit chain (mig 048; erase/service.go; gate m105)</td></tr><tr><td>Right to data portability (export)</td><td>V8.1</td><td>C1.x, P</td><td>Art. 20</td><td class="td t-win">[v] implemented</td><td>engine-neutral JSON bundle of ONE tenant + manifest{tables,counts,sha256}, tenant-scoped (mig 052; gate m109)</td></tr><tr><td>Records of processing / breach evidence</td><td>V7.x</td><td>CC7.2</td><td>Art. 30, 33</td><td class="td t-win">[v] implemented</td><td>tamper-evident audit chain (m104) is the processing record; SOC2-lite collector (m108) seals the wider set</td></tr><tr><td>Processor terms + subprocessor transparency</td><td>—</td><td>C1.x</td><td>Art. 28</td><td class="td t-parity">[~] partial</td><td>DPA (Art. 28) with SCC refs + subprocessor list (legal/*.md TEMPLATES, counsel review required)</td></tr><tr><td>Cluster backups + restore-drill</td><td>V8.x</td><td>A1.2</td><td>Art. 32(1)(c)</td><td class="td t-win">[v] implemented</td><td>daily pg_dump -Fc, 14-day retention → MinIO, optional WAL/PITR, restore-drill (gate m47)</td></tr><tr><td>Per-tenant granular backup + restore</td><td>V8.x</td><td>A1.2, C1.x</td><td>Art. 32</td><td class="td t-win">[+] differentiator</td><td>atomic Go-native per-tenant logical backup/restore scoped to ONE tenant (gate m87, mig 042)</td></tr><tr><td>Point-in-time restore (PITR to timestamp)</td><td>V8.x</td><td>A1.2</td><td>Art. 32</td><td class="td t-win">[v] implemented</td><td>restore-to-timestamp proven (gate m99)</td></tr><tr><td>Vulnerability management lifecycle</td><td>V1.x</td><td>CC7.1</td><td>Art. 32</td><td class="td t-win">[v] implemented</td><td>blocking SAST/SCA/secret/container scans in CI + tracked residuals (.trivyignore; security-residuals-runbook.md)</td></tr><tr><td>Vulnerability disclosure (security.txt / contact)</td><td>V1.x</td><td>CC7.x</td><td>—</td><td class="td t-parity">[~] partial</td><td>disclosure policy + contact defined; public status page + security.txt endpoint not yet stood up (status-sla.md)</td></tr><tr><td>Breach detection + notification process</td><td>V7.x</td><td>CC7.3, CC7.4</td><td>Art. 33, 34</td><td class="td t-parity">[~] partial</td><td>observability wired (Prom/Grafana/Loki/Tempo, m19) + tamper-evident audit; cross-tenant-404 alerting + SIEM recommended (solution #6)</td></tr></tbody></table>
+</section>
+<section id="tamper-evident">
+  <h2>Tamper-evident audit chain — the load-bearing proof</h2>
+  <p class="intro">The audit log is a per-tenant hash chain: <code>hash = sha256(prev_hash ‖ canonical(row))</code>, computed in Go (engine-agnostic). A buyer recomputes the chain over the exported bundle and detects any insert / edit / delete / reorder at the exact link — they don't take our word for it. The demo below appends 3 sealed links (INTACT), then tampers seq 2; verification reports <code>intact:false</code> at <code>broken_seq=2</code> with <code>hash_mismatch</code>. This is what gate m141 (and m104 in depth) prove non-vacuously: a verify that always says "intact" fails the gate.</p>
+  <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
+  <div class="evidence">
+  <div class="e-head"><span class="e-title">Sealed chain — INTACT (3 links)</span><span class="badge win">PASS</span></div>
+  <pre>seq=1  owner=tenant_a  action=insert
+       prev=0000…0000
+       hash=sha256(prev ‖ row) = a91f…7c20
+seq=2  owner=tenant_a  action=update
+       prev=a91f…7c20
+       hash=sha256(prev ‖ row) = 4d8e…b113
+seq=3  owner=tenant_a  action=delete
+       prev=4d8e…b113
+       hash=sha256(prev ‖ row) = 0f6a…91de
+
+verify → { &quot;intact&quot;: true, &quot;checked&quot;: 3 }</pre>
+  <div class="e-gate">Gate: <code>m104-audit-chain.sh</code></div>
+</div>
+  <div class="evidence">
+  <div class="e-head"><span class="e-title">Tamper seq 2 → chain breaks at the link</span><span class="badge gap">FAIL</span></div>
+  <pre>DB-tamper: UPDATE tenant_audit_log
+           SET action = &#39;read&#39; WHERE seq = 2;
+
+recompute seq=2:
+  stored_hash   = 4d8e…b113
+  computed_hash = c72a…0f55   ← differs
+
+verify → {
+  &quot;intact&quot;: false,
+  &quot;broken_seq&quot;: 2,
+  &quot;reason&quot;: &quot;hash_mismatch&quot;
+}
+
+append-only grant: authenticated has NO
+UPDATE/DELETE on tenant_audit_log (mig 047)</pre>
+  <div class="e-gate">Gate: <code>m141-compliance-posture.sh</code></div>
+</div>
+  </div>
+</section>
+<section id="verdict">
+  <h2>WIN vs caveat — the honest split</h2>
+  <p class="intro"><strong>WIN</strong> on self-host data-residency, in-repo re-verifiable controls, and a cryptographically tamper-evident audit log — none of which the rivals ship. <strong>PARITY-WITH-CAVEAT</strong> on formal certification: Supabase has third-party-attested SOC 2 Type II + ISO/IEC 27001:2022 + HIPAA BAA that an OSS project cannot claim as a hosted cert until Grobase Cloud engages an auditor. That is a human + $$ milestone (decision D4), not a code gap — the substance is built; the paper is not.</p>
+  <div class="grid callouts"><div class="callout win">
+    <div class="c-head">
+      <span class="c-title">Data residency — you own it</span>
+      <span class="badge win">WIN</span>
+    </div>
+    <div class="c-body">Runs in your infra, your region, your cloud or bare metal. No Grobase-operated subprocessor sees the data. Supabase offers a region menu inside their account.</div>
+  </div>
+<div class="callout win">
+    <div class="c-head">
+      <span class="c-title">Controls are source, re-verifiable</span>
+      <span class="badge win">WIN</span>
+    </div>
+    <div class="c-body">Every row above cites a file or numbered gate you can read and run — not a redacted report. CI gates keep it honest on every commit.</div>
+  </div>
+<div class="callout win">
+    <div class="c-head">
+      <span class="c-title">Tamper-evident audit (neither rival ships)</span>
+      <span class="badge win">WIN</span>
+    </div>
+    <div class="c-body">Hash-chained, buyer-recomputable audit log + exportable self-verifiable bundle (m104). Detects any tamper at the exact link.</div>
+  </div>
+<div class="callout parity">
+    <div class="c-head">
+      <span class="c-title">SOC 2 Type II</span>
+      <span class="badge parity">caveat</span>
+    </div>
+    <div class="c-body">m108 evidence collector shortens the audit; it does not replace it. Needs an engaged CPA firm over a multi-month window. Supabase has it (Team+).</div>
+  </div>
+<div class="callout parity">
+    <div class="c-head">
+      <span class="c-title">ISO/IEC 27001:2022</span>
+      <span class="badge parity">caveat</span>
+    </div>
+    <div class="c-body">No cert — requires an external certification body + audit cycle. Supabase certified Apr 2026.</div>
+  </div>
+<div class="callout parity">
+    <div class="c-head">
+      <span class="c-title">HIPAA BAA</span>
+      <span class="badge parity">caveat</span>
+    </div>
+    <div class="c-body">No BAA — requires a covered-entity relationship + signed BAA (a legal/business artifact). Supabase: BAA-gated HIPAA-eligible (Enterprise).</div>
+  </div></div>
+  <div class="card" style="margin-top:14px">
+    <strong>Verdict.</strong> Grobase has the <em>substance</em> of compliance — verifiable, in-repo, continuously gated, with a tamper-evident audit log neither rival ships — and self-host residency the managed rivals structurally cannot offer. Supabase additionally has the <em>paper</em> (third-party SOC 2 / ISO / HIPAA). Parity-with-caveat, stated honestly, not a gap. The close-path is Grobase Cloud (Track B7) turning the flag-gated controls ON in a hosted product, with the m108 collector as the auditor's input.
+  </div>
+</section>
+</main>
+<footer class="site"><div class="wrap">Grobase BaaS — measured, not claimed. Every figure traces to an artifact or doc.</div></footer>
+</body>
+</html>

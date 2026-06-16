@@ -1,0 +1,126 @@
+{
+  "version": 2,
+  "_comment": "Source of truth for BaaS service tiers. The control plane embeds a byte-identical copy at go/control-plane/internal/packages/packages.json (m28 asserts they match). 'capabilities' is a NARROWING mask: a false flag removes a capability the engine otherwise has; the Rust planner (apply_capability_overrides) can never widen past the engine descriptor. 'engines' gates mount registration. 'limits' feeds the per-tenant token bucket. 'pool_policy.max_mounts' caps how many databases a tenant may register. Addons map 1:1 to compose planes. 'limits.quota' (Track-B B2) is the CUMULATIVE per-period usage cap the control-plane QuotaGuard enforces against public.tenant_usage (B1): {period:'month', 'query.count':N} caps metered read-requests per rolling period; the data plane rejects an over-quota tenant with 402. ABSENT quota = unlimited (parity — the byte-identical pre-B2 path); rps/burst (m51) and max_rows (A6) remain the per-request caps, quota is the cumulative one.",
+  "_measured": "v2 rps/burst are derived from bench-capacity (artifacts/bench/capacity-essential.json, 2026-06-11): a single mount sustains ~400 rps of reads at p95 < 2 ms before the connection-pool cliff (500+ rps → p99 10s + 5xx). Advertised rps = floor(measured_ceiling × fair_share × 0.5), burst = 2×rps, so a single tenant never alone saturates its pool. max's 800 rps assumes the per-tier DATA_PLANE_MAX_POOLS policy + supavisor multiplexing (B4); horizontal scale lifts it further. See wiki/offer-sheet-v2.md.",
+  "default_package": "essential",
+  "_aliases_comment": "free→nano (the cheapest shape — v1 mapped free onto essential, the ~$13/mo tier, which was upside down). enterprise→max. 'pro'/'basic'/'essential' resolve directly. An additive migration widens the tenants.plan CHECK so nano/basic become assignable.",
+  "aliases": {
+    "free": "nano",
+    "enterprise": "max"
+  },
+  "packages": {
+    "nano": {
+      "label": "Nano",
+      "_comment": "The single-binary PocketBase-class edition (binocle-nano): embedded SQLite, in-process auth, ~5.1 MB image / ~2.0 MiB idle (artifacts/nano-vs-pocketbase.json). Ships CRUD + graph + field masks in one binary. The free-tier shape.",
+      "_tenancy_guidance": "One app per binary. Graduates to basic with zero rewrites (same SDK, same codebase).",
+      "engines": ["sqlite"],
+      "capabilities": {
+        "read": true,
+        "write": true,
+        "upsert": true,
+        "batch": false,
+        "aggregate": false,
+        "transactions": false,
+        "schema_ddl": false,
+        "ddl": false,
+        "introspect": true
+      },
+      "limits": { "rps": 50, "burst": 100, "max_rows": 1000, "quota": { "period": "month", "query.count": 100000 } },
+      "pool_policy": { "max_conn": 1, "max_mounts": 1 },
+      "security_mode": "baseline",
+      "addons": []
+    },
+    "basic": {
+      "label": "Basic",
+      "_comment": "Pi-class lean tier (≤512MB): SQLite-first, served Node-free through the Rust /data/v1 bypass (Makefile PACKAGE_basic := go rust). CRUD only — scale to essential for aggregate + the Node orchestration features (graph, masks, automations).",
+      "_tenancy_guidance": "A private single-app BaaS on a Pi or $5 VPS. rps 100 is well under the measured ~400 rps single-pool read ceiling.",
+      "engines": ["sqlite", "postgresql"],
+      "capabilities": {
+        "read": true,
+        "write": true,
+        "upsert": true,
+        "batch": false,
+        "aggregate": false,
+        "transactions": false,
+        "schema_ddl": false,
+        "ddl": false,
+        "introspect": true
+      },
+      "limits": { "rps": 100, "burst": 200, "max_rows": 5000, "quota": { "period": "month", "query.count": 500000 } },
+      "pool_policy": { "max_conn": 4, "max_mounts": 1 },
+      "security_mode": "baseline",
+      "addons": []
+    },
+    "essential": {
+      "label": "Essential",
+      "_comment": "Full-feature single product under 1 GB. Differs from basic by a real capability — aggregate (count/sum/group-by) — not just a rate, served by the Node orchestration plane it carries.",
+      "_tenancy_guidance": "One full-feature product. rps 200 = half the measured single-pool read ceiling, leaving headroom for the write path (insert p99 583 ms — the outbox tail, tracked D-write-tail).",
+      "engines": ["postgresql", "sqlite"],
+      "capabilities": {
+        "read": true,
+        "write": true,
+        "upsert": true,
+        "batch": false,
+        "aggregate": true,
+        "transactions": false,
+        "schema_ddl": false,
+        "ddl": false,
+        "introspect": true
+      },
+      "limits": { "rps": 200, "burst": 400, "max_rows": 20000, "quota": { "period": "month", "query.count": 2000000 } },
+      "pool_policy": { "max_conn": 6, "max_mounts": 2 },
+      "security_mode": "baseline",
+      "addons": []
+    },
+    "pro": {
+      "label": "Pro",
+      "_comment": "Multi-engine SaaS with realtime + storage. Adds batch + transactions and 5 more engines.",
+      "_tenancy_guidance": "A multi-engine SaaS. rps 400 = the measured single-pool read ceiling; amortized across a shared host this is < $1/tenant (see m39 multitenant artifact).",
+      "engines": ["postgresql", "sqlite", "mysql", "mariadb", "mongodb", "redis", "cockroachdb"],
+      "capabilities": {
+        "read": true,
+        "write": true,
+        "upsert": true,
+        "batch": true,
+        "aggregate": true,
+        "transactions": true,
+        "schema_ddl": true,
+        "ddl": true,
+        "introspect": true
+      },
+      "limits": { "rps": 400, "burst": 800, "max_rows": 50000, "quota": { "period": "month", "query.count": 10000000 } },
+      "pool_policy": { "max_conn": 10, "max_mounts": 10 },
+      "security_mode": "baseline",
+      "addons": ["realtime", "analytics"]
+    },
+    "max": {
+      "label": "Max",
+      "_comment": "Multi-tenant platform. Every engine + every capability incl. DDL. rps 800 requires the per-tier DATA_PLANE_MAX_POOLS policy + supavisor connection multiplexing (B4) to sustain past the single-pool 400 rps cliff — horizontal scale lifts it further. max_mounts 50 is bounded by that pool policy so a tenant's quota can never exceed what the plane holds.",
+      "_tenancy_guidance": "A multi-tenant cloud platform. The 10K-tenant validation (make verify-m39 SCALE=10000) backs the density story.",
+      "engines": ["postgresql", "sqlite", "mysql", "mariadb", "mongodb", "redis", "cockroachdb", "mssql", "http"],
+      "capabilities": {
+        "read": true,
+        "write": true,
+        "upsert": true,
+        "batch": true,
+        "aggregate": true,
+        "transactions": true,
+        "schema_ddl": true,
+        "ddl": true,
+        "introspect": true
+      },
+      "limits": { "rps": 800, "burst": 1600 },
+      "pool_policy": { "max_conn": 25, "max_mounts": 50 },
+      "security_mode": "max",
+      "addons": ["realtime", "analytics", "observability", "engines", "functions", "storage"]
+    }
+  },
+  "addons": {
+    "realtime": { "plane": "realtime", "label": "Realtime event bus + IRC bridge" },
+    "analytics": { "plane": "analytics", "label": "Trino/Iceberg analytical queries" },
+    "observability": { "plane": "observability", "label": "Loki/Grafana/Prometheus dashboards" },
+    "engines": { "plane": "engines", "label": "Extra engines (MariaDB, CockroachDB, MSSQL)" },
+    "functions": { "plane": "functions", "label": "Serverless functions runtime" },
+    "storage": { "plane": "storage", "label": "Object storage (MinIO/S3)" }
+  }
+}

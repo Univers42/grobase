@@ -1,0 +1,88 @@
+services:
+  # ─── PostgreSQL 16 ──────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-syncspace}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-syncspace}
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./db/postgres-init.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./db/postgres-seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U syncspace"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  # ─── MongoDB 7 (replica set for change streams) ────────────
+  mongo:
+    image: mongo:7
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  # ─── Init MongoDB replica set ──────────────────────────────
+  mongo-init:
+    image: mongo:7
+    depends_on:
+      mongo:
+        condition: service_healthy
+    entrypoint: >
+      mongosh --host mongo --eval '
+        try { rs.status(); } catch(e) {
+          rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongo:27017" }] });
+        }
+      '
+    restart: "no"
+
+  # ─── Seed MongoDB collections ──────────────────────────────
+  mongo-seed:
+    image: mongo:7
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./db/mongo-seed.js:/seed.js:ro
+    entrypoint: >
+      mongosh --host mongo syncspace /seed.js
+    restart: "no"
+
+  # ─── Realtime Engine (Rust) ────────────────────────────────
+  realtime-server:
+    build:
+      context: ..
+      dockerfile: sandbox/Dockerfile
+    ports:
+      - "4002:4000"
+    volumes:
+      - ../sandbox/static:/app/static:ro
+    environment:
+      RUST_LOG: "info,realtime_gateway=debug,realtime_server=debug,realtime_engine=debug,realtime_db_postgres=debug,realtime_db_mongodb=debug"
+      REALTIME_HOST: "0.0.0.0"
+      REALTIME_PORT: "4000"
+      REALTIME_AUTH: "noauth"
+      REALTIME_STATIC_DIR: "/app/static"
+      REALTIME_PG_URL: "postgresql://${POSTGRES_USER:-syncspace}:${POSTGRES_PASSWORD:?err}@postgres:5432/${POSTGRES_DB:-syncspace}"
+      REALTIME_PG_CHANNEL: "realtime_events"
+      REALTIME_MONGO_URI: "mongodb://mongo:27017"
+      REALTIME_MONGO_DB: "syncspace"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo-seed:
+        condition: service_completed_successfully
+
+volumes:
+  pg_data:
+  mongo_data:

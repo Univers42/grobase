@@ -1,0 +1,57 @@
+# Scale-experiment overrides (program phase B — 10K-tenant validation).
+# NEVER a default: raising max_connections costs ~10 KB of Postgres RAM per
+# slot and masks pool-policy bugs in normal runs. Apply explicitly:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.scale.yml up -d postgres
+#   docker compose -f docker-compose.yml -f docker-compose.scale.yml restart data-plane-router-rust
+#
+# Pairs with `make scale-seed SCALE=10000` (go/control-plane/cmd/scale-seed)
+# and the B2 multi-tenant k6 workload. Tear down by re-upping WITHOUT this file.
+services:
+  postgres:
+    # MUST preserve the base flags (shared_preload_libraries=pg_net,
+    # wal_level=logical) — the outbox uses a logical replication slot that
+    # refuses to start under wal_level<logical. We only ADD the connection +
+    # buffer headroom the scale experiment needs.
+    command: >
+      postgres
+        -c shared_preload_libraries=pg_net
+        -c wal_level=logical
+        -c pg_net.database_name=${POSTGRES_DB:-postgres}
+        -c max_connections=2000
+        -c shared_buffers=512MB
+    mem_limit: 1g
+
+  data-plane-router-rust:
+    environment:
+      # 10K tenants × N mounts exceed the default 256-pool LRU (the #1 scale
+      # bottleneck — registry churn). The experiments sweep this value.
+      DATA_PLANE_MAX_POOLS: ${DATA_PLANE_MAX_POOLS:-4096}
+      # B4-pools (THE 100K lever): collapse shared_rls tenants on one DB to a
+      # single pool keyed by connection target, not tenant. VERIFIED 2026-06-12
+      # (master-plan §7.4): 10K tenants → 1 pool, 0×5xx; isolation byte-identical
+      # to per-tenant pools (apply_rls_context re-stamps app.current_tenant_id +
+      # owner_id per request — the pool holds no tenant state). The check_tenant
+      # single-owner guard that used to 502 every non-creator tenant is fixed on
+      # EVERY engine adapter (pg/mysql/mongo/mssql/sqlite/redis/http — §7.5), not
+      # just Postgres; mongo additionally sources its tenant_id stamp from the
+      # request identity so a shared pool tags each request's own tenant.
+      # Default ON for the scale override (the 100K-on-one-box config); set to 0
+      # to measure the per-tenant-pool baseline.
+      DATA_PLANE_SHARE_POOLS: ${DATA_PLANE_SHARE_POOLS:-1}
+
+  # The SaaS shape ENFORCES tiering (engine allowlist + mount quota + the
+  # capability/rate mask). Self-host base keeps it off so an operator's own
+  # tenant is never gated; the scale/SaaS overlay turns it on — proven by gate
+  # m53. Needs the widened tenants.plan CHECK (migration 035 / tenant-control
+  # EnsureSchema) so real tier keys are assignable.
+  adapter-registry-go:
+    environment:
+      PACKAGE_ENFORCEMENT: "1"
+
+  # NOTE: the former PACKAGE_ENFORCEMENT=0 workaround here is GONE. provision's
+  # CreateTenant now threads the request `plan` field (reconcile.go →
+  # findOrCreateBySlug → CreateTenantRequest.Plan), so `make scale-seed` issues
+  # genuine `pro` tenants whose package legitimately allows postgresql mounts
+  # under enforcement. The scale run now measures the plane WITH tiering on —
+  # the production shape — instead of bypassing it.

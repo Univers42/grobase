@@ -1,0 +1,31 @@
+{
+  "uid": "mini-baas-auth-flow",
+  "title": "Auth flow",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "tags": ["mini-baas", "auth"],
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "GoTrue scrape health",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "up{job=\"gotrue\"}", "legendFormat": "gotrue" }
+      ],
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Auth-adjacent request latency",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le, service) (rate(mini_baas_http_request_duration_seconds_bucket{service=~\"permission-engine|session-service\"}[5m])))", "legendFormat": "{{service}}" }
+      ],
+      "gridPos": { "x": 8, "y": 0, "w": 16, "h": 8 }
+    }
+  ]
+}

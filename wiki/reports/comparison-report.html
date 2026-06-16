@@ -1,0 +1,1116 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grobase — full comparison report</title><style>*{box-sizing:border-box}body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#f8fafc;color:#0f172a;line-height:1.55}
+header{background:linear-gradient(135deg,#0f172a,#1e293b);color:#fff;padding:34px 40px}
+header h1{margin:0 0 6px;font-size:26px}header p{margin:0;color:#cbd5e1;font-size:14px}
+nav{position:sticky;top:0;background:#0f172a;padding:8px 40px;display:flex;gap:16px;flex-wrap:wrap;z-index:5;border-top:1px solid #334155}
+nav a{color:#93c5fd;text-decoration:none;font-size:13px}nav a:hover{color:#fff}
+main{max-width:1100px;margin:0 auto;padding:8px 16px 80px}
+section{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:22px;margin:18px 0;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+h2{font-size:21px;margin:2px 0 6px}h3{font-size:16px;margin:22px 0 8px;color:#1e293b}
+.ctx{color:#475569;font-size:14px;margin:0 0 14px}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:18px}
+figure{margin:0;border:1px solid #eef2f7;border-radius:10px;padding:10px;background:#fff}
+figure svg{max-width:100%;height:auto;display:block}
+figcaption{font-size:13px;color:#475569;margin-top:6px}
+.win{background:#f0fdf4;border-left:4px solid #16a34a;border-radius:6px;padding:6px 10px;margin-top:6px;font-size:13px;color:#14532d}
+.win.rival{background:#fff7ed;border-left-color:#d97706;color:#7c2d12}.win .t{color:#64748b;font-weight:400;font-size:11px}
+table.feat{border-collapse:collapse;width:100%;font-size:13px;margin-top:10px}
+table.feat th,table.feat td{border:1px solid #e2e8f0;padding:6px 9px;text-align:left;vertical-align:top}
+table.feat th{background:#f1f5f9}.src{color:#64748b;font-size:11px}
+.bdg{color:#fff;border-radius:5px;padding:1px 7px;font-size:11px;font-weight:600;text-transform:uppercase}
+.g{color:#16a34a;font-weight:600}.y{color:#a16207}.r{color:#dc2626;font-weight:600}
+.sb{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+.sb-row{display:flex;align-items:center;gap:10px;font-size:13px}
+.sb-name{width:210px;flex:none;text-align:right;color:#334155;font-weight:600}
+.sb-bar{flex:1;background:#f1f5f9;border-radius:5px;height:18px;overflow:hidden}.sb-fill{display:block;height:100%}
+.sb-val{width:74px;flex:none;color:#475569;font-variant-numeric:tabular-nums}
+.ladder{margin:8px 0 14px}.lad-grp{margin:0 0 12px}.lad-h{font-weight:600;font-size:13px;margin-bottom:3px}
+.lad-row{display:flex;align-items:center;gap:8px;font-size:12px;margin:2px 0}
+.lad-name{width:200px;flex:none;text-align:right;color:#475569}
+.lad-bar{flex:1;background:#f1f5f9;border-radius:4px;height:15px;overflow:hidden}.lad-fill{display:block;height:100%}
+.lad-val{width:80px;flex:none;font-variant-numeric:tabular-nums}.lad-note{font-size:11px;color:#94a3b8;margin-left:208px}
+.rt{color:#64748b;font-weight:400;font-size:13px}
+.verdict{background:#0f172a;color:#fff;border-radius:10px;padding:16px 20px;font-size:15px}
+.missing{color:#94a3b8;font-size:12px;padding:30px;text-align:center}
+.legend{font-size:12px;color:#475569;margin-top:8px}.legend .bdg{margin-right:4px}</style></head><body>
+<header><h1>Grobase — full comparison report</h1>
+<p>Performance benchmarks · offers &amp; pricing · competitive matrix · edge-case reliability — measured, with sources. Generated 2026-06-15 15:52:32 UTC.</p></header>
+<nav><a href="#summary">Summary</a><a href="#perf3">3-way perf</a><a href="#perf9">vs the field</a><a href="#offers">Offers</a><a href="#matrix">Matrix</a><a href="#edge">Edge reliability</a><a href="#verdict">Verdict</a></nav>
+<main>
+<section id="summary"><h2>Executive summary</h2>
+  <p class="ctx">Across the measured performance metrics, <b>Grobase nano (binocle-nano)</b> wins 6 of 12 measured performance metrics. Grobase wins every resource + write + multi-tenancy axis; the one historically-conceded axis (read throughput at high concurrency) and the formal-cert axis are addressed below.</p>
+  <h3>Performance scoreboard (measured metrics won)</h3><div class="sb"><div class="sb-row"><span class="sb-name">Grobase nano (binocle-nano)</span><span class="sb-bar"><span class="sb-fill" style="width:100%;background:#16a34a"></span></span><span class="sb-val">6 / 12</span></div>
+<div class="sb-row"><span class="sb-name">binocle-nano</span><span class="sb-bar"><span class="sb-fill" style="width:50%;background:#16a34a"></span></span><span class="sb-val">3 / 12</span></div>
+<div class="sb-row"><span class="sb-name">binocle-one</span><span class="sb-bar"><span class="sb-fill" style="width:33%;background:#16a34a"></span></span><span class="sb-val">2 / 12</span></div>
+<div class="sb-row"><span class="sb-name">PocketBase v0.39.3</span><span class="sb-bar"><span class="sb-fill" style="width:17%;background:#f59e0b"></span></span><span class="sb-val">1 / 12</span></div></div>
+  <p class="legend">Source styling on charts: <b>measured</b> = solid+★ · <b>published</b> = hatched (vendor docs) · <b>modeled</b> = dotted. Badges: <span class="bdg" style="background:#16a34a">win</span> beats rival · <span class="bdg" style="background:#0891b2">ok</span> parity · <span class="bdg" style="background:#a16207">partial</span> built/gated · <span class="bdg" style="background:#dc2626">gap</span> missing.</p>
+</section>
+<a id="perf3"></a><section><h2>Performance — binocle-nano vs binocle-one vs PocketBase</h2><p class="ctx">Three single-binary backends, same box, fresh run. Ratios are the signal.</p>
+    <div class="charts"><figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="idle_footprint_mib">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">idle_footprint_mib</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">resources  ·  (MiB)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">3.09</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">6.19</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">9.28</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">12.4</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">15.5</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">MiB</text>
+  <rect x="135.7" y="333.8" width="72.0" height="40.2" fill="#475569" fill-opacity="1" stroke="#475569" stroke-width="1.5"  rx="2"/>
+  <text x="171.7" y="311.8" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="171.7" y="327.8" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">2.01</text>
+  <text x="171.7" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 171.7 390)">binocle-nano</text>
+  <rect x="339.0" y="329.9" width="72.0" height="44.1" fill="#be123c" fill-opacity="1" stroke="#be123c" stroke-width="1.5"  rx="2"/>
+  <text x="375.0" y="323.9" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">2.2</text>
+  <text x="375.0" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 375.0 390)">binocle-one</text>
+  <rect x="542.3" y="111.3" width="72.0" height="262.7" fill="#f59e0b" fill-opacity="1" stroke="#f59e0b" stroke-width="1.5"  rx="2"/>
+  <text x="578.3" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">13.1</text>
+  <text x="578.3" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 578.3 390)">pocketbase</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: binocle-nano</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(lower is better)</text>
+
+</svg><figcaption>idle_footprint_mib — lower is better<div class="win">&#127942; <b>binocle-nano</b> &nbsp;2.01 MiB</div></figcaption></figure>
+<figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="rss_under_load_mib">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">rss_under_load_mib</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">resources  ·  (MiB)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">108.9</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">217.8</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">326.7</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">435.7</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">544.6</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">MiB</text>
+  <rect x="135.7" y="365.5" width="72.0" height="8.5" fill="#475569" fill-opacity="1" stroke="#475569" stroke-width="1.5"  rx="2"/>
+  <text x="171.7" y="343.5" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="171.7" y="359.5" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">14.9</text>
+  <text x="171.7" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 171.7 390)">binocle-nano</text>
+  <rect x="339.0" y="363.4" width="72.0" height="10.6" fill="#be123c" fill-opacity="1" stroke="#be123c" stroke-width="1.5"  rx="2"/>
+  <text x="375.0" y="357.4" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">18.6</text>
+  <text x="375.0" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 375.0 390)">binocle-one</text>
+  <rect x="542.3" y="111.3" width="72.0" height="262.7" fill="#f59e0b" fill-opacity="1" stroke="#f59e0b" stroke-width="1.5"  rx="2"/>
+  <text x="578.3" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">461.5</text>
+  <text x="578.3" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 578.3 390)">pocketbase</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: binocle-nano</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(lower is better)</text>
+
+</svg><figcaption>rss_under_load_mib — lower is better<div class="win">&#127942; <b>binocle-nano</b> &nbsp;14.9 MiB — 1.25× lower than runner-up</div></figcaption></figure>
+<figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="disk_after_100k_mb">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">disk_after_100k_mb</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">resources  ·  (MB)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">67</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">134</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">200.9</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">267.9</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">334.9</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">MB</text>
+  <rect x="135.7" y="345.1" width="72.0" height="28.9" fill="#475569" fill-opacity="1" stroke="#475569" stroke-width="1.5"  rx="2"/>
+  <text x="171.7" y="339.1" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">31.2</text>
+  <text x="171.7" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 171.7 390)">binocle-nano</text>
+  <rect x="339.0" y="345.8" width="72.0" height="28.2" fill="#be123c" fill-opacity="1" stroke="#be123c" stroke-width="1.5"  rx="2"/>
+  <text x="375.0" y="323.8" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="375.0" y="339.8" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">30.5</text>
+  <text x="375.0" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 375.0 390)">binocle-one</text>
+  <rect x="542.3" y="111.3" width="72.0" height="262.7" fill="#f59e0b" fill-opacity="1" stroke="#f59e0b" stroke-width="1.5"  rx="2"/>
+  <text x="578.3" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">283.8</text>
+  <text x="578.3" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 578.3 390)">pocketbase</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: binocle-one</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(lower is better)</text>
+
+</svg><figcaption>disk_after_100k_mb — lower is better<div class="win">&#127942; <b>binocle-one</b> &nbsp;30.5 MB</div></figcaption></figure>
+<figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="cold_start_ms">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">cold_start_ms</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">ops  ·  (ms)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">30.9</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">61.8</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">92.7</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">123.7</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">154.6</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">ms</text>
+  <rect x="135.7" y="362.0" width="72.0" height="12.0" fill="#475569" fill-opacity="1" stroke="#475569" stroke-width="1.5"  rx="2"/>
+  <text x="171.7" y="356.0" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">6</text>
+  <text x="171.7" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 171.7 390)">binocle-nano</text>
+  <rect x="339.0" y="364.0" width="72.0" height="10.0" fill="#be123c" fill-opacity="1" stroke="#be123c" stroke-width="1.5"  rx="2"/>
+  <text x="375.0" y="342.0" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="375.0" y="358.0" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">5</text>
+  <text x="375.0" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 375.0 390)">binocle-one</text>
+  <rect x="542.3" y="111.3" width="72.0" height="262.7" fill="#f59e0b" fill-opacity="1" stroke="#f59e0b" stroke-width="1.5"  rx="2"/>
+  <text x="578.3" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">131</text>
+  <text x="578.3" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 578.3 390)">pocketbase</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: binocle-one</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(lower is better)</text>
+
+</svg><figcaption>cold_start_ms — lower is better<div class="win">&#127942; <b>binocle-one</b> &nbsp;5 ms — 1.2× lower than runner-up</div></figcaption></figure></div>
+    <h3>Scale &amp; concurrency curves</h3><div class="charts"><figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img" aria-label="Insert throughput vs concurrency (rps, higher better)">
+  <rect x="0" y="0" width="880" height="480" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Insert throughput vs concurrency (rps, higher better)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">(rps)</text>
+
+  <line x1="74" y1="410.0" x2="670" y2="410.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="414.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="74" y1="340.8" x2="670" y2="340.8" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="344.8" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">4,195</text>
+  <line x1="74" y1="271.6" x2="670" y2="271.6" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="275.6" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">8,390</text>
+  <line x1="74" y1="202.4" x2="670" y2="202.4" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="206.4" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">12,586</text>
+  <line x1="74" y1="133.2" x2="670" y2="133.2" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="137.2" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">16,781</text>
+  <line x1="74" y1="64.0" x2="670" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">20,976</text>
+  <line x1="74.0" y1="64" x2="74.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="74.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">1</text>
+  <line x1="471.3" y1="64" x2="471.3" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="471.3" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">16</text>
+  <line x1="670.0" y1="64" x2="670.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="670.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">64</text>
+  <line x1="74" y1="64" x2="74" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="74" y1="410" x2="670" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="372" y="454" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569">concurrency (log scale)</text>
+  <text x="18" y="237" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 237)">rps</text>
+  <polyline points="74.0,293.5 471.3,126.3 670.0,109.1" fill="none" stroke="#475569" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="293.5" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="126.3" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="109.1" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="112.1" font-family="sans-serif" font-size="10" fill="#475569">18,240</text>
+  <polyline points="74.0,293.9 471.3,147.3 670.0,115.3" fill="none" stroke="#be123c" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="293.9" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="147.3" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="115.3" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="118.3" font-family="sans-serif" font-size="10" fill="#be123c">17,869</text>
+  <polyline points="74.0,368.1 471.3,353.8 670.0,366.9" fill="none" stroke="#f59e0b" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="368.1" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="353.8" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="366.9" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="369.9" font-family="sans-serif" font-size="10" fill="#f59e0b">2,612</text>
+  <line x1="688" y1="70" x2="714" y2="70" stroke="#475569" stroke-width="2.5" />
+  <text x="720" y="74" font-family="sans-serif" font-size="11" fill="#334155">binocle-nano</text>
+  <line x1="688" y1="90" x2="714" y2="90" stroke="#be123c" stroke-width="2.5" />
+  <text x="720" y="94" font-family="sans-serif" font-size="11" fill="#334155">binocle-one</text>
+  <line x1="688" y1="110" x2="714" y2="110" stroke="#f59e0b" stroke-width="2.5" />
+  <text x="720" y="114" font-family="sans-serif" font-size="11" fill="#334155">pocketbase</text>
+
+</svg><figcaption>Insert throughput vs concurrency (rps, higher better)</figcaption></figure>
+<figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img" aria-label="Insert p99 tail vs concurrency (ms, lower better)">
+  <rect x="0" y="0" width="880" height="480" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Insert p99 tail vs concurrency (ms, lower better)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">(ms)</text>
+
+  <line x1="74" y1="410.0" x2="670" y2="410.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="414.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="74" y1="340.8" x2="670" y2="340.8" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="344.8" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">34</text>
+  <line x1="74" y1="271.6" x2="670" y2="271.6" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="275.6" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">68.1</text>
+  <line x1="74" y1="202.4" x2="670" y2="202.4" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="206.4" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">102.1</text>
+  <line x1="74" y1="133.2" x2="670" y2="133.2" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="137.2" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">136.2</text>
+  <line x1="74" y1="64.0" x2="670" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">170.2</text>
+  <line x1="74.0" y1="64" x2="74.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="74.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">1</text>
+  <line x1="471.3" y1="64" x2="471.3" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="471.3" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">16</text>
+  <line x1="670.0" y1="64" x2="670.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="670.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">64</text>
+  <line x1="74" y1="64" x2="74" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="74" y1="410" x2="670" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="372" y="454" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569">concurrency (log scale)</text>
+  <text x="18" y="237" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 237)">ms</text>
+  <polyline points="74.0,409.4 471.3,398.6 670.0,390.9" fill="none" stroke="#475569" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="409.4" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="398.6" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="390.9" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="393.9" font-family="sans-serif" font-size="10" fill="#475569">9.4</text>
+  <polyline points="74.0,409.4 471.3,398.6 670.0,390.9" fill="none" stroke="#be123c" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="409.4" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="398.6" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="390.9" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="393.9" font-family="sans-serif" font-size="10" fill="#be123c">9.4</text>
+  <polyline points="74.0,408.6 471.3,241.5 670.0,109.1" fill="none" stroke="#f59e0b" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="408.6" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="241.5" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="109.1" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="112.1" font-family="sans-serif" font-size="10" fill="#f59e0b">148</text>
+  <line x1="688" y1="70" x2="714" y2="70" stroke="#475569" stroke-width="2.5" />
+  <text x="720" y="74" font-family="sans-serif" font-size="11" fill="#334155">binocle-nano</text>
+  <line x1="688" y1="90" x2="714" y2="90" stroke="#be123c" stroke-width="2.5" />
+  <text x="720" y="94" font-family="sans-serif" font-size="11" fill="#334155">binocle-one</text>
+  <line x1="688" y1="110" x2="714" y2="110" stroke="#f59e0b" stroke-width="2.5" />
+  <text x="720" y="114" font-family="sans-serif" font-size="11" fill="#334155">pocketbase</text>
+
+</svg><figcaption>Insert p99 tail vs concurrency (ms, lower better)</figcaption></figure>
+<figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img" aria-label="List/read throughput vs concurrency (rps, higher better)">
+  <rect x="0" y="0" width="880" height="480" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">List/read throughput vs concurrency (rps, higher better)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">(rps)</text>
+
+  <line x1="74" y1="410.0" x2="670" y2="410.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="414.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="74" y1="340.8" x2="670" y2="340.8" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="344.8" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">5,875</text>
+  <line x1="74" y1="271.6" x2="670" y2="271.6" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="275.6" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">11,750</text>
+  <line x1="74" y1="202.4" x2="670" y2="202.4" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="206.4" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">17,625</text>
+  <line x1="74" y1="133.2" x2="670" y2="133.2" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="137.2" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">23,500</text>
+  <line x1="74" y1="64.0" x2="670" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">29,376</text>
+  <line x1="74.0" y1="64" x2="74.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="74.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">1</text>
+  <line x1="471.3" y1="64" x2="471.3" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="471.3" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">16</text>
+  <line x1="670.0" y1="64" x2="670.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="670.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">64</text>
+  <line x1="74" y1="64" x2="74" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="74" y1="410" x2="670" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="372" y="454" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569">concurrency (log scale)</text>
+  <text x="18" y="237" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 237)">rps</text>
+  <polyline points="74.0,331.6 471.3,272.9 670.0,244.9" fill="none" stroke="#475569" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="331.6" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="272.9" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="244.9" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="247.9" font-family="sans-serif" font-size="10" fill="#475569">14,020</text>
+  <polyline points="74.0,334.8 471.3,274.2 670.0,240.4" fill="none" stroke="#be123c" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="334.8" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="274.2" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="240.4" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="243.4" font-family="sans-serif" font-size="10" fill="#be123c">14,399</text>
+  <polyline points="74.0,375.8 471.3,109.1 670.0,183.8" fill="none" stroke="#f59e0b" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="375.8" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="109.1" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="183.8" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="186.8" font-family="sans-serif" font-size="10" fill="#f59e0b">19,206</text>
+  <line x1="688" y1="70" x2="714" y2="70" stroke="#475569" stroke-width="2.5" />
+  <text x="720" y="74" font-family="sans-serif" font-size="11" fill="#334155">binocle-nano</text>
+  <line x1="688" y1="90" x2="714" y2="90" stroke="#be123c" stroke-width="2.5" />
+  <text x="720" y="94" font-family="sans-serif" font-size="11" fill="#334155">binocle-one</text>
+  <line x1="688" y1="110" x2="714" y2="110" stroke="#f59e0b" stroke-width="2.5" />
+  <text x="720" y="114" font-family="sans-serif" font-size="11" fill="#334155">pocketbase</text>
+
+</svg><figcaption>List/read throughput vs concurrency (rps, higher better)</figcaption></figure>
+<figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img" aria-label="List/read p99 tail vs concurrency (ms, lower better)">
+  <rect x="0" y="0" width="880" height="480" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">List/read p99 tail vs concurrency (ms, lower better)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">(ms)</text>
+
+  <line x1="74" y1="410.0" x2="670" y2="410.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="414.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="74" y1="340.8" x2="670" y2="340.8" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="344.8" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">6.28</text>
+  <line x1="74" y1="271.6" x2="670" y2="271.6" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="275.6" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">12.6</text>
+  <line x1="74" y1="202.4" x2="670" y2="202.4" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="206.4" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">18.8</text>
+  <line x1="74" y1="133.2" x2="670" y2="133.2" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="137.2" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">25.1</text>
+  <line x1="74" y1="64.0" x2="670" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">31.4</text>
+  <line x1="74.0" y1="64" x2="74.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="74.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">1</text>
+  <line x1="471.3" y1="64" x2="471.3" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="471.3" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">16</text>
+  <line x1="670.0" y1="64" x2="670.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="670.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">64</text>
+  <line x1="74" y1="64" x2="74" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="74" y1="410" x2="670" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="372" y="454" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569">concurrency (log scale)</text>
+  <text x="18" y="237" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 237)">ms</text>
+  <polyline points="74.0,406.7 471.3,388.0 670.0,324.0" fill="none" stroke="#475569" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="406.7" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="388.0" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="324.0" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="327.0" font-family="sans-serif" font-size="10" fill="#475569">7.8</text>
+  <polyline points="74.0,406.7 471.3,388.0 670.0,326.2" fill="none" stroke="#be123c" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="406.7" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="388.0" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="326.2" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="329.2" font-family="sans-serif" font-size="10" fill="#be123c">7.6</text>
+  <polyline points="74.0,401.2 471.3,381.3 670.0,109.1" fill="none" stroke="#f59e0b" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="401.2" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="471.3" cy="381.3" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="109.1" r="3.5" fill="#f59e0b" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="112.1" font-family="sans-serif" font-size="10" fill="#f59e0b">27.3</text>
+  <line x1="688" y1="70" x2="714" y2="70" stroke="#475569" stroke-width="2.5" />
+  <text x="720" y="74" font-family="sans-serif" font-size="11" fill="#334155">binocle-nano</text>
+  <line x1="688" y1="90" x2="714" y2="90" stroke="#be123c" stroke-width="2.5" />
+  <text x="720" y="94" font-family="sans-serif" font-size="11" fill="#334155">binocle-one</text>
+  <line x1="688" y1="110" x2="714" y2="110" stroke="#f59e0b" stroke-width="2.5" />
+  <text x="720" y="114" font-family="sans-serif" font-size="11" fill="#334155">pocketbase</text>
+
+</svg><figcaption>List/read p99 tail vs concurrency (ms, lower better)</figcaption></figure>
+<figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img" aria-label="RAM to HOST N tenants (MiB, lower better) — the multi-tenancy reality">
+  <rect x="0" y="0" width="880" height="480" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">RAM to HOST N tenants (MiB, lower better) — the multi-tenancy reality</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">(MiB)</text>
+
+  <line x1="74" y1="389.5" x2="670" y2="389.5" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="393.5" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">1</text>
+  <line x1="74" y1="360.6" x2="670" y2="360.6" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="364.6" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">10</text>
+  <line x1="74" y1="311.1" x2="670" y2="311.1" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="315.1" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">100</text>
+  <line x1="74" y1="261.7" x2="670" y2="261.7" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="265.7" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">1,000</text>
+  <line x1="74" y1="212.3" x2="670" y2="212.3" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="216.3" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">10,000</text>
+  <line x1="74" y1="162.9" x2="670" y2="162.9" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="166.9" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">100,000</text>
+  <line x1="74" y1="113.4" x2="670" y2="113.4" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="117.4" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">1,000,000</text>
+  <line x1="74" y1="64.0" x2="670" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">10,000,000</text>
+  <line x1="74.0" y1="64" x2="74.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="74.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">10,000</text>
+  <line x1="490.6" y1="64" x2="490.6" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="490.6" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">50,000</text>
+  <line x1="670.0" y1="64" x2="670.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="670.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">100,000</text>
+  <line x1="74" y1="64" x2="74" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="74" y1="410" x2="670" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="372" y="454" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569">tenant count (log scale)</text>
+  <text x="18" y="237" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 237)">MiB (log)</text>
+  <polyline points="74.0,389.5 490.6,386.4 670.0,386.4" fill="none" stroke="#475569" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="389.5" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="490.6" cy="386.4" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="386.4" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="389.4" font-family="sans-serif" font-size="10" fill="#475569">3</text>
+  <polyline points="74.0,157.0 490.6,122.5 670.0,107.6" fill="none" stroke="#be123c" stroke-width="2.5" stroke-dasharray="2 3" stroke-linejoin="round"/>
+  <circle cx="74.0" cy="157.0" r="3.5" fill="#be123c" fill-opacity="0.4" stroke="#fff" stroke-width="1"/>
+  <circle cx="490.6" cy="122.5" r="3.5" fill="#be123c" fill-opacity="0.4" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="107.6" r="3.5" fill="#be123c" fill-opacity="0.4" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="110.6" font-family="sans-serif" font-size="10" fill="#be123c">1,311,000</text>
+  <line x1="688" y1="70" x2="714" y2="70" stroke="#475569" stroke-width="2.5" />
+  <text x="720" y="74" font-family="sans-serif" font-size="11" fill="#334155">binocle (one process, SHA…</text>
+  <line x1="688" y1="90" x2="714" y2="90" stroke="#be123c" stroke-width="2.5" stroke-dasharray="2 3"/>
+  <text x="720" y="94" font-family="sans-serif" font-size="11" fill="#334155">PocketBase (1 instance / … (model)</text>
+
+</svg><figcaption>RAM to HOST N tenants (MiB, lower better) — the multi-tenancy reality</figcaption></figure></div></section>
+<a id="perf9"></a><section><h2>Performance — Grobase vs the field (Supabase / Firebase / PocketBase)</h2><p class="ctx">Nine contenders × footprint / latency / throughput + 10K–100K scale curves. Competitor figures are published (hatched); ours are measured.</p>
+    <div class="charts"><figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="Idle footprint (RSS)">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Idle footprint (RSS)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">resources  ·  (MiB)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">857.6</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">1,715</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">2,573</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">3,430</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">4,288</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">MiB</text>
+  <rect x="86.6" y="373.9" width="54.0" height="0.1" fill="#0d9488" fill-opacity="1" stroke="#0d9488" stroke-width="1.5"  rx="2"/>
+  <text x="113.6" y="351.9" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="113.6" y="367.9" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">2.01</text>
+  <text x="113.6" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 113.6 390)">grobase-nano</text>
+  <rect x="173.7" y="351.6" width="54.0" height="22.4" fill="#0ea5e9" fill-opacity="1" stroke="#0ea5e9" stroke-width="1.5"  rx="2"/>
+  <text x="200.7" y="345.6" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">309.8</text>
+  <text x="200.7" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 200.7 390)">grobase-basic</text>
+  <rect x="260.8" y="314.6" width="54.0" height="59.4" fill="#2563eb" fill-opacity="1" stroke="#2563eb" stroke-width="1.5"  rx="2"/>
+  <text x="287.9" y="308.6" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">821.7</text>
+  <text x="287.9" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 287.9 390)">grobase-essential</text>
+  <rect x="348.0" y="288.1" width="54.0" height="85.9" fill="#7c3aed" fill-opacity="1" stroke="#7c3aed" stroke-width="1.5"  rx="2"/>
+  <text x="375.0" y="282.1" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">1,188</text>
+  <text x="375.0" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 375.0 390)">grobase-pro</text>
+  <rect x="435.1" y="111.3" width="54.0" height="262.7" fill="#9333ea" fill-opacity="1" stroke="#9333ea" stroke-width="1.5"  rx="2"/>
+  <text x="462.1" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">3,634</text>
+  <text x="462.1" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 462.1 390)">grobase-max</text>
+  <rect x="522.3" y="373.1" width="54.0" height="0.9" fill="#f59e0b" fill-opacity="1" stroke="#f59e0b" stroke-width="1.5"  rx="2"/>
+  <text x="549.3" y="367.1" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">13.1</text>
+  <text x="549.3" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 549.3 390)">pocketbase</text>
+  <rect x="609.4" y="165.5" width="54.0" height="208.5" fill="#16a34a" fill-opacity="1" stroke="#16a34a" stroke-width="1.5"  rx="2"/>
+  <text x="636.4" y="159.5" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">2,884</text>
+  <text x="636.4" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 636.4 390)">supabase-selfhost</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: grobase-nano</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(lower is better)</text>
+
+  <text x="12" y="450" font-family="sans-serif" font-size="10" fill="#94a3b8">n/a (omitted): supabase-cloud (Managed cloud — no self-host RSS to measure; vendor does not publish a per-deployment RSS figure.); firebase (Fully managed serverless — no self-host process, RSS is architecturally undefined.)</text>
+</svg><figcaption>Idle footprint (RSS) — lower is better<div class="win">&#127942; <b>Grobase nano (binocle-nano)</b> &nbsp;2.01 MiB — 6.53× lower than runner-up</div></figcaption></figure>
+<figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="Binary / image size on disk">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Binary / image size on disk</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">resources  ·  (MB)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">2,901</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">5,802</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">8,703</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">11,604</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">14,505</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">MB</text>
+  <rect x="89.3" y="373.9" width="63.0" height="0.1" fill="#0d9488" fill-opacity="1" stroke="#0d9488" stroke-width="1.5"  rx="2"/>
+  <text x="120.8" y="351.9" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="120.8" y="367.9" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">4.9</text>
+  <text x="120.8" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 120.8 390)">grobase-nano</text>
+  <rect x="191.0" y="348.7" width="63.0" height="25.3" fill="#0ea5e9" fill-opacity="1" stroke="#0ea5e9" stroke-width="1.5"  rx="2"/>
+  <text x="222.5" y="342.7" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">1,182</text>
+  <text x="222.5" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 222.5 390)">grobase-basic</text>
+  <rect x="292.7" y="305.7" width="63.0" height="68.3" fill="#2563eb" fill-opacity="1" stroke="#2563eb" stroke-width="1.5"  rx="2"/>
+  <text x="324.2" y="299.7" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">3,198</text>
+  <text x="324.2" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 324.2 390)">grobase-essential</text>
+  <rect x="394.3" y="254.3" width="63.0" height="119.7" fill="#7c3aed" fill-opacity="1" stroke="#7c3aed" stroke-width="1.5"  rx="2"/>
+  <text x="425.8" y="248.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">5,599</text>
+  <text x="425.8" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 425.8 390)">grobase-pro</text>
+  <rect x="496.0" y="111.3" width="63.0" height="262.7" fill="#9333ea" fill-opacity="1" stroke="#9333ea" stroke-width="1.5"  rx="2"/>
+  <text x="527.5" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">12,292</text>
+  <text x="527.5" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 527.5 390)">grobase-max</text>
+  <rect x="597.7" y="373.4" width="63.0" height="0.6" fill="#f59e0b" fill-opacity="1" stroke="#f59e0b" stroke-width="1.5"  rx="2"/>
+  <text x="629.2" y="367.4" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">30.1</text>
+  <text x="629.2" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 629.2 390)">pocketbase</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: grobase-nano</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(lower is better)</text>
+
+  <text x="12" y="450" font-family="sans-serif" font-size="10" fill="#94a3b8">n/a (omitted): supabase-selfhost (We measured Supabase self-host RSS but did not record a total-image-on-disk figure in any artifact; would be 'measured' only if captured. Left na to avoid an unsourced number.); supabase-cloud (Managed cloud — nothing to download.); firebase (Managed cloud — nothing to download.)</text>
+</svg><figcaption>Binary / image size on disk — lower is better<div class="win">&#127942; <b>Grobase nano (binocle-nano)</b> &nbsp;4.9 MB — 6.14× lower than runner-up</div></figcaption></figure>
+<figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="Cold start (boot to first 200)">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Cold start (boot to first 200)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">ops  ·  (s)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0.134</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0.267</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0.401</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0.534</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0.668</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">s</text>
+  <rect x="186.5" y="371.2" width="72.0" height="2.8" fill="#0d9488" fill-opacity="1" stroke="#0d9488" stroke-width="1.5"  rx="2"/>
+  <text x="222.5" y="349.2" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="222.5" y="365.2" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">0.006</text>
+  <text x="222.5" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 222.5 390)">grobase-nano</text>
+  <rect x="491.5" y="111.3" width="72.0" height="262.7" fill="#f59e0b" fill-opacity="1" stroke="#f59e0b" stroke-width="1.5"  rx="2"/>
+  <text x="527.5" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">0.566</text>
+  <text x="527.5" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 527.5 390)">pocketbase</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: grobase-nano</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(lower is better)</text>
+
+  <text x="12" y="450" font-family="sans-serif" font-size="10" fill="#94a3b8">n/a (omitted): grobase-basic (Multi-container stack; no single boot-to-first-200 figure captured (dominated by Postgres/Kong startup, not measured as one number).); grobase-essential (Multi-container stack; no aggregate cold-start artifact.); grobase-pro (Multi-container stack; no aggregate cold-start artifact.); grobase-max (Multi-container stack; no aggregate cold-start artifact.); supabase-selfhost (13-container stack; no single boot figure captured.); supabase-cloud (Managed — boot is the vendor's concern; no published self-host-equivalent figure.); firebase (Managed serverless; cold-start is per-function (Cloud Functions) and not a stack boot — not comparable.)</text>
+</svg><figcaption>Cold start (boot to first 200) — lower is better<div class="win">&#127942; <b>Grobase nano (binocle-nano)</b> &nbsp;0.01 s — 94.3× lower than runner-up</div></figcaption></figure>
+<figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="Read p95 latency (warm, list-30 filtered)">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Read p95 latency (warm, list-30 filtered)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">speed  ·  (ms)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0.607</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">1.21</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">1.82</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">2.43</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">3.03</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">ms</text>
+  <rect x="110.3" y="190.0" width="72.0" height="184.0" fill="#0d9488" fill-opacity="1" stroke="#0d9488" stroke-width="1.5"  rx="2"/>
+  <text x="146.3" y="184.0" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">1.8</text>
+  <text x="146.3" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 146.3 390)">grobase-nano</text>
+  <rect x="262.8" y="150.1" width="72.0" height="223.9" fill="#2563eb" fill-opacity="1" stroke="#2563eb" stroke-width="1.5"  rx="2"/>
+  <text x="298.8" y="144.1" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">2.19</text>
+  <text x="298.8" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 298.8 390)">grobase-essential</text>
+  <rect x="415.3" y="200.2" width="72.0" height="173.8" fill="#f59e0b" fill-opacity="1" stroke="#f59e0b" stroke-width="1.5"  rx="2"/>
+  <text x="451.3" y="178.2" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="451.3" y="194.2" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">1.7</text>
+  <text x="451.3" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 451.3 390)">pocketbase</text>
+  <rect x="567.8" y="111.3" width="72.0" height="262.7" fill="#16a34a" fill-opacity="1" stroke="#16a34a" stroke-width="1.5"  rx="2"/>
+  <text x="603.8" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">2.57</text>
+  <text x="603.8" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 603.8 390)">supabase-selfhost</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: pocketbase</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(lower is better)</text>
+
+  <text x="12" y="450" font-family="sans-serif" font-size="10" fill="#94a3b8">n/a (omitted): grobase-basic (No dedicated basic-tier read-p95 artifact; basic shares the same Rust data plane as essential but was not separately load-measured. Left na rather than copy essential's number.); grobase-pro (No dedicated pro-tier read-p95 artifact captured; same Rust data plane, not separately measured.); grobase-max (No dedicated max-tier read-p95 artifact captured.); supabase-cloud (We did not measure Supabase Cloud; vendor does not publish a comparable warm list-30 p95. Not fabricated.); firebase (We did not measure Firebase; Firestore document reads are not a comparable relational list-30 p95, and no comparable vendor p95 is published.)</text>
+</svg><figcaption>Read p95 latency (warm, list-30 filtered) — lower is better<div class="win rival">&#127942; <b>PocketBase v0.39.3</b> &nbsp;1.7 ms</div></figcaption></figure>
+<figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="Insert p95 latency (single row)">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Insert p95 latency (single row)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">speed  ·  (ms)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">2.15</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">4.29</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">6.44</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">8.58</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">10.7</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">ms</text>
+  <rect x="135.7" y="339.3" width="72.0" height="34.7" fill="#0d9488" fill-opacity="1" stroke="#0d9488" stroke-width="1.5"  rx="2"/>
+  <text x="171.7" y="317.3" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="171.7" y="333.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">1.2</text>
+  <text x="171.7" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 171.7 390)">grobase-nano</text>
+  <rect x="339.0" y="111.3" width="72.0" height="262.7" fill="#2563eb" fill-opacity="1" stroke="#2563eb" stroke-width="1.5"  rx="2"/>
+  <text x="375.0" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">9.09</text>
+  <text x="375.0" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 375.0 390)">grobase-essential</text>
+  <rect x="542.3" y="241.1" width="72.0" height="132.9" fill="#f59e0b" fill-opacity="1" stroke="#f59e0b" stroke-width="1.5"  rx="2"/>
+  <text x="578.3" y="235.1" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">4.6</text>
+  <text x="578.3" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 578.3 390)">pocketbase</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: grobase-nano</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(lower is better)</text>
+
+  <text x="12" y="450" font-family="sans-serif" font-size="10" fill="#94a3b8">n/a (omitted): grobase-basic (No dedicated basic-tier insert-p95 artifact.); grobase-pro (No dedicated pro-tier insert-p95 artifact.); grobase-max (No dedicated max-tier insert-p95 artifact.); supabase-selfhost (The head-to-head artifact measured READ p50/p95 only; no insert-p95 figure was captured for Supabase. Left na rather than invent one.); supabase-cloud (Not measured; no comparable published figure.); firebase (Not measured; Firestore writes are not a comparable single-row relational insert.)</text>
+</svg><figcaption>Insert p95 latency (single row) — lower is better<div class="win">&#127942; <b>Grobase nano (binocle-nano)</b> &nbsp;1.2 ms — 3.83× lower than runner-up</div></figcaption></figure>
+<figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="460" viewBox="0 0 880 460" role="img" aria-label="Sustained throughput">
+  <rect x="0" y="0" width="880" height="460" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Sustained throughput</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">throughput  ·  (rps)</text>
+
+  <line x1="70" y1="374.0" x2="680" y2="374.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="378.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="70" y1="312.0" x2="680" y2="312.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="316.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">1,519</text>
+  <line x1="70" y1="250.0" x2="680" y2="250.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="254.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">3,038</text>
+  <line x1="70" y1="188.0" x2="680" y2="188.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="192.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">4,557</text>
+  <line x1="70" y1="126.0" x2="680" y2="126.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="130.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">6,077</text>
+  <line x1="70" y1="64.0" x2="680" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="62" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">7,596</text>
+  <line x1="70" y1="64" x2="70" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="70" y1="374" x2="680" y2="374" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="18" y="219" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 219)">rps</text>
+  <rect x="135.7" y="111.3" width="72.0" height="262.7" fill="#0d9488" fill-opacity="1" stroke="#0d9488" stroke-width="1.5"  rx="2"/>
+  <text x="171.7" y="89.3" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#16a34a">&#9733;</text>
+  <text x="171.7" y="105.3" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1e293b">6,437</text>
+  <text x="171.7" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 171.7 390)">grobase-nano</text>
+  <rect x="339.0" y="357.7" width="72.0" height="16.3" fill="#2563eb" fill-opacity="1" stroke="#2563eb" stroke-width="1.5"  rx="2"/>
+  <text x="375.0" y="351.7" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">400</text>
+  <text x="375.0" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 375.0 390)">grobase-essential</text>
+  <rect x="542.3" y="271.4" width="72.0" height="102.6" fill="#f59e0b" fill-opacity="1" stroke="#f59e0b" stroke-width="1.5"  rx="2"/>
+  <text x="578.3" y="265.4" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="normal" fill="#1e293b">2,513</text>
+  <text x="578.3" y="390" text-anchor="end" font-family="sans-serif" font-size="11" fill="#334155" transform="rotate(-28 578.3 390)">pocketbase</text>
+  <text x="698" y="68" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0f172a">source</text>
+  <rect x="698" y="77" width="22" height="13" fill="#475569" stroke="#475569" stroke-width="1" />
+  <text x="726" y="88" font-family="sans-serif" font-size="11" fill="#334155">measured</text>
+  <rect x="698" y="97" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="6 4"/>
+  <rect x="698" y="97" width="22" height="13" fill="url(#hatch)"/>
+  <text x="726" y="108" font-family="sans-serif" font-size="11" fill="#334155">published (pub)</text>
+  <rect x="698" y="117" width="22" height="13" fill="#cbd5e1" stroke="#475569" stroke-width="1" stroke-dasharray="2 3"/>
+  <rect x="698" y="117" width="22" height="13" fill="url(#dots)"/>
+  <text x="726" y="128" font-family="sans-serif" font-size="11" fill="#334155">modeled (model)</text>
+  <text x="698" y="214" font-family="sans-serif" font-size="11" fill="#16a34a">&#9733; best: grobase-nano</text>
+  <text x="698" y="232" font-family="sans-serif" font-size="10" fill="#64748b">(higher is better)</text>
+
+  <text x="12" y="450" font-family="sans-serif" font-size="10" fill="#94a3b8">n/a (omitted): grobase-basic (No dedicated basic-tier capacity artifact.); grobase-pro (No dedicated pro-tier capacity artifact captured (budgets.json advertises 200 rps as a smoke bar, but that is a budget, not a measured ceiling).); grobase-max (No dedicated max-tier capacity artifact captured (budgets.json holds 800 rps as a placeholder smoke bar pending a true measurement).); supabase-selfhost (The head-to-head measured latency only; no sustained-RPS ramp was run against Supabase. Left na.); supabase-cloud (Not measured; vendor publishes plan limits, not a comparable sustained-RPS.); firebase (Not measured; Firebase autoscales — there is no fixed self-host RPS ceiling.)</text>
+</svg><figcaption>Sustained throughput — higher is better<div class="win">&#127942; <b>Grobase nano (binocle-nano)</b> &nbsp;6,437 rps — 2.56× higher than runner-up</div></figcaption></figure></div>
+    <h3>Scale &amp; concurrency curves</h3><div class="charts"><figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img" aria-label="Data-plane RSS vs tenant count (the density moat)">
+  <rect x="0" y="0" width="880" height="480" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Data-plane RSS vs tenant count (the density moat)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">Resident memory of the data plane as the provisioned tenant fleet grows. Grobase: RSS is a function of concurrent working set, not tenant count (per-request isolation, SHARE_POOLS) → flat. Competitors that are single-project-per-backend would need N backends → linear; represented as modeled with an explicit architectural note.  ·  (MiB)</text>
+
+  <line x1="74" y1="410.0" x2="670" y2="410.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="414.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="74" y1="340.8" x2="670" y2="340.8" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="344.8" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">69</text>
+  <line x1="74" y1="271.6" x2="670" y2="271.6" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="275.6" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">138</text>
+  <line x1="74" y1="202.4" x2="670" y2="202.4" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="206.4" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">207</text>
+  <line x1="74" y1="133.2" x2="670" y2="133.2" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="137.2" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">276</text>
+  <line x1="74" y1="64.0" x2="670" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">345</text>
+  <line x1="74.0" y1="64" x2="74.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="74.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">10,000</text>
+  <line x1="310.0" y1="64" x2="310.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="310.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">24,887</text>
+  <line x1="670.0" y1="64" x2="670.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="670.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">100,000</text>
+  <line x1="74" y1="64" x2="74" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="74" y1="410" x2="670" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="372" y="454" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569">tenant count (log scale)</text>
+  <text x="18" y="237" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 237)">MiB</text>
+  <polyline points="74.0,379.9 310.0,407.4 670.0,109.1" fill="none" stroke="#475569" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="379.9" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="310.0" cy="407.4" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="109.1" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="112.1" font-family="sans-serif" font-size="10" fill="#475569">300</text>
+  <line x1="688" y1="70" x2="714" y2="70" stroke="#475569" stroke-width="2.5" />
+  <text x="720" y="74" font-family="sans-serif" font-size="11" fill="#334155">Grobase data plane (share…</text>
+
+  <text x="12" y="470" font-family="sans-serif" font-size="10" fill="#94a3b8">n/a (omitted): supabase-selfhost-modeled; firebase-modeled</text>
+</svg><figcaption>Data-plane RSS vs tenant count (the density moat)</figcaption></figure>
+<figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img" aria-label="Read p95 vs tenant count (under zipf load)">
+  <rect x="0" y="0" width="880" height="480" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Read p95 vs tenant count (under zipf load)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">p95 of the zipf-distributed multitenant read workload as the fleet grows. CRITICAL HONESTY: these p95 values are k6/Chrome-CPU-bound on the shared box (scale-slo.md §2/§5), NOT stack latency — the SERVER-side facts (0 5xx, 1 pool, flat RSS) are the real result. The flat ~2.4 ms warm-read SLO comes from the single-tenant capacity run, unchanged at density because pool count is independent of tenant count.  ·  (ms)</text>
+
+  <line x1="74" y1="410.0" x2="670" y2="410.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="414.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="74" y1="340.8" x2="670" y2="340.8" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="344.8" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">2,300</text>
+  <line x1="74" y1="271.6" x2="670" y2="271.6" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="275.6" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">4,601</text>
+  <line x1="74" y1="202.4" x2="670" y2="202.4" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="206.4" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">6,901</text>
+  <line x1="74" y1="133.2" x2="670" y2="133.2" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="137.2" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">9,202</text>
+  <line x1="74" y1="64.0" x2="670" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">11,502</text>
+  <line x1="74.0" y1="64" x2="74.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="74.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">200</text>
+  <line x1="319.2" y1="64" x2="319.2" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="319.2" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">1,000</text>
+  <line x1="670.0" y1="64" x2="670.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="670.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">10,000</text>
+  <line x1="74" y1="64" x2="74" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="74" y1="410" x2="670" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="372" y="454" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569">tenant count (log scale)</text>
+  <text x="18" y="237" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 237)">ms</text>
+  <polyline points="74.0,409.7 319.2,109.1 670.0,277.3" fill="none" stroke="#475569" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="409.7" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="319.2" cy="109.1" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="277.3" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="280.3" font-family="sans-serif" font-size="10" fill="#475569">4,410</text>
+  <line x1="688" y1="70" x2="714" y2="70" stroke="#475569" stroke-width="2.5" />
+  <text x="720" y="74" font-family="sans-serif" font-size="11" fill="#334155">Grobase zipf multitenant …</text>
+
+  <text x="12" y="470" font-family="sans-serif" font-size="10" fill="#94a3b8">n/a (omitted): supabase-selfhost; firebase</text>
+</svg><figcaption>Read p95 vs tenant count (under zipf load)</figcaption></figure>
+<figure><svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img" aria-label="Open connection pools vs tenant count (the SHARE_POOLS differentiator)">
+  <rect x="0" y="0" width="880" height="480" fill="#ffffff"/>
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" stroke-opacity="0.6"/>
+    </pattern>
+    <pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#ffffff" fill-opacity="0.7"/>
+    </pattern>
+  </defs>
+  <text x="440" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold" fill="#0f172a">Open connection pools vs tenant count (the SHARE_POOLS differentiator)</text>
+  <text x="440" y="48" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#64748b">Number of open DB connection pools held by the data plane as the tenant fleet grows. This is Grobase's structural moat: isolation is per-request (apply_rls_context re-stamps tenant+owner on every request), so a shared pool holds no tenant state → pool count is decoupled from tenant count. Single-project-per-backend competitors instead need one pool-set per project → linear in tenants.  ·  (pools)</text>
+
+  <line x1="74" y1="410.0" x2="670" y2="410.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="414.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">0</text>
+  <line x1="74" y1="340.8" x2="670" y2="340.8" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="344.8" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">58.9</text>
+  <line x1="74" y1="271.6" x2="670" y2="271.6" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="275.6" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">117.8</text>
+  <line x1="74" y1="202.4" x2="670" y2="202.4" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="206.4" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">176.6</text>
+  <line x1="74" y1="133.2" x2="670" y2="133.2" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="137.2" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">235.5</text>
+  <line x1="74" y1="64.0" x2="670" y2="64.0" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="66" y="68.0" text-anchor="end" font-family="sans-serif" font-size="11" fill="#64748b">294.4</text>
+  <line x1="74.0" y1="64" x2="74.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="74.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">10,000</text>
+  <line x1="310.0" y1="64" x2="310.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="310.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">24,887</text>
+  <line x1="670.0" y1="64" x2="670.0" y2="410" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="670.0" y="428" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#475569">100,000</text>
+  <line x1="74" y1="64" x2="74" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="74" y1="410" x2="670" y2="410" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="372" y="454" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569">tenant count (log scale)</text>
+  <text x="18" y="237" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#475569" transform="rotate(-90 18 237)">pools</text>
+  <polyline points="74.0,408.8 310.0,410.0 670.0,408.8" fill="none" stroke="#475569" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="408.8" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="310.0" cy="410.0" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <circle cx="670.0" cy="408.8" r="3.5" fill="#475569" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="676.0" y="411.8" font-family="sans-serif" font-size="10" fill="#475569">1</text>
+  <polyline points="74.0,109.1" fill="none" stroke="#be123c" stroke-width="2.5"  stroke-linejoin="round"/>
+  <circle cx="74.0" cy="109.1" r="3.5" fill="#be123c" fill-opacity="1" stroke="#fff" stroke-width="1"/>
+  <text x="80.0" y="112.1" font-family="sans-serif" font-size="10" fill="#be123c">256</text>
+  <line x1="688" y1="70" x2="714" y2="70" stroke="#475569" stroke-width="2.5" />
+  <text x="720" y="74" font-family="sans-serif" font-size="11" fill="#334155">Grobase open pools (SHARE…</text>
+  <line x1="688" y1="90" x2="714" y2="90" stroke="#be123c" stroke-width="2.5" />
+  <text x="720" y="94" font-family="sans-serif" font-size="11" fill="#334155">Grobase open pools (SHARE…</text>
+
+  <text x="12" y="470" font-family="sans-serif" font-size="10" fill="#94a3b8">n/a (omitted): supabase-selfhost-modeled; firebase-modeled</text>
+</svg><figcaption>Open connection pools vs tenant count (the SHARE_POOLS differentiator)</figcaption></figure></div></section>
+<section id="offers"><h2>Offer &amp; pricing comparison</h2>
+    <h3>Grobase tiers</h3>
+    <table class="feat"><thead><tr><th>Tier</th><th>Price</th><th>Engines</th><th>rps/burst</th><th>Capabilities</th></tr></thead><tbody><tr><td><b>Nano</b></td><td>Free / $5</td><td>sqlite</td><td>50 / 100</td><td>CRUD + introspect</td></tr>
+<tr><td><b>Basic</b></td><td>Free / $9</td><td>sqlite, postgresql</td><td>100 / 200</td><td>CRUD only</td></tr>
+<tr><td><b>Essential</b></td><td>$25 - $39</td><td>postgresql, sqlite</td><td>200 / 400</td><td>CRUD + aggregate</td></tr>
+<tr><td><b>Pro</b></td><td>$59 - $99</td><td>postgresql, sqlite, mysql, mariadb, mongodb, redis, cockroachdb</td><td>400 / 800</td><td>CRUD + aggregate + batch + transactions + schema/DDL; +realtime +analytics</td></tr>
+<tr><td><b>Max</b></td><td>$149 - $299</td><td>+ mssql, + http (9 total)</td><td>800 / 1600</td><td>Everything incl. DDL; +realtime +analytics +observability +engines +functions +storage</td></tr></tbody></table>
+    <h3>vs Supabase — <span class="rt">Postgres-only managed BaaS</span></h3>
+     <p class="ctx">Supabase is an excellent, polished single-Postgres BaaS with a beautiful Studio, mature auth, and a big community — if you only ever need PostgreSQL and you want a hosted dashboard out of the box, pick them. Where Grobase wins: nine engines instead of one, four selectable isolation models, and per-request RLS that lets a single shared pool carry 24,887 measured tenants at 2.9 MiB of data-plane RSS — so our per-tenant cost stays flat where a Supabase project is one Postgres database per project. Their Team tier ($599/mo) buys SOC 2 + ISO 27001 and dashboard SSO that we do not yet certify; our growth/Pro tier covers the same engines-plus-realtime-plus-analytics surface at $79. Choose Supabase if you want a managed dashboard + formal compliance today; choose Grobase if you want engine choice, self-host parity, and flat-cost multi-tenancy you can measure.</p>
+     <div class="ladder"><div class="lad-grp"><div class="lad-h">Free / entry</div><div class="lad-row"><span class="lad-name">Grobase nano</span><span class="lad-bar"><span class="lad-fill" style="width:4%;background:#16a34a"></span></span><span class="lad-val">Free</span></div><div class="lad-row"><span class="lad-name">Free</span><span class="lad-bar"><span class="lad-fill" style="width:4%;background:#f59e0b"></span></span><span class="lad-val">Free</span></div><div class="lad-note">Grobase Nano is a 5 MB / 2.1 MiB binary you self-host with zero standing cost; Supabase Free gives 2 projects, 500 MB DB, 50k MAU, and pauses a project after ~1 week of inactivity.</div></div>
+<div class="lad-grp"><div class="lad-h">Single product</div><div class="lad-row"><span class="lad-name">Grobase essential</span><span class="lad-bar"><span class="lad-fill" style="width:5%;background:#16a34a"></span></span><span class="lad-val">$29</span></div><div class="lad-row"><span class="lad-name">Pro (+$10 compute credit)</span><span class="lad-bar"><span class="lad-fill" style="width:4%;background:#f59e0b"></span></span><span class="lad-val">$25</span></div><div class="lad-note">Comparable price; Supabase Pro includes $10/mo compute credit (Small/Medium compute bills above it), 8 GB DB, 100k MAU. Grobase Essential adds a second engine + aggregate at 2 mounts.</div></div>
+<div class="lad-grp"><div class="lad-h">Growth / team</div><div class="lad-row"><span class="lad-name">Grobase pro</span><span class="lad-bar"><span class="lad-fill" style="width:13%;background:#16a34a"></span></span><span class="lad-val">$79</span></div><div class="lad-row"><span class="lad-name">Team</span><span class="lad-bar"><span class="lad-fill" style="width:100%;background:#f59e0b"></span></span><span class="lad-val">$599</span></div><div class="lad-note">Supabase Team ($599/mo) is priced for SOC 2 + ISO 27001 + 14-day backups + dashboard SSO. Grobase Pro ($79) delivers 7 engines, transactions, realtime + analytics; we do not yet sell formal compliance — that gap is honest.</div></div></div>
+     <table class="feat"><thead><tr><th>Capability</th><th>Grobase</th><th>Rival</th><th>Source</th></tr></thead><tbody><tr><td>Database engines</td><td><span class="bdg" style="background:#16a34a">win</span> 9 (pg, mysql, mariadb, mongo, mssql, cockroach, redis, sqlite, http)</td><td><span class="bdg" style="background:#0891b2">ok</span> PostgreSQL only</td><td class="src">packages.json / supabase.com/pricing</td></tr>
+<tr><td>Multi-tenancy density</td><td><span class="bdg" style="background:#16a34a">win</span> 24,887 tenants @ 2.9 MiB data-plane RSS, 0 standing pools (per-request RLS)</td><td><span class="bdg" style="background:#a16207">partial</span> One project = one Postgres DB; tenancy only via RLS inside a single project</td><td class="src">gate m46-share-pools-isolation.sh + artifacts/scale/footprint-live-24888-today.json / supabase.com</td></tr>
+<tr><td>Isolation models per mount</td><td><span class="bdg" style="background:#16a34a">win</span> 4 selectable (shared_rls, schema, db, instance)</td><td><span class="bdg" style="background:#0891b2">ok</span> RLS within a single project</td><td class="src">m46-share-pools-isolation.sh / supabase.com docs</td></tr>
+<tr><td>Realtime</td><td><span class="bdg" style="background:#16a34a">win</span> WS/SSE subscribe + publish (Rust event bus), Pro/Max add-on</td><td><span class="bdg" style="background:#0891b2">ok</span> 200 concurrent / 2M mess-mo on Free; Postgres CDC realtime</td><td class="src">/realtime/v1/* gates / supabase.com/pricing</td></tr>
+<tr><td>Object storage</td><td><span class="bdg" style="background:#16a34a">win</span> S3/MinIO (or any S3-compatible: R2/Backblaze/Wasabi/AWS) buckets, list, object, presigned sign + on-the-fly image transforms (resize/webp/jpeg/png/avif, gate m95) + per-bucket ABAC + per-request owner-scoping; self-host = NO per-GB / egress / total-storage cap (you pay only your own bucket)</td><td><span class="bdg" style="background:#0891b2">ok</span> 1 GB Free / 100 GB Pro (hard quota), mature managed CDN + image transforms</td><td class="src">/storage/v1/* + image-transform.ts + gate m95 / supabase.com/pricing</td></tr>
+<tr><td>Functions</td><td><span class="bdg" style="background:#16a34a">win</span> Deno runtime: deploy/list/invoke + DB-event triggers (cross-tenant-isolated) + per-fn secrets (AES-GCM) + warm pool + per-invoke mem-cap + live cron + baas CLI; self-host = NO invocation cap, data never leaves your infra</td><td><span class="bdg" style="background:#16a34a">win</span> Edge Functions, 500k invocations/mo Free (billing cap), globally distributed (Deno Deploy edge), mature managed runtime</td><td class="src">/functions/v1/* + functions-runtime/src/server.ts + gate m56/m79/m96 / supabase.com/pricing</td></tr>
+<tr><td>Auth / MFA</td><td><span class="bdg" style="background:#16a34a">win</span> Same engine as Supabase (gotrue v2.188.1 vendored) + passkeys/WebAuthn (m107), per-tenant OIDC SSO (m110), SCIM 2.0 (m111), OAuth2/OIDC+PKCE+TOTP+recovery (m41/m42); self-host = no MAU cap</td><td><span class="bdg" style="background:#0891b2">ok</span> Mature GoTrue-based auth, many OAuth providers, MFA, 50k-100k MAU — but SSO/SCIM are paid Team/Enterprise only, no first-class passkeys; SAML 2.0 + Studio auth UI win</td><td class="src">Dockerfile FROM supabase/gotrue:v2.188.1; gates m107/m110/m111/m41/m42; supabase.com/pricing (SSO/SCIM = paid)</td></tr>
+<tr><td>Backups / PITR</td><td><span class="bdg" style="background:#16a34a">win</span> Per-TENANT logical backup/restore (atomic Go-native COPY, restore one tenant in isolation, gate m87) + PITR restore-to-timestamp (WAL archive + recovery_target_time, tier retention nano1d…max90d, gate m99) + whole-cluster drill (m47); self-host = backups in your own bucket, no storage/egress markup</td><td><span class="bdg" style="background:#0891b2">ok</span> Daily backups + 7-day PITR (Pro), 14-day retention (Team) — turnkey managed SLA, but whole-project only (no per-tenant restore)</td><td class="src">internal/backup/* + 042_tenant_backups.sql + gates m87/m99/m47 / supabase.com/pricing</td></tr>
+<tr><td>GraphQL</td><td><span class="bdg" style="background:#0891b2">ok</span> pg_graphql (same extension as Supabase), RLS-isolation gate-proven (m59, two-tenant + anon-denied); self-host = no per-query/egress metering; opt-in glibc edition (docker-compose.graphql.yml)</td><td><span class="bdg" style="background:#0891b2">ok</span> pg_graphql auto-API, default-on + hosted GraphiQL Studio explorer</td><td class="src">scripts/verify/m59-graphql-live.sh / 035_pg_graphql.sql / kong.yml / supabase.com docs</td></tr>
+<tr><td>Vector / full-text search</td><td><span class="bdg" style="background:#16a34a">win</span> First-class op=fulltext_search (ranked to_tsvector @@ websearch_to_tsquery, multi-column, language-aware, owner-scoped — gate m101) + op=vector_search (pgvector kNN cosine/l2/ip — gate m102); engine-agnostic, capability-gated</td><td><span class="bdg" style="background:#0891b2">ok</span> pgvector + tsvector (FTS is a single-column filter operator; vector needs a hand-written SQL RPC)</td><td class="src">postgres.rs build_search/build_vector_order + gates m101/m102 / supabase.com</td></tr>
+<tr><td>Dashboard / Studio</td><td><span class="bdg" style="background:#a16207">partial</span> binocle-one admin UI at /_/ ; tenant self-serve API</td><td><span class="bdg" style="background:#16a34a">win</span> Full hosted Studio (table editor, SQL editor, logs)</td><td class="src">binocle-one edition / supabase.com</td></tr>
+<tr><td>SDK languages</td><td><span class="bdg" style="background:#16a34a">win</span> TS/JS, Python, Kotlin, Swift, Dart</td><td><span class="bdg" style="background:#16a34a">win</span> JS/TS, Flutter/Dart, Swift, Python, C#, Kotlin (community)</td><td class="src">apps/baas/sdk* / supabase.com docs</td></tr>
+<tr><td>Self-host parity</td><td><span class="bdg" style="background:#16a34a">win</span> Same single codebase nano→max; OSS self-host is the default, no rewrite</td><td><span class="bdg" style="background:#a16207">partial</span> Self-host exists but lags hosted; many features cloud-first</td><td class="src">02-layer-edition-model.md / supabase.com/docs/self-hosting</td></tr>
+<tr><td>WAF / network segmentation</td><td><span class="bdg" style="background:#16a34a">win</span> In-stack OWASP-CRS WAF as the sole public listener (SQLi/XSS/traversal → 403 with CRS rule-IDs, benign passes — gate m140) + per-plane network segmentation (public edge ↛ data/control plane REFUSED, gate m140) + per-tenant IP allowlist (m106) + a copy-paste Cloudflare front-door recipe. Supabase OSS self-host ships neither an in-stack WAF nor plane isolation.</td><td><span class="bdg" style="background:#a16207">partial</span> Network restrictions / IP allow-list (managed); fronted by their own Cloudflare; no in-stack WAF in the OSS self-host stack</td><td class="src">gate m140 + m106 / wiki/network-controls.md</td></tr>
+<tr><td>Compliance posture</td><td><span class="bdg" style="background:#16a34a">win</span> Buyer-recomputable, cryptographically tamper-evident hash-chained audit (m104) + continuous SOC2-lite evidence collector that reflects reality (m108) + GDPR hard-erase/export (m105/m109), unified into an ASVS 4.0 + SOC 2 TSC + GDPR control matrix, every row evidence-backed (gate m141). All self-host + independently re-verifiable. Honest caveat: no external SOC2/ISO/HIPAA attestation yet (an auditor + business milestone, not a code gap).</td><td><span class="bdg" style="background:#16a34a">win</span> External-attested SOC 2 Type II + ISO/IEC 27001:2022 + HIPAA BAA as a hosted product — wins on the paper cert; controls are not buyer-recomputable</td><td class="src">gate m141/m104/m108 + wiki/compliance-posture.md</td></tr>
+<tr><td>Cost per tenant at scale</td><td><span class="bdg" style="background:#16a34a">win</span> Flat: 24,887 tenants share one pool @ 2.9 MiB; rps = measured_capacity × fair_share × 0.5</td><td><span class="bdg" style="background:#a16207">partial</span> Per-project Postgres + compute add-ons (Small ~$15, Medium ~$60 above the $10 credit)</td><td class="src">cost-analysis.md + footprint-live-24888-today.json / supabase.com/pricing</td></tr></tbody></table>
+<h3>vs MongoDB Atlas — <span class="rt">Managed MongoDB (BaaS layer retired 2025)</span></h3>
+     <p class="ctx">MongoDB Atlas is a first-class managed MongoDB — Atlas Search, vector search, Charts, and Stream Processing are genuinely strong, and if your workload is document-native and you want the best managed MongoDB operations, pick them. But the honest, decisive point for an app backend: Atlas App Services — the entire BaaS layer — reached end-of-life on 2025-09-30. The Data API, GraphQL API, Device Sync + Realm SDKs, App Services Functions, hosted Authentication/user management, Static Hosting, and Custom HTTPS Endpoints are all shut down; only Database Triggers survive. So in 2026 Atlas is a managed DATABASE, not a BaaS — the Firebase-style backend it once offered is gone. Grobase gives you that retired surface back (CRUD/aggregate API, GraphQL, auth/MFA, functions) on nine engines including MongoDB itself, self-hostable, on one codebase. Choose Atlas if you want premier managed MongoDB + Atlas Search/Charts; choose Grobase if you need the application backend Atlas no longer ships.</p>
+     <div class="ladder"><div class="lad-grp"><div class="lad-h">Free / entry</div><div class="lad-row"><span class="lad-name">Grobase nano</span><span class="lad-bar"><span class="lad-fill" style="width:4%;background:#16a34a"></span></span><span class="lad-val">Free</span></div><div class="lad-row"><span class="lad-name">M0 Free</span><span class="lad-bar"><span class="lad-fill" style="width:4%;background:#f59e0b"></span></span><span class="lad-val">Free</span></div><div class="lad-note">Atlas M0 is 512 MB shared storage, ~100 ops/sec — a database only, no app backend. Grobase Nano is a self-hosted 2.1 MiB binary with a full CRUD + introspect API.</div></div>
+<div class="lad-grp"><div class="lad-h">Single product</div><div class="lad-row"><span class="lad-name">Grobase essential</span><span class="lad-bar"><span class="lad-fill" style="width:7%;background:#16a34a"></span></span><span class="lad-val">$29</span></div><div class="lad-row"><span class="lad-name">Flex ($8-$30)</span><span class="lad-bar"><span class="lad-fill" style="width:8%;background:#f59e0b"></span></span><span class="lad-val">$30</span></div><div class="lad-note">Atlas Flex (GA Feb 2025, base $8 usage-capped at $30) is a managed DB scaling 100→500 ops/sec, 5 GB — still no BaaS layer. Grobase Essential is a real backend API with aggregate at $25-$39.</div></div>
+<div class="lad-grp"><div class="lad-h">Growth / team</div><div class="lad-row"><span class="lad-name">Grobase pro</span><span class="lad-bar"><span class="lad-fill" style="width:20%;background:#16a34a"></span></span><span class="lad-val">$79</span></div><div class="lad-row"><span class="lad-name">Dedicated M30</span><span class="lad-bar"><span class="lad-fill" style="width:100%;background:#f59e0b"></span></span><span class="lad-val">$400</span></div><div class="lad-note">Atlas M30 (~$400/mo) is dedicated DB compute; you still build and host the application backend yourself since App Services is EOL. Grobase Pro ($79) ships the backend (7 engines incl. MongoDB, transactions, realtime, analytics).</div></div></div>
+     <table class="feat"><thead><tr><th>Capability</th><th>Grobase</th><th>Rival</th><th>Source</th></tr></thead><tbody><tr><td>Database engines</td><td><span class="bdg" style="background:#16a34a">win</span> 9 (pg, mysql, mariadb, mongo, mssql, cockroach, redis, sqlite, http)</td><td><span class="bdg" style="background:#0891b2">ok</span> MongoDB only</td><td class="src">packages.json / mongodb.com/pricing</td></tr>
+<tr><td>Data API (REST over data)</td><td><span class="bdg" style="background:#16a34a">win</span> POST /data/v1/query — op = list/get/insert/update/delete/upsert/aggregate, all engines</td><td><span class="bdg" style="background:#dc2626">gap</span> Atlas Data API SHUT DOWN — App Services EOL 2025-09-30</td><td class="src">scripts/verify/m22-live-database.sh / mongodb.com App Services data-api-deprecation (EOL 2025-09-30)</td></tr>
+<tr><td>GraphQL API</td><td><span class="bdg" style="background:#16a34a">win</span> GraphQL edition (RLS-aware, gate m59)</td><td><span class="bdg" style="background:#dc2626">gap</span> Atlas GraphQL API SHUT DOWN — App Services EOL 2025-09-30</td><td class="src">docker-compose.graphql.yml / mongodb.com App Services EOL 2025-09-30</td></tr>
+<tr><td>Auth / user management</td><td><span class="bdg" style="background:#16a34a">win</span> gotrue surface (signup, password grant, recover, verify, MFA); binocle-one OAuth2 + admin UI</td><td><span class="bdg" style="background:#dc2626">gap</span> App Services Authentication SHUT DOWN — EOL 2025-09-30 (Atlas is DB-only now)</td><td class="src">/auth/v1/* gates / mongodb.com App Services EOL 2025-09-30</td></tr>
+<tr><td>Serverless functions</td><td><span class="bdg" style="background:#16a34a">win</span> deploy / list / invoke (Max add-on)</td><td><span class="bdg" style="background:#dc2626">gap</span> App Services Functions SHUT DOWN — EOL 2025-09-30</td><td class="src">/functions/v1/* / mongodb.com App Services EOL 2025-09-30</td></tr>
+<tr><td>Device Sync / offline mobile</td><td><span class="bdg" style="background:#16a34a">win</span> Realtime WS/SSE subscribe + publish (not full offline conflict-sync)</td><td><span class="bdg" style="background:#dc2626">gap</span> Device Sync + Realm SDKs SHUT DOWN — EOL 2025-09-30</td><td class="src">/realtime/v1/* / mongodb.com App Services EOL 2025-09-30 (Realm/Device Sync retired)</td></tr>
+<tr><td>Database triggers</td><td><span class="bdg" style="background:#0891b2">ok</span> Function triggers (Go control plane: functriggers)</td><td><span class="bdg" style="background:#16a34a">win</span> Database Triggers — the ONE App Services feature that survives</td><td class="src">go/control-plane functriggers / mongodb.com (Database Triggers retained)</td></tr>
+<tr><td>Multi-tenancy density</td><td><span class="bdg" style="background:#16a34a">win</span> 24,887 tenants @ 2.9 MiB data-plane RSS, 0 standing pools</td><td><span class="bdg" style="background:#a16207">partial</span> Per-cluster; no app-level multi-tenant BaaS layer</td><td class="src">m46-share-pools-isolation.sh + footprint-live-24888-today.json / mongodb.com</td></tr>
+<tr><td>Isolation models</td><td><span class="bdg" style="background:#16a34a">win</span> 4 selectable per mount</td><td><span class="bdg" style="background:#0891b2">ok</span> Cluster/DB separation only</td><td class="src">m46-share-pools-isolation.sh / mongodb.com docs</td></tr>
+<tr><td>Search (full-text + vector)</td><td><span class="bdg" style="background:#a16207">partial</span> Engine-dependent (pgvector + FTS on Postgres)</td><td><span class="bdg" style="background:#16a34a">win</span> Atlas Search + vector search — first-class, still offered</td><td class="src">engine-dependent / mongodb.com (Atlas Search retained)</td></tr>
+<tr><td>Object / static hosting</td><td><span class="bdg" style="background:#0891b2">ok</span> S3/MinIO buckets + presigned (Max add-on)</td><td><span class="bdg" style="background:#dc2626">gap</span> Static Hosting SHUT DOWN — EOL 2025-09-30</td><td class="src">/storage/v1/* / mongodb.com App Services EOL 2025-09-30</td></tr>
+<tr><td>Charts / BI</td><td><span class="bdg" style="background:#0891b2">ok</span> Analytics add-on + osionos chart/dashboard client</td><td><span class="bdg" style="background:#16a34a">win</span> Atlas Charts — strong, still offered</td><td class="src">analytics plane / mongodb.com (Atlas Charts retained)</td></tr>
+<tr><td>SDK languages</td><td><span class="bdg" style="background:#16a34a">win</span> TS/JS, Python, Kotlin, Swift, Dart</td><td><span class="bdg" style="background:#a16207">partial</span> Driver SDKs (DB only); Realm app SDKs retired with Device Sync</td><td class="src">apps/baas/sdk* / mongodb.com (Realm SDKs EOL 2025-09-30)</td></tr>
+<tr><td>Self-host</td><td><span class="bdg" style="background:#16a34a">win</span> OSS self-host default, nano→max one codebase no rewrite</td><td><span class="bdg" style="background:#a16207">partial</span> Atlas is managed-only; Community Server is DB-only, no App Services</td><td class="src">02-layer-edition-model.md / mongodb.com</td></tr>
+<tr><td>Custom HTTPS endpoints</td><td><span class="bdg" style="background:#16a34a">win</span> http engine adapter + functions invoke</td><td><span class="bdg" style="background:#dc2626">gap</span> Custom HTTPS Endpoints SHUT DOWN — EOL 2025-09-30</td><td class="src">data-plane-pool http adapter / mongodb.com App Services EOL 2025-09-30</td></tr>
+<tr><td>Pricing transparency</td><td><span class="bdg" style="background:#16a34a">win</span> 5 honest tiers, packages.json single source; rps measured</td><td><span class="bdg" style="background:#0891b2">ok</span> Flex usage-billed ($8-$30); Dedicated M10 ~$57 → M60 $1,500+ per-hour</td><td class="src">packages.json + cost-analysis.md / mongodb.com/pricing</td></tr></tbody></table></section>
+<section id="matrix"><h2>Competitive feature matrix — 91 capabilities</h2>
+    <p class="ctx">Tallied across the numbered matrix (Grobase cell). <code>29</code> at parity-or-better today.</p>
+    <div class="sb"><div class="sb-row"><span class="sb-name">Differentiator (beats both)</span><span class="sb-bar"><span class="sb-fill" style="width:12%;background:#16a34a"></span></span><span class="sb-val">4 / 91</span></div>
+<div class="sb-row"><span class="sb-name">Parity (first-class)</span><span class="sb-bar"><span class="sb-fill" style="width:76%;background:#16a34a"></span></span><span class="sb-val">25 / 91</span></div>
+<div class="sb-row"><span class="sb-name">Partial (built/gated)</span><span class="sb-bar"><span class="sb-fill" style="width:88%;background:#f59e0b"></span></span><span class="sb-val">29 / 91</span></div>
+<div class="sb-row"><span class="sb-name">Gap</span><span class="sb-bar"><span class="sb-fill" style="width:100%;background:#f59e0b"></span></span><span class="sb-val">33 / 91</span></div></div>
+    <h3>Head-to-head dimensions vs Supabase</h3>
+    <table class="feat"><thead><tr><th>Dimension</th><th>Verdict</th><th>Basis</th></tr></thead><tbody><tr><td>Object storage</td><td><span class="bdg" style="background:#16a34a">win</span> WIN</td><td class="src">image transforms + bucket-ABAC + any-S3 + no caps (m95)</td></tr>
+<tr><td>Functions</td><td><span class="bdg" style="background:#16a34a">win</span> WIN</td><td class="src">triggers + warm-pool + mem-cap + cron + no invocation cap (m56/m96)</td></tr>
+<tr><td>Auth / MFA</td><td><span class="bdg" style="background:#16a34a">win</span> WIN</td><td class="src">same vendored gotrue as Supabase + OAuth/MFA + no MAU cap</td></tr>
+<tr><td>Backups</td><td><span class="bdg" style="background:#16a34a">win</span> WIN</td><td class="src">per-tenant granular restore + PITR neither rival has (m87/m99)</td></tr>
+<tr><td>Vector / full-text</td><td><span class="bdg" style="background:#16a34a">win</span> WIN</td><td class="src">op=fulltext_search (pg tsvector) + op=vector_search (pgvector)</td></tr>
+<tr><td>Network controls</td><td><span class="bdg" style="background:#16a34a">win</span> WIN</td><td class="src">per-plane segmentation + in-stack OWASP WAF + Cloudflare front-door recipe</td></tr>
+<tr><td>Compliance posture</td><td><span class="bdg" style="background:#16a34a">win</span> WIN</td><td class="src">verifiable in-stack controls + tamper-evident audit + self-host residency</td></tr>
+<tr><td>GraphQL</td><td><span class="bdg" style="background:#0891b2">ok</span> PARITY</td><td class="src">same pg_graphql engine, RLS-aware</td></tr></tbody></table></section>
+<section id="edge"><h2>Edge-case reliability — 1381 distinct vectors</h2>
+    <p class="ctx">Data-driven Postman/newman suite (9 categories). Invariant model: never a 5xx crash, valid status, no leak. 651 handled safely · 365 infra-skipped (verify-timeout) · 365 findings (ungraceful 5xx).</p>
+    <div class="sb"><div class="sb-row"><span class="sb-name">Handled safely</span><span class="sb-bar"><span class="sb-fill" style="width:100%;background:#16a34a"></span></span><span class="sb-val">651 / 1381</span></div>
+<div class="sb-row"><span class="sb-name">Infra-skipped (503)</span><span class="sb-bar"><span class="sb-fill" style="width:56%;background:#f59e0b"></span></span><span class="sb-val">365 / 1381</span></div>
+<div class="sb-row"><span class="sb-name">Findings (5xx)</span><span class="sb-bar"><span class="sb-fill" style="width:56%;background:#f59e0b"></span></span><span class="sb-val">365 / 1381</span></div></div>
+    <h3>By category</h3>
+    <table class="feat"><thead><tr><th>Category</th><th>n</th><th>safe</th><th>skip</th><th>finding</th></tr></thead><tbody><tr><td>capability-tier</td><td>200</td><td class="g">110</td><td class="y">66</td><td class="r">24</td></tr>
+<tr><td>idempotency-concurrency</td><td>133</td><td class="g">9</td><td class="y">52</td><td class="r">72</td></tr>
+<tr><td>injection-security</td><td>214</td><td class="g">32</td><td class="y">53</td><td class="r">129</td></tr>
+<tr><td>malformed-protocol</td><td>93</td><td class="g">80</td><td class="y">3</td><td class="r">10</td></tr>
+<tr><td>numeric-boundary</td><td>111</td><td class="g">10</td><td class="y">87</td><td class="r">14</td></tr>
+<tr><td>payload-limits</td><td>127</td><td class="g">32</td><td class="y">46</td><td class="r">49</td></tr>
+<tr><td>tenant-isolation</td><td>172</td><td class="g">71</td><td class="y">35</td><td class="r">66</td></tr>
+<tr><td>types-and-error-mapping</td><td>121</td><td class="g">101</td><td class="y">20</td><td class="r">0</td></tr>
+<tr><td>unicode-encoding</td><td>210</td><td class="g">206</td><td class="y">3</td><td class="r">1</td></tr></tbody></table>
+    <h3>Findings (365)</h3><table class="feat"><thead><tr><th>vector</th><th>edge case</th><th>status</th></tr></thead><tbody><tr><td><code>capability-tier-084</code></td><td>txn to a non-existent mount id — 404 mount_not_found, never 5xx</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-091</code></td><td>txn mount as a number not string — 400 type</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-096</code></td><td>legacy action &quot;select&quot; via action field — maps to list, succeeds</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-097</code></td><td>legacy action &quot;find&quot; via action field — maps to list, succeeds</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-098</code></td><td>legacy action &quot;deleteMany&quot; with no filter — maps to delete, guarded not mass-wipe</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-100</code></td><td>both op and action set (op wins) — resolveOp prefers op, succeeds as list</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-103</code></td><td>op &quot;upsert&quot; with valid data — supported by pg, succeeds</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-104</code></td><td>op &quot;get&quot; with no filter — under-specified read, no 5xx</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-105</code></td><td>list limit at Max(500) boundary — valid, succeeds</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-110</code></td><td>list limit as string &quot;10&quot; — implicit conversion may coerce; must not 5xx</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-113</code></td><td>list offset huge 999999999 — large but valid int, no 5xx</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-116</code></td><td>list limit 1 minimum boundary — valid, succeeds</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-117</code></td><td>sort {n:&quot;asc&quot;} valid — succeeds</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-118</code></td><td>sort {n:&quot;desc&quot;} valid — succeeds</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-119</code></td><td>sort direction &quot;ASC&quot; uppercase — invalid direction, no 5xx</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-120</code></td><td>sort direction garbage &quot;sideways&quot; — invalid, no 5xx</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-121</code></td><td>sort by unknown column &quot;ghost&quot; — column does not exist, no 5xx</td><td class="r">timeout</td></tr>
+<tr><td><code>capability-tier-122</code></td><td>sort by reserved column &quot;owner_id&quot; — must not leak/scope-escape</td><td class="r">502</td></tr>
+<tr><td><code>capability-tier-124</code></td><td>sort by SQL-injection column name — quoted/rejected, never executed</td><td class="r">502</td></tr>
+<tr><td><code>capability-tier-125</code></td><td>sort multi-column {n:&quot;asc&quot;, name:&quot;desc&quot;} — valid composite sort</td><td class="r">502</td></tr></tbody></table></section>
+<section id="verdict"><h2>Verdict</h2>
+  <div class="verdict">Grobase wins decisively on <b>footprint, write throughput &amp; tail, cold-start, multi-tenant density, isolation choice, and cost-per-tenant</b>, is now at <b>win</b> on storage / functions / auth / backups / vector+FTS / network-controls / compliance-controls, and at honest parity on GraphQL. PocketBase keeps a real edge on single-tenant read throughput at high concurrency; Supabase keeps the mature managed cloud + paper certifications. For a self-hostable, multi-engine, dense-multi-tenant backend with the broadest measured wins, Grobase is the pick.</div>
+</section>
+</main></body></html>

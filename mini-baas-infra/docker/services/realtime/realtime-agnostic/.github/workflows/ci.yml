@@ -1,0 +1,160 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CI — first iteration on every push / pull-request
+#
+# Features used:
+#   • dtolnay/rust-toolchain  → Rust SDK setup  (equivalent of setup-.NET-core-SDK)
+#   • Swatinem/rust-cache     → dependency cache (faster subsequent runs)
+#   • actions/upload-artifact → preserve the release binary per run
+#   • actions/download-artifact → verify the uploaded artifact in a later job
+# ─────────────────────────────────────────────────────────────────────────────
+name: CI
+
+on:
+  push:
+    branches: ["main", "develop", "perf/**", "feat/**", "fix/**"]
+  pull_request:
+    branches: ["main", "develop"]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+# Cancel in-flight runs on the same branch to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Code Quality ────────────────────────────────────────────────────────────
+  quality:
+    name: Code Quality (fmt + clippy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Rust SDK setup — stable toolchain + required components.
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      # Dependency cache — restores ~/.cargo/registry and target/ between runs.
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy (strict)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  # ── Tests ───────────────────────────────────────────────────────────────────
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Run all tests
+        run: cargo test --workspace --verbose
+
+      # Upload test output so it can be inspected if a run fails.
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_id }}
+          path: |
+            target/debug/deps/realtime_*
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ── Build release binary ────────────────────────────────────────────────────
+  build:
+    name: Build release binary
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # Full cache including the release profile target directory.
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Build release binary
+        run: cargo build --release --bin realtime-server
+
+      # ── Upload the compiled binary as a workflow artifact ──────────────────
+      - name: Upload release binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: realtime-server-linux-amd64-${{ github.sha }}
+          path: target/release/realtime-server
+          retention-days: 30
+
+  # ── Artifact smoke-test (download) ─────────────────────────────────────────
+  verify-artifact:
+    name: Verify artifact download
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download release binary
+        uses: actions/download-artifact@v4
+        with:
+          name: realtime-server-linux-amd64-${{ github.sha }}
+          path: dist/
+
+      - name: Check binary is executable
+        run: |
+          chmod +x dist/realtime-server
+          file dist/realtime-server
+          echo "Binary size: $(du -sh dist/realtime-server | cut -f1)"
+
+  # ── Monitoring — dependency audit ──────────────────────────────────────────
+  monitor:
+    name: Monitoring (audit + deny)
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked 2>/dev/null || true
+
+      - name: Audit dependencies for vulnerabilities
+        run: cargo audit
+        continue-on-error: true   # advisory DB may lag; treat as warning in CI
+
+      - name: Check for unused dependencies
+        run: |
+          cargo install cargo-machete --locked 2>/dev/null || true
+          cargo machete 2>/dev/null || true
+        continue-on-error: true

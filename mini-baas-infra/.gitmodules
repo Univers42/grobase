@@ -1,0 +1,18 @@
+[submodule "vendor/libcss"]
+	path = vendor/libcss
+	url = https://github.com/Univers42/libcss.git
+[submodule "vendor/scripts"]
+	path = vendor/scripts
+	url = https://github.com/Univers42/scripts.git
+[submodule "vendor/tinte"]
+	path = vendor/tinte
+	url = https://github.com/Melvynx/tinte.git
+[submodule "vendor/ui.nowts.app"]
+	path = vendor/ui.nowts.app
+	url = https://github.com/Melvynx/ui.nowts.app.git
+[submodule "vendor/ui"]
+	path = vendor/ui
+	url = https://github.com/Melvynx/ui.git
+[submodule "docker/services/realtime/realtime-agnostic"]
+	path = docker/services/realtime/realtime-agnostic
+	url = git@github.com:Univers42/realtime-agnostic.git

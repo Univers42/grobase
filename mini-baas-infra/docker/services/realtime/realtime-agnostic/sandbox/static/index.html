@@ -1,0 +1,3361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SyncSpace — Realtime Collaborative Workspace</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════
+   DESIGN SYSTEM
+   ═══════════════════════════════════════════════════════════════════════ */
+:root {
+  --bg:          #0b0d11;
+  --bg-alt:      #10131a;
+  --surface:     #161a24;
+  --surface-2:   #1c2030;
+  --surface-3:   #242838;
+  --border:      #2a2f40;
+  --border-2:    #363c52;
+  --text:        #e2e5f0;
+  --text-2:      #a0a6be;
+  --text-3:      #6b7194;
+  --accent:      #6366f1;
+  --accent-2:    #818cf8;
+  --accent-bg:   rgba(99,102,241,0.12);
+  --green:       #22c55e;
+  --green-bg:    rgba(34,197,94,0.12);
+  --red:         #ef4444;
+  --red-bg:      rgba(239,68,68,0.12);
+  --orange:      #f97316;
+  --yellow:      #eab308;
+  --blue:        #3b82f6;
+  --purple:      #8b5cf6;
+  --pink:        #ec4899;
+  --mono:        'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  --sans:        'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --radius:      8px;
+  --radius-lg:   12px;
+  --shadow:      0 2px 8px rgba(0,0,0,0.3);
+  --shadow-lg:   0 8px 32px rgba(0,0,0,0.4);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   HEADER
+   ═══════════════════════════════════════════════════════════════════════ */
+.header {
+  height: 52px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  flex-shrink: 0;
+  z-index: 100;
+}
+.logo {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--accent-2);
+  letter-spacing: -0.5px;
+}
+.logo span { color: var(--text-3); font-weight: 400; }
+.header-sep { width: 1px; height: 24px; background: var(--border); }
+.board-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.header-spacer { flex: 1; }
+
+/* Connection status */
+.conn-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-3);
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--surface-2);
+}
+.conn-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+  transition: background 0.3s;
+}
+.conn-dot.connected { background: var(--green); }
+.conn-dot.connecting { background: var(--orange); animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: 0.4; } }
+
+/* Presence avatars */
+.presence-bar {
+  display: flex;
+  align-items: center;
+  gap: -4px;
+}
+.presence-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  border: 2px solid var(--surface);
+  margin-left: -6px;
+  cursor: default;
+  text-transform: uppercase;
+  position: relative;
+}
+.presence-avatar:first-child { margin-left: 0; }
+.presence-avatar .tooltip {
+  display: none;
+  position: absolute;
+  bottom: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.presence-avatar:hover .tooltip { display: block; }
+
+/* User selector */
+.user-select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+}
+.user-select:focus { border-color: var(--accent); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LAYOUT
+   ═══════════════════════════════════════════════════════════════════════ */
+.app-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 220px;
+  background: var(--bg-alt);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+.sidebar-section {
+  padding: 12px;
+}
+.sidebar-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+.sidebar-item {
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s;
+}
+.sidebar-item:hover { background: var(--surface); color: var(--text); }
+.sidebar-item.active { background: var(--accent-bg); color: var(--accent-2); }
+.sidebar-item .icon { font-size: 15px; width: 18px; text-align: center; }
+.sidebar-item .badge {
+  margin-left: auto;
+  font-size: 10px;
+  background: var(--accent);
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   TAB BAR
+   ═══════════════════════════════════════════════════════════════════════ */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 12px;
+  gap: 2px;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.tab-btn {
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--sans);
+  color: var(--text-3);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab-btn:hover { color: var(--text-2); }
+.tab-btn.active { color: var(--accent-2); border-bottom-color: var(--accent); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   KANBAN BOARD
+   ═══════════════════════════════════════════════════════════════════════ */
+.board-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+.tab-content { display: none; flex: 1; overflow: hidden; }
+.tab-content.active { display: flex; flex-direction: column; }
+.board-scroll {
+  flex: 1;
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  align-items: flex-start;
+}
+.list {
+  min-width: 280px;
+  max-width: 280px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 160px);
+  flex-shrink: 0;
+}
+.list-header {
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.list-header .count {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+  background: var(--surface-2);
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+.list-cards {
+  padding: 8px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 40px;
+}
+.list-cards.drag-over {
+  background: var(--accent-bg);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+/* Cards */
+.card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  cursor: grab;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+  position: relative;
+}
+.card:hover {
+  border-color: var(--border-2);
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+.card.dragging {
+  opacity: 0.5;
+  transform: rotate(3deg);
+}
+.card-label {
+  width: 32px;
+  height: 4px;
+  border-radius: 2px;
+  margin-bottom: 8px;
+}
+.card-title {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-assignee {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+}
+.card-id {
+  font-size: 10px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+.card-new-flash {
+  animation: cardFlash 0.8s ease-out;
+}
+@keyframes cardFlash {
+  0% { border-color: var(--green); box-shadow: 0 0 12px rgba(34,197,94,0.3); }
+  100% { border-color: var(--border); box-shadow: none; }
+}
+
+/* Add card */
+.add-card-btn {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-3);
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: background 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 8px 8px;
+}
+.add-card-btn:hover { background: var(--surface-2); color: var(--text); }
+
+/* Add card inline form */
+.add-card-form {
+  padding: 0 8px 8px;
+  display: none;
+}
+.add-card-form.visible { display: block; }
+.add-card-input {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  outline: none;
+  resize: none;
+}
+.add-card-input:focus { border-color: var(--accent); }
+.add-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ADD LIST
+   ═══════════════════════════════════════════════════════════════════════ */
+.add-list-btn {
+  min-width: 280px;
+  padding: 12px;
+  background: rgba(99,102,241,0.08);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text-3);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.add-list-btn:hover { background: var(--accent-bg); color: var(--accent-2); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LIVE CURSORS
+   ═══════════════════════════════════════════════════════════════════════ */
+.cursor-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 50;
+  overflow: hidden;
+}
+.remote-cursor {
+  position: absolute;
+  pointer-events: none;
+  will-change: transform;
+  transition: none;
+}
+.remote-cursor svg {
+  width: 16px;
+  height: 20px;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
+}
+.remote-cursor .cursor-label {
+  position: absolute;
+  left: 16px;
+  top: 14px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CHAT PANEL
+   ═══════════════════════════════════════════════════════════════════════ */
+.chat-panel {
+  width: 320px;
+  background: var(--bg-alt);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.chat-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chat-header-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.chat-header-icon { color: var(--text-3); }
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.chat-msg {
+  display: flex;
+  gap: 10px;
+}
+.chat-msg-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+.chat-msg-body { flex: 1; min-width: 0; }
+.chat-msg-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.chat-msg-name { font-size: 13px; font-weight: 600; }
+.chat-msg-time { font-size: 10px; color: var(--text-3); }
+.chat-msg-text {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.5;
+  word-break: break-word;
+}
+.chat-msg.new-flash .chat-msg-text {
+  animation: msgFlash 0.6s ease-out;
+}
+@keyframes msgFlash {
+  0% { color: var(--green); }
+  100% { color: var(--text-2); }
+}
+
+/* ─── Typing Indicator with Animated Dots ─────────────────────────────── */
+.typing-indicator {
+  padding: 4px 16px;
+  font-size: 11px;
+  color: var(--text-3);
+  font-style: italic;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+}
+.typing-dots span {
+  width: 5px;
+  height: 5px;
+  background: var(--accent-2);
+  border-radius: 50%;
+  display: inline-block;
+  animation: typingBounce 1.4s infinite ease-in-out both;
+}
+.typing-dots span:nth-child(1) { animation-delay: 0s; }
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typingBounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+.chat-input-area {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+.chat-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  outline: none;
+}
+.chat-input:focus { border-color: var(--accent); }
+.chat-input::placeholder { color: var(--text-3); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   DEBUG PANEL
+   ═══════════════════════════════════════════════════════════════════════ */
+.debug-toggle {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-lg);
+  z-index: 200;
+  transition: transform 0.2s;
+}
+.debug-toggle:hover { transform: scale(1.1); }
+
+.debug-panel {
+  position: fixed;
+  bottom: 64px;
+  right: 16px;
+  width: 440px;
+  max-height: 480px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: none;
+  flex-direction: column;
+  z-index: 200;
+  box-shadow: var(--shadow-lg);
+}
+.debug-panel.open { display: flex; }
+.debug-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.debug-header h3 {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-2);
+  flex: 1;
+}
+.adapter-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: transparent;
+  color: var(--text-3);
+}
+.adapter-btn.active-pg {
+  background: rgba(59,130,246,0.15);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.adapter-btn.active-mongo {
+  background: var(--green-bg);
+  border-color: var(--green);
+  color: var(--green);
+}
+.debug-stats {
+  padding: 8px 14px;
+  display: flex;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+}
+.debug-stat { display: flex; flex-direction: column; gap: 2px; }
+.debug-stat-val { font-weight: 700; font-family: var(--mono); color: var(--text); }
+.debug-stat-label { color: var(--text-3); }
+.debug-events {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+.debug-event {
+  padding: 6px 8px;
+  font-size: 11px;
+  font-family: var(--mono);
+  border-radius: 4px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+}
+.debug-event:hover { background: var(--surface-2); }
+.debug-badge {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.debug-badge.pg { background: rgba(59,130,246,0.15); color: var(--blue); }
+.debug-badge.mongo { background: var(--green-bg); color: var(--green); }
+.debug-badge.ws { background: rgba(139,92,246,0.15); color: var(--purple); }
+.debug-badge.bus { background: rgba(249,115,22,0.15); color: var(--orange); }
+.debug-event-type { color: var(--text); font-weight: 600; flex-shrink: 0; }
+.debug-event-detail { color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.debug-event-time { margin-left: auto; color: var(--text-3); flex-shrink: 0; }
+.debug-clear {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.debug-clear:hover { color: var(--red); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BUTTONS
+   ═══════════════════════════════════════════════════════════════════════ */
+.btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--sans);
+  transition: opacity 0.15s;
+}
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-ghost { background: transparent; color: var(--text-3); }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LOGIN SCREEN
+   ═══════════════════════════════════════════════════════════════════════ */
+.login-screen {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 40px;
+  width: 360px;
+  text-align: center;
+}
+.login-card h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent-2);
+  margin-bottom: 4px;
+}
+.login-card p {
+  font-size: 13px;
+  color: var(--text-3);
+  margin-bottom: 24px;
+}
+.login-users {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.login-user-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  text-align: left;
+}
+.login-user-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+.login-user-btn .avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  text-transform: uppercase;
+}
+.login-user-btn .info { flex: 1; }
+.login-user-btn .name { font-weight: 600; }
+.login-user-btn .email { font-size: 11px; color: var(--text-3); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-2); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   WIDGET: WHITEBOARD
+   ═══════════════════════════════════════════════════════════════════════ */
+.whiteboard-container {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+.wb-toolbar {
+  width: 48px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 4px;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+.wb-tool {
+  width: 36px; height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--text-3);
+  border: none;
+  background: none;
+  transition: background 0.15s, color 0.15s;
+}
+.wb-tool:hover { background: var(--surface-2); color: var(--text); }
+.wb-tool.active { background: var(--accent-bg); color: var(--accent-2); }
+.wb-separator { width: 28px; height: 1px; background: var(--border); margin: 4px 0; }
+.wb-color-btn {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  margin: 2px;
+  transition: border-color 0.15s;
+}
+.wb-color-btn.active { border-color: #fff; }
+.wb-stroke-btn {
+  width: 32px; height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-3);
+}
+.wb-stroke-btn.active { border-color: var(--accent); color: var(--accent-2); }
+.wb-fill-btn {
+  width: 32px; height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 700;
+}
+.wb-fill-btn.active { border-color: var(--accent); color: var(--accent-2); }
+.wb-canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg);
+}
+.wb-canvas-wrap canvas {
+  display: block;
+  cursor: crosshair;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   WIDGET: NOTES EDITOR
+   ═══════════════════════════════════════════════════════════════════════ */
+.notes-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  gap: 10px;
+}
+.notes-status {
+  font-size: 11px;
+  color: var(--text-3);
+  padding: 4px 0;
+}
+.notes-textarea {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14px;
+  padding: 16px;
+  resize: none;
+  outline: none;
+  line-height: 1.6;
+}
+.notes-textarea:focus { border-color: var(--accent); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   WIDGET: STICKY WALL
+   ═══════════════════════════════════════════════════════════════════════ */
+.sticky-container {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  background: var(--bg);
+}
+.sticky-toolbar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  display: flex;
+  gap: 6px;
+}
+.sticky-note {
+  position: absolute;
+  width: 180px;
+  min-height: 120px;
+  border-radius: 4px;
+  padding: 10px;
+  cursor: grab;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  user-select: none;
+  transition: box-shadow 0.15s;
+}
+.sticky-note:hover { box-shadow: var(--shadow-lg); }
+.sticky-note.dragging { cursor: grabbing; opacity: 0.8; z-index: 100; }
+.sticky-note-text {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #1a1a2e;
+  font-family: var(--sans);
+  font-size: 13px;
+  resize: none;
+  outline: none;
+  line-height: 1.4;
+  cursor: inherit;
+  pointer-events: none;
+}
+.sticky-note-text.editing {
+  cursor: text;
+  pointer-events: auto;
+}
+.sticky-note-delete {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0;
+  color: #666;
+  transition: opacity 0.15s;
+}
+.sticky-note:hover .sticky-note-delete { opacity: 0.7; }
+.sticky-note-delete:hover { opacity: 1 !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   WIDGET: POLLS
+   ═══════════════════════════════════════════════════════════════════════ */
+.polls-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.polls-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.poll-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+}
+.poll-question {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+.poll-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-radius: 6px;
+  padding: 8px;
+}
+.poll-option:hover { background: var(--surface-2); }
+.poll-option-bar-wrap {
+  flex: 1;
+  height: 28px;
+  background: var(--surface-2);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+}
+.poll-option-bar {
+  height: 100%;
+  background: var(--accent-bg);
+  border-radius: 6px;
+  transition: width 0.4s ease;
+  min-width: 0;
+}
+.poll-option-bar.voted { background: var(--accent); opacity: 0.3; }
+.poll-option-label {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  z-index: 1;
+}
+.poll-option-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-2);
+  min-width: 30px;
+  text-align: right;
+}
+.poll-option-voters {
+  display: flex;
+}
+.poll-voter-dot {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+  color: #fff;
+  margin-left: -4px;
+  border: 1px solid var(--surface);
+}
+.poll-voter-dot:first-child { margin-left: 0; }
+.poll-meta {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   WIDGET: TIMER
+   ═══════════════════════════════════════════════════════════════════════ */
+.timer-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 40px;
+}
+.timer-display {
+  font-family: var(--mono);
+  font-size: 72px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 2px;
+}
+.timer-controls {
+  display: flex;
+  gap: 10px;
+}
+.timer-controls .btn { padding: 10px 24px; font-size: 14px; }
+.timer-mode-toggle {
+  display: flex;
+  gap: 4px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 3px;
+}
+.timer-mode-btn {
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-3);
+  font-family: var(--sans);
+  transition: all 0.15s;
+}
+.timer-mode-btn.active { background: var(--accent); color: #fff; }
+.timer-countdown-set {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.timer-countdown-set input {
+  width: 60px;
+  padding: 6px 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 14px;
+  text-align: center;
+  outline: none;
+  font-family: var(--mono);
+}
+.timer-countdown-set input:focus { border-color: var(--accent); }
+.timer-countdown-set label { font-size: 12px; color: var(--text-3); }
+.timer-actor {
+  font-size: 11px;
+  color: var(--text-3);
+  font-style: italic;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   WIDGET: PIXEL ART
+   ═══════════════════════════════════════════════════════════════════════ */
+.pixel-container {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+.pixel-toolbar {
+  width: 52px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px;
+  gap: 3px;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+.pixel-color-btn {
+  width: 24px; height: 24px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.pixel-color-btn.active { border-color: #fff; }
+.pixel-tool-btn {
+  width: 36px; height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-3);
+  border: none;
+  background: none;
+  transition: background 0.15s;
+}
+.pixel-tool-btn:hover { background: var(--surface-2); }
+.pixel-tool-btn.active { background: var(--accent-bg); color: var(--accent-2); }
+.pixel-canvas-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  background: var(--bg);
+}
+.pixel-grid {
+  display: grid;
+  grid-template-columns: repeat(32, 14px);
+  grid-template-rows: repeat(32, 14px);
+  gap: 0;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.pixel-cell {
+  width: 14px; height: 14px;
+  border: 0.5px solid rgba(255,255,255,0.04);
+  cursor: pointer;
+  position: relative;
+  transition: none;
+}
+.pixel-cell:hover { outline: 1px solid var(--accent-2); z-index: 1; }
+.pixel-last-user {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--bg);
+  z-index: 2;
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     LOGIN SCREEN
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="login-screen" class="login-screen">
+  <div class="login-card">
+    <h1>SyncSpace</h1>
+    <p>Realtime Collaborative Workspace</p>
+    <div class="login-users" id="login-users"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     MAIN APP
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="app" style="display:none; flex-direction:column; height:100%;">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">SyncSpace <span>realtime</span></div>
+    <div class="header-sep"></div>
+    <div class="board-title" id="board-title">Product Roadmap</div>
+    <div class="header-spacer"></div>
+    <div class="presence-bar" id="presence-bar"></div>
+    <div class="conn-status">
+      <div class="conn-dot" id="conn-dot"></div>
+      <span id="conn-text">Disconnected</span>
+    </div>
+    <select class="user-select" id="user-switch" title="Switch user (simulates multi-user)"></select>
+  </div>
+
+  <!-- Body -->
+  <div class="app-body">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Widgets</div>
+        <div class="sidebar-item active" id="sidebar-kanban" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="switchTab('kanban')">
+          <span class="icon">📋</span> Kanban Board
+        </div>
+        <div class="sidebar-item" id="sidebar-whiteboard" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="switchTab('whiteboard')">
+          <span class="icon">🎨</span> Whiteboard
+        </div>
+        <div class="sidebar-item" id="sidebar-notes" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="switchTab('notes')">
+          <span class="icon">📝</span> Notes
+        </div>
+        <div class="sidebar-item" id="sidebar-stickies" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="switchTab('stickies')">
+          <span class="icon">🗒️</span> Sticky Wall
+        </div>
+        <div class="sidebar-item" id="sidebar-polls" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="switchTab('polls')">
+          <span class="icon">📊</span> Polls
+        </div>
+        <div class="sidebar-item" id="sidebar-timer" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="switchTab('timer')">
+          <span class="icon">⏱️</span> Timer
+        </div>
+        <div class="sidebar-item" id="sidebar-pixels" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="switchTab('pixels')">
+          <span class="icon">🎮</span> Pixel Art
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Channels</div>
+        <div class="sidebar-item" id="ch-general-btn" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="switchChannel('ch-general')">
+          <span class="icon">#</span> general
+        </div>
+        <div class="sidebar-item" id="ch-random-btn" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="switchChannel('ch-random')">
+          <span class="icon">#</span> random
+        </div>
+      </div>
+      <div class="sidebar-section" style="margin-top:auto;">
+        <div class="sidebar-label">Adapter</div>
+        <div class="sidebar-item" id="adapter-pg-btn" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="switchAdapter('postgres')" style="font-size:12px;">
+          <span class="icon">🐘</span> PostgreSQL
+          <span class="badge" id="pg-badge" style="display:none;">active</span>
+        </div>
+        <div class="sidebar-item" id="adapter-mongo-btn" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="switchAdapter('mongo')" style="font-size:12px;">
+          <span class="icon">🍃</span> MongoDB
+          <span class="badge" id="mongo-badge" style="display:none;">active</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Board area with tabs -->
+    <div class="board-area" id="board-area">
+      <div class="cursor-overlay" id="cursor-overlay"></div>
+
+      <!-- Tab bar -->
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="kanban" onclick="switchTab('kanban')">📋 Kanban</button>
+        <button class="tab-btn" data-tab="whiteboard" onclick="switchTab('whiteboard')">🎨 Whiteboard</button>
+        <button class="tab-btn" data-tab="notes" onclick="switchTab('notes')">📝 Notes</button>
+        <button class="tab-btn" data-tab="stickies" onclick="switchTab('stickies')">🗒️ Sticky Wall</button>
+        <button class="tab-btn" data-tab="polls" onclick="switchTab('polls')">📊 Polls</button>
+        <button class="tab-btn" data-tab="timer" onclick="switchTab('timer')">⏱️ Timer</button>
+        <button class="tab-btn" data-tab="pixels" onclick="switchTab('pixels')">🎮 Pixel Art</button>
+      </div>
+
+      <!-- Tab: Kanban -->
+      <div class="tab-content active" id="tab-kanban">
+        <div class="board-scroll" id="board-scroll"></div>
+      </div>
+
+      <!-- Tab: Whiteboard -->
+      <div class="tab-content" id="tab-whiteboard">
+        <div class="whiteboard-container">
+          <div class="wb-toolbar" id="wb-toolbar">
+            <button class="wb-tool active" data-tool="select" title="Select">⬚</button>
+            <button class="wb-tool" data-tool="rect" title="Rectangle">▭</button>
+            <button class="wb-tool" data-tool="ellipse" title="Ellipse">◯</button>
+            <button class="wb-tool" data-tool="line" title="Line">╱</button>
+            <button class="wb-tool" data-tool="arrow" title="Arrow">→</button>
+            <button class="wb-tool" data-tool="pen" title="Freehand">✏</button>
+            <button class="wb-tool" data-tool="text" title="Text">T</button>
+            <button class="wb-tool" data-tool="eraser" title="Eraser">⌫</button>
+            <div class="wb-separator"></div>
+            <!-- Colors -->
+            <div class="wb-color-btn active" data-color="#e2e5f0" style="background:#e2e5f0" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="wbSetColor('#e2e5f0')"></div>
+            <div class="wb-color-btn" data-color="#ef4444" style="background:#ef4444" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="wbSetColor('#ef4444')"></div>
+            <div class="wb-color-btn" data-color="#f97316" style="background:#f97316" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="wbSetColor('#f97316')"></div>
+            <div class="wb-color-btn" data-color="#eab308" style="background:#eab308" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="wbSetColor('#eab308')"></div>
+            <div class="wb-color-btn" data-color="#22c55e" style="background:#22c55e" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="wbSetColor('#22c55e')"></div>
+            <div class="wb-color-btn" data-color="#3b82f6" style="background:#3b82f6" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="wbSetColor('#3b82f6')"></div>
+            <div class="wb-color-btn" data-color="#8b5cf6" style="background:#8b5cf6" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="wbSetColor('#8b5cf6')"></div>
+            <div class="wb-color-btn" data-color="#ec4899" style="background:#ec4899" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="wbSetColor('#ec4899')"></div>
+            <div class="wb-separator"></div>
+            <!-- Stroke width -->
+            <button class="wb-stroke-btn active" data-width="2" onclick="wbSetStroke(2)" title="Thin">━</button>
+            <button class="wb-stroke-btn" data-width="4" onclick="wbSetStroke(4)" title="Medium"><b>━</b></button>
+            <button class="wb-stroke-btn" data-width="8" onclick="wbSetStroke(8)" title="Thick"><b style="font-size:14px">━</b></button>
+            <div class="wb-separator"></div>
+            <!-- Fill toggle -->
+            <button class="wb-fill-btn" id="wb-fill-toggle" onclick="wbToggleFill()" title="Toggle fill">Fill</button>
+            <div class="wb-separator"></div>
+            <button class="wb-tool" onclick="wbUndo()" title="Undo" style="font-size:13px">↩</button>
+            <button class="wb-tool" onclick="wbClear()" title="Clear" style="font-size:13px;color:var(--red)">🗑</button>
+          </div>
+          <div class="wb-canvas-wrap" id="wb-canvas-wrap">
+            <canvas id="wb-canvas"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Notes -->
+      <div class="tab-content" id="tab-notes">
+        <div class="notes-container">
+          <div class="notes-status" id="notes-status">Ready</div>
+          <textarea class="notes-textarea" id="notes-textarea" placeholder="Start writing collaboratively..."></textarea>
+        </div>
+      </div>
+
+      <!-- Tab: Sticky Wall -->
+      <div class="tab-content" id="tab-stickies">
+        <div class="sticky-container" id="sticky-container">
+          <div class="sticky-toolbar">
+            <button class="btn btn-primary btn-sm" onclick="addStickyNote()">+ Add Note</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Polls -->
+      <div class="tab-content" id="tab-polls">
+        <div class="polls-container" id="polls-container">
+          <div class="polls-toolbar">
+            <button class="btn btn-primary btn-sm" onclick="createPollPrompt()">+ New Poll</button>
+          </div>
+          <div id="polls-list"></div>
+        </div>
+      </div>
+
+      <!-- Tab: Timer -->
+      <div class="tab-content" id="tab-timer">
+        <div class="timer-container">
+          <div class="timer-mode-toggle">
+            <button class="timer-mode-btn active" id="timer-mode-stopwatch" onclick="setTimerMode('stopwatch')">Stopwatch</button>
+            <button class="timer-mode-btn" id="timer-mode-countdown" onclick="setTimerMode('countdown')">Countdown</button>
+          </div>
+          <div class="timer-countdown-set" id="timer-countdown-set" style="display:none;">
+            <label for="timer-countdown-min">Minutes:</label>
+            <input type="number" id="timer-countdown-min" value="5" min="1" max="120">
+          </div>
+          <div class="timer-display" id="timer-display">00:00.00</div>
+          <div class="timer-controls">
+            <button class="btn btn-primary" id="timer-start-btn" onclick="timerStart()">Start</button>
+            <button class="btn btn-ghost" id="timer-stop-btn" onclick="timerStop()" style="display:none;">Stop</button>
+            <button class="btn btn-ghost" onclick="timerReset()">Reset</button>
+          </div>
+          <div class="timer-actor" id="timer-actor"></div>
+        </div>
+      </div>
+
+      <!-- Tab: Pixel Art -->
+      <div class="tab-content" id="tab-pixels">
+        <div class="pixel-container">
+          <div class="pixel-toolbar" id="pixel-toolbar">
+            <button class="pixel-tool-btn active" data-ptool="draw" onclick="pixelSetTool('draw')" title="Draw">✏</button>
+            <button class="pixel-tool-btn" data-ptool="fill" onclick="pixelSetTool('fill')" title="Fill">🪣</button>
+            <div class="wb-separator"></div>
+            <!-- 16 colors -->
+            <div class="pixel-color-btn active" data-pcolor="#000000" style="background:#000000" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="pixelSetColor('#000000')"></div>
+            <div class="pixel-color-btn" data-pcolor="#ffffff" style="background:#ffffff" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="pixelSetColor('#ffffff')"></div>
+            <div class="pixel-color-btn" data-pcolor="#ef4444" style="background:#ef4444" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="pixelSetColor('#ef4444')"></div>
+            <div class="pixel-color-btn" data-pcolor="#f97316" style="background:#f97316" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="pixelSetColor('#f97316')"></div>
+            <div class="pixel-color-btn" data-pcolor="#eab308" style="background:#eab308" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="pixelSetColor('#eab308')"></div>
+            <div class="pixel-color-btn" data-pcolor="#22c55e" style="background:#22c55e" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="pixelSetColor('#22c55e')"></div>
+            <div class="pixel-color-btn" data-pcolor="#3b82f6" style="background:#3b82f6" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="pixelSetColor('#3b82f6')"></div>
+            <div class="pixel-color-btn" data-pcolor="#8b5cf6" style="background:#8b5cf6" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="pixelSetColor('#8b5cf6')"></div>
+            <div class="pixel-color-btn" data-pcolor="#ec4899" style="background:#ec4899" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="pixelSetColor('#ec4899')"></div>
+            <div class="pixel-color-btn" data-pcolor="#06b6d4" style="background:#06b6d4" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="pixelSetColor('#06b6d4')"></div>
+            <div class="pixel-color-btn" data-pcolor="#14b8a6" style="background:#14b8a6" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="pixelSetColor('#14b8a6')"></div>
+            <div class="pixel-color-btn" data-pcolor="#a855f7" style="background:#a855f7" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="pixelSetColor('#a855f7')"></div>
+            <div class="pixel-color-btn" data-pcolor="#78716c" style="background:#78716c" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="pixelSetColor('#78716c')"></div>
+            <div class="pixel-color-btn" data-pcolor="#854d0e" style="background:#854d0e" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="pixelSetColor('#854d0e')"></div>
+            <div class="pixel-color-btn" data-pcolor="#1e293b" style="background:#1e293b" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="pixelSetColor('#1e293b')"></div>
+            <div class="pixel-color-btn" data-pcolor="#e2e5f0" style="background:#e2e5f0;border:1px solid var(--border)" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="pixelSetColor('#e2e5f0')"></div>
+            <div class="wb-separator"></div>
+            <button class="pixel-tool-btn" onclick="pixelClear()" title="Clear" style="color:var(--red)">🗑</button>
+          </div>
+          <div class="pixel-canvas-wrap">
+            <div class="pixel-grid" id="pixel-grid"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Chat -->
+    <div class="chat-panel">
+      <div class="chat-header">
+        <span class="chat-header-icon">#</span>
+        <span class="chat-header-title" id="chat-channel-name">general</span>
+      </div>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="typing-indicator" id="typing-indicator"></div>
+      <div class="chat-input-area">
+        <input type="text" class="chat-input" id="chat-input"
+               placeholder="Type a message..." autocomplete="off">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Debug panel toggle -->
+<button class="debug-toggle" id="debug-toggle" title="Debug Panel">🔍</button>
+
+<!-- Debug panel -->
+<div class="debug-panel" id="debug-panel">
+  <div class="debug-header">
+    <h3>Realtime Debug</h3>
+    <button class="adapter-btn" id="dbg-pg-btn" onclick="switchAdapter('postgres')">PostgreSQL</button>
+    <button class="adapter-btn" id="dbg-mongo-btn" onclick="switchAdapter('mongo')">MongoDB</button>
+    <button class="debug-clear" onclick="clearDebugEvents()">Clear</button>
+  </div>
+  <div class="debug-stats">
+    <div class="debug-stat">
+      <span class="debug-stat-val" id="stat-events">0</span>
+      <span class="debug-stat-label">Events</span>
+    </div>
+    <div class="debug-stat">
+      <span class="debug-stat-val" id="stat-latency">—</span>
+      <span class="debug-stat-label">Avg Latency</span>
+    </div>
+    <div class="debug-stat">
+      <span class="debug-stat-val" id="stat-adapter">PG</span>
+      <span class="debug-stat-label">Adapter</span>
+    </div>
+    <div class="debug-stat">
+      <span class="debug-stat-val" id="stat-conns">0</span>
+      <span class="debug-stat-label">Subs</span>
+    </div>
+  </div>
+  <div class="debug-events" id="debug-events"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+     ═══════════════════════════════════════════════════════════════════════ -->
+<script>
+// ─── Helper functions (extracted to reduce ternary nesting) ────────────
+function connectionDotClass(state) {
+  if (state === 'connected') return 'connected';
+  if (state === 'connecting') return 'connecting';
+  return '';
+}
+function connectionLabel(state) {
+  if (state === 'connected') return 'Connected';
+  if (state === 'connecting') return 'Connecting...';
+  return 'Disconnected';
+}
+function wbToolCursor(tool) {
+  if (tool === 'select') return 'default';
+  if (tool === 'eraser') return 'pointer';
+  return 'crosshair';
+}
+
+// ─── State ──────────────────────────────────────────────────────────────
+const USERS = [
+  { id: 'user-alice', username: 'alice', email: 'alice@syncspace.dev', color: '#ef4444' },
+  { id: 'user-bob',   username: 'bob',   email: 'bob@syncspace.dev',   color: '#3b82f6' },
+  { id: 'user-carol', username: 'carol', email: 'carol@syncspace.dev', color: '#22c55e' },
+];
+
+let currentUser = null;
+let currentAdapter = 'postgres';
+let currentChannel = 'ch-general';
+let currentTab = 'kanban';
+let ws = null;
+let reconnectTimer = null;
+let authenticated = false;
+
+// Board state
+let board = {
+  id: 'board-roadmap',
+  name: 'Product Roadmap',
+  lists: [],
+  cards: {},
+};
+let chatMessages = {};
+let typingUsers = {};
+let sentMessageIds = new Set();
+let onlineUsers = new Set();
+let remoteCursors = {};
+let subscriptions = [];
+
+// Debug
+let debugEvents = [];
+let debugEventCount = 0;
+let latencies = [];
+
+// ─── Widget State ───────────────────────────────────────────────────────
+// Whiteboard
+let whiteboardShapes = [];
+let wbCurrentTool = 'select';
+let wbCurrentColor = '#e2e5f0';
+let wbStrokeWidth = 2;
+let wbFillEnabled = false;
+let wbDrawing = false;
+let wbStartX = 0, wbStartY = 0;
+let wbCurrentShape = null;
+let wbPenPoints = [];
+let wbUndoStack = [];
+
+// Notes
+let notesContent = '';
+let notesLastEditor = '';
+let notesLastEditTime = 0;
+let notesDebounceTimer = null;
+
+// Sticky Notes
+let stickyNotes = [];
+let stickyDragging = null;
+let stickyDragOffset = { x: 0, y: 0 };
+const STICKY_COLORS = ['#fef08a', '#fda4af', '#86efac', '#93c5fd', '#c4b5fd'];
+
+// Polls
+let polls = [];
+
+// Timer
+let timerMode = 'stopwatch';
+let timerRunning = false;
+let timerStartTime = 0;
+let timerElapsed = 0;
+let timerInterval = null;
+let timerCountdownTotal = 300000; // 5 min default
+let timerLastActor = '';
+
+// Pixel Art
+let pixelGrid = new Array(32 * 32).fill('#1e293b');
+let pixelColor = '#000000';
+let pixelTool = 'draw';
+let pixelPainting = false;
+let pixelLastUsers = {};
+
+// ─── Helpers ────────────────────────────────────────────────────────────
+function $(id) { return document.getElementById(id); }
+function qs(sel) { return document.querySelector(sel); }
+function genId() { return 'id-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function timeAgo(date) {
+  const s = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+  if (s < 5) return 'just now';
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s/60) + 'm ago';
+  if (s < 86400) return Math.floor(s/3600) + 'h ago';
+  return Math.floor(s/86400) + 'd ago';
+}
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ─── Tab System ─────────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  // Update tab buttons
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  // Update tab content
+  document.querySelectorAll('.tab-content').forEach(el => {
+    el.classList.toggle('active', el.id === 'tab-' + tab);
+  });
+  // Update sidebar
+  const sidebarTabs = ['kanban','whiteboard','notes','stickies','polls','timer','pixels'];
+  sidebarTabs.forEach(t => {
+    const el = $('sidebar-' + t);
+    if (el) el.classList.toggle('active', t === tab);
+  });
+  // Initialize widgets on first show
+  if (tab === 'whiteboard') initWhiteboard();
+  if (tab === 'pixels') initPixelGrid();
+  if (tab === 'stickies') renderStickyNotes();
+  if (tab === 'polls') renderPolls();
+}
+
+// ─── Login ──────────────────────────────────────────────────────────────
+function renderLogin() {
+  const container = $('login-users');
+  container.innerHTML = USERS.map(u => `
+    <button class="login-user-btn" onclick="loginAs('${u.id}')">
+      <div class="avatar" style="background:${u.color}">${u.username[0]}</div>
+      <div class="info">
+        <div class="name">${u.username}</div>
+        <div class="email">${u.email}</div>
+      </div>
+    </button>
+  `).join('');
+}
+
+function loginAs(userId) {
+  currentUser = USERS.find(u => u.id === userId);
+  if (!currentUser) return;
+
+  $('login-screen').style.display = 'none';
+  $('app').style.display = 'flex';
+
+  // Populate user switcher
+  const sel = $('user-switch');
+  sel.innerHTML = USERS.map(u =>
+    `<option value="${u.id}" ${u.id === userId ? 'selected' : ''}>${u.username}</option>`
+  ).join('');
+  sel.onchange = (e) => loginAs(e.target.value);
+
+  connectWebSocket();
+  fetchBoardData();
+  fetchChatMessages(currentChannel);
+  updateAdapterUI();
+}
+
+// ─── WebSocket ──────────────────────────────────────────────────────────
+function connectWebSocket() {
+  if (ws) { ws.close(); ws = null; }
+  authenticated = false;
+
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const url = `${proto}//${location.host}/ws`;
+
+  updateConnStatus('connecting');
+  ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    updateConnStatus('connecting');
+    ws.send(JSON.stringify({ type: 'AUTH', token: currentUser.id }));
+  };
+
+  ws.onmessage = (evt) => {
+    const msg = JSON.parse(evt.data);
+    handleServerMessage(msg);
+  };
+
+  ws.onclose = () => {
+    updateConnStatus('disconnected');
+    authenticated = false;
+    if (!reconnectTimer) {
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        if (currentUser) connectWebSocket();
+      }, 2000);
+    }
+  };
+
+  ws.onerror = () => {
+    ws.close();
+  };
+}
+
+function wsSend(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(obj));
+  }
+}
+
+function updateConnStatus(state) {
+  const dot = $('conn-dot');
+  const text = $('conn-text');
+  dot.className = 'conn-dot ' + (connectionDotClass(state));
+  text.textContent = connectionLabel(state);
+}
+
+function handleServerMessage(msg) {
+  const recvTime = Date.now();
+
+  switch (msg.type) {
+    case 'AUTH_OK':
+      authenticated = true;
+      updateConnStatus('connected');
+      subscribeToChannels();
+      break;
+
+    case 'SUBSCRIBED':
+      addDebugEvent('ws', 'subscribed', msg.sub_id || '');
+      break;
+
+    case 'EVENT':
+      handleRealtimeEvent(msg.event, recvTime);
+      break;
+
+    case 'PONG':
+      break;
+
+    case 'ERROR':
+      console.error('Server error:', msg.message);
+      addDebugEvent('ws', 'error', msg.message);
+      break;
+
+    default:
+      if (!authenticated) {
+        authenticated = true;
+        updateConnStatus('connected');
+        subscribeToChannels();
+      }
+  }
+}
+
+function subscribeToChannels() {
+  subscriptions = [
+    { sub_id: 'board-' + board.id, topic: 'board:' + board.id + '/*' },
+    { sub_id: 'board-cursors',     topic: 'board:' + board.id + ':cursors/*' },
+    { sub_id: 'chat-general',      topic: 'channel:ch-general:chat/*' },
+    { sub_id: 'chat-random',       topic: 'channel:ch-random:chat/*' },
+    { sub_id: 'presence',          topic: 'presence/*' },
+    { sub_id: 'pg-cdc',            topic: 'pg/**' },
+    { sub_id: 'mongo-cs',          topic: 'mongo/**' },
+    // Widget subscriptions
+    { sub_id: 'whiteboard',        topic: 'board:' + board.id + ':whiteboard/*' },
+    { sub_id: 'editor',            topic: 'board:' + board.id + ':editor/*' },
+    { sub_id: 'stickies',          topic: 'board:' + board.id + ':stickies/*' },
+    { sub_id: 'polls',             topic: 'board:' + board.id + ':polls/*' },
+    { sub_id: 'timer',             topic: 'board:' + board.id + ':timer/*' },
+    { sub_id: 'pixels',            topic: 'board:' + board.id + ':pixels/*' },
+  ];
+
+  wsSend({
+    type: 'SUBSCRIBE_BATCH',
+    subscriptions: subscriptions,
+  });
+
+  $('stat-conns').textContent = subscriptions.length;
+
+  // Announce presence
+  wsSend({ type: 'PUBLISH', topic: 'presence/join', event_type: 'user.joined_board', payload: {
+    userId: currentUser.id,
+    username: currentUser.username,
+    color: currentUser.color,
+    boardId: board.id,
+  }});
+
+  onlineUsers.add(currentUser.id);
+  renderPresence();
+}
+
+// ─── Event Handling ─────────────────────────────────────────────────────
+function parseEventPayload(event) {
+  if (!event.payload) return {};
+  if (typeof event.payload === 'string') {
+    try { return JSON.parse(event.payload); } catch(_ignored) { return {}; }
+  }
+  if (event.payload.data) {
+    try {
+      const dec = typeof event.payload.data === 'string'
+        ? event.payload.data
+        : new TextDecoder().decode(new Uint8Array(event.payload.data || event.payload));
+      return JSON.parse(dec);
+    } catch(_ignored) { return event.payload; }
+  }
+  return event.payload;
+}
+
+function trackLatency(event, recvTime) {
+  if (!event.timestamp) return;
+  const lat = recvTime - (event.timestamp / 1000000);
+  if (lat > 0 && lat < 10000) {
+    latencies.push(lat);
+    if (latencies.length > 50) latencies.shift();
+    const avg = Math.round(latencies.reduce((a,b) => a+b, 0) / latencies.length);
+    $('stat-latency').textContent = avg + 'ms';
+  }
+}
+
+function detectSource(topic, payload) {
+  if (topic.startsWith('pg/') || (payload.table && !topic.startsWith('mongo'))) return 'pg';
+  if (topic.startsWith('mongo/') || payload._id) return 'mongo';
+  return 'bus';
+}
+
+const EVENT_ROUTES = [
+  { match: (t, et, p) => t.includes('cards')   || et.includes('card')   || p.table === 'cards',  handler: (et, p) => handleCardEvent(et, p) },
+  { match: (t, et, p) => t.includes('lists')   || et.includes('list')   || p.table === 'lists',  handler: (et, p) => handleListEvent(et, p) },
+  { match: (t, et)    => t.includes('cursor')  || et === 'cursor.moved',                          handler: (_et, p) => handleCursorEvent(p) },
+  { match: (t, et)    => t.includes('chat/message') || et === 'message.created',                   handler: (et, p) => handleChatEvent(et, p) },
+  { match: (t, et)    => t.includes('presence') || et.includes('user.joined') || et.includes('user.left'), handler: (et, p) => handlePresenceEvent(et, p) },
+  { match: (t, et)    => t.includes('typing')  || et === 'user.typing' || et === 'user.stopped_typing',    handler: (_et, p) => handleTypingEvent(p) },
+  { match: (t, et)    => t.includes(':whiteboard/') || et.startsWith('shape.') || et === 'whiteboard.cleared', handler: (et, p) => handleWhiteboardEvent(et, p) },
+  { match: (t, et)    => t.includes(':editor/')     || et.startsWith('editor.'),          handler: (et, p) => handleEditorEvent(et, p) },
+  { match: (t, et)    => t.includes(':stickies/')   || et.startsWith('sticky.'),          handler: (et, p) => handleStickyEvent(et, p) },
+  { match: (t, et)    => t.includes(':polls/')      || et.startsWith('poll.'),            handler: (et, p) => handlePollEvent(et, p) },
+  { match: (t, et)    => t.includes(':timer/')      || et.startsWith('timer.'),           handler: (et, p) => handleTimerEvent(et, p) },
+  { match: (t, et)    => t.includes(':pixels/')     || et.startsWith('pixel.'),           handler: (et, p) => handlePixelEvent(et, p) },
+];
+
+function handleRealtimeEvent(event, recvTime) {
+  if (!event) return;
+  const topic = event.topic || '';
+  const eventType = event.event_type || '';
+  const payload = parseEventPayload(event);
+
+  trackLatency(event, recvTime);
+  const source = detectSource(topic, payload);
+  addDebugEvent(source, eventType || topic.split('/').pop(), truncate(JSON.stringify(payload), 80));
+
+  for (const route of EVENT_ROUTES) {
+    if (route.match(topic, eventType, payload)) route.handler(eventType, payload);
+  }
+}
+
+function truncate(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
+
+// ─── Card Events ────────────────────────────────────────────────────────
+function handleCardEvent(eventType, payload) {
+  const data = payload.data || payload;
+  const op = payload.operation || eventType;
+
+  if (op === 'INSERT' || op === 'card.created') {
+    if (data.id && !board.cards[data.id]) {
+      board.cards[data.id] = {
+        id: data.id,
+        list_id: data.list_id,
+        title: data.title || 'New Card',
+        description: data.description || '',
+        position: data.position || 0,
+        assignee_id: data.assignee_id,
+        label_color: data.label_color,
+        created_by: data.created_by,
+      };
+      renderBoard();
+      flashCard(data.id);
+    }
+  } else if (op === 'UPDATE' || op === 'card.updated' || op === 'card.moved') {
+    if (data.id && board.cards[data.id]) {
+      Object.assign(board.cards[data.id], data);
+      renderBoard();
+      flashCard(data.id);
+    }
+  } else if (op === 'DELETE' || op === 'card.deleted') {
+    if (data.id) {
+      delete board.cards[data.id];
+      renderBoard();
+    }
+  }
+}
+
+function handleListEvent(eventType, payload) {
+  const data = payload.data || payload;
+  const op = payload.operation || eventType;
+
+  if (op === 'INSERT' || op === 'list.created') {
+    if (data.id && !board.lists.some(l => l.id === data.id)) {
+      board.lists.push({
+        id: data.id,
+        title: data.title || 'New List',
+        position: data.position || board.lists.length,
+      });
+      board.lists.sort((a, b) => a.position - b.position);
+      renderBoard();
+    }
+  } else if (op === 'DELETE' || op === 'list.deleted') {
+    board.lists = board.lists.filter(l => l.id !== data.id);
+    renderBoard();
+  }
+}
+
+function handleCursorEvent(payload) {
+  if (payload.userId === currentUser.id) return;
+  const uid = payload.userId;
+
+  if (remoteCursors[uid]) {
+    remoteCursors[uid].tx = payload.x;
+    remoteCursors[uid].ty = payload.y;
+    remoteCursors[uid].color = payload.color || remoteCursors[uid].color;
+    remoteCursors[uid].username = payload.username || remoteCursors[uid].username;
+  } else {
+    remoteCursors[uid] = {
+      x: payload.x, y: payload.y,
+      tx: payload.x, ty: payload.y,
+      color: payload.color || '#888',
+      username: payload.username || uid,
+      el: null,
+    };
+  }
+
+  clearTimeout(remoteCursors[uid]._timeout);
+  remoteCursors[uid]._timeout = setTimeout(() => {
+    if (remoteCursors[uid] && remoteCursors[uid].el) {
+      remoteCursors[uid].el.remove();
+    }
+    delete remoteCursors[uid];
+  }, 3000);
+}
+
+function handleChatEvent(eventType, payload) {
+  const data = payload.data || payload;
+  if (!data.channelId && !data.channel_id) return;
+  const content = data.content || data.text || '';
+  if (!content.trim()) return;
+  const chId = data.channelId || data.channel_id || currentChannel;
+  const msgId = data.id || data._id;
+
+  if (msgId && sentMessageIds.has(msgId)) {
+    sentMessageIds.delete(msgId);
+    return;
+  }
+
+  if (!chatMessages[chId]) chatMessages[chId] = [];
+  if (msgId && chatMessages[chId].some(m => m.id === msgId)) return;
+
+  chatMessages[chId].push({
+    id: msgId || genId(),
+    userId: data.userId || data.user_id || data.actor_id,
+    username: data.username || data.sender || 'unknown',
+    content: data.content || data.text || '',
+    createdAt: data.createdAt || data.created_at || new Date().toISOString(),
+    isNew: true,
+  });
+
+  if (chId === currentChannel) renderChat();
+}
+
+function handlePresenceEvent(eventType, payload) {
+  if (eventType.includes('joined') || eventType.includes('join')) {
+    onlineUsers.add(payload.userId || payload.user_id);
+  } else if (eventType.includes('left') || eventType.includes('leave')) {
+    onlineUsers.delete(payload.userId || payload.user_id);
+  }
+  renderPresence();
+}
+
+function handleTypingEvent(payload) {
+  const userId = payload.userId || payload.user_id;
+  if (userId === currentUser.id) return;
+  const chId = payload.channelId || payload.channel_id || currentChannel;
+
+  if (!typingUsers[chId]) typingUsers[chId] = {};
+  clearTimeout(typingUsers[chId][userId]);
+  typingUsers[chId][userId] = setTimeout(() => {
+    delete typingUsers[chId][userId];
+    renderTypingIndicator();
+  }, 4000);
+  renderTypingIndicator();
+}
+
+// ─── Publish (HTTP fallback) ────────────────────────────────────────────
+async function publishEvent(topic, eventType, payload) {
+  try {
+    await fetch('/v1/publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic, event_type: eventType, payload }),
+    });
+  } catch (e) {
+    console.error('Publish failed:', e);
+  }
+}
+
+// ─── Fetch Data ─────────────────────────────────────────────────────────
+async function fetchBoardData() {
+  board.lists = [
+    { id: 'list-backlog', title: 'Backlog', position: 0 },
+    { id: 'list-in-progress', title: 'In Progress', position: 1 },
+    { id: 'list-review', title: 'In Review', position: 2 },
+    { id: 'list-done', title: 'Done', position: 3 },
+  ];
+
+  board.cards = {
+    'card-1': { id: 'card-1', list_id: 'list-backlog', title: 'WebSocket reconnect with replay', position: 0, assignee_id: 'user-alice', label_color: '#ef4444', created_by: 'user-alice' },
+    'card-2': { id: 'card-2', list_id: 'list-backlog', title: 'Add MySQL adapter', position: 1, assignee_id: null, label_color: '#f97316', created_by: 'user-bob' },
+    'card-3': { id: 'card-3', list_id: 'list-backlog', title: 'Rate limiting per subscription', position: 2, assignee_id: 'user-carol', label_color: '#eab308', created_by: 'user-carol' },
+    'card-4': { id: 'card-4', list_id: 'list-in-progress', title: 'Live cursor overlays', position: 0, assignee_id: 'user-bob', label_color: '#3b82f6', created_by: 'user-alice' },
+    'card-5': { id: 'card-5', list_id: 'list-in-progress', title: 'Chat message reactions', position: 1, assignee_id: 'user-carol', label_color: '#8b5cf6', created_by: 'user-bob' },
+    'card-6': { id: 'card-6', list_id: 'list-review', title: 'Presence indicators', position: 0, assignee_id: 'user-alice', label_color: '#22c55e', created_by: 'user-carol' },
+    'card-7': { id: 'card-7', list_id: 'list-done', title: 'PostgreSQL CDC integration', position: 0, assignee_id: 'user-alice', label_color: '#22c55e', created_by: 'user-alice' },
+    'card-8': { id: 'card-8', list_id: 'list-done', title: 'MongoDB change streams', position: 1, assignee_id: 'user-bob', label_color: '#22c55e', created_by: 'user-bob' },
+  };
+
+  renderBoard();
+}
+
+async function fetchChatMessages(channelId) {
+  if (!chatMessages[channelId]) chatMessages[channelId] = [];
+
+  const seedMsgs = {
+    'ch-general': [
+      { id: 'msg-1', userId: 'user-alice', username: 'alice', content: 'Hey team! The realtime engine is looking great. Anyone tested the MongoDB adapter yet?', createdAt: new Date(Date.now() - 3600000).toISOString() },
+      { id: 'msg-2', userId: 'user-bob', username: 'bob', content: 'Yes! Change streams are working perfectly. Events come through in <50ms.', createdAt: new Date(Date.now() - 3500000).toISOString() },
+      { id: 'msg-3', userId: 'user-carol', username: 'carol', content: 'The debug panel is super useful for comparing adapters. Can confirm both PG and Mongo produce identical behavior.', createdAt: new Date(Date.now() - 3400000).toISOString() },
+    ],
+    'ch-random': [
+      { id: 'msg-4', userId: 'user-bob', username: 'bob', content: 'Who else thinks we should add a SQLite adapter for local dev?', createdAt: new Date(Date.now() - 1800000).toISOString() },
+      { id: 'msg-5', userId: 'user-alice', username: 'alice', content: 'Absolutely. Zero-config local dev would be a huge DX win.', createdAt: new Date(Date.now() - 1700000).toISOString() },
+    ]
+  };
+
+  if (seedMsgs[channelId] && chatMessages[channelId].length === 0) {
+    chatMessages[channelId] = seedMsgs[channelId];
+  }
+
+  renderChat();
+}
+
+// ─── Render: Board ──────────────────────────────────────────────────────
+function renderBoard() {
+  const scroll = $('board-scroll');
+  const sortedLists = [...board.lists].sort((a, b) => a.position - b.position);
+
+  scroll.innerHTML = sortedLists.map(list => {
+    const cards = Object.values(board.cards)
+      .filter(c => c.list_id === list.id)
+      .sort((a, b) => (a.position || 0) - (b.position || 0));
+
+    return `
+      <div class="list" data-list-id="${list.id}">
+        <div class="list-header">
+          ${escHtml(list.title)}
+          <span class="count">${cards.length}</span>
+        </div>
+        <div class="list-cards" data-list-id="${list.id}"
+             ondragover="onDragOver(event)" ondrop="onDrop(event, '${list.id}')"
+             ondragleave="onDragLeave(event)">
+          ${cards.map(card => renderCard(card)).join('')}
+        </div>
+        <div class="add-card-form" id="add-form-${list.id}">
+          <textarea class="add-card-input" id="add-input-${list.id}"
+                    placeholder="Enter card title..." rows="2"
+                    onkeydown="onAddCardKey(event, '${list.id}')"></textarea>
+          <div class="add-card-actions">
+            <button class="btn btn-primary btn-sm" onclick="addCard('${list.id}')">Add Card</button>
+            <button class="btn btn-ghost btn-sm" onclick="hideAddForm('${list.id}')">Cancel</button>
+          </div>
+        </div>
+        <div class="add-card-btn" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="showAddForm('${list.id}')">+ Add a card</div>
+      </div>
+    `;
+  }).join('') + `
+    <div class="add-list-btn" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="addList()">+ Add another list</div>
+  `;
+}
+
+function renderCard(card) {
+  const user = USERS.find(u => u.id === card.assignee_id);
+  return `
+    <div class="card" id="card-${card.id}" draggable="true"
+         ondragstart="onDragStart(event, '${card.id}')"
+         ondragend="onDragEnd(event)">
+      ${card.label_color ? `<div class="card-label" style="background:${card.label_color}"></div>` : ''}
+      <div class="card-title">${escHtml(card.title)}</div>
+      <div class="card-meta">
+        ${user ? `<div class="card-assignee" style="background:${user.color}" title="${user.username}">${user.username[0]}</div>` : ''}
+        <span class="card-id">${card.id}</span>
+      </div>
+    </div>
+  `;
+}
+
+function flashCard(cardId) {
+  setTimeout(() => {
+    const el = document.getElementById('card-' + cardId);
+    if (el) {
+      el.classList.add('card-new-flash');
+      setTimeout(() => el.classList.remove('card-new-flash'), 800);
+    }
+  }, 50);
+}
+
+// ─── Drag & Drop ────────────────────────────────────────────────────────
+let dragCardId = null;
+
+function onDragStart(e, cardId) {
+  dragCardId = cardId;
+  e.dataTransfer.effectAllowed = 'move';
+  e.target.classList.add('dragging');
+}
+
+function onDragEnd(e) {
+  e.target.classList.remove('dragging');
+  dragCardId = null;
+  document.querySelectorAll('.list-cards').forEach(el => el.classList.remove('drag-over'));
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+}
+
+function onDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+
+function onDrop(e, listId) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!dragCardId) return;
+
+  const card = board.cards[dragCardId];
+  if (!card) return;
+
+  const oldListId = card.list_id;
+  card.list_id = listId;
+
+  const cardsInList = Object.values(board.cards).filter(c => c.list_id === listId);
+  card.position = cardsInList.length;
+
+  renderBoard();
+
+  publishEvent('board:' + board.id + '/card.moved', 'card.moved', {
+    id: card.id,
+    list_id: listId,
+    old_list_id: oldListId,
+    position: card.position,
+    board_id: board.id,
+    actor: currentUser.id,
+  });
+}
+
+// ─── Add Card ───────────────────────────────────────────────────────────
+function showAddForm(listId) {
+  const form = $('add-form-' + listId);
+  form.classList.add('visible');
+  $('add-input-' + listId).focus();
+}
+
+function hideAddForm(listId) {
+  $('add-form-' + listId).classList.remove('visible');
+  $('add-input-' + listId).value = '';
+}
+
+function onAddCardKey(e, listId) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    addCard(listId);
+  }
+  if (e.key === 'Escape') hideAddForm(listId);
+}
+
+function addCard(listId) {
+  const input = $('add-input-' + listId);
+  const title = input.value.trim();
+  if (!title) return;
+
+  const cardId = genId();
+  const cardsInList = Object.values(board.cards).filter(c => c.list_id === listId);
+
+  const card = {
+    id: cardId,
+    list_id: listId,
+    board_id: board.id,
+    title: title,
+    position: cardsInList.length,
+    assignee_id: currentUser.id,
+    label_color: currentUser.color,
+    created_by: currentUser.id,
+  };
+
+  board.cards[cardId] = card;
+  renderBoard();
+  flashCard(cardId);
+  hideAddForm(listId);
+
+  publishEvent('board:' + board.id + '/card.created', 'card.created', card);
+}
+
+// ─── Add List ───────────────────────────────────────────────────────────
+function addList() {
+  const title = prompt('List title:');
+  if (!title) return;
+
+  const listId = genId();
+  board.lists.push({ id: listId, title, position: board.lists.length });
+  renderBoard();
+
+  publishEvent('board:' + board.id + '/list.created', 'list.created', {
+    id: listId,
+    board_id: board.id,
+    title,
+    position: board.lists.length - 1,
+  });
+}
+
+// ─── Render: Chat ───────────────────────────────────────────────────────
+function renderChat() {
+  const container = $('chat-messages');
+  const msgs = chatMessages[currentChannel] || [];
+
+  container.innerHTML = msgs.map(msg => {
+    const user = USERS.find(u => u.id === msg.userId) || { username: msg.username || '?', color: '#666' };
+    return `
+      <div class="chat-msg ${msg.isNew ? 'new-flash' : ''}">
+        <div class="chat-msg-avatar" style="background:${user.color}">${(user.username || '?')[0]}</div>
+        <div class="chat-msg-body">
+          <div class="chat-msg-header">
+            <span class="chat-msg-name">${escHtml(user.username || msg.username)}</span>
+            <span class="chat-msg-time">${timeAgo(msg.createdAt)}</span>
+          </div>
+          <div class="chat-msg-text">${escHtml(msg.content)}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.scrollTop = container.scrollHeight;
+  msgs.forEach(m => { m.isNew = false; });
+}
+
+function renderTypingIndicator() {
+  const el = $('typing-indicator');
+  const users = typingUsers[currentChannel] || {};
+  const names = Object.keys(users).map(uid => {
+    const u = USERS.find(u => u.id === uid);
+    return u ? u.username : uid;
+  });
+
+  if (names.length === 0) {
+    el.innerHTML = '';
+  } else if (names.length === 1) {
+    el.innerHTML = escHtml(names[0]) + ' is typing <span class="typing-dots"><span></span><span></span><span></span></span>';
+  } else {
+    el.innerHTML = escHtml(names.join(', ')) + ' are typing <span class="typing-dots"><span></span><span></span><span></span></span>';
+  }
+}
+
+function switchChannel(chId) {
+  currentChannel = chId;
+  $('chat-channel-name').textContent = chId.replace('ch-', '');
+
+  document.querySelectorAll('.sidebar-item').forEach(el => {
+    if (el.id === chId + '-btn') el.classList.add('active');
+    else if (el.id && el.id.startsWith('ch-')) el.classList.remove('active');
+  });
+
+  if (!chatMessages[chId]) fetchChatMessages(chId);
+  else renderChat();
+  renderTypingIndicator();
+}
+
+// Chat input
+$('chat-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    const content = e.target.value.trim();
+    if (!content) return;
+
+    const msg = {
+      id: genId(),
+      channelId: currentChannel,
+      userId: currentUser.id,
+      username: currentUser.username,
+      content: content,
+      createdAt: new Date().toISOString(),
+    };
+
+    sentMessageIds.add(msg.id);
+
+    if (!chatMessages[currentChannel]) chatMessages[currentChannel] = [];
+    chatMessages[currentChannel].push(msg);
+    renderChat();
+    e.target.value = '';
+
+    wsSend({ type: 'PUBLISH', topic: `channel:${currentChannel}:chat/message`, event_type: 'message.created', payload: msg });
+  }
+});
+
+// Typing indicator send
+let typingTimeout = null;
+let lastTypingSent = 0;
+$('chat-input').addEventListener('input', () => {
+  const now = Date.now();
+  if (now - lastTypingSent < 2000) return;
+  lastTypingSent = now;
+
+  if (typingTimeout) clearTimeout(typingTimeout);
+  wsSend({ type: 'PUBLISH', topic: `channel:${currentChannel}:chat/typing`, event_type: 'user.typing', payload: {
+    userId: currentUser.id,
+    username: currentUser.username,
+    channelId: currentChannel,
+  }});
+  typingTimeout = setTimeout(() => {
+    wsSend({ type: 'PUBLISH', topic: `channel:${currentChannel}:chat/typing`, event_type: 'user.stopped_typing', payload: {
+      userId: currentUser.id,
+      channelId: currentChannel,
+    }});
+  }, 4000);
+});
+
+// ─── Render: Presence ───────────────────────────────────────────────────
+function renderPresence() {
+  const bar = $('presence-bar');
+  const allIds = new Set([currentUser.id, ...onlineUsers]);
+  bar.innerHTML = [...allIds].map(uid => {
+    const u = USERS.find(u => u.id === uid);
+    if (!u) return '';
+    return `
+      <div class="presence-avatar" style="background:${u.color}" title="${u.username}">
+        ${u.username[0]}
+        <span class="tooltip">${u.username}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ─── Live Cursors ───────────────────────────────────────────────────────
+const boardArea = $('board-area');
+let cursorThrottle = 0;
+let cachedBoardRect = null;
+let boardRectDirty = true;
+
+window.addEventListener('resize', () => { boardRectDirty = true; });
+boardArea.addEventListener('scroll', () => { boardRectDirty = true; });
+
+function getBoardRect() {
+  if (boardRectDirty || !cachedBoardRect) {
+    cachedBoardRect = boardArea.getBoundingClientRect();
+    boardRectDirty = false;
+  }
+  return cachedBoardRect;
+}
+
+boardArea.addEventListener('mousemove', (e) => {
+  if (!currentUser || !authenticated) return;
+  const now = Date.now();
+  if (now - cursorThrottle < 33) return;
+  cursorThrottle = now;
+
+  const rect = getBoardRect();
+  const x = (e.clientX - rect.left + boardArea.scrollLeft) / boardArea.scrollWidth;
+  const y = (e.clientY - rect.top + boardArea.scrollTop) / boardArea.scrollHeight;
+
+  wsSend({ type: 'PUBLISH', topic: 'board:' + board.id + ':cursors/move', event_type: 'cursor.moved', payload: {
+    userId: currentUser.id,
+    username: currentUser.username,
+    color: currentUser.color,
+    x, y,
+  }});
+});
+
+// ─── rAF Cursor Interpolation Loop ─────────────────────────────────────
+const cursorOverlay = $('cursor-overlay');
+const LERP_FACTOR = 0.25;
+
+function cursorAnimationLoop() {
+  requestAnimationFrame(cursorAnimationLoop);
+
+  const entries = Object.entries(remoteCursors);
+  if (entries.length === 0) return;
+
+  const sw = boardArea.scrollWidth;
+  const sh = boardArea.scrollHeight;
+
+  for (const [uid, cur] of entries) {
+    cur.x += (cur.tx - cur.x) * LERP_FACTOR;
+    cur.y += (cur.ty - cur.y) * LERP_FACTOR;
+
+    const px = cur.x * sw;
+    const py = cur.y * sh;
+
+    if (!cur.el) {
+      cur.el = document.createElement('div');
+      cur.el.className = 'remote-cursor';
+      cur.el.innerHTML = `
+        <svg viewBox="0 0 16 20" fill="${cur.color}">
+          <path d="M0 0 L16 12 L8 12 L6 20 Z"/>
+        </svg>
+        <span class="cursor-label" style="background:${cur.color}">${escHtml(cur.username)}</span>
+      `;
+      cursorOverlay.appendChild(cur.el);
+    }
+
+    cur.el.style.transform = `translate(${px}px, ${py}px)`;
+  }
+}
+requestAnimationFrame(cursorAnimationLoop);
+
+// ─── Adapter Switch ─────────────────────────────────────────────────────
+function switchAdapter(adapter) {
+  currentAdapter = adapter;
+  updateAdapterUI();
+  addDebugEvent('ws', 'adapter.switch', adapter);
+}
+
+function updateAdapterUI() {
+  const isPg = currentAdapter === 'postgres';
+  const isMongo = !isPg;
+
+  $('adapter-pg-btn').classList.toggle('active', isPg);
+  $('adapter-mongo-btn').classList.toggle('active', isMongo);
+  $('pg-badge').style.display = isPg ? 'inline' : 'none';
+  $('mongo-badge').style.display = isMongo ? 'inline' : 'none';
+
+  $('dbg-pg-btn').className = 'adapter-btn' + (isPg ? ' active-pg' : '');
+  $('dbg-mongo-btn').className = 'adapter-btn' + (isMongo ? ' active-mongo' : '');
+  $('stat-adapter').textContent = isPg ? 'PG' : 'Mongo';
+}
+
+// ─── Debug Panel ────────────────────────────────────────────────────────
+$('debug-toggle').addEventListener('click', () => {
+  $('debug-panel').classList.toggle('open');
+});
+
+function addDebugEvent(source, type, detail) {
+  debugEventCount++;
+  $('stat-events').textContent = debugEventCount;
+
+  const ev = { source, type, detail, time: new Date().toLocaleTimeString() };
+  debugEvents.unshift(ev);
+  if (debugEvents.length > 200) debugEvents.pop();
+
+  const container = $('debug-events');
+  const div = document.createElement('div');
+  div.className = 'debug-event';
+  div.innerHTML = `
+    <span class="debug-badge ${source}">${source}</span>
+    <span class="debug-event-type">${escHtml(type)}</span>
+    <span class="debug-event-detail">${escHtml(detail || '')}</span>
+    <span class="debug-event-time">${ev.time}</span>
+  `;
+
+  container.insertBefore(div, container.firstChild);
+  if (container.children.length > 200) container.lastChild.remove();
+}
+
+function clearDebugEvents() {
+  debugEvents = [];
+  debugEventCount = 0;
+  $('debug-events').innerHTML = '';
+  $('stat-events').textContent = '0';
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// WIDGET: WHITEBOARD
+// ═══════════════════════════════════════════════════════════════════════
+let wbCanvas, wbCtx;
+let wbInitialized = false;
+
+function initWhiteboard() {
+  if (wbInitialized) { wbRedraw(); return; }
+  wbInitialized = true;
+
+  wbCanvas = $('wb-canvas');
+  wbCtx = wbCanvas.getContext('2d');
+  const wrap = $('wb-canvas-wrap');
+
+  function resizeCanvas() {
+    wbCanvas.width = wrap.clientWidth;
+    wbCanvas.height = wrap.clientHeight;
+    wbRedraw();
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+
+  // Tool selection
+  document.querySelectorAll('#wb-toolbar .wb-tool[data-tool]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      wbCurrentTool = btn.dataset.tool;
+      document.querySelectorAll('#wb-toolbar .wb-tool[data-tool]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      wbCanvas.style.cursor = wbToolCursor(wbCurrentTool);
+    });
+  });
+
+  // Mouse events
+  wbCanvas.addEventListener('mousedown', wbMouseDown);
+  wbCanvas.addEventListener('mousemove', wbMouseMove);
+  wbCanvas.addEventListener('mouseup', wbMouseUp);
+  wbCanvas.addEventListener('mouseleave', wbMouseUp);
+}
+
+function wbSetColor(color) {
+  wbCurrentColor = color;
+  document.querySelectorAll('.wb-color-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.color === color);
+  });
+}
+
+function wbSetStroke(w) {
+  wbStrokeWidth = w;
+  document.querySelectorAll('.wb-stroke-btn').forEach(b => {
+    b.classList.toggle('active', Number.parseInt(b.dataset.width) === w);
+  });
+}
+
+function wbToggleFill() {
+  wbFillEnabled = !wbFillEnabled;
+  $('wb-fill-toggle').classList.toggle('active', wbFillEnabled);
+}
+
+function wbMouseDown(e) {
+  const rect = wbCanvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  if (wbCurrentTool === 'select') return;
+
+  if (wbCurrentTool === 'eraser') {
+    for (let i = whiteboardShapes.length - 1; i >= 0; i--) {
+      if (wbHitTest(whiteboardShapes[i], x, y)) {
+        const removed = whiteboardShapes.splice(i, 1)[0];
+        wbRedraw();
+        wsSend({ type: 'PUBLISH', topic: `board:${board.id}:whiteboard/erase`, event_type: 'shape.removed', payload: { id: removed.id } });
+        return;
+      }
+    }
+    return;
+  }
+
+  if (wbCurrentTool === 'text') {
+    const text = prompt('Enter text:');
+    if (!text) return;
+    const shape = {
+      id: genId(), type: 'text', x, y, width: 0, height: 0,
+      text, color: wbCurrentColor, strokeWidth: wbStrokeWidth,
+      fill: false, points: [], userId: currentUser.id,
+    };
+    whiteboardShapes.push(shape);
+    wbUndoStack.push(shape.id);
+    wbRedraw();
+    wsSend({ type: 'PUBLISH', topic: `board:${board.id}:whiteboard/draw`, event_type: 'shape.added', payload: shape });
+    return;
+  }
+
+  wbDrawing = true;
+  wbStartX = x;
+  wbStartY = y;
+  wbPenPoints = [{ x, y }];
+
+  wbCurrentShape = {
+    id: genId(), type: wbCurrentTool,
+    x, y, width: 0, height: 0,
+    color: wbCurrentColor, strokeWidth: wbStrokeWidth,
+    fill: wbFillEnabled, points: [], userId: currentUser.id,
+  };
+}
+
+function wbMouseMove(e) {
+  if (!wbDrawing || !wbCurrentShape) return;
+  const rect = wbCanvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  if (wbCurrentTool === 'pen') {
+    wbPenPoints.push({ x, y });
+    wbCurrentShape.points = [...wbPenPoints];
+  } else {
+    wbCurrentShape.width = x - wbStartX;
+    wbCurrentShape.height = y - wbStartY;
+  }
+
+  wbRedraw();
+  wbDrawShape(wbCtx, wbCurrentShape);
+}
+
+function wbMouseUp(e) {
+  if (!wbDrawing || !wbCurrentShape) return;
+  wbDrawing = false;
+
+  if (wbCurrentTool === 'pen') {
+    wbCurrentShape.points = [...wbPenPoints];
+  }
+
+  const hasSize = wbCurrentTool === 'pen'
+    ? wbPenPoints.length > 2
+    : Math.abs(wbCurrentShape.width) > 2 || Math.abs(wbCurrentShape.height) > 2;
+
+  if (hasSize) {
+    whiteboardShapes.push(wbCurrentShape);
+    wbUndoStack.push(wbCurrentShape.id);
+    wsSend({ type: 'PUBLISH', topic: `board:${board.id}:whiteboard/draw`, event_type: 'shape.added', payload: wbCurrentShape });
+  }
+
+  wbCurrentShape = null;
+  wbPenPoints = [];
+  wbRedraw();
+}
+
+function wbHitTest(shape, x, y) {
+  const m = 10;
+  if (shape.type === 'pen' && shape.points && shape.points.length > 0) {
+    return shape.points.some(p => Math.abs(p.x - x) < m && Math.abs(p.y - y) < m);
+  }
+  if (shape.type === 'text') {
+    return x >= shape.x - m && x <= shape.x + 100 && y >= shape.y - 20 && y <= shape.y + m;
+  }
+  const sx = Math.min(shape.x, shape.x + (shape.width || 0));
+  const sy = Math.min(shape.y, shape.y + (shape.height || 0));
+  const sw = Math.abs(shape.width || 0);
+  const sh = Math.abs(shape.height || 0);
+  return x >= sx - m && x <= sx + sw + m && y >= sy - m && y <= sy + sh + m;
+}
+
+function wbRedraw() {
+  if (!wbCtx) return;
+  wbCtx.clearRect(0, 0, wbCanvas.width, wbCanvas.height);
+  whiteboardShapes.forEach(s => wbDrawShape(wbCtx, s));
+}
+
+function wbDrawShape(ctx, shape) {
+  ctx.strokeStyle = shape.color;
+  ctx.fillStyle = shape.color;
+  ctx.lineWidth = shape.strokeWidth;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  switch (shape.type) {
+    case 'rect': {
+      if (shape.fill) {
+        ctx.globalAlpha = 0.3;
+        ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+        ctx.globalAlpha = 1;
+      }
+      ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+      break;
+    }
+    case 'ellipse': {
+      const cx = shape.x + shape.width / 2;
+      const cy = shape.y + shape.height / 2;
+      const rx = Math.abs(shape.width / 2);
+      const ry = Math.abs(shape.height / 2);
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, Math.max(1, rx), Math.max(1, ry), 0, 0, Math.PI * 2);
+      if (shape.fill) {
+        ctx.globalAlpha = 0.3;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      ctx.stroke();
+      break;
+    }
+    case 'line': {
+      ctx.beginPath();
+      ctx.moveTo(shape.x, shape.y);
+      ctx.lineTo(shape.x + shape.width, shape.y + shape.height);
+      ctx.stroke();
+      break;
+    }
+    case 'arrow': {
+      const ex = shape.x + shape.width;
+      const ey = shape.y + shape.height;
+      ctx.beginPath();
+      ctx.moveTo(shape.x, shape.y);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      const angle = Math.atan2(shape.height, shape.width);
+      const headLen = 12;
+      ctx.beginPath();
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - headLen * Math.cos(angle - Math.PI / 6), ey - headLen * Math.sin(angle - Math.PI / 6));
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - headLen * Math.cos(angle + Math.PI / 6), ey - headLen * Math.sin(angle + Math.PI / 6));
+      ctx.stroke();
+      break;
+    }
+    case 'pen': {
+      if (!shape.points || shape.points.length < 2) return;
+      ctx.beginPath();
+      ctx.moveTo(shape.points[0].x, shape.points[0].y);
+      for (let i = 1; i < shape.points.length; i++) {
+        ctx.lineTo(shape.points[i].x, shape.points[i].y);
+      }
+      ctx.stroke();
+      break;
+    }
+    case 'text': {
+      ctx.font = `${Math.max(16, shape.strokeWidth * 6)}px ${getComputedStyle(document.body).fontFamily}`;
+      ctx.fillText(shape.text || '', shape.x, shape.y);
+      break;
+    }
+  }
+}
+
+function wbUndo() {
+  if (wbUndoStack.length === 0) return;
+  const id = wbUndoStack.pop();
+  whiteboardShapes = whiteboardShapes.filter(s => s.id !== id);
+  wbRedraw();
+}
+
+function wbClear() {
+  whiteboardShapes = [];
+  wbUndoStack = [];
+  wbRedraw();
+  wsSend({ type: 'PUBLISH', topic: `board:${board.id}:whiteboard/clear`, event_type: 'whiteboard.cleared', payload: { userId: currentUser.id } });
+}
+
+function handleWhiteboardEvent(eventType, payload) {
+  if (payload.userId === currentUser.id) return;
+  if (eventType === 'shape.added') {
+    if (!whiteboardShapes.some(s => s.id === payload.id)) {
+      whiteboardShapes.push(payload);
+      wbRedraw();
+    }
+  } else if (eventType === 'shape.removed') {
+    whiteboardShapes = whiteboardShapes.filter(s => s.id !== payload.id);
+    wbRedraw();
+  } else if (eventType === 'whiteboard.cleared') {
+    whiteboardShapes = [];
+    wbUndoStack = [];
+    wbRedraw();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// WIDGET: COLLABORATIVE NOTES
+// ═══════════════════════════════════════════════════════════════════════
+(function() {
+  const textarea = $('notes-textarea');
+  textarea.addEventListener('input', () => {
+    notesContent = textarea.value;
+    clearTimeout(notesDebounceTimer);
+    notesDebounceTimer = setTimeout(() => {
+      wsSend({ type: 'PUBLISH', topic: `board:${board.id}:editor/update`, event_type: 'editor.updated', payload: {
+        content: notesContent,
+        userId: currentUser.id,
+        username: currentUser.username,
+        timestamp: Date.now(),
+      }});
+      notesLastEditor = currentUser.username;
+      notesLastEditTime = Date.now();
+      updateNotesStatus();
+    }, 300);
+  });
+})();
+
+function handleEditorEvent(eventType, payload) {
+  if (payload.userId === currentUser.id) return;
+  if (eventType === 'editor.updated') {
+    notesContent = payload.content || '';
+    const textarea = $('notes-textarea');
+    const selStart = textarea.selectionStart;
+    const selEnd = textarea.selectionEnd;
+    textarea.value = notesContent;
+    textarea.selectionStart = Math.min(selStart, notesContent.length);
+    textarea.selectionEnd = Math.min(selEnd, notesContent.length);
+    notesLastEditor = payload.username || 'someone';
+    notesLastEditTime = payload.timestamp || Date.now();
+    updateNotesStatus();
+  }
+}
+
+function updateNotesStatus() {
+  const el = $('notes-status');
+  if (notesLastEditor) {
+    const ago = timeAgo(new Date(notesLastEditTime));
+    el.textContent = `Edited by ${notesLastEditor} ${ago}`;
+  } else {
+    el.textContent = 'Ready';
+  }
+}
+setInterval(updateNotesStatus, 5000);
+
+// ═══════════════════════════════════════════════════════════════════════
+// WIDGET: STICKY NOTES
+// ═══════════════════════════════════════════════════════════════════════
+function addStickyNote(remote) {
+  const note = remote || {
+    id: genId(),
+    text: '',
+    color: STICKY_COLORS[Math.floor(Math.random() * STICKY_COLORS.length)],
+    x: 80 + Math.random() * 400,
+    y: 60 + Math.random() * 300,
+    userId: currentUser.id,
+  };
+
+  if (!stickyNotes.some(n => n.id === note.id)) {
+    stickyNotes.push(note);
+  }
+
+  if (!remote) {
+    wsSend({ type: 'PUBLISH', topic: `board:${board.id}:stickies/create`, event_type: 'sticky.created', payload: note });
+  }
+  renderStickyNotes();
+}
+
+function deleteStickyNote(id) {
+  stickyNotes = stickyNotes.filter(n => n.id !== id);
+  renderStickyNotes();
+  wsSend({ type: 'PUBLISH', topic: `board:${board.id}:stickies/delete`, event_type: 'sticky.deleted', payload: { id } });
+}
+
+function renderStickyNotes() {
+  const container = $('sticky-container');
+  if (!container) return;
+  // Remove old notes but keep toolbar
+  container.querySelectorAll('.sticky-note').forEach(el => el.remove());
+
+  stickyNotes.forEach(note => {
+    const el = document.createElement('div');
+    el.className = 'sticky-note';
+    el.style.background = note.color;
+    el.style.left = note.x + 'px';
+    el.style.top = note.y + 'px';
+    el.dataset.id = note.id;
+
+    el.innerHTML = `
+      <button class="sticky-note-delete" onclick="event.stopPropagation(); deleteStickyNote('${note.id}')">&times;</button>
+      <textarea class="sticky-note-text" placeholder="Write here...">${escHtml(note.text)}</textarea>
+    `;
+
+    const textArea = el.querySelector('.sticky-note-text');
+
+    // Double-click to edit
+    el.addEventListener('dblclick', (e) => {
+      textArea.classList.add('editing');
+      textArea.focus();
+      e.stopPropagation();
+    });
+
+    textArea.addEventListener('blur', () => {
+      textArea.classList.remove('editing');
+      const n = stickyNotes.find(s => s.id === note.id);
+      if (n) {
+        n.text = textArea.value;
+        wsSend({ type: 'PUBLISH', topic: `board:${board.id}:stickies/update`, event_type: 'sticky.updated', payload: n });
+      }
+    });
+
+    textArea.addEventListener('input', () => {
+      const n = stickyNotes.find(s => s.id === note.id);
+      if (n) n.text = textArea.value;
+    });
+
+    // Drag
+    el.addEventListener('mousedown', (e) => {
+      if (textArea.classList.contains('editing') || e.target.tagName === 'BUTTON') return;
+      stickyDragging = note.id;
+      const rect = el.getBoundingClientRect();
+      stickyDragOffset = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
+      el.classList.add('dragging');
+      e.preventDefault();
+    });
+
+    container.appendChild(el);
+  });
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (!stickyDragging) return;
+  const container = $('sticky-container');
+  if (!container) return;
+  const containerRect = container.getBoundingClientRect();
+  const x = e.clientX - containerRect.left - stickyDragOffset.x + container.scrollLeft;
+  const y = e.clientY - containerRect.top - stickyDragOffset.y + container.scrollTop;
+
+  const el = container.querySelector(`[data-id="${stickyDragging}"]`);
+  if (el) {
+    el.style.left = Math.max(0, x) + 'px';
+    el.style.top = Math.max(0, y) + 'px';
+  }
+  const note = stickyNotes.find(n => n.id === stickyDragging);
+  if (note) {
+    note.x = Math.max(0, x);
+    note.y = Math.max(0, y);
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  if (!stickyDragging) return;
+  const note = stickyNotes.find(n => n.id === stickyDragging);
+  const container = $('sticky-container');
+  if (container) {
+    const el = container.querySelector(`[data-id="${stickyDragging}"]`);
+    if (el) el.classList.remove('dragging');
+  }
+  if (note) {
+    wsSend({ type: 'PUBLISH', topic: `board:${board.id}:stickies/move`, event_type: 'sticky.moved', payload: { id: note.id, x: note.x, y: note.y } });
+  }
+  stickyDragging = null;
+});
+
+function handleStickyEvent(eventType, payload) {
+  const handlers = {
+    'sticky.created': () => {
+      if (payload.userId !== currentUser.id) addStickyNote(payload);
+    },
+    'sticky.updated': () => {
+      const note = stickyNotes.find(n => n.id === payload.id);
+      if (!note) return;
+      note.text = payload.text;
+      note.color = payload.color || note.color;
+      renderStickyNotes();
+    },
+    'sticky.moved': () => {
+      const note = stickyNotes.find(n => n.id === payload.id);
+      if (!note) return;
+      note.x = payload.x;
+      note.y = payload.y;
+      const el = $('sticky-container')?.querySelector(`[data-id="${payload.id}"]`);
+      if (el) { el.style.left = payload.x + 'px'; el.style.top = payload.y + 'px'; }
+    },
+    'sticky.deleted': () => {
+      stickyNotes = stickyNotes.filter(n => n.id !== payload.id);
+      renderStickyNotes();
+    },
+  };
+  const handler = handlers[eventType];
+  if (handler) handler();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// WIDGET: POLLS
+// ═══════════════════════════════════════════════════════════════════════
+function createPollPrompt() {
+  const question = prompt('Poll question:');
+  if (!question) return;
+  const optionsStr = prompt('Options (comma separated):');
+  if (!optionsStr) return;
+  const options = optionsStr.split(',').map(o => o.trim()).filter(Boolean);
+  if (options.length < 2) { alert('Need at least 2 options'); return; }
+
+  const poll = {
+    id: genId(),
+    question,
+    options: options.map(text => ({ id: genId(), text, votes: {} })),
+    createdBy: currentUser.id,
+    createdAt: Date.now(),
+  };
+
+  polls.push(poll);
+  renderPolls();
+  wsSend({ type: 'PUBLISH', topic: `board:${board.id}:polls/create`, event_type: 'poll.created', payload: poll });
+}
+
+function votePoll(pollId, optionId) {
+  const poll = polls.find(p => p.id === pollId);
+  if (!poll) return;
+
+  // Remove existing vote
+  poll.options.forEach(opt => { delete opt.votes[currentUser.id]; });
+  // Add vote
+  const option = poll.options.find(o => o.id === optionId);
+  if (option) {
+    option.votes[currentUser.id] = { username: currentUser.username, color: currentUser.color };
+  }
+
+  renderPolls();
+  wsSend({ type: 'PUBLISH', topic: `board:${board.id}:polls/vote`, event_type: 'poll.voted', payload: {
+    pollId, optionId,
+    userId: currentUser.id,
+    username: currentUser.username,
+    color: currentUser.color,
+  }});
+}
+
+function renderPolls() {
+  const container = $('polls-list');
+  if (!container) return;
+
+  container.innerHTML = polls.map(poll => {
+    const totalVotes = poll.options.reduce((sum, opt) => sum + Object.keys(opt.votes).length, 0);
+    return `
+      <div class="poll-card">
+        <div class="poll-question">${escHtml(poll.question)}</div>
+        ${poll.options.map(opt => {
+          const count = Object.keys(opt.votes).length;
+          const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+          const voters = Object.values(opt.votes);
+          return `
+            <div class="poll-option" role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \')this.click()" onclick="votePoll('${poll.id}', '${opt.id}')">
+              <div class="poll-option-bar-wrap">
+                <div class="poll-option-bar ${count > 0 ? 'voted' : ''}" style="width:${pct}%"></div>
+                <span class="poll-option-label">${escHtml(opt.text)}</span>
+              </div>
+              <div class="poll-option-voters">
+                ${voters.map(v => `<div class="poll-voter-dot" style="background:${v.color}" title="${escHtml(v.username)}">${(v.username||'?')[0]}</div>`).join('')}
+              </div>
+              <span class="poll-option-count">${count}</span>
+            </div>
+          `;
+        }).join('')}
+        <div class="poll-meta">${totalVotes} vote${totalVotes === 1 ? '' : 's'} · Created by ${escHtml((USERS.find(u => u.id === poll.createdBy) || {}).username || '?')}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function handlePollEvent(eventType, payload) {
+  if (eventType === 'poll.created') {
+    if (payload.createdBy === currentUser.id) return;
+    if (!polls.some(p => p.id === payload.id)) {
+      polls.push(payload);
+      renderPolls();
+    }
+  } else if (eventType === 'poll.voted') {
+    if (payload.userId === currentUser.id) return;
+    const poll = polls.find(p => p.id === payload.pollId);
+    if (!poll) return;
+    poll.options.forEach(opt => { delete opt.votes[payload.userId]; });
+    const option = poll.options.find(o => o.id === payload.optionId);
+    if (option) {
+      option.votes[payload.userId] = { username: payload.username, color: payload.color };
+    }
+    renderPolls();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// WIDGET: TIMER
+// ═══════════════════════════════════════════════════════════════════════
+function setTimerMode(mode) {
+  timerMode = mode;
+  $('timer-mode-stopwatch').classList.toggle('active', mode === 'stopwatch');
+  $('timer-mode-countdown').classList.toggle('active', mode === 'countdown');
+  $('timer-countdown-set').style.display = mode === 'countdown' ? 'flex' : 'none';
+  timerReset(true);
+}
+
+function formatTimer(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  const centis = Math.floor((Math.max(0, ms) % 1000) / 10);
+  return String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0') + '.' + String(centis).padStart(2, '0');
+}
+
+function updateTimerDisplay() {
+  if (!timerRunning) return;
+  let elapsed;
+  if (timerMode === 'stopwatch') {
+    elapsed = timerElapsed + (Date.now() - timerStartTime);
+    $('timer-display').textContent = formatTimer(elapsed);
+  } else {
+    elapsed = timerElapsed + (Date.now() - timerStartTime);
+    const remaining = timerCountdownTotal - elapsed;
+    $('timer-display').textContent = formatTimer(remaining);
+    if (remaining <= 0) {
+      timerStop(true);
+      $('timer-display').textContent = '00:00.00';
+      $('timer-display').style.color = 'var(--red)';
+      setTimeout(() => { $('timer-display').style.color = ''; }, 3000);
+    }
+  }
+}
+
+function timerStart() {
+  if (timerRunning) return;
+  timerRunning = true;
+  timerStartTime = Date.now();
+
+  if (timerMode === 'countdown' && timerElapsed === 0) {
+    const min = Number.parseInt($('timer-countdown-min').value) || 5;
+    timerCountdownTotal = min * 60 * 1000;
+  }
+
+  timerInterval = setInterval(updateTimerDisplay, 33);
+  $('timer-start-btn').style.display = 'none';
+  $('timer-stop-btn').style.display = '';
+  timerLastActor = currentUser.username;
+  $('timer-actor').textContent = `Started by ${currentUser.username}`;
+
+  wsSend({ type: 'PUBLISH', topic: `board:${board.id}:timer/control`, event_type: 'timer.started', payload: {
+    userId: currentUser.id,
+    username: currentUser.username,
+    mode: timerMode,
+    elapsed: timerElapsed,
+    countdownTotal: timerCountdownTotal,
+    startTime: timerStartTime,
+  }});
+}
+
+function timerStop(local) {
+  if (!timerRunning) return;
+  timerRunning = false;
+  timerElapsed += (Date.now() - timerStartTime);
+  clearInterval(timerInterval);
+  $('timer-start-btn').style.display = '';
+  $('timer-stop-btn').style.display = 'none';
+
+  if (timerMode === 'stopwatch') {
+    $('timer-display').textContent = formatTimer(timerElapsed);
+  } else {
+    $('timer-display').textContent = formatTimer(Math.max(0, timerCountdownTotal - timerElapsed));
+  }
+
+  if (!local) {
+    $('timer-actor').textContent = `Stopped by ${currentUser.username}`;
+    wsSend({ type: 'PUBLISH', topic: `board:${board.id}:timer/control`, event_type: 'timer.stopped', payload: {
+      userId: currentUser.id,
+      username: currentUser.username,
+      elapsed: timerElapsed,
+    }});
+  }
+}
+
+function timerReset(localOnly) {
+  timerRunning = false;
+  timerElapsed = 0;
+  timerStartTime = 0;
+  clearInterval(timerInterval);
+  $('timer-display').textContent = '00:00.00';
+  $('timer-display').style.color = '';
+  $('timer-start-btn').style.display = '';
+  $('timer-stop-btn').style.display = 'none';
+
+  if (!localOnly) {
+    $('timer-actor').textContent = `Reset by ${currentUser.username}`;
+    wsSend({ type: 'PUBLISH', topic: `board:${board.id}:timer/control`, event_type: 'timer.reset', payload: {
+      userId: currentUser.id,
+      username: currentUser.username,
+    }});
+  }
+}
+
+function handleTimerEvent(eventType, payload) {
+  if (payload.userId === currentUser.id) return;
+
+  if (eventType === 'timer.started') {
+    timerMode = payload.mode || 'stopwatch';
+    timerElapsed = payload.elapsed || 0;
+    timerCountdownTotal = payload.countdownTotal || 300000;
+    timerStartTime = Date.now();
+    timerRunning = true;
+    clearInterval(timerInterval);
+    timerInterval = setInterval(updateTimerDisplay, 33);
+    $('timer-start-btn').style.display = 'none';
+    $('timer-stop-btn').style.display = '';
+    $('timer-mode-stopwatch').classList.toggle('active', timerMode === 'stopwatch');
+    $('timer-mode-countdown').classList.toggle('active', timerMode === 'countdown');
+    $('timer-countdown-set').style.display = timerMode === 'countdown' ? 'flex' : 'none';
+    $('timer-actor').textContent = `Started by ${payload.username}`;
+  } else if (eventType === 'timer.stopped') {
+    timerRunning = false;
+    timerElapsed = payload.elapsed || timerElapsed;
+    clearInterval(timerInterval);
+    $('timer-start-btn').style.display = '';
+    $('timer-stop-btn').style.display = 'none';
+    if (timerMode === 'stopwatch') {
+      $('timer-display').textContent = formatTimer(timerElapsed);
+    } else {
+      $('timer-display').textContent = formatTimer(Math.max(0, timerCountdownTotal - timerElapsed));
+    }
+    $('timer-actor').textContent = `Stopped by ${payload.username}`;
+  } else if (eventType === 'timer.reset') {
+    timerRunning = false;
+    timerElapsed = 0;
+    timerStartTime = 0;
+    clearInterval(timerInterval);
+    $('timer-display').textContent = '00:00.00';
+    $('timer-display').style.color = '';
+    $('timer-start-btn').style.display = '';
+    $('timer-stop-btn').style.display = 'none';
+    $('timer-actor').textContent = `Reset by ${payload.username}`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// WIDGET: PIXEL ART
+// ═══════════════════════════════════════════════════════════════════════
+let pixelInitialized = false;
+
+function initPixelGrid() {
+  if (pixelInitialized) return;
+  pixelInitialized = true;
+
+  const grid = $('pixel-grid');
+  grid.innerHTML = '';
+
+  for (let i = 0; i < 32 * 32; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'pixel-cell';
+    cell.style.background = pixelGrid[i];
+    cell.dataset.idx = i;
+
+    cell.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      pixelPainting = true;
+      pixelPaint(i);
+    });
+    cell.addEventListener('mouseenter', () => {
+      if (pixelPainting) pixelPaint(i);
+    });
+
+    grid.appendChild(cell);
+  }
+
+  document.addEventListener('mouseup', () => { pixelPainting = false; });
+}
+
+function pixelSetColor(color) {
+  pixelColor = color;
+  document.querySelectorAll('.pixel-color-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.pcolor === color);
+  });
+}
+
+function pixelSetTool(tool) {
+  pixelTool = tool;
+  document.querySelectorAll('.pixel-tool-btn[data-ptool]').forEach(b => {
+    b.classList.toggle('active', b.dataset.ptool === tool);
+  });
+}
+
+function pixelPaint(idx) {
+  if (pixelTool === 'fill') {
+    pixelFloodFill(idx, pixelGrid[idx], pixelColor);
+    return;
+  }
+
+  if (pixelGrid[idx] === pixelColor) return;
+  pixelGrid[idx] = pixelColor;
+  updatePixelCell(idx, currentUser.color);
+
+  wsSend({ type: 'PUBLISH', topic: `board:${board.id}:pixels/paint`, event_type: 'pixel.painted', payload: {
+    idx, color: pixelColor, userId: currentUser.id, userColor: currentUser.color,
+  }});
+}
+
+function pixelNeighbors(idx) {
+  const row = Math.floor(idx / 32);
+  const col = idx % 32;
+  const result = [];
+  if (col > 0) result.push(idx - 1);
+  if (col < 31) result.push(idx + 1);
+  if (row > 0) result.push(idx - 32);
+  if (row < 31) result.push(idx + 32);
+  return result;
+}
+
+function pixelFloodFill(startIdx, targetColor, fillColor) {
+  if (targetColor === fillColor) return;
+  const stack = [startIdx];
+  const visited = new Set();
+  const changes = [];
+
+  while (stack.length > 0) {
+    const idx = stack.pop();
+    if (visited.has(idx) || idx < 0 || idx >= 32 * 32) continue;
+    if (pixelGrid[idx] !== targetColor) continue;
+    visited.add(idx);
+
+    pixelGrid[idx] = fillColor;
+    changes.push(idx);
+    updatePixelCell(idx, currentUser.color);
+
+    for (const n of pixelNeighbors(idx)) stack.push(n);
+  }
+
+  if (changes.length > 0) {
+    wsSend({ type: 'PUBLISH', topic: `board:${board.id}:pixels/fill`, event_type: 'pixel.filled', payload: {
+      indices: changes, color: fillColor, userId: currentUser.id, userColor: currentUser.color,
+    }});
+  }
+}
+
+function updatePixelCell(idx, userColor) {
+  const grid = $('pixel-grid');
+  if (!grid) return;
+  const cell = grid.children[idx];
+  if (cell) {
+    cell.style.background = pixelGrid[idx];
+    pixelLastUsers[idx] = userColor;
+    let dot = cell.querySelector('.pixel-last-user');
+    if (!dot) {
+      dot = document.createElement('div');
+      dot.className = 'pixel-last-user';
+      cell.appendChild(dot);
+    }
+    dot.style.background = userColor;
+  }
+}
+
+function pixelClear() {
+  pixelGrid = new Array(32 * 32).fill('#1e293b');
+  pixelLastUsers = {};
+  const grid = $('pixel-grid');
+  if (grid) {
+    for (const child of grid.children) {
+      child.style.background = '#1e293b';
+      const dot = child.querySelector('.pixel-last-user');
+      if (dot) dot.remove();
+    }
+  }
+  wsSend({ type: 'PUBLISH', topic: `board:${board.id}:pixels/clear`, event_type: 'pixel.cleared', payload: { userId: currentUser.id } });
+}
+
+function handlePixelEvent(eventType, payload) {
+  if (payload.userId === currentUser.id) return;
+
+  if (eventType === 'pixel.painted') {
+    pixelGrid[payload.idx] = payload.color;
+    updatePixelCell(payload.idx, payload.userColor);
+  } else if (eventType === 'pixel.filled') {
+    (payload.indices || []).forEach(idx => {
+      pixelGrid[idx] = payload.color;
+      updatePixelCell(idx, payload.userColor);
+    });
+  } else if (eventType === 'pixel.cleared') {
+    pixelGrid = new Array(32 * 32).fill('#1e293b');
+    pixelLastUsers = {};
+    const grid = $('pixel-grid');
+    if (grid) {
+      for (const child of grid.children) {
+        child.style.background = '#1e293b';
+        const dot = child.querySelector('.pixel-last-user');
+        if (dot) dot.remove();
+      }
+    }
+  }
+}
+
+// ─── Initialize ─────────────────────────────────────────────────────────
+renderLogin();
+
+// Ping
+setInterval(() => {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    wsSend({ type: 'PING' });
+  }
+}, 15000);
+
+// Health check
+async function checkHealth() {
+  try {
+    const r = await fetch('/v1/health');
+    const d = await r.json();
+    if (d.status === 'ok') {
+      addDebugEvent('bus', 'health', 'ok');
+    }
+  } catch(_ignored) { /* non-critical parse error */ }
+}
+setTimeout(checkHealth, 1000);
+
+</script>
+</body>
+</html>

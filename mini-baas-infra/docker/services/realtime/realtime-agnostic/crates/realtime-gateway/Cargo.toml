@@ -1,0 +1,38 @@
+[package]
+name = "realtime-gateway"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+realtime-core = { path = "../realtime-core" }
+realtime-engine = { path = "../realtime-engine" }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+axum = { workspace = true }
+axum-extra = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+dashmap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bytes = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+smol_str = { workspace = true }
+uuid = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+# B1d metering: sha256 idempotency_key (already in the workspace lockfile, no new
+# lockfile entry) + the Redis durable XADD sink for `usage.events`. Pinned to the
+# SAME redis 0.27 the data-plane producer uses so the frozen envelope is shared.
+sha2 = "0.10"
+redis = { version = "0.27", default-features = false, features = ["tokio-comp", "connection-manager"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+tokio-tungstenite = { workspace = true }
+
+[lints]
+workspace = true

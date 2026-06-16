@@ -1,0 +1,139 @@
+{{- /*
+One workload per ENABLED plane. `kind` selects Deployment (stateless) vs
+StatefulSet (stateful, with a volumeClaimTemplate). Env is sourced from the
+release ConfigMap/Secret (compose env_file equivalent), both optional so pods
+schedule before they are populated. Vault-CSI, when enabled, also mounts secrets
+at /vault/secrets via the rendered SecretProviderClass.
+*/ -}}
+{{- $root := . -}}
+{{- range $name, $plane := .Values.planes }}
+{{- if $plane.enabled }}
+{{- $isSts := eq ($plane.kind | default "Deployment") "StatefulSet" }}
+---
+apiVersion: apps/v1
+kind: {{ $plane.kind | default "Deployment" }}
+metadata:
+  name: {{ $root.Release.Name }}-{{ $name }}
+  labels:
+    {{- include "grobase.commonLabels" $root | nindent 4 }}
+    {{- include "grobase.selectorLabels" (dict "root" $root "name" $name) | nindent 4 }}
+spec:
+  {{- if $isSts }}
+  serviceName: {{ $root.Release.Name }}-{{ $name }}
+  {{- end }}
+  {{- if not (and $plane.autoscaling $plane.autoscaling.enabled) }}
+  replicas: {{ $plane.replicas | default 1 }}
+  {{- end }}
+  {{- /* Zero-downtime rollout for stateless Deployments (C1): surge-then-drain.
+         A per-plane $plane.strategy wins; otherwise the chart-wide default.
+         StatefulSets keep their ordered default updateStrategy. */ -}}
+  {{- if not $isSts }}
+  {{- with ($plane.strategy | default $root.Values.deployStrategy) }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "grobase.selectorLabels" (dict "root" $root "name" $name) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "grobase.selectorLabels" (dict "root" $root "name" $name) | nindent 8 }}
+        {{- include "grobase.commonLabels" $root | nindent 8 }}
+    spec:
+      {{- with $root.Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.global.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $name }}
+          image: {{ include "grobase.image" (dict "root" $root "name" $name "plane" $plane) | quote }}
+          imagePullPolicy: {{ $root.Values.global.imagePullPolicy | default "IfNotPresent" }}
+          {{- with $root.Values.global.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ $root.Release.Name }}-env
+                optional: true
+            {{- if $root.Values.vault.enabled }}
+            {{- if $root.Values.vault.syncToK8sSecret }}
+            - secretRef:
+                name: {{ $root.Values.vault.k8sSecretName }}
+                optional: true
+            {{- end }}
+            {{- else if $root.Values.env.secret.create }}
+            - secretRef:
+                name: {{ $root.Release.Name }}-secrets
+                optional: true
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ $plane.port }}
+            {{- if $plane.adminPort }}
+            - name: admin
+              containerPort: {{ $plane.adminPort }}
+            {{- end }}
+          {{- with $plane.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $plane.probe }}
+          readinessProbe:
+            exec:
+              command:
+                {{- toYaml .exec | nindent 16 }}
+            initialDelaySeconds: {{ .initialDelaySeconds | default 10 }}
+            periodSeconds: {{ .periodSeconds | default 10 }}
+            timeoutSeconds: {{ .timeoutSeconds | default 3 }}
+            failureThreshold: {{ .failureThreshold | default 3 }}
+          livenessProbe:
+            exec:
+              command:
+                {{- toYaml .exec | nindent 16 }}
+            initialDelaySeconds: {{ add (.initialDelaySeconds | default 10) 10 }}
+            periodSeconds: {{ mul (.periodSeconds | default 10) 2 }}
+            timeoutSeconds: {{ .timeoutSeconds | default 3 }}
+            failureThreshold: {{ .failureThreshold | default 3 }}
+          {{- end }}
+          volumeMounts:
+            {{- if and $isSts $plane.persistence $plane.persistence.enabled }}
+            - name: data
+              mountPath: {{ $plane.persistence.mountPath }}
+            {{- end }}
+            {{- if $root.Values.vault.enabled }}
+            - name: vault-secrets
+              mountPath: /vault/secrets
+              readOnly: true
+            {{- end }}
+      {{- if $root.Values.vault.enabled }}
+      volumes:
+        - name: vault-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ $root.Release.Name }}-spc
+      {{- end }}
+  {{- if and $isSts $plane.persistence $plane.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          {{- toYaml ($plane.persistence.accessModes | default (list "ReadWriteOnce")) | nindent 10 }}
+        {{- if $plane.persistence.storageClass }}
+        storageClassName: {{ $plane.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $plane.persistence.size | default "10Gi" }}
+  {{- end }}
+{{- end }}
+{{- end }}

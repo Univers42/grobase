@@ -1,0 +1,99 @@
+[package]
+name = "data-plane-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "data-plane-router"
+path = "src/main.rs"
+
+# Build shapes. Default = the full production router (every engine + the
+# control-Postgres integrations), byte-equivalent to the pre-feature build.
+# The nano edition builds `--no-default-features --features nano`: embedded
+# SQLite only, in-process auth, no control-plane round-trips.
+[features]
+# ratelimit-redis is in default so the full self-host/SaaS data-plane image
+# (Dockerfile builds with default features) ships the multi-node limiter
+# compiled in — runtime-selected via DATA_PLANE_RATELIMIT_BACKEND=redis,
+# default in-memory so single-node is byte-unchanged, fail-open if Redis is
+# unreachable. The size-sensitive binocle SKUs build --no-default-features
+# (nano/one), so they are NOT affected; redis-rl reuses the `redis` crate
+# already compiled for the redis engine, so the cost is a few KB of glue.
+default = ["engines-full", "control-pg", "ratelimit-redis"]
+engines-full = ["postgres", "mongodb", "mysql", "redis", "sqlite", "mssql", "http"]
+postgres = ["data-plane-pool/postgres"]
+mongodb = ["data-plane-pool/mongodb"]
+mysql = ["data-plane-pool/mysql"]
+redis = ["data-plane-pool/redis"]
+sqlite = ["data-plane-pool/sqlite"]
+mssql = ["data-plane-pool/mssql"]
+http = ["data-plane-pool/http"]
+# 8th engine (OFF by default — NOT in `default` or `engines-full`, so the
+# shipped router image is byte-identical): DynamoDB-compatible adapter (AWS
+# DynamoDB / DynamoDB-Local / ScyllaDB Alternator). Forwards to the pool crate's
+# optional `dynamodb` feature; the AWS SDK is never compiled or fetched unless
+# this is explicitly enabled.
+dynamodb = ["data-plane-pool/dynamodb"]
+# Outbox emission + server-backed automations (both talk to the control
+# Postgres; the automations webhook action reuses the http engine's SSRF
+# guard, hence the pool/http requirement).
+control-pg = ["dep:deadpool-postgres", "dep:tokio-postgres", "data-plane-pool/http"]
+# B4-limiter: authoritative cross-replica rate limiting via a Redis Lua token
+# bucket. OFF by default — the in-process bucket stays the single-node fast path
+# and is byte-parity; activate with the feature + DATA_PLANE_RATELIMIT_BACKEND=redis.
+ratelimit-redis = ["dep:redis-rl"]
+# Nano edition (single binary, PocketBase-class): embedded SQLite + a local
+# key store (rusqlite) + uuid v4 for key material. High-entropy keys are
+# stored as SHA-256 digests (sha2 is already in-tree via service_auth) —
+# memory-hard KDFs exist for low-entropy passwords, which nano keys are not.
+nano = ["sqlite", "dep:rusqlite", "dep:futures", "uuid/v4"]
+# binocle-one — "our PocketBase": nano + user accounts. Email/password with
+# argon2id (passwords ARE low-entropy) + HS256 JWTs minted/verified in-process,
+# the OAuth2/OIDC provider matrix, SMTP mail codes (verification/reset/OTP)
+# and RFC 6238 TOTP MFA (hmac+sha1 — authenticator apps mandate SHA1).
+# File storage rides the same feature: multipart upload + jpeg/png thumbnails.
+one = ["nano", "dep:argon2", "dep:jsonwebtoken", "dep:lettre", "dep:hmac", "dep:sha1", "dep:image", "axum/multipart"]
+
+[dependencies]
+data-plane-core = { path = "../data-plane-core" }
+data-plane-pool = { path = "../data-plane-pool", default-features = false }
+# B4-limiter Redis backend. Renamed (package = "redis") so it does NOT collide
+# with the existing `redis` FEATURE (the Redis engine adapter). Pinned to the
+# same 0.27 as the workspace `redis`; optional → compiled only under
+# `ratelimit-redis`.
+redis-rl = { package = "redis", version = "0.27", default-features = false, features = ["tokio-comp", "connection-manager"], optional = true }
+anyhow = { workspace = true }
+axum = { workspace = true }
+# Phase 7 bypass: Rust-native API-key verification (tenant-control) + mount
+# resolution (adapter-registry) over HTTP. Go stays the identity authority.
+reqwest = { workspace = true }
+# Phase 7d: outbox emission to the system Postgres (realtime/webhooks/
+# projections read public.outbox_events and must keep firing post-cutover).
+deadpool-postgres = { workspace = true, optional = true }
+tokio-postgres = { workspace = true, optional = true }
+# Nano edition: local key store + SHA-256 key digests + v4 key material +
+# the SSE stream adapter (futures::stream::unfold over a broadcast receiver).
+rusqlite = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+# binocle-one: password hashing + JWT sessions + SMTP codes + TOTP MFA.
+argon2 = { workspace = true, optional = true }
+jsonwebtoken = { workspace = true, optional = true }
+lettre = { workspace = true, optional = true }
+hmac = { workspace = true, optional = true }
+sha1 = { workspace = true, optional = true }
+image = { workspace = true, optional = true }
+sha2 = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+# For implementing the `TxHandle` trait (which is `#[async_trait]`) in the
+# expired-transaction reaper unit tests.
+async-trait = { workspace = true }

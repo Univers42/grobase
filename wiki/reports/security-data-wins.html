@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grobase — Security &amp; Data Wins</title>
+<style>
+:root{
+  --win:#1f9d57;--parity:#d99a16;--gap:#c64242;--brand:#5b6cff;
+  --ink:#0e1726;--muted:#5b6781;--bg:#f6f8fc;--card:#ffffff;
+  --line:#e3e8f2;--accent:#5b6cff;
+  --shadow:0 1px 2px rgba(16,23,38,.04),0 6px 24px rgba(16,23,38,.07);
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);line-height:1.55;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,
+    "Apple Color Emoji","Segoe UI Emoji",sans-serif;
+  font-size:15px;-webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:960px;margin:0 auto;padding:0 20px 64px}
+header.site{
+  position:sticky;top:0;z-index:50;
+  background:linear-gradient(110deg,var(--accent),color-mix(in srgb,var(--accent) 55%,#1b2447));
+  color:#fff;box-shadow:0 4px 18px rgba(16,23,38,.18);
+}
+@supports not (background:color-mix(in srgb,#000,#fff)){
+  header.site{background:linear-gradient(110deg,var(--accent),#2a3566)}
+}
+.site .inner{max-width:960px;margin:0 auto;padding:22px 20px}
+.site h1{margin:0;font-size:24px;font-weight:700;letter-spacing:-.01em}
+.site .sub{margin:6px 0 0;opacity:.92;font-size:14.5px;font-weight:400}
+.site .upd{margin-top:10px;font-size:12px;opacity:.8;font-variant-numeric:tabular-nums}
+section{margin-top:30px}
+section>h2{
+  font-size:18px;margin:0 0 4px;letter-spacing:-.01em;
+  padding-bottom:8px;border-bottom:2px solid var(--line);
+}
+section .intro{color:var(--muted);margin:8px 0 16px;font-size:14.5px}
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:18px;
+}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-top:6px}
+.kpi{
+  background:var(--card);border:1px solid var(--line);border-left:4px solid var(--muted);
+  border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 16px 14px;
+}
+.kpi.win{border-left-color:var(--win)} .kpi.parity{border-left-color:var(--parity)}
+.kpi.gap{border-left-color:var(--gap)} .kpi.neutral{border-left-color:var(--muted)}
+.kpi .label{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.kpi .value{font-size:27px;font-weight:700;margin:4px 0 2px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.kpi .sub{font-size:12.5px;color:var(--muted)}
+.kpi.win .value{color:var(--win)} .kpi.gap .value{color:var(--gap)} .kpi.parity .value{color:var(--parity)}
+.scoreboard{
+  display:flex;flex-wrap:wrap;gap:0;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-top:6px;
+}
+.scoreboard .sb-title{padding:14px 16px;font-weight:600;font-size:13px;color:var(--muted);
+  align-self:center;border-right:1px solid var(--line)}
+.scoreboard .stat{padding:12px 18px;border-right:1px solid var(--line);min-width:96px}
+.scoreboard .stat:last-child{border-right:none}
+.scoreboard .stat .v{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.scoreboard .stat .l{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.scoreboard .stat.win .v{color:var(--win)} .scoreboard .stat.gap .v{color:var(--gap)}
+.scoreboard .stat.parity .v{color:var(--parity)}
+.badge{
+  display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;
+  line-height:1.5;border:1px solid transparent;vertical-align:middle;
+}
+.badge.win{background:rgba(31,157,87,.12);color:var(--win);border-color:rgba(31,157,87,.25)}
+.badge.parity{background:rgba(217,154,22,.13);color:#9a6b07;border-color:rgba(217,154,22,.3)}
+.badge.gap{background:rgba(198,66,66,.12);color:var(--gap);border-color:rgba(198,66,66,.25)}
+.badge.brand{background:rgba(91,108,255,.12);color:var(--brand);border-color:rgba(91,108,255,.25)}
+.badge.neutral{background:rgba(91,103,129,.1);color:var(--muted);border-color:rgba(91,103,129,.22)}
+figure.chart{margin:0;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:16px 16px 12px}
+figure.chart .chart-title{font-weight:600;font-size:14.5px;margin:0 0 10px}
+figure.chart figcaption{color:var(--muted);font-size:12px;margin-top:8px}
+figure.chart svg{display:block;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:12.5px;color:var(--muted)}
+.legend .li{display:inline-flex;align-items:center;gap:6px}
+.legend .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+table.matrix{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);font-size:13.5px}
+table.matrix th,table.matrix td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);
+  vertical-align:top}
+table.matrix thead th{background:#eef2fb;font-size:12px;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);font-weight:600}
+table.matrix tbody tr:nth-child(even){background:#fbfcfe}
+table.matrix tbody tr:last-child td{border-bottom:none}
+td.t-win{background:rgba(31,157,87,.1)} td.t-parity{background:rgba(217,154,22,.12)}
+td.t-gap{background:rgba(198,66,66,.1)} td.t-brand{background:rgba(91,108,255,.1)}
+.callouts{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.callout{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--muted);
+  border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px}
+.callout.win{border-left-color:var(--win)} .callout.parity{border-left-color:var(--parity)}
+.callout.gap{border-left-color:var(--gap)} .callout.brand{border-left-color:var(--brand)}
+.callout .c-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.callout .c-title{font-weight:650;font-size:14.5px}
+.callout .c-body{color:var(--muted);font-size:13px;margin-top:6px}
+.layers{display:flex;flex-direction:column;gap:8px}
+.layer{border:1px solid var(--line);border-radius:10px;padding:12px 16px;background:var(--card);
+  box-shadow:var(--shadow);position:relative}
+.layer .ln{font-weight:650;font-size:14px} .layer .ld{color:var(--muted);font-size:12.5px;margin-top:2px}
+.layer.win{border-left:4px solid var(--win)} .layer.parity{border-left:4px solid var(--parity)}
+.layer.gap{border-left:4px solid var(--gap)} .layer.brand{border-left:4px solid var(--brand)}
+.evidence{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:16px}
+.evidence .e-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.evidence .e-title{font-weight:650;font-size:14.5px}
+.evidence pre{margin:0;background:#0e1726;color:#d7e2f7;border-radius:10px;padding:12px 14px;
+  font-size:12.5px;line-height:1.55;overflow:auto;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.evidence .e-gate{margin-top:10px;font-size:12px;color:var(--muted)}
+.evidence .e-gate code{background:#eef2fb;padding:2px 6px;border-radius:5px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+footer.site{margin-top:48px;border-top:1px solid var(--line);padding:22px 20px;color:var(--muted);
+  font-size:12.5px;text-align:center}
+footer.site .wrap{padding-bottom:0}
+@media (max-width:560px){
+  .scoreboard{flex-direction:column}
+  .scoreboard .sb-title,.scoreboard .stat{border-right:none;border-bottom:1px solid var(--line)}
+  .scoreboard .stat:last-child{border-bottom:none}
+  .site h1{font-size:21px}
+}
+@media print{
+  body{background:#fff}
+  header.site{position:static;box-shadow:none;color:#0e1726;background:#fff;border-bottom:2px solid var(--accent)}
+  .card,.kpi,figure.chart,.evidence,table.matrix,.scoreboard,.callout,.layer{box-shadow:none}
+  section{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<header class="site"><div class="inner">
+  <h1>Grobase — Security &amp; Data Wins</h1>
+  <p class="sub">Four just-landed, gate-backed wins: full-text search · vector k-NN · network controls · compliance posture</p>
+  <div class="upd">Updated 2026-06-15</div>
+</div></header>
+<main class="wrap">
+<section id="wins">
+  <h2>1 · Four wins, four gates</h2>
+  <p class="intro">Four capabilities just landed, each <strong>gate-backed</strong> and live-proven. Two
+    were <strong>GAP→WIN</strong> on the competitive matrix (data ops); two were
+    <strong>PARTIAL→WIN</strong> (security perimeter + verifiable compliance). Every figure on this
+    page is quoted from the gate scripts or the source docs — <span class="badge brand">measured, not claimed</span>.</p>
+  <div class="grid kpis"><div class="kpi win">
+    <div class="label">Full-text search</div>
+    <div class="value">WIN</div>
+    <div class="sub">gate m101 · ranked multi-column FTS</div>
+  </div>
+<div class="kpi win">
+    <div class="label">Vector k-NN</div>
+    <div class="value">WIN</div>
+    <div class="sub">gate m102 · typed pgvector, capability-gated</div>
+  </div>
+<div class="kpi win">
+    <div class="label">Network controls</div>
+    <div class="value">WIN</div>
+    <div class="sub">gate m140 · OWASP-CRS WAF + segmentation</div>
+  </div>
+<div class="kpi win">
+    <div class="label">Compliance posture</div>
+    <div class="value">WIN</div>
+    <div class="sub">gate m141 · tamper-evident audit + GDPR</div>
+  </div></div>
+<div class="scoreboard">
+  <div class="sb-title">Gate tally</div>
+  <div class="stat win">
+    <div class="v">4</div>
+    <div class="l">wins</div>
+  </div>
+<div class="stat win">
+    <div class="v">4 / 4</div>
+    <div class="l">gates PASS</div>
+  </div>
+<div class="stat win">
+    <div class="v">2</div>
+    <div class="l">GAP→WIN</div>
+  </div>
+<div class="stat win">
+    <div class="v">2</div>
+    <div class="l">PARTIAL→WIN</div>
+  </div>
+<div class="stat win">
+    <div class="v">42</div>
+    <div class="l">GDPR article refs</div>
+  </div>
+</div>
+<div class="grid callouts"><div class="callout win">
+    <div class="c-head">
+      <span class="c-title">m101 · Full-text search</span>
+      <span class="badge win">GAP→WIN</span>
+    </div>
+    <div class="c-body">Ranked, multi-column to_tsvector @@ websearch_to_tsquery as a typed first-class op — beats Supabase’s single-column fts filter.</div>
+  </div>
+<div class="callout win">
+    <div class="c-head">
+      <span class="c-title">m102 · Vector k-NN</span>
+      <span class="badge win">GAP→WIN</span>
+    </div>
+    <div class="c-body">Typed pgvector k-NN (cosine/l2/ip), capability-gated (non-PG → 422) — vs Supabase’s hand-written SQL RPC.</div>
+  </div>
+<div class="callout win">
+    <div class="c-head">
+      <span class="c-title">m140 · Network controls</span>
+      <span class="badge win">PARTIAL→WIN</span>
+    </div>
+    <div class="c-body">In-stack OWASP-CRS WAF as the sole public listener + per-plane segmentation. Supabase OSS ships neither.</div>
+  </div>
+<div class="callout win">
+    <div class="c-head">
+      <span class="c-title">m141 · Compliance posture</span>
+      <span class="badge win">PARTIAL→WIN</span>
+    </div>
+    <div class="c-body">Cryptographically tamper-evident hash-chained audit + GDPR erase/export, mapped ASVS×SOC2×GDPR.</div>
+  </div></div>
+</section>
+<section id="evidence">
+  <h2>2 · Gate evidence (real outputs)</h2>
+  <p class="intro">Each card quotes the load-bearing assertions from the gate script itself. A gate that passes
+    vacuously is not a gate — these exercise the behavior (right rows returned, right rule-IDs fired,
+    edge↔data refused, the chain broken at the exact link).</p>
+  <div class="evidence">
+  <div class="e-head"><span class="e-title">m101 — First-class ranked, multi-column full-text search</span><span class="badge win">PASS</span></div>
+  <pre>op=list + search:{query,columns,language}
+  → ranked to_tsvector(lang, concat_ws(&#39; &#39;, cols)) @@ websearch_to_tsquery
+  ORDER BY ts_rank, owner-scoped, language-allowlisted
+
+FTS: search &quot;search&quot; over [title, body] → expect d1 + d3, not d2
+  IDS == &quot;d1,d3&quot;                              [ok]  owner-stamped, ranked
+
+negative: hostile language &quot;bad&#39;); DROP--&quot;   → 400 (not 5xx)
+  injection-safe; clean reject               [ok]
+
+PASS — multi-column ranked FTS as a TYPED op (vs Supabase single-column filter)</pre>
+  <div class="e-gate">Gate: <code>scripts/verify/m101-fulltext-search.sh</code></div>
+</div>
+<div class="evidence">
+  <div class="e-head"><span class="e-title">m102 — Typed pgvector k-NN (capability-gated)</span><span class="badge win">PASS</span></div>
+  <pre>op=list + vector:{column,query,k,metric}
+  → ORDER BY col &lt;=&gt;|&lt;-&gt;|&lt;#&gt; $vec LIMIT k   (cosine / l2 / inner-product)
+
+vector_search: nearest to [1,0,0], cosine, k=3 → expect a,b,c
+  IDS == &quot;a,b,c&quot;                              [ok]  k-NN order correct
+
+negative: vector op on a non-PG engine (redis mount) → 422 (not 5xx)
+  capability-gated; engine declares it can&#39;t  [ok]
+
+PASS — typed first-class pgvector k-NN (vs Supabase hand-written SQL RPC)</pre>
+  <div class="e-gate">Gate: <code>scripts/verify/m102-vector-search.sh</code></div>
+</div>
+<div class="evidence">
+  <div class="e-head"><span class="e-title">m140 — Network controls: OWASP-CRS WAF + per-plane segmentation</span><span class="badge win">PASS</span></div>
+  <pre>WAF — ModSecurity v3 + OWASP CRS v4, sole public listener (blocking):
+  ?id=1&#39; OR &#39;1&#39;=&#39;1 -- UNION SELECT  (SQLi)      → 403   rule 942100
+  ?q=&lt;script&gt;alert(1)&lt;/script&gt;      (XSS)       → 403   rule 941100
+  ?file=../../../../etc/passwd      (traversal) → 403   rule 930100
+  anomaly score ≥ 5                             → 403   rule 949110
+  GET /data/v1/health               (benign)    → passes WAF (Kong 401)
+
+negative control: same SQLi sent DIRECT to Kong (WAF-bypassed) → 404 (not 403)
+  proves the 403 originates at the WAF/CRS layer, not Kong
+
+segmentation (docker-compose.netseg.yml, throwaway scratch, no escape bridge):
+  kong (net-edge)        → postgres:5432   REFUSED   (edge ↛ data)
+  query-router (front)   → postgres:5432   CONNECTS  (legal front-door)
+
+PASS — in-stack perimeter Supabase OSS ships neither</pre>
+  <div class="e-gate">Gate: <code>scripts/verify/m140-network-controls.sh</code></div>
+</div>
+<div class="evidence">
+  <div class="e-head"><span class="e-title">m141 — Compliance posture: tamper-evident audit + GDPR rights</span><span class="badge win">PASS</span></div>
+  <pre>hash-chained audit:  hash = sha256(prev_hash ‖ canonical(row))   (Go, engine-agnostic)
+  append 3 entries → recompute chain        intact:true     (3 links INTACT)
+  DB-tamper one row → recompute chain        intact:false
+    broken_seq: 2   reason: hash_mismatch    (detected at exact link)
+
+standards map present + non-empty:  ASVS 4.0 + SOC 2 TSC (CC6) + GDPR
+  GDPR article citations: 42  (Art.17, Art.20, Art.28, Art.30, Art.32, …)
+
+GDPR rights reachable + authorized:
+  erase  (Art.17)  route mounted (not 404), unauth → 401
+  export (Art.20)  route mounted (not 404), unauth → 401
+
+PASS — controls a buyer can independently RE-VERIFY in their own infra</pre>
+  <div class="e-gate">Gate: <code>scripts/verify/m141-compliance-posture.sh</code></div>
+</div>
+</section>
+<section id="before-after">
+  <h2>3 · Before → after — dimensions moving to WIN</h2>
+  <p class="intro">From the 91-row competitive matrix. Rows 6 & 7 moved <strong>GAP → WIN</strong> on live
+    proof (m101 / m102); rows 75 & 76 moved <strong>PARTIAL → WIN</strong> (m140 / m141). The tone
+    change is the win: red/amber → green.</p>
+  <table class="matrix"><thead><tr><th>Row</th><th>Dimension</th><th>Before</th><th>After</th><th>Gate</th></tr></thead><tbody><tr><td>6</td><td>Native full-text search</td><td class="td t-gap">GAP</td><td class="td t-win">WIN</td><td>m101</td></tr><tr><td>7</td><td>Vector / embeddings (k-NN)</td><td class="td t-gap">GAP</td><td class="td t-win">WIN</td><td>m102</td></tr><tr><td>75</td><td>Network restrictions / segmentation</td><td class="td t-parity">PARTIAL</td><td class="td t-win">WIN</td><td>m140</td></tr><tr><td>76</td><td>Audit logs / verifiable compliance</td><td class="td t-parity">PARTIAL</td><td class="td t-win">WIN</td><td>m141</td></tr></tbody></table>
+<figure class="chart">
+  <p class="chart-title">Status score before vs after (GAP=0 · PARTIAL=1 · WIN=2)</p>
+  <svg viewBox="0 0 720 182" role="img" aria-label="Status score before vs after (GAP=0 · PARTIAL=1 · WIN=2)">
+    <line x1="150.0" y1="8" x2="150.0" y2="158" stroke="#e3e8f2" stroke-width="1"/><text x="150.0" y="170" font-size="10" fill="#5b6781" text-anchor="middle">0</text><line x1="275.0" y1="8" x2="275.0" y2="158" stroke="#e3e8f2" stroke-width="1"/><text x="275.0" y="170" font-size="10" fill="#5b6781" text-anchor="middle">0.5</text><line x1="400.0" y1="8" x2="400.0" y2="158" stroke="#e3e8f2" stroke-width="1"/><text x="400.0" y="170" font-size="10" fill="#5b6781" text-anchor="middle">1</text><line x1="525.0" y1="8" x2="525.0" y2="158" stroke="#e3e8f2" stroke-width="1"/><text x="525.0" y="170" font-size="10" fill="#5b6781" text-anchor="middle">1.5</text><line x1="650.0" y1="8" x2="650.0" y2="158" stroke="#e3e8f2" stroke-width="1"/><text x="650.0" y="170" font-size="10" fill="#5b6781" text-anchor="middle">2</text>
+    <text x="140" y="27.0" font-size="12" fill="#0e1726" text-anchor="end">FTS (m101)</text><rect x="150" y="8.0" width="500.0" height="30" rx="5" fill="#1f9d57"/><text x="658.0" y="27.0" font-size="11.5" fill="#0e1726" text-anchor="start">2 status pts <tspan fill="#5b6781">· was GAP (0)</tspan></text><text x="140" y="67.0" font-size="12" fill="#0e1726" text-anchor="end">Vector (m102)</text><rect x="150" y="48.0" width="500.0" height="30" rx="5" fill="#1f9d57"/><text x="658.0" y="67.0" font-size="11.5" fill="#0e1726" text-anchor="start">2 status pts <tspan fill="#5b6781">· was GAP (0)</tspan></text><text x="140" y="107.0" font-size="12" fill="#0e1726" text-anchor="end">Network (m140)</text><rect x="150" y="88.0" width="500.0" height="30" rx="5" fill="#1f9d57"/><text x="658.0" y="107.0" font-size="11.5" fill="#0e1726" text-anchor="start">2 status pts <tspan fill="#5b6781">· was PARTIAL (1)</tspan></text><text x="140" y="147.0" font-size="12" fill="#0e1726" text-anchor="end">Compliance (m141)</text><rect x="150" y="128.0" width="500.0" height="30" rx="5" fill="#1f9d57"/><text x="658.0" y="147.0" font-size="11.5" fill="#0e1726" text-anchor="start">2 status pts <tspan fill="#5b6781">· was PARTIAL (1)</tspan></text>
+  </svg>
+  <figcaption>Bars show status pts — higher is better.</figcaption>
+</figure>
+</section>
+<section id="coverage">
+  <h2>4 · Compliance control coverage (m141)</h2>
+  <p class="intro">The control matrix in <code>compliance-posture.md</code> maps every shipped control to three
+    standards families. Counts: <strong>ASVS 4.0</strong> requirement refs, <strong>SOC 2 TSC</strong>
+    criteria, and <strong>GDPR</strong> article references — every row backed by an in-repo artifact.</p>
+  <figure class="chart">
+  <p class="chart-title">Standards-mapping references across the §2 control matrix</p>
+  <svg viewBox="0 0 220 220" role="img" aria-label="Standards-mapping references across the §2 control matrix" style="max-width:260px;margin:0 auto">
+    <path d="M 110.00 18.00 A 92 92 0 0 1 182.50 166.64 L 154.13 144.48 A 56 56 0 0 0 110.00 54.00 Z" fill="#5b6cff"/><path d="M 182.50 166.64 A 92 92 0 0 1 90.87 199.99 L 98.36 164.78 A 56 56 0 0 0 154.13 144.48 Z" fill="#1f9d57"/><path d="M 90.87 199.99 A 92 92 0 0 1 110.00 18.00 L 110.00 54.00 A 56 56 0 0 0 98.36 164.78 Z" fill="#d99a16"/>
+    <text x="110" y="106" font-size="20" font-weight="700" fill="#0e1726" text-anchor="middle">3</text>
+       <text x="110" y="126" font-size="11" fill="#5b6781" text-anchor="middle">total 90</text>
+  </svg>
+  <div class="legend"><span class="li"><span class="sw" style="background:#5b6cff"></span>ASVS 4.0 (V-reqs) — <strong style="color:#0e1726">32</strong> (35.6%)</span><span class="li"><span class="sw" style="background:#1f9d57"></span>SOC 2 TSC (criteria) — <strong style="color:#0e1726">16</strong> (17.8%)</span><span class="li"><span class="sw" style="background:#d99a16"></span>GDPR (article refs) — <strong style="color:#0e1726">42</strong> (46.7%)</span></div>
+</figure>
+<div class="scoreboard">
+  <div class="sb-title">GDPR rights shipped</div>
+  <div class="stat win">
+    <div class="v">m105</div>
+    <div class="l">erase · Art.17</div>
+  </div>
+<div class="stat win">
+    <div class="v">m109</div>
+    <div class="l">export · Art.20</div>
+  </div>
+<div class="stat win">
+    <div class="v">m104</div>
+    <div class="l">records · Art.30</div>
+  </div>
+<div class="stat win">
+    <div class="v">401</div>
+    <div class="l">auth-enforced</div>
+  </div>
+</div>
+</section>
+<section id="perimeter">
+  <h2>5 · Network perimeter (m140)</h2>
+  <p class="intro">Defense in depth, outer → inner. The <strong>only</strong> container binding a public port is
+    the WAF; Kong sits behind it on 127.0.0.1. A compromised edge container cannot open a raw socket to
+    an engine — it has no bridge to the data plane.</p>
+  <div class="layers"><div class="layer brand">
+    <div class="ln">Cloudflare front-door</div>
+    <div class="ld">ROADMAP recipe (hosted): proxied DNS, managed WAF, rate-limit, Turnstile, full-strict TLS + authenticated origin-pull mTLS — a 2nd perimeter on top of the in-stack WAF.</div>
+  </div>
+<div class="layer win">
+    <div class="ln">OWASP ModSecurity v3 + CRS v4 (WAF)</div>
+    <div class="ld">Sole public listener, blocking. SQLi 942100 · XSS 941100 · traversal 930100 · anomaly 949110 → 403. Benign passes; Kong-direct=404 negative control.</div>
+  </div>
+<div class="layer win">
+    <div class="ln">Kong API gateway</div>
+    <div class="ld">Bound 127.0.0.1 only (dev) — behind the WAF. Edge IP-restrict on /admin/v1/* (private CIDRs). Per-tenant IP allowlist (m106).</div>
+  </div>
+<div class="layer parity">
+    <div class="ln">Application planes — edge</div>
+    <div class="ld">net-edge: waf, kong, gotrue, postgrest, realtime, studio. WAN ingress.</div>
+  </div>
+<div class="layer parity">
+    <div class="ln">Control plane</div>
+    <div class="ld">net-control (internal:true, no WAN egress): tenant-control, orchestrator, permission-engine, schema-service, vault.</div>
+  </div>
+<div class="layer gap">
+    <div class="ln">Data plane — engines</div>
+    <div class="ld">net-data (internal:true): postgres, mysql, mongo, redis, minio … Reachable ONLY via the dual-attached front-door routers, where owner-scope/RLS ABAC is enforced per request. edge ↛ data REFUSED.</div>
+  </div></div>
+</section>
+</main>
+<footer class="site"><div class="wrap">Grobase BaaS — measured, not claimed. Every figure traces to an artifact or doc.</div></footer>
+</body>
+</html>

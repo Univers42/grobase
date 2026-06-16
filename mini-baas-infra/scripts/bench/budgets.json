@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "_comment": "Single numeric source for benchmark gate bars. Gates (m32/m38/m39) READ this file; docs and the marketing site cite artifacts produced against it. Change a bar here, never inline in a script. ram_mib mirrors the m32 budgets; load thresholds are per-tier p95/error bars for the 60s m38 smoke at the tier's advertised rps; scale holds the m39 targets.",
+  "ram_mib": {
+    "basic": 512,
+    "essential": 1024,
+    "pro": 1500,
+    "max": 3700
+  },
+  "load": {
+    "_comment": "p95 in ms for the canonical CRUD mix THROUGH Kong at the smoke rps; err_pct is the failed-request budget (429s count as failures — the smoke rate must be sustainable). smoke rps == the tier's advertised rps except max, held at 800 until bench-capacity measures the true ceiling (Phase C then reconciles the advertised number with the measurement — that reconciliation IS the offer revision).",
+    "basic":     { "rps": 10,   "p95_ms": 60,  "err_pct": 1.0 },
+    "essential": { "rps": 20,   "p95_ms": 60,  "err_pct": 1.0 },
+    "pro":       { "rps": 200,  "p95_ms": 80,  "err_pct": 1.0 },
+    "max":       { "rps": 800,  "p95_ms": 120, "err_pct": 1.0 }
+  },
+  "capacity": {
+    "_comment": "Saturation criteria for bench-capacity: ramp until p95 exceeds slo_p95_ms or errors exceed err_pct.",
+    "slo_p95_ms": 50,
+    "err_pct": 1.0
+  },
+  "scale": {
+    "_comment": "m39 targets. smoke_tenants runs inside verify-all; full_tenants is the on-demand 10K validation. p99_factor = allowed p99 multiple vs the single-tenant baseline artifact.",
+    "smoke_tenants": 200,
+    "full_tenants": 10000,
+    "p99_factor": 2.0,
+    "max_5xx": 0,
+    "data_plane_rss_mib": 512
+  }
+}

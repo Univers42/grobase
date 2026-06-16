@@ -1,0 +1,36 @@
+{{- /* A ClusterIP Service per enabled plane so intra-cluster DNS matches the
+compose service-name addressing the planes already use (e.g.
+http://<release>-adapter-registry-go:3021). StatefulSets get a headless service
+(clusterIP: None) for stable per-replica DNS. */ -}}
+{{- $root := . -}}
+{{- range $name, $plane := .Values.planes }}
+{{- if $plane.enabled }}
+{{- $isSts := eq ($plane.kind | default "Deployment") "StatefulSet" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $root.Release.Name }}-{{ $name }}
+  labels:
+    {{- include "grobase.commonLabels" $root | nindent 4 }}
+    {{- include "grobase.selectorLabels" (dict "root" $root "name" $name) | nindent 4 }}
+spec:
+  type: ClusterIP
+  {{- if $isSts }}
+  clusterIP: None
+  {{- end }}
+  selector:
+    {{- include "grobase.selectorLabels" (dict "root" $root "name" $name) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $plane.port }}
+      targetPort: {{ $plane.port }}
+      protocol: TCP
+    {{- if $plane.adminPort }}
+    - name: admin
+      port: {{ $plane.adminPort }}
+      targetPort: {{ $plane.adminPort }}
+      protocol: TCP
+    {{- end }}
+{{- end }}
+{{- end }}

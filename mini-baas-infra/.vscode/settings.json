@@ -1,0 +1,95 @@
+{
+  // =========================================================
+  // 1. FILES & VISIBILITY (Hiding what you don't want to see)
+  // =========================================================
+  // This hides the folders from the Explorer sidebar entirely.
+  // It also automatically excludes them from search results!
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/pkg": true,
+    "**/.scannerwork": true,
+    "**/.pnpm-store": true,
+    "**/.turbo": true,
+    "**/.github": true,
+    "**/prom*": true
+  },
+  // Keeps your global search (Ctrl/Cmd + Shift + F) fast and clean
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/pkg": true,
+    "**/.scannerwork": true,
+    "**/.pnpm-store": true,
+    "**/.turbo": true
+  },
+  // =========================================================
+  // 2. SAVING & FILE FORMATTING RULES
+  // =========================================================
+  "files.autoSave": "onFocusChange", // Saves automatically when you click away
+  "files.trimTrailingWhitespace": true, // Removes useless spaces at the end of lines
+  "files.insertFinalNewline": true, // Ensures files end with an empty line (POSIX standard)
+  "files.trimFinalNewlines": true, // Removes extra blank lines at the bottom
+  // =========================================================
+  // 3. EDITOR BEHAVIOR (Typing, wrapping, and spacing)
+  // =========================================================
+  "editor.formatOnSave": true, // Formats your code every time you save
+  "editor.formatOnPaste": true, // Formats code you paste into the editor
+  "editor.tabSize": 2, // Standardizes indentation to 2 spaces
+  "editor.insertSpaces": true, // Uses spaces instead of actual Tab characters
+  "editor.wordWrap": "on", // Prevents horizontal scrolling
+  "editor.minimap.enabled": false, // Hides the code minimap on the right to save screen space
+  "editor.bracketPairColorization.enabled": true, // Colors your {} and () so they match
+  "editor.guides.bracketPairs": "active", // Draws lines between matching brackets
+  // =========================================================
+  // 4. WORKBENCH & UI OVERRIDES
+  // =========================================================
+  "explorer.compactFolders": false, // Prevents VS Code from merging empty folders in the tree
+  "workbench.editor.enablePreview": false, // Single-clicking a file opens it permanently (disables italics tab)
+  "workbench.tree.indent": 16, // Makes the folder tree easier to read
+  // =========================================================
+  // 4b. FILE NESTING — Collapse config noise under parent files
+  // =========================================================
+  // Instead of hiding config files, nesting groups them visually
+  // under a "parent" file.  Click the arrow to expand when needed.
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.expand": false, // Collapsed by default — clean tree
+  "explorer.fileNesting.patterns": {
+    // ── Root config files nest under package.json ───────────
+    "package.json": "pnpm-lock.yaml, pnpm-workspace.yaml, tsconfig.json, turbo.json, eslint.config.js, sonar-project.properties, docker-compose.yml, .env, .env.example, .gitignore, .gitmodules, CODE_OF_CONDUCT.md, CONTRIBUTING.md, LICENSE, SECURITY.md",
+    // ── Makefile variants nest under the main Makefile ──────
+    "Makefile": "Makefile.*",
+    // ── Docker config nests under Dockerfile ────────────────
+    "Dockerfile": ".dockerignore, entrypoint.sh",
+    // ── TypeScript: generated outputs nest under source ─────
+    "*.ts": "${capture}.js, ${capture}.d.ts, ${capture}.js.map",
+    // ── React components: related files nest under .tsx ─────
+    "*.tsx": "${capture}.ts, ${capture}.css, ${capture}.scss, ${capture}.module.css, ${capture}.test.tsx, ${capture}.spec.tsx",
+    // ── Vite config nests under the HTML entry ──────────────
+    "index.html": "vite.config.ts, vite-env.d.ts, tsconfig.json, tsconfig.*.json, Makefile"
+  },
+  // =========================================================
+  // 5. EXTENSION SPECIFIC RULES (Your SonarLint etc.)
+  // =========================================================
+  "sonarlint.analysisExcludesStandalone": [
+    "**/pkg/**",
+    "**/IconPicker.tsx",
+    "**/CellPortal.tsx",
+    "**/SelectEditors.tsx"
+  ],
+  // =========================================================
+  // 6. LANGUAGE SPECIFIC OVERRIDES
+  // =========================================================
+  // Forces specific formatters to ensure consistency
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode" // Assuming you use Prettier for React
+  }
+}
