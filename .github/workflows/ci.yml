@@ -132,7 +132,14 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Generate CI environment
-        run: FORCE=1 bash scripts/generate-env.sh .env
+        run: |
+          set -euo pipefail
+          FORCE=1 bash scripts/generate-env.sh .env
+          # CI has no SMTP sink (mailpit is not a service in this compose), so GoTrue
+          # 500s trying to send a signup confirmation email. Auto-confirm signups so
+          # the phase tests can sign up and immediately log in. This is exactly what
+          # the GOTRUE_MAILER_AUTOCONFIRM override exists for.
+          echo "GOTRUE_MAILER_AUTOCONFIRM=true" >> .env
 
       - name: Build and start core stack
         run: |
@@ -181,7 +188,9 @@ jobs:
         run: |
           set -euo pipefail
           APIKEY=$(grep '^KONG_PUBLIC_API_KEY=' .env | cut -d= -f2-)
-          export APIKEY PUBLIC_APIKEY="$APIKEY" BASE_URL="http://localhost:8000"
+          # TEST_ORIGIN must match a Kong CORS-allowed origin (KONG_CORS_ORIGIN_APP)
+          # or phase 2's preflight check sees no access-control-allow-origin header.
+          export APIKEY PUBLIC_APIKEY="$APIKEY" BASE_URL="http://localhost:8000" TEST_ORIGIN="https://localhost:3000"
           rc_all=0
           for phase in 1 2 3 4 14 15; do
             script=$(ls scripts/phase${phase}-*.sh scripts/phase${phase}-*.py 2>/dev/null | head -1 || true)
