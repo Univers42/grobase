@@ -81,8 +81,11 @@ ENTERPRISE_BATTERY=(
   m139  # fine-grained ABAC: api-key callers under the PDP (same mask as JWT; flag-OFF byte-parity)
   m141  # compliance posture honest+provable (audit-chain spine + GDPR routes + no dangling evidence)
   m143  # framework cross-walks complete+honest (SOC2 CC1-9 + GDPR articles + all 93 ISO Annex A controls)
-  m144  # public /security page parity with posture.json (no 'certified' overclaim; RFC9116 security.txt)
-  m145  # cost model: measured RAM vs artifacts · positive margins · formula-consistent · site/packages lockstep
+  # m144 (trust-page parity) and m145 (cost-model artifact lockstep) are intentionally
+  # NOT in the CI battery: they validate the marketing site (site/ — gitignored in this
+  # repo) and the measured bench artifacts (mini-baas-infra/artifacts/ — produced by
+  # make bench-*, not committed). Neither is present in a fresh checkout, so they only
+  # run locally / at release time: bash scripts/verify/m144-*.sh · m145-*.sh
 )
 
 # Cheapest high-signal subset for the per-PR path. m102 (live gateway) is run
