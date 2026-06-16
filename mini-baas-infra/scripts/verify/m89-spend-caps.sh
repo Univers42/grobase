@@ -67,7 +67,7 @@ fail()  { red "[M89] FAIL — $*"; exit 1; }
 
 REDIS_IMAGE="${M89_REDIS_IMAGE:-redis:7-alpine}"
 PG_IMAGE="${M89_PG_IMAGE:-postgres:16-alpine}"
-GO_IMAGE="${M89_GO_IMAGE:-golang:1.24}"
+GO_IMAGE="${M89_GO_IMAGE:-golang:1.25}"
 ORCH_IMG="m89-orch-$$:scratch"
 NET="m89net-$$"
 PG="m89-pg-$$"
