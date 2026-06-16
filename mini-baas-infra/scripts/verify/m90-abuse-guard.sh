@@ -181,7 +181,7 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3060" "${TC_IMG}" >/dev/null
 wait_ready "${TC_ON}" "${PORT_ON}" || fail "ENABLED tenant-control not ready"
-docker logs "${TC_ON}" 2>&1 | grep -q "abuse guard enabled" \
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "abuse guard enabled" \
   || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "abuse guard never reported enabled"; }
 ok "tenant-control up with abuse guard mounted (/v1/abuse/*)"
 
@@ -228,7 +228,7 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3060" "${TC_IMG}" >/dev/null
 wait_ready "${TC_OFF}" "${PORT_OFF}" || fail "PARITY tenant-control not ready"
-docker logs "${TC_OFF}" 2>&1 | grep -q "abuse guard disabled" \
+{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "abuse guard disabled" \
   || { docker logs "${TC_OFF}" 2>&1 | tail -20; fail "OFF tenant-control did not report abuse guard disabled (flag default not OFF?)"; }
 CODE="$(admit "${PORT_OFF}" "${TENANT}" project_create)"
 [[ "${CODE}" == "404" ]] \

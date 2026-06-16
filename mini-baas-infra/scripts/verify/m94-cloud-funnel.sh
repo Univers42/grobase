@@ -146,6 +146,9 @@ CUS="cus_m94_${RUNID}"            # the funnel tenant's Stripe customer
 BODY_TMP="$(mktemp)"
 EVENTS_TMP="$(mktemp)"
 KONG_YML="$(mktemp /tmp/m94-kong-${RUNID}.XXXXXX.yml)"
+# Kong runs non-root; make the bind-mounted declarative config world-readable so a
+# CI runner whose UID differs from the container kong user can still read it.
+chmod 644 "$KONG_YML"
 
 cleanup() {
   docker rm -fv "${KONG}" "${DPR}" "${ORCH}" "${TC}" "${MOCK}" "${PG}" "${REDIS}" >/dev/null 2>&1 || true
@@ -225,7 +228,7 @@ wait_mock(){ wait_http "$1" "http://127.0.0.1:$2/_health"; }
 
 wait_log() { # $1=container $2=needle $3=tries
   for i in $(seq 1 "${3:-60}"); do
-    docker logs "$1" 2>&1 | grep -q "$2" && return 0
+    { docker logs "$1" 2>&1 || true; } | grep -q "$2" && return 0
     docker inspect "$1" >/dev/null 2>&1 || return 1
     sleep 0.5
   done
@@ -420,7 +423,7 @@ docker run -d --name "${TC}" --network "${NET}" --network-alias tenant-control \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_TC}:${TC_PORT}" "${TC_IMG}" >/dev/null
 wait_tc "${TC}" "${PORT_TC}" || fail "ENABLED tenant-control not ready"
-docker logs "${TC}" 2>&1 | grep -q "abuse guard enabled" \
+{ docker logs "${TC}" 2>&1 || true; } | grep -q "abuse guard enabled" \
   || { docker logs "${TC}" 2>&1 | tail -20; fail "abuse guard never reported enabled"; }
 ok "tenant-control up (self-serve + abuse guard mounted)"
 
@@ -633,9 +636,9 @@ docker run -d --name "${PTC}" --network "${PNET}" \
 wait_dpr "${PDPR}" "${PORT_PDPR}" || fail "[PARITY] data-plane-router not ready"
 wait_tc  "${PTC}"  "${PORT_PTC}"  || fail "[PARITY] tenant-control not ready"
 wait_mock "${PMOCK}" "${PORT_PMOCK}" || fail "[PARITY] stripe-mock not ready"
-docker logs "${PTC}" 2>&1 | grep -q "abuse guard disabled" \
+{ docker logs "${PTC}" 2>&1 || true; } | grep -q "abuse guard disabled" \
   || { docker logs "${PTC}" 2>&1 | tail -20; fail "[PARITY] tenant-control did not report abuse guard disabled (flag default not OFF?)"; }
-docker logs "${PORCH}" 2>&1 | grep -q "billing disabled" \
+{ docker logs "${PORCH}" 2>&1 || true; } | grep -q "billing disabled" \
   || { docker logs "${PORCH}" 2>&1 | tail -20; fail "[PARITY] orchestrator did not report billing disabled (flag default not OFF?)"; }
 ok "[PARITY] all four services up with cloud flags UNSET (the byte-parity baseline)"
 

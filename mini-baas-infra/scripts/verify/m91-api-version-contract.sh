@@ -77,6 +77,9 @@ PORT_KONG_BASE="${M91_PORT_KONG_BASE:-18998}"
 HDR_TMP="$(mktemp)"
 KONG_DEP_YML="$(mktemp /tmp/m91-kong-dep-$$.XXXXXX.yml)"
 KONG_BASE_YML="$(mktemp /tmp/m91-kong-base-$$.XXXXXX.yml)"
+# Kong runs as a non-root user; a 0600 mktemp file is unreadable when bind-mounted
+# on a runner whose UID differs from the container's kong user (CI). Make readable.
+chmod 644 "$KONG_DEP_YML" "$KONG_BASE_YML"
 
 # A Sunset instant STRICTLY in the future (the contract: a valid future date).
 # Compute it dynamically so the gate never goes stale: now + ~365 days, RFC 1123.
