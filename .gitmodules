@@ -15,4 +15,4 @@
 	url = https://github.com/Melvynx/ui.git
 [submodule "docker/services/realtime/realtime-agnostic"]
 	path = docker/services/realtime/realtime-agnostic
-	url = git@github.com:Univers42/realtime-agnostic.git
+	url = https://github.com/Univers42/realtime-agnostic.git
