@@ -54,19 +54,42 @@ jobs:
           printf '%s\0' "${shfiles[@]}" | xargs -0 shellcheck -S error -e SC1091 -e SC2034 -e SC1128
           echo "shellcheck passed on ${#shfiles[@]} files"
 
-  # ─── Job 2: Docker build (no-cache) for all services ──────────
+  # ─── Job 2: Docker build for each service ──────────────────────
+  # Build contexts live under mini-baas-infra/. NestJS apps build from src/ with
+  # an APP build-arg; the Go control plane from go/control-plane/ with APP+PORT;
+  # the Rust data plane from its own dir. (The old flat ./docker/services/<svc>
+  # layout never existed for these — every run errored "context not found".)
   docker-build:
     name: Build ${{ matrix.service }}
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
-        service:
-          - mongo-api
-          - adapter-registry
-          - query-router
-          - email-service
-          - storage-router
+        include:
+          - service: mongo-api
+            context: mini-baas-infra/src
+            build-args: |
+              APP=mongo-api
+          - service: query-router
+            context: mini-baas-infra/src
+            build-args: |
+              APP=query-router
+          - service: email-service
+            context: mini-baas-infra/src
+            build-args: |
+              APP=email-service
+          - service: storage-router
+            context: mini-baas-infra/src
+            build-args: |
+              APP=storage-router
+          - service: adapter-registry
+            context: mini-baas-infra/go/control-plane
+            build-args: |
+              APP=adapter-registry
+              PORT=3021
+          - service: data-plane-router   # Rust — slow cold build (minutes)
+            context: mini-baas-infra/docker/services/data-plane-router
+            build-args: ""
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
@@ -75,17 +98,17 @@ jobs:
       - name: Restore Docker layer cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
-          path: /tmp/.buildx-cache
+          path: /tmp/.buildx-cache/${{ matrix.service }}
           key: buildx-${{ matrix.service }}-${{ github.sha }}
           restore-keys: |
             buildx-${{ matrix.service }}-
 
-      - name: Build ${{ matrix.service }} (no-cache)
+      - name: Build ${{ matrix.service }}
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
-          context: ./docker/services/${{ matrix.service }}
+          context: ${{ matrix.context }}
+          build-args: ${{ matrix.build-args }}
           push: false
-          no-cache: true
           tags: mini-baas/${{ matrix.service }}:ci-${{ github.sha }}
           cache-from: type=local,src=/tmp/.buildx-cache/${{ matrix.service }}
           cache-to: type=local,dest=/tmp/.buildx-cache-new/${{ matrix.service }},mode=max
