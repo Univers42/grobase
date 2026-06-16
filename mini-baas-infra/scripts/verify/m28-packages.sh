@@ -55,10 +55,10 @@ pass "package manifest is the single source of truth (config == embed)"
 
 # ── 2. control-plane gating logic (Go) ──────────────────────────────────────
 step "control plane: package manifest engine-allowlist + quota + alias logic"
-if docker image inspect golang:1.24-bookworm >/dev/null 2>&1 || docker pull -q golang:1.24-bookworm >/dev/null 2>&1; then
+if docker image inspect golang:1.25-bookworm >/dev/null 2>&1 || docker pull -q golang:1.25-bookworm >/dev/null 2>&1; then
   docker run --rm -v "${BAAS_DIR}/go/control-plane:/src" -w /src \
     -v mini-baas-go-build-cache:/root/.cache/go-build -v mini-baas-go-mod-cache:/go/pkg/mod \
-    golang:1.24-bookworm go test ./internal/packages/ >/dev/null 2>&1 \
+    golang:1.25-bookworm go test ./internal/packages/ >/dev/null 2>&1 \
     || fail "go test ./internal/packages failed (engine gating / aliases / overrides)"
   pass "manifest resolves tiers (free→nano, enterprise→max), gates engines + mount quota"
 else
