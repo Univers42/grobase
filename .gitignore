@@ -370,3 +370,7 @@ pyrightconfig.json
 # Local development TLS certificates generated for track-binocle Astro HTTPS.
 certs/*
 !certs/.gitkeep
+
+# Migration debris: orphan embedded git repo (gitlink) left by the monorepo
+# extraction. De-tracked from the index; kept ignored so it can't be re-added.
+/grobase/
