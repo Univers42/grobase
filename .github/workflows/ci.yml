@@ -124,60 +124,88 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: [shellcheck, docker-build]
-    timeout-minutes: 20
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: mini-baas-infra
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Generate CI environment
-        run: bash scripts/generate-env.sh .env
+        run: FORCE=1 bash scripts/generate-env.sh .env
 
       - name: Build and start core stack
         run: |
           set -euo pipefail
           docker compose -f docker-compose.yml build
           docker compose -f docker-compose.yml up -d
+          # Mongo path for phases 14/15 — start the data-plane mongo services BY NAME
+          # so realtime (same profile, builds from the SSH submodule) is never pulled.
+          docker compose -f docker-compose.yml up -d mongo-keyfile mongo mongo-init mongo-api
 
-      - name: Wait for gateway health (max 120s)
+      - name: Apply PostgreSQL migrations
         run: |
           set -euo pipefail
-          APIKEY=$(grep KONG_PUBLIC_API_KEY .env | cut -d= -f2)
-          elapsed=0
-          while [ "$elapsed" -lt 120 ]; do
-            code=$(curl -sS -o /dev/null -w '%{http_code}' \
-              http://localhost:8000/auth/v1/health \
-              -H "apikey: $APIKEY" 2>/dev/null || echo "000")
-            if [ "$code" = "200" ]; then
-              echo "✓ Gateway healthy after ${elapsed}s"
-              exit 0
-            fi
-            sleep 2
-            elapsed=$((elapsed + 2))
+          # phases 3/4 query /rest/v1/users; public.users lives in 001_initial_schema.
+          # db-bootstrap only seeds tenant_databases/schema_registry, so apply the
+          # numbered migrations the way `make migrate` does (strip # comment lines).
+          until docker compose -f docker-compose.yml exec -T postgres pg_isready -U postgres -d postgres >/dev/null 2>&1; do sleep 2; done
+          for f in $(ls -1 scripts/migrations/postgresql/*.sql 2>/dev/null | sort); do
+            echo "Applying: $f"
+            sed '/^#/d' "$f" | docker compose -f docker-compose.yml exec -T postgres \
+              psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f -
           done
-          echo "✗ Gateway health check failed after 120s"
-          docker compose -f docker-compose.yml logs --tail=80
-          exit 1
+
+      - name: Wait for gateway + mongo-api health (max 150s each)
+        run: |
+          set -euo pipefail
+          APIKEY=$(grep '^KONG_PUBLIC_API_KEY=' .env | cut -d= -f2-)
+          wait_200() {
+            local url="$1" name="$2" elapsed=0 code=000
+            while [ "$elapsed" -lt 150 ]; do
+              code=$(curl -sS -o /dev/null -w '%{http_code}' "$url" -H "apikey: $APIKEY" 2>/dev/null || echo 000)
+              [ "$code" = "200" ] && { echo "$name healthy after ${elapsed}s"; return 0; }
+              sleep 3; elapsed=$((elapsed + 3))
+            done
+            echo "$name health check failed after 150s (last=$code)"
+            docker compose -f docker-compose.yml ps
+            docker compose -f docker-compose.yml logs --tail=120
+            return 1
+          }
+          wait_200 http://localhost:8000/auth/v1/health gateway
+          wait_200 http://localhost:8000/mongo/v1/health mongo-api
 
       - name: Run test phases 1-4, 14, 15
         env:
           FORCE_COLORS: "0"
         run: |
           set -euo pipefail
+          APIKEY=$(grep '^KONG_PUBLIC_API_KEY=' .env | cut -d= -f2-)
+          export APIKEY PUBLIC_APIKEY="$APIKEY" BASE_URL="http://localhost:8000"
           rc_all=0
           for phase in 1 2 3 4 14 15; do
             script=$(ls scripts/phase${phase}-*.sh scripts/phase${phase}-*.py 2>/dev/null | head -1 || true)
             if [ -z "$script" ]; then
-              echo "⚠ No test script for phase ${phase}, skipping"
-              continue
+              echo "No test script for phase ${phase}, skipping"; continue
             fi
-            echo "═══ Running: $script ═══"
+            echo "=== Running: $script ==="
             case "$script" in
               *.py) python3 "$script" || rc_all=1 ;;
               *)    bash    "$script" || rc_all=1 ;;
             esac
             sleep 1
           done
-          [ "$rc_all" -eq 0 ] || { echo "✗ Some test phases failed"; exit 1; }
-          echo "✓ All test phases passed"
+          [ "$rc_all" -eq 0 ] || { echo "Some test phases failed"; exit 1; }
+          echo "All test phases passed"
+
+      - name: Gateway query-path regression gate (m102)
+        env:
+          BASE_URL: http://localhost:8000
+        run: |
+          set -euo pipefail
+          M102_APIKEY="$(grep '^KONG_PUBLIC_API_KEY=' .env | cut -d= -f2-)"
+          export M102_APIKEY
+          bash scripts/verify/m102-gateway-query-path.sh
 
       - name: Capture compose logs
         if: always()
@@ -191,7 +219,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-artifacts-${{ github.run_id }}
-          path: artifacts/
+          path: mini-baas-infra/artifacts/
           retention-days: 7
 
       - name: Teardown stack
