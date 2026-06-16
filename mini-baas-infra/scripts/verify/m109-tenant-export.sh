@@ -100,7 +100,9 @@ TENANT_B="m109-b-$$"             # schema_per_tenant, the OTHER tenant (must NOT
 TENANT_SR="m109-sr-$$"           # shared_rls, positive + cross-tenant base
 TENANT_SR2="m109-sr2-$$"         # shared_rls, the OTHER tenant in the SAME shared table
 TENANT_D="m109-d-$$"             # db_per_tenant -> export must 400 (deferred)
-ARTIFACT_DIR="${M109_ARTIFACT_DIR:-/mnt/storage/bench/m109-exports-$$}"
+# Prefer the bench mount if present (dev machines); fall back to a portable temp
+# dir so the gate also runs on a CI runner that has no /mnt/storage.
+ARTIFACT_DIR="${M109_ARTIFACT_DIR:-$([ -d /mnt/storage/bench ] && echo /mnt/storage/bench || echo "${TMPDIR:-/tmp}")/m109-exports-$$}"
 ROWS_A=100
 ROWS_B=50
 ROWS_SR=30

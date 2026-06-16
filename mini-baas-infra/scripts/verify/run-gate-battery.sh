@@ -171,11 +171,15 @@ for i in "${!SCRIPTS[@]}"; do
     red "    FAIL ${name} (rc=${rc}, ${g_dur}s) — log: ${log}"
     RESULTS+=("FAIL  ${name}  ${g_dur}s  rc=${rc}")
     overall_rc=$rc
-    # fail-fast: the remaining gates are recorded as SKIPPED for the summary.
-    for j in $(seq $((i + 1)) $(( ${#SCRIPTS[@]} - 1 )) ); do
-      RESULTS+=("SKIP  ${NAMES[$j]}  (not run — earlier gate failed)")
-    done
-    break
+    if [ "${BATTERY_KEEP_GOING:-0}" != "1" ]; then
+      # fail-fast (default): record the remaining gates as SKIPPED and stop.
+      # Set BATTERY_KEEP_GOING=1 to run every gate and report all failures (CI uses
+      # this so one run surfaces every environment issue instead of one-at-a-time).
+      for j in $(seq $((i + 1)) $(( ${#SCRIPTS[@]} - 1 )) ); do
+        RESULTS+=("SKIP  ${NAMES[$j]}  (not run — earlier gate failed)")
+      done
+      break
+    fi
   fi
 done
 
