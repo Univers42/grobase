@@ -61,7 +61,7 @@ blue()  { printf '%s%s%s\n' "$C_B" "$*" "$C_0"; }
 # here: it needs a LIVE Kong gateway and is already gated in CI's per-PR
 # integration-tests job, not in this self-contained battery.
 ENTERPRISE_BATTERY=(
-  m101  # quota-truth (real-tenant billing gate; supersedes the vacuous m80)
+  m101-quota-realtenant  # quota-truth (real-tenant billing gate; supersedes the vacuous m80)
   m103  # orgs / RBAC
   m104  # tamper-evident audit chain
   m105  # hard-erase (GDPR right-to-be-forgotten)
@@ -90,7 +90,7 @@ ENTERPRISE_BATTERY=(
 # that catch the highest-blast-radius regressions cheaply: billing/quota truth
 # and the data-plane spend/suspend enforcement that protects the cloud edition.
 FAST_SUBSET=(
-  m101  # quota-truth — billing correctness; a silent break loses real money
+  m101-quota-realtenant  # quota-truth — billing correctness; a silent break loses real money
   m120  # spend/suspend enforcement on the request path
 )
 
