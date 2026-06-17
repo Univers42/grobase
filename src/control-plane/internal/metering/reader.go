@@ -90,7 +90,7 @@ func (r *Reader) Aggregate(ctx context.Context, tenantID, metric string, from, t
 		Metrics:  make([]MetricAgg, 0),
 	}
 	rows, err := r.db.AdminQuery(ctx, aggregateSQL,
-		tenantID, nullableStr(metric), shared.NullableTime(from), shared.NullableTime(to))
+		tenantID, shared.NullableStr(metric), shared.NullableTime(from), shared.NullableTime(to))
 	if err != nil {
 		return resp, err
 	}
@@ -107,14 +107,6 @@ func (r *Reader) Aggregate(ctx context.Context, tenantID, metric string, from, t
 		return resp, err
 	}
 	return resp, nil
-}
-
-// nullableStr maps an empty filter to SQL NULL (no filter).
-func nullableStr(s string) any {
-	if s == "" {
-		return nil
-	}
-	return s
 }
 
 // rfc3339OrEmpty renders a bound for the echoed window ("" when unbounded).

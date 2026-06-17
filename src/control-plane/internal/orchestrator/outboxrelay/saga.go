@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 	"github.com/jackc/pgx/v5"
 	redis "github.com/redis/go-redis/v9"
 )
@@ -51,7 +52,7 @@ func (s *Service) sagaCompensate(ctx context.Context, tx pgx.Tx, e *outboxEvent)
 		   (aggregate, aggregate_id, event_type, payload, request_id, actor_id, status, saga_state)
 		 VALUES ($1, $2, $3, $4::jsonb, $5, $6, 'pending', 'compensating')`,
 		e.Aggregate, e.AggregateID, e.EventType+".compensate", string(comp),
-		nullable(e.RequestID), nullable(e.ActorID))
+		shared.NullableStr(e.RequestID), shared.NullableStr(e.ActorID))
 	if err == nil {
 		s.log.Warn("scheduled compensation", "event", e.ID)
 	}
@@ -66,11 +67,4 @@ func objectJSON(raw json.RawMessage) json.RawMessage {
 		return raw
 	}
 	return nil
-}
-
-func nullable(s string) any {
-	if s == "" {
-		return nil
-	}
-	return s
 }

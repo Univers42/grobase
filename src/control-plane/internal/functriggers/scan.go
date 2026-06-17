@@ -37,10 +37,3 @@ func coalesceStrSlice(s []string, fallback string) []string {
 	}
 	return s
 }
-
-func nullableStrSlice(s []string) any {
-	if s == nil {
-		return nil
-	}
-	return s
-}

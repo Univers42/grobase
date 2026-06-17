@@ -32,6 +32,44 @@ func TestIsUniqueViolation(t *testing.T) {
 	}
 }
 
+func TestNullableStr(t *testing.T) {
+	if NullableStr("") != nil {
+		t.Fatal("empty string must map to nil")
+	}
+	if got := NullableStr("x"); got != "x" {
+		t.Fatalf("non-empty must pass through, got %v", got)
+	}
+	if got := NullableStr("   "); got != "   " {
+		t.Fatalf("whitespace must NOT be trimmed (passes through), got %q", got)
+	}
+}
+
+func TestNullableInt(t *testing.T) {
+	if NullableInt(0) != nil {
+		t.Fatal("zero must map to nil")
+	}
+	for _, n := range []int{1, -1, 1 << 30} {
+		if got := NullableInt(n); got != n {
+			t.Fatalf("non-zero %d must pass through, got %v", n, got)
+		}
+	}
+}
+
+func TestNullableStrSlice(t *testing.T) {
+	if NullableStrSlice(nil) != nil {
+		t.Fatal("nil slice must map to nil")
+	}
+	empty := []string{}
+	if got := NullableStrSlice(empty); got == nil {
+		t.Fatal("empty (non-nil) slice must pass through, not become nil")
+	}
+	in := []string{"a", "b"}
+	got, ok := NullableStrSlice(in).([]string)
+	if !ok || len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Fatalf("non-empty slice must pass through unchanged, got %v", NullableStrSlice(in))
+	}
+}
+
 func TestNullableTime(t *testing.T) {
 	if NullableTime(time.Time{}) != nil {
 		t.Fatal("zero time must map to nil")

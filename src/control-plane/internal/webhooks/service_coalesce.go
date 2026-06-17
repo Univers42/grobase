@@ -16,13 +16,6 @@ func coalesceStrSlice(s []string, fallback string) []string {
 	return s
 }
 
-func nullableStrSlice(s []string) any {
-	if s == nil {
-		return nil
-	}
-	return s
-}
-
 func nullableHeaders(m map[string]string) any {
 	if m == nil {
 		return nil

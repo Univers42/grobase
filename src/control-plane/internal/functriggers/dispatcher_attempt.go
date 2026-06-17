@@ -3,6 +3,8 @@ package functriggers
 import (
 	"context"
 	"time"
+
+	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 )
 
 func (d *Dispatcher) recordAttempt(ctx context.Context,
@@ -34,7 +36,7 @@ func (d *Dispatcher) recordDead(ctx context.Context, triggerID, eventID string, 
 		   SET status = 'dead', attempts = $3, last_status_code = $4,
 		       last_error = $5
 		 WHERE trigger_id = $1::uuid AND event_id = $2`,
-		triggerID, eventID, attempts, nullInt(statusCode), errMsg)
+		triggerID, eventID, attempts, shared.NullableInt(statusCode), errMsg)
 	d.log.Warn("function delivery moved to DLQ", "trigger", triggerID, "event", eventID, "attempts", attempts)
 }
 
@@ -45,5 +47,5 @@ func (d *Dispatcher) recordPending(ctx context.Context, triggerID, eventID strin
 		   SET status = 'pending', attempts = $3, last_status_code = $4,
 		       last_error = $5, next_attempt_at = $6
 		 WHERE trigger_id = $1::uuid AND event_id = $2`,
-		triggerID, eventID, attempts, nullInt(statusCode), errMsg, next)
+		triggerID, eventID, attempts, shared.NullableInt(statusCode), errMsg, next)
 }

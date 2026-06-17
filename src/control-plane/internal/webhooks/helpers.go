@@ -21,10 +21,3 @@ func stringFromPayload(p map[string]any, key string) string {
 	}
 	return ""
 }
-
-func nullInt(n int) any {
-	if n == 0 {
-		return nil
-	}
-	return n
-}

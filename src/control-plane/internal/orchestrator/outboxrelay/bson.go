@@ -10,16 +10,6 @@ func asObject(v any) map[string]any {
 	return nil
 }
 
-// nullableValue maps "" → nil so an absent request_id is written as BSON null
-// (parity with the Node `request_id: event.request_id` when null), consistent
-// with realtimeBody and saga.go's nullable().
-func nullableValue(s string) any {
-	if s == "" {
-		return nil
-	}
-	return s
-}
-
 // bsonValue passes JSON-decoded values through. json.Unmarshal already yields
 // driver-friendly Go types (map[string]any, []any, float64, string, bool, nil),
 // so no conversion is needed; the indirection is a single seam for any future

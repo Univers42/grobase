@@ -34,15 +34,6 @@ var ErrMountQuotaExceeded = errors.New("tenant has reached its package mount quo
 // them. A no-op when tiering is disabled or the tenant's tier is not max.
 var ErrPlaintextDsnForbidden = errors.New("security_mode=max forbids an inline plaintext connection_string; register a credential_ref instead")
 
-// derefStr returns the pointed-to string, or "" for a nil pointer (a NULL
-// column). Used to flatten the nullable cred_* columns into the wire struct.
-func derefStr(p *string) string {
-	if p == nil {
-		return ""
-	}
-	return *p
-}
-
 // Service implements the adapter-registry control-plane logic.
 type Service struct {
 	db   *shared.Postgres

@@ -9,7 +9,7 @@ import (
 )
 
 func (rt *routes) create(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := requireTenant(w, r)
+	tenantID, ok := shared.RequireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -34,7 +34,7 @@ func (rt *routes) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *routes) list(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := requireTenant(w, r)
+	tenantID, ok := shared.RequireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -47,7 +47,7 @@ func (rt *routes) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *routes) findOne(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := requireTenant(w, r)
+	tenantID, ok := shared.RequireTenant(w, r)
 	if !ok {
 		return
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -76,7 +77,7 @@ func updateSubscriptionRow(ctx context.Context, tx pgx.Tx, id string, req Update
 		           created_at::text, updated_at::text`,
 		id,
 		req.URL, req.Secret,
-		nullableStrSlice(req.EventTypes), nullableStrSlice(req.Aggregates),
+		shared.NullableStrSlice(req.EventTypes), shared.NullableStrSlice(req.Aggregates),
 		req.Active, nullableHeaders(req.Headers),
 		req.MaxAttempts, req.TimeoutMs,
 	)

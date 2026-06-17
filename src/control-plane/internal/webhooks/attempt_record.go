@@ -42,7 +42,7 @@ func (d *Dispatcher) recordDead(ctx context.Context,
 		   SET status = 'dead', attempts = $3, last_status_code = $4,
 		       last_error = $5
 		 WHERE subscription_id = $1::uuid AND event_id = $2`,
-		subscriptionID, eventID, attempts, nullInt(statusCode), errMsg)
+		subscriptionID, eventID, attempts, shared.NullableInt(statusCode), errMsg)
 	shared.IncCounter("baas_webhook_deliveries_total", deliveryOutcomeHelp, "outcome", "dead")
 	d.log.Warn("delivery moved to DLQ", "sub", subscriptionID, "event", eventID, "attempts", attempts)
 }
@@ -56,5 +56,5 @@ func (d *Dispatcher) recordRetry(ctx context.Context,
 		   SET status = 'pending', attempts = $3, last_status_code = $4,
 		       last_error = $5, next_attempt_at = $6
 		 WHERE subscription_id = $1::uuid AND event_id = $2`,
-		subscriptionID, eventID, attempts, nullInt(statusCode), errMsg, next)
+		subscriptionID, eventID, attempts, shared.NullableInt(statusCode), errMsg, next)
 }

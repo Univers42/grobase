@@ -38,14 +38,3 @@ func handleLookup(w http.ResponseWriter, err error) bool {
 	}
 	return true
 }
-
-func requireTenant(w http.ResponseWriter, r *http.Request) (string, bool) {
-	for _, h := range []string{"X-Baas-Tenant-Id", "X-Baas-User-Id", "X-Tenant-Id", "X-User-Id"} {
-		if v := r.Header.Get(h); v != "" {
-			return v, true
-		}
-	}
-	shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
-		"missing tenant header (X-Baas-Tenant-Id, X-Baas-User-Id, X-Tenant-Id or X-User-Id)")
-	return "", false
-}

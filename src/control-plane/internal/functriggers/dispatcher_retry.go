@@ -58,13 +58,6 @@ func backoff(attempt int) time.Duration {
 	return d
 }
 
-func nullInt(n int) any {
-	if n == 0 {
-		return nil
-	}
-	return n
-}
-
 func minInt(a, b int) int {
 	if a < b {
 		return a

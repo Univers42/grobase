@@ -2,6 +2,7 @@ package shared
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -61,6 +62,33 @@ func FuzzAPIKeyFromRequest(f *testing.F) {
 			t.Fatalf("bearer-sourced key not mbk_-prefixed: %q", got)
 		}
 	})
+}
+
+func TestRequireTenant(t *testing.T) {
+	cases := []struct {
+		name    string
+		headers map[string]string
+		want    string
+		ok      bool
+	}{
+		{"tenant-id wins", map[string]string{"X-Baas-Tenant-Id": "t1", "X-User-Id": "u9"}, "t1", true},
+		{"baas-user-id second", map[string]string{"X-Baas-User-Id": "u2", "X-Tenant-Id": "t9"}, "u2", true},
+		{"tenant-id third", map[string]string{"X-Tenant-Id": "t3"}, "t3", true},
+		{"user-id last", map[string]string{"X-User-Id": "u4"}, "u4", true},
+		{"none -> 401", map[string]string{}, "", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			got, ok := RequireTenant(rec, req(c.headers))
+			if got != c.want || ok != c.ok {
+				t.Fatalf("RequireTenant = (%q,%v), want (%q,%v)", got, ok, c.want, c.ok)
+			}
+			if !ok && rec.Code != http.StatusUnauthorized {
+				t.Fatalf("miss must write 401, got %d", rec.Code)
+			}
+		})
+	}
 }
 
 func TestCutBearer(t *testing.T) {

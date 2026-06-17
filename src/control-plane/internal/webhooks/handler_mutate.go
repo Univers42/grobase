@@ -9,7 +9,7 @@ import (
 )
 
 func (rt *routes) update(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := requireTenant(w, r)
+	tenantID, ok := shared.RequireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -26,7 +26,7 @@ func (rt *routes) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *routes) remove(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := requireTenant(w, r)
+	tenantID, ok := shared.RequireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -37,7 +37,7 @@ func (rt *routes) remove(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *routes) deliveries(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := requireTenant(w, r)
+	tenantID, ok := shared.RequireTenant(w, r)
 	if !ok {
 		return
 	}

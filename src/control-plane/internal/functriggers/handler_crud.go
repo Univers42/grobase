@@ -10,7 +10,7 @@ import (
 )
 
 func (rt *routes) update(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := requireTenant(w, r)
+	tenantID, ok := shared.RequireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -27,7 +27,7 @@ func (rt *routes) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *routes) remove(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := requireTenant(w, r)
+	tenantID, ok := shared.RequireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -38,7 +38,7 @@ func (rt *routes) remove(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *routes) deliveries(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := requireTenant(w, r)
+	tenantID, ok := shared.RequireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -66,15 +66,4 @@ func handleLookup(w http.ResponseWriter, err error) bool {
 		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	}
 	return true
-}
-
-func requireTenant(w http.ResponseWriter, r *http.Request) (string, bool) {
-	for _, h := range []string{"X-Baas-Tenant-Id", "X-Baas-User-Id", "X-Tenant-Id", "X-User-Id"} {
-		if v := r.Header.Get(h); v != "" {
-			return v, true
-		}
-	}
-	shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
-		"missing tenant header (X-Baas-Tenant-Id, X-Baas-User-Id, X-Tenant-Id or X-User-Id)")
-	return "", false
 }

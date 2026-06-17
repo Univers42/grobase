@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -52,12 +53,12 @@ func scanLockedEvent(row pgx.Row) (*outboxEvent, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	e.RequestID = deref(reqID)
-	e.ActorID = deref(actorID)
-	e.TargetEngine = deref(targetEngine)
-	e.TargetResource = deref(targetResource)
-	e.Op = deref(op)
-	e.IdempotencyKey = deref(idem)
+	e.RequestID = shared.DerefStr(reqID)
+	e.ActorID = shared.DerefStr(actorID)
+	e.TargetEngine = shared.DerefStr(targetEngine)
+	e.TargetResource = shared.DerefStr(targetResource)
+	e.Op = shared.DerefStr(op)
+	e.IdempotencyKey = shared.DerefStr(idem)
 	e.CompensationPayload = comp
 	return &e, true, nil
 }

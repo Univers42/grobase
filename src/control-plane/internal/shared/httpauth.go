@@ -29,3 +29,18 @@ func APIKeyFromRequest(r *http.Request) string {
 	}
 	return ""
 }
+
+// RequireTenant resolves the caller's tenant id from the envelope header chain
+// (X-Baas-Tenant-Id → X-Baas-User-Id → X-Tenant-Id → X-User-Id, first non-empty
+// wins). On miss it writes a 401 and returns ok=false, so a handler can early
+// return on `!ok`.
+func RequireTenant(w http.ResponseWriter, r *http.Request) (string, bool) {
+	for _, h := range []string{"X-Baas-Tenant-Id", "X-Baas-User-Id", "X-Tenant-Id", "X-User-Id"} {
+		if v := r.Header.Get(h); v != "" {
+			return v, true
+		}
+	}
+	WriteError(w, http.StatusUnauthorized, "unauthorized",
+		"missing tenant header (X-Baas-Tenant-Id, X-Baas-User-Id, X-Tenant-Id or X-User-Id)")
+	return "", false
+}

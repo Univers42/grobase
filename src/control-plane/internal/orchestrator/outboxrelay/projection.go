@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -56,7 +57,7 @@ func sagaProjection(e *outboxEvent) (bson.M, bson.M) {
 	}
 	set["aggregate_id"] = e.AggregateID
 	set["outbox_event_id"] = e.ID
-	set["request_id"] = nullableValue(e.RequestID)
+	set["request_id"] = shared.NullableStr(e.RequestID) // "" -> BSON null (parity with Node request_id)
 	set["updated_at"] = nowFn()
 	return bson.M{"_id": e.AggregateID}, bson.M{"$set": set}
 }

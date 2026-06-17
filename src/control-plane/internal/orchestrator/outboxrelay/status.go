@@ -48,10 +48,3 @@ func (s *Service) markFailed(ctx context.Context, tx pgx.Tx, e *outboxEvent, cau
 		e.ID, status, nextAttempts, msg)
 	return err
 }
-
-func deref(p *string) string {
-	if p == nil {
-		return ""
-	}
-	return *p
-}

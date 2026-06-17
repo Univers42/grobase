@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -42,7 +43,7 @@ func (s *Service) Update(ctx context.Context, tenantID, id string, req UpdateReq
 			 RETURNING id::text, tenant_id, name, function_name, event_types, aggregates,
 			           enabled, max_attempts, timeout_ms, created_at::text, updated_at::text`,
 			id, req.FunctionName,
-			nullableStrSlice(req.EventTypes), nullableStrSlice(req.Aggregates),
+			shared.NullableStrSlice(req.EventTypes), shared.NullableStrSlice(req.Aggregates),
 			req.Enabled, req.MaxAttempts, req.TimeoutMs,
 		)
 		err := scanTrigger(row, &tr)
