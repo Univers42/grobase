@@ -7,13 +7,17 @@ description: Go refactoring rules
 
 ## Idioms
 
-- Max 40 lines per function
+- Max 40 lines per function — and ≤25 lines per function body, ≤5 funcs per file (repo norm)
 - Accept interfaces, return structs
 - Errors are values — handle them, don't panic
 - No init() unless absolutely forced by a dependency
-- No globals — inject dependencies
+- **No globals — inject dependencies.** No package-level `var`. See [`no-globals.md`](no-globals.md): sentinel errors → const error types, regexes → struct fields / `sync.OnceValue`, lookup tables → switch funcs, mutable state → DI. The *only* permitted package var is a `//go:embed` target.
 - Receiver name: one or two letters, consistent across methods
 - Context is always the first parameter
+
+## Package design
+
+- **Package by domain, not by type.** No `utils`/`common`/`helpers`/`shared`/`misc` catch-alls. See [`go-package-design.md`](go-package-design.md): one package = one capability; ~80% unexported / 20% exported; one source of truth per concept.
 
 ## Hexagonal architecture (project convention)
 
