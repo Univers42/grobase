@@ -55,17 +55,27 @@ pub trait EventBusPublisher: Send + Sync {
     /// Returns `EventBusError` if the bus rejects the event.
     async fn publish(&self, topic: &str, event: &EventEnvelope) -> Result<PublishReceipt>;
 
-    /// Publish multiple events atomically.
+    /// Publish multiple events to the bus.
     ///
     /// # Arguments
     /// * `events` — Slice of `(topic, envelope)` pairs.
     ///
     /// # Errors
-    /// Returns `EventBusError` if any event fails.
+    /// Returns `EventBusError` on the first event the bus rejects.
+    ///
+    /// The default forwards to [`publish`](EventBusPublisher::publish) per
+    /// event; a bus with a native batch path may override it.
+    // ponytail: sequential per-event publish, not atomic — a transactional bus can override for all-or-nothing
     async fn publish_batch(
         &self,
         events: &[(String, EventEnvelope)],
-    ) -> Result<Vec<PublishReceipt>>;
+    ) -> Result<Vec<PublishReceipt>> {
+        let mut receipts = Vec::with_capacity(events.len());
+        for (topic, event) in events {
+            receipts.push(self.publish(topic, event).await?);
+        }
+        Ok(receipts)
+    }
 }
 
 /// Subscriber side of the event bus — receives events.

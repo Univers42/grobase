@@ -99,14 +99,5 @@ impl EventBusPublisher for IrcPublisher {
         })
     }
 
-    async fn publish_batch(
-        &self,
-        events: &[(String, EventEnvelope)],
-    ) -> Result<Vec<PublishReceipt>> {
-        let mut receipts = Vec::with_capacity(events.len());
-        for (topic, event) in events {
-            receipts.push(self.publish(topic, event).await?);
-        }
-        Ok(receipts)
-    }
+    // publish_batch: trait default (forwards to publish per event).
 }
