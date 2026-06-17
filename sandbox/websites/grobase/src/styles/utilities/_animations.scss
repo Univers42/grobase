@@ -1,0 +1,161 @@
+// ── ANIMATIONS — DECORATIVE only. transform/opacity (+ background-position for
+// gradient text) ONLY: no layout work, zero CLS. EVERY keyframe-driven class is
+// behind the prefers-reduced-motion guard. The global `reduce` guard in
+// utilities/_accessibility.scss additionally clamps all of these to ~0ms.
+
+// Scroll-entrance reveal: CSS-only (animation-timeline view()) where supported.
+@keyframes gb-rise {
+	from {
+		opacity: 0;
+		transform: translateY(26px);
+	}
+
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+@supports (animation-timeline: view()) {
+	@media (prefers-reduced-motion: no-preference) {
+		[data-rise] {
+			animation: gb-rise both;
+			animation-timeline: view();
+			animation-range: entry 0% entry 46%;
+		}
+	}
+}
+
+// Legacy slow opacity pulse (still used by the roadmap "building" dot).
+@keyframes gb-pulse {
+	0%,
+	100% {
+		opacity: 0.55;
+	}
+
+	50% {
+		opacity: 1;
+	}
+}
+
+// ── Maximalist keyframes ─────────────────────────────────────────────────────
+@keyframes gb-float {
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+
+	50% {
+		transform: translateY(-14px);
+	}
+}
+
+@keyframes gb-float-reverse {
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+
+	50% {
+		transform: translateY(14px);
+	}
+}
+
+@keyframes gb-pulse-glow {
+	0%,
+	100% {
+		box-shadow:
+			0 0 22px rgb(255 58 242 / 45%),
+			6px 6px 0 var(--gb-a2),
+			12px 12px 0 var(--gb-a5);
+	}
+
+	50% {
+		box-shadow:
+			0 0 40px rgb(255 58 242 / 80%),
+			6px 6px 0 var(--gb-a2),
+			12px 12px 0 var(--gb-a5);
+	}
+}
+
+@keyframes gb-gradient-shift {
+	0% {
+		background-position: 0% 50%;
+	}
+
+	100% {
+		background-position: 250% 50%;
+	}
+}
+
+@keyframes gb-spin-slow {
+	from {
+		transform: rotate(0deg);
+	}
+
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@keyframes gb-wiggle {
+	0%,
+	100% {
+		transform: rotate(-6deg);
+	}
+
+	50% {
+		transform: rotate(6deg);
+	}
+}
+
+@keyframes gb-bounce-subtle {
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+
+	50% {
+		transform: translateY(-6px);
+	}
+}
+
+// ── animate-* classes — all gated to motion-safe. ───────────────────────────
+@media (prefers-reduced-motion: no-preference) {
+	.animate-float {
+		animation: gb-float 6s ease-in-out infinite;
+	}
+
+	.animate-float-reverse {
+		animation: gb-float-reverse 6s ease-in-out infinite;
+	}
+
+	.animate-pulse-glow {
+		animation: gb-pulse-glow 2s var(--gb-ease-out) infinite;
+	}
+
+	.animate-gradient {
+		animation: gb-gradient-shift 4s linear infinite;
+	}
+
+	.animate-spin-slow {
+		animation: gb-spin-slow 20s linear infinite;
+	}
+
+	.animate-wiggle {
+		animation: gb-wiggle 1s ease-in-out infinite;
+	}
+
+	.animate-bounce-subtle {
+		animation: gb-bounce-subtle 2s ease-in-out infinite;
+	}
+
+	// stagger float vs float-reverse on alternating floaters for organic drift.
+	.floater:nth-child(even) {
+		animation: gb-float-reverse 7s ease-in-out infinite;
+	}
+
+	.floater:nth-child(odd) {
+		animation: gb-float 6s ease-in-out infinite;
+	}
+}

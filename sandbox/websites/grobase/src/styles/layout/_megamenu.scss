@@ -1,0 +1,317 @@
+// ── MEGA-MENU — header dropdown panels (liquid-glass surfaces, keyboard-safe).
+//
+// REVEAL LOGIC (three independent triggers, so JS is pure enhancement):
+//   1. .is-open          — set by megamenu.ts on click / hover-intent (desktop).
+//   2. :focus-within     — keyboard + NO-JS baseline: tabbing into the item or its
+//                          panel reveals it; tabbing away hides it.
+//   3. .gb-header__item:hover — CSS hover fallback so a hover works even pre-hydration.
+// All three resolve to the same visible state; the panel is hidden otherwise.
+//
+// The panel spans the bar width (positioned off the sticky .gb-header). Hidden
+// state uses opacity/visibility/transform only — zero layout shift, reduced-motion
+// collapses the transition. The surface is .liquid-glass (premium frosted glass).
+
+// ── DESKTOP PANEL ─────────────────────────────────────────────────────────────
+.gb-mega {
+	position: absolute;
+	left: 50%;
+	top: calc(100% + 0.6rem);
+	width: min(56rem, calc(100vw - 2.5rem));
+	transform: translate(-50%, -0.5rem);
+	padding: 0; // .liquid-glass owns radius/border; inner owns padding
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+	z-index: 35;
+	// premium: deeper frosted blur + a soft accent glow under the glass
+	backdrop-filter: blur(18px);
+	-webkit-backdrop-filter: blur(18px);
+	background: rgb(20 14 38 / 86%);
+	box-shadow:
+		inset 0 1px 1px rgb(255 255 255 / 10%),
+		0 0 40px color-mix(in srgb, var(--gb-a5) 22%, transparent),
+		0 26px 60px rgb(0 0 0 / 55%);
+	transition:
+		opacity var(--gb-dur-fast) var(--gb-ease-out),
+		transform var(--gb-dur-slow) var(--gb-ease-out),
+		visibility 0s linear var(--gb-dur-fast);
+}
+
+// the three reveal triggers (any one shows the panel)
+.gb-mega.is-open,
+.gb-header__item:hover .gb-mega,
+.gb-header__item:focus-within .gb-mega {
+	opacity: 1;
+	visibility: visible;
+	pointer-events: auto;
+	transform: translate(-50%, 0);
+	transition:
+		opacity var(--gb-dur-fast) var(--gb-ease-out),
+		transform var(--gb-dur-slow) var(--gb-ease-out);
+}
+
+.gb-mega__inner {
+	position: relative;
+	z-index: 1;
+	padding: clamp(1.25rem, 2.5vw, 1.9rem);
+}
+
+// "Who is it for?" framing line — eyebrow + restrained heading
+.gb-mega__frame {
+	display: flex;
+	align-items: baseline;
+	gap: 0.6rem;
+	margin: 0 0 1.1rem;
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	font-size: var(--gb-text-lg);
+	color: var(--gb-text);
+}
+
+.gb-mega__eyebrow {
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	font-weight: 700;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	color: var(--gb-a2);
+}
+
+// Solutions = single grid; Resources = grid + feature card (two columns).
+.gb-mega__body--resources {
+	display: grid;
+	gap: clamp(1rem, 2vw, 1.6rem);
+	grid-template-columns: 1fr;
+}
+
+@media (width >= 56rem) {
+	.gb-mega__body--resources {
+		grid-template-columns: 1.4fr 1fr;
+		align-items: stretch;
+	}
+}
+
+// ── ICON GRID (audiences / resources) ─────────────────────────────────────────
+.gb-mega__grid {
+	display: grid;
+	gap: 0.4rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	grid-template-columns: repeat(2, 1fr);
+}
+
+@media (width >= 48rem) {
+	.gb-mega__body--solutions .gb-mega__grid {
+		grid-template-columns: repeat(3, 1fr);
+	}
+}
+
+.gb-mega__card {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.75rem;
+	padding: 0.7rem 0.8rem;
+	border-radius: var(--gb-radius);
+	border: 1px solid transparent;
+	text-decoration: none;
+	color: var(--gb-text);
+	transition:
+		background var(--gb-dur-fast) var(--gb-ease-out),
+		border-color var(--gb-dur-fast) var(--gb-ease-out),
+		transform var(--gb-dur-fast) var(--gb-ease-out);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.gb-mega__card:hover {
+		transform: translateY(-2px);
+	}
+}
+
+.gb-mega__card:hover {
+	background: rgb(255 255 255 / 5%);
+	// --acc comes from .rotate-accents on the parent grid (per-item, no inline style)
+	border-color: color-mix(in srgb, var(--acc) 55%, transparent);
+}
+
+.gb-mega__card:focus-visible {
+	outline: 3px solid var(--gb-a3);
+	outline-offset: 2px;
+	border-radius: var(--gb-radius);
+}
+
+// icon chip — tinted to the rotating accent
+.gb-mega__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: none;
+	width: 2.4rem;
+	height: 2.4rem;
+	border-radius: var(--gb-radius-sm);
+	color: var(--acc);
+	background: color-mix(in srgb, var(--acc) 14%, transparent);
+	border: 1px solid color-mix(in srgb, var(--acc) 40%, transparent);
+	box-shadow: 0 0 14px color-mix(in srgb, var(--acc) 28%, transparent);
+}
+
+.gb-mega__text {
+	display: grid;
+	gap: 0.15rem;
+	min-width: 0;
+}
+
+.gb-mega__label {
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	font-size: var(--gb-text-base);
+	color: var(--gb-text); // white — AAA on the dark glass
+}
+
+.gb-mega__blurb {
+	font-size: var(--gb-text-xs);
+	line-height: 1.4;
+	color: var(--gb-text-faint); // AA on dark
+}
+
+// ── ANNOUNCEMENT FEATURE CARD (Resources, right column) ───────────────────────
+.gb-mega__feature {
+	display: grid;
+	gap: 0.55rem;
+	align-content: start;
+	padding: clamp(1rem, 2vw, 1.4rem);
+	text-decoration: none;
+	color: var(--gb-text);
+	background: rgb(255 255 255 / 3%);
+	transition:
+		transform var(--gb-dur-fast) var(--gb-ease-out),
+		box-shadow var(--gb-dur-fast) var(--gb-ease-out);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.gb-mega__feature:hover {
+		transform: translateY(-3px);
+	}
+}
+
+.gb-mega__feature:hover {
+	box-shadow:
+		inset 0 1px 1px rgb(255 255 255 / 12%),
+		0 0 30px color-mix(in srgb, var(--gb-a1) 30%, transparent);
+}
+
+.gb-mega__feature:focus-visible {
+	outline: 3px solid var(--gb-a3);
+	outline-offset: 2px;
+}
+
+.gb-mega__feature-img {
+	width: 100%;
+	height: auto;
+	aspect-ratio: 16 / 9;
+	object-fit: cover;
+	border-radius: var(--gb-radius);
+	margin-bottom: 0.35rem;
+}
+
+.gb-mega__feature-eyebrow {
+	color: var(--gb-a2);
+}
+
+.gb-mega__feature-title {
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	font-size: var(--gb-text-lg);
+	line-height: 1.15;
+	color: var(--gb-text);
+}
+
+.gb-mega__feature-body {
+	font-size: var(--gb-text-sm);
+	line-height: 1.5;
+	color: var(--gb-text-muted); // AAA on dark
+}
+
+.gb-mega__feature-cta {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	margin-top: 0.2rem;
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-sm);
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--gb-a3); // yellow — AA on dark
+}
+
+.gb-mega__feature:hover .gb-mega__feature-cta .gb-icon {
+	transform: translateX(3px);
+}
+
+.gb-mega__feature-cta .gb-icon {
+	transition: transform var(--gb-dur-fast) var(--gb-ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.gb-mega {
+		transition: opacity var(--gb-dur-fast) linear;
+	}
+}
+
+// ── MOBILE (≤60rem) — panels become inline accordions inside the drawer ───────
+@media (width <= 60rem) {
+	.gb-mega {
+		position: static;
+		left: auto;
+		top: auto;
+		width: 100%;
+		transform: none;
+		// closed accordion = collapsed; opacity/visibility don't reserve space
+		display: grid;
+		grid-template-rows: 0fr;
+		opacity: 0;
+		visibility: hidden;
+		pointer-events: none;
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+		background: transparent;
+		box-shadow: none;
+		border-radius: 0;
+		transition: grid-template-rows var(--gb-dur-fast) var(--gb-ease-out);
+	}
+
+	// disable the .liquid-glass hairline ::before inside the drawer (flat list)
+	.gb-mega::before {
+		display: none;
+	}
+
+	// in the drawer only .is-open (JS) OR :focus-within (keyboard/no-JS) opens it;
+	// NOT :hover (a touch hover would trap the accordion open).
+	.gb-mega.is-open,
+	.gb-header__item:focus-within .gb-mega {
+		grid-template-rows: 1fr;
+		opacity: 1;
+		visibility: visible;
+		pointer-events: auto;
+	}
+
+	.gb-mega__inner {
+		overflow: hidden; // the 0fr/1fr grid row clips the inner during collapse
+		padding: 0.5rem 0.25rem 1rem;
+		min-height: 0;
+	}
+
+	.gb-mega__frame {
+		font-size: var(--gb-text-base);
+		margin-bottom: 0.6rem;
+	}
+
+	.gb-mega__grid {
+		grid-template-columns: 1fr;
+	}
+
+	.gb-mega__body--resources {
+		grid-template-columns: 1fr;
+	}
+}

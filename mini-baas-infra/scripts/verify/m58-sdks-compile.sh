@@ -55,8 +55,8 @@ fail()  { red "[M58] FAIL — $*"; exit 1; }
 
 # BAAS_DIR is mini-baas-infra; the SDKs live one level up under apps/baas/.
 APPS_BAAS_DIR="$(cd "${BAAS_DIR}/.." && pwd)"
-PY_SDK="${APPS_BAAS_DIR}/sdk-python"
-DART_SDK="${APPS_BAAS_DIR}/sdk-dart"
+PY_SDK="${APPS_BAAS_DIR}/sdks/python"
+DART_SDK="${APPS_BAAS_DIR}/sdks/dart"
 SPEC="${BAAS_DIR}/openapi/grobase-public.json"
 PY_IMAGE="python:3.12"
 DART_IMAGE="dart:stable"

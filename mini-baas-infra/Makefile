@@ -490,8 +490,8 @@ nestjs-ci: ## TS: install + typecheck + lint + test (in Docker)
 nestjs-build-%: ## TS: build one app in Docker (e.g. make nestjs-build-query-router)
 	@$(NODE_RUN) sh -c '[ -x node_modules/.bin/nest ] || npm ci --ignore-scripts --prefer-offline --no-audit --no-fund; npx nest build $*'
 
-sdk-test: ## SDK: codegen + build + run the @mini-baas/js node:test suite (in Docker)
-	@docker run --rm -v "$(CURDIR)/..":/repo -w /repo/sdk node:20-bookworm-slim \
+sdk-test: ## SDK: codegen + build + run the @grobase/js node:test suite (in Docker)
+	@docker run --rm -v "$(CURDIR)/..":/repo -w /repo/sdks/js node:20-bookworm-slim \
 		sh -c 'npm ci --no-audit --no-fund && npm run codegen:all && npm run build && npm test'
 
 # ── SonarCloud: coverage reports + scan ──────────────────────────────────────

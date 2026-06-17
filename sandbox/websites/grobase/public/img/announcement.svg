@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Grobase — one backend, any frontend" width="640" height="360">
+  <defs>
+    <linearGradient id="ann-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#120c24"/>
+      <stop offset="0.55" stop-color="#0d0d1a"/>
+      <stop offset="1" stop-color="#1a1330"/>
+    </linearGradient>
+    <radialGradient id="ann-glow-a" cx="0.22" cy="0.28" r="0.6">
+      <stop offset="0" stop-color="#ff3af2" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ff3af2" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ann-glow-b" cx="0.82" cy="0.74" r="0.55">
+      <stop offset="0" stop-color="#00f5d4" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#00f5d4" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ann-glow-c" cx="0.7" cy="0.18" r="0.45">
+      <stop offset="0" stop-color="#7b2fff" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#7b2fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ann-ribbon" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff3af2"/>
+      <stop offset="0.5" stop-color="#ff6b35"/>
+      <stop offset="1" stop-color="#ffe600"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="640" height="360" rx="20" fill="url(#ann-bg)"/>
+  <rect width="640" height="360" rx="20" fill="url(#ann-glow-a)"/>
+  <rect width="640" height="360" rx="20" fill="url(#ann-glow-b)"/>
+  <rect width="640" height="360" rx="20" fill="url(#ann-glow-c)"/>
+  <rect x="1" y="1" width="638" height="358" rx="19" fill="none" stroke="#7b2fff" stroke-opacity="0.35" stroke-width="1.5"/>
+
+  <!-- node graph: one backend, many frontends -->
+  <g stroke-linecap="round">
+    <line x1="320" y1="180" x2="150" y2="96" stroke="#ff3af2" stroke-opacity="0.6" stroke-width="2"/>
+    <line x1="320" y1="180" x2="120" y2="200" stroke="#00f5d4" stroke-opacity="0.6" stroke-width="2"/>
+    <line x1="320" y1="180" x2="170" y2="272" stroke="#ffe600" stroke-opacity="0.55" stroke-width="2"/>
+    <line x1="320" y1="180" x2="500" y2="100" stroke="#ff6b35" stroke-opacity="0.6" stroke-width="2"/>
+    <line x1="320" y1="180" x2="520" y2="196" stroke="#00f5d4" stroke-opacity="0.55" stroke-width="2"/>
+    <line x1="320" y1="180" x2="478" y2="268" stroke="#b388ff" stroke-opacity="0.6" stroke-width="2"/>
+  </g>
+
+  <!-- core node (the backend) -->
+  <circle cx="320" cy="180" r="46" fill="#1a1330" stroke="#ff3af2" stroke-width="2.5"/>
+  <circle cx="320" cy="180" r="46" fill="none" stroke="#00f5d4" stroke-width="1" stroke-opacity="0.4"/>
+  <g stroke="#00f5d4" stroke-width="2.5" stroke-linecap="round" fill="none">
+    <ellipse cx="320" cy="170" rx="20" ry="7"/>
+    <path d="M300 170v18c0 4 9 7 20 7s20-3 20-7v-18"/>
+  </g>
+  <circle cx="320" cy="180" r="60" fill="none" stroke="#ff3af2" stroke-opacity="0.25" stroke-width="1.5"/>
+
+  <!-- satellite frontends -->
+  <g fill="#1a1330">
+    <circle cx="150" cy="96" r="22" stroke="#ff3af2" stroke-width="2.5"/>
+    <circle cx="120" cy="200" r="22" stroke="#00f5d4" stroke-width="2.5"/>
+    <circle cx="170" cy="272" r="20" stroke="#ffe600" stroke-width="2.5"/>
+    <circle cx="500" cy="100" r="22" stroke="#ff6b35" stroke-width="2.5"/>
+    <circle cx="520" cy="196" r="20" stroke="#00f5d4" stroke-width="2.5"/>
+    <circle cx="478" cy="268" r="22" stroke="#b388ff" stroke-width="2.5"/>
+  </g>
+
+  <!-- glyphs inside satellites -->
+  <g stroke-linecap="round" stroke-linejoin="round" fill="none" stroke-width="2.2">
+    <rect x="141" y="89" width="18" height="14" rx="2" stroke="#ff3af2"/>
+    <circle cx="120" cy="200" r="7" stroke="#00f5d4"/>
+    <path d="M162 268l4 5 9-9" stroke="#ffe600"/>
+    <path d="M495 93v14M500 93v14M491 100h18" stroke="#ff6b35"/>
+    <path d="M513 190h14M513 196h14M513 202h9" stroke="#00f5d4"/>
+    <path d="M472 261l6 7 6-7" stroke="#b388ff"/>
+  </g>
+
+  <!-- accent ribbon -->
+  <rect x="40" y="316" width="200" height="6" rx="3" fill="url(#ann-ribbon)"/>
+  <circle cx="248" cy="319" r="4" fill="#ffe600"/>
+</svg>

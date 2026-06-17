@@ -1,0 +1,48 @@
+---
+// The professional comparison matrix. Each column carries data-col + tier--{id}
+// so the selected plan (radio above) highlights its column via CSS :has().
+import { MATRIX, MATRIX_TIERS, type MatrixRow } from '../../data/pricing-matrix';
+
+type FlatItem = { group: string } | { row: MatrixRow };
+const items: FlatItem[] = MATRIX.flatMap((g) => [{ group: g.group } as FlatItem, ...g.rows.map((r) => ({ row: r }) as FlatItem)]);
+const span = MATRIX_TIERS.length + 1;
+---
+
+<div class="gb-table-wrap gb-plan-matrix" data-rise>
+	<table class="gb-table">
+		<caption>
+			Capabilities are enforced in the Rust planner — an operation outside your tier returns
+			<code>403 capability_gated</code>; bursts beyond your token bucket return <code>429</code>. No silent
+			degradation. <strong>Select a plan above to highlight its column.</strong>
+		</caption>
+		<thead>
+			<tr>
+				<th scope="col">Capability</th>
+				{MATRIX_TIERS.map((t) => (
+					<th scope="col" data-col={t.id} class={`tier--${t.id} gb-plan-matrix__th`}>{t.name}</th>
+				))}
+			</tr>
+		</thead>
+		<tbody>
+			{items.map((it) =>
+				'group' in it ? (
+					<tr class="gb-plan-matrix__group">
+						<td colspan={span}>{it.group}</td>
+					</tr>
+				) : (
+					<tr>
+						<th scope="row">{it.row.label}</th>
+						{MATRIX_TIERS.map((t) => {
+							const cell = it.row.cells[t.id];
+							return typeof cell === 'boolean' ? (
+								<td data-col={t.id} class={`tier--${t.id} ${cell ? 'is-yes' : 'is-no'}`}>{cell ? '✓' : '—'}</td>
+							) : (
+								<td data-col={t.id} class={`tier--${t.id} is-num`}>{cell}</td>
+							);
+						})}
+					</tr>
+				),
+			)}
+		</tbody>
+	</table>
+</div>

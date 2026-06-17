@@ -446,7 +446,7 @@ jobs:
   # their generated client. Dart's client (lib/) is gitignored, so we regenerate it
   # from the committed OpenAPI spec with the same generator before testing. Swift
   # targets Apple platforms (imports MobileCoreServices), so it builds on macOS.
-  # JavaScript (@mini-baas/js) is the separate sdk-js-live job — its codegen and
+  # JavaScript (@grobase/js) is the separate sdk-js-live job — its codegen and
   # type-tests need a running stack (the live /query/v1/engines matrix).
   sdk-tests:
     name: SDK ${{ matrix.sdk }}
@@ -470,7 +470,7 @@ jobs:
         with:
           python-version: '3.11'
       - if: matrix.sdk == 'python'
-        working-directory: sdk-python
+        working-directory: sdks/python
         run: |
           python -m pip install --upgrade pip
           pip install -e .
@@ -484,7 +484,7 @@ jobs:
           distribution: temurin
           java-version: '21'
       - if: matrix.sdk == 'kotlin'
-        working-directory: sdk-kotlin
+        working-directory: sdks/kotlin
         run: |
           chmod +x ./gradlew
           ./gradlew build test --no-daemon
@@ -498,17 +498,17 @@ jobs:
           sdk: stable
       - if: matrix.sdk == 'dart'
         run: |
-          docker run --rm -v "$PWD/mini-baas-infra/openapi:/spec:ro" -v "$PWD/sdk-dart:/out" \
+          docker run --rm -v "$PWD/mini-baas-infra/openapi:/spec:ro" -v "$PWD/sdks/dart:/out" \
             openapitools/openapi-generator-cli:latest generate \
             -i /spec/grobase-public.json -g dart -o /out --additional-properties=pubName=grobase
           # `dart analyze` proves the regenerated client compiles + type-checks. The
           # generator's auto-stub tests don't compile under the stable Dart test
           # runner, so they are not a meaningful gate; analyze is the real proof.
-          cd sdk-dart && dart pub get && dart analyze
+          cd sdks/dart && dart pub get && dart analyze
 
       # Swift — Grobase (Apple platforms; macOS runner ships Swift via Xcode).
       - if: matrix.sdk == 'swift'
-        working-directory: sdk-swift
+        working-directory: sdks/swift
         run: swift build
 
   # ─── Job 6: Offers — compile each product shape like a user ─────

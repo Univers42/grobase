@@ -74,7 +74,7 @@ command -v docker  >/dev/null || fail "docker is required (pinned builds)"
 
 # ── inputs / pinned images ───────────────────────────────────────────────────
 SPEC="${BAAS_DIR}/openapi/grobase-public.json"
-KT_SDK="${APPS_BAAS_DIR}/sdk-kotlin"
+KT_SDK="${APPS_BAAS_DIR}/sdks/kotlin"
 # Pinned JVM/Kotlin build image (the slice names gradle:8-jdk17). A digest pin is
 # preferred; the tag is the documented contract and is what the slice specifies.
 GRADLE_IMAGE="gradle:8-jdk17"

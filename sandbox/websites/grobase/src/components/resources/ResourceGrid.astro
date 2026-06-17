@@ -1,0 +1,37 @@
+---
+// ── ResourceGrid — a responsive grid of ResourceCards.
+//
+// Takes a list of resource items and lays them out in a card grid. Accent tints
+// rotate 1→5 by position (computed here, applied as the card's accent prop which
+// becomes an .accent-N class) so the dopamine palette cycles without any inline
+// style attribute. Used by every /resources/* page and the resources hub.
+import ResourceCard from './ResourceCard.astro';
+
+type Item = {
+	icon: string;
+	title: string;
+	body: string;
+	href?: string;
+};
+
+type Props = {
+	items: Item[];
+};
+
+const { items } = Astro.props;
+const accents = [1, 2, 3, 4, 5] as const;
+---
+
+<ul class="gb-rgrid" role="list">
+	{
+		items.map((item, i) => (
+			<ResourceCard
+				icon={item.icon}
+				title={item.title}
+				body={item.body}
+				href={item.href}
+				accent={accents[i % accents.length]}
+			/>
+		))
+	}
+</ul>

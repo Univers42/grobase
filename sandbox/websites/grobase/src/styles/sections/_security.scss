@@ -1,0 +1,828 @@
+// ── SECURITY — the honest security-posture page. Premium-minimal energy MIXED
+// with the maximalist dopamine system: a restrained cinematic hero (deep dark,
+// negative space, one serif-italic accent word, the local dashboard mock with a
+// luminosity blend + bottom fade + scroll parallax), then louder, accent-rich
+// body sections. Every decoration is class-driven (no inline style= — strict
+// hashed CSP), absolute / pseudo (zero CLS), and motion behind reduced-motion.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HERO — premium-minimal & cinematic. The LEAST information possible: a glass
+// pill kicker, a short headline, one lede, one CTA row — over a quiet visual.
+// ─────────────────────────────────────────────────────────────────────────────
+.gb-sec-hero {
+	position: relative;
+	isolation: isolate;
+	overflow: hidden;
+	min-height: calc(100dvh - 4rem);
+	display: grid;
+	align-content: center;
+	padding-block: var(--gb-space-16);
+}
+
+// the background word stays much quieter here than the maximalist pages — premium.
+.gb-sec-hero__bgword {
+	z-index: 0;
+	opacity: 0.045;
+}
+
+.gb-sec-hero__inner {
+	position: relative;
+	z-index: 2;
+	display: grid;
+	gap: var(--gb-space-6);
+	max-width: 40rem; // generous negative space to the right for the visual
+}
+
+// the glass kicker pill — overrides the maximalist .gb-kicker fill with the
+// refined liquid-glass surface (the .liquid-glass ::before draws the hairline).
+.gb-sec-hero__pill {
+	width: fit-content;
+	border: 0; // liquid-glass paints its own hairline border
+	background: rgb(255 255 255 / 3%);
+	color: var(--gb-text);
+	box-shadow: inset 0 1px 1px rgb(255 255 255 / 10%);
+	text-shadow: none;
+	gap: 0.55rem;
+}
+
+.gb-sec-hero__pill .gb-icon {
+	color: var(--gb-a2);
+}
+
+// restrained headline — large but calmer leading than the maximalist hero,
+// and NO stacked text-shadow (premium = clean type). One serif-italic accent.
+.gb-sec-hero__title {
+	max-width: 16ch;
+	font-size: clamp(2.6rem, 1.6rem + 4.6vw, 5.2rem);
+	line-height: 1;
+	letter-spacing: -0.02em;
+	text-shadow: 0 2px 30px rgb(0 0 0 / 45%);
+}
+
+.gb-sec-hero__title em {
+	color: var(--gb-a1);
+}
+
+.gb-sec-hero__lede {
+	max-width: 44ch;
+	color: var(--gb-text-muted);
+}
+
+.gb-sec-hero__ctas {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--gb-space-4);
+	margin-top: var(--gb-space-2);
+}
+
+// ── Cinematic visual — local SVG, luminosity blend, bottom fade, parallax. ────
+// Absolute → zero CLS; pointer-events:none so it never intercepts the CTAs. On
+// wide screens it sits to the right and bleeds off-edge; on narrow it tucks
+// behind the copy at low opacity so the page stays legible.
+.gb-sec-hero__visual {
+	position: absolute;
+	inset-block: 0;
+	right: 0;
+	z-index: 0;
+	width: min(60%, 46rem);
+	display: grid;
+	align-content: center;
+	pointer-events: none;
+	opacity: 0.16; // quiet behind the copy on small screens
+}
+
+.gb-sec-hero__mock {
+	width: 100%;
+	height: auto;
+	border-radius: var(--gb-radius-lg);
+	filter: drop-shadow(0 30px 80px rgb(0 0 0 / 55%));
+}
+
+@media (width >= 960px) {
+	.gb-sec-hero__visual {
+		opacity: 0.6;
+		width: min(52%, 44rem);
+		right: -2%;
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POSTURE GRID — the twelve honest controls. Compact cards, rotating accents,
+// an accent-tinted icon chip. Reuses the maximalist card energy but tighter.
+// ─────────────────────────────────────────────────────────────────────────────
+.gb-sec-grid {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: var(--gb-space-6);
+	grid-template-columns: repeat(auto-fit, minmax(15.5rem, 1fr));
+}
+
+.gb-sec-card {
+	position: relative;
+	display: grid;
+	gap: var(--gb-space-3);
+	align-content: start;
+	padding: var(--gb-space-6);
+	border: 2px solid var(--gb-line-strong);
+	border-top: 4px solid var(--acc);
+	border-radius: var(--gb-radius-lg);
+	background: linear-gradient(160deg, rgb(58 37 102 / 42%), rgb(26 19 48 / 78%));
+	backdrop-filter: blur(8px);
+	box-shadow: 4px 4px 0 color-mix(in srgb, var(--acc) 45%, transparent);
+	transition:
+		transform var(--gb-dur-fast) var(--gb-ease-bounce),
+		box-shadow var(--gb-dur-fast) var(--gb-ease-out),
+		border-color var(--gb-dur-fast) var(--gb-ease-out);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.gb-sec-card:hover {
+		transform: translateY(-4px);
+	}
+}
+
+.gb-sec-card:hover {
+	border-color: var(--acc);
+	box-shadow:
+		0 0 22px color-mix(in srgb, var(--acc) 35%, transparent),
+		6px 6px 0 color-mix(in srgb, var(--acc) 65%, transparent);
+}
+
+// accent-tinted icon chip — square-ish, glass fill, glowing.
+.gb-sec-card__icon {
+	display: grid;
+	place-items: center;
+	width: 3rem;
+	height: 3rem;
+	border-radius: var(--gb-radius);
+	border: 2px solid var(--acc);
+	background: color-mix(in srgb, var(--acc) 12%, transparent);
+	color: var(--acc);
+	box-shadow: 0 0 16px color-mix(in srgb, var(--acc) 35%, transparent);
+}
+
+.gb-sec-card__title {
+	font-size: var(--gb-text-lg);
+	line-height: 1.1;
+	color: #fff;
+}
+
+.gb-sec-card__body {
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-sm);
+	line-height: 1.55;
+	text-transform: none;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEFENSE LAYERS — the request path. A numbered rail down the left, each step a
+// glass panel. The connecting line is a pseudo-element (decorative, zero-CLS).
+// ─────────────────────────────────────────────────────────────────────────────
+.gb-sec-layers {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: var(--gb-space-6);
+}
+
+@media (width >= 820px) {
+	.gb-sec-layers {
+		grid-template-columns: repeat(2, 1fr);
+		gap: var(--gb-space-8) var(--gb-space-12);
+	}
+}
+
+.gb-sec-layer {
+	position: relative;
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: var(--gb-space-6);
+	align-items: start;
+}
+
+// the numbered rail — a fat accent bullet with the connecting line beneath it.
+.gb-sec-layer__rail {
+	position: relative;
+	display: grid;
+	place-items: center;
+	width: 3.2rem;
+	height: 3.2rem;
+	border-radius: 50%;
+	border: 3px solid var(--acc);
+	background: var(--gb-bg-raised);
+	box-shadow: 0 0 18px color-mix(in srgb, var(--acc) 40%, transparent);
+}
+
+.gb-sec-layer__num {
+	font-family: var(--gb-font-mono);
+	font-weight: 700;
+	font-size: var(--gb-text-sm);
+	color: var(--acc);
+}
+
+// vertical connector from one bullet to the next (single-column flow). Hidden in
+// the two-column layout where the steps no longer stack linearly.
+.gb-sec-layer:not(:last-child) .gb-sec-layer__rail::after {
+	content: '';
+	position: absolute;
+	top: 100%;
+	left: 50%;
+	width: 2px;
+	height: var(--gb-space-6);
+	transform: translateX(-50%);
+	background: linear-gradient(var(--acc), transparent);
+	pointer-events: none;
+}
+
+@media (width >= 820px) {
+	.gb-sec-layer .gb-sec-layer__rail::after {
+		display: none;
+	}
+}
+
+.gb-sec-layer__body {
+	display: grid;
+	gap: var(--gb-space-2);
+}
+
+.gb-sec-layer__icon {
+	color: var(--acc);
+}
+
+.gb-sec-layer__stage {
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--acc);
+}
+
+.gb-sec-layer__title {
+	font-size: var(--gb-text-lg);
+	line-height: 1.1;
+	color: #fff;
+}
+
+.gb-sec-layer__text {
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-sm);
+	line-height: 1.55;
+	text-transform: none;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MANIFESTO — the premium scroll-reveal product principle (NOT a testimonial).
+// Big, centred, generous; the giant quote glyph floats behind the words.
+// ─────────────────────────────────────────────────────────────────────────────
+.gb-sec-manifesto {
+	position: relative;
+	max-width: 52rem;
+	margin-inline: auto;
+	text-align: center;
+	display: grid;
+	gap: var(--gb-space-6);
+	justify-items: center;
+}
+
+.gb-sec-manifesto__quote {
+	display: grid;
+	place-items: center;
+	width: 4.5rem;
+	height: 4.5rem;
+	border-radius: 50%;
+	border: 3px solid var(--gb-a1);
+	background: color-mix(in srgb, var(--gb-a1) 10%, transparent);
+	box-shadow: 0 0 26px color-mix(in srgb, var(--gb-a1) 35%, transparent);
+}
+
+// the reveal block — large display type; .reveal-words / __w come from _premium.
+.gb-sec-manifesto .reveal-words {
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	font-size: clamp(1.6rem, 1.1rem + 2.4vw, 3.1rem);
+	line-height: 1.18;
+	letter-spacing: -0.01em;
+	text-transform: none; // manifesto reads as a sentence, not an uppercase head
+	text-wrap: balance;
+}
+
+.gb-sec-manifesto__by {
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-sm);
+	letter-spacing: 0.08em;
+	color: var(--gb-text-faint);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPLIANCE — two columns: what we can evidence (left) + the honest "not yet"
+// callout (right). On narrow screens they stack, honest-note last.
+// ─────────────────────────────────────────────────────────────────────────────
+.gb-sec-compliance {
+	display: grid;
+	gap: var(--gb-space-12);
+	align-items: start;
+}
+
+@media (width >= 920px) {
+	.gb-sec-compliance {
+		grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+	}
+}
+
+.gb-sec-compliance__eyebrow {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-bottom: var(--gb-space-6);
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-sm);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--acc);
+}
+
+.gb-sec-compliance__eyebrow .gb-icon {
+	color: var(--acc);
+}
+
+.gb-sec-haves {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: var(--gb-space-4);
+}
+
+.gb-sec-have {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: var(--gb-space-4);
+	align-items: start;
+	padding: var(--gb-space-4) var(--gb-space-6);
+	border: 1px solid var(--gb-line);
+	border-left: 4px solid var(--acc);
+	border-radius: 0 var(--gb-radius) var(--gb-radius) 0;
+	background: rgb(26 19 48 / 62%);
+}
+
+.gb-sec-have__tick {
+	display: grid;
+	place-items: center;
+	width: 2rem;
+	height: 2rem;
+	border-radius: 50%;
+	border: 2px solid var(--acc);
+	color: var(--acc);
+	box-shadow: 0 0 12px color-mix(in srgb, var(--acc) 35%, transparent);
+}
+
+.gb-sec-have__title {
+	font-size: var(--gb-text-base);
+	color: #fff;
+	text-transform: none;
+}
+
+.gb-sec-have__body {
+	margin-top: 0.2rem;
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-sm);
+	line-height: 1.55;
+}
+
+// the honest "not yet" callout reuses .gb-honesty (left bar + tint + badge).
+.gb-sec-compliance__col--honest .gb-honesty {
+	padding: var(--gb-space-8) var(--gb-space-8);
+}
+
+.gb-sec-notyet {
+	list-style: none;
+	margin: var(--gb-space-4) 0 0;
+	padding: 0;
+	display: grid;
+	gap: var(--gb-space-3);
+}
+
+.gb-sec-notyet li {
+	position: relative;
+	padding-left: 1.6rem;
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-sm);
+	line-height: 1.5;
+}
+
+// a small dash bullet (typographic — not an emoji) in the accent colour.
+.gb-sec-notyet li::before {
+	content: '—';
+	position: absolute;
+	left: 0;
+	color: var(--acc);
+	font-weight: 700;
+}
+
+.gb-sec-notyet__foot {
+	margin-top: var(--gb-space-4);
+	color: var(--gb-text-faint);
+	font-size: var(--gb-text-sm);
+	line-height: 1.55;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DISCLOSURE — the responsible-disclosure block. Three steps + a glass contact
+// card with the mailto CTA. Restrained, premium surface.
+// ─────────────────────────────────────────────────────────────────────────────
+.gb-sec-disclose {
+	display: grid;
+	gap: var(--gb-space-12);
+}
+
+@media (width >= 920px) {
+	.gb-sec-disclose {
+		grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+		align-items: center;
+	}
+}
+
+.gb-sec-disclose__steps {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: var(--gb-space-6);
+}
+
+.gb-sec-disclose__step {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	grid-template-rows: auto auto;
+	column-gap: var(--gb-space-4);
+	align-items: center;
+}
+
+.gb-sec-disclose__icon {
+	grid-row: 1 / 3;
+	display: grid;
+	place-items: center;
+	width: 3rem;
+	height: 3rem;
+	border-radius: var(--gb-radius);
+	border: 2px solid var(--acc);
+	background: color-mix(in srgb, var(--acc) 12%, transparent);
+	color: var(--acc);
+	box-shadow: 0 0 14px color-mix(in srgb, var(--acc) 32%, transparent);
+}
+
+.gb-sec-disclose__title {
+	align-self: end;
+	font-size: var(--gb-text-base);
+	color: #fff;
+	text-transform: none;
+}
+
+.gb-sec-disclose__body {
+	align-self: start;
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-sm);
+	line-height: 1.5;
+}
+
+// the glass contact card — premium surface, centred CTA.
+.gb-sec-disclose__contact {
+	display: grid;
+	gap: var(--gb-space-4);
+	justify-items: start;
+	padding: clamp(1.6rem, 4vw, 2.6rem);
+}
+
+.gb-sec-disclose__eyebrow {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--acc);
+}
+
+.gb-sec-disclose__eyebrow .gb-icon {
+	color: var(--acc);
+}
+
+.gb-sec-disclose__lead {
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	font-size: var(--gb-text-lg);
+	line-height: 1.2;
+	color: #fff;
+}
+
+.gb-sec-disclose__note {
+	color: var(--gb-text-faint);
+	font-size: var(--gb-text-sm);
+	line-height: 1.55;
+}
+
+.gb-sec-disclose__src {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	color: var(--gb-a2);
+	white-space: nowrap;
+}
+
+.gb-sec-disclose__src:hover {
+	color: var(--gb-a1);
+}
+
+// a plain inline disclosure line (security.txt + mailto), under the controls.
+.gb-sec-disclose__inline {
+	margin-top: var(--gb-space-8);
+	max-width: 60ch;
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-base);
+	line-height: 1.6;
+}
+
+.gb-sec-disclose__inline .gb-sec-disclose__src {
+	margin-inline: 0.25rem;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTROL SECTIONS — a titled group of control cards. The heading reads its tint
+// from the section's .accent-N (--acc); each card carries a StatusPill. Reuses
+// .gb-sec-grid / .gb-sec-card from above, extended with a header row + the pill.
+// ─────────────────────────────────────────────────────────────────────────────
+.gb-sec-controls {
+	display: grid;
+	gap: var(--gb-space-8);
+}
+
+.gb-sec-controls + .gb-sec-iso,
+.gb-sec-controls + .gb-sec-controls {
+	margin-top: var(--gb-space-12);
+}
+
+.gb-sec-controls__title {
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	font-size: clamp(1.3rem, 1rem + 1vw, 1.9rem);
+	line-height: 1.15;
+	letter-spacing: -0.01em;
+	color: var(--acc);
+}
+
+// a control card: header row (name + pill), then the honest blurb.
+.gb-sec-card--control {
+	gap: var(--gb-space-4);
+}
+
+.gb-sec-card__top {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--gb-space-3);
+}
+
+.gb-sec-card__top .gb-sec-card__title {
+	margin: 0;
+	flex: 1 1 12ch;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STATUS PILL — Implemented / Partial / Roadmap. NEVER colour-only: the word is
+// real text. AA contrast: text colour is pinned per status against the dark fill
+// (#0d0d1a-ish surface), with a matching dot. Class-driven (no inline style).
+// ─────────────────────────────────────────────────────────────────────────────
+.gb-sec-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	flex: 0 0 auto;
+	padding: 0.28rem 0.7rem;
+	border-radius: var(--gb-radius-pill);
+	border: 1px solid currentColor;
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	line-height: 1;
+	white-space: nowrap;
+}
+
+.gb-sec-pill__dot {
+	width: 0.5rem;
+	height: 0.5rem;
+	border-radius: 50%;
+	background: currentColor;
+	box-shadow: 0 0 8px currentColor;
+}
+
+// Implemented — green. #4ade80 on the dark surface ≈ 9.5:1 (AA/AAA).
+.gb-sec-pill--implemented {
+	color: #4ade80;
+	background: rgb(74 222 128 / 12%);
+}
+
+// Partial — amber/yellow. The brand yellow #ffe600 on dark ≈ 16:1 (AAA).
+.gb-sec-pill--partial {
+	color: #ffe600;
+	background: rgb(255 230 0 / 12%);
+}
+
+// Roadmap — cool blue. #7cc4ff on dark ≈ 8.8:1 (AA/AAA). Distinct from green/amber.
+.gb-sec-pill--planned {
+	color: #7cc4ff;
+	background: rgb(124 196 255 / 12%);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPLIANCE BADGES — three honest framework stances (SOC 2 / ISO 27001 / GDPR).
+// Glass cards, rotating accents; a soft stance line + the honest fine print. NOT
+// hard attestation badges by design — soft framing only.
+// ─────────────────────────────────────────────────────────────────────────────
+.gb-sec-badges {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: var(--gb-space-6);
+	grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+
+.gb-sec-badge {
+	display: grid;
+	gap: var(--gb-space-3);
+	align-content: start;
+	padding: var(--gb-space-8);
+	border: 2px solid var(--gb-line-strong);
+	border-top: 4px solid var(--acc);
+	border-radius: var(--gb-radius-lg);
+	background: linear-gradient(160deg, rgb(58 37 102 / 42%), rgb(26 19 48 / 80%));
+	backdrop-filter: blur(8px);
+	box-shadow: 4px 4px 0 color-mix(in srgb, var(--acc) 45%, transparent);
+}
+
+.gb-sec-badge__icon {
+	display: grid;
+	place-items: center;
+	width: 3rem;
+	height: 3rem;
+	border-radius: var(--gb-radius);
+	border: 2px solid var(--acc);
+	background: color-mix(in srgb, var(--acc) 12%, transparent);
+	color: var(--acc);
+	box-shadow: 0 0 16px color-mix(in srgb, var(--acc) 35%, transparent);
+}
+
+.gb-sec-badge__framework {
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--gb-text-faint);
+}
+
+.gb-sec-badge__stance {
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	font-size: var(--gb-text-lg);
+	line-height: 1.15;
+	color: #fff;
+}
+
+.gb-sec-badge__note {
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-sm);
+	line-height: 1.55;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ISOLATION MODELS — the four per-mount walls. Compact glass cards, rotating
+// accents, a small cost/use-when definition list.
+// ─────────────────────────────────────────────────────────────────────────────
+.gb-sec-iso {
+	margin-top: var(--gb-space-12);
+	display: grid;
+	gap: var(--gb-space-8);
+}
+
+.gb-sec-iso__title {
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	font-size: clamp(1.3rem, 1rem + 1vw, 1.9rem);
+	line-height: 1.15;
+	letter-spacing: -0.01em;
+	color: #fff;
+}
+
+.gb-sec-iso__grid {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: var(--gb-space-6);
+	grid-template-columns: repeat(auto-fit, minmax(15.5rem, 1fr));
+}
+
+.gb-sec-iso__card {
+	display: grid;
+	gap: var(--gb-space-3);
+	align-content: start;
+	padding: var(--gb-space-6);
+	border: 1px solid var(--gb-line);
+	border-left: 4px solid var(--acc);
+	border-radius: 0 var(--gb-radius) var(--gb-radius) 0;
+	background: rgb(26 19 48 / 62%);
+}
+
+.gb-sec-iso__name {
+	font-size: var(--gb-text-lg);
+	line-height: 1.1;
+	color: var(--acc);
+}
+
+.gb-sec-iso__how {
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-sm);
+	line-height: 1.55;
+}
+
+.gb-sec-iso__meta {
+	margin: 0;
+	display: grid;
+	gap: var(--gb-space-2);
+}
+
+.gb-sec-iso__meta div {
+	display: grid;
+	grid-template-columns: minmax(5rem, auto) 1fr;
+	gap: var(--gb-space-3);
+	align-items: baseline;
+}
+
+.gb-sec-iso__meta dt {
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--gb-text-faint);
+}
+
+.gb-sec-iso__meta dd {
+	margin: 0;
+	color: var(--gb-text);
+	font-size: var(--gb-text-sm);
+	line-height: 1.4;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRUST CENTER CTA — the closing action band. Glass surface; copy on the left,
+// the three buttons on the right; stacks on narrow screens.
+// ─────────────────────────────────────────────────────────────────────────────
+.gb-sec-cta {
+	display: grid;
+	gap: var(--gb-space-8);
+	align-items: center;
+	padding: clamp(1.8rem, 4vw, 3rem);
+	border-radius: var(--gb-radius-lg);
+}
+
+@media (width >= 880px) {
+	.gb-sec-cta {
+		grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+		gap: var(--gb-space-12);
+	}
+}
+
+.gb-sec-cta__eyebrow {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-bottom: var(--gb-space-4);
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-sm);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--acc);
+}
+
+.gb-sec-cta__eyebrow .gb-icon {
+	color: var(--acc);
+}
+
+.gb-sec-cta__lead {
+	font-size: var(--gb-text-lg);
+	line-height: 1.4;
+	color: #fff;
+}
+
+.gb-sec-cta__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--gb-space-4);
+}

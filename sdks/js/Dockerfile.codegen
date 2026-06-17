@@ -1,0 +1,24 @@
+# syntax=docker/dockerfile:1.7
+# File: apps/baas/sdks/js/Dockerfile.codegen
+#
+# One-shot image to collect OpenAPI specs from running NestJS apps and run
+# the SDK codegen, without requiring node/npm on the host. Used by:
+#
+#   make baas-codegen        # runs collect + generate via this image
+#
+# The image is intentionally fat (full node:20-alpine + curl + jq + bash)
+# because it is built once, used briefly, and discarded after every run.
+
+FROM public.ecr.aws/docker/library/node:20-alpine
+
+RUN apk add --no-cache bash curl jq
+
+WORKDIR /work
+
+# Pre-install the codegen package so the run is offline + fast.
+RUN npm install --global --no-audit --no-fund \
+      openapi-typescript-codegen@^0.29.0 \
+      typescript@^5.8.3
+
+ENTRYPOINT ["/bin/bash", "-c"]
+CMD ["echo 'Usage: docker run --rm -v $(pwd):/work --network host <image> \"collect && codegen\"'"]

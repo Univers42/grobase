@@ -62,7 +62,7 @@ fail()  { red "[M62] FAIL — $*"; exit 1; }
 
 # BAAS_DIR is mini-baas-infra; the SDKs live one level up under apps/baas/.
 APPS_BAAS_DIR="$(cd "${BAAS_DIR}/.." && pwd)"
-SWIFT_SDK="${APPS_BAAS_DIR}/sdk-swift"
+SWIFT_SDK="${APPS_BAAS_DIR}/sdks/swift"
 SPEC="${BAAS_DIR}/openapi/grobase-public.json"
 SWIFT_IMAGE="swift:5.9"
 

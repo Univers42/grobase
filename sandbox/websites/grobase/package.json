@@ -1,0 +1,51 @@
+{
+  "name": "grobase-site",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "node scripts/container-only.mjs astro dev --host 0.0.0.0 --port 4324",
+    "build": "node scripts/container-only.mjs env NODE_ENV=production astro build",
+    "preview": "node scripts/container-only.mjs astro preview --host 0.0.0.0 --port 4325",
+    "check": "node scripts/container-only.mjs astro check",
+    "astro": "node scripts/container-only.mjs astro",
+    "lint": "node scripts/container-only.mjs eslint .",
+    "lint:fix": "node scripts/container-only.mjs eslint . --fix",
+    "lint:css": "node scripts/container-only.mjs stylelint \"src/**/*.scss\"",
+    "lint:css:fix": "node scripts/container-only.mjs stylelint \"src/**/*.scss\" --fix",
+    "lint:html": "node scripts/container-only.mjs html-validate \"dist/**/*.html\"",
+    "test": "node scripts/container-only.mjs node --experimental-strip-types --test src/scripts/galaxy/layouts.test.ts src/scripts/galaxy/camera.test.ts",
+    "audit:all": "node scripts/container-only.mjs node scripts/audit/run-all.mjs",
+    "audit:lh": "node scripts/container-only.mjs node scripts/audit/lighthouse.mjs",
+    "audit:a11y": "node scripts/container-only.mjs pa11y http://127.0.0.1:4325/ --config scripts/audit/pa11y.config.json",
+    "audit:csp": "node scripts/container-only.mjs node scripts/audit/csp-check.mjs http://127.0.0.1:4325",
+    "test:e2e": "node scripts/container-only.mjs playwright test"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@astrojs/sitemap": "^3.7.3",
+    "astro": "^6.2.1",
+    "sass": "^1.94.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@playwright/test": "^1.61.0",
+    "eslint": "^9.39.4",
+    "eslint-plugin-astro": "^1.7.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "globals": "^17.6.0",
+    "html-validate": "^11.5.0",
+    "lighthouse": "^13.3.0",
+    "pa11y": "^9.1.1",
+    "stylelint": "^17.12.0",
+    "stylelint-config-standard-scss": "^17.0.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.60.1"
+  },
+  "overrides": {
+    "devalue": "^5.8.1"
+  }
+}
