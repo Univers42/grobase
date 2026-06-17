@@ -8,13 +8,13 @@ import (
 )
 
 // expose renders a fresh metrics sink's Prometheus exposition for assertions.
-func expose(m *metrics) string {
+func expose(m *Metrics) string {
 	rec := httptest.NewRecorder()
-	m.writeProm(rec)
+	m.WriteProm(rec)
 	return rec.Body.String()
 }
 
-// TestTenantObsOffIsByteParity proves the OFF default: even when observeTenant
+// TestTenantObsOffIsByteParity proves the OFF default: even when ObserveTenant
 // is called, no tenant_id series appears and the exposition is byte-identical to
 // a sink that never saw the per-tenant path. This is the kernel rule #5 parity
 // invariant for the Go half of B5.
@@ -22,16 +22,16 @@ func TestTenantObsOffIsByteParity(t *testing.T) {
 	t.Setenv("TENANT_OBS_ENABLED", "")
 	t.Setenv("TENANT_OBS_COUNTER", "")
 
-	baseline := &metrics{start: time.Unix(0, 0)}
-	baseline.setService("unit-test")
-	baseline.observe("GET", 200, 5*time.Millisecond)
+	baseline := &Metrics{start: time.Unix(0, 0)}
+	baseline.SetService("unit-test")
+	baseline.Observe("GET", 200, 5*time.Millisecond)
 
-	withTenant := &metrics{start: time.Unix(0, 0)}
-	withTenant.setService("unit-test")
-	withTenant.observe("GET", 200, 5*time.Millisecond)
+	withTenant := &Metrics{start: time.Unix(0, 0)}
+	withTenant.SetService("unit-test")
+	withTenant.Observe("GET", 200, 5*time.Millisecond)
 	// These MUST be no-ops while the flags are off.
-	withTenant.observeTenant(200, "tenant-a")
-	withTenant.observeTenant(404, "tenant-b")
+	withTenant.ObserveTenant(200, "tenant-a")
+	withTenant.ObserveTenant(404, "tenant-b")
 
 	if got := expose(withTenant); strings.Contains(got, "tenant_id=") {
 		t.Fatalf("OFF path leaked a tenant_id label:\n%s", got)
@@ -48,12 +48,12 @@ func TestTenantObsOnEmitsBoundedSeries(t *testing.T) {
 	t.Setenv("TENANT_OBS_ENABLED", "1")
 	t.Setenv("TENANT_OBS_COUNTER", "1")
 
-	m := &metrics{start: time.Unix(0, 0)}
-	m.setService("unit-test")
-	m.observe("GET", 200, time.Millisecond)
-	m.observeTenant(200, "tenant-a")
-	m.observeTenant(200, "tenant-a")
-	m.observeTenant(404, "tenant-b")
+	m := &Metrics{start: time.Unix(0, 0)}
+	m.SetService("unit-test")
+	m.Observe("GET", 200, time.Millisecond)
+	m.ObserveTenant(200, "tenant-a")
+	m.ObserveTenant(200, "tenant-a")
+	m.ObserveTenant(404, "tenant-b")
 
 	body := expose(m)
 	for _, want := range []string{
@@ -78,9 +78,9 @@ func TestTenantObsCounterSubFlagGated(t *testing.T) {
 	t.Setenv("TENANT_OBS_ENABLED", "1")
 	t.Setenv("TENANT_OBS_COUNTER", "")
 
-	m := &metrics{start: time.Unix(0, 0)}
-	m.setService("unit-test")
-	m.observeTenant(200, "tenant-a")
+	m := &Metrics{start: time.Unix(0, 0)}
+	m.SetService("unit-test")
+	m.ObserveTenant(200, "tenant-a")
 
 	if got := expose(m); strings.Contains(got, "tenant_id=") {
 		t.Fatalf("parent-on/counter-off must NOT emit tenant series:\n%s", got)
@@ -94,11 +94,11 @@ func TestTenantSeriesCapHolds(t *testing.T) {
 	t.Setenv("TENANT_OBS_ENABLED", "1")
 	t.Setenv("TENANT_OBS_COUNTER", "1")
 
-	m := &metrics{start: time.Unix(0, 0)}
-	m.setService("unit-test")
+	m := &Metrics{start: time.Unix(0, 0)}
+	m.SetService("unit-test")
 	flood := tenantSeriesCap + 200
 	for i := 0; i < flood; i++ {
-		m.observeTenant(200, "tenant-"+strconvItoa(i))
+		m.ObserveTenant(200, "tenant-"+strconvItoa(i))
 	}
 
 	body := expose(m)

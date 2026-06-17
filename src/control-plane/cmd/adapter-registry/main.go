@@ -36,10 +36,11 @@ func main() {
 	defer stop()
 	db := pg.MustPostgres(ctx, cfg.DatabaseURL, log)
 	defer db.Close()
+	m := observability.NewMetrics()
 	svc := buildService(ctx, db, log)
-	mux := httpx.NewRouter("adapter-registry", db)
+	mux := httpx.NewRouter("adapter-registry", db, m)
 	adapterregistry.Mount(mux, svc, cfg.ServiceToken)
-	runServer(ctx, stop, cfg, mux, log)
+	runServer(ctx, stop, cfg, mux, log, m)
 }
 
 func healthcheck(cfg config.Config) int {

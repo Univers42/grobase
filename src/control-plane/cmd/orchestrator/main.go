@@ -58,9 +58,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	mux := httpx.NewRouter("orchestrator", db)
+	m := observability.NewMetrics()
+	mux := httpx.NewRouter("orchestrator", db, m)
 	mountServices(ctx, mux, enabled, log)
-	serve(ctx, cfg, mux, log, stop)
+	serve(ctx, cfg, mux, log, stop, m)
 }
 
 // boot loads config (a --healthcheck argv short-circuits to the probe), wires a
@@ -89,10 +90,10 @@ func boot(log *slog.Logger) (context.Context, context.CancelFunc, config.Config,
 // envelope.Wrap mirrors the Node TransformInterceptor so a cutover is
 // transparent to clients (Track-2 A parity); WithMiddleware (logging,
 // request-id, metrics) wraps that so it still observes the real status.
-func serve(ctx context.Context, cfg config.Config, mux *http.ServeMux, log *slog.Logger, stop func()) {
+func serve(ctx context.Context, cfg config.Config, mux *http.ServeMux, log *slog.Logger, stop func(), m *observability.Metrics) {
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr(),
-		Handler:           httpx.WithMiddleware(envelope.Wrap(mux), log),
+		Handler:           httpx.WithMiddleware(envelope.Wrap(mux), log, m),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {

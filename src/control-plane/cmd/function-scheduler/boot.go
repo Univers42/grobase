@@ -9,6 +9,7 @@ import (
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/dlesieur/mini-baas/control-plane/internal/scheduler"
 )
@@ -44,12 +45,12 @@ func buildRunner(db *pg.Postgres, log *slog.Logger, tick time.Duration) *schedul
 }
 
 // buildServer wires the CRUD router behind shared middleware.
-func buildServer(cfg config.Config, svc *scheduler.Service, db *pg.Postgres, log *slog.Logger) *http.Server {
-	mux := httpx.NewRouter("function-scheduler", db)
+func buildServer(cfg config.Config, svc *scheduler.Service, db *pg.Postgres, log *slog.Logger, m *observability.Metrics) *http.Server {
+	mux := httpx.NewRouter("function-scheduler", db, m)
 	scheduler.Mount(mux, svc, cfg.ServiceToken)
 	return &http.Server{
 		Addr:              cfg.ListenAddr(),
-		Handler:           httpx.WithMiddleware(mux, log),
+		Handler:           httpx.WithMiddleware(mux, log, m),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 }

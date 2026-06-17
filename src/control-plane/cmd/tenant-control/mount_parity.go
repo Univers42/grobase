@@ -88,6 +88,6 @@ func (b *bootCtx) mountPush() {
 		b.log.Info("push / messaging disabled (PUSH_ENABLED off) — /v1/tenants/{id}/push/* not mounted")
 		return
 	}
-	push.Mount(b.mux, push.NewService(b.db, b.log), b.cfg.ServiceToken)
+	push.Mount(b.mux, push.NewService(b.db, b.log, b.m), b.cfg.ServiceToken)
 	b.log.Info("push / messaging enabled (/v1/tenants/{id}/push/subscriptions|send) — PUSH_ENABLED")
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/dlesieur/mini-baas/control-plane/internal/provision"
 	"github.com/dlesieur/mini-baas/control-plane/internal/tenants"
@@ -20,6 +21,7 @@ import (
 // the locals main() previously held.
 type bootCtx struct {
 	log         *slog.Logger
+	m           *observability.Metrics
 	cfg         config.Config
 	db          *pg.Postgres
 	svc         *tenants.Service
@@ -89,7 +91,7 @@ func (b *bootCtx) openDB(ctx context.Context) {
 func (b *bootCtx) serve(ctx context.Context, stop context.CancelFunc) {
 	srv := &http.Server{
 		Addr:              b.cfg.ListenAddr(),
-		Handler:           httpx.WithMiddleware(b.mux, b.log),
+		Handler:           httpx.WithMiddleware(b.mux, b.log, b.m),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {

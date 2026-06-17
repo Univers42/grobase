@@ -35,11 +35,12 @@ func main() {
 
 	db := pg.MustPostgres(ctx, cfg.DatabaseURL, log)
 	defer db.Close()
+	m := observability.NewMetrics()
 	svc := newService(ctx, db, log)
 
 	tick := resolveTick()
 	runner := buildRunner(db, log, tick)
-	srv := buildServer(cfg, svc, db, log)
+	srv := buildServer(cfg, svc, db, log, m)
 
 	serve(srv, cfg, log, stop)
 	startRunner(ctx, runner, tick, log, stop)

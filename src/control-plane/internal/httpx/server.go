@@ -8,14 +8,14 @@ import (
 )
 
 // NewRouter builds a base mux with liveness/readiness probes and a Prometheus
-// /metrics endpoint. The metrics sink is process-global (one binary == one
-// service), so no service-specific wiring is needed at the call site.
-func NewRouter(service string, db *pg.Postgres) *http.ServeMux {
-	observability.SetService(service)
+// /metrics endpoint. The caller constructs the metrics sink (observability.
+// NewMetrics) once and passes it in — one Metrics per process, injected.
+func NewRouter(service string, db *pg.Postgres, m *observability.Metrics) *http.ServeMux {
+	m.SetService(service)
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, _ *http.Request) {
-		observability.WriteProm(w)
+		m.WriteProm(w)
 	})
 	mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, _ *http.Request) {
 		WriteJSON(w, http.StatusOK, map[string]string{"status": "ok", "service": service})

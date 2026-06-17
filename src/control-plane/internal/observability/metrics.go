@@ -7,15 +7,16 @@ import (
 	"time"
 )
 
-// procMetrics is the process-wide metrics sink. Each control-plane binary runs
-// as its own OS process, so a package-level singleton is naturally scoped to a
-// single service — the same pattern client_golang's default registry uses.
+// Metrics is a per-process metrics sink, constructed once at main() and injected
+// (NewMetrics) — no package-level global. Each control-plane binary runs as its
+// own OS process, so one Metrics is naturally scoped to a single service (the
+// pattern client_golang's default registry uses, made explicit).
 //
 // Keeping this dependency-free (no client_golang) is deliberate: the control
 // plane's value proposition is tiny, fast-starting static binaries, and the
-// three daemons only need request counts + a mean-latency gauge to be visible
-// to Prometheus. See wiki/05-orchestration-observability-roadmap.md §2 (G7).
-var procMetrics = &metrics{start: time.Now()}
+// daemons only need request counts + a mean-latency gauge visible to Prometheus.
+// See wiki/05-orchestration-observability-roadmap.md §2 (G7).
+func NewMetrics() *Metrics { return &Metrics{start: time.Now()} }
 
 // tenantSeriesCap is the HARD in-process ceiling on distinct tenant_id series
 // the Pillar-3 bounded counter will track. Past the cap, every further tenant
@@ -28,7 +29,7 @@ const tenantSeriesCap = 512
 // overCapSentinel is the single fold-in label value for tenants beyond the cap.
 const overCapSentinel = "_over_cap"
 
-type metrics struct {
+type Metrics struct {
 	service  string
 	start    time.Time
 	counts   sync.Map // key "METHOD:Nxx" -> *int64
@@ -57,10 +58,10 @@ type counterEntry struct {
 	n    int64
 }
 
-func (m *metrics) setService(name string) { m.service = name }
+func (m *Metrics) SetService(name string) { m.service = name }
 
-// observe records one finished request. method/status come from the middleware.
-func (m *metrics) observe(method string, status int, d time.Duration) {
+// Observe records one finished request. method/status come from the middleware.
+func (m *Metrics) Observe(method string, status int, d time.Duration) {
 	key := method + ":" + fmt.Sprintf("%dxx", status/100)
 	ctr, _ := m.counts.LoadOrStore(key, new(int64))
 	atomic.AddInt64(ctr.(*int64), 1)

@@ -9,14 +9,14 @@ import (
 
 func TestMetricsObserveAndExposition(t *testing.T) {
 	// Use a local sink (not the package global) to keep the test hermetic.
-	m := &metrics{start: time.Now()}
-	m.setService("unit-test")
-	m.observe("GET", 200, 5*time.Millisecond)
-	m.observe("GET", 204, 7*time.Millisecond)
-	m.observe("POST", 404, 1*time.Millisecond)
+	m := &Metrics{start: time.Now()}
+	m.SetService("unit-test")
+	m.Observe("GET", 200, 5*time.Millisecond)
+	m.Observe("GET", 204, 7*time.Millisecond)
+	m.Observe("POST", 404, 1*time.Millisecond)
 
 	rec := httptest.NewRecorder()
-	m.writeProm(rec)
+	m.WriteProm(rec)
 	body := rec.Body.String()
 
 	want := []string{
@@ -37,17 +37,17 @@ func TestMetricsObserveAndExposition(t *testing.T) {
 }
 
 func TestCustomCountersExposition(t *testing.T) {
-	m := &metrics{start: time.Now()}
-	m.setService("unit-test")
+	m := &Metrics{start: time.Now()}
+	m.SetService("unit-test")
 	// Two labels on one metric + one unlabeled metric; repeated bumps sum.
-	m.incCounter("baas_webhook_deliveries_total", "delivery outcomes", "outcome", "success")
-	m.incCounter("baas_webhook_deliveries_total", "delivery outcomes", "outcome", "success")
-	m.incCounter("baas_webhook_deliveries_total", "delivery outcomes", "outcome", "retry")
-	m.incCounter("baas_widgets_total", "widgets", "", "")
+	m.IncCounter("baas_webhook_deliveries_total", "delivery outcomes", "outcome", "success")
+	m.IncCounter("baas_webhook_deliveries_total", "delivery outcomes", "outcome", "success")
+	m.IncCounter("baas_webhook_deliveries_total", "delivery outcomes", "outcome", "retry")
+	m.IncCounter("baas_widgets_total", "widgets", "", "")
 
 	body := func() string {
 		rec := httptest.NewRecorder()
-		m.writeProm(rec)
+		m.WriteProm(rec)
 		return rec.Body.String()
 	}()
 

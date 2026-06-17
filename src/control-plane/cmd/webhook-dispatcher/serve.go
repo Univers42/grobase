@@ -10,14 +10,15 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 	"github.com/dlesieur/mini-baas/control-plane/internal/functriggers"
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/dlesieur/mini-baas/control-plane/internal/webhooks"
 )
 
 // buildRouter assembles the HTTP surface: webhook CRUD, function-trigger CRUD,
 // and (when VAULT_ENC_KEY is set) the per-function secret store.
-func buildRouter(ctx context.Context, db *pg.Postgres, log *slog.Logger, svc *webhooks.Service, ftSvc *functriggers.Service, serviceToken string) *http.ServeMux {
-	mux := httpx.NewRouter("webhook-dispatcher", db)
+func buildRouter(ctx context.Context, db *pg.Postgres, log *slog.Logger, svc *webhooks.Service, ftSvc *functriggers.Service, serviceToken string, m *observability.Metrics) *http.ServeMux {
+	mux := httpx.NewRouter("webhook-dispatcher", db, m)
 	webhooks.Mount(mux, svc, serviceToken)
 	functriggers.Mount(mux, ftSvc, serviceToken)
 	mountFuncSecrets(ctx, mux, db, log, serviceToken)
@@ -25,10 +26,10 @@ func buildRouter(ctx context.Context, db *pg.Postgres, log *slog.Logger, svc *we
 }
 
 // newServer builds the HTTP server with the original timeouts and middleware.
-func newServer(cfg config.Config, mux *http.ServeMux, log *slog.Logger) *http.Server {
+func newServer(cfg config.Config, mux *http.ServeMux, log *slog.Logger, m *observability.Metrics) *http.Server {
 	return &http.Server{
 		Addr:              cfg.ListenAddr(),
-		Handler:           httpx.WithMiddleware(mux, log),
+		Handler:           httpx.WithMiddleware(mux, log, m),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 }

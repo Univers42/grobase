@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	redis "github.com/redis/go-redis/v9"
 )
@@ -24,6 +25,7 @@ type Dispatcher struct {
 	httpClient  *http.Client
 	pollPause   time.Duration
 	retryPeriod time.Duration
+	metrics     *observability.Metrics
 }
 
 // DispatcherConfig wires the dispatcher.
@@ -36,7 +38,7 @@ type DispatcherConfig struct {
 }
 
 // NewDispatcher builds a dispatcher; the caller owns the lifecycle.
-func NewDispatcher(db *pg.Postgres, log *slog.Logger, cfg DispatcherConfig) (*Dispatcher, error) {
+func NewDispatcher(db *pg.Postgres, log *slog.Logger, cfg DispatcherConfig, m *observability.Metrics) (*Dispatcher, error) {
 	opts, err := redis.ParseURL(cfg.RedisURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse redis url: %w", err)
@@ -51,6 +53,7 @@ func NewDispatcher(db *pg.Postgres, log *slog.Logger, cfg DispatcherConfig) (*Di
 		httpClient:  &http.Client{Timeout: 30 * time.Second},
 		pollPause:   cfg.PollPause,
 		retryPeriod: cfg.RetryPeriod,
+		metrics:     m,
 	}, nil
 }
 

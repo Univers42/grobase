@@ -12,6 +12,7 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 	"github.com/dlesieur/mini-baas/control-plane/internal/funcsecrets"
 	"github.com/dlesieur/mini-baas/control-plane/internal/functriggers"
+	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/dlesieur/mini-baas/control-plane/internal/webhooks"
 )
@@ -30,7 +31,7 @@ func resolveRedisURL() string {
 
 // buildWebhooks wires the webhook subscriptions service and its Redis-backed
 // delivery dispatcher.
-func buildWebhooks(ctx context.Context, db *pg.Postgres, log *slog.Logger, redisURL string) (*webhooks.Service, *webhooks.Dispatcher, error) {
+func buildWebhooks(ctx context.Context, db *pg.Postgres, log *slog.Logger, redisURL string, m *observability.Metrics) (*webhooks.Service, *webhooks.Dispatcher, error) {
 	svc := webhooks.NewService(db, log)
 	if err := svc.EnsureSchema(ctx); err != nil {
 		return nil, nil, err
@@ -41,7 +42,7 @@ func buildWebhooks(ctx context.Context, db *pg.Postgres, log *slog.Logger, redis
 		ConsumerID:  config.EnvStr("WEBHOOK_CONSUMER", "webhook-dispatcher-0"),
 		PollPause:   1 * time.Second,
 		RetryPeriod: 10 * time.Second,
-	})
+	}, m)
 	return svc, dispatcher, err
 }
 

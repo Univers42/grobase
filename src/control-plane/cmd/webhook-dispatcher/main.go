@@ -28,7 +28,8 @@ func main() {
 	defer db.Close()
 
 	redisURL := resolveRedisURL()
-	svc, dispatcher, err := buildWebhooks(ctx, db, log, redisURL)
+	m := observability.NewMetrics()
+	svc, dispatcher, err := buildWebhooks(ctx, db, log, redisURL, m)
 	if err != nil {
 		log.Error("dispatcher init failed", "err", err)
 		os.Exit(1)
@@ -42,8 +43,8 @@ func main() {
 	}
 	defer ftDispatcher.Close()
 
-	mux := buildRouter(ctx, db, log, svc, ftSvc, cfg.ServiceToken)
-	srv := newServer(cfg, mux, log)
+	mux := buildRouter(ctx, db, log, svc, ftSvc, cfg.ServiceToken, m)
+	srv := newServer(cfg, mux, log, m)
 	launchLoops(ctx, log, redisURL, srv, cfg, dispatcher.Run, ftDispatcher.Run, stop)
 	awaitShutdown(ctx, srv, log)
 }

@@ -15,6 +15,7 @@ type reqCtx struct {
 	sw          *statusWriter
 	r           *http.Request
 	log         *slog.Logger
+	m           *observability.Metrics
 	requestID   string
 	traceparent string
 	tenantID    string
@@ -27,9 +28,9 @@ type reqCtx struct {
 // request is traceable. Both values are placed on the request context (so
 // downstream outbound calls can forward them via PropagateHeaders) and the
 // request id is echoed back to the caller.
-func WithMiddleware(next http.Handler, log *slog.Logger) http.Handler {
+func WithMiddleware(next http.Handler, log *slog.Logger, m *observability.Metrics) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		rc := newReqCtx(w, r, log)
+		rc := newReqCtx(w, r, log, m)
 		defer rc.finish()
 		next.ServeHTTP(rc.sw, rc.r)
 	})
@@ -37,7 +38,7 @@ func WithMiddleware(next http.Handler, log *slog.Logger) http.Handler {
 
 // newReqCtx mints the correlation ids, sets the response request-id header, puts
 // the correlation on the request context, and resolves the tenant log.
-func newReqCtx(w http.ResponseWriter, r *http.Request, log *slog.Logger) *reqCtx {
+func newReqCtx(w http.ResponseWriter, r *http.Request, log *slog.Logger, m *observability.Metrics) *reqCtx {
 	start := time.Now()
 	sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 	requestID := r.Header.Get(observability.HeaderRequestID)
@@ -49,7 +50,7 @@ func newReqCtx(w http.ResponseWriter, r *http.Request, log *slog.Logger) *reqCtx
 	r = r.WithContext(observability.WithCorrelation(r.Context(), requestID, traceparent))
 	tenantID := tenantIDFromRequest(r)
 	return &reqCtx{
-		sw: sw, r: r, log: observability.WithTenant(log, tenantID),
+		sw: sw, r: r, log: observability.WithTenant(log, tenantID), m: m,
 		requestID: requestID, traceparent: traceparent, tenantID: tenantID, start: start,
 	}
 }
@@ -63,8 +64,8 @@ func (rc *reqCtx) finish() {
 		WriteError(rc.sw, http.StatusInternalServerError, "internal_error", "unexpected error")
 	}
 	if !strings.HasPrefix(rc.r.URL.Path, "/health") && rc.r.URL.Path != "/metrics" {
-		observability.Observe(rc.r.Method, rc.sw.status, time.Since(rc.start))
-		observability.ObserveTenant(rc.sw.status, rc.tenantID)
+		rc.m.Observe(rc.r.Method, rc.sw.status, time.Since(rc.start))
+		rc.m.ObserveTenant(rc.sw.status, rc.tenantID)
 	}
 	rc.log.Info("request", "method", rc.r.Method, "path", rc.r.URL.Path, "status", rc.sw.status,
 		"ms", time.Since(rc.start).Milliseconds(), "request_id", rc.requestID, "traceparent", rc.traceparent)

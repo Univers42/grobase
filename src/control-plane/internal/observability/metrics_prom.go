@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-// writeProm emits the Prometheus text exposition format (v0.0.4).
-func (m *metrics) writeProm(w http.ResponseWriter) {
+// WriteProm emits the Prometheus text exposition format (v0.0.4).
+func (m *Metrics) WriteProm(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	svc := m.service
 	m.writeServiceGauges(w, svc)
@@ -20,7 +20,7 @@ func (m *metrics) writeProm(w http.ResponseWriter) {
 }
 
 // writeServiceGauges emits the up + uptime gauges.
-func (m *metrics) writeServiceGauges(w http.ResponseWriter, svc string) {
+func (m *Metrics) writeServiceGauges(w http.ResponseWriter, svc string) {
 	fmt.Fprintf(w, "# HELP baas_service_up 1 while the service is serving\n")
 	fmt.Fprintf(w, "# TYPE baas_service_up gauge\n")
 	fmt.Fprintf(w, "baas_service_up{service=%q} 1\n", svc)
@@ -30,7 +30,7 @@ func (m *metrics) writeServiceGauges(w http.ResponseWriter, svc string) {
 }
 
 // writeHTTPCounts emits baas_http_requests_total by method and status class.
-func (m *metrics) writeHTTPCounts(w http.ResponseWriter, svc string) {
+func (m *Metrics) writeHTTPCounts(w http.ResponseWriter, svc string) {
 	fmt.Fprintf(w, "# HELP baas_http_requests_total HTTP requests by method and status class\n")
 	fmt.Fprintf(w, "# TYPE baas_http_requests_total counter\n")
 	m.counts.Range(func(k, v any) bool {
@@ -42,7 +42,7 @@ func (m *metrics) writeHTTPCounts(w http.ResponseWriter, svc string) {
 }
 
 // writeDurationAvg emits the mean request-duration gauge in milliseconds.
-func (m *metrics) writeDurationAvg(w http.ResponseWriter, svc string) {
+func (m *Metrics) writeDurationAvg(w http.ResponseWriter, svc string) {
 	n := atomic.LoadInt64(&m.sumCount)
 	avg := 0.0
 	if n > 0 {

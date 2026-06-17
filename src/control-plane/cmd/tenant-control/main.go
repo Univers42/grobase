@@ -40,7 +40,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	b := &bootCtx{log: log, cfg: cfg}
+	b := &bootCtx{log: log, cfg: cfg, m: observability.NewMetrics()}
 	b.openDB(ctx)
 	defer b.db.Close()
 	b.setupClients(ctx)
@@ -52,7 +52,7 @@ func main() {
 // mountAll registers every route group, in the same order main() did. Each
 // flag-gated block is OFF by default = byte-parity with the OSS edition.
 func (b *bootCtx) mountAll(ctx context.Context) {
-	b.mux = httpx.NewRouter("tenant-control", b.db)
+	b.mux = httpx.NewRouter("tenant-control", b.db, b.m)
 	b.mountCore()
 	b.mountSelfServe()
 	b.mountBackup()
