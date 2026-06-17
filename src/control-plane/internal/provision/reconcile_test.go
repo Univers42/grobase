@@ -73,6 +73,7 @@ func (p *fakePerm) EnsureRole(_ context.Context, _ string, _ RoleSpec) (string, 
 	}
 	return id, p.roleCreated, nil
 }
+
 func (p *fakePerm) EnsurePolicy(_ context.Context, _ string, _ PolicySpec) (bool, error) {
 	p.ensurePol++
 	return p.polCreated, nil

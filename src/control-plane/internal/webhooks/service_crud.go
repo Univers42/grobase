@@ -60,7 +60,8 @@ func (s *Service) Update(ctx context.Context, tenantID, id string, req UpdateReq
 }
 
 func updateSubscriptionRow(ctx context.Context, tx pgx.Tx, id string, req UpdateRequest) pgx.Row {
-	return tx.QueryRow(ctx, `
+	return tx.QueryRow(
+		ctx, `
 		UPDATE public.webhook_subscriptions
 		   SET url          = COALESCE($2, url),
 		       secret       = COALESCE($3, secret),

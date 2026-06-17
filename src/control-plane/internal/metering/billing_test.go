@@ -36,6 +36,7 @@ type fakeBillingDB struct {
 func (f *fakeBillingDB) AdminQuery(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
 	return nil, errors.New("AdminQuery not exercised in flush tests")
 }
+
 func (f *fakeBillingDB) AdminExec(_ context.Context, _ string, args ...any) error {
 	f.execCalls++
 	if f.failFirstExec && f.execCalls == 1 {

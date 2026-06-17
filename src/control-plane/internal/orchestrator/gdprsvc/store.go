@@ -98,8 +98,10 @@ func firstDeletion(rows rowSet, notFound error) (*DeletionRequest, error) {
 	return &d, rows.Err()
 }
 
-const consentCols = `id, user_id, consent_type, is_granted, granted_at, revoked_at, created_at`
-const deletionCols = `id, user_id, reason, status, admin_note, processed_by, requested_at, processed_at`
+const (
+	consentCols  = `id, user_id, consent_type, is_granted, granted_at, revoked_at, created_at`
+	deletionCols = `id, user_id, reason, status, admin_note, processed_by, requested_at, processed_at`
+)
 
 // bootstrapSQL ensures both gdpr tables + their owner RLS policies (parity with
 // the two onModuleInit hooks, merged into one idempotent migration).

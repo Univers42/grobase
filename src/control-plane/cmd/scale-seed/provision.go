@@ -91,8 +91,10 @@ func provisionOne(client *http.Client, base, token string, spec provisionSpec) r
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return record{Slug: spec.slug, Status: "error",
-			Error: fmt.Sprintf("provision %d: %s", resp.StatusCode, httpx.RedactDSN(string(raw)))}
+		return record{
+			Slug: spec.slug, Status: "error",
+			Error: fmt.Sprintf("provision %d: %s", resp.StatusCode, httpx.RedactDSN(string(raw))),
+		}
 	}
 	var out provisionResponse
 	if err := json.Unmarshal(raw, &out); err != nil {

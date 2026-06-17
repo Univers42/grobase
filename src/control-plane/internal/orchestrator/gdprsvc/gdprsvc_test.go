@@ -26,6 +26,7 @@ func (f *fakeRepo) bootstrap(context.Context) error { return nil }
 func (f *fakeRepo) userConsents(context.Context, string) ([]Consent, error) {
 	return []Consent{{ID: 1, ConsentType: "marketing"}}, nil
 }
+
 func (f *fakeRepo) userConsent(context.Context, string, string) (*Consent, error) {
 	if f.consentMissing {
 		return nil, nil
@@ -35,14 +36,17 @@ func (f *fakeRepo) userConsent(context.Context, string, string) (*Consent, error
 	}
 	return &Consent{ID: 1, ConsentType: "marketing", IsGranted: true}, nil
 }
+
 func (f *fakeRepo) setConsent(_ context.Context, _, ctype string, consented bool) (*Consent, error) {
 	f.lastSetConsent = consented
 	return &Consent{ID: 1, ConsentType: ctype, IsGranted: consented}, nil
 }
+
 func (f *fakeRepo) updateConsent(_ context.Context, _, ctype string, consented bool) (*Consent, error) {
 	f.lastUpdateType = ctype
 	return &Consent{ID: 1, ConsentType: ctype, IsGranted: consented}, nil
 }
+
 func (f *fakeRepo) withdrawNonEssential(context.Context, string) (int, error) {
 	return f.withdrawn, nil
 }
@@ -50,27 +54,32 @@ func (f *fakeRepo) pendingExists(context.Context, string) (bool, error) { return
 func (f *fakeRepo) createDeletion(_ context.Context, userID string, _ *string) (*DeletionRequest, error) {
 	return &DeletionRequest{ID: 1, UserID: userID, Status: "pending"}, nil
 }
+
 func (f *fakeRepo) myRequest(context.Context, string) (*DeletionRequest, error) {
 	if f.delReq != nil {
 		return f.delReq, nil
 	}
 	return nil, nil
 }
+
 func (f *fakeRepo) cancelRequest(context.Context, string) (*DeletionRequest, error) {
 	if f.delReq == nil {
 		return nil, errNotFound
 	}
 	return f.delReq, nil
 }
+
 func (f *fakeRepo) allRequests(context.Context, string) ([]DeletionRequest, error) {
 	return []DeletionRequest{{ID: 1, Status: "pending"}}, nil
 }
+
 func (f *fakeRepo) getRequest(context.Context, string) (*DeletionRequest, error) {
 	if f.delReq == nil {
 		return nil, errNotFound
 	}
 	return f.delReq, nil
 }
+
 func (f *fakeRepo) updateRequest(_ context.Context, _, status, _ string, _ *string) (*DeletionRequest, error) {
 	return &DeletionRequest{ID: 1, Status: status}, nil
 }
@@ -78,7 +87,8 @@ func (f *fakeRepo) updateRequest(_ context.Context, _, status, _ string, _ *stri
 func newSvc(f repo) (*Service, *struct {
 	exported bool
 	deleted  bool
-}) {
+},
+) {
 	flags := &struct {
 		exported bool
 		deleted  bool

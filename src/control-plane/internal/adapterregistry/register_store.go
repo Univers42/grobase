@@ -40,7 +40,8 @@ func insertCredRef(ctx context.Context, m mountInsert) error {
 	if m.req.CredentialRef.Version != "" {
 		version = m.req.CredentialRef.Version
 	}
-	row := m.tx.QueryRow(ctx,
+	row := m.tx.QueryRow(
+		ctx,
 		`INSERT INTO public.tenant_databases
 		   (tenant_id, engine, name, cred_provider, cred_reference, cred_version, isolation)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7)
@@ -55,7 +56,8 @@ func insertCredRef(ctx context.Context, m mountInsert) error {
 // salt — no KDF) + the KMS-wrapped DEK + the KMS key id. cred_* stay NULL. The
 // 3-way DB check (migration 061 / EnsureSchema) enforces this exact shape.
 func insertCMEK(ctx context.Context, m mountInsert) error {
-	row := m.tx.QueryRow(ctx,
+	row := m.tx.QueryRow(
+		ctx,
 		`INSERT INTO public.tenant_databases
 		   (tenant_id, engine, name, connection_enc, connection_iv, connection_tag,
 		    cmek_wrapped_dek, cmek_kms_key_id, isolation)
@@ -69,7 +71,8 @@ func insertCMEK(ctx context.Context, m mountInsert) error {
 
 // insertInline writes the today's-path inline-master-key row (enc/iv/tag/salt).
 func insertInline(ctx context.Context, m mountInsert) error {
-	row := m.tx.QueryRow(ctx,
+	row := m.tx.QueryRow(
+		ctx,
 		`INSERT INTO public.tenant_databases
 		   (tenant_id, engine, name, connection_enc, connection_iv, connection_tag, connection_salt, isolation)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)

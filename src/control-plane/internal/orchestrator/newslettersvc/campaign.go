@@ -28,7 +28,8 @@ func (s *Service) sendCampaign(ctx context.Context, subject, html, text, sentBy 
 // fanOut sends the campaign to every recipient in batches of batchSize (parity
 // with the Node Promise.allSettled batching) and returns (sent, failed).
 func (s *Service) fanOut(ctx context.Context, recipients []Recipient,
-	subject, html, text string) (sent, failed int) {
+	subject, html, text string,
+) (sent, failed int) {
 	for i := 0; i < len(recipients); i += s.batchSize {
 		end := i + s.batchSize
 		if end > len(recipients) {

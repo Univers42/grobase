@@ -30,11 +30,13 @@ func (f *fakeRepo) create(_ context.Context, userID, token, device, ip string) (
 	}
 	return &Session{ID: "sess-1", UserID: userID, SessionToken: token, ExpiresAt: time.Now()}, nil
 }
+
 func (f *fakeRepo) userSessions(_ context.Context, userID, cur string) ([]Session, error) {
 	f.lastUserID, f.lastToken = userID, cur
 	yes := true
 	return []Session{{ID: "a", SessionToken: cur, IsCurrent: &yes}}, nil
 }
+
 func (f *fakeRepo) validate(_ context.Context, token string) (bool, *Session, error) {
 	f.lastToken = token
 	if !f.valid {
@@ -42,26 +44,33 @@ func (f *fakeRepo) validate(_ context.Context, token string) (bool, *Session, er
 	}
 	return true, &Session{ID: "sess-1", ExpiresAt: time.Now().Add(time.Hour)}, nil
 }
+
 func (f *fakeRepo) extend(_ context.Context, token string, days int) (*Session, error) {
 	f.lastToken, f.lastDays = token, days
 	return &Session{ID: "sess-1", ExpiresAt: time.Now().Add(time.Hour)}, nil
 }
+
 func (f *fakeRepo) revoke(_ context.Context, id, userID string) error {
 	f.lastID, f.lastUserID = id, userID
 	return f.revokeErr
 }
+
 func (f *fakeRepo) revokeAll(_ context.Context, userID, except string) (int, error) {
 	f.lastUserID, f.lastExcept = userID, except
 	return f.revokedN, nil
 }
+
 func (f *fakeRepo) activeSessions(_ context.Context, userID string) ([]Session, error) {
 	f.lastUserID = userID
 	return []Session{{ID: "a"}}, nil
 }
+
 func (f *fakeRepo) stats(context.Context) (Stats, error) {
 	return Stats{Total: 5, Active: 3, Expired: 2, ActiveUsers: 2}, nil
 }
+
 func (f *fakeRepo) forceRevoke(_ context.Context, id string) error { f.lastID = id; return f.revokeErr }
+
 func (f *fakeRepo) forceRevokeAll(_ context.Context, userID string) (int, error) {
 	f.lastUserID = userID
 	return f.revokedN, nil

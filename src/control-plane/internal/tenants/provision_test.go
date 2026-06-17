@@ -25,9 +25,11 @@ func (f *fakePerm) EnsureRole(_ context.Context, slug string, r provision.RoleSp
 	}
 	return f.roleID, true, nil
 }
+
 func (f *fakePerm) EnsurePolicy(_ context.Context, _ string, _ provision.PolicySpec) (bool, error) {
 	return true, nil
 }
+
 func (f *fakePerm) AssignRole(_ context.Context, _, roleName string) error {
 	f.assignedRole = roleName
 	return nil

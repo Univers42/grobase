@@ -128,7 +128,7 @@ func (f *fakeRows) Close()     {}
 func (f *fakeRows) Scan(dest ...any) error {
 	row := f.data[f.i-1]
 	for j := range dest {
-		*(dest[j].(*string)) = row[j].(string)
+		*dest[j].(*string) = row[j].(string)
 	}
 	return nil
 }

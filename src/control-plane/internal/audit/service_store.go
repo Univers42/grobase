@@ -44,7 +44,8 @@ func sealLink(in AppendInput, prevSeq int64, prevHash string) Event {
 
 // insertEvent INSERTs the sealed link and assigns its id — step 4 of Append.
 func insertEvent(ctx context.Context, tx pgx.Tx, ev *Event) error {
-	return tx.QueryRow(ctx, `
+	return tx.QueryRow(
+		ctx, `
 		INSERT INTO public.tenant_audit_log
 		  (tenant_id, seq, ts, actor, action, target, payload, prev_hash, hash)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)

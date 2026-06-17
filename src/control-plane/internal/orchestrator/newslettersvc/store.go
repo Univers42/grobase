@@ -108,7 +108,8 @@ func (s *store) existing(ctx context.Context, email string) (id int64, active bo
 
 func scanSubscriber(rows interface {
 	Scan(...any) error
-}, out *Subscriber) error {
+}, out *Subscriber,
+) error {
 	return rows.Scan(&out.ID, &out.Email, &out.FirstName, &out.Token, &out.IsActive,
 		&out.ConfirmedAt, &out.UnsubscribedAt, &out.CreatedAt)
 }

@@ -51,7 +51,8 @@ func (s *Service) Create(ctx context.Context, tenantID string, req CreateRequest
 	enabled, maxAttempts, timeoutMs := createDefaults(req)
 	var tr Trigger
 	err := s.db.TenantTx(ctx, tenantID, func(tx pgx.Tx) error {
-		row := tx.QueryRow(ctx, `
+		row := tx.QueryRow(
+			ctx, `
 			INSERT INTO public.function_triggers
 			       (tenant_id, name, function_name, event_types, aggregates,
 			        enabled, max_attempts, timeout_ms)

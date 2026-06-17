@@ -122,8 +122,10 @@ func TestUserRecord_ToSCIM_Mapping(t *testing.T) {
 // TestSCIMUser_Resolve covers the member-id + email + displayName resolution that
 // the User->member mapping uses (externalId preferred, then userName).
 func TestSCIMUser_Resolve(t *testing.T) {
-	withExt := SCIMUser{UserName: "bob", ExternalID: "ext-bob",
-		Emails: []SCIMEmail{{Value: "bob@x.com"}}}
+	withExt := SCIMUser{
+		UserName: "bob", ExternalID: "ext-bob",
+		Emails: []SCIMEmail{{Value: "bob@x.com"}},
+	}
 	if withExt.resolveUserID() != "ext-bob" {
 		t.Fatalf("externalId should win: %q", withExt.resolveUserID())
 	}
@@ -182,6 +184,7 @@ func (f *fakeProvisioner) AddMember(_ context.Context, orgID, userID, role, _ st
 	f.added = append(f.added, orgID+"/"+userID+"/"+role)
 	return f.addErr
 }
+
 func (f *fakeProvisioner) RemoveMember(_ context.Context, orgID, userID string) error {
 	f.removed = append(f.removed, orgID+"/"+userID)
 	return f.remErr

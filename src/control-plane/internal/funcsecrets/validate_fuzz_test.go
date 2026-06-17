@@ -50,8 +50,10 @@ func TestSetRequestValidate_Boundaries(t *testing.T) {
 // Value/FunctionName are irrelevant to Validate (only Key is checked) — so the
 // fuzzed Key fully determines the decision.
 func FuzzSetRequestValidate(f *testing.F) {
-	for _, s := range []string{"API_KEY", "_x", "a", "", "1KEY", "has space",
-		"has-dash", "weird$", "a.b", "A\x00", "é", strings.Repeat("z", 128), strings.Repeat("z", 129)} {
+	for _, s := range []string{
+		"API_KEY", "_x", "a", "", "1KEY", "has space",
+		"has-dash", "weird$", "a.b", "A\x00", "é", strings.Repeat("z", 128), strings.Repeat("z", 129),
+	} {
 		f.Add(s)
 	}
 	re := regexp.MustCompile(keyPatternMirror)

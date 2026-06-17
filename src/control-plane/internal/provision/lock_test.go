@@ -43,6 +43,7 @@ func (r *boolRows) Next() bool {
 	r.done = true
 	return true
 }
+
 func (r *boolRows) Scan(dest ...any) error {
 	if p, ok := dest[0].(*bool); ok {
 		*p = r.val

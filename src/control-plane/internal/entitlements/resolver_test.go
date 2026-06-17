@@ -56,8 +56,10 @@ func TestResolveNoRowParity(t *testing.T) {
 // returns manifest.For — byte-parity even if a row exists.
 func TestResolveDisabledParity(t *testing.T) {
 	m := loadManifest(t)
-	fl := &fakeLoader{rec: &Record{TenantID: "t1", Status: "active",
-		Entitlement: CustomEntitlement{Limits: &EntitlementLimits{RPS: u32(9999)}}}}
+	fl := &fakeLoader{rec: &Record{
+		TenantID: "t1", Status: "active",
+		Entitlement: CustomEntitlement{Limits: &EntitlementLimits{RPS: u32(9999)}},
+	}}
 	r := NewResolver(m, fl, false /* disabled */, nil)
 
 	name, pkg := r.Resolve(context.Background(), "t1", "pro")
@@ -73,8 +75,10 @@ func TestResolveDisabledParity(t *testing.T) {
 // TestResolveDraftParity: a non-active (draft) row is not in force → parity.
 func TestResolveDraftParity(t *testing.T) {
 	m := loadManifest(t)
-	fl := &fakeLoader{rec: &Record{TenantID: "t1", Status: "draft",
-		Entitlement: CustomEntitlement{Limits: &EntitlementLimits{RPS: u32(50)}}}}
+	fl := &fakeLoader{rec: &Record{
+		TenantID: "t1", Status: "draft",
+		Entitlement: CustomEntitlement{Limits: &EntitlementLimits{RPS: u32(50)}},
+	}}
 	r := NewResolver(m, fl, true, nil)
 
 	_, pkg := r.Resolve(context.Background(), "t1", "pro")
@@ -102,11 +106,13 @@ func TestResolveReadErrorFailsOpen(t *testing.T) {
 // is applied (rps lowered, max_mounts lowered).
 func TestResolveAppliesCustomWithinCeiling(t *testing.T) {
 	m := loadManifest(t)
-	fl := &fakeLoader{rec: &Record{TenantID: "t1", Status: "active",
+	fl := &fakeLoader{rec: &Record{
+		TenantID: "t1", Status: "active",
 		Entitlement: CustomEntitlement{
 			Limits:    &EntitlementLimits{RPS: u32(250)},
 			MaxMounts: intp(3),
-		}}}
+		},
+	}}
 	r := NewResolver(m, fl, true, nil)
 
 	_, pkg := r.Resolve(context.Background(), "t1", "pro") // pro rps 400, mounts 10
@@ -124,12 +130,14 @@ func TestResolveAppliesCustomWithinCeiling(t *testing.T) {
 // mounts 2). Resolve must CLAMP the stale over-ceiling row DOWN — never trust it.
 func TestResolveClampOnDowngradeBackstop(t *testing.T) {
 	m := loadManifest(t)
-	fl := &fakeLoader{rec: &Record{TenantID: "t1", Status: "active",
+	fl := &fakeLoader{rec: &Record{
+		TenantID: "t1", Status: "active",
 		Entitlement: CustomEntitlement{
 			Limits:       &EntitlementLimits{RPS: u32(400)},   // pro-era, above essential 200
 			Capabilities: map[string]bool{"schema_ddl": true}, // pro-era ON, essential OFF
 			MaxMounts:    intp(10),                            // pro-era, above essential 2
-		}}}
+		},
+	}}
 	r := NewResolver(m, fl, true, nil)
 
 	name, pkg := r.Resolve(context.Background(), "t1", "essential")
@@ -153,7 +161,8 @@ func TestResolveClampOnDowngradeBackstop(t *testing.T) {
 // is honored.
 func TestResolveCeilingPlanWins(t *testing.T) {
 	m := loadManifest(t)
-	fl := &fakeLoader{rec: &Record{TenantID: "t1", Status: "active",
+	fl := &fakeLoader{rec: &Record{
+		TenantID: "t1", Status: "active",
 		CeilingPlan: "pro",                                                        // operator deal: ceiling is pro even though plan is essential
 		Entitlement: CustomEntitlement{Limits: &EntitlementLimits{RPS: u32(350)}}, // > essential 200, < pro 400
 	}}

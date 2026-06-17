@@ -43,8 +43,10 @@ func TestSendRequestValidate_Edges(t *testing.T) {
 // FuzzSendRequestValidate: never panics; and when subject+body are fixed-valid,
 // the recipient decision must match recompiling the SAME email regex (parity).
 func FuzzSendRequestValidate(f *testing.F) {
-	for _, s := range []string{"u@e.com", "u@", "u@e", "ue.com", "u @e.com",
-		"", "a@b.c", "\x00@x.y", "a@b.c@d.e", strings.Repeat("a", 300) + "@b.c", "é@b.c"} {
+	for _, s := range []string{
+		"u@e.com", "u@", "u@e", "ue.com", "u @e.com",
+		"", "a@b.c", "\x00@x.y", "a@b.c@d.e", strings.Repeat("a", 300) + "@b.c", "é@b.c",
+	} {
 		f.Add(s)
 	}
 	re := regexp.MustCompile(emailPatternMirror)
@@ -63,8 +65,10 @@ func FuzzSendRequestValidate(f *testing.F) {
 // FuzzNewMessageID: the from-domain parser must never panic and must always
 // produce a well-formed <hex@domain> token regardless of how malformed `from` is.
 func FuzzNewMessageID(f *testing.F) {
-	for _, s := range []string{"noreply@grobase.io", "no-at-sign", "", "@",
-		"a@", "@b", "x@y@z", "\x00@\x00", "trail@dom <>", strings.Repeat("@", 64)} {
+	for _, s := range []string{
+		"noreply@grobase.io", "no-at-sign", "", "@",
+		"a@", "@b", "x@y@z", "\x00@\x00", "trail@dom <>", strings.Repeat("@", 64),
+	} {
 		f.Add(s)
 	}
 	f.Fuzz(func(t *testing.T, from string) {

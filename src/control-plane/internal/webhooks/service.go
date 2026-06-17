@@ -98,7 +98,8 @@ func resolveCreateArgs(tenantID string, req CreateRequest) createArgs {
 }
 
 func insertSubscription(ctx context.Context, tx pgx.Tx, a createArgs, sub *Subscription) error {
-	row := tx.QueryRow(ctx, `
+	row := tx.QueryRow(
+		ctx, `
 		INSERT INTO public.webhook_subscriptions
 		       (tenant_id, name, url, secret, event_types, aggregates,
 		        active, headers, max_attempts, timeout_ms)

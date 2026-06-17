@@ -102,9 +102,9 @@ func (r *fakeRows) Next() bool {
 }
 
 func (r *fakeRows) Scan(dest ...any) error {
-	*(dest[0].(*string)) = r.cur.Metric
-	*(dest[1].(*int64)) = r.cur.Qty
-	*(dest[2].(*int64)) = r.cur.WindowCount
+	*dest[0].(*string) = r.cur.Metric
+	*dest[1].(*int64) = r.cur.Qty
+	*dest[2].(*int64) = r.cur.WindowCount
 	return nil
 }
 

@@ -52,7 +52,8 @@ func LoadConfig(prefix string) (Config, error) {
 		return Config{}, fmt.Errorf(
 			"INTERNAL_SERVICE_TOKEN must be set to a strong value (refusing empty or the placeholder %q); "+
 				"the live stack derives it from JWT_SECRET — set JWT_SECRET or ADAPTER_REGISTRY_SERVICE_TOKEN",
-			weakServiceToken)
+			weakServiceToken,
+		)
 	}
 	// G-Vault (A6) — at SECURITY_MODE=max the control plane REQUIRES a
 	// Vault-backed master credential and FAILS CLOSED here (LoadConfig error →

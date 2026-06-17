@@ -94,8 +94,10 @@ func TestStreamFieldsOrder(t *testing.T) {
 func TestSagaStreamFieldsOrder(t *testing.T) {
 	e := &outboxEvent{ID: "e1", AggregateID: "agg1", Op: "upsert", RequestID: "r", ActorID: "a", IdempotencyKey: "i"}
 	got := sagaStreamFields(e, `{}`)
-	want := []any{"id", "e1", "aggregate_id", "agg1", "op", "upsert", "payload", "{}",
-		"request_id", "r", "actor_id", "a", "idempotency_key", "i"}
+	want := []any{
+		"id", "e1", "aggregate_id", "agg1", "op", "upsert", "payload", "{}",
+		"request_id", "r", "actor_id", "a", "idempotency_key", "i",
+	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("sagaStreamFields = %v, want %v", got, want)
 	}

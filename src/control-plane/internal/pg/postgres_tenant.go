@@ -20,7 +20,8 @@ func (p *Postgres) TenantTx(ctx context.Context, userID string, fn func(pgx.Tx) 
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	claims, _ := json.Marshal(map[string]string{"sub": userID})
-	if _, err := tx.Exec(ctx,
+	if _, err := tx.Exec(
+		ctx,
 		`SELECT set_config('app.current_user_id', $1, true), set_config('request.jwt.claims', $2, true)`,
 		userID, string(claims),
 	); err != nil {

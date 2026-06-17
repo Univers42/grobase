@@ -8,15 +8,18 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const sagaSelectCols = `target_engine, target_resource, op, compensation_payload, idempotency_key`
-const sagaNullCols = `NULL::text AS target_engine, NULL::text AS target_resource, NULL::text AS op, ` +
-	`NULL::jsonb AS compensation_payload, NULL::text AS idempotency_key`
+const (
+	sagaSelectCols = `target_engine, target_resource, op, compensation_payload, idempotency_key`
+	sagaNullCols   = `NULL::text AS target_engine, NULL::text AS target_resource, NULL::text AS op, ` +
+		`NULL::jsonb AS compensation_payload, NULL::text AS idempotency_key`
+)
 
 // hasSagaColumns reports whether the saga columns exist (the table predates the
 // saga migration on some deployments) — exactly the Node 6-column probe.
 func hasSagaColumns(ctx context.Context, tx pgx.Tx) (bool, error) {
 	var count int
-	err := tx.QueryRow(ctx,
+	err := tx.QueryRow(
+		ctx,
 		`SELECT COUNT(*) FROM information_schema.columns
 		  WHERE table_schema='public' AND table_name='outbox_events'
 		    AND column_name IN ('target_engine','target_resource','op','compensation_payload','idempotency_key','saga_state')`,

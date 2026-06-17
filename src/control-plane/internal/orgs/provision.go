@@ -52,7 +52,8 @@ func (rt *routes) createProject(w http.ResponseWriter, r *http.Request) {
 // /v1/provision call — and maps its error to the right status (ErrBusy -> 409,
 // else 400). ok=false means a response was already written.
 func (rt *routes) reconcileOrgProject(w http.ResponseWriter, r *http.Request,
-	pr tenants.ProvisionRequest) (provision.ReconcileResult, bool) {
+	pr tenants.ProvisionRequest,
+) (provision.ReconcileResult, bool) {
 	out, err := rt.reconciler.Reconcile(r.Context(), pr.Compile())
 	switch {
 	case errors.Is(err, provision.ErrBusy):

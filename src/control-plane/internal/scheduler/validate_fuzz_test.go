@@ -51,8 +51,10 @@ func TestCreateRequestValidate_Boundaries(t *testing.T) {
 // FuzzCreateRequestValidate_FunctionName: with name+schedule+timeout fixed-valid,
 // the only gate left is the function_name regex — parity with recompiling it.
 func FuzzCreateRequestValidate_FunctionName(f *testing.F) {
-	for _, s := range []string{"fn", "a-b", "a_b", "", "1bad", "has space",
-		"A", "z9", "a\x00", "é", strings.Repeat("a", 64), strings.Repeat("a", 65), "a.b"} {
+	for _, s := range []string{
+		"fn", "a-b", "a_b", "", "1bad", "has space",
+		"A", "z9", "a\x00", "é", strings.Repeat("a", 64), strings.Repeat("a", 65), "a.b",
+	} {
 		f.Add(s)
 	}
 	re := regexp.MustCompile(funcNamePatternMirror)

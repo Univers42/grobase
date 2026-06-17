@@ -16,7 +16,8 @@ type logAlerter struct{ log *slog.Logger }
 // (cardinality-safe, matching the B5 per-tenant-obs convention: tenant_id is a log
 // FIELD, never a Prometheus label).
 func (a logAlerter) BudgetAlert(_ context.Context, tenantID string, spentCents, budgetCents int64, pct int) {
-	a.log.Warn("spend-cap budget alert",
+	a.log.Warn(
+		"spend-cap budget alert",
 		"tenant_id", tenantID,
 		"spent_cents", spentCents,
 		"budget_cents", budgetCents,

@@ -79,12 +79,13 @@ func (r *targetRows) Next() bool {
 	r.i++
 	return true
 }
+
 func (r *targetRows) Scan(dest ...any) error {
-	*(dest[0].(*string)) = r.cur.tenantID
-	*(dest[1].(*string)) = r.cur.endpoint
-	*(dest[2].(*string)) = r.cur.authHeader
-	*(dest[3].(*string)) = r.cur.format
-	*(dest[4].(*time.Time)) = r.cur.cursor
+	*dest[0].(*string) = r.cur.tenantID
+	*dest[1].(*string) = r.cur.endpoint
+	*dest[2].(*string) = r.cur.authHeader
+	*dest[3].(*string) = r.cur.format
+	*dest[4].(*time.Time) = r.cur.cursor
 	return nil
 }
 func (r *targetRows) Err() error { return nil }
@@ -104,10 +105,11 @@ func (r *usageRows) Next() bool {
 	r.i++
 	return true
 }
+
 func (r *usageRows) Scan(dest ...any) error {
-	*(dest[0].(*string)) = r.cur.metric
-	*(dest[1].(*time.Time)) = r.cur.windowStart
-	*(dest[2].(*int64)) = r.cur.qty
+	*dest[0].(*string) = r.cur.metric
+	*dest[1].(*time.Time) = r.cur.windowStart
+	*dest[2].(*int64) = r.cur.qty
 	return nil
 }
 func (r *usageRows) Err() error { return nil }

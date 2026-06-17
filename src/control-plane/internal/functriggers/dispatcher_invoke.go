@@ -56,8 +56,10 @@ func (d *Dispatcher) attempt(ctx context.Context, triggerID, eventID string) {
 		return
 	}
 	statusCode, attemptErr := d.invoke(ctx, a.tenantID, a.functionName, a.timeoutMs, a.bodyStr)
-	d.recordAttempt(ctx, attemptResult{triggerID: triggerID, eventID: eventID,
-		attempts: a.attempts + 1, maxAttempts: a.maxAttempts, statusCode: statusCode, attemptErr: attemptErr})
+	d.recordAttempt(ctx, attemptResult{
+		triggerID: triggerID, eventID: eventID,
+		attempts: a.attempts + 1, maxAttempts: a.maxAttempts, statusCode: statusCode, attemptErr: attemptErr,
+	})
 }
 
 // invoke POSTs the change payload to functions-runtime

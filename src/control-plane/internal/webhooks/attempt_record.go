@@ -19,7 +19,8 @@ type attemptOutcome struct {
 }
 
 func (d *Dispatcher) recordAttempt(ctx context.Context,
-	o attemptOutcome, maxAttempts int, attemptErr error) {
+	o attemptOutcome, maxAttempts int, attemptErr error,
+) {
 	if attemptErr == nil {
 		d.recordSuccess(ctx, o.subscriptionID, o.eventID, o.attempts, o.statusCode)
 		return

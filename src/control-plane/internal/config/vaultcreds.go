@@ -61,14 +61,16 @@ func validateEncKey(encKey string) error {
 				"absent or publicly-known placeholder value (no silent fallback). "+
 				"Supply a real per-deployment secret from Vault (e.g. via "+
 				"`make vault-fetch-shared` / VAULT_ADDR) before enabling max mode",
-			vaultEncKeyEnv)
+			vaultEncKeyEnv,
+		)
 	}
 	if len(encKey) < minVaultEncKeyChars {
 		return fmt.Errorf(
 			"SECURITY_MODE=max requires a Vault-backed %s of at least %d chars: "+
 				"the supplied value is too short to be a real secret (refusing to "+
 				"boot — no silent fallback to a weak credential)",
-			vaultEncKeyEnv, minVaultEncKeyChars)
+			vaultEncKeyEnv, minVaultEncKeyChars,
+		)
 	}
 	return nil
 }
@@ -82,7 +84,8 @@ func requireVaultProvenance() error {
 			"SECURITY_MODE=max requires Vault-backed credentials: neither VAULT_ADDR "+
 				"nor VAULT_CREDENTIAL_SOURCE=vault is set, so %s cannot be proven to "+
 				"originate from Vault (refusing to boot — no silent env fallback)",
-			vaultEncKeyEnv)
+			vaultEncKeyEnv,
+		)
 	}
 	return nil
 }

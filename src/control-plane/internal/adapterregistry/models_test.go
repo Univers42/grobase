@@ -21,22 +21,46 @@ func TestValidateCredentialXOR(t *testing.T) {
 		req     RegisterDatabaseRequest
 		wantErr bool
 	}{
-		{"inline only accepted",
-			RegisterDatabaseRequest{Engine: eng, Name: nm, ConnectionString: dsn}, false},
-		{"ref only (provider+reference) accepted",
-			RegisterDatabaseRequest{Engine: eng, Name: nm, CredentialRef: ref("vault", "data-plane/dsn/x", "")}, false},
-		{"ref only with version accepted",
-			RegisterDatabaseRequest{Engine: eng, Name: nm, CredentialRef: ref("vault", "data-plane/dsn/x", "3")}, false},
-		{"both set rejected",
-			RegisterDatabaseRequest{Engine: eng, Name: nm, ConnectionString: dsn, CredentialRef: ref("vault", "data-plane/dsn/x", "")}, true},
-		{"neither set rejected",
-			RegisterDatabaseRequest{Engine: eng, Name: nm}, true},
-		{"ref missing provider rejected",
-			RegisterDatabaseRequest{Engine: eng, Name: nm, CredentialRef: ref("", "data-plane/dsn/x", "")}, true},
-		{"ref missing reference rejected",
-			RegisterDatabaseRequest{Engine: eng, Name: nm, CredentialRef: ref("vault", "", "")}, true},
-		{"version-only ref rejected (provider+reference missing)",
-			RegisterDatabaseRequest{Engine: eng, Name: nm, CredentialRef: ref("", "", "7")}, true},
+		{
+			"inline only accepted",
+			RegisterDatabaseRequest{Engine: eng, Name: nm, ConnectionString: dsn},
+			false,
+		},
+		{
+			"ref only (provider+reference) accepted",
+			RegisterDatabaseRequest{Engine: eng, Name: nm, CredentialRef: ref("vault", "data-plane/dsn/x", "")},
+			false,
+		},
+		{
+			"ref only with version accepted",
+			RegisterDatabaseRequest{Engine: eng, Name: nm, CredentialRef: ref("vault", "data-plane/dsn/x", "3")},
+			false,
+		},
+		{
+			"both set rejected",
+			RegisterDatabaseRequest{Engine: eng, Name: nm, ConnectionString: dsn, CredentialRef: ref("vault", "data-plane/dsn/x", "")},
+			true,
+		},
+		{
+			"neither set rejected",
+			RegisterDatabaseRequest{Engine: eng, Name: nm},
+			true,
+		},
+		{
+			"ref missing provider rejected",
+			RegisterDatabaseRequest{Engine: eng, Name: nm, CredentialRef: ref("", "data-plane/dsn/x", "")},
+			true,
+		},
+		{
+			"ref missing reference rejected",
+			RegisterDatabaseRequest{Engine: eng, Name: nm, CredentialRef: ref("vault", "", "")},
+			true,
+		},
+		{
+			"version-only ref rejected (provider+reference missing)",
+			RegisterDatabaseRequest{Engine: eng, Name: nm, CredentialRef: ref("", "", "7")},
+			true,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

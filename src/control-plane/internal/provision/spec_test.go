@@ -194,19 +194,27 @@ func TestValidateEnforcesArrayBounds(t *testing.T) {
 // portion of the identity hash is derived from the SAME canonical JSON bound to
 // $5::jsonb, so it is stable under key reorder and nested values.
 func TestPolicyContentHashCanonicalJSONConditions(t *testing.T) {
-	a := PolicySpec{ResourceType: "*", ResourceName: "*", Actions: []string{"select"}, Effect: "allow",
-		Conditions: map[string]any{"owner_only": true, "tier": "gold", "nested": map[string]any{"a": 1, "b": 2}}}
-	b := PolicySpec{ResourceType: "*", ResourceName: "*", Actions: []string{"select"}, Effect: "allow",
-		Conditions: map[string]any{"nested": map[string]any{"b": 2, "a": 1}, "tier": "gold", "owner_only": true}}
+	a := PolicySpec{
+		ResourceType: "*", ResourceName: "*", Actions: []string{"select"}, Effect: "allow",
+		Conditions: map[string]any{"owner_only": true, "tier": "gold", "nested": map[string]any{"a": 1, "b": 2}},
+	}
+	b := PolicySpec{
+		ResourceType: "*", ResourceName: "*", Actions: []string{"select"}, Effect: "allow",
+		Conditions: map[string]any{"nested": map[string]any{"b": 2, "a": 1}, "tier": "gold", "owner_only": true},
+	}
 	if PolicyKey("role:acme:user", a) != PolicyKey("role:acme:user", b) {
 		t.Error("policy identity must be stable under condition key reorder (canonical JSON)")
 	}
 
 	// A genuinely different condition value must change the identity.
-	c := PolicySpec{ResourceType: "*", ResourceName: "*", Actions: []string{"select"}, Effect: "allow",
-		Conditions: map[string]any{"owner_only": false}}
-	d := PolicySpec{ResourceType: "*", ResourceName: "*", Actions: []string{"select"}, Effect: "allow",
-		Conditions: map[string]any{"owner_only": true}}
+	c := PolicySpec{
+		ResourceType: "*", ResourceName: "*", Actions: []string{"select"}, Effect: "allow",
+		Conditions: map[string]any{"owner_only": false},
+	}
+	d := PolicySpec{
+		ResourceType: "*", ResourceName: "*", Actions: []string{"select"}, Effect: "allow",
+		Conditions: map[string]any{"owner_only": true},
+	}
 	if PolicyKey("role:acme:user", c) == PolicyKey("role:acme:user", d) {
 		t.Error("policy identity must differ when a condition value differs")
 	}

@@ -27,9 +27,11 @@ func (f *fakeRepo) bootstrap(context.Context) error { return nil }
 func (f *fakeRepo) existing(_ context.Context, _ string) (int64, bool, *string, bool, error) {
 	return 7, f.existsActive, nil, f.existsFound, nil
 }
+
 func (f *fakeRepo) reactivate(_ context.Context, id int64, token string, _ *string) (*Subscriber, error) {
 	return &Subscriber{ID: id, Token: token, IsActive: true}, nil
 }
+
 func (f *fakeRepo) insert(_ context.Context, email string, _ *string, token string) (*Subscriber, error) {
 	f.lastInsertMail = email
 	return &Subscriber{ID: 1, Email: email, Token: token, IsActive: true}, nil
@@ -39,14 +41,18 @@ func (f *fakeRepo) unsubscribe(context.Context, string) (bool, error) { return f
 func (f *fakeRepo) listSubscribers(context.Context, int, int) ([]SubscriberSummary, error) {
 	return []SubscriberSummary{{ID: 1, Email: "a@b.c"}}, nil
 }
+
 func (f *fakeRepo) stats(context.Context) (Stats, error) {
 	return Stats{Total: 10, Active: 8, Confirmed: 6}, nil
 }
+
 func (f *fakeRepo) confirmedEmails(context.Context) ([]Recipient, error) { return f.recipients, nil }
+
 func (f *fakeRepo) logSend(_ context.Context, subject string, count int, _ *string) error {
 	f.loggedSubject, f.loggedCount = subject, count
 	return nil
 }
+
 func (f *fakeRepo) history(context.Context, int) ([]SendLog, error) {
 	return []SendLog{{ID: 1, Subject: "x"}}, nil
 }

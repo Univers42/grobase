@@ -51,8 +51,10 @@ func TestCreateOrgRequestValidate_Edges(t *testing.T) {
 // FuzzCreateOrgRequestValidate: never panics; parity with recompiling slugPattern
 // (the exact pattern the validator uses) when the name is non-empty.
 func FuzzCreateOrgRequestValidate(f *testing.F) {
-	for _, s := range []string{"ab", "a", "", "0x", "-x", "_x", "x-", "Ab",
-		"a:b", "a*b", "a\x00b", "abé", strings.Repeat("z", 63), strings.Repeat("z", 64), ":"} {
+	for _, s := range []string{
+		"ab", "a", "", "0x", "-x", "_x", "x-", "Ab",
+		"a:b", "a*b", "a\x00b", "abé", strings.Repeat("z", 63), strings.Repeat("z", 64), ":",
+	} {
 		f.Add(s)
 	}
 	re := regexp.MustCompile(slugPattern)

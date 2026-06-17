@@ -61,8 +61,10 @@ func TestCreateTenantRequestValidate_Edges(t *testing.T) {
 // FuzzCreateTenantRequestValidate: never panics; and when the name is non-empty,
 // Validate's accept/reject decision matches recompiling the SAME slug regex.
 func FuzzCreateTenantRequestValidate(f *testing.F) {
-	for _, s := range []string{"ab", "a", "", "0a", "-a", "_a", "a-", "A", "a.b",
-		"a b", "a\x00b", "a\nb", "aé", strings.Repeat("z", 63), strings.Repeat("z", 64), "::*"} {
+	for _, s := range []string{
+		"ab", "a", "", "0a", "-a", "_a", "a-", "A", "a.b",
+		"a b", "a\x00b", "a\nb", "aé", strings.Repeat("z", 63), strings.Repeat("z", 64), "::*",
+	} {
 		f.Add(s)
 	}
 	re := regexp.MustCompile(slugPatternMirror)
@@ -93,7 +95,8 @@ func TestProvisionRequestValidate_Edges(t *testing.T) {
 	}
 	// Fully-formed mount + slug is accepted.
 	full := ProvisionRequest{Tenant: "ab", Mounts: []MountSpec{
-		{Engine: "postgres", Name: "main", ConnectionString: "postgres://x"}}}
+		{Engine: "postgres", Name: "main", ConnectionString: "postgres://x"},
+	}}
 	if err := full.Validate(); err != nil {
 		t.Fatalf("complete mount: want accept, got %v", err)
 	}

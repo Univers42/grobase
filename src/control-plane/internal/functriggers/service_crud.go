@@ -30,7 +30,8 @@ func (s *Service) FindOne(ctx context.Context, tenantID, id string) (Trigger, er
 func (s *Service) Update(ctx context.Context, tenantID, id string, req UpdateRequest) (Trigger, error) {
 	var tr Trigger
 	err := s.db.TenantTx(ctx, tenantID, func(tx pgx.Tx) error {
-		row := tx.QueryRow(ctx, `
+		row := tx.QueryRow(
+			ctx, `
 			UPDATE public.function_triggers
 			   SET function_name = COALESCE($2, function_name),
 			       event_types   = COALESCE($3, event_types),
