@@ -28,6 +28,8 @@ description: Go refactoring rules
 
 ## After refactoring
 
+- `gofumpt -l -w .` — format with the stricter superset of `gofmt` (the Go "prettier"); zero diff after. See [`comments.md`](comments.md).
+- No prose comments inside a function body — doc comment ABOVE the declaration only (`// Name does …`, godoc-rendered), the `// ponytail:`/`// perf:` tags excepted ([`comments.md`](comments.md)).
 - `go vet ./...` — zero issues
 - `golangci-lint run` — zero issues
 - `go test -race ./...` — zero failures

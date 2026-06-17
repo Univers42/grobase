@@ -25,7 +25,9 @@ The performance counterpart is `// perf:` — it marks where performance overrod
 
 ## Documentation minimalism
 
-- Code first. Then at most three short comment lines.
+- Code first. Then at most three short comment lines — and those lines live in the
+  doc comment **above** the function, never inside its body (see [`comments.md`](comments.md)).
+  The `// ponytail:`/`// perf:` markers are the only in-body comments tolerated.
 - If the explanation is longer than the code, delete the explanation.
 - Every paragraph defending a simplification is complexity smuggled back as prose.
 - Exception: if the user explicitly asked for a report or walkthrough, give it in full.

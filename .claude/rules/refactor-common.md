@@ -13,6 +13,9 @@ alwaysApply: true
 - No more than 4 parameters per function. Beyond that, use a struct/object.
 - Max nesting depth: 3 levels. If deeper, extract a helper.
 - No dead code. No commented-out code. No TODO without a linked issue.
+- No prose comments inside a function body — all commentary lives in a doc comment
+  ABOVE the declaration (doxygen-style). The only in-body comments tolerated are the
+  `// ponytail:`/`// perf:`/`// SAFETY:` intent tags. See [`comments.md`](comments.md).
 
 ## Naming
 
