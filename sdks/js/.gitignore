@@ -2,3 +2,7 @@ node_modules/
 dist/
 src/generated/*
 !src/generated/.gitkeep
+# engines.ts is the CURATED capability catalog (the SDK's contract, pinned by
+# src/__type_tests__/engines.test-d.ts) — it is the source of truth, not raw
+# codegen output, so it is committed (codegen-engines.mjs only diffs it vs live).
+!src/generated/engines.ts

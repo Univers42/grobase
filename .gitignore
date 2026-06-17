@@ -193,6 +193,10 @@ downloads/
 eggs/
 .eggs/
 lib/
+# but track the dart SDK's generated client (the Python `lib/` rule is too broad;
+# sdks/dart/lib is committed generated code, like the python/swift/kotlin siblings)
+!sdks/dart/lib/
+!sdks/dart/lib/**
 lib64/
 parts/
 sdist/

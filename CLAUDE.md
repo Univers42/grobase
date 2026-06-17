@@ -25,9 +25,12 @@ There are **two layouts**, and which one you see depends on the ref:
 > **Working tree (branch `chore/lean-architecture`) — what's on disk NOW: a flattened "lean"
 > layout.** `mini-baas-infra/` has been **deleted from disk** (it shows as ~1247 ` D` entries in
 > `git status`) and its contents hoisted to the **repo root**: `src/`, `infra/`, `sdks/`,
-> `orchestrators/`, `scripts/`, plus a **root `Makefile`** (735 lines), `docker-compose.yml`, and
-> `sonar-project.properties`. **This restructure is UNCOMMITTED** (the new tree is untracked, the old
-> tree is staged-deleted).
+> `orchestrators/`, `scripts/`, plus a **thin 49-line root `Makefile`** that `include`s ten
+> `orchestrators/makes/*.mk` fragments (the old 735-line monolith is preserved as `Makefile.bak`),
+> `docker-compose.yml`, and `sonar-project.properties`. **The flatten + Makefile re-split are
+> committed on this branch** (`82ac6ff`/`dcfa20f` — the lean tree is tracked, not untracked); the
+> `mini-baas-infra/` deletion is staged, and a handful of fragments (`20-stack`, `80-ops`, `99-help`,
+> deleted `10-classics`) plus many plane files carry further uncommitted edits.
 >
 > **Committed `HEAD` / `origin/main` — what a fresh clone gets: the old `mini-baas-infra/` layout.**
 
@@ -37,33 +40,42 @@ at the bottom. **Sanity check which one you're on:** `ls mini-baas-infra` → "N
 lean working tree; if it lists files, you're on a clean checkout of `origin/main` and should mentally
 re-prefix every path below with `mini-baas-infra/`.
 
-The lean restructure is **half-finished**: the new root `Makefile` and the SDK codegen still point at
-several stale paths, so a number of targets **don't build yet** — see the next section before running
-anything.
+The lean restructure's **path-rewrite is complete**: the Makefile re-split repointed every build
+target, and the SDK-codegen chain + CI workflow have now been repointed too (next section). What
+remains is **committing the flatten** and exercising codegen/CI end-to-end — the path resolution is
+verified, the full runs are not yet.
 
 ## Code generation
 
 - Always walk the minimalism ladder before writing code (see [`.claude/rules/minimalism-ladder.md`](.claude/rules/minimalism-ladder.md)).
 - Mark deliberate simplifications with `// ponytail:` comments (see [`.claude/rules/minimalism-markers.md`](.claude/rules/minimalism-markers.md)).
 
-## In-flight restructure — paths that don't build yet
+## In-flight restructure — paths repointed to the lean layout
 
-The new root `Makefile`/codegen were hoisted but their internal paths were **not all rewritten**.
-These are **confirmed broken on the current working tree** (they reference the pre-flatten locations):
+The flatten's path-rewrite is done in the working tree. The **Makefile re-split** (735-line monolith →
+`orchestrators/makes/*.mk`) repointed every build target — verified against the fragments (the old
+monolith's line numbers no longer apply): `make rust-data-plane-*` → `src/data-plane-router`
+(`70-langtiers.mk` `CARGO_DPR`), `rust-realtime-*` → `infra/docker/services/realtime/realtime-agnostic`
+(`CARGO_REALTIME`), `go-control-plane-check`/`-build` → `src/control-plane` (`golang:1.25-bookworm`),
+`certs` → `scripts/certs/generate-localhost-cert.sh` + root `certs/localhost.pem`, `nano-build`/
+`one-build` → `src/data-plane-router/Dockerfile.{nano,one}`, `packages` banner →
+`infra/config/packages/packages.json`. The `make legacy-%` target is **gone** (the monolith survives
+only as `Makefile.bak`).
 
-| Target / file                                                           | Stale ref (in-file)                                                                | Actual location now                                |
-| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `make go-control-plane-check` / `-build` (Makefile L275/292/605)        | mounts `$(CURDIR)/go/control-plane`                                                | `src/control-plane` (NOT `src/go/…` — no `go/` dir exists) |
-| `make rust-data-plane-*` (CARGO_DPR, L538)                              | mounts `docker/services/data-plane-router`                                         | `src/data-plane-router`                            |
-| `make rust-realtime-*` (CARGO_REALTIME, L539)                           | mounts `docker/services/realtime/realtime-agnostic`                                | `infra/docker/services/realtime/realtime-agnostic` |
-| `make nano-build` / `one-build` (L568/584)                              | `docker/services/data-plane-router/Dockerfile.{nano,one}`                          | `src/data-plane-router/Dockerfile.{nano,one}`      |
-| `make certs` (L470) + `make up` cert probe (L164)                       | `../scripts/generate-localhost-cert.sh`, `../certs/localhost.pem` (parent-of-repo) | `certs/` is at the repo root, not `../`            |
-| `make legacy-%` (L621)                                                  | `-f Makefile.legacy`                                                               | no `Makefile.legacy` at root                       |
-| `make packages` banner (L336, cosmetic)                                 | prints `config/packages/packages.json`                                             | `infra/config/packages/packages.json`              |
-| `sdks/js` `openapi:collect` (package.json L54) → so `codegen:all` chain | `../../mini-baas-infra/scripts/openapi-collect.sh`                                 | `scripts/ops/openapi-collect.sh`                   |
-| `sdks/js/scripts/codegen-polyglot.sh` (L24)                             | `SPEC="mini-baas-infra/openapi/grobase-public.json"`                               | `infra/config/openapi/grobase-public.json`         |
-| `scripts/verify/m58-sdks-compile.sh`                                    | resolves SDKs via `APPS_BAAS_DIR` = **parent of repo root**                        | SDKs are at `<repo>/sdks/` (off by one)            |
-| `.github/workflows/ci.yml` (629 lines, L75–150)                         | `context: mini-baas-infra/src`, `…/go/control-plane`, `…/docker/services/*`        | will break when the flatten is committed           |
+The **SDK-codegen chain and CI** were repointed too (uncommitted working-tree edits — paths verified to
+resolve and the scripts parse; the full codegen/CI runs are not yet exercised):
+
+| File                                                     | Repointed to                                                                            |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `sdks/js/package.json` (`openapi:collect`)               | `../../scripts/ops/openapi-collect.sh`                                                   |
+| `scripts/ops/openapi-collect.sh` (`REPO_ROOT`+`OUT_DIR`) | `../..` from `scripts/ops`; output → `infra/config/openapi/`                             |
+| `sdks/js/scripts/codegen-polyglot.sh` (`SPEC`)           | `infra/config/openapi/grobase-public.json`                                               |
+| `scripts/verify/m58-sdks-compile.sh`                     | SDKs → `${BAAS_DIR}/sdks/{python,dart}`; spec → `infra/config/openapi/…` (dropped the off-by-one `/..`) |
+| `.github/workflows/ci.yml` (~33 refs)                    | `context:` → `src` · `src/control-plane` · `src/data-plane-router` · `infra/docker/services/<svc>`; `working-directory:` → `.`/`src`; artifact + spec mounts |
+
+**Net:** build, codegen, and CI paths now all point at the lean tree. The remaining restructure work is
+to **commit the flatten** (the staged `mini-baas-infra/` deletion + the untracked lean tree) and prove
+codegen + CI green end-to-end. On `origin/main` these files still carry the old `mini-baas-infra/` paths.
 
 **What DOES work on the lean tree** (already root-relative): `make up`/`editions`/`planes`/`packages`/
 `build`, the `.env`/secrets/port machinery (`scripts/env/generate-env.sh`, `scripts/ops/resolve-ports.sh`),
@@ -148,9 +160,12 @@ producer (`postgres`|`mongodb`) assembled in `realtime-server`. Per-crate `READM
 
 ## Running & building (root `Makefile`)
 
-Run from the **repo root**. Drive the stack **only** through it (Docker-first; no host
-node/cargo/go for lifecycle — the make wrappers build/cache the toolchain images). `make legacy-<t>`
-is meant to reach the preserved `Makefile.legacy` but that file is not present (see caveats above).
+Run from the **repo root**. The `Makefile` is a **thin orchestrator** (`.DEFAULT_GOAL := help`, so
+bare `make` prints the grouped help) — all logic lives in `orchestrators/makes/*.mk`, loaded in order
+(`00-config` first). Drive the stack **only** through it (Docker-first; no host node/cargo/go for
+lifecycle — the make wrappers build/cache the toolchain images). `make all` = `build` then `up` (the
+"42 Classics" group also has `all-full`, `re`, `fclean`, `clean`). There is **no** `make legacy-*`
+target anymore; the pre-split monolith survives only as `Makefile.bak`.
 
 ```bash
 make quickstart               # one shot: generate .env → up (PACKAGE=essential) → health
@@ -225,9 +240,11 @@ compliance-matrices, `m144` trust-page-parity, `m145` cost-model integrity.
 ### Build, lint & test (per plane) — including how to run ONE test
 
 Every toolchain runs **in Docker**. There's a wrapper for the _whole_ suite per plane; for a _single_
-test, invoke the runner through the same container. **Caveat:** the Rust/Go make wrappers currently
-mount stale paths (see "paths that don't build yet") — `cargo`/`go test` via `make` will fail until
-those mounts are repointed; the direct `docker run` forms below already use the lean paths.
+test, invoke the runner through the same container. The Rust/Go make wrappers now mount the lean paths
+(repointed in the Makefile re-split — `src/data-plane-router`, `src/control-plane`,
+`infra/docker/services/realtime/realtime-agnostic`), so `make rust-data-plane-check`/
+`go-control-plane-check` build; the direct `docker run` forms below use the same paths if you'd rather
+skip `make`.
 
 | Plane                               | Whole suite (Docker wrapper)                                                                                       | One test                                                                                                                                                                                                                                                                                                                                                             |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -240,9 +257,9 @@ those mounts are repointed; the direct `docker run` forms below already use the 
 
 Notes: the data-plane crate's produced binary is **`data-plane-router`** (package `data-plane-server`,
 `[[bin]] name = "data-plane-router"`); realtime's is `realtime-server`. The SDK `src/generated/` tree
-is **gitignored** — regenerate with `cd sdks/js && npm run codegen:all` (but the `openapi:collect` link
-in that chain is currently broken — see caveats). All SDKs derive from one spec:
-`infra/config/openapi/grobase-public.json` (polyglot via `bash sdks/js/scripts/codegen-polyglot.sh`).
+is **gitignored** (except the committed curated `engines.ts`) — regenerate with `cd sdks/js && npm run codegen:all` (the `openapi:collect` link in
+that chain was repointed to `../../scripts/ops/openapi-collect.sh` in the flatten). All SDKs derive
+from one spec: `infra/config/openapi/grobase-public.json` (polyglot via `bash sdks/js/scripts/codegen-polyglot.sh`).
 
 **Code quality (SonarCloud).** `sonar-project.properties` (repo root; org `univers42`, projectKey
 `Univers42_grobase`) defines the scope — sources `docker/services, scripts, config, src/apps,
@@ -337,15 +354,18 @@ Other slices, also OFF by default: `QUOTA_STAGE` · `SPEND_CAPS_ENABLED` · `ABU
 The TS SDK is **`sdks/js/`** (package **`@grobase/js`**, renamed from `@mini-baas/js` during the
 `sdks/` consolidation, commit `ca6aaf8`) — a hand-written reference client, layout
 `src/{core,domains,generated,bin,__type_tests__}` + `index.ts`/`types.ts`, tested with **`node:test`**
-(not jest/vitest). Its `src/generated/` is **gitignored** (reproduced from the spec, never committed).
+(not jest/vitest). Its `src/generated/` is **gitignored EXCEPT the curated `engines.ts`** — the engine
+capability catalog is the SDK's contract (pinned by `__type_tests__/engines.test-d.ts`) and is committed
+as the source of truth (`codegen-engines.mjs` only diffs it vs a live `/engines`); the rest is reproduced.
 The polyglot SDKs (`sdks/python/`, `sdks/kotlin/`, `sdks/swift/`, `sdks/dart/`) are
 **OpenAPI-generated** from `infra/config/openapi/grobase-public.json` via
 `bash sdks/js/scripts/codegen-polyglot.sh` (package identities: python `grobase`, dart `grobase`,
 swift `Grobase`, kotlin `com.grobase:grobase-sdk`). The old flat `sdk*/` and `*.rootowned-stale`
 duplicate dirs **no longer exist** in the working tree (they survive only in `origin/main`). Build/test
-commands are in the table above. **Caveat:** both the `openapi:collect` link in `codegen:all` and
-`codegen-polyglot.sh`'s `SPEC=` path still reference the old `mini-baas-infra/…openapi/` location and
-must be repointed to `infra/config/openapi/grobase-public.json` before codegen will run.
+commands are in the table above. The `openapi:collect` link in `codegen:all`, `codegen-polyglot.sh`'s
+`SPEC=`, and `m58`'s SDK/spec paths were repointed from the old `mini-baas-infra/…openapi/` location to
+`infra/config/openapi/grobase-public.json` (+ `scripts/ops/openapi-collect.sh`) in the flatten, so
+codegen now resolves against the lean tree.
 
 ## Going to production
 
@@ -431,5 +451,5 @@ on that layout — re-map the lean paths above as follows:
 
 `origin/main` also still tracks `.gitmodules` (6 dead, uninitialized submodule declarations) and the
 active CI (`.github/workflows/ci.yml`) builds with `context: mini-baas-infra/...` and
-`working-directory: mini-baas-infra` — both of which the lean flatten removes/breaks and will need
-updating when the restructure is committed.
+`working-directory: mini-baas-infra` — the lean working tree has already repointed these (see the
+restructure section), so they land corrected when the flatten is committed to `main`.
