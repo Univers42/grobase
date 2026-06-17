@@ -36,15 +36,11 @@ package erase
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/audit"
 	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
-	"github.com/dlesieur/mini-baas/control-plane/internal/tenants"
-	"github.com/jackc/pgx/v5"
 )
 
 // ErrUnsupportedScope is returned when a tenant's isolation model is not one of
@@ -118,283 +114,37 @@ func (s *Service) Erase(ctx context.Context, tenantID, requestedBy string) (Rece
 	if scope != "schema_per_tenant" && scope != "shared_rls" {
 		return Receipt{}, ErrUnsupportedScope
 	}
-
 	receiptID, err := s.insertPending(ctx, tenantID, requestedBy, scope)
 	if err != nil {
 		return Receipt{}, err
 	}
-
 	rows, keys, derr := s.destroy(ctx, tenantID, scope)
 	if derr != nil {
-		_ = s.db.AdminExec(ctx,
-			`UPDATE public.erasure_receipts SET status='failed', error_message=$2 WHERE id=$1`,
-			receiptID, derr.Error())
+		s.markFailed(ctx, receiptID, derr)
 		return Receipt{ID: receiptID, TenantID: tenantID, Status: "failed"}, derr
 	}
+	return s.finishErase(ctx, receiptID, tenantID, requestedBy, scope, rows, keys)
+}
 
+// finishErase runs the post-destruction steps once data is provably gone: flush
+// the key-verify cache, soft-mark the tenant deleted, seal the D3 receipt, and
+// finalize the erasure_receipts ledger row into the completed Receipt.
+func (s *Service) finishErase(ctx context.Context, receiptID, tenantID, requestedBy, scope string, rows, keys int64) (Receipt, error) {
 	// The DB key rows are gone — drop the verify fast-path cache so the credential
 	// stops authenticating immediately (otherwise it lingers until the cache TTL).
 	if s.flushKeyCache != nil {
 		s.flushKeyCache()
 	}
-
-	// Soft-mark the tenant entity deleted too (the data is gone; the entity must
-	// not keep serving). Best-effort: the data destruction already succeeded, so a
-	// status-flip hiccup must not flip the receipt to failed.
-	if err := s.db.AdminExec(ctx,
-		`UPDATE public.tenants SET status='deleted' WHERE slug=$1`, tenantID); err != nil {
-		s.log.Warn("erase: mark tenant deleted failed (data already destroyed)", "tenant", tenantID, "err", err)
-	}
-
+	s.markTenantDeleted(ctx, tenantID)
 	// Seal the tamper-evident D3 receipt. This is the proof the erase HAPPENED —
 	// it lives on the per-tenant hash chain, which the auditor can verify even
 	// after every other trace of the tenant is gone.
 	auditSeq := s.sealReceipt(ctx, tenantID, requestedBy, scope, rows, keys)
-
-	if err := s.db.AdminExec(ctx,
-		`UPDATE public.erasure_receipts
-		    SET status='completed', completed_at=now(),
-		        rows_purged=$2, keys_revoked=$3, audit_seq=$4
-		  WHERE id=$1`, receiptID, rows, keys, auditSeq); err != nil {
-		return Receipt{}, fmt.Errorf("erase: finalize receipt: %w", err)
+	if err := s.finalizeReceipt(ctx, receiptID, rows, keys, auditSeq); err != nil {
+		return Receipt{}, err
 	}
-
 	return Receipt{
 		ID: receiptID, TenantID: tenantID, RequestedBy: requestedBy, Scope: scope,
 		RowsPurged: rows, KeysRevoked: keys, AuditSeq: auditSeq, Status: "completed",
 	}, nil
-}
-
-// scopeFor resolves the tenant's isolation model from public.tenant_databases.
-// tenant_id is ALWAYS a bind param (the cross-tenant wall). When the tenant has
-// multiple mounts they must share one isolation model for a whole-tenant erase;
-// the first row's isolation is authoritative (the MVP scopes whole-tenant erase).
-func (s *Service) scopeFor(ctx context.Context, tenantID string) (string, error) {
-	rows, err := s.db.AdminQuery(ctx,
-		`SELECT isolation FROM public.tenant_databases
-		  WHERE tenant_id = $1 ORDER BY created_at LIMIT 1`, tenantID)
-	if err != nil {
-		return "", err
-	}
-	defer rows.Close()
-	if !rows.Next() {
-		if rerr := rows.Err(); rerr != nil {
-			return "", rerr
-		}
-		return "", ErrNoMount
-	}
-	var iso string
-	if err := rows.Scan(&iso); err != nil {
-		return "", err
-	}
-	return iso, nil
-}
-
-// insertPending records a pending erasure_receipts row and returns its id.
-// tenant_id, requested_by and scope are bind params.
-func (s *Service) insertPending(ctx context.Context, tenantID, requestedBy, scope string) (string, error) {
-	rows, err := s.db.AdminQuery(ctx,
-		`INSERT INTO public.erasure_receipts (tenant_id, requested_by, scope, status)
-		 VALUES ($1, $2, $3, 'pending')
-		 RETURNING id::text`, tenantID, requestedBy, scope)
-	if err != nil {
-		return "", fmt.Errorf("erase: insert receipt: %w", err)
-	}
-	defer rows.Close()
-	if !rows.Next() {
-		if rerr := rows.Err(); rerr != nil {
-			return "", fmt.Errorf("erase: insert receipt: %w", rerr)
-		}
-		return "", fmt.Errorf("erase: insert receipt returned no id")
-	}
-	var id string
-	if err := rows.Scan(&id); err != nil {
-		return "", fmt.Errorf("erase: scan receipt id: %w", err)
-	}
-	return id, nil
-}
-
-// destroy performs the scope-appropriate destruction and revokes the keys,
-// returning (rows_purged, keys_revoked). The whole destruction runs in ONE
-// transaction so it is all-or-nothing: a mid-erase failure leaves the tenant's
-// data intact (no half-erased state) and the receipt flips to 'failed'.
-func (s *Service) destroy(ctx context.Context, tenantID, scope string) (int64, int64, error) {
-	conn, err := s.db.AcquireConn(ctx)
-	if err != nil {
-		return 0, 0, err
-	}
-	defer conn.Release()
-	tx, err := conn.Begin(ctx)
-	if err != nil {
-		return 0, 0, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	var rows int64
-	switch scope {
-	case "schema_per_tenant":
-		rows, err = dropTenantSchema(ctx, tx, tenants.TenantSchema(tenantID))
-	case "shared_rls":
-		rows, err = deleteSharedRows(ctx, tx, tenantID)
-	default:
-		err = ErrUnsupportedScope
-	}
-	if err != nil {
-		return 0, 0, err
-	}
-
-	keys, err := revokeKeys(ctx, tx, tenantID)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return 0, 0, fmt.Errorf("erase: commit destruction: %w", err)
-	}
-	return rows, keys, nil
-}
-
-// sealReceipt appends a D3 audit event recording the erase onto the tenant's
-// tamper-evident chain and returns the sealed seq. Best-effort on the seq: the
-// destruction already committed, so an audit hiccup must not undo it — but the
-// erasure_receipts row still records what happened (audit_seq stays 0 then). The
-// receipt payload carries the storage-scope note (object-store deletion is the
-// downstream reaper's job; the platform records the intent here).
-func (s *Service) sealReceipt(ctx context.Context, tenantID, requestedBy, scope string, rows, keys int64) int64 {
-	payload, _ := json.Marshal(map[string]any{
-		"scope":         scope,
-		"rows_purged":   rows,
-		"keys_revoked":  keys,
-		"storage_scope": "object-store deletion is best-effort/downstream; postgres data provably destroyed",
-	})
-	ev, err := s.audit.Append(ctx, audit.AppendInput{
-		TenantID: tenantID,
-		Actor:    requestedBy,
-		Action:   "tenant.erase",
-		Target:   tenantID,
-		Payload:  payload,
-	})
-	if err != nil {
-		s.log.Warn("erase: audit receipt append failed (data already destroyed)", "tenant", tenantID, "err", err)
-		return 0
-	}
-	return ev.Seq
-}
-
-// dropTenantSchema counts the rows across the tenant schema's BASE TABLEs then
-// DROPs the schema CASCADE. The schema name comes from the single-source
-// tenants.TenantSchema sanitizer (never interpolated user input — it is
-// [a-z0-9_]-only and prefixed tenant_), and is double-quoted for the DDL via
-// pgx.Identifier.Sanitize. A non-resolvable id (empty schema) is a hard error.
-func dropTenantSchema(ctx context.Context, tx pgx.Tx, schema string) (int64, error) {
-	if schema == "" {
-		return 0, fmt.Errorf("erase: tenant id sanitizes to an empty schema")
-	}
-	total, err := countSchemaRows(ctx, tx, schema)
-	if err != nil {
-		return 0, err
-	}
-	quoted := pgx.Identifier{schema}.Sanitize()
-	if _, err := tx.Exec(ctx, fmt.Sprintf(`DROP SCHEMA IF EXISTS %s CASCADE`, quoted)); err != nil {
-		return 0, fmt.Errorf("erase: drop schema %s: %w", quoted, err)
-	}
-	return total, nil
-}
-
-// countSchemaRows sums row counts across every BASE TABLE in the schema (so the
-// receipt's rows_purged is an honest pre-drop total). schema is a bind param in
-// the catalog query; each per-table COUNT uses a sanitized identifier.
-func countSchemaRows(ctx context.Context, tx pgx.Tx, schema string) (int64, error) {
-	rows, err := tx.Query(ctx,
-		`SELECT table_name FROM information_schema.tables
-		  WHERE table_schema = $1 AND table_type = 'BASE TABLE'
-		  ORDER BY table_name`, schema)
-	if err != nil {
-		return 0, fmt.Errorf("erase: enumerate schema tables: %w", err)
-	}
-	var tables []string
-	for rows.Next() {
-		var t string
-		if err := rows.Scan(&t); err != nil {
-			rows.Close()
-			return 0, err
-		}
-		tables = append(tables, t)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return 0, err
-	}
-	var total int64
-	for _, tbl := range tables {
-		qualified := pgx.Identifier{schema, tbl}.Sanitize()
-		var n int64
-		if err := tx.QueryRow(ctx, fmt.Sprintf(`SELECT count(*) FROM %s`, qualified)).Scan(&n); err != nil {
-			return 0, fmt.Errorf("erase: count %s: %w", qualified, err)
-		}
-		total += n
-	}
-	return total, nil
-}
-
-// deleteSharedRows removes ONLY the caller tenant's rows from the shared data
-// tables — every table in the public schema that carries a tenant_id column,
-// EXCLUDING the control-plane bookkeeping tables (the tenants registry, its keys,
-// and the per-tenant ledgers themselves, which the audit/receipt trail relies
-// on). NEVER a TRUNCATE: that would wipe every tenant's rows. tenant_id is bound
-// per DELETE, so tenant B's rows in the same shared table are untouched.
-func deleteSharedRows(ctx context.Context, tx pgx.Tx, tenantID string) (int64, error) {
-	rows, err := tx.Query(ctx, `
-		SELECT c.table_name
-		  FROM information_schema.columns c
-		 WHERE c.table_schema = 'public'
-		   AND c.column_name = 'tenant_id'
-		   AND c.table_name NOT IN (
-		         'tenants','tenant_api_keys','tenant_databases','tenant_usage',
-		         'tenant_billing','tenant_backups','tenant_audit_log',
-		         'erasure_receipts','schema_migrations')
-		 ORDER BY c.table_name`)
-	if err != nil {
-		return 0, fmt.Errorf("erase: enumerate shared tables: %w", err)
-	}
-	var tables []string
-	for rows.Next() {
-		var t string
-		if err := rows.Scan(&t); err != nil {
-			rows.Close()
-			return 0, err
-		}
-		tables = append(tables, t)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return 0, err
-	}
-
-	var total int64
-	for _, tbl := range tables {
-		qualified := pgx.Identifier{"public", tbl}.Sanitize()
-		tag, err := tx.Exec(ctx,
-			fmt.Sprintf(`DELETE FROM %s WHERE tenant_id = $1`, qualified), tenantID)
-		if err != nil {
-			return 0, fmt.Errorf("erase: delete from %s: %w", qualified, err)
-		}
-		total += tag.RowsAffected()
-	}
-	return total, nil
-}
-
-// revokeKeys revokes AND deletes every API key for the tenant so no credential
-// authenticates after the erase. tenant_id is the tenant slug carried by the
-// /v1/tenants/{id} path; tenant_api_keys.tenant_id is the tenant UUID, so the
-// DELETE joins through public.tenants on slug. Returns the count deleted.
-func revokeKeys(ctx context.Context, tx pgx.Tx, tenantSlug string) (int64, error) {
-	tag, err := tx.Exec(ctx, `
-		DELETE FROM public.tenant_api_keys k
-		 USING public.tenants t
-		 WHERE k.tenant_id = t.id AND t.slug = $1`, tenantSlug)
-	if err != nil {
-		return 0, fmt.Errorf("erase: delete api keys: %w", err)
-	}
-	return tag.RowsAffected(), nil
 }

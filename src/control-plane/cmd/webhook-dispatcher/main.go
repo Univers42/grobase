@@ -9,153 +9,62 @@ package main
 
 import (
 	"context"
-	"errors"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/adapterregistry"
-	"github.com/dlesieur/mini-baas/control-plane/internal/funcsecrets"
-	"github.com/dlesieur/mini-baas/control-plane/internal/functriggers"
 	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
-	"github.com/dlesieur/mini-baas/control-plane/internal/webhooks"
 )
 
 func main() {
 	log := shared.NewLogger("webhook-dispatcher")
-
-	cfg, err := shared.LoadConfig("WEBHOOK_DISPATCHER")
-	if err != nil {
-		log.Error("config error", "err", err)
-		os.Exit(1)
-	}
-
-	if len(os.Args) > 1 && os.Args[1] == "--healthcheck" {
-		os.Exit(healthcheck(cfg))
-	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	cfg, ctx, stop, db := bootstrap(log)
 	defer stop()
-
-	db, err := shared.NewPostgres(ctx, cfg.DatabaseURL)
-	if err != nil {
-		log.Error("postgres connect failed", "err", err)
-		os.Exit(1)
-	}
 	defer db.Close()
 
-	svc := webhooks.NewService(db, log)
-	if err := svc.EnsureSchema(ctx); err != nil {
-		log.Error("schema check failed", "err", err)
-		os.Exit(1)
-	}
-
-	redisURL := os.Getenv("WEBHOOK_REDIS_URL")
-	if redisURL == "" {
-		redisURL = os.Getenv("OUTBOX_REDIS_URL")
-	}
-	if redisURL == "" {
-		redisURL = "redis://redis:6379"
-	}
-
-	dispatcher, err := webhooks.NewDispatcher(db, log, webhooks.DispatcherConfig{
-		RedisURL:    redisURL,
-		GroupName:   shared.EnvStr("WEBHOOK_GROUP", "webhook-dispatcher"),
-		ConsumerID:  shared.EnvStr("WEBHOOK_CONSUMER", "webhook-dispatcher-0"),
-		PollPause:   1 * time.Second,
-		RetryPeriod: 10 * time.Second,
-	})
+	redisURL := resolveRedisURL()
+	svc, dispatcher, err := buildWebhooks(ctx, db, log, redisURL)
 	if err != nil {
 		log.Error("dispatcher init failed", "err", err)
 		os.Exit(1)
 	}
 	defer dispatcher.Close()
 
-	// A2: DB-event -> function triggers. Shares the same DB + Redis substrate
-	// and reuses the identical matching + retry/DLQ machinery; the only
-	// difference is the delivery target (functions-runtime invoke).
-	ftSvc := functriggers.NewService(db, log)
-	if err := ftSvc.EnsureSchema(ctx); err != nil {
-		log.Warn("function_triggers schema check failed — run migration 035", "err", err)
-	}
-	ftDispatcher, err := functriggers.NewDispatcher(db, log, functriggers.DispatcherConfig{
-		RedisURL:    redisURL,
-		GroupName:   shared.EnvStr("FUNCTION_TRIGGER_GROUP", "function-dispatcher"),
-		ConsumerID:  shared.EnvStr("FUNCTION_TRIGGER_CONSUMER", "function-dispatcher-0"),
-		RuntimeURL:  shared.EnvStr("FUNCTIONS_RUNTIME_URL", "http://functions-runtime:3060"),
-		PollPause:   1 * time.Second,
-		RetryPeriod: 10 * time.Second,
-	})
+	ftSvc, ftDispatcher, err := buildFunctriggers(ctx, db, log, redisURL)
 	if err != nil {
 		log.Error("function dispatcher init failed", "err", err)
 		os.Exit(1)
 	}
 	defer ftDispatcher.Close()
 
-	mux := shared.NewRouter("webhook-dispatcher", db)
-	webhooks.Mount(mux, svc, cfg.ServiceToken)
-	functriggers.Mount(mux, ftSvc, cfg.ServiceToken)
+	mux := buildRouter(ctx, db, log, svc, ftSvc, cfg.ServiceToken)
+	srv := newServer(cfg, mux, log)
+	launchLoops(ctx, log, redisURL, srv, cfg, dispatcher.Run, ftDispatcher.Run, stop)
+	awaitShutdown(ctx, srv, log)
+}
 
-	// A2: per-function secret store. Requires VAULT_ENC_KEY (same master key as
-	// the adapter-registry); if absent, the secrets surface is simply not
-	// mounted — function triggers/schedules still work without it.
-	if encKey := os.Getenv("VAULT_ENC_KEY"); encKey != "" {
-		enc, encErr := adapterregistry.NewEncryptor(encKey)
-		if encErr != nil {
-			log.Warn("function secrets disabled — invalid VAULT_ENC_KEY", "err", encErr)
-		} else {
-			secSvc := funcsecrets.NewService(db, enc, log)
-			if err := secSvc.EnsureSchema(ctx); err != nil {
-				log.Warn("function_secrets schema check failed — run migration 037", "err", err)
-			}
-			funcsecrets.Mount(mux, secSvc, cfg.ServiceToken)
-			log.Info("function secrets surface mounted")
-		}
-	} else {
-		log.Info("function secrets disabled (no VAULT_ENC_KEY)")
+// bootstrap loads config, dispatches the --healthcheck subcommand, installs the
+// signal-cancelled context, and opens the Postgres pool. Any fatal step exits.
+func bootstrap(log *slog.Logger) (shared.Config, context.Context, context.CancelFunc, *shared.Postgres) {
+	cfg, err := shared.LoadConfig("WEBHOOK_DISPATCHER")
+	if err != nil {
+		log.Error("config error", "err", err)
+		os.Exit(1)
 	}
-
-	srv := &http.Server{
-		Addr:              cfg.ListenAddr(),
-		Handler:           shared.WithMiddleware(mux, log),
-		ReadHeaderTimeout: 5 * time.Second,
+	if len(os.Args) > 1 && os.Args[1] == "--healthcheck" {
+		os.Exit(healthcheck(cfg))
 	}
-
-	go func() {
-		log.Info("listening", "addr", cfg.ListenAddr(), "mode", cfg.ProductMode)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("server error", "err", err)
-			stop()
-		}
-	}()
-
-	go func() {
-		log.Info("dispatcher loop starting", "redis", redisURL)
-		if err := dispatcher.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			log.Error("dispatcher loop ended", "err", err)
-			stop()
-		}
-	}()
-
-	go func() {
-		log.Info("function-trigger dispatcher loop starting", "redis", redisURL)
-		if err := ftDispatcher.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			log.Error("function dispatcher loop ended", "err", err)
-			stop()
-		}
-	}()
-
-	<-ctx.Done()
-	log.Info("shutdown signal received")
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("graceful shutdown failed", "err", err)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	db, err := shared.NewPostgres(ctx, cfg.DatabaseURL)
+	if err != nil {
+		log.Error("postgres connect failed", "err", err)
+		stop()
+		os.Exit(1)
 	}
-	log.Info("stopped")
+	return cfg, ctx, stop, db
 }
 
 func healthcheck(cfg shared.Config) int {

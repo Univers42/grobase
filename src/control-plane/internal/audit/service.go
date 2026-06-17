@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"hash/fnv"
 	"strings"
 	"time"
 
@@ -63,64 +62,41 @@ type AppendInput struct {
 // The UNIQUE(tenant_id, seq) constraint is the final backstop: even if two
 // appends somehow raced the lock, the second INSERT would fail rather than fork.
 func (s *Service) Append(ctx context.Context, in AppendInput) (Event, error) {
-	if strings.TrimSpace(in.TenantID) == "" {
-		return Event{}, errEmptyTenant
+	if err := validateAppend(in); err != nil {
+		return Event{}, err
 	}
-	if strings.TrimSpace(in.Action) == "" {
-		return Event{}, errEmptyAction
-	}
-	payload := normalizePayload(in.Payload)
-
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return Event{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-
-	// 1) serialize appends for THIS tenant only.
+	// serialize appends for THIS tenant only, then read tip / seal / insert.
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, lockKey(in.TenantID)); err != nil {
 		return Event{}, err
 	}
-
-	// 2) read the tip under the lock.
-	var prevSeq int64
-	var prevHash string
-	row := tx.QueryRow(ctx,
-		`SELECT COALESCE(MAX(seq),0),
-		        COALESCE((SELECT hash FROM public.tenant_audit_log
-		                   WHERE tenant_id = $1 ORDER BY seq DESC LIMIT 1), '')
-		   FROM public.tenant_audit_log WHERE tenant_id = $1`, in.TenantID)
-	if err := row.Scan(&prevSeq, &prevHash); err != nil {
+	prevSeq, prevHash, err := readTip(ctx, tx, in.TenantID)
+	if err != nil {
 		return Event{}, err
 	}
-
-	// 3) seal the new link with the canonical chain rule.
-	ev := Event{
-		TenantID: in.TenantID,
-		Seq:      prevSeq + 1,
-		Ts:       time.Now().UTC(),
-		Actor:    in.Actor,
-		Action:   in.Action,
-		Target:   in.Target,
-		Payload:  payload,
-		PrevHash: prevHash,
-	}
-	ev.Hash = ComputeHash(ev.PrevHash, ev.TenantID, ev.Seq, ev.Ts, ev.Actor, ev.Action, ev.Target, ev.Payload)
-
-	// 4) insert + return the assigned id.
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO public.tenant_audit_log
-		  (tenant_id, seq, ts, actor, action, target, payload, prev_hash, hash)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-		RETURNING id`,
-		ev.TenantID, ev.Seq, ev.Ts, ev.Actor, ev.Action, ev.Target, []byte(ev.Payload), ev.PrevHash, ev.Hash,
-	).Scan(&ev.ID); err != nil {
+	ev := sealLink(in, prevSeq, prevHash)
+	if err := insertEvent(ctx, tx, &ev); err != nil {
 		return Event{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return Event{}, err
 	}
 	return ev, nil
+}
+
+// validateAppend guards the append contract: a non-blank tenant and action.
+func validateAppend(in AppendInput) error {
+	if strings.TrimSpace(in.TenantID) == "" {
+		return errEmptyTenant
+	}
+	if strings.TrimSpace(in.Action) == "" {
+		return errEmptyAction
+	}
+	return nil
 }
 
 // listSQL reads one tenant's events in chain order (seq ASC) over an optional
@@ -178,24 +154,3 @@ func (s *Service) Verify(ctx context.Context, tenantID string) (VerifyResult, er
 }
 
 const maxListLimit = 100_000
-
-// normalizePayload guarantees a non-nil, valid JSON payload ('{}' default),
-// mirroring the table's DEFAULT '{}'::jsonb — so the chain never hashes a NULL.
-func normalizePayload(p []byte) json.RawMessage {
-	if len(p) == 0 {
-		return json.RawMessage(`{}`)
-	}
-	return json.RawMessage(p)
-}
-
-// nullableTime maps a zero time to SQL NULL (unbounded window side).
-
-// lockKey hashes a tenant id to a stable signed 64-bit pg_advisory lock key, so
-// appends serialize per tenant (different tenants get different keys → no
-// cross-tenant contention). FNV-1a is deterministic and fast; the value is
-// reinterpreted as int64 (pg_advisory_xact_lock(bigint)).
-func lockKey(tenantID string) int64 {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(tenantID))
-	return int64(h.Sum64()) // wrap to signed bigint; collision only costs serialization, never correctness
-}

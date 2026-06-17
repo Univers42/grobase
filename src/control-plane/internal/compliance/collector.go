@@ -107,43 +107,28 @@ func (c *Collector) env(key string) string {
 // the observed truth (including failing/absent/disabled controls).
 func (c *Collector) Collect(ctx context.Context) (Snapshot, error) {
 	at := c.now()
-
-	ciPayload, err := c.collectCI()
-	if err != nil {
-		return Snapshot{}, err
+	// Each entry pairs a canonical section with its collector. The fixed order
+	// is the canonical Sections set, so a freshly collected snapshot is complete.
+	collectors := []struct {
+		section string
+		fn      func() (json.RawMessage, error)
+	}{
+		{SectionCI, c.collectCI},
+		{SectionAccess, func() (json.RawMessage, error) { return c.collectAccess(ctx) }},
+		{SectionChangeMgmt, c.collectChangeMgmt},
+		{SectionGDPRRights, c.collectGDPRRights},
+		{SectionCryptoPosture, c.collectCryptoPosture},
+		{SectionBackupPosture, c.collectBackupPosture},
 	}
-	accessPayload, err := c.collectAccess(ctx)
-	if err != nil {
-		return Snapshot{}, err
+	sections := make([]SectionPayload, 0, len(collectors))
+	for _, col := range collectors {
+		payload, err := col.fn()
+		if err != nil {
+			return Snapshot{}, err
+		}
+		sections = append(sections, SectionPayload{Section: col.section, Payload: payload})
 	}
-	changePayload, err := c.collectChangeMgmt()
-	if err != nil {
-		return Snapshot{}, err
-	}
-	gdprPayload, err := c.collectGDPRRights()
-	if err != nil {
-		return Snapshot{}, err
-	}
-	cryptoPayload, err := c.collectCryptoPosture()
-	if err != nil {
-		return Snapshot{}, err
-	}
-	backupPayload, err := c.collectBackupPosture()
-	if err != nil {
-		return Snapshot{}, err
-	}
-
-	return Snapshot{
-		CollectedAt: at,
-		Sections: []SectionPayload{
-			{Section: SectionCI, Payload: ciPayload},
-			{Section: SectionAccess, Payload: accessPayload},
-			{Section: SectionChangeMgmt, Payload: changePayload},
-			{Section: SectionGDPRRights, Payload: gdprPayload},
-			{Section: SectionCryptoPosture, Payload: cryptoPayload},
-			{Section: SectionBackupPosture, Payload: backupPayload},
-		},
-	}, nil
+	return Snapshot{CollectedAt: at, Sections: sections}, nil
 }
 
 // ───────────────────────── CI / gate posture ─────────────────────────────────

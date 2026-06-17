@@ -73,18 +73,21 @@ func (r *Resolver) Resolve(ctx context.Context, slug, plan string) (string, pack
 		// draft/other → not yet in force; resolve the named tier (parity).
 		return r.manifest.For(plan)
 	}
+	return r.applyActive(rec, plan)
+}
 
-	// The ceiling tier: the operator ceiling_plan when set, else the tenant's own
-	// plan. manifest.For applies the alias/default chain, so a stale/unknown
-	// ceiling_plan degrades to the safe baseline tier rather than erroring.
+// applyActive synthesizes the effective package for an ACTIVE entitlement row.
+// The ceiling tier is the operator ceiling_plan when set, else the tenant's own
+// plan; manifest.For applies the alias/default chain so a stale/unknown
+// ceiling_plan degrades to the safe baseline tier rather than erroring. Clamp is
+// the resolve-time backstop: the result is ≤ the ceiling on every axis, no matter
+// what the row holds. The returned name is the ceiling tier name (informational).
+func (r *Resolver) applyActive(rec Record, plan string) (string, packages.Package) {
 	ceilingPlan := plan
 	if rec.CeilingPlan != "" {
 		ceilingPlan = rec.CeilingPlan
 	}
 	ceilingName, ceiling := r.manifest.For(ceilingPlan)
-
-	// Clamp the custom overlay to the ceiling. This is the resolve-time backstop:
-	// the result is ≤ the ceiling on every axis, no matter what the row holds.
 	eff := packages.Clamp(rec.Entitlement.ToPackage(), ceiling)
 	return ceilingName, eff
 }

@@ -1,10 +1,8 @@
 package webhooks
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 )
@@ -27,103 +25,6 @@ func Mount(mux *http.ServeMux, svc *Service, serviceToken string) {
 type routes struct {
 	svc          *Service
 	serviceToken string
-}
-
-func (rt *routes) create(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := requireTenant(w, r)
-	if !ok {
-		return
-	}
-	var req CreateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON")
-		return
-	}
-	if err := req.Validate(); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
-		return
-	}
-	sub, err := rt.svc.Create(r.Context(), tenantID, req)
-	switch {
-	case errors.Is(err, ErrConflict):
-		shared.WriteError(w, http.StatusConflict, "conflict", err.Error())
-	case err != nil:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
-	default:
-		shared.WriteJSON(w, http.StatusCreated, sub)
-	}
-}
-
-func (rt *routes) list(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := requireTenant(w, r)
-	if !ok {
-		return
-	}
-	out, err := rt.svc.List(r.Context(), tenantID)
-	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
-		return
-	}
-	shared.WriteJSON(w, http.StatusOK, out)
-}
-
-func (rt *routes) findOne(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := requireTenant(w, r)
-	if !ok {
-		return
-	}
-	sub, err := rt.svc.FindOne(r.Context(), tenantID, r.PathValue("id"))
-	if handleLookup(w, err) {
-		return
-	}
-	shared.WriteJSON(w, http.StatusOK, sub)
-}
-
-func (rt *routes) update(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := requireTenant(w, r)
-	if !ok {
-		return
-	}
-	var req UpdateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON")
-		return
-	}
-	sub, err := rt.svc.Update(r.Context(), tenantID, r.PathValue("id"), req)
-	if handleLookup(w, err) {
-		return
-	}
-	shared.WriteJSON(w, http.StatusOK, sub)
-}
-
-func (rt *routes) remove(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := requireTenant(w, r)
-	if !ok {
-		return
-	}
-	if handleLookup(w, rt.svc.Delete(r.Context(), tenantID, r.PathValue("id"))) {
-		return
-	}
-	shared.WriteJSON(w, http.StatusOK, map[string]bool{"deleted": true})
-}
-
-func (rt *routes) deliveries(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := requireTenant(w, r)
-	if !ok {
-		return
-	}
-	limit := 50
-	if v := r.URL.Query().Get("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			limit = n
-		}
-	}
-	out, err := rt.svc.Deliveries(r.Context(), tenantID, r.PathValue("id"), limit)
-	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
-		return
-	}
-	shared.WriteJSON(w, http.StatusOK, out)
 }
 
 func handleLookup(w http.ResponseWriter, err error) bool {

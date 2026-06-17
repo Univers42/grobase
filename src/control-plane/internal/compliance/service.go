@@ -2,12 +2,7 @@ package compliance
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"log/slog"
-	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -70,67 +65,33 @@ func (s *Service) Collect(ctx context.Context) (string, []EvidenceRow, error) {
 	}
 	out := make([]EvidenceRow, 0, len(snap.Sections))
 	for _, sp := range snap.Sections {
-		payload := normalizePayload(sp.Payload)
-		hash := SealHash(sp.Section, snap.CollectedAt, payload)
-		var id string
-		if e := s.insert(ctx, snapshotID, snap.CollectedAt, sp.Section, payload, hash, &id); e != nil {
-			return "", nil, e
+		row, err := s.sealRow(ctx, snapshotID, snap.CollectedAt, sp)
+		if err != nil {
+			return "", nil, err
 		}
-		out = append(out, EvidenceRow{
-			ID:          id,
-			SnapshotID:  snapshotID,
-			CollectedAt: snap.CollectedAt,
-			Section:     sp.Section,
-			Payload:     payload,
-			Hash:        hash,
-		})
+		out = append(out, row)
 	}
 	return snapshotID, out, nil
 }
 
-// StartScheduler OPTIONALLY runs the collector on a fixed interval in a
-// background goroutine. It is a no-op (returns immediately, starting nothing)
-// unless SOC2_EVIDENCE_SCHEDULE parses to a positive duration — the DEFAULT
-// (unset/empty) is TODAY'S behavior: no ticker, snapshots only on explicit POST
-// /v1/compliance/collect.
-//
-// PARITY: the caller (cmd/tenant-control) only invokes this inside the
-// SOC2_EVIDENCE_ENABLED branch, so with the flag OFF this method is never even
-// called; and even when called, an empty/invalid SOC2_EVIDENCE_SCHEDULE starts
-// no goroutine. The ticker stops cleanly when ctx is cancelled (process
-// shutdown), so it leaks nothing.
-//
-// It does NOT take an initial snapshot on start — the first tick fires after one
-// interval — keeping start-up byte-identical to the no-schedule path.
-func (s *Service) StartScheduler(ctx context.Context) {
-	raw := os.Getenv("SOC2_EVIDENCE_SCHEDULE")
-	if raw == "" {
-		return // default: no scheduled snapshots (today's behavior)
+// sealRow seals one section payload (hash = SealHash(section, collected_at,
+// payload)) and persists it, returning the sealed EvidenceRow with its assigned
+// id.
+func (s *Service) sealRow(ctx context.Context, snapshotID string, at time.Time, sp SectionPayload) (EvidenceRow, error) {
+	payload := normalizePayload(sp.Payload)
+	hash := SealHash(sp.Section, at, payload)
+	var id string
+	if err := s.insert(ctx, snapshotID, at, sp.Section, payload, hash, &id); err != nil {
+		return EvidenceRow{}, err
 	}
-	d, err := time.ParseDuration(raw)
-	if err != nil || d <= 0 {
-		slog.Warn("compliance: ignoring invalid SOC2_EVIDENCE_SCHEDULE (want a positive Go duration, e.g. 24h)",
-			"value", raw, "err", err)
-		return
-	}
-	slog.Info("compliance: scheduled evidence snapshots enabled", "interval", d.String())
-	go func() {
-		t := time.NewTicker(d)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				sid, _, cerr := s.Collect(ctx)
-				if cerr != nil {
-					slog.Error("compliance: scheduled snapshot failed", "err", cerr)
-					continue
-				}
-				slog.Info("compliance: scheduled snapshot sealed", "snapshot_id", sid)
-			}
-		}
-	}()
+	return EvidenceRow{
+		ID:          id,
+		SnapshotID:  snapshotID,
+		CollectedAt: at,
+		Section:     sp.Section,
+		Payload:     payload,
+		Hash:        hash,
+	}, nil
 }
 
 // insert writes one sealed evidence row and returns its assigned id. Kept as a
@@ -152,100 +113,4 @@ func (s *Service) insert(ctx context.Context, snapshotID string, at time.Time, s
 		}
 	}
 	return rows.Err()
-}
-
-const listLatestSQL = `
-SELECT id, snapshot_id, collected_at, section, payload, hash
-  FROM public.compliance_evidence
- WHERE snapshot_id = (
-   SELECT snapshot_id FROM public.compliance_evidence
-    ORDER BY collected_at DESC, snapshot_id LIMIT 1)
- ORDER BY section`
-
-const listBySnapshotSQL = `
-SELECT id, snapshot_id, collected_at, section, payload, hash
-  FROM public.compliance_evidence
- WHERE snapshot_id = $1
- ORDER BY section`
-
-// Latest returns the most recent snapshot's sealed rows (all three sections).
-func (s *Service) Latest(ctx context.Context) (string, []EvidenceRow, error) {
-	return s.scan(ctx, listLatestSQL)
-}
-
-// BySnapshot returns one snapshot's sealed rows.
-func (s *Service) BySnapshot(ctx context.Context, snapshotID string) (string, []EvidenceRow, error) {
-	return s.scan(ctx, listBySnapshotSQL, snapshotID)
-}
-
-func (s *Service) scan(ctx context.Context, sql string, args ...any) (string, []EvidenceRow, error) {
-	rows, err := s.db.AdminQuery(ctx, sql, args...)
-	if err != nil {
-		return "", nil, err
-	}
-	defer rows.Close()
-	out := make([]EvidenceRow, 0, 3)
-	var snapshotID string
-	for rows.Next() {
-		var e EvidenceRow
-		var payload []byte
-		if err := rows.Scan(&e.ID, &e.SnapshotID, &e.CollectedAt, &e.Section, &payload, &e.Hash); err != nil {
-			return "", nil, err
-		}
-		e.Payload = normalizePayload(payload)
-		snapshotID = e.SnapshotID
-		out = append(out, e)
-	}
-	if err := rows.Err(); err != nil {
-		return "", nil, err
-	}
-	if len(out) == 0 {
-		return "", nil, errNoSnapshot
-	}
-	return snapshotID, out, nil
-}
-
-// Verify reads a snapshot (latest when snapshotID is empty) and recomputes every
-// row's seal via VerifySnapshot. Because scan binds snapshot_id and the rows are
-// the platform-level evidence, the slice handed to the pure verifier is exactly
-// that snapshot — a tampered row is detected at exactly its section.
-func (s *Service) Verify(ctx context.Context, snapshotID string) (VerifyResult, error) {
-	var (
-		sid  string
-		rows []EvidenceRow
-		err  error
-	)
-	if snapshotID == "" {
-		sid, rows, err = s.Latest(ctx)
-	} else {
-		sid, rows, err = s.BySnapshot(ctx, snapshotID)
-	}
-	if err != nil {
-		return VerifyResult{}, err
-	}
-	return VerifySnapshot(sid, rows), nil
-}
-
-// normalizePayload guarantees a non-nil, valid JSON payload ('{}' default),
-// mirroring the table's DEFAULT '{}'::jsonb — so the seal never hashes a NULL.
-func normalizePayload(p []byte) json.RawMessage {
-	if len(p) == 0 {
-		return json.RawMessage(`{}`)
-	}
-	return json.RawMessage(p)
-}
-
-// newUUID mints a RFC-4122 v4 UUID string from crypto/rand. The control-plane
-// module does not vendor github.com/google/uuid (the audit/backup tables use the
-// DB-side gen_random_uuid() default); snapshot_id has no DB default, so we mint
-// it in Go without adding a dependency. 16 random bytes with the version/variant
-// nibbles set is a standard, collision-safe v4.
-func newUUID() (string, error) {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "", err
-	}
-	b[6] = (b[6] & 0x0f) | 0x40 // version 4
-	b[8] = (b[8] & 0x3f) | 0x80 // variant 10
-	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
 }

@@ -67,60 +67,63 @@ func (v *JWTVerifier) Verify(raw string) (VerifiedIdentity, error) {
 	if raw == "" {
 		return VerifiedIdentity{}, errors.New("empty token")
 	}
-
-	token, err := jwt.Parse(raw, func(t *jwt.Token) (any, error) {
-		// Pin to the ONE configured algorithm — anything else (incl. `none`
-		// or an HS/RS swap) is rejected. This is the algorithm-confusion guard.
-		if t.Method.Alg() != v.alg {
-			return nil, fmt.Errorf("unexpected signing method: %s (want %s)", t.Method.Alg(), v.alg)
-		}
-		if v.alg == "RS256" {
-			kid, _ := t.Header["kid"].(string)
-			return v.keys.publicKey(kid)
-		}
-		return v.secret, nil
-	}, jwt.WithValidMethods([]string{v.alg}))
-
+	token, err := jwt.Parse(raw, v.keyFunc, jwt.WithValidMethods([]string{v.alg}))
 	if err != nil {
 		return VerifiedIdentity{}, fmt.Errorf("parse: %w", err)
 	}
 	if !token.Valid {
 		return VerifiedIdentity{}, errors.New("invalid token")
 	}
-
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
 		return VerifiedIdentity{}, errors.New("unexpected claims type")
 	}
+	if err := v.validateClaims(claims); err != nil {
+		return VerifiedIdentity{}, err
+	}
+	return identityFromClaims(claims), nil
+}
 
-	// exp / nbf are validated by jwt.Parse; double-check exp here so we
-	// produce a friendlier error for the most common failure mode.
+// keyFunc resolves the verification key, pinning to the ONE configured algorithm
+// — anything else (incl. `none` or an HS/RS swap) is rejected. This is the
+// algorithm-confusion guard.
+func (v *JWTVerifier) keyFunc(t *jwt.Token) (any, error) {
+	if t.Method.Alg() != v.alg {
+		return nil, fmt.Errorf("unexpected signing method: %s (want %s)", t.Method.Alg(), v.alg)
+	}
+	if v.alg == "RS256" {
+		kid, _ := t.Header["kid"].(string)
+		return v.keys.publicKey(kid)
+	}
+	return v.secret, nil
+}
+
+// validateClaims double-checks exp (jwt.Parse already does, but this yields a
+// friendlier error for the common case), the issuer (when configured), and the
+// presence of a subject.
+func (v *JWTVerifier) validateClaims(claims jwt.MapClaims) error {
 	if exp, err := claims.GetExpirationTime(); err == nil && exp != nil {
 		if time.Now().After(exp.Time) {
-			return VerifiedIdentity{}, errors.New("token expired")
+			return errors.New("token expired")
 		}
 	}
-
 	if v.issuer != "" {
 		iss, _ := claims.GetIssuer()
 		if iss != v.issuer {
-			return VerifiedIdentity{}, fmt.Errorf("issuer mismatch: got %q want %q", iss, v.issuer)
+			return fmt.Errorf("issuer mismatch: got %q want %q", iss, v.issuer)
 		}
 	}
-
-	sub, _ := claims.GetSubject()
-	if sub == "" {
-		return VerifiedIdentity{}, errors.New("missing sub claim")
+	if sub, _ := claims.GetSubject(); sub == "" {
+		return errors.New("missing sub claim")
 	}
+	return nil
+}
 
+// identityFromClaims projects the verified claims into a VerifiedIdentity.
+func identityFromClaims(claims jwt.MapClaims) VerifiedIdentity {
+	sub, _ := claims.GetSubject()
 	email, _ := claims["email"].(string)
 	role, _ := claims["role"].(string)
 	aud, _ := claims.GetAudience()
-
-	return VerifiedIdentity{
-		UserID: sub,
-		Email:  email,
-		Role:   role,
-		Aud:    aud,
-	}, nil
+	return VerifiedIdentity{UserID: sub, Email: email, Role: role, Aud: aud}
 }

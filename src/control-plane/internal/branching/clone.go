@@ -2,73 +2,12 @@ package branching
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
-	"github.com/dlesieur/mini-baas/control-plane/internal/tenants"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-// ErrInvalidBranchName is returned when a caller-supplied branch name does not
-// sanitize to a non-empty safe identifier. The handler maps it to 400. This is
-// the LOAD-BEARING wall against SQL-identifier injection: the branch name flows
-// into `CREATE SCHEMA <branch_schema>` (an identifier, never bindable), so it MUST
-// be validated to a safe [a-z0-9_] fragment before it touches DDL.
-var ErrInvalidBranchName = errors.New("invalid branch name (must be a non-empty [a-z0-9_] identifier)")
-
-// sanitizeBranchName validates+normalizes a caller-supplied branch name to a safe
-// SQL identifier fragment, mirroring tenants.tenantSchema's discipline (lowercase,
-// keep [a-z0-9_], everything else is NOT silently rewritten — a name with an
-// out-of-class char is REJECTED so a caller cannot smuggle `x; DROP SCHEMA …`
-// past us). We reject (not rewrite) because a branch name is caller-facing and
-// silently mangling it would make the branch un-findable by its name; rejecting
-// is the honest, safe contract. Returns the normalized (lowercased) fragment.
-//
-// THIS IS THE SQL-IDENTIFIER-INJECTION GUARD. The returned value is interpolated
-// into branchSchema(), which is interpolated into CREATE SCHEMA DDL (identifiers
-// cannot be bind params). branching_test.go pins this against meta-char inputs.
-func sanitizeBranchName(name string) (string, error) {
-	name = strings.TrimSpace(strings.ToLower(name))
-	if name == "" {
-		return "", ErrInvalidBranchName
-	}
-	if len(name) > 40 {
-		return "", ErrInvalidBranchName
-	}
-	for _, r := range name {
-		switch {
-		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '_':
-			// ok
-		default:
-			// Any meta char (';', ' ', '"', '-', etc.) is a hard reject — this is
-			// the injection wall, not a best-effort cleanup.
-			return "", ErrInvalidBranchName
-		}
-	}
-	// A branch name that is ALL underscores trims to empty -> not a usable schema
-	// suffix; reject it too.
-	if strings.Trim(name, "_") == "" {
-		return "", ErrInvalidBranchName
-	}
-	return name, nil
-}
-
-// branchSchema derives the Postgres schema name a branch's clone lives in. Both
-// inputs are pre-sanitized — parentSchema by tenants.TenantSchema (already
-// `tenant_<frag>`), branchName by sanitizeBranchName ([a-z0-9_]) — so the result
-// is a safe identifier. Shape: <parentSchema>_br_<branchName>, truncated so the
-// whole thing stays inside Postgres's 63-byte identifier limit.
-func branchSchema(parentSchema, branchName string) string {
-	const sep = "_br_"
-	s := parentSchema + sep + branchName
-	if len(s) > 63 {
-		s = s[:63]
-	}
-	return s
-}
 
 // cloneSchema clones every BASE TABLE in parentSchema into branchSchema (a fresh
 // schema), copying ALL rows, over the existing pgx pool — NO pg_dump. It returns
@@ -88,10 +27,20 @@ func cloneSchema(ctx context.Context, db *shared.Postgres, parentSchema, branchS
 	if err != nil {
 		return 0, 0, err
 	}
+	total, err := cloneInTx(ctx, conn, parentSchema, branchSchemaName, tables)
+	if err != nil {
+		return 0, 0, err
+	}
+	return len(tables), total, nil
+}
 
+// cloneInTx runs the CREATE SCHEMA + per-table clone inside ONE transaction so a
+// mid-clone failure leaves NO half-built schema (all-or-nothing). Returns the
+// total rows copied.
+func cloneInTx(ctx context.Context, conn *pgxpool.Conn, parentSchema, branchSchemaName string, tables []string) (int64, error) {
 	tx, err := conn.Begin(ctx)
 	if err != nil {
-		return 0, 0, fmt.Errorf("branching: begin clone tx: %w", err)
+		return 0, fmt.Errorf("branching: begin clone tx: %w", err)
 	}
 	committed := false
 	defer func() {
@@ -99,12 +48,26 @@ func cloneSchema(ctx context.Context, db *shared.Postgres, parentSchema, branchS
 			_ = tx.Rollback(ctx)
 		}
 	}()
+	total, err := cloneTables(ctx, tx, parentSchema, branchSchemaName, tables)
+	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("branching: commit clone tx: %w", err)
+	}
+	committed = true
+	return total, nil
+}
 
+// cloneTables creates the branch schema then per-table replicates structure
+// (LIKE … INCLUDING ALL) + a full row copy inside the open tx, returning the
+// total rows copied. Both schema names are pre-sanitized and re-quoted via
+// pgx.Identifier (double-belt).
+func cloneTables(ctx context.Context, tx pgx.Tx, parentSchema, branchSchemaName string, tables []string) (int64, error) {
 	branchQ := pgx.Identifier{branchSchemaName}.Sanitize()
 	if _, err := tx.Exec(ctx, fmt.Sprintf(`CREATE SCHEMA %s`, branchQ)); err != nil {
-		return 0, 0, fmt.Errorf("branching: create branch schema %s: %w", branchSchemaName, err)
+		return 0, fmt.Errorf("branching: create branch schema %s: %w", branchSchemaName, err)
 	}
-
 	var total int64
 	for _, t := range tables {
 		parentT := pgx.Identifier{parentSchema, t}.Sanitize()
@@ -112,21 +75,16 @@ func cloneSchema(ctx context.Context, db *shared.Postgres, parentSchema, branchS
 		// Structure: INCLUDING ALL copies columns, defaults, constraints, indexes.
 		if _, err := tx.Exec(ctx,
 			fmt.Sprintf(`CREATE TABLE %s (LIKE %s INCLUDING ALL)`, branchT, parentT)); err != nil {
-			return 0, 0, fmt.Errorf("branching: create table %s: %w", branchT, err)
+			return 0, fmt.Errorf("branching: create table %s: %w", branchT, err)
 		}
 		// Data: full row copy.
 		tag, err := tx.Exec(ctx, fmt.Sprintf(`INSERT INTO %s SELECT * FROM %s`, branchT, parentT))
 		if err != nil {
-			return 0, 0, fmt.Errorf("branching: copy rows %s: %w", branchT, err)
+			return 0, fmt.Errorf("branching: copy rows %s: %w", branchT, err)
 		}
 		total += tag.RowsAffected()
 	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return 0, 0, fmt.Errorf("branching: commit clone tx: %w", err)
-	}
-	committed = true
-	return len(tables), total, nil
+	return total, nil
 }
 
 // dropSchema removes a branch's schema and everything in it (CASCADE), over the
@@ -163,15 +121,4 @@ func enumerateSchemaTables(ctx context.Context, conn *pgxpool.Conn, schema strin
 		out = append(out, t)
 	}
 	return out, rows.Err()
-}
-
-// resolveParentSchema resolves the per-tenant schema a branch forks from, reusing
-// the SINGLE-SOURCE sanitizer tenants.TenantSchema (the same schema name a mount
-// was provisioned under). Returns ErrNoMount when the id sanitizes to empty.
-func resolveParentSchema(tenantID string) (string, error) {
-	schema := tenants.TenantSchema(tenantID)
-	if schema == "" {
-		return "", fmt.Errorf("branching: tenant id sanitizes to an empty schema")
-	}
-	return schema, nil
 }

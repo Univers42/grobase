@@ -55,6 +55,23 @@ func (m *SessionMinter) Mint(userID, email string) (MintedSession, error) {
 	}
 	now := time.Now()
 	exp := now.Add(m.ttl)
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, m.claims(userID, email, now, exp))
+	signed, err := tok.SignedString(m.secret)
+	if err != nil {
+		return MintedSession{}, err
+	}
+	return MintedSession{
+		AccessToken: signed,
+		TokenType:   "bearer",
+		ExpiresIn:   int64(m.ttl.Seconds()),
+		ExpiresAt:   exp.Unix(),
+		UserID:      userID,
+	}, nil
+}
+
+// claims builds the GoTrue-shaped HS256 claim set (sub/email/role/aud/iat/exp,
+// amr=webauthn, and iss when configured).
+func (m *SessionMinter) claims(userID, email string, now, exp time.Time) jwt.MapClaims {
 	claims := jwt.MapClaims{
 		"sub":   userID,
 		"email": email,
@@ -67,16 +84,5 @@ func (m *SessionMinter) Mint(userID, email string) (MintedSession, error) {
 	if m.issuer != "" {
 		claims["iss"] = m.issuer
 	}
-	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := tok.SignedString(m.secret)
-	if err != nil {
-		return MintedSession{}, err
-	}
-	return MintedSession{
-		AccessToken: signed,
-		TokenType:   "bearer",
-		ExpiresIn:   int64(m.ttl.Seconds()),
-		ExpiresAt:   exp.Unix(),
-		UserID:      userID,
-	}, nil
+	return claims
 }

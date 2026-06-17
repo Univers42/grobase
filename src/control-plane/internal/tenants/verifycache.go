@@ -3,8 +3,6 @@ package tenants
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"os"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -98,31 +96,4 @@ func (c *verifyCache) put(h string, resp VerifyKeyResponse) {
 		}
 	}
 	c.m[h] = verifyCacheEntry{resp: resp, expires: c.now().Add(c.ttl)}
-}
-
-// flush drops every cached entry. Called on revocation: we can't target the
-// single key (the cache is keyed by the cleartext's hash, which a revoke-by-id
-// doesn't have), and revokes are rare, so a full flush is the correct, cheap
-// choice — it only forces the next verify of each live key to re-run once.
-func (c *verifyCache) flush() {
-	if c == nil {
-		return
-	}
-	c.mu.Lock()
-	c.m = make(map[string]verifyCacheEntry)
-	c.mu.Unlock()
-}
-
-func envInt(name string, def int) int {
-	if v, err := strconv.Atoi(os.Getenv(name)); err == nil && v > 0 {
-		return v
-	}
-	return def
-}
-
-func envDurationMS(name string, defMS int) time.Duration {
-	if v, err := strconv.Atoi(os.Getenv(name)); err == nil && v >= 0 {
-		return time.Duration(v) * time.Millisecond
-	}
-	return time.Duration(defMS) * time.Millisecond
 }

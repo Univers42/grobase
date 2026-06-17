@@ -2,10 +2,7 @@ package telemetryexport
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -152,87 +149,3 @@ func (e *Exporter) tenantUsageSince(ctx context.Context, tenantID string, cursor
 	}
 	return out, rows.Err()
 }
-
-// buildBatch serializes one tenant's usage rows for delivery, ALWAYS tagging every
-// record with tenant_id (the C9 attribution invariant). Two wire shapes:
-//
-//   - "otlp"  : an OTLP/HTTP logs JSON envelope — one resource with a tenant_id
-//     resource attribute, one LogRecord per usage row carrying metric/qty/window.
-//     This is what an OpenTelemetry Collector's OTLP/HTTP logs receiver accepts.
-//   - "ndjson": newline-delimited JSON, one {tenant_id, metric, qty, window} object
-//     per line — the lowest-common-denominator log-drain shape (Loki push proxies,
-//     Vector, Datadog/Logtail HTTP intakes, etc.).
-//
-// Returns the body and its Content-Type. An unknown format falls back to otlp (the
-// default), so a typo can never silently drop the tenant_id attribution.
-func (e *Exporter) buildBatch(t target, rows []usageRow) ([]byte, string) {
-	if strings.EqualFold(t.format, "ndjson") {
-		return e.buildNDJSON(t.tenantID, rows), "application/x-ndjson"
-	}
-	return e.buildOTLP(t.tenantID, rows), "application/json"
-}
-
-// buildNDJSON emits one JSON object per usage row, each tagged with tenant_id.
-func (e *Exporter) buildNDJSON(tenantID string, rows []usageRow) []byte {
-	var b strings.Builder
-	for _, u := range rows {
-		rec := map[string]any{
-			"tenant_id":    tenantID,
-			"source":       "grobase.tenant_usage",
-			"metric":       u.metric,
-			"qty":          u.qty,
-			"window_start": u.windowStart.UTC().Format(time.RFC3339),
-		}
-		line, _ := json.Marshal(rec)
-		b.Write(line)
-		b.WriteByte('\n')
-	}
-	return []byte(b.String())
-}
-
-// buildOTLP emits a minimal but valid OTLP/HTTP logs JSON envelope. tenant_id is a
-// RESOURCE attribute (so the whole batch is attributed to the tenant) AND a
-// per-record attribute (so an aggregating collector can filter per record). The
-// envelope shape follows the OTLP/HTTP JSON encoding for ExportLogsServiceRequest.
-func (e *Exporter) buildOTLP(tenantID string, rows []usageRow) []byte {
-	logRecords := make([]map[string]any, 0, len(rows))
-	for _, u := range rows {
-		nano := strconv.FormatInt(u.windowStart.UTC().UnixNano(), 10)
-		logRecords = append(logRecords, map[string]any{
-			"timeUnixNano": nano,
-			"severityText": "INFO",
-			"body":         map[string]any{"stringValue": "tenant_usage"},
-			"attributes": []map[string]any{
-				kv("tenant_id", strVal(tenantID)),
-				kv("metric", strVal(u.metric)),
-				kv("qty", intVal(u.qty)),
-				kv("window_start", strVal(u.windowStart.UTC().Format(time.RFC3339))),
-			},
-		})
-	}
-	env := map[string]any{
-		"resourceLogs": []map[string]any{{
-			"resource": map[string]any{
-				"attributes": []map[string]any{
-					kv("service.name", strVal("grobase")),
-					kv("tenant_id", strVal(tenantID)),
-				},
-			},
-			"scopeLogs": []map[string]any{{
-				"scope":      map[string]any{"name": "grobase.telemetry-export"},
-				"logRecords": logRecords,
-			}},
-		}},
-	}
-	out, _ := json.Marshal(env)
-	return out
-}
-
-// kv builds one OTLP KeyValue attribute.
-func kv(key string, value map[string]any) map[string]any {
-	return map[string]any{"key": key, "value": value}
-}
-
-// strVal / intVal build OTLP AnyValue scalars.
-func strVal(s string) map[string]any { return map[string]any{"stringValue": s} }
-func intVal(n int64) map[string]any  { return map[string]any{"intValue": strconv.FormatInt(n, 10)} }

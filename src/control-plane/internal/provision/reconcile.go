@@ -19,31 +19,13 @@ func (rc *Reconciler) Reconcile(ctx context.Context, spec StackSpec) (ReconcileR
 	}
 
 	// Concurrency guard: one in-flight reconcile per slug.
-	if rc.Lock != nil {
-		release, ok, err := rc.Lock.TryLock(ctx, spec.Tenant)
-		if err != nil {
-			return ReconcileResult{}, err
-		}
-		if !ok {
-			return ReconcileResult{}, ErrBusy
-		}
-		defer release()
+	release, err := rc.acquireSlugLock(ctx, spec.Tenant)
+	if err != nil {
+		return ReconcileResult{}, err
 	}
+	defer release()
 
-	desired := spec.Compile()
-	res := ReconcileResult{Resources: make([]ResourceResult, 0, len(desired.Resources))}
-
-	// blocked tracks resource Keys whose prerequisite failed. A dependent of a
-	// blocked/failed parent is itself marked blocked (no downstream write).
-	blocked := map[string]bool{}
-	// roleIDByKey resolves a policy's parent role to its DB id once observed.
-	roleIDByKey := map[string]string{}
-
-	for _, r := range desired.Resources {
-		out := rc.applyOne(ctx, &res, spec, desired, r, blocked, roleIDByKey)
-		res.Resources = append(res.Resources, out)
-	}
-
+	res := rc.applyAll(ctx, spec, spec.Compile())
 	res.Outcome = classify(res.Resources)
 	return res, nil
 }
@@ -61,43 +43,25 @@ func (rc *Reconciler) applyOne(
 	roleIDByKey map[string]string,
 ) ResourceResult {
 	out := ResourceResult{Kind: kindName(r.Kind), Key: r.Key}
-
-	switch r.Kind {
-	case KindTenant:
+	if r.Kind == KindTenant {
 		return rc.reconcileTenant(ctx, res, desired, out)
+	}
+	if blockedOut, isBlocked := blockedFor(r, spec, blocked, roleIDByKey); isBlocked {
+		return blockedOut
+	}
+	switch r.Kind {
 	case KindKey:
-		if blocked[TenantKey(spec.Tenant)] {
-			out.Status, out.Action = StatusBlocked, ""
-			return out
-		}
 		return rc.reconcileKey(ctx, res, spec, r, out)
 	case KindRole:
-		if blocked[TenantKey(spec.Tenant)] {
-			out.Status = StatusBlocked
-			return out
-		}
 		return rc.reconcileRole(ctx, spec, r, out, blocked, roleIDByKey)
 	case KindPolicy:
-		if blocked[r.RoleRef] || roleIDByKey[r.RoleRef] == "" {
-			out.Status = StatusBlocked
-			return out
-		}
 		return rc.reconcilePolicy(ctx, r, out, roleIDByKey[r.RoleRef])
 	case KindMount:
-		if blocked[TenantKey(spec.Tenant)] {
-			out.Status = StatusBlocked
-			return out
-		}
 		return rc.reconcileMount(ctx, spec, r, out, blocked)
 	case KindSchema:
-		if blocked[r.Key2] {
-			out.Status = StatusBlocked
-			return out
-		}
 		return rc.reconcileSchema(ctx, spec, r, out)
 	default:
-		out.Status = StatusError
-		out.Error = "unknown resource kind"
+		out.Status, out.Error = StatusError, "unknown resource kind"
 		return out
 	}
 }

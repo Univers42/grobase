@@ -58,19 +58,7 @@ func (m *SessionMinter) Mint(userID, email string) (MintedSession, error) {
 	}
 	now := time.Now()
 	exp := now.Add(m.ttl)
-	claims := jwt.MapClaims{
-		"sub":   userID,
-		"email": email,
-		"role":  "authenticated",
-		"aud":   "authenticated",
-		"iat":   now.Unix(),
-		"exp":   exp.Unix(),
-		"amr":   []map[string]any{{"method": "sso", "timestamp": now.Unix()}},
-	}
-	if m.issuer != "" {
-		claims["iss"] = m.issuer
-	}
-	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, m.claims(userID, email, now, exp))
 	signed, err := tok.SignedString(m.secret)
 	if err != nil {
 		return MintedSession{}, err
@@ -83,4 +71,21 @@ func (m *SessionMinter) Mint(userID, email string) (MintedSession, error) {
 		UserID:      userID,
 		Email:       email,
 	}, nil
+}
+
+// claims assembles the GoTrue-shaped HS256 claim set (iss stamped when configured).
+func (m *SessionMinter) claims(userID, email string, now, exp time.Time) jwt.MapClaims {
+	c := jwt.MapClaims{
+		"sub":   userID,
+		"email": email,
+		"role":  "authenticated",
+		"aud":   "authenticated",
+		"iat":   now.Unix(),
+		"exp":   exp.Unix(),
+		"amr":   []map[string]any{{"method": "sso", "timestamp": now.Unix()}},
+	}
+	if m.issuer != "" {
+		c["iss"] = m.issuer
+	}
+	return c
 }

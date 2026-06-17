@@ -2,9 +2,6 @@ package webhooks
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"time"
 )
 
@@ -23,6 +20,9 @@ func (d *Dispatcher) retryLoop(ctx context.Context) {
 	}
 }
 
+// retryJob is one pending delivery to re-attempt.
+type retryJob struct{ subID, eventID string }
+
 func (d *Dispatcher) scanAndRetry(ctx context.Context) {
 	rows, err := d.db.AdminQuery(ctx, `
 		SELECT subscription_id::text, event_id
@@ -34,42 +34,23 @@ func (d *Dispatcher) scanAndRetry(ctx context.Context) {
 		d.log.Warn("retry scan failed", "err", err)
 		return
 	}
-	type job struct{ subID, eventID string }
-	jobs := make([]job, 0)
-	for rows.Next() {
-		var j job
-		if err := rows.Scan(&j.subID, &j.eventID); err != nil {
-			continue
-		}
-		jobs = append(jobs, j)
-	}
+	jobs := collectRetryJobs(rows)
 	rows.Close()
 	for _, j := range jobs {
 		d.attempt(ctx, j.subID, j.eventID)
 	}
 }
 
-func sign(secret, body string) string {
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(body))
-	return hex.EncodeToString(mac.Sum(nil))
-}
-
-func stringFromPayload(p map[string]any, key string) string {
-	if p == nil {
-		return ""
+func collectRetryJobs(rows rowsScanner) []retryJob {
+	jobs := make([]retryJob, 0)
+	for rows.Next() {
+		var j retryJob
+		if err := rows.Scan(&j.subID, &j.eventID); err != nil {
+			continue
+		}
+		jobs = append(jobs, j)
 	}
-	if v, ok := p[key].(string); ok {
-		return v
-	}
-	return ""
-}
-
-func nullInt(n int) any {
-	if n == 0 {
-		return nil
-	}
-	return n
+	return jobs
 }
 
 func (d *Dispatcher) sleep(ctx context.Context, dur time.Duration) {

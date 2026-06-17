@@ -1,15 +1,14 @@
 package scheduler
 
 import (
-	"bytes"
 	"context"
-	"io"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/jackc/pgx/v5"
 )
 
 // Runner polls function_schedules for due rows and invokes the target function
@@ -62,18 +61,6 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 }
 
-type dueRow struct {
-	id           string
-	tenantID     string
-	functionName string
-	scheduleExpr string
-	payload      string
-	timeoutMs    int
-	lastRun      time.Time
-	hasLastRun   bool
-	nextRun      time.Time
-}
-
 func (r *Runner) scanAndFire(ctx context.Context) {
 	now := r.now()
 	rows, err := r.db.AdminQuery(ctx, `
@@ -87,6 +74,16 @@ func (r *Runner) scanAndFire(ctx context.Context) {
 		r.log.Warn("schedule scan failed", "err", err)
 		return
 	}
+	due := collectDue(rows)
+	rows.Close()
+
+	for _, d := range due {
+		r.fire(ctx, d, now)
+	}
+}
+
+// collectDue scans the due-schedule rows; unscannable rows are skipped.
+func collectDue(rows pgx.Rows) []dueRow {
 	due := make([]dueRow, 0)
 	for rows.Next() {
 		var d dueRow
@@ -101,11 +98,7 @@ func (r *Runner) scanAndFire(ctx context.Context) {
 		}
 		due = append(due, d)
 	}
-	rows.Close()
-
-	for _, d := range due {
-		r.fire(ctx, d, now)
-	}
+	return due
 }
 
 // fire invokes one schedule and advances its next_run. next_run is advanced
@@ -135,66 +128,4 @@ func (r *Runner) fire(ctx context.Context, d dueRow, now time.Time) {
 		UPDATE public.function_schedules
 		   SET last_run=$2, next_run=$3, last_status='success', last_error=NULL
 		 WHERE id=$1`, d.id, now, next)
-}
-
-func (r *Runner) invoke(ctx context.Context, d dueRow, interval time.Duration) (int, error) {
-	timeout := time.Duration(d.timeoutMs) * time.Millisecond
-	if timeout <= 0 {
-		timeout = 5 * time.Second
-	}
-	reqCtx, cancel := context.WithTimeout(ctx, timeout+5*time.Second)
-	defer cancel()
-
-	body := d.payload
-	if body == "" {
-		body = "{}"
-	}
-	url := r.runtimeURL + "/v1/functions/" + d.functionName + "/invoke"
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, url, bytes.NewBufferString(body))
-	if err != nil {
-		return 0, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Baas-Tenant-Id", d.tenantID)
-	req.Header.Set("X-Baas-Event-Source", "function-schedule")
-	req.Header.Set("User-Agent", "mini-baas-function-scheduler/1.0")
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, resp.Body)
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return resp.StatusCode, nil
-	}
-	return resp.StatusCode, &httpStatusError{code: resp.StatusCode}
-}
-
-type httpStatusError struct{ code int }
-
-func (e *httpStatusError) Error() string {
-	return "non-2xx response: " + itoa(e.code)
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	var buf [12]byte
-	i := len(buf)
-	for n > 0 {
-		i--
-		buf[i] = byte('0' + n%10)
-		n /= 10
-	}
-	if neg {
-		i--
-		buf[i] = '-'
-	}
-	return string(buf[i:])
 }

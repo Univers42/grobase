@@ -63,18 +63,6 @@ type exportDB interface {
 // pure type-narrowing — no behavior change.
 type pgPool struct{ db *shared.Postgres }
 
-func (p pgPool) AdminQuery(ctx context.Context, sql string, args ...any) (rows, error) {
-	r, err := p.db.AdminQuery(ctx, sql, args...)
-	if err != nil {
-		return nil, err
-	}
-	return pgxRows{r}, nil
-}
-
-func (p pgPool) AdminExec(ctx context.Context, sql string, args ...any) error {
-	return p.db.AdminExec(ctx, sql, args...)
-}
-
 // pgxRows narrows a pgx.Rows to the four methods the exporter uses.
 type pgxRows struct{ pgx.Rows }
 
@@ -128,59 +116,3 @@ func (e *Exporter) Name() string { return "telemetry-export" }
 
 // Mount adds no HTTP routes — the exporter is a background forwarder.
 func (e *Exporter) Mount(_ *http.ServeMux) {}
-
-// SetSink overrides the default HTTP sink (used by the unit test to capture
-// deliveries). Optional; called before Init.
-func (e *Exporter) SetSink(s sink) {
-	if s != nil {
-		e.sink = s
-	}
-}
-
-// Init validates config ONLY when enabled. Disabled ⇒ no connection, no read ⇒
-// parity. The HTTP client carries the per-delivery timeout so a slow/hung customer
-// collector can never wedge the export loop.
-func (e *Exporter) Init(_ context.Context) error {
-	if !e.enabled {
-		e.log.Info("telemetry export disabled (TENANT_TELEMETRY_EXPORT_ENABLED off) — no export")
-		return nil
-	}
-	if e.batchRows <= 0 {
-		e.batchRows = 500
-	}
-	if e.timeout <= 0 {
-		e.timeout = 5 * time.Second
-	}
-	if hs, ok := e.sink.(*httpSink); ok {
-		hs.client.Timeout = e.timeout
-	}
-	e.log.Info("telemetry export enabled", "interval", e.interval,
-		"batch_rows", e.batchRows, "timeout", e.timeout)
-	return nil
-}
-
-// Run is the export loop: every interval, forward each opted-in tenant's new usage
-// to its collector. Disabled ⇒ returns immediately ⇒ parity. Stops on ctx
-// cancellation. An export error for one tenant is logged and that tenant's cursor
-// is left unadvanced (retried next tick) — a transient blip on one tenant's
-// collector never aborts the whole sweep nor wedges other tenants.
-func (e *Exporter) Run(ctx context.Context) {
-	if !e.enabled {
-		return
-	}
-	e.exportOnce(ctx)
-	t := time.NewTicker(e.interval)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			e.exportOnce(ctx)
-		}
-	}
-}
-
-/* ─────── env helpers (mirroring spendcap / metering.consumer) ─────── */
-
-// envBool mirrors spendcap.envBool / the data-plane config.rs flag shape.

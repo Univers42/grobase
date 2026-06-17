@@ -93,30 +93,39 @@ func parseManifest(raw []byte, src string) (*Manifest, error) {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return nil, fmt.Errorf("trust: parse manifest %q: %w", src, err)
 	}
-	path := src
 	if len(m.Controls) == 0 {
-		return nil, fmt.Errorf("trust: manifest %q has no controls", path)
+		return nil, fmt.Errorf("trust: manifest %q has no controls", src)
 	}
 	seen := make(map[string]bool, len(m.Controls))
 	for i, c := range m.Controls {
-		id := strings.TrimSpace(c.ID)
-		if id == "" {
-			return nil, fmt.Errorf("trust: control #%d has an empty id", i)
-		}
-		if seen[id] {
-			return nil, fmt.Errorf("trust: duplicate control id %q", id)
-		}
-		seen[id] = true
-		if !allowedStatuses[c.Status] {
-			return nil, fmt.Errorf("trust: control %q has invalid status %q (want implemented|partial|planned)", id, c.Status)
-		}
-		// THE honesty boundary: implemented => must cite evidence. An unproven
-		// control may be partial/planned, never implemented-without-evidence.
-		if c.Status == "implemented" && strings.TrimSpace(c.Evidence) == "" {
-			return nil, fmt.Errorf("trust: control %q is status=implemented but has NO evidence pointer (an unproven claim must be partial/planned)", id)
+		if err := validateControl(i, c, seen); err != nil {
+			return nil, err
 		}
 	}
 	return &m, nil
+}
+
+// validateControl enforces one control's honesty rules and records its id in seen
+// (mutated). It rejects an empty/duplicate id, a status outside the enum, or — the
+// load-bearing rule — an "implemented" claim with no evidence pointer.
+func validateControl(i int, c Control, seen map[string]bool) error {
+	id := strings.TrimSpace(c.ID)
+	if id == "" {
+		return fmt.Errorf("trust: control #%d has an empty id", i)
+	}
+	if seen[id] {
+		return fmt.Errorf("trust: duplicate control id %q", id)
+	}
+	seen[id] = true
+	if !allowedStatuses[c.Status] {
+		return fmt.Errorf("trust: control %q has invalid status %q (want implemented|partial|planned)", id, c.Status)
+	}
+	// THE honesty boundary: implemented => must cite evidence. An unproven
+	// control may be partial/planned, never implemented-without-evidence.
+	if c.Status == "implemented" && strings.TrimSpace(c.Evidence) == "" {
+		return fmt.Errorf("trust: control %q is status=implemented but has NO evidence pointer (an unproven claim must be partial/planned)", id)
+	}
+	return nil
 }
 
 // SortControls returns the controls ordered by (category, id) for a stable,

@@ -2,7 +2,6 @@ package metering
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -105,22 +104,11 @@ func (c *Consumer) Run(ctx context.Context) {
 			return
 		default:
 		}
-		streams, err := c.rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
-			Group:    usageGroup,
-			Consumer: usageConsumer,
-			Streams:  []string{usageStream, ">"},
-			Count:    c.batchSize,
-			Block:    c.blockWait,
-		}).Result()
+		streams, err := c.readBatch(ctx)
 		if err != nil {
-			if errors.Is(err, redis.Nil) || errors.Is(err, context.Canceled) {
-				continue // BLOCK timeout with no new entries — normal idle
-			}
-			if ctx.Err() != nil {
+			if c.handleReadErr(ctx, err) {
 				return
 			}
-			c.log.Warn("metering XReadGroup failed", "err", err)
-			c.backoff(ctx)
 			continue
 		}
 		for _, st := range streams {
@@ -128,43 +116,3 @@ func (c *Consumer) Run(ctx context.Context) {
 		}
 	}
 }
-
-// drain ingests a batch of messages, acking each one it has durably handled.
-func (c *Consumer) drain(ctx context.Context, msgs []redis.XMessage) {
-	for _, m := range msgs {
-		if err := c.store.Upsert(ctx, m.Values); err != nil {
-			if errors.Is(err, errBadEntry) {
-				// Poison entry: ack + skip so it never wedges the group.
-				c.log.Warn("metering skipping malformed entry", "id", m.ID)
-				_ = c.rdb.XAck(ctx, usageStream, usageGroup, m.ID).Err()
-				continue
-			}
-			// Transient DB error: leave un-acked for redelivery (dedup on the
-			// idempotency_key makes a redelivered identical window a no-op).
-			c.log.Warn("metering upsert failed — will redeliver", "id", m.ID, "err", err)
-			continue
-		}
-		if err := c.rdb.XAck(ctx, usageStream, usageGroup, m.ID).Err(); err != nil {
-			c.log.Warn("metering ack failed", "id", m.ID, "err", err)
-		}
-	}
-}
-
-// backoff sleeps briefly on a Redis error, honoring ctx cancellation.
-func (c *Consumer) backoff(ctx context.Context) {
-	t := time.NewTimer(time.Second)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-	case <-t.C:
-	}
-}
-
-// isBusyGroup reports whether err is the benign "group already exists" reply.
-func isBusyGroup(err error) bool {
-	return err != nil && len(err.Error()) >= 9 && err.Error()[:9] == "BUSYGROUP"
-}
-
-/* ─────── env helpers (mirroring outboxrelay) ─────── */
-
-// envBool mirrors the data-plane config.rs flag shape (matches!(…,"1"|"true"|"on")).

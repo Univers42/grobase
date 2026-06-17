@@ -32,7 +32,6 @@ package ipguard
 import (
 	"context"
 	"errors"
-	"net"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -89,6 +88,14 @@ type Decision struct {
 	Reason     string `json:"reason,omitempty"`
 }
 
+// AddInput is one rule to add.
+type AddInput struct {
+	TenantID  string
+	CIDR      string
+	Note      string
+	CreatedBy string
+}
+
 // Allowed is the CORE edge decision. It is the SAME logic an edge plugin would
 // run: load the tenant's rules; if it has NONE the tenant is unrestricted
 // (allow=true, restricted=false) — the feature is OPT-IN; otherwise allow=true
@@ -117,19 +124,7 @@ func (s *Service) Allowed(ctx context.Context, tenantID, clientIP string) (Decis
 	if len(rules) == 0 {
 		return Decision{TenantID: tenantID, IP: ip.String(), Allow: true, Restricted: false, Reason: "no_allowlist"}, nil
 	}
-	for _, r := range rules {
-		_, network, perr := net.ParseCIDR(r.CIDR)
-		if perr != nil || network == nil {
-			// A stored rule that no longer parses is skipped, never a silent allow:
-			// the request is matched only against rules that DO parse. (The native
-			// CIDR column + the CRUD validator make this essentially impossible.)
-			continue
-		}
-		if network.Contains(ip) {
-			return Decision{TenantID: tenantID, IP: ip.String(), Allow: true, Restricted: true, Reason: "in_allowlist"}, nil
-		}
-	}
-	return Decision{TenantID: tenantID, IP: ip.String(), Allow: false, Restricted: true, Reason: "not_in_allowlist"}, nil
+	return matchRules(tenantID, ip, rules), nil
 }
 
 // List returns a tenant's allowlist rules (newest first). tenant_id is ALWAYS
@@ -155,26 +150,7 @@ func (s *Service) List(ctx context.Context, tenantID string) ([]Rule, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	out := make([]Rule, 0)
-	for rows.Next() {
-		var r Rule
-		if err := rows.Scan(&r.ID, &r.TenantID, &r.CIDR, &r.Note, &r.CreatedBy, &r.CreatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, r)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// AddInput is one rule to add.
-type AddInput struct {
-	TenantID  string
-	CIDR      string
-	Note      string
-	CreatedBy string
+	return scanRules(rows)
 }
 
 // Add inserts (idempotently) one allowlist rule. The CIDR is normalized in Go
@@ -222,84 +198,13 @@ func (s *Service) Remove(ctx context.Context, tenantID, ruleID string) (bool, er
 	if ruleID == "" {
 		return false, nil
 	}
-	// AdminExec does not return a row count, so confirm existence (tenant-bound)
-	// then delete (tenant-bound). Both WHEREs carry tenant_id — the cross-tenant
-	// wall — so a foreign id simply matches nothing.
-	rows, err := s.db.AdminQuery(ctx,
-		`SELECT 1 FROM public.tenant_ip_allowlist WHERE tenant_id=$1 AND id::text=$2`, tenantID, ruleID)
-	if err != nil {
+	found, err := s.ruleExists(ctx, tenantID, ruleID)
+	if err != nil || !found {
 		return false, err
-	}
-	found := rows.Next()
-	rows.Close()
-	if !found {
-		return false, nil
 	}
 	if err := s.db.AdminExec(ctx,
 		`DELETE FROM public.tenant_ip_allowlist WHERE tenant_id=$1 AND id::text=$2`, tenantID, ruleID); err != nil {
 		return false, err
 	}
 	return true, nil
-}
-
-// queryRow runs a single-row query via AdminQuery and adapts it to a pgx.Row.
-func (s *Service) queryRow(ctx context.Context, sql string, args ...any) pgx.Row {
-	return rowQuery{s.db, ctx, sql, args}
-}
-
-type rowQuery struct {
-	db   idb
-	ctx  context.Context
-	sql  string
-	args []any
-}
-
-func (q rowQuery) Scan(dest ...any) error {
-	rows, err := q.db.AdminQuery(q.ctx, q.sql, q.args...)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return err
-		}
-		return pgx.ErrNoRows
-	}
-	return rows.Scan(dest...)
-}
-
-// normalizeCIDR turns a user-supplied value into a canonical CIDR string. A bare
-// host becomes /32 (IPv4) or /128 (IPv6); a CIDR is re-emitted in canonical form
-// (network address + mask). A value that is neither is ErrBadCIDR.
-func normalizeCIDR(raw string) (string, error) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return "", ErrBadCIDR
-	}
-	if strings.Contains(raw, "/") {
-		_, network, err := net.ParseCIDR(raw)
-		if err != nil || network == nil {
-			return "", ErrBadCIDR
-		}
-		return network.String(), nil
-	}
-	ip := parseIP(raw)
-	if ip == nil {
-		return "", ErrBadCIDR
-	}
-	if ip.To4() != nil {
-		return ip.String() + "/32", nil
-	}
-	return ip.String() + "/128", nil
-}
-
-// parseIP parses a single IP, tolerating an IPv6 zone and surrounding brackets.
-func parseIP(raw string) net.IP {
-	raw = strings.TrimSpace(raw)
-	raw = strings.TrimPrefix(strings.TrimSuffix(raw, "]"), "[")
-	if i := strings.IndexByte(raw, '%'); i >= 0 { // strip IPv6 zone (fe80::1%eth0)
-		raw = raw[:i]
-	}
-	return net.ParseIP(raw)
 }

@@ -8,7 +8,6 @@
 package envelope
 
 import (
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -32,24 +31,6 @@ func message(method string, status int) string {
 	return "Operation successful"
 }
 
-// capture buffers a handler's response so the body can be re-wrapped.
-type capture struct {
-	header http.Header
-	buf    bytes.Buffer
-	status int
-	wrote  bool
-}
-
-func (c *capture) Header() http.Header { return c.header }
-func (c *capture) WriteHeader(s int)   { c.status = s; c.wrote = true }
-func (c *capture) Write(b []byte) (int, error) {
-	if !c.wrote {
-		c.status = http.StatusOK // net/http implicit-200 on first Write
-		c.wrote = true
-	}
-	return c.buf.Write(b)
-}
-
 // Wrap mirrors the Nest TransformInterceptor: every 2xx JSON response becomes
 // { success, statusCode, message, data, path, timestamp }. Untouched (verbatim
 // passthrough): non-2xx (the error filter owns those), non-JSON bodies, and the
@@ -65,30 +46,9 @@ func Wrap(next http.Handler) http.Handler {
 		next.ServeHTTP(c, r)
 
 		body := c.buf.Bytes()
-		ct := c.header.Get("Content-Type")
-		passthrough := c.status < 200 || c.status >= 300 ||
-			!strings.Contains(ct, "application/json") || !json.Valid(body)
-
-		if passthrough {
-			copyHeader(w.Header(), c.header)
-			w.WriteHeader(c.status)
-			_, _ = w.Write(body)
-			return
-		}
-
-		out, err := json.Marshal(map[string]any{
-			"success":    true,
-			"statusCode": c.status,
-			"message":    message(r.Method, c.status),
-			"data":       json.RawMessage(body), // verbatim — never re-parse the payload
-			"path":       r.URL.RequestURI(),
-			// JS new Date().toISOString() form: millis + literal Z.
-			"timestamp": time.Now().UTC().Format("2006-01-02T15:04:05.000") + "Z",
-		})
-		if err != nil { // unreachable for valid JSON data, but never lose the body
-			copyHeader(w.Header(), c.header)
-			w.WriteHeader(c.status)
-			_, _ = w.Write(body)
+		out, err := buildEnvelope(r, c, body)
+		if out == nil || err != nil { // passthrough; never lose the body
+			writeVerbatim(w, c, body)
 			return
 		}
 		copyHeader(w.Header(), c.header)
@@ -99,14 +59,21 @@ func Wrap(next http.Handler) http.Handler {
 	})
 }
 
-func copyHeader(dst, src http.Header) {
-	for k, vs := range src {
-		// Content-Length/Type are re-set by Wrap on the wrapped path.
-		if k == "Content-Length" {
-			continue
-		}
-		for _, v := range vs {
-			dst.Add(k, v)
-		}
+// buildEnvelope returns the wrapped { success,… } body, or (nil,nil) when the
+// response must pass through verbatim (non-2xx, non-JSON, or invalid body).
+func buildEnvelope(r *http.Request, c *capture, body []byte) ([]byte, error) {
+	ct := c.header.Get("Content-Type")
+	if c.status < 200 || c.status >= 300 ||
+		!strings.Contains(ct, "application/json") || !json.Valid(body) {
+		return nil, nil
 	}
+	return json.Marshal(map[string]any{
+		"success":    true,
+		"statusCode": c.status,
+		"message":    message(r.Method, c.status),
+		"data":       json.RawMessage(body), // verbatim — never re-parse the payload
+		"path":       r.URL.RequestURI(),
+		// JS new Date().toISOString() form: millis + literal Z.
+		"timestamp": time.Now().UTC().Format("2006-01-02T15:04:05.000") + "Z",
+	})
 }

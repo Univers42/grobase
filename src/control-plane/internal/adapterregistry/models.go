@@ -81,9 +81,20 @@ func (r RegisterDatabaseRequest) Validate() error {
 	if l := len(r.Name); l < 1 || l > 64 {
 		return fmt.Errorf("name must be 1..64 chars")
 	}
-	// S2: exactly one credential source. Both-set and neither-set are rejected
-	// so a row is never ambiguous (and never silently inline when a ref was
-	// intended). The DB CHECK (migration 060) mirrors this as a backstop.
+	if err := r.validateCredentialSource(); err != nil {
+		return err
+	}
+	if r.Isolation != "" && !allowedIsolation[r.Isolation] {
+		return fmt.Errorf("unsupported isolation %q", r.Isolation)
+	}
+	return nil
+}
+
+// validateCredentialSource enforces the S2 EXACTLY-ONE-OF {connection_string,
+// credential_ref} rule. Both-set and neither-set are rejected so a row is never
+// ambiguous (and never silently inline when a ref was intended). The DB CHECK
+// (migration 060) mirrors this as a backstop.
+func (r RegisterDatabaseRequest) validateCredentialSource() error {
 	hasInline := r.ConnectionString != ""
 	hasRef := r.CredentialRef.set()
 	switch {
@@ -99,9 +110,6 @@ func (r RegisterDatabaseRequest) Validate() error {
 		if r.CredentialRef.Reference == "" {
 			return fmt.Errorf("credential_ref.reference is required")
 		}
-	}
-	if r.Isolation != "" && !allowedIsolation[r.Isolation] {
-		return fmt.Errorf("unsupported isolation %q", r.Isolation)
 	}
 	return nil
 }

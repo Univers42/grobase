@@ -66,12 +66,7 @@ func verifyIdentitySignature(r *http.Request, serviceToken, userID, tenantID str
 	if err != nil {
 		return false
 	}
-	skew := int64(120)
-	if v := os.Getenv("SERVICE_AUTH_SKEW_SECS"); v != "" {
-		if n, perr := strconv.ParseInt(v, 10, 64); perr == nil && n > 0 {
-			skew = n
-		}
-	}
+	skew := identityAuthSkew()
 	now := time.Now().Unix()
 	if ts < now-skew || ts > now+skew {
 		return false
@@ -80,4 +75,15 @@ func verifyIdentitySignature(r *http.Request, serviceToken, userID, tenantID str
 	// the signed "path"; method is fixed and there is no body.
 	want := shared.ComputeServiceSignature(serviceToken, "IDENTITY", canonicalIdentity(userID, tenantID), nil, ts)
 	return subtle.ConstantTimeCompare([]byte(hdr), []byte(want)) == 1
+}
+
+// identityAuthSkew is the ±window (seconds) the identity HMAC timestamp may
+// deviate from now, configurable via SERVICE_AUTH_SKEW_SECS (default 120).
+func identityAuthSkew() int64 {
+	if v := os.Getenv("SERVICE_AUTH_SKEW_SECS"); v != "" {
+		if n, perr := strconv.ParseInt(v, 10, 64); perr == nil && n > 0 {
+			return n
+		}
+	}
+	return 120
 }

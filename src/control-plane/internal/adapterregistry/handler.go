@@ -2,7 +2,6 @@ package adapterregistry
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
@@ -52,28 +51,8 @@ func (rt *routes) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := rt.svc.Register(r.Context(), userID, req)
-	if errors.Is(err, ErrConflict) {
-		shared.WriteError(w, http.StatusConflict, "conflict", "database \""+req.Name+"\" already registered")
-		return
-	}
-	// S2 / G-Vault: a max-security tenant supplying an inline plaintext DSN is a
-	// policy denial (403) — register a credential_ref instead.
-	if errors.Is(err, ErrPlaintextDsnForbidden) {
-		shared.WriteError(w, http.StatusForbidden, "plaintext_dsn_forbidden", err.Error())
-		return
-	}
-	// Phase 4 tiering: an engine outside the tenant's package, or a mount past
-	// its quota, is an authorization/quota denial (403) — upgrade the package.
-	if errors.Is(err, ErrEngineNotInPackage) {
-		shared.WriteError(w, http.StatusForbidden, "engine_not_in_package", err.Error())
-		return
-	}
-	if errors.Is(err, ErrMountQuotaExceeded) {
-		shared.WriteError(w, http.StatusForbidden, "mount_quota_exceeded", err.Error())
-		return
-	}
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		writeRegisterError(w, req, err)
 		return
 	}
 	shared.WriteJSON(w, http.StatusCreated, res)
@@ -118,98 +97,4 @@ func (rt *routes) connect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	shared.WriteJSON(w, http.StatusOK, conn)
-}
-
-func (rt *routes) remove(w http.ResponseWriter, r *http.Request) {
-	if !validServiceToken(r, rt.serviceToken) {
-		shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
-		return
-	}
-	if rt.handleLookupError(w, rt.svc.Remove(r.Context(), r.PathValue("id"))) {
-		return
-	}
-	shared.WriteJSON(w, http.StatusOK, map[string]bool{"deleted": true})
-}
-
-// removeScoped is the CALLER-SCOPED delete for the self-serve builder. It
-// requires the service token (the internal trust boundary) AND resolves the
-// caller tenant from the asserted identity header, then deletes ONLY a mount
-// owned by that caller (the service binds `AND tenant_id = $caller`). A mount
-// UUID is therefore not a bearer capability across tenants.
-func (rt *routes) removeScoped(w http.ResponseWriter, r *http.Request) {
-	if !validServiceToken(r, rt.serviceToken) {
-		shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
-		return
-	}
-	userID, ok := rt.requireUser(w, r)
-	if !ok {
-		return
-	}
-	if rt.handleLookupError(w, rt.svc.RemoveScoped(r.Context(), userID, r.PathValue("id"))) {
-		return
-	}
-	shared.WriteJSON(w, http.StatusOK, map[string]bool{"deleted": true})
-}
-
-// handleLookupError writes the response for not-found / internal errors and
-// reports whether the caller should stop. Returns false on success (err == nil).
-func (rt *routes) handleLookupError(w http.ResponseWriter, err error) bool {
-	switch {
-	case err == nil:
-		return false
-	case errors.Is(err, ErrNotFound):
-		shared.WriteError(w, http.StatusNotFound, "not_found", msgNotFound)
-	default:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
-	}
-	return true
-}
-
-func (rt *routes) requireUser(w http.ResponseWriter, r *http.Request) (string, bool) {
-	// Header precedence (post-M11 signed-envelope migration):
-	//   1. X-Baas-User-Id   — signed envelope user id
-	//   2. X-Baas-Tenant-Id — signed envelope tenant id (rows are keyed by tenant)
-	//   3. X-User-Id        — legacy raw header (compat mode only)
-	//   4. X-Tenant-Id      — legacy raw tenant header
-	// The TS service did full HMAC verification on the X-Baas-* headers; the Go
-	// service TRUSTS them by default (the data plane and adapter-registry sit on
-	// a private docker network, and write paths additionally require the service
-	// token). Audit residual O6: set ADAPTER_REGISTRY_IDENTITY_HMAC=1 to require
-	// an X-Baas-Identity-Auth signature over the asserted identity (see
-	// identity.go) so a peer on a flat bridge can no longer spoof identity.
-	userID, tenantID := "", ""
-	for _, h := range []string{"X-Baas-User-Id", "X-User-Id"} {
-		if v := r.Header.Get(h); v != "" {
-			userID = v
-			break
-		}
-	}
-	for _, h := range []string{"X-Baas-Tenant-Id", "X-Tenant-Id"} {
-		if v := r.Header.Get(h); v != "" {
-			tenantID = v
-			break
-		}
-	}
-	// Preserve the original fallback semantics: tenant header alone identifies
-	// the row owner when no explicit user id is present.
-	resolved := userID
-	if resolved == "" {
-		resolved = tenantID
-	}
-	if resolved == "" {
-		shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
-			"missing user/tenant header (X-Baas-User-Id, X-Baas-Tenant-Id, X-User-Id or X-Tenant-Id)")
-		return "", false
-	}
-	if identityHMACEnabled() && !verifyIdentitySignature(r, rt.serviceToken, userID, tenantID) {
-		shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
-			"invalid or missing identity signature ("+identityAuthHeader+")")
-		return "", false
-	}
-	return resolved, true
-}
-
-func validServiceToken(r *http.Request, expected string) bool {
-	// Constant-time compare (timing-leak fix) — see shared.SecureCompare.
-	return shared.VerifyServiceRequest(r, expected)
 }

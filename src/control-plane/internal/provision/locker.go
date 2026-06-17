@@ -72,24 +72,5 @@ func (l *pgLocker) TryLock(ctx context.Context, slug string) (func(), bool, erro
 		conn.Release()
 		return nil, false, nil
 	}
-	release := func() {
-		// Release the lock on the SAME connection that holds it, THEN return the
-		// connection to the pool. A fresh background ctx so unlock still runs when
-		// the request ctx is already cancelled; the session lock also drops on
-		// conn close, so this is belt-and-suspenders.
-		_, _ = conn.Exec(context.Background(), sqlAdvisoryUnlock, slug)
-		conn.Release()
-	}
-	return release, true, nil
-}
-
-func scanBool(rows pgx.Rows, dst *bool) error {
-	defer rows.Close()
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return err
-		}
-		return pgx.ErrNoRows
-	}
-	return rows.Scan(dst)
+	return releaseLock(conn, slug), true, nil
 }

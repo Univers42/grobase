@@ -2,7 +2,6 @@ package sso
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"strings"
 )
@@ -106,54 +105,29 @@ func (s *Service) FinishLogin(ctx context.Context, state, code string) (MintedSe
 	if err != nil {
 		return MintedSession{}, err
 	}
+	return s.verifyAndMint(ctx, conn, code, ls.nonce)
+}
+
+// verifyAndMint exchanges the code, verifies the id_token, and mints the
+// GoTrue-shaped session. The OIDC `sub` is the stable subject and becomes the
+// session's `sub`. A fuller JIT path would upsert an org membership using
+// conn.DefaultRole/conn.OrgID; that lives in the orgs package and is intentionally
+// NOT reinvented here — this slice's contract is "verify -> mint a session".
+func (s *Service) verifyAndMint(ctx context.Context, conn Connection, code, nonce string) (MintedSession, error) {
 	rawIDToken, err := exchangeCode(ctx, conn, code)
 	if err != nil {
 		return MintedSession{}, err
 	}
-	claims, err := verifyIDToken(ctx, conn, rawIDToken, ls.nonce)
+	claims, err := verifyIDToken(ctx, conn, rawIDToken, nonce)
 	if err != nil {
 		return MintedSession{}, err
 	}
-	// JIT-resolve the tenant user: the OIDC `sub` is the stable subject; the
-	// minted session's `sub` is that subject (a GoTrue-shaped session). A fuller
-	// JIT path would upsert an org membership using conn.DefaultRole/conn.OrgID;
-	// that lives in the orgs package and is intentionally NOT reinvented here —
-	// this slice's contract is "verify -> mint a verifiable session".
-	userID := claims.Subject
-	session, err := s.minter.Mint(userID, claims.Email)
+	session, err := s.minter.Mint(claims.Subject, claims.Email)
 	if err != nil {
 		return MintedSession{}, err
 	}
 	if s.log != nil {
-		s.log.Info("sso login", "tenant", conn.TenantID, "issuer", conn.Issuer, "sub", userID)
+		s.log.Info("sso login", "tenant", conn.TenantID, "issuer", conn.Issuer, "sub", claims.Subject)
 	}
 	return session, nil
-}
-
-// RegisterConnection seals + persists a new IdP connection (admin path). A
-// duplicate (tenant, issuer) is ErrConflict; missing required fields ErrValidation.
-func (s *Service) RegisterConnection(ctx context.Context, in RegisterInput) (Connection, error) {
-	if err := validateRegister(in); err != nil {
-		return Connection{}, err
-	}
-	return s.store.Insert(ctx, in)
-}
-
-// ListConnections returns a tenant's connections (admin path), tenant_id bound.
-func (s *Service) ListConnections(ctx context.Context, tenantID string) ([]Connection, error) {
-	return s.store.GetByTenant(ctx, tenantID)
-}
-
-func validateRegister(in RegisterInput) error {
-	missing := strings.TrimSpace(in.TenantID) == "" ||
-		strings.TrimSpace(in.Issuer) == "" ||
-		strings.TrimSpace(in.ClientID) == "" ||
-		strings.TrimSpace(in.AuthorizeURL) == "" ||
-		strings.TrimSpace(in.TokenURL) == "" ||
-		strings.TrimSpace(in.RedirectURI) == ""
-	if missing {
-		return errors.Join(ErrValidation,
-			errors.New("issuer, client_id, authorize_url, token_url, redirect_uri are required"))
-	}
-	return nil
 }

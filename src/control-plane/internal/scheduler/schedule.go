@@ -43,15 +43,9 @@ func ParseSchedule(expr string) (Schedule, error) {
 	}
 	lower := strings.ToLower(raw)
 
-	switch lower {
-	case "@hourly":
-		return Schedule{Raw: raw, Interval: time.Hour}, nil
-	case "@daily", "@midnight":
-		return Schedule{Raw: raw, Interval: 24 * time.Hour}, nil
-	case "@weekly":
-		return Schedule{Raw: raw, Interval: 7 * 24 * time.Hour}, nil
+	if alias, ok := aliasInterval(lower); ok {
+		return Schedule{Raw: raw, Interval: alias}, nil
 	}
-
 	if strings.HasPrefix(lower, "@every ") {
 		d, err := parseDuration(strings.TrimSpace(lower[len("@every "):]))
 		if err != nil {
@@ -65,6 +59,19 @@ func ParseSchedule(expr string) (Schedule, error) {
 		return Schedule{}, fmt.Errorf("unrecognized schedule %q (use @every <dur>, @hourly, @daily, or a duration like 30s/5m/1h)", raw)
 	}
 	return finalize(raw, d)
+}
+
+// aliasInterval maps the convenience aliases to their fixed interval.
+func aliasInterval(lower string) (time.Duration, bool) {
+	switch lower {
+	case "@hourly":
+		return time.Hour, true
+	case "@daily", "@midnight":
+		return 24 * time.Hour, true
+	case "@weekly":
+		return 7 * 24 * time.Hour, true
+	}
+	return 0, false
 }
 
 func parseDuration(s string) (time.Duration, error) {
@@ -88,26 +95,4 @@ func finalize(raw string, d time.Duration) (Schedule, error) {
 		return Schedule{}, fmt.Errorf("interval %v below minimum %v", d, minInterval)
 	}
 	return Schedule{Raw: raw, Interval: d}, nil
-}
-
-// Next returns the next run time strictly after `from`. For a fixed-interval
-// schedule that is simply from+Interval, but if a run was missed (the service
-// was down), it advances in whole intervals past `now` so we don't replay a
-// backlog of fires — we fire once and resync to the cadence.
-func (s Schedule) Next(from, now time.Time) time.Time {
-	if s.Interval <= 0 {
-		return from
-	}
-	next := from.Add(s.Interval)
-	if next.After(now) {
-		return next
-	}
-	// Catch up: skip whole missed intervals so the next run is in the future.
-	missed := now.Sub(from) / s.Interval
-	return from.Add((missed + 1) * s.Interval)
-}
-
-// IsDue reports whether a schedule with the given next_run is due at `now`.
-func IsDue(nextRun, now time.Time) bool {
-	return !nextRun.After(now)
 }

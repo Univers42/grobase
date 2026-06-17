@@ -58,24 +58,34 @@ func (g *Guard) republishSuspended(ctx context.Context) error {
 	if g.rdb == nil {
 		return nil
 	}
+	ids, err := g.readSuspendedIDs(ctx)
+	if err != nil {
+		return err
+	}
+	return g.publishSuspendedSet(ctx, ids)
+}
+
+// readSuspendedIDs reads every suspended tenant id from the DB (the source of truth).
+func (g *Guard) readSuspendedIDs(ctx context.Context) ([]string, error) {
 	rows, err := g.db.AdminQuery(ctx, selectSuspendedSQL)
 	if err != nil {
-		return fmt.Errorf("abuse: read suspended: %w", err)
+		return nil, fmt.Errorf("abuse: read suspended: %w", err)
 	}
+	defer rows.Close()
 	var ids []string
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return err
+			return nil, err
 		}
 		ids = append(ids, id)
 	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return err
-	}
+	return ids, rows.Err()
+}
 
+// publishSuspendedSet atomically rebuilds the Redis suspended set from ids: stage,
+// RENAME onto the live key (an empty result DELETEs it — fail-OPEN, no suspensions).
+func (g *Guard) publishSuspendedSet(ctx context.Context, ids []string) error {
 	const staging = suspendedSet + ":staging"
 	pipe := g.rdb.TxPipeline()
 	pipe.Del(ctx, staging)
@@ -90,6 +100,6 @@ func (g *Guard) republishSuspended(ctx context.Context) error {
 	}
 	pipe.SAdd(ctx, staging, members...)
 	pipe.Rename(ctx, staging, suspendedSet)
-	_, err = pipe.Exec(ctx)
+	_, err := pipe.Exec(ctx)
 	return err
 }

@@ -1,7 +1,6 @@
 package provision
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -111,7 +110,22 @@ func (b *sqlBackend) EnsurePolicy(ctx context.Context, roleID string, p PolicySp
 	// row and the identity key derived from one canonical form.
 	sortedActions := append([]string(nil), p.Actions...)
 	sort.Strings(sortedActions)
-	row, err := b.queryOne(ctx, `
+	row, err := b.queryOne(ctx, sqlEnsurePolicy,
+		roleID, p.ResourceType, p.ResourceName, sortedActions, string(condJSON), p.Effect, p.Priority)
+	if err != nil {
+		return false, err
+	}
+	var n int
+	if err := row.Scan(&n); err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+// sqlEnsurePolicy content-keyed-upserts one resource_policies row: insert only
+// when no row already matches the same semantic content the diff hashes, then
+// report how many rows were inserted (0 = no-op, 1 = created).
+const sqlEnsurePolicy = `
 		WITH ins AS (
 		  INSERT INTO public.resource_policies
 		         (role_id, resource_type, resource_name, actions, conditions, effect, priority)
@@ -128,17 +142,7 @@ func (b *sqlBackend) EnsurePolicy(ctx context.Context, roleID string, p PolicySp
 		  )
 		  RETURNING 1
 		)
-		SELECT count(*) FROM ins`,
-		roleID, p.ResourceType, p.ResourceName, sortedActions, string(condJSON), p.Effect, p.Priority)
-	if err != nil {
-		return false, err
-	}
-	var n int
-	if err := row.Scan(&n); err != nil {
-		return false, err
-	}
-	return n > 0, nil
-}
+		SELECT count(*) FROM ins`
 
 // AssignRole grants `roleName` (already slug-namespaced by the caller) to a
 // user. Idempotent via UNIQUE(user_id, role_id).
@@ -156,21 +160,10 @@ func (b *sqlBackend) Decide(ctx context.Context, userID, resourceType, resourceN
 	if b.decideURL == "" {
 		return false, errors.New("permission-engine URL not configured")
 	}
-	body, _ := json.Marshal(map[string]any{
-		"user":          map[string]string{"id": userID},
-		"resource_type": resourceType,
-		"resource_name": resourceName,
-		"op":            op,
-	})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, b.decideURL+"/permissions/decide", bytes.NewReader(body))
+	req, err := b.decideRequest(ctx, userID, resourceType, resourceName, op)
 	if err != nil {
 		return false, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	if b.serviceToken != "" {
-		req.Header.Set("X-Service-Token", b.serviceToken)
-	}
-	shared.PropagateHeaders(ctx, req)
 	resp, err := b.http.Do(req)
 	if err != nil {
 		return false, err
@@ -188,38 +181,4 @@ func (b *sqlBackend) Decide(ctx context.Context, userID, resourceType, resourceN
 		return false, err
 	}
 	return out.Allow, nil
-}
-
-// queryOne reduces a multi-row result to a single-row scanner returning
-// pgx.ErrNoRows when empty (mirrors tenants.singleRow).
-func (b *sqlBackend) queryOne(ctx context.Context, sql string, args ...any) (interface{ Scan(...any) error }, error) {
-	rows, err := b.db.AdminQuery(ctx, sql, args...)
-	if err != nil {
-		return nil, err
-	}
-	return &singleRow{rows: rows}, nil
-}
-
-type singleRow struct{ rows pgx.Rows }
-
-func (s *singleRow) Scan(dest ...any) error {
-	defer s.rows.Close()
-	if !s.rows.Next() {
-		if err := s.rows.Err(); err != nil {
-			return err
-		}
-		return pgx.ErrNoRows
-	}
-	return s.rows.Scan(dest...)
-}
-
-// namespaced builds the slug-scoped DB role name. Centralized so the format
-// lives in exactly one place (mirrors NamespacedRoleName / RoleKey).
-func namespaced(slug, role string) string { return slug + ":" + role }
-
-func nullable(s string) any {
-	if strings.TrimSpace(s) == "" {
-		return nil
-	}
-	return s
 }

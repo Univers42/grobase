@@ -3,90 +3,10 @@ package spendcap
 import (
 	"context"
 	"fmt"
-	"sort"
-	"strings"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/jackc/pgx/v5"
 )
-
-// rateTable maps a B1 usage metric → its price in MILLI-cents per unit
-// (cents×1000), so a fractional per-unit price (e.g. 0.002¢ / query) is an
-// integer and money math never touches float. Spend in cents = Σ(qty × milliRate)
-// / 1000. Loaded from env SPEND_RATE_<METRIC> (a decimal cents-per-unit string,
-// e.g. "0.0001"), so $-pricing is per-deployment, never in packages.json.
-type rateTable struct {
-	milliPerUnit map[string]int64 // metric → milli-cents per unit
-}
-
-// billableMetricEnv is the closed set of priceable dimensions and the env var that
-// carries each one's cents-per-unit rate. Mirrors metering.billableMetricEnv so the
-// spend model uses B1's frozen metric vocabulary (store.go fieldMetric) — extending
-// to a new dimension is one line here plus the env in the deployment.
-var billableMetricEnv = map[string]string{
-	"query.count":          "SPEND_RATE_QUERY_COUNT",
-	"query.rows":           "SPEND_RATE_QUERY_ROWS",
-	"write.rows":           "SPEND_RATE_WRITE_ROWS",
-	"storage.bytes":        "SPEND_RATE_STORAGE_BYTES",
-	"realtime.minutes":     "SPEND_RATE_REALTIME_MINUTES",
-	"function.invocations": "SPEND_RATE_FUNCTION_INVOCATIONS",
-}
-
-// loadRateTable reads the SPEND_RATE_* env into a metric→milli-cents map. Only
-// metrics with a positive rate are included (opt-in per dimension); an unparsable
-// or non-positive rate is skipped (it would price that dimension at zero anyway).
-func loadRateTable() rateTable {
-	m := make(map[string]int64, len(billableMetricEnv))
-	for metric, ev := range billableMetricEnv {
-		raw := strings.TrimSpace(shared.EnvStr(ev, ""))
-		if raw == "" {
-			continue
-		}
-		// cents-per-unit decimal → milli-cents integer (×1000), rounded.
-		if cents, ok := parseCentsToMilli(raw); ok && cents > 0 {
-			m[metric] = cents
-		}
-	}
-	return rateTable{milliPerUnit: m}
-}
-
-// parseCentsToMilli converts a decimal cents string ("0.0001") to milli-cents
-// (cents×1000) as an integer, rounding to the nearest milli-cent. Returns false on
-// a malformed value so a typo cannot silently price a dimension wrong.
-func parseCentsToMilli(s string) (int64, bool) {
-	var f float64
-	if _, err := fmt.Sscanf(s, "%g", &f); err != nil || f < 0 {
-		return 0, false
-	}
-	// +0.5 for round-to-nearest on the positive domain.
-	return int64(f*1000 + 0.5), true
-}
-
-func (t rateTable) empty() bool { return len(t.milliPerUnit) == 0 }
-
-// metrics returns the priced metric names, sorted for a stable `= ANY($1)` SQL
-// argument and deterministic logging.
-func (t rateTable) metrics() []string {
-	out := make([]string, 0, len(t.milliPerUnit))
-	for k := range t.milliPerUnit {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
-}
-
-// spendCentsFor converts a per-metric usage map to spend in whole cents using the
-// rate table. Integer math throughout: Σ(qty × milliRate) accumulated in
-// milli-cents, divided by 1000 at the end. A metric with no rate contributes 0.
-func (t rateTable) spendCentsFor(usageByMetric map[string]int64) int64 {
-	var milli int64
-	for metric, qty := range usageByMetric {
-		if r, ok := t.milliPerUnit[metric]; ok && qty > 0 {
-			milli += qty * r
-		}
-	}
-	return milli / 1000
-}
 
 // tenantSpend is one tenant's accumulated period state during an evaluation.
 type tenantSpend struct {
@@ -142,27 +62,10 @@ func (g *Guard) evaluate(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("spend-cap: query usage: %w", err)
 	}
-	byTenant := map[string]*tenantSpend{}
-	for rows.Next() {
-		var tid, period, metric string
-		var budget, qty int64
-		var alertFired bool
-		if err := rows.Scan(&tid, &period, &budget, &alertFired, &metric, &qty); err != nil {
-			rows.Close()
-			return fmt.Errorf("spend-cap: scan: %w", err)
-		}
-		ts, ok := byTenant[tid]
-		if !ok {
-			ts = &tenantSpend{tenantID: tid, period: period, budgetCents: budget, alertFired: alertFired, usageByMetric: map[string]int64{}}
-			byTenant[tid] = ts
-		}
-		ts.usageByMetric[metric] += qty
+	byTenant, err := g.scanSpend(rows)
+	if err != nil {
+		return err
 	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("spend-cap: rows: %w", err)
-	}
-
 	over := make([]string, 0)
 	for _, ts := range byTenant {
 		if ts.budgetCents <= 0 {
@@ -175,6 +78,31 @@ func (g *Guard) evaluate(ctx context.Context) error {
 		g.maybeAlert(ctx, ts, spent, now)
 	}
 	return g.publish(ctx, over)
+}
+
+// scanSpend folds the usage×budget rows into one tenantSpend per tenant, summing
+// per-metric qty. It always closes rows; a scan or iteration error is wrapped.
+func (g *Guard) scanSpend(rows pgx.Rows) (map[string]*tenantSpend, error) {
+	defer rows.Close()
+	byTenant := map[string]*tenantSpend{}
+	for rows.Next() {
+		var tid, period, metric string
+		var budget, qty int64
+		var alertFired bool
+		if err := rows.Scan(&tid, &period, &budget, &alertFired, &metric, &qty); err != nil {
+			return nil, fmt.Errorf("spend-cap: scan: %w", err)
+		}
+		ts, ok := byTenant[tid]
+		if !ok {
+			ts = &tenantSpend{tenantID: tid, period: period, budgetCents: budget, alertFired: alertFired, usageByMetric: map[string]int64{}}
+			byTenant[tid] = ts
+		}
+		ts.usageByMetric[metric] += qty
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("spend-cap: rows: %w", err)
+	}
+	return byTenant, nil
 }
 
 // maybeAlert fires the once-per-period 80% (configurable) ALERT when spend crosses

@@ -167,8 +167,3 @@ func loadTierRequirements() map[string]requirement {
 	}
 	return out
 }
-
-/* ─────── env helpers (mirroring metering.consumer / spendcap) ─────── */
-
-// envBoolDefault returns def when the env var is unset, else parses it as a bool.
-// Used for ABUSE_AUTO_SUSPEND, which defaults ON (a breach is a strong signal).

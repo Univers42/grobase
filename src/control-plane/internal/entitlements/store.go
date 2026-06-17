@@ -95,21 +95,7 @@ func (c CustomEntitlement) ToPackage() packages.Package {
 		Addons:       c.Addons,
 		SecurityMode: c.SecurityMode,
 	}
-	if c.Limits != nil {
-		if c.Limits.RPS != nil {
-			p.Limits.RPS = *c.Limits.RPS
-		}
-		if c.Limits.Burst != nil {
-			p.Limits.Burst = *c.Limits.Burst
-		}
-		if c.Limits.MaxRows != nil {
-			v := *c.Limits.MaxRows
-			p.Limits.MaxRows = &v
-		}
-		if c.Limits.QueryCount != nil {
-			p.Limits.Quota = &packages.Quota{QueryCount: *c.Limits.QueryCount}
-		}
-	}
+	c.Limits.applyTo(&p.Limits)
 	if c.MaxConn != nil {
 		p.PoolPolicy.MaxConn = *c.MaxConn
 	}

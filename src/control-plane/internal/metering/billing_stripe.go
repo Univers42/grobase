@@ -54,18 +54,9 @@ func newStripeBiller(base, apiKey string) *stripeBiller {
 // an error so the caller leaves the window un-marked (retried next tick); Stripe's
 // identifier-dedup makes that retry safe even after a partial success.
 func (b *stripeBiller) ReportMeterEvent(ctx context.Context, ev MeterEvent) error {
-	form := url.Values{}
-	form.Set("event_name", ev.EventName)
-	form.Set("payload[stripe_customer_id]", ev.CustomerID)
-	form.Set("payload[value]", strconv.FormatInt(ev.Value, 10))
-	if ev.Identifier != "" {
-		form.Set("identifier", ev.Identifier)
-	}
-	if ev.Timestamp > 0 {
-		form.Set("timestamp", strconv.FormatInt(ev.Timestamp, 10))
-	}
+	body := strings.NewReader(meterEventForm(ev).Encode())
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		b.base+"/v1/billing/meter_events", strings.NewReader(form.Encode()))
+		b.base+"/v1/billing/meter_events", body)
 	if err != nil {
 		return err
 	}
@@ -77,9 +68,24 @@ func (b *stripeBiller) ReportMeterEvent(ctx context.Context, ev MeterEvent) erro
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("stripe meter_events %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("stripe meter_events %d: %s", resp.StatusCode, strings.TrimSpace(string(msg)))
 	}
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
 	return nil
+}
+
+// meterEventForm builds the form-encoded payload for one Stripe meter event.
+func meterEventForm(ev MeterEvent) url.Values {
+	form := url.Values{}
+	form.Set("event_name", ev.EventName)
+	form.Set("payload[stripe_customer_id]", ev.CustomerID)
+	form.Set("payload[value]", strconv.FormatInt(ev.Value, 10))
+	if ev.Identifier != "" {
+		form.Set("identifier", ev.Identifier)
+	}
+	if ev.Timestamp > 0 {
+		form.Set("timestamp", strconv.FormatInt(ev.Timestamp, 10))
+	}
+	return form
 }

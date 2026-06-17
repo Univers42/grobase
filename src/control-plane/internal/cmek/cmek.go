@@ -25,8 +25,6 @@ package cmek
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -73,31 +71,20 @@ type KMSProvider interface {
 // exactly like the inline path, and store wrapped in cmek_wrapped_dek. The
 // presence of a non-NULL cmek_wrapped_dek is the mode discriminator.
 func Seal(ctx context.Context, provider KMSProvider, keyID string, plaintext []byte) (wrapped, iv, ciphertext []byte, err error) {
-	if provider == nil {
-		return nil, nil, nil, errors.New("cmek: nil KMSProvider")
+	if err = validateArgs(provider, keyID); err != nil {
+		return nil, nil, nil, err
 	}
-	if keyID == "" {
-		return nil, nil, nil, errors.New("cmek: empty keyID")
+	dek, nonce, err := genDEKAndNonce()
+	if err != nil {
+		return nil, nil, nil, err
 	}
-
-	dek := make([]byte, dekLen)
 	defer zero(dek) // never leave a plaintext DEK in memory after the seal.
-	if _, err = io.ReadFull(rand.Reader, dek); err != nil {
-		return nil, nil, nil, fmt.Errorf("cmek: generate DEK: %w", err)
-	}
-
-	nonce := make([]byte, nonceLen)
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, nil, nil, fmt.Errorf("cmek: generate nonce: %w", err)
-	}
-
 	gcm, err := newGCM(dek)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	// Seal returns ciphertext||tag (the tag is the trailing 16 bytes).
 	ct := gcm.Seal(nil, nonce, plaintext, nil)
-
 	// Wrap the DEK with the EXTERNAL KEK. The platform never persists the DEK.
 	w, err := provider.WrapDEK(ctx, keyID, dek)
 	if err != nil {
@@ -109,31 +96,48 @@ func Seal(ctx context.Context, provider KMSProvider, keyID string, plaintext []b
 	return w, nonce, ct, nil
 }
 
+// validateArgs rejects a nil provider or empty keyID — the guard shared by Seal
+// and Open.
+func validateArgs(provider KMSProvider, keyID string) error {
+	if provider == nil {
+		return errors.New("cmek: nil KMSProvider")
+	}
+	if keyID == "" {
+		return errors.New("cmek: empty keyID")
+	}
+	return nil
+}
+
+// genDEKAndNonce returns a fresh crypto-random 256-bit DEK and a 96-bit GCM
+// nonce. The caller owns zeroing the DEK after use.
+func genDEKAndNonce() (dek, nonce []byte, err error) {
+	dek = make([]byte, dekLen)
+	if _, err = io.ReadFull(rand.Reader, dek); err != nil {
+		return nil, nil, fmt.Errorf("cmek: generate DEK: %w", err)
+	}
+	nonce = make([]byte, nonceLen)
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, nil, fmt.Errorf("cmek: generate nonce: %w", err)
+	}
+	return dek, nonce, nil
+}
+
 // Open reverses Seal: it asks provider.UnwrapDEK(keyID, wrapped) for the DEK,
 // then AES-256-GCM-decrypts ciphertext (ct||tag) with iv. The DEK is ZEROED
 // before return. If the KMS cannot unwrap (revoked/deleted KEK), Open returns
 // ErrShredded — the plaintext is permanently unrecoverable.
 func Open(ctx context.Context, provider KMSProvider, keyID string, wrapped, iv, ciphertext []byte) ([]byte, error) {
-	if provider == nil {
-		return nil, errors.New("cmek: nil KMSProvider")
-	}
-	if keyID == "" {
-		return nil, errors.New("cmek: empty keyID")
+	if err := validateArgs(provider, keyID); err != nil {
+		return nil, err
 	}
 	if len(iv) != nonceLen {
 		return nil, fmt.Errorf("cmek: bad nonce length %d (want %d)", len(iv), nonceLen)
 	}
-
-	dek, err := provider.UnwrapDEK(ctx, keyID, wrapped)
+	dek, err := unwrapDEK(ctx, provider, keyID, wrapped)
 	if err != nil {
-		// CRYPTO-SHRED: the KEK is gone (or wrong) — the data cannot be decrypted.
-		return nil, fmt.Errorf("%w: %v", ErrShredded, err)
+		return nil, err
 	}
 	defer zero(dek)
-	if len(dek) != dekLen {
-		return nil, fmt.Errorf("cmek: KMS returned a %d-byte DEK (want %d)", len(dek), dekLen)
-	}
-
 	gcm, err := newGCM(dek)
 	if err != nil {
 		return nil, err
@@ -146,48 +150,17 @@ func Open(ctx context.Context, provider KMSProvider, keyID string, wrapped, iv, 
 	return plain, nil
 }
 
-// JoinCiphertext re-assembles the GCM ciphertext||tag from the two stored
-// columns (connection_enc, connection_tag), the inverse of the SplitCiphertext
-// split callers do at store time. Provided so the adapterregistry GetConnection
-// path can reconstruct the Open input from its existing column scan without
-// re-deriving the layout.
-func JoinCiphertext(enc, tag []byte) []byte {
-	out := make([]byte, 0, len(enc)+len(tag))
-	out = append(out, enc...)
-	out = append(out, tag...)
-	return out
-}
-
-// SplitCiphertext splits the GCM ciphertext||tag Seal returns into the
-// {connection_enc, connection_tag} columns the adapterregistry table already
-// has (the inline path stores them split, so CMEK matches that layout). The tag
-// is the trailing 16 bytes (GCM standard).
-func SplitCiphertext(ciphertext []byte) (enc, tag []byte, err error) {
-	const tagLen = 16
-	if len(ciphertext) < tagLen {
-		return nil, nil, fmt.Errorf("cmek: ciphertext too short (%d < %d) to carry a GCM tag", len(ciphertext), tagLen)
-	}
-	cut := len(ciphertext) - tagLen
-	return ciphertext[:cut], ciphertext[cut:], nil
-}
-
-// newGCM builds an AES-256-GCM AEAD over the given 32-byte key.
-func newGCM(key []byte) (cipher.AEAD, error) {
-	block, err := aes.NewCipher(key)
+// unwrapDEK asks the KMS to unwrap the DEK and validates its length. A KMS
+// failure (revoked/deleted KEK) maps to ErrShredded — the crypto-shred path.
+func unwrapDEK(ctx context.Context, provider KMSProvider, keyID string, wrapped []byte) ([]byte, error) {
+	dek, err := provider.UnwrapDEK(ctx, keyID, wrapped)
 	if err != nil {
-		return nil, fmt.Errorf("cmek: aes cipher: %w", err)
+		// CRYPTO-SHRED: the KEK is gone (or wrong) — the data cannot be decrypted.
+		return nil, fmt.Errorf("%w: %v", ErrShredded, err)
 	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, fmt.Errorf("cmek: gcm: %w", err)
+	if len(dek) != dekLen {
+		zero(dek)
+		return nil, fmt.Errorf("cmek: KMS returned a %d-byte DEK (want %d)", len(dek), dekLen)
 	}
-	return gcm, nil
-}
-
-// zero overwrites a byte slice in place — best-effort scrub of key material so a
-// plaintext DEK does not linger in process memory after use.
-func zero(b []byte) {
-	for i := range b {
-		b[i] = 0
-	}
+	return dek, nil
 }

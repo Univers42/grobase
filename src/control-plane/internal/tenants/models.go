@@ -195,21 +195,25 @@ func (r ProvisionRequest) Compile() provision.StackSpec {
 		spec.Keys = []provision.KeySpec{{Name: r.DefaultKeyName}}
 	}
 	if r.SeedRoles {
-		role := provision.RoleSpec{
+		spec.Roles = []provision.RoleSpec{{
 			Name:     r.DefaultRoleName, // "" → Normalize stamps Defaults().RoleName
 			Policies: []provision.PolicySpec{provision.D().RolePolicy},
-		}
-		spec.Roles = []provision.RoleSpec{role}
+		}}
 	}
 	for _, m := range r.Mounts {
-		spec.Engines = append(spec.Engines, provision.EngineSpec{
-			Engine:           m.Engine,
-			Name:             m.Name,
-			ConnectionString: m.ConnectionString,
-			Isolation:        m.Isolation,
-		})
+		spec.Engines = append(spec.Engines, m.toEngineSpec())
 	}
 	return spec
+}
+
+// toEngineSpec maps a declarative MountSpec onto the reconciler's EngineSpec.
+func (m MountSpec) toEngineSpec() provision.EngineSpec {
+	return provision.EngineSpec{
+		Engine:           m.Engine,
+		Name:             m.Name,
+		ConnectionString: m.ConnectionString,
+		Isolation:        m.Isolation,
+	}
 }
 
 // VerifyKeyRequest is the internal POST /v1/keys/verify body. Used by the

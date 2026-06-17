@@ -1,0 +1,59 @@
+package webhooks
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+
+	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+)
+
+func (rt *routes) create(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	var req CreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		shared.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON")
+		return
+	}
+	if err := req.Validate(); err != nil {
+		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		return
+	}
+	sub, err := rt.svc.Create(r.Context(), tenantID, req)
+	switch {
+	case errors.Is(err, ErrConflict):
+		shared.WriteError(w, http.StatusConflict, "conflict", err.Error())
+	case err != nil:
+		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+	default:
+		shared.WriteJSON(w, http.StatusCreated, sub)
+	}
+}
+
+func (rt *routes) list(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	out, err := rt.svc.List(r.Context(), tenantID)
+	if err != nil {
+		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		return
+	}
+	shared.WriteJSON(w, http.StatusOK, out)
+}
+
+func (rt *routes) findOne(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	sub, err := rt.svc.FindOne(r.Context(), tenantID, r.PathValue("id"))
+	if handleLookup(w, err) {
+		return
+	}
+	shared.WriteJSON(w, http.StatusOK, sub)
+}

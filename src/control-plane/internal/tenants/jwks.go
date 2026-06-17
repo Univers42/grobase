@@ -2,11 +2,9 @@ package tenants
 
 import (
 	"crypto/rsa"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 	"net/http"
 	"sync"
 	"time"
@@ -68,17 +66,6 @@ func (k *jwksKeyset) lookup(kid string) *rsa.PublicKey {
 	return k.keys[kid]
 }
 
-type jwksDoc struct {
-	Keys []struct {
-		Kty string `json:"kty"`
-		Kid string `json:"kid"`
-		N   string `json:"n"`
-		E   string `json:"e"`
-		Use string `json:"use"`
-		Alg string `json:"alg"`
-	} `json:"keys"`
-}
-
 func (k *jwksKeyset) refresh() error {
 	resp, err := k.client.Get(k.url)
 	if err != nil {
@@ -92,6 +79,20 @@ func (k *jwksKeyset) refresh() error {
 	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
 		return err
 	}
+	parsed := parseJWKKeys(doc)
+	if len(parsed) == 0 {
+		return errors.New("no usable RSA signing keys in JWKS")
+	}
+	k.mu.Lock()
+	k.keys = parsed
+	k.lastRefresh = time.Now()
+	k.mu.Unlock()
+	return nil
+}
+
+// parseJWKKeys builds the kid→RSA-public-key map from a JWKS doc, skipping
+// non-RSA / non-signing / malformed entries (keeping the rest).
+func parseJWKKeys(doc jwksDoc) map[string]*rsa.PublicKey {
 	parsed := map[string]*rsa.PublicKey{}
 	for _, jwk := range doc.Keys {
 		if jwk.Kty != "RSA" || (jwk.Use != "" && jwk.Use != "sig") {
@@ -103,33 +104,5 @@ func (k *jwksKeyset) refresh() error {
 		}
 		parsed[jwk.Kid] = pub
 	}
-	if len(parsed) == 0 {
-		return errors.New("no usable RSA signing keys in JWKS")
-	}
-	k.mu.Lock()
-	k.keys = parsed
-	k.lastRefresh = time.Now()
-	k.mu.Unlock()
-	return nil
-}
-
-// rsaPublicKeyFromJWK builds an *rsa.PublicKey from the base64url modulus (n)
-// and exponent (e) of a JWK.
-func rsaPublicKeyFromJWK(nB64, eB64 string) (*rsa.PublicKey, error) {
-	nBytes, err := base64.RawURLEncoding.DecodeString(nB64)
-	if err != nil {
-		return nil, fmt.Errorf("decode n: %w", err)
-	}
-	eBytes, err := base64.RawURLEncoding.DecodeString(eB64)
-	if err != nil {
-		return nil, fmt.Errorf("decode e: %w", err)
-	}
-	e := 0
-	for _, b := range eBytes {
-		e = e<<8 | int(b)
-	}
-	if e == 0 {
-		return nil, errors.New("zero exponent")
-	}
-	return &rsa.PublicKey{N: new(big.Int).SetBytes(nBytes), E: e}, nil
+	return parsed
 }

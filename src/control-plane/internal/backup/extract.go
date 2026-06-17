@@ -110,62 +110,14 @@ func extractDatabase(ctx context.Context, dsn string, w io.Writer) error {
 	}
 	defer func() { _ = conn.Close(ctx) }()
 
-	// In a db_per_tenant database the tenant's data lives in the default schemas;
-	// enumerate every non-system schema so nothing is missed.
-	srows, err := conn.Query(ctx,
-		`SELECT schema_name FROM information_schema.schemata
-		  WHERE schema_name NOT IN ('pg_catalog','information_schema')
-		    AND schema_name NOT LIKE 'pg_%'
-		  ORDER BY schema_name`)
+	schemas, err := enumerateDBSchemas(ctx, conn)
 	if err != nil {
-		return fmt.Errorf("backup: enumerate db schemas: %w", err)
-	}
-	var schemas []string
-	for srows.Next() {
-		var sc string
-		if err := srows.Scan(&sc); err != nil {
-			srows.Close()
-			return err
-		}
-		schemas = append(schemas, sc)
-	}
-	srows.Close()
-	if err := srows.Err(); err != nil {
 		return err
 	}
-
 	m := manifest{Engine: "postgresql"}
 	for _, sc := range schemas {
-		trows, err := conn.Query(ctx,
-			`SELECT table_name FROM information_schema.tables
-			  WHERE table_schema = $1 AND table_type = 'BASE TABLE'
-			  ORDER BY table_name`, sc)
-		if err != nil {
-			return fmt.Errorf("backup: enumerate db tables: %w", err)
-		}
-		var tables []string
-		for trows.Next() {
-			var t string
-			if err := trows.Scan(&t); err != nil {
-				trows.Close()
-				return err
-			}
-			tables = append(tables, t)
-		}
-		trows.Close()
-		if err := trows.Err(); err != nil {
+		if err := copyDBSchema(ctx, conn, sc, w, &m); err != nil {
 			return err
-		}
-		for _, tbl := range tables {
-			cw := &countingWriter{w: w}
-			qualified := pgx.Identifier{sc, tbl}.Sanitize()
-			tag, err := conn.PgConn().CopyTo(ctx, cw,
-				fmt.Sprintf(`COPY (SELECT * FROM %s) TO STDOUT (FORMAT text)`, qualified))
-			if err != nil {
-				return fmt.Errorf("backup: COPY TO %s: %w", qualified, err)
-			}
-			// Table name is schema-qualified in the manifest for db restore.
-			m.Tables = append(m.Tables, tableExtract{Table: qualified, Bytes: cw.n, Rows: tag.RowsAffected()})
 		}
 	}
 	return writeManifest(w, m)

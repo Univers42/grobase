@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -82,90 +81,4 @@ func replayTables(ctx context.Context, tx pgx.Tx, body []byte, m manifest, quali
 		}
 	}
 	return nil
-}
-
-// restoreSchema restores a schema_per_tenant backup into A's OWN schema only:
-// one transaction that TRUNCATEs each backed-up table in <schema> then replays
-// COPY ... FROM STDIN. Any error rolls the whole tx back (no partial restore).
-// B's schema lives in a DIFFERENT namespace and is untouched by construction.
-// `schema` MUST come from tenants.TenantSchema (injection-safe).
-//
-// Why TRUNCATE+COPY (not DROP SCHEMA CASCADE + CREATE): the data plane
-// provisions a tenant's tables (DDL) at mount time, so restore targets the live
-// table set and replays DATA back into it — destroying+recreating the schema
-// would erase the table DDL (this artifact carries data, not DDL). A full
-// DDL-snapshot restore (column/type recreation) is a documented B6b follow-up;
-// for the two MVP-clean isolation models the data-replay restore is exact for an
-// unchanged table shape, which is the gate's round-trip contract.
-func restoreSchema(ctx context.Context, db *shared.Postgres, schema string, r io.Reader) error {
-	body, m, err := splitArtifact(r)
-	if err != nil {
-		return err
-	}
-	pconn, err := db.AcquireConn(ctx)
-	if err != nil {
-		return fmt.Errorf("backup: acquire conn: %w", err)
-	}
-	defer pconn.Release()
-	conn := pconn.Conn()
-
-	qschema := pgx.Identifier{schema}.Sanitize()
-	qualify := func(tbl string) string { return qschema + "." + pgx.Identifier{tbl}.Sanitize() }
-
-	tx, err := conn.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("backup: begin restore tx: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	// TRUNCATE every backed-up table in A's schema, then COPY the rows back — all
-	// inside one tx so a mid-stream failure leaves A fully reset, never partial.
-	for _, te := range m.Tables {
-		target := qualify(te.Table)
-		if _, err := tx.Exec(ctx, fmt.Sprintf(`TRUNCATE TABLE %s`, target)); err != nil {
-			return fmt.Errorf("backup: truncate %s: %w", target, err)
-		}
-	}
-	if err := replayTables(ctx, tx, body, m, qualify); err != nil {
-		return err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("backup: commit restore: %w", err)
-	}
-	return nil
-}
-
-// restoreDatabase restores a db_per_tenant backup into A's OWN database via the
-// resolved DSN: per-table TRUNCATE + COPY FROM STDIN inside one transaction.
-// NEVER the shared control-plane DB; NEVER a shared object. Atomic — rollback on
-// any error. Table names in the manifest are already schema-qualified.
-func restoreDatabase(ctx context.Context, dsn string, r io.Reader) error {
-	body, m, err := splitArtifact(r)
-	if err != nil {
-		return err
-	}
-	conn, err := pgx.Connect(ctx, dsn)
-	if err != nil {
-		return fmt.Errorf("backup: dial tenant db: %w", err)
-	}
-	defer func() { _ = conn.Close(ctx) }()
-
-	tx, err := conn.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("backup: begin restore tx: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	// TRUNCATE then COPY each table (manifest names are schema-qualified, already
-	// pgx.Identifier-sanitized at extract time).
-	for _, te := range m.Tables {
-		if _, err := tx.Exec(ctx, fmt.Sprintf(`TRUNCATE TABLE %s`, te.Table)); err != nil {
-			return fmt.Errorf("backup: truncate %s: %w", te.Table, err)
-		}
-	}
-	qualify := func(tbl string) string { return tbl } // already schema-qualified
-	if err := replayTables(ctx, tx, body, m, qualify); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
 }
