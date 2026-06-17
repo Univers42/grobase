@@ -34,11 +34,7 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
-	db, err := pg.NewPostgres(ctx, cfg.DatabaseURL)
-	if err != nil {
-		log.Error("postgres connect failed", "err", err)
-		os.Exit(1)
-	}
+	db := pg.MustPostgres(ctx, cfg.DatabaseURL, log)
 	defer db.Close()
 	svc := buildService(ctx, db, log)
 	mux := httpx.NewRouter("adapter-registry", db)

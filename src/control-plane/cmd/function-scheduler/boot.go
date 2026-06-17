@@ -13,16 +13,6 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/scheduler"
 )
 
-// mustDial opens the Postgres pool or exits non-zero (startup is fatal-on-fail).
-func mustDial(ctx context.Context, cfg config.Config, log *slog.Logger) *pg.Postgres {
-	db, err := pg.NewPostgres(ctx, cfg.DatabaseURL)
-	if err != nil {
-		log.Error("postgres connect failed", "err", err)
-		os.Exit(1)
-	}
-	return db
-}
-
 // resolveTick reads FUNCTION_SCHEDULER_TICK_SECONDS (a bare seconds count),
 // falling back to 10s when unset, unparseable, or non-positive.
 func resolveTick() time.Duration {

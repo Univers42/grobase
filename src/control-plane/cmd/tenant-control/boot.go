@@ -76,13 +76,8 @@ func (b *bootCtx) setupJWT() {
 // openDB connects Postgres and ensures the tenant schema — fatal on either error,
 // preserving main()'s original log messages + os.Exit(1).
 func (b *bootCtx) openDB(ctx context.Context) {
-	db, err := pg.NewPostgres(ctx, b.cfg.DatabaseURL)
-	if err != nil {
-		b.log.Error("postgres connect failed", "err", err)
-		os.Exit(1)
-	}
-	b.db = db
-	b.svc = tenants.NewService(db, b.log)
+	b.db = pg.MustPostgres(ctx, b.cfg.DatabaseURL, b.log)
+	b.svc = tenants.NewService(b.db, b.log)
 	if err := b.svc.EnsureSchema(ctx); err != nil {
 		b.log.Error("schema check failed", "err", err)
 		os.Exit(1)
@@ -106,10 +101,5 @@ func (b *bootCtx) serve(ctx context.Context, stop context.CancelFunc) {
 	}()
 	<-ctx.Done()
 	b.log.Info("shutdown signal received")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		b.log.Error("graceful shutdown failed", "err", err)
-	}
-	b.log.Info("stopped")
+	httpx.GracefulShutdown(srv, b.log)
 }

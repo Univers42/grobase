@@ -104,12 +104,7 @@ func serve(ctx context.Context, cfg config.Config, mux *http.ServeMux, log *slog
 	}()
 	<-ctx.Done()
 	log.Info("shutdown signal received")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("graceful shutdown failed", "err", err)
-	}
-	log.Info("stopped")
+	httpx.GracefulShutdown(srv, log)
 }
 
 func healthcheck(cfg config.Config) int {

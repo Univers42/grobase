@@ -58,10 +58,5 @@ func launchLoops(ctx context.Context, log *slog.Logger, redisURL string, srv *ht
 func awaitShutdown(ctx context.Context, srv *http.Server, log *slog.Logger) {
 	<-ctx.Done()
 	log.Info("shutdown signal received")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("graceful shutdown failed", "err", err)
-	}
-	log.Info("stopped")
+	httpx.GracefulShutdown(srv, log)
 }

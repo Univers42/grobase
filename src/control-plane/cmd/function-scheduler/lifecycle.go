@@ -42,13 +42,3 @@ func startRunner(ctx context.Context, runner *scheduler.Runner, tick time.Durati
 		}
 	}()
 }
-
-// gracefulShutdown drains the HTTP server within a bounded window.
-func gracefulShutdown(srv *http.Server, log *slog.Logger) {
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("graceful shutdown failed", "err", err)
-	}
-	log.Info("stopped")
-}

@@ -23,7 +23,9 @@ import (
 	"time"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 func main() {
@@ -31,7 +33,7 @@ func main() {
 	cfg, ctx, stop := bootstrap(log)
 	defer stop()
 
-	db := mustDial(ctx, cfg, log)
+	db := pg.MustPostgres(ctx, cfg.DatabaseURL, log)
 	defer db.Close()
 	svc := newService(ctx, db, log)
 
@@ -44,7 +46,7 @@ func main() {
 
 	<-ctx.Done()
 	log.Info("shutdown signal received")
-	gracefulShutdown(srv, log)
+	httpx.GracefulShutdown(srv, log)
 }
 
 // bootstrap loads config (fatal on error), honours the --healthcheck probe arg,
