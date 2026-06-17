@@ -130,11 +130,7 @@ impl EngineAdapter for RedisEngineAdapter {
     }
 
     async fn health_check(&self, pool: &dyn EnginePool) -> DataPlaneResult<EngineHealth> {
-        Ok(EngineHealth {
-            engine: "redis".to_string(),
-            mount_id: pool.mount_id().to_string(),
-            status: "unknown".to_string(),
-        })
+        Ok(EngineHealth::unknown("redis", pool.mount_id()))
     }
 }
 

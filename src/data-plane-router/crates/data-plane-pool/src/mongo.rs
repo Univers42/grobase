@@ -219,11 +219,7 @@ impl EngineAdapter for MongoEngineAdapter {
     }
 
     async fn health_check(&self, pool: &dyn EnginePool) -> DataPlaneResult<EngineHealth> {
-        Ok(EngineHealth {
-            engine: "mongodb".to_string(),
-            mount_id: pool.mount_id().to_string(),
-            status: "unknown".to_string(),
-        })
+        Ok(EngineHealth::unknown("mongodb", pool.mount_id()))
     }
 }
 

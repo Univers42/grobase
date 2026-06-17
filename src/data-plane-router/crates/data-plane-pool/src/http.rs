@@ -117,11 +117,7 @@ impl EngineAdapter for HttpEngineAdapter {
     }
 
     async fn health_check(&self, pool: &dyn EnginePool) -> DataPlaneResult<EngineHealth> {
-        Ok(EngineHealth {
-            engine: "http".to_string(),
-            mount_id: pool.mount_id().to_string(),
-            status: "unknown".to_string(),
-        })
+        Ok(EngineHealth::unknown("http", pool.mount_id()))
     }
 }
 

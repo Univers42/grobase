@@ -386,11 +386,7 @@ impl EngineAdapter for PostgresEngineAdapter {
     }
 
     async fn health_check(&self, pool: &dyn EnginePool) -> DataPlaneResult<EngineHealth> {
-        Ok(EngineHealth {
-            engine: self.dialect.engine_id().to_string(),
-            mount_id: pool.mount_id().to_string(),
-            status: "unknown".to_string(),
-        })
+        Ok(EngineHealth::unknown(self.dialect.engine_id(), pool.mount_id()))
     }
 }
 

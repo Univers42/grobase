@@ -213,11 +213,7 @@ impl EngineAdapter for MysqlEngineAdapter {
     }
 
     async fn health_check(&self, pool: &dyn EnginePool) -> DataPlaneResult<EngineHealth> {
-        Ok(EngineHealth {
-            engine: "mysql".to_string(),
-            mount_id: pool.mount_id().to_string(),
-            status: "unknown".to_string(),
-        })
+        Ok(EngineHealth::unknown("mysql", pool.mount_id()))
     }
 }
 

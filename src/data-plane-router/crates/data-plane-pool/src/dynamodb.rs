@@ -146,11 +146,7 @@ impl EngineAdapter for DynamoEngineAdapter {
     }
 
     async fn health_check(&self, pool: &dyn EnginePool) -> DataPlaneResult<EngineHealth> {
-        Ok(EngineHealth {
-            engine: "dynamodb".to_string(),
-            mount_id: pool.mount_id().to_string(),
-            status: "unknown".to_string(),
-        })
+        Ok(EngineHealth::unknown("dynamodb", pool.mount_id()))
     }
 }
 

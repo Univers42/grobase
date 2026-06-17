@@ -193,6 +193,21 @@ pub struct EngineHealth {
     pub status: String,
 }
 
+impl EngineHealth {
+    /// A health record with an undetermined status — the current baseline for
+    /// every adapter (none performs a real liveness probe yet). A real probe must
+    /// build `EngineHealth` with a concrete status directly, so adding one stays a
+    /// visible decision rather than a silently-inherited default.
+    #[must_use]
+    pub fn unknown(engine: impl Into<String>, mount_id: impl Into<String>) -> Self {
+        Self {
+            engine: engine.into(),
+            mount_id: mount_id.into(),
+            status: "unknown".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PoolStats {
     pub mount_id: String,
