@@ -14,6 +14,7 @@ description: Go refactoring rules
 - **No globals — inject dependencies.** No package-level `var`. See [`no-globals.md`](no-globals.md): sentinel errors → const error types, regexes → struct fields / `sync.OnceValue`, lookup tables → switch funcs, mutable state → DI. The *only* permitted package var is a `//go:embed` target.
 - Receiver name: one or two letters, consistent across methods
 - Context is always the first parameter
+- ≤4 parameters per function (`refactor-common.md`), **excluding** a leading `ctx context.Context` — ctx is mandated plumbing, not a data input, so it does not count. The method receiver does not count either. Beyond 4 data params, group cohesive args into a struct (reuse an existing domain type if its fields match; otherwise a small param struct). A `type … struct` declaration is not a `func`, so adding a param struct never affects the ≤5-funcs-per-file count.
 
 ## Package design
 
