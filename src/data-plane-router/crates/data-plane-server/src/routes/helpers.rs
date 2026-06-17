@@ -233,7 +233,6 @@ pub(super) fn too_many_requests(rps: u32) -> axum::response::Response {
 /// per-period usage quota receives. 402 Payment Required is the canonical "you've
 /// hit your plan's metered allowance — upgrade or wait for the period to roll"
 /// signal, DISTINCT from the 429 rate cap (slow down) and the 403 capability gate
-
 /// (upgrade your tier for this feature).
 pub(super) fn payment_required() -> axum::response::Response {
     (
@@ -249,7 +248,6 @@ pub(super) fn payment_required() -> axum::response::Response {
 /// Track-B spend-cap enforcement: the 402 a tenant over its ABSOLUTE spend cap
 /// receives. Same 402 status as `payment_required` (both are "metered allowance"
 /// signals) but a DISTINCT `spend_capped` error code, so a client can tell a
-
 /// usage-quota exhaustion from a money-cap trip.
 pub(super) fn spend_capped() -> axum::response::Response {
     (
@@ -265,7 +263,6 @@ pub(super) fn spend_capped() -> axum::response::Response {
 /// Track-B abuse/KYC suspension: the 403 a suspended tenant receives. 403
 /// Forbidden (account administratively blocked), DISTINCT from the 402 spend/quota
 /// signals (which say "pay or upgrade") — a suspended account cannot un-block by
-
 /// paying.
 pub(super) fn forbidden_suspended() -> axum::response::Response {
     (

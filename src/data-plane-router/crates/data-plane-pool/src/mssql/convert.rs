@@ -25,7 +25,7 @@ pub(super) fn json_to_param(value: &Value) -> P {
 pub(super) fn row_to_json(row: tiberius::Row) -> Value {
     let names: Vec<String> = row.columns().iter().map(|c| c.name().to_string()).collect();
     let mut obj = JsonMap::with_capacity(names.len());
-    for (name, cell) in names.into_iter().zip(row.into_iter()) {
+    for (name, cell) in names.into_iter().zip(row) {
         obj.insert(name, column_data_to_json(cell));
     }
     Value::Object(obj)

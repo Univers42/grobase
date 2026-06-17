@@ -269,7 +269,7 @@ fn prefix_message_passes_through_credential_provider_failed() {
 #[test]
 fn data_plane_result_ok_and_err() {
     let ok: DataPlaneResult<u32> = Ok(7);
-    assert_eq!(ok.unwrap(), 7);
+    assert!(matches!(ok, Ok(7)));
     let err: DataPlaneResult<u32> = Err(DataPlaneError::Backend { message: "x".into() });
     assert!(err.is_err());
 }
