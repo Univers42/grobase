@@ -12,9 +12,9 @@ services:
     ports:
       - "${WAF_HTTP_PORT:-8880}:80"
       - "${WAF_HTTPS_PORT:-8443}:443"
-    volumes:
-      - ../certs/localhost.pem:/etc/nginx/certs/localhost.pem:ro
-      - ../certs/localhost-key.pem:/etc/nginx/certs/localhost-key.pem:ro
+    secrets:
+      - localhost_cert
+      - localhost_key
     depends_on:
       kong:
         condition: service_healthy
@@ -2057,3 +2057,12 @@ volumes:
   grafana-data:
   loki-data:
   functions-data:
+
+# TLS material for the waf (public HTTPS entrypoint) delivered as Docker secrets,
+# not bind mounts. The source pems are generated once at fresh start by `make certs`
+# (idempotent; skips if present + unexpired) and live in the gitignored certs/ dir.
+secrets:
+  localhost_cert:
+    file: ../certs/localhost.pem
+  localhost_key:
+    file: ../certs/localhost-key.pem

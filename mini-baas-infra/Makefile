@@ -161,6 +161,7 @@ re: ## Full reset: fclean then rebuild & start (honours EDITION)
 # ========================================================================== #
 up: _require-compose _rm-stale ## Start the selected EDITION (detached)
 	@[ -f .env ] || { echo -e "$(_Y).env missing → generating (make env)…$(_0)"; $(MAKE) --no-print-directory env; }
+	@[ -f ../certs/localhost.pem ] || { echo -e "$(_Y)TLS cert missing → generating (make certs)…$(_0)"; $(MAKE) --no-print-directory certs; }
 	@echo -e "$(_B)Starting edition '$(_W)$(EDITION)$(_0)$(_B)' → profiles: $(_C)$(ACTIVE_PROFILES)$(_0)"
 	@eval "$$(bash scripts/resolve-ports.sh 2>/dev/null || true)"; $(DCE) up -d $(SERVICE)
 	@echo -e "$(_G)✓ Up$(_0)"
@@ -466,6 +467,8 @@ check-secrets: ## Scan source for hardcoded secrets
 	@bash scripts/check-secrets.sh
 env: ## Generate .env from template
 	@bash scripts/generate-env.sh
+certs: ## Generate localhost TLS cert/key into ../certs (idempotent; the waf reads them as Docker secrets)
+	@bash ../scripts/generate-localhost-cert.sh
 vault-init: _require-compose ## Run Vault init/unseal/seed
 	@$(DC) --profile control-plane run --rm vault-init
 vault-status: _require-compose ## Check Vault seal status
@@ -722,7 +725,7 @@ help: ## Show this help
         bench-startup bench-load bench-capacity bench-mem bench-compare scale-seed scale-teardown observe planes editions doctor tests test-postgres test-offers test-edge \
         verify-all parity waf-test migrate migrate-mongo migrate-mysql migrate-all \
         migrate-status seed-mongo seed-live-demo secrets secrets-validate secrets-rotate \
-        check-secrets env vault-init vault-status vault-rotate nestjs-ci \
+        check-secrets env certs vault-init vault-status vault-rotate nestjs-ci \
         sonar-coverage sonar-scan \
         rust-data-plane-check rust-data-plane-build go-control-plane-check \
         rust-realtime-check rust-realtime-test rust-realtime-build _rust-toolchain \
