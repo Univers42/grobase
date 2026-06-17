@@ -1,0 +1,122 @@
+# data-plane plane — data-plane-router-rust, realtime
+services:
+  data-plane-router-rust:
+    image: ghcr.io/univers42/grobase-data-plane-router:latest   # pull-fallback (built from ./build context below)
+    build:
+      context: ./src/data-plane-router
+      dockerfile: Dockerfile
+    profiles: [adapter-plane, rust-data-plane]
+    container_name: mini-baas-data-plane-router-rust
+    env_file: [.env]
+    environment:
+      DATA_PLANE_ROUTER_HOST: 0.0.0.0
+      DATA_PLANE_ROUTER_PORT: 4011
+      DATA_PLANE_ROUTER_PRODUCT_MODE: ${DATA_PLANE_ROUTER_PRODUCT_MODE:-enabled}
+      DATA_PLANE_ADAPTER_REGISTRY_URL: ${DATA_PLANE_ADAPTER_REGISTRY_URL:-http://adapter-registry-go:3021}
+      DATA_PLANE_PERMISSION_BUNDLE_URL: http://permission-engine:3050/permissions/bundles/latest
+      DATA_PLANE_PERMISSION_MODE: ${DATA_PLANE_PERMISSION_MODE:-abac}
+      DATA_PLANE_MOUNTS: ${DATA_PLANE_MOUNTS:-}
+      # Phase 5/6 security mode (baseline|max). `max` enables strict TLS for
+      # external engine mounts (verify-ca/verify-full enforced) + Vault-backed
+      # credentials; baseline keeps libpq `require` semantics. See config.rs.
+      SECURITY_MODE: ${SECURITY_MODE:-baseline}
+      DATA_PLANE_TLS_CA_FILE: ${DATA_PLANE_TLS_CA_FILE:-}
+      # The bundled mssql container self-signs its cert, and since the Phase B
+      # hardening tiberius VERIFIES chains by default — without this escape the
+      # in-box mssql engine is unreachable (bb8 surfaces it as checkout
+      # timeouts). Default 1 so the stock stack works; the escape is dev-only
+      # by construction: SECURITY_MODE=max (the prod checklist) ignores it and
+      # always verifies. Pin DATA_PLANE_TLS_CA_FILE for remote mssql mounts.
+      DATA_PLANE_TLS_INSECURE: ${DATA_PLANE_TLS_INSECURE:-1}
+      # Phase 7 / D6 direct front door (Kong→Rust /data/v1). Default ON: the Kong
+      # /data/v1 route is live and proven row-identical to /query/v1 on the app's
+      # real mount (m36-cutover-parity). The app still calls /query/v1 until it
+      # flips its base path — query-router stays the fallback (NO deletion). Rust
+      # verifies the API key via tenant-control (Go stays the identity authority)
+      # + resolves mounts via adapter-registry, both HMAC-signed (SERVICE_TOKEN_MODE).
+      DATA_PLANE_BYPASS_ENABLED: ${DATA_PLANE_BYPASS_ENABLED:-1}
+      TENANT_CONTROL_URL: ${TENANT_CONTROL_URL:-http://tenant-control:3022}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
+      # Phase 7d: system Postgres holding public.outbox_events. On the bypass
+      # write path the data plane emits the row-change event itself (the
+      # query-router is out of the path), so realtime/webhooks keep firing.
+      DATA_PLANE_OUTBOX_DSN: ${DATA_PLANE_OUTBOX_DSN:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}}
+      # Automation `notify` actions publish here (same contract as outbox-relay;
+      # empty/absent disables — notify is a no-op in realtime-less tiers).
+      REALTIME_PUBLISH_URL: ${REALTIME_PUBLISH_URL:-http://realtime:4000/v1/publish}
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "127.0.0.1:${DATA_PLANE_RUST_PORT:-4011}:4011"
+    networks:
+      - mini-baas
+    # host-gateway: lets external-client mounts (gourmand-tenant.sh dev
+    # fallback) dial a Postgres published on the HOST (vite-gourmand's own
+    # compose) via host.docker.internal — Linux needs the explicit mapping.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/data-plane-router", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 96m
+    cpus: 0.25
+
+  # ─── Go Control Plane: adapter-registry (shadow migration path) ───
+  realtime:
+    # Pinned upstream (versioned like kong:3.8 — bump procedure in RELEASE.md).
+    # The build: context below always wins locally; the pin is for pull-only
+    # deployments so they never drift on `latest`.
+    image: dlesieur/realtime-agnostic:0.2.1
+    build:
+      context: ./infra/docker/services/realtime/realtime-agnostic
+      dockerfile: Dockerfile
+      # Run:  docker compose build realtime  to rebuild with source fixes
+    # Opt-in: realtime fan-out is a feature, not a foundation. Single-tenant
+    # CRUD deployments that don't need WebSocket events can skip this
+    # service entirely by leaving the `realtime` profile off.
+    profiles: [realtime, data-plane]
+    container_name: mini-baas-realtime
+    env_file: [.env]
+    environment:
+      REALTIME_HOST: 0.0.0.0
+      REALTIME_PORT: 4000
+      REALTIME_JWT_SECRET: ${JWT_SECRET}
+      REALTIME_JWT_AUDIENCE: ""
+      # Phase 5/6 security mode. `baseline` keeps the one-release PERMISSIVE
+      # namespace fallback (a namespace-less JWT → all-access, logged as
+      # deprecated); `max` denies it AND refuses the NoAuth provider. Override
+      # the fallback directly with REALTIME_NAMESPACE_FALLBACK=permissive|deny.
+      SECURITY_MODE: ${SECURITY_MODE:-baseline}
+      REALTIME_NAMESPACE_FALLBACK: ${REALTIME_NAMESPACE_FALLBACK:-permissive}
+      REALTIME_PG_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      REALTIME_PG_CHANNEL: realtime_events
+      # Mongo change-streams producer (M10.b — close the realtime fan-out gap).
+      # Requires Mongo to run as a replica set, which mongo-init already ensures.
+      REALTIME_MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017/?replicaSet=${MONGO_REPLICA_SET_NAME:-rs0}&authSource=admin
+      REALTIME_MONGO_DB: ${MONGO_DB_NAME:-mini_baas}
+      RUST_LOG: ${RUST_LOG:-info}
+    volumes:
+      - ./infra/docker/services/realtime/realtime-agnostic/realtime.toml:/etc/realtime/realtime.toml:ro
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      mongo-init:
+        condition: service_completed_successfully
+        required: false
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/realtime-server", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── In-Memory Cache ─────────────────────────────────────────────

@@ -22,7 +22,7 @@
 services:
   postgres:
     build:
-      context: ./docker/services/postgres-graphql
+      context: ./infra/docker/services/postgres-graphql
       dockerfile: Dockerfile
     image: mini-baas-postgres-graphql:16
 

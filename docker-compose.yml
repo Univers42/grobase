@@ -1,0 +1,62 @@
+name: mini-baas
+
+# Thin orchestrator — each base/*.yml owns one plane/concern (split from the old monolith).
+# Overlays (cloud/prod/netseg/...) still layer via `-f orchestrators/compose/docker-compose.<x>.yml`.
+include:
+  - path: orchestrators/compose/base/gateway.yml
+    project_directory: .
+  - path: orchestrators/compose/base/secrets.yml
+    project_directory: .
+  - path: orchestrators/compose/base/data-engines.yml
+    project_directory: .
+  - path: orchestrators/compose/base/auth-api.yml
+    project_directory: .
+  - path: orchestrators/compose/base/engines-extra.yml
+    project_directory: .
+  - path: orchestrators/compose/base/lakehouse.yml
+    project_directory: .
+  - path: orchestrators/compose/base/control-plane.yml
+    project_directory: .
+  - path: orchestrators/compose/base/data-plane.yml
+    project_directory: .
+  - path: orchestrators/compose/base/app-services.yml
+    project_directory: .
+  - path: orchestrators/compose/base/storage.yml
+    project_directory: .
+  - path: orchestrators/compose/base/observability.yml
+    project_directory: .
+  - path: orchestrators/compose/base/ops.yml
+    project_directory: .
+  - path: orchestrators/compose/base/studio.yml
+    project_directory: .
+  - path: orchestrators/compose/base/playground.yml
+    project_directory: .
+
+networks:
+  mini-baas:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  mongo-data:
+  mysql-data:
+  cockroach-data:
+  mssql-data:
+  mariadb-data:
+  mongo-keyfile:
+  redis-data:
+  minio-data:
+  vault-data:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  functions-data:
+
+# TLS material for the waf (public HTTPS entrypoint) delivered as Docker secrets,
+# not bind mounts. The source pems are generated once at fresh start by `make certs`
+
+secrets:
+  localhost_cert:
+    file: certs/localhost.pem
+  localhost_key:
+    file: certs/localhost-key.pem

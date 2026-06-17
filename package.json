@@ -1,4 +1,7 @@
 {
+	"name": "grobase",
+	"private": true,
+	"license": "AGPL-3.0-only",
 	"scripts": {
 		"local-action": "bash ./scripts/ci/run-ci-local.sh",
 		"ci:local": "bash ./scripts/ci/run-ci-local.sh"

@@ -1,0 +1,71 @@
+# ops plane — pg-backup, supavisor
+services:
+  pg-backup:
+    image: ghcr.io/univers42/grobase-pg-backup:latest   # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/pg-backup
+      dockerfile: Dockerfile
+    profiles: [backups, ops]
+    container_name: mini-baas-pg-backup
+    env_file: [.env]
+    environment:
+      DATABASE_URL: ${PG_BACKUP_DATABASE_URL:-${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}}
+      MINIO_ENDPOINT: ${PG_BACKUP_MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      PG_BACKUP_SCHEDULE: ${PG_BACKUP_SCHEDULE:-0 3 * * *}
+      PG_BACKUP_BUCKET: ${PG_BACKUP_BUCKET:-backups}
+      PG_BACKUP_PREFIX: ${PG_BACKUP_PREFIX:-postgres}
+      PG_BACKUP_RETAIN_DAYS: ${PG_BACKUP_RETAIN_DAYS:-14}
+      PG_BACKUP_PHYSICAL: ${PG_BACKUP_PHYSICAL:-0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+        required: false
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/opt/pg-backup/entrypoint.sh", "liveness"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── Connection Pooler (control plane / close to Postgres) ────────
+  supavisor:
+    image: ghcr.io/univers42/grobase-supavisor:latest   # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/supavisor
+      dockerfile: Dockerfile
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sSfL --head -o /dev/null http://127.0.0.1:4000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    container_name: mini-baas-supavisor
+    profiles: [control-plane, extras]
+    env_file: [.env]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-super-secret-key-base}
+      VAULT_ENC_KEY: ${VAULT_ENC_KEY:-0123456789abcdef0123456789abcdef}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mini-baas
+    restart: unless-stopped
+
+  # ─── Admin Dashboard (extras) ────────────────────────────────────
+  # Studio talks to pg-meta for schema inspection and proxies postgres for
+  # the table editor. Open http://localhost:${STUDIO_PORT:-3000} once the
+  # container reports healthy. The DEFAULT_* env vars skip the first-run
+  # wizard so the dashboard loads straight into the dev project.

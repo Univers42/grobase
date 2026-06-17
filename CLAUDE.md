@@ -53,7 +53,7 @@ These are **confirmed broken on the current working tree** (they reference the p
 
 | Target / file                                                           | Stale ref (in-file)                                                                | Actual location now                                |
 | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `make go-control-plane-check` / `-build` (Makefile L275/292/605)        | mounts `$(CURDIR)/go/control-plane`                                                | `src/go/control-plane`                             |
+| `make go-control-plane-check` / `-build` (Makefile L275/292/605)        | mounts `$(CURDIR)/go/control-plane`                                                | `src/control-plane` (NOT `src/go/…` — no `go/` dir exists) |
 | `make rust-data-plane-*` (CARGO_DPR, L538)                              | mounts `docker/services/data-plane-router`                                         | `src/data-plane-router`                            |
 | `make rust-realtime-*` (CARGO_REALTIME, L539)                           | mounts `docker/services/realtime/realtime-agnostic`                                | `infra/docker/services/realtime/realtime-agnostic` |
 | `make nano-build` / `one-build` (L568/584)                              | `docker/services/data-plane-router/Dockerfile.{nano,one}`                          | `src/data-plane-router/Dockerfile.{nano,one}`      |
@@ -78,14 +78,14 @@ list.
 ├── src/                       # the application + control + data planes (was mini-baas-infra/src + go + docker/.../data-plane-router)
 │   ├── apps/                  # TS NestJS services (query-router, permission-engine, schema-service, …)
 │   ├── libs/                  # TS shared libs (common, database, health)
-│   ├── go/control-plane/      # Go control plane (module github.com/dlesieur/mini-baas/control-plane)
+│   ├── control-plane/         # Go control plane (module github.com/dlesieur/mini-baas/control-plane) — note: src/control-plane, NOT src/go/
 │   ├── data-plane-router/     # Rust data-plane cargo workspace (crates/…)
 │   └── coverage/              # generated lcov — FILTER OUT when grepping source
 ├── infra/
 │   ├── config/                # packages.json, cloud/flags.env.cloud, openapi/grobase-public.json
 │   └── docker/                # docker build contexts + the vendored realtime workspace
 ├── orchestrators/
-│   ├── compose/               # the 8 additive docker-compose.*.yml overlays
+│   ├── compose/               # base/*.yml (split plane files, included by root docker-compose.yml) + 9 additive docker-compose.*.yml overlays
 │   └── makes/                 # makefile fragments
 ├── sdks/                      # js (was sdk/, now @grobase/js) + python kotlin swift dart
 ├── scripts/                   # organized by family (see scripts/README.md):
@@ -103,12 +103,20 @@ branch — it declared 6 dead submodules, none ever initialized); the orphan nes
 gitlink was de-tracked in `3396baf`. There is **no `site/`** (marketing site) in this repo, on any
 ref. `coverage/` HTML under `src/` will pollute `grep` hits — exclude it.
 
+**Root docs worth knowing:** `QUICKSTART.md` (5-min bring-up), `DEPLOYMENT.md` (production),
+`SECURITY.md` (threat model / hardening / reporting), `RELEASE.md` (how a version ships),
+`HUMAN-ATOMS.md` (the GA human/money/account checklist), and the open-core licensing set —
+`LICENSING.md` · `LICENSE` (AGPLv3) · `LICENSE-ENTERPRISE.md` · `CLA.md` (see **Licensing** below).
+`DEVDOC.md`/`USERDOC.md` are dev/user guides; `prompt.md` is a design-rationale scratch note (origin
+of the minimalism-ladder rule), not operational. Builds can also go through `docker-bake.hcl` (buildx
+bake groups `apps`/`infra`).
+
 ## Three-language plane layout (lean paths)
 
 | Plane           | Language            | Path                                                                                        | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | --------------- | ------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Application** | TypeScript (NestJS) | `src/apps/*` + `src/libs/*`                                                                 | query-router, storage-router, schema/session/permission/analytics/ai/email/gdpr/newsletter services, outbox-relay, mongo-api                                                                                                                                                                                                                                                                                                                                                                                          |
-| **Control**     | Go                  | `src/go/control-plane/` (module `github.com/dlesieur/mini-baas/control-plane`, `go 1.25.0`) | **30** `internal/` pkgs — **core:** `tenants provision packages orchestrator adapterregistry shared`; **cloud:** `metering quotastage spendcap abuseguard entitlements backup`; **functions:** `funcsecrets functriggers scheduler`; **enterprise (D):** `orgs sso scim passkeys audit compliance cmek trust ipguard erase export telemetryexport`; **parity (E):** `branching push webhooks`. **6** `cmd/` binaries: `tenant-control adapter-registry orchestrator function-scheduler webhook-dispatcher scale-seed` |
+| **Control**     | Go                  | `src/control-plane/` (module `github.com/dlesieur/mini-baas/control-plane`, `go 1.25.0`)    | **30** `internal/` pkgs — **core:** `tenants provision packages orchestrator adapterregistry shared`; **cloud:** `metering quotastage spendcap abuseguard entitlements backup`; **functions:** `funcsecrets functriggers scheduler`; **enterprise (D):** `orgs sso scim passkeys audit compliance cmek trust ipguard erase export telemetryexport`; **parity (E):** `branching push webhooks`. **6** `cmd/` binaries: `tenant-control adapter-registry orchestrator function-scheduler webhook-dispatcher scale-seed` |
 | **Data**        | Rust                | `src/data-plane-router/` (cargo workspace)                                                  | crates: `data-plane-core`, `data-plane-pool`, `data-plane-server`, `engine-conformance`                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | **Realtime**    | Rust (vendored)     | `infra/docker/services/realtime/realtime-agnostic/`                                         | 10-crate event-bus router + IRC bridge (separate workspace)                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
@@ -224,7 +232,7 @@ those mounts are repointed; the direct `docker run` forms below already use the 
 | Plane                               | Whole suite (Docker wrapper)                                                                                       | One test                                                                                                                                                                                                                                                                                                                                                             |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **TS app** (NestJS · Jest)          | `make nestjs-ci` = `tsc --noEmit` + eslint + `jest --passWithNoTests`; `make nestjs-build-<app>`                   | from repo root: `docker run --rm -v "$PWD/src":/app -w /app -v mini-baas-src-node-modules:/app/node_modules node:20-alpine npx jest <spec> -t '<case>'`. There are **16** spec files (12 under `src/apps`: schema-service, analytics-service, mongo-api, log-service, query-router's proxy/graph/query/dto; 4 under `src/libs/common`) — **not** confined to one dir |
-| **Go control**                      | `make go-control-plane-check` (`go vet ./... && go test ./...`); `make go-control-plane-build` (compose build)     | from `src/go/control-plane/`: `docker run --rm -v "$PWD":/src -w /src golang:1.25-bookworm go test ./internal/<pkg> -run TestX -v` (1.25 — `go.mod` says `go 1.25.0`; `-check` pins `golang:1.25-bookworm`)                                                                                                                                                          |
+| **Go control**                      | `make go-control-plane-check` (`go vet ./... && go test ./...`); `make go-control-plane-build` (compose build)     | from `src/control-plane/`: `docker run --rm -v "$PWD":/src -w /src golang:1.25-bookworm go test ./internal/<pkg> -run TestX -v` (1.25 — `go.mod` says `go 1.25.0`; `-check` pins `golang:1.25-bookworm`)                                                                                                                                                          |
 | **Rust data**                       | `make rust-data-plane-check` / `-test` / `-build` (a `-test` target **does** exist now = `cargo test --workspace`) | `make _rust-toolchain` once, then `cargo test -p data-plane-core <name>` via the data-plane CARGO wrapper; engine integration = `make conformance` / `conformance-<engine>` (the m27 gate)                                                                                                                                                                           |
 | **Rust realtime**                   | `make rust-realtime-check \| -test \| -build`                                                                      | `cargo test -p realtime-core <name>` via the realtime CARGO wrapper                                                                                                                                                                                                                                                                                                  |
 | **TS SDK** (`sdks/js/` · node:test) | `cd sdks/js && npm run build && npm test`                                                                          | `node --test tests/<name>.test.mjs` (or `--test-name-pattern='<re>'`) — **NOT** jest/vitest                                                                                                                                                                                                                                                                          |
@@ -248,8 +256,11 @@ scanner; token from `SONAR_TOKEN`/`TOK_SONARCLOUD`). Pull the live issue list wi
 
 ## Editions, planes, and compose overlays
 
-An **edition** = a named set of planes. Beyond the base **root `docker-compose.yml`**, additive
-overlays under **`orchestrators/compose/`** opt into capabilities — never defaults:
+An **edition** = a named set of planes. The **root `docker-compose.yml` is now a thin orchestrator** —
+it `include:`s 14 per-plane base files under **`orchestrators/compose/base/*.yml`** (gateway, secrets,
+data-engines, auth-api, engines-extra, lakehouse, control-plane, data-plane, app-services, storage,
+observability, ops, studio, playground); the old single-file monolith was split into these. Beyond that
+base, additive overlays under **`orchestrators/compose/`** opt into capabilities — never defaults:
 
 | Overlay                            | Purpose                                                             |
 | ---------------------------------- | ------------------------------------------------------------------- |
@@ -261,8 +272,10 @@ overlays under **`orchestrators/compose/`** opt into capabilities — never defa
 | `docker-compose.prod.yml`          | Production: no dev ports, resource limits                           |
 | `docker-compose.ci.yml`            | CI shape                                                            |
 | `docker-compose.track-binocle.yml` | Carried-over monorepo-integration overlay                           |
+| `docker-compose.monolith.yml`      | Preserved pre-split single-file compose (all services inline; uses stale `./docker/services/` paths) |
 
-**Gotcha — GHCR pull-fallback.** **49** services in the base `docker-compose.yml` carry an
+**Gotcha — GHCR pull-fallback.** **49** services across the `orchestrators/compose/base/*.yml` plane
+files (included by the thin root `docker-compose.yml`) carry an
 `image: ghcr.io/univers42/grobase-<svc>:latest` line above their `build:` block (annotated
 `# pull-fallback`), so a plain `docker compose up` **pulls the prebuilt `:latest` image instead of
 building local source** — your edits to a service won't take effect until you build it (`make build`,
@@ -345,6 +358,26 @@ must be repointed to `infra/config/openapi/grobase-public.json` before codegen w
   `helm upgrade --install --atomic`, projects the cloud flags ON, and does the RS256 cutover) —
   otherwise it renders offline via `helm template`.
 
+## Licensing (open-core)
+
+Grobase is **open-core** — [`LICENSING.md`](LICENSING.md) is the authoritative map.
+
+- **Core** (server / control / data planes) — **AGPL-3.0-only** ([`LICENSE`](LICENSE)). Real OSI open
+  source; running a *modified* hosted version obliges publishing the corresponding source — that is
+  the moat against a closed competing fork.
+- **SDKs** (`sdks/*`) — **MIT**. Using an SDK to call a Grobase server does **not** put the caller
+  under AGPL (the copyleft binds the *server* you run, not its clients).
+- **Enterprise features** — **commercial** ([`LICENSE-ENTERPRISE.md`](LICENSE-ENTERPRISE.md), SPDX
+  `LicenseRef-Grobase-Enterprise`): the 12 Track-D packages under
+  `src/control-plane/internal/{orgs,sso,scim,passkeys,ipguard,audit,compliance,erase,export,telemetryexport,trust,cmek}`,
+  each carrying its own directory `LICENSE` pointer. **Track-E** (`branching`/`push`/`webhooks`) and
+  the **Track-B** cloud components stay in the AGPL core (sold as hosting, not licensed features).
+
+Copyright is retained via [`CLA.md`](CLA.md) — the clause that enables **dual-licensing** (a paid
+commercial license waives the AGPL copyleft). `LICENSE-ENTERPRISE.md` / `CLA.md` are lawyer-review
+**templates** with `[…]` placeholders (a `HUMAN-ATOMS.md` legal atom — not yet final). To move a
+package across the open-core line, add/remove its directory `LICENSE` and update `LICENSING.md`.
+
 ## Binding rules (project policy — apply even to one-off tasks)
 
 1. **Never co-author a push.** Commits and PRs carry **no** `Co-Authored-By` / "Generated with"
@@ -363,12 +396,17 @@ must be repointed to `infra/config/openapi/grobase-public.json` before codegen w
 
 ## Note on the agent OS
 
-Unlike the monorepo's `apps/baas/.claude/`, this repo's `.claude/` holds `settings.json` +
-`settings.local.json` (the latter disables the `osionos` MCP server), plus `commands/`, `rules/`
-(e.g. `refactor-shell.md`, `testing.md`, `code-quality.md`, `norminette.md`), and `workflows/` — but
-**not** the monorepo's agent-OS kernel (`CLAUDE.md`/`instructions.md`/`agents/`/`objectives/`) and no
-`/baas-wave` skill. References to "the kernel" or `make -C ../.. baas-*` in carried-over docs belong to
-the monorepo, not this repo.
+Unlike the monorepo's `apps/baas/.claude/` (a three-layer agent-OS *kernel*), this repo's `.claude/`
+is deliberately **lean and kernel-less** — see [`.claude/AGENTS.md`](.claude/AGENTS.md): fan out
+subagents per task, converge, discard the scaffolding; don't rebuild half a kernel. It holds
+`settings.json` + `settings.local.json` (the latter disables the `osionos` MCP server); `rules/` (the
+binding code-gen rules — `minimalism-ladder`, `minimalism-markers`, per-language
+`refactor-{c,go,rust,typescript,shell,common}`, `api-convention`); `agents/` (8 single-purpose
+specialists: architect · benchmarker · compat-tester · devil · documenter · norminette · reviewer ·
+security); `skills/` (api-endpoint · debug · doc · incident · new-module · pr-review · release ·
+write-test); `commands/`; `workflows/`; and `plugins/`. There is **no** kernel
+(`CLAUDE.md`/`instructions.md`/`objectives/`) and **no** `/baas-wave` skill — references to "the
+kernel" or `make -C ../.. baas-*` in carried-over docs belong to the monorepo, not this repo.
 
 ## Appendix — `origin/main` (pre-restructure) layout
 
@@ -380,7 +418,7 @@ on that layout — re-map the lean paths above as follows:
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | `./Makefile`, `./docker-compose.yml`, `./sonar-project.properties` | `mini-baas-infra/Makefile`, `mini-baas-infra/docker-compose.yml`, `mini-baas-infra/sonar-project.properties` |
 | `src/apps`, `src/libs`                                             | `mini-baas-infra/src/apps`, `mini-baas-infra/src/libs`                                                       |
-| `src/go/control-plane`                                             | `mini-baas-infra/go/control-plane`                                                                           |
+| `src/control-plane`                                                | `mini-baas-infra/go/control-plane`                                                                           |
 | `src/data-plane-router`                                            | `mini-baas-infra/docker/services/data-plane-router`                                                          |
 | `infra/docker/services/realtime/realtime-agnostic`                 | `mini-baas-infra/docker/services/realtime/realtime-agnostic`                                                 |
 | `infra/config/packages/packages.json`                              | `mini-baas-infra/config/packages/packages.json`                                                              |

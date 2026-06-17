@@ -4,7 +4,7 @@ name: mini-baas-track-binocle
 services:
   postgres:
     build:
-      context: ./docker/services/postgres
+      context: ./infra/docker/services/postgres
       dockerfile: Dockerfile
     container_name: mini-baas-track-binocle-postgres
     env_file: [.env]
@@ -214,7 +214,7 @@ services:
       GOTRUE_JWT_ISS: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}
       KONG_ANON_UUID: ${KONG_ANON_UUID:-cd4f782c-ac87-5081-b322-b54834d15651}
     volumes:
-      - ./docker/services/kong/conf/kong.track-binocle.yml:/etc/kong/kong.yml.tmpl:ro
+      - ./infra/docker/services/kong/conf/kong.track-binocle.yml:/etc/kong/kong.yml.tmpl:ro
     command: >
       sh -ec '
         sed \

@@ -1,0 +1,134 @@
+# engines-extra plane — mysql, mariadb, cockroach, mssql
+services:
+  mysql:
+    image: ghcr.io/univers42/grobase-mysql:latest   # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/mysql
+      dockerfile: Dockerfile
+    container_name: mini-baas-mysql
+    profiles: [analytics, data-plane, extras]
+    env_file: [.env]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-mysqlroot}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-mini_baas}
+      MYSQL_USER: ${MYSQL_USER:-mini_baas}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-mini_baas_pw}
+    # MySQL 8.4 removed --default-authentication-plugin; caching_sha2_password
+    # has been the default since 8.0.4, so no command override is needed.
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-mysqlroot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 384m
+    cpus: 0.5
+
+  # ─── MariaDB (engines-extra — proves engine-agnostic onboarding) ──
+  # Wire-compatible with MySQL; served by the SAME Rust adapter under the
+  # `mariadb` engine id. Lives in the optional `engines-extra` profile (the
+  # `engines` plane / Max package), never in default editions.
+  mariadb:
+    image: ghcr.io/univers42/grobase-mariadb:latest   # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/mariadb
+      dockerfile: Dockerfile
+    container_name: mini-baas-mariadb
+    profiles: [engines-extra]
+    env_file: [.env]
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-mariaroot}
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-mini_baas}
+      MARIADB_USER: ${MARIADB_USER:-mini_baas}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-mini_baas_pw}
+    ports:
+      - "${MARIADB_PORT:-3307}:3306"
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 384m
+    cpus: 0.5
+
+  # ─── CockroachDB (engines-extra — distributed-SQL agnosticism proof) ──
+  # Speaks the PostgreSQL wire protocol, so it is served by the SAME Rust
+  # Postgres adapter under the `cockroachdb` engine id (PgDialect::Cockroach):
+  # serializable-only isolation, no LISTEN/NOTIFY streaming. Single insecure
+  # node; RAM-capped via --cache/--max-sql-memory so it stays inside mem_limit.
+  # Optional `engines-extra` profile (the `engines` plane / Max package).
+  cockroach:
+    image: ghcr.io/univers42/grobase-cockroach:latest   # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/cockroach
+      dockerfile: Dockerfile
+    container_name: mini-baas-cockroach
+    profiles: [engines-extra]
+    # --advertise-addr=cockroach (the in-network alias) lets it listen on all
+    # interfaces by default; an explicit --listen-addr=0.0.0.0 is rejected by
+    # v24's single-node guard. RAM-capped via --cache/--max-sql-memory.
+    command: >
+      start-single-node --insecure --advertise-addr=cockroach
+      --cache=256MiB --max-sql-memory=256MiB --http-addr=0.0.0.0:8080
+    ports:
+      - "${COCKROACH_PORT:-26257}:26257"
+      - "${COCKROACH_HTTP_PORT:-28080}:8080"
+    volumes:
+      - cockroach-data:/cockroach/cockroach-data
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "cockroach", "sql", "--insecure", "--host=127.0.0.1:26257", "-e", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 1g
+    cpus: 1.0
+
+  # ─── Microsoft SQL Server (engines-extra — proves TDS agnosticism) ──
+  # Served by the Rust tiberius adapter under the `mssql` engine id. SQL Server
+  # needs ~2 GB; lives in the optional `engines-extra` profile (the `engines`
+  # plane / Max package), NEVER in default editions. Developer edition (free).
+  mssql:
+    image: ghcr.io/univers42/grobase-mssql:latest   # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/mssql
+      dockerfile: Dockerfile
+    container_name: mini-baas-mssql
+    profiles: [engines-extra]
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-Mssql_Strong!Pass1}
+      MSSQL_PID: Developer
+    ports:
+      - "${MSSQL_PORT:-1433}:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -No -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    mem_limit: 2g
+    cpus: 1.0
+
+  # ─── Iceberg REST Catalog (M2 federation) ────────────────────────

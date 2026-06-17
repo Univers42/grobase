@@ -1,0 +1,71 @@
+# storage plane — minio, functions-runtime
+services:
+  minio:
+    image: ghcr.io/univers42/grobase-minio:latest   # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/minio
+      dockerfile: Dockerfile
+    container_name: mini-baas-minio
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+    profiles: [storage, extras]
+    env_file: [.env]
+    command: server /data --console-address ":9001"
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio-data:/data
+    networks:
+      - mini-baas
+    restart: unless-stopped
+
+  # ─── Edge Functions Runtime (Deno worker-per-invocation MVP) ──────
+  # Tenants POST TS/JS code to /v1/functions and invoke them at
+  # /v1/functions/:name/invoke. Each invocation spawns a Deno Worker with a
+  # minimal permission set. Read wiki/back/08_edge_functions.md for the
+  # security trade-offs.
+  functions-runtime:
+    image: ghcr.io/univers42/grobase-functions-runtime:latest   # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/functions-runtime
+      dockerfile: Dockerfile
+    profiles: [functions, extras]
+    container_name: mini-baas-functions
+    env_file: [.env]
+    healthcheck:
+      # deno-based image (no curl/wget) — probe the /health/live route with deno itself
+      test: ["CMD", "deno", "eval", "try{const r=await fetch('http://localhost:3060/health/live');Deno.exit(r.ok?0:1)}catch{Deno.exit(1)}"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    environment:
+      FUNCTIONS_HOST: 0.0.0.0
+      FUNCTIONS_PORT: 3060
+      FUNCTIONS_DATA_DIR: /data
+      FUNCTIONS_INVOKE_TIMEOUT_MS: ${FUNCTIONS_INVOKE_TIMEOUT_MS:-5000}
+      # A2: resolve per-function secrets from the Go secret store at invoke time
+      # (set on the webhook-dispatcher's /internal route). Empty => no secrets.
+      FUNCTION_SECRETS_URL: ${FUNCTION_SECRETS_URL:-http://webhook-dispatcher:3025/internal/v1/function-secrets/resolve}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+    ports:
+      - "127.0.0.1:${FUNCTIONS_PORT:-3060}:3060"
+    volumes:
+      - functions-data:/data
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+
+  # ─── Postgres Backup (nightly logical dumps -> MinIO) ─────────────
+  # Profile `backups` keeps it out of the lean dev loop. Add `--profile backups`
+  # or include it in BAAS_LEAN_PROFILES_EXTRA for production deployments.
