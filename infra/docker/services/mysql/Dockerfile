@@ -17,6 +17,14 @@ FROM alpine:3.21
 RUN apk add --no-cache mariadb mariadb-client \
  && install -d -m 0755 -o mysql -g mysql /var/lib/mysql /run/mysqld
 
+# Alpine's mariadb-server.cnf ships `skip-networking` ON, so mariadbd would bind
+# only the unix socket — unreachable over TCP by the data plane, the conformance
+# gate, and the compose `mysqladmin ping -h 127.0.0.1` healthcheck. Enable TCP on
+# all interfaces (the container is already network-isolated by compose).
+RUN sed -i -e 's/^skip-networking/#skip-networking/' \
+           -e 's/^#\?bind-address=.*/bind-address=0.0.0.0/' \
+           /etc/my.cnf.d/mariadb-server.cnf
+
 COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 3306
