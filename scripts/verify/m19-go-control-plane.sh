@@ -2,11 +2,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-BAAS_DIR="mini-baas-infra"
-GO_DIR="${BAAS_DIR}/go/control-plane"
+BAAS_DIR="."
+GO_DIR="${BAAS_DIR}/src/control-plane"
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }

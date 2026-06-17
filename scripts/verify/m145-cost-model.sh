@@ -4,7 +4,7 @@
 #                        formula-consistent, honest, and never drifts from    #
 #                        its mirrors (site simulator + packages.json)         #
 #                                                                              #
-#   config/cost-model.json is the SINGLE SOURCE OF TRUTH for the Grobase      #
+#   infra/config/cost-model.json is the SINGLE SOURCE OF TRUTH for the Grobase      #
 #   cost simulator (consumed by the wiki + the site cost simulator). Kernel   #
 #   rule #4 ("measured, not claimed") + the binding "every price cites a      #
 #   source_url + date + confidence; NEVER invent a number" mean this file     #
@@ -42,7 +42,7 @@
 #                    in the TS, and density.per_tenant_marginal_mib appears    #
 #                    verbatim (same idea as m144's posture<->security.ts).     #
 #     7) PKG PARITY: each tier name + its rps in cost-model.json matches       #
-#                    config/packages/packages.json (limits.rps) — no tier or   #
+#                    infra/config/packages/packages.json (limits.rps) — no tier or   #
 #                    rps drift between the two sources of truth.               #
 #                                                                              #
 #   Pure file check — no container, no network. Safe to run anywhere.          #
@@ -56,8 +56,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
 BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
 SITE="${BAAS_DIR}/site"
-COST_JSON="${INFRA_DIR}/config/cost-model.json"
-PACKAGES_JSON="${INFRA_DIR}/config/packages/packages.json"
+COST_JSON="${INFRA_DIR}/infra/config/cost-model.json"
+PACKAGES_JSON="${INFRA_DIR}/infra/config/packages/packages.json"
 COST_TS="${SITE}/src/data/cost-model.ts"
 ARTIFACTS_DIR="${INFRA_DIR}"                                    # artifact paths in JSON are relative to mini-baas-infra
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
@@ -323,7 +323,7 @@ ok "as_of present; all hosters carry source_url + a valid confidence; no placeho
 
 # ── 6) site parity: cost-model.ts mirrors the JSON (tiers + hosters + density) ─────
 step "6/7 site parity: site/src/data/cost-model.ts mirrors cost-model.json (tier names, hoster names, per_tenant_marginal_mib)"
-[[ -s "${COST_TS}" ]] || fail "site simulator mirror missing: ${COST_TS#"${BAAS_DIR}/"} — the cost simulator's single source must be mirrored into the site (same discipline as m144's security.ts). Create it from config/cost-model.json (tier names, hoster names, density.per_tenant_marginal_mib) so the public simulator cannot drift from the canonical model."
+[[ -s "${COST_TS}" ]] || fail "site simulator mirror missing: ${COST_TS#"${BAAS_DIR}/"} — the cost simulator's single source must be mirrored into the site (same discipline as m144's security.ts). Create it from infra/config/cost-model.json (tier names, hoster names, density.per_tenant_marginal_mib) so the public simulator cannot drift from the canonical model."
 SITEPAR="$(python3 - "${COST_JSON}" "${COST_TS}" <<'PY'
 import json, re, sys
 cm = json.load(open(sys.argv[1])); ts = open(sys.argv[2]).read()

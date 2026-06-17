@@ -61,7 +61,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
 BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
-PGB_DIR="${INFRA_DIR}/docker/services/pg-backup"
+PGB_DIR="${INFRA_DIR}/infra/docker/services/pg-backup"
 RUN_BACKUP_SH="${PGB_DIR}/scripts/run-backup.sh"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 

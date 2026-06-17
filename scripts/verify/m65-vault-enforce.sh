@@ -51,7 +51,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"          # mini-baas-infra
-CP_DIR="${BAAS_DIR}/go/control-plane"
+CP_DIR="${BAAS_DIR}/src/control-plane"
 REPO_BAAS_DIR="$(cd "${BAAS_DIR}/.." && pwd)"          # apps/baas (for .claude/lib/log.sh)
 LOG_HELPER="${REPO_BAAS_DIR}/.claude/lib/log.sh"
 

@@ -33,7 +33,7 @@ pass(){ green "[M31] PASS: ${*}"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # verify → scripts → mini-baas-infra → baas → apps → <repo root>
-ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
+ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 APP_ENV="${ROOT}/apps/osionos/app/.env"
 
 KONG="http://127.0.0.1:8002"

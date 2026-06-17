@@ -29,10 +29,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-BAAS_DIR="mini-baas-infra"
+BAAS_DIR="."
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
@@ -46,7 +46,7 @@ pass()  { green "[M2] PASS: ${*}"; }
 # Once parity-probe.sh proved both paths equivalent, the TS mysql/redis/http
 # engines were deleted. Assert they are GONE and the Rust replacements exist.
 step "checking R7+R8 cutover — TS mysql/redis/http engines removed, Rust adapters present"
-ROUTER_DIR="${BAAS_DIR}/docker/services/data-plane-router"
+ROUTER_DIR="${BAAS_DIR}/src/data-plane-router"
 for engine in mysql redis http; do
   f="${BAAS_DIR}/src/apps/query-router/src/engines/${engine}.engine.ts"
   [[ -f "$f" ]] && fail "${f} should be deleted post-cutover (parity proven)"
@@ -89,7 +89,7 @@ pass "014_add_http_engine migration is well-formed"
 # ── 4) Trino catalogs present ─────────────────────────────────────────────────
 step "checking Trino catalogs"
 for catalog in mysql iceberg; do
-  f="${BAAS_DIR}/docker/services/trino/conf/catalog/${catalog}.properties"
+  f="${BAAS_DIR}/infra/docker/services/trino/conf/catalog/${catalog}.properties"
   [[ -f "$f" ]] || fail "missing Trino catalog ${f}"
   grep -q "connector.name=${catalog}" "$f" || fail "${f} has wrong connector.name"
 done

@@ -19,7 +19,7 @@
 # host java/kotlin/gradle — every build runs in a PINNED image. Additive: this
 # gate touches no existing code; it only reads sdk-kotlin/** + the committed spec.
 #
-#   1. Inputs present    spec (openapi/grobase-public.json) + sdk-kotlin scaffold
+#   1. Inputs present    spec (infra/config/openapi/grobase-public.json) + sdk-kotlin scaffold
 #                        (build.gradle, settings.gradle, gradle wrapper) + the
 #                        five generated Api source files in src/main/kotlin/
 #                        grobase/apis/.
@@ -57,7 +57,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"            # …/mini-baas-infra
-APPS_BAAS_DIR="$(cd "${BAAS_DIR}/.." && pwd)"            # …/apps/baas
+APPS_BAAS_DIR="${BAAS_DIR}"            # …/apps/baas
 CLAUDE_DIR="$(cd "${BAAS_DIR}/../.claude" 2>/dev/null && pwd || true)"
 
 cyan()   { printf '\033[0;36m%s\033[0m\n' "$*"; }
@@ -73,7 +73,7 @@ command -v python3 >/dev/null || fail "python3 is required (op counting)"
 command -v docker  >/dev/null || fail "docker is required (pinned builds)"
 
 # ── inputs / pinned images ───────────────────────────────────────────────────
-SPEC="${BAAS_DIR}/openapi/grobase-public.json"
+SPEC="${BAAS_DIR}/infra/config/openapi/grobase-public.json"
 KT_SDK="${APPS_BAAS_DIR}/sdks/kotlin"
 # Pinned JVM/Kotlin build image (the slice names gradle:8-jdk17). A digest pin is
 # preferred; the tag is the documented contract and is what the slice specifies.

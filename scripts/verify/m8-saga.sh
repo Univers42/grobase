@@ -2,10 +2,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-BAAS_DIR="mini-baas-infra"
+BAAS_DIR="."
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
@@ -22,8 +22,8 @@ step "checking Debezium service and logical WAL"
 grep -qE '^  debezium:' "${COMPOSE_FILE}" || fail "compose missing debezium service"
 grep -q 'quay.io/debezium/server' "${COMPOSE_FILE}" || fail "debezium image not declared"
 grep -q 'wal_level=logical' "${COMPOSE_FILE}" || fail "postgres wal_level=logical not configured"
-[[ -f "${BAAS_DIR}/docker/services/debezium/application.properties" ]] || fail "debezium application.properties missing"
-grep -q 'debezium.sink.type=redis' "${BAAS_DIR}/docker/services/debezium/application.properties" || fail "Debezium Redis sink not configured"
+[[ -f "${BAAS_DIR}/infra/docker/services/debezium/application.properties" ]] || fail "debezium application.properties missing"
+grep -q 'debezium.sink.type=redis' "${BAAS_DIR}/infra/docker/services/debezium/application.properties" || fail "Debezium Redis sink not configured"
 pass "Debezium reads public.outbox_events and publishes to Redis"
 
 step "checking 022_outbox_saga_fields migration"

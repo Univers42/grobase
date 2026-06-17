@@ -30,8 +30,8 @@
 #       autonomously.
 #
 # Built ENTIRELY from CURRENT source via the REAL Dockerfiles:
-#   functions-runtime → docker/services/functions-runtime/Dockerfile
-#   function-scheduler → go/control-plane/Dockerfile (APP=function-scheduler)
+#   functions-runtime → infra/docker/services/functions-runtime/Dockerfile
+#   function-scheduler → src/control-plane/Dockerfile (APP=function-scheduler)
 #
 # ── THREE ARMS ────────────────────────────────────────────────────────────────
 #   (A) POSITIVE
@@ -62,8 +62,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
 BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
-FR_DIR="${INFRA_DIR}/docker/services/functions-runtime"
-GO_DIR="${INFRA_DIR}/go/control-plane"
+FR_DIR="${INFRA_DIR}/infra/docker/services/functions-runtime"
+GO_DIR="${INFRA_DIR}/src/control-plane"
 MIGRATION_036="${INFRA_DIR}/scripts/migrations/postgresql/036_function_schedules.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 

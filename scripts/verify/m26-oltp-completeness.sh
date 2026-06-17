@@ -30,11 +30,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-BAAS_DIR="mini-baas-infra"
-ROUTER_DIR="${BAAS_DIR}/docker/services/data-plane-router"
+BAAS_DIR="."
+ROUTER_DIR="${BAAS_DIR}/src/data-plane-router"
 POOL_DIR="${ROUTER_DIR}/crates/data-plane-pool/src"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }

@@ -27,7 +27,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-ROUTER_DIR="${BAAS_DIR}/docker/services/data-plane-router"
+ROUTER_DIR="${BAAS_DIR}/src/data-plane-router"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }

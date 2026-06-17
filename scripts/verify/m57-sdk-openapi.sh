@@ -15,7 +15,7 @@
 # contract is real, in-sync, and EXECUTABLE — not just a JSON file on disk:
 #
 #   1. spec is valid OpenAPI 3.x and DECLARES the real public surfaces. The
-#      committed openapi/grobase-public.json must parse, carry an `openapi`
+#      committed infra/config/openapi/grobase-public.json must parse, carry an `openapi`
 #      version of 3.x, and declare the five Kong-fronted public families a
 #      client SDK consumes (auth/rest/storage/query/functions) at concrete
 #      paths discovered from the document — not hardcoded guesses.
@@ -42,8 +42,8 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"          # …/mini-baas-infra
-SDK_DIR="$(cd "${BAAS_DIR}/../sdk" && pwd)"            # …/apps/baas/sdk
-SPEC="${BAAS_DIR}/openapi/grobase-public.json"
+SDK_DIR="$(cd "${BAAS_DIR}/sdks/js" && pwd)"            # …/apps/baas/sdk
+SPEC="${BAAS_DIR}/infra/config/openapi/grobase-public.json"
 ROUTES_TS="${SDK_DIR}/src/core/routes.ts"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }

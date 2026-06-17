@@ -59,7 +59,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
 BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                        # apps/baas
-RT_DIR="${INFRA_DIR}/docker/services/realtime/realtime-agnostic"
+RT_DIR="${INFRA_DIR}/infra/docker/services/realtime/realtime-agnostic"
 LOG_SH="${BAAS_DIR}/.claude/lib/log.sh"
 ART_DIR="${INFRA_DIR}/artifacts/a5"
 ART="${ART_DIR}/m97.txt"

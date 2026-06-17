@@ -37,7 +37,7 @@
 #   6. route config       kong.yml maps /graphql/v1 → postgrest /rpc/graphql.
 #
 # Requires the graphql image built: docker build -t mini-baas-postgres-graphql:16
-#   docker/services/postgres-graphql   (or `make build-svc-postgres` w/ overlay).
+#   infra/docker/services/postgres-graphql   (or `make build-svc-postgres` w/ overlay).
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -87,7 +87,7 @@ psql_pg() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP
 # ── 0) bring up the isolated graphql postgres ────────────────────────────────
 step "0/6 boot isolated postgres-graphql (${IMAGE})"
 docker image inspect "${IMAGE}" >/dev/null 2>&1 \
-  || fail "image '${IMAGE}' not built — docker build -t ${IMAGE} docker/services/postgres-graphql"
+  || fail "image '${IMAGE}' not built — docker build -t ${IMAGE} infra/docker/services/postgres-graphql"
 docker network create "${NET}" >/dev/null
 docker run -d --name "${PG}" --network "${NET}" \
   -e POSTGRES_PASSWORD="${PGPW}" "${IMAGE}" \
@@ -219,7 +219,7 @@ ok "each tenant sees only its rows; anon sees none — GraphQL inherits RLS unde
 
 # ── 6) Kong route config maps /graphql/v1 → /rpc/graphql ─────────────────────
 step "6/6 Kong route /graphql/v1 → postgrest /rpc/graphql"
-KCONF="${BAAS_DIR}/docker/services/kong/conf/kong.yml"
+KCONF="${BAAS_DIR}/infra/docker/services/kong/conf/kong.yml"
 grep -q 'rpc/graphql' "${KCONF}" || fail "kong.yml graphql route does not target /rpc/graphql"
 awk '/- name: graphql$/{f=1} f&&/paths:.*graphql\/v1/{print; found=1} END{exit !found}' "${KCONF}" >/dev/null \
   || fail "kong.yml has no /graphql/v1 route"

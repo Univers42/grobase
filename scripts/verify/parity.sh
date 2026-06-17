@@ -47,7 +47,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROUTES_DIR="${SCRIPT_DIR}/parity"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 VERDICT_DIR="${PARITY_VERDICT_DIR:-${REPO_ROOT}/apps/baas/mini-baas-infra/.parity}"
 
 cyan()   { printf '\033[0;36m%s\033[0m\n' "$*"; }

@@ -44,7 +44,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-DPR_DIR="${BAAS_DIR}/docker/services/data-plane-router"
+DPR_DIR="${BAAS_DIR}/src/data-plane-router"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
@@ -92,11 +92,11 @@ post_q() { # $1=body  -> echoes HTTP status, writes /tmp/m73_body.$$
 # ── 0) m28-parity: the two packages.json copies are byte-identical, and the
 #       optional `max_rows` key (when present) exists in BOTH copies ──────────
 step "0/6 packages.json single-source-of-truth (config == Go-embedded copy)"
-CFG="${BAAS_DIR}/config/packages/packages.json"
-EMB="${BAAS_DIR}/go/control-plane/internal/packages/packages.json"
+CFG="${BAAS_DIR}/infra/config/packages/packages.json"
+EMB="${BAAS_DIR}/src/control-plane/internal/packages/packages.json"
 [[ -f "${CFG}" && -f "${EMB}" ]] || fail "packages.json manifest missing (${CFG} / ${EMB})"
 cmp -s "${CFG}" "${EMB}" \
-  || fail "packages.json config and Go-embedded copy diverged (cmp -s) — re-copy config/packages/packages.json into internal/packages/"
+  || fail "packages.json config and Go-embedded copy diverged (cmp -s) — re-copy infra/config/packages/packages.json into internal/packages/"
 ok "packages.json byte-identical across the two copies (m28 manifest parity)"
 # Explicit A6 invariant: the new optional `max_rows` key, when present in one
 # copy, MUST be present in the other (omit = unlimited = parity). Counting it in

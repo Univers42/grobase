@@ -31,12 +31,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-BAAS_DIR="mini-baas-infra"
-ROUTER_DIR="${BAAS_DIR}/docker/services/data-plane-router"
-GO_DIR="${BAAS_DIR}/go/control-plane"
+BAAS_DIR="."
+ROUTER_DIR="${BAAS_DIR}/src/data-plane-router"
+GO_DIR="${BAAS_DIR}/src/control-plane"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
 red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
@@ -88,7 +88,7 @@ step "checking the Go adapter-registry"
 grep -q '"tenant_owned": true' "${GO_DIR}/internal/adapterregistry/models.go" \
   || fail "allowedIsolation must accept tenant_owned"
 grep -q "DROP CONSTRAINT IF EXISTS tenant_databases_isolation_check" \
-  "${GO_DIR}/internal/adapterregistry/service.go" \
+  "${GO_DIR}/internal/adapterregistry/schema.go" \
   || fail "EnsureSchema must widen the isolation CHECK idempotently"
 pass "registry accepts tenant_owned; CHECK constraint widened idempotently"
 

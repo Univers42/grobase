@@ -17,7 +17,7 @@
 # product when ALL the cloud flags are ON together, on ONE isolated local stack.
 # It mirrors the isolation discipline of m80/m82/m83/m84/m89/m90 EXACTLY.
 #
-# A stranger's whole journey, all flags ON (config/cloud/flags.env.cloud):
+# A stranger's whole journey, all flags ON (infra/config/cloud/flags.env.cloud):
 #
 #   POSITIVE funnel (all off the wire, never from logs):
 #     1. PROVISION a tenant (POST /v1/tenants, X-Service-Token).
@@ -64,8 +64,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
 BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
-DPR_DIR="${INFRA_DIR}/docker/services/data-plane-router"
-GO_DIR="${INFRA_DIR}/go/control-plane"
+DPR_DIR="${INFRA_DIR}/src/data-plane-router"
+GO_DIR="${INFRA_DIR}/src/control-plane"
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 MIGRATION_005="${MIG_DIR}/005_add_tenant_table.sql"
 MIGRATION_032="${MIG_DIR}/032_tenants.sql"

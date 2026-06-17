@@ -14,10 +14,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-BAAS_DIR="mini-baas-infra"
+BAAS_DIR="."
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
@@ -28,7 +28,7 @@ step()  { cyan  "[M5] ${*}"; }
 pass()  { green "[M5] PASS: ${*}"; }
 
 step "checking WAF Dockerfile + CRS setup files"
-WAF_DOCKERFILE="${BAAS_DIR}/docker/services/waf/Dockerfile"
+WAF_DOCKERFILE="${BAAS_DIR}/infra/docker/services/waf/Dockerfile"
 [[ -f "${WAF_DOCKERFILE}" ]] || fail "${WAF_DOCKERFILE} missing"
 grep -q "owasp/modsecurity-crs" "${WAF_DOCKERFILE}" \
   || fail "${WAF_DOCKERFILE} does not base on owasp/modsecurity-crs"
@@ -36,7 +36,7 @@ grep -q "^HEALTHCHECK" "${WAF_DOCKERFILE}" || fail "${WAF_DOCKERFILE} missing HE
 pass "WAF Dockerfile present + based on owasp/modsecurity-crs + has HEALTHCHECK"
 
 step "checking Kong rate-limiting plugin in declarative config"
-KONG_CONF="${BAAS_DIR}/docker/services/kong/conf/kong.yml"
+KONG_CONF="${BAAS_DIR}/infra/docker/services/kong/conf/kong.yml"
 [[ -f "${KONG_CONF}" ]] || fail "${KONG_CONF} missing"
 grep -q "name: rate-limiting" "${KONG_CONF}" \
   || fail "Kong config does not declare the rate-limiting plugin"
@@ -52,7 +52,7 @@ pass "Kong adds HSTS / X-Content-Type-Options / X-Frame-Options / Referrer-Polic
 step "checking Vault wiring for JWT_SECRET"
 grep -qE "JWT_SECRET" "${COMPOSE_FILE}" \
   || fail "compose does not propagate JWT_SECRET to services"
-[[ -d "${BAAS_DIR}/docker/services/vault" ]] || fail "vault service dir missing"
+[[ -d "${BAAS_DIR}/infra/docker/services/vault" ]] || fail "vault service dir missing"
 pass "JWT_SECRET propagated via compose, vault service present"
 
 step "checking SAST orchestrator script"

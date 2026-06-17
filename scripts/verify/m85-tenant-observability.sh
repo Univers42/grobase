@@ -26,8 +26,8 @@
 #     `Span::none()`, entered NOTHING → log output byte-identical to baseline.
 #
 #   PILLAR 2 — Grafana per-tenant USAGE off public.tenant_usage (zero Prometheus
-#     cardinality, reuses the B1 metering truth). config/grafana/.../datasources.yml
-#     gains a Postgres-Usage datasource and config/grafana/.../dashboards/
+#     cardinality, reuses the B1 metering truth). infra/config/grafana/.../datasources.yml
+#     gains a Postgres-Usage datasource and infra/config/grafana/.../dashboards/
 #     per-tenant-usage.json a $tenant_id variable reading the DENSE public.tenants.
 #
 #   PILLAR 3 — OPTIONAL single bounded counter (default OFF, gated independently
@@ -42,7 +42,7 @@
 #   (B) PARITY/OFF — flag unset, SAME two requests → ZERO log lines carry a
 #       tenant_id field AND GET /metrics is byte-identical to a baseline capture
 #       (no extra lines, no new labels). OFF == live baseline.
-#   (C) NO-LABEL/NO-HISTOGRAM — STATIC: config/promtail/promtail.yaml lists
+#   (C) NO-LABEL/NO-HISTOGRAM — STATIC: infra/config/promtail/promtail.yaml lists
 #       tenant_id under `expressions:` but NOT under `labels:`. RUNTIME: /metrics
 #       carries a tenant_id label on at most the single counter
 #       baas_http_requests_total and on NO histogram / other counter.
@@ -68,10 +68,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
 BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
-DPR_DIR="${INFRA_DIR}/docker/services/data-plane-router"
-PROMTAIL_YAML="${INFRA_DIR}/config/promtail/promtail.yaml"
-DATASOURCES_YML="${INFRA_DIR}/config/grafana/provisioning/datasources/datasources.yml"
-DASHBOARD_JSON="${INFRA_DIR}/config/grafana/provisioning/dashboards/per-tenant-usage.json"
+DPR_DIR="${INFRA_DIR}/src/data-plane-router"
+PROMTAIL_YAML="${INFRA_DIR}/infra/config/promtail/promtail.yaml"
+DATASOURCES_YML="${INFRA_DIR}/infra/config/grafana/provisioning/datasources/datasources.yml"
+DASHBOARD_JSON="${INFRA_DIR}/infra/config/grafana/provisioning/dashboards/per-tenant-usage.json"
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 MIGRATION_040="${MIG_DIR}/040_tenant_usage.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"

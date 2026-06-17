@@ -12,18 +12,18 @@
 # **************************************************************************** #
 #
 # M112 — Track-D D4.6 TRUST CENTER gate. A read-only, public-readable security &
-# compliance posture endpoint, FILE-BACKED by config/trust/posture.json (the single
+# compliance posture endpoint, FILE-BACKED by infra/config/trust/posture.json (the single
 # source the API serves and the narrative spine of wiki/trust-center.md), flag-gated
 # OFF by default (TRUST_CENTER_ENABLED). NO database, NO migration — the posture is
 # the public half of the security story. It exercises a tenant-control built FROM
-# CURRENT source, with the canonical config/trust dir mounted READ-ONLY (the m108
+# CURRENT source, with the canonical infra/config/trust dir mounted READ-ONLY (the m108
 # fixture-mount discipline), so the endpoint reflects the SHIPPED manifest:
 #
 #   (A · POSITIVE) TRUST_CENTER_ENABLED=1 -> GET /v1/trust => 200 with the controls;
 #       the headline gate-proven controls (audit m104 / erase m105 / export m109 /
 #       soc2 m108) are present WITH evidence pointers; EVERY control's status is in
 #       {implemented,partial,planned}; the served count == the count of controls in
-#       config/trust/posture.json (the endpoint reflects the FILE, not a stub).
+#       infra/config/trust/posture.json (the endpoint reflects the FILE, not a stub).
 #   (B · REJECT, LOAD-BEARING — honesty) NO control claims status:"implemented" with
 #       an EMPTY "evidence" pointer. An unproven claim must be partial/planned, never
 #       implemented-without-evidence. This makes the gate catch a dishonest
@@ -42,11 +42,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
 BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
-GO_DIR="${INFRA_DIR}/go/control-plane"
+GO_DIR="${INFRA_DIR}/src/control-plane"
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 MIGRATION_005="${MIG_DIR}/005_add_tenant_table.sql"
 MIGRATION_032="${MIG_DIR}/032_tenants.sql"
-TRUST_DIR="${INFRA_DIR}/config/trust"                           # the canonical manifest dir
+TRUST_DIR="${INFRA_DIR}/infra/config/trust"                           # the canonical manifest dir
 MANIFEST="${TRUST_DIR}/posture.json"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
@@ -110,8 +110,8 @@ wait_ready() { # $1=container $2=port
 }
 
 # ── 0) preflight: the canonical manifest must exist + be honest at rest ─────────
-step "0/9 preflight: config/trust/posture.json exists + is honest at rest"
-[[ -f "${MANIFEST}" ]] || fail "config/trust/posture.json is MISSING — D4.6 trust manifest must land before m112 (line: manifest exists)"
+step "0/9 preflight: infra/config/trust/posture.json exists + is honest at rest"
+[[ -f "${MANIFEST}" ]] || fail "infra/config/trust/posture.json is MISSING — D4.6 trust manifest must land before m112 (line: manifest exists)"
 # Count controls in the FILE (the number the endpoint must reflect). jq if present,
 # else a tolerant grep for top-level "id": entries inside the controls array.
 if command -v jq >/dev/null 2>&1; then
@@ -175,7 +175,7 @@ apply_migration "${MIGRATION_032}" || fail "real migration 032_tenants.sql faile
 ok "base tenant schema applied (public.tenants exists)"
 
 # ── 2) boot the TRUST-ON tenant-control (manifest mounted RO) ───────────────────
-step "2/9 boot tenant-control TRUST_CENTER_ENABLED=1 on 127.0.0.1:${PORT_ON}, config/trust mounted RO"
+step "2/9 boot tenant-control TRUST_CENTER_ENABLED=1 on 127.0.0.1:${PORT_ON}, infra/config/trust mounted RO"
 docker run -d --name "${TC_ON}" --network "${NET}" \
   -e DATABASE_URL="${DB_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
@@ -220,8 +220,8 @@ done <<< "${STATUSES}"
 [[ -z "${BAD_STATUS}" ]] || fail "(A) a control has status '${BAD_STATUS}' outside the enum (line: A enum)"
 ok "(A) all statuses in {implemented,partial,planned}"
 
-# ── 5) (A · POSITIVE) served count == count in config/trust/posture.json ─────────
-step "5/9 (A) served control count == count in config/trust/posture.json (endpoint reflects the FILE)"
+# ── 5) (A · POSITIVE) served count == count in infra/config/trust/posture.json ─────────
+step "5/9 (A) served control count == count in infra/config/trust/posture.json (endpoint reflects the FILE)"
 C="$(pub_get "${PORT_ON}" /v1/trust/controls)"
 [[ "${C}" == "200" ]] || fail "(A) GET /v1/trust/controls expected 200, got ${C} — $(head -c 200 "${BODY_TMP}") (line: A controls 200)"
 cp "${BODY_TMP}" "${WORK}/controls.json"
@@ -332,7 +332,7 @@ C="$(admin_get "${PORT_OFF}" "/v1/tenants")"
 ok "(C) base admin GET /v1/tenants => 200 — the baseline is untouched; only the trust center is flag-gated"
 
 # ── summarize ──────────────────────────────────────────────────────────────────
-green "[M112] (A) POSITIVE: GET /v1/trust 200 with controls; audit(m104)/erase(m105)/export(m109)/soc2(m108) present with evidence; every status in {implemented,partial,planned}; served count ${SERVED_COUNT} == ${FILE_COUNT} in config/trust/posture.json (endpoint reflects the file, not a stub)"
+green "[M112] (A) POSITIVE: GET /v1/trust 200 with controls; audit(m104)/erase(m105)/export(m109)/soc2(m108) present with evidence; every status in {implemented,partial,planned}; served count ${SERVED_COUNT} == ${FILE_COUNT} in infra/config/trust/posture.json (endpoint reflects the file, not a stub)"
 green "[M112] (B) REJECT:   NO served control is status=implemented with EMPTY evidence — an unproven claim must be partial/planned (catches a dishonest 'everything green' trust page)"
 green "[M112] (C) PARITY:   TRUST_CENTER_ENABLED off => /v1/trust* 404 while admin GET /v1/tenants 200 — byte-identical to today; only the trust center is flag-gated"
 
@@ -346,7 +346,7 @@ emit_gate_log() {
     # shellcheck disable=SC1091
     . "${CLAUDE_DIR}/lib/log.sh" >/dev/null 2>&1 || exit 0
     log_event GATE --gate "m112=PASS" --outcome pass \
-      --msg "D4.6 trust center: file-backed posture (config/trust/posture.json) served read-only at /v1/trust + /v1/trust/controls. POSITIVE: 200 with audit(m104)/erase(m105)/export(m109)/soc2(m108) present with evidence; every status in the enum; served count == file count (endpoint reflects the file). LOAD-BEARING REJECT: no implemented control with empty evidence (catches a dishonest all-green page). PARITY: TRUST_CENTER_ENABLED off -> /v1/trust* 404 while admin /v1/tenants 200 (byte-identical, no migration)." \
+      --msg "D4.6 trust center: file-backed posture (infra/config/trust/posture.json) served read-only at /v1/trust + /v1/trust/controls. POSITIVE: 200 with audit(m104)/erase(m105)/export(m109)/soc2(m108) present with evidence; every status in the enum; served count == file count (endpoint reflects the file). LOAD-BEARING REJECT: no implemented control with empty evidence (catches a dishonest all-green page). PARITY: TRUST_CENTER_ENABLED off -> /v1/trust* 404 while admin /v1/tenants 200 (byte-identical, no migration)." \
       --ref "scripts/verify/m112-trust-center.sh" >/dev/null 2>&1
     exit 0
   ) || true

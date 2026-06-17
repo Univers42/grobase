@@ -59,7 +59,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                 # mini-baas-infra
 BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                      # apps/baas
-DPR_DIR="${INFRA_DIR}/docker/services/data-plane-router"
+DPR_DIR="${INFRA_DIR}/src/data-plane-router"
 MIGRATIONS="${INFRA_DIR}/scripts/migrations/postgresql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 

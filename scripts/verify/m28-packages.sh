@@ -47,8 +47,8 @@ RUST="http://127.0.0.1:${RUST_PORT}"
 
 # ── 1. manifest source-of-truth integrity ──────────────────────────────────
 step "manifest: config copy == control-plane embedded copy"
-CFG="${BAAS_DIR}/config/packages/packages.json"
-EMB="${BAAS_DIR}/go/control-plane/internal/packages/packages.json"
+CFG="${BAAS_DIR}/infra/config/packages/packages.json"
+EMB="${BAAS_DIR}/src/control-plane/internal/packages/packages.json"
 [[ -f "${CFG}" && -f "${EMB}" ]] || fail "manifest files missing (${CFG} / ${EMB})"
 cmp -s "${CFG}" "${EMB}" || fail "config manifest and embedded copy diverged — re-copy config/packages/packages.json into internal/packages/"
 pass "package manifest is the single source of truth (config == embed)"
@@ -56,7 +56,7 @@ pass "package manifest is the single source of truth (config == embed)"
 # ── 2. control-plane gating logic (Go) ──────────────────────────────────────
 step "control plane: package manifest engine-allowlist + quota + alias logic"
 if docker image inspect golang:1.25-bookworm >/dev/null 2>&1 || docker pull -q golang:1.25-bookworm >/dev/null 2>&1; then
-  docker run --rm -v "${BAAS_DIR}/go/control-plane:/src" -w /src \
+  docker run --rm -v "${BAAS_DIR}/src/control-plane:/src" -w /src \
     -v mini-baas-go-build-cache:/root/.cache/go-build -v mini-baas-go-mod-cache:/go/pkg/mod \
     golang:1.25-bookworm go test ./internal/packages/ >/dev/null 2>&1 \
     || fail "go test ./internal/packages failed (engine gating / aliases / overrides)"

@@ -2,10 +2,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-BAAS_DIR="mini-baas-infra"
+BAAS_DIR="."
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
@@ -19,7 +19,7 @@ LIVE=0
 for arg in "$@"; do [[ "${arg}" == "--live" ]] && LIVE=1; done
 
 step "checking Postgres FDW supply-chain pins"
-POSTGRES_DOCKERFILE="${BAAS_DIR}/docker/services/postgres/Dockerfile"
+POSTGRES_DOCKERFILE="${BAAS_DIR}/infra/docker/services/postgres/Dockerfile"
 for token in \
   MYSQL_FDW_VERSION MYSQL_FDW_SHA256 \
   MONGO_FDW_VERSION MONGO_FDW_SHA256 \

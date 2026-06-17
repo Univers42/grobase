@@ -27,11 +27,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-BAAS_DIR="mini-baas-infra"
-SDK_DIR="sdk"
+BAAS_DIR="."
+SDK_DIR="sdks/js"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
 red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
@@ -175,7 +175,7 @@ grep -q "pg_notify('realtime_events'" "${TRIG_MIG}" \
   || fail "${TRIG_MIG} does not declare pg_notify('realtime_events', …)"
 
 # 8.f Kong routes the realtime WS path
-KONG_CONF="${BAAS_DIR}/docker/services/kong/conf/kong.yml"
+KONG_CONF="${BAAS_DIR}/infra/docker/services/kong/conf/kong.yml"
 grep -q "/realtime/v1/ws" "${KONG_CONF}" \
   || fail "Kong does not route /realtime/v1/ws → realtime:4000/ws"
 

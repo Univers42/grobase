@@ -69,7 +69,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                 # mini-baas-infra
 BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
-GO_DIR="${INFRA_DIR}/go/control-plane"
+GO_DIR="${INFRA_DIR}/src/control-plane"
 MIGRATION_040="${INFRA_DIR}/scripts/migrations/postgresql/040_tenant_usage.sql"
 LOG_SH="${BAAS_DIR}/.claude/lib/log.sh"
 ART_DIR="${INFRA_DIR}/artifacts/b1c"

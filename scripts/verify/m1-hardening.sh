@@ -22,10 +22,10 @@ set -euo pipefail
 
 # Resolve repo root (this script lives at apps/baas/mini-baas-infra/scripts/verify/m1-hardening.sh)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-BAAS_DIR="mini-baas-infra"
+BAAS_DIR="."
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
 
 cyan()   { printf '\033[0;36m%s\033[0m\n' "$*"; }
@@ -67,7 +67,7 @@ for symbol in IDatabaseAdapter EngineCaps QueryOpts QueryResult AdapterOp; do
   grep -q "${symbol}" "${CONTRACT}" || fail "${symbol} not declared in ${CONTRACT}"
 done
 
-ROUTER_DIR="${BAAS_DIR}/docker/services/data-plane-router"
+ROUTER_DIR="${BAAS_DIR}/src/data-plane-router"
 # R2/R3 + R7/R8 cutover: the TS postgresql/mongodb (+mysql/redis/http) engines
 # were removed once parity was proven (see scripts/verify/parity-probe.sh).
 # Their replacement is the Rust data-plane-router; assert that the Rust

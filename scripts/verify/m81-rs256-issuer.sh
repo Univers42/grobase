@@ -51,7 +51,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-CP_DIR="${BAAS_DIR}/go/control-plane"
+CP_DIR="${BAAS_DIR}/src/control-plane"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/../.claude" 2>/dev/null && pwd || true)"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
@@ -104,7 +104,7 @@ mkdir -p "${SCRATCH}" || fail "cannot create scratch ${SCRATCH} on /mnt/storage 
 # fails to COMPILE because of UNRELATED in-flight work (e.g. a half-landed Track-B
 # quota change in internal/packages|metering — NOT the RS256 seam, which is committed
 # at HEAD and byte-identical here), fall back to a clean `git archive HEAD` export of
-# go/control-plane so the gate can still exercise the REAL committed RS256 seam
+# src/control-plane so the gate can still exercise the REAL committed RS256 seam
 # (jwt.go/jwks.go). The fallback is reported, never silent.
 step "0/9 build scratch tenant-control from CURRENT source (the A6 RS256 verify seam)"
 BUILD_CTX="${CP_DIR}"
@@ -117,9 +117,9 @@ if ! DOCKER_BUILDKIT=1 docker build -q \
   red "  the RS256 seam (jwt.go/jwks.go) is committed + byte-identical at HEAD — falling back to a clean HEAD export."
   ARCH_CTX="${SCRATCH}/cp-head"
   mkdir -p "${ARCH_CTX}"
-  git -C "${BAAS_DIR}" archive HEAD go/control-plane | tar -x -C "${ARCH_CTX}" 2>/dev/null \
-    || fail "git archive HEAD go/control-plane failed — cannot get a buildable source (line: archive HEAD)"
-  BUILD_CTX="${ARCH_CTX}/go/control-plane"
+  git -C "${BAAS_DIR}" archive HEAD src/control-plane | tar -x -C "${ARCH_CTX}" 2>/dev/null \
+    || fail "git archive HEAD src/control-plane failed — cannot get a buildable source (line: archive HEAD)"
+  BUILD_CTX="${ARCH_CTX}/src/control-plane"
   # Guard: the fallback MUST carry the exact committed RS256 seam (this is the whole
   # point of the gate). If the seam differs from the working tree, the fallback would
   # be testing something other than current source — refuse.

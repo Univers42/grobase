@@ -56,7 +56,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"           # mini-baas-infra
-CP_DIR="${BAAS_DIR}/go/control-plane"                   # adapter-registry build context
+CP_DIR="${BAAS_DIR}/src/control-plane"                   # adapter-registry build context
 CLAUDE_DIR="$(cd "${BAAS_DIR}/../.claude" 2>/dev/null && pwd || true)"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }

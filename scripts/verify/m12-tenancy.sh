@@ -29,15 +29,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-BAAS_DIR="mini-baas-infra"
+BAAS_DIR="."
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
 MIG="${BAAS_DIR}/scripts/migrations/postgresql/030_tenancy_isolation.sql"
 # Adapter-registry is now Go (the TS service was retired post-parity-probe).
-# Boot DDL lives in service.go's EnsureSchema function.
-ADAPTER_REG_SVC="${BAAS_DIR}/go/control-plane/internal/adapterregistry/service.go"
+# Boot DDL lives in schema.go's EnsureSchema function (split out of service.go).
+ADAPTER_REG_SVC="${BAAS_DIR}/src/control-plane/internal/adapterregistry/schema.go"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
 red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
@@ -101,9 +101,9 @@ pass "PostgresService sets both tenant + user RLS GUCs"
 if [[ ${LIVE} -eq 1 ]]; then
   command -v jq >/dev/null 2>&1 || fail "jq required for --live mode"
   step "live: applying migration 030 (idempotent)"
-  docker compose -f "${COMPOSE_FILE}" exec -T postgres \
+  sed '/^#/d' "${MIG}" | docker compose -f "${COMPOSE_FILE}" exec -T postgres \
     psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" -v ON_ERROR_STOP=1 \
-    -f - < "${MIG}" >/dev/null \
+    -f - >/dev/null \
     || fail "migration 030 failed to apply"
   pass "migration 030 applied"
 
@@ -117,8 +117,8 @@ if [[ ${LIVE} -eq 1 ]]; then
   # would see *both* rows (the same X belongs to both tenants in the user model).
   docker compose -f "${COMPOSE_FILE}" exec -T postgres \
     psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" -v ON_ERROR_STOP=1 <<SQL
-INSERT INTO public.tenants (id, name) VALUES ('${TENANT_A}'::uuid, 'tenant-a') ON CONFLICT (id) DO NOTHING;
-INSERT INTO public.tenants (id, name) VALUES ('${TENANT_B}'::uuid, 'tenant-b') ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.tenants (id, name, slug) VALUES ('${TENANT_A}'::uuid, 'tenant-a', 'tenant-a') ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.tenants (id, name, slug) VALUES ('${TENANT_B}'::uuid, 'tenant-b', 'tenant-b') ON CONFLICT (id) DO NOTHING;
 DELETE FROM public.tenant_databases WHERE name = 'm12-isolation-probe';
 INSERT INTO public.tenant_databases (tenant_id, engine, name, connection_enc, connection_iv, connection_tag, connection_salt)
 VALUES
@@ -133,7 +133,7 @@ SQL
      SELECT set_config('app.current_user_id', '${USER_X}', false);
      SELECT count(*) FROM public.tenant_databases WHERE name = 'm12-isolation-probe';
      RESET ROLE;" \
-    | tr -d '[:space:]' | tail -c 2)
+    | grep -xE '[0-9]+' | tail -1)
 
   count_b=$(docker compose -f "${COMPOSE_FILE}" exec -T postgres \
     psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" -tAc \
@@ -142,7 +142,7 @@ SQL
      SELECT set_config('app.current_user_id', '${USER_X}', false);
      SELECT count(*) FROM public.tenant_databases WHERE name = 'm12-isolation-probe';
      RESET ROLE;" \
-    | tr -d '[:space:]' | tail -c 2)
+    | grep -xE '[0-9]+' | tail -1)
 
   [[ "${count_a}" == "1" ]] || fail "tenant A should see exactly 1 row, got '${count_a}' (RLS leak or fixture broken)"
   [[ "${count_b}" == "1" ]] || fail "tenant B should see exactly 1 row, got '${count_b}' (RLS leak or fixture broken)"
