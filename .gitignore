@@ -5,7 +5,9 @@
 .env
 .env.*
 !.env.example
+!.env.local.example
 .env*.bak
+# config.env is the committed, non-secret config layer (tracked on purpose)
 
 ### Go ###
 # If you prefer the allow list template instead of the deny list, see community template:
@@ -299,6 +301,9 @@ env/
 venv/
 ENV/
 env.bak/
+# but DO track the repo's env scripts (the generic env/ above wrongly hid them)
+!scripts/env/
+!scripts/env/**
 venv.bak/
 
 # Spyder project settings
