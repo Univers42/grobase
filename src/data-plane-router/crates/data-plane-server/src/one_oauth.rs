@@ -110,7 +110,8 @@ pub(crate) const PRESETS: &[Preset] = &[
         userinfo_url: "https://id.twitch.tv/oauth2/userinfo",
         scopes: "openid user:read:email",
         // Twitch's OIDC userinfo only returns email when explicitly claimed.
-        extra_auth: "&claims=%7B%22userinfo%22%3A%7B%22email%22%3Anull%2C%22email_verified%22%3Anull%7D%7D",
+        extra_auth:
+            "&claims=%7B%22userinfo%22%3A%7B%22email%22%3Anull%2C%22email_verified%22%3Anull%7D%7D",
     },
     Preset {
         name: "spotify",
@@ -183,7 +184,8 @@ fn apple_client_secret() -> Result<String, String> {
     let team_id = provider_env("apple", "TEAM_ID").ok_or("ONE_OAUTH_APPLE_TEAM_ID not set")?;
     let key_id = provider_env("apple", "KEY_ID").ok_or("ONE_OAUTH_APPLE_KEY_ID not set")?;
     let pem = provider_env("apple", "PRIVATE_KEY").ok_or("ONE_OAUTH_APPLE_PRIVATE_KEY not set")?;
-    let client_id = provider_env("apple", "CLIENT_ID").ok_or("ONE_OAUTH_APPLE_CLIENT_ID not set")?;
+    let client_id =
+        provider_env("apple", "CLIENT_ID").ok_or("ONE_OAUTH_APPLE_CLIENT_ID not set")?;
     let now = chrono::Utc::now().timestamp();
     let claims = serde_json::json!({
         "iss": team_id,
@@ -196,18 +198,22 @@ fn apple_client_secret() -> Result<String, String> {
     header.kid = Some(key_id);
     let key = jsonwebtoken::EncodingKey::from_ec_pem(pem.replace("\\n", "\n").as_bytes())
         .map_err(|e| format!("apple private key unreadable: {e}"))?;
-    jsonwebtoken::encode(&header, &claims, &key).map_err(|e| format!("apple secret mint failed: {e}"))
+    jsonwebtoken::encode(&header, &claims, &key)
+        .map_err(|e| format!("apple secret mint failed: {e}"))
 }
 
 // ─── tiny codecs (no new deps) ───────────────────────────────────────────────
 
 /// base64url without padding (RFC 4648 §5) — for the PKCE challenge.
 fn b64url(data: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
     for chunk in data.chunks(3) {
-        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
         let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
         out.push(ALPHABET[(n >> 18) as usize & 63] as char);
         out.push(ALPHABET[(n >> 12) as usize & 63] as char);
@@ -241,7 +247,11 @@ fn urlencode(s: &str) -> String {
 
 /// 64 hex chars of OS-CSPRNG entropy (uuid v4 is getrandom-backed).
 fn random_token() -> String {
-    format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple())
+    format!(
+        "{}{}",
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple()
+    )
 }
 
 fn pkce_challenge(verifier: &str) -> String {
@@ -323,7 +333,10 @@ impl OAuthRuntime {
                 return Ok((e, "openid email".to_string(), String::new()));
             }
             let issuer = provider_env("oidc", "ISSUER").ok_or("ONE_OAUTH_OIDC_ISSUER not set")?;
-            let url = format!("{}/.well-known/openid-configuration", issuer.trim_end_matches('/'));
+            let url = format!(
+                "{}/.well-known/openid-configuration",
+                issuer.trim_end_matches('/')
+            );
             let doc: Value = self
                 .http
                 .get(&url)
@@ -382,7 +395,11 @@ fn extract_user(provider: &str, info: &Value) -> Result<RemoteUser, String> {
         .and_then(Value::as_str)
         .map(str::to_string)
         .or_else(|| info.get("id").and_then(Value::as_str).map(str::to_string))
-        .or_else(|| info.get("id").and_then(Value::as_i64).map(|n| n.to_string()))
+        .or_else(|| {
+            info.get("id")
+                .and_then(Value::as_i64)
+                .map(|n| n.to_string())
+        })
         .ok_or("userinfo has no sub/id")?;
     let email = info
         .get("email")
@@ -403,7 +420,9 @@ fn extract_user(provider: &str, info: &Value) -> Result<RemoteUser, String> {
 
 // ─── handlers ────────────────────────────────────────────────────────────────
 
-fn one_of(state: &AppState) -> Result<std::sync::Arc<crate::one::OneState>, axum::response::Response> {
+fn one_of(
+    state: &AppState,
+) -> Result<std::sync::Arc<crate::one::OneState>, axum::response::Response> {
     state.one.clone().ok_or_else(|| {
         api_err(
             StatusCode::SERVICE_UNAVAILABLE,
@@ -481,7 +500,11 @@ async fn start(
     ) {
         return api_err(StatusCode::TOO_MANY_REQUESTS, "oauth_backpressure", m);
     }
-    let sep = if endpoints.auth_url.contains('?') { '&' } else { '?' };
+    let sep = if endpoints.auth_url.contains('?') {
+        '&'
+    } else {
+        '?'
+    };
     let auth_url = format!(
         "{}{sep}response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&code_challenge={}&code_challenge_method=S256{extra}",
         endpoints.auth_url,
@@ -538,7 +561,11 @@ async fn callback_inner(
         return api_err(StatusCode::UNAUTHORIZED, "provider_denied", &detail);
     }
     let (Some(code), Some(csrf_state)) = (q.code, q.state) else {
-        return api_err(StatusCode::BAD_REQUEST, "invalid_request", "code and state are required");
+        return api_err(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "code and state are required",
+        );
     };
     let Some(pending) = one.oauth.take(&csrf_state) else {
         return api_err(
@@ -548,7 +575,11 @@ async fn callback_inner(
         );
     };
     if pending.provider != provider {
-        return api_err(StatusCode::UNAUTHORIZED, "invalid_state", "state/provider mismatch");
+        return api_err(
+            StatusCode::UNAUTHORIZED,
+            "invalid_state",
+            "state/provider mismatch",
+        );
     }
     let (endpoints, _, _) = match one.oauth.endpoints_for(&provider).await {
         Ok(v) => v,
@@ -571,19 +602,31 @@ async fn callback_inner(
         Ok(v) => v,
         Err(e) => {
             tracing::warn!(provider = %provider, error = %e, "oauth token exchange failed");
-            return api_err(StatusCode::BAD_GATEWAY, "token_exchange_failed", "provider token exchange failed");
+            return api_err(
+                StatusCode::BAD_GATEWAY,
+                "token_exchange_failed",
+                "provider token exchange failed",
+            );
         }
     };
     let remote = match resolve_remote_user(&one.oauth, &provider, &endpoints, &token_body).await {
         Ok(r) => r,
         Err(e) => {
             tracing::warn!(provider = %provider, error = %e, "oauth userinfo failed");
-            return api_err(StatusCode::BAD_GATEWAY, "userinfo_failed", "provider userinfo failed");
+            return api_err(
+                StatusCode::BAD_GATEWAY,
+                "userinfo_failed",
+                "provider userinfo failed",
+            );
         }
     };
 
     // 3. Map to a local account: identity match > verified-email link > signup.
-    let user_id = match one.oauth_login(&remote.subject, remote.email.as_deref(), remote.email_verified) {
+    let user_id = match one.oauth_login(
+        &remote.subject,
+        remote.email.as_deref(),
+        remote.email_verified,
+    ) {
         Ok(id) => id,
         Err(resp) => return resp,
     };
@@ -594,8 +637,14 @@ async fn callback_inner(
     tracing::info!(target: "audit", event = "oauth_login", provider = %provider, user = %user_id, "oauth session issued");
 
     if let Some(redirect) = pending.redirect {
-        let token = session.get("token").and_then(Value::as_str).unwrap_or_default();
-        let refresh = session.get("refresh").and_then(Value::as_str).unwrap_or_default();
+        let token = session
+            .get("token")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let refresh = session
+            .get("refresh")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         return Redirect::temporary(&format!("{redirect}#token={token}&refresh={refresh}"))
             .into_response();
     }
@@ -872,11 +921,19 @@ mod tests {
         assert_eq!(u.email.as_deref(), Some("a@b.c"));
         assert!(u.email_verified);
         // OAuth2 user-API shape (numeric id, `verified` flag).
-        let u = extract_user("discord", &json!({"id": 42, "email": "x@y.z", "verified": false})).unwrap();
+        let u = extract_user(
+            "discord",
+            &json!({"id": 42, "email": "x@y.z", "verified": false}),
+        )
+        .unwrap();
         assert_eq!(u.subject, "discord:42");
         assert!(!u.email_verified);
         // Missing identifiers are an error; missing verified defaults true.
         assert!(extract_user("p", &json!({"email": "x@y.z"})).is_err());
-        assert!(extract_user("p", &json!({"sub": "s"})).unwrap().email_verified);
+        assert!(
+            extract_user("p", &json!({"sub": "s"}))
+                .unwrap()
+                .email_verified
+        );
     }
 }

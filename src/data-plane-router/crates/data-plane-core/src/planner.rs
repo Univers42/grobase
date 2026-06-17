@@ -14,7 +14,9 @@
 //! `batch` larger than the engine's `max_batch_size`) into a clean contract
 //! error. That keeps the change additive and parity-safe.
 
-use crate::{DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, EngineCapabilities};
+use crate::{
+    DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, EngineCapabilities,
+};
 use serde_json::Value;
 
 /// The name of the capability flag an operation requires — used only for the
@@ -88,9 +90,11 @@ pub fn apply_capability_overrides(
         return out;
     };
     // Only an explicit `false` narrows; absent / `true` / non-bool keeps current.
-    let narrow = |cur: bool, key: &str| matches!(mask.get(key), Some(Value::Bool(false)))
-        .then_some(false)
-        .unwrap_or(cur);
+    let narrow = |cur: bool, key: &str| {
+        matches!(mask.get(key), Some(Value::Bool(false)))
+            .then_some(false)
+            .unwrap_or(cur)
+    };
     out.read = narrow(out.read, "read");
     out.write = narrow(out.write, "write");
     out.upsert = narrow(out.upsert, "upsert");
@@ -276,7 +280,7 @@ mod tests {
     fn non_array_batch_payload_is_left_to_the_adapter() {
         let mut caps = EngineCapabilities::http(); // max_batch_size = 50
         caps.batch = true; // pretend http supports batch, to reach the size check
-        // An object (not an array) is not the batch wire shape; don't reject here.
+                           // An object (not an array) is not the batch wire shape; don't reject here.
         assert!(validate_operation(&op(Batch, Some(json!({ "a": 1 }))), "http", &caps).is_ok());
         assert!(validate_operation(&op(Batch, None), "http", &caps).is_ok());
     }
@@ -293,7 +297,10 @@ mod tests {
         // ... but can NEVER turn one ON that the engine lacks (http has no batch).
         let http = EngineCapabilities::http();
         let widened = apply_capability_overrides(&http, Some(&json!({ "batch": true })));
-        assert!(!widened.batch, "a mask cannot widen past the engine descriptor");
+        assert!(
+            !widened.batch,
+            "a mask cannot widen past the engine descriptor"
+        );
     }
 
     #[test]
@@ -302,7 +309,10 @@ mod tests {
         assert_eq!(apply_capability_overrides(&pg, None), pg);
         // A non-object override (e.g. the limits-only payload) is also a no-op.
         assert_eq!(apply_capability_overrides(&pg, Some(&json!(42))), pg);
-        assert_eq!(apply_capability_overrides(&pg, Some(&json!({ "rps": 20 }))), pg);
+        assert_eq!(
+            apply_capability_overrides(&pg, Some(&json!({ "rps": 20 }))),
+            pg
+        );
     }
 
     #[test]
@@ -334,6 +344,11 @@ mod tests {
         // Engine genuinely can't (redis has no aggregate): tier_gate stays silent
         // so the planner's 422 is the one that fires, not a misleading 403.
         let redis = EngineCapabilities::redis();
-        assert!(tier_gate(&op(Aggregate, None), &redis, Some(&json!({ "aggregate": false }))).is_ok());
+        assert!(tier_gate(
+            &op(Aggregate, None),
+            &redis,
+            Some(&json!({ "aggregate": false }))
+        )
+        .is_ok());
     }
 }

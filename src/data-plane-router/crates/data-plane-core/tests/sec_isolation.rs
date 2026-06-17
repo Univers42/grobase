@@ -97,13 +97,19 @@ fn default_isolation_is_shared_rls() {
 
 #[test]
 fn only_tenant_owned_disables_owner_scoping() {
-    assert!(!Isolation::TenantOwned.owner_scoped(), "tenant_owned is the only un-scoped mode");
+    assert!(
+        !Isolation::TenantOwned.owner_scoped(),
+        "tenant_owned is the only un-scoped mode"
+    );
     for scoped in [
         Isolation::SharedRls,
         Isolation::SchemaPerTenant,
         Isolation::DbPerTenant,
     ] {
-        assert!(scoped.owner_scoped(), "{scoped:?} must owner-scope per request");
+        assert!(
+            scoped.owner_scoped(),
+            "{scoped:?} must owner-scope per request"
+        );
     }
 }
 
@@ -112,11 +118,31 @@ fn only_tenant_owned_disables_owner_scoping() {
 #[test]
 fn shared_rls_and_db_per_tenant_never_scope_per_request() {
     let id = identity();
-    for engine in ["postgresql", "mysql", "mongodb", "redis", "http", "weirddb", "dynamodb"] {
+    for engine in [
+        "postgresql",
+        "mysql",
+        "mongodb",
+        "redis",
+        "http",
+        "weirddb",
+        "dynamodb",
+    ] {
         let m = mount(engine, "acme", None);
-        assert_eq!(Isolation::SharedRls.scope(&m, &id), ScopeDirective::None, "shared_rls {engine}");
-        assert_eq!(Isolation::DbPerTenant.scope(&m, &id), ScopeDirective::None, "db_per_tenant {engine}");
-        assert_eq!(Isolation::TenantOwned.scope(&m, &id), ScopeDirective::None, "tenant_owned {engine}");
+        assert_eq!(
+            Isolation::SharedRls.scope(&m, &id),
+            ScopeDirective::None,
+            "shared_rls {engine}"
+        );
+        assert_eq!(
+            Isolation::DbPerTenant.scope(&m, &id),
+            ScopeDirective::None,
+            "db_per_tenant {engine}"
+        );
+        assert_eq!(
+            Isolation::TenantOwned.scope(&m, &id),
+            ScopeDirective::None,
+            "tenant_owned {engine}"
+        );
     }
 }
 
@@ -128,21 +154,29 @@ fn schema_per_tenant_routes_by_engine_class() {
     let pg = mount("postgresql", "acme", Some("schema_per_tenant"));
     assert_eq!(
         Isolation::SchemaPerTenant.scope(&pg, &id),
-        ScopeDirective::SetSearchPath { schema: expected.clone() }
+        ScopeDirective::SetSearchPath {
+            schema: expected.clone()
+        }
     );
     // mysql / mongodb / redis / dynamodb → UseNamespace
     for engine in ["mysql", "mongodb", "redis", "dynamodb"] {
         let m = mount(engine, "acme", Some("schema_per_tenant"));
         assert_eq!(
             Isolation::SchemaPerTenant.scope(&m, &id),
-            ScopeDirective::UseNamespace { namespace: expected.clone() },
+            ScopeDirective::UseNamespace {
+                namespace: expected.clone()
+            },
             "{engine}"
         );
     }
     // http / unknown → None (no schema concept)
     for engine in ["http", "weirddb", "trino"] {
         let m = mount(engine, "acme", Some("schema_per_tenant"));
-        assert_eq!(Isolation::SchemaPerTenant.scope(&m, &id), ScopeDirective::None, "{engine}");
+        assert_eq!(
+            Isolation::SchemaPerTenant.scope(&m, &id),
+            ScopeDirective::None,
+            "{engine}"
+        );
     }
 }
 
@@ -166,7 +200,17 @@ fn schema_per_tenant_empty_tenant_degrades_to_none() {
 
 #[test]
 fn safe_schema_returns_none_for_ids_that_sanitize_empty() {
-    for id in ["", "---", "___", "...", "  ", "@#$%", "\0", "\t\n", "－－－"] {
+    for id in [
+        "",
+        "---",
+        "___",
+        "...",
+        "  ",
+        "@#$%",
+        "\0",
+        "\t\n",
+        "－－－",
+    ] {
         assert_eq!(safe_schema(id), None, "{id:?} sanitizes to empty → None");
     }
 }
@@ -192,11 +236,11 @@ fn safe_schema_neutralizes_every_injection_and_unicode_trick() {
         "a/b/c",
         "../../etc/passwd",
         "schema$(whoami)",
-        "用户表",            // CJK
-        "naïve_café",        // accented latin
+        "用户表",     // CJK
+        "naïve_café", // accented latin
         "emoji🔥name",
-        "\u{202e}rtl",       // RTL override
-        "ＤＲＯＰ",           // fullwidth
+        "\u{202e}rtl", // RTL override
+        "ＤＲＯＰ",    // fullwidth
         "a%27b",
         "${jndi}",
         "{{tpl}}",
@@ -248,7 +292,12 @@ fn safe_schema_never_exceeds_pg_63_byte_cap() {
         // Whenever a schema is produced at all, it fits PG's 63-byte cap; an
         // empty-sanitizing id yields None, which is also safe (shared default).
         if let Some(s) = safe_schema(&id) {
-            assert!(s.len() <= 63, "safe_schema len {} > 63 for id of len {}", s.len(), id.len());
+            assert!(
+                s.len() <= 63,
+                "safe_schema len {} > 63 for id of len {}",
+                s.len(),
+                id.len()
+            );
         }
     }
     // A long ASCII id always produces a (capped) schema, never None.
@@ -302,7 +351,8 @@ fn safe_schema_accepts_plain_identifiers_with_readable_fragment() {
         let tail = s.rsplit('_').next().unwrap();
         assert_eq!(tail.len(), 8, "hash suffix length: {s}");
         assert!(
-            tail.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+            tail.chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
             "hash suffix lowercase hex: {s}"
         );
     }
@@ -324,5 +374,8 @@ fn identical_tenant_distinct_engine_classes_produce_consistent_namespace() {
         ScopeDirective::UseNamespace { namespace } => namespace,
         other => panic!("expected UseNamespace, got {other:?}"),
     };
-    assert_eq!(pg_schema, mongo_ns, "one tenant → one stable schema/namespace name");
+    assert_eq!(
+        pg_schema, mongo_ns,
+        "one tenant → one stable schema/namespace name"
+    );
 }

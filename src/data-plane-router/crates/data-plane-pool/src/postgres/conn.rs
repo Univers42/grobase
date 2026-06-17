@@ -278,21 +278,33 @@ mod tests {
         // Baseline: require encrypts but doesn't verify; verify-* verifies;
         // prefer/unset stays NoTls (local parity).
         assert_eq!(
-            effective_tls_mode("postgres://u:p@db.x.supabase.co:5432/db?sslmode=require", false),
+            effective_tls_mode(
+                "postgres://u:p@db.x.supabase.co:5432/db?sslmode=require",
+                false
+            ),
             Some(TlsMode::Require)
         );
         assert_eq!(
             effective_tls_mode("host=db.x.supabase.co sslmode=verify-full user=u", false),
             Some(TlsMode::Verify)
         );
-        assert_eq!(effective_tls_mode("postgres://postgres:pw@postgres:5432/commerce", false), None);
-        assert_eq!(effective_tls_mode("postgres://u:p@h:5432/db?sslmode=prefer", false), None);
+        assert_eq!(
+            effective_tls_mode("postgres://postgres:pw@postgres:5432/commerce", false),
+            None
+        );
+        assert_eq!(
+            effective_tls_mode("postgres://u:p@h:5432/db?sslmode=prefer", false),
+            None
+        );
         // Phase 6: SECURITY_MODE=max UPGRADES `require` to real verification
         // (closes the accept-any-cert MITM hole) — but never weakens a NoTls DSN.
         assert_eq!(
             effective_tls_mode("postgres://u:p@h:5432/db?sslmode=require", true),
             Some(TlsMode::Verify)
         );
-        assert_eq!(effective_tls_mode("postgres://postgres:pw@postgres:5432/commerce", true), None);
+        assert_eq!(
+            effective_tls_mode("postgres://postgres:pw@postgres:5432/commerce", true),
+            None
+        );
     }
 }

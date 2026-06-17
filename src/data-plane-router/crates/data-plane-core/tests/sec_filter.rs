@@ -14,9 +14,28 @@ use serde_json::{json, Value};
 fn unknown_operators_are_rejected() {
     // Anything starting with `$` that is not in the allowlist is a 400.
     let bad_ops = [
-        "$where", "$expr", "$regex", "$jsonSchema", "$function", "$accumulator",
-        "$drop", "$exec", "$elemMatch", "$text", "$comment", "$EQ", "$Eq",
-        "$ eq", "$in ", "$lte;", "$$", "$", "$1", "$nin", "$mod", "$type",
+        "$where",
+        "$expr",
+        "$regex",
+        "$jsonSchema",
+        "$function",
+        "$accumulator",
+        "$drop",
+        "$exec",
+        "$elemMatch",
+        "$text",
+        "$comment",
+        "$EQ",
+        "$Eq",
+        "$ eq",
+        "$in ",
+        "$lte;",
+        "$$",
+        "$",
+        "$1",
+        "$nin",
+        "$mod",
+        "$type",
     ];
     for op in bad_ops {
         let v = json!({ "col": { op: 1 } });
@@ -51,30 +70,36 @@ fn non_object_filters_are_rejected() {
         json!(2.5),
         json!("'; DROP TABLE users; --"),
     ] {
-        assert!(Filter::parse(&v).is_err(), "non-object {v:?} must be rejected");
+        assert!(
+            Filter::parse(&v).is_err(),
+            "non-object {v:?} must be rejected"
+        );
     }
 }
 
 #[test]
 fn malformed_operator_payloads_are_rejected() {
     let cases = [
-        json!({ "a": { "$in": 5 } }),          // $in needs an array
+        json!({ "a": { "$in": 5 } }), // $in needs an array
         json!({ "a": { "$in": "x" } }),
         json!({ "a": { "$in": {} } }),
-        json!({ "a": { "$between": [1] } }),    // between needs exactly 2
+        json!({ "a": { "$between": [1] } }), // between needs exactly 2
         json!({ "a": { "$between": [1, 2, 3] } }),
         json!({ "a": { "$between": 5 } }),
         json!({ "a": { "$between": [] } }),
-        json!({ "a": { "$null": 1 } }),         // $null needs a bool
+        json!({ "a": { "$null": 1 } }), // $null needs a bool
         json!({ "a": { "$null": "true" } }),
         json!({ "a": { "$null": [] } }),
-        json!({ "$and": "not an array" }),      // $and needs an array
+        json!({ "$and": "not an array" }), // $and needs an array
         json!({ "$or": 5 }),
-        json!({ "$and": [ "not a filter" ] }),  // array of non-filters
+        json!({ "$and": [ "not a filter" ] }), // array of non-filters
         json!({ "$or": [ 42 ] }),
     ];
     for v in cases {
-        assert!(Filter::parse(&v).is_err(), "malformed payload {v:?} must be rejected");
+        assert!(
+            Filter::parse(&v).is_err(),
+            "malformed payload {v:?} must be rejected"
+        );
     }
 }
 
@@ -107,7 +132,7 @@ fn sql_looking_values_stay_data_in_equality() {
         "admin'--",
         "\" OR \"\"=\"",
         "1) OR (1=1",
-        "$ne",          // looks like an operator but is a plain string VALUE
+        "$ne", // looks like an operator but is a plain string VALUE
         "$where",
         "../../etc/passwd",
         "..\\..\\windows\\system32",
@@ -115,18 +140,26 @@ fn sql_looking_values_stay_data_in_equality() {
         "0x44524f50",
         "/*! UNION */",
         "\u{0000}null-byte",
-        "\u{202e}rtl-override",  // unicode trick
-        "ＤＲＯＰ",                // fullwidth unicode "DROP"
+        "\u{202e}rtl-override", // unicode trick
+        "ＤＲＯＰ",             // fullwidth unicode "DROP"
         "${jndi:ldap://evil}",
         "{{7*7}}",
     ];
     for p in payloads {
         let f = Filter::parse(&json!({ "name": p })).expect("string value parses as equality");
         match f {
-            Filter::Cmp { ref field, op, ref value } => {
+            Filter::Cmp {
+                ref field,
+                op,
+                ref value,
+            } => {
                 assert_eq!(field, "name", "field is the column, not the payload");
                 assert_eq!(op, CmpOp::Eq);
-                assert_eq!(value, &json!(p), "the SQL-looking string survives verbatim as data: {p:?}");
+                assert_eq!(
+                    value,
+                    &json!(p),
+                    "the SQL-looking string survives verbatim as data: {p:?}"
+                );
             }
             other => panic!("expected Cmp equality for {p:?}, got {other:?}"),
         }
@@ -151,7 +184,11 @@ fn sql_looking_values_stay_data_under_every_operator() {
         match f {
             Filter::Cmp { op: got, value, .. } => {
                 assert_eq!(got, expect, "{op} maps to {expect:?}");
-                assert_eq!(value, json!(payload), "injection string is bound as data under {op}");
+                assert_eq!(
+                    value,
+                    json!(payload),
+                    "injection string is bound as data under {op}"
+                );
             }
             other => panic!("expected Cmp for {op}, got {other:?}"),
         }
@@ -162,7 +199,9 @@ fn sql_looking_values_stay_data_under_every_operator() {
 fn sql_looking_values_stay_data_in_like_in_between() {
     // $like / $ilike — pattern is a value, not interpolated SQL.
     let f = Filter::parse(&json!({ "c": { "$like": "%'; DROP--%" } })).unwrap();
-    assert!(matches!(f, Filter::Like { ref pattern, ci: false, .. } if pattern == &json!("%'; DROP--%")));
+    assert!(
+        matches!(f, Filter::Like { ref pattern, ci: false, .. } if pattern == &json!("%'; DROP--%"))
+    );
     let f = Filter::parse(&json!({ "c": { "$ilike": "%OR 1=1%" } })).unwrap();
     assert!(matches!(f, Filter::Like { ci: true, .. }));
 
@@ -170,7 +209,10 @@ fn sql_looking_values_stay_data_in_like_in_between() {
     let f = Filter::parse(&json!({ "c": { "$in": ["1 OR 1=1", "'; DROP", "$ne"] } })).unwrap();
     match f {
         Filter::In { values, .. } => {
-            assert_eq!(values, vec![json!("1 OR 1=1"), json!("'; DROP"), json!("$ne")]);
+            assert_eq!(
+                values,
+                vec![json!("1 OR 1=1"), json!("'; DROP"), json!("$ne")]
+            );
         }
         other => panic!("expected In, got {other:?}"),
     }
@@ -191,11 +233,27 @@ fn weird_field_names_that_are_not_dollar_prefixed_are_accepted_as_columns() {
     // The grammar only forbids `$`-prefixed and empty fields; other oddities are
     // accepted as column names here and re-validated by the adapter's quoting.
     // The point: they never become operators.
-    for col in ["a-b", "a.b", "a b", "weird;col", "col--", "UPPER", "数字", "a\tb"] {
+    for col in [
+        "a-b",
+        "a.b",
+        "a b",
+        "weird;col",
+        "col--",
+        "UPPER",
+        "数字",
+        "a\tb",
+    ] {
         let f = Filter::parse(&json!({ col: 1 })).expect("non-$ column accepted");
         match f {
-            Filter::Cmp { field, op: CmpOp::Eq, value } => {
-                assert_eq!(field, col, "the odd string is the field name, taken verbatim");
+            Filter::Cmp {
+                field,
+                op: CmpOp::Eq,
+                value,
+            } => {
+                assert_eq!(
+                    field, col,
+                    "the odd string is the field name, taken verbatim"
+                );
                 assert_eq!(value, json!(1));
             }
             other => panic!("expected Cmp for column {col:?}, got {other:?}"),
@@ -246,11 +304,15 @@ fn fold_classifies_tautologies_contradictions_and_real_predicates() {
 fn empty_and_nested_objects_constrain_nothing_or_everything_deterministically() {
     // Deeply nested NOT chains fold to a stable boolean (no panic, no nondeterminism).
     assert_eq!(
-        Filter::parse(&json!({ "$not": { "$not": { "$or": [] } } })).unwrap().fold(),
+        Filter::parse(&json!({ "$not": { "$not": { "$or": [] } } }))
+            .unwrap()
+            .fold(),
         Folded::AlwaysFalse
     );
     assert_eq!(
-        Filter::parse(&json!({ "$not": { "$not": {} } })).unwrap().fold(),
+        Filter::parse(&json!({ "$not": { "$not": {} } }))
+            .unwrap()
+            .fold(),
         Folded::AlwaysTrue
     );
 }
@@ -269,7 +331,11 @@ fn multi_key_objects_are_anded_in_sorted_order() {
                     _ => "?",
                 })
                 .collect();
-            assert_eq!(fields, ["a", "b", "c"], "keys sorted for deterministic lowering");
+            assert_eq!(
+                fields,
+                ["a", "b", "c"],
+                "keys sorted for deterministic lowering"
+            );
         }
         other => panic!("expected And, got {other:?}"),
     }

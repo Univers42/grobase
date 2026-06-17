@@ -5,10 +5,7 @@ use data_plane_core::{DataPlaneError, DataPlaneResult};
 /// Accepts an optional single schema qualifier: `schema.table`. Each segment
 /// must start with a letter or underscore and contain only `[A-Za-z0-9_]`.
 /// The returned string is safely double-quoted for interpolation.
-#[cfg_attr(
-    not(any(feature = "postgres", feature = "mongodb")),
-    allow(dead_code)
-)]
+#[cfg_attr(not(any(feature = "postgres", feature = "mongodb")), allow(dead_code))]
 pub fn quote_ident(raw: &str) -> DataPlaneResult<String> {
     quote_with(raw, '"')
 }
@@ -75,7 +72,10 @@ mod tests {
     #[test]
     fn mysql_ident_uses_backticks() {
         assert_eq!(quote_mysql_ident("users").unwrap(), "`users`");
-        assert_eq!(quote_mysql_ident("mini_baas.users").unwrap(), "`mini_baas`.`users`");
+        assert_eq!(
+            quote_mysql_ident("mini_baas.users").unwrap(),
+            "`mini_baas`.`users`"
+        );
     }
 
     #[test]

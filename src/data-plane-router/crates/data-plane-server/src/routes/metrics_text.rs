@@ -73,7 +73,9 @@ pub(super) fn write_pool_and_cache_counters(out: &mut String, state: &AppState) 
 /// the second exposition block (kept separate so each writer stays ≤40 lines).
 fn write_cache_and_ratelimit(out: &mut String, state: &AppState) {
     let (verify_hit, verify_miss, mount_hit, mount_miss) = state.metrics.cache_snapshot();
-    out.push_str("# HELP baas_data_plane_cache_events_total Verify/mount cache lookups by result\n");
+    out.push_str(
+        "# HELP baas_data_plane_cache_events_total Verify/mount cache lookups by result\n",
+    );
     out.push_str("# TYPE baas_data_plane_cache_events_total counter\n");
     for (cache, result, n) in [
         ("verify", "hit", verify_hit),
@@ -85,7 +87,9 @@ fn write_cache_and_ratelimit(out: &mut String, state: &AppState) {
             "baas_data_plane_cache_events_total{{service=\"data-plane-router\",cache=\"{cache}\",result=\"{result}\"}} {n}\n"
         ));
     }
-    out.push_str("# HELP baas_data_plane_ratelimit_tracked Tenant token buckets currently tracked\n");
+    out.push_str(
+        "# HELP baas_data_plane_ratelimit_tracked Tenant token buckets currently tracked\n",
+    );
     out.push_str("# TYPE baas_data_plane_ratelimit_tracked gauge\n");
     out.push_str(&format!(
         "baas_data_plane_ratelimit_tracked{{service=\"data-plane-router\"}} {}\n",
@@ -100,7 +104,9 @@ pub(super) async fn write_outbox_and_pool_conns(out: &mut String, state: &AppSta
     // worker can't keep up (widen DATA_PLANE_OUTBOX_QUEUE or add capacity);
     // enqueued − written − dropped ≈ queue depth in flight.
     let (ob_enq, ob_wr, ob_drop, ob_fail) = state.metrics.outbox_snapshot();
-    out.push_str("# HELP baas_data_plane_outbox_events_total Background outbox emission by stage\n");
+    out.push_str(
+        "# HELP baas_data_plane_outbox_events_total Background outbox emission by stage\n",
+    );
     out.push_str("# TYPE baas_data_plane_outbox_events_total counter\n");
     for (stage, n) in [
         ("enqueued", ob_enq),

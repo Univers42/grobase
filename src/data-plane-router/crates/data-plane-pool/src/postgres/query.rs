@@ -6,7 +6,9 @@ use super::filter::{build_order_by, build_where, compile_filter, Pred};
 use super::search::{build_search, build_vector_order};
 use super::BoxedParam;
 use crate::ident::quote_ident;
-use data_plane_core::{AggFunc, Aggregate, DataOperation, DataPlaneError, DataPlaneResult, DataResult};
+use data_plane_core::{
+    AggFunc, Aggregate, DataOperation, DataPlaneError, DataPlaneResult, DataResult,
+};
 use serde_json::Value;
 
 /// Grouped aggregation:
@@ -221,16 +223,44 @@ mod tests {
             distinct: false,
             alias: alias.to_string(),
         };
-        assert_eq!(build_aggregate_expr(&agg(AggFunc::Count, None, "cnt")).unwrap(), "count(*) AS \"cnt\"");
-        assert_eq!(build_aggregate_expr(&agg(AggFunc::Sum, Some("amount"), "total")).unwrap(), "sum(\"amount\") AS \"total\"");
-        assert_eq!(build_aggregate_expr(&agg(AggFunc::Avg, Some("age"), "avg_age")).unwrap(), "avg(\"age\") AS \"avg_age\"");
-        assert_eq!(build_aggregate_expr(&agg(AggFunc::Count, Some("id"), "n")).unwrap(), "count(\"id\") AS \"n\"");
+        assert_eq!(
+            build_aggregate_expr(&agg(AggFunc::Count, None, "cnt")).unwrap(),
+            "count(*) AS \"cnt\""
+        );
+        assert_eq!(
+            build_aggregate_expr(&agg(AggFunc::Sum, Some("amount"), "total")).unwrap(),
+            "sum(\"amount\") AS \"total\""
+        );
+        assert_eq!(
+            build_aggregate_expr(&agg(AggFunc::Avg, Some("age"), "avg_age")).unwrap(),
+            "avg(\"age\") AS \"avg_age\""
+        );
+        assert_eq!(
+            build_aggregate_expr(&agg(AggFunc::Count, Some("id"), "n")).unwrap(),
+            "count(\"id\") AS \"n\""
+        );
         // DISTINCT
-        let cd = Aggregate { func: AggFunc::Count, field: Some("email".into()), distinct: true, alias: "uniq".into() };
-        assert_eq!(build_aggregate_expr(&cd).unwrap(), "count(DISTINCT \"email\") AS \"uniq\"");
+        let cd = Aggregate {
+            func: AggFunc::Count,
+            field: Some("email".into()),
+            distinct: true,
+            alias: "uniq".into(),
+        };
+        assert_eq!(
+            build_aggregate_expr(&cd).unwrap(),
+            "count(DISTINCT \"email\") AS \"uniq\""
+        );
         // count(DISTINCT *) is invalid → distinct requires a field
-        let cd_nofield = Aggregate { func: AggFunc::Count, field: None, distinct: true, alias: "x".into() };
-        assert!(matches!(build_aggregate_expr(&cd_nofield).unwrap_err(), DataPlaneError::InvalidRequest { .. }));
+        let cd_nofield = Aggregate {
+            func: AggFunc::Count,
+            field: None,
+            distinct: true,
+            alias: "x".into(),
+        };
+        assert!(matches!(
+            build_aggregate_expr(&cd_nofield).unwrap_err(),
+            DataPlaneError::InvalidRequest { .. }
+        ));
         // sum/avg/min/max require a field
         assert!(matches!(
             build_aggregate_expr(&agg(AggFunc::Sum, None, "x")).unwrap_err(),
@@ -238,7 +268,8 @@ mod tests {
         ));
         // injection in field or alias → InvalidIdentifier (allowlist), never SQL
         assert!(matches!(
-            build_aggregate_expr(&agg(AggFunc::Count, Some("a); DROP TABLE t;--"), "x")).unwrap_err(),
+            build_aggregate_expr(&agg(AggFunc::Count, Some("a); DROP TABLE t;--"), "x"))
+                .unwrap_err(),
             DataPlaneError::InvalidIdentifier { .. }
         ));
         assert!(matches!(

@@ -121,7 +121,10 @@ fn lower_pg(filter: &Filter, params: &mut Vec<BoxedParam>) -> DataPlaneResult<Pr
         }
         Filter::IsNull { field, negate } => {
             let ident = quote_ident(field)?;
-            Pred::Sql(format!("{ident} IS {}NULL", if *negate { "NOT " } else { "" }))
+            Pred::Sql(format!(
+                "{ident} IS {}NULL",
+                if *negate { "NOT " } else { "" }
+            ))
         }
     })
 }
@@ -255,22 +258,50 @@ mod tests {
     fn filter_tautology_folds_to_unconstrained_and_mutation_guard_refuses() {
         // THE data-loss fix: a filter that constant-folds to TRUE must be treated
         // as "no predicate" so update/delete refuse it, not run WHERE TRUE.
-        assert_eq!(wsql(json!({ "$not": { "$or": [] } })).0, "", "NOT(FALSE) → unconstrained");
-        assert_eq!(wsql(json!({ "$not": { "a": { "$in": [] } } })).0, "", "NOT(col IN ()) → unconstrained");
-        assert_eq!(wsql(json!({ "$or": [{ "a": 1 }, { "$not": { "$or": [] } }] })).0, "", "x OR TRUE → unconstrained");
+        assert_eq!(
+            wsql(json!({ "$not": { "$or": [] } })).0,
+            "",
+            "NOT(FALSE) → unconstrained"
+        );
+        assert_eq!(
+            wsql(json!({ "$not": { "a": { "$in": [] } } })).0,
+            "",
+            "NOT(col IN ()) → unconstrained"
+        );
+        assert_eq!(
+            wsql(json!({ "$or": [{ "a": 1 }, { "$not": { "$or": [] } }] })).0,
+            "",
+            "x OR TRUE → unconstrained"
+        );
         // the discarded branch's param is rolled back (no orphan placeholders).
-        assert_eq!(wsql(json!({ "$or": [{ "a": 1 }, { "$not": { "$or": [] } }] })).1, 0);
+        assert_eq!(
+            wsql(json!({ "$or": [{ "a": 1 }, { "$not": { "$or": [] } }] })).1,
+            0
+        );
         // and the guard actually refuses it on a real mutation:
         let data = obj(json!({ "name": "x" }));
-        for taut in [json!({ "$not": { "$or": [] } }), json!({ "$or": [{ "a": 1 }, { "$not": { "$or": [] } }] })] {
+        for taut in [
+            json!({ "$not": { "$or": [] } }),
+            json!({ "$or": [{ "a": 1 }, { "$not": { "$or": [] } }] }),
+        ] {
             let e = build_update_sql("\"t\"", &data, Some(&taut), Some("u"), true).unwrap_err();
-            assert!(matches!(e, DataPlaneError::InvalidRequest { .. }), "update {taut}: {e:?}");
+            assert!(
+                matches!(e, DataPlaneError::InvalidRequest { .. }),
+                "update {taut}: {e:?}"
+            );
             let e = build_delete_sql("\"t\"", Some(&taut), Some("u"), true).unwrap_err();
-            assert!(matches!(e, DataPlaneError::InvalidRequest { .. }), "delete {taut}: {e:?}");
+            assert!(
+                matches!(e, DataPlaneError::InvalidRequest { .. }),
+                "delete {taut}: {e:?}"
+            );
         }
         // an explicit match-nothing is NOT a tautology — it's a safe predicate.
         assert_eq!(wsql(json!({ "$or": [] })).0, "FALSE");
-        assert_eq!(wsql(json!({ "$not": {} })).0, "FALSE", "NOT(everything) = nothing");
+        assert_eq!(
+            wsql(json!({ "$not": {} })).0,
+            "FALSE",
+            "NOT(everything) = nothing"
+        );
     }
 
     #[test]
@@ -285,19 +316,37 @@ mod tests {
 
     #[test]
     fn filter_in_between_null_like() {
-        assert_eq!(wsql(json!({ "s": { "$in": ["a", "b"] } })).0, "\"s\" IN ($1, $2)");
+        assert_eq!(
+            wsql(json!({ "s": { "$in": ["a", "b"] } })).0,
+            "\"s\" IN ($1, $2)"
+        );
         assert_eq!(wsql(json!({ "s": { "$in": [] } })).0, "FALSE"); // matches nothing
-        assert_eq!(wsql(json!({ "age": { "$between": [18, 65] } })).0, "\"age\" BETWEEN $1 AND $2");
+        assert_eq!(
+            wsql(json!({ "age": { "$between": [18, 65] } })).0,
+            "\"age\" BETWEEN $1 AND $2"
+        );
         assert_eq!(wsql(json!({ "x": { "$null": true } })).0, "\"x\" IS NULL");
-        assert_eq!(wsql(json!({ "x": { "$null": false } })).0, "\"x\" IS NOT NULL");
-        assert_eq!(wsql(json!({ "n": { "$ilike": "%a%" } })).0, "\"n\" ILIKE $1");
+        assert_eq!(
+            wsql(json!({ "x": { "$null": false } })).0,
+            "\"x\" IS NOT NULL"
+        );
+        assert_eq!(
+            wsql(json!({ "n": { "$ilike": "%a%" } })).0,
+            "\"n\" ILIKE $1"
+        );
     }
 
     #[test]
     fn filter_all_binary_operators_map_to_correct_sql() {
         for (op, sym) in [
-            ("$eq", "="), ("$ne", "<>"), ("$lt", "<"), ("$lte", "<="),
-            ("$gt", ">"), ("$gte", ">="), ("$like", "LIKE"), ("$ilike", "ILIKE"),
+            ("$eq", "="),
+            ("$ne", "<>"),
+            ("$lt", "<"),
+            ("$lte", "<="),
+            ("$gt", ">"),
+            ("$gte", ">="),
+            ("$like", "LIKE"),
+            ("$ilike", "ILIKE"),
         ] {
             let (sql, n) = wsql(json!({ "c": { op: 1 } }));
             assert_eq!(sql, format!("\"c\" {sym} $1"), "operator {op}");
@@ -335,7 +384,10 @@ mod tests {
         assert_eq!(wsql(json!({ "$or": [] })).0, "FALSE");
         // mixed: column predicate AND a nested $or ('$or' sorts before 'age').
         let (sql, _) = wsql(json!({ "age": { "$gte": 18 }, "$or": [{ "a": 1 }, { "b": 2 }] }));
-        assert_eq!(sql, "(\"a\" = $1) OR (\"b\" = $2) AND \"age\" >= $3", "{sql}");
+        assert_eq!(
+            sql, "(\"a\" = $1) OR (\"b\" = $2) AND \"age\" >= $3",
+            "{sql}"
+        );
     }
 
     #[test]
@@ -343,10 +395,16 @@ mod tests {
         let mut p: Vec<BoxedParam> = Vec::new();
         // column name injection → InvalidIdentifier (via quote_ident)
         let e = compile_filter(Some(&json!({ "a;DROP TABLE x;--": 1 })), &mut p).unwrap_err();
-        assert!(matches!(e, DataPlaneError::InvalidIdentifier { .. }), "{e:?}");
+        assert!(
+            matches!(e, DataPlaneError::InvalidIdentifier { .. }),
+            "{e:?}"
+        );
         // injection inside an operator column
         let e = compile_filter(Some(&json!({ "x\"--": { "$gt": 1 } })), &mut p).unwrap_err();
-        assert!(matches!(e, DataPlaneError::InvalidIdentifier { .. }), "{e:?}");
+        assert!(
+            matches!(e, DataPlaneError::InvalidIdentifier { .. }),
+            "{e:?}"
+        );
         // unknown operator → InvalidRequest (never interpolated)
         let e = compile_filter(Some(&json!({ "a": { "$drop": 1 } })), &mut p).unwrap_err();
         assert!(matches!(e, DataPlaneError::InvalidRequest { .. }), "{e:?}");
@@ -362,8 +420,11 @@ mod tests {
         let mut s = BTreeMap::new();
         s.insert("name".to_string(), "asc".to_string());
         s.insert("age".to_string(), "DESC".to_string()); // case-insensitive
-        // BTreeMap key order → age before name.
-        assert_eq!(build_order_by(Some(&s)).unwrap(), " ORDER BY \"age\" DESC, \"name\" ASC");
+                                                         // BTreeMap key order → age before name.
+        assert_eq!(
+            build_order_by(Some(&s)).unwrap(),
+            " ORDER BY \"age\" DESC, \"name\" ASC"
+        );
         assert_eq!(build_order_by(None).unwrap(), "");
 
         let mut bad_dir = BTreeMap::new();
@@ -449,8 +510,14 @@ mod tests {
 
     #[test]
     fn filter_is_null_binds_no_params() {
-        assert_eq!(wsql(json!({ "x": { "$null": true } })), ("\"x\" IS NULL".to_string(), 0));
-        assert_eq!(wsql(json!({ "x": { "$null": false } })), ("\"x\" IS NOT NULL".to_string(), 0));
+        assert_eq!(
+            wsql(json!({ "x": { "$null": true } })),
+            ("\"x\" IS NULL".to_string(), 0)
+        );
+        assert_eq!(
+            wsql(json!({ "x": { "$null": false } })),
+            ("\"x\" IS NOT NULL".to_string(), 0)
+        );
     }
 
     #[test]
@@ -509,6 +576,9 @@ mod tests {
         // `a AND FALSE` → AlwaysFalse, the a-param truncated.
         let (sql, n) = wsql(json!({ "$and": [ { "a": 1 }, { "b": { "$in": [] } } ] }));
         assert_eq!(sql, "FALSE");
-        assert_eq!(n, 0, "the a=1 param is rolled back on the FALSE short-circuit");
+        assert_eq!(
+            n, 0,
+            "the a=1 param is rolled back on the FALSE short-circuit"
+        );
     }
 }

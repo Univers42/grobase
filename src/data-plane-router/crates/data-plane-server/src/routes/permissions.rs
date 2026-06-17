@@ -1,14 +1,14 @@
 //! In-Rust ABAC/RBAC decision endpoint (`/v1/permissions/decide`) mirroring the
 //! NestJS DecisionsService shape, with a 503 fallback when no bundle is loaded.
+use crate::abac::Decision;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
-use crate::abac::Decision;
 use serde::Deserialize;
 
-use super::state::AppState;
 use super::helpers::ApiError;
+use super::state::AppState;
 
 // ── /v1/permissions/decide ──────────────────────────────────────────────────
 //
@@ -50,7 +50,9 @@ pub(super) async fn decide_permission(
             StatusCode::SERVICE_UNAVAILABLE,
             Json(ApiError {
                 error: "evaluator_not_configured".to_string(),
-                message: "DATA_PLANE_PERMISSION_BUNDLE is not set; fall back to permission-engine HTTP".to_string(),
+                message:
+                    "DATA_PLANE_PERMISSION_BUNDLE is not set; fall back to permission-engine HTTP"
+                        .to_string(),
             }),
         )
             .into_response();

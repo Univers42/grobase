@@ -8,11 +8,11 @@
 //   schema methods would only work as separate inherent blocks, not the trait —
 //   not worth fragmenting one cohesive port.
 
-use super::*;
 use super::adapter::{dispatch_single, run_batch, SUPPORTED_OPS};
 use super::convert::{json_to_mysql_value, row_to_json};
 use super::error::{backend, ddl_backend};
 use super::schema::{build_mysql_ddl, normalize_mysql_type};
+use super::*;
 
 /// A pooled MySQL connection set bound to a single mount.
 pub struct MysqlPool {
@@ -147,7 +147,9 @@ impl EnginePool for MysqlPool {
             };
             conn.query_drop(sql).await.map_err(backend)?;
         }
-        conn.query_drop("START TRANSACTION").await.map_err(backend)?;
+        conn.query_drop("START TRANSACTION")
+            .await
+            .map_err(backend)?;
 
         let tx_id = uuid::Uuid::now_v7().to_string();
         Ok(Box::new(MysqlTxHandle {
@@ -166,9 +168,11 @@ impl EnginePool for MysqlPool {
         // `mysql_async::Pool::disconnect` consumes the pool but Pool is a cheap
         // Arc so cloning is fine; outstanding connections drop independently.
         let pool = self.pool.clone();
-        pool.disconnect().await.map_err(|e| DataPlaneError::Backend {
-            message: format!("mysql pool disconnect failed: {e}"),
-        })
+        pool.disconnect()
+            .await
+            .map_err(|e| DataPlaneError::Backend {
+                message: format!("mysql pool disconnect failed: {e}"),
+            })
     }
 
     async fn execute_raw(
@@ -322,7 +326,13 @@ impl EnginePool for MysqlPool {
             .map_err(backend)?;
         let mut fks: BTreeMap<(String, String), ForeignKeyRef> = BTreeMap::new();
         for (table, column, ref_table, ref_column) in fk_rows {
-            fks.insert((table, column), ForeignKeyRef { table: ref_table, column: ref_column });
+            fks.insert(
+                (table, column),
+                ForeignKeyRef {
+                    table: ref_table,
+                    column: ref_column,
+                },
+            );
         }
 
         // Columns of every BASE TABLE on the connected database.

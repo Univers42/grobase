@@ -1,8 +1,8 @@
 //! EngineAdapter for SQL Server: pool construction + the tiberius `Config`/TLS
 //! posture that backs it.
 
-use super::*;
 use super::pool::MssqlPool;
+use super::*;
 
 pub struct MssqlEngineAdapter {
     resolver: Arc<dyn MountResolver>,
@@ -67,9 +67,11 @@ fn mssql_config(dsn: &str) -> DataPlaneResult<Config> {
             message: "mssql DSN must start with mssql:// or sqlserver://".to_string(),
         })?;
     // user:pass@host:port/db
-    let (creds, hostpart) = rest.split_once('@').ok_or_else(|| DataPlaneError::Backend {
-        message: "mssql DSN missing '@' (user:pass@host:port/db)".to_string(),
-    })?;
+    let (creds, hostpart) = rest
+        .split_once('@')
+        .ok_or_else(|| DataPlaneError::Backend {
+            message: "mssql DSN missing '@' (user:pass@host:port/db)".to_string(),
+        })?;
     let (user, pass) = creds.split_once(':').unwrap_or((creds, ""));
     let (host_port, db) = hostpart.split_once('/').unwrap_or((hostpart, "master"));
     let (host, port) = host_port.split_once(':').unwrap_or((host_port, "1433"));
@@ -100,8 +102,8 @@ fn apply_mssql_tls(config: &mut Config) {
         .map(|v| v.eq_ignore_ascii_case("max"))
         .unwrap_or(false);
     let ca_file = std::env::var("DATA_PLANE_TLS_CA_FILE").unwrap_or_default();
-    let insecure = !max_security
-        && std::env::var("DATA_PLANE_TLS_INSECURE").ok().as_deref() == Some("1");
+    let insecure =
+        !max_security && std::env::var("DATA_PLANE_TLS_INSECURE").ok().as_deref() == Some("1");
     if insecure {
         config.trust_cert();
     } else if !ca_file.is_empty() {

@@ -9,11 +9,11 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::state::AppState;
 use super::helpers::{
     bad_request, json_result, map_data_plane_error, require_capability, transaction_not_found,
     validate_identity_mount,
 };
+use super::state::AppState;
 
 // Default transaction TTL — after this the registry stops handing out the
 // handle on lookup. The connection is NOT force-closed here; a follow-up
@@ -37,15 +37,19 @@ pub(super) async fn begin_transaction(
     // Honesty gate: an engine whose `begin()` is NotImplemented (mongo/redis/
     // http) advertises `transactions:false` — reject here with 400 rather than
     // 501 from deep in the adapter.
-    if let Err(resp) =
-        require_capability(&state, &request.mount.engine, "transactions", |c| c.transactions)
-    {
+    if let Err(resp) = require_capability(&state, &request.mount.engine, "transactions", |c| {
+        c.transactions
+    }) {
         return resp;
     }
     // Phase 4 tiering: the engine may support transactions but the tenant's
     // package tier can exclude them (Essential) → 403 CapabilityGated, distinct
     // from the 422 above (engine genuinely can't begin()).
-    if let Some(descriptor) = state.engines.iter().find(|e| e.engine == request.mount.engine) {
+    if let Some(descriptor) = state
+        .engines
+        .iter()
+        .find(|e| e.engine == request.mount.engine)
+    {
         let effective = data_plane_core::apply_capability_overrides(
             &descriptor.capabilities,
             request.mount.capability_overrides.as_ref(),
@@ -143,7 +147,14 @@ pub(super) async fn commit_transaction(
     // registry may evict/reap it again. Always unpin, even on commit error.
     state.registry.unpin_tx(&pool_key).await;
     match result {
-        Ok(()) => (StatusCode::OK, Json(TxFinalize { tx_id, state: "committed" })).into_response(),
+        Ok(()) => (
+            StatusCode::OK,
+            Json(TxFinalize {
+                tx_id,
+                state: "committed",
+            }),
+        )
+            .into_response(),
         Err(err) => map_data_plane_error(&err),
     }
 }
@@ -159,7 +170,14 @@ pub(super) async fn rollback_transaction(
     let result = handle.rollback().await;
     state.registry.unpin_tx(&pool_key).await;
     match result {
-        Ok(()) => (StatusCode::OK, Json(TxFinalize { tx_id, state: "rolled_back" })).into_response(),
+        Ok(()) => (
+            StatusCode::OK,
+            Json(TxFinalize {
+                tx_id,
+                state: "rolled_back",
+            }),
+        )
+            .into_response(),
         Err(err) => map_data_plane_error(&err),
     }
 }

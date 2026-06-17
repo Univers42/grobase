@@ -157,7 +157,10 @@ impl QuotaRefresher {
             })
             .await;
         let Ok(mgr) = mgr else {
-            tracing::warn!(set = self.set_key, "honor-set refresh: redis connect failed — keeping prior snapshot (fail-open)");
+            tracing::warn!(
+                set = self.set_key,
+                "honor-set refresh: redis connect failed — keeping prior snapshot (fail-open)"
+            );
             return;
         };
         let mut conn = mgr.clone();
@@ -170,10 +173,17 @@ impl QuotaRefresher {
                 let next: HashSet<String> = members.into_iter().collect();
                 let n = next.len();
                 set.replace(next);
-                tracing::debug!(set = self.set_key, listed_tenants = n, "honor-set snapshot refreshed");
+                tracing::debug!(
+                    set = self.set_key,
+                    listed_tenants = n,
+                    "honor-set snapshot refreshed"
+                );
             }
             Err(e) => {
-                tracing::warn!(set = self.set_key, "honor-set refresh: SMEMBERS failed — keeping prior snapshot (fail-open): {e}");
+                tracing::warn!(
+                    set = self.set_key,
+                    "honor-set refresh: SMEMBERS failed — keeping prior snapshot (fail-open): {e}"
+                );
             }
         }
     }
@@ -191,7 +201,10 @@ mod tests {
     #[test]
     fn empty_set_is_never_over() {
         let q = QuotaSet::new();
-        assert!(!q.is_over("anyone"), "empty set → no tenant over quota (fail-open/parity)");
+        assert!(
+            !q.is_over("anyone"),
+            "empty set → no tenant over quota (fail-open/parity)"
+        );
         assert_eq!(q.tracked(), 0);
     }
 
@@ -201,8 +214,14 @@ mod tests {
         let mut next = HashSet::new();
         next.insert("over-tenant".to_string());
         q.replace(next);
-        assert!(q.is_over("over-tenant"), "tenant in the published set is over quota");
-        assert!(!q.is_over("under-tenant"), "tenant absent from the set is under quota");
+        assert!(
+            q.is_over("over-tenant"),
+            "tenant in the published set is over quota"
+        );
+        assert!(
+            !q.is_over("under-tenant"),
+            "tenant absent from the set is under quota"
+        );
         assert_eq!(q.tracked(), 1);
     }
 
@@ -214,7 +233,10 @@ mod tests {
         // A later publish that no longer lists "a" must clear it (under quota
         // again, e.g. period rollover) — replace is a SWAP, not a merge.
         q.replace(["b".to_string()].into_iter().collect());
-        assert!(!q.is_over("a"), "prior over-quota tenant cleared by a new snapshot");
+        assert!(
+            !q.is_over("a"),
+            "prior over-quota tenant cleared by a new snapshot"
+        );
         assert!(q.is_over("b"));
     }
 
@@ -224,23 +246,44 @@ mod tests {
     #[test]
     fn spend_over_set_membership() {
         let s = QuotaSet::new();
-        assert!(!s.is_over("anyone"), "empty spend:over set → no tenant capped (fail-open/parity)");
+        assert!(
+            !s.is_over("anyone"),
+            "empty spend:over set → no tenant capped (fail-open/parity)"
+        );
         s.replace(["capped-tenant".to_string()].into_iter().collect());
-        assert!(s.is_over("capped-tenant"), "tenant in spend:over is over its spend cap");
-        assert!(!s.is_over("ok-tenant"), "tenant absent from spend:over is under its spend cap");
+        assert!(
+            s.is_over("capped-tenant"),
+            "tenant in spend:over is over its spend cap"
+        );
+        assert!(
+            !s.is_over("ok-tenant"),
+            "tenant absent from spend:over is under its spend cap"
+        );
         assert_eq!(s.tracked(), 1);
     }
 
     #[test]
     fn suspended_set_membership() {
         let s = QuotaSet::new();
-        assert!(!s.is_over("anyone"), "empty tenant:suspended set → no tenant suspended (fail-open/parity)");
+        assert!(
+            !s.is_over("anyone"),
+            "empty tenant:suspended set → no tenant suspended (fail-open/parity)"
+        );
         s.replace(["bad-tenant".to_string()].into_iter().collect());
-        assert!(s.is_over("bad-tenant"), "tenant in tenant:suspended is suspended");
-        assert!(!s.is_over("good-tenant"), "tenant absent from tenant:suspended is active");
+        assert!(
+            s.is_over("bad-tenant"),
+            "tenant in tenant:suspended is suspended"
+        );
+        assert!(
+            !s.is_over("good-tenant"),
+            "tenant absent from tenant:suspended is active"
+        );
         // A later publish clearing it (e.g. KYC resolved) un-suspends — SWAP, not merge.
         s.replace(HashSet::new());
-        assert!(!s.is_over("bad-tenant"), "lifted suspension cleared by a new snapshot");
+        assert!(
+            !s.is_over("bad-tenant"),
+            "lifted suspension cleared by a new snapshot"
+        );
         assert_eq!(s.tracked(), 0);
     }
 

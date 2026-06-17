@@ -32,19 +32,17 @@ use crate::resolver::MountResolver;
 use async_trait::async_trait;
 use aws_sdk_dynamodb::config::{Credentials, Region};
 use aws_sdk_dynamodb::error::SdkError;
-use aws_sdk_dynamodb::types::{
-    AttributeValue, Put, TransactWriteItem,
-};
+use aws_sdk_dynamodb::types::{AttributeValue, Put, TransactWriteItem};
 use aws_sdk_dynamodb::Client;
 use data_plane_core::{
     DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, DataResult, DatabaseMount,
-    EngineAdapter, EngineCapabilities, EngineHealth, EnginePool, RequestIdentity,
-    TxBeginRequest, TxHandle,
+    EngineAdapter, EngineCapabilities, EngineHealth, EnginePool, RequestIdentity, TxBeginRequest,
+    TxHandle,
 };
 use serde_json::{Map as JsonMap, Number, Value};
 use std::collections::HashMap;
-use std::sync::Mutex;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 /// The composite primary key attributes. `owner_pk` (the partition key) carries
 /// the owner so a foreign id under another owner's partition is simply a key
@@ -1106,7 +1104,10 @@ mod tests {
         )
         .unwrap();
         assert_eq!(local.region, "eu-west-1");
-        assert_eq!(local.endpoint.as_deref(), Some("http://dynamodb-local:8000"));
+        assert_eq!(
+            local.endpoint.as_deref(),
+            Some("http://dynamodb-local:8000")
+        );
         // No endpoint → real AWS, default region.
         let aws = parse_dynamo_dsn("dynamodb://aws").unwrap();
         assert_eq!(aws.region, "us-east-1");
@@ -1156,9 +1157,18 @@ mod tests {
 
     #[test]
     fn json_to_attr_maps_each_scalar_type() {
-        assert!(matches!(json_to_attr(&Value::Null), AttributeValue::Null(true)));
-        assert!(matches!(json_to_attr(&json!(true)), AttributeValue::Bool(true)));
-        assert!(matches!(json_to_attr(&json!(false)), AttributeValue::Bool(false)));
+        assert!(matches!(
+            json_to_attr(&Value::Null),
+            AttributeValue::Null(true)
+        ));
+        assert!(matches!(
+            json_to_attr(&json!(true)),
+            AttributeValue::Bool(true)
+        ));
+        assert!(matches!(
+            json_to_attr(&json!(false)),
+            AttributeValue::Bool(false)
+        ));
         match json_to_attr(&json!("hello")) {
             AttributeValue::S(s) => assert_eq!(s, "hello"),
             _ => panic!("expected S"),
@@ -1230,7 +1240,10 @@ mod tests {
         // An S that parses as a scalar JSON (e.g. "42") stays a STRING — only
         // object/array forms are unwrapped.
         assert_eq!(attr_to_json(&AttributeValue::S("42".into())), json!("42"));
-        assert_eq!(attr_to_json(&AttributeValue::S("plain".into())), json!("plain"));
+        assert_eq!(
+            attr_to_json(&AttributeValue::S("plain".into())),
+            json!("plain")
+        );
     }
 
     #[test]
@@ -1252,7 +1265,14 @@ mod tests {
 
     #[test]
     fn json_attr_round_trips_every_scalar_both_ways() {
-        for v in [json!("s"), json!(""), json!(7), json!(-1), json!(true), Value::Null] {
+        for v in [
+            json!("s"),
+            json!(""),
+            json!(7),
+            json!(-1),
+            json!(true),
+            Value::Null,
+        ] {
             assert_eq!(attr_to_json(&json_to_attr(&v)), v, "round-trip {v}");
         }
     }
@@ -1285,7 +1305,10 @@ mod tests {
 
     #[test]
     fn percent_decode_handles_triples_and_passthrough() {
-        assert_eq!(percent_decode("http%3A%2F%2Fhost%3A8000"), "http://host:8000");
+        assert_eq!(
+            percent_decode("http%3A%2F%2Fhost%3A8000"),
+            "http://host:8000"
+        );
         assert_eq!(percent_decode("plain"), "plain");
         assert_eq!(percent_decode(""), "");
         // a lone % or truncated escape passes through unchanged (no panic).
@@ -1350,10 +1373,24 @@ mod tests {
 
     #[test]
     fn validate_resource_accepts_table_names_rejects_injection() {
-        for ok in ["users", "users-2024", "users.archive", "u_table", &"x".repeat(255)] {
+        for ok in [
+            "users",
+            "users-2024",
+            "users.archive",
+            "u_table",
+            &"x".repeat(255),
+        ] {
             assert!(validate_resource(ok).is_ok(), "should accept {ok:?}");
         }
-        for bad in ["", "users*", "a b", "x/y", "name?q", "users;DROP", &"x".repeat(256)] {
+        for bad in [
+            "",
+            "users*",
+            "a b",
+            "x/y",
+            "name?q",
+            "users;DROP",
+            &"x".repeat(256),
+        ] {
             assert!(validate_resource(bad).is_err(), "should reject {bad:?}");
         }
     }

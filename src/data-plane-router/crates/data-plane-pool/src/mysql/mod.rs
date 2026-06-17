@@ -36,16 +36,17 @@ pub(super) use crate::resolver::MountResolver;
 pub(super) use async_trait::async_trait;
 pub(super) use data_plane_core::{
     validate_default_expr, AggFunc, Aggregate, BatchItemOutcome, BatchItemStatus, BatchSummary,
-    ColumnSchema, DataOperation, DataOperationKind, DataPlaneError,
-    DataPlaneResult, DataResult, DatabaseMount, DdlColumnDef, EngineAdapter, EngineCapabilities,
-    EngineHealth, EnginePool, Filter, ForeignKeyRef, MigrationRequest, MigrationResult,
-    MigrationStatus, NormalizedType, RawStatement, RequestIdentity, SchemaDdlOp, SchemaDdlRequest,
-    SchemaDdlResult, SchemaDdlStatus, SchemaDescriptor, TableSchema,
-    TxBeginRequest, TxHandle,
+    ColumnSchema, DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, DataResult,
+    DatabaseMount, DdlColumnDef, EngineAdapter, EngineCapabilities, EngineHealth, EnginePool,
+    Filter, ForeignKeyRef, MigrationRequest, MigrationResult, MigrationStatus, NormalizedType,
+    RawStatement, RequestIdentity, SchemaDdlOp, SchemaDdlRequest, SchemaDdlResult, SchemaDdlStatus,
+    SchemaDescriptor, TableSchema, TxBeginRequest, TxHandle,
 };
 pub(super) use mysql_async::prelude::Queryable;
-pub(super) use mysql_async::{Conn, Opts, OptsBuilder, Params, Pool, PoolConstraints, PoolOpts, Row, TxOpts};
 pub(super) use mysql_async::{Column, Value as MysqlValue};
+pub(super) use mysql_async::{
+    Conn, Opts, OptsBuilder, Params, Pool, PoolConstraints, PoolOpts, Row, TxOpts,
+};
 pub(super) use serde_json::{Map as JsonMap, Value};
 pub(super) use std::collections::BTreeMap;
 pub(super) use std::sync::Arc;
@@ -88,9 +89,9 @@ use convert::{json_number_from_f64, json_to_mysql_value, mysql_value_to_json};
 #[cfg(test)]
 use error::{backend, classify_mysql_error, ddl_backend};
 #[cfg(test)]
-use scope::{build_order_by, build_owned_columns, build_owner_filter, build_safe_columns};
-#[cfg(test)]
 use schema::{build_mysql_ddl, mysql_sql_type, normalize_mysql_type};
+#[cfg(test)]
+use scope::{build_order_by, build_owned_columns, build_owner_filter, build_safe_columns};
 
 // ── unit tests (security-critical bits) ─────────────────────────────────────
 #[cfg(test)]
@@ -118,13 +119,24 @@ mod tests {
         let dup = classify_mysql_error("Duplicate column name 'status'".into(), true);
         assert!(matches!(dup, DataPlaneError::Conflict { .. }), "{dup:?}");
         let missing = classify_mysql_error(
-            "Can't DROP 'ghost'; check that column/key exists".into(), true);
-        assert!(matches!(missing, DataPlaneError::InvalidRequest { .. }), "{missing:?}");
+            "Can't DROP 'ghost'; check that column/key exists".into(),
+            true,
+        );
+        assert!(
+            matches!(missing, DataPlaneError::InvalidRequest { .. }),
+            "{missing:?}"
+        );
         let no_table = classify_mysql_error("Table 'ops.ghost' doesn't exist".into(), true);
-        assert!(matches!(no_table, DataPlaneError::InvalidRequest { .. }), "{no_table:?}");
+        assert!(
+            matches!(no_table, DataPlaneError::InvalidRequest { .. }),
+            "{no_table:?}"
+        );
         // The query (non-DDL) path keeps its existing Backend mapping.
         let query_path = classify_mysql_error("Unknown column 'x' in 'field list'".into(), false);
-        assert!(matches!(query_path, DataPlaneError::Backend { .. }), "{query_path:?}");
+        assert!(
+            matches!(query_path, DataPlaneError::Backend { .. }),
+            "{query_path:?}"
+        );
     }
 
     #[test]
@@ -157,13 +169,34 @@ mod tests {
         // The client filter is always parenthesized so the trusted `owner_id`
         // AND scopes the WHOLE predicate (the `$or` case is the security proof).
         let cases = [
-            (json!({ "age": { "$gte": 18 } }), " WHERE (`age` >= ?) AND `owner_id` = ?"),
-            (json!({ "status": { "$in": ["a", "b"] } }), " WHERE (`status` IN (?, ?)) AND `owner_id` = ?"),
-            (json!({ "n": { "$between": [1, 9] } }), " WHERE (`n` BETWEEN ? AND ?) AND `owner_id` = ?"),
-            (json!({ "x": { "$null": true } }), " WHERE (`x` IS NULL) AND `owner_id` = ?"),
-            (json!({ "name": { "$ilike": "a%" } }), " WHERE (LOWER(`name`) LIKE LOWER(?)) AND `owner_id` = ?"),
-            (json!({ "$or": [{ "a": 1 }, { "b": { "$lt": 5 } }] }), " WHERE ((`a` = ?) OR (`b` < ?)) AND `owner_id` = ?"),
-            (json!({ "name": "x" }), " WHERE (`name` = ?) AND `owner_id` = ?"), // equality still works
+            (
+                json!({ "age": { "$gte": 18 } }),
+                " WHERE (`age` >= ?) AND `owner_id` = ?",
+            ),
+            (
+                json!({ "status": { "$in": ["a", "b"] } }),
+                " WHERE (`status` IN (?, ?)) AND `owner_id` = ?",
+            ),
+            (
+                json!({ "n": { "$between": [1, 9] } }),
+                " WHERE (`n` BETWEEN ? AND ?) AND `owner_id` = ?",
+            ),
+            (
+                json!({ "x": { "$null": true } }),
+                " WHERE (`x` IS NULL) AND `owner_id` = ?",
+            ),
+            (
+                json!({ "name": { "$ilike": "a%" } }),
+                " WHERE (LOWER(`name`) LIKE LOWER(?)) AND `owner_id` = ?",
+            ),
+            (
+                json!({ "$or": [{ "a": 1 }, { "b": { "$lt": 5 } }] }),
+                " WHERE ((`a` = ?) OR (`b` < ?)) AND `owner_id` = ?",
+            ),
+            (
+                json!({ "name": "x" }),
+                " WHERE (`name` = ?) AND `owner_id` = ?",
+            ), // equality still works
         ];
         for (filter, expected) in cases {
             let (sql, _) = build_owner_filter(Some(&filter), &id).unwrap();
@@ -175,7 +208,10 @@ mod tests {
     fn owner_filter_rejects_unknown_operator() {
         let id = identity_with(Some("u-1"));
         let err = build_owner_filter(Some(&json!({ "a": { "$drop": 1 } })), &id).unwrap_err();
-        assert!(matches!(err, DataPlaneError::InvalidRequest { .. }), "{err:?}");
+        assert!(
+            matches!(err, DataPlaneError::InvalidRequest { .. }),
+            "{err:?}"
+        );
     }
 
     #[test]
@@ -191,12 +227,16 @@ mod tests {
             let err =
                 crate::sql_scope::guard_constraining_filter(filter.as_ref(), &RESERVED_COLUMNS)
                     .unwrap_err();
-            assert!(matches!(err, DataPlaneError::InvalidRequest { .. }), "{filter:?}: {err:?}");
+            assert!(
+                matches!(err, DataPlaneError::InvalidRequest { .. }),
+                "{filter:?}: {err:?}"
+            );
         }
-        assert!(
-            crate::sql_scope::guard_constraining_filter(Some(&json!({ "id": 1 })), &RESERVED_COLUMNS)
-                .is_ok()
-        );
+        assert!(crate::sql_scope::guard_constraining_filter(
+            Some(&json!({ "id": 1 })),
+            &RESERVED_COLUMNS
+        )
+        .is_ok());
     }
 
     #[test]
@@ -248,7 +288,10 @@ mod tests {
             .map(|(_, v)| v)
             .collect();
         assert_eq!(owner_occurrences.len(), 1);
-        assert_eq!(owner_occurrences[0], &Value::String("u-trusted".to_string()));
+        assert_eq!(
+            owner_occurrences[0],
+            &Value::String("u-trusted".to_string())
+        );
     }
 
     #[test]
@@ -287,7 +330,10 @@ mod tests {
 
     #[test]
     fn json_to_mysql_value_handles_scalars() {
-        assert!(matches!(json_to_mysql_value(&Value::Null), MysqlValue::NULL));
+        assert!(matches!(
+            json_to_mysql_value(&Value::Null),
+            MysqlValue::NULL
+        ));
         assert!(matches!(
             json_to_mysql_value(&json!(42)),
             MysqlValue::Int(42)
@@ -451,10 +497,17 @@ mod tests {
             (N::Uuid, "CHAR(36)"),
             (N::Array, "JSON"),
         ] {
-            assert_eq!(mysql_sql_type(&col("c", ty), false).unwrap(), expected, "{ty:?}");
+            assert_eq!(
+                mysql_sql_type(&col("c", ty), false).unwrap(),
+                expected,
+                "{ty:?}"
+            );
         }
         // text inside a PRIMARY KEY needs a bounded type.
-        assert_eq!(mysql_sql_type(&col("c", N::Text), true).unwrap(), "VARCHAR(255)");
+        assert_eq!(
+            mysql_sql_type(&col("c", N::Text), true).unwrap(),
+            "VARCHAR(255)"
+        );
         // enum values are escaped literals (quote doubled, backslash escaped).
         let mut status = col("status", N::Enum);
         status.enum_values = Some(vec!["pending".into(), "it's".into(), "a\\b".into()]);
@@ -587,23 +640,47 @@ mod tests {
             );
         }
         // Integrity violations stay Conflict on BOTH paths (pre-existing).
-        for msg in ["Duplicate entry 'x' for key 'PRIMARY'", "a foreign key constraint fails"] {
-            assert!(matches!(backend(msg), DataPlaneError::Conflict { .. }), "{msg}");
-            assert!(matches!(ddl_backend(msg), DataPlaneError::Conflict { .. }), "{msg}");
+        for msg in [
+            "Duplicate entry 'x' for key 'PRIMARY'",
+            "a foreign key constraint fails",
+        ] {
+            assert!(
+                matches!(backend(msg), DataPlaneError::Conflict { .. }),
+                "{msg}"
+            );
+            assert!(
+                matches!(ddl_backend(msg), DataPlaneError::Conflict { .. }),
+                "{msg}"
+            );
         }
         // Anything else is a Backend error on both paths.
-        assert!(matches!(ddl_backend("connection reset"), DataPlaneError::Backend { .. }));
+        assert!(matches!(
+            ddl_backend("connection reset"),
+            DataPlaneError::Backend { .. }
+        ));
     }
 
     // ── value conversion: json_to_mysql_value (every JSON type) ──────────────
 
     #[test]
     fn json_to_mysql_value_null_bool_int() {
-        assert!(matches!(json_to_mysql_value(&Value::Null), MysqlValue::NULL));
-        assert!(matches!(json_to_mysql_value(&json!(true)), MysqlValue::Int(1)));
-        assert!(matches!(json_to_mysql_value(&json!(false)), MysqlValue::Int(0)));
+        assert!(matches!(
+            json_to_mysql_value(&Value::Null),
+            MysqlValue::NULL
+        ));
+        assert!(matches!(
+            json_to_mysql_value(&json!(true)),
+            MysqlValue::Int(1)
+        ));
+        assert!(matches!(
+            json_to_mysql_value(&json!(false)),
+            MysqlValue::Int(0)
+        ));
         assert!(matches!(json_to_mysql_value(&json!(0)), MysqlValue::Int(0)));
-        assert!(matches!(json_to_mysql_value(&json!(-99)), MysqlValue::Int(-99)));
+        assert!(matches!(
+            json_to_mysql_value(&json!(-99)),
+            MysqlValue::Int(-99)
+        ));
     }
 
     #[test]
@@ -636,7 +713,11 @@ mod tests {
 
     #[test]
     fn json_to_mysql_value_floats_use_double() {
-        for (v, want) in [(json!(3.5), 3.5_f64), (json!(-2.5e9), -2.5e9), (json!(0.5), 0.5)] {
+        for (v, want) in [
+            (json!(3.5), 3.5_f64),
+            (json!(-2.5e9), -2.5e9),
+            (json!(0.5), 0.5),
+        ] {
             assert!(
                 matches!(json_to_mysql_value(&v), MysqlValue::Double(d) if d == want),
                 "value {v}"
@@ -749,10 +830,7 @@ mod tests {
     #[test]
     fn quote_mysql_ident_backticks_plain_and_schema_qualified() {
         assert_eq!(quote_mysql_ident("users").unwrap(), "`users`");
-        assert_eq!(
-            quote_mysql_ident("ops.orders").unwrap(),
-            "`ops`.`orders`"
-        );
+        assert_eq!(quote_mysql_ident("ops.orders").unwrap(), "`ops`.`orders`");
         assert_eq!(quote_mysql_ident("_underscore1").unwrap(), "`_underscore1`");
     }
 
@@ -761,13 +839,13 @@ mod tests {
         for bad in [
             "",
             "users; DROP TABLE x",
-            "a.b.c",       // > 1 qualifier
-            "1abc",        // leading digit
-            "us`er",       // embedded backtick
-            "u-v",         // hyphen
-            "a b",         // space
+            "a.b.c", // > 1 qualifier
+            "1abc",  // leading digit
+            "us`er", // embedded backtick
+            "u-v",   // hyphen
+            "a b",   // space
             "tbl;--",
-            "naïve",       // non-ASCII (the ident allowlist is ASCII-only)
+            "naïve",         // non-ASCII (the ident allowlist is ASCII-only)
             &"a".repeat(64), // segment over 63 chars
         ] {
             assert!(quote_mysql_ident(bad).is_err(), "should reject {bad:?}");
@@ -804,11 +882,17 @@ mod tests {
             "Incorrect integer value: 'abc' for column 'n'",
         ] {
             assert!(
-                matches!(classify_mysql_error(msg.into(), false), DataPlaneError::Conflict { .. }),
+                matches!(
+                    classify_mysql_error(msg.into(), false),
+                    DataPlaneError::Conflict { .. }
+                ),
                 "query path: {msg}"
             );
             assert!(
-                matches!(classify_mysql_error(msg.into(), true), DataPlaneError::Conflict { .. }),
+                matches!(
+                    classify_mysql_error(msg.into(), true),
+                    DataPlaneError::Conflict { .. }
+                ),
                 "ddl path: {msg}"
             );
         }
@@ -818,7 +902,10 @@ mod tests {
     fn classify_ddl_only_shape_errors_split_by_path() {
         // "duplicate column name" / "already exists" → Conflict, but ONLY on the
         // DDL path; the query path falls through to Backend.
-        for msg in ["Duplicate column name 'status'", "Table 'ops.t' already exists"] {
+        for msg in [
+            "Duplicate column name 'status'",
+            "Table 'ops.t' already exists",
+        ] {
             assert!(matches!(
                 classify_mysql_error(msg.into(), true),
                 DataPlaneError::Conflict { .. }

@@ -236,7 +236,12 @@ mod tests {
 
     #[test]
     fn effective_pool_key_off_is_byte_identical_to_pool_key() {
-        for iso in [None, Some("shared_rls"), Some("schema_per_tenant"), Some("db_per_tenant")] {
+        for iso in [
+            None,
+            Some("shared_rls"),
+            Some("schema_per_tenant"),
+            Some("db_per_tenant"),
+        ] {
             let m = mount("acme", iso);
             assert_eq!(m.effective_pool_key(false), m.pool_key());
         }
@@ -273,7 +278,11 @@ mod tests {
     #[test]
     fn non_shared_rls_never_shares_even_when_enabled() {
         // schema_per_tenant and db_per_tenant keep per-tenant pools regardless.
-        for iso in [Some("schema_per_tenant"), Some("db_per_tenant"), Some("tenant_owned")] {
+        for iso in [
+            Some("schema_per_tenant"),
+            Some("db_per_tenant"),
+            Some("tenant_owned"),
+        ] {
             let a = mount("tenant-a", iso);
             let b = mount("tenant-b", iso);
             assert_ne!(
@@ -307,12 +316,20 @@ mod tests {
             safe_schema("acme")
         );
         // slugs / uuids with separators sanitize to underscores
-        let s = mount("t-Acme_2", Some("schema_per_tenant")).tenant_schema().unwrap();
-        assert!(s.starts_with("tenant_t_acme_2_"), "{s}");
-        let s = mount("00000000-0000-4000-8000-000000000003", Some("schema_per_tenant"))
+        let s = mount("t-Acme_2", Some("schema_per_tenant"))
             .tenant_schema()
             .unwrap();
-        assert!(s.starts_with("tenant_00000000_0000_4000_8000_000000000003_"), "{s}");
+        assert!(s.starts_with("tenant_t_acme_2_"), "{s}");
+        let s = mount(
+            "00000000-0000-4000-8000-000000000003",
+            Some("schema_per_tenant"),
+        )
+        .tenant_schema()
+        .unwrap();
+        assert!(
+            s.starts_with("tenant_00000000_0000_4000_8000_000000000003_"),
+            "{s}"
+        );
     }
 
     #[test]
@@ -326,7 +343,10 @@ mod tests {
 
     #[test]
     fn empty_after_sanitize_is_none() {
-        assert_eq!(mount("---", Some("schema_per_tenant")).tenant_schema(), None);
+        assert_eq!(
+            mount("---", Some("schema_per_tenant")).tenant_schema(),
+            None
+        );
     }
 
     #[test]
@@ -337,7 +357,11 @@ mod tests {
         // separate pools pointing at one schema — a leak. Both axes must differ.
         let a = mount("t-acme", Some("schema_per_tenant"));
         let b = mount("t.acme", Some("schema_per_tenant"));
-        assert_ne!(a.pool_key(), b.pool_key(), "distinct tenants → distinct pool_key");
+        assert_ne!(
+            a.pool_key(),
+            b.pool_key(),
+            "distinct tenants → distinct pool_key"
+        );
         assert_ne!(
             a.tenant_schema(),
             b.tenant_schema(),
@@ -353,7 +377,10 @@ mod tests {
     fn read_replica_variant_none_when_no_replica_dsn() {
         // (a) No replica DSN configured ⇒ no variant; the caller uses the primary
         // mount unchanged = parity. Whitespace-only is treated as absent too.
-        assert_eq!(mount("acme", Some("shared_rls")).read_replica_variant(), None);
+        assert_eq!(
+            mount("acme", Some("shared_rls")).read_replica_variant(),
+            None
+        );
         let mut blank = mount("acme", Some("shared_rls"));
         blank.replica_inline_dsn = Some("   ".into());
         assert_eq!(blank.read_replica_variant(), None);
@@ -379,9 +406,15 @@ mod tests {
             let mut primary = mount("acme", Some("shared_rls"));
             primary.inline_dsn = Some("postgres://primary/db".into());
             primary.replica_inline_dsn = Some("postgres://replica/db".into());
-            let variant = primary.clone().read_replica_variant().expect("variant present");
+            let variant = primary
+                .clone()
+                .read_replica_variant()
+                .expect("variant present");
             let pk = variant.effective_pool_key(share);
-            assert!(pk.ends_with("/ro"), "share={share}: replica key must end with /ro: {pk}");
+            assert!(
+                pk.ends_with("/ro"),
+                "share={share}: replica key must end with /ro: {pk}"
+            );
             assert_ne!(
                 primary.effective_pool_key(share),
                 pk,
@@ -400,7 +433,10 @@ mod tests {
         // clone for the variant so the ORIGINAL `m` survives for the round-trip
         // assertion below (read_replica_variant consumes self).
         let variant = m.clone().read_replica_variant().expect("variant present");
-        assert!(variant.read_replica_route, "the variant carries the marker in-memory");
+        assert!(
+            variant.read_replica_route,
+            "the variant carries the marker in-memory"
+        );
         let json = serde_json::to_string(&variant).unwrap();
         assert!(
             !json.contains("read_replica_route"),
@@ -408,7 +444,10 @@ mod tests {
         );
         // replica_inline_dsn round-trips and the deserialized marker defaults false.
         let back: DatabaseMount = serde_json::from_str(&json).unwrap();
-        assert!(!back.read_replica_route, "marker defaults false on the wire");
+        assert!(
+            !back.read_replica_route,
+            "marker defaults false on the wire"
+        );
         let primary_json = serde_json::to_string(&m).unwrap();
         let back2: DatabaseMount = serde_json::from_str(&primary_json).unwrap();
         assert_eq!(

@@ -236,9 +236,16 @@ impl OutboxEmitter {
         result: &DataResult,
         idempotency_key: Option<&str>,
     ) -> Result<(), String> {
-        let Some(row) =
-            OutboxRow::build(engine, identity, op, resource, data, filter, result, idempotency_key)
-        else {
+        let Some(row) = OutboxRow::build(
+            engine,
+            identity,
+            op,
+            resource,
+            data,
+            filter,
+            result,
+            idempotency_key,
+        ) else {
             return Ok(());
         };
         self.write_rows(&[row]).await.map(|_| ())
@@ -270,16 +277,26 @@ impl BackgroundOutbox {
         result: &DataResult,
         idempotency_key: Option<&str>,
     ) {
-        let Some(row) =
-            OutboxRow::build(engine, identity, op, resource, data, filter, result, idempotency_key)
-        else {
+        let Some(row) = OutboxRow::build(
+            engine,
+            identity,
+            op,
+            resource,
+            data,
+            filter,
+            result,
+            idempotency_key,
+        ) else {
             return;
         };
         match self.tx.try_send(row) {
             Ok(()) => self.metrics.record_outbox_enqueued(),
             Err(mpsc::error::TrySendError::Full(_)) => {
                 self.metrics.record_outbox_dropped();
-                tracing::warn!(resource, "outbox queue full — event dropped (worker behind)");
+                tracing::warn!(
+                    resource,
+                    "outbox queue full — event dropped (worker behind)"
+                );
             }
             Err(mpsc::error::TrySendError::Closed(_)) => {
                 self.metrics.record_outbox_dropped();
@@ -398,15 +415,9 @@ mod tests {
     fn aggregate_id_precedence_row_then_data_then_filter() {
         let empty = empty_result();
         // falls through to data.id
-        assert_eq!(
-            aggregate_id(&empty, Some(&json!({"id": 42})), None),
-            "42"
-        );
+        assert_eq!(aggregate_id(&empty, Some(&json!({"id": 42})), None), "42");
         // then filter.id
-        assert_eq!(
-            aggregate_id(&empty, None, Some(&json!({"id": "f"}))),
-            "f"
-        );
+        assert_eq!(aggregate_id(&empty, None, Some(&json!({"id": "f"}))), "f");
         // nothing → "unknown"
         assert_eq!(aggregate_id(&empty, None, None), "unknown");
     }

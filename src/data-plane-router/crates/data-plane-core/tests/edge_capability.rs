@@ -134,27 +134,45 @@ fn aggregate_tracks_the_aggregate_flag() {
 #[test]
 fn introspect_flag_does_not_affect_supports_op() {
     let mut caps = EngineCapabilities::redis();
-    let before: Vec<_> = DataOperationKind::ALL.iter().map(|k| caps.supports_op(k)).collect();
+    let before: Vec<_> = DataOperationKind::ALL
+        .iter()
+        .map(|k| caps.supports_op(k))
+        .collect();
     caps.introspect = !caps.introspect;
-    let after: Vec<_> = DataOperationKind::ALL.iter().map(|k| caps.supports_op(k)).collect();
+    let after: Vec<_> = DataOperationKind::ALL
+        .iter()
+        .map(|k| caps.supports_op(k))
+        .collect();
     assert_eq!(before, after);
 }
 
 #[test]
 fn schema_ddl_flag_does_not_affect_supports_op() {
     let mut caps = EngineCapabilities::mongodb();
-    let before: Vec<_> = DataOperationKind::ALL.iter().map(|k| caps.supports_op(k)).collect();
+    let before: Vec<_> = DataOperationKind::ALL
+        .iter()
+        .map(|k| caps.supports_op(k))
+        .collect();
     caps.schema_ddl = !caps.schema_ddl;
-    let after: Vec<_> = DataOperationKind::ALL.iter().map(|k| caps.supports_op(k)).collect();
+    let after: Vec<_> = DataOperationKind::ALL
+        .iter()
+        .map(|k| caps.supports_op(k))
+        .collect();
     assert_eq!(before, after);
 }
 
 #[test]
 fn ddl_flag_does_not_affect_supports_op() {
     let mut caps = EngineCapabilities::postgresql();
-    let before: Vec<_> = DataOperationKind::ALL.iter().map(|k| caps.supports_op(k)).collect();
+    let before: Vec<_> = DataOperationKind::ALL
+        .iter()
+        .map(|k| caps.supports_op(k))
+        .collect();
     caps.ddl = !caps.ddl;
-    let after: Vec<_> = DataOperationKind::ALL.iter().map(|k| caps.supports_op(k)).collect();
+    let after: Vec<_> = DataOperationKind::ALL
+        .iter()
+        .map(|k| caps.supports_op(k))
+        .collect();
     assert_eq!(before, after);
 }
 
@@ -283,8 +301,14 @@ fn isolation_levels_per_engine() {
         EngineCapabilities::postgresql().isolation_levels,
         vec![ReadCommitted, RepeatableRead, Serializable]
     );
-    assert_eq!(EngineCapabilities::mongodb().isolation_levels, vec![Snapshot]);
-    assert_eq!(EngineCapabilities::dynamodb().isolation_levels, vec![Serializable]);
+    assert_eq!(
+        EngineCapabilities::mongodb().isolation_levels,
+        vec![Snapshot]
+    );
+    assert_eq!(
+        EngineCapabilities::dynamodb().isolation_levels,
+        vec![Serializable]
+    );
     assert!(EngineCapabilities::sqlite().isolation_levels.is_empty());
     assert!(EngineCapabilities::redis().isolation_levels.is_empty());
     assert!(EngineCapabilities::http().isolation_levels.is_empty());
@@ -307,25 +331,55 @@ fn mariadb_is_identical_to_mysql() {
 
 #[test]
 fn cost_latency_class_per_engine() {
-    assert_eq!(EngineCapabilities::postgresql().cost.latency_class, LatencyClass::Native);
-    assert_eq!(EngineCapabilities::dynamodb().cost.latency_class, LatencyClass::Native);
-    assert_eq!(EngineCapabilities::http().cost.latency_class, LatencyClass::Remote);
+    assert_eq!(
+        EngineCapabilities::postgresql().cost.latency_class,
+        LatencyClass::Native
+    );
+    assert_eq!(
+        EngineCapabilities::dynamodb().cost.latency_class,
+        LatencyClass::Native
+    );
+    assert_eq!(
+        EngineCapabilities::http().cost.latency_class,
+        LatencyClass::Remote
+    );
 }
 
 #[test]
 fn cost_pattern_search_per_engine() {
-    assert_eq!(EngineCapabilities::postgresql().cost.pattern_search, PatternSearchCapability::Native);
-    assert_eq!(EngineCapabilities::mysql().cost.pattern_search, PatternSearchCapability::Indexed);
-    assert_eq!(EngineCapabilities::redis().cost.pattern_search, PatternSearchCapability::Scan);
-    assert_eq!(EngineCapabilities::http().cost.pattern_search, PatternSearchCapability::Remote);
+    assert_eq!(
+        EngineCapabilities::postgresql().cost.pattern_search,
+        PatternSearchCapability::Native
+    );
+    assert_eq!(
+        EngineCapabilities::mysql().cost.pattern_search,
+        PatternSearchCapability::Indexed
+    );
+    assert_eq!(
+        EngineCapabilities::redis().cost.pattern_search,
+        PatternSearchCapability::Scan
+    );
+    assert_eq!(
+        EngineCapabilities::http().cost.pattern_search,
+        PatternSearchCapability::Remote
+    );
 }
 
 #[test]
 fn cost_joins_per_engine() {
-    assert_eq!(EngineCapabilities::postgresql().cost.joins, JoinCapability::Native);
-    assert_eq!(EngineCapabilities::mongodb().cost.joins, JoinCapability::Limited);
+    assert_eq!(
+        EngineCapabilities::postgresql().cost.joins,
+        JoinCapability::Native
+    );
+    assert_eq!(
+        EngineCapabilities::mongodb().cost.joins,
+        JoinCapability::Limited
+    );
     assert_eq!(EngineCapabilities::redis().cost.joins, JoinCapability::None);
-    assert_eq!(EngineCapabilities::dynamodb().cost.joins, JoinCapability::None);
+    assert_eq!(
+        EngineCapabilities::dynamodb().cost.joins,
+        JoinCapability::None
+    );
 }
 
 // ── serde wire back-compat ────────────────────────────────────────────────────
@@ -422,10 +476,22 @@ fn iso_mount(engine: &str, tenant: &str, iso: Option<&str>) -> DatabaseMount {
 
 #[test]
 fn from_mount_known_values() {
-    assert_eq!(Isolation::from_mount(Some("shared_rls")), Isolation::SharedRls);
-    assert_eq!(Isolation::from_mount(Some("schema_per_tenant")), Isolation::SchemaPerTenant);
-    assert_eq!(Isolation::from_mount(Some("db_per_tenant")), Isolation::DbPerTenant);
-    assert_eq!(Isolation::from_mount(Some("tenant_owned")), Isolation::TenantOwned);
+    assert_eq!(
+        Isolation::from_mount(Some("shared_rls")),
+        Isolation::SharedRls
+    );
+    assert_eq!(
+        Isolation::from_mount(Some("schema_per_tenant")),
+        Isolation::SchemaPerTenant
+    );
+    assert_eq!(
+        Isolation::from_mount(Some("db_per_tenant")),
+        Isolation::DbPerTenant
+    );
+    assert_eq!(
+        Isolation::from_mount(Some("tenant_owned")),
+        Isolation::TenantOwned
+    );
 }
 
 #[test]
@@ -433,21 +499,39 @@ fn from_mount_none_and_empty_and_unknown_all_shared_rls() {
     assert_eq!(Isolation::from_mount(None), Isolation::SharedRls);
     assert_eq!(Isolation::from_mount(Some("")), Isolation::SharedRls);
     assert_eq!(Isolation::from_mount(Some("   ")), Isolation::SharedRls);
-    assert_eq!(Isolation::from_mount(Some("nonsense")), Isolation::SharedRls);
+    assert_eq!(
+        Isolation::from_mount(Some("nonsense")),
+        Isolation::SharedRls
+    );
 }
 
 #[test]
 fn from_mount_is_case_sensitive() {
     // Uppercase variants are NOT recognized → degrade to default.
-    assert_eq!(Isolation::from_mount(Some("SCHEMA_PER_TENANT")), Isolation::SharedRls);
-    assert_eq!(Isolation::from_mount(Some("Tenant_Owned")), Isolation::SharedRls);
+    assert_eq!(
+        Isolation::from_mount(Some("SCHEMA_PER_TENANT")),
+        Isolation::SharedRls
+    );
+    assert_eq!(
+        Isolation::from_mount(Some("Tenant_Owned")),
+        Isolation::SharedRls
+    );
 }
 
 #[test]
 fn from_mount_trims_whitespace_around_known_values() {
-    assert_eq!(Isolation::from_mount(Some(" schema_per_tenant ")), Isolation::SchemaPerTenant);
-    assert_eq!(Isolation::from_mount(Some("\tdb_per_tenant\n")), Isolation::DbPerTenant);
-    assert_eq!(Isolation::from_mount(Some(" tenant_owned ")), Isolation::TenantOwned);
+    assert_eq!(
+        Isolation::from_mount(Some(" schema_per_tenant ")),
+        Isolation::SchemaPerTenant
+    );
+    assert_eq!(
+        Isolation::from_mount(Some("\tdb_per_tenant\n")),
+        Isolation::DbPerTenant
+    );
+    assert_eq!(
+        Isolation::from_mount(Some(" tenant_owned ")),
+        Isolation::TenantOwned
+    );
 }
 
 #[test]
@@ -466,9 +550,21 @@ fn owner_scoped_true_for_all_but_tenant_owned() {
 #[test]
 fn scope_shared_rls_is_none_on_every_engine() {
     let id = test_identity();
-    for engine in ["postgresql", "mysql", "mongodb", "redis", "http", "dynamodb", "weird"] {
+    for engine in [
+        "postgresql",
+        "mysql",
+        "mongodb",
+        "redis",
+        "http",
+        "dynamodb",
+        "weird",
+    ] {
         let m = iso_mount(engine, "acme", Some("shared_rls"));
-        assert_eq!(Isolation::SharedRls.scope(&m, &id), ScopeDirective::None, "{engine}");
+        assert_eq!(
+            Isolation::SharedRls.scope(&m, &id),
+            ScopeDirective::None,
+            "{engine}"
+        );
     }
 }
 
@@ -477,7 +573,11 @@ fn scope_db_per_tenant_is_none_on_every_engine() {
     let id = test_identity();
     for engine in ["postgresql", "mysql", "mongodb", "redis", "http"] {
         let m = iso_mount(engine, "acme", Some("db_per_tenant"));
-        assert_eq!(Isolation::DbPerTenant.scope(&m, &id), ScopeDirective::None, "{engine}");
+        assert_eq!(
+            Isolation::DbPerTenant.scope(&m, &id),
+            ScopeDirective::None,
+            "{engine}"
+        );
     }
 }
 
@@ -486,7 +586,11 @@ fn scope_tenant_owned_is_none_on_every_engine() {
     let id = test_identity();
     for engine in ["postgresql", "mysql", "mongodb"] {
         let m = iso_mount(engine, "acme", Some("tenant_owned"));
-        assert_eq!(Isolation::TenantOwned.scope(&m, &id), ScopeDirective::None, "{engine}");
+        assert_eq!(
+            Isolation::TenantOwned.scope(&m, &id),
+            ScopeDirective::None,
+            "{engine}"
+        );
     }
 }
 
@@ -509,7 +613,9 @@ fn scope_schema_per_tenant_namespace_engines_use_namespace() {
         let m = iso_mount(engine, "acme", Some("schema_per_tenant"));
         assert_eq!(
             Isolation::SchemaPerTenant.scope(&m, &id),
-            ScopeDirective::UseNamespace { namespace: expected.clone() },
+            ScopeDirective::UseNamespace {
+                namespace: expected.clone()
+            },
             "{engine}"
         );
     }
@@ -520,7 +626,11 @@ fn scope_schema_per_tenant_unscoped_engines_are_none() {
     let id = test_identity();
     for engine in ["http", "weirddb", "cassandra", ""] {
         let m = iso_mount(engine, "acme", Some("schema_per_tenant"));
-        assert_eq!(Isolation::SchemaPerTenant.scope(&m, &id), ScopeDirective::None, "{engine}");
+        assert_eq!(
+            Isolation::SchemaPerTenant.scope(&m, &id),
+            ScopeDirective::None,
+            "{engine}"
+        );
     }
 }
 
@@ -529,7 +639,11 @@ fn scope_schema_per_tenant_empty_tenant_degrades_to_none() {
     let id = test_identity();
     for engine in ["postgresql", "mongodb", "redis"] {
         let m = iso_mount(engine, "---", Some("schema_per_tenant"));
-        assert_eq!(Isolation::SchemaPerTenant.scope(&m, &id), ScopeDirective::None, "{engine}");
+        assert_eq!(
+            Isolation::SchemaPerTenant.scope(&m, &id),
+            ScopeDirective::None,
+            "{engine}"
+        );
     }
 }
 
@@ -542,7 +656,9 @@ fn scope_does_not_consume_identity_content() {
     id.tenant_id = "someone-else".into();
     assert_eq!(
         Isolation::SchemaPerTenant.scope(&m, &id),
-        ScopeDirective::SetSearchPath { schema: safe_schema("acme").unwrap() }
+        ScopeDirective::SetSearchPath {
+            schema: safe_schema("acme").unwrap()
+        }
     );
 }
 
@@ -572,15 +688,26 @@ fn safe_schema_separators_become_underscores() {
 #[test]
 fn safe_schema_uuid_form() {
     let s = safe_schema("00000000-0000-4000-8000-000000000003").unwrap();
-    assert!(s.starts_with("tenant_00000000_0000_4000_8000_000000000003_"), "{s}");
+    assert!(
+        s.starts_with("tenant_00000000_0000_4000_8000_000000000003_"),
+        "{s}"
+    );
     assert_hash8_suffix(&s);
 }
 
 #[test]
 fn safe_schema_only_alnum_and_underscore_in_output() {
-    for raw in ["a; DROP SCHEMA public; --", "user@host:5432/db?x=1", "../../etc/passwd", "tab\tnewline\n"] {
+    for raw in [
+        "a; DROP SCHEMA public; --",
+        "user@host:5432/db?x=1",
+        "../../etc/passwd",
+        "tab\tnewline\n",
+    ] {
         if let Some(s) = safe_schema(raw) {
-            assert!(s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'), "raw={raw:?} -> {s}");
+            assert!(
+                s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
+                "raw={raw:?} -> {s}"
+            );
         }
     }
 }
@@ -598,7 +725,10 @@ fn safe_schema_empty_inputs_are_none() {
 fn safe_schema_all_non_ascii_is_none() {
     // Every byte maps to `_`, trimmed to empty → None.
     assert_eq!(safe_schema("名前"), None);
-    assert_eq!(safe_schema("émojî"), Some("tenant_moj_".to_string() + &hash_of("émojî")));
+    assert_eq!(
+        safe_schema("émojî"),
+        Some("tenant_moj_".to_string() + &hash_of("émojî"))
+    );
 }
 
 #[test]
@@ -669,7 +799,8 @@ fn assert_hash8_suffix(s: &str) {
     let hash = s.rsplit('_').next().unwrap();
     assert_eq!(hash.len(), 8, "hash suffix is 8 chars: {s}");
     assert!(
-        hash.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+        hash.chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
         "lowercase hex suffix: {s}"
     );
 }

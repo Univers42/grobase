@@ -231,8 +231,14 @@ mod tests {
         assert!(!is_valid_segment("abc", 2, b""), "over max_len rejected");
         assert!(is_valid_segment("abc", 3, b""), "exactly max_len ok");
         // extra-allowed bytes broaden the set.
-        assert!(!is_valid_segment("a-b", 10, b""), "hyphen not allowed by default");
-        assert!(is_valid_segment("a-b", 10, b"-"), "hyphen allowed when in extra");
+        assert!(
+            !is_valid_segment("a-b", 10, b""),
+            "hyphen not allowed by default"
+        );
+        assert!(
+            is_valid_segment("a-b", 10, b"-"),
+            "hyphen allowed when in extra"
+        );
         assert!(is_valid_segment("a:b", 10, b":"));
         // disallowed everywhere: spaces, control, punctuation.
         assert!(!is_valid_segment("a b", 10, b"-:"));
@@ -362,7 +368,12 @@ mod tests {
     #[test]
     fn value_to_hash_string_then_back_round_trips_via_hash_to_row() {
         // A composite written then read reconstructs the same JSON.
-        for v in [json!({ "a": [1, 2] }), json!([true, null]), json!(7), json!("x")] {
+        for v in [
+            json!({ "a": [1, 2] }),
+            json!([true, null]),
+            json!(7),
+            json!("x"),
+        ] {
             let stored = value_to_hash_string(&v);
             let mut h = std::collections::HashMap::new();
             h.insert("f".to_string(), stored);
@@ -381,7 +392,10 @@ mod tests {
         let (ms, hex) = id.split_once('-').expect("id has a '-' separator");
         assert!(ms.chars().all(|c| c.is_ascii_digit()), "ms part: {ms}");
         assert_eq!(hex.len(), 8, "8 hex chars: {hex}");
-        assert!(hex.chars().all(|c| c.is_ascii_hexdigit()), "hex part: {hex}");
+        assert!(
+            hex.chars().all(|c| c.is_ascii_hexdigit()),
+            "hex part: {hex}"
+        );
         // A generated id always passes validate_id (the envelope contract).
         assert!(validate_id(&id).is_ok(), "generated id must be valid: {id}");
     }
@@ -427,7 +441,10 @@ mod tests {
     #[test]
     fn split_id_data_rejects_array_id() {
         let err = split_id_data(&op_with(json!({ "id": [1, 2] }), None), false).unwrap_err();
-        assert!(matches!(err, DataPlaneError::InvalidRequest { .. }), "{err:?}");
+        assert!(
+            matches!(err, DataPlaneError::InvalidRequest { .. }),
+            "{err:?}"
+        );
     }
 
     #[test]
@@ -441,7 +458,10 @@ mod tests {
     fn split_id_data_validates_the_extracted_id() {
         // An id with a forbidden char (space) is rejected by validate_id.
         let err = split_id_data(&op_with(json!({ "id": "bad id" }), None), false).unwrap_err();
-        assert!(matches!(err, DataPlaneError::InvalidIdentifier { .. }), "{err:?}");
+        assert!(
+            matches!(err, DataPlaneError::InvalidIdentifier { .. }),
+            "{err:?}"
+        );
     }
 
     #[test]

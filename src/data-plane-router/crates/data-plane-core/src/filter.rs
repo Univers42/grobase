@@ -64,15 +64,33 @@ pub enum Filter {
     Or(Vec<Filter>),
     Not(Box<Filter>),
     /// `field <op> value`
-    Cmp { field: String, op: CmpOp, value: Value },
+    Cmp {
+        field: String,
+        op: CmpOp,
+        value: Value,
+    },
     /// `field IN (values…)` — empty list matches nothing
-    In { field: String, values: Vec<Value> },
+    In {
+        field: String,
+        values: Vec<Value>,
+    },
     /// SQL `LIKE` (`ci=false`) / case-insensitive (`ci=true`, → `ILIKE`/`LOWER`)
-    Like { field: String, pattern: Value, ci: bool },
+    Like {
+        field: String,
+        pattern: Value,
+        ci: bool,
+    },
     /// `field BETWEEN low AND high`
-    Between { field: String, low: Value, high: Value },
+    Between {
+        field: String,
+        low: Value,
+        high: Value,
+    },
     /// `field IS NULL` (`negate=false`) / `IS NOT NULL` (`negate=true`)
-    IsNull { field: String, negate: bool },
+    IsNull {
+        field: String,
+        negate: bool,
+    },
 }
 
 fn invalid(message: impl Into<String>) -> DataPlaneError {
@@ -142,8 +160,7 @@ impl Filter {
             Filter::Or(parts) => {
                 if parts.iter().any(|p| p.fold() == Folded::AlwaysTrue) {
                     Folded::AlwaysTrue // OR with TRUE = TRUE
-                } else if parts.is_empty()
-                    || parts.iter().all(|p| p.fold() == Folded::AlwaysFalse)
+                } else if parts.is_empty() || parts.iter().all(|p| p.fold() == Folded::AlwaysFalse)
                 {
                     Folded::AlwaysFalse // empty OR, or all-false children
                 } else {
@@ -236,7 +253,9 @@ fn parse_operator(col: &str, op: &str, opval: &Value) -> Result<Filter, DataPlan
                 return Err(invalid("`$between` expects `[low, high]`"));
             };
             if a.len() != 2 {
-                return Err(invalid("`$between` expects exactly two values `[low, high]`"));
+                return Err(invalid(
+                    "`$between` expects exactly two values `[low, high]`",
+                ));
             }
             Filter::Between {
                 field,
@@ -245,10 +264,7 @@ fn parse_operator(col: &str, op: &str, opval: &Value) -> Result<Filter, DataPlan
             }
         }
         "$null" => match opval {
-            Value::Bool(b) => Filter::IsNull {
-                field,
-                negate: !b,
-            },
+            Value::Bool(b) => Filter::IsNull { field, negate: !b },
             _ => return Err(invalid("`$null` expects a boolean")),
         },
         other => return Err(invalid(format!("unknown filter operator '{other}'"))),
@@ -266,8 +282,16 @@ mod tests {
         assert_eq!(
             f,
             Filter::And(vec![
-                Filter::Cmp { field: "a".into(), op: CmpOp::Eq, value: json!(1) },
-                Filter::Cmp { field: "b".into(), op: CmpOp::Eq, value: json!(2) },
+                Filter::Cmp {
+                    field: "a".into(),
+                    op: CmpOp::Eq,
+                    value: json!(1)
+                },
+                Filter::Cmp {
+                    field: "b".into(),
+                    op: CmpOp::Eq,
+                    value: json!(2)
+                },
             ])
         );
     }
@@ -321,7 +345,10 @@ mod tests {
         assert_eq!(f(json!({})), Folded::AlwaysTrue);
         assert_eq!(f(json!({ "$and": [] })), Folded::AlwaysTrue);
         assert_eq!(f(json!({ "$not": { "$or": [] } })), Folded::AlwaysTrue);
-        assert_eq!(f(json!({ "$or": [{ "a": 1 }, { "$not": { "$or": [] } }] })), Folded::AlwaysTrue);
+        assert_eq!(
+            f(json!({ "$or": [{ "a": 1 }, { "$not": { "$or": [] } }] })),
+            Folded::AlwaysTrue
+        );
         // matches nothing
         assert_eq!(f(json!({ "$or": [] })), Folded::AlwaysFalse);
         assert_eq!(f(json!({ "a": { "$in": [] } })), Folded::AlwaysFalse);

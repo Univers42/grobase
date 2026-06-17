@@ -80,7 +80,10 @@ impl MongoPool {
             rows: vec![],
             affected_rows: total,
             next_cursor: None,
-            batch: Some(BatchSummary { atomic: false, items: outcomes }),
+            batch: Some(BatchSummary {
+                atomic: false,
+                items: outcomes,
+            }),
         })
     }
 
@@ -211,7 +214,11 @@ impl MongoPool {
             .sort(build_sort(op.sort.as_ref()))
             .build();
 
-        let cursor = col.find(filter).with_options(find_opts).await.map_err(mongo_err)?;
+        let cursor = col
+            .find(filter)
+            .with_options(find_opts)
+            .await
+            .map_err(mongo_err)?;
         let docs: Vec<Document> = cursor.try_collect().await.map_err(mongo_err)?;
         let rows: Vec<Value> = docs.into_iter().map(normalize_doc).collect();
         let affected = rows.len() as u64;
@@ -238,9 +245,12 @@ impl MongoPool {
         op: &DataOperation,
         identity: &RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
-        let data = op.data.as_ref().ok_or_else(|| DataPlaneError::InvalidRequest {
-            message: "insert requires operation.data".to_string(),
-        })?;
+        let data = op
+            .data
+            .as_ref()
+            .ok_or_else(|| DataPlaneError::InvalidRequest {
+                message: "insert requires operation.data".to_string(),
+            })?;
         let doc = build_owned_doc(data, identity, &identity.tenant_id)?;
         let result = col.insert_one(doc.clone()).await.map_err(mongo_err)?;
         let mut out = doc;
@@ -256,9 +266,12 @@ impl MongoPool {
     ) -> DataPlaneResult<DataResult> {
         require_row_filter(op.filter.as_ref(), "update")?;
         let filter = build_tenant_filter(op.filter.as_ref(), identity, &identity.tenant_id)?;
-        let data = op.data.as_ref().ok_or_else(|| DataPlaneError::InvalidRequest {
-            message: "update requires operation.data".to_string(),
-        })?;
+        let data = op
+            .data
+            .as_ref()
+            .ok_or_else(|| DataPlaneError::InvalidRequest {
+                message: "update requires operation.data".to_string(),
+            })?;
         // Strip RESERVED_FIELDS (`_id`/`owner_id`/`tenant_id`) from the client
         // `$set` and re-inject the trusted owner/tenant, exactly as insert/upsert
         // do via `build_owned_doc`. Without this a client could `$set` a foreign
@@ -289,9 +302,12 @@ impl MongoPool {
         op: &DataOperation,
         identity: &RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
-        let data = op.data.as_ref().ok_or_else(|| DataPlaneError::InvalidRequest {
-            message: "upsert requires operation.data".to_string(),
-        })?;
+        let data = op
+            .data
+            .as_ref()
+            .ok_or_else(|| DataPlaneError::InvalidRequest {
+                message: "upsert requires operation.data".to_string(),
+            })?;
         let Value::Object(obj) = data else {
             return Err(DataPlaneError::InvalidRequest {
                 message: "upsert requires data to be a JSON object".to_string(),
@@ -318,7 +334,8 @@ impl MongoPool {
         let update = bson::doc! { "$set": set_doc };
         let update_opts = UpdateOptions::builder().upsert(true).build();
         let result = col
-            .update_one(filter, update).with_options(update_opts)
+            .update_one(filter, update)
+            .with_options(update_opts)
             .await
             .map_err(mongo_err)?;
         Ok(DataResult::new(

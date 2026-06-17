@@ -112,7 +112,11 @@ mod tests {
         };
         let plan = build_list(&op, Some("u1")).unwrap();
         assert!(plan.sql.contains("ORDER BY (SELECT NULL)"), "{}", plan.sql);
-        assert!(plan.sql.contains("OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY"), "{}", plan.sql);
+        assert!(
+            plan.sql.contains("OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY"),
+            "{}",
+            plan.sql
+        );
         assert!(plan.sql.contains("[owner_id] = @P1"), "{}", plan.sql);
     }
 
@@ -157,7 +161,11 @@ mod tests {
 
     #[test]
     fn json_to_param_floats_use_real_arm() {
-        for (v, want) in [(json!(3.5), 3.5_f64), (json!(-2.5e9), -2.5e9), (json!(0.0), 0.0)] {
+        for (v, want) in [
+            (json!(3.5), 3.5_f64),
+            (json!(-2.5e9), -2.5e9),
+            (json!(0.0), 0.0),
+        ] {
             match json_to_param(&v) {
                 P::Real(f) => assert_eq!(f, want, "value {v}"),
                 _ => panic!("expected Real for {v}"),
@@ -230,7 +238,10 @@ mod tests {
             "The DELETE statement conflicted with the REFERENCE constraint",
         ] {
             let e = backend(msg);
-            assert!(matches!(e, DataPlaneError::Conflict { .. }), "{msg:?} → {e:?}");
+            assert!(
+                matches!(e, DataPlaneError::Conflict { .. }),
+                "{msg:?} → {e:?}"
+            );
         }
     }
 
@@ -242,7 +253,10 @@ mod tests {
             "Timeout expired",
         ] {
             let e = backend(msg);
-            assert!(matches!(e, DataPlaneError::Backend { .. }), "{msg:?} → {e:?}");
+            assert!(
+                matches!(e, DataPlaneError::Backend { .. }),
+                "{msg:?} → {e:?}"
+            );
         }
     }
 
@@ -297,6 +311,9 @@ mod tests {
     #[test]
     fn normalize_mssql_type_is_case_insensitive() {
         assert_eq!(normalize_mssql_type("INT"), NormalizedType::Integer);
-        assert_eq!(normalize_mssql_type("UNIQUEIDENTIFIER"), NormalizedType::Uuid);
+        assert_eq!(
+            normalize_mssql_type("UNIQUEIDENTIFIER"),
+            NormalizedType::Uuid
+        );
     }
 }

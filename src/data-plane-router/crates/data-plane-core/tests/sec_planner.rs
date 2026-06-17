@@ -6,8 +6,8 @@
 //! mask is exact parity.
 
 use data_plane_core::{
-    apply_capability_overrides, required_capability, tier_gate, validate_operation,
-    DataOperation, DataOperationKind, DataPlaneError, EngineCapabilities,
+    apply_capability_overrides, required_capability, tier_gate, validate_operation, DataOperation,
+    DataOperationKind, DataPlaneError, EngineCapabilities,
 };
 use serde_json::{json, Value};
 
@@ -86,7 +86,9 @@ fn validate_operation_agrees_with_supports_op_for_every_engine_and_op() {
                         assert_eq!(engine, name);
                         assert_eq!(capability, required_capability(&kind));
                     }
-                    other => panic!("{name}/{kind:?}: expected UnsupportedCapability, got {other:?}"),
+                    other => {
+                        panic!("{name}/{kind:?}: expected UnsupportedCapability, got {other:?}")
+                    }
                 }
             }
         }
@@ -136,12 +138,18 @@ fn batch_over_engine_ceiling_is_rejected_at_boundary() {
         );
         // one over: rejected with a max_batch_size message
         let over: Vec<Value> = (0..=ceiling).map(|i| json!({ "i": i })).collect();
-        let err =
-            validate_operation(&op(DataOperationKind::Batch, Some(json!(over))), name, &caps)
-                .unwrap_err();
+        let err = validate_operation(
+            &op(DataOperationKind::Batch, Some(json!(over))),
+            name,
+            &caps,
+        )
+        .unwrap_err();
         match err {
             DataPlaneError::UnsupportedCapability { capability, .. } => {
-                assert!(capability.contains("max_batch_size"), "{name}: {capability}");
+                assert!(
+                    capability.contains("max_batch_size"),
+                    "{name}: {capability}"
+                );
             }
             other => panic!("{name}: expected UnsupportedCapability, got {other:?}"),
         }
@@ -152,7 +160,12 @@ fn batch_over_engine_ceiling_is_rejected_at_boundary() {
 fn non_array_batch_payload_is_left_to_adapter() {
     let mut caps = EngineCapabilities::http();
     caps.batch = true; // pretend it batches, to reach the size check
-    for data in [Some(json!({ "a": 1 })), Some(json!("string")), Some(json!(5)), None] {
+    for data in [
+        Some(json!({ "a": 1 })),
+        Some(json!("string")),
+        Some(json!(5)),
+        None,
+    ] {
         assert!(
             validate_operation(&op(DataOperationKind::Batch, data.clone()), "http", &caps).is_ok(),
             "non-array batch payload {data:?} is left to the adapter, not rejected here"
@@ -163,7 +176,12 @@ fn non_array_batch_payload_is_left_to_adapter() {
 #[test]
 fn empty_batch_is_within_any_ceiling() {
     let caps = EngineCapabilities::dynamodb(); // ceiling 25
-    assert!(validate_operation(&op(DataOperationKind::Batch, Some(json!([]))), "dynamodb", &caps).is_ok());
+    assert!(validate_operation(
+        &op(DataOperationKind::Batch, Some(json!([]))),
+        "dynamodb",
+        &caps
+    )
+    .is_ok());
 }
 
 // ── apply_capability_overrides: narrowing-only, parity for absent mask ──────
@@ -171,9 +189,19 @@ fn empty_batch_is_within_any_ceiling() {
 #[test]
 fn no_mask_is_exact_parity_for_every_engine() {
     for (_name, caps) in all_engines() {
-        assert_eq!(apply_capability_overrides(&caps, None), caps, "None mask = identity");
+        assert_eq!(
+            apply_capability_overrides(&caps, None),
+            caps,
+            "None mask = identity"
+        );
         // Non-object masks are also a no-op.
-        for nonobj in [json!(42), json!("x"), json!([1, 2]), json!(true), json!(null)] {
+        for nonobj in [
+            json!(42),
+            json!("x"),
+            json!([1, 2]),
+            json!(true),
+            json!(null),
+        ] {
             assert_eq!(
                 apply_capability_overrides(&caps, Some(&nonobj)),
                 caps,
@@ -192,8 +220,15 @@ fn no_mask_is_exact_parity_for_every_engine() {
 fn explicit_false_narrows_each_flag_individually() {
     let pg = EngineCapabilities::postgresql();
     let flags = [
-        "read", "write", "upsert", "batch", "aggregate", "transactions",
-        "schema_ddl", "ddl", "introspect",
+        "read",
+        "write",
+        "upsert",
+        "batch",
+        "aggregate",
+        "transactions",
+        "schema_ddl",
+        "ddl",
+        "introspect",
     ];
     for flag in flags {
         let narrowed = apply_capability_overrides(&pg, Some(&json!({ flag: false })));
@@ -270,7 +305,10 @@ fn tier_gate_denies_masked_supported_ops() {
         DataOperationKind::Delete,
         DataOperationKind::Upsert,
     ] {
-        assert!(tier_gate(&op(kind.clone(), None), &pg, Some(&mask)).is_ok(), "{kind:?}");
+        assert!(
+            tier_gate(&op(kind.clone(), None), &pg, Some(&mask)).is_ok(),
+            "{kind:?}"
+        );
     }
 }
 
@@ -279,7 +317,10 @@ fn tier_gate_is_noop_without_mask() {
     let pg = EngineCapabilities::postgresql();
     for kind in DataOperationKind::ALL {
         // No mask → never a tier denial (parity), regardless of op support.
-        assert!(tier_gate(&op(kind.clone(), None), &pg, None).is_ok(), "{kind:?}");
+        assert!(
+            tier_gate(&op(kind.clone(), None), &pg, None).is_ok(),
+            "{kind:?}"
+        );
     }
 }
 

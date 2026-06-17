@@ -174,7 +174,10 @@ fn to_edge_record(row: &Value) -> Option<EdgeRecord> {
             .unwrap_or("linked")
             .to_string(),
         label: row.get("label").and_then(|v| v.as_str()).map(String::from),
-        directed: row.get("directed").and_then(|v| v.as_bool()).unwrap_or(true),
+        directed: row
+            .get("directed")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true),
     })
 }
 
@@ -415,7 +418,10 @@ impl<'a> GraphEngine<'a> {
 
     async fn derive(&mut self, req: GraphRequest) -> GraphResponse {
         let depth = req.depth.unwrap_or(1).min(MAX_DEPTH);
-        let edges_table = req.edges_table.clone().unwrap_or_else(|| "edges".to_string());
+        let edges_table = req
+            .edges_table
+            .clone()
+            .unwrap_or_else(|| "edges".to_string());
         let mut nodes: BTreeMap<String, GraphNode> = BTreeMap::new();
         let mut edges: BTreeMap<String, EdgeRecord> = BTreeMap::new();
         let mut visited: HashSet<String> = HashSet::new();
@@ -436,7 +442,9 @@ impl<'a> GraphEngine<'a> {
                     break 'bfs; // DoS bound
                 }
                 if expand {
-                    let mut neigh = self.fetch_edges(&node_id, &req.edges_db_id, &edges_table).await;
+                    let mut neigh = self
+                        .fetch_edges(&node_id, &req.edges_db_id, &edges_table)
+                        .await;
                     neigh.extend(generated_edges(&node, req.generators.as_ref()));
                     for e in neigh {
                         let other = if e.from == node_id {
@@ -472,7 +480,10 @@ impl<'a> GraphEngine<'a> {
             .limit
             .unwrap_or(DEFAULT_OVERVIEW_LIMIT)
             .clamp(1, MAX_OVERVIEW_LIMIT);
-        let edges_table = req.edges_table.clone().unwrap_or_else(|| "edges".to_string());
+        let edges_table = req
+            .edges_table
+            .clone()
+            .unwrap_or_else(|| "edges".to_string());
         let mut nodes: BTreeMap<String, GraphNode> = BTreeMap::new();
         'ov: for rf in &req.resources {
             for row in self.read(&rf.db_id, &rf.table, None, limit).await {
@@ -577,7 +588,10 @@ mod tests {
     #[test]
     fn parse_node_id_splits_on_first_two_colons() {
         let (m, r, pk) = parse_node_id("db1:notes:42").unwrap();
-        assert_eq!((m.as_str(), r.as_str(), pk.as_str()), ("db1", "notes", "42"));
+        assert_eq!(
+            (m.as_str(), r.as_str(), pk.as_str()),
+            ("db1", "notes", "42")
+        );
         // pk may contain colons
         let (_, _, pk2) = parse_node_id("db1:notes:a:b:c").unwrap();
         assert_eq!(pk2, "a:b:c");
@@ -624,9 +638,21 @@ mod tests {
             data: json!({ "customer_id": "c9", "meta": {"x":1}, "void": null }),
         };
         let refs = vec![
-            ReferenceGenConfig { field: "customer_id".into(), mount: "db".into(), resource: "customers".into() },
-            ReferenceGenConfig { field: "meta".into(), mount: "db".into(), resource: "m".into() },
-            ReferenceGenConfig { field: "void".into(), mount: "db".into(), resource: "v".into() },
+            ReferenceGenConfig {
+                field: "customer_id".into(),
+                mount: "db".into(),
+                resource: "customers".into(),
+            },
+            ReferenceGenConfig {
+                field: "meta".into(),
+                mount: "db".into(),
+                resource: "m".into(),
+            },
+            ReferenceGenConfig {
+                field: "void".into(),
+                mount: "db".into(),
+                resource: "v".into(),
+            },
         ];
         let edges = reference_edges(&node, &refs);
         assert_eq!(edges.len(), 1);

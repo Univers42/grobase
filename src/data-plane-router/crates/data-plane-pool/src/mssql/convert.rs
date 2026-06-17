@@ -1,8 +1,8 @@
 //! JSON ↔ native conversion: bind-param building (`json_to_param`), row/cell
 //! materialization, and the introspection type-name normalizer. All pure.
 
-use super::*;
 use super::query::P;
+use super::*;
 
 pub(super) fn json_to_param(value: &Value) -> P {
     match value {
@@ -46,7 +46,9 @@ fn column_data_to_json(cell: ColumnData<'static>) -> Value {
         ColumnData::String(v) => v.map_or(Value::Null, |s| Value::String(s.into_owned())),
         ColumnData::Guid(v) => v.map_or(Value::Null, |g| Value::String(g.to_string())),
         ColumnData::Numeric(v) => v.map_or(Value::Null, |n| Value::String(n.to_string())),
-        ColumnData::Binary(v) => v.map_or(Value::Null, |b| Value::String(format!("blob:{} bytes", b.len()))),
+        ColumnData::Binary(v) => v.map_or(Value::Null, |b| {
+            Value::String(format!("blob:{} bytes", b.len()))
+        }),
         // Date/time/xml variants aren't exercised by the safe CRUD surface; map
         // any remaining variant to a stringified form rather than failing.
         _ => Value::String("<unsupported-column-type>".to_string()),

@@ -109,7 +109,13 @@ pub async fn run_suite(adapter: Arc<dyn EngineAdapter>, mount: DatabaseMount) ->
     }
     // Best-effort clean slate (a prior aborted run may have left rows).
     let _ = pool
-        .execute(op(DataOperationKind::Delete, json!({ "owner_id": id_owner(&id) })), id.clone())
+        .execute(
+            op(
+                DataOperationKind::Delete,
+                json!({ "owner_id": id_owner(&id) }),
+            ),
+            id.clone(),
+        )
         .await;
 
     report.record("crud", check_crud(&*pool, &id).await);
@@ -128,9 +134,15 @@ pub async fn run_suite(adapter: Arc<dyn EngineAdapter>, mount: DatabaseMount) ->
     } else {
         report.skip("aggregate", "descriptor: aggregate=false");
     }
-    report.record("filtering", check_filtering(&*pool, &id, &engine, &caps).await);
+    report.record(
+        "filtering",
+        check_filtering(&*pool, &id, &engine, &caps).await,
+    );
     if caps.transactions {
-        report.record("transactions", check_transactions(&*pool, &mount, &id).await);
+        report.record(
+            "transactions",
+            check_transactions(&*pool, &mount, &id).await,
+        );
     } else {
         report.skip("transactions", "descriptor: transactions=false");
     }
@@ -146,7 +158,13 @@ pub async fn run_suite(adapter: Arc<dyn EngineAdapter>, mount: DatabaseMount) ->
         let _ = raw(&*pool, drop_sql, &id).await;
     } else {
         let _ = pool
-            .execute(op(DataOperationKind::Delete, json!({ "owner_id": id_owner(&id) })), id.clone())
+            .execute(
+                op(
+                    DataOperationKind::Delete,
+                    json!({ "owner_id": id_owner(&id) }),
+                ),
+                id.clone(),
+            )
             .await;
     }
     let _ = pool.close().await;
@@ -156,9 +174,12 @@ pub async fn run_suite(adapter: Arc<dyn EngineAdapter>, mount: DatabaseMount) ->
 // ── checks ───────────────────────────────────────────────────────────────────
 
 async fn check_crud(pool: &dyn EnginePool, id: &RequestIdentity) -> Result<(), String> {
-    pool.execute(insert(json!({ "id": "c1", "name": "before", "n": 1 })), id.clone())
-        .await
-        .map_err(|e| format!("insert: {e}"))?;
+    pool.execute(
+        insert(json!({ "id": "c1", "name": "before", "n": 1 })),
+        id.clone(),
+    )
+    .await
+    .map_err(|e| format!("insert: {e}"))?;
     let got = get_one(pool, id, "c1").await?;
     expect_field(&got, "name", "before")?;
 
@@ -168,9 +189,12 @@ async fn check_crud(pool: &dyn EnginePool, id: &RequestIdentity) -> Result<(), S
     let got = get_one(pool, id, "c1").await?;
     expect_field(&got, "name", "after")?;
 
-    pool.execute(op(DataOperationKind::Delete, json!({ "id": "c1" })), id.clone())
-        .await
-        .map_err(|e| format!("delete: {e}"))?;
+    pool.execute(
+        op(DataOperationKind::Delete, json!({ "id": "c1" })),
+        id.clone(),
+    )
+    .await
+    .map_err(|e| format!("delete: {e}"))?;
     let r = pool
         .execute(get_op("c1"), id.clone())
         .await
@@ -182,17 +206,26 @@ async fn check_crud(pool: &dyn EnginePool, id: &RequestIdentity) -> Result<(), S
 }
 
 async fn check_upsert(pool: &dyn EnginePool, id: &RequestIdentity) -> Result<(), String> {
-    pool.execute(upsert("u1", json!({ "id": "u1", "name": "one" })), id.clone())
-        .await
-        .map_err(|e| format!("upsert-insert: {e}"))?;
-    pool.execute(upsert("u1", json!({ "id": "u1", "name": "two" })), id.clone())
-        .await
-        .map_err(|e| format!("upsert-update: {e}"))?;
+    pool.execute(
+        upsert("u1", json!({ "id": "u1", "name": "one" })),
+        id.clone(),
+    )
+    .await
+    .map_err(|e| format!("upsert-insert: {e}"))?;
+    pool.execute(
+        upsert("u1", json!({ "id": "u1", "name": "two" })),
+        id.clone(),
+    )
+    .await
+    .map_err(|e| format!("upsert-update: {e}"))?;
     let got = get_one(pool, id, "u1").await?;
     expect_field(&got, "name", "two")?;
-    pool.execute(op(DataOperationKind::Delete, json!({ "id": "u1" })), id.clone())
-        .await
-        .ok();
+    pool.execute(
+        op(DataOperationKind::Delete, json!({ "id": "u1" })),
+        id.clone(),
+    )
+    .await
+    .ok();
     Ok(())
 }
 
@@ -209,7 +242,10 @@ async fn check_batch(pool: &dyn EnginePool, id: &RequestIdentity) -> Result<(), 
         .map_err(|e| format!("clean batch: {e}"))?;
     let summary = res.batch.ok_or("clean batch returned no BatchSummary")?;
     if summary.items.len() != 2 {
-        return Err(format!("expected 2 item outcomes, got {}", summary.items.len()));
+        return Err(format!(
+            "expected 2 item outcomes, got {}",
+            summary.items.len()
+        ));
     }
     let atomic = summary.atomic;
 
@@ -220,7 +256,10 @@ async fn check_batch(pool: &dyn EnginePool, id: &RequestIdentity) -> Result<(), 
         // Atomic engine: the poison must roll the whole batch back.
         let res = pool
             .execute(
-                batch(vec![insert(json!({ "id": "b3", "name": "batch", "n": 3 })), poison]),
+                batch(vec![
+                    insert(json!({ "id": "b3", "name": "batch", "n": 3 })),
+                    poison,
+                ]),
                 id.clone(),
             )
             .await;
@@ -251,36 +290,59 @@ async fn check_batch(pool: &dyn EnginePool, id: &RequestIdentity) -> Result<(), 
         if s.atomic {
             return Err("ordered engine reported atomic=true".into());
         }
-        let before = pool.execute(get_op("o1"), id.clone()).await.map_err(|e| format!("get o1: {e}"))?;
+        let before = pool
+            .execute(get_op("o1"), id.clone())
+            .await
+            .map_err(|e| format!("get o1: {e}"))?;
         if before.rows.is_empty() {
             return Err("ordered batch lost the item before the failure (o1)".into());
         }
-        let after = pool.execute(get_op("o3"), id.clone()).await.map_err(|e| format!("get o3: {e}"))?;
+        let after = pool
+            .execute(get_op("o3"), id.clone())
+            .await
+            .map_err(|e| format!("get o3: {e}"))?;
         if !after.rows.is_empty() {
             return Err("ordered batch executed the item after the failure (o3)".into());
         }
     }
     // Cleanup batch rows.
     for key in ["b1", "b2", "b3", "o1", "o3"] {
-        let _ = pool.execute(op(DataOperationKind::Delete, json!({ "id": key })), id.clone()).await;
+        let _ = pool
+            .execute(
+                op(DataOperationKind::Delete, json!({ "id": key })),
+                id.clone(),
+            )
+            .await;
     }
     Ok(())
 }
 
 async fn check_aggregate(pool: &dyn EnginePool, id: &RequestIdentity) -> Result<(), String> {
     for n in 1..=3 {
-        pool.execute(insert(json!({ "id": format!("a{n}"), "name": "agg", "n": n })), id.clone())
-            .await
-            .map_err(|e| format!("agg insert: {e}"))?;
+        pool.execute(
+            insert(json!({ "id": format!("a{n}"), "name": "agg", "n": n })),
+            id.clone(),
+        )
+        .await
+        .map_err(|e| format!("agg insert: {e}"))?;
     }
-    let mut agg = op(DataOperationKind::Aggregate, json!({ "name": { "$eq": "agg" } }));
-    agg.aggregate = Some(serde_json::from_value(json!({
-        "aggregates": [
-            { "func": "count", "alias": "total" },
-            { "func": "sum", "field": "n", "alias": "sum_n" }
-        ]
-    })).unwrap());
-    let r = pool.execute(agg, id.clone()).await.map_err(|e| format!("aggregate: {e}"))?;
+    let mut agg = op(
+        DataOperationKind::Aggregate,
+        json!({ "name": { "$eq": "agg" } }),
+    );
+    agg.aggregate = Some(
+        serde_json::from_value(json!({
+            "aggregates": [
+                { "func": "count", "alias": "total" },
+                { "func": "sum", "field": "n", "alias": "sum_n" }
+            ]
+        }))
+        .unwrap(),
+    );
+    let r = pool
+        .execute(agg, id.clone())
+        .await
+        .map_err(|e| format!("aggregate: {e}"))?;
     let row = r.rows.first().ok_or("aggregate returned no rows")?;
     if num(row, "total") != Some(3.0) {
         return Err(format!("count: expected 3, got {:?}", row.get("total")));
@@ -289,7 +351,12 @@ async fn check_aggregate(pool: &dyn EnginePool, id: &RequestIdentity) -> Result<
         return Err(format!("sum: expected 6, got {:?}", row.get("sum_n")));
     }
     for n in 1..=3 {
-        let _ = pool.execute(op(DataOperationKind::Delete, json!({ "id": format!("a{n}") })), id.clone()).await;
+        let _ = pool
+            .execute(
+                op(DataOperationKind::Delete, json!({ "id": format!("a{n}") })),
+                id.clone(),
+            )
+            .await;
     }
     Ok(())
 }
@@ -301,33 +368,55 @@ async fn check_filtering(
     caps: &EngineCapabilities,
 ) -> Result<(), String> {
     for (i, name) in [(1, "alpha"), (2, "beta"), (3, "gamma")] {
-        pool.execute(insert(json!({ "id": format!("f{i}"), "name": name, "n": i })), id.clone())
-            .await
-            .map_err(|e| format!("filter insert: {e}"))?;
+        pool.execute(
+            insert(json!({ "id": format!("f{i}"), "name": name, "n": i })),
+            id.clone(),
+        )
+        .await
+        .map_err(|e| format!("filter insert: {e}"))?;
     }
     // limit/offset is portable across every engine that lists.
-    let mut listed = op(DataOperationKind::List, json!({ "name": { "$eq": "beta" } }));
+    let mut listed = op(
+        DataOperationKind::List,
+        json!({ "name": { "$eq": "beta" } }),
+    );
     listed.limit = Some(10);
     // Rich field-filter + sort only where the engine advertises real query
     // power (relational + document); KV/passthrough get the basic list path.
     let rich = caps.ddl || engine == "mongodb";
     if !rich {
-        let r = pool.execute(list_all(), id.clone()).await.map_err(|e| format!("list: {e}"))?;
+        let r = pool
+            .execute(list_all(), id.clone())
+            .await
+            .map_err(|e| format!("list: {e}"))?;
         if r.rows.len() < 3 {
             return Err(format!("list returned {} rows, expected ≥3", r.rows.len()));
         }
     } else {
-        let r = pool.execute(listed, id.clone()).await.map_err(|e| format!("eq filter: {e}"))?;
+        let r = pool
+            .execute(listed, id.clone())
+            .await
+            .map_err(|e| format!("eq filter: {e}"))?;
         if r.rows.len() != 1 {
             return Err(format!("eq filter: expected 1 row, got {}", r.rows.len()));
         }
         expect_field(&r.rows[0], "name", "beta")?;
         // sort + limit: highest n first, capped to 2.
-        let mut sorted = op(DataOperationKind::List, json!({ "name": { "$eq": "alpha" } }));
+        let mut sorted = op(
+            DataOperationKind::List,
+            json!({ "name": { "$eq": "alpha" } }),
+        );
         sorted.filter = None;
-        sorted.sort = Some([("n".to_string(), "desc".to_string())].into_iter().collect());
+        sorted.sort = Some(
+            [("n".to_string(), "desc".to_string())]
+                .into_iter()
+                .collect(),
+        );
         sorted.limit = Some(2);
-        let r = pool.execute(sorted, id.clone()).await.map_err(|e| format!("sort: {e}"))?;
+        let r = pool
+            .execute(sorted, id.clone())
+            .await
+            .map_err(|e| format!("sort: {e}"))?;
         if r.rows.len() != 2 {
             return Err(format!("sort+limit: expected 2 rows, got {}", r.rows.len()));
         }
@@ -336,7 +425,12 @@ async fn check_filtering(
         }
     }
     for i in 1..=3 {
-        let _ = pool.execute(op(DataOperationKind::Delete, json!({ "id": format!("f{i}") })), id.clone()).await;
+        let _ = pool
+            .execute(
+                op(DataOperationKind::Delete, json!({ "id": format!("f{i}") })),
+                id.clone(),
+            )
+            .await;
     }
     Ok(())
 }
@@ -348,31 +442,58 @@ async fn check_transactions(
 ) -> Result<(), String> {
     // commit visibility
     let tx = pool
-        .begin(TxBeginRequest { identity: id.clone(), mount: mount.clone(), isolation: None, timeout_ms: None })
+        .begin(TxBeginRequest {
+            identity: id.clone(),
+            mount: mount.clone(),
+            isolation: None,
+            timeout_ms: None,
+        })
         .await
         .map_err(|e| format!("begin: {e}"))?;
-    tx.execute(insert(json!({ "id": "tx1", "name": "committed" })), id.clone())
-        .await
-        .map_err(|e| format!("tx insert: {e}"))?;
+    tx.execute(
+        insert(json!({ "id": "tx1", "name": "committed" })),
+        id.clone(),
+    )
+    .await
+    .map_err(|e| format!("tx insert: {e}"))?;
     tx.commit().await.map_err(|e| format!("commit: {e}"))?;
-    let r = pool.execute(get_op("tx1"), id.clone()).await.map_err(|e| format!("get tx1: {e}"))?;
+    let r = pool
+        .execute(get_op("tx1"), id.clone())
+        .await
+        .map_err(|e| format!("get tx1: {e}"))?;
     if r.rows.is_empty() {
         return Err("committed row not visible after commit".into());
     }
     // rollback invisibility
     let tx = pool
-        .begin(TxBeginRequest { identity: id.clone(), mount: mount.clone(), isolation: None, timeout_ms: None })
+        .begin(TxBeginRequest {
+            identity: id.clone(),
+            mount: mount.clone(),
+            isolation: None,
+            timeout_ms: None,
+        })
         .await
         .map_err(|e| format!("begin2: {e}"))?;
-    tx.execute(insert(json!({ "id": "tx2", "name": "rolledback" })), id.clone())
-        .await
-        .map_err(|e| format!("tx2 insert: {e}"))?;
+    tx.execute(
+        insert(json!({ "id": "tx2", "name": "rolledback" })),
+        id.clone(),
+    )
+    .await
+    .map_err(|e| format!("tx2 insert: {e}"))?;
     tx.rollback().await.map_err(|e| format!("rollback: {e}"))?;
-    let r = pool.execute(get_op("tx2"), id.clone()).await.map_err(|e| format!("get tx2: {e}"))?;
+    let r = pool
+        .execute(get_op("tx2"), id.clone())
+        .await
+        .map_err(|e| format!("get tx2: {e}"))?;
     if !r.rows.is_empty() {
         return Err("rolled-back row is visible (rollback did not undo)".into());
     }
-    let _ = pool.execute(op(DataOperationKind::Delete, json!({ "id": "tx1" })), id.clone()).await;
+    let _ = pool
+        .execute(
+            op(DataOperationKind::Delete, json!({ "id": "tx1" })),
+            id.clone(),
+        )
+        .await;
     Ok(())
 }
 
@@ -504,7 +625,10 @@ fn list_all() -> DataOperation {
 }
 
 fn batch(items: Vec<DataOperation>) -> DataOperation {
-    let arr: Vec<Value> = items.into_iter().map(|o| serde_json::to_value(o).unwrap()).collect();
+    let arr: Vec<Value> = items
+        .into_iter()
+        .map(|o| serde_json::to_value(o).unwrap())
+        .collect();
     let mut o = op(DataOperationKind::Batch, Value::Null);
     o.filter = None;
     o.data = Some(Value::Array(arr));
@@ -512,8 +636,14 @@ fn batch(items: Vec<DataOperation>) -> DataOperation {
 }
 
 async fn get_one(pool: &dyn EnginePool, id: &RequestIdentity, key: &str) -> Result<Value, String> {
-    let r = pool.execute(get_op(key), id.clone()).await.map_err(|e| format!("get {key}: {e}"))?;
-    r.rows.into_iter().next().ok_or_else(|| format!("get {key}: no row"))
+    let r = pool
+        .execute(get_op(key), id.clone())
+        .await
+        .map_err(|e| format!("get {key}: {e}"))?;
+    r.rows
+        .into_iter()
+        .next()
+        .ok_or_else(|| format!("get {key}: no row"))
 }
 
 fn expect_field(row: &Value, field: &str, want: &str) -> Result<(), String> {
@@ -525,12 +655,19 @@ fn expect_field(row: &Value, field: &str, want: &str) -> Result<(), String> {
 
 /// Numeric field tolerant of JSON number vs string (mysql DECIMAL → string).
 fn num(row: &Value, field: &str) -> Option<f64> {
-    row.get(field).and_then(|v| v.as_f64().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+    row.get(field).and_then(|v| {
+        v.as_f64()
+            .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+    })
 }
 
 async fn raw(pool: &dyn EnginePool, sql: &str, id: &RequestIdentity) -> Result<(), String> {
     pool.execute_raw(
-        RawStatement { statement: sql.to_string(), params: vec![], expect_rows: false },
+        RawStatement {
+            statement: sql.to_string(),
+            params: vec![],
+            expect_rows: false,
+        },
         id.clone(),
     )
     .await

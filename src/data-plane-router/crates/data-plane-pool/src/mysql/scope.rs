@@ -4,8 +4,8 @@
 //! filter lowering lives in [`crate::sql_scope`]; only the `owner_id` stamping
 //! here is MySQL-specific.
 
-use super::*;
 use super::convert::json_to_mysql_value;
+use super::*;
 
 pub(super) fn owner_of(identity: &RequestIdentity) -> String {
     identity.owner_principal().to_string()
@@ -57,7 +57,8 @@ pub(super) fn build_owner_filter(
     }
 
     // Always inject the trusted owner predicate.
-    sink.0.push(MysqlValue::Bytes(owner_of(identity).into_bytes()));
+    sink.0
+        .push(MysqlValue::Bytes(owner_of(identity).into_bytes()));
     clauses.push("`owner_id` = ?".to_string());
 
     Ok((format!(" WHERE {}", clauses.join(" AND ")), sink.0))
@@ -78,10 +79,7 @@ pub(super) fn build_owned_columns(
         }
         columns.push((col.clone(), val.clone()));
     }
-    columns.push((
-        "owner_id".to_string(),
-        Value::String(owner_of(identity)),
-    ));
+    columns.push(("owner_id".to_string(), Value::String(owner_of(identity))));
     Ok(columns)
 }
 
@@ -125,7 +123,9 @@ pub(super) struct InsertSqlFragments {
     pub(super) echo: JsonMap<String, Value>,
 }
 
-pub(super) fn render_insert_columns(columns: &[(String, Value)]) -> DataPlaneResult<InsertSqlFragments> {
+pub(super) fn render_insert_columns(
+    columns: &[(String, Value)],
+) -> DataPlaneResult<InsertSqlFragments> {
     let mut col_sql: Vec<String> = Vec::with_capacity(columns.len());
     let mut placeholders: Vec<&'static str> = Vec::with_capacity(columns.len());
     let mut params: Vec<MysqlValue> = Vec::with_capacity(columns.len());

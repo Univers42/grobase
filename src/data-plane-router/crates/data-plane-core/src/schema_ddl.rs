@@ -67,9 +67,11 @@ pub struct SchemaDdlRequest {
 impl SchemaDdlRequest {
     /// The full column def for `add_column` / `alter_column_type`.
     pub fn require_column(&self) -> DataPlaneResult<&DdlColumnDef> {
-        self.column.as_ref().ok_or_else(|| DataPlaneError::InvalidRequest {
-            message: format!("ddl op '{}' requires `column`", self.op.as_str()),
-        })
+        self.column
+            .as_ref()
+            .ok_or_else(|| DataPlaneError::InvalidRequest {
+                message: format!("ddl op '{}' requires `column`", self.op.as_str()),
+            })
     }
 
     /// The column name for `drop_column`.
@@ -149,8 +151,10 @@ pub struct SchemaDdlResult {
 /// depth: no statement separators, no SQL comments, no control characters.
 /// Legitimate defaults (`0`, `'pending'`, `now()`, `CURRENT_TIMESTAMP`) pass.
 pub fn validate_default_expr(expr: &str) -> DataPlaneResult<()> {
-    let forbidden =
-        expr.contains(';') || expr.contains("--") || expr.contains("/*") || expr.chars().any(char::is_control);
+    let forbidden = expr.contains(';')
+        || expr.contains("--")
+        || expr.contains("/*")
+        || expr.chars().any(char::is_control);
     if forbidden {
         return Err(DataPlaneError::InvalidRequest {
             message: format!(
@@ -189,7 +193,10 @@ mod tests {
         assert_eq!(parsed.table, "orders");
         let col = parsed.column.as_ref().expect("column present");
         assert_eq!(col.normalized_type, NormalizedType::Enum);
-        assert_eq!(col.enum_values.as_deref(), Some(&["pending".to_string(), "paid".to_string()][..]));
+        assert_eq!(
+            col.enum_values.as_deref(),
+            Some(&["pending".to_string(), "paid".to_string()][..])
+        );
         assert_eq!(serde_json::to_value(&parsed).expect("serializes"), wire);
     }
 
@@ -229,11 +236,20 @@ mod tests {
     #[test]
     fn require_helpers_reject_missing_op_specific_fields() {
         for (op, err_of) in [
-            (SchemaDdlOp::AddColumn, req(SchemaDdlOp::AddColumn).require_column().err()),
-            (SchemaDdlOp::DropColumn, req(SchemaDdlOp::DropColumn).require_column_name().err()),
+            (
+                SchemaDdlOp::AddColumn,
+                req(SchemaDdlOp::AddColumn).require_column().err(),
+            ),
+            (
+                SchemaDdlOp::DropColumn,
+                req(SchemaDdlOp::DropColumn).require_column_name().err(),
+            ),
         ] {
             let err = err_of.unwrap_or_else(|| panic!("{op:?} should fail"));
-            assert!(matches!(err, DataPlaneError::InvalidRequest { .. }), "{op:?}: {err:?}");
+            assert!(
+                matches!(err, DataPlaneError::InvalidRequest { .. }),
+                "{op:?}: {err:?}"
+            );
         }
         // create_table: missing columns, missing pk, and a pk typo all fail.
         let mut r = req(SchemaDdlOp::CreateTable);
@@ -247,7 +263,10 @@ mod tests {
         }]);
         assert!(r.require_create_spec().is_err(), "no primary_key");
         r.primary_key = Some(vec!["nope".into()]);
-        assert!(r.require_create_spec().is_err(), "pk references unknown column");
+        assert!(
+            r.require_create_spec().is_err(),
+            "pk references unknown column"
+        );
         r.primary_key = Some(vec!["id".into()]);
         assert!(r.require_create_spec().is_ok());
         // owner_id is always a legal PK column (engines auto-append it).
@@ -260,7 +279,13 @@ mod tests {
         for bad in ["0; DROP TABLE x", "1 -- evil", "1 /* evil */", "a\nb"] {
             assert!(validate_default_expr(bad).is_err(), "{bad:?}");
         }
-        for ok in ["0", "'pending'", "now()", "CURRENT_TIMESTAMP", "gen_random_uuid()"] {
+        for ok in [
+            "0",
+            "'pending'",
+            "now()",
+            "CURRENT_TIMESTAMP",
+            "gen_random_uuid()",
+        ] {
             assert!(validate_default_expr(ok).is_ok(), "{ok:?}");
         }
     }

@@ -22,11 +22,11 @@ fn default_expr_rejects_separators_comments_and_control() {
         "1--",
         "'x' /* block */",
         "/* leading */ 0",
-        "a\nb",            // newline control
-        "a\rb",            // carriage return
-        "a\tb",            // tab control char
-        "a\0b",            // null byte
-        "1\x07bell",       // bell control char
+        "a\nb",      // newline control
+        "a\rb",      // carriage return
+        "a\tb",      // tab control char
+        "a\0b",      // null byte
+        "1\x07bell", // bell control char
         "';--",
         "now();DROP",
         "0;;",
@@ -87,9 +87,15 @@ fn default_expr_rejects_each_forbidden_token_in_isolation() {
         );
     }
     // A bare '-' (single dash, e.g. a negative literal) is NOT forbidden.
-    assert!(validate_default_expr("-5").is_ok(), "single dash is allowed");
+    assert!(
+        validate_default_expr("-5").is_ok(),
+        "single dash is allowed"
+    );
     // A bare '/' (not '/*') is NOT forbidden.
-    assert!(validate_default_expr("1/2").is_ok(), "lone slash is allowed");
+    assert!(
+        validate_default_expr("1/2").is_ok(),
+        "lone slash is allowed"
+    );
 }
 
 // ── require_* op-shape validation: malformed requests → clean 400 ───────────

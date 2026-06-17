@@ -189,7 +189,8 @@ impl PoolRegistry for DefaultPoolRegistry {
                 self.created.fetch_add(1, Ordering::Relaxed);
             }
             if !evicted.is_empty() {
-                self.evicted.fetch_add(evicted.len() as u64, Ordering::Relaxed);
+                self.evicted
+                    .fetch_add(evicted.len() as u64, Ordering::Relaxed);
             }
             (pool, evicted)
         };
@@ -222,7 +223,8 @@ impl PoolRegistry for DefaultPoolRegistry {
                 .collect()
         };
         if !expired.is_empty() {
-            self.reaped.fetch_add(expired.len() as u64, Ordering::Relaxed);
+            self.reaped
+                .fetch_add(expired.len() as u64, Ordering::Relaxed);
         }
         for pool in expired {
             let _ = pool.close().await;
@@ -377,9 +379,7 @@ impl EnginePool for SharedPool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_plane_core::{
-        CredentialRef, EngineCapabilities, EngineHealth, PoolPolicy,
-    };
+    use data_plane_core::{CredentialRef, EngineCapabilities, EngineHealth, PoolPolicy};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     /// A no-op pool that counts how many times `close()` was called, so tests
@@ -402,7 +402,9 @@ mod tests {
             Ok(DataResult::new(vec![], 0))
         }
         async fn begin(&self, _r: TxBeginRequest) -> DataPlaneResult<Box<dyn TxHandle>> {
-            Err(DataPlaneError::NotImplemented { feature: "test".into() })
+            Err(DataPlaneError::NotImplemented {
+                feature: "test".into(),
+            })
         }
         async fn close(&self) -> DataPlaneResult<()> {
             self.closed.fetch_add(1, Ordering::SeqCst);
@@ -485,8 +487,17 @@ mod tests {
         reg.get_or_create(mount_n(1, 30_000)).await.unwrap();
         reg.get_or_create(mount_n(3, 30_000)).await.unwrap();
         assert_eq!(closed.load(Ordering::SeqCst), 1, "exactly one eviction");
-        let ids: Vec<String> = reg.stats().await.unwrap().into_iter().map(|s| s.mount_id).collect();
-        assert!(ids.contains(&"db1".to_string()), "recently-used db1 survives");
+        let ids: Vec<String> = reg
+            .stats()
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|s| s.mount_id)
+            .collect();
+        assert!(
+            ids.contains(&"db1".to_string()),
+            "recently-used db1 survives"
+        );
         assert!(ids.contains(&"db3".to_string()), "newest db3 present");
         assert!(!ids.contains(&"db2".to_string()), "LRU db2 evicted");
     }
@@ -498,14 +509,17 @@ mod tests {
         reg.get_or_create(mount_n(1, 30_000)).await.unwrap();
         let key1 = mount_n(1, 30_000).pool_key();
         reg.pin_tx(&key1).await; // in-flight tx on db1
-        // Adding db2 over cap-1 would normally evict the LRU (db1), but db1 is
-        // pinned → db2 stays AND db1 survives (over cap, correctness wins).
+                                 // Adding db2 over cap-1 would normally evict the LRU (db1), but db1 is
+                                 // pinned → db2 stays AND db1 survives (over cap, correctness wins).
         reg.get_or_create(mount_n(2, 30_000)).await.unwrap();
         assert_eq!(closed.load(Ordering::SeqCst), 0, "pinned pool not evicted");
         // Unpin, then a new insert can evict db1 (now LRU + unpinned).
         reg.unpin_tx(&key1).await;
         reg.get_or_create(mount_n(3, 30_000)).await.unwrap();
-        assert!(closed.load(Ordering::SeqCst) >= 1, "eviction resumes after unpin");
+        assert!(
+            closed.load(Ordering::SeqCst) >= 1,
+            "eviction resumes after unpin"
+        );
     }
 
     #[tokio::test]
@@ -556,7 +570,11 @@ mod tests {
         assert_ne!(v1.pool_key(), v2.pool_key(), "version is part of pool_key");
         reg.get_or_create(v1).await.unwrap();
         reg.get_or_create(v2).await.unwrap();
-        assert_eq!(closed.load(Ordering::SeqCst), 0, "both versions live, no eviction");
+        assert_eq!(
+            closed.load(Ordering::SeqCst),
+            0,
+            "both versions live, no eviction"
+        );
         assert_eq!(reg.stats().await.unwrap().len(), 2, "two distinct pools");
     }
 
@@ -573,11 +591,23 @@ mod tests {
         reg.get_or_create(v1).await.unwrap();
         reg.get_or_create(v2).await.unwrap();
         reg.drain_pool_key(&key_v1).await.unwrap();
-        assert_eq!(closed.load(Ordering::SeqCst), 1, "exactly the drained version closed");
-        assert_eq!(reg.stats().await.unwrap().len(), 1, "only the surviving version remains");
+        assert_eq!(
+            closed.load(Ordering::SeqCst),
+            1,
+            "exactly the drained version closed"
+        );
+        assert_eq!(
+            reg.stats().await.unwrap().len(),
+            1,
+            "only the surviving version remains"
+        );
         // Draining a non-existent key is a no-op (idempotent / unknown key).
         reg.drain_pool_key("no-such-key").await.unwrap();
-        assert_eq!(closed.load(Ordering::SeqCst), 1, "unknown key drain is a no-op");
+        assert_eq!(
+            closed.load(Ordering::SeqCst),
+            1,
+            "unknown key drain is a no-op"
+        );
         // Sanity: the surviving key is v2, not v1.
         reg.drain_pool_key(&key_v2).await.unwrap();
         assert_eq!(closed.load(Ordering::SeqCst), 2, "v2 still drainable");
@@ -616,10 +646,17 @@ mod tests {
         reg.pin_tx(&key).await; // in-flight tx
         reg.drain_pool_key(&key).await.unwrap();
         assert_eq!(closed.load(Ordering::SeqCst), 0, "pinned pool not drained");
-        assert_eq!(reg.stats().await.unwrap().len(), 1, "pinned pool still present");
+        assert_eq!(
+            reg.stats().await.unwrap().len(),
+            1,
+            "pinned pool still present"
+        );
         reg.unpin_tx(&key).await;
         reg.drain_pool_key(&key).await.unwrap();
         assert_eq!(closed.load(Ordering::SeqCst), 1, "drained once unpinned");
-        assert!(reg.stats().await.unwrap().is_empty(), "pool removed after drain");
+        assert!(
+            reg.stats().await.unwrap().is_empty(),
+            "pool removed after drain"
+        );
     }
 }

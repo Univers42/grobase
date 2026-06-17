@@ -103,9 +103,9 @@ impl EngineCapabilities {
     pub fn supports_op(&self, kind: &DataOperationKind) -> bool {
         match kind {
             DataOperationKind::List | DataOperationKind::Get => self.read,
-            DataOperationKind::Insert
-            | DataOperationKind::Update
-            | DataOperationKind::Delete => self.write,
+            DataOperationKind::Insert | DataOperationKind::Update | DataOperationKind::Delete => {
+                self.write
+            }
             DataOperationKind::Upsert => self.upsert,
             DataOperationKind::Batch => self.batch,
             DataOperationKind::Aggregate => self.aggregate,
@@ -351,21 +351,21 @@ impl EngineCapabilities {
     #[must_use]
     pub fn dynamodb() -> Self {
         Self {
-            read: true,          // GetItem / Query / Scan
-            write: true,         // PutItem / UpdateItem / DeleteItem
-            upsert: true,        // PutItem (no condition) = last-writer-wins
-            batch: true,         // BatchWriteItem (NON-atomic, max 25)
-            aggregate: false,    // no server-side GROUP BY/SUM — OLAP is the bridge
-            introspect: false,   // describe_schema NOT implemented in the MVP (DescribeTable/ListTables→SchemaDescriptor deferred); advertising it would be a route-cap lie
-            schema_ddl: false,   // apply_schema_ddl NOT implemented in the MVP (CreateTable/DeleteTable deferred); keep the descriptor honest vs the adapter
-            stream: false,       // DynamoDB Streams CDC DESIGNED but DEFERRED (MVP)
-            ddl: false,          // no apply_migration batch (mirrors mongo)
-            transactions: true,  // TransactWriteItems (buffer-then-commit TxHandle)
-            savepoints: false,   // no nested savepoint in a single transact call
+            read: true,         // GetItem / Query / Scan
+            write: true,        // PutItem / UpdateItem / DeleteItem
+            upsert: true,       // PutItem (no condition) = last-writer-wins
+            batch: true,        // BatchWriteItem (NON-atomic, max 25)
+            aggregate: false,   // no server-side GROUP BY/SUM — OLAP is the bridge
+            introspect: false, // describe_schema NOT implemented in the MVP (DescribeTable/ListTables→SchemaDescriptor deferred); advertising it would be a route-cap lie
+            schema_ddl: false, // apply_schema_ddl NOT implemented in the MVP (CreateTable/DeleteTable deferred); keep the descriptor honest vs the adapter
+            stream: false,     // DynamoDB Streams CDC DESIGNED but DEFERRED (MVP)
+            ddl: false,        // no apply_migration batch (mirrors mongo)
+            transactions: true, // TransactWriteItems (buffer-then-commit TxHandle)
+            savepoints: false, // no nested savepoint in a single transact call
             isolation_levels: vec![IsolationLevel::Serializable],
-            two_phase_commit: true,   // all-or-nothing across items (NOT wire 2PC)
+            two_phase_commit: true, // all-or-nothing across items (NOT wire 2PC)
             native_idempotency: true, // ClientRequestToken de-dupes a transact
-            max_batch_size: 25,       // BatchWriteItem hard limit (NOT the 100-item transact limit)
+            max_batch_size: 25,     // BatchWriteItem hard limit (NOT the 100-item transact limit)
             cost: CostCapabilities {
                 latency_class: LatencyClass::Native, // first-class driver, not an FDW
                 pattern_search: PatternSearchCapability::Indexed, // Query indexed; Scan fallback
@@ -421,8 +421,8 @@ mod tests {
         // Wire back-compat (same precedent as `batch`/`aggregate`): a
         // descriptor serialized BEFORE the field existed must keep
         // deserializing, with `introspect` defaulting to false.
-        let mut payload = serde_json::to_value(EngineCapabilities::postgresql())
-            .expect("descriptor serializes");
+        let mut payload =
+            serde_json::to_value(EngineCapabilities::postgresql()).expect("descriptor serializes");
         payload
             .as_object_mut()
             .expect("descriptor is a JSON object")
@@ -475,8 +475,8 @@ mod tests {
         // Wire back-compat (same precedent as `batch`/`aggregate`/
         // `introspect`): a descriptor serialized BEFORE the field existed must
         // keep deserializing, with `schema_ddl` defaulting to false.
-        let mut payload = serde_json::to_value(EngineCapabilities::postgresql())
-            .expect("descriptor serializes");
+        let mut payload =
+            serde_json::to_value(EngineCapabilities::postgresql()).expect("descriptor serializes");
         payload
             .as_object_mut()
             .expect("descriptor is a JSON object")

@@ -140,7 +140,10 @@ impl RedisPool {
             rows: vec![],
             affected_rows: total,
             next_cursor: None,
-            batch: Some(BatchSummary { atomic: false, items: outcomes }),
+            batch: Some(BatchSummary {
+                atomic: false,
+                items: outcomes,
+            }),
         })
     }
 }

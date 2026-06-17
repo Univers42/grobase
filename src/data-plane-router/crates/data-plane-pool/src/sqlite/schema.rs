@@ -144,7 +144,10 @@ mod tests {
             table: "posts".into(),
             column: None,
             column_name: None,
-            columns: Some(vec![col("id", NormalizedType::Text), col("views", NormalizedType::Integer)]),
+            columns: Some(vec![
+                col("id", NormalizedType::Text),
+                col("views", NormalizedType::Integer),
+            ]),
             primary_key: Some(vec!["id".into()]),
         };
         let sql = build_sqlite_ddl(&req).unwrap();
@@ -201,7 +204,10 @@ mod tests {
             columns: None,
             primary_key: None,
         };
-        assert_eq!(build_sqlite_ddl(&drop_col).unwrap(), "ALTER TABLE \"posts\" DROP COLUMN \"views\"");
+        assert_eq!(
+            build_sqlite_ddl(&drop_col).unwrap(),
+            "ALTER TABLE \"posts\" DROP COLUMN \"views\""
+        );
         let drop_table = SchemaDdlRequest {
             op: SchemaDdlOp::DropTable,
             table: "posts".into(),
@@ -210,7 +216,10 @@ mod tests {
             columns: None,
             primary_key: None,
         };
-        assert_eq!(build_sqlite_ddl(&drop_table).unwrap(), "DROP TABLE \"posts\"");
+        assert_eq!(
+            build_sqlite_ddl(&drop_table).unwrap(),
+            "DROP TABLE \"posts\""
+        );
     }
 
     #[test]

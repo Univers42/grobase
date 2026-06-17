@@ -276,15 +276,27 @@ mod tests {
 
     fn arb_filter() -> impl Strategy<Value = Filter> {
         let leaf = prop_oneof![
-            ("[a-z]{1,4}", any::<i64>())
-                .prop_map(|(f, v)| Filter::Cmp { field: f, op: CmpOp::Eq, value: json!(v) }),
-            ("[a-z]{1,4}", prop::collection::vec(any::<i64>(), 0..4)).prop_map(|(f, vs)| {
-                Filter::In { field: f, values: vs.into_iter().map(|v| json!(v)).collect() }
+            ("[a-z]{1,4}", any::<i64>()).prop_map(|(f, v)| Filter::Cmp {
+                field: f,
+                op: CmpOp::Eq,
+                value: json!(v)
             }),
-            ("[a-z]{1,4}", any::<bool>())
-                .prop_map(|(f, ci)| Filter::Like { field: f, pattern: json!("x%"), ci }),
-            ("[a-z]{1,4}", any::<i64>(), any::<i64>())
-                .prop_map(|(f, lo, hi)| Filter::Between { field: f, low: json!(lo), high: json!(hi) }),
+            ("[a-z]{1,4}", prop::collection::vec(any::<i64>(), 0..4)).prop_map(|(f, vs)| {
+                Filter::In {
+                    field: f,
+                    values: vs.into_iter().map(|v| json!(v)).collect(),
+                }
+            }),
+            ("[a-z]{1,4}", any::<bool>()).prop_map(|(f, ci)| Filter::Like {
+                field: f,
+                pattern: json!("x%"),
+                ci
+            }),
+            ("[a-z]{1,4}", any::<i64>(), any::<i64>()).prop_map(|(f, lo, hi)| Filter::Between {
+                field: f,
+                low: json!(lo),
+                high: json!(hi)
+            }),
             ("[a-z]{1,4}", any::<bool>())
                 .prop_map(|(f, negate)| Filter::IsNull { field: f, negate }),
         ];
@@ -476,8 +488,12 @@ mod tests {
     fn guard_propagates_parse_errors() {
         // A malformed filter (unknown operator) is a parse error, not a silent
         // full-table pass.
-        let err = guard_constraining_filter(Some(&json!({ "a": { "$drop": 1 } })), &[]).unwrap_err();
-        assert!(matches!(err, DataPlaneError::InvalidRequest { .. }), "{err:?}");
+        let err =
+            guard_constraining_filter(Some(&json!({ "a": { "$drop": 1 } })), &[]).unwrap_err();
+        assert!(
+            matches!(err, DataPlaneError::InvalidRequest { .. }),
+            "{err:?}"
+        );
     }
 
     // ---- Cmp × every CmpOp × every value type -------------------------------
@@ -753,10 +769,7 @@ mod tests {
 
     #[test]
     fn or_single_real_branch_among_none_keeps_just_it() {
-        let f = Filter::Or(vec![
-            Filter::And(vec![]),
-            cmp("a", CmpOp::Eq, json!(1)),
-        ]);
+        let f = Filter::Or(vec![Filter::And(vec![]), cmp("a", CmpOp::Eq, json!(1))]);
         assert_eq!(lowered(&f), ("(\"a\" = ?)".to_string(), 1));
     }
 
@@ -923,7 +936,10 @@ mod tests {
         let mut ok_sink = TestSink::default();
         let rendered = lower_filter(&empty_in, &mut ok_sink).unwrap().unwrap();
         assert_eq!(rendered, "0 = 1");
-        assert!(!rendered.contains("\"a\""), "empty In discards its quoted field");
+        assert!(
+            !rendered.contains("\"a\""),
+            "empty In discards its quoted field"
+        );
     }
 
     // ---- Determinism: same filter lowers identically twice ------------------

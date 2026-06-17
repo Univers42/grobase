@@ -281,33 +281,61 @@ mod tests {
         assert_eq!(Isolation::from_mount(None), Isolation::SharedRls);
         assert_eq!(Isolation::from_mount(Some("")), Isolation::SharedRls);
         assert_eq!(Isolation::from_mount(Some("   ")), Isolation::SharedRls);
-        assert_eq!(Isolation::from_mount(Some("nonsense")), Isolation::SharedRls);
-        assert_eq!(Isolation::from_mount(Some("SCHEMA_PER_TENANT")), Isolation::SharedRls);
+        assert_eq!(
+            Isolation::from_mount(Some("nonsense")),
+            Isolation::SharedRls
+        );
+        assert_eq!(
+            Isolation::from_mount(Some("SCHEMA_PER_TENANT")),
+            Isolation::SharedRls
+        );
     }
 
     #[test]
     fn tenant_owned_parses_scopes_none_and_disables_owner_scoping() {
         // The 4th mode: an external client DB wholly owned by one tenant.
-        assert_eq!(Isolation::from_mount(Some("tenant_owned")), Isolation::TenantOwned);
-        assert_eq!(Isolation::from_mount(Some(" tenant_owned ")), Isolation::TenantOwned);
+        assert_eq!(
+            Isolation::from_mount(Some("tenant_owned")),
+            Isolation::TenantOwned
+        );
+        assert_eq!(
+            Isolation::from_mount(Some(" tenant_owned ")),
+            Isolation::TenantOwned
+        );
         let m = mount("postgresql", "gourmand", Some("tenant_owned"));
-        assert_eq!(Isolation::TenantOwned.scope(&m, &identity()), ScopeDirective::None);
+        assert_eq!(
+            Isolation::TenantOwned.scope(&m, &identity()),
+            ScopeDirective::None
+        );
         assert!(!Isolation::TenantOwned.owner_scoped());
         // Every pre-existing mode keeps owner scoping (parity invariant).
-        for scoped in [Isolation::SharedRls, Isolation::SchemaPerTenant, Isolation::DbPerTenant] {
+        for scoped in [
+            Isolation::SharedRls,
+            Isolation::SchemaPerTenant,
+            Isolation::DbPerTenant,
+        ] {
             assert!(scoped.owner_scoped(), "{scoped:?}");
         }
     }
 
     #[test]
     fn from_mount_parses_known_values() {
-        assert_eq!(Isolation::from_mount(Some("shared_rls")), Isolation::SharedRls);
+        assert_eq!(
+            Isolation::from_mount(Some("shared_rls")),
+            Isolation::SharedRls
+        );
         assert_eq!(
             Isolation::from_mount(Some("schema_per_tenant")),
             Isolation::SchemaPerTenant
         );
-        assert_eq!(Isolation::from_mount(Some(" schema_per_tenant ")), Isolation::SchemaPerTenant);
-        assert_eq!(Isolation::from_mount(Some("db_per_tenant")), Isolation::DbPerTenant);
+        assert_eq!(
+            Isolation::from_mount(Some(" schema_per_tenant ")),
+            Isolation::SchemaPerTenant
+        );
+        assert_eq!(
+            Isolation::from_mount(Some("db_per_tenant")),
+            Isolation::DbPerTenant
+        );
     }
 
     #[test]
@@ -354,7 +382,9 @@ mod tests {
         let pg = mount("postgresql", "acme", Some("schema_per_tenant"));
         assert_eq!(
             Isolation::SchemaPerTenant.scope(&pg, &id),
-            ScopeDirective::SetSearchPath { schema: expected.clone() },
+            ScopeDirective::SetSearchPath {
+                schema: expected.clone()
+            },
             "postgresql"
         );
         // mysql + mongodb + redis + dynamodb → UseNamespace (per-tenant
@@ -363,7 +393,9 @@ mod tests {
             let m = mount(engine, "acme", Some("schema_per_tenant"));
             assert_eq!(
                 Isolation::SchemaPerTenant.scope(&m, &id),
-                ScopeDirective::UseNamespace { namespace: expected.clone() },
+                ScopeDirective::UseNamespace {
+                    namespace: expected.clone()
+                },
                 "namespace engine {engine}"
             );
         }
@@ -420,7 +452,8 @@ mod tests {
         let hash = s.rsplit('_').next().unwrap();
         assert_eq!(hash.len(), 8, "hash suffix is 8 chars: {s}");
         assert!(
-            hash.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+            hash.chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
             "hash suffix is lowercase hex: {s}"
         );
     }
@@ -428,7 +461,10 @@ mod tests {
     #[test]
     fn safe_schema_neutralizes_injection() {
         let s = safe_schema("a; DROP SCHEMA public; --").unwrap();
-        assert!(s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'), "{s}");
+        assert!(
+            s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
+            "{s}"
+        );
         assert!(s.starts_with("tenant_a"), "{s}");
     }
 
@@ -438,7 +474,11 @@ mod tests {
         let s = safe_schema(&long).unwrap();
         // tenant_ (7) + fragment (≤40) + '_' (1) + hash8 (8) = ≤56, under PG's 63 cap.
         assert_eq!(s.len(), "tenant_".len() + MAX_SCHEMA_FRAGMENT + 1 + 8);
-        assert!(s.len() <= 63, "must fit PG's 63-byte identifier cap: {} ({s})", s.len());
+        assert!(
+            s.len() <= 63,
+            "must fit PG's 63-byte identifier cap: {} ({s})",
+            s.len()
+        );
         assert!(s.starts_with("tenant_aaaa"));
         assert_suffix_is_hash8(&s);
     }

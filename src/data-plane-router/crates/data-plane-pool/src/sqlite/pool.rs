@@ -119,7 +119,11 @@ impl EnginePool for SqlitePool {
             let summary = self.submit(|reply| WriteJob::Batch(plans, reply)).await?;
             return Ok(DataResult {
                 rows: vec![],
-                affected_rows: summary.items.iter().filter(|i| i.status == BatchItemStatus::Ok).count() as u64,
+                affected_rows: summary
+                    .items
+                    .iter()
+                    .filter(|i| i.status == BatchItemStatus::Ok)
+                    .count() as u64,
                 next_cursor: None,
                 batch: Some(summary),
             });
@@ -169,13 +173,21 @@ impl EnginePool for SqlitePool {
         identity: RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
         self.check_tenant(&identity)?;
-        let RawStatement { statement: sql, params, expect_rows } = statement;
+        let RawStatement {
+            statement: sql,
+            params,
+            expect_rows,
+        } = statement;
         let sql_params: Vec<SqlValue> = params.iter().map(json_to_sql).collect();
         // `expect_rows=false` is the write/DDL shape — writer-thread queue;
         // row-returning raw SQL reads in parallel off the pool.
         if !expect_rows {
             return self
-                .submit(|reply| WriteJob::Raw { sql, params: sql_params, reply })
+                .submit(|reply| WriteJob::Raw {
+                    sql,
+                    params: sql_params,
+                    reply,
+                })
                 .await;
         }
         let obj = self.checkout().await?;
@@ -190,7 +202,10 @@ impl EnginePool for SqlitePool {
         })?
     }
 
-    async fn describe_schema(&self, identity: RequestIdentity) -> DataPlaneResult<SchemaDescriptor> {
+    async fn describe_schema(
+        &self,
+        identity: RequestIdentity,
+    ) -> DataPlaneResult<SchemaDescriptor> {
         self.check_tenant(&identity)?;
         let obj = self.checkout().await?;
         obj.interact(|conn| describe_schema_blocking(&*conn))

@@ -35,7 +35,9 @@ pub struct Mailer {
 impl Mailer {
     /// None when ONE_SMTP_HOST is unset — the email endpoints then 503.
     pub(crate) fn from_env() -> Option<Self> {
-        let host = std::env::var("ONE_SMTP_HOST").ok().filter(|h| !h.trim().is_empty())?;
+        let host = std::env::var("ONE_SMTP_HOST")
+            .ok()
+            .filter(|h| !h.trim().is_empty())?;
         let security = std::env::var("ONE_SMTP_SECURITY").unwrap_or_else(|_| "starttls".into());
         let default_port = match security.as_str() {
             "none" => 25,
@@ -52,10 +54,14 @@ impl Mailer {
             _ => lettre::AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&host).ok()?,
         };
         let mut builder = builder.port(port);
-        if let (Ok(user), Ok(pass)) = (std::env::var("ONE_SMTP_USER"), std::env::var("ONE_SMTP_PASS")) {
+        if let (Ok(user), Ok(pass)) = (
+            std::env::var("ONE_SMTP_USER"),
+            std::env::var("ONE_SMTP_PASS"),
+        ) {
             if !user.is_empty() {
-                builder = builder
-                    .credentials(lettre::transport::smtp::authentication::Credentials::new(user, pass));
+                builder = builder.credentials(
+                    lettre::transport::smtp::authentication::Credentials::new(user, pass),
+                );
             }
         }
         let from = std::env::var("ONE_SMTP_FROM")
@@ -72,12 +78,18 @@ impl Mailer {
     async fn send(&self, to: &str, subject: &str, body: String) -> Result<(), String> {
         let msg = lettre::Message::builder()
             .from(self.from.clone())
-            .to(to.parse().map_err(|_| "invalid recipient address".to_string())?)
+            .to(to
+                .parse()
+                .map_err(|_| "invalid recipient address".to_string())?)
             .subject(subject)
             .header(lettre::message::header::ContentType::TEXT_PLAIN)
             .body(body)
             .map_err(|e| e.to_string())?;
-        self.transport.send(msg).await.map(|_| ()).map_err(|e| e.to_string())
+        self.transport
+            .send(msg)
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string())
     }
 }
 
@@ -105,7 +117,11 @@ async fn send_code(
     );
     mailer.send(email, subject, body).await.map_err(|e| {
         tracing::warn!(error = %e, "smtp send failed");
-        api_err(StatusCode::BAD_GATEWAY, "smtp_failed", "could not send the email")
+        api_err(
+            StatusCode::BAD_GATEWAY,
+            "smtp_failed",
+            "could not send the email",
+        )
     })
 }
 
@@ -140,14 +156,22 @@ async fn request_verification(
         Err(r) => return r,
     };
     let Some(token) = crate::one::bearer_token(&headers) else {
-        return api_err(StatusCode::UNAUTHORIZED, "unauthorized", "Bearer token required");
+        return api_err(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "Bearer token required",
+        );
     };
     let id = match one.verify_jwt(&token) {
         Ok(id) => id,
         Err(r) => return r,
     };
     let Some(user) = one.users.get_user(&id.key_id) else {
-        return api_err(StatusCode::UNAUTHORIZED, "unauthorized", "account no longer exists");
+        return api_err(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "account no longer exists",
+        );
     };
     if user.verified {
         return (StatusCode::OK, Json(json!({ "verified": true }))).into_response();
@@ -169,7 +193,11 @@ async fn confirm_verification(
     };
     let email = req.email.trim().to_lowercase();
     if !one.users.consume_code("verify", &email, req.code.trim()) {
-        return api_err(StatusCode::UNAUTHORIZED, "invalid_code", "wrong, expired or used code");
+        return api_err(
+            StatusCode::UNAUTHORIZED,
+            "invalid_code",
+            "wrong, expired or used code",
+        );
     }
     if let Some(uid) = one.users.find_user_id_by_email(&email) {
         one.users.mark_verified(&uid);
@@ -208,22 +236,44 @@ async fn confirm_reset(
         Err(r) => return r,
     };
     if req.password.len() < 8 {
-        return api_err(StatusCode::BAD_REQUEST, "invalid_request", "password must be at least 8 characters");
+        return api_err(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "password must be at least 8 characters",
+        );
     }
     let email = req.email.trim().to_lowercase();
     if !one.users.consume_code("reset", &email, req.code.trim()) {
-        return api_err(StatusCode::UNAUTHORIZED, "invalid_code", "wrong, expired or used code");
+        return api_err(
+            StatusCode::UNAUTHORIZED,
+            "invalid_code",
+            "wrong, expired or used code",
+        );
     }
     let Some(uid) = one.users.find_user_id_by_email(&email) else {
-        return api_err(StatusCode::UNAUTHORIZED, "invalid_code", "wrong, expired or used code");
+        return api_err(
+            StatusCode::UNAUTHORIZED,
+            "invalid_code",
+            "wrong, expired or used code",
+        );
     };
     let password = req.password;
     let hash = match tokio::task::spawn_blocking(move || hash_password(&password)).await {
         Ok(Ok(h)) => h,
-        _ => return api_err(StatusCode::INTERNAL_SERVER_ERROR, "hash_failed", "password hashing failed"),
+        _ => {
+            return api_err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "hash_failed",
+                "password hashing failed",
+            )
+        }
     };
     if one.users.set_password(&uid, &hash).is_err() {
-        return api_err(StatusCode::INTERNAL_SERVER_ERROR, "reset_failed", "could not update the password");
+        return api_err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "reset_failed",
+            "could not update the password",
+        );
     }
     one.users.revoke_user_refresh(&uid);
     one.users.mark_verified(&uid); // the code proved control of the inbox
@@ -261,10 +311,18 @@ async fn login_otp(
     };
     let email = req.email.trim().to_lowercase();
     if !one.users.consume_code("otp", &email, req.code.trim()) {
-        return api_err(StatusCode::UNAUTHORIZED, "invalid_code", "wrong, expired or used code");
+        return api_err(
+            StatusCode::UNAUTHORIZED,
+            "invalid_code",
+            "wrong, expired or used code",
+        );
     }
     let Some(uid) = one.users.find_user_id_by_email(&email) else {
-        return api_err(StatusCode::UNAUTHORIZED, "invalid_code", "wrong, expired or used code");
+        return api_err(
+            StatusCode::UNAUTHORIZED,
+            "invalid_code",
+            "wrong, expired or used code",
+        );
     };
     one.users.mark_verified(&uid); // the code proved control of the inbox
     match one.finish_login(&uid) {
@@ -275,8 +333,14 @@ async fn login_otp(
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/one/v1/auth/request-verification", post(request_verification))
-        .route("/one/v1/auth/confirm-verification", post(confirm_verification))
+        .route(
+            "/one/v1/auth/request-verification",
+            post(request_verification),
+        )
+        .route(
+            "/one/v1/auth/confirm-verification",
+            post(confirm_verification),
+        )
         .route("/one/v1/auth/request-reset", post(request_reset))
         .route("/one/v1/auth/confirm-reset", post(confirm_reset))
         .route("/one/v1/auth/request-otp", post(request_otp))

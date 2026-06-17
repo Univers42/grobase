@@ -66,7 +66,8 @@ fn type_allowed(ct: &str) -> bool {
 fn safe_segment(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 64
-        && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
 }
 
 /// Keep a short alphanumeric extension from the client filename (display +
@@ -111,7 +112,11 @@ async fn upload(
         Err(r) => return r,
     };
     if !id.scopes.iter().any(|s| s == "write" || s == "admin") {
-        return api_err(StatusCode::FORBIDDEN, "scope_denied", "write scope required");
+        return api_err(
+            StatusCode::FORBIDDEN,
+            "scope_denied",
+            "write scope required",
+        );
     }
     if !(safe_segment(&table) && safe_segment(&record) && safe_segment(&field)) {
         return api_err(
@@ -122,7 +127,13 @@ async fn upload(
     }
     let part = match multipart.next_field().await {
         Ok(Some(p)) => p,
-        _ => return api_err(StatusCode::BAD_REQUEST, "invalid_request", "a multipart file field is required"),
+        _ => {
+            return api_err(
+                StatusCode::BAD_REQUEST,
+                "invalid_request",
+                "a multipart file field is required",
+            )
+        }
     };
     let filename = part.file_name().unwrap_or("upload").to_string();
     let content_type = part
@@ -172,13 +183,23 @@ async fn upload(
     };
     let dir = storage_dir(&one, &meta);
     if tokio::fs::create_dir_all(&dir).await.is_err()
-        || tokio::fs::write(dir.join(&meta.stored), &bytes).await.is_err()
+        || tokio::fs::write(dir.join(&meta.stored), &bytes)
+            .await
+            .is_err()
     {
-        return api_err(StatusCode::INTERNAL_SERVER_ERROR, "storage_failed", "could not persist the file");
+        return api_err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "storage_failed",
+            "could not persist the file",
+        );
     }
     if one.users.file_insert(&meta).is_err() {
         let _ = tokio::fs::remove_file(dir.join(&meta.stored)).await;
-        return api_err(StatusCode::INTERNAL_SERVER_ERROR, "storage_failed", "could not record the file");
+        return api_err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "storage_failed",
+            "could not record the file",
+        );
     }
     tracing::info!(target: "audit", event = "file_uploaded", file = %meta.id, owner = %meta.owner, size = meta.size, "file stored");
     (
@@ -233,7 +254,11 @@ async fn serve(
     let (path, content_type) = match q.thumb.as_deref() {
         Some(spec) if meta.content_type == "image/jpeg" || meta.content_type == "image/png" => {
             let Some((w, h)) = parse_thumb(spec) else {
-                return api_err(StatusCode::BAD_REQUEST, "invalid_request", "thumb must be WxH (1-2048)");
+                return api_err(
+                    StatusCode::BAD_REQUEST,
+                    "invalid_request",
+                    "thumb must be WxH (1-2048)",
+                );
             };
             let thumb_path = dir.join(format!("{}.t{w}x{h}", meta.stored));
             if tokio::fs::metadata(&thumb_path).await.is_err() {
@@ -246,11 +271,17 @@ async fn serve(
                 let out = thumb_path.clone();
                 let made = tokio::task::spawn_blocking(move || -> Result<(), String> {
                     let img = image::open(&src).map_err(|e| e.to_string())?;
-                    img.thumbnail(w, h).save_with_format(&out, fmt).map_err(|e| e.to_string())
+                    img.thumbnail(w, h)
+                        .save_with_format(&out, fmt)
+                        .map_err(|e| e.to_string())
                 })
                 .await;
                 if !matches!(made, Ok(Ok(()))) {
-                    return api_err(StatusCode::INTERNAL_SERVER_ERROR, "thumb_failed", "could not generate the thumbnail");
+                    return api_err(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "thumb_failed",
+                        "could not generate the thumbnail",
+                    );
                 }
             }
             (thumb_path, meta.content_type.clone())
@@ -401,7 +432,13 @@ mod tests {
     fn default_allowlist_blocks_active_content() {
         assert!(type_allowed("image/png"));
         assert!(type_allowed("application/pdf"));
-        assert!(!type_allowed("text/html"), "stored-XSS vector must be off by default");
-        assert!(!type_allowed("image/svg+xml"), "svg scripts must be off by default");
+        assert!(
+            !type_allowed("text/html"),
+            "stored-XSS vector must be off by default"
+        );
+        assert!(
+            !type_allowed("image/svg+xml"),
+            "svg scripts must be off by default"
+        );
     }
 }

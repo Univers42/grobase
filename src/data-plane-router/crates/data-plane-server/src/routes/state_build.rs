@@ -7,7 +7,6 @@
 use crate::abac::{Evaluator, PermissionMode, PolicyBundle};
 use crate::config::ServerConfig;
 use data_plane_core::EngineAdapter;
-use data_plane_pool::{EnvMountResolver, ProviderConfig};
 #[cfg(feature = "dynamodb")]
 use data_plane_pool::DynamoEngineAdapter;
 #[cfg(feature = "http")]
@@ -18,12 +17,13 @@ use data_plane_pool::MongoEngineAdapter;
 use data_plane_pool::MssqlEngineAdapter;
 #[cfg(feature = "mysql")]
 use data_plane_pool::MysqlEngineAdapter;
-#[cfg(feature = "postgres")]
-use data_plane_pool::{PgDialect, PostgresEngineAdapter};
 #[cfg(feature = "redis")]
 use data_plane_pool::RedisEngineAdapter;
 #[cfg(feature = "sqlite")]
 use data_plane_pool::SqliteEngineAdapter;
+use data_plane_pool::{EnvMountResolver, ProviderConfig};
+#[cfg(feature = "postgres")]
+use data_plane_pool::{PgDialect, PostgresEngineAdapter};
 use std::sync::Arc;
 
 /// The three Track-B honor-set Redis refreshers, each `Some` only when its own

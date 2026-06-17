@@ -149,8 +149,7 @@ pub(super) async fn describe_schema(
     }
 
     // Foreign keys: (table, column) → referenced (table, column).
-    let mut fks: std::collections::BTreeMap<(String, String), ForeignKeyRef> =
-        Default::default();
+    let mut fks: std::collections::BTreeMap<(String, String), ForeignKeyRef> = Default::default();
     let fk_rows = client
         .query(
             "SELECT tc.table_name, kcu.column_name, ccu.table_name, ccu.column_name
@@ -169,7 +168,10 @@ pub(super) async fn describe_schema(
     for row in &fk_rows {
         fks.insert(
             (row.get::<_, String>(0), row.get::<_, String>(1)),
-            ForeignKeyRef { table: row.get::<_, String>(2), column: row.get::<_, String>(3) },
+            ForeignKeyRef {
+                table: row.get::<_, String>(2),
+                column: row.get::<_, String>(3),
+            },
         );
     }
 
@@ -271,7 +273,9 @@ pub(super) async fn apply_schema_ddl(
 
     let tx = client.transaction().await.map_err(|e| backend(&e))?;
     for stmt in &plan.statements {
-        tx.execute(stmt.as_str(), &[]).await.map_err(|e| ddl_backend(&e))?;
+        tx.execute(stmt.as_str(), &[])
+            .await
+            .map_err(|e| ddl_backend(&e))?;
     }
     tx.commit().await.map_err(|e| backend(&e))?;
     Ok(SchemaDdlResult {

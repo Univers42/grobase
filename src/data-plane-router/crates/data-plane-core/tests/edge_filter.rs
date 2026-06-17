@@ -132,7 +132,11 @@ fn null_false_is_is_not_null_negated() {
 fn scalar_integer_is_equality() {
     assert_eq!(
         ok(json!({ "a": 7 })),
-        Filter::Cmp { field: "a".into(), op: CmpOp::Eq, value: json!(7) }
+        Filter::Cmp {
+            field: "a".into(),
+            op: CmpOp::Eq,
+            value: json!(7)
+        }
     );
 }
 
@@ -140,7 +144,11 @@ fn scalar_integer_is_equality() {
 fn scalar_string_is_equality() {
     assert_eq!(
         ok(json!({ "a": "hi" })),
-        Filter::Cmp { field: "a".into(), op: CmpOp::Eq, value: json!("hi") }
+        Filter::Cmp {
+            field: "a".into(),
+            op: CmpOp::Eq,
+            value: json!("hi")
+        }
     );
 }
 
@@ -148,7 +156,11 @@ fn scalar_string_is_equality() {
 fn scalar_bool_is_equality() {
     assert_eq!(
         ok(json!({ "a": true })),
-        Filter::Cmp { field: "a".into(), op: CmpOp::Eq, value: json!(true) }
+        Filter::Cmp {
+            field: "a".into(),
+            op: CmpOp::Eq,
+            value: json!(true)
+        }
     );
 }
 
@@ -165,7 +177,11 @@ fn scalar_null_value_is_equality_not_is_null() {
     // A bare JSON null is value-equality, NOT the $null operator.
     assert_eq!(
         ok(json!({ "a": Value::Null })),
-        Filter::Cmp { field: "a".into(), op: CmpOp::Eq, value: Value::Null }
+        Filter::Cmp {
+            field: "a".into(),
+            op: CmpOp::Eq,
+            value: Value::Null
+        }
     );
 }
 
@@ -238,8 +254,16 @@ fn multiple_columns_wrap_in_and_sorted() {
     assert_eq!(
         ok(json!({ "b": 2, "a": 1 })),
         Filter::And(vec![
-            Filter::Cmp { field: "a".into(), op: CmpOp::Eq, value: json!(1) },
-            Filter::Cmp { field: "b".into(), op: CmpOp::Eq, value: json!(2) },
+            Filter::Cmp {
+                field: "a".into(),
+                op: CmpOp::Eq,
+                value: json!(1)
+            },
+            Filter::Cmp {
+                field: "b".into(),
+                op: CmpOp::Eq,
+                value: json!(2)
+            },
         ])
     );
 }
@@ -530,10 +554,7 @@ fn field_starting_with_dollar_even_with_more_chars_is_rejected() {
 
 #[test]
 fn field_with_dot_is_accepted() {
-    assert!(matches!(
-        ok(json!({ "a.b.c": 1 })),
-        Filter::Cmp { .. }
-    ));
+    assert!(matches!(ok(json!({ "a.b.c": 1 })), Filter::Cmp { .. }));
 }
 
 #[test]
@@ -543,7 +564,10 @@ fn field_with_spaces_is_accepted() {
 
 #[test]
 fn field_with_unicode_is_accepted() {
-    assert!(matches!(ok(json!({ "naïve_café_名前": 1 })), Filter::Cmp { .. }));
+    assert!(matches!(
+        ok(json!({ "naïve_café_名前": 1 })),
+        Filter::Cmp { .. }
+    ));
 }
 
 #[test]
@@ -627,7 +651,10 @@ fn fold_not_empty_or_is_always_true() {
 #[test]
 fn fold_not_empty_in_is_always_true() {
     // NOT(empty $in) = NOT(FALSE) = TRUE.
-    assert_eq!(folded(json!({ "$not": { "a": { "$in": [] } } })), Folded::AlwaysTrue);
+    assert_eq!(
+        folded(json!({ "$not": { "a": { "$in": [] } } })),
+        Folded::AlwaysTrue
+    );
 }
 
 #[test]
@@ -640,12 +667,18 @@ fn fold_or_with_a_tautology_branch_is_always_true() {
 
 #[test]
 fn fold_and_of_all_true_children_is_always_true() {
-    assert_eq!(folded(json!({ "$and": [{}, { "$and": [] }] })), Folded::AlwaysTrue);
+    assert_eq!(
+        folded(json!({ "$and": [{}, { "$and": [] }] })),
+        Folded::AlwaysTrue
+    );
 }
 
 #[test]
 fn fold_double_negation_of_constrained_stays_constrained() {
-    assert_eq!(folded(json!({ "$not": { "$not": { "a": 1 } } })), Folded::Constrained);
+    assert_eq!(
+        folded(json!({ "$not": { "$not": { "a": 1 } } })),
+        Folded::Constrained
+    );
 }
 
 // ── FOLD: contradictions (AlwaysFalse) ────────────────────────────────────────
@@ -668,7 +701,10 @@ fn fold_not_empty_object_is_always_false() {
 
 #[test]
 fn fold_not_empty_and_is_always_false() {
-    assert_eq!(folded(json!({ "$not": { "$and": [] } })), Folded::AlwaysFalse);
+    assert_eq!(
+        folded(json!({ "$not": { "$and": [] } })),
+        Folded::AlwaysFalse
+    );
 }
 
 #[test]
@@ -711,22 +747,34 @@ fn fold_comparison_is_constrained() {
 
 #[test]
 fn fold_non_empty_in_is_constrained() {
-    assert_eq!(folded(json!({ "a": { "$in": [1, 2] } })), Folded::Constrained);
+    assert_eq!(
+        folded(json!({ "a": { "$in": [1, 2] } })),
+        Folded::Constrained
+    );
 }
 
 #[test]
 fn fold_like_is_constrained() {
-    assert_eq!(folded(json!({ "a": { "$like": "x%" } })), Folded::Constrained);
+    assert_eq!(
+        folded(json!({ "a": { "$like": "x%" } })),
+        Folded::Constrained
+    );
 }
 
 #[test]
 fn fold_between_is_constrained() {
-    assert_eq!(folded(json!({ "a": { "$between": [1, 9] } })), Folded::Constrained);
+    assert_eq!(
+        folded(json!({ "a": { "$between": [1, 9] } })),
+        Folded::Constrained
+    );
 }
 
 #[test]
 fn fold_is_null_is_constrained() {
-    assert_eq!(folded(json!({ "a": { "$null": true } })), Folded::Constrained);
+    assert_eq!(
+        folded(json!({ "a": { "$null": true } })),
+        Folded::Constrained
+    );
 }
 
 #[test]
@@ -740,12 +788,18 @@ fn fold_or_with_one_constrained_and_one_false_is_constrained() {
 
 #[test]
 fn fold_and_with_one_constrained_and_one_true_is_constrained() {
-    assert_eq!(folded(json!({ "$and": [{ "a": 1 }, {}] })), Folded::Constrained);
+    assert_eq!(
+        folded(json!({ "$and": [{ "a": 1 }, {}] })),
+        Folded::Constrained
+    );
 }
 
 #[test]
 fn fold_not_of_constrained_is_constrained() {
-    assert_eq!(folded(json!({ "$not": { "a": { "$gt": 5 } } })), Folded::Constrained);
+    assert_eq!(
+        folded(json!({ "$not": { "a": { "$gt": 5 } } })),
+        Folded::Constrained
+    );
 }
 
 // ── PROPERTY-BASED ────────────────────────────────────────────────────────────

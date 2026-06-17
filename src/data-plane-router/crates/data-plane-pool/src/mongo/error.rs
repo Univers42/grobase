@@ -55,10 +55,16 @@ mod tests {
         // `$jsonSchema` says no → the caller's values don't fit the declared
         // contract: 409, never an opaque 502 (verified live before the fix).
         let validation = classify_mongo_message(
-            "mongo backend: WriteError { code: 121, message: \"Document failed validation\" }".into());
-        assert!(matches!(validation, DataPlaneError::Conflict { .. }), "{validation:?}");
+            "mongo backend: WriteError { code: 121, message: \"Document failed validation\" }"
+                .into(),
+        );
+        assert!(
+            matches!(validation, DataPlaneError::Conflict { .. }),
+            "{validation:?}"
+        );
         let dup = classify_mongo_message(
-            "mongo backend: E11000 duplicate key error collection: activity.notes".into());
+            "mongo backend: E11000 duplicate key error collection: activity.notes".into(),
+        );
         assert!(matches!(dup, DataPlaneError::Conflict { .. }), "{dup:?}");
         let other = classify_mongo_message("mongo backend: connection reset".into());
         assert!(matches!(other, DataPlaneError::Backend { .. }), "{other:?}");
@@ -91,13 +97,23 @@ mod tests {
             "E11000 duplicate key error collection: db.t",
         ] {
             assert!(
-                matches!(classify_mongo_message(conflict.into()), DataPlaneError::Conflict { .. }),
+                matches!(
+                    classify_mongo_message(conflict.into()),
+                    DataPlaneError::Conflict { .. }
+                ),
                 "{conflict:?} → Conflict"
             );
         }
-        for backend in ["connection timed out", "not master", "server selection error"] {
+        for backend in [
+            "connection timed out",
+            "not master",
+            "server selection error",
+        ] {
             assert!(
-                matches!(classify_mongo_message(backend.into()), DataPlaneError::Backend { .. }),
+                matches!(
+                    classify_mongo_message(backend.into()),
+                    DataPlaneError::Backend { .. }
+                ),
                 "{backend:?} → Backend"
             );
         }

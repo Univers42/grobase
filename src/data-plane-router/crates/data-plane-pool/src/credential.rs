@@ -78,7 +78,10 @@ impl std::fmt::Debug for ProviderConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ProviderConfig")
             .field("adapter_registry_url", &self.adapter_registry_url)
-            .field("adapter_registry_token", &redact(&self.adapter_registry_token))
+            .field(
+                "adapter_registry_token",
+                &redact(&self.adapter_registry_token),
+            )
             .field("vault_addr", &self.vault_addr)
             .field("vault_token", &redact(&self.vault_token))
             .field("vault_dsn_prefix", &self.vault_dsn_prefix)
@@ -165,9 +168,12 @@ impl ProviderRegistry {
             } else {
                 cfg.vault_dsn_field.clone()
             };
-            if let Ok(p) =
-                VaultProvider::new(cfg.vault_addr.clone(), cfg.vault_token.clone(), prefix, field)
-            {
+            if let Ok(p) = VaultProvider::new(
+                cfg.vault_addr.clone(),
+                cfg.vault_token.clone(),
+                prefix,
+                field,
+            ) {
                 providers.push(Arc::new(p));
             }
         }
@@ -494,10 +500,19 @@ mod tests {
     #[test]
     fn t1_provider_selection_by_ref_provider() {
         let reg = ProviderRegistry::with(vec![
-            Arc::new(FakeProvider { name: "adapter-registry".into(), result: ok_dsn }),
-            Arc::new(FakeProvider { name: "vault".into(), result: ok_dsn }),
+            Arc::new(FakeProvider {
+                name: "adapter-registry".into(),
+                result: ok_dsn,
+            }),
+            Arc::new(FakeProvider {
+                name: "vault".into(),
+                result: ok_dsn,
+            }),
         ]);
-        assert_eq!(reg.get("adapter-registry").map(|p| p.name()), Some("adapter-registry"));
+        assert_eq!(
+            reg.get("adapter-registry").map(|p| p.name()),
+            Some("adapter-registry")
+        );
         assert_eq!(reg.get("vault").map(|p| p.name()), Some("vault"));
         assert!(reg.get("nope").is_none(), "unknown provider name -> None");
     }
@@ -645,15 +660,30 @@ mod tests {
             vault_dsn_field: "dsn".into(),
         };
         let dbg = format!("{cfg:?}");
-        assert!(!dbg.contains("SUPERSECRET-vault-token"), "vault_token leaked: {dbg}");
-        assert!(!dbg.contains("SECRET-registry-token"), "registry token leaked: {dbg}");
-        assert!(dbg.contains("<redacted>"), "redaction placeholder present: {dbg}");
+        assert!(
+            !dbg.contains("SUPERSECRET-vault-token"),
+            "vault_token leaked: {dbg}"
+        );
+        assert!(
+            !dbg.contains("SECRET-registry-token"),
+            "registry token leaked: {dbg}"
+        );
+        assert!(
+            dbg.contains("<redacted>"),
+            "redaction placeholder present: {dbg}"
+        );
         // Non-secret fields still render.
-        assert!(dbg.contains("data-plane/dsn"), "non-secret field still printed: {dbg}");
+        assert!(
+            dbg.contains("data-plane/dsn"),
+            "non-secret field still printed: {dbg}"
+        );
         // An empty token renders as "" (config presence stays observable).
         let empty = ProviderConfig::default();
         let dbg_empty = format!("{empty:?}");
-        assert!(dbg_empty.contains("vault_token: \"\""), "empty token shows empty: {dbg_empty}");
+        assert!(
+            dbg_empty.contains("vault_token: \"\""),
+            "empty token shows empty: {dbg_empty}"
+        );
     }
 
     // t11 — live Vault read, gated on real Vault env. #[ignore] by default.
@@ -664,8 +694,7 @@ mod tests {
         let token = std::env::var("DATA_PLANE_VAULT_TOKEN").expect("DATA_PLANE_VAULT_TOKEN");
         let prefix = std::env::var("DATA_PLANE_VAULT_DSN_PREFIX")
             .unwrap_or_else(|_| "data-plane/dsn".into());
-        let field =
-            std::env::var("DATA_PLANE_VAULT_DSN_FIELD").unwrap_or_else(|_| "dsn".into());
+        let field = std::env::var("DATA_PLANE_VAULT_DSN_FIELD").unwrap_or_else(|_| "dsn".into());
         let p = VaultProvider::new(addr, token, prefix, field).expect("provider");
         let dsn = p.resolve_dsn(&mount("vault")).await.expect("vault read");
         assert!(!dsn.is_empty());

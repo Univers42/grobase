@@ -109,13 +109,21 @@ impl Metrics {
 
     /// Record a verify-cache lookup outcome.
     pub fn record_verify_cache(&self, hit: bool) {
-        let counter = if hit { &self.verify_hit } else { &self.verify_miss };
+        let counter = if hit {
+            &self.verify_hit
+        } else {
+            &self.verify_miss
+        };
         counter.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Record a mount-cache lookup outcome.
     pub fn record_mount_cache(&self, hit: bool) {
-        let counter = if hit { &self.mount_hit } else { &self.mount_miss };
+        let counter = if hit {
+            &self.mount_hit
+        } else {
+            &self.mount_miss
+        };
         counter.fetch_add(1, Ordering::Relaxed);
     }
 
@@ -214,7 +222,9 @@ impl Metrics {
 /// Escape a Prometheus label value (`\`, `"`, newline).
 #[must_use]
 pub fn escape_label(v: &str) -> String {
-    v.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n")
+    v.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
 }
 
 #[cfg(test)]

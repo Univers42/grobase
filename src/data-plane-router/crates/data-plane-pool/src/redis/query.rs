@@ -20,7 +20,10 @@ pub(super) async fn run_list(
 
     // SCAN with MATCH avoids blocking the server unlike KEYS.
     let mut keys: Vec<String> = Vec::new();
-    let mut iter = conn.scan_match::<_, String>(&pattern).await.map_err(backend)?;
+    let mut iter = conn
+        .scan_match::<_, String>(&pattern)
+        .await
+        .map_err(backend)?;
     while let Some(k) = futures::StreamExt::next(&mut iter).await {
         keys.push(k);
         if keys.len() > limit + offset {

@@ -128,9 +128,9 @@ impl OpShape {
 /// one enforced by [`crate::filter::Filter::parse`].
 fn filter_has_pattern_search(value: &serde_json::Value) -> bool {
     match value {
-        serde_json::Value::Object(map) => map.iter().any(|(k, v)| {
-            k == "$like" || k == "$ilike" || filter_has_pattern_search(v)
-        }),
+        serde_json::Value::Object(map) => map
+            .iter()
+            .any(|(k, v)| k == "$like" || k == "$ilike" || filter_has_pattern_search(v)),
         serde_json::Value::Array(items) => items.iter().any(filter_has_pattern_search),
         _ => false,
     }
@@ -261,13 +261,17 @@ fn verdict_to_plan(
             engine: engine.to_string(),
             capability: cap.to_string(),
         }),
-        Verdict::Federate => Plan::Federate { target: ANALYTICS_TARGET },
+        Verdict::Federate => Plan::Federate {
+            target: ANALYTICS_TARGET,
+        },
         Verdict::FederateOrReject(cap) => {
             // A remote-capable engine can be federated; a genuinely incapable one
             // is rejected. The "remote-capable" test is supplied by the rule
             // (`can_federate`), so this generic helper stays capability-agnostic.
             if can_federate(caps) {
-                Plan::Federate { target: ANALYTICS_TARGET }
+                Plan::Federate {
+                    target: ANALYTICS_TARGET,
+                }
             } else {
                 Plan::Reject(DataPlaneError::UnsupportedCapability {
                     engine: engine.to_string(),
@@ -299,7 +303,10 @@ pub fn plan(
 ) -> PlanDecision {
     // Phase 1: feasibility (single source of truth: supports_op + ceiling).
     if let Err(err) = crate::validate_operation(op, engine, caps) {
-        return PlanDecision { plan: Plan::Reject(err), reason: "phase1_unsupported_capability" };
+        return PlanDecision {
+            plan: Plan::Reject(err),
+            reason: "phase1_unsupported_capability",
+        };
     }
 
     // Phase 2: cost routing over the const rule table.
@@ -308,11 +315,17 @@ pub fn plan(
         if rule.needs.active(&shape) && !(rule.satisfied_by)(caps) {
             let verdict = verdict_to_plan(rule.on_unsatisfied, engine, caps, rule.can_federate);
             let plan = resolve_federation(verdict, federation_enabled);
-            return PlanDecision { plan, reason: rule.reason };
+            return PlanDecision {
+                plan,
+                reason: rule.reason,
+            };
         }
     }
 
-    PlanDecision { plan: Plan::Native, reason: "native" }
+    PlanDecision {
+        plan: Plan::Native,
+        reason: "native",
+    }
 }
 
 /// Federation seam. While `planner_federation_enabled` is false (the default), a
@@ -322,9 +335,11 @@ pub fn plan(
 #[must_use]
 pub fn resolve_federation(plan: Plan, federation_enabled: bool) -> Plan {
     match plan {
-        Plan::Federate { .. } if !federation_enabled => Plan::Reject(DataPlaneError::NotImplemented {
-            feature: "federation: needs analytics plane (Trino) — see doc 05".to_string(),
-        }),
+        Plan::Federate { .. } if !federation_enabled => {
+            Plan::Reject(DataPlaneError::NotImplemented {
+                feature: "federation: needs analytics plane (Trino) — see doc 05".to_string(),
+            })
+        }
         other => other,
     }
 }
@@ -333,7 +348,7 @@ pub fn resolve_federation(plan: Plan, federation_enabled: bool) -> Plan {
 mod tests {
     use super::*;
     use crate::operation::DataOperationKind;
-    use crate::{Aggregate, AggFunc, AggregateSpec};
+    use crate::{AggFunc, Aggregate, AggregateSpec};
     use serde_json::{json, Value};
 
     fn op(kind: DataOperationKind, filter: Option<Value>) -> DataOperation {
@@ -369,9 +384,18 @@ mod tests {
         o
     }
 
-    const NO_CTX: WorkloadContext = WorkloadContext { stream_requested: false, in_transaction: false };
-    const STREAM_CTX: WorkloadContext = WorkloadContext { stream_requested: true, in_transaction: false };
-    const TX_CTX: WorkloadContext = WorkloadContext { stream_requested: false, in_transaction: true };
+    const NO_CTX: WorkloadContext = WorkloadContext {
+        stream_requested: false,
+        in_transaction: false,
+    };
+    const STREAM_CTX: WorkloadContext = WorkloadContext {
+        stream_requested: true,
+        in_transaction: false,
+    };
+    const TX_CTX: WorkloadContext = WorkloadContext {
+        stream_requested: false,
+        in_transaction: true,
+    };
 
     fn engines() -> [(&'static str, EngineCapabilities); 5] {
         [
@@ -390,7 +414,10 @@ mod tests {
         for (name, caps) in engines() {
             for kind in [List, Get, Insert, Update, Delete, Upsert] {
                 let d = plan(&op(kind.clone(), None), name, &caps, &NO_CTX, false);
-                assert!(matches!(d.plan, Plan::Native), "{name} {kind:?} must stay Native");
+                assert!(
+                    matches!(d.plan, Plan::Native),
+                    "{name} {kind:?} must stay Native"
+                );
             }
         }
     }
@@ -408,7 +435,10 @@ mod tests {
             false,
         );
         assert!(
-            matches!(d.plan, Plan::Reject(DataPlaneError::UnsupportedCapability { .. })),
+            matches!(
+                d.plan,
+                Plan::Reject(DataPlaneError::UnsupportedCapability { .. })
+            ),
             "http batch must Phase-1 reject"
         );
         // Engines that DO advertise batch pass Phase 1.
@@ -416,7 +446,13 @@ mod tests {
             if name == "http" {
                 continue;
             }
-            let d = plan(&op(DataOperationKind::Batch, None), name, &caps, &NO_CTX, false);
+            let d = plan(
+                &op(DataOperationKind::Batch, None),
+                name,
+                &caps,
+                &NO_CTX,
+                false,
+            );
             assert!(
                 !matches!(d.plan, Plan::Reject(_)),
                 "{name} batch must pass Phase 1"
@@ -428,7 +464,13 @@ mod tests {
     #[test]
     fn stream_on_non_streaming_engine_rejects() {
         // redis advertises stream:false.
-        let d = plan(&op(DataOperationKind::List, None), "redis", &EngineCapabilities::redis(), &STREAM_CTX, false);
+        let d = plan(
+            &op(DataOperationKind::List, None),
+            "redis",
+            &EngineCapabilities::redis(),
+            &STREAM_CTX,
+            false,
+        );
         match d.plan {
             Plan::Reject(DataPlaneError::UnsupportedCapability { engine, capability }) => {
                 assert_eq!(capability, "stream");
@@ -438,7 +480,13 @@ mod tests {
             other => panic!("expected stream reject, got {other:?}"),
         }
         // postgres advertises stream:true → not rejected for the stream reason.
-        let d = plan(&op(DataOperationKind::List, None), "postgresql", &EngineCapabilities::postgresql(), &STREAM_CTX, false);
+        let d = plan(
+            &op(DataOperationKind::List, None),
+            "postgresql",
+            &EngineCapabilities::postgresql(),
+            &STREAM_CTX,
+            false,
+        );
         assert!(matches!(d.plan, Plan::Native));
     }
 
@@ -446,7 +494,13 @@ mod tests {
     #[test]
     fn transaction_on_non_txn_engine_rejects() {
         // redis: transactions:false.
-        let d = plan(&op(DataOperationKind::Insert, None), "redis", &EngineCapabilities::redis(), &TX_CTX, false);
+        let d = plan(
+            &op(DataOperationKind::Insert, None),
+            "redis",
+            &EngineCapabilities::redis(),
+            &TX_CTX,
+            false,
+        );
         match d.plan {
             Plan::Reject(DataPlaneError::UnsupportedCapability { capability, .. }) => {
                 assert_eq!(capability, "transactions");
@@ -454,7 +508,13 @@ mod tests {
             other => panic!("expected transactions reject, got {other:?}"),
         }
         // postgres: transactions:true.
-        let d = plan(&op(DataOperationKind::Insert, None), "postgresql", &EngineCapabilities::postgresql(), &TX_CTX, false);
+        let d = plan(
+            &op(DataOperationKind::Insert, None),
+            "postgresql",
+            &EngineCapabilities::postgresql(),
+            &TX_CTX,
+            false,
+        );
         assert!(matches!(d.plan, Plan::Native));
     }
 
@@ -462,8 +522,17 @@ mod tests {
     #[test]
     fn pattern_search_on_scan_engine_is_native() {
         let f = json!({ "name": { "$like": "ab%" } });
-        let d = plan(&op(DataOperationKind::List, Some(f)), "redis", &EngineCapabilities::redis(), &NO_CTX, false);
-        assert!(matches!(d.plan, Plan::Native), "redis Scan serves $like locally");
+        let d = plan(
+            &op(DataOperationKind::List, Some(f)),
+            "redis",
+            &EngineCapabilities::redis(),
+            &NO_CTX,
+            false,
+        );
+        assert!(
+            matches!(d.plan, Plan::Native),
+            "redis Scan serves $like locally"
+        );
     }
 
     // ── $like → http (Remote) = Federate, which (OFF) lowers to NotImplemented. ─
@@ -471,7 +540,13 @@ mod tests {
     fn pattern_search_on_remote_engine_federates_then_rejects() {
         let f = json!({ "name": { "$ilike": "ab%" } });
         // Federation OFF (default): Federate is lowered to NotImplemented.
-        let d = plan(&op(DataOperationKind::List, Some(f.clone())), "http", &EngineCapabilities::http(), &NO_CTX, false);
+        let d = plan(
+            &op(DataOperationKind::List, Some(f.clone())),
+            "http",
+            &EngineCapabilities::http(),
+            &NO_CTX,
+            false,
+        );
         assert!(
             matches!(d.plan, Plan::Reject(DataPlaneError::NotImplemented { .. })),
             "http $like federates → NotImplemented while OFF, got {:?}",
@@ -479,7 +554,13 @@ mod tests {
         );
         // Federation ON: the same op resolves to Federate{analytics} (a role
         // token, not a concrete engine name).
-        let d = plan(&op(DataOperationKind::List, Some(f)), "http", &EngineCapabilities::http(), &NO_CTX, true);
+        let d = plan(
+            &op(DataOperationKind::List, Some(f)),
+            "http",
+            &EngineCapabilities::http(),
+            &NO_CTX,
+            true,
+        );
         assert_eq!(d.plan.federation_target(), Some("analytics"));
     }
 
@@ -498,8 +579,17 @@ mod tests {
             d.plan
         );
         // With joins capability (postgres), an analytical aggregate stays Native.
-        let d = plan(&grouped_aggregate(), "postgresql", &EngineCapabilities::postgresql(), &NO_CTX, false);
-        assert!(matches!(d.plan, Plan::Native), "postgres serves analytical locally");
+        let d = plan(
+            &grouped_aggregate(),
+            "postgresql",
+            &EngineCapabilities::postgresql(),
+            &NO_CTX,
+            false,
+        );
+        assert!(
+            matches!(d.plan, Plan::Native),
+            "postgres serves analytical locally"
+        );
     }
 
     // ── nested $like in $and/$or is detected. ─────────────────────────────────
@@ -514,13 +604,27 @@ mod tests {
     // ── federation seam: only Federate is lowered; Native/Reject pass through. ─
     #[test]
     fn resolve_federation_only_lowers_federate() {
-        assert!(matches!(resolve_federation(Plan::Native, false), Plan::Native));
         assert!(matches!(
-            resolve_federation(Plan::Federate { target: "analytics" }, false),
+            resolve_federation(Plan::Native, false),
+            Plan::Native
+        ));
+        assert!(matches!(
+            resolve_federation(
+                Plan::Federate {
+                    target: "analytics"
+                },
+                false
+            ),
             Plan::Reject(DataPlaneError::NotImplemented { .. })
         ));
         assert_eq!(
-            resolve_federation(Plan::Federate { target: "analytics" }, true).federation_target(),
+            resolve_federation(
+                Plan::Federate {
+                    target: "analytics"
+                },
+                true
+            )
+            .federation_target(),
             Some("analytics")
         );
     }

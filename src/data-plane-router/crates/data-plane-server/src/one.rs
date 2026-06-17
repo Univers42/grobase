@@ -48,7 +48,10 @@ pub(crate) fn bearer_token(headers: &header::HeaderMap) -> Option<String> {
     headers
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer ").or_else(|| v.strip_prefix("bearer ")))
+        .and_then(|v| {
+            v.strip_prefix("Bearer ")
+                .or_else(|| v.strip_prefix("bearer "))
+        })
         .map(|t| t.trim().to_string())
         .filter(|t| !t.is_empty())
 }
@@ -69,7 +72,10 @@ fn ct_eq(a: &str, b: &str) -> bool {
     if a.len() != b.len() {
         return false;
     }
-    a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+    a.bytes()
+        .zip(b.bytes())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 pub(crate) fn hash_password(password: &str) -> Result<String, String> {
@@ -217,8 +223,10 @@ impl UserStore {
 
     fn config_get(&self, key: &str) -> Option<String> {
         let conn = self.conn.lock().expect("user store poisoned");
-        conn.query_row("SELECT value FROM one_config WHERE key = ?1", [key], |r| r.get(0))
-            .ok()
+        conn.query_row("SELECT value FROM one_config WHERE key = ?1", [key], |r| {
+            r.get(0)
+        })
+        .ok()
     }
 
     fn config_set(&self, key: &str, value: &str) -> anyhow::Result<()> {
@@ -270,8 +278,10 @@ impl UserStore {
 
     pub(crate) fn find_user_id_by_email(&self, email: &str) -> Option<String> {
         let conn = self.conn.lock().expect("user store poisoned");
-        conn.query_row("SELECT id FROM one_users WHERE email = ?1", [email], |r| r.get(0))
-            .ok()
+        conn.query_row("SELECT id FROM one_users WHERE email = ?1", [email], |r| {
+            r.get(0)
+        })
+        .ok()
     }
 
     /// `subject` is already provider-prefixed (`<provider>:<remote id>`).
@@ -297,7 +307,13 @@ impl UserStore {
             "INSERT INTO one_user_identities (provider, subject, user_id, email, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(provider, subject) DO NOTHING",
-            rusqlite::params![provider, subject, user_id, email, chrono::Utc::now().to_rfc3339()],
+            rusqlite::params![
+                provider,
+                subject,
+                user_id,
+                email,
+                chrono::Utc::now().to_rfc3339()
+            ],
         )?;
         Ok(())
     }
@@ -417,7 +433,10 @@ impl UserStore {
 
     pub(crate) fn totp_enable(&self, user_id: &str) {
         let conn = self.conn.lock().expect("user store poisoned");
-        let _ = conn.execute("UPDATE one_totp SET enabled = 1 WHERE user_id = ?1", [user_id]);
+        let _ = conn.execute(
+            "UPDATE one_totp SET enabled = 1 WHERE user_id = ?1",
+            [user_id],
+        );
     }
 
     pub(crate) fn totp_enabled(&self, user_id: &str) -> bool {
@@ -469,7 +488,9 @@ impl UserStore {
     /// identity — still admin-readable/deletable via the files API.
     pub(crate) fn delete_user(&self, user_id: &str) -> bool {
         let conn = self.conn.lock().expect("user store poisoned");
-        let n = conn.execute("DELETE FROM one_users WHERE id = ?1", [user_id]).unwrap_or(0);
+        let n = conn
+            .execute("DELETE FROM one_users WHERE id = ?1", [user_id])
+            .unwrap_or(0);
         for sql in [
             "DELETE FROM one_user_identities WHERE user_id = ?1",
             "DELETE FROM one_refresh WHERE user_id = ?1",
@@ -623,28 +644,36 @@ impl OneState {
         let users = UserStore::open(&data_dir.join("nano_meta.db"))?;
         // Secret precedence: env > persisted > generate-and-persist. The
         // generated secret survives restarts so issued tokens stay valid.
-        let jwt_secret = match std::env::var("ONE_JWT_SECRET").ok().filter(|s| !s.trim().is_empty()) {
+        let jwt_secret = match std::env::var("ONE_JWT_SECRET")
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+        {
             Some(s) => s.into_bytes(),
-            None => match users.config_get("jwt_secret") {
-                Some(s) => s.into_bytes(),
-                None => {
-                    let s = format!(
-                        "{}{}",
-                        uuid::Uuid::new_v4().simple(),
-                        uuid::Uuid::new_v4().simple()
-                    );
-                    users.config_set("jwt_secret", &s)?;
-                    tracing::info!("one: generated + persisted a JWT secret (set ONE_JWT_SECRET to override)");
-                    s.into_bytes()
+            None => {
+                match users.config_get("jwt_secret") {
+                    Some(s) => s.into_bytes(),
+                    None => {
+                        let s = format!(
+                            "{}{}",
+                            uuid::Uuid::new_v4().simple(),
+                            uuid::Uuid::new_v4().simple()
+                        );
+                        users.config_set("jwt_secret", &s)?;
+                        tracing::info!("one: generated + persisted a JWT secret (set ONE_JWT_SECRET to override)");
+                        s.into_bytes()
+                    }
                 }
-            },
+            }
         };
         let jwt_ttl = std::env::var("ONE_JWT_TTL_SECS")
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(DEFAULT_JWT_TTL_SECS);
         let allow_signup = !matches!(
-            std::env::var("ONE_ALLOW_SIGNUP").unwrap_or_default().to_lowercase().as_str(),
+            std::env::var("ONE_ALLOW_SIGNUP")
+                .unwrap_or_default()
+                .to_lowercase()
+                .as_str(),
             "0" | "false" | "off"
         );
         Ok(Self {
@@ -687,7 +716,11 @@ impl OneState {
             return self.issue_session(user_id);
         }
         let user = self.users.get_user(user_id).ok_or_else(|| {
-            api_err(StatusCode::UNAUTHORIZED, "unauthorized", "account no longer exists")
+            api_err(
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                "account no longer exists",
+            )
         })?;
         let token = self
             .mint_typed(&user.id, &user.email, "mfa", 300)
@@ -715,13 +748,21 @@ impl OneState {
         user_id: &str,
     ) -> Result<serde_json::Value, axum::response::Response> {
         let user = self.users.get_user(user_id).ok_or_else(|| {
-            api_err(StatusCode::UNAUTHORIZED, "unauthorized", "account no longer exists")
+            api_err(
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                "account no longer exists",
+            )
         })?;
         let (token, ttl) = self
             .mint_jwt(&user.id, &user.email)
             .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, "jwt_failed", &e))?;
         let refresh = self.users.mint_refresh(&user.id).map_err(|e| {
-            api_err(StatusCode::INTERNAL_SERVER_ERROR, "refresh_failed", &e.to_string())
+            api_err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "refresh_failed",
+                &e.to_string(),
+            )
         })?;
         Ok(session_json(Some(&user), token, ttl, refresh))
     }
@@ -752,7 +793,11 @@ impl OneState {
                 self.users
                     .link_identity(&provider, subject, &uid, Some(email))
                     .map_err(|e| {
-                        api_err(StatusCode::INTERNAL_SERVER_ERROR, "link_failed", &e.to_string())
+                        api_err(
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            "link_failed",
+                            &e.to_string(),
+                        )
                     })?;
                 self.users.mark_verified(&uid);
                 tracing::info!(target: "audit", event = "oauth_linked", user = %uid, subject = %subject, "identity linked to existing account");
@@ -768,9 +813,9 @@ impl OneState {
         }
         // No password: the sentinel is not a PHC string, so verify_password
         // always returns false for it.
-        let synth_email = email
-            .map(str::to_string)
-            .unwrap_or_else(|| format!("{}@users.noreply.binocle.local", subject.replace(':', ".")));
+        let synth_email = email.map(str::to_string).unwrap_or_else(|| {
+            format!("{}@users.noreply.binocle.local", subject.replace(':', "."))
+        });
         let uid = self
             .users
             .create_user(&synth_email, "!oauth-only")
@@ -780,12 +825,24 @@ impl OneState {
         }
         self.users
             .link_identity(&provider, subject, &uid, email)
-            .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, "link_failed", &e.to_string()))?;
+            .map_err(|e| {
+                api_err(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "link_failed",
+                    &e.to_string(),
+                )
+            })?;
         tracing::info!(target: "audit", event = "oauth_signup", user = %uid, subject = %subject, "account created via oauth");
         Ok(uid)
     }
 
-    fn mint_typed(&self, user_id: &str, email: &str, typ: &str, ttl: u64) -> Result<String, String> {
+    fn mint_typed(
+        &self,
+        user_id: &str,
+        email: &str,
+        typ: &str,
+        ttl: u64,
+    ) -> Result<String, String> {
         let now = chrono::Utc::now().timestamp() as usize;
         let claims = Claims {
             sub: user_id.to_string(),
@@ -821,9 +878,19 @@ impl OneState {
             &jsonwebtoken::DecodingKey::from_secret(&self.jwt_secret),
             &validation,
         )
-        .map_err(|_| api_err(StatusCode::UNAUTHORIZED, "unauthorized", "invalid or expired token"))?;
+        .map_err(|_| {
+            api_err(
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                "invalid or expired token",
+            )
+        })?;
         if data.claims.typ != "auth" {
-            return Err(api_err(StatusCode::UNAUTHORIZED, "unauthorized", "not an auth token"));
+            return Err(api_err(
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                "not an auth token",
+            ));
         }
         Ok(VerifiedIdentity {
             tenant_id: "local".to_string(),
@@ -865,7 +932,12 @@ fn validate_credentials(c: &Credentials) -> Result<(), &'static str> {
 }
 
 /// Token bundle response (register / login / refresh all share it).
-fn session_json(user: Option<&UserPublic>, token: String, ttl: u64, refresh: String) -> serde_json::Value {
+fn session_json(
+    user: Option<&UserPublic>,
+    token: String,
+    ttl: u64,
+    refresh: String,
+) -> serde_json::Value {
     let mut v = json!({
         "token": token,
         "token_type": "Bearer",
@@ -887,7 +959,11 @@ async fn register(
         Err(r) => return r,
     };
     if !one.allow_signup {
-        return api_err(StatusCode::FORBIDDEN, "signup_disabled", "signups are disabled (ONE_ALLOW_SIGNUP=0)");
+        return api_err(
+            StatusCode::FORBIDDEN,
+            "signup_disabled",
+            "signups are disabled (ONE_ALLOW_SIGNUP=0)",
+        );
     }
     if let Err(m) = validate_credentials(&req) {
         return api_err(StatusCode::BAD_REQUEST, "invalid_request", m);
@@ -897,11 +973,23 @@ async fn register(
     // argon2id costs tens of ms by design — off the async runtime.
     let hash = match tokio::task::spawn_blocking(move || hash_password(&password)).await {
         Ok(Ok(h)) => h,
-        _ => return api_err(StatusCode::INTERNAL_SERVER_ERROR, "hash_failed", "password hashing failed"),
+        _ => {
+            return api_err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "hash_failed",
+                "password hashing failed",
+            )
+        }
     };
     let user_id = match one.users.create_user(&email, &hash) {
         Ok(id) => id,
-        Err(_) => return api_err(StatusCode::CONFLICT, "email_taken", "an account with this email already exists"),
+        Err(_) => {
+            return api_err(
+                StatusCode::CONFLICT,
+                "email_taken",
+                "an account with this email already exists",
+            )
+        }
     };
     let (token, ttl) = match one.mint_jwt(&user_id, &email) {
         Ok(t) => t,
@@ -909,11 +997,21 @@ async fn register(
     };
     let refresh = match one.users.mint_refresh(&user_id) {
         Ok(r) => r,
-        Err(e) => return api_err(StatusCode::INTERNAL_SERVER_ERROR, "refresh_failed", &e.to_string()),
+        Err(e) => {
+            return api_err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "refresh_failed",
+                &e.to_string(),
+            )
+        }
     };
     let user = one.users.get_user(&user_id);
     tracing::info!(target: "audit", event = "user_registered", user = %user_id, "one account created");
-    (StatusCode::CREATED, Json(session_json(user.as_ref(), token, ttl, refresh))).into_response()
+    (
+        StatusCode::CREATED,
+        Json(session_json(user.as_ref(), token, ttl, refresh)),
+    )
+        .into_response()
 }
 
 async fn login(
@@ -929,14 +1027,22 @@ async fn login(
     let Some((user_id, stored)) = one.users.find_by_email(&email) else {
         // Burn comparable time so an unknown email is indistinguishable.
         let _ = tokio::task::spawn_blocking(move || hash_password(&password)).await;
-        return api_err(StatusCode::UNAUTHORIZED, "unauthorized", "invalid email or password");
+        return api_err(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "invalid email or password",
+        );
     };
     let ok = matches!(
         tokio::task::spawn_blocking(move || verify_password(&password, &stored)).await,
         Ok(true)
     );
     if !ok {
-        return api_err(StatusCode::UNAUTHORIZED, "unauthorized", "invalid email or password");
+        return api_err(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "invalid email or password",
+        );
     }
     // TOTP-enabled accounts get a challenge instead of a session.
     match one.finish_login(&user_id) {
@@ -959,10 +1065,18 @@ async fn refresh(
         Err(r) => return r,
     };
     let Some(user_id) = one.users.consume_refresh(&req.refresh) else {
-        return api_err(StatusCode::UNAUTHORIZED, "unauthorized", "invalid, expired or already-used refresh token");
+        return api_err(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "invalid, expired or already-used refresh token",
+        );
     };
     let Some(user) = one.users.get_user(&user_id) else {
-        return api_err(StatusCode::UNAUTHORIZED, "unauthorized", "account no longer exists");
+        return api_err(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "account no longer exists",
+        );
     };
     let (token, ttl) = match one.mint_jwt(&user.id, &user.email) {
         Ok(t) => t,
@@ -970,9 +1084,19 @@ async fn refresh(
     };
     let new_refresh = match one.users.mint_refresh(&user.id) {
         Ok(r) => r,
-        Err(e) => return api_err(StatusCode::INTERNAL_SERVER_ERROR, "refresh_failed", &e.to_string()),
+        Err(e) => {
+            return api_err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "refresh_failed",
+                &e.to_string(),
+            )
+        }
     };
-    (StatusCode::OK, Json(session_json(Some(&user), token, ttl, new_refresh))).into_response()
+    (
+        StatusCode::OK,
+        Json(session_json(Some(&user), token, ttl, new_refresh)),
+    )
+        .into_response()
 }
 
 async fn logout(
@@ -994,7 +1118,11 @@ async fn me(State(state): State<AppState>, headers: header::HeaderMap) -> axum::
         Err(r) => return r,
     };
     let Some(token) = bearer_token(&headers) else {
-        return api_err(StatusCode::UNAUTHORIZED, "unauthorized", "Bearer token required");
+        return api_err(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "Bearer token required",
+        );
     };
     let id = match one.verify_jwt(&token) {
         Ok(id) => id,
@@ -1002,7 +1130,11 @@ async fn me(State(state): State<AppState>, headers: header::HeaderMap) -> axum::
     };
     match one.users.get_user(&id.key_id) {
         Some(user) => Json(json!({ "user": user })).into_response(),
-        None => api_err(StatusCode::UNAUTHORIZED, "unauthorized", "account no longer exists"),
+        None => api_err(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "account no longer exists",
+        ),
     }
 }
 
@@ -1087,7 +1219,10 @@ mod tests {
         let raw2 = store.mint_refresh(&uid).unwrap();
         let forged = format!("{}.{}", raw2.split_once('.').unwrap().0, "0".repeat(64));
         assert!(store.consume_refresh(&forged).is_none());
-        assert!(store.consume_refresh(&raw2).is_none(), "mismatch burned the row");
+        assert!(
+            store.consume_refresh(&raw2).is_none(),
+            "mismatch burned the row"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1109,7 +1244,10 @@ mod tests {
         std::fs::create_dir_all(&dir2).unwrap();
         let other = OneState::open(&dir2).unwrap();
         let (foreign, _) = other.mint_jwt("u123", "a@b.c").unwrap();
-        assert!(one.verify_jwt(&foreign).is_err(), "cross-secret token rejected");
+        assert!(
+            one.verify_jwt(&foreign).is_err(),
+            "cross-secret token rejected"
+        );
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(&dir2);
     }
@@ -1121,7 +1259,10 @@ mod tests {
         let one = OneState::open(&dir).unwrap();
         let dave = one.users.create_user("dave@x.y", "$argon2-fake").unwrap();
         // First OAuth login with dave's provider-verified email LINKS, not duplicates.
-        assert_eq!(one.oauth_login("oidc:s1", Some("dave@x.y"), true).unwrap(), dave);
+        assert_eq!(
+            one.oauth_login("oidc:s1", Some("dave@x.y"), true).unwrap(),
+            dave
+        );
         // Later logins match by identity alone (email not needed).
         assert_eq!(one.oauth_login("oidc:s1", None, true).unwrap(), dave);
         // An unverified email must NOT link to an existing account.
@@ -1141,7 +1282,10 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let store = UserStore::open(&dir.join("meta.db")).unwrap();
         store.create_user("dup@x.y", "h1").unwrap();
-        assert!(store.create_user("dup@x.y", "h2").is_err(), "unique email enforced");
+        assert!(
+            store.create_user("dup@x.y", "h2").is_err(),
+            "unique email enforced"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

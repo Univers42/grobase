@@ -141,7 +141,11 @@ mod tests {
         for v in [json!(7), json!("str"), Value::Null, json!(true)] {
             let back = sql_to_json(json_to_sql(&v));
             // bool round-trips to its integer form (SQLite has no bool type).
-            let expected = if v == json!(true) { json!(1) } else { v.clone() };
+            let expected = if v == json!(true) {
+                json!(1)
+            } else {
+                v.clone()
+            };
             assert_eq!(back, expected, "round-trip {v}");
         }
     }

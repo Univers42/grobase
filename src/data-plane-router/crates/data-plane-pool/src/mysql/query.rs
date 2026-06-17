@@ -9,13 +9,13 @@
 //   reusable owner-scope/bind helpers were already split to `scope`. Splitting
 //   the builders further (read vs write) would scatter shared lowering.
 
-use super::*;
 use super::convert::{json_to_mysql_value, row_to_json};
 use super::error::backend;
 use super::scope::{
     build_order_by, build_owned_columns, build_owner_filter, build_safe_columns,
     render_insert_columns,
 };
+use super::*;
 
 // ── operation implementations ───────────────────────────────────────────────
 
@@ -30,9 +30,7 @@ pub(super) async fn run_list(
     let limit = op.limit.unwrap_or(100).min(500);
     let offset = op.offset.unwrap_or(0);
 
-    let sql = format!(
-        "SELECT * FROM {table}{where_sql}{order_sql} LIMIT {limit} OFFSET {offset}"
-    );
+    let sql = format!("SELECT * FROM {table}{where_sql}{order_sql} LIMIT {limit} OFFSET {offset}");
     let rows: Vec<Row> = q
         .exec(sql.as_str(), Params::Positional(params))
         .await

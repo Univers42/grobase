@@ -63,7 +63,9 @@ mod tests {
         append_query, encode, extract_scalar, join_url, route_or_default, scalar_id_from_filter,
         scalar_id_from_filter_or_data,
     };
-    use super::validate::{is_blocked_ip, is_http_url, parse_connection, validate_resource, HttpConnection};
+    use super::validate::{
+        is_blocked_ip, is_http_url, parse_connection, validate_resource, HttpConnection,
+    };
     use data_plane_core::{DataOperation, DataOperationKind};
     use serde_json::{json, Value};
     use std::collections::BTreeMap;
@@ -79,8 +81,8 @@ mod tests {
             "100.64.0.1", // CGNAT
             "0.0.0.0",
             "::1",
-            "fd00::1",  // IPv6 ULA
-            "fe80::1",  // IPv6 link-local
+            "fd00::1",          // IPv6 ULA
+            "fe80::1",          // IPv6 link-local
             "::ffff:127.0.0.1", // IPv4-mapped loopback
         ] {
             assert!(is_blocked_ip(bad.parse().unwrap()), "{bad} must be blocked");
@@ -209,11 +211,11 @@ mod tests {
     #[test]
     fn is_blocked_ip_blocks_every_reserved_v4_range() {
         for bad in [
-            "127.0.0.1",       // loopback
+            "127.0.0.1", // loopback
             "127.255.255.254",
-            "10.0.0.1",        // RFC-1918 /8
+            "10.0.0.1", // RFC-1918 /8
             "10.255.255.255",
-            "172.16.0.1",      // RFC-1918 /12
+            "172.16.0.1", // RFC-1918 /12
             "172.31.255.255",
             "192.168.0.1",     // RFC-1918 /16
             "169.254.0.1",     // link-local
@@ -234,15 +236,15 @@ mod tests {
     #[test]
     fn is_blocked_ip_blocks_reserved_v6_and_mapped() {
         for bad in [
-            "::1",                  // loopback
-            "::",                   // unspecified
-            "ff02::1",              // multicast
-            "fc00::1",              // ULA /7
-            "fdff::1",              // ULA /7
-            "fe80::1",              // link-local /10
+            "::1",     // loopback
+            "::",      // unspecified
+            "ff02::1", // multicast
+            "fc00::1", // ULA /7
+            "fdff::1", // ULA /7
+            "fe80::1", // link-local /10
             "febf::1",
-            "::ffff:127.0.0.1",     // IPv4-mapped loopback
-            "::ffff:10.0.0.1",      // IPv4-mapped private
+            "::ffff:127.0.0.1",       // IPv4-mapped loopback
+            "::ffff:10.0.0.1",        // IPv4-mapped private
             "::ffff:169.254.169.254", // IPv4-mapped metadata
         ] {
             assert!(is_blocked_ip(bad.parse().unwrap()), "{bad} must be blocked");
@@ -255,10 +257,10 @@ mod tests {
             "1.1.1.1",
             "8.8.8.8",
             "93.184.216.34",
-            "100.63.255.255", // just below CGNAT
-            "100.128.0.0",    // just above CGNAT
-            "172.15.255.255", // just below RFC-1918 /12
-            "172.32.0.0",     // just above RFC-1918 /12
+            "100.63.255.255",       // just below CGNAT
+            "100.128.0.0",          // just above CGNAT
+            "172.15.255.255",       // just below RFC-1918 /12
+            "172.32.0.0",           // just above RFC-1918 /12
             "2606:4700:4700::1111", // public IPv6 (Cloudflare)
         ] {
             assert!(!is_blocked_ip(ok.parse().unwrap()), "{ok} must be allowed");
@@ -312,14 +314,30 @@ mod tests {
 
     #[test]
     fn validate_resource_accepts_url_path_chars() {
-        for ok in ["users", "v1/users", "items.json", "x_y-z", "a/b/c", &"x".repeat(128)] {
+        for ok in [
+            "users",
+            "v1/users",
+            "items.json",
+            "x_y-z",
+            "a/b/c",
+            &"x".repeat(128),
+        ] {
             assert!(validate_resource(ok).is_ok(), "should accept {ok:?}");
         }
     }
 
     #[test]
     fn validate_resource_rejects_funny_and_overlong() {
-        for bad in ["", "a b", "foo?bar", "a&b", "a#b", "a%b", "a:b", &"x".repeat(129)] {
+        for bad in [
+            "",
+            "a b",
+            "foo?bar",
+            "a&b",
+            "a#b",
+            "a%b",
+            "a:b",
+            &"x".repeat(129),
+        ] {
             assert!(validate_resource(bad).is_err(), "should reject {bad:?}");
         }
     }
@@ -336,7 +354,12 @@ mod tests {
         assert_eq!(extract_scalar(Some(&json!(true)), "x").unwrap(), "true");
         assert_eq!(extract_scalar(Some(&json!(false)), "x").unwrap(), "false");
         // rejected: null, array, object, missing.
-        for bad in [Some(&json!(null)), Some(&json!([1])), Some(&json!({ "k": 1 })), None] {
+        for bad in [
+            Some(&json!(null)),
+            Some(&json!([1])),
+            Some(&json!({ "k": 1 })),
+            None,
+        ] {
             assert!(extract_scalar(bad, "x").is_err(), "should reject {bad:?}");
         }
     }
@@ -428,9 +451,15 @@ mod tests {
 
     #[test]
     fn shape_response_every_envelope_shape() {
-        assert_eq!(shape_response(json!([{ "a": 1 }, { "a": 2 }])).affected_rows, 2);
+        assert_eq!(
+            shape_response(json!([{ "a": 1 }, { "a": 2 }])).affected_rows,
+            2
+        );
         assert_eq!(shape_response(json!([])).affected_rows, 0);
-        assert_eq!(shape_response(json!({ "data": [{ "a": 1 }] })).affected_rows, 1);
+        assert_eq!(
+            shape_response(json!({ "data": [{ "a": 1 }] })).affected_rows,
+            1
+        );
         assert_eq!(shape_response(json!({ "data": [] })).affected_rows, 0);
         assert_eq!(shape_response(json!({ "id": "x" })).affected_rows, 1);
         // non-array `data` is NOT unwrapped — the object is one row.
@@ -473,6 +502,9 @@ mod tests {
     fn parse_connection_json_with_routes() {
         let raw = r#"{"baseUrl":"https://x.com","routes":{"list":"/all"}}"#;
         let p = parse_connection(raw).unwrap();
-        assert_eq!(p.routes.unwrap().get("list").map(String::as_str), Some("/all"));
+        assert_eq!(
+            p.routes.unwrap().get("list").map(String::as_str),
+            Some("/all")
+        );
     }
 }

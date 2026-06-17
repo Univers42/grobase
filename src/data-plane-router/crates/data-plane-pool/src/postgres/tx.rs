@@ -213,6 +213,9 @@ async fn run_batch<C: GenericClient + Sync>(
         rows: vec![],
         affected_rows: total,
         next_cursor: None,
-        batch: Some(BatchSummary { atomic: true, items: outcomes }),
+        batch: Some(BatchSummary {
+            atomic: true,
+            items: outcomes,
+        }),
     })
 }

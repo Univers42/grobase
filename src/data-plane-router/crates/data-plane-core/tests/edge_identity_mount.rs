@@ -48,7 +48,10 @@ fn mount(tenant: &str, engine: &str, isolation: Option<&str>) -> DatabaseMount {
 
 #[test]
 fn owner_principal_prefers_present_user() {
-    assert_eq!(ident(Some("user-1"), "tenant-1").owner_principal(), "user-1");
+    assert_eq!(
+        ident(Some("user-1"), "tenant-1").owner_principal(),
+        "user-1"
+    );
 }
 
 #[test]
@@ -138,7 +141,10 @@ fn absent_user_with_empty_tenant_yields_empty_principal() {
 
 #[test]
 fn mount_isolation_none_is_shared_rls() {
-    assert_eq!(mount("t", "postgresql", None).isolation(), Isolation::SharedRls);
+    assert_eq!(
+        mount("t", "postgresql", None).isolation(),
+        Isolation::SharedRls
+    );
 }
 
 #[test]
@@ -183,7 +189,10 @@ fn mount_isolation_unknown_string_degrades_to_shared_rls() {
 
 #[test]
 fn mount_isolation_empty_string_degrades_to_shared_rls() {
-    assert_eq!(mount("t", "postgresql", Some("")).isolation(), Isolation::SharedRls);
+    assert_eq!(
+        mount("t", "postgresql", Some("")).isolation(),
+        Isolation::SharedRls
+    );
 }
 
 #[test]
@@ -200,17 +209,26 @@ fn mount_isolation_with_surrounding_whitespace_is_trimmed() {
 
 #[test]
 fn tenant_schema_none_for_shared_rls() {
-    assert_eq!(mount("acme", "postgresql", Some("shared_rls")).tenant_schema(), None);
+    assert_eq!(
+        mount("acme", "postgresql", Some("shared_rls")).tenant_schema(),
+        None
+    );
 }
 
 #[test]
 fn tenant_schema_none_for_db_per_tenant() {
-    assert_eq!(mount("acme", "postgresql", Some("db_per_tenant")).tenant_schema(), None);
+    assert_eq!(
+        mount("acme", "postgresql", Some("db_per_tenant")).tenant_schema(),
+        None
+    );
 }
 
 #[test]
 fn tenant_schema_none_for_tenant_owned() {
-    assert_eq!(mount("acme", "postgresql", Some("tenant_owned")).tenant_schema(), None);
+    assert_eq!(
+        mount("acme", "postgresql", Some("tenant_owned")).tenant_schema(),
+        None
+    );
 }
 
 #[test]
@@ -236,18 +254,27 @@ fn tenant_schema_equals_safe_schema_source_of_truth() {
 
 #[test]
 fn tenant_schema_none_when_id_sanitizes_to_empty() {
-    assert_eq!(mount("---", "postgresql", Some("schema_per_tenant")).tenant_schema(), None);
+    assert_eq!(
+        mount("---", "postgresql", Some("schema_per_tenant")).tenant_schema(),
+        None
+    );
 }
 
 #[test]
 fn tenant_schema_for_unicode_tenant_strips_to_underscores() {
     // Non-ASCII bytes map to `_`; an all-non-ASCII id sanitizes to empty → None.
-    assert_eq!(mount("名前", "postgresql", Some("schema_per_tenant")).tenant_schema(), None);
+    assert_eq!(
+        mount("名前", "postgresql", Some("schema_per_tenant")).tenant_schema(),
+        None
+    );
     // A mixed id keeps the ASCII run.
     let s = mount("café7", "postgresql", Some("schema_per_tenant"))
         .tenant_schema()
         .unwrap();
-    assert!(s.starts_with("tenant_caf_7_") || s.starts_with("tenant_caf"), "{s}");
+    assert!(
+        s.starts_with("tenant_caf_7_") || s.starts_with("tenant_caf"),
+        "{s}"
+    );
 }
 
 #[test]
@@ -333,7 +360,10 @@ fn resolve_namespace_none_for_unscoped_engines_schema_per_tenant() {
 
 #[test]
 fn resolve_namespace_none_when_tenant_sanitizes_empty() {
-    assert_eq!(mount("___", "mongodb", Some("schema_per_tenant")).resolve_namespace(), None);
+    assert_eq!(
+        mount("___", "mongodb", Some("schema_per_tenant")).resolve_namespace(),
+        None
+    );
 }
 
 #[test]
@@ -343,7 +373,11 @@ fn resolve_namespace_handles_very_long_tenant_id() {
         .resolve_namespace()
         .unwrap();
     // Must be bounded (PG 63-byte identifier cap shape).
-    assert!(ns.len() <= 63, "namespace must stay bounded: {} ({ns})", ns.len());
+    assert!(
+        ns.len() <= 63,
+        "namespace must stay bounded: {} ({ns})",
+        ns.len()
+    );
     assert!(ns.starts_with("tenant_zzz"), "{ns}");
 }
 
@@ -352,7 +386,10 @@ fn resolve_namespace_neutralizes_special_chars() {
     let ns = mount("a/b\\c:d", "redis", Some("schema_per_tenant"))
         .resolve_namespace()
         .unwrap();
-    assert!(ns.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'), "{ns}");
+    assert!(
+        ns.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
+        "{ns}"
+    );
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -423,7 +460,13 @@ fn pool_key_handles_special_chars_in_tenant() {
 
 #[test]
 fn effective_pool_key_off_equals_pool_key_for_all_isolations() {
-    for iso in [None, Some("shared_rls"), Some("schema_per_tenant"), Some("db_per_tenant"), Some("tenant_owned")] {
+    for iso in [
+        None,
+        Some("shared_rls"),
+        Some("schema_per_tenant"),
+        Some("db_per_tenant"),
+        Some("tenant_owned"),
+    ] {
         let m = mount("acme", "postgresql", iso);
         assert_eq!(m.effective_pool_key(false), m.pool_key(), "iso {iso:?}");
     }
@@ -531,7 +574,10 @@ fn effective_pool_key_is_deterministic_in_both_modes() {
 
 #[test]
 fn read_replica_variant_none_without_dsn() {
-    assert_eq!(mount("acme", "postgresql", None).read_replica_variant(), None);
+    assert_eq!(
+        mount("acme", "postgresql", None).read_replica_variant(),
+        None
+    );
 }
 
 #[test]
@@ -563,7 +609,10 @@ fn read_replica_variant_pool_key_ends_with_ro() {
         let mut m = mount("acme", "postgresql", Some("shared_rls"));
         m.replica_inline_dsn = Some("postgres://replica/db".into());
         let v = m.read_replica_variant().unwrap();
-        assert!(v.effective_pool_key(share).ends_with("/ro"), "share={share}");
+        assert!(
+            v.effective_pool_key(share).ends_with("/ro"),
+            "share={share}"
+        );
     }
 }
 
@@ -574,7 +623,11 @@ fn read_replica_variant_pool_key_differs_from_primary() {
         primary.inline_dsn = Some("postgres://primary/db".into());
         primary.replica_inline_dsn = Some("postgres://replica/db".into());
         let variant = primary.clone().read_replica_variant().unwrap();
-        assert_ne!(primary.effective_pool_key(share), variant.effective_pool_key(share), "share={share}");
+        assert_ne!(
+            primary.effective_pool_key(share),
+            variant.effective_pool_key(share),
+            "share={share}"
+        );
     }
 }
 
@@ -625,7 +678,10 @@ fn deserialized_mount_always_has_false_route_marker() {
     });
     // #[serde(skip)] means the field is ignored on the wire → always false.
     let m: DatabaseMount = serde_json::from_value(json).unwrap();
-    assert!(!m.read_replica_route, "skip-field never deserializes from wire");
+    assert!(
+        !m.read_replica_route,
+        "skip-field never deserializes from wire"
+    );
 }
 
 #[test]
@@ -672,7 +728,10 @@ fn identity_source_wire_names_are_snake_case() {
         (IdentitySource::ServiceToken, "service_token"),
         (IdentitySource::Test, "test"),
     ] {
-        assert_eq!(serde_json::to_value(&variant).unwrap(), serde_json::json!(wire));
+        assert_eq!(
+            serde_json::to_value(&variant).unwrap(),
+            serde_json::json!(wire)
+        );
     }
 }
 

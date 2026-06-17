@@ -25,7 +25,11 @@ pub(super) fn run_plan(conn: &Connection, plan: &SqlPlan) -> DataPlaneResult<Dat
     }
 }
 
-pub(super) fn query_rows(conn: &Connection, sql: &str, params: &[SqlValue]) -> DataPlaneResult<Vec<Value>> {
+pub(super) fn query_rows(
+    conn: &Connection,
+    sql: &str,
+    params: &[SqlValue],
+) -> DataPlaneResult<Vec<Value>> {
     // prepare_cached reuses the compiled VDBE program for a fixed query shape
     // (the per-connection cache is sized in `tune_read_conn`), removing a SQL
     // parse + recompile from every read — what PocketBase already amortizes.
@@ -48,7 +52,11 @@ pub(super) fn query_rows(conn: &Connection, sql: &str, params: &[SqlValue]) -> D
     Ok(out)
 }
 
-pub(super) fn exec_write(conn: &Connection, sql: &str, params: &[SqlValue]) -> DataPlaneResult<u64> {
+pub(super) fn exec_write(
+    conn: &Connection,
+    sql: &str,
+    params: &[SqlValue],
+) -> DataPlaneResult<u64> {
     let n = conn
         .execute(sql, params_from_iter(params.iter()))
         .map_err(backend)?;

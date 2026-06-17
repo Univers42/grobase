@@ -1,10 +1,10 @@
 //! The pooled SQL Server connection set ([`MssqlPool`]) plus plan execution
 //! (`run_plan`) and the atomic batch (`run_batch`) — the `EnginePool` surface.
 
-use super::*;
 use super::convert::{json_to_param, normalize_mssql_type, row_to_json};
 use super::error::backend;
 use super::query::{build_plan, owner_of, SqlPlan, P};
+use super::*;
 
 pub struct MssqlPool {
     // Fields are `pub(super)` so the sibling `adapter` module can construct the
@@ -97,16 +97,27 @@ impl EnginePool for MssqlPool {
         identity: RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
         self.check_tenant(&identity)?;
-        let RawStatement { statement: sql, params, expect_rows } = statement;
+        let RawStatement {
+            statement: sql,
+            params,
+            expect_rows,
+        } = statement;
         let bound: Vec<P> = params.iter().map(json_to_param).collect();
-        let plan = SqlPlan { sql, params: bound, returns_rows: expect_rows };
+        let plan = SqlPlan {
+            sql,
+            params: bound,
+            returns_rows: expect_rows,
+        };
         let mut conn = self.conn().await?;
         run_plan(&mut conn, &plan).await
     }
 
     // ponytail: irreducible introspection — one information_schema query then a
     //   straight row→ColumnSchema materialization; nothing to factor out.
-    async fn describe_schema(&self, identity: RequestIdentity) -> DataPlaneResult<SchemaDescriptor> {
+    async fn describe_schema(
+        &self,
+        identity: RequestIdentity,
+    ) -> DataPlaneResult<SchemaDescriptor> {
         self.check_tenant(&identity)?;
         let mut conn = self.conn().await?;
         let rows = conn
@@ -130,16 +141,19 @@ impl EnginePool for MssqlPool {
             let col: &str = row.get(1).unwrap_or("");
             let native: &str = row.get(2).unwrap_or("");
             let nullable: &str = row.get(3).unwrap_or("YES");
-            tables.entry(table.to_string()).or_default().push(ColumnSchema {
-                name: col.to_string(),
-                native_type: native.to_string(),
-                normalized_type: normalize_mssql_type(native),
-                nullable: nullable.eq_ignore_ascii_case("YES"),
-                default: None,
-                enum_values: None,
-                references: None,
-                inferred: false,
-            });
+            tables
+                .entry(table.to_string())
+                .or_default()
+                .push(ColumnSchema {
+                    name: col.to_string(),
+                    native_type: native.to_string(),
+                    normalized_type: normalize_mssql_type(native),
+                    nullable: nullable.eq_ignore_ascii_case("YES"),
+                    default: None,
+                    enum_values: None,
+                    references: None,
+                    inferred: false,
+                });
         }
         Ok(SchemaDescriptor {
             engine: "mssql".to_string(),
@@ -173,17 +187,26 @@ impl MssqlPool {
                 }),
                 Err(e) => {
                     let _ = conn.simple_query("ROLLBACK").await;
-                    return Err(DataPlaneError::prefix_message(&format!("batch item {idx}: "), e));
+                    return Err(DataPlaneError::prefix_message(
+                        &format!("batch item {idx}: "),
+                        e,
+                    ));
                 }
             }
         }
         conn.simple_query("COMMIT").await.map_err(backend)?;
-        let affected = items.iter().filter(|i| i.status == BatchItemStatus::Ok).count() as u64;
+        let affected = items
+            .iter()
+            .filter(|i| i.status == BatchItemStatus::Ok)
+            .count() as u64;
         Ok(DataResult {
             rows: vec![],
             affected_rows: affected,
             next_cursor: None,
-            batch: Some(BatchSummary { atomic: true, items }),
+            batch: Some(BatchSummary {
+                atomic: true,
+                items,
+            }),
         })
     }
 }

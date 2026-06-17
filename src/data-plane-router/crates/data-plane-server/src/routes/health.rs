@@ -13,7 +13,11 @@ use super::state::AppState;
 
 /// Counts every finished request by status class, except the scrape/probe
 /// paths so the counters reflect real API traffic.
-pub(super) async fn track_metrics(State(state): State<AppState>, req: Request, next: Next) -> Response {
+pub(super) async fn track_metrics(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Response {
     let path = req.uri().path().to_string();
     let method = req.method().clone();
     // Capture the inbound W3C trace context + correlation id so data-plane logs
@@ -59,7 +63,10 @@ pub(super) async fn metrics_handler(State(state): State<AppState>) -> Response {
     write_pool_and_cache_counters(&mut out, &state);
     write_outbox_and_pool_conns(&mut out, &state).await;
     Response::builder()
-        .header(header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")
+        .header(
+            header::CONTENT_TYPE,
+            "text/plain; version=0.0.4; charset=utf-8",
+        )
         .body(Body::from(out))
         .expect("static metrics response is always valid")
 }

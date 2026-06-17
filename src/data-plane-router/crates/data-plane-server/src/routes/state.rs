@@ -14,8 +14,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::health::EngineDescriptor;
 use super::health::default_engines;
+use super::health::EngineDescriptor;
 use super::state_build::{build_adapters, build_evaluator, build_honor_refreshers, build_resolver};
 // `TransactionRegistry` now lives in the sibling `txregistry` module; re-export
 // it here so its `super::state::TransactionRegistry` path (used by the tests in
@@ -111,11 +111,13 @@ pub struct AppState {
     /// EVERY request, making it slower than the path it replaces; with it the
     /// verify is amortized and the bypass is the faster door. TTL from
     /// `DATA_PLANE_VERIFY_CACHE_TTL_MS` (default 30 000; 0 disables).
-    pub(super) verify_cache: Arc<std::sync::Mutex<HashMap<String, (std::time::Instant, crate::auth::VerifiedIdentity)>>>,
+    pub(super) verify_cache:
+        Arc<std::sync::Mutex<HashMap<String, (std::time::Instant, crate::auth::VerifiedIdentity)>>>,
     /// Companion cache for the bypass mount resolution (`(tenant,db_id) → DSN/
     /// engine/tier`), same TTL as `verify_cache` — mirrors the query-router DSN
     /// cache so the cutover door doesn't re-hit adapter-registry per request.
-    pub(super) mount_cache: Arc<std::sync::Mutex<HashMap<String, (std::time::Instant, crate::auth::ResolvedMount)>>>,
+    pub(super) mount_cache:
+        Arc<std::sync::Mutex<HashMap<String, (std::time::Instant, crate::auth::ResolvedMount)>>>,
 }
 
 impl AppState {
@@ -186,7 +188,6 @@ impl AppState {
     }
 }
 
-
 impl AppState {
     /// Resolve a mount (engine + DSN + tier mask) for a bypass caller,
     /// tenant-scoped via adapter-registry. Used by the single-mount handlers and
@@ -249,7 +250,12 @@ impl AppState {
     /// Insert a freshly-resolved bypass mount under `ckey` (no-op when caching is
     /// disabled or the lock is poisoned). Bounds the map at 4096 entries so a
     /// key-spray can't grow it unboundedly.
-    fn mount_cache_put(&self, ckey: String, mount: &crate::auth::ResolvedMount, ttl: std::time::Duration) {
+    fn mount_cache_put(
+        &self,
+        ckey: String,
+        mount: &crate::auth::ResolvedMount,
+        ttl: std::time::Duration,
+    ) {
         if ttl.is_zero() {
             return;
         }

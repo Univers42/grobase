@@ -111,12 +111,19 @@ fn ssrf_blocked(host: &str) -> DataPlaneError {
 // ponytail: 51-line SSRF guard kept whole — escape/parse/host-deny/literal-IP/
 // DNS-resolve are one security-critical sequence; splitting would scatter the
 // classification and invite a bypass. Extract a helper only if a step grows.
-pub async fn guard_and_resolve(base_url: &str) -> DataPlaneResult<Option<(String, Vec<SocketAddr>)>> {
-    if std::env::var("DATA_PLANE_HTTP_ALLOW_INTERNAL").ok().as_deref() == Some("1") {
+pub async fn guard_and_resolve(
+    base_url: &str,
+) -> DataPlaneResult<Option<(String, Vec<SocketAddr>)>> {
+    if std::env::var("DATA_PLANE_HTTP_ALLOW_INTERNAL")
+        .ok()
+        .as_deref()
+        == Some("1")
+    {
         return Ok(None);
     }
-    let url = reqwest::Url::parse(base_url)
-        .map_err(|e| DataPlaneError::Backend { message: format!("http baseUrl parse: {e}") })?;
+    let url = reqwest::Url::parse(base_url).map_err(|e| DataPlaneError::Backend {
+        message: format!("http baseUrl parse: {e}"),
+    })?;
     let host = url
         .host_str()
         .ok_or_else(|| DataPlaneError::Backend {
@@ -143,10 +150,14 @@ pub async fn guard_and_resolve(base_url: &str) -> DataPlaneResult<Option<(String
     // Hostname → resolve off the async runtime, validate EVERY A/AAAA record.
     let h = host.clone();
     let addrs: Vec<SocketAddr> = tokio::task::spawn_blocking(move || {
-        (h.as_str(), port).to_socket_addrs().map(|it| it.collect::<Vec<_>>())
+        (h.as_str(), port)
+            .to_socket_addrs()
+            .map(|it| it.collect::<Vec<_>>())
     })
     .await
-    .map_err(|e| DataPlaneError::Backend { message: format!("ssrf resolve join: {e}") })?
+    .map_err(|e| DataPlaneError::Backend {
+        message: format!("ssrf resolve join: {e}"),
+    })?
     .map_err(|e| DataPlaneError::Backend {
         message: format!("http host '{host}' did not resolve: {e}"),
     })?;

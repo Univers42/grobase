@@ -5,7 +5,7 @@
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
-use data_plane_core::{DatabaseMount, DataPlaneError, EngineCapabilities, RequestIdentity};
+use data_plane_core::{DataPlaneError, DatabaseMount, EngineCapabilities, RequestIdentity};
 use serde::Serialize;
 
 use super::state::AppState;
@@ -100,7 +100,9 @@ fn error_status_code(err: &DataPlaneError) -> (StatusCode, &'static str) {
         DataPlaneError::InvalidIdentifier { .. } => (StatusCode::BAD_REQUEST, "invalid_identifier"),
         DataPlaneError::InvalidRequest { .. } => (StatusCode::BAD_REQUEST, "invalid_request"),
         DataPlaneError::MountNotFound { .. } => (StatusCode::NOT_FOUND, "mount_not_found"),
-        DataPlaneError::TransactionNotFound { .. } => (StatusCode::NOT_FOUND, "transaction_not_found"),
+        DataPlaneError::TransactionNotFound { .. } => {
+            (StatusCode::NOT_FOUND, "transaction_not_found")
+        }
         DataPlaneError::CredentialUnavailable { .. } => {
             (StatusCode::BAD_GATEWAY, "credential_unavailable")
         }
@@ -173,8 +175,15 @@ pub(super) fn validate_identity_mount(
     if identity.tenant_id != mount.tenant_id {
         return Err("identity tenant does not match mount tenant".to_string());
     }
-    if !state.engines.iter().any(|engine| engine.engine == mount.engine) {
-        return Err(format!("engine '{}' is not mounted in the Rust router", mount.engine));
+    if !state
+        .engines
+        .iter()
+        .any(|engine| engine.engine == mount.engine)
+    {
+        return Err(format!(
+            "engine '{}' is not mounted in the Rust router",
+            mount.engine
+        ));
     }
     Ok(())
 }
@@ -276,7 +285,10 @@ pub(super) fn forbidden_suspended() -> axum::response::Response {
 }
 
 fn is_admin(identity: &RequestIdentity) -> bool {
-    identity.roles.iter().any(|r| r == "service_role" || r == "admin")
+    identity
+        .roles
+        .iter()
+        .any(|r| r == "service_role" || r == "admin")
         || identity.scopes.iter().any(|s| s == "admin")
 }
 
@@ -284,7 +296,10 @@ fn is_admin(identity: &RequestIdentity) -> bool {
 /// the SAME 403 `forbidden` body, differing only by the `route` named in the
 /// message (`/v1/admin/raw requires role=service_role or scope=admin`). Returns
 /// a ready response on denial so the handler just `?`-style early-returns it.
-pub(super) fn require_admin(identity: &RequestIdentity, route: &str) -> Result<(), axum::response::Response> {
+pub(super) fn require_admin(
+    identity: &RequestIdentity,
+    route: &str,
+) -> Result<(), axum::response::Response> {
     if is_admin(identity) {
         return Ok(());
     }

@@ -34,14 +34,15 @@ pub(super) fn writable_columns(data: &serde_json::Map<String, Value>) -> Vec<(&s
 
 /// ` AND owner_id = $n` for owner-scoped mounts; empty for `tenant_owned`
 /// (`owner: None`) — the tables are the tenant's own schema, no such column.
-fn owner_predicate(
-    owner: Option<&str>,
-    params: &mut Vec<BoxedParam>,
-) -> DataPlaneResult<String> {
+fn owner_predicate(owner: Option<&str>, params: &mut Vec<BoxedParam>) -> DataPlaneResult<String> {
     match owner {
         Some(principal) => {
             params.push(Box::new(principal.to_string()));
-            Ok(format!(" AND {} = ${}", quote_ident("owner_id")?, params.len()))
+            Ok(format!(
+                " AND {} = ${}",
+                quote_ident("owner_id")?,
+                params.len()
+            ))
         }
         None => Ok(String::new()),
     }
@@ -69,11 +70,16 @@ pub(super) fn build_update_sql(
     let where_sql = build_where(filter, &mut params)?;
     if where_sql.is_empty() {
         return Err(DataPlaneError::InvalidRequest {
-            message: "update requires a non-empty `filter` (refusing full-table update)".to_string(),
+            message: "update requires a non-empty `filter` (refusing full-table update)"
+                .to_string(),
         });
     }
     let owner_pred = owner_predicate(owner, &mut params)?;
-    let ret = if returning { " RETURNING to_jsonb(t) AS row" } else { "" };
+    let ret = if returning {
+        " RETURNING to_jsonb(t) AS row"
+    } else {
+        ""
+    };
     let sql = format!(
         "UPDATE {table} AS t SET {}{where_sql}{owner_pred}{ret}",
         assignments.join(", ")
@@ -91,11 +97,16 @@ pub(super) fn build_delete_sql(
     let where_sql = build_where(filter, &mut params)?;
     if where_sql.is_empty() {
         return Err(DataPlaneError::InvalidRequest {
-            message: "delete requires a non-empty `filter` (refusing full-table delete)".to_string(),
+            message: "delete requires a non-empty `filter` (refusing full-table delete)"
+                .to_string(),
         });
     }
     let owner_pred = owner_predicate(owner, &mut params)?;
-    let ret = if returning { " RETURNING to_jsonb(t) AS row" } else { "" };
+    let ret = if returning {
+        " RETURNING to_jsonb(t) AS row"
+    } else {
+        ""
+    };
     let sql = format!("DELETE FROM {table} AS t{where_sql}{owner_pred}{ret}");
     Ok((sql, params))
 }
@@ -170,7 +181,11 @@ pub(super) fn build_upsert_sql(
         assignments.push(format!("{first_key_ident} = EXCLUDED.{first_key_ident}"));
     }
 
-    let ret = if returning { " RETURNING to_jsonb(t) AS row" } else { "" };
+    let ret = if returning {
+        " RETURNING to_jsonb(t) AS row"
+    } else {
+        ""
+    };
     let sql = format!(
         "INSERT INTO {table} AS t ({}) VALUES ({}) ON CONFLICT ({}) DO UPDATE SET {}{ret}",
         columns.join(", "),
@@ -214,8 +229,14 @@ mod tests {
             build_update_sql("\"t\"", &data, Some(&filter), Some("u-trusted"), true).unwrap();
         assert!(sql.starts_with("UPDATE \"t\" AS t SET "), "{sql}");
         assert!(sql.contains("\"name\" = $1"), "{sql}");
-        assert!(!sql.contains("SET \"owner_id\""), "owner_id must not be settable: {sql}");
-        assert!(sql.contains(" AND \"owner_id\" = $3"), "owner predicate missing: {sql}");
+        assert!(
+            !sql.contains("SET \"owner_id\""),
+            "owner_id must not be settable: {sql}"
+        );
+        assert!(
+            sql.contains(" AND \"owner_id\" = $3"),
+            "owner predicate missing: {sql}"
+        );
         assert!(sql.contains("RETURNING to_jsonb(t)"), "{sql}");
         assert_eq!(params.len(), 3); // name, filter id, owner
     }
@@ -226,11 +247,10 @@ mod tests {
         // tables have no owner_id column — any owner SQL would 42703.
         let data = obj(json!({ "name": "ok" }));
         let filter = json!({ "id": 1 });
-        let (sql, params) =
-            build_update_sql("\"t\"", &data, Some(&filter), None, true).unwrap();
+        let (sql, params) = build_update_sql("\"t\"", &data, Some(&filter), None, true).unwrap();
         assert!(!sql.contains("owner_id"), "{sql}");
         assert_eq!(params.len(), 2); // name + filter id only
-        // The full-table refusals are isolation-independent.
+                                     // The full-table refusals are isolation-independent.
         assert!(build_update_sql("\"t\"", &data, None, None, true).is_err());
 
         let (sql, params) = build_delete_sql("\"t\"", Some(&filter), None, true).unwrap();
@@ -246,7 +266,10 @@ mod tests {
             true,
         )
         .unwrap();
-        assert!(sql.contains("ON CONFLICT (\"email\")"), "caller keys only: {sql}");
+        assert!(
+            sql.contains("ON CONFLICT (\"email\")"),
+            "caller keys only: {sql}"
+        );
         assert!(!sql.contains("owner_id"), "{sql}");
 
         // CreateTable DDL: no owner_id synthesis on tenant_owned mounts.
@@ -260,9 +283,17 @@ mod tests {
         }]);
         req.primary_key = Some(vec!["id".into()]);
         let plan = build_pg_ddl("public", &req, false).unwrap();
-        assert!(!plan.statements[0].contains("owner_id"), "{}", plan.statements[0]);
+        assert!(
+            !plan.statements[0].contains("owner_id"),
+            "{}",
+            plan.statements[0]
+        );
         let scoped = build_pg_ddl("public", &req, true).unwrap();
-        assert!(scoped.statements[0].contains("owner_id"), "{}", scoped.statements[0]);
+        assert!(
+            scoped.statements[0].contains("owner_id"),
+            "{}",
+            scoped.statements[0]
+        );
     }
 
     #[test]
@@ -270,16 +301,22 @@ mod tests {
         let data = obj(json!({ "name": "x" }));
         // A refused mutation is a client error (400), never a 5xx backend error.
         let err = build_update_sql("\"t\"", &data, None, Some("u"), true).unwrap_err();
-        assert!(matches!(err, DataPlaneError::InvalidRequest { .. }), "{err:?}");
+        assert!(
+            matches!(err, DataPlaneError::InvalidRequest { .. }),
+            "{err:?}"
+        );
         assert!(build_update_sql("\"t\"", &data, Some(&json!({})), Some("u"), true).is_err());
     }
 
     #[test]
     fn update_rejects_injection_in_column_name() {
         let data = obj(json!({ "evil;--": 1 }));
-        let err =
-            build_update_sql("\"t\"", &data, Some(&json!({ "id": 1 })), Some("u"), true).unwrap_err();
-        assert!(matches!(err, DataPlaneError::InvalidIdentifier { .. }), "{err:?}");
+        let err = build_update_sql("\"t\"", &data, Some(&json!({ "id": 1 })), Some("u"), true)
+            .unwrap_err();
+        assert!(
+            matches!(err, DataPlaneError::InvalidIdentifier { .. }),
+            "{err:?}"
+        );
     }
 
     #[test]
@@ -287,7 +324,10 @@ mod tests {
         let data = obj(json!({ "b": 1, "a": 2 }));
         let (sql, _) =
             build_update_sql("\"t\"", &data, Some(&json!({ "id": 1 })), Some("u"), true).unwrap();
-        assert!(sql.find("\"a\"").unwrap() < sql.find("\"b\"").unwrap(), "{sql}");
+        assert!(
+            sql.find("\"a\"").unwrap() < sql.find("\"b\"").unwrap(),
+            "{sql}"
+        );
     }
 
     #[test]
@@ -301,8 +341,12 @@ mod tests {
     #[test]
     fn delete_scopes_owner_and_refuses_empty_filter() {
         let err = build_delete_sql("\"t\"", None, Some("u"), true).unwrap_err();
-        assert!(matches!(err, DataPlaneError::InvalidRequest { .. }), "{err:?}");
-        let (sql, params) = build_delete_sql("\"t\"", Some(&json!({ "id": 1 })), Some("u-t"), true).unwrap();
+        assert!(
+            matches!(err, DataPlaneError::InvalidRequest { .. }),
+            "{err:?}"
+        );
+        let (sql, params) =
+            build_delete_sql("\"t\"", Some(&json!({ "id": 1 })), Some("u-t"), true).unwrap();
         assert!(sql.starts_with("DELETE FROM \"t\" AS t"), "{sql}");
         assert!(sql.contains(" AND \"owner_id\" = $2"), "{sql}");
         assert_eq!(params.len(), 2);
@@ -313,9 +357,15 @@ mod tests {
         let data = obj(json!({ "name": "x" }));
         let filter = obj(json!({ "email": "a@b.c" }));
         let (sql, _) = build_upsert_sql("\"t\"", &data, &filter, Some("u"), true).unwrap();
-        assert!(sql.contains("ON CONFLICT (\"owner_id\", \"email\")"), "{sql}");
+        assert!(
+            sql.contains("ON CONFLICT (\"owner_id\", \"email\")"),
+            "{sql}"
+        );
         assert!(sql.contains("\"name\" = EXCLUDED.\"name\""), "{sql}");
-        assert!(!sql.contains("\"owner_id\" = EXCLUDED"), "owner must be immutable on conflict: {sql}");
+        assert!(
+            !sql.contains("\"owner_id\" = EXCLUDED"),
+            "owner must be immutable on conflict: {sql}"
+        );
         assert!(sql.starts_with("INSERT INTO \"t\" AS t ("), "{sql}");
     }
 
@@ -323,7 +373,14 @@ mod tests {
     fn upsert_requires_a_real_conflict_key() {
         let data = obj(json!({ "name": "x" }));
         assert!(build_upsert_sql("\"t\"", &data, &obj(json!({})), Some("u"), true).is_err());
-        assert!(build_upsert_sql("\"t\"", &data, &obj(json!({ "owner_id": "x" })), Some("u"), true).is_err());
+        assert!(build_upsert_sql(
+            "\"t\"",
+            &data,
+            &obj(json!({ "owner_id": "x" })),
+            Some("u"),
+            true
+        )
+        .is_err());
     }
 
     #[test]
@@ -331,6 +388,9 @@ mod tests {
         let data = obj(json!({}));
         let filter = obj(json!({ "id": 1 }));
         let (sql, _) = build_upsert_sql("\"t\"", &data, &filter, Some("u"), true).unwrap();
-        assert!(sql.contains("DO UPDATE SET \"id\" = EXCLUDED.\"id\""), "{sql}");
+        assert!(
+            sql.contains("DO UPDATE SET \"id\" = EXCLUDED.\"id\""),
+            "{sql}"
+        );
     }
 }

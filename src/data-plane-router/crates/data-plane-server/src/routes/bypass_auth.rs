@@ -6,9 +6,9 @@
 use axum::http::{header, StatusCode};
 use data_plane_core::{CredentialRef, DatabaseMount, PoolPolicy, RequestIdentity};
 
-use crate::ratelimit::tier_rate;
 use super::helpers::{api_err, auth_error_response, too_many_requests};
 use super::state::AppState;
+use crate::ratelimit::tier_rate;
 
 /// A scope check: `admin` satisfies anything; otherwise the exact scope is
 /// required. Shared by the op gate (read/write) and the schema/ddl bypass

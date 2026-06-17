@@ -5,9 +5,9 @@
 use async_trait::async_trait;
 use bson::Document;
 use data_plane_core::{
-    DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, DataResult, RequestIdentity,
-    SchemaDdlOp, SchemaDdlRequest, SchemaDdlResult, SchemaDdlStatus, SchemaDescriptor, TableSchema,
-    TxBeginRequest, TxHandle, EnginePool,
+    DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, DataResult, EnginePool,
+    RequestIdentity, SchemaDdlOp, SchemaDdlRequest, SchemaDdlResult, SchemaDdlStatus,
+    SchemaDescriptor, TableSchema, TxBeginRequest, TxHandle,
 };
 use futures::TryStreamExt;
 use mongodb::{
@@ -76,13 +76,10 @@ impl MongoPool {
     /// baseline (`{bsonType:"object", properties:{}}`) when it has none.
     /// A missing collection is a clean client error — column DDL cannot
     /// target a collection that does not exist.
-    async fn collection_jsonschema(
-        &self,
-        db: &Database,
-        name: &str,
-    ) -> DataPlaneResult<Document> {
+    async fn collection_jsonschema(&self, db: &Database, name: &str) -> DataPlaneResult<Document> {
         let mut specs: Vec<CollectionSpecification> = db
-            .list_collections().filter(bson::doc! { "name": name })
+            .list_collections()
+            .filter(bson::doc! { "name": name })
             .await
             .map_err(mongo_err)?
             .try_collect()
@@ -199,7 +196,9 @@ impl EnginePool for MongoPool {
                     // legitimate dotted names).
                     let col: Collection<Document> = db.collection(&spec.name);
                     let cursor = col
-                        .aggregate(vec![bson::doc! { "$sample": { "size": SCHEMA_SAMPLE_SIZE } }])
+                        .aggregate(vec![
+                            bson::doc! { "$sample": { "size": SCHEMA_SAMPLE_SIZE } },
+                        ])
                         .await
                         .map_err(mongo_err)?;
                     let docs: Vec<Document> = cursor.try_collect().await.map_err(mongo_err)?;
@@ -212,7 +211,10 @@ impl EnginePool for MongoPool {
                 columns,
             });
         }
-        Ok(SchemaDescriptor { engine: "mongodb".to_string(), tables })
+        Ok(SchemaDescriptor {
+            engine: "mongodb".to_string(),
+            tables,
+        })
     }
 
     /// Engine-agnostic schema DDL (M22 step 2) over the collection's
@@ -242,7 +244,8 @@ impl EnginePool for MongoPool {
                 let options = CreateCollectionOptions::builder()
                     .validator(bson::doc! { "$jsonSchema": schema })
                     .build();
-                db.create_collection(&ddl.table).with_options(options)
+                db.create_collection(&ddl.table)
+                    .with_options(options)
                     .await
                     .map_err(mongo_ddl_err)?;
             }
@@ -255,9 +258,11 @@ impl EnginePool for MongoPool {
             SchemaDdlOp::AddColumn | SchemaDdlOp::AlterColumnType | SchemaDdlOp::DropColumn => {
                 let current = self.collection_jsonschema(&db, &ddl.table).await?;
                 let next = match ddl.op {
-                    SchemaDdlOp::AddColumn => {
-                        jsonschema_with_column_set(&current, ddl.require_column()?, ColumnMode::Add)?
-                    }
+                    SchemaDdlOp::AddColumn => jsonschema_with_column_set(
+                        &current,
+                        ddl.require_column()?,
+                        ColumnMode::Add,
+                    )?,
                     SchemaDdlOp::AlterColumnType => jsonschema_with_column_set(
                         &current,
                         ddl.require_column()?,

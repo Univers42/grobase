@@ -54,7 +54,8 @@ impl EnginePool for HttpPool {
 
         let (method, path, body) = match operation.op {
             DataOperationKind::List => {
-                let path = route_or_default(&self.conn, "list", || format!("/{}", operation.resource));
+                let path =
+                    route_or_default(&self.conn, "list", || format!("/{}", operation.resource));
                 let path = append_query(&path, &operation);
                 (Method::GET, path, None)
             }
@@ -66,7 +67,8 @@ impl EnginePool for HttpPool {
                 (Method::GET, path, None)
             }
             DataOperationKind::Insert => {
-                let path = route_or_default(&self.conn, "insert", || format!("/{}", operation.resource));
+                let path =
+                    route_or_default(&self.conn, "insert", || format!("/{}", operation.resource));
                 (Method::POST, path, operation.data.clone())
             }
             DataOperationKind::Update => {

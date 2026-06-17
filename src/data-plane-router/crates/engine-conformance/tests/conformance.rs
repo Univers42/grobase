@@ -35,9 +35,10 @@ async fn engine_conformance() {
     let resolver: Arc<dyn MountResolver> = Arc::new(EnvMountResolver::default());
     let adapter: Arc<dyn EngineAdapter> = match engine.as_str() {
         "postgresql" => Arc::new(PostgresEngineAdapter::new(resolver)),
-        "cockroachdb" => {
-            Arc::new(PostgresEngineAdapter::with_dialect(resolver, PgDialect::Cockroach))
-        }
+        "cockroachdb" => Arc::new(PostgresEngineAdapter::with_dialect(
+            resolver,
+            PgDialect::Cockroach,
+        )),
         "mysql" => Arc::new(MysqlEngineAdapter::new(resolver)),
         "mariadb" => Arc::new(MysqlEngineAdapter::with_engine_name(resolver, "mariadb")),
         "mongodb" => Arc::new(MongoEngineAdapter::new(resolver)),
@@ -50,5 +51,8 @@ async fn engine_conformance() {
     let mount = mount_for(&engine, &tenant, &dsn);
     let report = run_suite(adapter, mount).await;
     println!("{report}");
-    assert!(report.is_green(), "conformance failed for {engine}:\n{report}");
+    assert!(
+        report.is_green(),
+        "conformance failed for {engine}:\n{report}"
+    );
 }

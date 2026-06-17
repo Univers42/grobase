@@ -110,9 +110,9 @@ async fn fan_out_mutation(
     result: &DataResult,
 ) {
     let _ = (state, ctx, pool, result); // all consumers are feature-gated below
-    // Phase 7d: on the bypass write path, emit the row-change event the query-
-    // router would have. No-op for reads, the internal path (emit_outbox=false),
-    // and when the outbox DSN is unset.
+                                        // Phase 7d: on the bypass write path, emit the row-change event the query-
+                                        // router would have. No-op for reads, the internal path (emit_outbox=false),
+                                        // and when the outbox DSN is unset.
     #[cfg(feature = "control-pg")]
     if ctx.emit_outbox && ctx.is_mutation {
         if let Some(ob) = state.outbox.as_ref() {
@@ -151,7 +151,12 @@ async fn fan_out_mutation(
                 .get("id")
                 .cloned()
                 .or_else(|| ctx.outbox_data.as_ref().and_then(|d| d.get("id")).cloned())
-                .or_else(|| ctx.outbox_filter.as_ref().and_then(|f| f.get("id")).cloned());
+                .or_else(|| {
+                    ctx.outbox_filter
+                        .as_ref()
+                        .and_then(|f| f.get("id"))
+                        .cloned()
+                });
             au.run_for_write(
                 pool,
                 &ctx.outbox_identity,
@@ -174,7 +179,12 @@ async fn fan_out_mutation(
                 .and_then(|r| r.get("id"))
                 .cloned()
                 .or_else(|| ctx.outbox_data.as_ref().and_then(|d| d.get("id")).cloned())
-                .or_else(|| ctx.outbox_filter.as_ref().and_then(|f| f.get("id")).cloned());
+                .or_else(|| {
+                    ctx.outbox_filter
+                        .as_ref()
+                        .and_then(|f| f.get("id"))
+                        .cloned()
+                });
             nano.publish_mutation(
                 &ctx.automation_db_id,
                 &ctx.audit_resource,
@@ -209,7 +219,12 @@ fn apply_abac_mask(
     ) else {
         return Ok(());
     };
-    let decision = ev.decide(user, &ctx.audit_engine, &ctx.audit_resource, ctx.mask_action);
+    let decision = ev.decide(
+        user,
+        &ctx.audit_engine,
+        &ctx.audit_resource,
+        ctx.mask_action,
+    );
     if !decision.allow {
         tracing::warn!(
             target: "audit",
@@ -219,7 +234,11 @@ fn apply_abac_mask(
             resource = %ctx.audit_resource,
             "ABAC denied a user request (403)"
         );
-        return Err(api_err(StatusCode::FORBIDDEN, "forbidden", &decision.reason));
+        return Err(api_err(
+            StatusCode::FORBIDDEN,
+            "forbidden",
+            &decision.reason,
+        ));
     }
     if let Some(mask) = decision.mask {
         crate::abac::apply_field_mask(&mut result.rows, &mask);

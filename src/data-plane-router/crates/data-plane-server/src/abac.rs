@@ -263,11 +263,11 @@ fn effect_order(e: &PolicyEffect) -> u8 {
 /// Walks the highest-priority allow policy's conditions object for a
 /// `mask`/`field_mask` key and lifts it into a typed `FieldMask`.
 fn resolve_field_mask(matched: &[&Policy]) -> Option<FieldMask> {
-    let pol = matched
-        .iter()
-        .find(|p| p.effect == PolicyEffect::Allow)?;
+    let pol = matched.iter().find(|p| p.effect == PolicyEffect::Allow)?;
     let conditions = pol.conditions.as_ref()?;
-    let mask_value = conditions.get("mask").or_else(|| conditions.get("field_mask"))?;
+    let mask_value = conditions
+        .get("mask")
+        .or_else(|| conditions.get("field_mask"))?;
     let mask_obj = mask_value.as_object()?;
     let mut mask = FieldMask::default();
     if let Some(hide) = mask_obj.get("hide").and_then(|v| v.as_array()) {
@@ -337,7 +337,12 @@ mod tests {
                     role_id: "r-admin".into(),
                     resource_type: "*".into(),
                     resource_name: "*".into(),
-                    actions: vec!["select".into(), "insert".into(), "update".into(), "delete".into()],
+                    actions: vec![
+                        "select".into(),
+                        "insert".into(),
+                        "update".into(),
+                        "delete".into(),
+                    ],
                     effect: PolicyEffect::Allow,
                     priority: 0,
                     conditions: None,
@@ -423,9 +428,18 @@ mod tests {
 
     #[test]
     fn mode_from_env_string() {
-        assert_eq!(PermissionMode::from_env_string("rbac"), PermissionMode::Rbac);
-        assert_eq!(PermissionMode::from_env_string("RBAC"), PermissionMode::Rbac);
-        assert_eq!(PermissionMode::from_env_string("abac"), PermissionMode::Abac);
+        assert_eq!(
+            PermissionMode::from_env_string("rbac"),
+            PermissionMode::Rbac
+        );
+        assert_eq!(
+            PermissionMode::from_env_string("RBAC"),
+            PermissionMode::Rbac
+        );
+        assert_eq!(
+            PermissionMode::from_env_string("abac"),
+            PermissionMode::Abac
+        );
         assert_eq!(PermissionMode::from_env_string(""), PermissionMode::Abac);
         assert_eq!(PermissionMode::from_env_string("xyz"), PermissionMode::Abac);
     }

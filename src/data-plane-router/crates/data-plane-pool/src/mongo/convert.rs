@@ -78,9 +78,8 @@ pub(super) fn jsonschema_to_columns(schema: &Document) -> Vec<ColumnSchema> {
             }
             _ => "unknown".to_string(),
         };
-        let enum_values: Option<Vec<String>> = spec_doc
-            .and_then(|d| d.get_array("enum").ok())
-            .map(|arr| {
+        let enum_values: Option<Vec<String>> =
+            spec_doc.and_then(|d| d.get_array("enum").ok()).map(|arr| {
                 arr.iter()
                     .map(|b| match b {
                         Bson::String(s) => s.clone(),
@@ -201,11 +200,23 @@ mod tests {
     #[test]
     fn value_to_bson_maps_each_scalar_type() {
         assert!(matches!(value_to_bson(&Value::Null).unwrap(), Bson::Null));
-        assert!(matches!(value_to_bson(&json!(true)).unwrap(), Bson::Boolean(true)));
-        assert!(matches!(value_to_bson(&json!(false)).unwrap(), Bson::Boolean(false)));
+        assert!(matches!(
+            value_to_bson(&json!(true)).unwrap(),
+            Bson::Boolean(true)
+        ));
+        assert!(matches!(
+            value_to_bson(&json!(false)).unwrap(),
+            Bson::Boolean(false)
+        ));
         // serde_json small integers become Int64 through bson.
-        assert!(matches!(value_to_bson(&json!(42)).unwrap(), Bson::Int64(42)));
-        assert!(matches!(value_to_bson(&json!(-7)).unwrap(), Bson::Int64(-7)));
+        assert!(matches!(
+            value_to_bson(&json!(42)).unwrap(),
+            Bson::Int64(42)
+        ));
+        assert!(matches!(
+            value_to_bson(&json!(-7)).unwrap(),
+            Bson::Int64(-7)
+        ));
         assert!(matches!(
             value_to_bson(&json!(i64::MAX)).unwrap(),
             Bson::Int64(i) if i == i64::MAX
@@ -263,11 +274,20 @@ mod tests {
         let d = json_to_doc(&json!({ "k": 1, "nested": { "x": [1, 2] } })).unwrap();
         assert_eq!(d.get_i64("k").unwrap(), 1);
         // non-objects are rejected as InvalidRequest (not Backend, not panic).
-        for bad in [json!([1, 2]), json!("s"), json!(7), Value::Null, json!(true)] {
-            assert!(matches!(
-                json_to_doc(&bad),
-                Err(DataPlaneError::InvalidRequest { .. })
-            ), "should reject {bad}");
+        for bad in [
+            json!([1, 2]),
+            json!("s"),
+            json!(7),
+            Value::Null,
+            json!(true),
+        ] {
+            assert!(
+                matches!(
+                    json_to_doc(&bad),
+                    Err(DataPlaneError::InvalidRequest { .. })
+                ),
+                "should reject {bad}"
+            );
         }
     }
 
@@ -351,7 +371,11 @@ mod tests {
             }
         };
         let cols = jsonschema_to_columns(&schema);
-        let by_name = |n: &str| cols.iter().find(|c| c.name == n).unwrap_or_else(|| panic!("{n}"));
+        let by_name = |n: &str| {
+            cols.iter()
+                .find(|c| c.name == n)
+                .unwrap_or_else(|| panic!("{n}"))
+        };
         use NormalizedType as N;
         for (name, native, normalized, nullable) in [
             ("name", "string", N::Text, false),
@@ -369,7 +393,10 @@ mod tests {
             assert_eq!(col.native_type, native, "{name}");
             assert_eq!(col.normalized_type, normalized, "{name}");
             assert_eq!(col.nullable, nullable, "{name}");
-            assert!(!col.inferred, "{name}: jsonSchema columns are declared, not inferred");
+            assert!(
+                !col.inferred,
+                "{name}: jsonSchema columns are declared, not inferred"
+            );
             assert!(col.references.is_none() && col.default.is_none(), "{name}");
         }
     }
@@ -449,13 +476,22 @@ mod tests {
         assert_eq!(bson_value_type_name(&Bson::Double(1.0)), "double");
         assert_eq!(bson_value_type_name(&Bson::String("x".into())), "string");
         assert_eq!(bson_value_type_name(&Bson::Array(vec![])), "array");
-        assert_eq!(bson_value_type_name(&Bson::Document(Document::new())), "object");
+        assert_eq!(
+            bson_value_type_name(&Bson::Document(Document::new())),
+            "object"
+        );
         assert_eq!(bson_value_type_name(&Bson::Boolean(true)), "bool");
         assert_eq!(bson_value_type_name(&Bson::Null), "null");
         assert_eq!(bson_value_type_name(&Bson::Int32(1)), "int");
         assert_eq!(bson_value_type_name(&Bson::Int64(1)), "long");
-        assert_eq!(bson_value_type_name(&Bson::ObjectId(bson::oid::ObjectId::new())), "objectId");
-        assert_eq!(bson_value_type_name(&Bson::Decimal128("1".parse().unwrap())), "decimal");
+        assert_eq!(
+            bson_value_type_name(&Bson::ObjectId(bson::oid::ObjectId::new())),
+            "objectId"
+        );
+        assert_eq!(
+            bson_value_type_name(&Bson::Decimal128("1".parse().unwrap())),
+            "decimal"
+        );
         // a variant outside the mapped set → "unknown" (never panics).
         assert_eq!(bson_value_type_name(&Bson::MinKey), "unknown");
     }

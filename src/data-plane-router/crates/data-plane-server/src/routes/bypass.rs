@@ -7,9 +7,9 @@ use axum::Json;
 use data_plane_core::{DataOperation, SchemaDdlRequest};
 use serde::Deserialize;
 
-use super::state::AppState;
 use super::query::{run_query, QueryRequest};
 use super::schema::{run_apply_schema_ddl, run_describe_schema};
+use super::state::AppState;
 // Auth/scope/envelope plumbing now lives in `bypass_auth`; re-export the
 // `pub(crate)` items so their `bypass::X` paths (and the mod.rs facade) hold.
 use super::bypass_auth::bypass_auth;
@@ -100,9 +100,13 @@ pub(crate) async fn data_describe_schema(
     if let Err(missing) = require_scope(&id.scopes, "read") {
         return scope_denied(&id, "schema", missing);
     }
-    if let Err(resp) =
-        bypass_ratelimit(&state, &id.tenant_id, mount_info.capability_overrides.as_ref(), "schema")
-            .await
+    if let Err(resp) = bypass_ratelimit(
+        &state,
+        &id.tenant_id,
+        mount_info.capability_overrides.as_ref(),
+        "schema",
+    )
+    .await
     {
         return resp;
     }

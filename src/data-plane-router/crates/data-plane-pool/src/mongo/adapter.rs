@@ -64,11 +64,12 @@ impl EngineAdapter for MongoEngineAdapter {
                 "tlsallowinvalidhostnames=true",
             ],
         )?;
-        let mut options = ClientOptions::parse(&dsn).await.map_err(|e| {
-            DataPlaneError::Backend {
-                message: format!("invalid mongo URI: {e}"),
-            }
-        })?;
+        let mut options =
+            ClientOptions::parse(&dsn)
+                .await
+                .map_err(|e| DataPlaneError::Backend {
+                    message: format!("invalid mongo URI: {e}"),
+                })?;
         // Bound concurrent connections per mount via pool policy; the
         // driver already enforces this efficiently.
         options.max_pool_size = Some(mount.pool_policy.max);
@@ -139,7 +140,10 @@ mod tests {
     #[test]
     fn parse_db_name_extracts_path_or_defaults_to_test() {
         assert_eq!(parse_db_name("mongodb://host:27017/mydb"), "mydb");
-        assert_eq!(parse_db_name("mongodb://u:p@host/appdb?retryWrites=true"), "appdb");
+        assert_eq!(
+            parse_db_name("mongodb://u:p@host/appdb?retryWrites=true"),
+            "appdb"
+        );
         assert_eq!(parse_db_name("mongodb+srv://host/prod"), "prod");
         // no path → default "test".
         assert_eq!(parse_db_name("mongodb://host:27017"), "test");

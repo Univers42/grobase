@@ -180,8 +180,9 @@ pub(super) fn build_pg_ddl(
             if let Some(stmt) = pg_create_enum_stmt(schema, &ddl.table, def)? {
                 plan.ensure_enum_types.push(stmt);
             }
-            plan.statements
-                .push(format!("ALTER TABLE {table} ALTER COLUMN {col} DROP DEFAULT"));
+            plan.statements.push(format!(
+                "ALTER TABLE {table} ALTER COLUMN {col} DROP DEFAULT"
+            ));
             let using = if def.normalized_type == NormalizedType::Enum {
                 format!("{col}::text::{ty}")
             } else {
@@ -265,7 +266,8 @@ pub(super) fn ddl_backend(e: &tokio_postgres::Error) -> DataPlaneError {
 
 /// SQLSTATE 42710 duplicate_object — the enum type already exists.
 pub(super) fn is_duplicate_object(e: &tokio_postgres::Error) -> bool {
-    e.as_db_error().is_some_and(|db| db.code().code() == "42710")
+    e.as_db_error()
+        .is_some_and(|db| db.code().code() == "42710")
 }
 
 #[cfg(test)]
@@ -449,7 +451,11 @@ mod tests {
         let mut relaxed = ddl(SchemaDdlOp::AlterColumnType, "orders");
         relaxed.column = Some(col("qty", NormalizedType::Text));
         let plan = build_pg_ddl("public", &relaxed, true).unwrap();
-        assert!(plan.statements[2].ends_with("DROP NOT NULL"), "{:?}", plan.statements);
+        assert!(
+            plan.statements[2].ends_with("DROP NOT NULL"),
+            "{:?}",
+            plan.statements
+        );
         assert_eq!(plan.statements.len(), 3, "no default → no SET DEFAULT");
     }
 
@@ -466,9 +472,8 @@ mod tests {
         let plan = build_pg_ddl("public", &req, true).unwrap();
         assert_eq!(plan.ensure_enum_types.len(), 1, "enum type ensured first");
         assert!(
-            plan.statements[1].contains(
-                "USING \"status\"::text::\"public\".\"orders_status_enum\""
-            ),
+            plan.statements[1]
+                .contains("USING \"status\"::text::\"public\".\"orders_status_enum\""),
             "{:?}",
             plan.statements
         );
@@ -511,7 +516,12 @@ mod tests {
         ]);
         explicit.primary_key = Some(vec!["id".into()]);
         let plan = build_pg_ddl("public", &explicit, true).unwrap();
-        assert_eq!(plan.statements[0].matches("owner_id").count(), 1, "{:?}", plan.statements);
+        assert_eq!(
+            plan.statements[0].matches("owner_id").count(),
+            1,
+            "{:?}",
+            plan.statements
+        );
     }
 
     #[test]
@@ -522,17 +532,27 @@ mod tests {
         let plan = build_pg_ddl("tenant_acme_12345678", &drop_col, true).unwrap();
         assert_eq!(
             plan.statements,
-            vec!["ALTER TABLE \"tenant_acme_12345678\".\"orders\" DROP COLUMN \"note\"".to_string()]
+            vec![
+                "ALTER TABLE \"tenant_acme_12345678\".\"orders\" DROP COLUMN \"note\"".to_string()
+            ]
         );
         let plan = build_pg_ddl("public", &ddl(SchemaDdlOp::DropTable, "orders"), true).unwrap();
-        assert_eq!(plan.statements, vec!["DROP TABLE \"public\".\"orders\"".to_string()]);
+        assert_eq!(
+            plan.statements,
+            vec!["DROP TABLE \"public\".\"orders\"".to_string()]
+        );
     }
 
     #[test]
     fn pg_ddl_rejects_injection_and_unsafe_defaults() {
         // table name injection
         assert!(matches!(
-            build_pg_ddl("public", &ddl(SchemaDdlOp::DropTable, "orders; DROP TABLE x"), true).unwrap_err(),
+            build_pg_ddl(
+                "public",
+                &ddl(SchemaDdlOp::DropTable, "orders; DROP TABLE x"),
+                true
+            )
+            .unwrap_err(),
             DataPlaneError::InvalidIdentifier { .. }
         ));
         // column name injection

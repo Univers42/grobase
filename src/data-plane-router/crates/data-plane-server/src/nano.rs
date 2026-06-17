@@ -181,8 +181,9 @@ impl KeyStore {
 
     fn list(&self) -> anyhow::Result<Vec<KeyInfo>> {
         let conn = self.conn.lock().expect("key store poisoned");
-        let mut stmt =
-            conn.prepare("SELECT id, name, scopes, created_at, revoked FROM nano_keys ORDER BY created_at")?;
+        let mut stmt = conn.prepare(
+            "SELECT id, name, scopes, created_at, revoked FROM nano_keys ORDER BY created_at",
+        )?;
         let rows = stmt.query_map([], |r| {
             Ok(KeyInfo {
                 id: r.get(0)?,
@@ -229,7 +230,10 @@ fn ct_eq(a: &str, b: &str) -> bool {
     if a.len() != b.len() {
         return false;
     }
-    a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+    a.bytes()
+        .zip(b.bytes())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 // ─── nano state ──────────────────────────────────────────────────────────────
@@ -270,25 +274,43 @@ impl NanoState {
         let keys = KeyStore::open(&data_dir.join("nano_meta.db"))?;
         if keys.active_count()? == 0 {
             let admin_scopes = vec!["admin".to_string()];
-            match std::env::var("NANO_ADMIN_KEY").ok().filter(|k| !k.trim().is_empty()) {
+            match std::env::var("NANO_ADMIN_KEY")
+                .ok()
+                .filter(|k| !k.trim().is_empty())
+            {
                 Some(env_key) => {
-                    keys.insert("env-admin", "admin (env)", &sha256_hex(&env_key), &admin_scopes)?;
+                    keys.insert(
+                        "env-admin",
+                        "admin (env)",
+                        &sha256_hex(&env_key),
+                        &admin_scopes,
+                    )?;
                     tracing::info!("nano: admin key installed from NANO_ADMIN_KEY (digest stored, value never logged)");
                 }
                 None => {
                     let (key, _) = keys.mint("admin", &admin_scopes)?;
                     // One-time disclosure by design: the digest is all we keep.
-                    println!("┌──────────────────────────────────────────────────────────────────┐");
-                    println!("│ binocle-nano first boot — ADMIN API KEY (shown once, store it):  │");
+                    println!(
+                        "┌──────────────────────────────────────────────────────────────────┐"
+                    );
+                    println!(
+                        "│ binocle-nano first boot — ADMIN API KEY (shown once, store it):  │"
+                    );
                     println!("│   {key}   │");
-                    println!("└──────────────────────────────────────────────────────────────────┘");
+                    println!(
+                        "└──────────────────────────────────────────────────────────────────┘"
+                    );
                 }
             }
         }
 
         let mounts = Self::load_mounts(data_dir)?;
         let (events, _) = tokio::sync::broadcast::channel(256);
-        Ok(Self { keys, mounts, events })
+        Ok(Self {
+            keys,
+            mounts,
+            events,
+        })
     }
 
     /// `NANO_MOUNTS` JSON, or the default single SQLite mount `main`.
@@ -432,7 +454,10 @@ pub(crate) fn authorize(
     Ok(id)
 }
 
-async fn info(State(state): State<AppState>, headers: header::HeaderMap) -> axum::response::Response {
+async fn info(
+    State(state): State<AppState>,
+    headers: header::HeaderMap,
+) -> axum::response::Response {
     let nano = match nano_of(&state) {
         Ok(n) => n,
         Err(r) => return r,
@@ -471,7 +496,11 @@ async fn mint_key(
         Err(r) => return r,
     };
     if req.name.trim().is_empty() {
-        return api_err(StatusCode::BAD_REQUEST, "invalid_request", "name is required");
+        return api_err(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "name is required",
+        );
     }
     let scopes: Vec<String> = if req.scopes.is_empty() {
         vec!["read".to_string(), "write".to_string()]
@@ -512,7 +541,11 @@ async fn list_keys(
     };
     match nano.keys.list() {
         Ok(keys) => Json(json!({ "keys": keys })).into_response(),
-        Err(e) => api_err(StatusCode::INTERNAL_SERVER_ERROR, "key_list_failed", &e.to_string()),
+        Err(e) => api_err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "key_list_failed",
+            &e.to_string(),
+        ),
     }
 }
 
@@ -531,7 +564,11 @@ async fn revoke_key(
     match nano.keys.revoke(&id) {
         Ok(true) => Json(json!({ "revoked": id })).into_response(),
         Ok(false) => api_err(StatusCode::NOT_FOUND, "not_found", "no such key id"),
-        Err(e) => api_err(StatusCode::INTERNAL_SERVER_ERROR, "key_revoke_failed", &e.to_string()),
+        Err(e) => api_err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "key_revoke_failed",
+            &e.to_string(),
+        ),
     }
 }
 
@@ -563,12 +600,22 @@ async fn raw(
         Err(r) => return r,
     };
     if req.statement.trim().is_empty() {
-        return api_err(StatusCode::BAD_REQUEST, "invalid_request", "statement is required");
+        return api_err(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "statement is required",
+        );
     }
     let mount_info = match nano.resolve_mount(&req.db_id) {
         Ok(m) => m,
         Err(AuthError::NotFound(m)) => return api_err(StatusCode::NOT_FOUND, "not_found", &m),
-        Err(_) => return api_err(StatusCode::BAD_GATEWAY, "upstream_unavailable", "mount resolve failed"),
+        Err(_) => {
+            return api_err(
+                StatusCode::BAD_GATEWAY,
+                "upstream_unavailable",
+                "mount resolve failed",
+            )
+        }
     };
     let (identity, mount) = crate::routes::bypass_envelope(&id, &req.db_id, mount_info);
     let pool = match state.registry().get_or_create(mount).await {
@@ -715,7 +762,11 @@ async fn realtime(
         },
     );
     Sse::new(stream)
-        .keep_alive(KeepAlive::new().interval(Duration::from_secs(15)).text("ping"))
+        .keep_alive(
+            KeepAlive::new()
+                .interval(Duration::from_secs(15))
+                .text("ping"),
+        )
         .into_response()
 }
 
@@ -732,9 +783,15 @@ pub(crate) fn routes() -> Router<AppState> {
         .route("/v1/capabilities", get(crate::routes::capabilities))
         .route("/data/v1/query", post(crate::routes::data_query))
         .route("/data/v1/schema", post(crate::routes::data_describe_schema))
-        .route("/data/v1/schema/ddl", post(crate::routes::data_apply_schema_ddl))
+        .route(
+            "/data/v1/schema/ddl",
+            post(crate::routes::data_apply_schema_ddl),
+        )
         .route("/data/v1/graph", post(crate::graph::data_graph))
-        .route("/data/v1/graph/overview", post(crate::graph::data_graph_overview))
+        .route(
+            "/data/v1/graph/overview",
+            post(crate::graph::data_graph_overview),
+        )
         .route("/nano/v1/info", get(info))
         .route("/nano/v1/keys", post(mint_key).get(list_keys))
         .route("/nano/v1/keys/:id", axum::routing::delete(revoke_key))
@@ -846,7 +903,12 @@ mod tests {
         let store = KeyStore::open(&dir.join("meta.db")).unwrap();
         // An operator-chosen key (no nbk_ format) lands on the env-admin row.
         store
-            .insert("env-admin", "admin (env)", &sha256_hex("hunter2-but-long"), &["admin".to_string()])
+            .insert(
+                "env-admin",
+                "admin (env)",
+                &sha256_hex("hunter2-but-long"),
+                &["admin".to_string()],
+            )
             .unwrap();
         assert!(store.verify("hunter2-but-long").is_some());
         assert!(store.verify("wrong").is_none());

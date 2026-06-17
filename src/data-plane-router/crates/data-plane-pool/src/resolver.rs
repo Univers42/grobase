@@ -129,7 +129,11 @@ impl EnvMountResolver {
     /// empty); `provider_cfg` builds the [`ProviderRegistry`]; `cache_ttl_ms`
     /// arms the DSN cache (0 → disabled).
     #[must_use]
-    pub fn from_config(mounts_json: &str, provider_cfg: &ProviderConfig, cache_ttl_ms: u64) -> Self {
+    pub fn from_config(
+        mounts_json: &str,
+        provider_cfg: &ProviderConfig,
+        cache_ttl_ms: u64,
+    ) -> Self {
         let entries = if mounts_json.trim().is_empty() {
             HashMap::new()
         } else {
@@ -279,7 +283,10 @@ mod tests {
         let r = EnvMountResolver::default();
         let m = mount("absent", Some("db_per_tenant"), None);
         let err = r.resolve_dsn(&m).await.unwrap_err();
-        assert!(matches!(err, DataPlaneError::CredentialUnavailable { .. }), "{err:?}");
+        assert!(
+            matches!(err, DataPlaneError::CredentialUnavailable { .. }),
+            "{err:?}"
+        );
     }
 
     #[tokio::test]
@@ -355,9 +362,10 @@ mod tests {
     // is registered for this mount's name but asserts it is never called.
     #[tokio::test]
     async fn t4_inline_dsn_bypasses_providers() {
-        let r = EnvMountResolver::default().with_providers(registry(vec![Arc::new(
-            NeverProvider { name: "adapter-registry".into() },
-        )]));
+        let r =
+            EnvMountResolver::default().with_providers(registry(vec![Arc::new(NeverProvider {
+                name: "adapter-registry".into(),
+            })]));
         let m = mount_with_provider(
             "adapter-registry",
             "ref",
@@ -385,9 +393,11 @@ mod tests {
     // t6 — provider resolves when there is no inline DSN and no env-map entry.
     #[tokio::test]
     async fn t6_provider_resolves_when_no_inline_and_no_env() {
-        let r = EnvMountResolver::default().with_providers(registry(vec![Arc::new(
-            StubProvider { name: "vault".into(), dsn: "postgres://vault-dsn".into() },
-        )]));
+        let r =
+            EnvMountResolver::default().with_providers(registry(vec![Arc::new(StubProvider {
+                name: "vault".into(),
+                dsn: "postgres://vault-dsn".into(),
+            })]));
         let m = mount_with_provider("vault", "ref", None, None);
         assert_eq!(r.resolve_dsn(&m).await.unwrap(), "postgres://vault-dsn");
     }
@@ -400,7 +410,10 @@ mod tests {
         let r = EnvMountResolver::default(); // empty registry
         let m = mount_with_provider("vault", "ref", Some("shared_rls"), None);
         let err = r.resolve_dsn(&m).await.unwrap_err();
-        assert!(matches!(err, DataPlaneError::CredentialUnavailable { .. }), "{err:?}");
+        assert!(
+            matches!(err, DataPlaneError::CredentialUnavailable { .. }),
+            "{err:?}"
+        );
     }
 
     // ---- gap G8 / S2: rotation cache-eviction hook -------------------------
@@ -408,7 +421,10 @@ mod tests {
     /// Build a resolver with the DSN cache ARMED (ttl > 0) and a single stub
     /// provider, so a test can prove resolve→cache→evict→miss without env or a
     /// live secret. Constructed via the private fields directly (in-module).
-    fn resolver_with_cache(provider: Arc<dyn CredentialProvider>, ttl: Duration) -> EnvMountResolver {
+    fn resolver_with_cache(
+        provider: Arc<dyn CredentialProvider>,
+        ttl: Duration,
+    ) -> EnvMountResolver {
         EnvMountResolver {
             entries: HashMap::new(),
             providers: ProviderRegistry::with(vec![provider]),
@@ -458,14 +474,26 @@ mod tests {
         let key = m.pool_key();
 
         assert_eq!(r.resolve_dsn(&m).await.unwrap(), "postgres://rotated");
-        assert_eq!(calls.load(Ordering::SeqCst), 1, "first resolve hits the provider");
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            1,
+            "first resolve hits the provider"
+        );
         // Cached now → second resolve is a HIT (provider NOT called again).
         assert_eq!(r.resolve_dsn(&m).await.unwrap(), "postgres://rotated");
-        assert_eq!(calls.load(Ordering::SeqCst), 1, "second resolve served from cache");
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            1,
+            "second resolve served from cache"
+        );
         // Rotation evicts the cache entry for this key → next resolve MISSES.
         r.evict_cached(&key);
         assert_eq!(r.resolve_dsn(&m).await.unwrap(), "postgres://rotated");
-        assert_eq!(calls.load(Ordering::SeqCst), 2, "post-evict resolve re-hits the provider");
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            2,
+            "post-evict resolve re-hits the provider"
+        );
     }
 
     // S2 — eviction is scoped to exactly the rotated key: evicting key A leaves
@@ -493,9 +521,17 @@ mod tests {
         // Evict only v1; v2 must remain a cache HIT.
         r.evict_cached(&m_v1.pool_key());
         r.resolve_dsn(&m_v2).await.unwrap();
-        assert_eq!(calls.load(Ordering::SeqCst), 2, "v2 still cached after evicting v1");
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            2,
+            "v2 still cached after evicting v1"
+        );
         r.resolve_dsn(&m_v1).await.unwrap();
-        assert_eq!(calls.load(Ordering::SeqCst), 3, "v1 re-resolved after its eviction");
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            3,
+            "v1 re-resolved after its eviction"
+        );
     }
 
     // t7 — D-extra lock: a db_per_tenant mount WITH a configured provider

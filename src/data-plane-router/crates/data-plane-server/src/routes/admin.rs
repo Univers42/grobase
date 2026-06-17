@@ -5,14 +5,16 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
-use data_plane_core::{DatabaseMount, MigrationRequest, PoolRegistry, RawStatement, RequestIdentity};
+use data_plane_core::{
+    DatabaseMount, MigrationRequest, PoolRegistry, RawStatement, RequestIdentity,
+};
 use serde::{Deserialize, Serialize};
 
-use super::state::AppState;
 use super::helpers::{
     bad_request, json_result, map_data_plane_error, require_admin, require_capability,
     validate_identity_mount,
 };
+use super::state::AppState;
 
 // ── /v1/admin/raw ───────────────────────────────────────────────────────────
 //
@@ -97,7 +99,10 @@ pub(super) async fn apply_migration_admin(
         Ok(pool) => pool,
         Err(err) => return map_data_plane_error(&err),
     };
-    json_result(pool.apply_migration(request.migration, request.identity).await)
+    json_result(
+        pool.apply_migration(request.migration, request.identity)
+            .await,
+    )
 }
 
 // ── /v1/admin/rotate ─────────────────────────────────────────────────────────
@@ -148,7 +153,10 @@ pub(super) async fn rotate_credential_admin(
     let pools_drained = state.rotate(&pool_key).await;
     (
         StatusCode::OK,
-        Json(AdminRotateResponse { pool_key, pools_drained }),
+        Json(AdminRotateResponse {
+            pool_key,
+            pools_drained,
+        }),
     )
         .into_response()
 }

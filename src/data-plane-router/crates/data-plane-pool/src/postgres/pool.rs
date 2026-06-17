@@ -33,7 +33,10 @@ impl EnginePool for PostgresPool {
             message: format!("pool checkout failed: {e}"),
         })?;
 
-        let tx = client.transaction().await.map_err(|e| convert::backend(&e))?;
+        let tx = client
+            .transaction()
+            .await
+            .map_err(|e| convert::backend(&e))?;
         // deadpool wraps tokio_postgres::Transaction in a newtype that does
         // not implement GenericClient, so one explicit deref gets us back
         // to the underlying tokio_postgres::Transaction.
@@ -131,7 +134,10 @@ impl EnginePool for PostgresPool {
         let params: Vec<BoxedParam> = statement.params.iter().map(convert::json_param).collect();
         if statement.expect_rows {
             let rows = client
-                .query(statement.statement.as_str(), &convert::as_param_refs(&params))
+                .query(
+                    statement.statement.as_str(),
+                    &convert::as_param_refs(&params),
+                )
                 .await
                 .map_err(|e| convert::backend(&e))?;
             // Use `to_jsonb(row)` would require wrapping; instead serialise
@@ -154,7 +160,10 @@ impl EnginePool for PostgresPool {
             Ok(DataResult::new(data, affected))
         } else {
             let affected = client
-                .execute(statement.statement.as_str(), &convert::as_param_refs(&params))
+                .execute(
+                    statement.statement.as_str(),
+                    &convert::as_param_refs(&params),
+                )
                 .await
                 .map_err(|e| convert::backend(&e))?;
             Ok(DataResult::new(vec![], affected))

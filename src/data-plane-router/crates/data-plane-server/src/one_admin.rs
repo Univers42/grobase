@@ -130,7 +130,12 @@ mod tests {
             ADMIN_HTML.len()
         );
         // The dashboard must drive the public contracts, not private ones.
-        for needle in ["/data/v1/schema", "/nano/v1/keys", "/one/v1/admin/users", "/nano/v1/realtime"] {
+        for needle in [
+            "/data/v1/schema",
+            "/nano/v1/keys",
+            "/one/v1/admin/users",
+            "/nano/v1/realtime",
+        ] {
             assert!(ADMIN_HTML.contains(needle), "missing {needle}");
         }
     }

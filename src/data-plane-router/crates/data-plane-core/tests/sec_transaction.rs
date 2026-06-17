@@ -168,7 +168,10 @@ fn tx_begin_request_carries_the_verified_tenant_identity() {
         timeout_ms: None,
     };
     assert_eq!(req.identity.tenant_id, "acme");
-    assert!(req.identity.is_tenant_scoped(), "a tx must carry a tenant-scoped identity");
+    assert!(
+        req.identity.is_tenant_scoped(),
+        "a tx must carry a tenant-scoped identity"
+    );
     // The mount the request targets belongs to the same tenant.
     assert_eq!(req.mount.tenant_id, req.identity.tenant_id);
 }
@@ -186,7 +189,15 @@ fn isolation_level_wire_encoding_is_a_closed_set() {
         assert_eq!(serde_json::from_str::<IsolationLevel>(json).unwrap(), lvl);
     }
     // An unknown isolation level is rejected, never coerced.
-    for bad in ["\"dirty_read\"", "\"READ_COMMITTED\"", "\"serializable;\"", "0"] {
-        assert!(serde_json::from_str::<IsolationLevel>(bad).is_err(), "{bad}");
+    for bad in [
+        "\"dirty_read\"",
+        "\"READ_COMMITTED\"",
+        "\"serializable;\"",
+        "0",
+    ] {
+        assert!(
+            serde_json::from_str::<IsolationLevel>(bad).is_err(),
+            "{bad}"
+        );
     }
 }

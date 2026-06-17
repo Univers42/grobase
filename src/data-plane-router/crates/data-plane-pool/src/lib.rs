@@ -30,7 +30,6 @@
 ))]
 mod capability_honesty;
 mod credential;
-pub mod service_auth;
 #[cfg(feature = "dynamodb")]
 mod dynamodb;
 #[cfg(feature = "http")]
@@ -48,12 +47,16 @@ mod postgres;
 mod redis;
 mod registry;
 mod resolver;
+pub mod service_auth;
 #[cfg(any(feature = "sqlite", feature = "mysql", feature = "mssql"))]
 mod sql_scope;
 #[cfg(feature = "sqlite")]
 mod sqlite;
 mod tls;
 
+pub use credential::{
+    AdapterRegistryProvider, CredentialProvider, ProviderConfig, ProviderRegistry, VaultProvider,
+};
 #[cfg(feature = "dynamodb")]
 pub use dynamodb::DynamoEngineAdapter;
 #[cfg(feature = "http")]
@@ -68,13 +71,10 @@ pub use mysql::MysqlEngineAdapter;
 pub use postgres::{PgDialect, PostgresEngineAdapter};
 #[cfg(feature = "redis")]
 pub use redis::RedisEngineAdapter;
-#[cfg(feature = "sqlite")]
-pub use sqlite::SqliteEngineAdapter;
-pub use credential::{
-    AdapterRegistryProvider, CredentialProvider, ProviderConfig, ProviderRegistry, VaultProvider,
-};
 pub use registry::DefaultPoolRegistry;
 pub use resolver::{EnvMountResolver, MountResolver};
+#[cfg(feature = "sqlite")]
+pub use sqlite::SqliteEngineAdapter;
 
 /// B4-pools: whether this mount's connection pool is SHARED across tenants.
 ///

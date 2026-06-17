@@ -11,10 +11,7 @@
 use data_plane_core::{DataPlaneError, DataPlaneResult};
 
 /// `true` when the data plane runs under `SECURITY_MODE=max`.
-#[cfg_attr(
-    not(any(feature = "mongodb", feature = "redis")),
-    allow(dead_code)
-)]
+#[cfg_attr(not(any(feature = "mongodb", feature = "redis")), allow(dead_code))]
 pub(crate) fn max_security() -> bool {
     std::env::var("SECURITY_MODE")
         .map(|v| v.eq_ignore_ascii_case("max"))
@@ -24,10 +21,7 @@ pub(crate) fn max_security() -> bool {
 /// Refuse a DSN that carries a known cert-bypass parameter when `max_security`.
 /// Pure (mode is a parameter) so it unit-tests without env races. No-op outside
 /// max, where baseline keeps libpq-style flexibility for self-signed dev mounts.
-#[cfg_attr(
-    not(any(feature = "mongodb", feature = "redis")),
-    allow(dead_code)
-)]
+#[cfg_attr(not(any(feature = "mongodb", feature = "redis")), allow(dead_code))]
 pub(crate) fn reject_insecure_tls(
     dsn: &str,
     max_security: bool,

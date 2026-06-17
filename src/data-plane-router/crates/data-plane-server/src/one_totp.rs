@@ -115,19 +115,32 @@ fn now_unix() -> u64 {
 fn bearer_user(
     state: &AppState,
     headers: &header::HeaderMap,
-) -> Result<(std::sync::Arc<crate::one::OneState>, crate::one::UserPublic), axum::response::Response> {
+) -> Result<(std::sync::Arc<crate::one::OneState>, crate::one::UserPublic), axum::response::Response>
+{
     let one = one_of(state)?;
-    let token = crate::one::bearer_token(headers)
-        .ok_or_else(|| api_err(StatusCode::UNAUTHORIZED, "unauthorized", "Bearer token required"))?;
+    let token = crate::one::bearer_token(headers).ok_or_else(|| {
+        api_err(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "Bearer token required",
+        )
+    })?;
     let id = one.verify_jwt(&token)?;
     let user = one.users.get_user(&id.key_id).ok_or_else(|| {
-        api_err(StatusCode::UNAUTHORIZED, "unauthorized", "account no longer exists")
+        api_err(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "account no longer exists",
+        )
     })?;
     Ok((one, user))
 }
 
 /// POST /one/v1/auth/totp/enroll — generate a pending secret + otpauth URI.
-async fn enroll(State(state): State<AppState>, headers: header::HeaderMap) -> axum::response::Response {
+async fn enroll(
+    State(state): State<AppState>,
+    headers: header::HeaderMap,
+) -> axum::response::Response {
     let (one, user) = match bearer_user(&state, &headers) {
         Ok(v) => v,
         Err(r) => return r,
@@ -138,7 +151,11 @@ async fn enroll(State(state): State<AppState>, headers: header::HeaderMap) -> ax
     raw[16..].copy_from_slice(&uuid::Uuid::new_v4().as_bytes()[..4]);
     let secret = base32_encode(&raw);
     if one.users.totp_set_pending(&user.id, &secret).is_err() {
-        return api_err(StatusCode::INTERNAL_SERVER_ERROR, "totp_failed", "could not store the secret");
+        return api_err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "totp_failed",
+            "could not store the secret",
+        );
     }
     let label = user.email.replace('@', "%40");
     let uri = format!("otpauth://totp/binocle:{label}?secret={secret}&issuer=binocle&period={PERIOD}&digits={DIGITS}");
@@ -175,7 +192,11 @@ async fn confirm(
         .collect();
     let digests: Vec<String> = codes.iter().map(|c| sha256_hex(c)).collect();
     if one.users.recovery_store(&user.id, &digests).is_err() {
-        return api_err(StatusCode::INTERNAL_SERVER_ERROR, "totp_failed", "could not store recovery codes");
+        return api_err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "totp_failed",
+            "could not store recovery codes",
+        );
     }
     one.users.totp_enable(&user.id);
     tracing::info!(target: "audit", event = "totp_enabled", user = %user.id, "TOTP MFA enabled");
@@ -191,13 +212,20 @@ struct MfaVerify {
 /// POST /one/v1/auth/totp/verify {mfa_token, code} — second factor: a live
 /// TOTP code or a single-use recovery code; upgrades the challenge to a
 /// session.
-async fn verify(State(state): State<AppState>, Json(req): Json<MfaVerify>) -> axum::response::Response {
+async fn verify(
+    State(state): State<AppState>,
+    Json(req): Json<MfaVerify>,
+) -> axum::response::Response {
     let one = match one_of(&state) {
         Ok(o) => o,
         Err(r) => return r,
     };
     let Some(user_id) = one.verify_mfa_token(&req.mfa_token) else {
-        return api_err(StatusCode::UNAUTHORIZED, "unauthorized", "invalid or expired MFA token");
+        return api_err(
+            StatusCode::UNAUTHORIZED,
+            "unauthorized",
+            "invalid or expired MFA token",
+        );
     };
     let totp_ok = one
         .users
@@ -206,7 +234,11 @@ async fn verify(State(state): State<AppState>, Json(req): Json<MfaVerify>) -> ax
         .unwrap_or(false);
     let ok = totp_ok || one.users.recovery_consume(&user_id, req.code.trim());
     if !ok {
-        return api_err(StatusCode::UNAUTHORIZED, "invalid_code", "wrong TOTP or recovery code");
+        return api_err(
+            StatusCode::UNAUTHORIZED,
+            "invalid_code",
+            "wrong TOTP or recovery code",
+        );
     }
     match one.issue_session(&user_id) {
         Ok(body) => (StatusCode::OK, Json(body)).into_response(),
@@ -232,7 +264,11 @@ async fn disable(
         .unwrap_or(false);
     let ok = totp_ok || one.users.recovery_consume(&user.id, req.code.trim());
     if !ok {
-        return api_err(StatusCode::UNAUTHORIZED, "invalid_code", "a valid TOTP or recovery code is required");
+        return api_err(
+            StatusCode::UNAUTHORIZED,
+            "invalid_code",
+            "a valid TOTP or recovery code is required",
+        );
     }
     one.users.totp_remove(&user.id);
     tracing::info!(target: "audit", event = "totp_disabled", user = %user.id, "TOTP MFA disabled");
@@ -270,8 +306,14 @@ mod tests {
             base32_encode(RFC_SECRET),
             "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
         );
-        assert_eq!(base32_decode("MZXW6YTBOI").as_deref(), Some(b"foobar".as_ref()));
-        assert_eq!(base32_decode(&base32_encode(RFC_SECRET)).as_deref(), Some(RFC_SECRET));
+        assert_eq!(
+            base32_decode("MZXW6YTBOI").as_deref(),
+            Some(b"foobar".as_ref())
+        );
+        assert_eq!(
+            base32_decode(&base32_encode(RFC_SECRET)).as_deref(),
+            Some(RFC_SECRET)
+        );
         assert!(base32_decode("not base32!").is_none());
     }
 
@@ -281,8 +323,14 @@ mod tests {
         let now = 1234567890u64;
         let code = format!("{:06}", totp_at(RFC_SECRET, now));
         assert!(totp_verify(&b32, &code, now));
-        assert!(totp_verify(&b32, &code, now + PERIOD), "one step late still passes");
-        assert!(!totp_verify(&b32, &code, now + 3 * PERIOD), "outside window fails");
+        assert!(
+            totp_verify(&b32, &code, now + PERIOD),
+            "one step late still passes"
+        );
+        assert!(
+            !totp_verify(&b32, &code, now + 3 * PERIOD),
+            "outside window fails"
+        );
         assert!(!totp_verify(&b32, "000000", now) || code == "000000");
         assert!(!totp_verify(&b32, "12345", now), "wrong length fails");
         assert!(!totp_verify("@@@", &code, now), "bad secret fails");

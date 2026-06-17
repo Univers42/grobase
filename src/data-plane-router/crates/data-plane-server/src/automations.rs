@@ -496,7 +496,10 @@ mod tests {
         let row = json!({ "status": "open", "count": 5, "note": "" });
         assert!(evaluate_condition(&row, &cond("note", "is_empty", None)));
         assert!(evaluate_condition(&row, &cond("missing", "is_empty", None)));
-        assert!(evaluate_condition(&row, &cond("status", "is_not_empty", None)));
+        assert!(evaluate_condition(
+            &row,
+            &cond("status", "is_not_empty", None)
+        ));
         assert!(evaluate_condition(
             &row,
             &cond("status", "equals", Some(json!("open")))

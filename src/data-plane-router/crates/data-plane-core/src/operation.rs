@@ -205,10 +205,9 @@ mod projection_tests {
         let op: DataOperation =
             serde_json::from_value(json!({"op": "list", "resource": "t"})).unwrap();
         assert!(op.fields.is_none(), "absent fields deserializes to None");
-        let op: DataOperation = serde_json::from_value(
-            json!({"op": "list", "resource": "t", "fields": ["id"]}),
-        )
-        .unwrap();
+        let op: DataOperation =
+            serde_json::from_value(json!({"op": "list", "resource": "t", "fields": ["id"]}))
+                .unwrap();
         assert_eq!(op.fields.as_deref(), Some(["id".to_string()].as_slice()));
     }
 }
@@ -230,7 +229,12 @@ impl DataResult {
     /// repeated `next_cursor: None, batch: None` tail across the adapters.
     #[must_use]
     pub fn new(rows: Vec<Value>, affected_rows: u64) -> Self {
-        Self { rows, affected_rows, next_cursor: None, batch: None }
+        Self {
+            rows,
+            affected_rows,
+            next_cursor: None,
+            batch: None,
+        }
     }
 }
 

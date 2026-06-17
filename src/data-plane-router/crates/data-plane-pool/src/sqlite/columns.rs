@@ -110,13 +110,20 @@ pub(super) fn build_order_by(sort: Option<&BTreeMap<String, String>>) -> DataPla
     }
     let mut parts: Vec<String> = Vec::with_capacity(map.len());
     for (col, dir) in map {
-        let dir_sql = if dir.eq_ignore_ascii_case("desc") { "DESC" } else { "ASC" };
+        let dir_sql = if dir.eq_ignore_ascii_case("desc") {
+            "DESC"
+        } else {
+            "ASC"
+        };
         parts.push(format!("{} {dir_sql}", quote_ident(col)?));
     }
     Ok(format!(" ORDER BY {}", parts.join(", ")))
 }
 
-pub(super) fn require_object<'a>(data: Option<&'a Value>, what: &str) -> DataPlaneResult<&'a JsonMap<String, Value>> {
+pub(super) fn require_object<'a>(
+    data: Option<&'a Value>,
+    what: &str,
+) -> DataPlaneResult<&'a JsonMap<String, Value>> {
     match data {
         Some(Value::Object(map)) => Ok(map),
         Some(other) => Err(DataPlaneError::InvalidRequest {
@@ -150,7 +157,8 @@ mod tests {
 
     #[test]
     fn owner_filter_always_scopes_when_owner_present() {
-        let (sql, params) = build_owner_filter(Some(&serde_json::json!({"id": "x"})), Some("u1")).unwrap();
+        let (sql, params) =
+            build_owner_filter(Some(&serde_json::json!({"id": "x"})), Some("u1")).unwrap();
         assert!(sql.contains("\"owner_id\" = ?"), "{sql}");
         assert_eq!(params.len(), 2);
     }
@@ -175,15 +183,7 @@ mod tests {
 
     #[test]
     fn quote_ident_rejects_quote_nul_and_control() {
-        for bad in [
-            "",
-            "a\"b",
-            "a\0b",
-            "a\tb",
-            "a\nb",
-            "a\rb",
-            "x\x07y",
-        ] {
+        for bad in ["", "a\"b", "a\0b", "a\tb", "a\nb", "a\rb", "x\x07y"] {
             assert!(quote_ident(bad).is_err(), "should reject {bad:?}");
         }
     }

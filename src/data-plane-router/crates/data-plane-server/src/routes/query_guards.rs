@@ -6,13 +6,13 @@
 //! inlined chain — moving them changes nothing observable.
 use data_plane_core::{Plan, WorkloadContext};
 
-use crate::ratelimit::tier_rate;
 use super::helpers::{
     bad_request, forbidden_suspended, map_data_plane_error, not_implemented, payment_required,
     spend_capped, too_many_requests, validate_identity_mount,
 };
 use super::query::QueryRequest;
 use super::state::AppState;
+use crate::ratelimit::tier_rate;
 
 /// Run the full pre-execution guard chain. `Ok(())` ⇒ proceed to the planner-
 /// approved pool dispatch; `Err(resp)` ⇒ return `resp` immediately. Side effects
@@ -112,7 +112,11 @@ async fn enforce_rate_limit(
     request: &QueryRequest,
 ) -> Result<(), axum::response::Response> {
     if let Some((rps, burst)) = tier_rate(request.mount.capability_overrides.as_ref()) {
-        if !state.ratelimiter.allow(&request.identity.tenant_id, rps, burst).await {
+        if !state
+            .ratelimiter
+            .allow(&request.identity.tenant_id, rps, burst)
+            .await
+        {
             tracing::warn!(
                 target: "audit",
                 event = "rate_limited",
@@ -186,7 +190,11 @@ fn run_capability_planner(
     state: &AppState,
     request: &QueryRequest,
 ) -> Result<(), axum::response::Response> {
-    let Some(descriptor) = state.engines.iter().find(|e| e.engine == request.mount.engine) else {
+    let Some(descriptor) = state
+        .engines
+        .iter()
+        .find(|e| e.engine == request.mount.engine)
+    else {
         return Ok(());
     };
     // Phase 4 tiering — capability gate. The descriptor says what the ENGINE can
@@ -225,10 +233,16 @@ fn run_capability_planner(
             // The federation seam (resolve_federation) lowers Federate to a
             // Reject while the flag is off, so this arm is reachable only once
             // federation is wired. Until then it is a clean 501.
-            tracing::info!(reason = decision.reason, target, "planner selected federation target (not yet executable)");
-            Err(map_data_plane_error(&data_plane_core::DataPlaneError::NotImplemented {
-                feature: format!("federation to {target}"),
-            }))
+            tracing::info!(
+                reason = decision.reason,
+                target,
+                "planner selected federation target (not yet executable)"
+            );
+            Err(map_data_plane_error(
+                &data_plane_core::DataPlaneError::NotImplemented {
+                    feature: format!("federation to {target}"),
+                },
+            ))
         }
     }
 }

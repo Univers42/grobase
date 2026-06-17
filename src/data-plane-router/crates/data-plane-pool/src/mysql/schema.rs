@@ -14,7 +14,10 @@ use super::*;
 pub(super) fn normalize_mysql_type(column_type: &str) -> (NormalizedType, Option<Vec<String>>) {
     let lower = column_type.trim().to_ascii_lowercase();
     if lower.starts_with("enum(") {
-        return (NormalizedType::Enum, Some(parse_mysql_enum_values(column_type)));
+        return (
+            NormalizedType::Enum,
+            Some(parse_mysql_enum_values(column_type)),
+        );
     }
     // `tinyint(1)` (the MySQL boolean convention) before the generic int arm.
     if lower == "tinyint(1)" || lower.starts_with("tinyint(1) ") {
@@ -50,7 +53,11 @@ pub(super) fn mysql_literal(value: &str) -> String {
 pub(super) fn mysql_sql_type(def: &DdlColumnDef, in_primary_key: bool) -> DataPlaneResult<String> {
     Ok(match def.normalized_type {
         NormalizedType::Text => {
-            if in_primary_key { "VARCHAR(255)".to_string() } else { "TEXT".to_string() }
+            if in_primary_key {
+                "VARCHAR(255)".to_string()
+            } else {
+                "TEXT".to_string()
+            }
         }
         NormalizedType::Integer => "BIGINT".to_string(),
         NormalizedType::Float => "DOUBLE".to_string(),
@@ -88,10 +95,16 @@ pub(super) fn mysql_sql_type(def: &DdlColumnDef, in_primary_key: bool) -> DataPl
 /// Nullability is ALWAYS rendered (`NULL` explicitly) because `MODIFY COLUMN`
 /// resets every attribute — the caller sends the full target def precisely so
 /// nothing is silently lost.
-pub(super) fn mysql_column_clause(def: &DdlColumnDef, in_primary_key: bool) -> DataPlaneResult<String> {
+pub(super) fn mysql_column_clause(
+    def: &DdlColumnDef,
+    in_primary_key: bool,
+) -> DataPlaneResult<String> {
     let col = quote_mysql_ident(&def.name)?;
     let ty = mysql_sql_type(def, in_primary_key)?;
-    let mut clause = format!("{col} {ty} {}", if def.nullable { "NULL" } else { "NOT NULL" });
+    let mut clause = format!(
+        "{col} {ty} {}",
+        if def.nullable { "NULL" } else { "NOT NULL" }
+    );
     if let Some(default) = def.default.as_deref() {
         validate_default_expr(default)?;
         clause.push_str(&format!(" DEFAULT {default}"));
@@ -131,7 +144,10 @@ pub(super) fn build_mysql_ddl(ddl: &SchemaDdlRequest) -> DataPlaneResult<String>
                 if def.name == "owner_id" {
                     has_owner = true;
                 }
-                clauses.push(mysql_column_clause(def, pk_set.contains(def.name.as_str()))?);
+                clauses.push(mysql_column_clause(
+                    def,
+                    pk_set.contains(def.name.as_str()),
+                )?);
             }
             if !has_owner {
                 // The MySQL adapter owner-scopes every read/write on owner_id
@@ -157,7 +173,11 @@ pub(super) fn build_mysql_ddl(ddl: &SchemaDdlRequest) -> DataPlaneResult<String>
 pub(super) fn parse_mysql_enum_values(column_type: &str) -> Vec<String> {
     let inner = column_type
         .find('(')
-        .and_then(|start| column_type.rfind(')').map(|end| &column_type[start + 1..end]))
+        .and_then(|start| {
+            column_type
+                .rfind(')')
+                .map(|end| &column_type[start + 1..end])
+        })
         .unwrap_or("");
     let mut values = Vec::new();
     let mut current = String::new();

@@ -13,8 +13,12 @@ pub(super) fn backend<E: std::fmt::Display>(e: E) -> DataPlaneError {
         || lower.contains("cannot insert the value null")
         || lower.contains("constraint")
     {
-        DataPlaneError::Conflict { message: format!("mssql constraint: {msg}") }
+        DataPlaneError::Conflict {
+            message: format!("mssql constraint: {msg}"),
+        }
     } else {
-        DataPlaneError::Backend { message: format!("mssql backend: {msg}") }
+        DataPlaneError::Backend {
+            message: format!("mssql backend: {msg}"),
+        }
     }
 }

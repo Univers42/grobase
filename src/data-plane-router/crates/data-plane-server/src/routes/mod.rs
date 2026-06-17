@@ -83,7 +83,10 @@ pub fn router(state: AppState) -> Router {
             .route("/data/v1/schema", post(bypass::data_describe_schema))
             .route("/data/v1/schema/ddl", post(bypass::data_apply_schema_ddl))
             .route("/data/v1/graph", post(crate::graph::data_graph))
-            .route("/data/v1/graph/overview", post(crate::graph::data_graph_overview))
+            .route(
+                "/data/v1/graph/overview",
+                post(crate::graph::data_graph_overview),
+            )
     } else {
         Router::new()
     };
@@ -96,16 +99,31 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/schema", post(schema::describe_schema))
         .route("/v1/schema/ddl", post(schema::apply_schema_ddl))
         .route("/v1/transactions", post(transactions::begin_transaction))
-        .route("/v1/transactions/:tx_id/execute", post(transactions::execute_in_transaction))
-        .route("/v1/transactions/:tx_id/commit", post(transactions::commit_transaction))
-        .route("/v1/transactions/:tx_id/rollback", post(transactions::rollback_transaction))
+        .route(
+            "/v1/transactions/:tx_id/execute",
+            post(transactions::execute_in_transaction),
+        )
+        .route(
+            "/v1/transactions/:tx_id/commit",
+            post(transactions::commit_transaction),
+        )
+        .route(
+            "/v1/transactions/:tx_id/rollback",
+            post(transactions::rollback_transaction),
+        )
         .route("/v1/admin/raw", post(admin::execute_raw_admin))
         .route("/v1/admin/migrate", post(admin::apply_migration_admin))
         .route("/v1/admin/rotate", post(admin::rotate_credential_admin))
         .route("/v1/admin/evict-verify", post(admin::evict_verify_admin))
-        .route("/v1/permissions/decide", post(permissions::decide_permission))
+        .route(
+            "/v1/permissions/decide",
+            post(permissions::decide_permission),
+        )
         .fallback(helpers::not_found)
-        .layer(axum::middleware::from_fn_with_state(metrics_state, health::track_metrics))
+        .layer(axum::middleware::from_fn_with_state(
+            metrics_state,
+            health::track_metrics,
+        ))
         .layer(TraceLayer::new_for_http())
         .layer(cors_layer())
         .with_state(state)
@@ -147,7 +165,12 @@ mod tests {
             _op: DataOperation,
             _identity: data_plane_core::RequestIdentity,
         ) -> Result<DataResult, DataPlaneError> {
-            Ok(DataResult { rows: vec![], affected_rows: 0, next_cursor: None, batch: None })
+            Ok(DataResult {
+                rows: vec![],
+                affected_rows: 0,
+                next_cursor: None,
+                batch: None,
+            })
         }
         async fn commit(&self) -> Result<(), DataPlaneError> {
             Ok(())
@@ -188,14 +211,21 @@ mod tests {
             .await;
 
         // `get` must already refuse it (contract: stop handing out an expired tx).
-        assert!(reg.get(&tx_id).await.is_none(), "expired tx is not handed out by get");
+        assert!(
+            reg.get(&tx_id).await.is_none(),
+            "expired tx is not handed out by get"
+        );
 
         let reaped = reg.reap_expired().await;
         assert_eq!(reaped.len(), 1, "the one expired tx is reaped");
         let (handle, pool_key) = &reaped[0];
         assert_eq!(pool_key, "pool-key-1", "pool_key surfaced for unpin");
         let _ = handle.rollback().await; // simulate AppState::reap_once
-        assert_eq!(rolled_back.load(Ordering::SeqCst), 1, "expired tx rolled back");
+        assert_eq!(
+            rolled_back.load(Ordering::SeqCst),
+            1,
+            "expired tx rolled back"
+        );
 
         // Idempotent: a second pass finds nothing (entry already removed).
         assert!(reg.reap_expired().await.is_empty(), "reap is idempotent");
@@ -215,8 +245,15 @@ mod tests {
             )
             .await;
         assert!(reg.reap_expired().await.is_empty(), "live tx not reaped");
-        assert!(reg.get(&tx_id).await.is_some(), "live tx still served by get");
-        assert_eq!(rolled_back.load(Ordering::SeqCst), 0, "live tx not rolled back");
+        assert!(
+            reg.get(&tx_id).await.is_some(),
+            "live tx still served by get"
+        );
+        assert_eq!(
+            rolled_back.load(Ordering::SeqCst),
+            0,
+            "live tx not rolled back"
+        );
     }
 
     #[test]
@@ -225,11 +262,15 @@ mod tests {
         // backend/transport failure (502). This is the contract the Postgres
         // and the other adapters now rely on.
         assert_eq!(
-            status_of(DataPlaneError::InvalidRequest { message: "bad shape".into() }),
+            status_of(DataPlaneError::InvalidRequest {
+                message: "bad shape".into()
+            }),
             StatusCode::BAD_REQUEST,
         );
         assert_eq!(
-            status_of(DataPlaneError::InvalidIdentifier { value: "x;--".into() }),
+            status_of(DataPlaneError::InvalidIdentifier {
+                value: "x;--".into()
+            }),
             StatusCode::BAD_REQUEST,
         );
         // G6: an unavailable capability is a semantic (not syntactic) rejection
@@ -242,23 +283,31 @@ mod tests {
             StatusCode::UNPROCESSABLE_ENTITY,
         );
         assert_eq!(
-            status_of(DataPlaneError::Backend { message: "engine down".into() }),
+            status_of(DataPlaneError::Backend {
+                message: "engine down".into()
+            }),
             StatusCode::BAD_GATEWAY,
         );
         assert_eq!(
-            status_of(DataPlaneError::NotImplemented { feature: "agg".into() }),
+            status_of(DataPlaneError::NotImplemented {
+                feature: "agg".into()
+            }),
             StatusCode::NOT_IMPLEMENTED,
         );
         // An integrity-constraint violation is the caller's fault (409), not a
         // backend failure (502).
         assert_eq!(
-            status_of(DataPlaneError::Conflict { message: "duplicate key".into() }),
+            status_of(DataPlaneError::Conflict {
+                message: "duplicate key".into()
+            }),
             StatusCode::CONFLICT,
         );
         // gap G8: an unresolvable credential and a failed provider are both
         // upstream/gateway failures (502), distinct from a 422 client error.
         assert_eq!(
-            status_of(DataPlaneError::CredentialUnavailable { mount_id: "m1".into() }),
+            status_of(DataPlaneError::CredentialUnavailable {
+                mount_id: "m1".into()
+            }),
             StatusCode::BAD_GATEWAY,
         );
         assert_eq!(

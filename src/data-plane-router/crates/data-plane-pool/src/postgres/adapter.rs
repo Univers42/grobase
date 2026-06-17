@@ -52,7 +52,10 @@ pub struct PostgresEngineAdapter {
 impl PostgresEngineAdapter {
     #[must_use]
     pub fn new(resolver: Arc<dyn MountResolver>) -> Self {
-        Self { resolver, dialect: PgDialect::Postgres }
+        Self {
+            resolver,
+            dialect: PgDialect::Postgres,
+        }
     }
 
     /// Build the adapter for a specific pgwire dialect (e.g. CockroachDB). The
@@ -168,7 +171,10 @@ impl EngineAdapter for PostgresEngineAdapter {
     }
 
     async fn health_check(&self, pool: &dyn EnginePool) -> DataPlaneResult<EngineHealth> {
-        Ok(EngineHealth::unknown(self.dialect.engine_id(), pool.mount_id()))
+        Ok(EngineHealth::unknown(
+            self.dialect.engine_id(),
+            pool.mount_id(),
+        ))
     }
 }
 

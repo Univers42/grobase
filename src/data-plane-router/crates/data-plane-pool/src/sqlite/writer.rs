@@ -24,7 +24,10 @@ const GROUP_MAX: usize = 128;
 
 pub(super) enum WriteJob {
     /// One built CRUD statement (insert/update/delete/upsert).
-    Plan(SqlPlan, tokio::sync::oneshot::Sender<DataPlaneResult<DataResult>>),
+    Plan(
+        SqlPlan,
+        tokio::sync::oneshot::Sender<DataPlaneResult<DataResult>>,
+    ),
     /// An atomic multi-statement batch (its own savepoint = all-or-nothing).
     Batch(
         Vec<(SqlPlan, String)>,
@@ -37,7 +40,10 @@ pub(super) enum WriteJob {
         reply: tokio::sync::oneshot::Sender<DataPlaneResult<DataResult>>,
     },
     /// A structured-DDL statement (classified errors).
-    Ddl(String, tokio::sync::oneshot::Sender<DataPlaneResult<DataResult>>),
+    Ddl(
+        String,
+        tokio::sync::oneshot::Sender<DataPlaneResult<DataResult>>,
+    ),
 }
 
 /// A processed job's deferred outcome: replies fire after COMMIT.
@@ -91,9 +97,13 @@ pub(super) fn writer_loop(path: &str, mut jobs: tokio::sync::mpsc::UnboundedRece
             // Fail every job with the open error; senders see Backend.
             let msg = format!("sqlite writer connection failed: {e}");
             while let Some(job) = jobs.blocking_recv() {
-                let err = || DataPlaneError::Backend { message: msg.clone() };
+                let err = || DataPlaneError::Backend {
+                    message: msg.clone(),
+                };
                 match job {
-                    WriteJob::Plan(_, tx) | WriteJob::Raw { reply: tx, .. } | WriteJob::Ddl(_, tx) => {
+                    WriteJob::Plan(_, tx)
+                    | WriteJob::Raw { reply: tx, .. }
+                    | WriteJob::Ddl(_, tx) => {
                         let _ = tx.send(Err(err()));
                     }
                     WriteJob::Batch(_, tx) => {
@@ -118,9 +128,13 @@ pub(super) fn writer_loop(path: &str, mut jobs: tokio::sync::mpsc::UnboundedRece
         if let Err(e) = conn.execute_batch("BEGIN IMMEDIATE") {
             let msg = format!("sqlite begin failed: {e}");
             for job in group {
-                let err = || DataPlaneError::Backend { message: msg.clone() };
+                let err = || DataPlaneError::Backend {
+                    message: msg.clone(),
+                };
                 match job {
-                    WriteJob::Plan(_, tx) | WriteJob::Raw { reply: tx, .. } | WriteJob::Ddl(_, tx) => {
+                    WriteJob::Plan(_, tx)
+                    | WriteJob::Raw { reply: tx, .. }
+                    | WriteJob::Ddl(_, tx) => {
                         let _ = tx.send(Err(err()));
                     }
                     WriteJob::Batch(_, tx) => {
@@ -168,7 +182,8 @@ fn process_in_savepoint(conn: &Connection, idx: usize, job: WriteJob) -> Deferre
             (Deferred::Data(tx, r), failed)
         }
         WriteJob::Raw { sql, params, reply } => {
-            let r = exec_write(conn, &sql, &params).map(|affected| DataResult::new(vec![], affected));
+            let r =
+                exec_write(conn, &sql, &params).map(|affected| DataResult::new(vec![], affected));
             let failed = r.is_err();
             (Deferred::Data(reply, r), failed)
         }

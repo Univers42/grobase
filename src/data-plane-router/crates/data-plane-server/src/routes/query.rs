@@ -9,9 +9,9 @@ use data_plane_core::{
 };
 use serde::Deserialize;
 
-use crate::ratelimit::tier_max_rows;
 use super::query_emit::{self, EmitCtx};
 use super::state::AppState;
+use crate::ratelimit::tier_max_rows;
 
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct QueryRequest {
@@ -141,8 +141,7 @@ async fn run_query_inner(
     // without touching any adapter. A client limit already at/under the cap is
     // left as-is. Applied just before execution so it covers the bypass path too.
     if let Some(cap) = tier_max_rows(request.mount.capability_overrides.as_ref()) {
-        request.operation.limit =
-            Some(request.operation.limit.map_or(cap, |l| l.min(cap)));
+        request.operation.limit = Some(request.operation.limit.map_or(cap, |l| l.min(cap)));
     }
 
     // S8 read-replica routing (DATA_PLANE_READ_REPLICA, default OFF). A pure READ

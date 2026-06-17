@@ -143,8 +143,11 @@ fn build_upsert(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlP
     for k in &keys {
         conflict_cols.push(quote_ident(k)?);
     }
-    let conflict_set: std::collections::BTreeSet<&str> =
-        keys.iter().copied().chain(std::iter::once("owner_id")).collect();
+    let conflict_set: std::collections::BTreeSet<&str> = keys
+        .iter()
+        .copied()
+        .chain(std::iter::once("owner_id"))
+        .collect();
 
     let (col_sql, ph, params) = render_columns(&columns)?;
     // Update every owned column that is NOT part of the conflict target.
@@ -175,9 +178,12 @@ fn build_upsert(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlP
 
 fn build_aggregate(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlPlan> {
     let table = quote_ident(&op.resource)?;
-    let spec = op.aggregate.as_ref().ok_or_else(|| DataPlaneError::InvalidRequest {
-        message: "aggregate requires an `aggregate` spec".to_string(),
-    })?;
+    let spec = op
+        .aggregate
+        .as_ref()
+        .ok_or_else(|| DataPlaneError::InvalidRequest {
+            message: "aggregate requires an `aggregate` spec".to_string(),
+        })?;
     if spec.aggregates.is_empty() {
         return Err(DataPlaneError::InvalidRequest {
             message: "aggregate requires at least one aggregate function".to_string(),

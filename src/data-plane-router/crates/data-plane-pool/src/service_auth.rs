@@ -140,12 +140,52 @@ mod tests {
         let sig_c = compute_service_auth_at("key-C-other", method, path, body, ts);
 
         // Window open: primary=B, prev=A → both A and B verify, C rejected.
-        assert!(verify_service_auth_at(&sig_b, "key-B-new", "key-A-old", method, path, body, ts));
-        assert!(verify_service_auth_at(&sig_a, "key-B-new", "key-A-old", method, path, body, ts));
-        assert!(!verify_service_auth_at(&sig_c, "key-B-new", "key-A-old", method, path, body, ts));
+        assert!(verify_service_auth_at(
+            &sig_b,
+            "key-B-new",
+            "key-A-old",
+            method,
+            path,
+            body,
+            ts
+        ));
+        assert!(verify_service_auth_at(
+            &sig_a,
+            "key-B-new",
+            "key-A-old",
+            method,
+            path,
+            body,
+            ts
+        ));
+        assert!(!verify_service_auth_at(
+            &sig_c,
+            "key-B-new",
+            "key-A-old",
+            method,
+            path,
+            body,
+            ts
+        ));
 
         // Window closed (prev empty): only B verifies, A rejected (load-bearing).
-        assert!(verify_service_auth_at(&sig_b, "key-B-new", "", method, path, body, ts));
-        assert!(!verify_service_auth_at(&sig_a, "key-B-new", "", method, path, body, ts));
+        assert!(verify_service_auth_at(
+            &sig_b,
+            "key-B-new",
+            "",
+            method,
+            path,
+            body,
+            ts
+        ));
+        assert!(!verify_service_auth_at(
+            &sig_a,
+            "key-B-new",
+            "",
+            method,
+            path,
+            body,
+            ts
+        ));
     }
 }

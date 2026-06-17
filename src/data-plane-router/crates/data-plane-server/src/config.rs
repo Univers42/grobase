@@ -226,7 +226,9 @@ impl ServerConfig {
                 .parse()
                 .unwrap_or(256),
             share_pools: matches!(
-                read_env("DATA_PLANE_SHARE_POOLS", "false").to_lowercase().as_str(),
+                read_env("DATA_PLANE_SHARE_POOLS", "false")
+                    .to_lowercase()
+                    .as_str(),
                 "1" | "true" | "on"
             ),
             planner_federation_enabled: matches!(
@@ -249,18 +251,24 @@ impl ServerConfig {
             tenant_control_url: read_env("TENANT_CONTROL_URL", "http://tenant-control:3022"),
             internal_service_token: read_env("INTERNAL_SERVICE_TOKEN", ""),
             bypass_enabled: matches!(
-                read_env("DATA_PLANE_BYPASS_ENABLED", "false").to_lowercase().as_str(),
+                read_env("DATA_PLANE_BYPASS_ENABLED", "false")
+                    .to_lowercase()
+                    .as_str(),
                 "1" | "true" | "on"
             ),
             apply_masks: matches!(
-                read_env("DATA_PLANE_APPLY_MASKS", "false").to_lowercase().as_str(),
+                read_env("DATA_PLANE_APPLY_MASKS", "false")
+                    .to_lowercase()
+                    .as_str(),
                 "1" | "true" | "on"
             ),
             verify_cache_ttl_ms: read_env("DATA_PLANE_VERIFY_CACHE_TTL_MS", "30000")
                 .parse()
                 .unwrap_or(30000),
             audit_reads: matches!(
-                read_env("DATA_PLANE_AUDIT_READS", "false").to_lowercase().as_str(),
+                read_env("DATA_PLANE_AUDIT_READS", "false")
+                    .to_lowercase()
+                    .as_str(),
                 "1" | "true" | "on"
             ),
             // Track-B metering (B1a): ON only when BOTH the master flag AND the
@@ -268,10 +276,14 @@ impl ServerConfig {
             // pipeline while the data-plane emitter is still independently
             // toggleable for an isolated gate. BOTH default `false` → byte-parity.
             metering: matches!(
-                read_env("METERING_ENABLED", "false").to_lowercase().as_str(),
+                read_env("METERING_ENABLED", "false")
+                    .to_lowercase()
+                    .as_str(),
                 "1" | "true" | "on"
             ) && matches!(
-                read_env("DATA_PLANE_METERING", "false").to_lowercase().as_str(),
+                read_env("DATA_PLANE_METERING", "false")
+                    .to_lowercase()
+                    .as_str(),
                 "1" | "true" | "on"
             ),
             metering_flush_ms: read_env("DATA_PLANE_METERING_FLUSH_MS", "60000")
@@ -294,10 +306,14 @@ impl ServerConfig {
             // pipeline while the data-plane honor is independently toggleable for an
             // isolated gate. BOTH default `false` → byte-parity.
             quota_enforcement: matches!(
-                read_env("METERING_ENABLED", "false").to_lowercase().as_str(),
+                read_env("METERING_ENABLED", "false")
+                    .to_lowercase()
+                    .as_str(),
                 "1" | "true" | "on"
             ) && matches!(
-                read_env("DATA_PLANE_QUOTA_ENFORCEMENT", "false").to_lowercase().as_str(),
+                read_env("DATA_PLANE_QUOTA_ENFORCEMENT", "false")
+                    .to_lowercase()
+                    .as_str(),
                 "1" | "true" | "on"
             ),
             quota_refresh_ms: read_env("DATA_PLANE_QUOTA_REFRESH_MS", "15000")
@@ -318,26 +334,36 @@ impl ServerConfig {
             // AND the per-honor sub-flag are truthy — EXACTLY like quota_enforcement.
             // BOTH default `false` → byte-parity.
             spend_caps: matches!(
-                read_env("METERING_ENABLED", "false").to_lowercase().as_str(),
+                read_env("METERING_ENABLED", "false")
+                    .to_lowercase()
+                    .as_str(),
                 "1" | "true" | "on"
             ) && matches!(
-                read_env("DATA_PLANE_SPEND_CAPS", "false").to_lowercase().as_str(),
+                read_env("DATA_PLANE_SPEND_CAPS", "false")
+                    .to_lowercase()
+                    .as_str(),
                 "1" | "true" | "on"
             ),
             // Track-B abuse/KYC suspension: ON only when BOTH the master flag AND
             // the per-honor sub-flag are truthy — EXACTLY like quota_enforcement.
             // BOTH default `false` → byte-parity.
             suspend_reader: matches!(
-                read_env("METERING_ENABLED", "false").to_lowercase().as_str(),
+                read_env("METERING_ENABLED", "false")
+                    .to_lowercase()
+                    .as_str(),
                 "1" | "true" | "on"
             ) && matches!(
-                read_env("DATA_PLANE_SUSPEND_READER", "false").to_lowercase().as_str(),
+                read_env("DATA_PLANE_SUSPEND_READER", "false")
+                    .to_lowercase()
+                    .as_str(),
                 "1" | "true" | "on"
             ),
             // B5 per-tenant observability (Pillar 1): the parent log-field flag.
             // Default `false` → byte-parity (the request span is never entered).
             tenant_obs: matches!(
-                read_env("DATA_PLANE_TENANT_OBS", "false").to_lowercase().as_str(),
+                read_env("DATA_PLANE_TENANT_OBS", "false")
+                    .to_lowercase()
+                    .as_str(),
                 "1" | "true" | "on"
             ),
             // B5 per-tenant observability (Pillar 3): the optional bounded counter
@@ -345,7 +371,9 @@ impl ServerConfig {
             // be on without the parent — read once here, never the env per request.
             // BOTH default `false` → `/metrics` byte-identical to today.
             tenant_obs_counter: matches!(
-                read_env("DATA_PLANE_TENANT_OBS", "false").to_lowercase().as_str(),
+                read_env("DATA_PLANE_TENANT_OBS", "false")
+                    .to_lowercase()
+                    .as_str(),
                 "1" | "true" | "on"
             ) && matches!(
                 read_env("DATA_PLANE_TENANT_OBS_COUNTER", "false")
@@ -358,7 +386,9 @@ impl ServerConfig {
             // share_pools / bypass_enabled. Default `false` → byte-parity (reads
             // stay on the primary, request.mount reaches get_or_create unchanged).
             read_replica: matches!(
-                read_env("DATA_PLANE_READ_REPLICA", "false").to_lowercase().as_str(),
+                read_env("DATA_PLANE_READ_REPLICA", "false")
+                    .to_lowercase()
+                    .as_str(),
                 "1" | "true" | "on"
             ),
         }
@@ -382,8 +412,14 @@ impl std::fmt::Debug for ServerConfig {
             .field("permission_bundle_inline", &self.permission_bundle_inline)
             .field("permission_mode", &self.permission_mode)
             .field("max_pools", &self.max_pools)
-            .field("planner_federation_enabled", &self.planner_federation_enabled)
-            .field("adapter_registry_token", &redact(&self.adapter_registry_token))
+            .field(
+                "planner_federation_enabled",
+                &self.planner_federation_enabled,
+            )
+            .field(
+                "adapter_registry_token",
+                &redact(&self.adapter_registry_token),
+            )
             .field("vault_addr", &self.vault_addr)
             .field("vault_token", &redact(&self.vault_token))
             .field("vault_dsn_prefix", &self.vault_dsn_prefix)
@@ -392,7 +428,10 @@ impl std::fmt::Debug for ServerConfig {
             .field("security_mode", &self.security_mode)
             .field("tls_ca_file", &self.tls_ca_file)
             .field("tenant_control_url", &self.tenant_control_url)
-            .field("internal_service_token", &redact(&self.internal_service_token))
+            .field(
+                "internal_service_token",
+                &redact(&self.internal_service_token),
+            )
             .field("bypass_enabled", &self.bypass_enabled)
             .field("metering", &self.metering)
             .field("metering_flush_ms", &self.metering_flush_ms)
@@ -446,9 +485,15 @@ mod tests {
             !dbg.contains("SECRET-registry-token"),
             "adapter_registry_token value leaked into Debug: {dbg}"
         );
-        assert!(dbg.contains("<redacted>"), "redacted placeholder present: {dbg}");
+        assert!(
+            dbg.contains("<redacted>"),
+            "redacted placeholder present: {dbg}"
+        );
         // A non-secret field still renders normally.
-        assert!(dbg.contains("data-plane/dsn"), "non-secret field still printed: {dbg}");
+        assert!(
+            dbg.contains("data-plane/dsn"),
+            "non-secret field still printed: {dbg}"
+        );
     }
 
     // An empty token renders as "" (so "is it configured?" stays observable),
@@ -459,7 +504,10 @@ mod tests {
         cfg.vault_token = String::new();
         cfg.adapter_registry_token = String::new();
         let dbg = format!("{cfg:?}");
-        assert!(dbg.contains("vault_token: \"\""), "empty vault_token shows empty: {dbg}");
+        assert!(
+            dbg.contains("vault_token: \"\""),
+            "empty vault_token shows empty: {dbg}"
+        );
     }
 
     // S8 — DATA_PLANE_READ_REPLICA is a standalone routing-capability flag: unset

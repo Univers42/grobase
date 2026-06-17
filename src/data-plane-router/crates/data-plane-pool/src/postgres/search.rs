@@ -9,22 +9,24 @@ use data_plane_core::{DataPlaneError, DataPlaneResult};
 /// Allowlisted Postgres text-search configuration (`regconfig`) — inlined as a
 /// literal (never from raw client text), default `english`.
 fn ts_language(lang: Option<&str>) -> DataPlaneResult<&'static str> {
-    Ok(match lang.unwrap_or("english").to_ascii_lowercase().as_str() {
-        "english" => "english",
-        "simple" => "simple",
-        "spanish" => "spanish",
-        "french" => "french",
-        "german" => "german",
-        "portuguese" => "portuguese",
-        "italian" => "italian",
-        "dutch" => "dutch",
-        "russian" => "russian",
-        other => {
-            return Err(DataPlaneError::InvalidRequest {
-                message: format!("unsupported search language '{other}'"),
-            })
-        }
-    })
+    Ok(
+        match lang.unwrap_or("english").to_ascii_lowercase().as_str() {
+            "english" => "english",
+            "simple" => "simple",
+            "spanish" => "spanish",
+            "french" => "french",
+            "german" => "german",
+            "portuguese" => "portuguese",
+            "italian" => "italian",
+            "dutch" => "dutch",
+            "russian" => "russian",
+            other => {
+                return Err(DataPlaneError::InvalidRequest {
+                    message: format!("unsupported search language '{other}'"),
+                })
+            }
+        },
+    )
 }
 
 /// Lowers a [`SearchSpec`] to `(predicate, rank_expr)`: a ranked Postgres
@@ -92,7 +94,11 @@ pub(super) fn build_vector_order(
         "[{}]",
         spec.query
             .iter()
-            .map(|f| if f.is_finite() { format!("{f}") } else { "0".to_string() })
+            .map(|f| if f.is_finite() {
+                format!("{f}")
+            } else {
+                "0".to_string()
+            })
             .collect::<Vec<_>>()
             .join(",")
     );
@@ -136,11 +142,18 @@ mod tests {
     fn fts_defaults_english_and_rejects_bad_language_or_no_columns() {
         let mut p: Vec<BoxedParam> = Vec::new();
         let (pred, _) = build_search(
-            &data_plane_core::SearchSpec { query: "x".into(), columns: vec!["c".into()], language: None },
+            &data_plane_core::SearchSpec {
+                query: "x".into(),
+                columns: vec!["c".into()],
+                language: None,
+            },
             &mut p,
         )
         .unwrap();
-        assert!(pred.starts_with("to_tsvector('english',"), "default lang: {pred}");
+        assert!(
+            pred.starts_with("to_tsvector('english',"),
+            "default lang: {pred}"
+        );
         // a hostile regconfig string is rejected, never inlined into the SQL.
         let mut p2: Vec<BoxedParam> = Vec::new();
         assert!(matches!(
@@ -158,7 +171,11 @@ mod tests {
         // empty columns / empty query are rejected.
         let mut p3: Vec<BoxedParam> = Vec::new();
         assert!(build_search(
-            &data_plane_core::SearchSpec { query: "x".into(), columns: vec![], language: None },
+            &data_plane_core::SearchSpec {
+                query: "x".into(),
+                columns: vec![],
+                language: None
+            },
             &mut p3
         )
         .is_err());
@@ -178,11 +195,20 @@ mod tests {
         )
         .unwrap();
         assert_eq!(ord, "\"embedding\" <=> $1::text::vector");
-        assert_eq!(p.len(), 1, "embedding bound as one text param, cast to vector");
+        assert_eq!(
+            p.len(),
+            1,
+            "embedding bound as one text param, cast to vector"
+        );
         for (m, sym) in [("l2", "<->"), ("ip", "<#>"), ("cosine", "<=>")] {
             let mut pp: Vec<BoxedParam> = Vec::new();
             let o = build_vector_order(
-                &data_plane_core::VectorSpec { column: "e".into(), query: vec![1.0], k: None, metric: Some(m.into()) },
+                &data_plane_core::VectorSpec {
+                    column: "e".into(),
+                    query: vec![1.0],
+                    k: None,
+                    metric: Some(m.into()),
+                },
                 &mut pp,
             )
             .unwrap();
@@ -191,13 +217,23 @@ mod tests {
         // bad metric + empty embedding are rejected.
         let mut pe: Vec<BoxedParam> = Vec::new();
         assert!(build_vector_order(
-            &data_plane_core::VectorSpec { column: "e".into(), query: vec![1.0], k: None, metric: Some("nope".into()) },
+            &data_plane_core::VectorSpec {
+                column: "e".into(),
+                query: vec![1.0],
+                k: None,
+                metric: Some("nope".into())
+            },
             &mut pe
         )
         .is_err());
         let mut pq: Vec<BoxedParam> = Vec::new();
         assert!(build_vector_order(
-            &data_plane_core::VectorSpec { column: "e".into(), query: vec![], k: None, metric: None },
+            &data_plane_core::VectorSpec {
+                column: "e".into(),
+                query: vec![],
+                k: None,
+                metric: None
+            },
             &mut pq
         )
         .is_err());

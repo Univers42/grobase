@@ -109,7 +109,10 @@ mod tests {
         assert_eq!(col.normalized_type, NormalizedType::Enum);
         assert_eq!(
             col.references,
-            Some(ForeignKeyRef { table: "customers".into(), column: "id".into() })
+            Some(ForeignKeyRef {
+                table: "customers".into(),
+                column: "id".into()
+            })
         );
         assert!(!col.inferred);
         // Round trip: serializing back yields the exact same JSON.

@@ -132,7 +132,10 @@ mod tests {
     #[test]
     fn dsn_parsing_edge_cases() {
         assert_eq!(sqlite_path("sqlite:"), ":memory:");
-        assert_eq!(sqlite_path("sqlite://relative/db.sqlite"), "relative/db.sqlite");
+        assert_eq!(
+            sqlite_path("sqlite://relative/db.sqlite"),
+            "relative/db.sqlite"
+        );
         assert_eq!(sqlite_path(""), ":memory:");
         assert_eq!(sqlite_path(":memory:"), ":memory:");
         assert_eq!(sqlite_path("sqlite:///tmp/a b.db"), "/tmp/a b.db");

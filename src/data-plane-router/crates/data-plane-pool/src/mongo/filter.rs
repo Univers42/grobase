@@ -12,9 +12,7 @@
 //   Implementation stays under the limit; split tests out only if it grows.
 
 use bson::{doc, Bson, Document};
-use data_plane_core::{
-    AggFunc, Aggregate, DataPlaneError, DataPlaneResult, RequestIdentity,
-};
+use data_plane_core::{AggFunc, Aggregate, DataPlaneError, DataPlaneResult, RequestIdentity};
 use serde_json::Value;
 
 use super::convert::json_to_doc;
@@ -40,9 +38,30 @@ const FILTER_TRUST_FIELDS: [&str; 2] = ["owner_id", "tenant_id"];
 /// arbitrary expressions. (`$regex` is permitted as the standard pattern-search
 /// operator; bounding its ReDoS cost is tracked with the shared-Filter follow-up.)
 const SAFE_MONGO_OPERATORS: &[&str] = &[
-    "$eq", "$ne", "$gt", "$gte", "$lt", "$lte", "$in", "$nin", "$and", "$or", "$nor", "$not",
-    "$exists", "$type", "$regex", "$options", "$all", "$elemMatch", "$size", "$mod", "$bitsAllSet",
-    "$bitsAnySet", "$bitsAllClear", "$bitsAnyClear",
+    "$eq",
+    "$ne",
+    "$gt",
+    "$gte",
+    "$lt",
+    "$lte",
+    "$in",
+    "$nin",
+    "$and",
+    "$or",
+    "$nor",
+    "$not",
+    "$exists",
+    "$type",
+    "$regex",
+    "$options",
+    "$all",
+    "$elemMatch",
+    "$size",
+    "$mod",
+    "$bitsAllSet",
+    "$bitsAnySet",
+    "$bitsAllClear",
+    "$bitsAnyClear",
 ];
 
 /// Rejects a write `data` document whose top-level keys include a `$`-prefixed
@@ -117,9 +136,10 @@ pub(super) fn build_owned_doc(
 /// CLIENT chose (trust fields are stripped before querying, so they don't
 /// count).
 pub(super) fn require_row_filter(filter: Option<&Value>, op_name: &str) -> DataPlaneResult<()> {
-    let selective = filter
-        .and_then(Value::as_object)
-        .is_some_and(|map| map.keys().any(|key| !FILTER_TRUST_FIELDS.contains(&key.as_str())));
+    let selective = filter.and_then(Value::as_object).is_some_and(|map| {
+        map.keys()
+            .any(|key| !FILTER_TRUST_FIELDS.contains(&key.as_str()))
+    });
     if selective {
         return Ok(());
     }
@@ -136,10 +156,8 @@ pub(super) fn require_row_filter(filter: Option<&Value>, op_name: &str) -> DataP
 /// before it becomes a BSON document KEY or a `$`-path: no `$` prefix (would
 /// be parsed as an operator), no dots (would address a nested path), no NUL.
 pub(super) fn safe_agg_key(name: &str) -> DataPlaneResult<()> {
-    let ok = !name.is_empty()
-        && !name.starts_with('$')
-        && !name.contains('.')
-        && !name.contains('\0');
+    let ok =
+        !name.is_empty() && !name.starts_with('$') && !name.contains('.') && !name.contains('\0');
     if ok {
         Ok(())
     } else {
@@ -200,7 +218,9 @@ pub(super) fn build_tenant_filter(
     for key in doc.keys() {
         if key.starts_with('$') && !matches!(key.as_str(), "$and" | "$or" | "$nor") {
             return Err(DataPlaneError::InvalidRequest {
-                message: format!("filter operator '{key}' is not valid at the top level (use $and/$or/$nor)"),
+                message: format!(
+                    "filter operator '{key}' is not valid at the top level (use $and/$or/$nor)"
+                ),
             });
         }
     }
@@ -232,14 +252,20 @@ fn coerce_id_filter(id: Bson) -> Bson {
     }
 }
 
-pub(super) fn build_sort(sort: Option<&std::collections::BTreeMap<String, String>>) -> Option<Document> {
+pub(super) fn build_sort(
+    sort: Option<&std::collections::BTreeMap<String, String>>,
+) -> Option<Document> {
     let map = sort?;
     if map.is_empty() {
         return None;
     }
     let mut out = Document::new();
     for (k, dir) in map {
-        let value: i32 = if dir.eq_ignore_ascii_case("desc") { -1 } else { 1 };
+        let value: i32 = if dir.eq_ignore_ascii_case("desc") {
+            -1
+        } else {
+            1
+        };
         out.insert(k, value);
     }
     Some(out)
@@ -337,10 +363,14 @@ mod tests {
         assert_ne!(set_doc.get_str("owner_id").unwrap(), "api-key:victim");
         assert_ne!(set_doc.get_str("tenant_id").unwrap(), "victim-tenant");
         // `_id` is a reserved field — stripped, never carried into `$set`.
-        assert!(!set_doc.contains_key("_id"), "client `_id` must not reach $set: {set_doc:?}");
+        assert!(
+            !set_doc.contains_key("_id"),
+            "client `_id` must not reach $set: {set_doc:?}"
+        );
         // Operator keys in update data are still a clean 400 (rejection preserved).
         assert!(matches!(
-            build_owned_doc(&json!({ "$rename": { "a": "b" } }), &probe_identity(), "t1").unwrap_err(),
+            build_owned_doc(&json!({ "$rename": { "a": "b" } }), &probe_identity(), "t1")
+                .unwrap_err(),
             DataPlaneError::InvalidRequest { .. }
         ));
     }
@@ -353,7 +383,10 @@ mod tests {
         // docs in one call.
         for bad in [None, Some(json!({})), Some(json!({ "owner_id": "spoof" }))] {
             let err = require_row_filter(bad.as_ref(), "update").unwrap_err();
-            assert!(matches!(err, DataPlaneError::InvalidRequest { .. }), "{bad:?} → {err:?}");
+            assert!(
+                matches!(err, DataPlaneError::InvalidRequest { .. }),
+                "{bad:?} → {err:?}"
+            );
         }
         assert!(require_row_filter(Some(&json!({ "_id": "n-1" })), "update").is_ok());
         assert!(require_row_filter(Some(&json!({ "kind": "login" })), "delete").is_ok());
@@ -365,7 +398,10 @@ mod tests {
         // driver errors out (opaque 502) — fail closed as a 400 instead.
         let bad = json!({ "$not": { "kind": { "$in": ["login"] } } });
         let err = build_tenant_filter(Some(&bad), &probe_identity(), "t1").unwrap_err();
-        assert!(matches!(err, DataPlaneError::InvalidRequest { .. }), "{err:?}");
+        assert!(
+            matches!(err, DataPlaneError::InvalidRequest { .. }),
+            "{err:?}"
+        );
         // The real top-level combinators still pass.
         let ok = json!({ "$or": [{ "kind": "login" }, { "kind": "search" }] });
         assert!(build_tenant_filter(Some(&ok), &probe_identity(), "t1").is_ok());
@@ -384,8 +420,8 @@ mod tests {
         assert!(candidates.contains(&Bson::ObjectId(oid)));
         assert!(candidates.contains(&Bson::String(hex.to_string())));
         // Non-hex pk strings stay literal (seeded ids like `evt-000001`).
-        let plain = build_tenant_filter(Some(&json!({ "_id": "evt-1" })), &probe_identity(), "t1")
-            .unwrap();
+        let plain =
+            build_tenant_filter(Some(&json!({ "_id": "evt-1" })), &probe_identity(), "t1").unwrap();
         assert_eq!(plain.get_str("_id").unwrap(), "evt-1");
     }
 
@@ -398,10 +434,13 @@ mod tests {
             json!({ "$expr": { "$eq": ["$a", "$b"] } }),
             json!({ "name": { "$function": { "body": "f", "args": [], "lang": "js" } } }),
             json!({ "$or": [{ "x": 1 }, { "$where": "true" }] }), // nested under $or
-            json!({ "a": { "b": { "$accumulator": {} } } }),       // deeply nested
+            json!({ "a": { "b": { "$accumulator": {} } } }),      // deeply nested
         ] {
             let err = reject_unsafe_operators(&bad).unwrap_err();
-            assert!(matches!(err, DataPlaneError::InvalidRequest { .. }), "{bad}: {err:?}");
+            assert!(
+                matches!(err, DataPlaneError::InvalidRequest { .. }),
+                "{bad}: {err:?}"
+            );
         }
     }
 
@@ -434,7 +473,10 @@ mod tests {
     fn write_data_rejects_top_level_operator_keys() {
         // The write-path symmetry fix: a `$`-prefixed top-level key in write data
         // is a clean 400, not a 502 from the driver.
-        for bad in [json!({ "$rename": { "a": "b" } }), json!({ "$set": { "x": 1 } })] {
+        for bad in [
+            json!({ "$rename": { "a": "b" } }),
+            json!({ "$set": { "x": 1 } }),
+        ] {
             assert!(
                 matches!(
                     reject_top_level_operators(&bad).unwrap_err(),
@@ -555,8 +597,7 @@ mod tests {
             (AggFunc::Min, "$min"),
             (AggFunc::Max, "$max"),
         ] {
-            let Bson::Document(d) =
-                build_mongo_aggregate_expr(&agg(func, Some("amount"))).unwrap()
+            let Bson::Document(d) = build_mongo_aggregate_expr(&agg(func, Some("amount"))).unwrap()
             else {
                 panic!()
             };
@@ -602,7 +643,10 @@ mod tests {
     fn reject_unsafe_operators_allows_safe_recurses_into_arrays() {
         // safe operators pass at any depth.
         assert!(reject_unsafe_operators(&json!({ "age": { "$gte": 18 } })).is_ok());
-        assert!(reject_unsafe_operators(&json!({ "$and": [ { "a": 1 }, { "b": { "$in": [1, 2] } } ] })).is_ok());
+        assert!(reject_unsafe_operators(
+            &json!({ "$and": [ { "a": 1 }, { "b": { "$in": [1, 2] } } ] })
+        )
+        .is_ok());
         assert!(reject_unsafe_operators(&json!({ "tags": { "$all": ["x"] } })).is_ok());
         // unsafe operators are rejected wherever they appear.
         assert!(reject_unsafe_operators(&json!({ "$where": "this.x" })).is_err());
@@ -626,12 +670,18 @@ mod tests {
         assert!(require_row_filter(None, "delete").is_err());
         assert!(require_row_filter(Some(&json!({})), "delete").is_err());
         assert!(require_row_filter(Some(&json!({ "owner_id": "x" })), "update").is_err());
-        assert!(require_row_filter(Some(&json!({ "owner_id": "x", "tenant_id": "y" })), "update").is_err());
+        assert!(require_row_filter(
+            Some(&json!({ "owner_id": "x", "tenant_id": "y" })),
+            "update"
+        )
+        .is_err());
         // a non-object is not selective.
         assert!(require_row_filter(Some(&json!([1])), "delete").is_err());
         // at least one client field → ok.
         assert!(require_row_filter(Some(&json!({ "_id": "x" })), "get").is_ok());
         assert!(require_row_filter(Some(&json!({ "status": "open" })), "update").is_ok());
-        assert!(require_row_filter(Some(&json!({ "owner_id": "x", "name": "real" })), "delete").is_ok());
+        assert!(
+            require_row_filter(Some(&json!({ "owner_id": "x", "name": "real" })), "delete").is_ok()
+        );
     }
 }

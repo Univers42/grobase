@@ -119,7 +119,10 @@ impl UsageAggregate {
     /// or `/metrics` scrape can read to prove OFF == 0 entries.
     #[must_use]
     pub fn tracked(&self) -> usize {
-        self.counters.lock().expect("usage aggregate poisoned").len()
+        self.counters
+            .lock()
+            .expect("usage aggregate poisoned")
+            .len()
     }
 }
 
@@ -331,7 +334,9 @@ fn drain_and_trace(aggregate: &UsageAggregate, flush_ms: u64) -> Vec<UsageEnvelo
             window_ms = flush_ms,
             "usage window"
         );
-        envelopes.push(UsageEnvelope::build(&tenant, &metric, qty, now_ms, flush_ms));
+        envelopes.push(UsageEnvelope::build(
+            &tenant, &metric, qty, now_ms, flush_ms,
+        ));
     }
     envelopes
 }
@@ -351,7 +356,10 @@ struct UsageStream {
 #[cfg(feature = "ratelimit-redis")]
 impl UsageStream {
     fn new(url: String) -> Self {
-        Self { url, conn: tokio::sync::OnceCell::new() }
+        Self {
+            url,
+            conn: tokio::sync::OnceCell::new(),
+        }
     }
 
     /// XADD each window to `usage.events`, best-effort. A connect/XADD failure is
@@ -443,7 +451,10 @@ mod tests {
 
         // Reset: the map is empty after a drain, and a second drain yields none.
         assert_eq!(agg.tracked(), 0, "drain reset the aggregate to empty");
-        assert!(agg.drain().is_empty(), "second drain is empty (no double-count)");
+        assert!(
+            agg.drain().is_empty(),
+            "second drain is empty (no double-count)"
+        );
     }
 
     // qty == 0 is a no-op (parity: a zero-row read at the limit clamp must not
@@ -484,7 +495,10 @@ mod tests {
         usage.record("t1", "write.rows", 7);
         assert_eq!(usage.tracked(), 1);
         // Draining via the shared aggregate clone proves the handle shares state.
-        assert_eq!(usage.aggregate.drain(), vec![("t1".to_string(), "write.rows".to_string(), 7)]);
+        assert_eq!(
+            usage.aggregate.drain(),
+            vec![("t1".to_string(), "write.rows".to_string(), 7)]
+        );
         assert_eq!(usage.tracked(), 0);
     }
 
@@ -515,7 +529,8 @@ mod tests {
         // 64 lower-hex chars.
         assert_eq!(k.len(), 64, "sha256 hex is 64 chars");
         assert!(
-            k.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+            k.chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
             "lower-hex only"
         );
         // Independent golden: sha256("t1|query.count|120000"), recomputed here so
@@ -528,7 +543,10 @@ mod tests {
             use std::fmt::Write;
             let _ = write!(golden, "{b:02x}");
         }
-        assert_eq!(k, golden, "key == sha256_hex(\"tenant|metric|window_start_ms\")");
+        assert_eq!(
+            k, golden,
+            "key == sha256_hex(\"tenant|metric|window_start_ms\")"
+        );
     }
 
     // Determinism: same inputs → same key; any input change → different key.
@@ -538,9 +556,21 @@ mod tests {
         let b = idempotency_key("t1", "query.count", 120_000);
         assert_eq!(a, b, "same inputs are deterministic");
         // Each field participates → changing any one changes the key.
-        assert_ne!(a, idempotency_key("t2", "query.count", 120_000), "tenant matters");
-        assert_ne!(a, idempotency_key("t1", "query.rows", 120_000), "metric matters");
-        assert_ne!(a, idempotency_key("t1", "query.count", 180_000), "window matters");
+        assert_ne!(
+            a,
+            idempotency_key("t2", "query.count", 120_000),
+            "tenant matters"
+        );
+        assert_ne!(
+            a,
+            idempotency_key("t1", "query.rows", 120_000),
+            "metric matters"
+        );
+        assert_ne!(
+            a,
+            idempotency_key("t1", "query.count", 180_000),
+            "window matters"
+        );
     }
 
     // B1b — the frozen envelope: every field is the exact string the consumer

@@ -88,7 +88,10 @@ fn supports_op_matches_the_declared_flags_for_every_engine() {
         // dedicated flags
         assert_eq!(caps.supports_op(&DataOperationKind::Upsert), caps.upsert);
         assert_eq!(caps.supports_op(&DataOperationKind::Batch), caps.batch);
-        assert_eq!(caps.supports_op(&DataOperationKind::Aggregate), caps.aggregate);
+        assert_eq!(
+            caps.supports_op(&DataOperationKind::Aggregate),
+            caps.aggregate
+        );
     }
 }
 
@@ -117,12 +120,24 @@ fn engine_honesty_matches_documented_surface() {
     let http = EngineCapabilities::http();
     assert!(!http.batch && !http.aggregate, "http: no batch/aggregate");
     let redis = EngineCapabilities::redis();
-    assert!(redis.batch && !redis.aggregate, "redis: batch yes, aggregate no");
+    assert!(
+        redis.batch && !redis.aggregate,
+        "redis: batch yes, aggregate no"
+    );
     let mongo = EngineCapabilities::mongodb();
-    assert!(!mongo.transactions, "mongo honestly reports no transactions");
-    assert!(mongo.schema_ddl && !mongo.ddl, "mongo: validator DDL yes, migrate no");
+    assert!(
+        !mongo.transactions,
+        "mongo honestly reports no transactions"
+    );
+    assert!(
+        mongo.schema_ddl && !mongo.ddl,
+        "mongo: validator DDL yes, migrate no"
+    );
     let dynamo = EngineCapabilities::dynamodb();
-    assert!(dynamo.transactions && dynamo.native_idempotency, "dynamodb: tx + idempotency");
+    assert!(
+        dynamo.transactions && dynamo.native_idempotency,
+        "dynamodb: tx + idempotency"
+    );
     assert!(!dynamo.aggregate, "dynamodb: no server-side aggregate");
     assert_eq!(dynamo.max_batch_size, 25, "dynamodb BatchWriteItem limit");
     let crdb = EngineCapabilities::cockroachdb();
@@ -144,8 +159,17 @@ fn isolation_level_round_trips_and_rejects_unknown() {
         let back: IsolationLevel = serde_json::from_str(&s).unwrap();
         assert_eq!(back, lvl);
     }
-    for bad in ["\"phantom\"", "\"Serializable\"", "\"read committed\"", "42", "null"] {
-        assert!(serde_json::from_str::<IsolationLevel>(bad).is_err(), "{bad}");
+    for bad in [
+        "\"phantom\"",
+        "\"Serializable\"",
+        "\"read committed\"",
+        "42",
+        "null",
+    ] {
+        assert!(
+            serde_json::from_str::<IsolationLevel>(bad).is_err(),
+            "{bad}"
+        );
     }
 }
 
@@ -162,7 +186,10 @@ fn max_batch_size_is_a_positive_bound_for_batch_engines() {
         EngineCapabilities::dynamodb(),
     ] {
         if caps.batch {
-            assert!(caps.max_batch_size > 0, "batch engine must declare a positive ceiling");
+            assert!(
+                caps.max_batch_size > 0,
+                "batch engine must declare a positive ceiling"
+            );
         }
     }
 }

@@ -98,7 +98,12 @@ pub(super) fn columns_to_jsonschema(columns: &[DdlColumnDef]) -> DataPlaneResult
 fn jsonschema_required(schema: &Document) -> Vec<String> {
     schema
         .get_array("required")
-        .map(|arr| arr.iter().filter_map(bson::Bson::as_str).map(str::to_string).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(bson::Bson::as_str)
+                .map(str::to_string)
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -144,7 +149,10 @@ pub(super) fn jsonschema_with_column_set(
 
 /// Returns a new `$jsonSchema` with `name` removed (property + required).
 /// A missing column is a client error.
-pub(super) fn jsonschema_with_column_dropped(schema: &Document, name: &str) -> DataPlaneResult<Document> {
+pub(super) fn jsonschema_with_column_dropped(
+    schema: &Document,
+    name: &str,
+) -> DataPlaneResult<Document> {
     let mut out = schema.clone();
     let mut properties = out.get_document("properties").cloned().unwrap_or_default();
     if properties.remove(name).is_none() {
@@ -255,9 +263,13 @@ mod tests {
         assert!(by_name("qty").nullable);
         assert!(by_name("owner_id").nullable);
         // An explicit owner_id is respected, never duplicated.
-        let explicit = columns_to_jsonschema(&[col("owner_id", NormalizedType::Text, false)]).unwrap();
+        let explicit =
+            columns_to_jsonschema(&[col("owner_id", NormalizedType::Text, false)]).unwrap();
         let props = explicit.get_document("properties").unwrap();
-        assert_eq!(props.get_document("owner_id").unwrap(), &bson::doc! { "bsonType": "string" });
+        assert_eq!(
+            props.get_document("owner_id").unwrap(),
+            &bson::doc! { "bsonType": "string" }
+        );
     }
 
     #[test]
@@ -271,12 +283,19 @@ mod tests {
             ColumnMode::Add,
         )
         .unwrap();
-        assert!(added.get_document("properties").unwrap().contains_key("qty"));
+        assert!(added
+            .get_document("properties")
+            .unwrap()
+            .contains_key("qty"));
         assert_eq!(jsonschema_required(&added), vec!["name", "qty"]);
         // add of an existing column is a 409 conflict.
         assert!(matches!(
-            jsonschema_with_column_set(&base, &col("name", NormalizedType::Text, true), ColumnMode::Add)
-                .unwrap_err(),
+            jsonschema_with_column_set(
+                &base,
+                &col("name", NormalizedType::Text, true),
+                ColumnMode::Add
+            )
+            .unwrap_err(),
             DataPlaneError::Conflict { .. }
         ));
 
@@ -288,20 +307,35 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            altered.get_document("properties").unwrap().get_document("qty").unwrap(),
+            altered
+                .get_document("properties")
+                .unwrap()
+                .get_document("qty")
+                .unwrap(),
             &bson::doc! { "bsonType": ["string", "null"] }
         );
-        assert_eq!(jsonschema_required(&altered), vec!["name"], "now nullable → not required");
+        assert_eq!(
+            jsonschema_required(&altered),
+            vec!["name"],
+            "now nullable → not required"
+        );
         // alter of a missing column is a 400.
         assert!(matches!(
-            jsonschema_with_column_set(&base, &col("ghost", NormalizedType::Text, true), ColumnMode::Alter)
-                .unwrap_err(),
+            jsonschema_with_column_set(
+                &base,
+                &col("ghost", NormalizedType::Text, true),
+                ColumnMode::Alter
+            )
+            .unwrap_err(),
             DataPlaneError::InvalidRequest { .. }
         ));
 
         // drop: property + required entry removed; missing column is a 400.
         let dropped = jsonschema_with_column_dropped(&added, "qty").unwrap();
-        assert!(!dropped.get_document("properties").unwrap().contains_key("qty"));
+        assert!(!dropped
+            .get_document("properties")
+            .unwrap()
+            .contains_key("qty"));
         assert_eq!(jsonschema_required(&dropped), vec!["name"]);
         assert!(matches!(
             jsonschema_with_column_dropped(&added, "ghost").unwrap_err(),

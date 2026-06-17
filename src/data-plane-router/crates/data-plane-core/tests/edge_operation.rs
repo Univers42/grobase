@@ -52,8 +52,7 @@ fn wire_name_matches_serde_tag_for_every_kind() {
 #[test]
 fn wire_name_round_trips_back_to_the_kind() {
     for kind in DataOperationKind::ALL {
-        let parsed: DataOperationKind =
-            serde_json::from_value(json!(kind.wire_name())).unwrap();
+        let parsed: DataOperationKind = serde_json::from_value(json!(kind.wire_name())).unwrap();
         assert_eq!(parsed, kind);
     }
 }
@@ -233,7 +232,9 @@ fn batch_items_parses_valid_sub_operations() {
         {"op": "insert", "resource": "t", "data": {"a": 1}},
         {"op": "update", "resource": "t", "filter": {"id": 1}, "data": {"a": 2}}
     ]);
-    let items = op(DataOperationKind::Batch, "t", Some(data)).batch_items().unwrap();
+    let items = op(DataOperationKind::Batch, "t", Some(data))
+        .batch_items()
+        .unwrap();
     assert_eq!(items.len(), 2);
     assert_eq!(items[0].op, DataOperationKind::Insert);
     assert_eq!(items[1].op, DataOperationKind::Update);
@@ -241,7 +242,9 @@ fn batch_items_parses_valid_sub_operations() {
 
 #[test]
 fn batch_items_rejects_missing_data() {
-    let err = op(DataOperationKind::Batch, "t", None).batch_items().unwrap_err();
+    let err = op(DataOperationKind::Batch, "t", None)
+        .batch_items()
+        .unwrap_err();
     assert!(err.contains("JSON array"), "{err}");
 }
 
@@ -255,9 +258,15 @@ fn batch_items_rejects_non_array_data() {
 
 #[test]
 fn batch_items_rejects_scalar_data() {
-    assert!(op(DataOperationKind::Batch, "t", Some(json!(5))).batch_items().is_err());
-    assert!(op(DataOperationKind::Batch, "t", Some(json!("x"))).batch_items().is_err());
-    assert!(op(DataOperationKind::Batch, "t", Some(Value::Null)).batch_items().is_err());
+    assert!(op(DataOperationKind::Batch, "t", Some(json!(5)))
+        .batch_items()
+        .is_err());
+    assert!(op(DataOperationKind::Batch, "t", Some(json!("x")))
+        .batch_items()
+        .is_err());
+    assert!(op(DataOperationKind::Batch, "t", Some(Value::Null))
+        .batch_items()
+        .is_err());
 }
 
 #[test]
@@ -270,8 +279,11 @@ fn batch_items_rejects_empty_array() {
 
 #[test]
 fn batch_items_rejects_nested_batch() {
-    let data = json!([{"op": "batch", "resource": "t", "data": [{"op": "insert", "resource": "t"}]}]);
-    let err = op(DataOperationKind::Batch, "t", Some(data)).batch_items().unwrap_err();
+    let data =
+        json!([{"op": "batch", "resource": "t", "data": [{"op": "insert", "resource": "t"}]}]);
+    let err = op(DataOperationKind::Batch, "t", Some(data))
+        .batch_items()
+        .unwrap_err();
     assert!(err.contains("nested batches"), "{err}");
 }
 
@@ -281,28 +293,36 @@ fn batch_items_reports_nested_batch_index() {
         {"op": "insert", "resource": "t"},
         {"op": "batch", "resource": "t", "data": [{"op": "get", "resource": "t"}]}
     ]);
-    let err = op(DataOperationKind::Batch, "t", Some(data)).batch_items().unwrap_err();
+    let err = op(DataOperationKind::Batch, "t", Some(data))
+        .batch_items()
+        .unwrap_err();
     assert!(err.contains("item 1"), "should name index 1: {err}");
 }
 
 #[test]
 fn batch_items_rejects_blank_resource() {
     let data = json!([{"op": "insert", "resource": "   "}]);
-    let err = op(DataOperationKind::Batch, "t", Some(data)).batch_items().unwrap_err();
+    let err = op(DataOperationKind::Batch, "t", Some(data))
+        .batch_items()
+        .unwrap_err();
     assert!(err.contains("`resource` is required"), "{err}");
 }
 
 #[test]
 fn batch_items_rejects_empty_resource() {
     let data = json!([{"op": "insert", "resource": ""}]);
-    assert!(op(DataOperationKind::Batch, "t", Some(data)).batch_items().is_err());
+    assert!(op(DataOperationKind::Batch, "t", Some(data))
+        .batch_items()
+        .is_err());
 }
 
 #[test]
 fn batch_items_rejects_invalid_sub_operation_shape() {
     // Missing the required `op` field on a sub-op.
     let data = json!([{"resource": "t", "data": {"a": 1}}]);
-    let err = op(DataOperationKind::Batch, "t", Some(data)).batch_items().unwrap_err();
+    let err = op(DataOperationKind::Batch, "t", Some(data))
+        .batch_items()
+        .unwrap_err();
     assert!(err.contains("not a valid operation"), "{err}");
 }
 
@@ -313,14 +333,18 @@ fn batch_items_reports_invalid_sub_op_index() {
         {"op": "insert", "resource": "t"},
         {"op": "bogus_op", "resource": "t"}
     ]);
-    let err = op(DataOperationKind::Batch, "t", Some(data)).batch_items().unwrap_err();
+    let err = op(DataOperationKind::Batch, "t", Some(data))
+        .batch_items()
+        .unwrap_err();
     assert!(err.contains("item 2"), "should name index 2: {err}");
 }
 
 #[test]
 fn batch_items_accepts_single_item() {
     let data = json!([{"op": "delete", "resource": "t", "filter": {"id": 1}}]);
-    let items = op(DataOperationKind::Batch, "t", Some(data)).batch_items().unwrap();
+    let items = op(DataOperationKind::Batch, "t", Some(data))
+        .batch_items()
+        .unwrap();
     assert_eq!(items.len(), 1);
 }
 
@@ -333,7 +357,9 @@ fn batch_items_preserves_order_for_many_items() {
         {"op": "upsert", "resource": "d"},
         {"op": "get", "resource": "e"}
     ]);
-    let items = op(DataOperationKind::Batch, "t", Some(data)).batch_items().unwrap();
+    let items = op(DataOperationKind::Batch, "t", Some(data))
+        .batch_items()
+        .unwrap();
     assert_eq!(items.len(), 5);
     assert_eq!(items[0].resource, "a");
     assert_eq!(items[4].resource, "e");
@@ -344,7 +370,9 @@ fn batch_items_preserves_order_for_many_items() {
 fn batch_items_works_regardless_of_outer_op_kind() {
     // batch_items only inspects `data`, not the outer `op`.
     let data = json!([{"op": "insert", "resource": "t"}]);
-    let items = op(DataOperationKind::Insert, "t", Some(data)).batch_items().unwrap();
+    let items = op(DataOperationKind::Insert, "t", Some(data))
+        .batch_items()
+        .unwrap();
     assert_eq!(items.len(), 1);
 }
 
@@ -374,8 +402,12 @@ fn data_operation_missing_resource_is_rejected() {
 #[test]
 fn data_operation_fields_is_wire_optional_and_round_trips() {
     let o: DataOperation =
-        serde_json::from_value(json!({"op": "list", "resource": "t", "fields": ["id", "name"]})).unwrap();
-    assert_eq!(o.fields.as_deref(), Some(["id".to_string(), "name".to_string()].as_slice()));
+        serde_json::from_value(json!({"op": "list", "resource": "t", "fields": ["id", "name"]}))
+            .unwrap();
+    assert_eq!(
+        o.fields.as_deref(),
+        Some(["id".to_string(), "name".to_string()].as_slice())
+    );
     // None fields is skipped in serialization.
     let plain = op(DataOperationKind::List, "t", None);
     let s = serde_json::to_string(&plain).unwrap();
@@ -409,9 +441,18 @@ fn data_operation_full_round_trip() {
 
 #[test]
 fn returning_mode_wire_names() {
-    assert_eq!(serde_json::to_value(ReturningMode::None).unwrap(), json!("none"));
-    assert_eq!(serde_json::to_value(ReturningMode::Changed).unwrap(), json!("changed"));
-    assert_eq!(serde_json::to_value(ReturningMode::Full).unwrap(), json!("full"));
+    assert_eq!(
+        serde_json::to_value(ReturningMode::None).unwrap(),
+        json!("none")
+    );
+    assert_eq!(
+        serde_json::to_value(ReturningMode::Changed).unwrap(),
+        json!("changed")
+    );
+    assert_eq!(
+        serde_json::to_value(ReturningMode::Full).unwrap(),
+        json!("full")
+    );
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -420,7 +461,10 @@ fn returning_mode_wire_names() {
 
 #[test]
 fn agg_func_wire_names() {
-    assert_eq!(serde_json::to_value(AggFunc::Count).unwrap(), json!("count"));
+    assert_eq!(
+        serde_json::to_value(AggFunc::Count).unwrap(),
+        json!("count")
+    );
     assert_eq!(serde_json::to_value(AggFunc::Sum).unwrap(), json!("sum"));
     assert_eq!(serde_json::to_value(AggFunc::Avg).unwrap(), json!("avg"));
     assert_eq!(serde_json::to_value(AggFunc::Min).unwrap(), json!("min"));
@@ -434,7 +478,12 @@ fn agg_func_rejects_unknown() {
 
 #[test]
 fn aggregate_count_without_field_round_trips() {
-    let a = Aggregate { func: AggFunc::Count, field: None, distinct: false, alias: "n".into() };
+    let a = Aggregate {
+        func: AggFunc::Count,
+        field: None,
+        distinct: false,
+        alias: "n".into(),
+    };
     let s = serde_json::to_string(&a).unwrap();
     let back: Aggregate = serde_json::from_str(&s).unwrap();
     assert_eq!(a, back);
@@ -442,14 +491,24 @@ fn aggregate_count_without_field_round_trips() {
 
 #[test]
 fn aggregate_sum_with_field_round_trips() {
-    let a = Aggregate { func: AggFunc::Sum, field: Some("amount".into()), distinct: false, alias: "total".into() };
+    let a = Aggregate {
+        func: AggFunc::Sum,
+        field: Some("amount".into()),
+        distinct: false,
+        alias: "total".into(),
+    };
     let back: Aggregate = serde_json::from_str(&serde_json::to_string(&a).unwrap()).unwrap();
     assert_eq!(a, back);
 }
 
 #[test]
 fn aggregate_distinct_count_round_trips() {
-    let a = Aggregate { func: AggFunc::Count, field: Some("user".into()), distinct: true, alias: "uniq".into() };
+    let a = Aggregate {
+        func: AggFunc::Count,
+        field: Some("user".into()),
+        distinct: true,
+        alias: "uniq".into(),
+    };
     let back: Aggregate = serde_json::from_str(&serde_json::to_string(&a).unwrap()).unwrap();
     assert_eq!(a, back);
     assert!(back.distinct);
@@ -474,8 +533,18 @@ fn aggregate_spec_with_group_by_round_trips() {
     let spec = AggregateSpec {
         group_by: vec!["country".into(), "city".into()],
         aggregates: vec![
-            Aggregate { func: AggFunc::Count, field: None, distinct: false, alias: "n".into() },
-            Aggregate { func: AggFunc::Avg, field: Some("age".into()), distinct: false, alias: "avg_age".into() },
+            Aggregate {
+                func: AggFunc::Count,
+                field: None,
+                distinct: false,
+                alias: "n".into(),
+            },
+            Aggregate {
+                func: AggFunc::Avg,
+                field: Some("age".into()),
+                distinct: false,
+                alias: "avg_age".into(),
+            },
         ],
     };
     let back: AggregateSpec = serde_json::from_str(&serde_json::to_string(&spec).unwrap()).unwrap();
@@ -493,7 +562,12 @@ fn data_operation_with_aggregate_round_trips() {
     let o = DataOperation {
         aggregate: Some(AggregateSpec {
             group_by: vec!["g".into()],
-            aggregates: vec![Aggregate { func: AggFunc::Max, field: Some("x".into()), distinct: false, alias: "mx".into() }],
+            aggregates: vec![Aggregate {
+                func: AggFunc::Max,
+                field: Some("x".into()),
+                distinct: false,
+                alias: "mx".into(),
+            }],
         }),
         ..op(DataOperationKind::Aggregate, "t", None)
     };
@@ -507,7 +581,11 @@ fn data_operation_with_aggregate_round_trips() {
 
 #[test]
 fn search_spec_minimal_round_trips() {
-    let s = SearchSpec { query: "hello world".into(), columns: vec![], language: None };
+    let s = SearchSpec {
+        query: "hello world".into(),
+        columns: vec![],
+        language: None,
+    };
     let back: SearchSpec = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
     assert_eq!(s, back);
 }
@@ -537,28 +615,44 @@ fn search_spec_requires_query() {
 
 #[test]
 fn vector_spec_minimal_round_trips() {
-    let v = VectorSpec { column: "embedding".into(), query: vec![0.1, 0.2, 0.3], k: None, metric: None };
+    let v = VectorSpec {
+        column: "embedding".into(),
+        query: vec![0.1, 0.2, 0.3],
+        k: None,
+        metric: None,
+    };
     let back: VectorSpec = serde_json::from_str(&serde_json::to_string(&v).unwrap()).unwrap();
     assert_eq!(v, back);
 }
 
 #[test]
 fn vector_spec_defaults_k_and_metric() {
-    let v: VectorSpec = serde_json::from_value(json!({"column": "e", "query": [1.0, 2.0]})).unwrap();
+    let v: VectorSpec =
+        serde_json::from_value(json!({"column": "e", "query": [1.0, 2.0]})).unwrap();
     assert!(v.k.is_none());
     assert!(v.metric.is_none());
 }
 
 #[test]
 fn vector_spec_full_round_trips() {
-    let v = VectorSpec { column: "emb".into(), query: vec![1.5, -2.5, 0.0], k: Some(20), metric: Some("cosine".into()) };
+    let v = VectorSpec {
+        column: "emb".into(),
+        query: vec![1.5, -2.5, 0.0],
+        k: Some(20),
+        metric: Some("cosine".into()),
+    };
     let back: VectorSpec = serde_json::from_str(&serde_json::to_string(&v).unwrap()).unwrap();
     assert_eq!(v, back);
 }
 
 #[test]
 fn vector_spec_empty_query_vector_round_trips() {
-    let v = VectorSpec { column: "e".into(), query: vec![], k: Some(1), metric: None };
+    let v = VectorSpec {
+        column: "e".into(),
+        query: vec![],
+        k: Some(1),
+        metric: None,
+    };
     let back: VectorSpec = serde_json::from_str(&serde_json::to_string(&v).unwrap()).unwrap();
     assert_eq!(v, back);
 }
@@ -575,9 +669,18 @@ fn vector_spec_requires_column_and_query() {
 
 #[test]
 fn batch_item_status_wire_names() {
-    assert_eq!(serde_json::to_value(BatchItemStatus::Ok).unwrap(), json!("ok"));
-    assert_eq!(serde_json::to_value(BatchItemStatus::Error).unwrap(), json!("error"));
-    assert_eq!(serde_json::to_value(BatchItemStatus::Skipped).unwrap(), json!("skipped"));
+    assert_eq!(
+        serde_json::to_value(BatchItemStatus::Ok).unwrap(),
+        json!("ok")
+    );
+    assert_eq!(
+        serde_json::to_value(BatchItemStatus::Error).unwrap(),
+        json!("error")
+    );
+    assert_eq!(
+        serde_json::to_value(BatchItemStatus::Skipped).unwrap(),
+        json!("skipped")
+    );
 }
 
 #[test]
@@ -587,14 +690,24 @@ fn batch_item_status_rejects_unknown() {
 
 #[test]
 fn batch_item_outcome_round_trips_with_error() {
-    let o = BatchItemOutcome { index: 2, status: BatchItemStatus::Error, affected_rows: 0, error: Some("dup key".into()) };
+    let o = BatchItemOutcome {
+        index: 2,
+        status: BatchItemStatus::Error,
+        affected_rows: 0,
+        error: Some("dup key".into()),
+    };
     let back: BatchItemOutcome = serde_json::from_str(&serde_json::to_string(&o).unwrap()).unwrap();
     assert_eq!(o, back);
 }
 
 #[test]
 fn batch_item_outcome_skips_none_error() {
-    let o = BatchItemOutcome { index: 0, status: BatchItemStatus::Ok, affected_rows: 1, error: None };
+    let o = BatchItemOutcome {
+        index: 0,
+        status: BatchItemStatus::Ok,
+        affected_rows: 1,
+        error: None,
+    };
     let s = serde_json::to_string(&o).unwrap();
     assert!(!s.contains("error"), "None error must be skipped: {s}");
 }
@@ -611,12 +724,28 @@ fn batch_summary_round_trips() {
     let summary = BatchSummary {
         atomic: true,
         items: vec![
-            BatchItemOutcome { index: 0, status: BatchItemStatus::Ok, affected_rows: 1, error: None },
-            BatchItemOutcome { index: 1, status: BatchItemStatus::Error, affected_rows: 0, error: Some("x".into()) },
-            BatchItemOutcome { index: 2, status: BatchItemStatus::Skipped, affected_rows: 0, error: None },
+            BatchItemOutcome {
+                index: 0,
+                status: BatchItemStatus::Ok,
+                affected_rows: 1,
+                error: None,
+            },
+            BatchItemOutcome {
+                index: 1,
+                status: BatchItemStatus::Error,
+                affected_rows: 0,
+                error: Some("x".into()),
+            },
+            BatchItemOutcome {
+                index: 2,
+                status: BatchItemStatus::Skipped,
+                affected_rows: 0,
+                error: None,
+            },
         ],
     };
-    let back: BatchSummary = serde_json::from_str(&serde_json::to_string(&summary).unwrap()).unwrap();
+    let back: BatchSummary =
+        serde_json::from_str(&serde_json::to_string(&summary).unwrap()).unwrap();
     assert_eq!(summary, back);
 }
 
@@ -628,7 +757,12 @@ fn data_result_with_batch_summary_round_trips() {
         next_cursor: None,
         batch: Some(BatchSummary {
             atomic: false,
-            items: vec![BatchItemOutcome { index: 0, status: BatchItemStatus::Ok, affected_rows: 2, error: None }],
+            items: vec![BatchItemOutcome {
+                index: 0,
+                status: BatchItemStatus::Ok,
+                affected_rows: 2,
+                error: None,
+            }],
         }),
     };
     let back: DataResult = serde_json::from_str(&serde_json::to_string(&r).unwrap()).unwrap();
@@ -682,27 +816,47 @@ fn raw_statement_defaults_params_and_expect_rows() {
 
 #[test]
 fn raw_statement_round_trips() {
-    let r = RawStatement { statement: "INSERT …".into(), params: vec![json!(1), json!("x")], expect_rows: true };
+    let r = RawStatement {
+        statement: "INSERT …".into(),
+        params: vec![json!(1), json!("x")],
+        expect_rows: true,
+    };
     let back: RawStatement = serde_json::from_str(&serde_json::to_string(&r).unwrap()).unwrap();
     assert_eq!(r, back);
 }
 
 #[test]
 fn migration_status_wire_names() {
-    assert_eq!(serde_json::to_value(MigrationStatus::Applied).unwrap(), json!("applied"));
-    assert_eq!(serde_json::to_value(MigrationStatus::Skipped).unwrap(), json!("skipped"));
+    assert_eq!(
+        serde_json::to_value(MigrationStatus::Applied).unwrap(),
+        json!("applied")
+    );
+    assert_eq!(
+        serde_json::to_value(MigrationStatus::Skipped).unwrap(),
+        json!("skipped")
+    );
 }
 
 #[test]
 fn migration_result_round_trips() {
-    let m = MigrationResult { name: "001_init".into(), status: MigrationStatus::Applied, statements_run: 7 };
+    let m = MigrationResult {
+        name: "001_init".into(),
+        status: MigrationStatus::Applied,
+        statements_run: 7,
+    };
     let back: MigrationResult = serde_json::from_str(&serde_json::to_string(&m).unwrap()).unwrap();
     assert_eq!(m, back);
 }
 
 #[test]
 fn pool_stats_round_trips() {
-    let p = PoolStats { mount_id: "m".into(), engine: "postgresql".into(), active_connections: 3, idle_connections: 2, waiting_requests: 0 };
+    let p = PoolStats {
+        mount_id: "m".into(),
+        engine: "postgresql".into(),
+        active_connections: 3,
+        idle_connections: 2,
+        waiting_requests: 0,
+    };
     let back: PoolStats = serde_json::from_str(&serde_json::to_string(&p).unwrap()).unwrap();
     assert_eq!(p, back);
 }

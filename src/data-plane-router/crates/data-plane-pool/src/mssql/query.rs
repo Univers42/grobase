@@ -7,8 +7,8 @@
 //   its own buffer), the helpers here cannot move to a sibling without a
 //   bidirectional `Binder`/`quote_ident` dependency, which would be worse.
 
-use super::*;
 use super::convert::json_to_param;
+use super::*;
 
 // ── plan model ───────────────────────────────────────────────────────────────
 
@@ -201,7 +201,8 @@ fn build_upsert(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlP
         match_cols.push("owner_id".to_string());
     }
     match_cols.extend(keys.iter().map(|k| (*k).to_string()));
-    let conflict_set: std::collections::BTreeSet<&str> = match_cols.iter().map(String::as_str).collect();
+    let conflict_set: std::collections::BTreeSet<&str> =
+        match_cols.iter().map(String::as_str).collect();
 
     let mut binder = Binder::default();
     // Build the source row (VALUES) as @P params with aliased columns.
@@ -233,14 +234,22 @@ fn build_upsert(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlP
         format!(" WHEN MATCHED THEN UPDATE SET {}", update_set.join(", "))
     };
     let insert_cols = src_cols.join(", ");
-    let insert_vals = src_cols.iter().map(|c| format!("src.{c}")).collect::<Vec<_>>().join(", ");
+    let insert_vals = src_cols
+        .iter()
+        .map(|c| format!("src.{c}"))
+        .collect::<Vec<_>>()
+        .join(", ");
     let sql = format!(
         "MERGE {table} AS tgt USING (VALUES ({})) AS src ({}) ON {on_clause}{when_matched} \
          WHEN NOT MATCHED THEN INSERT ({insert_cols}) VALUES ({insert_vals});",
         src_vals.join(", "),
         src_cols.join(", ")
     );
-    Ok(SqlPlan { sql, params: binder.params, returns_rows: false })
+    Ok(SqlPlan {
+        sql,
+        params: binder.params,
+        returns_rows: false,
+    })
 }
 
 // ponytail: irreducible aggregate builder — duplicate-alias guard, group/select
@@ -248,9 +257,12 @@ fn build_upsert(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlP
 //   would only add indirection without removing logic.
 fn build_aggregate(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlPlan> {
     let table = quote_ident(&op.resource)?;
-    let spec = op.aggregate.as_ref().ok_or_else(|| DataPlaneError::InvalidRequest {
-        message: "aggregate requires an `aggregate` spec".to_string(),
-    })?;
+    let spec = op
+        .aggregate
+        .as_ref()
+        .ok_or_else(|| DataPlaneError::InvalidRequest {
+            message: "aggregate requires an `aggregate` spec".to_string(),
+        })?;
     if spec.aggregates.is_empty() {
         return Err(DataPlaneError::InvalidRequest {
             message: "aggregate requires at least one aggregate function".to_string(),
@@ -382,7 +394,10 @@ fn build_safe_columns(data: Option<&Value>) -> DataPlaneResult<Vec<(String, Valu
     Ok(out)
 }
 
-fn render_columns(binder: &mut Binder, columns: &[(String, Value)]) -> DataPlaneResult<(String, String)> {
+fn render_columns(
+    binder: &mut Binder,
+    columns: &[(String, Value)],
+) -> DataPlaneResult<(String, String)> {
     let mut col_sql = Vec::with_capacity(columns.len());
     let mut ph = Vec::with_capacity(columns.len());
     for (col, val) in columns {
@@ -399,13 +414,20 @@ fn build_order_by(sort: Option<&BTreeMap<String, String>>) -> DataPlaneResult<Op
     }
     let mut parts: Vec<String> = Vec::with_capacity(map.len());
     for (col, dir) in map {
-        let dir_sql = if dir.eq_ignore_ascii_case("desc") { "DESC" } else { "ASC" };
+        let dir_sql = if dir.eq_ignore_ascii_case("desc") {
+            "DESC"
+        } else {
+            "ASC"
+        };
         parts.push(format!("{} {dir_sql}", quote_ident(col)?));
     }
     Ok(Some(format!(" ORDER BY {}", parts.join(", "))))
 }
 
-fn require_object<'a>(data: Option<&'a Value>, what: &str) -> DataPlaneResult<&'a JsonMap<String, Value>> {
+fn require_object<'a>(
+    data: Option<&'a Value>,
+    what: &str,
+) -> DataPlaneResult<&'a JsonMap<String, Value>> {
     match data {
         Some(Value::Object(map)) => Ok(map),
         Some(other) => Err(DataPlaneError::InvalidRequest {
@@ -424,7 +446,9 @@ pub(super) fn quote_ident(ident: &str) -> DataPlaneResult<String> {
         || ident.contains('\0')
         || ident.chars().any(char::is_control)
     {
-        return Err(DataPlaneError::InvalidIdentifier { value: ident.to_string() });
+        return Err(DataPlaneError::InvalidIdentifier {
+            value: ident.to_string(),
+        });
     }
     Ok(format!("[{}]", ident.replace(']', "]]")))
 }

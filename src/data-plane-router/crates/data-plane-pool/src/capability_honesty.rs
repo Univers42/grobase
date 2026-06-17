@@ -18,7 +18,15 @@
 use data_plane_core::{DataOperationKind, EngineCapabilities};
 
 const ENGINES: [&str; 9] = [
-    "postgresql", "cockroachdb", "mysql", "mariadb", "mongodb", "redis", "sqlite", "mssql", "http",
+    "postgresql",
+    "cockroachdb",
+    "mysql",
+    "mariadb",
+    "mongodb",
+    "redis",
+    "sqlite",
+    "mssql",
+    "http",
 ];
 
 /// The operation kinds each adapter's `dispatch_op` actually serves — read from
@@ -85,11 +93,26 @@ fn batch_is_advertised_exactly_where_implemented() {
 fn transaction_flag_matches_begin_implementation() {
     // postgres/mysql `begin()` return a real TxHandle; mongo/redis/http return
     // NotImplemented — the `transactions` flag must agree with that reality.
-    assert!(descriptor("postgresql").transactions, "postgres begin() is implemented");
-    assert!(descriptor("mysql").transactions, "mysql begin() is implemented");
-    assert!(!descriptor("mongodb").transactions, "mongo begin() returns NotImplemented");
-    assert!(!descriptor("redis").transactions, "redis begin() returns NotImplemented");
-    assert!(!descriptor("http").transactions, "http begin() returns NotImplemented");
+    assert!(
+        descriptor("postgresql").transactions,
+        "postgres begin() is implemented"
+    );
+    assert!(
+        descriptor("mysql").transactions,
+        "mysql begin() is implemented"
+    );
+    assert!(
+        !descriptor("mongodb").transactions,
+        "mongo begin() returns NotImplemented"
+    );
+    assert!(
+        !descriptor("redis").transactions,
+        "redis begin() returns NotImplemented"
+    );
+    assert!(
+        !descriptor("http").transactions,
+        "http begin() returns NotImplemented"
+    );
 }
 
 // The 8th adapter (OFF by default). This block compiles ONLY under
@@ -115,7 +138,16 @@ fn dynamodb_descriptor_advertises_exactly_what_dispatch_implements() {
         );
     }
     // The honest headline + the single excluded op (aggregate).
-    assert!(caps.transactions, "dynamodb begin() returns a real TransactWriteItems-backed TxHandle");
-    assert!(caps.native_idempotency, "ClientRequestToken — engine-guaranteed exactly-once");
-    assert!(!caps.aggregate, "DynamoDB has no server-side aggregate (OLAP = export bridge)");
+    assert!(
+        caps.transactions,
+        "dynamodb begin() returns a real TransactWriteItems-backed TxHandle"
+    );
+    assert!(
+        caps.native_idempotency,
+        "ClientRequestToken — engine-guaranteed exactly-once"
+    );
+    assert!(
+        !caps.aggregate,
+        "DynamoDB has no server-side aggregate (OLAP = export bridge)"
+    );
 }

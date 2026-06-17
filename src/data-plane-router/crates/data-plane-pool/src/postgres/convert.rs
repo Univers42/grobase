@@ -121,7 +121,10 @@ impl ToSql for JsonParam {
                 Type::FLOAT4 => {
                     (n.as_f64().ok_or("number is not representable as f64")? as f32).to_sql(ty, out)
                 }
-                Type::FLOAT8 => n.as_f64().ok_or("number is not representable as f64")?.to_sql(ty, out),
+                Type::FLOAT8 => n
+                    .as_f64()
+                    .ok_or("number is not representable as f64")?
+                    .to_sql(ty, out),
                 // numeric/decimal columns (money-like: totals, prices,
                 // salaries) — serde's Value only serializes into json/jsonb,
                 // so without this arm EVERY filter or update touching a
@@ -217,7 +220,14 @@ fn write_pg_numeric(
     }
     out.extend_from_slice(&(i16::try_from(digits.len())?).to_be_bytes());
     out.extend_from_slice(&weight.to_be_bytes());
-    out.extend_from_slice(&(if negative && !digits.is_empty() { 0x4000u16 } else { 0 }).to_be_bytes());
+    out.extend_from_slice(
+        &(if negative && !digits.is_empty() {
+            0x4000u16
+        } else {
+            0
+        })
+        .to_be_bytes(),
+    );
     out.extend_from_slice(&dscale.to_be_bytes());
     for digit in digits {
         out.extend_from_slice(&digit.to_be_bytes());
@@ -378,10 +388,22 @@ mod tests {
         // target column type must error (WrongType), not write garbage bytes.
         // bytea is the dangerous one — it accepts ANY bytes, so a string would
         // otherwise be stored verbatim.
-        assert!(encode(json!("deadbeef"), &Type::BYTEA).is_err(), "string→bytea must reject");
-        assert!(encode(json!("42"), &Type::INT4).is_err(), "string→int4 must reject");
-        assert!(encode(json!(true), &Type::INT4).is_err(), "bool→int4 must reject");
-        assert!(encode(json!({ "a": 1 }), &Type::INT4).is_err(), "object→int4 must reject");
+        assert!(
+            encode(json!("deadbeef"), &Type::BYTEA).is_err(),
+            "string→bytea must reject"
+        );
+        assert!(
+            encode(json!("42"), &Type::INT4).is_err(),
+            "string→int4 must reject"
+        );
+        assert!(
+            encode(json!(true), &Type::INT4).is_err(),
+            "bool→int4 must reject"
+        );
+        assert!(
+            encode(json!({ "a": 1 }), &Type::INT4).is_err(),
+            "object→int4 must reject"
+        );
         // numeric is now a real arm (write_pg_numeric): 5 → ndigits 1,
         // weight 0, sign +, dscale 0, one base-10000 group [5].
         let (_, buf) = encode(json!(5), &Type::NUMERIC).expect("number→numeric binds");
@@ -392,7 +414,10 @@ mod tests {
     fn json_string_and_bool_and_null_bind_directly() {
         assert_eq!(encode(json!("hello"), &Type::TEXT).unwrap().1.len(), 5);
         assert_eq!(encode(json!(true), &Type::BOOL).unwrap().1.len(), 1);
-        assert!(matches!(encode(json!(null), &Type::INT4).unwrap().0, IsNull::Yes));
+        assert!(matches!(
+            encode(json!(null), &Type::INT4).unwrap().0,
+            IsNull::Yes
+        ));
     }
 
     #[test]
@@ -552,7 +577,9 @@ mod tests {
 
     #[test]
     fn write_pg_numeric_rejects_non_decimal_forms() {
-        for bad in ["1e21", "1E5", "0x10", "1.2.3", "abc", "1,000", "", "-", "+3", " 3"] {
+        for bad in [
+            "1e21", "1E5", "0x10", "1.2.3", "abc", "1,000", "", "-", "+3", " 3",
+        ] {
             let mut buf = BytesMut::new();
             assert!(
                 write_pg_numeric(bad, &mut buf).is_err(),
@@ -563,7 +590,16 @@ mod tests {
 
     #[test]
     fn write_pg_numeric_accepts_plain_decimals() {
-        for ok in ["0", "1", "-1", "12.34", "1000000", "0.5", "-0.001", "999999999999"] {
+        for ok in [
+            "0",
+            "1",
+            "-1",
+            "12.34",
+            "1000000",
+            "0.5",
+            "-0.001",
+            "999999999999",
+        ] {
             let mut buf = BytesMut::new();
             assert!(
                 write_pg_numeric(ok, &mut buf).is_ok(),

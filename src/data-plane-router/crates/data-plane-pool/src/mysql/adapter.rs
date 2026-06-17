@@ -1,9 +1,11 @@
 //! EngineAdapter for MySQL/MariaDB: pool construction + the operation-dispatch
 //! shared by the auto-commit and transaction paths.
 
-use super::*;
 use super::pool::MysqlPool;
-use super::query::{run_aggregate, run_delete, run_get, run_insert, run_list, run_update, run_upsert};
+use super::query::{
+    run_aggregate, run_delete, run_get, run_insert, run_list, run_update, run_upsert,
+};
+use super::*;
 
 /// Adapter that knows how to construct [`MysqlPool`] instances from a
 /// [`DatabaseMount`]. Held as `Arc<dyn EngineAdapter>` inside the registry.
@@ -21,7 +23,10 @@ pub struct MysqlEngineAdapter {
 impl MysqlEngineAdapter {
     #[must_use]
     pub fn new(resolver: Arc<dyn MountResolver>) -> Self {
-        Self { resolver, engine_name: "mysql" }
+        Self {
+            resolver,
+            engine_name: "mysql",
+        }
     }
 
     /// Build the adapter under a specific engine id (`"mysql"` or `"mariadb"`).
@@ -29,7 +34,10 @@ impl MysqlEngineAdapter {
     /// differ.
     #[must_use]
     pub fn with_engine_name(resolver: Arc<dyn MountResolver>, engine_name: &'static str) -> Self {
-        Self { resolver, engine_name }
+        Self {
+            resolver,
+            engine_name,
+        }
     }
 }
 
@@ -83,9 +91,9 @@ pub(super) async fn run_batch(
     let mut outcomes = Vec::with_capacity(items.len());
     let mut total: u64 = 0;
     for (idx, item) in items.iter().enumerate() {
-        let result = dispatch_single(q, item, identity).await.map_err(|e| {
-            DataPlaneError::prefix_message(&format!("batch item {idx}: "), e)
-        })?;
+        let result = dispatch_single(q, item, identity)
+            .await
+            .map_err(|e| DataPlaneError::prefix_message(&format!("batch item {idx}: "), e))?;
         total += result.affected_rows;
         outcomes.push(BatchItemOutcome {
             index: idx as u32,
@@ -98,7 +106,10 @@ pub(super) async fn run_batch(
         rows: vec![],
         affected_rows: total,
         next_cursor: None,
-        batch: Some(BatchSummary { atomic: true, items: outcomes }),
+        batch: Some(BatchSummary {
+            atomic: true,
+            items: outcomes,
+        }),
     })
 }
 
@@ -150,7 +161,9 @@ impl EngineAdapter for MysqlEngineAdapter {
         })?;
         let pool_opts = PoolOpts::new().with_constraints(constraints);
 
-        let opts: Opts = OptsBuilder::from_opts(base_opts).pool_opts(pool_opts).into();
+        let opts: Opts = OptsBuilder::from_opts(base_opts)
+            .pool_opts(pool_opts)
+            .into();
         let pool = Pool::new(opts);
 
         // schema_per_tenant: the engine-neutral scope directive selects a

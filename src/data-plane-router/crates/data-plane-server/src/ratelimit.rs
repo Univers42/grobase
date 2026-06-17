@@ -62,9 +62,10 @@ impl TenantRateLimiter {
         let cap = f64::from(burst.max(1));
         let now = Instant::now();
         let mut map = self.buckets.lock().expect("rate limiter poisoned");
-        let bucket = map
-            .entry(tenant.to_string())
-            .or_insert_with(|| Bucket { tokens: cap, last: now });
+        let bucket = map.entry(tenant.to_string()).or_insert_with(|| Bucket {
+            tokens: cap,
+            last: now,
+        });
         // Lazy refill: add tokens for the elapsed time, capped at the burst size.
         let elapsed = now.duration_since(bucket.last).as_secs_f64();
         let (new_tokens, admitted) = refill_and_take(bucket.tokens, elapsed, rps, burst);
@@ -204,7 +205,10 @@ impl RedisRateLimiter {
 
     #[must_use]
     pub fn new(url: String) -> Self {
-        Self { url, conn: tokio::sync::OnceCell::new() }
+        Self {
+            url,
+            conn: tokio::sync::OnceCell::new(),
+        }
     }
 
     async fn allow(&self, tenant: &str, rps: u32, burst: u32) -> bool {
@@ -344,21 +348,51 @@ mod tests {
     #[test]
     fn tier_rate_parsing() {
         assert_eq!(tier_rate(None), None);
-        assert_eq!(tier_rate(Some(&json!({ "aggregate": false }))), None, "no rps → unlimited");
-        assert_eq!(tier_rate(Some(&json!({ "rps": 0 }))), None, "rps 0 → unlimited");
-        assert_eq!(tier_rate(Some(&json!({ "rps": 20 }))), Some((20, 40)), "burst defaults 2x");
-        assert_eq!(tier_rate(Some(&json!({ "rps": 200, "burst": 250 }))), Some((200, 250)));
+        assert_eq!(
+            tier_rate(Some(&json!({ "aggregate": false }))),
+            None,
+            "no rps → unlimited"
+        );
+        assert_eq!(
+            tier_rate(Some(&json!({ "rps": 0 }))),
+            None,
+            "rps 0 → unlimited"
+        );
+        assert_eq!(
+            tier_rate(Some(&json!({ "rps": 20 }))),
+            Some((20, 40)),
+            "burst defaults 2x"
+        );
+        assert_eq!(
+            tier_rate(Some(&json!({ "rps": 200, "burst": 250 }))),
+            Some((200, 250))
+        );
     }
 
     #[test]
     fn tier_max_rows_parsing() {
         // No mask / no key / 0 all mean "unlimited" (parity — no clamp).
         assert_eq!(tier_max_rows(None), None);
-        assert_eq!(tier_max_rows(Some(&json!({ "rps": 20 }))), None, "no max_rows → unlimited");
-        assert_eq!(tier_max_rows(Some(&json!({ "max_rows": 0 }))), None, "max_rows 0 → unlimited");
-        assert_eq!(tier_max_rows(Some(&json!(42))), None, "non-object → unlimited");
+        assert_eq!(
+            tier_max_rows(Some(&json!({ "rps": 20 }))),
+            None,
+            "no max_rows → unlimited"
+        );
+        assert_eq!(
+            tier_max_rows(Some(&json!({ "max_rows": 0 }))),
+            None,
+            "max_rows 0 → unlimited"
+        );
+        assert_eq!(
+            tier_max_rows(Some(&json!(42))),
+            None,
+            "non-object → unlimited"
+        );
         // A present positive cap is returned verbatim.
-        assert_eq!(tier_max_rows(Some(&json!({ "max_rows": 1000 }))), Some(1000));
+        assert_eq!(
+            tier_max_rows(Some(&json!({ "max_rows": 1000 }))),
+            Some(1000)
+        );
     }
 
     // C1/m51 — the multi-instance correctness proof. Two RedisRateLimiter on the
