@@ -6,16 +6,14 @@ import (
 	"regexp"
 )
 
-// dsnRe matches a connection-string-shaped substring (scheme://[creds@]host…),
-// e.g. postgres://user:pass@db:5432/app or redis://:secret@cache:6379. Used to
-// scrub DSNs that an upstream service may echo back inside an error body before
-// the message is surfaced to a caller / log.
-var dsnRe = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"'\\]+`)
-
-// RedactDSN replaces any DSN-shaped substring with a placeholder so credentials
-// reflected in an upstream error body never leak into a ResourceResult.Error or
-// a log line.
+// RedactDSN replaces any DSN-shaped substring (scheme://[creds@]host…, e.g.
+// postgres://user:pass@db:5432/app or redis://:secret@cache:6379) with a
+// placeholder, so credentials reflected in an upstream error body never leak
+// into a ResourceResult.Error or a log line.
 func RedactDSN(s string) string {
+	// perf: regex compiled per call — error-response path only (cold; runs on
+	// upstream failures, not per request), so no shared package-level var.
+	dsnRe := regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"'\\]+`)
 	return dsnRe.ReplaceAllString(s, "[redacted-dsn]")
 }
 

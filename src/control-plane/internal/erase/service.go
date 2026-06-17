@@ -36,22 +36,29 @@ package erase
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/audit"
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
-// ErrUnsupportedScope is returned when a tenant's isolation model is not one of
-// the erase-supported models (schema_per_tenant, shared_rls). db_per_tenant and
-// tenant_owned are DEFERRED (D4.4b): a db_per_tenant erase is a DROP DATABASE on
-// a resolved DSN, and tenant_owned is an external DB the platform must not drop.
-// The handler maps it to 400 "isolation not supported for hard-erase (deferred)".
-var ErrUnsupportedScope = errors.New("isolation not supported for hard-erase (deferred)")
+// eraseErr is the package's const-error type: a sentinel is a typed string
+// constant, so errors.Is / %w wrapping still work (equal value+type == equal
+// error) with no package-level var.
+type eraseErr string
 
-// ErrNoMount is returned when the tenant has no registered mount to erase.
-var ErrNoMount = errors.New("tenant has no registered data mount")
+func (e eraseErr) Error() string { return string(e) }
+
+const (
+	// ErrUnsupportedScope is returned when a tenant's isolation model is not one
+	// of the erase-supported models (schema_per_tenant, shared_rls).
+	// db_per_tenant and tenant_owned are DEFERRED (D4.4b): a db_per_tenant erase
+	// is a DROP DATABASE on a resolved DSN, and tenant_owned is an external DB
+	// the platform must not drop. The handler maps it to 400.
+	ErrUnsupportedScope eraseErr = "isolation not supported for hard-erase (deferred)"
+	// ErrNoMount is returned when the tenant has no registered mount to erase.
+	ErrNoMount eraseErr = "tenant has no registered data mount"
+)
 
 // Service performs a hard-erase over the shared control-plane Postgres. It
 // destroys the tenant's Postgres-resident data, revokes+deletes its API keys,

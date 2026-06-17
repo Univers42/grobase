@@ -22,7 +22,6 @@ package passkeys
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -37,9 +36,9 @@ type pdb interface {
 	AdminQuery(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }
 
-// ErrNoCredentials is returned by LoadByUser when a user has no registered
-// passkey (login/begin then cannot offer any allowCredentials).
-var ErrNoCredentials = errors.New("passkeys: no credentials registered for user")
+// ErrNoCredentials (a passkeysErr const, declared in service.go) is returned by
+// LoadByUser when a user has no registered passkey (login/begin then cannot
+// offer any allowCredentials).
 
 // storedCredential is the durable row shape. The WebAuthn-typed projection
 // (webauthn.Credential) is built from this in service.go so the store stays

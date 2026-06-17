@@ -2,12 +2,7 @@ package provision
 
 import (
 	"context"
-	"regexp"
 )
-
-// uuidRe gates owner_user_id before it is cast to ::uuid for a role assignment,
-// so a non-UUID owner is skipped cleanly (matches tenants.uuidRe semantics).
-var uuidRe = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 // ── Injected dependency interfaces (all fakeable) ────────────────────────────
 

@@ -9,12 +9,15 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// functriggersErr is a const-able error type, so the package's sentinels live in
+// the const block (no package-level var). Error() returns the message verbatim,
+// so errors.Is/%w and the message bytes are identical to errors.New.
 // ErrNotFound is returned when a trigger row does not exist (or is not visible
 // under the current tenant scope).
-var ErrNotFound = errors.New("function trigger not found")
+const ErrNotFound functriggersErr = "function trigger not found"
 
 // ErrConflict is returned on the (tenant_id, name) unique violation.
-var ErrConflict = errors.New("function trigger with that name already exists")
+const ErrConflict functriggersErr = "function trigger with that name already exists"
 
 // Service owns CRUD on function_triggers and the delivery ledger.
 type Service struct {

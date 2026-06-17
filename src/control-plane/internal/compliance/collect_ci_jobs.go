@@ -8,13 +8,11 @@ import (
 	"strings"
 )
 
-// jobKeyRe matches a `<id>:` job key indented two spaces under a `jobs:` block.
-var jobKeyRe = regexp.MustCompile(`^  ([A-Za-z0-9_-]+):\s*$`)
-
 // parseCIJobs extracts the `<id>:` job keys under a `jobs:` block of a CI
 // workflow YAML (a lightweight parse — no YAML dep). Returns nil when no
 // workflow is configured, which is fine: the CI section then evidences gates
 // only. This is enough to record "which CI jobs exist" as control evidence.
+// perf: regex compiled per call — compliance collection, cold path.
 func (c *Collector) parseCIJobs() ([]string, error) {
 	if c.ciWorkflow == "" {
 		return nil, nil
@@ -27,7 +25,9 @@ func (c *Collector) parseCIJobs() ([]string, error) {
 		return nil, err
 	}
 	defer f.Close()
-	jobs, err := scanWorkflowJobs(f)
+	// jobKeyRe matches a `<id>:` job key indented two spaces under a `jobs:` block.
+	jobKeyRe := regexp.MustCompile(`^  ([A-Za-z0-9_-]+):\s*$`)
+	jobs, err := scanWorkflowJobs(f, jobKeyRe)
 	if err != nil {
 		return nil, err
 	}
@@ -37,8 +37,8 @@ func (c *Collector) parseCIJobs() ([]string, error) {
 
 // scanWorkflowJobs reads the job keys from an open workflow file, tracking
 // whether the scanner is inside the `jobs:` block. A top-level (unindented) key
-// ends the block.
-func scanWorkflowJobs(f *os.File) ([]string, error) {
+// ends the block. jobKeyRe is the caller's compiled job-key matcher.
+func scanWorkflowJobs(f *os.File, jobKeyRe *regexp.Regexp) ([]string, error) {
 	var jobs []string
 	inJobs := false
 	sc := bufio.NewScanner(f)

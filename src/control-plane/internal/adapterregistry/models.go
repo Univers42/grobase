@@ -2,35 +2,34 @@ package adapterregistry
 
 import "fmt"
 
-// allowedEngines is the set of engines the control plane will ACCEPT a mount
-// for. Honesty rule (Phase 3): this must be exactly the engines the Rust data
-// plane can actually SERVE — registering a mount for an engine with no Rust
-// pool would create a row that 501s on every query. The previously-accepted
-// stubs (jdbc, cassandra, neo4j, elasticsearch, qdrant, influx) are quarantined
-// out: they were never served, so accepting them was a lie. sqlite is added
-// when its adapter lands. The DB CHECK constraint stays broader (it never
-// rejected these), so existing rows are untouched; only NEW registrations of
-// an unserved engine are refused here.
-var allowedEngines = map[string]bool{
-	"postgresql":  true,
-	"cockroachdb": true,
-	"mysql":       true,
-	"mariadb":     true,
-	"mongodb":     true,
-	"redis":       true,
-	"sqlite":      true,
-	"mssql":       true,
-	"http":        true,
+// isAllowedEngine reports whether the control plane will ACCEPT a mount for the
+// engine. Honesty rule (Phase 3): this is exactly the engines the Rust data
+// plane can actually SERVE — registering a mount for an engine with no Rust pool
+// would create a row that 501s on every query. The previously-accepted stubs
+// (jdbc, cassandra, neo4j, elasticsearch, qdrant, influx) are quarantined out:
+// they were never served, so accepting them was a lie. The DB CHECK constraint
+// stays broader (it never rejected these), so existing rows are untouched; only
+// NEW registrations of an unserved engine are refused here.
+func isAllowedEngine(engine string) bool {
+	switch engine {
+	case "postgresql", "cockroachdb", "mysql", "mariadb", "mongodb",
+		"redis", "sqlite", "mssql", "http":
+		return true
+	}
+	return false
 }
 
-// allowedIsolation mirrors the tenant isolation strategies the data plane
+// isAllowedIsolation mirrors the tenant isolation strategies the data plane
 // understands (see data-plane-core DatabaseMount.isolation).
 // tenant_owned: an external client DB wholly owned by one tenant — the data
 // plane skips per-row owner_id scoping (tenant gating still happens at
 // key→mount resolution, so a foreign tenant's key never resolves the mount).
-var allowedIsolation = map[string]bool{
-	"shared_rls": true, "schema_per_tenant": true, "db_per_tenant": true,
-	"tenant_owned": true,
+func isAllowedIsolation(isolation string) bool {
+	switch isolation {
+	case "shared_rls", "schema_per_tenant", "db_per_tenant", "tenant_owned":
+		return true
+	}
+	return false
 }
 
 // CredentialRefInput is the optional Vault-credential reference a tenant may
@@ -75,7 +74,7 @@ type RegisterDatabaseRequest struct {
 // Validate enforces the same constraints as the Node DTO + DB check, plus the
 // S2 EXACTLY-ONE-OF {connection_string, credential_ref} rule.
 func (r RegisterDatabaseRequest) Validate() error {
-	if !allowedEngines[r.Engine] {
+	if !isAllowedEngine(r.Engine) {
 		return fmt.Errorf("unsupported engine %q", r.Engine)
 	}
 	if l := len(r.Name); l < 1 || l > 64 {
@@ -84,7 +83,7 @@ func (r RegisterDatabaseRequest) Validate() error {
 	if err := r.validateCredentialSource(); err != nil {
 		return err
 	}
-	if r.Isolation != "" && !allowedIsolation[r.Isolation] {
+	if r.Isolation != "" && !isAllowedIsolation(r.Isolation) {
 		return fmt.Errorf("unsupported isolation %q", r.Isolation)
 	}
 	return nil

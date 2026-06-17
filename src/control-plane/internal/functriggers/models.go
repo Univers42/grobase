@@ -15,9 +15,6 @@ import (
 	"regexp"
 )
 
-// nameRe matches the runtime's function-name rule (server.ts badName()).
-var nameRe = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]{0,63}$`)
-
 // Trigger is a public function-trigger metadata view.
 type Trigger struct {
 	ID           string   `json:"id"`
@@ -49,6 +46,8 @@ func (r CreateRequest) Validate() error {
 	if l := len(r.Name); l < 1 || l > 64 {
 		return fmt.Errorf("name must be 1..64 chars")
 	}
+	// perf: regex compiled per call — validation path (API-rate, not hot).
+	nameRe := regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]{0,63}$`)
 	if !nameRe.MatchString(r.FunctionName) {
 		return fmt.Errorf("function_name must match [a-zA-Z][a-zA-Z0-9_-]{0,63}")
 	}

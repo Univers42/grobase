@@ -17,26 +17,14 @@ type rateTable struct {
 	milliPerUnit map[string]int64 // metric → milli-cents per unit
 }
 
-// billableMetricEnv is the closed set of priceable dimensions and the env var that
-// carries each one's cents-per-unit rate. Mirrors metering.billableMetricEnv so the
-// spend model uses B1's frozen metric vocabulary (store.go fieldMetric) — extending
-// to a new dimension is one line here plus the env in the deployment.
-var billableMetricEnv = map[string]string{
-	"query.count":          "SPEND_RATE_QUERY_COUNT",
-	"query.rows":           "SPEND_RATE_QUERY_ROWS",
-	"write.rows":           "SPEND_RATE_WRITE_ROWS",
-	"storage.bytes":        "SPEND_RATE_STORAGE_BYTES",
-	"realtime.minutes":     "SPEND_RATE_REALTIME_MINUTES",
-	"function.invocations": "SPEND_RATE_FUNCTION_INVOCATIONS",
-}
-
 // loadRateTable reads the SPEND_RATE_* env into a metric→milli-cents map. Only
 // metrics with a positive rate are included (opt-in per dimension); an unparsable
 // or non-positive rate is skipped (it would price that dimension at zero anyway).
 func loadRateTable() rateTable {
-	m := make(map[string]int64, len(billableMetricEnv))
-	for metric, ev := range billableMetricEnv {
-		raw := strings.TrimSpace(config.EnvStr(ev, ""))
+	metrics := billableMetrics()
+	m := make(map[string]int64, len(metrics))
+	for _, metric := range metrics {
+		raw := strings.TrimSpace(config.EnvStr(billableMetricEnv(metric), ""))
 		if raw == "" {
 			continue
 		}

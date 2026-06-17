@@ -43,8 +43,8 @@ const (
 // ErrShredded is returned by Open when the KMS cannot unwrap the DEK — the
 // customer revoked/deleted the KEK (crypto-shred) or the wrapped DEK is for a
 // different key. The plaintext is unrecoverable. It wraps the underlying KMS
-// error so callers can inspect the cause.
-var ErrShredded = errors.New("cmek: KMS could not unwrap the DEK (key revoked/deleted or wrong key) — data is crypto-shredded")
+// error so callers can inspect the cause. (Type cmekErr lives in errors.go.)
+const ErrShredded cmekErr = "cmek: KMS could not unwrap the DEK (key revoked/deleted or wrong key) — data is crypto-shredded"
 
 // KMSProvider is the external Key-Encryption-Key holder. The platform NEVER
 // sees the KEK — it only asks the KMS to Wrap (encrypt) and Unwrap (decrypt) a

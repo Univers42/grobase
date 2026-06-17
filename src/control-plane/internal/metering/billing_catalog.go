@@ -17,25 +17,13 @@ type billingCatalog struct {
 	meters map[string]string // B1 metric → Stripe meter event_name
 }
 
-// billableMetricEnv is the closed set of meterable dimensions and the env var that
-// carries each one's Stripe event_name. Extending billing to a new dimension is
-// one line here + the env in the deployment — the dimension itself comes from B1's
-// frozen metric vocabulary (see store.go fieldMetric).
-var billableMetricEnv = map[string]string{
-	"query.count":          "BILLING_METER_QUERY_COUNT",
-	"query.rows":           "BILLING_METER_QUERY_ROWS",
-	"write.rows":           "BILLING_METER_WRITE_ROWS",
-	"storage.bytes":        "BILLING_METER_STORAGE_BYTES",
-	"realtime.minutes":     "BILLING_METER_REALTIME_MINUTES",
-	"function.invocations": "BILLING_METER_FUNCTION_INVOCATIONS",
-}
-
 // loadBillingCatalog reads the BILLING_METER_* env into a metric→event_name map.
 // Only metrics with a non-empty event_name are included (opt-in per dimension).
 func loadBillingCatalog() billingCatalog {
-	m := make(map[string]string, len(billableMetricEnv))
-	for metric, ev := range billableMetricEnv {
-		if name := config.EnvStr(ev, ""); name != "" {
+	metrics := billableMetrics()
+	m := make(map[string]string, len(metrics))
+	for _, metric := range metrics {
+		if name := config.EnvStr(billableMetricEnv(metric), ""); name != "" {
 			m[metric] = name
 		}
 	}

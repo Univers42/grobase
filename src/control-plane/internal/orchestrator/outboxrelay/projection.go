@@ -8,9 +8,15 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// nowFn is the projection timestamp source (overridable in tests for
-// determinism, the same role `new Date()` plays in the Node upsert $set).
-var nowFn = func() time.Time { return time.Now().UTC() }
+// projectorNow is the projection timestamp source. It lives on the projector
+// (overridable in tests for determinism, the same role `new Date()` plays in the
+// Node upsert $set); nil falls back to time.Now().UTC for the zero-value case.
+func (m *mongoProjector) projectorNow() time.Time {
+	if m == nil || m.now == nil {
+		return time.Now().UTC()
+	}
+	return m.now()
+}
 
 // orderProjection builds the (filter, update) pair for the orders_view upsert,
 // exactly reproducing OutboxRelayService.project:
@@ -22,7 +28,7 @@ var nowFn = func() time.Time { return time.Now().UTC() }
 // payload is payloadObject(event) (object as-is, else {value: ...}); its own
 // `_id` is stripped first (the Node `delete payload['_id']`) so the canonical
 // `_id` is always the aggregate id and never overwritten by the payload.
-func orderProjection(e *outboxEvent) (bson.M, bson.M) {
+func (m *mongoProjector) orderProjection(e *outboxEvent) (bson.M, bson.M) {
 	set := bson.M{}
 	for k, v := range payloadObject(e.Payload) {
 		if k == "_id" {
@@ -34,7 +40,7 @@ func orderProjection(e *outboxEvent) (bson.M, bson.M) {
 	set["aggregate_id"] = e.AggregateID
 	set["last_event_type"] = e.EventType
 	set["outbox_event_id"] = e.ID
-	set["updated_at"] = nowFn()
+	set["updated_at"] = m.projectorNow()
 	return bson.M{"_id": e.AggregateID}, bson.M{"$set": set}
 }
 
@@ -49,7 +55,7 @@ func orderProjection(e *outboxEvent) (bson.M, bson.M) {
 // realtimeBody / nullable in saga.go): the Go event flattens a DB-null
 // request_id to "", and we map "" back to a BSON null so the document shape
 // matches the dominant Node case where request_id is absent (null).
-func sagaProjection(e *outboxEvent) (bson.M, bson.M) {
+func (m *mongoProjector) sagaProjection(e *outboxEvent) (bson.M, bson.M) {
 	data := sagaData(e.Payload)
 	set := bson.M{}
 	for k, v := range data {
@@ -58,7 +64,7 @@ func sagaProjection(e *outboxEvent) (bson.M, bson.M) {
 	set["aggregate_id"] = e.AggregateID
 	set["outbox_event_id"] = e.ID
 	set["request_id"] = pg.NullableStr(e.RequestID) // "" -> BSON null (parity with Node request_id)
-	set["updated_at"] = nowFn()
+	set["updated_at"] = m.projectorNow()
 	return bson.M{"_id": e.AggregateID}, bson.M{"$set": set}
 }
 

@@ -38,44 +38,59 @@ type Defaults struct {
 	SupportedMountIsolation map[string]bool
 }
 
-// defaults is the package-singleton. Exposed via D() so tests can read it
-// without mutating it.
-var defaults = Defaults{
-	SlugPattern: regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{1,62}$`),
-	// Role names share the slug charset family (lowercase alnum + _ -), bounded
-	// to <=63 chars, so a name can never carry `:` (the namespace separator),
-	// `*`, or whitespace, nor be unbounded. Defense-in-depth: the slug prefix
-	// already isolates tenants, this keeps the un-prefixed name well-formed.
-	RoleNamePattern: regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,62}$`),
-	Isolation:       "shared_rls",
-	MountIsolation:  "shared_rls",
-	Plan:            "free",
-	KeyName:         "default",
-	KeyScopes:       []string{"read", "write", "admin"},
-	RoleName:        "user",
-	RolePolicy: PolicySpec{
-		ResourceType: "*",
-		ResourceName: "*",
-		Actions:      []string{"select", "insert", "update", "delete"},
-		Effect:       "allow",
-		Priority:     0,
-		Conditions:   map[string]any{"owner_only": true},
-	},
-	SupportedEngines: map[string]bool{
+// defaultSpec builds the active defaults fresh. It is the ONE place every
+// provisioning literal lives — replacing the former package-level singleton, so
+// the compiled regexes are no longer shared mutable state. Built on each call
+// (provisioning is API-rate, not a hot path); field values/patterns are
+// byte-identical to the prior literal.
+func defaultSpec() Defaults {
+	return Defaults{
+		SlugPattern: regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{1,62}$`),
+		// Role names share the slug charset family (lowercase alnum + _ -), bounded
+		// to <=63 chars, so a name can never carry `:` (the namespace separator),
+		// `*`, or whitespace, nor be unbounded. Defense-in-depth: the slug prefix
+		// already isolates tenants, this keeps the un-prefixed name well-formed.
+		RoleNamePattern: regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,62}$`),
+		Isolation:       "shared_rls",
+		MountIsolation:  "shared_rls",
+		Plan:            "free",
+		KeyName:         "default",
+		KeyScopes:       []string{"read", "write", "admin"},
+		RoleName:        "user",
+		RolePolicy: PolicySpec{
+			ResourceType: "*",
+			ResourceName: "*",
+			Actions:      []string{"select", "insert", "update", "delete"},
+			Effect:       "allow",
+			Priority:     0,
+			Conditions:   map[string]any{"owner_only": true},
+		},
+		SupportedEngines:        defaultSupportedEngines(),
+		SupportedMountIsolation: defaultSupportedMountIsolation(),
+	}
+}
+
+// defaultSupportedEngines is the set of engines provisioning supports by default.
+func defaultSupportedEngines() map[string]bool {
+	return map[string]bool{
 		"postgresql": true, "mysql": true, "redis": true,
 		"mongodb": true, "sqlite": true,
-	},
-	SupportedMountIsolation: map[string]bool{
+	}
+}
+
+// defaultSupportedMountIsolation lists the isolation models a reconcile can
+// realise. db_per_tenant is intentionally absent: the data plane cannot create a
+// dedicated database from a control-plane reconcile, so it must surface as
+// "unsupported" rather than silently succeed.
+func defaultSupportedMountIsolation() map[string]bool {
+	return map[string]bool{
 		"shared_rls":        true,
 		"schema_per_tenant": true,
-		// db_per_tenant is intentionally NOT here: the data plane cannot
-		// realise a dedicated database from a control-plane reconcile, so it
-		// must surface as "unsupported" rather than silently succeed.
-	},
+	}
 }
 
 // D returns the active defaults (read-only view).
-func D() Defaults { return defaults }
+func D() Defaults { return defaultSpec() }
 
 // Resource limits. Centralized (no magic numbers scattered through Validate) so
 // the DoS surface — request body size + per-stack array cardinalities — is

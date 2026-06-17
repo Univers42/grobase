@@ -9,7 +9,6 @@ package metering
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"time"
 )
@@ -25,9 +24,15 @@ const (
 	fieldIdemKey  = "idempotency_key" // lower-hex sha256("tenant|metric|window_start_ms")
 )
 
+// meteringErr is the package's const error type, so sentinels are typed
+// constants (no package-level var) while preserving errors.Is matching.
+type meteringErr string
+
+func (e meteringErr) Error() string { return string(e) }
+
 // errBadEntry marks a malformed stream entry (skipped, not fatal — at-least-once
 // delivery means a poison entry must never wedge the consumer).
-var errBadEntry = errors.New("metering: malformed usage entry")
+const errBadEntry meteringErr = "metering: malformed usage entry"
 
 // execer is the minimal Postgres surface the store needs: one parameterized
 // statement. pg.Postgres.AdminExec satisfies it (the consumer writes as the

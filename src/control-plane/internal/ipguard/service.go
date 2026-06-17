@@ -31,7 +31,6 @@ package ipguard
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -46,15 +45,17 @@ type idb interface {
 	AdminExec(ctx context.Context, sql string, args ...any) error
 }
 
-var (
+// ipguardErr is a const-able sentinel error type so the guards below need no
+// package-level var (errors.Is + identity comparison still hold on the consts).
+const (
 	// ErrEmptyTenant guards every path — an allowlist op with no tenant is
 	// meaningless (and a "" tenant would scan/mutate nothing or, worse, leak).
-	ErrEmptyTenant = errors.New("ipguard: tenant_id required")
+	ErrEmptyTenant = ipguardErr("ipguard: tenant_id required")
 	// ErrBadCIDR is returned when a caller submits a rule that does not parse as
 	// an IP or CIDR network (defence in depth atop the native CIDR column).
-	ErrBadCIDR = errors.New("ipguard: invalid CIDR or IP")
+	ErrBadCIDR = ipguardErr("ipguard: invalid CIDR or IP")
 	// ErrBadIP is returned when the edge check is asked about an unparseable IP.
-	ErrBadIP = errors.New("ipguard: invalid client IP")
+	ErrBadIP = ipguardErr("ipguard: invalid client IP")
 )
 
 // Service reads + mutates the per-tenant allowlist and renders the edge decision.

@@ -15,17 +15,8 @@ import (
 	"time"
 )
 
-// methodMessages reproduces METHOD_MESSAGES from the interceptor exactly.
-var methodMessages = map[string]map[int]string{
-	http.MethodGet:    {200: "Data retrieved successfully"},
-	http.MethodPost:   {201: "Resource created successfully", 200: "Operation successful"},
-	http.MethodPut:    {200: "Resource updated successfully"},
-	http.MethodPatch:  {200: "Resource updated successfully"},
-	http.MethodDelete: {200: "Resource deleted successfully"},
-}
-
 func message(method string, status int) string {
-	if m, ok := methodMessages[method][status]; ok {
+	if m, ok := methodMessage(method, status); ok {
 		return m
 	}
 	return "Operation successful"

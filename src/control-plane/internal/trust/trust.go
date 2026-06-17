@@ -41,15 +41,6 @@ func EmbeddedManifest() (*Manifest, error) {
 	return parseManifest(embeddedManifest, "<embedded posture.json>")
 }
 
-// allowedStatuses is the closed enum a control's status MUST be in. A control
-// outside this set is a malformed manifest (LoadManifest rejects it), which keeps
-// the trust page from advertising a garbage/blank posture.
-var allowedStatuses = map[string]bool{
-	"implemented": true,
-	"partial":     true,
-	"planned":     true,
-}
-
 // Control is one posture line: a named security/compliance control, its category,
 // its honest status, and a pointer to the evidence that proves it (a gate id like
 // "m104" or a wiki path like "wiki/scale-slo.md"). Detail is optional prose.
@@ -117,7 +108,7 @@ func validateControl(i int, c Control, seen map[string]bool) error {
 		return fmt.Errorf("trust: duplicate control id %q", id)
 	}
 	seen[id] = true
-	if !allowedStatuses[c.Status] {
+	if !isAllowedStatus(c.Status) {
 		return fmt.Errorf("trust: control %q has invalid status %q (want implemented|partial|planned)", id, c.Status)
 	}
 	// THE honesty boundary: implemented => must cite evidence. An unproven

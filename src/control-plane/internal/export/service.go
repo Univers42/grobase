@@ -2,7 +2,6 @@ package export
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -10,19 +9,25 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/tenants"
 )
 
+// exportErr is the package's const error type: a string whose Error() is itself,
+// so sentinels are typed consts (==-comparable, errors.Is-friendly).
+type exportErr string
+
+func (e exportErr) Error() string { return string(e) }
+
 // ErrIsolationDeferred is returned when an export is requested for an isolation
 // model D4.3 does NOT support: db_per_tenant (needs the DSN resolver, B6b-style)
 // and tenant_owned (external DB). The handler maps it to 400. The deferral is
 // also enforced structurally by the 052 CHECK (a row for a deferred model cannot
 // be inserted).
-var ErrIsolationDeferred = errors.New("isolation not supported for export (deferred)")
+const ErrIsolationDeferred exportErr = "isolation not supported for export (deferred)"
 
 // ErrNoMount is returned when the tenant has no registered mount to export.
-var ErrNoMount = errors.New("tenant has no registered data mount")
+const ErrNoMount exportErr = "tenant has no registered data mount"
 
 // ErrNotFound mirrors tenants.ErrNotFound at this package boundary (the self-serve
 // read route maps it to 404).
-var ErrNotFound = errors.New("tenant not found")
+const ErrNotFound exportErr = "tenant not found"
 
 // Service orchestrates per-tenant data EXPORT over the shared control-plane
 // Postgres (the tenant_exports ledger + schema_per_tenant / shared_rls data) and

@@ -18,9 +18,16 @@
 package sso
 
 import (
-	"errors"
 	"time"
 )
+
+// ssoErr is the package's const error type — sentinels are typed string
+// constants so the package keeps zero package-level vars while preserving
+// errors.Is / %w / errors.Join identity (a const string is comparable, so two
+// values of the same const are equal).
+type ssoErr string
+
+func (e ssoErr) Error() string { return string(e) }
 
 // Sentinel errors mapped to HTTP status by the handler:
 //
@@ -29,12 +36,19 @@ import (
 //	ErrTokenRejected      -> 401 (id_token failed verification: sig/iss/aud/exp/nonce)
 //	ErrConflict           -> 409 (duplicate (tenant, issuer) on register)
 //	ErrValidation         -> 400 (bad input)
-var (
-	ErrConnectionNotFound = errors.New("sso: connection not found")
-	ErrStateNotFound      = errors.New("sso: login state not found, expired, or already used")
-	ErrTokenRejected      = errors.New("sso: id_token verification failed")
-	ErrConflict           = errors.New("sso: a connection for this issuer already exists")
-	ErrValidation         = errors.New("sso: validation error")
+const (
+	ErrConnectionNotFound ssoErr = "sso: connection not found"
+	ErrStateNotFound      ssoErr = "sso: login state not found, expired, or already used"
+	ErrTokenRejected      ssoErr = "sso: id_token verification failed"
+	ErrConflict           ssoErr = "sso: a connection for this issuer already exists"
+	ErrValidation         ssoErr = "sso: validation error"
+	// errNoKey guards sealing — SSO cannot store a client secret without a key. The
+	// handler only registers the AEAD when SSO_SECRET_KEY is configured.
+	errNoKey ssoErr = "sso: SSO_SECRET_KEY not configured"
+	// errNoSecret guards minting — an SSO login cannot issue a session without the
+	// shared GoTrue secret. main.go only enables the SSO API when the secret is
+	// configured, so this is a programmer-error backstop.
+	errNoSecret ssoErr = "sso: session secret not configured"
 )
 
 // Connection is one configured OIDC IdP for one tenant (optionally one org). It

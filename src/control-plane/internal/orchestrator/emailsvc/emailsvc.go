@@ -16,15 +16,9 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"regexp"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 )
-
-// emailRe is the same pragmatic shape class-validator's @IsEmail accepts for the
-// common case: local@domain.tld with no spaces. Kept deliberately permissive —
-// the SMTP server is the real authority on deliverability.
-var emailRe = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
 
 // Service holds the SMTP transport config + the send seam (overridable in tests).
 type Service struct {

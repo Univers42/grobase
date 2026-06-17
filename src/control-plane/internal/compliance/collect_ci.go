@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -40,8 +41,12 @@ func (c *Collector) collectCI() (json.RawMessage, error) {
 }
 
 // scanGateControls turns the gates-dir entries into one ciControl per gate
-// script (mNN-*.sh), recording whether each self-attests PASS.
+// script (mNN-*.sh), recording whether each self-attests PASS. Both regexes are
+// compiled once here (not per entry); fileHasPassMarker reuses gatePassRe.
+// perf: regex compiled per call — compliance collection, cold path.
 func (c *Collector) scanGateControls(entries []os.DirEntry) ([]ciControl, error) {
+	gateFileRe := regexp.MustCompile(`^m([0-9]+)-.*\.sh$`)
+	gatePassRe := regexp.MustCompile(`m([0-9]+)=PASS`)
 	controls := []ciControl{}
 	for _, e := range entries {
 		if e.IsDir() {
@@ -51,7 +56,7 @@ func (c *Collector) scanGateControls(entries []os.DirEntry) ([]ciControl, error)
 		if m == nil {
 			continue
 		}
-		passing, err := fileHasPassMarker(filepath.Join(c.gatesDir, e.Name()), "m"+m[1])
+		passing, err := fileHasPassMarker(filepath.Join(c.gatesDir, e.Name()), "m"+m[1], gatePassRe)
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +68,8 @@ func (c *Collector) scanGateControls(entries []os.DirEntry) ([]ciControl, error)
 // fileHasPassMarker scans a gate script for its `<gate>=PASS` self-attestation.
 // A gate that authors the marker is "passing"; one that does not (a stub, a
 // known-failing control, or a script with no gate emission) is "not passing".
-func fileHasPassMarker(path, gate string) (bool, error) {
+// passRe is the caller's compiled `m([0-9]+)=PASS` matcher (reused per file).
+func fileHasPassMarker(path, gate string, passRe *regexp.Regexp) (bool, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return false, err
@@ -77,7 +83,7 @@ func fileHasPassMarker(path, gate string) (bool, error) {
 		if strings.Contains(line, want) {
 			// also confirm the regex agrees this is a PASS token (defense vs a
 			// comment that merely mentions the string in prose).
-			for _, mm := range gatePassRe.FindAllStringSubmatch(line, -1) {
+			for _, mm := range passRe.FindAllStringSubmatch(line, -1) {
 				if "m"+mm[1]+"=PASS" == want {
 					return true, nil
 				}

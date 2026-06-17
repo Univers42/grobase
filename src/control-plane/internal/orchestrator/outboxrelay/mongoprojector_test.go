@@ -12,17 +12,10 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// fixedTime pins nowFn so the updated_at field is deterministic across the
-// builder/dispatch assertions (the same role a frozen clock plays in the Node
-// tests). Restored by every test via t.Cleanup.
+// fixedTime pins the projector clock so the updated_at field is deterministic
+// across the builder/dispatch assertions (the same role a frozen clock plays in
+// the Node tests). It is threaded into the projector via newFakeProjector.
 var fixedTime = time.Date(2026, 6, 13, 12, 0, 0, 0, time.UTC)
-
-func freezeNow(t *testing.T) {
-	t.Helper()
-	prev := nowFn
-	nowFn = func() time.Time { return fixedTime }
-	t.Cleanup(func() { nowFn = prev })
-}
 
 // fakeMongo records the operations the projector would issue so the upsert /
 // delete routing and the constructed documents can be asserted without a live
@@ -56,15 +49,16 @@ func (f *fakeMongo) deleteOne(_ context.Context, coll string, filter any) error 
 	return nil
 }
 
+// newFakeProjector builds a projector over the fake seam with the clock pinned
+// to fixedTime, so updated_at is deterministic in every projection assertion.
 func newFakeProjector(f *fakeMongo) *mongoProjector {
-	return &mongoProjector{db: f}
+	return &mongoProjector{db: f, now: func() time.Time { return fixedTime }}
 }
 
 // TestOrderProjection pins the orders_view upsert filter+update exactly (parity
 // with OutboxRelayService.project): payload merged minus its own _id, then the
 // canonical _id/aggregate_id/last_event_type/outbox_event_id/updated_at stamps.
 func TestOrderProjection(t *testing.T) {
-	freezeNow(t)
 	e := &outboxEvent{
 		ID:          "evt-1",
 		Aggregate:   "order",
@@ -73,7 +67,7 @@ func TestOrderProjection(t *testing.T) {
 		// payload carries an _id that MUST be stripped, plus real fields.
 		Payload: json.RawMessage(`{"_id":"SHOULD_BE_DROPPED","total":42,"sku":"abc"}`),
 	}
-	filter, update := orderProjection(e)
+	filter, update := newFakeProjector(nil).orderProjection(e)
 
 	if !reflect.DeepEqual(filter, bson.M{"_id": "ord-9"}) {
 		t.Fatalf("filter = %#v, want {_id: ord-9}", filter)
@@ -95,9 +89,8 @@ func TestOrderProjection(t *testing.T) {
 // TestOrderProjectionNonObjectPayload pins the {value: ...} wrapping path: a
 // non-object payload becomes a single `value` field, never crashing the upsert.
 func TestOrderProjectionNonObjectPayload(t *testing.T) {
-	freezeNow(t)
 	e := &outboxEvent{ID: "e", Aggregate: "order", AggregateID: "o1", EventType: "x", Payload: json.RawMessage(`[1,2]`)}
-	_, update := orderProjection(e)
+	_, update := newFakeProjector(nil).orderProjection(e)
 	set := update["$set"].(bson.M)
 	if !reflect.DeepEqual(set["value"], []any{float64(1), float64(2)}) {
 		t.Fatalf("array payload must be wrapped under value, got %#v", set["value"])
@@ -110,7 +103,6 @@ func TestOrderProjectionNonObjectPayload(t *testing.T) {
 // TestSagaProjectionUnwrapsData pins the saga upsert: payload.data (when an
 // object) is the body, plus aggregate_id/outbox_event_id/request_id/updated_at.
 func TestSagaProjectionUnwrapsData(t *testing.T) {
-	freezeNow(t)
 	e := &outboxEvent{
 		ID:          "evt-7",
 		Aggregate:   "inventory",
@@ -118,7 +110,7 @@ func TestSagaProjectionUnwrapsData(t *testing.T) {
 		RequestID:   "req-42",
 		Payload:     json.RawMessage(`{"data":{"qty":5,"loc":"A"},"meta":"ignored"}`),
 	}
-	filter, update := sagaProjection(e)
+	filter, update := newFakeProjector(nil).sagaProjection(e)
 	if !reflect.DeepEqual(filter, bson.M{"_id": "inv-3"}) {
 		t.Fatalf("filter = %#v, want {_id: inv-3}", filter)
 	}
@@ -139,14 +131,13 @@ func TestSagaProjectionUnwrapsData(t *testing.T) {
 // payload has no object `data`, the whole payload object is the body, and an
 // empty request_id is written as BSON null (package null/empty convention).
 func TestSagaProjectionFallsBackToPayload(t *testing.T) {
-	freezeNow(t)
 	e := &outboxEvent{
 		ID:          "evt-8",
 		AggregateID: "x-1",
 		// no `data` key → fall back to the payload object itself
 		Payload: json.RawMessage(`{"name":"widget"}`),
 	}
-	_, update := sagaProjection(e)
+	_, update := newFakeProjector(nil).sagaProjection(e)
 	set := update["$set"].(bson.M)
 	if set["name"] != "widget" {
 		t.Fatalf("payload body not used as fallback: %#v", set)
@@ -169,7 +160,6 @@ func TestSagaDataNonObjectDataKey(t *testing.T) {
 // TestDispatchMongoRouting drives dispatchMongo through the fake and asserts the
 // op kind, target collection, and filter for each saga shape.
 func TestDispatchMongoRouting(t *testing.T) {
-	freezeNow(t)
 	cases := []struct {
 		name     string
 		event    *outboxEvent
@@ -232,7 +222,6 @@ func TestDispatchMongoRouting(t *testing.T) {
 // TestProjectOrderIssuesUpsert confirms projectOrder targets orders_view with
 // upsert=true and wraps errors.
 func TestProjectOrderIssuesUpsert(t *testing.T) {
-	freezeNow(t)
 	f := &fakeMongo{}
 	p := newFakeProjector(f)
 	e := &outboxEvent{ID: "e", Aggregate: "order", AggregateID: "o", EventType: "placed", Payload: json.RawMessage(`{"a":1}`)}

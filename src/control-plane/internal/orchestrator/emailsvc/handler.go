@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
@@ -18,8 +19,13 @@ type sendRequest struct {
 }
 
 // validate reproduces the DTO constraints: a valid recipient, a non-empty
-// subject, and at least one of html/text.
+// subject, and at least one of html/text. The recipient pattern is the same
+// pragmatic shape class-validator's @IsEmail accepts for the common case:
+// local@domain.tld with no spaces. Kept deliberately permissive — the SMTP
+// server is the real authority on deliverability.
 func (r sendRequest) validate() error {
+	// perf: regex compiled per call — validation path, not hot.
+	emailRe := regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
 	if !emailRe.MatchString(r.To) {
 		return fmt.Errorf("to must be a valid email")
 	}

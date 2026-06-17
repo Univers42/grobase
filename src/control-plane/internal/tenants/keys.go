@@ -3,7 +3,6 @@ package tenants
 import (
 	"crypto/rand"
 	"encoding/base32"
-	"errors"
 	"strings"
 )
 
@@ -19,28 +18,34 @@ const (
 	payloadBytes = 20 // 20 raw bytes -> 32 base32 chars
 )
 
-var b32 = base32.StdEncoding.WithPadding(base32.NoPadding)
+// errInvalidFormat reports a structurally invalid key (see tenantsErr).
+const errInvalidFormat tenantsErr = "api key has invalid format"
 
-var errInvalidFormat = errors.New("api key has invalid format")
+// b32 returns the no-padding StdEncoding base32 encoder. It is cheap to
+// construct and immutable, so building it per call (replacing the former
+// package-level singleton) is byte-identical to the prior alphabet/padding.
+func b32() *base32.Encoding {
+	return base32.StdEncoding.WithPadding(base32.NoPadding)
+}
 
 // generateKey returns a (prefix, fullKey) pair plus an argon2id hash of the
 // payload portion. The payload is what gets hashed — the prefix is in
 // cleartext so we can look it up cheaply.
-func generateKey() (prefix, fullKey, hash string, err error) {
+func (h *keyHasher) generateKey() (prefix, fullKey, hash string, err error) {
 	pBytes := make([]byte, (prefixLen*5+7)/8) // ~8 bytes -> 12 base32 chars
 	if _, err = rand.Read(pBytes); err != nil {
 		return "", "", "", err
 	}
-	prefix = strings.ToLower(b32.EncodeToString(pBytes))[:prefixLen]
+	prefix = strings.ToLower(b32().EncodeToString(pBytes))[:prefixLen]
 
 	payload := make([]byte, payloadBytes)
 	if _, err = rand.Read(payload); err != nil {
 		return "", "", "", err
 	}
-	payloadStr := strings.ToLower(b32.EncodeToString(payload))
+	payloadStr := strings.ToLower(b32().EncodeToString(payload))
 
 	fullKey = keyHeader + prefix + "_" + payloadStr
-	hash = selectHash(payloadStr, prefix)
+	hash = h.selectHash(payloadStr, prefix)
 	return prefix, fullKey, hash, nil
 }
 

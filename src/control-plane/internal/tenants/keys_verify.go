@@ -74,7 +74,7 @@ func (s *Service) matchKeyRows(rows pgx.Rows, prefix, payload string) (VerifyKey
 		if expired {
 			return VerifyKeyResponse{Valid: false, Reason: "expired"}, nil
 		}
-		if !verifyKeyHash(payload, prefix, storedHash) {
+		if !s.hasher.verifyKeyHash(payload, prefix, storedHash) {
 			continue
 		}
 		go s.touchLastUsed(keyID)

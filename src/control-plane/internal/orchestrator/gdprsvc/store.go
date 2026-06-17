@@ -2,18 +2,20 @@ package gdprsvc
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
+// gdprsvcErr is a constant error type — the sentinel values below are true
+// consts (no package-level var). Equal-valued instances compare ==, so
+// errors.Is keeps working, and they wrap with %w like any error.
 // Sentinel errors → HTTP status in the handler layer (parity with the Nest
 // NotFoundException / ConflictException / BadRequestException).
-var (
-	errNotFound  = errors.New("not found")
-	errConflict  = errors.New("conflict")
-	errCompleted = errors.New("already completed")
+const (
+	errNotFound  gdprsvcErr = "not found"
+	errConflict  gdprsvcErr = "conflict"
+	errCompleted gdprsvcErr = "already completed"
 )
 
 type store struct {

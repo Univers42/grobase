@@ -42,16 +42,15 @@ type CreateTenantRequest struct {
 	Metadata    map[string]any `json:"metadata"`
 }
 
-var idRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{1,62}$`)
-
-// uuidRe validates a user id before it is cast to ::uuid for an ABAC role
-// assignment, so a non-UUID owner_user_id is skipped cleanly rather than
-// surfacing a Postgres cast error.
-var uuidRe = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+// idRe compiles the tenant-slug pattern. It is the slug charset CHECK mirror;
+// compiled per call (validation is API-rate, not a hot path) so the package
+// carries no shared regex var. uuidRe (the owner_user_id UUID guard) is compiled
+// at its single use site in bootstrap_roles.go for the same reason.
+func idRe() *regexp.Regexp { return regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{1,62}$`) }
 
 // Validate enforces the same constraints as the DB CHECK.
 func (r CreateTenantRequest) Validate() error {
-	if !idRe.MatchString(r.ID) {
+	if !idRe().MatchString(r.ID) {
 		return fmt.Errorf(`id must match ^[a-z0-9][a-z0-9_-]{1,62}$`)
 	}
 	if r.Name == "" {
@@ -167,7 +166,7 @@ type MountResult struct {
 
 // Validate checks the provision request shape (the tenant slug + each mount).
 func (r ProvisionRequest) Validate() error {
-	if !idRe.MatchString(r.Tenant) {
+	if !idRe().MatchString(r.Tenant) {
 		return fmt.Errorf(`tenant must match ^[a-z0-9][a-z0-9_-]{1,62}$`)
 	}
 	for i, m := range r.Mounts {

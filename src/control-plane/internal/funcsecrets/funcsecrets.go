@@ -25,10 +25,14 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
-// ErrNotFound is returned when a secret key does not exist for the tenant.
-var ErrNotFound = errors.New("function secret not found")
+// funcsecretsErr is the package's const error type: a string whose Error() is
+// itself, so sentinels are typed consts (==-comparable, errors.Is-friendly).
+type funcsecretsErr string
 
-var keyRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,127}$`)
+func (e funcsecretsErr) Error() string { return string(e) }
+
+// ErrNotFound is returned when a secret key does not exist for the tenant.
+const ErrNotFound funcsecretsErr = "function secret not found"
 
 // Service owns CRUD + resolve on function_secrets.
 type Service struct {
@@ -73,6 +77,8 @@ type SetRequest struct {
 
 // Validate enforces the key grammar.
 func (r SetRequest) Validate() error {
+	// perf: regex compiled per call — validation path, API-rate
+	keyRe := regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,127}$`)
 	if !keyRe.MatchString(r.Key) {
 		return errors.New("key must match [A-Za-z_][A-Za-z0-9_]{0,127}")
 	}

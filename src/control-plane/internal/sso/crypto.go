@@ -22,10 +22,6 @@ type secretSealer struct {
 	gcm cipher.AEAD
 }
 
-// errNoKey guards sealing — SSO cannot store a client secret without a key. The
-// handler only registers the AEAD when SSO_SECRET_KEY is configured.
-var errNoKey = errors.New("sso: SSO_SECRET_KEY not configured")
-
 // NewSecretSealerFromEnv builds the sealer from SSO_SECRET_KEY (the env-key path,
 // mirroring export.NewStoreFromEnv). main.go calls this only along the opt-in
 // SSO_ENABLED path; an unset/empty key fails fast (a connection's secret must be

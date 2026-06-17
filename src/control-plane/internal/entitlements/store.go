@@ -27,7 +27,6 @@ package entitlements
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/packages"
@@ -42,9 +41,6 @@ type pgIface interface {
 	AdminQuery(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	AdminExec(ctx context.Context, sql string, args ...any) error
 }
-
-// ErrNotFound is returned by Load when no entitlement row exists for the slug.
-var ErrNotFound = errors.New("no entitlement for tenant")
 
 // CustomEntitlement is the per-tenant overlay a tenant composes (or an operator
 // mints). It is a SUBSET projection of packages.Package's tunable axes — exactly

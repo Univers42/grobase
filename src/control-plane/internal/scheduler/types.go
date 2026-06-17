@@ -2,19 +2,23 @@ package scheduler
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"regexp"
 )
 
+// schedulerErr is a const-able error type, so the package's sentinels live in
+// the const block (no package-level var). Error() returns the message verbatim,
+// so errors.Is/%w and the message bytes are identical to errors.New.
+type schedulerErr string
+
+func (e schedulerErr) Error() string { return string(e) }
+
 // ErrNotFound is returned when a schedule row does not exist (or is not visible
 // under the current tenant scope).
-var ErrNotFound = errors.New("function schedule not found")
+const ErrNotFound schedulerErr = "function schedule not found"
 
 // ErrConflict is returned on the (tenant_id, name) unique violation.
-var ErrConflict = errors.New("function schedule with that name already exists")
-
-var nameRe = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]{0,63}$`)
+const ErrConflict schedulerErr = "function schedule with that name already exists"
 
 // ScheduleRow is the public function-schedule metadata view.
 type ScheduleRow struct {
@@ -49,6 +53,8 @@ func (r CreateRequest) Validate() error {
 	if l := len(r.Name); l < 1 || l > 64 {
 		return fmt.Errorf("name must be 1..64 chars")
 	}
+	// perf: regex compiled per call — validation path (API-rate, not hot).
+	nameRe := regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]{0,63}$`)
 	if !nameRe.MatchString(r.FunctionName) {
 		return fmt.Errorf("function_name must match [a-zA-Z][a-zA-Z0-9_-]{0,63}")
 	}

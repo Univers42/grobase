@@ -2,9 +2,15 @@ package provision
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 )
+
+// provisionErr is a const-able error type, so the package's sentinel lives in
+// the const block (no package-level var). Error() returns the message verbatim,
+// so errors.Is/%w and the message bytes are identical to errors.New.
+type provisionErr string
+
+func (e provisionErr) Error() string { return string(e) }
 
 // TenantService is the tenant-row + API-key surface the reconciler needs. The
 // concrete impl is an adapter over internal/tenants.Service.
@@ -98,7 +104,7 @@ type ReconcileResult struct {
 }
 
 // ErrBusy signals another reconcile holds the slug's advisory lock → 409.
-var ErrBusy = errors.New("provision already in progress for this tenant")
+const ErrBusy provisionErr = "provision already in progress for this tenant"
 
 // Reconciler is the provisioning brain. Deps are interfaces so it is fully
 // unit-testable; the live wiring is in cmd/tenant-control.

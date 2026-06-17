@@ -138,8 +138,11 @@ func (p *VaultTransitProvider) call(ctx context.Context, op, keyID string, body 
 	return nil
 }
 
-// compile-time assertions that both providers satisfy KMSProvider.
-var (
-	_ KMSProvider = (*VaultTransitProvider)(nil)
-	_ KMSProvider = (*LocalKMSProvider)(nil)
-)
+// assertProviders is the compile-time check that both providers satisfy
+// KMSProvider. Kept as a function body (not a package-level var) so the package
+// declares no global; the assignments still fail to compile if an interface
+// method drifts. It is never called.
+func assertProviders() {
+	var _ KMSProvider = (*VaultTransitProvider)(nil)
+	var _ KMSProvider = (*LocalKMSProvider)(nil)
+}

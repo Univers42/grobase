@@ -26,9 +26,9 @@ const fastHashTag = "sha256$v=1$"
 // GitHub/Stripe/Supabase do for high-entropy tokens. The verify side accepts
 // BOTH schemes (parity), so no existing key breaks; legacy hashes lazy-upgrade
 // on first verify. Optional defense-in-depth pepper: KEY_HASH_PEPPER (HMAC).
-func selectHash(payload, prefix string) string {
+func (h *keyHasher) selectHash(payload, prefix string) string {
 	if os.Getenv("KEY_HASH_LEGACY_ARGON2") == "1" {
-		return hashPayload(payload, prefix)
+		return h.hashPayload(payload, prefix)
 	}
 	return hashPayloadFast(payload, prefix)
 }
@@ -48,7 +48,7 @@ func hashPayloadFast(payload, prefix string) string {
 		h := sha256.Sum256([]byte(salt + payload))
 		sum = h[:]
 	}
-	return fastHashTag + b32.EncodeToString([]byte(salt)) + "$" + b32.EncodeToString(sum)
+	return fastHashTag + b32().EncodeToString([]byte(salt)) + "$" + b32().EncodeToString(sum)
 }
 
 // isFastHash reports whether a stored hash uses the fast scheme (vs legacy

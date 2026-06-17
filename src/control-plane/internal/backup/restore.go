@@ -4,21 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 
 	"github.com/jackc/pgx/v5"
 )
-
-// ErrIsolationDeferred is returned when a backup/restore is requested for an
-// isolation model the B6 MVP does NOT support yet: db_per_tenant (its
-// extract/restore code paths exist but the DSN resolver is not wired and the
-// round-trip is not gate-proven — deferred to B6b), plus shared_rls (filtered
-// dump + upsert into a LIVE shared table) and tenant_owned (external DB). The
-// handler maps it to 400. The deferral is also enforced structurally by the
-// migration 042 CHECK (schema_per_tenant only), so a deferred row can't exist.
-var ErrIsolationDeferred = errors.New("isolation not supported for backup/restore (deferred)")
 
 // guardIsolation rejects anything outside the MVP-clean isolation model. Only
 // schema_per_tenant is supported today; db_per_tenant is deferred to B6b (wire

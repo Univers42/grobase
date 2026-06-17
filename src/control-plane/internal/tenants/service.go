@@ -1,18 +1,20 @@
 package tenants
 
 import (
-	"errors"
 	"log/slog"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/dlesieur/mini-baas/control-plane/internal/provision"
 )
 
+// tenantsErr is a const-able error type, so the package's sentinels live in the
+// const block (no package-level var). Error() returns the message verbatim, so
+// errors.Is/%w and the message bytes are identical to errors.New.
 // ErrNotFound is returned when a tenant or key row doesn't exist.
-var ErrNotFound = errors.New("tenant not found")
+const ErrNotFound tenantsErr = "tenant not found"
 
 // ErrConflict is returned on (tenant_id) or (tenant_id, key name) uniqueness violation.
-var ErrConflict = errors.New("tenant already exists")
+const ErrConflict tenantsErr = "tenant already exists"
 
 // Service implements tenant lifecycle CRUD + key issuance.
 type Service struct {
@@ -22,13 +24,20 @@ type Service struct {
 	dataPlane *DataPlane                 // optional; enables schema_per_tenant schema creation
 	perm      provision.PermissionEngine // optional; the single ABAC role/policy seam
 	verifyC   *verifyCache               // B4-verify: Argon2-only-on-first-seen fast path
+	hasher    *keyHasher                 // key mint/verify + the bounded Argon2 semaphore
 }
 
 // NewService wires the DB pool. The PermissionEngine seam defaults to the
 // SQL backend over the same admin pool (no HTTP decide), so seedDefaultRole has
 // exactly one role implementation. SetPermissionEngine can override it.
 func NewService(db *pg.Postgres, log *slog.Logger) *Service {
-	return &Service{db: db, log: log, perm: provision.NewSQLBackend(db, "", ""), verifyC: newVerifyCache()}
+	return &Service{
+		db:      db,
+		log:     log,
+		perm:    provision.NewSQLBackend(db, "", ""),
+		verifyC: newVerifyCache(),
+		hasher:  newKeyHasher(),
+	}
 }
 
 // SetPermissionEngine overrides the ABAC seam (e.g. to enable HTTP self-verify).

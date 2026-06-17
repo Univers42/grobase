@@ -12,7 +12,7 @@ func (m *mongoProjector) available() bool { return m != nil && m.db != nil }
 // projectOrder upserts the orders_view projection for an `order` aggregate —
 // the Go port of OutboxRelayService.project.
 func (m *mongoProjector) projectOrder(ctx context.Context, e *outboxEvent) error {
-	filter, update := orderProjection(e)
+	filter, update := m.orderProjection(e)
 	if err := m.db.updateOne(ctx, ordersViewCollection, filter, update, true); err != nil {
 		return fmt.Errorf("orders_view upsert: %w", err)
 	}
@@ -37,7 +37,7 @@ func (m *mongoProjector) dispatchMongo(ctx context.Context, e *outboxEvent) erro
 		}
 		return nil
 	}
-	filter, update := sagaProjection(e)
+	filter, update := m.sagaProjection(e)
 	if err := m.db.updateOne(ctx, coll, filter, update, true); err != nil {
 		return fmt.Errorf("mongo dispatch upsert %s: %w", coll, err)
 	}

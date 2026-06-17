@@ -2,7 +2,6 @@ package compliance
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -16,9 +15,12 @@ type sdb interface {
 	AdminQuery(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }
 
+// complianceErr is the package's const-error type: a sentinel is a typed string
+// constant, so errors.Is / %w wrapping still work (equal value+type == equal
+// error) with no package-level var. Error() returns the message verbatim.
 // errNoSnapshot is returned by the read API when a requested snapshot has no
 // rows (so the handler maps it to 404 rather than an empty 200).
-var errNoSnapshot = errors.New("compliance: snapshot not found")
+const errNoSnapshot complianceErr = "compliance: snapshot not found"
 
 // Service persists collector snapshots into public.compliance_evidence (each row
 // sealed) and reads them back for the verify / read API. It is the durable twin

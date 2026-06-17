@@ -1,7 +1,6 @@
 package branching
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -13,7 +12,7 @@ import (
 // the LOAD-BEARING wall against SQL-identifier injection: the branch name flows
 // into `CREATE SCHEMA <branch_schema>` (an identifier, never bindable), so it MUST
 // be validated to a safe [a-z0-9_] fragment before it touches DDL.
-var ErrInvalidBranchName = errors.New("invalid branch name (must be a non-empty [a-z0-9_] identifier)")
+const ErrInvalidBranchName branchingErr = "invalid branch name (must be a non-empty [a-z0-9_] identifier)"
 
 // sanitizeBranchName validates+normalizes a caller-supplied branch name to a safe
 // SQL identifier fragment, mirroring tenants.tenantSchema's discipline (lowercase,

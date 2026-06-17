@@ -38,6 +38,9 @@ type mongoProjector struct {
 	log    *slog.Logger
 	client *mongo.Client
 	db     mongoClient
+	// now is the projection timestamp source (UTC); overridable in tests for
+	// determinism. nil falls back to time.Now().UTC (see projectorNow).
+	now func() time.Time
 }
 
 // newMongoProjector connects to OUTBOX_MONGO_URL and resolves the database name
@@ -62,7 +65,10 @@ func newMongoProjector(ctx context.Context, log *slog.Logger, uri string) (*mong
 	db := client.Database(dbName)
 	ensureOrdersViewIndex(ctx, log, db)
 	log.Info("mongo projector connected", "db", dbName)
-	return &mongoProjector{log: log, client: client, db: driverDB{db: db}}, true
+	return &mongoProjector{
+		log: log, client: client, db: driverDB{db: db},
+		now: func() time.Time { return time.Now().UTC() },
+	}, true
 }
 
 // connectMongo dials and pings OUTBOX_MONGO_URL with the Node MongoService 5s

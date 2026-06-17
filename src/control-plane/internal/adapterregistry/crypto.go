@@ -29,17 +29,25 @@ type EncryptedPayload struct {
 }
 
 // Encryptor derives a per-record key from a master key + salt via scrypt and
-// seals plaintext with AES-256-GCM.
+// seals plaintext with AES-256-GCM. scryptSlots bounds CONCURRENT scrypt
+// derivations (see deriveKey); it is allocated once in NewEncryptor with
+// capacity scryptMaxConcurrent() and shared by every deriveKey on this
+// Encryptor — identical bounded-concurrency to the former package-global.
 type Encryptor struct {
-	masterKey []byte
+	masterKey   []byte
+	scryptSlots chan struct{}
 }
 
-// NewEncryptor validates the master key length (matching the Node guard).
+// NewEncryptor validates the master key length (matching the Node guard) and
+// sizes the scrypt concurrency semaphore (SCRYPT_MAX_CONCURRENT, default 2).
 func NewEncryptor(masterKey string) (*Encryptor, error) {
 	if len(masterKey) < minKeyChars {
 		return nil, fmt.Errorf("VAULT_ENC_KEY must be at least %d characters", minKeyChars)
 	}
-	return &Encryptor{masterKey: []byte(masterKey)}, nil
+	return &Encryptor{
+		masterKey:   []byte(masterKey),
+		scryptSlots: make(chan struct{}, scryptMaxConcurrent()),
+	}, nil
 }
 
 // Encrypt produces an EncryptedPayload compatible with the Node format:

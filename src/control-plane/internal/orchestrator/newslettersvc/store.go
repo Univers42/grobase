@@ -2,17 +2,19 @@ package newslettersvc
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
+// newslettersvcErr is a constant error type — the sentinel values below are true
+// consts (no package-level var). Equal-valued instances compare ==, so
+// errors.Is keeps working, and they wrap with %w like any error.
 // Sentinel errors → HTTP status in the handler layer (parity with the Nest
 // ConflictException / NotFoundException).
-var (
-	errConflict = errors.New("already subscribed")
-	errNotFound = errors.New("invalid token")
+const (
+	errConflict newslettersvcErr = "already subscribed"
+	errNotFound newslettersvcErr = "invalid token"
 )
 
 type store struct {

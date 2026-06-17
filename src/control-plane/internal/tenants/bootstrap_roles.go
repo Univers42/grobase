@@ -3,10 +3,20 @@ package tenants
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/provision"
 )
+
+// isUUID validates a user id before it is cast to ::uuid for an ABAC role
+// assignment, so a non-UUID owner_user_id is skipped cleanly rather than
+// surfacing a Postgres cast error.
+func isUUID(s string) bool {
+	// perf: regex compiled per call — bootstrap path (API-rate, not hot).
+	uuidRe := regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	return uuidRe.MatchString(s)
+}
 
 // seedDefaultRole ensures the tenant owner holds a baseline ABAC role, via the
 // single PermissionEngine seam (one role implementation shared with the
@@ -19,7 +29,7 @@ import (
 // Idempotent: re-running re-uses the role/policy/assignment (no duplicate rows).
 // Returns the namespaced role name actually assigned.
 func (s *Service) seedDefaultRole(ctx context.Context, slug, ownerUserID, requestedRole string) (string, error) {
-	if !uuidRe.MatchString(ownerUserID) {
+	if !isUUID(ownerUserID) {
 		return "", fmt.Errorf("owner_user_id %q is not a UUID; ABAC role not seeded", ownerUserID)
 	}
 	roleName := strings.TrimSpace(requestedRole)

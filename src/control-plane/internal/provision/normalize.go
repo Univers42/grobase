@@ -5,7 +5,7 @@ import "strings"
 // Normalize lowercases/defaults the spec so downstream logic never re-derives a
 // literal. It is idempotent: Normalize(Normalize(x)) == Normalize(x).
 func (s *StackSpec) Normalize() {
-	d := defaults
+	d := defaultSpec()
 	s.Tenant = strings.ToLower(strings.TrimSpace(s.Tenant))
 	if s.Name == "" {
 		s.Name = s.Tenant

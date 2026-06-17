@@ -16,7 +16,6 @@
 package push
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -29,15 +28,25 @@ const (
 	channelFCM     = "fcm"
 )
 
+// pushErr is the package's const error type — sentinels are typed string
+// constants so the whole package keeps zero package-level vars while preserving
+// errors.Is / %w identity (a const string is comparable, so two values of the
+// same const are equal).
+type pushErr string
+
+func (e pushErr) Error() string { return string(e) }
+
 // Sentinel errors mapped to HTTP status codes by the handler.
-var (
+const (
 	// ErrNotFound — a subscription does not exist under the caller's tenant scope.
-	ErrNotFound = errors.New("push subscription not found")
+	ErrNotFound pushErr = "push subscription not found"
 	// ErrValidation — a malformed register/send request (mapped to 400).
-	ErrValidation = errors.New("push validation error")
+	ErrValidation pushErr = "push validation error"
 	// ErrBlockedTarget — the target_url resolves to a private/loopback/link-local
 	// address (SSRF guard). Mapped to 400; NO delivery is attempted.
-	ErrBlockedTarget = errors.New("push target_url is not a permitted public endpoint (SSRF guard)")
+	ErrBlockedTarget pushErr = "push target_url is not a permitted public endpoint (SSRF guard)"
+	// errNoKey guards sealing a non-empty token without a configured key.
+	errNoKey pushErr = "push: PUSH_SECRET_KEY not configured (required to store a provider token)"
 )
 
 // Subscription is the public metadata view of a registered delivery target. The

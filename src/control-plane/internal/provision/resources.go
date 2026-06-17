@@ -2,7 +2,16 @@ package provision
 
 import (
 	"context"
+	"regexp"
 )
+
+// isUUID gates owner_user_id before it is cast to ::uuid for a role assignment,
+// so a non-UUID owner is skipped cleanly (matches tenants uuid semantics).
+func isUUID(s string) bool {
+	// perf: regex compiled per call — provisioning path (API-rate, not hot).
+	uuidRe := regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	return uuidRe.MatchString(s)
+}
 
 func (rc *Reconciler) reconcileTenant(ctx context.Context, res *ReconcileResult, d DesiredState, out ResourceResult) ResourceResult {
 	info, exists, err := rc.Tenants.GetTenant(ctx, d.Slug)
@@ -67,7 +76,7 @@ func (rc *Reconciler) reconcileRole(ctx context.Context, spec StackSpec, r Resou
 	out.Detail = NamespacedRoleName(r.Key)
 
 	// Assign the role to the owner if it is a UUID (mirrors prior seed semantics).
-	if uuidRe.MatchString(spec.OwnerUserID) {
+	if isUUID(spec.OwnerUserID) {
 		if aerr := rc.Perm.AssignRole(ctx, spec.OwnerUserID, NamespacedRoleName(r.Key)); aerr != nil {
 			out.Status, out.Error = StatusError, aerr.Error()
 			blocked[r.Key] = true

@@ -1,7 +1,6 @@
 package passkeys
 
 import (
-	"errors"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -19,11 +18,6 @@ type SessionMinter struct {
 	issuer string
 	ttl    time.Duration
 }
-
-// errNoSecret guards minting — a passkey login cannot issue a session without
-// the shared GoTrue secret. main.go only enables the passkeys API when the
-// secret is configured, so this is a programmer-error backstop.
-var errNoSecret = errors.New("passkeys: session secret not configured")
 
 // NewSessionMinter builds the minter. secret is the shared GoTrue HS256 secret
 // (GOTRUE_JWT_SECRET / JWT_SECRET); issuer is stamped as `iss` when non-empty

@@ -2,17 +2,19 @@ package sessionsvc
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
+// sessionsvcErr is a constant error type — the sentinel values below are true
+// consts (no package-level var). Equal-valued instances compare ==, so
+// errors.Is keeps working, and they wrap with %w like any error.
 // Sentinel errors map to HTTP status in the handler layer (parity with the Nest
 // NotFoundException / ForbiddenException the TS service threw).
-var (
-	errNotFound  = errors.New("session not found")
-	errForbidden = errors.New("not your session")
+const (
+	errNotFound  sessionsvcErr = "session not found"
+	errForbidden sessionsvcErr = "not your session"
 )
 
 // store is the Postgres-backed session repository — a faithful port of the

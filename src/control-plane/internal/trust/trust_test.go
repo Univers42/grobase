@@ -31,7 +31,7 @@ func TestEmbeddedManifest_Honest(t *testing.T) {
 		if strings.TrimSpace(c.ID) == "" {
 			t.Errorf("control with empty id: %+v", c)
 		}
-		if !allowedStatuses[c.Status] {
+		if !isAllowedStatus(c.Status) {
 			t.Errorf("control %q has status %q outside enum", c.ID, c.Status)
 		}
 		if strings.TrimSpace(c.Evidence) == "" {

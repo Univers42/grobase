@@ -36,7 +36,7 @@ func (s *Service) IssueKey(ctx context.Context, slug string, req IssueKeyRequest
 	if len(scopes) == 0 {
 		scopes = []string{"read", "write"}
 	}
-	prefix, fullKey, hash, err := generateKey()
+	prefix, fullKey, hash, err := s.hasher.generateKey()
 	if err != nil {
 		return IssueKeyResponse{}, err
 	}

@@ -9,8 +9,9 @@ import (
 // array cardinalities (DoS / fan-out guard) so a single request can never spawn
 // an unbounded number of downstream writes.
 func (s StackSpec) Validate() error {
-	if !defaults.SlugPattern.MatchString(s.Tenant) {
-		return fmt.Errorf("tenant must match %s", defaults.SlugPattern.String())
+	slugPattern := defaultSpec().SlugPattern
+	if !slugPattern.MatchString(s.Tenant) {
+		return fmt.Errorf("tenant must match %s", slugPattern.String())
 	}
 	if err := s.validateCardinality(); err != nil {
 		return err
@@ -44,12 +45,13 @@ func (s StackSpec) validateCardinality() error {
 
 // validateRoles enforces each role's name shape and per-role policy cap.
 func (s StackSpec) validateRoles() error {
+	roleNamePattern := defaultSpec().RoleNamePattern
 	for i, r := range s.Roles {
 		if r.Name == "" {
 			return fmt.Errorf("roles[%d]: name is required", i)
 		}
-		if !defaults.RoleNamePattern.MatchString(r.Name) {
-			return fmt.Errorf("roles[%d]: name must match %s", i, defaults.RoleNamePattern.String())
+		if !roleNamePattern.MatchString(r.Name) {
+			return fmt.Errorf("roles[%d]: name must match %s", i, roleNamePattern.String())
 		}
 		if len(r.Policies) > MaxPoliciesPerRole {
 			return fmt.Errorf("roles[%d]: too many policies: %d (max %d)", i, len(r.Policies), MaxPoliciesPerRole)

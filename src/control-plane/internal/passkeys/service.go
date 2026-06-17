@@ -130,14 +130,29 @@ func (s *Service) buildUser(ctx context.Context, tenantID, userID, name, display
 	return newUser(userID, name, display, stored)
 }
 
+// passkeysErr is the package's const error type — sentinels are typed string
+// constants so the package keeps zero package-level vars while preserving
+// errors.Is / %w / errors.Join identity (a const string is comparable, so two
+// values of the same const are equal).
+type passkeysErr string
+
+func (e passkeysErr) Error() string { return string(e) }
+
 // Sentinels mapped to HTTP status by the handler.
-var (
+const (
 	// ErrChallengeNotFound: the begin→finish challenge id is missing, expired, or
 	// already consumed (single-use). → 404.
-	ErrChallengeNotFound = errors.New("passkeys: challenge not found or expired")
+	ErrChallengeNotFound passkeysErr = "passkeys: challenge not found or expired"
 	// ErrAssertionRejected: the login assertion failed verification (wrong key,
 	// wrong/replayed challenge, cross-user credential, bad signature). → 401.
-	ErrAssertionRejected = errors.New("passkeys: assertion rejected")
+	ErrAssertionRejected passkeysErr = "passkeys: assertion rejected"
+	// ErrNoCredentials is returned by LoadByUser when a user has no registered
+	// passkey (login/begin then cannot offer any allowCredentials).
+	ErrNoCredentials passkeysErr = "passkeys: no credentials registered for user"
+	// errNoSecret guards minting — a passkey login cannot issue a session without
+	// the shared GoTrue secret. main.go only enables the passkeys API when the
+	// secret is configured, so this is a programmer-error backstop.
+	errNoSecret passkeysErr = "passkeys: session secret not configured"
 )
 
 // Package-level helpers (wrapProtocol / displayOr / resolveEmail /

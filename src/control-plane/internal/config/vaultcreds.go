@@ -16,16 +16,22 @@ const vaultEncKeyEnv = "VAULT_ENC_KEY"
 // a master key shorter than this is not a real secret.
 const minVaultEncKeyChars = 16
 
-// placeholderEncKeys are the publicly-known dev defaults baked into
-// docker-compose.yml (`VAULT_ENC_KEY: ${VAULT_ENC_KEY:-0123456789abcdef…}`).
-// Booting at SECURITY_MODE=max with any of these means the credential was NOT
-// supplied from Vault — it fell back to a repo-visible constant. Reject them.
-var placeholderEncKeys = map[string]struct{}{
-	"":                                 {}, // unset → no credential at all
-	"0123456789abcdef0123456789abcdef": {}, // the compose default-of-last-resort
-	"changeme":                         {},
-	"change-me":                        {},
-	"dev-vault-enc-key":                {},
+// isPlaceholderEncKey reports whether s is one of the publicly-known dev
+// defaults baked into docker-compose.yml
+// (`VAULT_ENC_KEY: ${VAULT_ENC_KEY:-0123456789abcdef…}`). Booting at
+// SECURITY_MODE=max with any of these means the credential was NOT supplied from
+// Vault — it fell back to a repo-visible constant. Reject them. The empty string
+// (unset → no credential at all) is in the set.
+func isPlaceholderEncKey(s string) bool {
+	switch s {
+	case "", // unset → no credential at all
+		"0123456789abcdef0123456789abcdef", // the compose default-of-last-resort
+		"changeme",
+		"change-me",
+		"dev-vault-enc-key":
+		return true
+	}
+	return false
 }
 
 // requireVaultBackedCredentials enforces the G-Vault fail-closed contract.
@@ -49,7 +55,7 @@ func requireVaultBackedCredentials(mode string) error {
 // validateEncKey rejects an absent/placeholder master key and one too short to
 // be a real secret.
 func validateEncKey(encKey string) error {
-	if _, isPlaceholder := placeholderEncKeys[encKey]; isPlaceholder {
+	if isPlaceholderEncKey(encKey) {
 		return fmt.Errorf(
 			"SECURITY_MODE=max requires a Vault-backed %s: refusing to boot on an "+
 				"absent or publicly-known placeholder value (no silent fallback). "+

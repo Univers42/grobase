@@ -10,12 +10,15 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// webhooksErr is the package's const-error type: a sentinel is a typed string
+// constant, so errors.Is / %w wrapping still work (equal value+type == equal
+// error) with no package-level var. Error() returns the message verbatim.
 // ErrNotFound is returned when a webhook row does not exist (or is not visible
 // under the current tenant scope).
-var ErrNotFound = errors.New("webhook not found")
+const ErrNotFound webhooksErr = "webhook not found"
 
 // ErrConflict is returned on the (tenant_id, name) unique violation.
-var ErrConflict = errors.New("webhook with that name already exists")
+const ErrConflict webhooksErr = "webhook with that name already exists"
 
 // Service owns CRUD on webhook_subscriptions and the delivery ledger.
 type Service struct {

@@ -2,7 +2,6 @@ package backup
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -10,16 +9,27 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/tenants"
 )
 
+// backupErr is the package's const error type: a string whose Error() is itself,
+// so sentinels are typed consts (==-comparable, errors.Is-friendly, %w-wrappable).
 // ErrNotOwned is returned when a restore (or list-by-id) references a backup
 // whose tenant_id does not match the requesting tenant. The handler maps it to
 // 403/404 — the load-bearing caller==owner check, enforced BEFORE any DDL.
-var ErrNotOwned = errors.New("backup not found for tenant")
+const ErrNotOwned backupErr = "backup not found for tenant"
 
 // ErrNotFound is returned by TenantForUser when a GoTrue user owns no tenant
 // yet (the read-only self-serve route maps it to 404 with a bootstrap hint).
 // Mirrors tenants.ErrNotFound at the backup-package boundary so the self-serve
 // handler depends only on this package's sentinel.
-var ErrNotFound = errors.New("tenant not found")
+const ErrNotFound backupErr = "tenant not found"
+
+// ErrIsolationDeferred is returned when a backup/restore is requested for an
+// isolation model the B6 MVP does NOT support yet: db_per_tenant (its
+// extract/restore code paths exist but the DSN resolver is not wired and the
+// round-trip is not gate-proven — deferred to B6b), plus shared_rls (filtered
+// dump + upsert into a LIVE shared table) and tenant_owned (external DB). The
+// handler maps it to 400. The deferral is also enforced structurally by the
+// migration 042 CHECK (schema_per_tenant only), so a deferred row can't exist.
+const ErrIsolationDeferred backupErr = "isolation not supported for backup/restore (deferred)"
 
 // ConnResolver is the seam by which the service resolves a db_per_tenant
 // tenant's OWN database DSN. It mirrors the adapterregistry GetConnection

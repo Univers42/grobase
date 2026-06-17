@@ -6,11 +6,12 @@ import (
 )
 
 func TestGenerateKey_FormatAndUniqueness(t *testing.T) {
-	prefixA, fullA, hashA, err := generateKey()
+	h := newKeyHasher()
+	prefixA, fullA, hashA, err := h.generateKey()
 	if err != nil {
 		t.Fatalf("generateKey: %v", err)
 	}
-	prefixB, fullB, hashB, err := generateKey()
+	prefixB, fullB, hashB, err := h.generateKey()
 	if err != nil {
 		t.Fatalf("generateKey: %v", err)
 	}
@@ -32,7 +33,8 @@ func TestGenerateKey_FormatAndUniqueness(t *testing.T) {
 }
 
 func TestParseKey_Roundtrip(t *testing.T) {
-	prefix, full, _, err := generateKey()
+	h := newKeyHasher()
+	prefix, full, _, err := h.generateKey()
 	if err != nil {
 		t.Fatalf("generateKey: %v", err)
 	}
@@ -64,7 +66,8 @@ func TestParseKey_Malformed(t *testing.T) {
 }
 
 func TestVerifyKeyHash_MatchesAndRejects(t *testing.T) {
-	prefix, full, hash, err := generateKey()
+	h := newKeyHasher()
+	prefix, full, hash, err := h.generateKey()
 	if err != nil {
 		t.Fatalf("generateKey: %v", err)
 	}
@@ -72,13 +75,13 @@ func TestVerifyKeyHash_MatchesAndRejects(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseKey: %v", err)
 	}
-	if !verifyKeyHash(payload, prefix, hash) {
+	if !h.verifyKeyHash(payload, prefix, hash) {
 		t.Error("verifyKeyHash must accept the right payload+prefix")
 	}
-	if verifyKeyHash(payload+"x", prefix, hash) {
+	if h.verifyKeyHash(payload+"x", prefix, hash) {
 		t.Error("verifyKeyHash must reject a tampered payload")
 	}
-	if verifyKeyHash(payload, "wrongprefix0", hash) {
+	if h.verifyKeyHash(payload, "wrongprefix0", hash) {
 		t.Error("verifyKeyHash must reject a wrong prefix (salt)")
 	}
 }
@@ -86,7 +89,8 @@ func TestVerifyKeyHash_MatchesAndRejects(t *testing.T) {
 // TestGenerateKey_DefaultFastScheme: new keys hash with the fast SHA-256 scheme
 // (the perf fix), not argon2id, and still verify.
 func TestGenerateKey_DefaultFastScheme(t *testing.T) {
-	prefix, full, hash, err := generateKey()
+	h := newKeyHasher()
+	prefix, full, hash, err := h.generateKey()
 	if err != nil {
 		t.Fatalf("generateKey: %v", err)
 	}
@@ -97,7 +101,7 @@ func TestGenerateKey_DefaultFastScheme(t *testing.T) {
 		t.Error("default scheme must NOT be argon2id")
 	}
 	_, payload, _ := parseKey(full)
-	if !verifyKeyHash(payload, prefix, hash) {
+	if !h.verifyKeyHash(payload, prefix, hash) {
 		t.Error("fast hash must verify")
 	}
 }
@@ -105,13 +109,14 @@ func TestGenerateKey_DefaultFastScheme(t *testing.T) {
 // TestVerifyKeyHash_DualScheme: the verify side accepts BOTH a legacy argon2id
 // hash and a fast hash for the same key — so a fleet mid-migration never breaks.
 func TestVerifyKeyHash_DualScheme(t *testing.T) {
-	prefix, full, _, err := generateKey()
+	h := newKeyHasher()
+	prefix, full, _, err := h.generateKey()
 	if err != nil {
 		t.Fatalf("generateKey: %v", err)
 	}
 	_, payload, _ := parseKey(full)
 
-	legacy := hashPayload(payload, prefix)
+	legacy := h.hashPayload(payload, prefix)
 	fast := hashPayloadFast(payload, prefix)
 	if !strings.HasPrefix(legacy, "argon2id$") {
 		t.Fatalf("legacy hash shape unexpected: %q", legacy)
@@ -122,14 +127,14 @@ func TestVerifyKeyHash_DualScheme(t *testing.T) {
 	if isFastHash(legacy) {
 		t.Error("argon2id hash must not be detected as fast")
 	}
-	if !verifyKeyHash(payload, prefix, legacy) {
+	if !h.verifyKeyHash(payload, prefix, legacy) {
 		t.Error("must verify a legacy argon2id hash")
 	}
-	if !verifyKeyHash(payload, prefix, fast) {
+	if !h.verifyKeyHash(payload, prefix, fast) {
 		t.Error("must verify a fast sha256 hash")
 	}
 	// A tampered payload is rejected under either scheme.
-	if verifyKeyHash(payload+"x", prefix, legacy) || verifyKeyHash(payload+"x", prefix, fast) {
+	if h.verifyKeyHash(payload+"x", prefix, legacy) || h.verifyKeyHash(payload+"x", prefix, fast) {
 		t.Error("tampered payload must be rejected under both schemes")
 	}
 }
@@ -151,11 +156,12 @@ func TestHashPayloadFast_DeterministicAndSalted(t *testing.T) {
 // TestSelectHash_LegacyFlag: KEY_HASH_LEGACY_ARGON2=1 reverts new keys to
 // argon2id; default is the fast scheme.
 func TestSelectHash_LegacyFlag(t *testing.T) {
-	if h := selectHash("payloadpayloadpayload", "prefixaaaaaa"); !isFastHash(h) {
+	kh := newKeyHasher()
+	if h := kh.selectHash("payloadpayloadpayload", "prefixaaaaaa"); !isFastHash(h) {
 		t.Errorf("default selectHash must be fast, got %q", h)
 	}
 	t.Setenv("KEY_HASH_LEGACY_ARGON2", "1")
-	if h := selectHash("payloadpayloadpayload", "prefixaaaaaa"); !strings.HasPrefix(h, "argon2id$") {
+	if h := kh.selectHash("payloadpayloadpayload", "prefixaaaaaa"); !strings.HasPrefix(h, "argon2id$") {
 		t.Errorf("KEY_HASH_LEGACY_ARGON2=1 must mint argon2id, got %q", h)
 	}
 }
@@ -163,13 +169,14 @@ func TestSelectHash_LegacyFlag(t *testing.T) {
 // TestHashPayloadFast_Pepper: a server pepper changes the hash (defense in
 // depth) and the peppered hash still verifies while the pepper is present.
 func TestHashPayloadFast_Pepper(t *testing.T) {
+	kh := newKeyHasher()
 	plain := hashPayloadFast("payloadpayloadpayload", "prefixaaaaaa")
 	t.Setenv("KEY_HASH_PEPPER", "super-secret-pepper")
 	peppered := hashPayloadFast("payloadpayloadpayload", "prefixaaaaaa")
 	if plain == peppered {
 		t.Error("pepper must change the hash")
 	}
-	if !verifyKeyHash("payloadpayloadpayload", "prefixaaaaaa", peppered) {
+	if !kh.verifyKeyHash("payloadpayloadpayload", "prefixaaaaaa", peppered) {
 		t.Error("peppered hash must verify while the pepper is set")
 	}
 }

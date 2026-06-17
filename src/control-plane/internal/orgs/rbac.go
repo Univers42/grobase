@@ -40,32 +40,28 @@ const (
 	CapBillingManage = "billing:manage"  // change org plan, payment method
 )
 
-// capabilities is the static matrix: capability -> {role: allowed}. A role absent
-// from a capability's map is denied. This is the ONE place the policy lives; the
-// route table and the gate read from it, never from a parallel copy.
-var capabilities = map[string]map[Role]bool{
-	CapOrgRead:       {RoleOwner: true, RoleAdmin: true, RoleDeveloper: true, RoleBilling: true, RoleViewer: true},
-	CapOrgUpdate:     {RoleOwner: true, RoleAdmin: true},
-	CapOrgDelete:     {RoleOwner: true},
-	CapMemberInvite:  {RoleOwner: true, RoleAdmin: true},
-	CapMemberRemove:  {RoleOwner: true, RoleAdmin: true},
-	CapMemberRoleSet: {RoleOwner: true, RoleAdmin: true},
-	CapProjectCreate: {RoleOwner: true, RoleAdmin: true, RoleDeveloper: true},
-	CapProjectRead:   {RoleOwner: true, RoleAdmin: true, RoleDeveloper: true, RoleBilling: true, RoleViewer: true},
-	CapProjectDelete: {RoleOwner: true, RoleAdmin: true},
-	CapProjectKeys:   {RoleOwner: true, RoleAdmin: true, RoleDeveloper: true},
-	CapBillingRead:   {RoleOwner: true, RoleAdmin: true, RoleBilling: true},
-	CapBillingManage: {RoleOwner: true, RoleBilling: true},
-}
-
 // Can reports whether role holds the named capability. Unknown role or unknown
-// capability → false (deny by default).
+// capability → false (deny by default). The matrix is a switch (no global map):
+// each case lists exactly the roles the OLD capabilities table granted, so the
+// truth table is byte-identical.
 func Can(role Role, cap string) bool {
-	m, ok := capabilities[cap]
-	if !ok {
+	switch cap {
+	case CapOrgRead, CapProjectRead:
+		return role == RoleOwner || role == RoleAdmin || role == RoleDeveloper ||
+			role == RoleBilling || role == RoleViewer
+	case CapOrgUpdate, CapMemberInvite, CapMemberRemove, CapMemberRoleSet, CapProjectDelete:
+		return role == RoleOwner || role == RoleAdmin
+	case CapProjectCreate, CapProjectKeys:
+		return role == RoleOwner || role == RoleAdmin || role == RoleDeveloper
+	case CapOrgDelete:
+		return role == RoleOwner
+	case CapBillingRead:
+		return role == RoleOwner || role == RoleAdmin || role == RoleBilling
+	case CapBillingManage:
+		return role == RoleOwner || role == RoleBilling
+	default:
 		return false
 	}
-	return m[role]
 }
 
 // validRole reports whether s is one of the five known org roles.

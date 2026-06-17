@@ -10,8 +10,9 @@ import (
 // the prefix length matches prefixLen. A key that did not round-trip would be
 // unverifiable the instant it is issued.
 func TestGenerateKeyRoundTrip(t *testing.T) {
+	h := newKeyHasher()
 	for i := 0; i < 200; i++ {
-		prefix, full, hash, err := generateKey()
+		prefix, full, hash, err := h.generateKey()
 		if err != nil {
 			t.Fatalf("generateKey: %v", err)
 		}
@@ -32,7 +33,7 @@ func TestGenerateKeyRoundTrip(t *testing.T) {
 			t.Fatalf("round-trip prefix mismatch: parsed %q, generated %q", gotPrefix, prefix)
 		}
 		// The hash recorded at mint time must verify against the parsed payload.
-		if !verifyKeyHash(gotPayload, gotPrefix, hash) {
+		if !h.verifyKeyHash(gotPayload, gotPrefix, hash) {
 			t.Fatalf("minted hash does not verify for its own key (prefix=%q)", gotPrefix)
 		}
 	}
@@ -42,10 +43,11 @@ func TestGenerateKeyRoundTrip(t *testing.T) {
 // (the prefix is the cleartext lookup key — a collision would conflate two
 // tenants' keys at lookup time).
 func TestGenerateKeyPrefixesUnique(t *testing.T) {
+	h := newKeyHasher()
 	const n = 5000
 	seen := make(map[string]struct{}, n)
 	for i := 0; i < n; i++ {
-		prefix, _, _, err := generateKey()
+		prefix, _, _, err := h.generateKey()
 		if err != nil {
 			t.Fatalf("generateKey: %v", err)
 		}
@@ -59,9 +61,10 @@ func TestGenerateKeyPrefixesUnique(t *testing.T) {
 // TestGenerateKeyDefaultIsFastHash proves the DEFAULT mint scheme is the fast
 // SHA-256 scheme (the documented, intentional default), not legacy argon2id.
 func TestGenerateKeyDefaultIsFastHash(t *testing.T) {
+	h := newKeyHasher()
 	t.Setenv("KEY_HASH_LEGACY_ARGON2", "")
 	t.Setenv("KEY_HASH_PEPPER", "")
-	_, _, hash, err := generateKey()
+	_, _, hash, err := h.generateKey()
 	if err != nil {
 		t.Fatalf("generateKey: %v", err)
 	}
@@ -218,10 +221,11 @@ func TestHashFastPepperChangesHash(t *testing.T) {
 // TestSelectHashRespectsLegacyFlag proves KEY_HASH_LEGACY_ARGON2=1 selects the
 // argon2id scheme (NOT the fast scheme), and otherwise the fast scheme is used.
 func TestSelectHashRespectsLegacyFlag(t *testing.T) {
+	kh := newKeyHasher()
 	t.Setenv("KEY_HASH_PEPPER", "")
 
 	t.Setenv("KEY_HASH_LEGACY_ARGON2", "1")
-	legacy := selectHash("payload-z", "prefixaaaaaa")
+	legacy := kh.selectHash("payload-z", "prefixaaaaaa")
 	if isFastHash(legacy) {
 		t.Fatalf("KEY_HASH_LEGACY_ARGON2=1 must mint an argon2id hash, got fast: %q", legacy)
 	}
@@ -230,13 +234,13 @@ func TestSelectHashRespectsLegacyFlag(t *testing.T) {
 	}
 
 	t.Setenv("KEY_HASH_LEGACY_ARGON2", "")
-	fast := selectHash("payload-z", "prefixaaaaaa")
+	fast := kh.selectHash("payload-z", "prefixaaaaaa")
 	if !isFastHash(fast) {
 		t.Fatalf("default selectHash must be fast, got %q", fast)
 	}
 	// Any value other than exactly "1" stays on the fast scheme.
 	t.Setenv("KEY_HASH_LEGACY_ARGON2", "true")
-	if !isFastHash(selectHash("payload-z", "prefixaaaaaa")) {
+	if !isFastHash(kh.selectHash("payload-z", "prefixaaaaaa")) {
 		t.Fatal("KEY_HASH_LEGACY_ARGON2 must be the literal '1' to flip; 'true' must stay fast")
 	}
 }
@@ -244,18 +248,19 @@ func TestSelectHashRespectsLegacyFlag(t *testing.T) {
 // TestHashPayloadArgon2Deterministic proves the legacy argon2id hash is also
 // deterministic and salt-varying (the verify path round-trips through it).
 func TestHashPayloadArgon2Deterministic(t *testing.T) {
-	h1 := hashPayload("payload-a", "prefixaaaaaa")
-	h2 := hashPayload("payload-a", "prefixaaaaaa")
+	kh := newKeyHasher()
+	h1 := kh.hashPayload("payload-a", "prefixaaaaaa")
+	h2 := kh.hashPayload("payload-a", "prefixaaaaaa")
 	if h1 != h2 {
 		t.Fatalf("argon2id hash not deterministic: %q != %q", h1, h2)
 	}
 	if isFastHash(h1) {
 		t.Fatalf("argon2id hash must not be flagged fast: %q", h1)
 	}
-	if hashPayload("payload-b", "prefixaaaaaa") == h1 {
+	if kh.hashPayload("payload-b", "prefixaaaaaa") == h1 {
 		t.Fatal("different payload must change the argon2id hash")
 	}
-	if hashPayload("payload-a", "prefixbbbbbb") == h1 {
+	if kh.hashPayload("payload-a", "prefixbbbbbb") == h1 {
 		t.Fatal("different prefix (salt) must change the argon2id hash")
 	}
 }
@@ -263,34 +268,35 @@ func TestHashPayloadArgon2Deterministic(t *testing.T) {
 // TestVerifyKeyHashFastRoundTrip proves verifyKeyHash accepts the matching
 // (payload, prefix, fastHash) triple and rejects every tampered variant.
 func TestVerifyKeyHashFastRoundTrip(t *testing.T) {
+	kh := newKeyHasher()
 	t.Setenv("KEY_HASH_PEPPER", "")
 	const payload = "the-real-payload-1234"
 	const prefix = "prefixaaaaaa"
 	stored := hashPayloadFast(payload, prefix)
 
-	if !verifyKeyHash(payload, prefix, stored) {
+	if !kh.verifyKeyHash(payload, prefix, stored) {
 		t.Fatal("matching triple must verify true (fast)")
 	}
 	t.Run("wrong_payload", func(t *testing.T) {
-		if verifyKeyHash("the-real-payload-1235", prefix, stored) {
+		if kh.verifyKeyHash("the-real-payload-1235", prefix, stored) {
 			t.Fatal("wrong payload must NOT verify")
 		}
 	})
 	t.Run("wrong_prefix", func(t *testing.T) {
-		if verifyKeyHash(payload, "prefixbbbbbb", stored) {
+		if kh.verifyKeyHash(payload, "prefixbbbbbb", stored) {
 			t.Fatal("wrong prefix (salt) must NOT verify")
 		}
 	})
 	t.Run("empty_stored", func(t *testing.T) {
-		if verifyKeyHash(payload, prefix, "") {
+		if kh.verifyKeyHash(payload, prefix, "") {
 			t.Fatal("empty stored hash must NOT verify")
 		}
 	})
 	t.Run("length_mismatch_stored", func(t *testing.T) {
-		if verifyKeyHash(payload, prefix, stored+"AB") {
+		if kh.verifyKeyHash(payload, prefix, stored+"AB") {
 			t.Fatal("length-mismatched stored hash must NOT verify")
 		}
-		if verifyKeyHash(payload, prefix, stored[:len(stored)-2]) {
+		if kh.verifyKeyHash(payload, prefix, stored[:len(stored)-2]) {
 			t.Fatal("truncated stored hash must NOT verify")
 		}
 	})
@@ -303,7 +309,7 @@ func TestVerifyKeyHashFastRoundTrip(t *testing.T) {
 		} else {
 			b[last] = 'A'
 		}
-		if verifyKeyHash(payload, prefix, string(b)) {
+		if kh.verifyKeyHash(payload, prefix, string(b)) {
 			t.Fatal("single-char-tampered stored hash must NOT verify")
 		}
 	})
@@ -313,20 +319,21 @@ func TestVerifyKeyHashFastRoundTrip(t *testing.T) {
 // argon2id stored hash (mid-migration parity) and rejects tampered variants —
 // scheme is detected from the stored hash itself.
 func TestVerifyKeyHashLegacyRoundTrip(t *testing.T) {
+	kh := newKeyHasher()
 	const payload = "legacy-payload-9876"
 	const prefix = "prefixcccccc"
-	stored := hashPayload(payload, prefix)
+	stored := kh.hashPayload(payload, prefix)
 
 	if isFastHash(stored) {
 		t.Fatal("precondition: legacy hash must not be flagged fast")
 	}
-	if !verifyKeyHash(payload, prefix, stored) {
+	if !kh.verifyKeyHash(payload, prefix, stored) {
 		t.Fatal("matching triple must verify true (legacy argon2id)")
 	}
-	if verifyKeyHash("legacy-payload-9877", prefix, stored) {
+	if kh.verifyKeyHash("legacy-payload-9877", prefix, stored) {
 		t.Fatal("wrong payload must NOT verify (legacy)")
 	}
-	if verifyKeyHash(payload, "prefixdddddd", stored) {
+	if kh.verifyKeyHash(payload, "prefixdddddd", stored) {
 		t.Fatal("wrong prefix must NOT verify (legacy)")
 	}
 	// single-char tamper on the legacy hash body (same length, different content)
@@ -336,7 +343,7 @@ func TestVerifyKeyHashLegacyRoundTrip(t *testing.T) {
 	} else {
 		tampered = stored[:len(stored)-1] + "A"
 	}
-	if verifyKeyHash(payload, prefix, tampered) {
+	if kh.verifyKeyHash(payload, prefix, tampered) {
 		t.Fatal("tampered legacy hash must NOT verify")
 	}
 }
@@ -345,17 +352,18 @@ func TestVerifyKeyHashLegacyRoundTrip(t *testing.T) {
 // by recomputing argon2 (and vice versa) — the stored tag steers the recompute,
 // so an attacker cannot downgrade-confuse the verifier into the wrong scheme.
 func TestVerifyKeyHashCrossSchemeRejected(t *testing.T) {
+	kh := newKeyHasher()
 	t.Setenv("KEY_HASH_PEPPER", "")
 	const payload = "x-payload"
 	const prefix = "prefixeeeeee"
 	fast := hashPayloadFast(payload, prefix)
-	legacy := hashPayload(payload, prefix)
+	legacy := kh.hashPayload(payload, prefix)
 
 	// Each verifies against ITS OWN scheme.
-	if !verifyKeyHash(payload, prefix, fast) {
+	if !kh.verifyKeyHash(payload, prefix, fast) {
 		t.Fatal("fast stored hash must verify via fast recompute")
 	}
-	if !verifyKeyHash(payload, prefix, legacy) {
+	if !kh.verifyKeyHash(payload, prefix, legacy) {
 		t.Fatal("legacy stored hash must verify via argon2 recompute")
 	}
 	// A fast and legacy hash of the SAME input are different strings.
@@ -368,22 +376,23 @@ func TestVerifyKeyHashCrossSchemeRejected(t *testing.T) {
 // set at BOTH mint and verify (HMAC path), and FAILS when the pepper changes
 // between mint and verify (a stolen DB without the pepper cannot verify keys).
 func TestVerifyKeyHashPepperedRoundTrip(t *testing.T) {
+	kh := newKeyHasher()
 	const payload = "peppered-payload"
 	const prefix = "prefixffffff"
 
 	t.Setenv("KEY_HASH_PEPPER", "pepper-A")
 	stored := hashPayloadFast(payload, prefix)
-	if !verifyKeyHash(payload, prefix, stored) {
+	if !kh.verifyKeyHash(payload, prefix, stored) {
 		t.Fatal("peppered hash must verify with the same pepper")
 	}
 
 	t.Setenv("KEY_HASH_PEPPER", "pepper-B")
-	if verifyKeyHash(payload, prefix, stored) {
+	if kh.verifyKeyHash(payload, prefix, stored) {
 		t.Fatal("a stored hash made with pepper-A must NOT verify under pepper-B")
 	}
 
 	t.Setenv("KEY_HASH_PEPPER", "")
-	if verifyKeyHash(payload, prefix, stored) {
+	if kh.verifyKeyHash(payload, prefix, stored) {
 		t.Fatal("a peppered stored hash must NOT verify with NO pepper (stolen-DB defense)")
 	}
 }

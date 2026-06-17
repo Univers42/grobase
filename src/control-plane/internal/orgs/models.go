@@ -23,38 +23,40 @@
 package orgs
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 )
 
-// ErrNotFound is returned when an org / member / invite row does not exist.
-var ErrNotFound = errors.New("org not found")
+// orgsErr is the package's const-error type: a sentinel is a typed string
+// constant, so errors.Is / %w wrapping still work (equal value+type == equal
+// error) with no package-level var.
+type orgsErr string
 
-// ErrConflict is returned on a uniqueness violation (slug, or an outstanding
-// invite for the same (org,email)).
-var ErrConflict = errors.New("org already exists")
+func (e orgsErr) Error() string { return string(e) }
 
-// ErrForbidden is the load-bearing reject: the caller's org role lacks the
-// capability for the requested control-plane action.
-var ErrForbidden = errors.New("forbidden")
+const (
+	// ErrNotFound is returned when an org / member / invite row does not exist.
+	ErrNotFound orgsErr = "org not found"
+	// ErrConflict is returned on a uniqueness violation (slug, or an outstanding
+	// invite for the same (org,email)).
+	ErrConflict orgsErr = "org already exists"
+	// ErrForbidden is the load-bearing reject: the caller's org role lacks the
+	// capability for the requested control-plane action.
+	ErrForbidden orgsErr = "forbidden"
+	// ErrLastOwner guards the break-glass anchor: an org must always retain at
+	// least one owner, so removing/demoting the sole owner is refused (409).
+	ErrLastOwner orgsErr = "cannot remove the last owner"
+	// ErrInviteInvalid covers a wrong/replayed/expired/already-consumed invite
+	// token (mapped to 401/410/409 by the handler depending on the cause).
+	ErrInviteInvalid orgsErr = "invite token invalid"
+	// ErrInviteExpired is a present-but-expired invite (mapped to 410 Gone).
+	ErrInviteExpired orgsErr = "invite token expired"
+	// ErrInviteConsumed is an already-accepted/revoked invite (mapped to 409).
+	ErrInviteConsumed orgsErr = "invite already consumed"
+)
 
-// ErrLastOwner guards the break-glass anchor: an org must always retain at least
-// one owner, so removing/demoting the sole owner is refused (mapped to 409).
-var ErrLastOwner = errors.New("cannot remove the last owner")
-
-// ErrInviteInvalid covers a wrong/replayed/expired/already-consumed invite token
-// (mapped to 401/410/409 by the handler depending on the specific cause).
-var ErrInviteInvalid = errors.New("invite token invalid")
-
-// ErrInviteExpired is a present-but-expired invite (mapped to 410 Gone).
-var ErrInviteExpired = errors.New("invite token expired")
-
-// ErrInviteConsumed is an already-accepted/revoked invite (mapped to 409).
-var ErrInviteConsumed = errors.New("invite already consumed")
-
-// slugRe mirrors the DB CHECK on orgs.slug (same charset as tenants.slug).
-var slugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{1,62}$`)
+// slugPattern mirrors the DB CHECK on orgs.slug (same charset as tenants.slug).
+const slugPattern = `^[a-z0-9][a-z0-9_-]{1,62}$`
 
 // Org is the public projection of public.orgs.
 type Org struct {
@@ -80,7 +82,8 @@ type CreateOrgRequest struct {
 
 // Validate enforces the same constraints as the DB CHECK.
 func (r CreateOrgRequest) Validate() error {
-	if !slugRe.MatchString(r.Slug) {
+	// perf: regex compiled per call — validation path, API-rate not per-query.
+	if !regexp.MustCompile(slugPattern).MatchString(r.Slug) {
 		return fmt.Errorf(`slug must match ^[a-z0-9][a-z0-9_-]{1,62}$`)
 	}
 	if r.Name == "" {

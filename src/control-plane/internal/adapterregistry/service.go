@@ -2,7 +2,6 @@ package adapterregistry
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"os"
 	"sync"
@@ -13,26 +12,32 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+// adapterregistryErr is the package's const error type, so every sentinel is a
+// typed constant (no package-level var) while preserving errors.Is matching.
+type adapterregistryErr string
+
+func (e adapterregistryErr) Error() string { return string(e) }
+
 // ErrNotFound is returned when a tenant database row does not exist.
-var ErrNotFound = errors.New("database not found")
+const ErrNotFound adapterregistryErr = "database not found"
 
 // ErrConflict is returned on the (tenant_id, name) unique violation.
-var ErrConflict = errors.New("database already registered")
+const ErrConflict adapterregistryErr = "database already registered"
 
 // ErrEngineNotInPackage is returned when a tenant tries to register a mount for
 // an engine its package tier does not include (Phase 4).
-var ErrEngineNotInPackage = errors.New("engine not included in tenant package")
+const ErrEngineNotInPackage adapterregistryErr = "engine not included in tenant package"
 
 // ErrMountQuotaExceeded is returned when a tenant is already at its package's
 // max_mounts cap (Phase 4).
-var ErrMountQuotaExceeded = errors.New("tenant has reached its package mount quota")
+const ErrMountQuotaExceeded adapterregistryErr = "tenant has reached its package mount quota"
 
 // ErrPlaintextDsnForbidden is returned when a tenant whose package's
 // security_mode is "max" tries to register a mount with an INLINE plaintext
 // connection_string (S2 / G-Vault). Such tenants must register a Vault
 // credential_ref instead, so no plaintext DSN is ever encrypted-at-rest for
 // them. A no-op when tiering is disabled or the tenant's tier is not max.
-var ErrPlaintextDsnForbidden = errors.New("security_mode=max forbids an inline plaintext connection_string; register a credential_ref instead")
+const ErrPlaintextDsnForbidden adapterregistryErr = "security_mode=max forbids an inline plaintext connection_string; register a credential_ref instead"
 
 // Service implements the adapter-registry control-plane logic.
 type Service struct {

@@ -37,7 +37,7 @@ func VerifySnapshot(snapshotID string, rows []EvidenceRow) VerifyResult {
 			res.StoredHash = e.Hash
 		}
 	}
-	for _, s := range Sections {
+	for _, s := range Sections() {
 		if !present[s] {
 			res.Missing = append(res.Missing, s)
 		}

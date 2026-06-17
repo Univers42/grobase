@@ -2,20 +2,25 @@ package branching
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
+// branchingErr is the package's const error type: a string whose Error() is
+// itself, so sentinels are typed consts (==-comparable, errors.Is-friendly).
+type branchingErr string
+
+func (e branchingErr) Error() string { return string(e) }
+
 // ErrNotFound is returned when a branch id is not the caller's (or unknown). The
 // handler maps it to 404 — the load-bearing caller==owner check (the lookup binds
 // id AND tenant_id, so a foreign or missing id is indistinguishable → 404).
-var ErrNotFound = errors.New("branch not found")
+const ErrNotFound branchingErr = "branch not found"
 
 // ErrBranchExists is returned when a tenant already has a branch with that name
 // (UNIQUE(tenant_id, branch_name)). The handler maps it to 409.
-var ErrBranchExists = errors.New("a branch with that name already exists")
+const ErrBranchExists branchingErr = "a branch with that name already exists"
 
 // Service orchestrates per-tenant DB BRANCHING over the shared control-plane
 // Postgres (the tenant_branches ledger + the schema clone). It reuses the SAME

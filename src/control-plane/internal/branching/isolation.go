@@ -2,7 +2,6 @@ package branching
 
 import (
 	"context"
-	"errors"
 )
 
 // ErrIsolationDeferred is returned when a branch is requested for an isolation
@@ -11,10 +10,10 @@ import (
 // DB). The handler maps it to 400. The deferral is also enforced structurally by
 // the 055 CHECK (only schema_per_tenant can be inserted). Mirrors
 // export.ErrIsolationDeferred / erase.ErrUnsupportedScope.
-var ErrIsolationDeferred = errors.New("isolation not supported for branching (deferred)")
+const ErrIsolationDeferred branchingErr = "isolation not supported for branching (deferred)"
 
 // ErrNoMount is returned when the tenant has no registered mount to branch.
-var ErrNoMount = errors.New("tenant has no registered data mount")
+const ErrNoMount branchingErr = "tenant has no registered data mount"
 
 // isolationFor resolves the isolation model for the tenant from
 // public.tenant_databases (tenant_id ALWAYS a bind param — the cross-tenant wall).

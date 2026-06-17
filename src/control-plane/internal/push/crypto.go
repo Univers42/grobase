@@ -27,9 +27,6 @@ type tokenSealer struct {
 	gcm cipher.AEAD
 }
 
-// errNoKey guards sealing a non-empty token without a configured key.
-var errNoKey = errors.New("push: PUSH_SECRET_KEY not configured (required to store a provider token)")
-
 // newSealerFromEnv builds the sealer from PUSH_SECRET_KEY. An empty key yields a
 // nil sealer (valid for the webhook-only path); the seal/open methods are
 // nil-safe so the caller never has to branch on it.

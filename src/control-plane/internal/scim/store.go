@@ -30,22 +30,28 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
-// ErrTokenInvalid is the load-bearing reject: a missing/unknown/revoked SCIM
-// bearer token. The handler maps it to 401 (RFC 7644 §3.12).
-var ErrTokenInvalid = errors.New("scim bearer token invalid")
+// scimErr is the package's const-error type: a sentinel is a typed string
+// constant, so errors.Is / %w wrapping still work (equal value+type == equal
+// error) with no package-level var.
+type scimErr string
 
-// ErrNotFound is returned when a SCIM resource (user) does not exist within the
-// bound tenant. Mapped to 404 by the handler.
-var ErrNotFound = errors.New("scim resource not found")
+func (e scimErr) Error() string { return string(e) }
 
-// ErrNoOrg is returned when a provisioning op runs under a token with no org_id
-// bound (provisioning needs a concrete org to add the member to). Mapped to 400.
-var ErrNoOrg = errors.New("scim token is not bound to an org")
+const (
+	// ErrTokenInvalid is the load-bearing reject: a missing/unknown/revoked SCIM
+	// bearer token. The handler maps it to 401 (RFC 7644 §3.12).
+	ErrTokenInvalid scimErr = "scim bearer token invalid"
+	// ErrNotFound is returned when a SCIM resource (user) does not exist within
+	// the bound tenant. Mapped to 404 by the handler.
+	ErrNotFound scimErr = "scim resource not found"
+	// ErrNoOrg is returned when a provisioning op runs under a token with no
+	// org_id bound (provisioning needs a concrete org). Mapped to 400.
+	ErrNoOrg scimErr = "scim token is not bound to an org"
+)
 
 // TokenBinding is what VerifyToken resolves: the tenant (+ optional org) a SCIM
 // bearer token authorizes. TenantID is the per-tenant wall; OrgID is the org

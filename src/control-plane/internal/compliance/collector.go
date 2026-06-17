@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"regexp"
 	"time"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/config"
@@ -132,16 +131,11 @@ func (c *Collector) Collect(ctx context.Context) (Snapshot, error) {
 }
 
 // ───────────────────────── CI / gate posture ─────────────────────────────────
-
-// gatePassRe matches a verify gate's self-attested PASS marker, e.g.
 //
-//	log_event GATE --gate "m104=PASS" ...
-//	green "[M104] ALL GATES GREEN ..."
-//
-// The robust, gate-authored anchor is the `<gate>=PASS` token a gate emits via
-// the kernel log helper. A control whose script lacks that marker is recorded
-// passing:false — so a deliberately-failing/stub gate is reported honestly.
-var gatePassRe = regexp.MustCompile(`m([0-9]+)=PASS`)
-
-// gateFileRe extracts the milestone id from a gate filename mNN-*.sh.
-var gateFileRe = regexp.MustCompile(`^m([0-9]+)-.*\.sh$`)
+// The CI section's two regexes are compiled per call in collect_ci.go:
+//   - gatePassRe `m([0-9]+)=PASS`   — a verify gate's self-attested PASS marker
+//     (the gate-authored anchor; a script lacking it is recorded passing:false).
+//   - gateFileRe `^m([0-9]+)-.*\.sh$` — extracts the milestone id from a gate
+//     filename mNN-*.sh.
+// Both run only during compliance EVIDENCE COLLECTION (a cold/admin path), so a
+// per-call MustCompile is fine and keeps them out of package state.

@@ -54,14 +54,16 @@ const (
 
 // Sections is the canonical, ordered set a complete snapshot must contain. The
 // collector writes exactly these; the read API reports a snapshot complete iff
-// all of them are present.
-var Sections = []string{
-	SectionCI,
-	SectionAccess,
-	SectionChangeMgmt,
-	SectionGDPRRights,
-	SectionCryptoPosture,
-	SectionBackupPosture,
+// all of them are present. Returns a fresh slice each call (read-only contract).
+func Sections() []string {
+	return []string{
+		SectionCI,
+		SectionAccess,
+		SectionChangeMgmt,
+		SectionGDPRRights,
+		SectionCryptoPosture,
+		SectionBackupPosture,
+	}
 }
 
 // EvidenceRow is one sealed evidence row — a section's structured payload plus

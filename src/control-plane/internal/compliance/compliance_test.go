@@ -16,8 +16,8 @@ import (
 func buildSnapshot(t *testing.T) []EvidenceRow {
 	t.Helper()
 	at := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
-	rows := make([]EvidenceRow, 0, len(Sections))
-	for i, s := range Sections {
+	rows := make([]EvidenceRow, 0, len(Sections()))
+	for i, s := range Sections() {
 		payload := json.RawMessage(`{"control_type":"` + s + `","n":` + itoa(i) + `}`)
 		rows = append(rows, EvidenceRow{
 			ID:          "id-" + s,
@@ -42,8 +42,8 @@ func TestVerifySnapshot_Intact(t *testing.T) {
 	if !res.Complete {
 		t.Fatalf("snapshot with all sections must be complete, missing=%v", res.Missing)
 	}
-	if res.Count != len(Sections) {
-		t.Fatalf("expected count=%d (one row per canonical section), got %d", len(Sections), res.Count)
+	if res.Count != len(Sections()) {
+		t.Fatalf("expected count=%d (one row per canonical section), got %d", len(Sections()), res.Count)
 	}
 }
 
@@ -75,7 +75,8 @@ func TestVerifySnapshot_TamperedSection(t *testing.T) {
 // A missing section must be reported incomplete even if the present rows verify.
 func TestVerifySnapshot_Incomplete(t *testing.T) {
 	full := buildSnapshot(t)
-	dropped := Sections[len(Sections)-1] // drop the last canonical section
+	sections := Sections()
+	dropped := sections[len(sections)-1] // drop the last canonical section
 	rows := full[:len(full)-1]
 	res := VerifySnapshot("snap-1", rows)
 	if !res.Intact {
@@ -360,8 +361,8 @@ func TestCollector_Collect_ProducesAllSections(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect: %v", err)
 	}
-	if len(snap.Sections) != len(Sections) {
-		t.Fatalf("Collect must produce %d sections (the canonical set), got %d", len(Sections), len(snap.Sections))
+	if len(snap.Sections) != len(Sections()) {
+		t.Fatalf("Collect must produce %d sections (the canonical set), got %d", len(Sections()), len(snap.Sections))
 	}
 	got := map[string]bool{}
 	for _, sp := range snap.Sections {
@@ -374,7 +375,7 @@ func TestCollector_Collect_ProducesAllSections(t *testing.T) {
 			t.Fatalf("section %s did not seal", sp.Section)
 		}
 	}
-	for _, s := range Sections {
+	for _, s := range Sections() {
 		if !got[s] {
 			t.Fatalf("Collect omitted canonical section %s", s)
 		}

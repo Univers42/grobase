@@ -3,7 +3,6 @@ package audit
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"strings"
 	"time"
 
@@ -21,11 +20,13 @@ type adb interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
+// auditErr is a const-able sentinel error type so the guards below need no
+// package-level var (errors.Is + identity comparison still hold on the consts).
 // errEmptyTenant / errEmptyAction guard the append contract — an audit row with
 // no tenant or no action verb is meaningless and would poison the chain order.
-var (
-	errEmptyTenant = errors.New("audit: tenant_id required")
-	errEmptyAction = errors.New("audit: action required")
+const (
+	errEmptyTenant = auditErr("audit: tenant_id required")
+	errEmptyAction = auditErr("audit: action required")
 )
 
 // Service appends to and reads the per-tenant tamper-evident audit chain. It is
