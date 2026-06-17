@@ -48,6 +48,8 @@ mod postgres;
 mod redis;
 mod registry;
 mod resolver;
+#[cfg(any(feature = "sqlite", feature = "mysql", feature = "mssql"))]
+mod sql_scope;
 #[cfg(feature = "sqlite")]
 mod sqlite;
 mod tls;

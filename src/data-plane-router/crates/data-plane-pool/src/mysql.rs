@@ -29,11 +29,11 @@ use crate::resolver::MountResolver;
 use async_trait::async_trait;
 use data_plane_core::{
     validate_default_expr, AggFunc, Aggregate, BatchItemOutcome, BatchItemStatus, BatchSummary,
-    CmpOp, ColumnSchema, DataOperation, DataOperationKind, DataPlaneError,
+    ColumnSchema, DataOperation, DataOperationKind, DataPlaneError,
     DataPlaneResult, DataResult, DatabaseMount, DdlColumnDef, EngineAdapter, EngineCapabilities,
-    EngineHealth, EnginePool, Filter, Folded, ForeignKeyRef, MigrationRequest, MigrationResult,
+    EngineHealth, EnginePool, Filter, ForeignKeyRef, MigrationRequest, MigrationResult,
     MigrationStatus, NormalizedType, RawStatement, RequestIdentity, SchemaDdlOp, SchemaDdlRequest,
-    SchemaDdlResult, SchemaDdlStatus, SchemaDescriptor, ScopeDirective, TableSchema,
+    SchemaDdlResult, SchemaDdlStatus, SchemaDescriptor, TableSchema,
     TxBeginRequest, TxHandle,
 };
 use mysql_async::prelude::Queryable;
@@ -275,25 +275,12 @@ impl MysqlPool {
     }
 }
 
-/// The per-tenant database name for a `schema_per_tenant` MySQL mount, or
-/// `None` for any other strategy (→ DSN-default database, parity). Consumes the
-/// engine-neutral [`ScopeDirective`] so the isolation policy stays defined once
-/// in `data-plane-core`; the namespace is per-mount, so the mount's tenant_id
-/// is fed in as the scoping identity.
+/// Per-tenant database name for a `schema_per_tenant` MySQL mount — delegates to
+/// the single source of truth, [`DatabaseMount::resolve_namespace`].
+// ponytail: thin wrapper kept so call sites read `resolve_namespace(&mount)`;
+// inline + delete in a follow-up.
 fn resolve_namespace(mount: &DatabaseMount) -> Option<String> {
-    let identity = RequestIdentity {
-        tenant_id: mount.tenant_id.clone(),
-        project_id: mount.project_id.clone(),
-        app_id: None,
-        user_id: None,
-        roles: vec![],
-        scopes: vec![],
-        source: data_plane_core::IdentitySource::ServiceToken,
-    };
-    match mount.isolation().scope(mount, &identity) {
-        ScopeDirective::UseNamespace { namespace } => Some(namespace),
-        ScopeDirective::None | ScopeDirective::SetSearchPath { .. } => None,
-    }
+    mount.resolve_namespace()
 }
 
 #[async_trait]
@@ -412,22 +399,12 @@ impl EnginePool for MysqlPool {
                 .map_err(backend)?;
             let data: Vec<Value> = rows.into_iter().map(row_to_json).collect();
             let affected = data.len() as u64;
-            Ok(DataResult {
-                rows: data,
-                affected_rows: affected,
-                next_cursor: None,
-                batch: None,
-            })
+            Ok(DataResult::new(data, affected))
         } else {
             conn.exec_drop(statement.statement.as_str(), Params::Positional(params))
                 .await
                 .map_err(backend)?;
-            Ok(DataResult {
-                rows: vec![],
-                affected_rows: conn.affected_rows(),
-                next_cursor: None,
-                batch: None,
-            })
+            Ok(DataResult::new(vec![], conn.affected_rows()))
         }
     }
 
@@ -906,12 +883,7 @@ async fn run_list(
 
     let data: Vec<Value> = rows.into_iter().map(row_to_json).collect();
     let affected = data.len() as u64;
-    Ok(DataResult {
-        rows: data,
-        affected_rows: affected,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(data, affected))
 }
 
 async fn run_get(
@@ -932,12 +904,7 @@ async fn run_get(
         Some(r) => (vec![row_to_json(r)], 1),
         None => (vec![], 0),
     };
-    Ok(DataResult {
-        rows,
-        affected_rows: affected,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(rows, affected))
 }
 
 async fn run_insert(
@@ -974,12 +941,7 @@ async fn run_insert(
     if let Some(id) = last_id {
         out.insert("id".to_string(), Value::Number(id.into()));
     }
-    Ok(DataResult {
-        rows: vec![Value::Object(out)],
-        affected_rows: 1,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(vec![Value::Object(out)], 1))
 }
 
 async fn run_update(
@@ -988,7 +950,7 @@ async fn run_update(
     identity: &RequestIdentity,
 ) -> DataPlaneResult<DataResult> {
     let table = quote_mysql_ident(&op.resource)?;
-    guard_constraining_filter(op.filter.as_ref())?;
+    crate::sql_scope::guard_constraining_filter(op.filter.as_ref(), &RESERVED_COLUMNS)?;
     // Server-controlled fields must not be UPDATE-able from the client.
     let set_cols = build_safe_columns(op.data.as_ref())?;
     if set_cols.is_empty() {
@@ -1018,12 +980,7 @@ async fn run_update(
         .map_err(backend)?;
     let affected = result.affected_rows();
     result.drop_result().await.map_err(backend)?;
-    Ok(DataResult {
-        rows: vec![],
-        affected_rows: affected,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(vec![], affected))
 }
 
 async fn run_delete(
@@ -1032,7 +989,7 @@ async fn run_delete(
     identity: &RequestIdentity,
 ) -> DataPlaneResult<DataResult> {
     let table = quote_mysql_ident(&op.resource)?;
-    guard_constraining_filter(op.filter.as_ref())?;
+    crate::sql_scope::guard_constraining_filter(op.filter.as_ref(), &RESERVED_COLUMNS)?;
     let (where_sql, params) = build_owner_filter(op.filter.as_ref(), identity)?;
 
     let sql = format!("DELETE FROM {table}{where_sql}");
@@ -1042,12 +999,7 @@ async fn run_delete(
         .map_err(backend)?;
     let affected = result.affected_rows();
     result.drop_result().await.map_err(backend)?;
-    Ok(DataResult {
-        rows: vec![],
-        affected_rows: affected,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(vec![], affected))
 }
 
 async fn run_upsert(
@@ -1111,12 +1063,7 @@ async fn run_upsert(
     if let Some(id) = last_id {
         out.insert("id".to_string(), Value::Number(id.into()));
     }
-    Ok(DataResult {
-        rows: vec![Value::Object(out)],
-        affected_rows: affected,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(vec![Value::Object(out)], affected))
 }
 
 /// Grouped aggregation, mirroring the Postgres lowering:
@@ -1189,12 +1136,7 @@ async fn run_aggregate(
         .map_err(backend)?;
     let data: Vec<Value> = rows.into_iter().map(row_to_json).collect();
     let affected = data.len() as u64;
-    Ok(DataResult {
-        rows: data,
-        affected_rows: affected,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(data, affected))
 }
 
 /// One `func(arg) AS alias` expression — same contract as the PG builder:
@@ -1281,30 +1223,46 @@ fn classify_mysql_error(message: String, ddl: bool) -> DataPlaneError {
 }
 
 fn owner_of(identity: &RequestIdentity) -> String {
-    identity
-        .user_id
-        .clone()
-        .unwrap_or_else(|| identity.tenant_id.clone())
+    identity.owner_principal().to_string()
+}
+
+/// MySQL binds every value as a positional `?` (param order IS binding order),
+/// so the shared filter lowerer pushes through this private sink:
+/// `bind` records the value via [`json_to_mysql_value`] and emits `?`;
+/// `quote_ident` defers to [`quote_mysql_ident`]. Kept private (never `pub`) so
+/// no caller can bypass `bind` and bind a value to the wrong column.
+struct MysqlSink(Vec<MysqlValue>);
+
+impl crate::sql_scope::SqlParamSink for MysqlSink {
+    fn bind(&mut self, value: &Value) -> String {
+        self.0.push(json_to_mysql_value(value));
+        "?".to_string()
+    }
+    fn quote_ident(&self, name: &str) -> DataPlaneResult<String> {
+        quote_mysql_ident(name)
+    }
 }
 
 /// Take the client filter, strip any attempt to override `owner_id`, then
 /// intersect with the server-trusted owner. Always returns a `WHERE` clause
 /// that includes `owner_id = ?` (the second line of defense against tenant
-/// escape — defense in depth alongside per-mount DSN isolation).
+/// escape — defense in depth alongside per-mount DSN isolation). The
+/// engine-neutral filter lowering lives in [`crate::sql_scope`]; only the
+/// `owner_id` stamping below is MySQL-specific.
 fn build_owner_filter(
     filter: Option<&Value>,
     identity: &RequestIdentity,
 ) -> DataPlaneResult<(String, Vec<MysqlValue>)> {
-    let mut params: Vec<MysqlValue> = Vec::new();
+    let mut sink = MysqlSink(Vec::new());
     let mut clauses: Vec<String> = Vec::new();
 
     if let Some(filter_value) = filter {
         // Drop any top-level reserved-column override (the trusted value is added
         // below) before parsing, matching the prior posture. The trusted
         // `owner_id` predicate also supersedes any nested client `owner_id`.
-        let cleaned = strip_reserved_top_level(filter_value);
+        let cleaned = crate::sql_scope::strip_reserved_top_level(filter_value, &RESERVED_COLUMNS);
         let tree = Filter::parse(&cleaned)?;
-        if let Some(sql) = lower_filter(&tree, &mut params)? {
+        if let Some(sql) = crate::sql_scope::lower_filter(&tree, &mut sink)? {
             // Parenthesize the WHOLE client filter so the trusted `owner_id` AND
             // binds it as one unit. Without this, a top-level `$or` would parse
             // as `(a) OR (b AND owner_id)` — the `a` branch unscoped (cross-owner
@@ -1314,138 +1272,10 @@ fn build_owner_filter(
     }
 
     // Always inject the trusted owner predicate.
-    params.push(MysqlValue::Bytes(owner_of(identity).into_bytes()));
+    sink.0.push(MysqlValue::Bytes(owner_of(identity).into_bytes()));
     clauses.push("`owner_id` = ?".to_string());
 
-    Ok((format!(" WHERE {}", clauses.join(" AND ")), params))
-}
-
-/// Refuses an update/delete whose filter constrains nothing — empty, or a
-/// tautology like `{$not:{$or:[]}}` that folds to "always true" — since it would
-/// affect every row the caller owns. Mirrors the Postgres empty-filter guard so
-/// mutations behave the same on MySQL (which has no RLS backstop). Strips
-/// reserved keys first so a filter of only `{owner_id: …}` is correctly seen as
-/// empty (the trusted predicate is what actually scopes it).
-fn guard_constraining_filter(filter: Option<&Value>) -> DataPlaneResult<()> {
-    let folded = match filter {
-        Some(v) => Filter::parse(&strip_reserved_top_level(v))?.fold(),
-        None => Folded::AlwaysTrue,
-    };
-    if folded == Folded::AlwaysTrue {
-        return Err(DataPlaneError::InvalidRequest {
-            message: "update/delete requires a constraining filter (refusing full-table mutation)"
-                .to_string(),
-        });
-    }
-    Ok(())
-}
-
-/// Removes top-level reserved keys from a filter object so a client can't set
-/// the trusted columns. Borrows the filter unchanged in the common case (no
-/// reserved key present), only cloning when one must actually be stripped.
-fn strip_reserved_top_level(filter: &Value) -> std::borrow::Cow<'_, Value> {
-    if let Value::Object(map) = filter {
-        if map.keys().any(|k| RESERVED_COLUMNS.contains(&k.as_str())) {
-            let cleaned = map
-                .iter()
-                .filter(|(k, _)| !RESERVED_COLUMNS.contains(&k.as_str()))
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect();
-            return std::borrow::Cow::Owned(Value::Object(cleaned));
-        }
-    }
-    std::borrow::Cow::Borrowed(filter)
-}
-
-fn cmp_op_sql(op: CmpOp) -> &'static str {
-    match op {
-        CmpOp::Eq => "=",
-        CmpOp::Ne => "<>",
-        CmpOp::Lt => "<",
-        CmpOp::Lte => "<=",
-        CmpOp::Gt => ">",
-        CmpOp::Gte => ">=",
-    }
-}
-
-/// Lowers a validated [`Filter`] to a MySQL `WHERE` fragment (without `WHERE`),
-/// binding every value as a positional `?` parameter. Returns `None` when the
-/// filter constrains nothing (`And([])`). Mirrors the Postgres compiler's
-/// grammar so the same wire filter behaves identically; MySQL has no `ILIKE`, so
-/// `$ilike` lowers to `LOWER(col) LIKE LOWER(?)`. Identifiers via
-/// `quote_mysql_ident`, operators → fixed SQL, values only bound.
-fn lower_filter(filter: &Filter, params: &mut Vec<MysqlValue>) -> DataPlaneResult<Option<String>> {
-    Ok(match filter {
-        Filter::And(parts) => {
-            let mut sqls = Vec::with_capacity(parts.len());
-            for p in parts {
-                if let Some(s) = lower_filter(p, params)? {
-                    sqls.push(s);
-                }
-            }
-            if sqls.is_empty() {
-                None
-            } else {
-                Some(sqls.join(" AND "))
-            }
-        }
-        Filter::Or(parts) => {
-            let mut sqls = Vec::with_capacity(parts.len());
-            for p in parts {
-                if let Some(s) = lower_filter(p, params)? {
-                    sqls.push(format!("({s})"));
-                }
-            }
-            // An empty/all-unconstrained `$or` matches nothing.
-            Some(if sqls.is_empty() {
-                "0 = 1".to_string()
-            } else {
-                sqls.join(" OR ")
-            })
-        }
-        Filter::Not(inner) => lower_filter(inner, params)?.map(|s| format!("NOT ({s})")),
-        Filter::Cmp { field, op, value } => {
-            let q = quote_mysql_ident(field)?;
-            params.push(json_to_mysql_value(value));
-            Some(format!("{q} {} ?", cmp_op_sql(*op)))
-        }
-        Filter::In { field, values } => {
-            let q = quote_mysql_ident(field)?;
-            if values.is_empty() {
-                Some("0 = 1".to_string())
-            } else {
-                let mut ph = Vec::with_capacity(values.len());
-                for v in values {
-                    params.push(json_to_mysql_value(v));
-                    ph.push("?");
-                }
-                Some(format!("{q} IN ({})", ph.join(", ")))
-            }
-        }
-        Filter::Like {
-            field,
-            pattern,
-            ci,
-        } => {
-            let q = quote_mysql_ident(field)?;
-            params.push(json_to_mysql_value(pattern));
-            Some(if *ci {
-                format!("LOWER({q}) LIKE LOWER(?)")
-            } else {
-                format!("{q} LIKE ?")
-            })
-        }
-        Filter::Between { field, low, high } => {
-            let q = quote_mysql_ident(field)?;
-            params.push(json_to_mysql_value(low));
-            params.push(json_to_mysql_value(high));
-            Some(format!("{q} BETWEEN ? AND ?"))
-        }
-        Filter::IsNull { field, negate } => {
-            let q = quote_mysql_ident(field)?;
-            Some(format!("{q} IS {}NULL", if *negate { "NOT " } else { "" }))
-        }
-    })
+    Ok((format!(" WHERE {}", clauses.join(" AND ")), sink.0))
 }
 
 /// Strip reserved columns from client payload, then re-inject the trusted
@@ -1708,10 +1538,15 @@ mod tests {
             Some(json!({ "owner_id": "x" })), // only a reserved key → empty after strip
         ];
         for filter in unconstrained {
-            let err = guard_constraining_filter(filter.as_ref()).unwrap_err();
+            let err =
+                crate::sql_scope::guard_constraining_filter(filter.as_ref(), &RESERVED_COLUMNS)
+                    .unwrap_err();
             assert!(matches!(err, DataPlaneError::InvalidRequest { .. }), "{filter:?}: {err:?}");
         }
-        assert!(guard_constraining_filter(Some(&json!({ "id": 1 }))).is_ok());
+        assert!(
+            crate::sql_scope::guard_constraining_filter(Some(&json!({ "id": 1 })), &RESERVED_COLUMNS)
+                .is_ok()
+        );
     }
 
     #[test]

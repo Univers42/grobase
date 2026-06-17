@@ -19,9 +19,9 @@ use async_trait::async_trait;
 use bb8::Pool;
 use bb8_tiberius::ConnectionManager;
 use data_plane_core::{
-    AggFunc, Aggregate, BatchItemOutcome, BatchItemStatus, BatchSummary, CmpOp, ColumnSchema,
+    AggFunc, Aggregate, BatchItemOutcome, BatchItemStatus, BatchSummary, ColumnSchema,
     DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, DataResult, DatabaseMount,
-    EngineAdapter, EngineCapabilities, EngineHealth, EnginePool, Filter, Folded, NormalizedType,
+    EngineAdapter, EngineCapabilities, EngineHealth, EnginePool, Filter, NormalizedType,
     RawStatement, RequestIdentity, SchemaDescriptor, TableSchema, TxBeginRequest, TxHandle,
 };
 use serde_json::{Map as JsonMap, Value};
@@ -290,11 +290,11 @@ async fn run_plan(
             .map_err(backend)?;
         let data: Vec<Value> = rows.into_iter().map(row_to_json).collect();
         let affected = data.len() as u64;
-        Ok(DataResult { rows: data, affected_rows: affected, next_cursor: None, batch: None })
+        Ok(DataResult::new(data, affected))
     } else {
         let result = conn.execute(&plan.sql, &refs).await.map_err(backend)?;
         let affected: u64 = result.rows_affected().iter().sum();
-        Ok(DataResult { rows: vec![], affected_rows: affected, next_cursor: None, batch: None })
+        Ok(DataResult::new(vec![], affected))
     }
 }
 
@@ -334,13 +334,27 @@ struct Binder {
 }
 
 impl Binder {
-    fn bind(&mut self, value: &Value) -> String {
+    /// Inherent binder: record a JSON value and return its `@PN` placeholder.
+    /// Named distinctly from the trait method below so the trait `bind` can
+    /// delegate here without recursing.
+    fn bind_value(&mut self, value: &Value) -> String {
         self.params.push(json_to_param(value));
         format!("@P{}", self.params.len())
     }
     fn bind_owned(&mut self, p: P) -> String {
         self.params.push(p);
         format!("@P{}", self.params.len())
+    }
+}
+
+/// SQL Server binds named `@PN` params in declaration order (param order IS
+/// binding order), so the shared filter lowerer drives the binder as its sink.
+impl crate::sql_scope::SqlParamSink for Binder {
+    fn bind(&mut self, value: &Value) -> String {
+        self.bind_value(value)
+    }
+    fn quote_ident(&self, name: &str) -> DataPlaneResult<String> {
+        quote_ident(name)
     }
 }
 
@@ -409,7 +423,7 @@ fn build_insert(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlP
 
 fn build_update(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlPlan> {
     let table = quote_ident(&op.resource)?;
-    guard_constraining_filter(op.filter.as_ref())?;
+    crate::sql_scope::guard_constraining_filter(op.filter.as_ref(), RESERVED_COLUMNS)?;
     let set_cols = build_safe_columns(op.data.as_ref())?;
     if set_cols.is_empty() {
         return Err(DataPlaneError::InvalidRequest {
@@ -419,7 +433,7 @@ fn build_update(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlP
     let mut binder = Binder::default();
     let mut set_parts = Vec::with_capacity(set_cols.len());
     for (col, val) in &set_cols {
-        let ph = binder.bind(val);
+        let ph = binder.bind_value(val);
         set_parts.push(format!("{} = {ph}", quote_ident(col)?));
     }
     let where_sql = build_owner_filter(&mut binder, op.filter.as_ref(), owner)?;
@@ -432,7 +446,7 @@ fn build_update(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlP
 
 fn build_delete(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlPlan> {
     let table = quote_ident(&op.resource)?;
-    guard_constraining_filter(op.filter.as_ref())?;
+    crate::sql_scope::guard_constraining_filter(op.filter.as_ref(), RESERVED_COLUMNS)?;
     let mut binder = Binder::default();
     let where_sql = build_owner_filter(&mut binder, op.filter.as_ref(), owner)?;
     Ok(SqlPlan {
@@ -478,7 +492,7 @@ fn build_upsert(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlP
     let mut src_vals: Vec<String> = Vec::with_capacity(columns.len());
     for (col, val) in &columns {
         src_cols.push(quote_ident(col)?);
-        src_vals.push(binder.bind(val));
+        src_vals.push(binder.bind_value(val));
     }
     let on_clause = match_cols
         .iter()
@@ -591,10 +605,7 @@ fn build_aggregate_expr(agg: &Aggregate) -> DataPlaneResult<String> {
 // ── shared pure helpers ──────────────────────────────────────────────────────
 
 fn owner_of(identity: &RequestIdentity) -> String {
-    identity
-        .user_id
-        .clone()
-        .unwrap_or_else(|| identity.tenant_id.clone())
+    identity.owner_principal().to_string()
 }
 
 fn build_owner_filter(
@@ -604,9 +615,9 @@ fn build_owner_filter(
 ) -> DataPlaneResult<String> {
     let mut clauses: Vec<String> = Vec::new();
     if let Some(filter_value) = filter {
-        let cleaned = strip_reserved_top_level(filter_value);
+        let cleaned = crate::sql_scope::strip_reserved_top_level(filter_value, RESERVED_COLUMNS);
         let tree = Filter::parse(&cleaned)?;
-        if let Some(sql) = lower_filter(&tree, binder)? {
+        if let Some(sql) = crate::sql_scope::lower_filter(&tree, binder)? {
             clauses.push(format!("({sql})"));
         }
     }
@@ -619,104 +630,6 @@ fn build_owner_filter(
     } else {
         Ok(format!(" WHERE {}", clauses.join(" AND ")))
     }
-}
-
-fn guard_constraining_filter(filter: Option<&Value>) -> DataPlaneResult<()> {
-    let folded = match filter {
-        Some(v) => Filter::parse(&strip_reserved_top_level(v))?.fold(),
-        None => Folded::AlwaysTrue,
-    };
-    if folded == Folded::AlwaysTrue {
-        return Err(DataPlaneError::InvalidRequest {
-            message: "update/delete requires a constraining filter (refusing full-table mutation)"
-                .to_string(),
-        });
-    }
-    Ok(())
-}
-
-fn strip_reserved_top_level(filter: &Value) -> std::borrow::Cow<'_, Value> {
-    if let Value::Object(map) = filter {
-        if map.keys().any(|k| RESERVED_COLUMNS.contains(&k.as_str())) {
-            let cleaned = map
-                .iter()
-                .filter(|(k, _)| !RESERVED_COLUMNS.contains(&k.as_str()))
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect();
-            return std::borrow::Cow::Owned(Value::Object(cleaned));
-        }
-    }
-    std::borrow::Cow::Borrowed(filter)
-}
-
-fn cmp_op_sql(op: CmpOp) -> &'static str {
-    match op {
-        CmpOp::Eq => "=",
-        CmpOp::Ne => "<>",
-        CmpOp::Lt => "<",
-        CmpOp::Lte => "<=",
-        CmpOp::Gt => ">",
-        CmpOp::Gte => ">=",
-    }
-}
-
-fn lower_filter(filter: &Filter, binder: &mut Binder) -> DataPlaneResult<Option<String>> {
-    Ok(match filter {
-        Filter::And(parts) => {
-            let mut sqls = Vec::with_capacity(parts.len());
-            for p in parts {
-                if let Some(s) = lower_filter(p, binder)? {
-                    sqls.push(s);
-                }
-            }
-            if sqls.is_empty() { None } else { Some(sqls.join(" AND ")) }
-        }
-        Filter::Or(parts) => {
-            let mut sqls = Vec::with_capacity(parts.len());
-            for p in parts {
-                if let Some(s) = lower_filter(p, binder)? {
-                    sqls.push(format!("({s})"));
-                }
-            }
-            Some(if sqls.is_empty() { "0 = 1".to_string() } else { sqls.join(" OR ") })
-        }
-        Filter::Not(inner) => lower_filter(inner, binder)?.map(|s| format!("NOT ({s})")),
-        Filter::Cmp { field, op, value } => {
-            let q = quote_ident(field)?;
-            let ph = binder.bind(value);
-            Some(format!("{q} {} {ph}", cmp_op_sql(*op)))
-        }
-        Filter::In { field, values } => {
-            let q = quote_ident(field)?;
-            if values.is_empty() {
-                Some("0 = 1".to_string())
-            } else {
-                let ph: Vec<String> = values.iter().map(|v| binder.bind(v)).collect();
-                Some(format!("{q} IN ({})", ph.join(", ")))
-            }
-        }
-        Filter::Like { field, pattern, ci } => {
-            let q = quote_ident(field)?;
-            let ph = binder.bind(pattern);
-            // SQL Server LIKE is case-insensitive under the default collation;
-            // force case-sensitivity-independent matching with LOWER() for ci.
-            Some(if *ci {
-                format!("LOWER({q}) LIKE LOWER({ph})")
-            } else {
-                format!("{q} LIKE {ph}")
-            })
-        }
-        Filter::Between { field, low, high } => {
-            let q = quote_ident(field)?;
-            let lo = binder.bind(low);
-            let hi = binder.bind(high);
-            Some(format!("{q} BETWEEN {lo} AND {hi}"))
-        }
-        Filter::IsNull { field, negate } => {
-            let q = quote_ident(field)?;
-            Some(format!("{q} IS {}NULL", if *negate { "NOT " } else { "" }))
-        }
-    })
 }
 
 fn build_owned_columns(
@@ -754,7 +667,7 @@ fn render_columns(binder: &mut Binder, columns: &[(String, Value)]) -> DataPlane
     let mut ph = Vec::with_capacity(columns.len());
     for (col, val) in columns {
         col_sql.push(quote_ident(col)?);
-        ph.push(binder.bind(val));
+        ph.push(binder.bind_value(val));
     }
     Ok((col_sql.join(", "), ph.join(", ")))
 }
@@ -951,8 +864,8 @@ mod tests {
     #[test]
     fn binder_emits_sequential_placeholders() {
         let mut b = Binder::default();
-        assert_eq!(b.bind(&serde_json::json!("x")), "@P1");
-        assert_eq!(b.bind(&serde_json::json!(2)), "@P2");
+        assert_eq!(b.bind_value(&serde_json::json!("x")), "@P1");
+        assert_eq!(b.bind_value(&serde_json::json!(2)), "@P2");
         assert_eq!(b.params.len(), 2);
     }
 

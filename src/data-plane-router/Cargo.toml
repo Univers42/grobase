@@ -115,6 +115,9 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "logg
 # rustls-pemfile parses an optional custom CA bundle (DATA_PLANE_TLS_CA_FILE).
 webpki-roots = "0.26"
 rustls-pemfile = "2"
+# Property-based edge-case testing for the data-plane refactor (filter lowering,
+# owner-scoping × isolation, value round-trips). Dev-only — never in the binary.
+proptest = "1"
 tower-http = { version = "0.6", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

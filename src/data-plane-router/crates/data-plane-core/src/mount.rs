@@ -1,4 +1,5 @@
-use crate::isolation::{safe_schema, Isolation};
+use crate::identity::{IdentitySource, RequestIdentity};
+use crate::isolation::{safe_schema, Isolation, ScopeDirective};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -159,6 +160,30 @@ impl DatabaseMount {
         match self.isolation() {
             Isolation::SchemaPerTenant => safe_schema(&self.tenant_id),
             Isolation::SharedRls | Isolation::DbPerTenant | Isolation::TenantOwned => None,
+        }
+    }
+
+    /// The per-tenant namespace for a `schema_per_tenant` mount (the MySQL/Mongo
+    /// database, the Redis/Dynamo key segment), or `None` for any other strategy
+    /// (→ the engine's DSN-default / historical shape, parity). The isolation
+    /// policy is defined once in [`Isolation::scope`]; the namespace is per-mount,
+    /// so the mount's own `tenant_id` is the scoping identity. Single source of
+    /// truth — was reimplemented byte-for-byte in the mysql/mongo/redis/dynamodb
+    /// adapters.
+    #[must_use]
+    pub fn resolve_namespace(&self) -> Option<String> {
+        let identity = RequestIdentity {
+            tenant_id: self.tenant_id.clone(),
+            project_id: self.project_id.clone(),
+            app_id: None,
+            user_id: None,
+            roles: vec![],
+            scopes: vec![],
+            source: IdentitySource::ServiceToken,
+        };
+        match self.isolation().scope(self, &identity) {
+            ScopeDirective::UseNamespace { namespace } => Some(namespace),
+            ScopeDirective::None | ScopeDirective::SetSearchPath { .. } => None,
         }
     }
 }

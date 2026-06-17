@@ -17,7 +17,7 @@ use async_trait::async_trait;
 use data_plane_core::{
     BatchItemOutcome, BatchItemStatus, BatchSummary, DataOperation, DataOperationKind,
     DataPlaneError, DataPlaneResult, DataResult, DatabaseMount,
-    EngineAdapter, EngineCapabilities, EngineHealth, EnginePool, RequestIdentity, ScopeDirective,
+    EngineAdapter, EngineCapabilities, EngineHealth, EnginePool, RequestIdentity,
     TxBeginRequest, TxHandle,
 };
 use redis::aio::ConnectionManager;
@@ -155,10 +155,7 @@ pub struct RedisPool {
 
 impl RedisPool {
     fn owner(identity: &RequestIdentity) -> String {
-        identity
-            .user_id
-            .clone()
-            .unwrap_or_else(|| identity.tenant_id.clone())
+        identity.owner_principal().to_string()
     }
 
     /// `<namespace>:<owner>:<resource>` for schema_per_tenant, else the
@@ -345,12 +342,7 @@ async fn run_list(
         .take(limit)
         .collect::<Vec<_>>();
     if slice.is_empty() {
-        return Ok(DataResult {
-            rows: vec![],
-            affected_rows: 0,
-            next_cursor: None,
-            batch: None,
-        });
+        return Ok(DataResult::new(vec![], 0));
     }
 
     let mut rows: Vec<Value> = Vec::with_capacity(slice.len());
@@ -365,12 +357,7 @@ async fn run_list(
         rows.push(hash_to_row(id, hash));
     }
     let affected = rows.len() as u64;
-    Ok(DataResult {
-        rows,
-        affected_rows: affected,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(rows, affected))
 }
 
 async fn run_get(
@@ -384,19 +371,9 @@ async fn run_get(
     let hash: std::collections::HashMap<String, String> =
         conn.hgetall(&key).await.map_err(backend)?;
     if hash.is_empty() {
-        return Ok(DataResult {
-            rows: vec![],
-            affected_rows: 0,
-            next_cursor: None,
-            batch: None,
-        });
+        return Ok(DataResult::new(vec![], 0));
     }
-    Ok(DataResult {
-        rows: vec![hash_to_row(id, hash)],
-        affected_rows: 1,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(vec![hash_to_row(id, hash)], 1))
 }
 
 async fn run_insert(
@@ -414,12 +391,7 @@ async fn run_insert(
     }
     write_hash(conn, &key, &data).await?;
     data.insert("id".to_string(), Value::String(id));
-    Ok(DataResult {
-        rows: vec![Value::Object(data)],
-        affected_rows: 1,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(vec![Value::Object(data)], 1))
 }
 
 async fn run_update(
@@ -431,21 +403,11 @@ async fn run_update(
     let key = format!("{prefix}:{id}");
     let exists: bool = conn.exists(&key).await.map_err(backend)?;
     if !exists {
-        return Ok(DataResult {
-            rows: vec![],
-            affected_rows: 0,
-            next_cursor: None,
-            batch: None,
-        });
+        return Ok(DataResult::new(vec![], 0));
     }
     write_hash(conn, &key, &data).await?;
     data.insert("id".to_string(), Value::String(id));
-    Ok(DataResult {
-        rows: vec![Value::Object(data)],
-        affected_rows: 1,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(vec![Value::Object(data)], 1))
 }
 
 async fn run_delete(
@@ -457,12 +419,7 @@ async fn run_delete(
     validate_id(&id)?;
     let key = format!("{prefix}:{id}");
     let removed: u64 = conn.del(&key).await.map_err(backend)?;
-    Ok(DataResult {
-        rows: vec![],
-        affected_rows: removed,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(vec![], removed))
 }
 
 async fn run_upsert(
@@ -474,12 +431,7 @@ async fn run_upsert(
     let key = format!("{prefix}:{id}");
     write_hash(conn, &key, &data).await?;
     data.insert("id".to_string(), Value::String(id));
-    Ok(DataResult {
-        rows: vec![Value::Object(data)],
-        affected_rows: 1,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(vec![Value::Object(data)], 1))
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -499,25 +451,12 @@ fn backend<E: std::fmt::Display>(e: E) -> DataPlaneError {
     }
 }
 
-/// The per-tenant key-prefix segment for a `schema_per_tenant` Redis mount, or
-/// `None` for any other strategy (→ historical key shape, parity). Consumes the
-/// engine-neutral [`ScopeDirective`] so the isolation policy stays defined once
-/// in `data-plane-core`; the namespace is per-mount, so the mount's tenant_id
-/// is fed in as the scoping identity.
+/// Per-tenant key-prefix segment for a `schema_per_tenant` Redis mount —
+/// delegates to the single source of truth, [`DatabaseMount::resolve_namespace`].
+// ponytail: thin wrapper kept so call sites read `resolve_namespace(&mount)`;
+// inline + delete in a follow-up.
 fn resolve_namespace(mount: &DatabaseMount) -> Option<String> {
-    let identity = RequestIdentity {
-        tenant_id: mount.tenant_id.clone(),
-        project_id: mount.project_id.clone(),
-        app_id: None,
-        user_id: None,
-        roles: vec![],
-        scopes: vec![],
-        source: data_plane_core::IdentitySource::ServiceToken,
-    };
-    match mount.isolation().scope(mount, &identity) {
-        ScopeDirective::UseNamespace { namespace } => Some(namespace),
-        ScopeDirective::None | ScopeDirective::SetSearchPath { .. } => None,
-    }
+    mount.resolve_namespace()
 }
 
 /// Split `op.data` into `(id, remaining_fields)`. If `allow_generate` is true

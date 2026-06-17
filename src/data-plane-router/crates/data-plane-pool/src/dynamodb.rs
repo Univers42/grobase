@@ -38,7 +38,7 @@ use aws_sdk_dynamodb::types::{
 use aws_sdk_dynamodb::Client;
 use data_plane_core::{
     DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, DataResult, DatabaseMount,
-    EngineAdapter, EngineCapabilities, EngineHealth, EnginePool, RequestIdentity, ScopeDirective,
+    EngineAdapter, EngineCapabilities, EngineHealth, EnginePool, RequestIdentity,
     TxBeginRequest, TxHandle,
 };
 use serde_json::{Map as JsonMap, Number, Value};
@@ -173,10 +173,7 @@ pub struct DynamoPool {
 
 impl DynamoPool {
     fn owner(identity: &RequestIdentity) -> String {
-        identity
-            .user_id
-            .clone()
-            .unwrap_or_else(|| identity.tenant_id.clone())
+        identity.owner_principal().to_string()
     }
 
     /// The partition-key value for this request. `tenant_owned` mounts are NOT
@@ -343,12 +340,7 @@ impl DynamoPool {
             .map(item_to_row)
             .collect();
         let affected = rows.len() as u64;
-        Ok(DataResult {
-            rows,
-            affected_rows: affected,
-            next_cursor: None,
-            batch: None,
-        })
+        Ok(DataResult::new(rows, affected))
     }
 
     /// `Insert` = `PutItem` + `attribute_not_exists(owner_pk)` (create-only). A
@@ -436,12 +428,7 @@ impl DynamoPool {
             .send()
             .await;
         match res {
-            Ok(_) => Ok(DataResult {
-                rows: vec![],
-                affected_rows: 1,
-                next_cursor: None,
-                batch: None,
-            }),
+            Ok(_) => Ok(DataResult::new(vec![], 1)),
             Err(e) if is_conditional_check_failed(&e) => Ok(empty_result()),
             Err(e) => Err(sdk_err(e)),
         }
@@ -694,12 +681,7 @@ impl TxHandle for DynamoTxHandle {
                     .lock()
                     .expect("dynamo tx buffer poisoned")
                     .push(TransactWriteItem::builder().delete(del).build());
-                Ok(DataResult {
-                    rows: vec![],
-                    affected_rows: 1,
-                    next_cursor: None,
-                    batch: None,
-                })
+                Ok(DataResult::new(vec![], 1))
             }
             DataOperationKind::Get | DataOperationKind::List => {
                 Err(DataPlaneError::InvalidRequest {
@@ -867,24 +849,12 @@ fn build_owner_pk(namespace: Option<&str>, owner: &str) -> String {
     }
 }
 
-/// The per-tenant namespace segment for a `schema_per_tenant` mount, or `None`
-/// for any other strategy (→ historical un-namespaced partition, parity).
-/// Consumes the engine-neutral [`ScopeDirective`] so the isolation policy stays
-/// defined once in `data-plane-core`. Mirrors `redis::resolve_namespace`.
+/// Per-tenant namespace segment for a `schema_per_tenant` mount — delegates to
+/// the single source of truth, [`DatabaseMount::resolve_namespace`].
+// ponytail: thin wrapper kept so call sites read `resolve_namespace(&mount)`;
+// inline + delete in a follow-up.
 fn resolve_namespace(mount: &DatabaseMount) -> Option<String> {
-    let identity = RequestIdentity {
-        tenant_id: mount.tenant_id.clone(),
-        project_id: mount.project_id.clone(),
-        app_id: None,
-        user_id: None,
-        roles: vec![],
-        scopes: vec![],
-        source: data_plane_core::IdentitySource::ServiceToken,
-    };
-    match mount.isolation().scope(mount, &identity) {
-        ScopeDirective::UseNamespace { namespace } => Some(namespace),
-        ScopeDirective::None | ScopeDirective::SetSearchPath { .. } => None,
-    }
+    mount.resolve_namespace()
 }
 
 /// A JSON scalar → its string form (used for ids). Mirrors the Redis id rule.
@@ -977,33 +947,18 @@ fn attr_to_json(v: &AttributeValue) -> Value {
 }
 
 fn empty_result() -> DataResult {
-    DataResult {
-        rows: vec![],
-        affected_rows: 0,
-        next_cursor: None,
-        batch: None,
-    }
+    DataResult::new(vec![], 0)
 }
 
 fn single_row(row: Value) -> DataResult {
-    DataResult {
-        rows: vec![row],
-        affected_rows: 1,
-        next_cursor: None,
-        batch: None,
-    }
+    DataResult::new(vec![row], 1)
 }
 
 /// A write result echoing the persisted row (data + id), mirroring the Redis
 /// adapter's write returns.
 fn write_row(id: String, mut data: JsonMap<String, Value>) -> DataResult {
     data.insert("id".to_string(), Value::String(id));
-    DataResult {
-        rows: vec![Value::Object(data)],
-        affected_rows: 1,
-        next_cursor: None,
-        batch: None,
-    }
+    DataResult::new(vec![Value::Object(data)], 1)
 }
 
 /// Map any SDK error into a `Backend` data-plane error, keeping the message

@@ -225,6 +225,15 @@ pub struct DataResult {
     pub batch: Option<BatchSummary>,
 }
 
+impl DataResult {
+    /// A non-batch, non-paginated result — the common shape. Collapses the
+    /// repeated `next_cursor: None, batch: None` tail across the adapters.
+    #[must_use]
+    pub fn new(rows: Vec<Value>, affected_rows: u64) -> Self {
+        Self { rows, affected_rows, next_cursor: None, batch: None }
+    }
+}
+
 /// The result envelope of a batch: whether the engine executed it atomically
 /// (SQL engines wrap the items in one transaction; document/KV engines run
 /// them *ordered*, stopping at the first error) and one outcome per item.

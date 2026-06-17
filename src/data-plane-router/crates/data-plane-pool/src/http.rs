@@ -262,12 +262,7 @@ impl HttpPool {
 
         let status = resp.status();
         if status == StatusCode::NO_CONTENT {
-            return Ok(DataResult {
-                rows: vec![],
-                affected_rows: 0,
-                next_cursor: None,
-                batch: None,
-            });
+            return Ok(DataResult::new(vec![], 0));
         }
         if status.is_server_error() {
             return Err(DataPlaneError::Backend {
@@ -282,12 +277,7 @@ impl HttpPool {
 
         let text = resp.text().await.unwrap_or_default();
         if text.is_empty() {
-            return Ok(DataResult {
-                rows: vec![],
-                affected_rows: 0,
-                next_cursor: None,
-                batch: None,
-            });
+            return Ok(DataResult::new(vec![], 0));
         }
         let parsed: Value = serde_json::from_str(&text).unwrap_or(Value::String(text));
         Ok(shape_response(parsed))
@@ -537,37 +527,17 @@ fn shape_response(parsed: Value) -> DataResult {
     match parsed {
         Value::Array(arr) => {
             let count = arr.len() as u64;
-            DataResult {
-                rows: arr,
-                affected_rows: count,
-                next_cursor: None,
-                batch: None,
-            }
+            DataResult::new(arr, count)
         }
         Value::Object(mut obj) => {
             if let Some(Value::Array(arr)) = obj.remove("data") {
                 let count = arr.len() as u64;
-                return DataResult {
-                    rows: arr,
-                    affected_rows: count,
-                    next_cursor: None,
-                    batch: None,
-                };
+                return DataResult::new(arr, count);
             }
             // Re-wrap (we consumed `data` if it existed).
-            DataResult {
-                rows: vec![Value::Object(obj)],
-                affected_rows: 1,
-                next_cursor: None,
-                batch: None,
-            }
+            DataResult::new(vec![Value::Object(obj)], 1)
         }
-        _ => DataResult {
-            rows: vec![],
-            affected_rows: 0,
-            next_cursor: None,
-            batch: None,
-        },
+        _ => DataResult::new(vec![], 0),
     }
 }
 

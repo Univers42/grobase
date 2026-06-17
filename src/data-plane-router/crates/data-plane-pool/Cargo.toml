@@ -66,3 +66,7 @@ rustls = { workspace = true, optional = true }
 webpki-roots = { workspace = true, optional = true }
 rustls-pemfile = { workspace = true, optional = true }
 tracing = { workspace = true }
+
+[dev-dependencies]
+# Property-based edge-case testing for the shared SQL filter lowerer.
+proptest = { workspace = true }

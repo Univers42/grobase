@@ -20,9 +20,9 @@ use crate::resolver::MountResolver;
 use async_trait::async_trait;
 use data_plane_core::{
     validate_default_expr, AggFunc, Aggregate, BatchItemOutcome, BatchItemStatus, BatchSummary,
-    CmpOp, ColumnSchema, DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult,
+    ColumnSchema, DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult,
     DataResult, DatabaseMount, DdlColumnDef, EngineAdapter, EngineCapabilities, EngineHealth,
-    EnginePool, Filter, Folded, NormalizedType, RawStatement, RequestIdentity, SchemaDdlOp,
+    EnginePool, Filter, NormalizedType, RawStatement, RequestIdentity, SchemaDdlOp,
     SchemaDdlRequest, SchemaDdlResult, SchemaDdlStatus, SchemaDescriptor, TableSchema,
     TxBeginRequest, TxHandle,
 };
@@ -296,7 +296,7 @@ impl EnginePool for SqlitePool {
         obj.interact(move |conn| {
             let rows = query_rows(&*conn, &sql, &sql_params)?;
             let affected = rows.len() as u64;
-            Ok(DataResult { rows, affected_rows: affected, next_cursor: None, batch: None })
+            Ok(DataResult::new(rows, affected))
         })
         .await
         .map_err(|e| DataPlaneError::Backend {
@@ -408,7 +408,7 @@ fn build_insert(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlP
 
 fn build_update(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlPlan> {
     let table = quote_ident(&op.resource)?;
-    guard_constraining_filter(op.filter.as_ref())?;
+    crate::sql_scope::guard_constraining_filter(op.filter.as_ref(), RESERVED_COLUMNS)?;
     let set_cols = build_safe_columns(op.data.as_ref())?;
     if set_cols.is_empty() {
         return Err(DataPlaneError::InvalidRequest {
@@ -432,7 +432,7 @@ fn build_update(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlP
 
 fn build_delete(op: &DataOperation, owner: Option<&str>) -> DataPlaneResult<SqlPlan> {
     let table = quote_ident(&op.resource)?;
-    guard_constraining_filter(op.filter.as_ref())?;
+    crate::sql_scope::guard_constraining_filter(op.filter.as_ref(), RESERVED_COLUMNS)?;
     let (where_sql, params) = build_owner_filter(op.filter.as_ref(), owner)?;
     Ok(SqlPlan {
         sql: format!("DELETE FROM {table}{where_sql}"),
@@ -585,20 +585,10 @@ fn run_plan(conn: &Connection, plan: &SqlPlan) -> DataPlaneResult<DataResult> {
     if plan.returns_rows {
         let rows = query_rows(conn, &plan.sql, &plan.params)?;
         let affected = rows.len() as u64;
-        Ok(DataResult {
-            rows,
-            affected_rows: affected,
-            next_cursor: None,
-            batch: None,
-        })
+        Ok(DataResult::new(rows, affected))
     } else {
         let affected = exec_write(conn, &plan.sql, &plan.params)?;
-        Ok(DataResult {
-            rows: vec![],
-            affected_rows: affected,
-            next_cursor: None,
-            batch: None,
-        })
+        Ok(DataResult::new(vec![], affected))
     }
 }
 
@@ -761,24 +751,14 @@ fn process_in_savepoint(conn: &Connection, idx: usize, job: WriteJob) -> Deferre
             (Deferred::Data(tx, r), failed)
         }
         WriteJob::Raw { sql, params, reply } => {
-            let r = exec_write(conn, &sql, &params).map(|affected| DataResult {
-                rows: vec![],
-                affected_rows: affected,
-                next_cursor: None,
-                batch: None,
-            });
+            let r = exec_write(conn, &sql, &params).map(|affected| DataResult::new(vec![], affected));
             let failed = r.is_err();
             (Deferred::Data(reply, r), failed)
         }
         WriteJob::Ddl(sql, tx) => {
             let r = conn
                 .execute(&sql, [])
-                .map(|_| DataResult {
-                    rows: vec![],
-                    affected_rows: 0,
-                    next_cursor: None,
-                    batch: None,
-                })
+                .map(|_| DataResult::new(vec![], 0))
                 .map_err(|e| classify_sqlite_ddl_error(&e));
             let failed = r.is_err();
             (Deferred::Data(tx, r), failed)
@@ -943,10 +923,7 @@ fn normalize_sqlite_type(native: &str) -> NormalizedType {
 // ── pure helpers (owner scope, filter lowering, columns) ─────────────────────
 
 fn owner_of(identity: &RequestIdentity) -> String {
-    identity
-        .user_id
-        .clone()
-        .unwrap_or_else(|| identity.tenant_id.clone())
+    identity.owner_principal().to_string()
 }
 
 /// `WHERE` clause that intersects the (reserved-stripped) client filter with the
@@ -954,138 +931,43 @@ fn owner_of(identity: &RequestIdentity) -> String {
 /// filter only — but still requires a `WHERE` to avoid an unscoped statement
 /// when a filter is present; an absent filter yields an empty clause (caller
 /// guards mass mutations separately).
+/// SQLite binds every value as a positional `?` (param order IS binding order),
+/// so the shared filter lowerer pushes through this sink.
+struct SqliteSink(Vec<SqlValue>);
+
+impl crate::sql_scope::SqlParamSink for SqliteSink {
+    fn bind(&mut self, value: &Value) -> String {
+        self.0.push(json_to_sql(value));
+        "?".to_string()
+    }
+    fn quote_ident(&self, name: &str) -> DataPlaneResult<String> {
+        quote_ident(name)
+    }
+}
+
 fn build_owner_filter(
     filter: Option<&Value>,
     owner: Option<&str>,
 ) -> DataPlaneResult<(String, Vec<SqlValue>)> {
-    let mut params: Vec<SqlValue> = Vec::new();
+    let mut sink = SqliteSink(Vec::new());
     let mut clauses: Vec<String> = Vec::new();
     if let Some(filter_value) = filter {
-        let cleaned = strip_reserved_top_level(filter_value);
+        let cleaned = crate::sql_scope::strip_reserved_top_level(filter_value, RESERVED_COLUMNS);
         let tree = Filter::parse(&cleaned)?;
-        if let Some(sql) = lower_filter(&tree, &mut params)? {
+        if let Some(sql) = crate::sql_scope::lower_filter(&tree, &mut sink)? {
             clauses.push(format!("({sql})"));
         }
     }
     if let Some(owner) = owner {
-        params.push(SqlValue::Text(owner.to_string()));
+        sink.0.push(SqlValue::Text(owner.to_string()));
         clauses.push("\"owner_id\" = ?".to_string());
     }
+    let params = sink.0;
     if clauses.is_empty() {
         Ok((String::new(), params))
     } else {
         Ok((format!(" WHERE {}", clauses.join(" AND ")), params))
     }
-}
-
-fn guard_constraining_filter(filter: Option<&Value>) -> DataPlaneResult<()> {
-    let folded = match filter {
-        Some(v) => Filter::parse(&strip_reserved_top_level(v))?.fold(),
-        None => Folded::AlwaysTrue,
-    };
-    if folded == Folded::AlwaysTrue {
-        return Err(DataPlaneError::InvalidRequest {
-            message: "update/delete requires a constraining filter (refusing full-table mutation)"
-                .to_string(),
-        });
-    }
-    Ok(())
-}
-
-fn strip_reserved_top_level(filter: &Value) -> std::borrow::Cow<'_, Value> {
-    if let Value::Object(map) = filter {
-        if map.keys().any(|k| RESERVED_COLUMNS.contains(&k.as_str())) {
-            let cleaned = map
-                .iter()
-                .filter(|(k, _)| !RESERVED_COLUMNS.contains(&k.as_str()))
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect();
-            return std::borrow::Cow::Owned(Value::Object(cleaned));
-        }
-    }
-    std::borrow::Cow::Borrowed(filter)
-}
-
-fn cmp_op_sql(op: CmpOp) -> &'static str {
-    match op {
-        CmpOp::Eq => "=",
-        CmpOp::Ne => "<>",
-        CmpOp::Lt => "<",
-        CmpOp::Lte => "<=",
-        CmpOp::Gt => ">",
-        CmpOp::Gte => ">=",
-    }
-}
-
-fn lower_filter(filter: &Filter, params: &mut Vec<SqlValue>) -> DataPlaneResult<Option<String>> {
-    Ok(match filter {
-        Filter::And(parts) => {
-            let mut sqls = Vec::with_capacity(parts.len());
-            for p in parts {
-                if let Some(s) = lower_filter(p, params)? {
-                    sqls.push(s);
-                }
-            }
-            if sqls.is_empty() {
-                None
-            } else {
-                Some(sqls.join(" AND "))
-            }
-        }
-        Filter::Or(parts) => {
-            let mut sqls = Vec::with_capacity(parts.len());
-            for p in parts {
-                if let Some(s) = lower_filter(p, params)? {
-                    sqls.push(format!("({s})"));
-                }
-            }
-            Some(if sqls.is_empty() {
-                "0 = 1".to_string()
-            } else {
-                sqls.join(" OR ")
-            })
-        }
-        Filter::Not(inner) => lower_filter(inner, params)?.map(|s| format!("NOT ({s})")),
-        Filter::Cmp { field, op, value } => {
-            let q = quote_ident(field)?;
-            params.push(json_to_sql(value));
-            Some(format!("{q} {} ?", cmp_op_sql(*op)))
-        }
-        Filter::In { field, values } => {
-            let q = quote_ident(field)?;
-            if values.is_empty() {
-                Some("0 = 1".to_string())
-            } else {
-                let mut ph = Vec::with_capacity(values.len());
-                for v in values {
-                    params.push(json_to_sql(v));
-                    ph.push("?");
-                }
-                Some(format!("{q} IN ({})", ph.join(", ")))
-            }
-        }
-        Filter::Like { field, pattern, ci } => {
-            let q = quote_ident(field)?;
-            params.push(json_to_sql(pattern));
-            // SQLite LIKE is case-insensitive for ASCII by default; force the
-            // case-sensitive form with LOWER() when the client asked for ci.
-            Some(if *ci {
-                format!("LOWER({q}) LIKE LOWER(?)")
-            } else {
-                format!("{q} LIKE ?")
-            })
-        }
-        Filter::Between { field, low, high } => {
-            let q = quote_ident(field)?;
-            params.push(json_to_sql(low));
-            params.push(json_to_sql(high));
-            Some(format!("{q} BETWEEN ? AND ?"))
-        }
-        Filter::IsNull { field, negate } => {
-            let q = quote_ident(field)?;
-            Some(format!("{q} IS {}NULL", if *negate { "NOT " } else { "" }))
-        }
-    })
 }
 
 /// INSERT/UPSERT column set: strip reserved client columns, re-inject the

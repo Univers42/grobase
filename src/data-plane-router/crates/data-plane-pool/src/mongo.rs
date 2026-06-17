@@ -27,7 +27,7 @@ use data_plane_core::{
     DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, DataResult,
     DatabaseMount, DdlColumnDef, EngineAdapter, EngineCapabilities, EngineHealth, EnginePool,
     NormalizedType, RequestIdentity, SchemaDdlOp, SchemaDdlRequest, SchemaDdlResult,
-    SchemaDdlStatus, SchemaDescriptor, ScopeDirective, TableSchema, TxBeginRequest, TxHandle,
+    SchemaDdlStatus, SchemaDescriptor, TableSchema, TxBeginRequest, TxHandle,
 };
 use futures::TryStreamExt;
 use mongodb::{
@@ -251,10 +251,7 @@ impl MongoPool {
     }
 
     fn owner(identity: &RequestIdentity) -> String {
-        identity
-            .user_id
-            .clone()
-            .unwrap_or_else(|| identity.tenant_id.clone())
+        identity.owner_principal().to_string()
     }
 
     /// Defense-in-depth tenant cross-check, skipped for a SHARE_POOLS shared_rls
@@ -794,12 +791,7 @@ impl MongoPool {
         let docs: Vec<Document> = cursor.try_collect().await.map_err(mongo_err)?;
         let rows: Vec<Value> = docs.into_iter().map(normalize_doc).collect();
         let affected = rows.len() as u64;
-        Ok(DataResult {
-            rows,
-            affected_rows: affected,
-            next_cursor: None,
-            batch: None,
-        })
+        Ok(DataResult::new(rows, affected))
     }
 
     async fn run_list(
@@ -821,12 +813,7 @@ impl MongoPool {
         let docs: Vec<Document> = cursor.try_collect().await.map_err(mongo_err)?;
         let rows: Vec<Value> = docs.into_iter().map(normalize_doc).collect();
         let affected = rows.len() as u64;
-        Ok(DataResult {
-            rows,
-            affected_rows: affected,
-            next_cursor: None,
-            batch: None,
-        })
+        Ok(DataResult::new(rows, affected))
     }
 
     async fn run_get(
@@ -838,18 +825,8 @@ impl MongoPool {
         let filter = build_tenant_filter(op.filter.as_ref(), identity, &identity.tenant_id)?;
         let doc = col.find_one(filter).await.map_err(mongo_err)?;
         match doc {
-            Some(d) => Ok(DataResult {
-                rows: vec![normalize_doc(d)],
-                affected_rows: 1,
-                next_cursor: None,
-                batch: None,
-            }),
-            None => Ok(DataResult {
-                rows: vec![],
-                affected_rows: 0,
-                next_cursor: None,
-                batch: None,
-            }),
+            Some(d) => Ok(DataResult::new(vec![normalize_doc(d)], 1)),
+            None => Ok(DataResult::new(vec![], 0)),
         }
     }
 
@@ -866,12 +843,7 @@ impl MongoPool {
         let result = col.insert_one(doc.clone()).await.map_err(mongo_err)?;
         let mut out = doc;
         out.insert("_id", result.inserted_id);
-        Ok(DataResult {
-            rows: vec![normalize_doc(out)],
-            affected_rows: 1,
-            next_cursor: None,
-            batch: None,
-        })
+        Ok(DataResult::new(vec![normalize_doc(out)], 1))
     }
 
     async fn run_update(
@@ -894,12 +866,7 @@ impl MongoPool {
         let set_doc = build_owned_doc(data, identity, &identity.tenant_id)?;
         let update = bson::doc! { "$set": set_doc };
         let result = col.update_many(filter, update).await.map_err(mongo_err)?;
-        Ok(DataResult {
-            rows: vec![],
-            affected_rows: result.modified_count,
-            next_cursor: None,
-            batch: None,
-        })
+        Ok(DataResult::new(vec![], result.modified_count))
     }
 
     async fn run_delete(
@@ -911,12 +878,7 @@ impl MongoPool {
         require_row_filter(op.filter.as_ref(), "delete")?;
         let filter = build_tenant_filter(op.filter.as_ref(), identity, &identity.tenant_id)?;
         let result = col.delete_many(filter).await.map_err(mongo_err)?;
-        Ok(DataResult {
-            rows: vec![],
-            affected_rows: result.deleted_count,
-            next_cursor: None,
-            batch: None,
-        })
+        Ok(DataResult::new(vec![], result.deleted_count))
     }
 
     async fn run_upsert(
@@ -957,12 +919,10 @@ impl MongoPool {
             .update_one(filter, update).with_options(update_opts)
             .await
             .map_err(mongo_err)?;
-        Ok(DataResult {
-            rows: vec![],
-            affected_rows: result.modified_count + u64::from(result.upserted_id.is_some()),
-            next_cursor: None,
-            batch: None,
-        })
+        Ok(DataResult::new(
+            vec![],
+            result.modified_count + u64::from(result.upserted_id.is_some()),
+        ))
     }
 }
 
@@ -1166,26 +1126,12 @@ fn jsonschema_with_column_dropped(schema: &Document, name: &str) -> DataPlaneRes
     Ok(out)
 }
 
-/// The per-tenant database name for a `schema_per_tenant` mount, or `None`
-/// for any other strategy (→ caller keeps the DSN-default db, parity). Built by
-/// consuming the engine-neutral [`ScopeDirective`] so the isolation policy
-/// stays defined in one place (`data-plane-core`). The namespace is derived
-/// from the mount's `tenant_id`, which we feed in as the scoping identity since
-/// Mongo's namespace selection is per-mount, not per-request.
+/// Per-tenant database name for a `schema_per_tenant` Mongo mount — delegates to
+/// the single source of truth, [`DatabaseMount::resolve_namespace`].
+// ponytail: thin wrapper kept so call sites read `resolve_namespace(&mount)`;
+// inline + delete in a follow-up.
 fn resolve_namespace(mount: &DatabaseMount) -> Option<String> {
-    let identity = RequestIdentity {
-        tenant_id: mount.tenant_id.clone(),
-        project_id: mount.project_id.clone(),
-        app_id: None,
-        user_id: None,
-        roles: vec![],
-        scopes: vec![],
-        source: data_plane_core::IdentitySource::ServiceToken,
-    };
-    match mount.isolation().scope(mount, &identity) {
-        ScopeDirective::UseNamespace { namespace } => Some(namespace),
-        ScopeDirective::None | ScopeDirective::SetSearchPath { .. } => None,
-    }
+    mount.resolve_namespace()
 }
 
 fn parse_db_name(dsn: &str) -> String {

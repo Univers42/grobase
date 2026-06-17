@@ -428,10 +428,7 @@ pub struct PostgresPool {
 impl PostgresPool {
     /// The RLS principal applied via `app.current_user_id`.
     fn principal(identity: &RequestIdentity) -> &str {
-        identity
-            .user_id
-            .as_deref()
-            .unwrap_or(identity.tenant_id.as_str())
+        identity.owner_principal()
     }
 
     /// Defense-in-depth tenant cross-check: the dispatcher (`routes::
@@ -661,23 +658,13 @@ impl EnginePool for PostgresPool {
             // Re-borrow as mutable just to satisfy the type checker — no
             // method-call needed here, but the Object is kept alive.
             let _ = &mut client;
-            Ok(DataResult {
-                rows: data,
-                affected_rows: affected,
-                next_cursor: None,
-                batch: None,
-            })
+            Ok(DataResult::new(data, affected))
         } else {
             let affected = client
                 .execute(statement.statement.as_str(), &as_param_refs(&params))
                 .await
                 .map_err(|e| backend(&e))?;
-            Ok(DataResult {
-                rows: vec![],
-                affected_rows: affected,
-                next_cursor: None,
-                batch: None,
-            })
+            Ok(DataResult::new(vec![], affected))
         }
     }
 
@@ -1423,12 +1410,7 @@ async fn run_aggregate<C: GenericClient + Sync>(
         .map_err(|e| backend(&e))?;
     let data: Vec<Value> = rows.iter().map(|r| r.get::<_, Value>("row")).collect();
     let affected = data.len() as u64;
-    Ok(DataResult {
-        rows: data,
-        affected_rows: affected,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(data, affected))
 }
 
 /// Builds one `func(arg) AS alias` aggregate expression. `func` is the
@@ -1938,12 +1920,7 @@ async fn run_list<C: GenericClient + Sync>(
 
     let data: Vec<Value> = rows.iter().map(|r| r.get::<_, Value>("row")).collect();
     let affected = data.len() as u64;
-    Ok(DataResult {
-        rows: data,
-        affected_rows: affected,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(data, affected))
 }
 
 /// Combine the client filter [`Pred`] with an optional full-text predicate into a
@@ -2076,12 +2053,7 @@ async fn run_get<C: GenericClient + Sync>(
         .map(|r| vec![r.get::<_, Value>("row")])
         .unwrap_or_default();
     let affected = data.len() as u64;
-    Ok(DataResult {
-        rows: data,
-        affected_rows: affected,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(data, affected))
 }
 
 async fn run_insert<C: GenericClient + Sync>(
@@ -2142,12 +2114,7 @@ async fn run_insert<C: GenericClient + Sync>(
         .await
         .map_err(|e| backend(&e))?;
 
-    Ok(DataResult {
-        rows: vec![row.get::<_, Value>("row")],
-        affected_rows: 1,
-        next_cursor: None,
-        batch: None,
-    })
+    Ok(DataResult::new(vec![row.get::<_, Value>("row")], 1))
 }
 
 // ── Mutating-op statement builders (pure; unit-tested below) ────────────────
@@ -2343,23 +2310,13 @@ async fn execute_mutation<C: GenericClient + Sync>(
             .map_err(|e| backend(&e))?;
         let data: Vec<Value> = rows.iter().map(|r| r.get::<_, Value>("row")).collect();
         let affected = data.len() as u64;
-        Ok(DataResult {
-            rows: data,
-            affected_rows: affected,
-            next_cursor: None,
-            batch: None,
-        })
+        Ok(DataResult::new(data, affected))
     } else {
         let affected = client
             .execute(sql, &as_param_refs(params))
             .await
             .map_err(|e| backend(&e))?;
-        Ok(DataResult {
-            rows: vec![],
-            affected_rows: affected,
-            next_cursor: None,
-            batch: None,
-        })
+        Ok(DataResult::new(vec![], affected))
     }
 }
 
