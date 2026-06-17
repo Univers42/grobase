@@ -73,7 +73,9 @@ func verifyIdentitySignature(r *http.Request, serviceToken, userID, tenantID str
 	}
 	// Reuse the golden-vector-tested HMAC primitive: the canonical identity is
 	// the signed "path"; method is fixed and there is no body.
-	want := serviceauth.ComputeServiceSignature(serviceToken, "IDENTITY", canonicalIdentity(userID, tenantID), nil, ts)
+	want := serviceauth.ComputeServiceSignature(serviceToken, serviceauth.SignedRequest{
+		Method: "IDENTITY", Path: canonicalIdentity(userID, tenantID), TS: ts,
+	})
 	return subtle.ConstantTimeCompare([]byte(hdr), []byte(want)) == 1
 }
 

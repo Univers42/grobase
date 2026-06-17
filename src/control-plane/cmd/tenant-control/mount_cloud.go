@@ -59,11 +59,13 @@ func (b *bootCtx) mountOrgs() {
 		return
 	}
 	osvc := orgs.NewService(b.db, b.log)
+	// Leave JWT as the zero (nil interface) when there is no verifier — assigning a
+	// typed-nil *JWTVerifier would make rt.jwt != nil and break the guard.
+	d := orgs.Deps{Svc: osvc, TenantSvc: b.svc, Reconciler: b.reconciler, ServiceToken: b.cfg.ServiceToken}
 	if b.jwtVerifier != nil {
-		orgs.Mount(b.mux, osvc, b.svc, b.reconciler, b.jwtVerifier, b.cfg.ServiceToken)
-	} else {
-		orgs.Mount(b.mux, osvc, b.svc, b.reconciler, nil, b.cfg.ServiceToken)
+		d.JWT = b.jwtVerifier
 	}
+	orgs.Mount(b.mux, d)
 	b.log.Info("organizations API enabled (/v1/orgs*) — ORG_MODEL_ENABLED", "jwt", b.jwtVerifier != nil)
 }
 

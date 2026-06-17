@@ -62,7 +62,7 @@ type Event struct {
 // "json.Marshal a struct" (Go's map/json ordering and escaping are not a
 // contract). payload is canonicalized via canonicalJSON so two semantically
 // equal JSON objects (key order aside) hash identically.
-func canonicalBytes(tenantID string, seq int64, ts time.Time, actor, action, target string, payload []byte) []byte {
+func canonicalBytes(e Event) []byte {
 	var b []byte
 	add := func(s string) {
 		b = append(b, []byte(strconv.Itoa(len(s)))...)
@@ -70,32 +70,33 @@ func canonicalBytes(tenantID string, seq int64, ts time.Time, actor, action, tar
 		b = append(b, []byte(s)...)
 		b = append(b, '\n')
 	}
-	add(tenantID)
-	add(strconv.FormatInt(seq, 10))
+	add(e.TenantID)
+	add(strconv.FormatInt(e.Seq, 10))
 	// Truncate to MICROSECOND: postgres timestamptz stores µs precision, so a
 	// nanosecond Go time hashes differently at seal vs after the DB round-trip at
 	// verify. pgx floors ns->µs, matching time.Truncate, so seal == verify.
-	add(ts.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano))
-	add(actor)
-	add(action)
-	add(target)
-	add(string(jsoncanon.CanonicalJSON(payload)))
+	add(e.Ts.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano))
+	add(e.Actor)
+	add(e.Action)
+	add(e.Target)
+	add(string(jsoncanon.CanonicalJSON(e.Payload)))
 	return b
 }
 
-// ComputeHash returns the lower-hex sha256 of (prevHash || canonical(fields)).
-// This is THE chain rule — append uses it to seal a new link; verify uses it to
-// recompute and compare. Identical inputs MUST produce an identical hash on any
+// ComputeHash returns the lower-hex sha256 of (e.PrevHash || canonical(e)). This
+// is THE chain rule — append uses it to seal a new link; verify uses it to
+// recompute and compare. The hashed inputs are the semantic fields (it ignores
+// e.ID and e.Hash). Identical inputs MUST produce an identical hash on any
 // machine (no map iteration, no locale, no DB function involved).
-func ComputeHash(prevHash, tenantID string, seq int64, ts time.Time, actor, action, target string, payload []byte) string {
+func ComputeHash(e Event) string {
 	h := sha256.New()
-	h.Write([]byte(prevHash))
-	h.Write(canonicalBytes(tenantID, seq, ts, actor, action, target, payload))
+	h.Write([]byte(e.PrevHash))
+	h.Write(canonicalBytes(e))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
 // recompute hashes one Event using its stored PrevHash + semantic fields. The
 // verifier compares this against the stored Hash.
 func recompute(e Event) string {
-	return ComputeHash(e.PrevHash, e.TenantID, e.Seq, e.Ts, e.Actor, e.Action, e.Target, e.Payload)
+	return ComputeHash(e)
 }

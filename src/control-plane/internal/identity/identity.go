@@ -109,7 +109,9 @@ func VerifyIdentitySignature(r *http.Request, serviceToken, userID, tenantID str
 	if ts < now-skew || ts > now+skew {
 		return false
 	}
-	want := serviceauth.ComputeServiceSignature(serviceToken, "IDENTITY", CanonicalIdentity(userID, tenantID), nil, ts)
+	want := serviceauth.ComputeServiceSignature(serviceToken, serviceauth.SignedRequest{
+		Method: "IDENTITY", Path: CanonicalIdentity(userID, tenantID), TS: ts,
+	})
 	return subtle.ConstantTimeCompare([]byte(hdr), []byte(want)) == 1
 }
 

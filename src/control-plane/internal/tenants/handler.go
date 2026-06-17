@@ -33,8 +33,17 @@ import (
 // than here, so the env flag + manifest load stay at the composition root; the
 // static "me*" literals out-rank the {id} wildcards registered below, so the two
 // route sets never conflict.
-func Mount(mux *http.ServeMux, svc *Service, serviceToken string, jwtVerifier *JWTVerifier, reconciler *provision.Reconciler) {
-	rt := &routes{svc: svc, serviceToken: serviceToken, jwt: jwtVerifier, reconciler: reconciler}
+// Deps groups the dependencies Mount wires into the tenant route handlers, so
+// the mounter takes the shared mux plus one value instead of a flat arg list.
+type Deps struct {
+	Svc          *Service
+	ServiceToken string
+	JWT          *JWTVerifier
+	Reconciler   *provision.Reconciler
+}
+
+func Mount(mux *http.ServeMux, d Deps) {
+	rt := &routes{svc: d.Svc, serviceToken: d.ServiceToken, jwt: d.JWT, reconciler: d.Reconciler}
 
 	mux.HandleFunc("POST /v1/tenants", rt.requireServiceToken(rt.create))
 	mux.HandleFunc("GET /v1/tenants", rt.requireServiceToken(rt.list))

@@ -39,7 +39,7 @@ func FuzzVerifyIdentitySignature(f *testing.F) {
 		if err != nil {
 			t.Fatalf("accepted header %q with non-numeric ts", hdr)
 		}
-		want := serviceauth.ComputeServiceSignature(token, "IDENTITY", CanonicalIdentity(userID, tenantID), nil, ts)
+		want := serviceauth.ComputeServiceSignature(token, serviceauth.SignedRequest{Method: "IDENTITY", Path: CanonicalIdentity(userID, tenantID), TS: ts})
 		if hdr != want {
 			t.Fatalf("accepted header %q for (%q,%q) not matching recomputed signature", hdr, userID, tenantID)
 		}

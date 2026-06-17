@@ -24,7 +24,7 @@ func seal(tenant string, n int) []Event {
 			Payload:  json.RawMessage(`{"i":` + intToStr(i) + `}`),
 			PrevHash: prev,
 		}
-		e.Hash = ComputeHash(e.PrevHash, e.TenantID, e.Seq, e.Ts, e.Actor, e.Action, e.Target, e.Payload)
+		e.Hash = ComputeHash(e)
 		events = append(events, e)
 		prev = e.Hash
 	}
@@ -180,8 +180,8 @@ func TestVerifyChain_FirstBreakWins(t *testing.T) {
 // sealed link to a new position without changing its hash).
 func TestComputeHash_PrevHashBinds(t *testing.T) {
 	ts := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	h1 := ComputeHash("aaaa", "t", 2, ts, "a", "act", "tgt", []byte(`{}`))
-	h2 := ComputeHash("bbbb", "t", 2, ts, "a", "act", "tgt", []byte(`{}`))
+	h1 := ComputeHash(Event{PrevHash: "aaaa", TenantID: "t", Seq: 2, Ts: ts, Actor: "a", Action: "act", Target: "tgt", Payload: []byte(`{}`)})
+	h2 := ComputeHash(Event{PrevHash: "bbbb", TenantID: "t", Seq: 2, Ts: ts, Actor: "a", Action: "act", Target: "tgt", Payload: []byte(`{}`)})
 	if h1 == h2 {
 		t.Fatal("prev_hash must bind into the digest")
 	}
@@ -204,8 +204,8 @@ func TestComputeHash_FieldInjectionMatrix(t *testing.T) {
 	}
 	for _, p := range pairs {
 		t.Run(p.name, func(t *testing.T) {
-			h1 := ComputeHash("", p.a.tenant, 1, ts, p.a.actor, p.a.action, p.a.target, []byte(`{}`))
-			h2 := ComputeHash("", p.b.tenant, 1, ts, p.b.actor, p.b.action, p.b.target, []byte(`{}`))
+			h1 := ComputeHash(Event{TenantID: p.a.tenant, Seq: 1, Ts: ts, Actor: p.a.actor, Action: p.a.action, Target: p.a.target, Payload: []byte(`{}`)})
+			h2 := ComputeHash(Event{TenantID: p.b.tenant, Seq: 1, Ts: ts, Actor: p.b.actor, Action: p.b.action, Target: p.b.target, Payload: []byte(`{}`)})
 			if h1 == h2 {
 				t.Fatalf("field-boundary shift %s produced a hash collision", p.name)
 			}
@@ -219,7 +219,7 @@ func TestComputeHash_FieldInjectionMatrix(t *testing.T) {
 func TestComputeHash_PayloadCanonicalization(t *testing.T) {
 	ts := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	h := func(p string) string {
-		return ComputeHash("", "t", 1, ts, "a", "act", "tgt", []byte(p))
+		return ComputeHash(Event{TenantID: "t", Seq: 1, Ts: ts, Actor: "a", Action: "act", Target: "tgt", Payload: []byte(p)})
 	}
 	equal := [][2]string{
 		{`{"x":1,"y":2}`, `{"y":2,"x":1}`},

@@ -60,11 +60,12 @@ func verifyHMAC(r *http.Request, expected, prev string) bool {
 		return false
 	}
 	body := readAndRestoreBody(r)
-	want := ComputeServiceSignature(expected, r.Method, r.URL.Path, body, ts)
+	msg := SignedRequest{Method: r.Method, Path: r.URL.Path, Body: body, TS: ts}
+	want := ComputeServiceSignature(expected, msg)
 	curOK := subtle.ConstantTimeCompare([]byte(hdr), []byte(want)) == 1
 	prevOK := false
 	if prev != "" {
-		wantPrev := ComputeServiceSignature(prev, r.Method, r.URL.Path, body, ts)
+		wantPrev := ComputeServiceSignature(prev, msg)
 		prevOK = subtle.ConstantTimeCompare([]byte(hdr), []byte(wantPrev)) == 1
 	}
 	return curOK || prevOK

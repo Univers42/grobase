@@ -41,9 +41,19 @@ const msgInvalidJSON = "invalid JSON"
 // The static literal /v1/orgs/invites/accept out-ranks the /v1/orgs/{orgId}
 // wildcard (net/http most-specific-pattern precedence), exactly as
 // /v1/tenants/me* out-ranks /v1/tenants/{id}, so the two route sets never collide.
-func Mount(mux *http.ServeMux, svc *Service, tenantSvc *tenants.Service,
-	reconciler *provision.Reconciler, jwt jwtVerifier, serviceToken string) {
-	rt := &routes{svc: svc, tenantSvc: tenantSvc, reconciler: reconciler, jwt: jwt, serviceToken: serviceToken}
+// Deps groups the org route dependencies. JWT may be a nil interface (no GoTrue
+// verifier) — pass it as the zero value, NOT a typed-nil pointer, so the
+// rt.jwt == nil guard stays honest.
+type Deps struct {
+	Svc          *Service
+	TenantSvc    *tenants.Service
+	Reconciler   *provision.Reconciler
+	JWT          jwtVerifier
+	ServiceToken string
+}
+
+func Mount(mux *http.ServeMux, d Deps) {
+	rt := &routes{svc: d.Svc, tenantSvc: d.TenantSvc, reconciler: d.Reconciler, jwt: d.JWT, serviceToken: d.ServiceToken}
 
 	mux.HandleFunc("POST /v1/orgs", rt.createOrg)
 	mux.HandleFunc("GET /v1/orgs", rt.listOrgs)

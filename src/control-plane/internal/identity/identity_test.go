@@ -13,7 +13,7 @@ const idTestToken = "test-service-token"
 
 // signTenantIdentity mints a valid X-Baas-Identity-Auth for (userID, tenantID).
 func signTenantIdentity(token, userID, tenantID string, ts int64) string {
-	return serviceauth.ComputeServiceSignature(token, "IDENTITY", CanonicalIdentity(userID, tenantID), nil, ts)
+	return serviceauth.ComputeServiceSignature(token, serviceauth.SignedRequest{Method: "IDENTITY", Path: CanonicalIdentity(userID, tenantID), TS: ts})
 }
 
 func reqWithHeaders(h map[string]string) *http.Request {

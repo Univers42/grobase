@@ -11,12 +11,12 @@ import (
 // Golden vector shared with the Rust (service_auth.rs) and TS implementations —
 // all three languages must produce byte-identical signatures.
 func TestComputeServiceSignatureGoldenVector(t *testing.T) {
-	got := ComputeServiceSignature("test-token", "POST", "/v1/keys/verify", []byte(`{"key":"abc"}`), 1700000000)
+	got := ComputeServiceSignature("test-token", SignedRequest{Method: "POST", Path: "/v1/keys/verify", Body: []byte(`{"key":"abc"}`), TS: 1700000000})
 	want := "v1.1700000000.b2e684210cc7e80998388c89afe88d2fbd4fd9a7492289724f7fd3f15075189e"
 	if got != want {
 		t.Fatalf("POST vector mismatch:\n got %s\nwant %s", got, want)
 	}
-	gotGet := ComputeServiceSignature("test-token", "GET", "/databases/db1/connect", nil, 1700000000)
+	gotGet := ComputeServiceSignature("test-token", SignedRequest{Method: "GET", Path: "/databases/db1/connect", TS: 1700000000})
 	wantGet := "v1.1700000000.d53d261c30ba227cb3ab770a0a3c936e0fc0cd7385855339ba60b1a172b21b6b"
 	if gotGet != wantGet {
 		t.Fatalf("GET vector mismatch:\n got %s\nwant %s", gotGet, wantGet)
@@ -93,7 +93,7 @@ func TestVerifyServiceRequestRotateHMAC(t *testing.T) {
 	signed := func(tok string) *http.Request {
 		ts := time.Now().Unix()
 		r := httptest.NewRequest("POST", "/v1/keys/verify", bytes.NewReader(body))
-		r.Header.Set("X-Service-Auth", ComputeServiceSignature(tok, "POST", "/v1/keys/verify", body, ts))
+		r.Header.Set("X-Service-Auth", ComputeServiceSignature(tok, SignedRequest{Method: "POST", Path: "/v1/keys/verify", Body: body, TS: ts}))
 		return r
 	}
 
@@ -125,7 +125,7 @@ func TestVerifyServiceRequestHMAC(t *testing.T) {
 	ts := time.Now().Unix()
 
 	r := httptest.NewRequest("POST", "/v1/keys/verify", bytes.NewReader(body))
-	r.Header.Set("X-Service-Auth", ComputeServiceSignature("secret", "POST", "/v1/keys/verify", body, ts))
+	r.Header.Set("X-Service-Auth", ComputeServiceSignature("secret", SignedRequest{Method: "POST", Path: "/v1/keys/verify", Body: body, TS: ts}))
 	if !VerifyServiceRequest(r, "secret") {
 		t.Fatal("hmac mode must accept a valid signature")
 	}
@@ -144,21 +144,21 @@ func TestVerifyServiceRequestHMAC(t *testing.T) {
 
 	// Tampered body fails.
 	r3 := httptest.NewRequest("POST", "/v1/keys/verify", bytes.NewReader([]byte(`{"key":"EVIL"}`)))
-	r3.Header.Set("X-Service-Auth", ComputeServiceSignature("secret", "POST", "/v1/keys/verify", body, ts))
+	r3.Header.Set("X-Service-Auth", ComputeServiceSignature("secret", SignedRequest{Method: "POST", Path: "/v1/keys/verify", Body: body, TS: ts}))
 	if VerifyServiceRequest(r3, "secret") {
 		t.Fatal("hmac mode must reject a tampered body")
 	}
 
 	// Different path fails.
 	r4 := httptest.NewRequest("POST", "/v1/other", bytes.NewReader(body))
-	r4.Header.Set("X-Service-Auth", ComputeServiceSignature("secret", "POST", "/v1/keys/verify", body, ts))
+	r4.Header.Set("X-Service-Auth", ComputeServiceSignature("secret", SignedRequest{Method: "POST", Path: "/v1/keys/verify", Body: body, TS: ts}))
 	if VerifyServiceRequest(r4, "secret") {
 		t.Fatal("hmac mode must reject a replay against another path")
 	}
 
 	// Expired timestamp fails.
 	r5 := httptest.NewRequest("POST", "/v1/keys/verify", bytes.NewReader(body))
-	r5.Header.Set("X-Service-Auth", ComputeServiceSignature("secret", "POST", "/v1/keys/verify", body, ts-3600))
+	r5.Header.Set("X-Service-Auth", ComputeServiceSignature("secret", SignedRequest{Method: "POST", Path: "/v1/keys/verify", Body: body, TS: ts - 3600}))
 	if VerifyServiceRequest(r5, "secret") {
 		t.Fatal("hmac mode must reject an expired signature")
 	}

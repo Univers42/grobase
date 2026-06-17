@@ -27,7 +27,7 @@ func buildChain(t *testing.T, tenant string, n int) []Event {
 			Payload:  json.RawMessage(`{"n":` + itoa(i) + `}`),
 			PrevHash: prev,
 		}
-		e.Hash = ComputeHash(e.PrevHash, e.TenantID, e.Seq, e.Ts, e.Actor, e.Action, e.Target, e.Payload)
+		e.Hash = ComputeHash(e)
 		events = append(events, e)
 		prev = e.Hash
 	}
@@ -117,13 +117,13 @@ func TestVerifyChain_BrokenPrevHash(t *testing.T) {
 // (but unchanged) payload.
 func TestComputeHash_PayloadKeyOrderStable(t *testing.T) {
 	ts := time.Date(2026, 6, 14, 12, 0, 0, 0, time.UTC)
-	h1 := ComputeHash("", "t", 1, ts, "a", "act", "tgt", []byte(`{"x":1,"y":2}`))
-	h2 := ComputeHash("", "t", 1, ts, "a", "act", "tgt", []byte(`{"y":2,"x":1}`))
+	h1 := ComputeHash(Event{TenantID: "t", Seq: 1, Ts: ts, Actor: "a", Action: "act", Target: "tgt", Payload: []byte(`{"x":1,"y":2}`)})
+	h2 := ComputeHash(Event{TenantID: "t", Seq: 1, Ts: ts, Actor: "a", Action: "act", Target: "tgt", Payload: []byte(`{"y":2,"x":1}`)})
 	if h1 != h2 {
 		t.Fatalf("key-order must not change the hash: %s != %s", h1, h2)
 	}
 	// but a real value change MUST change the hash.
-	h3 := ComputeHash("", "t", 1, ts, "a", "act", "tgt", []byte(`{"x":1,"y":3}`))
+	h3 := ComputeHash(Event{TenantID: "t", Seq: 1, Ts: ts, Actor: "a", Action: "act", Target: "tgt", Payload: []byte(`{"x":1,"y":3}`)})
 	if h1 == h3 {
 		t.Fatal("a payload value change must change the hash")
 	}
@@ -134,8 +134,8 @@ func TestComputeHash_PayloadKeyOrderStable(t *testing.T) {
 // "actor=a,action=bc" collision).
 func TestComputeHash_FieldsInjective(t *testing.T) {
 	ts := time.Date(2026, 6, 14, 12, 0, 0, 0, time.UTC)
-	h1 := ComputeHash("", "t", 1, ts, "ab", "c", "", []byte(`{}`))
-	h2 := ComputeHash("", "t", 1, ts, "a", "bc", "", []byte(`{}`))
+	h1 := ComputeHash(Event{TenantID: "t", Seq: 1, Ts: ts, Actor: "ab", Action: "c", Target: "", Payload: []byte(`{}`)})
+	h2 := ComputeHash(Event{TenantID: "t", Seq: 1, Ts: ts, Actor: "a", Action: "bc", Target: "", Payload: []byte(`{}`)})
 	if h1 == h2 {
 		t.Fatal("field boundaries must be injective (length-prefix) — got a collision")
 	}

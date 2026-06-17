@@ -122,18 +122,28 @@ func genDEKAndNonce() (dek, nonce []byte, err error) {
 	return dek, nonce, nil
 }
 
-// Open reverses Seal: it asks provider.UnwrapDEK(keyID, wrapped) for the DEK,
-// then AES-256-GCM-decrypts ciphertext (ct||tag) with iv. The DEK is ZEROED
-// before return. If the KMS cannot unwrap (revoked/deleted KEK), Open returns
-// ErrShredded — the plaintext is permanently unrecoverable.
-func Open(ctx context.Context, provider KMSProvider, keyID string, wrapped, iv, ciphertext []byte) ([]byte, error) {
+// Envelope is the persisted CMEK envelope — exactly the three values Seal
+// produces ({wrapped DEK, GCM nonce, ciphertext||tag}) and Open consumes.
+// Grouping them keeps Open to a key reference + the envelope instead of a flat
+// six-arg list.
+type Envelope struct {
+	Wrapped    []byte
+	IV         []byte
+	Ciphertext []byte
+}
+
+// Open reverses Seal: it asks provider.UnwrapDEK(keyID, env.Wrapped) for the
+// DEK, then AES-256-GCM-decrypts env.Ciphertext (ct||tag) with env.IV. The DEK
+// is ZEROED before return. If the KMS cannot unwrap (revoked/deleted KEK), Open
+// returns ErrShredded — the plaintext is permanently unrecoverable.
+func Open(ctx context.Context, provider KMSProvider, keyID string, env Envelope) ([]byte, error) {
 	if err := validateArgs(provider, keyID); err != nil {
 		return nil, err
 	}
-	if len(iv) != nonceLen {
-		return nil, fmt.Errorf("cmek: bad nonce length %d (want %d)", len(iv), nonceLen)
+	if len(env.IV) != nonceLen {
+		return nil, fmt.Errorf("cmek: bad nonce length %d (want %d)", len(env.IV), nonceLen)
 	}
-	dek, err := unwrapDEK(ctx, provider, keyID, wrapped)
+	dek, err := unwrapDEK(ctx, provider, keyID, env.Wrapped)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +152,7 @@ func Open(ctx context.Context, provider KMSProvider, keyID string, wrapped, iv, 
 	if err != nil {
 		return nil, err
 	}
-	plain, err := gcm.Open(nil, iv, ciphertext, nil)
+	plain, err := gcm.Open(nil, env.IV, env.Ciphertext, nil)
 	if err != nil {
 		// GCM auth failed: ciphertext/iv/tag tampered, or the DEK is wrong.
 		return nil, fmt.Errorf("cmek: GCM open failed (tampered ciphertext or wrong DEK): %w", err)

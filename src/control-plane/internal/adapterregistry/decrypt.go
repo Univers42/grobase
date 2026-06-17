@@ -46,7 +46,9 @@ func (s *Service) resolveConnString(ctx context.Context, id string, row mountRow
 func (s *Service) decryptMount(ctx context.Context, row mountRow) (string, error) {
 	if len(row.cmekWrap) > 0 {
 		ct := cmek.JoinCiphertext(row.payload.Encrypted, row.payload.Tag)
-		plain, err := cmek.Open(ctx, s.kms, pg.DerefStr(row.cmekKeyPtr), row.cmekWrap, row.payload.IV, ct)
+		plain, err := cmek.Open(ctx, s.kms, pg.DerefStr(row.cmekKeyPtr), cmek.Envelope{
+			Wrapped: row.cmekWrap, IV: row.payload.IV, Ciphertext: ct,
+		})
 		if err != nil {
 			return "", err
 		}

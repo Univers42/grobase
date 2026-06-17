@@ -47,14 +47,25 @@ type builderAPI struct {
 // adapter may be nil (ADAPTER_REGISTRY_URL unset): the entitlement routes still
 // work, but the mount routes return a clean 503 (the builder cannot register a
 // mount without the adapter-registry).
-func MountBuilder(mux *http.ServeMux, svc *Service, jwt *JWTVerifier, store *ent.Store,
-	manifest *packages.Manifest, adapter *AdapterRegistry, serviceToken string) {
+// BuilderDeps groups the dependencies MountBuilder wires into the dynamic-builder
+// handlers (self-serve svc/jwt/manifest, the entitlement store, the adapter
+// client, and the operator service token).
+type BuilderDeps struct {
+	Svc          *Service
+	JWT          *JWTVerifier
+	Store        *ent.Store
+	Manifest     *packages.Manifest
+	Adapter      *AdapterRegistry
+	ServiceToken string
+}
+
+func MountBuilder(mux *http.ServeMux, d BuilderDeps) {
 	b := &builderAPI{
-		ss:       &selfServe{svc: svc, jwt: jwt, manifest: manifest},
-		store:    store,
-		manifest: manifest,
-		adapter:  adapter,
-		svcToken: serviceToken,
+		ss:       &selfServe{svc: d.Svc, jwt: d.JWT, manifest: d.Manifest},
+		store:    d.Store,
+		manifest: d.Manifest,
+		adapter:  d.Adapter,
+		svcToken: d.ServiceToken,
 	}
 
 	// ── TENANT self-serve (no path id; tenant from credential) ──────────────────

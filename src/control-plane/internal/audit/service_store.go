@@ -38,7 +38,7 @@ func sealLink(in AppendInput, prevSeq int64, prevHash string) Event {
 		Payload:  normalizePayload(in.Payload),
 		PrevHash: prevHash,
 	}
-	ev.Hash = ComputeHash(ev.PrevHash, ev.TenantID, ev.Seq, ev.Ts, ev.Actor, ev.Action, ev.Target, ev.Payload)
+	ev.Hash = ComputeHash(ev)
 	return ev
 }
 

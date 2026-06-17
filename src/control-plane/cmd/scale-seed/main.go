@@ -69,7 +69,9 @@ type record struct {
 func serviceHeaders(req *http.Request, token, body string) {
 	if strings.EqualFold(os.Getenv("SERVICE_TOKEN_MODE"), "hmac") {
 		req.Header.Set("X-Service-Auth",
-			serviceauth.ComputeServiceSignature(token, req.Method, req.URL.Path, []byte(body), time.Now().Unix()))
+			serviceauth.ComputeServiceSignature(token, serviceauth.SignedRequest{
+				Method: req.Method, Path: req.URL.Path, Body: []byte(body), TS: time.Now().Unix(),
+			}))
 	} else {
 		req.Header.Set("X-Service-Token", token)
 	}

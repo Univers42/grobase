@@ -13,7 +13,7 @@ const testToken = "test-service-token"
 
 // signIdentity produces a valid X-Baas-Identity-Auth value for the given tuple.
 func signIdentity(token, userID, tenantID string, ts int64) string {
-	return serviceauth.ComputeServiceSignature(token, "IDENTITY", canonicalIdentity(userID, tenantID), nil, ts)
+	return serviceauth.ComputeServiceSignature(token, serviceauth.SignedRequest{Method: "IDENTITY", Path: canonicalIdentity(userID, tenantID), TS: ts})
 }
 
 func TestRequireUserDefaultTrustsHeaders(t *testing.T) {

@@ -41,8 +41,17 @@ type selfServe struct {
 // but API-key self-auth still works. The static "me" paths are registered
 // alongside the existing "me/bootstrap" route; net/http's most-specific-pattern
 // precedence keeps them disjoint from the parameterised {id} routes.
-func MountSelfServe(mux *http.ServeMux, svc *Service, jwt *JWTVerifier, manifest *packages.Manifest, billing bool) {
-	ss := &selfServe{svc: svc, jwt: jwt, manifest: manifest, billing: billing}
+// SelfServeDeps groups the dependencies MountSelfServe wires into the /me route
+// handlers (svc, optional JWT verifier, package manifest, billing flag).
+type SelfServeDeps struct {
+	Svc      *Service
+	JWT      *JWTVerifier
+	Manifest *packages.Manifest
+	Billing  bool
+}
+
+func MountSelfServe(mux *http.ServeMux, d SelfServeDeps) {
+	ss := &selfServe{svc: d.Svc, jwt: d.JWT, manifest: d.Manifest, billing: d.Billing}
 
 	mux.HandleFunc("GET /v1/tenants/me", ss.me)
 	mux.HandleFunc("GET /v1/tenants/me/usage", ss.meUsage)

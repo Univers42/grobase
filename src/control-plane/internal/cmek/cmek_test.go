@@ -38,7 +38,7 @@ func TestSealOpenRoundTrip(t *testing.T) {
 		t.Fatal("wrapped DEK contains the plaintext")
 	}
 
-	got, err := Open(ctx, p, keyA, wrapped, iv, ct)
+	got, err := Open(ctx, p, keyA, Envelope{Wrapped: wrapped, IV: iv, Ciphertext: ct})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestSealUsesFreshDEKAndNonce(t *testing.T) {
 	for i, tc := range []struct {
 		w, iv, ct []byte
 	}{{w1, iv1, ct1}, {w2, iv2, ct2}} {
-		got, err := Open(ctx, p, keyA, tc.w, tc.iv, tc.ct)
+		got, err := Open(ctx, p, keyA, Envelope{Wrapped: tc.w, IV: tc.iv, Ciphertext: tc.ct})
 		if err != nil {
 			t.Fatalf("Open#%d: %v", i, err)
 		}
@@ -96,7 +96,7 @@ func TestTamperedCiphertextFails(t *testing.T) {
 		t.Fatalf("Seal: %v", err)
 	}
 	ct[0] ^= 0xFF // flip a ciphertext byte
-	if _, err := Open(ctx, p, keyA, wrapped, iv, ct); err == nil {
+	if _, err := Open(ctx, p, keyA, Envelope{Wrapped: wrapped, IV: iv, Ciphertext: ct}); err == nil {
 		t.Fatal("Open succeeded on a tampered ciphertext — GCM auth not enforced")
 	}
 }
@@ -110,7 +110,7 @@ func TestTamperedNonceFails(t *testing.T) {
 		t.Fatalf("Seal: %v", err)
 	}
 	iv[0] ^= 0xFF
-	if _, err := Open(ctx, p, keyA, wrapped, iv, ct); err == nil {
+	if _, err := Open(ctx, p, keyA, Envelope{Wrapped: wrapped, IV: iv, Ciphertext: ct}); err == nil {
 		t.Fatal("Open succeeded on a tampered nonce")
 	}
 }
@@ -127,14 +127,14 @@ func TestCryptoShredOnRevoke(t *testing.T) {
 		t.Fatalf("Seal: %v", err)
 	}
 	// Sanity: it decrypts BEFORE revocation.
-	if _, err := Open(ctx, p, keyA, wrapped, iv, ct); err != nil {
+	if _, err := Open(ctx, p, keyA, Envelope{Wrapped: wrapped, IV: iv, Ciphertext: ct}); err != nil {
 		t.Fatalf("Open before revoke should succeed: %v", err)
 	}
 
 	// CRYPTO-SHRED: delete the KEK from the KMS.
 	p.RevokeKey(keyA)
 
-	_, err = Open(ctx, p, keyA, wrapped, iv, ct)
+	_, err = Open(ctx, p, keyA, Envelope{Wrapped: wrapped, IV: iv, Ciphertext: ct})
 	if err == nil {
 		t.Fatal("Open succeeded AFTER the KEK was revoked — data was not crypto-shredded")
 	}
@@ -153,7 +153,7 @@ func TestWrongKEKFails(t *testing.T) {
 		t.Fatalf("Seal: %v", err)
 	}
 	// keyB is a valid registered key, but it is NOT the key that wrapped this DEK.
-	if _, err := Open(ctx, p, keyB, wrapped, iv, ct); err == nil {
+	if _, err := Open(ctx, p, keyB, Envelope{Wrapped: wrapped, IV: iv, Ciphertext: ct}); err == nil {
 		t.Fatal("Open succeeded under the wrong KEK — the wrapped DEK is not key-bound")
 	} else if !errors.Is(err, ErrShredded) {
 		t.Fatalf("wrong-KEK Open should be ErrShredded, got %v", err)
@@ -195,7 +195,7 @@ func TestSplitJoinCiphertext(t *testing.T) {
 		t.Fatal("JoinCiphertext(SplitCiphertext(ct)) != ct")
 	}
 	// And the rejoined ciphertext still opens.
-	got, err := Open(ctx, p, keyA, wrapped, iv, rejoined)
+	got, err := Open(ctx, p, keyA, Envelope{Wrapped: wrapped, IV: iv, Ciphertext: rejoined})
 	if err != nil {
 		t.Fatalf("Open on rejoined ct: %v", err)
 	}

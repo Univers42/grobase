@@ -14,8 +14,9 @@ func FuzzComputeServiceSignature(f *testing.F) {
 	f.Add("", "GET", "/", []byte(nil), int64(0))
 	f.Add("k", "p\x00st", "/a\nb", []byte("\x00\x01"), int64(-5))
 	f.Fuzz(func(t *testing.T, token, method, path string, body []byte, ts int64) {
-		sig := ComputeServiceSignature(token, method, path, body, ts) // must not panic
-		if sig != ComputeServiceSignature(token, method, path, body, ts) {
+		msg := SignedRequest{Method: method, Path: path, Body: body, TS: ts}
+		sig := ComputeServiceSignature(token, msg) // must not panic
+		if sig != ComputeServiceSignature(token, msg) {
 			t.Fatal("signature not deterministic")
 		}
 		parts := strings.Split(sig, ".")

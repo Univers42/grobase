@@ -14,7 +14,9 @@ import (
 // mountCore registers the always-on tenant routes plus the metering read-back
 // API (the READ path is unflagged — empty aggregates when metering is OFF).
 func (b *bootCtx) mountCore() {
-	tenants.Mount(b.mux, b.svc, b.cfg.ServiceToken, b.jwtVerifier, b.reconciler)
+	tenants.Mount(b.mux, tenants.Deps{
+		Svc: b.svc, ServiceToken: b.cfg.ServiceToken, JWT: b.jwtVerifier, Reconciler: b.reconciler,
+	})
 	metering.Mount(b.mux, b.db, b.cfg.ServiceToken)
 }
 
@@ -31,7 +33,9 @@ func (b *bootCtx) mountSelfServe() {
 		os.Exit(1)
 	}
 	billing := config.EnvBool("BILLING_ENABLED")
-	tenants.MountSelfServe(b.mux, b.svc, b.jwtVerifier, manifest, billing)
+	tenants.MountSelfServe(b.mux, tenants.SelfServeDeps{
+		Svc: b.svc, JWT: b.jwtVerifier, Manifest: manifest, Billing: billing,
+	})
 	b.log.Info("tenant self-service API enabled (/v1/tenants/me*)", "billing", billing)
 	b.mountBuilder(manifest)
 }
@@ -44,7 +48,10 @@ func (b *bootCtx) mountBuilder(manifest *packages.Manifest) {
 		return
 	}
 	builderStore := entitlements.NewStore(b.db)
-	tenants.MountBuilder(b.mux, b.svc, b.jwtVerifier, builderStore, manifest, b.svc.AdapterClient(), b.cfg.ServiceToken)
+	tenants.MountBuilder(b.mux, tenants.BuilderDeps{
+		Svc: b.svc, JWT: b.jwtVerifier, Store: builderStore, Manifest: manifest,
+		Adapter: b.svc.AdapterClient(), ServiceToken: b.cfg.ServiceToken,
+	})
 	b.log.Info("dynamic builder enabled (/v1/tenants/me/{mounts,entitlements,builder} + operator /v1/tenants/{id}/{ceiling,entitlement}) — BUILDER_ENABLED",
 		"adapter", b.svc.AdapterClient() != nil)
 }

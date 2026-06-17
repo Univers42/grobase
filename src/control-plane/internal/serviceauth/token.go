@@ -28,6 +28,17 @@ func ServiceAuthHMAC() bool {
 	return strings.EqualFold(strings.TrimSpace(os.Getenv("SERVICE_TOKEN_MODE")), "hmac")
 }
 
+// SignedRequest is the message ComputeServiceSignature binds: the HTTP method,
+// URL path, body, and unix timestamp. Grouping the four into one value keeps the
+// signer to two params (the key + the message it signs) and mirrors exactly what
+// the verifier reconstructs from the inbound request.
+type SignedRequest struct {
+	Method string
+	Path   string
+	Body   []byte
+	TS     int64
+}
+
 // ComputeServiceSignature returns the v1 X-Service-Auth header value:
 //
 //	v1.<unix-ts>.<hex hmac-sha256(token, "<ts>\n<METHOD>\n<PATH>\n<sha256hex(body)>")>
@@ -36,12 +47,12 @@ func ServiceAuthHMAC() bool {
 // cannot be replayed against another endpoint or with another payload. PATH is
 // the URL path only — internal base URLs are origin-only and these routes take
 // no query strings.
-func ComputeServiceSignature(token, method, path string, body []byte, ts int64) string {
-	bodySum := sha256.Sum256(body)
-	msg := fmt.Sprintf("%d\n%s\n%s\n%s", ts, strings.ToUpper(method), path, hex.EncodeToString(bodySum[:]))
+func ComputeServiceSignature(token string, req SignedRequest) string {
+	bodySum := sha256.Sum256(req.Body)
+	msg := fmt.Sprintf("%d\n%s\n%s\n%s", req.TS, strings.ToUpper(req.Method), req.Path, hex.EncodeToString(bodySum[:]))
 	mac := hmac.New(sha256.New, []byte(token))
 	mac.Write([]byte(msg))
-	return fmt.Sprintf("v1.%d.%s", ts, hex.EncodeToString(mac.Sum(nil)))
+	return fmt.Sprintf("v1.%d.%s", req.TS, hex.EncodeToString(mac.Sum(nil)))
 }
 
 // prevServiceToken returns the optional rotation-window previous token
