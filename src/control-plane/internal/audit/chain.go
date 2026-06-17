@@ -35,16 +35,16 @@ import (
 // computed over PLUS the chain fields. The query/export APIs marshal this; the
 // verifier recomputes Hash from PrevHash + the semantic fields.
 type Event struct {
-	ID        string          `json:"id"`
-	TenantID  string          `json:"tenant_id"`
-	Seq       int64           `json:"seq"`
-	Ts        time.Time       `json:"ts"`
-	Actor     string          `json:"actor"`
-	Action    string          `json:"action"`
-	Target    string          `json:"target"`
-	Payload   json.RawMessage `json:"payload"`
-	PrevHash  string          `json:"prev_hash"`
-	Hash      string          `json:"hash"`
+	ID       string          `json:"id"`
+	TenantID string          `json:"tenant_id"`
+	Seq      int64           `json:"seq"`
+	Ts       time.Time       `json:"ts"`
+	Actor    string          `json:"actor"`
+	Action   string          `json:"action"`
+	Target   string          `json:"target"`
+	Payload  json.RawMessage `json:"payload"`
+	PrevHash string          `json:"prev_hash"`
+	Hash     string          `json:"hash"`
 }
 
 // canonicalBytes is the deterministic serialization the chain hashes over. It is
@@ -145,8 +145,8 @@ func sortValue(v any) any {
 // VerifyResult is the outcome of a chain verification for one tenant.
 type VerifyResult struct {
 	TenantID string `json:"tenant_id"`
-	Count    int    `json:"count"`           // events examined
-	Intact   bool   `json:"intact"`          // true iff every link recomputes + links correctly
+	Count    int    `json:"count"`  // events examined
+	Intact   bool   `json:"intact"` // true iff every link recomputes + links correctly
 	// BrokenSeq is the seq of the FIRST broken link (0 when intact). Reason
 	// names WHY (hash_mismatch | prev_hash_mismatch | seq_gap). FromHash/ToHash
 	// give the recomputed-vs-stored hashes at the break for forensics.

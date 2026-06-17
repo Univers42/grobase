@@ -82,7 +82,7 @@ func do(svc *Service, method, path, body string, headers map[string]string) *htt
 	return rec
 }
 
-func userHdr() map[string]string  { return map[string]string{"X-Baas-User-Id": "u-1"} }
+func userHdr() map[string]string { return map[string]string{"X-Baas-User-Id": "u-1"} }
 func adminHdr() map[string]string {
 	return map[string]string{"X-Baas-User-Id": "svc", "X-Baas-Role": "service_role"}
 }

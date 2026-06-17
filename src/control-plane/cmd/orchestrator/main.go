@@ -87,7 +87,7 @@ func main() {
 	// the over-quota decision is byte-identical to pre-builder. The whole guard is
 	// ALSO gated by QUOTA_ENFORCEMENT (default OFF), so the builder bites only when
 	// both flags are on. Reads public.tenant_entitlements (migration 062).
-	if envBool("BUILDER_ENABLED") {
+	if shared.EnvBool("BUILDER_ENABLED") {
 		manifest, mErr := packages.Load()
 		if mErr != nil {
 			log.Error("builder: package manifest load failed", "err", mErr)
@@ -214,14 +214,6 @@ func selectServices(available map[string]SubService, csv string) []SubService {
 
 // envBool reads a truthy env flag (default OFF = parity), mirroring the
 // tenant-control / adapter-registry main.go helpers.
-func envBool(key string) bool {
-	switch os.Getenv(key) {
-	case "1", "true", "on", "TRUE", "True", "ON":
-		return true
-	default:
-		return false
-	}
-}
 
 func healthcheck(cfg shared.Config) int {
 	client := &http.Client{Timeout: 2 * time.Second}

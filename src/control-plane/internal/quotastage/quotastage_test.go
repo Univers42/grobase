@@ -6,14 +6,14 @@ import "testing"
 // to enforce. Each known stage parses to itself (case-insensitive).
 func TestParseStage(t *testing.T) {
 	cases := map[string]Stage{
-		"":         StageOff,
-		"off":      StageOff,
-		"garbage":  StageOff, // unrecognized → off (fail toward parity)
-		"shadow":   StageShadow,
-		"SHADOW":   StageShadow,
-		" warn ":   StageWarn,
-		"enforce":  StageEnforce,
-		"Enforce":  StageEnforce,
+		"":        StageOff,
+		"off":     StageOff,
+		"garbage": StageOff, // unrecognized → off (fail toward parity)
+		"shadow":  StageShadow,
+		"SHADOW":  StageShadow,
+		" warn ":  StageWarn,
+		"enforce": StageEnforce,
+		"Enforce": StageEnforce,
 	}
 	for in, want := range cases {
 		if got := ParseStage(in); got != want {

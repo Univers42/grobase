@@ -143,14 +143,14 @@ func main() {
 	// never called, so those routes do not exist and a request 404s — byte-
 	// identical to today. A malformed manifest fails fast (tiering is a security
 	// boundary) but only along this opt-in path; the baseline is untouched.
-	if envBool("TENANT_SELFSERVE_ENABLED") {
+	if shared.EnvBool("TENANT_SELFSERVE_ENABLED") {
 		manifest, err := packages.Load()
 		if err != nil {
 			log.Error("tenant self-serve: package manifest load failed", "err", err)
 			os.Exit(1)
 		}
-		tenants.MountSelfServe(mux, svc, jwtVerifier, manifest, envBool("BILLING_ENABLED"))
-		log.Info("tenant self-service API enabled (/v1/tenants/me*)", "billing", envBool("BILLING_ENABLED"))
+		tenants.MountSelfServe(mux, svc, jwtVerifier, manifest, shared.EnvBool("BILLING_ENABLED"))
+		log.Info("tenant self-service API enabled (/v1/tenants/me*)", "billing", shared.EnvBool("BILLING_ENABLED"))
 
 		// ─── Dynamic builder (BUILDER) — per-tenant + operator customization ──────
 		// A tenant COMPOSES its own backend (N mounts of any allowed engine, a
@@ -180,7 +180,7 @@ func main() {
 		// adapter-registry client (set above when ADAPTER_REGISTRY_URL is present) is
 		// REUSED for caller-scoped mount CRUD; a nil client makes only the mount routes
 		// 503 (the entitlement routes still work).
-		if envBool("BUILDER_ENABLED") {
+		if shared.EnvBool("BUILDER_ENABLED") {
 			builderStore := entitlements.NewStore(db)
 			tenants.MountBuilder(mux, svc, jwtVerifier, builderStore, manifest, svc.AdapterClient(), cfg.ServiceToken)
 			log.Info("dynamic builder enabled (/v1/tenants/me/{mounts,entitlements,builder} + operator /v1/tenants/{id}/{ceiling,entitlement}) — BUILDER_ENABLED",
@@ -207,7 +207,7 @@ func main() {
 	// The self-serve READ route is narrowed by a SECOND flag,
 	// TENANT_BACKUP_SELFSERVE_ENABLED (also default OFF), exactly as
 	// BILLING_ENABLED narrows the tenant self-service surface.
-	if envBool("TENANT_BACKUP_ENABLED") {
+	if shared.EnvBool("TENANT_BACKUP_ENABLED") {
 		store, err := backup.NewStoreFromEnv()
 		if err != nil {
 			log.Error("backup: artifact store init failed", "err", err)
@@ -220,7 +220,7 @@ func main() {
 		// resolver here, re-enables db_per_tenant in guardIsolation + the 042 CHECK,
 		// and adds a db_per_tenant round-trip arm to m87.
 		backup.Mount(mux, bsvc, cfg.ServiceToken)
-		if envBool("TENANT_BACKUP_SELFSERVE_ENABLED") {
+		if shared.EnvBool("TENANT_BACKUP_SELFSERVE_ENABLED") {
 			// The tenants Service is the credential resolver (its exported VerifyKey
 			// maps an API key -> owning tenant). JWT-bearer backup listing is a B6b
 			// deferral (tenants' user->tenant resolver is unexported); an API-key
@@ -273,7 +273,7 @@ func main() {
 	// discipline as TENANT_SELFSERVE_ENABLED / TENANT_BACKUP_ENABLED /
 	// ABUSE_GUARD_ENABLED above. The {id} in every route is re-bound in the SQL
 	// WHERE, so a tenant can never read or verify another tenant's chain.
-	if envBool("TENANT_AUDIT_ENABLED") {
+	if shared.EnvBool("TENANT_AUDIT_ENABLED") {
 		audit.Mount(mux, audit.NewService(db), cfg.ServiceToken)
 		log.Info("tenant audit log enabled (/v1/audit/tenants/{id}/events|export|verify)")
 	} else {
@@ -297,7 +297,7 @@ func main() {
 	// backup blocks above. The erase service REUSES the D3 audit service (the
 	// receipt is sealed on the same chain D3 exposes), so the proof is verifiable
 	// through the existing /v1/audit/tenants/{id}/verify route.
-	if envBool("HARD_ERASE_ENABLED") {
+	if shared.EnvBool("HARD_ERASE_ENABLED") {
 		erSvc := erase.NewService(db, audit.NewService(db), log)
 		// After an erase deletes the tenant's API keys, flush the verify fast-path
 		// cache so the credential dies immediately (not at the cache TTL).
@@ -334,7 +334,7 @@ func main() {
 	// gate above the existing provision call. A nil jwtVerifier (no
 	// GOTRUE_JWT_SECRET) leaves the org routes mounted but every call 501s, since
 	// an org decision is always a human (JWT) decision.
-	if envBool("ORG_MODEL_ENABLED") {
+	if shared.EnvBool("ORG_MODEL_ENABLED") {
 		osvc := orgs.NewService(db, log)
 		// Pass the org JWT seam ONLY when a verifier is configured. A typed-nil
 		// *tenants.JWTVerifier boxed into the interface is non-nil (the classic Go
@@ -374,10 +374,10 @@ func main() {
 	// / HARD_ERASE_ENABLED above. The self-serve CRUD is mounted only when ALSO
 	// TENANT_SELFSERVE_ENABLED (the tenants Service is the key→tenant resolver),
 	// exactly as backup narrows its self-serve surface.
-	if envBool("TENANT_IP_ALLOWLIST_ENABLED") {
+	if shared.EnvBool("TENANT_IP_ALLOWLIST_ENABLED") {
 		ipsvc := ipguard.NewService(db)
 		ipguard.Mount(mux, ipsvc, cfg.ServiceToken)
-		if envBool("TENANT_SELFSERVE_ENABLED") {
+		if shared.EnvBool("TENANT_SELFSERVE_ENABLED") {
 			ipguard.MountSelfServe(mux, ipsvc, svc)
 			log.Info("ip-allowlist self-serve enabled (/v1/tenants/me/ip-allowlist, API-key)")
 		}
@@ -408,7 +408,7 @@ func main() {
 	// collector never runs, so no compliance_evidence row is ever written — byte-
 	// identical to today, the same discipline as TENANT_AUDIT_ENABLED /
 	// HARD_ERASE_ENABLED / ORG_MODEL_ENABLED above.
-	if envBool("SOC2_EVIDENCE_ENABLED") {
+	if shared.EnvBool("SOC2_EVIDENCE_ENABLED") {
 		complianceSvc := compliance.NewService(db)
 		compliance.Mount(mux, complianceSvc, cfg.ServiceToken)
 		// OPTIONAL scheduled snapshots: a no-op unless SOC2_EVIDENCE_SCHEDULE is a
@@ -446,7 +446,7 @@ func main() {
 	// self-serve surface is narrowed by a SECOND flag, TENANT_SELFSERVE_ENABLED
 	// (the tenants Service is the key->tenant resolver), exactly as backup narrows
 	// its self-serve surface.
-	if envBool("TENANT_EXPORT_ENABLED") {
+	if shared.EnvBool("TENANT_EXPORT_ENABLED") {
 		estore, err := export.NewStoreFromEnv()
 		if err != nil {
 			log.Error("export: artifact store init failed", "err", err)
@@ -454,7 +454,7 @@ func main() {
 		}
 		esvc := export.NewService(db, estore, log)
 		export.Mount(mux, esvc, cfg.ServiceToken)
-		if envBool("TENANT_SELFSERVE_ENABLED") {
+		if shared.EnvBool("TENANT_SELFSERVE_ENABLED") {
 			export.MountSelfServe(mux, esvc.WithTenants(svc), esvc)
 			log.Info("tenant data-export self-serve enabled (/v1/tenants/me/export(s), API-key)")
 		}
@@ -489,7 +489,7 @@ func main() {
 	// session is a misconfiguration, not a silent no-op). PASSKEYS_RP_ID /
 	// PASSKEYS_RP_ORIGINS configure the relying party (the origin bind is part of
 	// why a stolen assertion cannot be replayed against another site).
-	if envBool("PASSKEYS_ENABLED") {
+	if shared.EnvBool("PASSKEYS_ENABLED") {
 		if jwtSecret == "" {
 			log.Error("passkeys: PASSKEYS_ENABLED requires GOTRUE_JWT_SECRET/JWT_SECRET to mint a session")
 			os.Exit(1)
@@ -503,7 +503,7 @@ func main() {
 		minter := passkeys.NewSessionMinter(jwtSecret, os.Getenv("GOTRUE_JWT_ISSUER"), 0)
 		pkSvc, err := passkeys.NewService(db, passkeys.Config{
 			RPID:          rpID,
-			RPDisplayName: envOr("PASSKEYS_RP_DISPLAY_NAME", "Grobase"),
+			RPDisplayName: shared.EnvStr("PASSKEYS_RP_DISPLAY_NAME", "Grobase"),
 			RPOrigins:     rpOrigins,
 		}, minter, log)
 		if err != nil {
@@ -535,7 +535,7 @@ func main() {
 	// above. The session mint REQUIRES the shared GoTrue secret; if unset, boot fails
 	// fast on this opt-in path (an SSO login that cannot issue a session is a
 	// misconfiguration). SSO_SECRET_KEY seals the client secret; required when enabled.
-	if envBool("SSO_ENABLED") {
+	if shared.EnvBool("SSO_ENABLED") {
 		if jwtSecret == "" {
 			log.Error("sso: SSO_ENABLED requires GOTRUE_JWT_SECRET/JWT_SECRET to mint a session")
 			os.Exit(1)
@@ -575,8 +575,8 @@ func main() {
 	// never called, so none of the /scim/v2/* routes are registered (404) and no
 	// scim_tokens/scim_users row is ever written — byte-identical to today, the
 	// same discipline as ORG_MODEL_ENABLED / PASSKEYS_ENABLED above.
-	if envBool("SCIM_ENABLED") {
-		if !envBool("ORG_MODEL_ENABLED") {
+	if shared.EnvBool("SCIM_ENABLED") {
+		if !shared.EnvBool("ORG_MODEL_ENABLED") {
 			log.Error("scim: SCIM_ENABLED requires ORG_MODEL_ENABLED (SCIM provisions org members)")
 			os.Exit(1)
 		}
@@ -610,9 +610,9 @@ func main() {
 	// is truthy. When OFF (the default) Mount is never called, so /v1/trust* 404s —
 	// byte-identical to today, the same discipline as SOC2_EVIDENCE_ENABLED /
 	// TENANT_EXPORT_ENABLED / PASSKEYS_ENABLED above.
-	if envBool("TRUST_CENTER_ENABLED") {
+	if shared.EnvBool("TRUST_CENTER_ENABLED") {
 		var trustManifest *trust.Manifest
-		if mp := envOr("TRUST_MANIFEST", ""); mp != "" {
+		if mp := shared.EnvStr("TRUST_MANIFEST", ""); mp != "" {
 			m, err := trust.LoadManifest(mp)
 			if err != nil {
 				log.Error("trust: posture manifest load failed", "path", mp, "err", err)
@@ -652,7 +652,7 @@ func main() {
 	// is truthy. When OFF (the default) Mount is never called, so the branch routes are
 	// not registered (404) and no tenant_branches row is ever written — byte-identical
 	// to today, the same discipline as TENANT_EXPORT_ENABLED / HARD_ERASE_ENABLED.
-	if envBool("DB_BRANCHING_ENABLED") {
+	if shared.EnvBool("DB_BRANCHING_ENABLED") {
 		branching.Mount(mux, branching.NewService(db, log), cfg.ServiceToken)
 		log.Info("DB branching enabled (POST/GET /v1/tenants/{id}/branches, DELETE .../{branchId}) — DB_BRANCHING_ENABLED")
 	} else {
@@ -686,7 +686,7 @@ func main() {
 	// When OFF (the default) Mount is never called, so none of the /v1/tenants/{id}/
 	// push/* routes are registered (404) and push_subscriptions is never written —
 	// byte-identical to today, the same discipline as the blocks above.
-	if envBool("PUSH_ENABLED") {
+	if shared.EnvBool("PUSH_ENABLED") {
 		push.Mount(mux, push.NewService(db, log), cfg.ServiceToken)
 		log.Info("push / messaging enabled (/v1/tenants/{id}/push/subscriptions|send) — PUSH_ENABLED")
 	} else {
@@ -731,22 +731,8 @@ func envFirst(keys ...string) string {
 // envBool reads a truthy env flag (mirrors metering.envBool). Default (unset or
 // anything not truthy) is false — so a flag-gated path stays OFF unless
 // explicitly enabled, which is the parity default.
-func envBool(key string) bool {
-	switch os.Getenv(key) {
-	case "1", "true", "on", "TRUE", "True", "ON":
-		return true
-	default:
-		return false
-	}
-}
 
 // envOr returns the env value for key, or def when unset/empty.
-func envOr(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
 
 // splitCSV splits a comma-separated env value into trimmed, non-empty fields
 // (e.g. PASSKEYS_RP_ORIGINS="https://app.example.com,https://example.com"). It

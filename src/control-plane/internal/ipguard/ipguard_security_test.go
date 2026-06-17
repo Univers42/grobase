@@ -130,11 +130,11 @@ func TestAllowed_ContainmentMatrix(t *testing.T) {
 		return s
 	}
 	cases := []struct {
-		name       string
-		rules      []string
-		ip         string
-		wantAllow  bool
-		wantRestr  bool
+		name      string
+		rules     []string
+		ip        string
+		wantAllow bool
+		wantRestr bool
 	}{
 		{name: "single_v4_in", rules: []string{"10.0.0.0/8"}, ip: "10.1.2.3", wantAllow: true, wantRestr: true},
 		{name: "single_v4_out", rules: []string{"10.0.0.0/8"}, ip: "11.0.0.1", wantAllow: false, wantRestr: true},

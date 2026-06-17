@@ -29,8 +29,6 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
@@ -118,10 +116,10 @@ func New(log *slog.Logger, db *shared.Postgres) *Exporter {
 		log:       log,
 		db:        pgPool{db: db},
 		sink:      &httpSink{client: &http.Client{}},
-		enabled:   envBool("TENANT_TELEMETRY_EXPORT_ENABLED"),
-		interval:  time.Duration(envInt("TENANT_TELEMETRY_EXPORT_INTERVAL_MS", 30_000)) * time.Millisecond,
-		batchRows: envInt("TENANT_TELEMETRY_EXPORT_BATCH_ROWS", 500),
-		timeout:   time.Duration(envInt("TENANT_TELEMETRY_EXPORT_TIMEOUT_MS", 5_000)) * time.Millisecond,
+		enabled:   shared.EnvBool("TENANT_TELEMETRY_EXPORT_ENABLED"),
+		interval:  time.Duration(shared.EnvInt("TENANT_TELEMETRY_EXPORT_INTERVAL_MS", 30_000)) * time.Millisecond,
+		batchRows: shared.EnvInt("TENANT_TELEMETRY_EXPORT_BATCH_ROWS", 500),
+		timeout:   time.Duration(shared.EnvInt("TENANT_TELEMETRY_EXPORT_TIMEOUT_MS", 5_000)) * time.Millisecond,
 	}
 }
 
@@ -185,28 +183,4 @@ func (e *Exporter) Run(ctx context.Context) {
 
 /* ─────── env helpers (mirroring spendcap / metering.consumer) ─────── */
 
-func env(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-func envInt(key string, def int) int {
-	if v := os.Getenv(key); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
-		}
-	}
-	return def
-}
-
 // envBool mirrors spendcap.envBool / the data-plane config.rs flag shape.
-func envBool(key string) bool {
-	switch os.Getenv(key) {
-	case "1", "true", "on", "TRUE", "True", "ON":
-		return true
-	default:
-		return false
-	}
-}

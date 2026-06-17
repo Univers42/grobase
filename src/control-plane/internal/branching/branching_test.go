@@ -58,20 +58,20 @@ func TestSanitizeBranchName(t *testing.T) {
 
 	// Dangerous / invalid names: REJECTED (the injection wall fires).
 	bad := []string{
-		"",                       // empty
-		"   ",                    // whitespace-only
+		"",                        // empty
+		"   ",                     // whitespace-only
 		"x; drop schema tenant_a", // classic injection
-		"x DROP SCHEMA",          // space
-		`x"`,                     // quote
-		"x'y",                    // single quote
-		"x-y",                    // hyphen (not in [a-z0-9_])
-		"x.y",                    // dot
-		"x/y",                    // slash
-		"x\\y",                   // backslash
-		"x;y",                    // semicolon
-		"x(y)",                   // parens
-		"___",                    // all underscores -> trims to empty
-		strings.Repeat("a", 41),  // too long (>40)
+		"x DROP SCHEMA",           // space
+		`x"`,                      // quote
+		"x'y",                     // single quote
+		"x-y",                     // hyphen (not in [a-z0-9_])
+		"x.y",                     // dot
+		"x/y",                     // slash
+		"x\\y",                    // backslash
+		"x;y",                     // semicolon
+		"x(y)",                    // parens
+		"___",                     // all underscores -> trims to empty
+		strings.Repeat("a", 41),   // too long (>40)
 	}
 	for _, in := range bad {
 		got, err := sanitizeBranchName(in)

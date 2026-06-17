@@ -189,7 +189,7 @@ func (r *Reader) Aggregate(ctx context.Context, tenantID, metric string, from, t
 		Metrics:  make([]MetricAgg, 0),
 	}
 	rows, err := r.db.AdminQuery(ctx, aggregateSQL,
-		tenantID, nullableStr(metric), nullableTime(from), nullableTime(to))
+		tenantID, nullableStr(metric), shared.NullableTime(from), shared.NullableTime(to))
 	if err != nil {
 		return resp, err
 	}
@@ -217,12 +217,6 @@ func nullableStr(s string) any {
 }
 
 // nullableTime maps a zero time to SQL NULL (unbounded side).
-func nullableTime(t time.Time) any {
-	if t.IsZero() {
-		return nil
-	}
-	return t.UTC()
-}
 
 // rfc3339OrEmpty renders a bound for the echoed window ("" when unbounded).
 func rfc3339OrEmpty(t time.Time) string {

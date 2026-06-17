@@ -13,10 +13,11 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"os"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 )
 
 const maxBufferSize = 1000
@@ -48,9 +49,9 @@ func New(log *slog.Logger) *Service {
 	return &Service{
 		log:       log,
 		client:    &http.Client{Timeout: 5 * time.Second},
-		lokiURL:   env("LOG_SERVICE_LOKI_URL", "http://loki:3100/loki/api/v1/push"),
-		batchSize: envInt("LOG_SERVICE_LOKI_BATCH_SIZE", 25),
-		flushMS:   envInt("LOG_SERVICE_LOKI_FLUSH_MS", 1000),
+		lokiURL:   shared.EnvStr("LOG_SERVICE_LOKI_URL", "http://loki:3100/loki/api/v1/push"),
+		batchSize: shared.EnvInt("LOG_SERVICE_LOKI_BATCH_SIZE", 25),
+		flushMS:   shared.EnvInt("LOG_SERVICE_LOKI_FLUSH_MS", 1000),
 		entries:   make([]Entry, 0, maxBufferSize),
 	}
 }
@@ -102,7 +103,7 @@ func (s *Service) handleIngest(w http.ResponseWriter, r *http.Request) {
 		Data    map[string]any `json:"data"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_body"})
+		shared.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_body"})
 		return
 	}
 	entry, full := s.add(Entry{
@@ -114,7 +115,7 @@ func (s *Service) handleIngest(w http.ResponseWriter, r *http.Request) {
 	if full {
 		go s.flush()
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"accepted": true, "entry": entry})
+	shared.WriteJSON(w, http.StatusOK, map[string]any{"accepted": true, "entry": entry})
 }
 
 func (s *Service) handleList(w http.ResponseWriter, r *http.Request) {
@@ -134,13 +135,13 @@ func (s *Service) handleList(w http.ResponseWriter, r *http.Request) {
 		out := make([]Entry, limit)
 		copy(out, s.entries[n-limit:])
 		s.mu.Unlock()
-		writeJSON(w, http.StatusOK, out)
+		shared.WriteJSON(w, http.StatusOK, out)
 		return
 	}
 	out := make([]Entry, n)
 	copy(out, s.entries)
 	s.mu.Unlock()
-	writeJSON(w, http.StatusOK, out)
+	shared.WriteJSON(w, http.StatusOK, out)
 }
 
 // flush pushes up to batchSize queued entries to Loki. On failure the batch is
@@ -222,31 +223,9 @@ func toLokiStream(e Entry) map[string]any {
 	}
 }
 
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
 func orDefault(v, def string) string {
 	if v == "" {
 		return def
 	}
 	return v
-}
-
-func env(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-func envInt(key string, def int) int {
-	if v := os.Getenv(key); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
-		}
-	}
-	return def
 }

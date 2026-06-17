@@ -228,7 +228,7 @@ func (ss *selfRoutes) downloadMine(w http.ResponseWriter, r *http.Request) {
 // returned id is the canonical tenant slug every scoped query keys on — a caller
 // can therefore only ever act on its OWN tenant's data.
 func (ss *selfRoutes) selfAuth(w http.ResponseWriter, r *http.Request) (tenantID string, ok bool) {
-	raw := apiKeyFromRequest(r)
+	raw := shared.APIKeyFromRequest(r)
 	if raw == "" {
 		shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
 			"X-API-Key or Authorization: Bearer <api-key> required")
@@ -248,22 +248,5 @@ func (ss *selfRoutes) selfAuth(w http.ResponseWriter, r *http.Request) (tenantID
 
 // apiKeyFromRequest extracts a tenant API key from X-API-Key or from an
 // `Authorization: Bearer mbk_...` header (mirrors backup.apiKeyFromRequest).
-func apiKeyFromRequest(r *http.Request) string {
-	if k := strings.TrimSpace(r.Header.Get("X-API-Key")); k != "" {
-		return k
-	}
-	auth := strings.TrimSpace(r.Header.Get("Authorization"))
-	if rest, ok := cutBearer(auth); ok && strings.HasPrefix(rest, "mbk_") {
-		return rest
-	}
-	return ""
-}
 
 // cutBearer strips a case-insensitive "Bearer " prefix (mirrors backup.cutBearer).
-func cutBearer(auth string) (string, bool) {
-	const p = "bearer "
-	if len(auth) >= len(p) && strings.EqualFold(auth[:len(p)], p) {
-		return strings.TrimSpace(auth[len(p):]), true
-	}
-	return "", false
-}

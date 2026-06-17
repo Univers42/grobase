@@ -55,7 +55,7 @@ func TestSpendCentsFor(t *testing.T) {
 type fakeDB struct{ marks int }
 
 func (f *fakeDB) AdminQuery(context.Context, string, ...any) (pgx.Rows, error) { return nil, nil }
-func (f *fakeDB) AdminExec(context.Context, string, ...any) error             { f.marks++; return nil }
+func (f *fakeDB) AdminExec(context.Context, string, ...any) error              { f.marks++; return nil }
 
 // captureAlerter records each fired alert + the last pct.
 type captureAlerter struct {

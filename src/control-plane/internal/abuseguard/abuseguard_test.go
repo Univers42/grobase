@@ -3,6 +3,8 @@ package abuseguard
 import (
 	"log/slog"
 	"testing"
+
+	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 )
 
 func newTestGuard() *Guard {
@@ -61,15 +63,15 @@ func TestVelocityLimited(t *testing.T) {
 // strong signal) but an explicit "0" turns it off.
 func TestEnvBoolDefault(t *testing.T) {
 	t.Setenv("X_TEST_AUTOSUSPEND", "")
-	if !envBoolDefault("X_TEST_AUTOSUSPEND", true) {
+	if !shared.EnvBoolDefault("X_TEST_AUTOSUSPEND", true) {
 		t.Fatal("unset must use the default (true)")
 	}
 	t.Setenv("X_TEST_AUTOSUSPEND", "0")
-	if envBoolDefault("X_TEST_AUTOSUSPEND", true) {
+	if shared.EnvBoolDefault("X_TEST_AUTOSUSPEND", true) {
 		t.Fatal("explicit 0 must override the default")
 	}
 	t.Setenv("X_TEST_AUTOSUSPEND", "on")
-	if !envBoolDefault("X_TEST_AUTOSUSPEND", false) {
+	if !shared.EnvBoolDefault("X_TEST_AUTOSUSPEND", false) {
 		t.Fatal("explicit on must be true")
 	}
 }

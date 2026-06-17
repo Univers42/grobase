@@ -53,10 +53,10 @@ type deletionFn func(ctx context.Context, userID string)
 
 // Service is the gdpr sub-service.
 type Service struct {
-	log         *slog.Logger
-	store       repo
-	doExport    exportFn
-	doDeletion  deletionFn
+	log        *slog.Logger
+	store      repo
+	doExport   exportFn
+	doDeletion deletionFn
 }
 
 // New builds the service from env, wiring the webhook seams to their default
@@ -115,7 +115,7 @@ func (s *Service) listConsents(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusOK, out)
+	shared.WriteJSON(w, http.StatusOK, out)
 }
 
 func (s *Service) getConsent(w http.ResponseWriter, r *http.Request) {
@@ -128,10 +128,10 @@ func (s *Service) getConsent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if c == nil {
-		writeJSON(w, http.StatusOK, nil) // parity: Node returns null
+		shared.WriteJSON(w, http.StatusOK, nil) // parity: Node returns null
 		return
 	}
-	writeJSON(w, http.StatusOK, c)
+	shared.WriteJSON(w, http.StatusOK, c)
 }
 
 func (s *Service) setConsent(w http.ResponseWriter, r *http.Request) {
@@ -144,14 +144,14 @@ func (s *Service) setConsent(w http.ResponseWriter, r *http.Request) {
 		Consented   *bool  `json:"consented"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&b); err != nil || b.ConsentType == "" || b.Consented == nil {
-		writeErr(w, http.StatusBadRequest, "validation_error", "consent_type and consented are required")
+		shared.WriteError(w, http.StatusBadRequest, "validation_error", "consent_type and consented are required")
 		return
 	}
 	c, err := s.store.setConsent(r.Context(), userID, b.ConsentType, *b.Consented)
 	if s.fail(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusCreated, c)
+	shared.WriteJSON(w, http.StatusCreated, c)
 }
 
 func (s *Service) updateConsent(w http.ResponseWriter, r *http.Request) {
@@ -163,7 +163,7 @@ func (s *Service) updateConsent(w http.ResponseWriter, r *http.Request) {
 		Consented *bool `json:"consented"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&b); err != nil || b.Consented == nil {
-		writeErr(w, http.StatusBadRequest, "validation_error", "consented is required")
+		shared.WriteError(w, http.StatusBadRequest, "validation_error", "consented is required")
 		return
 	}
 	ctype := r.PathValue("type")
@@ -172,14 +172,14 @@ func (s *Service) updateConsent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if existing == nil {
-		writeErr(w, http.StatusNotFound, "not_found", "Consent not found")
+		shared.WriteError(w, http.StatusNotFound, "not_found", "Consent not found")
 		return
 	}
 	c, err := s.store.updateConsent(r.Context(), userID, ctype, *b.Consented)
 	if s.fail(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusOK, c)
+	shared.WriteJSON(w, http.StatusOK, c)
 }
 
 func (s *Service) withdrawNonEssential(w http.ResponseWriter, r *http.Request) {
@@ -191,7 +191,7 @@ func (s *Service) withdrawNonEssential(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"updated": n})
+	shared.WriteJSON(w, http.StatusOK, map[string]any{"updated": n})
 }
 
 /* ─────── export ─────── */
@@ -202,7 +202,7 @@ func (s *Service) export(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	appData := s.doExport(r.Context(), userID)
-	writeJSON(w, http.StatusOK, map[string]any{
+	shared.WriteJSON(w, http.StatusOK, map[string]any{
 		"exportedAt":    time.Now().UTC().Format(time.RFC3339Nano),
 		"formatVersion": "1.0",
 		"userId":        userID,
@@ -226,14 +226,14 @@ func (s *Service) createDeletion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if exists {
-		writeErr(w, http.StatusConflict, "conflict", "A pending data deletion request already exists")
+		shared.WriteError(w, http.StatusConflict, "conflict", "A pending data deletion request already exists")
 		return
 	}
 	d, err := s.store.createDeletion(r.Context(), userID, optional(b.Reason))
 	if s.fail(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusCreated, d)
+	shared.WriteJSON(w, http.StatusCreated, d)
 }
 
 func (s *Service) myDeletion(w http.ResponseWriter, r *http.Request) {
@@ -246,10 +246,10 @@ func (s *Service) myDeletion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if d == nil {
-		writeJSON(w, http.StatusOK, nil)
+		shared.WriteJSON(w, http.StatusOK, nil)
 		return
 	}
-	writeJSON(w, http.StatusOK, d)
+	shared.WriteJSON(w, http.StatusOK, d)
 }
 
 func (s *Service) cancelDeletion(w http.ResponseWriter, r *http.Request) {
@@ -259,13 +259,13 @@ func (s *Service) cancelDeletion(w http.ResponseWriter, r *http.Request) {
 	}
 	d, err := s.store.cancelRequest(r.Context(), userID)
 	if errors.Is(err, errNotFound) {
-		writeErr(w, http.StatusNotFound, "not_found", "No pending deletion request found")
+		shared.WriteError(w, http.StatusNotFound, "not_found", "No pending deletion request found")
 		return
 	}
 	if s.fail(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusOK, d)
+	shared.WriteJSON(w, http.StatusOK, d)
 }
 
 func (s *Service) adminListDeletions(w http.ResponseWriter, r *http.Request) {
@@ -276,7 +276,7 @@ func (s *Service) adminListDeletions(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusOK, out)
+	shared.WriteJSON(w, http.StatusOK, out)
 }
 
 func (s *Service) adminProcessDeletion(w http.ResponseWriter, r *http.Request) {
@@ -289,21 +289,21 @@ func (s *Service) adminProcessDeletion(w http.ResponseWriter, r *http.Request) {
 		AdminNote string `json:"admin_note"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&b); err != nil || !validStatus(b.Status) {
-		writeErr(w, http.StatusBadRequest, "validation_error",
+		shared.WriteError(w, http.StatusBadRequest, "validation_error",
 			"status must be one of in_progress, completed, rejected")
 		return
 	}
 	id := r.PathValue("id")
 	req, err := s.store.getRequest(r.Context(), id)
 	if errors.Is(err, errNotFound) {
-		writeErr(w, http.StatusNotFound, "not_found", "Deletion request not found")
+		shared.WriteError(w, http.StatusNotFound, "not_found", "Deletion request not found")
 		return
 	}
 	if s.fail(w, err) {
 		return
 	}
 	if req.Status == "completed" {
-		writeErr(w, http.StatusBadRequest, "bad_request", "Request already completed")
+		shared.WriteError(w, http.StatusBadRequest, "bad_request", "Request already completed")
 		return
 	}
 	// On completion, fire the app erasure webhook BEFORE marking done (parity).
@@ -314,7 +314,7 @@ func (s *Service) adminProcessDeletion(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusOK, updated)
+	shared.WriteJSON(w, http.StatusOK, updated)
 }
 
 /* ─────── webhook seams ─────── */
@@ -394,14 +394,14 @@ func (s *Service) fail(w http.ResponseWriter, err error) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, errNotFound):
-		writeErr(w, http.StatusNotFound, "not_found", "not found")
+		shared.WriteError(w, http.StatusNotFound, "not_found", "not found")
 	case errors.Is(err, errConflict):
-		writeErr(w, http.StatusConflict, "conflict", "conflict")
+		shared.WriteError(w, http.StatusConflict, "conflict", "conflict")
 	case errors.Is(err, errCompleted):
-		writeErr(w, http.StatusBadRequest, "bad_request", "Request already completed")
+		shared.WriteError(w, http.StatusBadRequest, "bad_request", "Request already completed")
 	default:
 		s.log.Error("gdpr store error", "err", err)
-		writeErr(w, http.StatusInternalServerError, "internal_error", "unexpected error")
+		shared.WriteError(w, http.StatusInternalServerError, "internal_error", "unexpected error")
 	}
 	return true
 }
@@ -427,7 +427,7 @@ func requireAdminUser(w http.ResponseWriter, r *http.Request) (string, bool) {
 		return "", false
 	}
 	if r.Header.Get("X-Baas-Role") != "service_role" {
-		writeErr(w, http.StatusForbidden, "forbidden", "requires one of: service_role")
+		shared.WriteError(w, http.StatusForbidden, "forbidden", "requires one of: service_role")
 		return "", false
 	}
 	return userID, true
@@ -442,14 +442,4 @@ func optional(s string) *string {
 		return nil
 	}
 	return &s
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-func writeErr(w http.ResponseWriter, status int, code, msg string) {
-	writeJSON(w, status, map[string]any{"error": code, "message": msg, "statusCode": status})
 }

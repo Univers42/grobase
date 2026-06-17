@@ -2,11 +2,9 @@ package sso
 
 import (
 	"context"
-	"errors"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Store is the durable sso_connections registry (migration 053). It speaks SQL
@@ -54,7 +52,7 @@ func (s *Store) Insert(ctx context.Context, in RegisterInput) (Connection, error
 		in.TenantID, in.OrgID, in.Issuer, in.ClientID, enc,
 		in.AuthorizeURL, in.TokenURL, in.JWKSURL, in.RedirectURI, in.EmailDomain, role)
 	if err != nil {
-		if isUniqueViolation(err) {
+		if shared.IsUniqueViolation(err) {
 			return Connection{}, ErrConflict
 		}
 		return Connection{}, err
@@ -142,9 +140,4 @@ func (s *Store) scanRow(rows pgx.Rows) (Connection, error) {
 	}
 	c.ClientSecret = secret
 	return c, nil
-}
-
-func isUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }

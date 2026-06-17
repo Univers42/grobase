@@ -77,7 +77,7 @@ func TestGenerateKeyDefaultIsFastHash(t *testing.T) {
 // malformed / weird inputs MUST ALL return errInvalidFormat (never a partial
 // parse, never a panic). Each vector is a subtest so it counts individually.
 func TestParseKeyMalformed(t *testing.T) {
-	const goodPrefix = "abcdefghijkl"          // 12 chars
+	const goodPrefix = "abcdefghijkl"                      // 12 chars
 	const goodPayload = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" // 32 chars
 
 	bad := []struct {

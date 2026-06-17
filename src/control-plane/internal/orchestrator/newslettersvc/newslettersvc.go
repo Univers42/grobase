@@ -21,7 +21,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -59,13 +58,13 @@ type Service struct {
 // New builds the service from env. The default email seam posts to
 // EMAIL_SERVICE_URL/send (parity with the Node fetch).
 func New(log *slog.Logger, pg *shared.Postgres) *Service {
-	emailURL := env("EMAIL_SERVICE_URL", "http://email-service:3030")
+	emailURL := shared.EnvStr("EMAIL_SERVICE_URL", "http://email-service:3030")
 	client := &http.Client{Timeout: 10 * time.Second}
 	return &Service{
 		log:       log,
 		store:     &store{pg: pg},
-		baseURL:   env("NEWSLETTER_BASE_URL", "http://localhost:8000/newsletter/v1"),
-		batchSize: envInt("NEWSLETTER_BATCH_SIZE", 5),
+		baseURL:   shared.EnvStr("NEWSLETTER_BASE_URL", "http://localhost:8000/newsletter/v1"),
+		batchSize: shared.EnvInt("NEWSLETTER_BATCH_SIZE", 5),
 		send:      httpEmailSender(client, emailURL),
 	}
 }
@@ -104,7 +103,7 @@ func (s *Service) subscribe(w http.ResponseWriter, r *http.Request) {
 		FirstName string `json:"firstName"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&b); err != nil || !validEmail(b.Email) {
-		writeErr(w, http.StatusBadRequest, "validation_error", "a valid email is required")
+		shared.WriteError(w, http.StatusBadRequest, "validation_error", "a valid email is required")
 		return
 	}
 	ctx := r.Context()
@@ -115,7 +114,7 @@ func (s *Service) subscribe(w http.ResponseWriter, r *http.Request) {
 	first := optional(b.FirstName)
 	if found {
 		if active {
-			writeErr(w, http.StatusConflict, "conflict", "This email is already subscribed")
+			shared.WriteError(w, http.StatusConflict, "conflict", "This email is already subscribed")
 			return
 		}
 		token := newToken()
@@ -124,7 +123,7 @@ func (s *Service) subscribe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.notifyConfirmation(ctx, b.Email, firstOr(b.FirstName, existingFirst), token)
-		writeJSON(w, http.StatusCreated, map[string]any{"reactivated": true, "subscriber": sub})
+		shared.WriteJSON(w, http.StatusCreated, map[string]any{"reactivated": true, "subscriber": sub})
 		return
 	}
 	token := newToken()
@@ -133,7 +132,7 @@ func (s *Service) subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.notifyConfirmation(ctx, b.Email, b.FirstName, token)
-	writeJSON(w, http.StatusCreated, map[string]any{"subscribed": true, "subscriber": sub})
+	shared.WriteJSON(w, http.StatusCreated, map[string]any{"subscribed": true, "subscriber": sub})
 }
 
 func (s *Service) confirm(w http.ResponseWriter, r *http.Request) {
@@ -142,10 +141,10 @@ func (s *Service) confirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ok {
-		writeErr(w, http.StatusNotFound, "not_found", "Invalid or already-used token")
+		shared.WriteError(w, http.StatusNotFound, "not_found", "Invalid or already-used token")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"confirmed": true})
+	shared.WriteJSON(w, http.StatusOK, map[string]any{"confirmed": true})
 }
 
 func (s *Service) unsubscribe(w http.ResponseWriter, r *http.Request) {
@@ -154,10 +153,10 @@ func (s *Service) unsubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ok {
-		writeErr(w, http.StatusNotFound, "not_found", "Invalid token")
+		shared.WriteError(w, http.StatusNotFound, "not_found", "Invalid token")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"unsubscribed": true})
+	shared.WriteJSON(w, http.StatusOK, map[string]any{"unsubscribed": true})
 }
 
 func (s *Service) adminSubscribers(w http.ResponseWriter, r *http.Request) {
@@ -170,7 +169,7 @@ func (s *Service) adminSubscribers(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusOK, out)
+	shared.WriteJSON(w, http.StatusOK, out)
 }
 
 func (s *Service) adminStats(w http.ResponseWriter, r *http.Request) {
@@ -181,7 +180,7 @@ func (s *Service) adminStats(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusOK, st)
+	shared.WriteJSON(w, http.StatusOK, st)
 }
 
 /* ─────── Campaign (all admin) ─────── */
@@ -198,14 +197,14 @@ func (s *Service) campaignSend(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&b); err != nil ||
 		strings.TrimSpace(b.Subject) == "" || strings.TrimSpace(b.HTML) == "" {
-		writeErr(w, http.StatusBadRequest, "validation_error", "subject and html are required")
+		shared.WriteError(w, http.StatusBadRequest, "validation_error", "subject and html are required")
 		return
 	}
 	sent, failed, err := s.sendCampaign(r.Context(), b.Subject, b.HTML, b.Text, userID)
 	if s.fail(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"sent": sent, "failed": failed})
+	shared.WriteJSON(w, http.StatusOK, map[string]any{"sent": sent, "failed": failed})
 }
 
 // sendCampaign fans the campaign out to every confirmed subscriber and records
@@ -249,7 +248,7 @@ func (s *Service) campaignHistory(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusOK, out)
+	shared.WriteJSON(w, http.StatusOK, out)
 }
 
 // notifyConfirmation fires the confirmation email; failures are logged and
@@ -276,12 +275,12 @@ func (s *Service) fail(w http.ResponseWriter, err error) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, errConflict):
-		writeErr(w, http.StatusConflict, "conflict", "This email is already subscribed")
+		shared.WriteError(w, http.StatusConflict, "conflict", "This email is already subscribed")
 	case errors.Is(err, errNotFound):
-		writeErr(w, http.StatusNotFound, "not_found", "invalid token")
+		shared.WriteError(w, http.StatusNotFound, "not_found", "invalid token")
 	default:
 		s.log.Error("newsletter store error", "err", err)
-		writeErr(w, http.StatusInternalServerError, "internal_error", "unexpected error")
+		shared.WriteError(w, http.StatusInternalServerError, "internal_error", "unexpected error")
 	}
 	return true
 }
@@ -322,11 +321,11 @@ func requireAdminUser(w http.ResponseWriter, r *http.Request) (string, bool) {
 		userID = r.Header.Get("X-User-Id")
 	}
 	if userID == "" {
-		writeErr(w, http.StatusUnauthorized, "unauthorized", "missing verified identity")
+		shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "missing verified identity")
 		return "", false
 	}
 	if r.Header.Get("X-Baas-Role") != "service_role" {
-		writeErr(w, http.StatusForbidden, "forbidden", "requires one of: service_role")
+		shared.WriteError(w, http.StatusForbidden, "forbidden", "requires one of: service_role")
 		return "", false
 	}
 	return userID, true
@@ -365,32 +364,6 @@ func firstOr(first string, fallback *string) string {
 
 func queryInt(r *http.Request, key string, def int) int {
 	if v := r.URL.Query().Get(key); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
-		}
-	}
-	return def
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-func writeErr(w http.ResponseWriter, status int, code, msg string) {
-	writeJSON(w, status, map[string]any{"error": code, "message": msg, "statusCode": status})
-}
-
-func env(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-func envInt(key string, def int) int {
-	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			return n
 		}

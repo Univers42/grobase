@@ -21,7 +21,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
@@ -30,20 +29,20 @@ import (
 
 // Service is the outbox-relay sub-service.
 type Service struct {
-	log       *slog.Logger
-	pg        *shared.Postgres
-	rdb       *redis.Client
-	project   projector
-	client    *http.Client
-	redisURL  string
-	mongoURL  string
+	log      *slog.Logger
+	pg       *shared.Postgres
+	rdb      *redis.Client
+	project  projector
+	client   *http.Client
+	redisURL string
+	mongoURL string
 
-	pollEvery     time.Duration
-	batchSize     int
-	maxAttempts   int
-	dedupeTTL     time.Duration
-	realtimeURL   string
-	realtimeWait  time.Duration
+	pollEvery    time.Duration
+	batchSize    int
+	maxAttempts  int
+	dedupeTTL    time.Duration
+	realtimeURL  string
+	realtimeWait time.Duration
 
 	// scale metrics (dependency-free; logged each tick — full prom-name parity
 	// with mini_baas_outbox_* is a follow-up).
@@ -58,14 +57,14 @@ func New(log *slog.Logger, pg *shared.Postgres) *Service {
 		pg:           pg,
 		project:      noopProjector{log: log},
 		client:       &http.Client{},
-		redisURL:     env("OUTBOX_REDIS_URL", env("REDIS_URL", "redis://redis:6379")),
+		redisURL:     shared.EnvStr("OUTBOX_REDIS_URL", shared.EnvStr("REDIS_URL", "redis://redis:6379")),
 		mongoURL:     os.Getenv("OUTBOX_MONGO_URL"),
-		pollEvery:    time.Duration(envInt("OUTBOX_RELAY_POLL_MS", 500)) * time.Millisecond,
-		batchSize:    envInt("OUTBOX_RELAY_BATCH_SIZE", 25),
-		maxAttempts:  envInt("OUTBOX_RELAY_MAX_ATTEMPTS", 5),
-		dedupeTTL:    time.Duration(envInt("OUTBOX_RELAY_DEDUPE_TTL_SECONDS", 86_400)) * time.Second,
+		pollEvery:    time.Duration(shared.EnvInt("OUTBOX_RELAY_POLL_MS", 500)) * time.Millisecond,
+		batchSize:    shared.EnvInt("OUTBOX_RELAY_BATCH_SIZE", 25),
+		maxAttempts:  shared.EnvInt("OUTBOX_RELAY_MAX_ATTEMPTS", 5),
+		dedupeTTL:    time.Duration(shared.EnvInt("OUTBOX_RELAY_DEDUPE_TTL_SECONDS", 86_400)) * time.Second,
 		realtimeURL:  os.Getenv("REALTIME_PUBLISH_URL"),
-		realtimeWait: time.Duration(envInt("REALTIME_PUBLISH_TIMEOUT_MS", 1_000)) * time.Millisecond,
+		realtimeWait: time.Duration(shared.EnvInt("REALTIME_PUBLISH_TIMEOUT_MS", 1_000)) * time.Millisecond,
 	}
 }
 
@@ -121,20 +120,4 @@ func (s *Service) Run(ctx context.Context) {
 			s.tick(ctx)
 		}
 	}
-}
-
-func env(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-func envInt(key string, def int) int {
-	if v := os.Getenv(key); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
-		}
-	}
-	return def
 }

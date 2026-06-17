@@ -61,7 +61,7 @@ func main() {
 		}
 	}
 	runner := scheduler.NewRunner(db, log, scheduler.RunnerConfig{
-		RuntimeURL: envDefault("FUNCTIONS_RUNTIME_URL", "http://functions-runtime:3060"),
+		RuntimeURL: shared.EnvStr("FUNCTIONS_RUNTIME_URL", "http://functions-runtime:3060"),
 		Tick:       tick,
 	})
 
@@ -109,13 +109,6 @@ func main() {
 		log.Error("graceful shutdown failed", "err", err)
 	}
 	log.Info("stopped")
-}
-
-func envDefault(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }
 
 // cronEnabled reports whether the autonomous schedule runner should start.

@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 )
 
 // rateTable maps a B1 usage metric → its price in MILLI-cents per unit
@@ -36,7 +38,7 @@ var billableMetricEnv = map[string]string{
 func loadRateTable() rateTable {
 	m := make(map[string]int64, len(billableMetricEnv))
 	for metric, ev := range billableMetricEnv {
-		raw := strings.TrimSpace(env(ev, ""))
+		raw := strings.TrimSpace(shared.EnvStr(ev, ""))
 		if raw == "" {
 			continue
 		}

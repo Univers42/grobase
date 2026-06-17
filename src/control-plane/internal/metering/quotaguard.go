@@ -104,10 +104,10 @@ func NewQuotaGuard(log *slog.Logger, db *shared.Postgres) *QuotaGuard {
 	return &QuotaGuard{
 		log:      log,
 		db:       db,
-		enabled:  envBool("METERING_ENABLED") && envBool("QUOTA_ENFORCEMENT"),
-		redisURL: env("OUTBOX_REDIS_URL", env("REDIS_URL", "redis://redis:6379")),
-		interval: time.Duration(envInt("QUOTA_ENFORCEMENT_INTERVAL_MS", 15_000)) * time.Millisecond,
-		metric:   env("QUOTA_ENFORCEMENT_METRIC", "query.count"),
+		enabled:  shared.EnvBool("METERING_ENABLED") && shared.EnvBool("QUOTA_ENFORCEMENT"),
+		redisURL: shared.EnvStr("OUTBOX_REDIS_URL", shared.EnvStr("REDIS_URL", "redis://redis:6379")),
+		interval: time.Duration(shared.EnvInt("QUOTA_ENFORCEMENT_INTERVAL_MS", 15_000)) * time.Millisecond,
+		metric:   shared.EnvStr("QUOTA_ENFORCEMENT_METRIC", "query.count"),
 	}
 }
 

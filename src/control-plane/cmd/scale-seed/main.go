@@ -183,7 +183,7 @@ func teardown(client *http.Client, base, token, outPath string) error {
 func main() {
 	var (
 		n           = flag.Int("n", 1000, "number of tenants")
-		base        = flag.String("base", env("SCALE_TC_URL", "http://127.0.0.1:3022"), "tenant-control base URL")
+		base        = flag.String("base", shared.EnvStr("SCALE_TC_URL", "http://127.0.0.1:3022"), "tenant-control base URL")
 		token       = flag.String("token", os.Getenv("INTERNAL_SERVICE_TOKEN"), "service token")
 		dsn         = flag.String("dsn", os.Getenv("SCALE_MOUNT_DSN"), "postgres DSN for bench mounts")
 		isolation   = flag.String("isolation", "shared_rls", "mount isolation (shared_rls|schema_per_tenant|db_per_tenant)")
@@ -304,11 +304,4 @@ func main() {
 	if errs.Load() > 0 {
 		os.Exit(1)
 	}
-}
-
-func env(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }

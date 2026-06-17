@@ -20,7 +20,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 
@@ -53,7 +52,7 @@ type Service struct {
 func New(log *slog.Logger, pg *shared.Postgres) *Service {
 	return &Service{
 		log:   log,
-		store: &store{pg: pg, ttlDays: envInt("SESSION_TTL_DAYS", 7)},
+		store: &store{pg: pg, ttlDays: shared.EnvInt("SESSION_TTL_DAYS", 7)},
 	}
 }
 
@@ -291,13 +290,4 @@ func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 // bearer pulls the raw token out of an Authorization: Bearer <token> header.
 func bearer(r *http.Request) string {
 	return strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
-}
-
-func envInt(key string, def int) int {
-	if v := os.Getenv(key); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
-		}
-	}
-	return def
 }

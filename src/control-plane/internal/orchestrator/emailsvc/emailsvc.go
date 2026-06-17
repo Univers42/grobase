@@ -24,11 +24,12 @@ import (
 	"net"
 	"net/http"
 	"net/smtp"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 )
 
 // emailRe is the same pragmatic shape class-validator's @IsEmail accepts for the
@@ -56,12 +57,12 @@ type Service struct {
 func New(log *slog.Logger) *Service {
 	s := &Service{
 		log:    log,
-		host:   env("SMTP_HOST", "mailpit"),
-		port:   envInt("SMTP_PORT", 1025),
-		secure: env("SMTP_SECURE", "false") == "true",
-		user:   env("SMTP_USER", ""),
-		pass:   env("SMTP_PASS", ""),
-		from:   env("EMAIL_FROM", "noreply@mini-baas.local"),
+		host:   shared.EnvStr("SMTP_HOST", "mailpit"),
+		port:   shared.EnvInt("SMTP_PORT", 1025),
+		secure: shared.EnvStr("SMTP_SECURE", "false") == "true",
+		user:   shared.EnvStr("SMTP_USER", ""),
+		pass:   shared.EnvStr("SMTP_PASS", ""),
+		from:   shared.EnvStr("EMAIL_FROM", "noreply@mini-baas.local"),
 	}
 	s.send = s.smtpSend
 	return s
@@ -106,11 +107,11 @@ func (r sendRequest) validate() error {
 func (s *Service) handleSend(w http.ResponseWriter, r *http.Request) {
 	var req sendRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_body"})
+		shared.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_body"})
 		return
 	}
 	if err := req.validate(); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		shared.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
 	m := &message{
@@ -123,11 +124,11 @@ func (s *Service) handleSend(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.send(m); err != nil {
 		s.log.Error("smtp send failed", "to", req.To, "err", err)
-		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "send_failed"})
+		shared.WriteJSON(w, http.StatusBadGateway, map[string]any{"error": "send_failed"})
 		return
 	}
 	s.log.Info("email sent", "messageId", m.messageID, "to", req.To)
-	writeJSON(w, http.StatusOK, map[string]any{"messageId": m.messageID})
+	shared.WriteJSON(w, http.StatusOK, map[string]any{"messageId": m.messageID})
 }
 
 // Healthy reports SMTP reachability (NOOP handshake), mirroring the Node
@@ -261,26 +262,4 @@ func randHex(n int) string {
 		return strconv.FormatInt(time.Now().UnixNano(), 16)
 	}
 	return hex.EncodeToString(buf)
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-func env(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-func envInt(key string, def int) int {
-	if v := os.Getenv(key); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
-		}
-	}
-	return def
 }

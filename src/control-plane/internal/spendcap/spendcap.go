@@ -30,8 +30,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
@@ -94,10 +92,10 @@ func NewGuard(log *slog.Logger, db *shared.Postgres) *Guard {
 		db:       db,
 		alerter:  logAlerter{log: log},
 		rates:    loadRateTable(),
-		enabled:  envBool("METERING_ENABLED") && envBool("SPEND_CAPS_ENABLED"),
-		redisURL: env("OUTBOX_REDIS_URL", env("REDIS_URL", "redis://redis:6379")),
-		interval: time.Duration(envInt("SPEND_CAPS_INTERVAL_MS", 15_000)) * time.Millisecond,
-		alertPct: envInt("SPEND_CAPS_ALERT_PCT", 80),
+		enabled:  shared.EnvBool("METERING_ENABLED") && shared.EnvBool("SPEND_CAPS_ENABLED"),
+		redisURL: shared.EnvStr("OUTBOX_REDIS_URL", shared.EnvStr("REDIS_URL", "redis://redis:6379")),
+		interval: time.Duration(shared.EnvInt("SPEND_CAPS_INTERVAL_MS", 15_000)) * time.Millisecond,
+		alertPct: shared.EnvInt("SPEND_CAPS_ALERT_PCT", 80),
 	}
 }
 
@@ -166,28 +164,4 @@ func (g *Guard) Run(ctx context.Context) {
 
 /* ─────── env helpers (mirroring metering.consumer) ─────── */
 
-func env(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-func envInt(key string, def int) int {
-	if v := os.Getenv(key); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
-		}
-	}
-	return def
-}
-
 // envBool mirrors metering.envBool / the data-plane config.rs flag shape.
-func envBool(key string) bool {
-	switch os.Getenv(key) {
-	case "1", "true", "on", "TRUE", "True", "ON":
-		return true
-	default:
-		return false
-	}
-}

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -55,7 +56,7 @@ func newMongoProjector(ctx context.Context, log *slog.Logger, uri string) (*mong
 	if uri == "" {
 		return nil, false
 	}
-	dbName := env("MONGO_DB_NAME", "mini_baas")
+	dbName := shared.EnvStr("MONGO_DB_NAME", "mini_baas")
 
 	// serverSelectionTimeout mirrors the Node MongoService 5s ceiling so a missing
 	// mongo degrades quickly instead of hanging the relay's first tick.

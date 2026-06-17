@@ -41,14 +41,14 @@ func TestParseScheduleInvalid(t *testing.T) {
 	bad := []string{
 		"",
 		"   ",
-		"every 5m",        // missing @
-		"@every",          // no duration
-		"@every banana",   // not a duration
-		"@every 500ms",    // below 1s minimum
-		"0",               // zero seconds -> below minimum
-		"5x",              // bad unit
-		"@yearly",         // unsupported alias
-		"* * * * *",       // classic cron not supported
+		"every 5m",      // missing @
+		"@every",        // no duration
+		"@every banana", // not a duration
+		"@every 500ms",  // below 1s minimum
+		"0",             // zero seconds -> below minimum
+		"5x",            // bad unit
+		"@yearly",       // unsupported alias
+		"* * * * *",     // classic cron not supported
 	}
 	for _, expr := range bad {
 		t.Run(expr, func(t *testing.T) {

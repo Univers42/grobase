@@ -79,13 +79,13 @@ func NewBillingReporter(log *slog.Logger, db *shared.Postgres) *BillingReporter 
 	return &BillingReporter{
 		log:           log,
 		db:            db,
-		enabled:       envBool("METERING_ENABLED") && envBool("BILLING_ENABLED"),
-		interval:      time.Duration(envInt("BILLING_REPORT_INTERVAL_MS", 3_600_000)) * time.Millisecond,
-		lookback:      time.Duration(envInt("BILLING_REPORT_LOOKBACK_MS", 0)) * time.Millisecond,
-		period:        env("BILLING_PERIOD", "month"),
-		base:          env("STRIPE_API_BASE", "https://api.stripe.com"),
-		apiKey:        env("STRIPE_API_KEY", ""),
-		sendTimestamp: envBool("BILLING_SEND_WINDOW_TIMESTAMP"),
+		enabled:       shared.EnvBool("METERING_ENABLED") && shared.EnvBool("BILLING_ENABLED"),
+		interval:      time.Duration(shared.EnvInt("BILLING_REPORT_INTERVAL_MS", 3_600_000)) * time.Millisecond,
+		lookback:      time.Duration(shared.EnvInt("BILLING_REPORT_LOOKBACK_MS", 0)) * time.Millisecond,
+		period:        shared.EnvStr("BILLING_PERIOD", "month"),
+		base:          shared.EnvStr("STRIPE_API_BASE", "https://api.stripe.com"),
+		apiKey:        shared.EnvStr("STRIPE_API_KEY", ""),
+		sendTimestamp: shared.EnvBool("BILLING_SEND_WINDOW_TIMESTAMP"),
 	}
 }
 

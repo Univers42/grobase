@@ -65,7 +65,7 @@ func main() {
 	// DEK + ciphertext and cannot decrypt without the KMS (revoke the KMS key ⇒
 	// crypto-shred). CMEK lives entirely here in the control plane — it never
 	// enters the Rust data plane / pool key, so SHARE_POOLS density is untouched.
-	if envBool("CMEK_ENABLED") {
+	if shared.EnvBool("CMEK_ENABLED") {
 		provider, defaultKey, cErr := buildKMSProvider()
 		if cErr != nil {
 			log.Error("cmek: provider init failed", "err", cErr)
@@ -92,7 +92,7 @@ func main() {
 	// Rust changes. The resolver reads public.tenant_entitlements (migration 062);
 	// requires the same table tenant-control's builder API writes. Resolve CLAMPS
 	// on every read, so even a stale over-ceiling row can never widen the stamp.
-	if envBool("BUILDER_ENABLED") {
+	if shared.EnvBool("BUILDER_ENABLED") {
 		manifest, mErr := packages.Load()
 		if mErr != nil {
 			log.Error("builder: package manifest load failed", "err", mErr)
@@ -135,14 +135,6 @@ func main() {
 
 // envBool reads a truthy env flag (default OFF = parity), mirroring the
 // tenant-control main.go helper.
-func envBool(key string) bool {
-	switch os.Getenv(key) {
-	case "1", "true", "on", "TRUE", "True", "ON":
-		return true
-	default:
-		return false
-	}
-}
 
 // buildKMSProvider constructs the CMEK KMS provider from env, returning the
 // provider + the default KEK id (used when a register request omits kms_key_id).

@@ -253,7 +253,9 @@ func TestPolicyContentHash_ABAC_Stability(t *testing.T) {
 		{"drop_action", func(p *PolicySpec) { p.Actions = []string{"select"} }},
 		{"priority_change", func(p *PolicySpec) { p.Priority = 5 }},
 		{"condition_value_change", func(p *PolicySpec) { p.Conditions = map[string]any{"owner_only": false, "tenant": "acme"} }},
-		{"condition_add_key", func(p *PolicySpec) { p.Conditions = map[string]any{"owner_only": true, "tenant": "acme", "region": "eu"} }},
+		{"condition_add_key", func(p *PolicySpec) {
+			p.Conditions = map[string]any{"owner_only": true, "tenant": "acme", "region": "eu"}
+		}},
 		{"condition_drop_key", func(p *PolicySpec) { p.Conditions = map[string]any{"owner_only": true} }},
 	}
 	for _, d := range diffs {

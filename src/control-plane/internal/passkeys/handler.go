@@ -27,6 +27,7 @@ import (
 //   - a control-plane service token (admin / a trusted edge), OR
 //   - a matching tenant header (a tenant acting WITHIN its own tenant), the same
 //     tokenOrSelf pattern audit/metering use.
+//
 // The FINISH routes need no separate authz: they consume a one-time, server-held
 // challenge id minted by a (already-authorized) begin call, and the assertion
 // itself is the cryptographic proof. A finish with an unknown/expired/forged

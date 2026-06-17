@@ -167,7 +167,7 @@ func TestVerifyChain_PrevHashSplicing(t *testing.T) {
 // when multiple links are tampered (the forensic contract: earliest divergence).
 func TestVerifyChain_FirstBreakWins(t *testing.T) {
 	events := seal("t", 6)
-	events[4].Actor = "late-tamper" // seq 5
+	events[4].Actor = "late-tamper"                 // seq 5
 	events[1].Payload = json.RawMessage(`{"i":-1}`) // seq 2 (earlier)
 	res := VerifyChain("t", events)
 	if res.Intact || res.BrokenSeq != 2 {

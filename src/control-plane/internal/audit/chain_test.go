@@ -34,7 +34,7 @@ func buildChain(t *testing.T, tenant string, n int) []Event {
 	return events
 }
 
-func itoa(i int) string { return string(rune('0'+i%10)) } // single-digit ok for tests
+func itoa(i int) string { return string(rune('0' + i%10)) } // single-digit ok for tests
 
 func TestVerifyChain_Intact(t *testing.T) {
 	events := buildChain(t, "tnt-A", 5)
@@ -88,8 +88,8 @@ func TestVerifyChain_TamperedActor(t *testing.T) {
 // where seq=3 is expected → seq_gap.
 func TestVerifyChain_DeletedRow(t *testing.T) {
 	events := buildChain(t, "tnt-A", 5)
-	tampered := append([]Event{}, events[:2]...)   // seq 1,2
-	tampered = append(tampered, events[3:]...)      // seq 4,5 (3 removed)
+	tampered := append([]Event{}, events[:2]...) // seq 1,2
+	tampered = append(tampered, events[3:]...)   // seq 4,5 (3 removed)
 	res := VerifyChain("tnt-A", tampered)
 	if res.Intact {
 		t.Fatal("deleting a row must break the chain")

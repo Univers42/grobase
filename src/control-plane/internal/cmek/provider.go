@@ -22,9 +22,12 @@ import (
 // enabling deletion), every decrypt for that key fails forever — crypto-shred.
 //
 // Wrap  -> POST {addr}/v1/transit/encrypt/{keyID} {plaintext: base64(DEK)}
-//          <- {data:{ciphertext:"vault:v1:..."}}   (the wrapped DEK, stored verbatim)
+//
+//	<- {data:{ciphertext:"vault:v1:..."}}   (the wrapped DEK, stored verbatim)
+//
 // Unwrap-> POST {addr}/v1/transit/decrypt/{keyID} {ciphertext:"vault:v1:..."}
-//          <- {data:{plaintext: base64(DEK)}}
+//
+//	<- {data:{plaintext: base64(DEK)}}
 //
 // The "vault:v1:..." string is stored as-is in cmek_wrapped_dek (it embeds the
 // key VERSION, so a rotated key still decrypts old ciphertexts; a DELETED key

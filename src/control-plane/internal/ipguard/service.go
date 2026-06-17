@@ -243,7 +243,9 @@ func (s *Service) Remove(ctx context.Context, tenantID, ruleID string) (bool, er
 }
 
 // queryRow runs a single-row query via AdminQuery and adapts it to a pgx.Row.
-func (s *Service) queryRow(ctx context.Context, sql string, args ...any) pgx.Row { return rowQuery{s.db, ctx, sql, args} }
+func (s *Service) queryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	return rowQuery{s.db, ctx, sql, args}
+}
 
 type rowQuery struct {
 	db   idb

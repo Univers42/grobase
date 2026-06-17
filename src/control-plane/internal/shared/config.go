@@ -60,12 +60,12 @@ type Config struct {
 // Example prefix: "ADAPTER_REGISTRY".
 func LoadConfig(prefix string) (Config, error) {
 	cfg := Config{
-		Host:         envDefault(prefix+"_HOST", "0.0.0.0"),
-		Port:         envDefault(prefix+"_PORT", "3021"),
+		Host:         EnvStr(prefix+"_HOST", "0.0.0.0"),
+		Port:         EnvStr(prefix+"_PORT", "3021"),
 		DatabaseURL:  os.Getenv("DATABASE_URL"),
 		ServiceToken: os.Getenv("INTERNAL_SERVICE_TOKEN"),
-		ProductMode:  envDefault(prefix+"_PRODUCT_MODE", "shadow"),
-		SecurityMode: envDefault("SECURITY_MODE", "baseline"),
+		ProductMode:  EnvStr(prefix+"_PRODUCT_MODE", "shadow"),
+		SecurityMode: EnvStr("SECURITY_MODE", "baseline"),
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL is required")
@@ -140,11 +140,4 @@ func requireVaultBackedCredentials(mode string) error {
 // ListenAddr returns host:port for http.Server.
 func (c Config) ListenAddr() string {
 	return c.Host + ":" + c.Port
-}
-
-func envDefault(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }

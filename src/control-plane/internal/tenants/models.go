@@ -22,24 +22,24 @@ import (
 // internal primary key referenced by apps/projects FKs — exposed for
 // completeness but most callers should never need it.
 type Tenant struct {
-	ID          string            `json:"id"`
-	UUID        string            `json:"uuid"`
-	Name        string            `json:"name"`
-	Status      string            `json:"status"`
-	Plan        string            `json:"plan"`
-	OwnerUserID *string           `json:"owner_user_id"`
-	Metadata    map[string]any    `json:"metadata"`
-	CreatedAt   string            `json:"created_at"`
-	UpdatedAt   string            `json:"updated_at"`
+	ID          string         `json:"id"`
+	UUID        string         `json:"uuid"`
+	Name        string         `json:"name"`
+	Status      string         `json:"status"`
+	Plan        string         `json:"plan"`
+	OwnerUserID *string        `json:"owner_user_id"`
+	Metadata    map[string]any `json:"metadata"`
+	CreatedAt   string         `json:"created_at"`
+	UpdatedAt   string         `json:"updated_at"`
 }
 
 // CreateTenantRequest is the POST /v1/tenants body.
 type CreateTenantRequest struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Plan        string            `json:"plan"`
-	OwnerUserID string            `json:"owner_user_id"`
-	Metadata    map[string]any    `json:"metadata"`
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Plan        string         `json:"plan"`
+	OwnerUserID string         `json:"owner_user_id"`
+	Metadata    map[string]any `json:"metadata"`
 }
 
 var idRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{1,62}$`)
@@ -62,10 +62,10 @@ func (r CreateTenantRequest) Validate() error {
 
 // UpdateTenantRequest is the PATCH body.
 type UpdateTenantRequest struct {
-	Name     *string         `json:"name"`
-	Plan     *string         `json:"plan"`
-	Status   *string         `json:"status"`
-	Metadata map[string]any  `json:"metadata"`
+	Name     *string        `json:"name"`
+	Plan     *string        `json:"plan"`
+	Status   *string        `json:"status"`
+	Metadata map[string]any `json:"metadata"`
 }
 
 // APIKey is the redacted view of public.tenant_api_keys.
@@ -101,7 +101,7 @@ type IssueKeyResponse struct {
 //   - first API key
 //   - (optional) default mount via the adapter-registry
 type BootstrapRequest struct {
-	OwnerUserID    string `json:"owner_user_id"`
+	OwnerUserID     string `json:"owner_user_id"`
 	DefaultRoleName string `json:"default_role_name"`
 	DefaultKeyName  string `json:"default_key_name"`
 	SeedRoles       bool   `json:"seed_roles"`
@@ -220,9 +220,9 @@ type VerifyKeyRequest struct {
 
 // VerifyKeyResponse is the verification result.
 type VerifyKeyResponse struct {
-	Valid     bool     `json:"valid"`
-	TenantID  string   `json:"tenant_id,omitempty"`
-	KeyID     string   `json:"key_id,omitempty"`
-	Scopes    []string `json:"scopes,omitempty"`
-	Reason    string   `json:"reason,omitempty"`
+	Valid    bool     `json:"valid"`
+	TenantID string   `json:"tenant_id,omitempty"`
+	KeyID    string   `json:"key_id,omitempty"`
+	Scopes   []string `json:"scopes,omitempty"`
+	Reason   string   `json:"reason,omitempty"`
 }

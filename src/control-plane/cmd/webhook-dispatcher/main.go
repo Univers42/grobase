@@ -62,8 +62,8 @@ func main() {
 
 	dispatcher, err := webhooks.NewDispatcher(db, log, webhooks.DispatcherConfig{
 		RedisURL:    redisURL,
-		GroupName:   envDefault("WEBHOOK_GROUP", "webhook-dispatcher"),
-		ConsumerID:  envDefault("WEBHOOK_CONSUMER", "webhook-dispatcher-0"),
+		GroupName:   shared.EnvStr("WEBHOOK_GROUP", "webhook-dispatcher"),
+		ConsumerID:  shared.EnvStr("WEBHOOK_CONSUMER", "webhook-dispatcher-0"),
 		PollPause:   1 * time.Second,
 		RetryPeriod: 10 * time.Second,
 	})
@@ -82,9 +82,9 @@ func main() {
 	}
 	ftDispatcher, err := functriggers.NewDispatcher(db, log, functriggers.DispatcherConfig{
 		RedisURL:    redisURL,
-		GroupName:   envDefault("FUNCTION_TRIGGER_GROUP", "function-dispatcher"),
-		ConsumerID:  envDefault("FUNCTION_TRIGGER_CONSUMER", "function-dispatcher-0"),
-		RuntimeURL:  envDefault("FUNCTIONS_RUNTIME_URL", "http://functions-runtime:3060"),
+		GroupName:   shared.EnvStr("FUNCTION_TRIGGER_GROUP", "function-dispatcher"),
+		ConsumerID:  shared.EnvStr("FUNCTION_TRIGGER_CONSUMER", "function-dispatcher-0"),
+		RuntimeURL:  shared.EnvStr("FUNCTIONS_RUNTIME_URL", "http://functions-runtime:3060"),
 		PollPause:   1 * time.Second,
 		RetryPeriod: 10 * time.Second,
 	})
@@ -156,13 +156,6 @@ func main() {
 		log.Error("graceful shutdown failed", "err", err)
 	}
 	log.Info("stopped")
-}
-
-func envDefault(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }
 
 func healthcheck(cfg shared.Config) int {

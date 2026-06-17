@@ -54,9 +54,9 @@ func (f *fakeRepo) history(context.Context, int) ([]SendLog, error) {
 // recordingSender captures outbound mail and can be told to fail for specific
 // recipients (to exercise campaign sent/failed counting).
 type recordingSender struct {
-	mu       sync.Mutex
-	sent     []string
-	failFor  map[string]bool
+	mu      sync.Mutex
+	sent    []string
+	failFor map[string]bool
 }
 
 func (s *recordingSender) send(_ context.Context, to, _, _, _ string) error {

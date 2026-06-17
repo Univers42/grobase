@@ -8,6 +8,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -70,14 +71,14 @@ func (s *Service) IssueInvite(ctx context.Context, orgID, email, role, invitedBy
 		          expires_at::text, created_at::text, accepted_by`,
 		orgID, email, role, tokenHash, invitedBy, defaultInviteTTLHours)
 	if err != nil {
-		if isUniqueViolation(err) {
+		if shared.IsUniqueViolation(err) {
 			return IssueInviteResponse{}, ErrConflict
 		}
 		return IssueInviteResponse{}, err
 	}
 	var inv Invite
 	if err := scanInvite(&singleRow{rows: rows}, &inv); err != nil {
-		if isUniqueViolation(err) {
+		if shared.IsUniqueViolation(err) {
 			return IssueInviteResponse{}, ErrConflict
 		}
 		return IssueInviteResponse{}, err

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -141,7 +142,7 @@ func (s *Service) List(ctx context.Context, tenantID string, from, to time.Time,
 	if limit <= 0 || limit > maxListLimit {
 		limit = maxListLimit
 	}
-	rows, err := s.db.AdminQuery(ctx, listSQL, tenantID, nullableTime(from), nullableTime(to), limit)
+	rows, err := s.db.AdminQuery(ctx, listSQL, tenantID, shared.NullableTime(from), shared.NullableTime(to), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -188,12 +189,6 @@ func normalizePayload(p []byte) json.RawMessage {
 }
 
 // nullableTime maps a zero time to SQL NULL (unbounded window side).
-func nullableTime(t time.Time) any {
-	if t.IsZero() {
-		return nil
-	}
-	return t.UTC()
-}
 
 // lockKey hashes a tenant id to a stable signed 64-bit pg_advisory lock key, so
 // appends serialize per tenant (different tenants get different keys → no

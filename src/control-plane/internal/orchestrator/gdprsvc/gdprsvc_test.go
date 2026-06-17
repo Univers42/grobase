@@ -12,14 +12,14 @@ import (
 
 // fakeRepo is an in-memory gdpr repo for HTTP-layer tests.
 type fakeRepo struct {
-	consent         *Consent
-	consentMissing  bool
-	pending         bool
-	delReq          *DeletionRequest
-	delReqStatus    string
-	withdrawn       int
-	lastSetConsent  bool
-	lastUpdateType  string
+	consent        *Consent
+	consentMissing bool
+	pending        bool
+	delReq         *DeletionRequest
+	delReqStatus   string
+	withdrawn      int
+	lastSetConsent bool
+	lastUpdateType string
 }
 
 func (f *fakeRepo) bootstrap(context.Context) error { return nil }

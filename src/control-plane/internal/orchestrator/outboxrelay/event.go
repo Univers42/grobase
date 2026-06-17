@@ -3,7 +3,7 @@ package outboxrelay
 import "encoding/json"
 
 // outboxEvent mirrors the OutboxEventRow the Node relay selects. Nullable text
-// columns are flattened to "" (matching the Node `?? ''` coalescing on the wire).
+// columns are flattened to "" (matching the Node `?? ”` coalescing on the wire).
 type outboxEvent struct {
 	ID                  string
 	Aggregate           string

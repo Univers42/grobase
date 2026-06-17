@@ -146,7 +146,7 @@ func (s *Service) Delete(ctx context.Context, tenantID, functionName, key string
 }
 
 // Resolve returns the decrypted key/value map for a tenant + function.
-// Function-scoped secrets override tenant-wide ones (function_name = '').
+// Function-scoped secrets override tenant-wide ones (function_name = ”).
 // Uses the admin pool because the runtime authenticates with the service token,
 // not a tenant session.
 func (s *Service) Resolve(ctx context.Context, tenantID, functionName string) (map[string]string, error) {

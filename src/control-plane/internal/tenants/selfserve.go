@@ -68,7 +68,7 @@ func MountSelfServe(mux *http.ServeMux, svc *Service, jwt *JWTVerifier, manifest
 // On any failure it writes a 401 and returns ok=false. The returned tenantID is
 // the canonical SLUG (what every downstream Service method keys on).
 func (ss *selfServe) selfAuth(w http.ResponseWriter, r *http.Request) (tenantID string, scopes []string, ok bool) {
-	if raw := apiKeyFromRequest(r); raw != "" {
+	if raw := shared.APIKeyFromRequest(r); raw != "" {
 		out, err := ss.svc.VerifyKey(r.Context(), raw)
 		if err != nil {
 			shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
@@ -121,26 +121,9 @@ func (ss *selfServe) selfAuth(w http.ResponseWriter, r *http.Request) (tenantID 
 // `Authorization: Bearer mbk_...` header (the project key prefix). A JWT Bearer
 // (no mbk_ prefix) is left for the JWT path, so the two credential types never
 // collide on the same header.
-func apiKeyFromRequest(r *http.Request) string {
-	if k := strings.TrimSpace(r.Header.Get("X-API-Key")); k != "" {
-		return k
-	}
-	auth := strings.TrimSpace(r.Header.Get("Authorization"))
-	if rest, ok := cutBearer(auth); ok && strings.HasPrefix(rest, "mbk_") {
-		return rest
-	}
-	return ""
-}
 
 // cutBearer strips a case-insensitive "Bearer " prefix, returning the remainder
 // and whether the prefix was present.
-func cutBearer(auth string) (string, bool) {
-	const p = "bearer "
-	if len(auth) >= len(p) && strings.EqualFold(auth[:len(p)], p) {
-		return strings.TrimSpace(auth[len(p):]), true
-	}
-	return "", false
-}
 
 // hasScope reports whether the credential carries the named scope, treating
 // "admin" as a superset (an admin key may do anything a write/read key may).
@@ -499,7 +482,7 @@ func (s *Service) aggregateUsage(ctx context.Context, tenantID, metric string, f
 		Metrics:  make([]MetricAgg, 0),
 	}
 	rows, err := s.db.AdminQuery(ctx, usageAggregateSQL,
-		tenantID, nullableStr(metric), nullableTime(from), nullableTime(to))
+		tenantID, nullableStr(metric), shared.NullableTime(from), shared.NullableTime(to))
 	if err != nil {
 		return resp, err
 	}
@@ -538,12 +521,6 @@ func nullableStr(s string) any {
 }
 
 // nullableTime maps a zero time to SQL NULL (unbounded side).
-func nullableTime(t time.Time) any {
-	if t.IsZero() {
-		return nil
-	}
-	return t.UTC()
-}
 
 // rfc3339OrEmpty renders a bound for the echoed window ("" when unbounded).
 func rfc3339OrEmpty(t time.Time) string {

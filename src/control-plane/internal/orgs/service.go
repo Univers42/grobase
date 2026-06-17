@@ -26,11 +26,6 @@ func NewService(db *shared.Postgres, log *slog.Logger) *Service {
 	return &Service{db: db, log: log}
 }
 
-func isUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505"
-}
-
 // ── org CRUD ─────────────────────────────────────────────────────────────────
 
 const selectOrg = `
@@ -74,7 +69,7 @@ func (s *Service) CreateOrg(ctx context.Context, req CreateOrgRequest, createdBy
 		          created_at::text, updated_at::text`,
 		req.Slug, req.Name, plan, string(metaJSON), createdBy)
 	if err := scanOrg(row, &o); err != nil {
-		if isUniqueViolation(err) {
+		if shared.IsUniqueViolation(err) {
 			return Org{}, ErrConflict
 		}
 		return Org{}, err

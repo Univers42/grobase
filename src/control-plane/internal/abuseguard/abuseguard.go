@@ -30,8 +30,6 @@ package abuseguard
 import (
 	"context"
 	"log/slog"
-	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -99,11 +97,11 @@ func NewGuard(log *slog.Logger, db *shared.Postgres, serviceToken string) *Guard
 		log:            log,
 		db:             db,
 		serviceToken:   serviceToken,
-		enabled:        envBool("ABUSE_GUARD_ENABLED"),
-		redisURL:       env("OUTBOX_REDIS_URL", env("REDIS_URL", "redis://redis:6379")),
-		velocityMax:    envInt("ABUSE_VELOCITY_MAX", 20),
-		velocityWindow: time.Duration(envInt("ABUSE_VELOCITY_WINDOW_MS", 3_600_000)) * time.Millisecond,
-		autoSuspend:    envBoolDefault("ABUSE_AUTO_SUSPEND", true),
+		enabled:        shared.EnvBool("ABUSE_GUARD_ENABLED"),
+		redisURL:       shared.EnvStr("OUTBOX_REDIS_URL", shared.EnvStr("REDIS_URL", "redis://redis:6379")),
+		velocityMax:    shared.EnvInt("ABUSE_VELOCITY_MAX", 20),
+		velocityWindow: time.Duration(shared.EnvInt("ABUSE_VELOCITY_WINDOW_MS", 3_600_000)) * time.Millisecond,
+		autoSuspend:    shared.EnvBoolDefault("ABUSE_AUTO_SUSPEND", true),
 		tierReqs:       loadTierRequirements(),
 	}
 }
@@ -150,7 +148,7 @@ func loadTierRequirements() map[string]requirement {
 	// The known tier names (packages.json keys + legacy aliases). A deployment sets
 	// ABUSE_REQUIRE_NANO=email, ABUSE_REQUIRE_FREE=email,phone, etc.
 	for _, tier := range []string{"nano", "basic", "essential", "pro", "max", "free", "enterprise"} {
-		raw := strings.TrimSpace(env("ABUSE_REQUIRE_"+strings.ToUpper(tier), ""))
+		raw := strings.TrimSpace(shared.EnvStr("ABUSE_REQUIRE_"+strings.ToUpper(tier), ""))
 		if raw == "" {
 			continue
 		}
@@ -172,42 +170,5 @@ func loadTierRequirements() map[string]requirement {
 
 /* ─────── env helpers (mirroring metering.consumer / spendcap) ─────── */
 
-func env(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-func envInt(key string, def int) int {
-	if v := os.Getenv(key); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
-		}
-	}
-	return def
-}
-
-func envBool(key string) bool {
-	switch os.Getenv(key) {
-	case "1", "true", "on", "TRUE", "True", "ON":
-		return true
-	default:
-		return false
-	}
-}
-
 // envBoolDefault returns def when the env var is unset, else parses it as a bool.
 // Used for ABUSE_AUTO_SUSPEND, which defaults ON (a breach is a strong signal).
-func envBoolDefault(key string, def bool) bool {
-	v := os.Getenv(key)
-	if v == "" {
-		return def
-	}
-	switch v {
-	case "1", "true", "on", "TRUE", "True", "ON":
-		return true
-	default:
-		return false
-	}
-}

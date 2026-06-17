@@ -234,7 +234,7 @@ func (rt *routes) selfTenant(w http.ResponseWriter, r *http.Request) (string, bo
 		shared.WriteError(w, http.StatusNotImplemented, "not_configured", "self-serve allowlist not configured")
 		return "", false
 	}
-	raw := apiKeyFromRequest(r)
+	raw := shared.APIKeyFromRequest(r)
 	if raw == "" {
 		shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
 			"X-API-Key or Authorization: Bearer <api-key> required")
@@ -287,20 +287,6 @@ func actorFromRequest(r *http.Request) string {
 // apiKeyFromRequest extracts a tenant API key from X-API-Key or from an
 // `Authorization: Bearer mbk_...` header (mirrors tenants.apiKeyFromRequest). A
 // JWT Bearer (no mbk_ prefix) is left untouched so the two never collide.
-func apiKeyFromRequest(r *http.Request) string {
-	if k := strings.TrimSpace(r.Header.Get("X-API-Key")); k != "" {
-		return k
-	}
-	auth := strings.TrimSpace(r.Header.Get("Authorization"))
-	const p = "bearer "
-	if len(auth) >= len(p) && strings.EqualFold(auth[:len(p)], p) {
-		rest := strings.TrimSpace(auth[len(p):])
-		if strings.HasPrefix(rest, "mbk_") {
-			return rest
-		}
-	}
-	return ""
-}
 
 // decodeJSON reads a JSON body with a small cap (allowlist ops are tiny control
 // messages).

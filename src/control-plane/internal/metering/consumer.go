@@ -5,8 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
@@ -49,10 +47,10 @@ func New(log *slog.Logger, db *shared.Postgres) *Consumer {
 	return &Consumer{
 		log:       log,
 		store:     NewStore(db),
-		enabled:   envBool("METERING_ENABLED") && envBool("METERING_INGEST"),
-		redisURL:  env("OUTBOX_REDIS_URL", env("REDIS_URL", "redis://redis:6379")),
-		blockWait: time.Duration(envInt("METERING_INGEST_BLOCK_MS", 2_000)) * time.Millisecond,
-		batchSize: int64(envInt("METERING_INGEST_BATCH", 100)),
+		enabled:   shared.EnvBool("METERING_ENABLED") && shared.EnvBool("METERING_INGEST"),
+		redisURL:  shared.EnvStr("OUTBOX_REDIS_URL", shared.EnvStr("REDIS_URL", "redis://redis:6379")),
+		blockWait: time.Duration(shared.EnvInt("METERING_INGEST_BLOCK_MS", 2_000)) * time.Millisecond,
+		batchSize: int64(shared.EnvInt("METERING_INGEST_BATCH", 100)),
 	}
 }
 
@@ -169,28 +167,4 @@ func isBusyGroup(err error) bool {
 
 /* ─────── env helpers (mirroring outboxrelay) ─────── */
 
-func env(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-func envInt(key string, def int) int {
-	if v := os.Getenv(key); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
-		}
-	}
-	return def
-}
-
 // envBool mirrors the data-plane config.rs flag shape (matches!(…,"1"|"true"|"on")).
-func envBool(key string) bool {
-	switch os.Getenv(key) {
-	case "1", "true", "on", "TRUE", "True", "ON":
-		return true
-	default:
-		return false
-	}
-}

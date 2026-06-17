@@ -171,11 +171,11 @@ func TestSagaDataNonObjectDataKey(t *testing.T) {
 func TestDispatchMongoRouting(t *testing.T) {
 	freezeNow(t)
 	cases := []struct {
-		name      string
-		event     *outboxEvent
-		wantKind  string
-		wantColl  string
-		wantNoOp  bool // payload not an object → no operation issued
+		name     string
+		event    *outboxEvent
+		wantKind string
+		wantColl string
+		wantNoOp bool // payload not an object → no operation issued
 	}{
 		{
 			name:     "upsert_target_resource",
@@ -193,8 +193,8 @@ func TestDispatchMongoRouting(t *testing.T) {
 			wantKind: "update", wantColl: "fallback_agg",
 		},
 		{
-			name:    "non_object_payload_skips",
-			event:   &outboxEvent{ID: "e4", AggregateID: "a4", TargetResource: "c", Op: "upsert", Payload: json.RawMessage(`5`)},
+			name:     "non_object_payload_skips",
+			event:    &outboxEvent{ID: "e4", AggregateID: "a4", TargetResource: "c", Op: "upsert", Payload: json.RawMessage(`5`)},
 			wantNoOp: true,
 		},
 	}
