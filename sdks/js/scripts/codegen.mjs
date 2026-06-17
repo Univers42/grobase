@@ -25,7 +25,7 @@ import { generate } from 'openapi-typescript-codegen';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SDK_ROOT = path.resolve(__dirname, '..');
-const SPECS_DIR = path.resolve(SDK_ROOT, '../../mini-baas-infra/openapi');
+const SPECS_DIR = path.resolve(SDK_ROOT, '../../infra/config/openapi');
 const OUT_DIR = path.resolve(SDK_ROOT, 'src/generated');
 
 async function exists(p) {

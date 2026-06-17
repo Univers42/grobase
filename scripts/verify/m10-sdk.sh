@@ -160,12 +160,17 @@ if grep -q "subscribe() requires the realtime channel" "${CLI_FILE}"; then
   fail "${CLI_FILE} still throws the legacy 'realtime channel' error — M10.b not wired"
 fi
 
-# 8.d compose: realtime service has both PG + Mongo producers configured
+# 8.d compose: realtime service has both PG + Mongo producers configured.
+# Lean layout: the root docker-compose.yml is a thin orchestrator that include:s
+# per-plane base files, so the realtime env lives in orchestrators/compose/base/
+# (data-plane.yml) — grep the compose SOURCE tree, not just the root file. (A
+# `docker compose config` would profile-exclude the data-plane service entirely.)
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
-grep -q "REALTIME_PG_URL:" "${COMPOSE_FILE}"   || fail "docker-compose: realtime service missing REALTIME_PG_URL"
-grep -q "REALTIME_MONGO_URI:" "${COMPOSE_FILE}" \
+COMPOSE_SRC="${BAAS_DIR}/orchestrators/compose"
+grep -rq "REALTIME_PG_URL:" "${COMPOSE_SRC}"   || fail "docker-compose: realtime service missing REALTIME_PG_URL"
+grep -rq "REALTIME_MONGO_URI:" "${COMPOSE_SRC}" \
   || fail "docker-compose: realtime service missing REALTIME_MONGO_URI (Mongo change streams off)"
-grep -q "REALTIME_MONGO_DB:" "${COMPOSE_FILE}" \
+grep -rq "REALTIME_MONGO_DB:" "${COMPOSE_SRC}" \
   || fail "docker-compose: realtime service missing REALTIME_MONGO_DB"
 
 # 8.e PG NOTIFY trigger migration is present (no NOTIFY = realtime gets no PG events)
