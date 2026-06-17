@@ -6,10 +6,9 @@ use axum::http::header;
 use axum::middleware::Next;
 use axum::response::Response;
 use axum::Json;
-use data_plane_core::{EngineCapabilities, PoolRegistry};
+use data_plane_core::EngineCapabilities;
 use serde::Serialize;
 
-use crate::metrics::escape_label;
 use super::state::AppState;
 
 /// Counts every finished request by status class, except the scrape/probe
@@ -48,113 +47,17 @@ fn header_str(req: &Request, name: &str) -> String {
 
 /// Prometheus exposition: service_up + uptime + request counts + per-mount pool
 /// saturation (from the live `PoolRegistry::stats()`). Dependency-free, same
-/// `baas_*` shape as the Go control plane.
+/// `baas_*` shape as the Go control plane. The body is the concatenation, in
+/// order, of one append-helper per metric family — the wire output is byte-for-
+/// byte what the inline builder produced.
 pub(super) async fn metrics_handler(State(state): State<AppState>) -> Response {
-    let (_, c2, c4, c5) = state.metrics.snapshot();
+    use super::metrics_text::{
+        write_outbox_and_pool_conns, write_pool_and_cache_counters, write_service_and_requests,
+    };
     let mut out = String::new();
-    out.push_str("# HELP baas_service_up 1 while the service is serving\n");
-    out.push_str("# TYPE baas_service_up gauge\n");
-    out.push_str("baas_service_up{service=\"data-plane-router\"} 1\n");
-    out.push_str("# HELP baas_uptime_seconds Seconds since process start\n");
-    out.push_str("# TYPE baas_uptime_seconds gauge\n");
-    out.push_str(&format!(
-        "baas_uptime_seconds{{service=\"data-plane-router\"}} {}\n",
-        state.metrics.uptime_secs()
-    ));
-    out.push_str("# HELP baas_http_requests_total HTTP requests by status class\n");
-    out.push_str("# TYPE baas_http_requests_total counter\n");
-    for (class, n) in [("2xx", c2), ("4xx", c4), ("5xx", c5)] {
-        out.push_str(&format!(
-            "baas_http_requests_total{{service=\"data-plane-router\",status=\"{class}\"}} {n}\n"
-        ));
-    }
-    // B5 per-tenant observability (Pillar 3, OPTIONAL) — additionally emit a
-    // tenant_id-labeled line on THIS counter ONLY (never a histogram, never the
-    // cache/pool/outbox counters). The set is HARD-CAPPED at N+1 distinct tenants
-    // (the over-cap fold is the `tenant_id="_over_cap"` sentinel), so this adds at
-    // most N+1 series regardless of tenant count. The snapshot is EMPTY at parity
-    // (the counter is only written when `tenant_obs_counter` is ON), so when the
-    // flag is OFF this loop emits ZERO lines and `/metrics` is byte-identical to
-    // today. The labels are already `escape_label`-sanitized (they are the stored
-    // keys), so they are emitted verbatim inside the quotes. No `status` label on
-    // these lines (one series per tenant) keeps the ceiling at exactly N+1.
-    for (tenant_id, n) in state.metrics.tenant_requests_snapshot() {
-        out.push_str(&format!(
-            "baas_http_requests_total{{service=\"data-plane-router\",tenant_id=\"{tenant_id}\"}} {n}\n"
-        ));
-    }
-    // Scale counters (B3): pool lifecycle, cache effectiveness, limiter map —
-    // the signals the 10K-tenant experiments watch. evicted_total climbing at
-    // steady state == the mount working set exceeds DATA_PLANE_MAX_POOLS.
-    let (pools_created, pools_evicted, pools_reaped, pools_open) = state.registry.scale_counters();
-    out.push_str("# HELP baas_data_plane_pools_open Engine pools currently cached\n");
-    out.push_str("# TYPE baas_data_plane_pools_open gauge\n");
-    out.push_str(&format!(
-        "baas_data_plane_pools_open{{service=\"data-plane-router\"}} {pools_open}\n"
-    ));
-    out.push_str("# HELP baas_data_plane_pool_events_total Pool lifecycle events since start\n");
-    out.push_str("# TYPE baas_data_plane_pool_events_total counter\n");
-    for (event, n) in [
-        ("created", pools_created),
-        ("evicted", pools_evicted),
-        ("reaped", pools_reaped),
-    ] {
-        out.push_str(&format!(
-            "baas_data_plane_pool_events_total{{service=\"data-plane-router\",event=\"{event}\"}} {n}\n"
-        ));
-    }
-    let (verify_hit, verify_miss, mount_hit, mount_miss) = state.metrics.cache_snapshot();
-    out.push_str("# HELP baas_data_plane_cache_events_total Verify/mount cache lookups by result\n");
-    out.push_str("# TYPE baas_data_plane_cache_events_total counter\n");
-    for (cache, result, n) in [
-        ("verify", "hit", verify_hit),
-        ("verify", "miss", verify_miss),
-        ("mount", "hit", mount_hit),
-        ("mount", "miss", mount_miss),
-    ] {
-        out.push_str(&format!(
-            "baas_data_plane_cache_events_total{{service=\"data-plane-router\",cache=\"{cache}\",result=\"{result}\"}} {n}\n"
-        ));
-    }
-    out.push_str("# HELP baas_data_plane_ratelimit_tracked Tenant token buckets currently tracked\n");
-    out.push_str("# TYPE baas_data_plane_ratelimit_tracked gauge\n");
-    out.push_str(&format!(
-        "baas_data_plane_ratelimit_tracked{{service=\"data-plane-router\"}} {}\n",
-        state.ratelimiter.tracked()
-    ));
-    // D-write-tail: background outbox queue health. `dropped` > 0 means the
-    // worker can't keep up (widen DATA_PLANE_OUTBOX_QUEUE or add capacity);
-    // enqueued − written − dropped ≈ queue depth in flight.
-    let (ob_enq, ob_wr, ob_drop, ob_fail) = state.metrics.outbox_snapshot();
-    out.push_str("# HELP baas_data_plane_outbox_events_total Background outbox emission by stage\n");
-    out.push_str("# TYPE baas_data_plane_outbox_events_total counter\n");
-    for (stage, n) in [
-        ("enqueued", ob_enq),
-        ("written", ob_wr),
-        ("dropped", ob_drop),
-        ("failed", ob_fail),
-    ] {
-        out.push_str(&format!(
-            "baas_data_plane_outbox_events_total{{service=\"data-plane-router\",stage=\"{stage}\"}} {n}\n"
-        ));
-    }
-    out.push_str("# HELP baas_data_plane_pool_connections Pool connections per mount and state\n");
-    out.push_str("# TYPE baas_data_plane_pool_connections gauge\n");
-    if let Ok(stats) = state.registry.stats().await {
-        for s in stats {
-            let mount = escape_label(&s.mount_id);
-            let engine = escape_label(&s.engine);
-            for (st, v) in [
-                ("active", s.active_connections),
-                ("idle", s.idle_connections),
-                ("waiting", s.waiting_requests),
-            ] {
-                out.push_str(&format!(
-                    "baas_data_plane_pool_connections{{service=\"data-plane-router\",mount=\"{mount}\",engine=\"{engine}\",state=\"{st}\"}} {v}\n"
-                ));
-            }
-        }
-    }
+    write_service_and_requests(&mut out, &state);
+    write_pool_and_cache_counters(&mut out, &state);
+    write_outbox_and_pool_conns(&mut out, &state).await;
     Response::builder()
         .header(header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")
         .body(Body::from(out))
@@ -215,6 +118,7 @@ pub(crate) async fn capabilities(State(state): State<AppState>) -> Json<Capabili
 
 /// The engines advertised at `/v1/capabilities` — feature-gated to match what
 /// this build can actually pool (the honesty self-check compares the two).
+// ponytail: irreducible descriptor table — one EngineDescriptor literal per engine, cfg-gated
 pub(super) fn default_engines() -> Vec<EngineDescriptor> {
     vec![
         #[cfg(feature = "postgres")]

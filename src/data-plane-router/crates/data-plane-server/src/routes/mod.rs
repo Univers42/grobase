@@ -8,13 +8,20 @@
 
 mod admin;
 mod bypass;
+mod bypass_auth;
 mod health;
 mod helpers;
+mod metrics_text;
 mod permissions;
 mod query;
+mod query_emit;
+mod query_guards;
 mod schema;
 mod state;
+mod state_build;
+mod state_ops;
 mod transactions;
+mod txregistry;
 
 // ── crate-facing facade ──────────────────────────────────────────────────────
 // External callers reach these as `crate::routes::X` exactly as before the split

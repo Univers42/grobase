@@ -78,8 +78,12 @@ pub(super) fn require_capability(
     Ok(())
 }
 
-pub(crate) fn map_data_plane_error(err: &DataPlaneError) -> axum::response::Response {
-    let (status, code) = match err {
+/// The HTTP (status, error-code) a `DataPlaneError` variant maps to. Split out of
+/// `map_data_plane_error` so the response-build tail stays small; this is the
+/// irreducible exhaustive variant→status table, every arm load-bearing.
+// ponytail: exhaustive error→status match — data table, one arm per DataPlaneError variant
+fn error_status_code(err: &DataPlaneError) -> (StatusCode, &'static str) {
+    match err {
         DataPlaneError::NotImplemented { .. } => (StatusCode::NOT_IMPLEMENTED, "not_implemented"),
         // G6: an (engine, op) the engine cannot serve is a *semantically*
         // invalid request — the body is well-formed but the capability is
@@ -109,7 +113,11 @@ pub(crate) fn map_data_plane_error(err: &DataPlaneError) -> axum::response::Resp
         }
         DataPlaneError::Backend { .. } => (StatusCode::BAD_GATEWAY, "backend_error"),
         DataPlaneError::Conflict { .. } => (StatusCode::CONFLICT, "conflict"),
-    };
+    }
+}
+
+pub(crate) fn map_data_plane_error(err: &DataPlaneError) -> axum::response::Response {
+    let (status, code) = error_status_code(err);
     (
         status,
         Json(ApiError {
@@ -123,8 +131,7 @@ pub(crate) fn map_data_plane_error(err: &DataPlaneError) -> axum::response::Resp
 /// Shape a data-plane result into the wire response every execute-on-pool
 /// handler returns: `200 OK` + the JSON payload on success, the central
 /// `map_data_plane_error` mapping on failure. Collapses the identical
-/// `match { Ok => (OK, Json).into_response(), Err => map_data_plane_error }`
-
+/// `match { Ok => (OK, Json).into_response(), Err => map_data_plane_error }`.
 pub(super) fn json_result<T: Serialize>(
     result: data_plane_core::DataPlaneResult<T>,
 ) -> axum::response::Response {
@@ -208,7 +215,6 @@ pub(super) fn not_implemented(error: &str, message: &str) -> axum::response::Res
 }
 
 /// 429 for a tenant that exceeded its package tier's request rate (Phase 4).
-
 /// Carries a `Retry-After: 1` hint (the bucket refills within a second at any
 /// non-trivial rps).
 pub(super) fn too_many_requests(rps: u32) -> axum::response::Response {
