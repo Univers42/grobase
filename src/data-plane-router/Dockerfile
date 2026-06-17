@@ -5,7 +5,7 @@
 #  - BuildKit cache mounts: the crates registry and the target dir persist
 #    ACROSS builds, so a manifest change no longer re-downloads the registry,
 #    and a source change only recompiles the crates that actually changed.
-FROM public.ecr.aws/docker/library/rust:1.89-slim-bookworm AS deps
+FROM public.ecr.aws/docker/library/rust:1.96-slim-bookworm AS deps
 WORKDIR /build
 
 COPY Cargo.toml ./

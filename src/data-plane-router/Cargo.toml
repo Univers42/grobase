@@ -20,7 +20,7 @@ default-members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.89"
+rust-version = "1.91"
 
 # Strip + thin-LTO the production binary. Before this profile existed the
 # release build shipped DEFAULT flags — a 29 MB binary with full debug symbol
@@ -79,13 +79,12 @@ mongodb = "3"
 # 8th engine (OFF by default): DynamoDB-compatible adapter (AWS DynamoDB /
 # DynamoDB-Local / ScyllaDB Alternator). Behind the optional `dynamodb` feature
 # so the default build never fetches or compiles the AWS SDK (byte-parity).
-# PINNED to the newest releases whose MSRV is <= 1.89 (the rust:1.89-bookworm
-# build image): aws-sdk-dynamodb 1.104.0 / aws-config 1.8.13 (both MSRV 1.88).
-# The newer 1.116 / 1.8.18 demand rustc 1.91.1. The MSRV-aware resolver ("3" +
-# rust-version 1.89 above) likewise caps the transitive aws-smithy-* / sts / sso
-# crates at MSRV <= 1.89. Default features give the rustls https client + tokio
-# runtime; `behavior-version-latest` lets the adapter call
-# `aws_config::defaults(BehaviorVersion::latest())`.
+# Pinned for reproducibility: aws-sdk-dynamodb 1.104.0 / aws-config 1.8.13. The
+# build toolchain is now rustc 1.96 (workspace rust-version 1.91), so the old
+# "cap everything at MSRV <= 1.89" constraint that forced these exact pins is
+# LIFTED — they may be relaxed to pull newer AWS SDK releases. Default features
+# give the rustls https client + tokio runtime; `behavior-version-latest` lets
+# the adapter call `aws_config::defaults(BehaviorVersion::latest())`.
 aws-sdk-dynamodb = { version = "=1.104.0", features = ["behavior-version-latest"] }
 aws-config = { version = "=1.8.13", features = ["behavior-version-latest"] }
 # R7: MySQL adapter. `default-rustls` selects rustls (matches the tls posture

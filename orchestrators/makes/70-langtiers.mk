@@ -61,18 +61,18 @@ sonar-scan: sonar-coverage ## Regenerate coverage, then run the SonarCloud scann
 # Cargo runs INSIDE Docker (no rustc/cargo on the host). The registry and the
 # per-workspace target dirs live in named volumes, so dependency downloads and
 # incremental build state persist across runs while the host stays clean.
-RUST_IMAGE          := public.ecr.aws/docker/library/rust:1.89-slim-bookworm
+RUST_IMAGE          := public.ecr.aws/docker/library/rust:1.96-slim-bookworm
 RUST_TOOLCHAIN_IMG  := mini-baas-rust-toolchain
 CARGO_VOLS           = -v mini-baas-cargo-registry:/usr/local/cargo/registry -v mini-baas-cargo-git:/usr/local/cargo/git
 CARGO_DPR            = docker run --rm -v "$(CURDIR)/src/data-plane-router":/work -w /work $(CARGO_VOLS) -v mini-baas-dpr-target:/work/target $(RUST_TOOLCHAIN_IMG)
 CARGO_REALTIME       = docker run --rm -v "$(CURDIR)/infra/docker/services/realtime/realtime-agnostic":/work -w /work $(CARGO_VOLS) -v mini-baas-realtime-target:/work/target $(RUST_TOOLCHAIN_IMG)
 
 _rust-toolchain: ## (internal) cargo-in-docker image: rust + pkg-config/libssl (layer-cached)
-	@printf 'FROM $(RUST_IMAGE)\nRUN apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*\n' \
+	@printf 'FROM $(RUST_IMAGE)\nRUN rustup component add clippy rustfmt && apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*\n' \
 		| docker build -q -t $(RUST_TOOLCHAIN_IMG) - >/dev/null
 
 rust-data-plane-check: _rust-toolchain ## Rust: cargo check the data-plane workspace (in Docker)
-	@$(CARGO_DPR) cargo check --workspace
+	@$(CARGO_DPR) cargo clippy --workspace --all-targets -- -D warnings
 
 rust-data-plane-test: _rust-toolchain ## Rust: run the data-plane workspace unit + integration tests (in Docker)
 	@$(CARGO_DPR) cargo test --workspace

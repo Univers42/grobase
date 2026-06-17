@@ -51,7 +51,15 @@ env_of() { # $1 container, $2 var
   docker inspect "$1" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
     | grep "^$2=" | head -1 | cut -d= -f2-
 }
-container_up() { [ "$(docker inspect -f "{{.State.Running}}{{if .State.Restarting}}-r{{end}}" "$1" 2>/dev/null)" = "true" ]; }
+container_up() {
+  # An engine counts as "up" only if it is RUNNING, not restarting, and (when it
+  # declares a healthcheck) HEALTHY. This makes the gate honestly SKIP engines
+  # that are down/crash-looping/unhealthy (e.g. a DB with drifted creds) rather
+  # than fail trying to connect to one that cannot serve.
+  [ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null)" = "true" ] || return 1
+  [ "$(docker inspect -f '{{.State.Restarting}}' "$1" 2>/dev/null)" = "false" ] || return 1
+  [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}healthy{{end}}' "$1" 2>/dev/null)" = "healthy" ]
+}
 
 # Engine → (container, in-network DSN). Echoes DSN, or empty if engine down.
 dsn_for() {
@@ -112,7 +120,7 @@ NET="$(docker inspect mini-baas-postgres --format '{{range $k,$v := .NetworkSett
 ensure_toolchain() {
   docker image inspect "${TOOLCHAIN_IMG}" >/dev/null 2>&1 && return 0
   step "building the rust toolchain image (one-off, layer-cached)"
-  printf 'FROM public.ecr.aws/docker/library/rust:1.89-slim-bookworm\nRUN apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*\n' \
+  printf 'FROM public.ecr.aws/docker/library/rust:1.96-slim-bookworm\nRUN rustup component add clippy rustfmt && apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*\n' \
     | docker build -q -t "${TOOLCHAIN_IMG}" - >/dev/null
 }
 
