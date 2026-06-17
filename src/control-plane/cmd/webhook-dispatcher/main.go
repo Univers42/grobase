@@ -43,9 +43,9 @@ func main() {
 	}
 	defer ftDispatcher.Close()
 
-	mux := buildRouter(ctx, db, log, svc, ftSvc, cfg.ServiceToken, m)
+	mux := buildRouter(ctx, routerDeps{db: db, log: log, svc: svc, ftSvc: ftSvc, serviceToken: cfg.ServiceToken, m: m})
 	srv := newServer(cfg, mux, log, m)
-	launchLoops(ctx, log, redisURL, srv, cfg, dispatcher.Run, ftDispatcher.Run, stop)
+	launchLoops(ctx, loopsConfig{log: log, redisURL: redisURL, srv: srv, cfg: cfg, wh: dispatcher.Run, ft: ftDispatcher.Run, stop: stop})
 	awaitShutdown(ctx, srv, log)
 }
 

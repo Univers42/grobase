@@ -34,22 +34,32 @@ func (s *MinIOStore) signedRequest(ctx context.Context, method, key string, body
 	req.Header.Set("Host", u.Host)
 	req.Header.Set("X-Amz-Date", amzDate)
 	req.Header.Set("X-Amz-Content-Sha256", payloadHash)
-	req.Header.Set("Authorization", s.authHeader(method, u, amzDate, dateStamp, payloadHash))
+	req.Header.Set("Authorization", s.authHeader(sigInput{method: method, u: u, amzDate: amzDate, dateStamp: dateStamp, payloadHash: payloadHash}))
 	return req, nil
+}
+
+// sigInput groups the per-request SigV4 signing inputs: HTTP method, parsed URL,
+// the amz date, the date stamp, and the payload hash.
+type sigInput struct {
+	method      string
+	u           *url.URL
+	amzDate     string
+	dateStamp   string
+	payloadHash string
 }
 
 // authHeader computes the SigV4 Authorization header value for one request: the
 // canonical request -> string-to-sign -> HMAC chain (stdlib-only).
-func (s *MinIOStore) authHeader(method string, u *url.URL, amzDate, dateStamp, payloadHash string) string {
-	canonicalHeaders := fmt.Sprintf("host:%s\nx-amz-content-sha256:%s\nx-amz-date:%s\n", u.Host, payloadHash, amzDate)
+func (s *MinIOStore) authHeader(in sigInput) string {
+	canonicalHeaders := fmt.Sprintf("host:%s\nx-amz-content-sha256:%s\nx-amz-date:%s\n", in.u.Host, in.payloadHash, in.amzDate)
 	signedHeaders := "host;x-amz-content-sha256;x-amz-date"
-	canonicalRequest := strings.Join([]string{method, u.EscapedPath(), "", canonicalHeaders, signedHeaders, payloadHash}, "\n")
+	canonicalRequest := strings.Join([]string{in.method, in.u.EscapedPath(), "", canonicalHeaders, signedHeaders, in.payloadHash}, "\n")
 
-	scope := strings.Join([]string{dateStamp, s.region, "s3", "aws4_request"}, "/")
+	scope := strings.Join([]string{in.dateStamp, s.region, "s3", "aws4_request"}, "/")
 	crHash := sha256.Sum256([]byte(canonicalRequest))
-	stringToSign := strings.Join([]string{"AWS4-HMAC-SHA256", amzDate, scope, hex.EncodeToString(crHash[:])}, "\n")
+	stringToSign := strings.Join([]string{"AWS4-HMAC-SHA256", in.amzDate, scope, hex.EncodeToString(crHash[:])}, "\n")
 
-	sig := hmacSHA256(sigV4Key(s.secret, dateStamp, s.region, "s3"), []byte(stringToSign))
+	sig := hmacSHA256(sigV4Key(s.secret, in.dateStamp, s.region, "s3"), []byte(stringToSign))
 	return fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s",
 		s.access, scope, signedHeaders, hex.EncodeToString(sig))
 }

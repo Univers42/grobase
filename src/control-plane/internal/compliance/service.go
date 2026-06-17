@@ -83,7 +83,10 @@ func (s *Service) sealRow(ctx context.Context, snapshotID string, at time.Time, 
 	payload := normalizePayload(sp.Payload)
 	hash := SealHash(sp.Section, at, payload)
 	var id string
-	if err := s.insert(ctx, snapshotID, at, sp.Section, payload, hash, &id); err != nil {
+	if err := s.insert(ctx, insertParams{
+		snapshotID: snapshotID, at: at, section: sp.Section,
+		payload: payload, hash: hash, idOut: &id,
+	}); err != nil {
 		return EvidenceRow{}, err
 	}
 	return EvidenceRow{
@@ -96,21 +99,32 @@ func (s *Service) sealRow(ctx context.Context, snapshotID string, at time.Time, 
 	}, nil
 }
 
+// insertParams groups the evidence-row insert inputs for insert (formerly its
+// positional args, 1:1).
+type insertParams struct {
+	snapshotID string
+	at         time.Time
+	section    string
+	payload    []byte
+	hash       string
+	idOut      *string
+}
+
 // insert writes one sealed evidence row and returns its assigned id. Kept as a
 // QueryRow (via AdminQuery) so RETURNING id round-trips without a second read.
-func (s *Service) insert(ctx context.Context, snapshotID string, at time.Time, section string, payload []byte, hash string, idOut *string) error {
+func (s *Service) insert(ctx context.Context, p insertParams) error {
 	rows, err := s.db.AdminQuery(ctx, `
 		INSERT INTO public.compliance_evidence
 		  (snapshot_id, collected_at, section, payload, hash)
 		VALUES ($1,$2,$3,$4,$5)
 		RETURNING id`,
-		snapshotID, at, section, payload, hash)
+		p.snapshotID, p.at, p.section, p.payload, p.hash)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	if rows.Next() {
-		if err := rows.Scan(idOut); err != nil {
+		if err := rows.Scan(p.idOut); err != nil {
 			return err
 		}
 	}

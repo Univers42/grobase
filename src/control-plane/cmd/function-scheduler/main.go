@@ -40,7 +40,7 @@ func main() {
 
 	tick := resolveTick()
 	runner := buildRunner(db, log, tick)
-	srv := buildServer(cfg, svc, db, log, m)
+	srv := buildServer(buildServerParams{cfg: cfg, svc: svc, db: db, log: log, m: m})
 
 	serve(srv, cfg, log, stop)
 	startRunner(ctx, runner, tick, log, stop)

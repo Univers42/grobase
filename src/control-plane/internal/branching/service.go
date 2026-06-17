@@ -52,7 +52,7 @@ func (s *Service) CreateBranch(ctx context.Context, tenantID, mount, rawName str
 		return BranchRow{}, err
 	}
 	bSchema := branchSchema(parentSchema, branchName)
-	branchID, err := s.insertPending(ctx, tenantID, mount, branchName, bSchema, iso)
+	branchID, err := s.insertPending(ctx, pendingRow{tenantID, mount, branchName, bSchema, iso})
 	if err != nil {
 		// A UNIQUE(tenant_id, branch_name) collision is a 409, not a 500.
 		if pg.IsUniqueViolation(err) {

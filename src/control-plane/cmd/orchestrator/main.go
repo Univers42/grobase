@@ -61,7 +61,7 @@ func main() {
 	m := observability.NewMetrics()
 	mux := httpx.NewRouter("orchestrator", db, m)
 	mountServices(ctx, mux, enabled, log)
-	serve(ctx, cfg, mux, log, stop, m)
+	serve(ctx, serveParams{cfg: cfg, mux: mux, log: log, stop: stop, m: m})
 }
 
 // boot loads config (a --healthcheck argv short-circuits to the probe), wires a
@@ -86,26 +86,35 @@ func boot(log *slog.Logger) (context.Context, context.CancelFunc, config.Config,
 	return ctx, stop, cfg, db
 }
 
+// serveParams groups the non-ctx inputs to serve (former positional args).
+type serveParams struct {
+	cfg  config.Config
+	mux  *http.ServeMux
+	log  *slog.Logger
+	stop func()
+	m    *observability.Metrics
+}
+
 // serve runs the HTTP server until ctx is cancelled, then drains gracefully.
 // envelope.Wrap mirrors the Node TransformInterceptor so a cutover is
 // transparent to clients (Track-2 A parity); WithMiddleware (logging,
 // request-id, metrics) wraps that so it still observes the real status.
-func serve(ctx context.Context, cfg config.Config, mux *http.ServeMux, log *slog.Logger, stop func(), m *observability.Metrics) {
+func serve(ctx context.Context, p serveParams) {
 	srv := &http.Server{
-		Addr:              cfg.ListenAddr(),
-		Handler:           httpx.WithMiddleware(envelope.Wrap(mux), log, m),
+		Addr:              p.cfg.ListenAddr(),
+		Handler:           httpx.WithMiddleware(envelope.Wrap(p.mux), p.log, p.m),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {
-		log.Info("listening", "addr", cfg.ListenAddr(), "mode", cfg.ProductMode)
+		p.log.Info("listening", "addr", p.cfg.ListenAddr(), "mode", p.cfg.ProductMode)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("server error", "err", err)
-			stop()
+			p.log.Error("server error", "err", err)
+			p.stop()
 		}
 	}()
 	<-ctx.Done()
-	log.Info("shutdown signal received")
-	httpx.GracefulShutdown(srv, log)
+	p.log.Info("shutdown signal received")
+	httpx.GracefulShutdown(srv, p.log)
 }
 
 func healthcheck(cfg config.Config) int {

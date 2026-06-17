@@ -39,7 +39,7 @@ func (s *Service) AcceptInvite(ctx context.Context, token, acceptedBy string) (O
 	if err != nil {
 		return Org{}, "", err
 	}
-	if err := claimInviteAndJoin(ctx, tx, inviteID, orgID, role, acceptedBy); err != nil {
+	if err := claimInviteAndJoin(ctx, tx, inviteClaim{inviteID: inviteID, orgID: orgID, role: role, acceptedBy: acceptedBy}); err != nil {
 		return Org{}, "", err
 	}
 	o, err := readOrgAndCommit(ctx, tx, orgID)
@@ -93,14 +93,23 @@ func resolveAcceptableInvite(ctx context.Context, tx pgx.Tx, tokenHash string) (
 	return inviteID, orgID, role, nil
 }
 
+// inviteClaim bundles the resolved invite (inviteID/orgID/role) and the accepting
+// user (acceptedBy) for claimInviteAndJoin.
+type inviteClaim struct {
+	inviteID   string
+	orgID      string
+	role       string
+	acceptedBy string
+}
+
 // claimInviteAndJoin performs the atomic single-use claim (flip pending->accepted,
 // ErrInviteConsumed if a concurrent acceptance won the race) then adds the
 // accepting user to the org with the invited role — both within tx.
-func claimInviteAndJoin(ctx context.Context, tx pgx.Tx, inviteID, orgID, role, acceptedBy string) error {
+func claimInviteAndJoin(ctx context.Context, tx pgx.Tx, c inviteClaim) error {
 	tag, err := tx.Exec(ctx, `
 		UPDATE public.org_invites
 		   SET status='accepted', accepted_by=$2, accepted_at=now()
-		 WHERE id::text=$1 AND status='pending'`, inviteID, acceptedBy)
+		 WHERE id::text=$1 AND status='pending'`, c.inviteID, c.acceptedBy)
 	if err != nil {
 		return err
 	}
@@ -111,6 +120,6 @@ func claimInviteAndJoin(ctx context.Context, tx pgx.Tx, inviteID, orgID, role, a
 		INSERT INTO public.org_members (org_id, user_id, role, invited_by)
 		VALUES ($1::uuid, $2, $3, NULL)
 		ON CONFLICT (org_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
-		orgID, acceptedBy, role)
+		c.orgID, c.acceptedBy, c.role)
 	return err
 }

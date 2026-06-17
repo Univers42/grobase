@@ -34,7 +34,7 @@ func VerifyChain(tenantID string, events []Event) VerifyResult {
 	prev := "" // genesis prev_hash
 	var prevSeq int64
 	for i, e := range events {
-		if bad := verifyLink(res, e, i, prev, prevSeq); bad != nil {
+		if bad := verifyLink(res, linkCtx{e: e, i: i, prev: prev, prevSeq: prevSeq}); bad != nil {
 			return *bad
 		}
 		prev = e.Hash
@@ -43,38 +43,56 @@ func VerifyChain(tenantID string, events []Event) VerifyResult {
 	return res
 }
 
+// linkCtx groups one link's verification inputs: the event, its index, the
+// previous stored hash, and the previous seq (former positional args of verifyLink).
+type linkCtx struct {
+	e       Event
+	i       int
+	prev    string
+	prevSeq int64
+}
+
 // verifyLink checks one link's seq contiguity, prev_hash linkage, and hash
 // integrity in that order. It returns a *VerifyResult on the FIRST failing
 // check (the first break wins) or nil when the link is intact.
-func verifyLink(res VerifyResult, e Event, i int, prev string, prevSeq int64) *VerifyResult {
+func verifyLink(res VerifyResult, l linkCtx) *VerifyResult {
 	// seq contiguity: first must be 1, each subsequent +1.
-	wantSeq := prevSeq + 1
-	if i == 0 {
+	wantSeq := l.prevSeq + 1
+	if l.i == 0 {
 		wantSeq = 1
 	}
-	if e.Seq != wantSeq {
-		r := broken(res, e.Seq, "seq_gap", "", "")
+	if l.e.Seq != wantSeq {
+		r := broken(res, breakAt{seq: l.e.Seq, reason: "seq_gap"})
 		return &r
 	}
 	// prev_hash linkage to the previous stored hash.
-	if e.PrevHash != prev {
-		r := broken(res, e.Seq, "prev_hash_mismatch", prev, e.PrevHash)
+	if l.e.PrevHash != l.prev {
+		r := broken(res, breakAt{seq: l.e.Seq, reason: "prev_hash_mismatch", expected: l.prev, stored: l.e.PrevHash})
 		return &r
 	}
 	// hash integrity: recompute from THIS row's fields + its claimed prev.
-	if want := recompute(e); want != e.Hash {
-		r := broken(res, e.Seq, "hash_mismatch", want, e.Hash)
+	if want := recompute(l.e); want != l.e.Hash {
+		r := broken(res, breakAt{seq: l.e.Seq, reason: "hash_mismatch", expected: want, stored: l.e.Hash})
 		return &r
 	}
 	return nil
 }
 
+// breakAt groups the first-break fields: seq, reason, and the recomputed-vs-stored
+// hashes (former positional args of broken).
+type breakAt struct {
+	seq      int64
+	reason   string
+	expected string
+	stored   string
+}
+
 // broken stamps the first-break fields onto the result and returns it.
-func broken(res VerifyResult, seq int64, reason, expected, stored string) VerifyResult {
+func broken(res VerifyResult, b breakAt) VerifyResult {
 	res.Intact = false
-	res.BrokenSeq = seq
-	res.Reason = reason
-	res.ExpectedHash = expected
-	res.StoredHash = stored
+	res.BrokenSeq = b.seq
+	res.Reason = b.reason
+	res.ExpectedHash = b.expected
+	res.StoredHash = b.stored
 	return res
 }

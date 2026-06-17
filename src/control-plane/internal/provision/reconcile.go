@@ -25,36 +25,41 @@ func (rc *Reconciler) Reconcile(ctx context.Context, spec StackSpec) (ReconcileR
 	return res, nil
 }
 
+// applyCtx carries the per-resource reconcile inputs for applyOne: the
+// accumulating result, the spec, the compiled desired state, the resource, and
+// the shared blocked/roleIDByKey maps.
+type applyCtx struct {
+	res         *ReconcileResult
+	spec        StackSpec
+	desired     DesiredState
+	r           Resource
+	blocked     map[string]bool
+	roleIDByKey map[string]string
+}
+
 // applyOne reconciles a single resource. It is the only place that performs
 // downstream writes, and it reads identity/parents from the resource — never a
 // bare literal.
-func (rc *Reconciler) applyOne(
-	ctx context.Context,
-	res *ReconcileResult,
-	spec StackSpec,
-	desired DesiredState,
-	r Resource,
-	blocked map[string]bool,
-	roleIDByKey map[string]string,
-) ResourceResult {
+func (rc *Reconciler) applyOne(ctx context.Context, a applyCtx) ResourceResult {
+	r := a.r
 	out := ResourceResult{Kind: kindName(r.Kind), Key: r.Key}
 	if r.Kind == KindTenant {
-		return rc.reconcileTenant(ctx, res, desired, out)
+		return rc.reconcileTenant(ctx, a.res, a.desired, out)
 	}
-	if blockedOut, isBlocked := blockedFor(r, spec, blocked, roleIDByKey); isBlocked {
+	if blockedOut, isBlocked := blockedFor(r, a.spec, a.blocked, a.roleIDByKey); isBlocked {
 		return blockedOut
 	}
 	switch r.Kind {
 	case KindKey:
-		return rc.reconcileKey(ctx, res, spec, r, out)
+		return rc.reconcileKey(ctx, a.res, a.spec, r, out)
 	case KindRole:
-		return rc.reconcileRole(ctx, spec, r, out, blocked, roleIDByKey)
+		return rc.reconcileRole(ctx, roleCtx{a.spec, r, out, a.blocked, a.roleIDByKey})
 	case KindPolicy:
-		return rc.reconcilePolicy(ctx, r, out, roleIDByKey[r.RoleRef])
+		return rc.reconcilePolicy(ctx, r, out, a.roleIDByKey[r.RoleRef])
 	case KindMount:
-		return rc.reconcileMount(ctx, spec, r, out, blocked)
+		return rc.reconcileMount(ctx, a.spec, r, out, a.blocked)
 	case KindSchema:
-		return rc.reconcileSchema(ctx, spec, r, out)
+		return rc.reconcileSchema(ctx, a.spec, r, out)
 	default:
 		out.Status, out.Error = StatusError, "unknown resource kind"
 		return out

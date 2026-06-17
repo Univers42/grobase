@@ -64,7 +64,18 @@ func (rc *Reconciler) reconcileKey(ctx context.Context, res *ReconcileResult, sp
 	return out
 }
 
-func (rc *Reconciler) reconcileRole(ctx context.Context, spec StackSpec, r Resource, out ResourceResult, blocked map[string]bool, roleIDByKey map[string]string) ResourceResult {
+// roleCtx carries the inputs for reconcileRole: the spec, the resource, the
+// partial result, and the shared blocked/roleIDByKey maps.
+type roleCtx struct {
+	spec        StackSpec
+	r           Resource
+	out         ResourceResult
+	blocked     map[string]bool
+	roleIDByKey map[string]string
+}
+
+func (rc *Reconciler) reconcileRole(ctx context.Context, rcx roleCtx) ResourceResult {
+	spec, r, out, blocked, roleIDByKey := rcx.spec, rcx.r, rcx.out, rcx.blocked, rcx.roleIDByKey
 	roleID, created, err := rc.Perm.EnsureRole(ctx, spec.Tenant, r.Role)
 	if err != nil {
 		out.Status, out.Error = StatusError, err.Error()

@@ -15,13 +15,24 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/webhooks"
 )
 
+// routerDeps carries the dependencies buildRouter wires into the HTTP surface
+// (fields are the former positional buildRouter arguments, 1:1).
+type routerDeps struct {
+	db           *pg.Postgres
+	log          *slog.Logger
+	svc          *webhooks.Service
+	ftSvc        *functriggers.Service
+	serviceToken string
+	m            *observability.Metrics
+}
+
 // buildRouter assembles the HTTP surface: webhook CRUD, function-trigger CRUD,
 // and (when VAULT_ENC_KEY is set) the per-function secret store.
-func buildRouter(ctx context.Context, db *pg.Postgres, log *slog.Logger, svc *webhooks.Service, ftSvc *functriggers.Service, serviceToken string, m *observability.Metrics) *http.ServeMux {
-	mux := httpx.NewRouter("webhook-dispatcher", db, m)
-	webhooks.Mount(mux, svc, serviceToken)
-	functriggers.Mount(mux, ftSvc, serviceToken)
-	mountFuncSecrets(ctx, mux, db, log, serviceToken)
+func buildRouter(ctx context.Context, d routerDeps) *http.ServeMux {
+	mux := httpx.NewRouter("webhook-dispatcher", d.db, d.m)
+	webhooks.Mount(mux, d.svc, d.serviceToken)
+	functriggers.Mount(mux, d.ftSvc, d.serviceToken)
+	mountFuncSecrets(ctx, mux, d.db, d.log, d.serviceToken)
 	return mux
 }
 
@@ -43,16 +54,27 @@ func serve(srv *http.Server, cfg config.Config, log *slog.Logger, stop func()) {
 	}
 }
 
+// loopsConfig carries the parameters launchLoops fans out to the server and the
+// two dispatcher loops (fields are the former positional launchLoops args, 1:1).
+type loopsConfig struct {
+	log      *slog.Logger
+	redisURL string
+	srv      *http.Server
+	cfg      config.Config
+	wh, ft   func(context.Context) error
+	stop     func()
+}
+
 // launchLoops starts the HTTP server and both dispatcher loops as goroutines,
 // each able to trigger a graceful stop on failure.
-func launchLoops(ctx context.Context, log *slog.Logger, redisURL string, srv *http.Server, cfg config.Config, wh, ft func(context.Context) error, stop func()) {
-	go serve(srv, cfg, log, stop)
-	go runLoop(ctx, log, redisURL, loopLabels{
+func launchLoops(ctx context.Context, c loopsConfig) {
+	go serve(c.srv, c.cfg, c.log, c.stop)
+	go runLoop(ctx, loopRun{log: c.log, redisURL: c.redisURL, lbl: loopLabels{
 		start: "dispatcher loop starting", end: "dispatcher loop ended",
-	}, wh, stop)
-	go runLoop(ctx, log, redisURL, loopLabels{
+	}, run: c.wh, stop: c.stop})
+	go runLoop(ctx, loopRun{log: c.log, redisURL: c.redisURL, lbl: loopLabels{
 		start: "function-trigger dispatcher loop starting", end: "function dispatcher loop ended",
-	}, ft, stop)
+	}, run: c.ft, stop: c.stop})
 }
 
 // awaitShutdown blocks until ctx is done, then gracefully drains the server.

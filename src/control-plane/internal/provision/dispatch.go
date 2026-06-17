@@ -28,7 +28,7 @@ func (rc *Reconciler) applyAll(ctx context.Context, spec StackSpec, desired Desi
 	blocked := map[string]bool{}
 	roleIDByKey := map[string]string{}
 	for _, r := range desired.Resources {
-		out := rc.applyOne(ctx, &res, spec, desired, r, blocked, roleIDByKey)
+		out := rc.applyOne(ctx, applyCtx{&res, spec, desired, r, blocked, roleIDByKey})
 		res.Resources = append(res.Resources, out)
 	}
 	return res

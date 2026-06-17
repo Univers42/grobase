@@ -63,19 +63,30 @@ func (b *builderAPI) getEntitlements(w http.ResponseWriter, r *http.Request) {
 	}
 	rec := b.loadOrEmpty(r.Context(), tenantID)
 	ceiling, ceilingName := b.ceilingFor(r.Context(), tenantID, t.Plan)
-	httpx.WriteJSON(w, http.StatusOK, b.entitlementsResponse(tenantID, t.Plan, rec, ceiling, ceilingName))
+	httpx.WriteJSON(w, http.StatusOK, b.entitlementsResponse(entitlementsView{tenantID: tenantID, plan: t.Plan, rec: rec, ceiling: ceiling, ceilingName: ceilingName}))
+}
+
+// entitlementsView groups the inputs entitlementsResponse projects from: the
+// tenant id + plan, the stored record, and the ceiling package + its name
+// (former positional args of entitlementsResponse).
+type entitlementsView struct {
+	tenantID    string
+	plan        string
+	rec         ent.Record
+	ceiling     packages.Package
+	ceilingName string
 }
 
 // entitlementsResponse projects a stored record + ceiling into the GET/PATCH
 // response body (the clamped effective package alongside the raw custom row).
-func (b *builderAPI) entitlementsResponse(tenantID, plan string, rec ent.Record, ceiling packages.Package, ceilingName string) entitlementsResponse {
+func (b *builderAPI) entitlementsResponse(v entitlementsView) entitlementsResponse {
 	return entitlementsResponse{
-		TenantID:    tenantID,
-		Plan:        plan,
-		CeilingPlan: rec.CeilingPlan,
-		Status:      rec.Status,
-		Custom:      rec.Entitlement,
-		Effective:   b.effectiveFor(rec.Entitlement, ceiling, ceilingName),
+		TenantID:    v.tenantID,
+		Plan:        v.plan,
+		CeilingPlan: v.rec.CeilingPlan,
+		Status:      v.rec.Status,
+		Custom:      v.rec.Entitlement,
+		Effective:   b.effectiveFor(v.rec.Entitlement, v.ceiling, v.ceilingName),
 	}
 }
 
@@ -103,7 +114,7 @@ func (b *builderAPI) patchEntitlements(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, b.entitlementsResponse(tenantID, t.Plan, rec, ceiling, ceilingName))
+	httpx.WriteJSON(w, http.StatusOK, b.entitlementsResponse(entitlementsView{tenantID: tenantID, plan: t.Plan, rec: rec, ceiling: ceiling, ceilingName: ceilingName}))
 }
 
 // authPatchEntitlement self-auths, requires admin scope (composing the backend

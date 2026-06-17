@@ -5,16 +5,21 @@ import (
 	"fmt"
 )
 
+// pendingRow holds the bind params for an inserted 'pending' branch row.
+type pendingRow struct {
+	tenantID, parentMount, branchName, branchSchema, iso string
+}
+
 // insertPending records a new branch row in 'pending' state and returns its id.
 // tenant_id, parent_mount, branch_name, branch_schema, isolation are bind params;
 // an empty parent_mount stores NULL. The UNIQUE(tenant_id, branch_name) makes a
 // duplicate name fail at the DB (mapped to ErrBranchExists by the service).
-func (s *Service) insertPending(ctx context.Context, tenantID, parentMount, branchName, branchSchema, iso string) (string, error) {
+func (s *Service) insertPending(ctx context.Context, p pendingRow) (string, error) {
 	rows, err := s.db.AdminQuery(ctx,
 		`INSERT INTO public.tenant_branches
 		   (tenant_id, parent_mount, branch_name, branch_schema, isolation, status)
 		 VALUES ($1, NULLIF($2,''), $3, $4, $5, 'pending')
-		 RETURNING id::text`, tenantID, parentMount, branchName, branchSchema, iso)
+		 RETURNING id::text`, p.tenantID, p.parentMount, p.branchName, p.branchSchema, p.iso)
 	if err != nil {
 		return "", fmt.Errorf("branching: insert ledger row: %w", err)
 	}

@@ -34,7 +34,7 @@ func (s *Service) Register(ctx context.Context, userID string, req RegisterDatab
 		if err := s.checkMountQuota(ctx, tx, userID, tiered, pkg); err != nil {
 			return err
 		}
-		return insertMount(ctx, tx, userID, req, isolation, plan, &out)
+		return insertMount(ctx, mountInsert{tx: tx, userID: userID, req: req, isolation: isolation, p: plan, out: &out})
 	})
 	return out, mapRegisterError(err)
 }

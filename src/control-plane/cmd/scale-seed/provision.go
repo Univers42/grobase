@@ -23,14 +23,21 @@ func buildMountSpecs(dsn, isolation string, mounts int) []mountSpec {
 	return specs
 }
 
-func provisionRequestBody(slug, plan, dsn, isolation string, mounts int) []byte {
+// provisionSpec carries the per-tenant provision request parameters
+// shared by provisionRequestBody and provisionOne.
+type provisionSpec struct {
+	slug, plan, dsn, isolation string
+	mounts                     int
+}
+
+func provisionRequestBody(spec provisionSpec) []byte {
 	body, _ := json.Marshal(provisionRequest{
-		Tenant:         slug,
-		Name:           slug,
-		Plan:           plan,
+		Tenant:         spec.slug,
+		Name:           spec.slug,
+		Plan:           spec.plan,
 		DefaultKeyName: "scale-bench",
 		SeedRoles:      false,
-		Mounts:         buildMountSpecs(dsn, isolation, mounts),
+		Mounts:         buildMountSpecs(spec.dsn, spec.isolation, spec.mounts),
 	})
 	return body
 }
@@ -69,27 +76,27 @@ func parseProvision(slug string, out provisionResponse) record {
 	return recordFromResources(rec, out)
 }
 
-func provisionOne(client *http.Client, base, token, slug, plan, dsn, isolation string, mounts int) record {
-	body := provisionRequestBody(slug, plan, dsn, isolation, mounts)
+func provisionOne(client *http.Client, base, token string, spec provisionSpec) record {
+	body := provisionRequestBody(spec)
 	req, err := http.NewRequest(http.MethodPost, base+"/v1/provision", bytes.NewReader(body))
 	if err != nil {
-		return record{Slug: slug, Status: "error", Error: err.Error()}
+		return record{Slug: spec.slug, Status: "error", Error: err.Error()}
 	}
 	req.Header.Set("Content-Type", "application/json")
 	serviceHeaders(req, token, string(body))
 	resp, err := client.Do(req)
 	if err != nil {
-		return record{Slug: slug, Status: "error", Error: err.Error()}
+		return record{Slug: spec.slug, Status: "error", Error: err.Error()}
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return record{Slug: slug, Status: "error",
+		return record{Slug: spec.slug, Status: "error",
 			Error: fmt.Sprintf("provision %d: %s", resp.StatusCode, httpx.RedactDSN(string(raw)))}
 	}
 	var out provisionResponse
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return record{Slug: slug, Status: "error", Error: "bad provision response: " + err.Error()}
+		return record{Slug: spec.slug, Status: "error", Error: "bad provision response: " + err.Error()}
 	}
-	return parseProvision(slug, out)
+	return parseProvision(spec.slug, out)
 }

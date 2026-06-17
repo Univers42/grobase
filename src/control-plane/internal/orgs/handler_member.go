@@ -30,7 +30,7 @@ func (rt *routes) setMemberRole(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	req, ok := rt.authorizeRoleChange(w, r, orgID, targetUser, actorRole)
+	req, ok := rt.authorizeRoleChange(w, r, roleChange{orgID: orgID, targetUser: targetUser, actorRole: actorRole})
 	if !ok {
 		return
 	}
@@ -45,11 +45,18 @@ func (rt *routes) setMemberRole(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]string{"user_id": targetUser, "role": req.Role})
 }
 
+// roleChange bundles the role-change target/actor for authorizeRoleChange:
+// orgID + targetUser identify the member; actorRole is the caller's role.
+type roleChange struct {
+	orgID      string
+	targetUser string
+	actorRole  Role
+}
+
 // authorizeRoleChange decodes the body, validates the requested role, and enforces
 // the admin-vs-owner asymmetry (an admin may not mint/touch an owner). ok=false
 // means a response was already written.
-func (rt *routes) authorizeRoleChange(w http.ResponseWriter, r *http.Request,
-	orgID, targetUser string, actorRole Role) (SetRoleRequest, bool) {
+func (rt *routes) authorizeRoleChange(w http.ResponseWriter, r *http.Request, rc roleChange) (SetRoleRequest, bool) {
 	var req SetRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
@@ -60,12 +67,12 @@ func (rt *routes) authorizeRoleChange(w http.ResponseWriter, r *http.Request,
 			"role must be one of owner|admin|developer|billing|viewer")
 		return req, false
 	}
-	currentRole, member := rt.svc.MemberRole(r.Context(), orgID, targetUser)
+	currentRole, member := rt.svc.MemberRole(r.Context(), rc.orgID, rc.targetUser)
 	if !member {
 		httpx.WriteError(w, http.StatusNotFound, "not_found", "member not found")
 		return req, false
 	}
-	if !canSetRole(actorRole, Role(req.Role), currentRole) {
+	if !canSetRole(rc.actorRole, Role(req.Role), currentRole) {
 		httpx.WriteError(w, http.StatusForbidden, "forbidden",
 			"an admin may not create or modify an owner; only an owner can")
 		return req, false

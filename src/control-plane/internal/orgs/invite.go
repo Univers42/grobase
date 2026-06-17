@@ -43,23 +43,33 @@ func (s *Service) IssueInvite(ctx context.Context, orgID, email, role, invitedBy
 	if err != nil {
 		return IssueInviteResponse{}, err
 	}
-	inv, err := s.insertInvite(ctx, orgID, email, role, tokenHash, invitedBy)
+	inv, err := s.insertInvite(ctx, insertInviteParams{orgID: orgID, email: email, role: role, tokenHash: tokenHash, invitedBy: invitedBy})
 	if err != nil {
 		return IssueInviteResponse{}, err
 	}
 	return IssueInviteResponse{Invite: inv, Token: cleartext}, nil
 }
 
+// insertInviteParams bundles the pending-invite row values for insertInvite:
+// (org,email,role) plus the hashed token and the inviter's user uuid.
+type insertInviteParams struct {
+	orgID     string
+	email     string
+	role      string
+	tokenHash string
+	invitedBy string
+}
+
 // insertInvite writes the pending invite row and scans the redacted projection
 // back, mapping a uniqueness violation (an outstanding invite for the same
 // (org,email)) to ErrConflict.
-func (s *Service) insertInvite(ctx context.Context, orgID, email, role, tokenHash, invitedBy string) (Invite, error) {
+func (s *Service) insertInvite(ctx context.Context, p insertInviteParams) (Invite, error) {
 	rows, err := s.db.AdminQuery(ctx, `
 		INSERT INTO public.org_invites (org_id, email, role, token_hash, invited_by, expires_at)
 		VALUES ($1::uuid, $2, $3, $4, $5, now() + ($6 * interval '1 hour'))
 		RETURNING id::text, org_id::text, email, role, status, invited_by,
 		          expires_at::text, created_at::text, accepted_by`,
-		orgID, email, role, tokenHash, invitedBy, defaultInviteTTLHours)
+		p.orgID, p.email, p.role, p.tokenHash, p.invitedBy, defaultInviteTTLHours)
 	if err != nil {
 		if pg.IsUniqueViolation(err) {
 			return Invite{}, ErrConflict

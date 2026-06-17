@@ -48,7 +48,7 @@ func (s *Service) CreateOrg(ctx context.Context, req CreateOrgRequest, createdBy
 		return Org{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	o, err := insertOrgWithOwner(ctx, tx, req, plan, metaJSON, createdBy)
+	o, err := insertOrgWithOwner(ctx, tx, newOrgInsert{req: req, plan: plan, metaJSON: metaJSON, createdBy: createdBy})
 	if err != nil {
 		return Org{}, err
 	}
@@ -73,18 +73,26 @@ func normalizeOrgInput(req CreateOrgRequest) (metaJSON, plan string) {
 	return string(b), plan
 }
 
+// newOrgInsert bundles the org-creation values for insertOrgWithOwner: the
+// request, the resolved plan, the JSON-encoded metadata, and the creator uuid.
+type newOrgInsert struct {
+	req       CreateOrgRequest
+	plan      string
+	metaJSON  string
+	createdBy string
+}
+
 // insertOrgWithOwner runs the org INSERT + the creator's owner-membership INSERT
 // inside tx (the caller commits) — the two writes that make the break-glass
 // anchor invariant hold from birth.
-func insertOrgWithOwner(ctx context.Context, tx pgx.Tx, req CreateOrgRequest,
-	plan, metaJSON, createdBy string) (Org, error) {
+func insertOrgWithOwner(ctx context.Context, tx pgx.Tx, n newOrgInsert) (Org, error) {
 	var o Org
 	row := tx.QueryRow(ctx, `
 		INSERT INTO public.orgs (slug, name, plan, metadata, created_by)
 		VALUES ($1, $2, $3, $4::jsonb, NULLIF($5,''))
 		RETURNING id::text, slug, name, plan, status, metadata::text, created_by,
 		          created_at::text, updated_at::text`,
-		req.Slug, req.Name, plan, metaJSON, createdBy)
+		n.req.Slug, n.req.Name, n.plan, n.metaJSON, n.createdBy)
 	if err := scanOrg(row, &o); err != nil {
 		if pg.IsUniqueViolation(err) {
 			return Org{}, ErrConflict
@@ -95,7 +103,7 @@ func insertOrgWithOwner(ctx context.Context, tx pgx.Tx, req CreateOrgRequest,
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO public.org_members (org_id, user_id, role, invited_by)
 		VALUES ($1::uuid, $2, 'owner', $2)`,
-		o.ID, createdBy); err != nil {
+		o.ID, n.createdBy); err != nil {
 		return Org{}, err
 	}
 	return o, nil

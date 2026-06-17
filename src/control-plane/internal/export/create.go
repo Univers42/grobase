@@ -94,7 +94,7 @@ func (s *Service) CreateExport(ctx context.Context, tenantID, mount string) (str
 		s.markFailed(ctx, exportID, xerr)
 		return exportID, xerr
 	}
-	if uerr := s.markCompleted(ctx, exportID, manifest, location, size, sha); uerr != nil {
+	if uerr := s.markCompleted(ctx, completion{exportID: exportID, manifest: manifest, location: location, size: size, sha: sha}); uerr != nil {
 		return exportID, uerr
 	}
 	return exportID, nil

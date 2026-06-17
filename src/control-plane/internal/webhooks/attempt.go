@@ -34,7 +34,7 @@ func (d *Dispatcher) handleEvent(ctx context.Context, aggregate string, msg redi
 	if err != nil {
 		return fmt.Errorf("lookup subscriptions: %w", err)
 	}
-	d.fanOut(ctx, subs, eventID, aggregate, aggregateID, eventType, payload)
+	d.fanOut(ctx, subs, fanOutArgs{eventID, aggregate, aggregateID, eventType, payload})
 	return nil
 }
 
@@ -45,15 +45,13 @@ type fanOutArgs struct {
 	payload                                    map[string]any
 }
 
-func (d *Dispatcher) fanOut(ctx context.Context, subs []Subscription,
-	eventID, aggregate, aggregateID, eventType string, payload map[string]any) {
-	a := fanOutArgs{eventID, aggregate, aggregateID, eventType, payload}
+func (d *Dispatcher) fanOut(ctx context.Context, subs []Subscription, a fanOutArgs) {
 	for _, sub := range subs {
 		if err := d.enqueueDelivery(ctx, sub, a); err != nil {
-			d.log.Warn("enqueue delivery failed", "sub", sub.ID, "event", eventID, "err", err)
+			d.log.Warn("enqueue delivery failed", "sub", sub.ID, "event", a.eventID, "err", err)
 			continue
 		}
-		go d.attempt(context.Background(), sub.ID, eventID)
+		go d.attempt(context.Background(), sub.ID, a.eventID)
 	}
 }
 

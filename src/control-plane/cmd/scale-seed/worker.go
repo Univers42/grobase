@@ -16,7 +16,7 @@ func runWorkers(client *http.Client, cfg seedConfig, done map[string]bool, w *bu
 	start := time.Now()
 	for i := 0; i < *cfg.concurrency; i++ {
 		wg.Add(1)
-		go worker(client, cfg, &wg, jobs, w, &mu, &c, start)
+		go worker(workerArgs{client: client, cfg: cfg, wg: &wg, jobs: jobs, w: w, mu: &mu, c: &c, start: start})
 	}
 	queued := dispatchJobs(cfg, done, jobs)
 	wg.Wait()
@@ -27,14 +27,26 @@ func runWorkers(client *http.Client, cfg seedConfig, done map[string]bool, w *bu
 	return c.errs.Load()
 }
 
-func worker(client *http.Client, cfg seedConfig, wg *sync.WaitGroup, jobs <-chan string,
-	w *bufio.Writer, mu *sync.Mutex, c *counters, start time.Time) {
-	defer wg.Done()
-	for slug := range jobs {
-		rec := provisionOne(client, *cfg.base, *cfg.token, slug, *cfg.plan, *cfg.dsn, *cfg.isolation, *cfg.mounts)
-		tallyStatus(c, rec.Status)
-		writeRecord(w, mu, rec)
-		progress(c, mu, w, *cfg.n, start)
+// workerArgs bundles the inputs a provisioning worker goroutine needs.
+type workerArgs struct {
+	client *http.Client
+	cfg    seedConfig
+	wg     *sync.WaitGroup
+	jobs   <-chan string
+	w      *bufio.Writer
+	mu     *sync.Mutex
+	c      *counters
+	start  time.Time
+}
+
+func worker(a workerArgs) {
+	defer a.wg.Done()
+	for slug := range a.jobs {
+		spec := provisionSpec{slug: slug, plan: *a.cfg.plan, dsn: *a.cfg.dsn, isolation: *a.cfg.isolation, mounts: *a.cfg.mounts}
+		rec := provisionOne(a.client, *a.cfg.base, *a.cfg.token, spec)
+		tallyStatus(a.c, rec.Status)
+		writeRecord(a.w, a.mu, rec)
+		progress(progressArgs{c: a.c, mu: a.mu, w: a.w, n: *a.cfg.n, start: a.start})
 	}
 }
 

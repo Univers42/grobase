@@ -44,13 +44,22 @@ func buildRunner(db *pg.Postgres, log *slog.Logger, tick time.Duration) *schedul
 	})
 }
 
+// buildServerParams groups the inputs to buildServer (former positional args).
+type buildServerParams struct {
+	cfg config.Config
+	svc *scheduler.Service
+	db  *pg.Postgres
+	log *slog.Logger
+	m   *observability.Metrics
+}
+
 // buildServer wires the CRUD router behind shared middleware.
-func buildServer(cfg config.Config, svc *scheduler.Service, db *pg.Postgres, log *slog.Logger, m *observability.Metrics) *http.Server {
-	mux := httpx.NewRouter("function-scheduler", db, m)
-	scheduler.Mount(mux, svc, cfg.ServiceToken)
+func buildServer(p buildServerParams) *http.Server {
+	mux := httpx.NewRouter("function-scheduler", p.db, p.m)
+	scheduler.Mount(mux, p.svc, p.cfg.ServiceToken)
 	return &http.Server{
-		Addr:              cfg.ListenAddr(),
-		Handler:           httpx.WithMiddleware(mux, log, m),
+		Addr:              p.cfg.ListenAddr(),
+		Handler:           httpx.WithMiddleware(mux, p.log, p.m),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 }

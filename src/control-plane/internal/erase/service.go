@@ -130,28 +130,41 @@ func (s *Service) Erase(ctx context.Context, tenantID, requestedBy string) (Rece
 		s.markFailed(ctx, receiptID, derr)
 		return Receipt{ID: receiptID, TenantID: tenantID, Status: "failed"}, derr
 	}
-	return s.finishErase(ctx, receiptID, tenantID, requestedBy, scope, rows, keys)
+	return s.finishErase(ctx, finishParams{
+		receiptID: receiptID, tenantID: tenantID, requestedBy: requestedBy,
+		scope: scope, rows: rows, keys: keys,
+	})
+}
+
+// finishParams groups the post-destruction inputs for finishErase (formerly its
+// positional args, 1:1).
+type finishParams struct {
+	receiptID, tenantID, requestedBy, scope string
+	rows, keys                              int64
 }
 
 // finishErase runs the post-destruction steps once data is provably gone: flush
 // the key-verify cache, soft-mark the tenant deleted, seal the D3 receipt, and
 // finalize the erasure_receipts ledger row into the completed Receipt.
-func (s *Service) finishErase(ctx context.Context, receiptID, tenantID, requestedBy, scope string, rows, keys int64) (Receipt, error) {
+func (s *Service) finishErase(ctx context.Context, p finishParams) (Receipt, error) {
 	// The DB key rows are gone — drop the verify fast-path cache so the credential
 	// stops authenticating immediately (otherwise it lingers until the cache TTL).
 	if s.flushKeyCache != nil {
 		s.flushKeyCache()
 	}
-	s.markTenantDeleted(ctx, tenantID)
+	s.markTenantDeleted(ctx, p.tenantID)
 	// Seal the tamper-evident D3 receipt. This is the proof the erase HAPPENED —
 	// it lives on the per-tenant hash chain, which the auditor can verify even
 	// after every other trace of the tenant is gone.
-	auditSeq := s.sealReceipt(ctx, tenantID, requestedBy, scope, rows, keys)
-	if err := s.finalizeReceipt(ctx, receiptID, rows, keys, auditSeq); err != nil {
+	auditSeq := s.sealReceipt(ctx, sealParams{
+		tenantID: p.tenantID, requestedBy: p.requestedBy, scope: p.scope,
+		rows: p.rows, keys: p.keys,
+	})
+	if err := s.finalizeReceipt(ctx, p.receiptID, p.rows, p.keys, auditSeq); err != nil {
 		return Receipt{}, err
 	}
 	return Receipt{
-		ID: receiptID, TenantID: tenantID, RequestedBy: requestedBy, Scope: scope,
-		RowsPurged: rows, KeysRevoked: keys, AuditSeq: auditSeq, Status: "completed",
+		ID: p.receiptID, TenantID: p.tenantID, RequestedBy: p.requestedBy, Scope: p.scope,
+		RowsPurged: p.rows, KeysRevoked: p.keys, AuditSeq: auditSeq, Status: "completed",
 	}, nil
 }

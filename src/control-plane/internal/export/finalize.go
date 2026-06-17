@@ -22,7 +22,7 @@ func (s *Service) extractTo(ctx context.Context, iso, tenantID, key string) (Man
 	pr, pw := io.Pipe()
 	manCh := make(chan Manifest, 1)
 	go func() {
-		m, werr := extractScoped(ctx, s.db, iso, tenantID, schema, pw)
+		m, werr := extractScoped(ctx, scopedExtract{db: s.db, iso: iso, tenantID: tenantID, schema: schema, w: pw})
 		manCh <- m
 		_ = pw.CloseWithError(werr)
 	}()
@@ -42,16 +42,26 @@ func (s *Service) markFailed(ctx context.Context, exportID string, cause error) 
 		exportID, cause.Error())
 }
 
+// completion groups the finalized-bundle facts markCompleted writes to the
+// ledger row: export id, manifest, store location, byte size, and sha256.
+type completion struct {
+	exportID string
+	manifest Manifest
+	location string
+	size     int64
+	sha      string
+}
+
 // markCompleted finalizes the ledger row with the bundle's manifest, location,
 // size, sha256, and counts.
-func (s *Service) markCompleted(ctx context.Context, exportID string, manifest Manifest, location string, size int64, sha string) error {
-	mb, _ := json.Marshal(manifest)
+func (s *Service) markCompleted(ctx context.Context, c completion) error {
+	mb, _ := json.Marshal(c.manifest)
 	if uerr := s.db.AdminExec(ctx,
 		`UPDATE public.tenant_exports
 		    SET status='completed', location=$2, size_bytes=$3, sha256=$4,
 		        table_count=$5, row_count=$6, manifest=$7::jsonb, completed_at=now()
 		  WHERE id=$1`,
-		exportID, location, size, sha, manifest.TableCount, manifest.RowCount, string(mb)); uerr != nil {
+		c.exportID, c.location, c.size, c.sha, c.manifest.TableCount, c.manifest.RowCount, string(mb)); uerr != nil {
 		return fmt.Errorf("export: finalize ledger row: %w", uerr)
 	}
 	return nil

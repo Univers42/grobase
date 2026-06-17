@@ -32,15 +32,24 @@ func writeRecord(w *bufio.Writer, mu *sync.Mutex, rec record) {
 	mu.Unlock()
 }
 
-func progress(c *counters, mu *sync.Mutex, w *bufio.Writer, n int, start time.Time) {
-	t := c.total.Add(1)
+// progressArgs bundles the inputs to the periodic progress reporter.
+type progressArgs struct {
+	c     *counters
+	mu    *sync.Mutex
+	w     *bufio.Writer
+	n     int
+	start time.Time
+}
+
+func progress(a progressArgs) {
+	t := a.c.total.Add(1)
 	if t%500 != 0 {
 		return
 	}
-	el := time.Since(start).Seconds()
+	el := time.Since(a.start).Seconds()
 	fmt.Printf("  %d/%d (%.0f/s) created=%d exists=%d errors=%d\n",
-		t, n, float64(t)/el, c.created.Load(), c.exists.Load(), c.errs.Load())
-	mu.Lock()
-	_ = w.Flush()
-	mu.Unlock()
+		t, a.n, float64(t)/el, a.c.created.Load(), a.c.exists.Load(), a.c.errs.Load())
+	a.mu.Lock()
+	_ = a.w.Flush()
+	a.mu.Unlock()
 }

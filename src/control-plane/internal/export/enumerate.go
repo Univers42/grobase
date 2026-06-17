@@ -67,28 +67,38 @@ func enumerateSharedTables(ctx context.Context, conn *pgxpool.Conn, tenantID str
 	})
 }
 
+// scopedExtract groups the inputs for extractScoped: the pool, isolation model,
+// tenant id, resolved per-tenant schema (or ""), and the bundle sink.
+type scopedExtract struct {
+	db       *pg.Postgres
+	iso      string
+	tenantID string
+	schema   string
+	w        io.Writer
+}
+
 // extractScoped acquires a connection, enumerates the tenant's tables per the
-// isolation model, and writes the portable bundle to w. The connection is held
-// only for the duration of the write (streamed). schema is the resolved
+// isolation model, and writes the portable bundle to a.w. The connection is held
+// only for the duration of the write (streamed). a.schema is the resolved
 // per-tenant schema (schema_per_tenant) or "" (shared_rls).
-func extractScoped(ctx context.Context, db *pg.Postgres, iso, tenantID, schema string, w io.Writer) (Manifest, error) {
-	conn, err := db.AcquireConn(ctx)
+func extractScoped(ctx context.Context, a scopedExtract) (Manifest, error) {
+	conn, err := a.db.AcquireConn(ctx)
 	if err != nil {
 		return Manifest{}, fmt.Errorf("export: acquire conn: %w", err)
 	}
 	defer conn.Release()
 
-	tbls, err := enumerateForIsolation(ctx, conn, iso, tenantID, schema)
+	tbls, err := enumerateForIsolation(ctx, conn, a.iso, a.tenantID, a.schema)
 	if err != nil {
 		return Manifest{}, err
 	}
 	m := Manifest{
-		TenantID:  tenantID,
-		Isolation: iso,
+		TenantID:  a.tenantID,
+		Isolation: a.iso,
 		Engine:    "postgresql",
 		Format:    "json",
 	}
-	return writeBundle(ctx, conn, w, m, tbls)
+	return writeBundle(ctx, conn, a.w, m, tbls)
 }
 
 // enumerateForIsolation lists the tenant's exportable tables per the isolation

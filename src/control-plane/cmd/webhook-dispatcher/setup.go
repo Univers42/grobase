@@ -90,12 +90,22 @@ func mountFuncSecrets(ctx context.Context, mux *http.ServeMux, db *pg.Postgres, 
 // dispatcher keeps its exact original wording.
 type loopLabels struct{ start, end string }
 
+// loopRun carries the parameters runLoop needs to drive one dispatcher loop
+// (fields are the former positional runLoop arguments, 1:1).
+type loopRun struct {
+	log      *slog.Logger
+	redisURL string
+	lbl      loopLabels
+	run      func(context.Context) error
+	stop     func()
+}
+
 // runLoop runs a dispatcher's blocking loop and stops the process on an
 // unexpected (non-cancellation) error.
-func runLoop(ctx context.Context, log *slog.Logger, redisURL string, lbl loopLabels, run func(context.Context) error, stop func()) {
-	log.Info(lbl.start, "redis", redisURL)
-	if err := run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-		log.Error(lbl.end, "err", err)
-		stop()
+func runLoop(ctx context.Context, r loopRun) {
+	r.log.Info(r.lbl.start, "redis", r.redisURL)
+	if err := r.run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		r.log.Error(r.lbl.end, "err", err)
+		r.stop()
 	}
 }

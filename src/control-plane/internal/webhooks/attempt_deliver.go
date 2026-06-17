@@ -30,7 +30,8 @@ func (d *Dispatcher) attempt(ctx context.Context, subscriptionID, eventID string
 		return
 	}
 	statusCode, attemptErr := d.deliver(ctx, p.sub, p.secret, eventID, p.body)
-	d.recordAttempt(ctx, subscriptionID, eventID, p.attempts+1, p.sub.MaxAttempts, statusCode, attemptErr)
+	o := attemptOutcome{subscriptionID, eventID, p.attempts + 1, statusCode}
+	d.recordAttempt(ctx, o, p.sub.MaxAttempts, attemptErr)
 }
 
 // loadPending fetches the single pending delivery row; ok is false when the row
@@ -55,19 +56,20 @@ func (d *Dispatcher) loadPending(ctx context.Context, subscriptionID, eventID st
 		return pendingDelivery{}, false
 	}
 	var p pendingDelivery
-	if err := scanAttemptRow(rows, &p.sub, &p.body, &p.attempts, &p.secret); err != nil {
+	if err := scanAttemptRow(rows, &p); err != nil {
 		d.log.Warn("attempt scan failed", "err", err)
 		return pendingDelivery{}, false
 	}
 	return p, true
 }
 
-func scanAttemptRow(row scannable, sub *Subscription, body *string, attempts *int, secret *string) error {
+func scanAttemptRow(row scannable, p *pendingDelivery) error {
 	var headersJSON string
+	sub := &p.sub
 	if err := row.Scan(&sub.ID, &sub.TenantID, &sub.Name, &sub.URL,
 		&sub.EventTypes, &sub.Aggregates, &sub.Active, &headersJSON,
 		&sub.MaxAttempts, &sub.TimeoutMs, &sub.CreatedAt, &sub.UpdatedAt,
-		body, attempts, secret); err != nil {
+		&p.body, &p.attempts, &p.secret); err != nil {
 		return err
 	}
 	sub.Headers = map[string]string{}

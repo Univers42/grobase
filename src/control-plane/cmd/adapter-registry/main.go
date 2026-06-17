@@ -40,7 +40,7 @@ func main() {
 	svc := buildService(ctx, db, log)
 	mux := httpx.NewRouter("adapter-registry", db, m)
 	adapterregistry.Mount(mux, svc, cfg.ServiceToken)
-	runServer(ctx, stop, cfg, mux, log, m)
+	runServer(ctx, runServerParams{stop: stop, cfg: cfg, mux: mux, log: log, m: m})
 }
 
 func healthcheck(cfg config.Config) int {

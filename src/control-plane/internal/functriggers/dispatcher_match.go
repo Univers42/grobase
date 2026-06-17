@@ -48,7 +48,8 @@ func (d *Dispatcher) handleEvent(ctx context.Context, aggregate string, msg redi
 		return fmt.Errorf("lookup triggers: %w", err)
 	}
 	for _, tr := range triggers {
-		if err := d.enqueueDelivery(ctx, tr, ev.eventID, aggregate, ev.aggregateID, ev.eventType, ev.payload); err != nil {
+		dl := delivery{tr: tr, eventID: ev.eventID, aggregate: aggregate, eventType: ev.eventType, payload: ev.payload}
+		if err := d.enqueueDelivery(ctx, dl); err != nil {
 			d.log.Warn("enqueue delivery failed", "trigger", tr.ID, "event", ev.eventID, "err", err)
 			continue
 		}
@@ -102,20 +103,24 @@ func collectMatching(rows pgx.Rows, aggregate, eventType string, out *[]Trigger)
 	return rows.Err()
 }
 
-func (d *Dispatcher) enqueueDelivery(
-	ctx context.Context,
-	tr Trigger,
-	eventID, aggregate, _, eventType string,
-	payload map[string]any,
-) error {
-	body, _ := json.Marshal(payload)
-	return d.db.TenantTx(ctx, tr.TenantID, func(tx pgx.Tx) error {
+// delivery groups the columns inserted for one pending function delivery.
+type delivery struct {
+	tr        Trigger
+	eventID   string
+	aggregate string
+	eventType string
+	payload   map[string]any
+}
+
+func (d *Dispatcher) enqueueDelivery(ctx context.Context, dl delivery) error {
+	body, _ := json.Marshal(dl.payload)
+	return d.db.TenantTx(ctx, dl.tr.TenantID, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
 			INSERT INTO public.function_deliveries
 			       (trigger_id, tenant_id, function_name, event_id, aggregate, event_type, payload, next_attempt_at)
 			VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::jsonb, now())
 			ON CONFLICT (trigger_id, event_id) DO NOTHING`,
-			tr.ID, tr.TenantID, tr.FunctionName, eventID, aggregate, eventType, string(body))
+			dl.tr.ID, dl.tr.TenantID, dl.tr.FunctionName, dl.eventID, dl.aggregate, dl.eventType, string(body))
 		return err
 	})
 }
