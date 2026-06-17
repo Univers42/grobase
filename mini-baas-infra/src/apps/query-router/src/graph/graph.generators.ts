@@ -12,7 +12,9 @@ import {
   TagGenConfig,
 } from './graph.types';
 
-const WIKILINK = /\[\[([^\]]+)\]\]/g;
+// Atomic group `(?=(...))\1` makes the inner `[^\]]+` non-backtracking — it
+// matches the same valid `[[…]]` links but cannot retry on unterminated input.
+const WIKILINK = /\[\[(?=([^\]]+))\1\]\]/g;
 
 /** Obsidian-style: parse `[[NodeId]]` links from a markdown note field. */
 function noteEdges(node: GraphNode, field: string): EdgeRecord[] {
@@ -43,13 +45,22 @@ function tagEdges(node: GraphNode, cfg: TagGenConfig): EdgeRecord[] {
     }));
 }
 
+/** A scalar `node.data[field]` (anything but null/undefined/object) → a stable
+ *  string for the FK-by-declaration edge target. `String(...)` over a confirmed
+ *  primitive can never collapse to `[object Object]`. */
+type ScalarValue = string | number | boolean | bigint | symbol;
+
+function isScalar(value: unknown): value is ScalarValue {
+  return value !== null && value !== undefined && typeof value !== 'object';
+}
+
 /** FK-by-declaration: a scalar field value → an edge to `<mount>:<resource>:<value>`. */
 function referenceEdges(node: GraphNode, refs: ReferenceGenConfig[]): EdgeRecord[] {
   const out: EdgeRecord[] = [];
   for (const ref of refs) {
     if (!ref || typeof ref.field !== 'string') continue;
     const value = node.data[ref.field];
-    if (value === null || value === undefined || typeof value === 'object') continue;
+    if (!isScalar(value)) continue;
     out.push({
       id: `ref:${node.id}|${ref.field}`,
       from: node.id,

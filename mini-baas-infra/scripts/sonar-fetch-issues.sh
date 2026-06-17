@@ -16,7 +16,7 @@ set -euo pipefail
 readonly SEP_LINE='══════════════════════════════════════════════════'
 
 : "${SONAR_TOKEN:?Set SONAR_TOKEN or TOK_SONARCLOUD in .env}"
-PROJECT_KEY="${SONAR_PROJECT_KEY:-Univers42_mini-baas-infra}"
+PROJECT_KEY="${SONAR_PROJECT_KEY:-Univers42_grobase}"
 HOST="https://sonarcloud.io"
 OUT_DIR="audit"
 mkdir -p "$OUT_DIR"

@@ -54,20 +54,20 @@ export function scenarioOptions() {
 // env block into the final artifact).
 export function compactSummary(data, extra) {
 	const t = (name) => {
-		const v = (data.metrics[name] || {}).values || {};
+		const v = data.metrics[name]?.values || {};
 		return { med: v.med ?? null, p95: v['p(95)'] ?? null, p99: v['p(99)'] ?? null, max: v.max ?? null, count: v.count ?? 0 };
 	};
-	const reqs = ((data.metrics.http_reqs || {}).values || {}).count || 0;
-	const durMs = (data.state || {}).testRunDurationMs || 1;
-	const failedRate = ((data.metrics.http_req_failed || {}).values || {}).rate || 0;
+	const reqs = data.metrics.http_reqs?.values?.count || 0;
+	const durMs = data.state?.testRunDurationMs || 1;
+	const failedRate = data.metrics.http_req_failed?.values?.rate || 0;
 	const out = {
 		rate_target: Number(__ENV.RATE || 0),
 		duration_ms: Math.round(durMs),
 		rps_achieved: Math.round((reqs / durMs) * 1000 * 100) / 100,
 		http: t('http_req_duration'),
 		err_pct: Math.round(failedRate * 10000) / 100,
-		rate_limited: ((data.metrics.bench_rate_limited || {}).values || {}).count || 0,
-		server_errors: ((data.metrics.bench_server_errors || {}).values || {}).count || 0,
+		rate_limited: data.metrics.bench_rate_limited?.values?.count || 0,
+		server_errors: data.metrics.bench_server_errors?.values?.count || 0,
 		...extra,
 	};
 	const file = __ENV.K6_OUT_FILE || '/out/k6-run.json';

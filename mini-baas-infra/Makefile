@@ -160,6 +160,7 @@ re: ## Full reset: fclean then rebuild & start (honours EDITION)
 ##@ Stack (edition-driven — set EDITION=lean|query|realtime|analytics|prod|full)
 # ========================================================================== #
 up: _require-compose _rm-stale ## Start the selected EDITION (detached)
+	@[ -f .env ] || { echo -e "$(_Y).env missing → generating (make env)…$(_0)"; $(MAKE) --no-print-directory env; }
 	@echo -e "$(_B)Starting edition '$(_W)$(EDITION)$(_0)$(_B)' → profiles: $(_C)$(ACTIVE_PROFILES)$(_0)"
 	@eval "$$(bash scripts/resolve-ports.sh 2>/dev/null || true)"; $(DCE) up -d $(SERVICE)
 	@echo -e "$(_G)✓ Up$(_0)"
@@ -192,8 +193,9 @@ build-svc-%: _require-compose ## Build ONE service image (all profiles defined, 
 
 health: ## Quick gateway health probe
 	@echo -e "$(_B)Checking endpoints…$(_0)"
-	@curl -fsS http://localhost:8000/auth/v1/health >/dev/null && echo "  ✓ /auth/v1/health" || echo "  ✗ /auth/v1/health"
-	@curl -fsS http://localhost:8000/rest/v1/ >/dev/null && echo "  ✓ /rest/v1/" || echo "  ✗ /rest/v1/"
+	@p="$$(docker port mini-baas-kong 8000/tcp 2>/dev/null | head -1 | sed 's/.*://')"; p="$${p:-8000}"; \
+		curl -fsS http://localhost:$$p/auth/v1/health >/dev/null && echo "  ✓ /auth/v1/health" || echo "  ✗ /auth/v1/health"; \
+		curl -fsS http://localhost:$$p/rest/v1/ >/dev/null && echo "  ✓ /rest/v1/" || echo "  ✗ /rest/v1/"
 
 bench-startup: _require-compose _rm-stale ## Time the stack until health checks pass (target ≤90s)
 	@t0=$$(date +%s); eval "$$(bash scripts/resolve-ports.sh 2>/dev/null || true)"; $(DCE) up -d; \
@@ -365,12 +367,35 @@ test-offers: ## Postman/newman offer-capability proof vs the LIVE stack → arti
 test-edge: ## Data-driven edge corpus (1500+ vectors, one newman iteration each) vs the LIVE data plane → artifacts/test/edge-report.html
 	@bash scripts/test/run-edge-postman.sh
 
+test-unit: ## Run ALL source-level unit tests (Go + Rust data-plane + Rust realtime + NestJS) — no live stack needed
+	@rc=0; \
+	echo -e "$(_B)── Go control-plane (go test ./...) ──$(_0)";   $(MAKE) --no-print-directory go-control-plane-check || rc=1; \
+	echo -e "$(_B)── Rust data-plane (cargo test) ──$(_0)";       $(MAKE) --no-print-directory rust-data-plane-test   || rc=1; \
+	echo -e "$(_B)── Rust realtime (cargo test) ──$(_0)";         $(MAKE) --no-print-directory rust-realtime-test     || rc=1; \
+	echo -e "$(_B)── NestJS apps + libs (jest) ──$(_0)";          $(MAKE) --no-print-directory nestjs-ci              || rc=1; \
+	if [ $$rc -eq 0 ]; then echo -e "$(_G)✓ unit tests passed$(_0)"; else echo -e "$(_R)✗ unit tests failed$(_0)"; exit 1; fi
+
+test-all: ## Run EVERYTHING available: unit + (if the stack is up) integration phases, Postman offers + edge, WAF, conformance
+	@rc=0; \
+	$(MAKE) --no-print-directory test-unit || rc=1; \
+	if docker ps --format '{{.Names}}' | grep -q '^mini-baas-kong$$'; then \
+		echo -e "$(_B)── live-stack suites (stack detected) ──$(_0)"; \
+		$(MAKE) --no-print-directory tests       || rc=1; \
+		$(MAKE) --no-print-directory test-offers || rc=1; \
+		$(MAKE) --no-print-directory test-edge   || rc=1; \
+		$(MAKE) --no-print-directory waf-test    || true; \
+		$(MAKE) --no-print-directory conformance || rc=1; \
+	else \
+		echo -e "$(_Y)• stack down — skipping integration / Postman / edge / conformance (run 'make up' first)$(_0)"; \
+	fi; \
+	if [ $$rc -eq 0 ]; then echo -e "$(_G)✓ test-all green$(_0)"; else echo -e "$(_R)✗ test-all had failures$(_0)"; exit 1; fi
+
 verify-%: ## Run a milestone gate (e.g. make verify-m18)
 	@s=$$(ls scripts/verify/$*-*.sh 2>/dev/null | head -1); \
 	[ -n "$$s" ] || { echo -e "$(_R)No verify gate '$*'$(_0)"; exit 1; }; \
 	bash "$$s"
 
-verify-all: ## Run every milestone gate (m1…m19)
+verify-all: ## Run every milestone gate (all scripts/verify/m*-*.sh, in version order)
 	@rc=0; for s in $$(ls scripts/verify/m*-*.sh | sort -V); do \
 		echo -e "$(_B)→ $$s$(_0)"; bash "$$s" || rc=1; done; exit $$rc
 
@@ -464,6 +489,43 @@ nestjs-ci: ## TS: install + typecheck + lint + test (in Docker)
 		&& npx tsc --noEmit && npx eslint "apps/**/*.ts" "libs/**/*.ts" && npx jest --passWithNoTests'
 nestjs-build-%: ## TS: build one app in Docker (e.g. make nestjs-build-query-router)
 	@$(NODE_RUN) sh -c '[ -x node_modules/.bin/nest ] || npm ci --ignore-scripts --prefer-offline --no-audit --no-fund; npx nest build $*'
+
+sdk-test: ## SDK: codegen + build + run the @mini-baas/js node:test suite (in Docker)
+	@docker run --rm -v "$(CURDIR)/..":/repo -w /repo/sdk node:20-bookworm-slim \
+		sh -c 'npm ci --no-audit --no-fund && npm run codegen:all && npm run build && npm test'
+
+# ── SonarCloud: coverage reports + scan ──────────────────────────────────────
+# Regenerate the two lcov reports Sonar reads — jest (src/) + deno
+# (functions-runtime) — rewriting SF paths project-relative so they match Sonar's
+# file keys (sonar-project.properties points at the *.sonar.info variants).
+# Docker-first: node + deno run in containers; coverage/ is gitignored (ephemeral).
+DENO_IMAGE   := denoland/deno:alpine-2.1.4
+FUNCS_DIR    := docker/services/functions-runtime
+
+sonar-coverage: ## Regenerate jest + deno lcov.sonar.info reports for SonarCloud
+	@echo "▶ jest coverage (src/) …"
+	@$(NODE_RUN) sh -c '[ -x node_modules/.bin/jest ] || npm ci --ignore-scripts --prefer-offline --no-audit --no-fund; \
+		npx jest --coverage --coverageReporters=lcovonly --silent'
+	@docker run --rm -v "$(CURDIR)/src/coverage":/c -w /c $(NODE_IMAGE) \
+		sh -c "sed -e 's#^SF:apps/#SF:src/apps/#' -e 's#^SF:libs/#SF:src/libs/#' lcov.info > lcov.sonar.info"
+	@echo "▶ deno coverage ($(FUNCS_DIR)) …"
+	@docker run --rm -v "$(CURDIR)/$(FUNCS_DIR)":/app -w /app -e DENO_DIR=/deno-cache -v mini-baas-deno-cache:/deno-cache $(DENO_IMAGE) \
+		sh -c 'rm -rf cov; deno test --allow-net --coverage=cov src/usage-meter.test.ts >/dev/null 2>&1; \
+			mkdir -p coverage; deno coverage cov --lcov --output=coverage/deno.lcov.info; rm -rf cov; \
+			sed "s#^SF:/app/src/#SF:$(FUNCS_DIR)/src/#" coverage/deno.lcov.info > coverage/deno.lcov.sonar.info'
+	@echo "✓ regenerated src/coverage/lcov.sonar.info + $(FUNCS_DIR)/coverage/deno.lcov.sonar.info"
+
+sonar-scan: sonar-coverage ## Regenerate coverage, then run the SonarCloud scanner (token: env SONAR_TOKEN/TOK_SONARCLOUD, else .env / ../.env)
+	@TOKEN="$${SONAR_TOKEN:-$$TOK_SONARCLOUD}"; \
+	for f in .env ../.env; do \
+		[ -n "$$TOKEN" ] && break; \
+		[ -f "$$f" ] && TOKEN="$$(grep -E '^[[:space:]]*(export[[:space:]]+)?(SONAR_TOKEN|TOK_SONARCLOUD)=' "$$f" | head -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$$//')"; \
+	done; \
+	[ -n "$$TOKEN" ] || { echo "✗ No SonarCloud token. Set SONAR_TOKEN (or TOK_SONARCLOUD) in the environment, or add it to .env / ../.env"; exit 1; }; \
+	echo "▶ SonarCloud scan (org=univers42 project=Univers42_grobase) …"; \
+	docker run --rm -e SONAR_TOKEN="$$TOKEN" -v "$(CURDIR)":/usr/src -w /usr/src \
+		sonarsource/sonar-scanner-cli:latest sonar-scanner
+
 # Cargo runs INSIDE Docker (no rustc/cargo on the host). The registry and the
 # per-workspace target dirs live in named volumes, so dependency downloads and
 # incremental build state persist across runs while the host stays clean.
@@ -479,6 +541,9 @@ _rust-toolchain: ## (internal) cargo-in-docker image: rust + pkg-config/libssl (
 
 rust-data-plane-check: _rust-toolchain ## Rust: cargo check the data-plane workspace (in Docker)
 	@$(CARGO_DPR) cargo check --workspace
+
+rust-data-plane-test: _rust-toolchain ## Rust: run the data-plane workspace unit + integration tests (in Docker)
+	@$(CARGO_DPR) cargo test --workspace
 
 # Engine conformance: run the reusable battery (crates/engine-conformance)
 # against ONE live engine over the mini-baas network. DSN is discovered from
@@ -536,7 +601,7 @@ rust-realtime-build: _rust-toolchain ## Rust: build the realtime-server release 
 go-control-plane-check: ## Go: vet + test the control-plane module (in Docker, cached modules)
 	@docker run --rm -v "$(CURDIR)/go/control-plane":/src -w /src \
 		-v mini-baas-gomod:/go/pkg/mod -v mini-baas-gobuild:/root/.cache/go-build \
-		golang:1.23-bookworm sh -c 'GOFLAGS=-mod=mod go vet ./... && GOFLAGS=-mod=mod go test ./...'
+		golang:1.25-bookworm sh -c 'GOFLAGS=-mod=mod go vet ./... && GOFLAGS=-mod=mod go test ./...'
 go-control-plane-build: ## Go: build the control-plane images
 	@$(DC) --profile go-control-plane build
 
@@ -607,9 +672,10 @@ quickstart: ## One command to a running stack: .env → up PACKAGE (default esse
 	@$(MAKE) health
 	@echo ""
 	@echo -e "$(_G)$(_W)✓ Grobase BaaS is up$(_0)"
-	@echo -e "  Gateway:  $(_C)http://localhost:8000$(_0)"
-	@echo -e "  API key:  $(_D)grep '^KONG_PUBLIC_API_KEY=' .env | cut -d= -f2$(_0)"
-	@echo -e "  Try:      $(_D)curl http://localhost:8000/auth/v1/health -H \"apikey: <key>\"$(_0)"
+	@p="$$(docker port mini-baas-kong 8000/tcp 2>/dev/null | head -1 | sed 's/.*://')"; p="$${p:-8000}"; \
+		echo -e "  Gateway:  $(_C)http://localhost:$$p$(_0)"; \
+		echo -e "  API key:  $(_D)grep '^KONG_PUBLIC_API_KEY=' .env | cut -d= -f2$(_0)"; \
+		echo -e "  Try:      $(_D)curl http://localhost:$$p/auth/v1/health -H \"apikey: <key>\"$(_0)"
 	@echo -e "  Docs:     $(_D)QUICKSTART.md · DEPLOYMENT.md · SECURITY.md$(_0)"
 
 release-binaries: nano-build one-build ## Release: extract binocle binaries + sha256 → artifacts/release/ (linux-amd64)
@@ -657,6 +723,7 @@ help: ## Show this help
         verify-all parity waf-test migrate migrate-mongo migrate-mysql migrate-all \
         migrate-status seed-mongo seed-live-demo secrets secrets-validate secrets-rotate \
         check-secrets env vault-init vault-status vault-rotate nestjs-ci \
+        sonar-coverage sonar-scan \
         rust-data-plane-check rust-data-plane-build go-control-plane-check \
         rust-realtime-check rust-realtime-test rust-realtime-build _rust-toolchain \
         go-control-plane-build preflight hooks update help \

@@ -1,19 +1,54 @@
 {
   "name": "@mini-baas/js",
   "version": "0.2.0",
-  "description": "Product SDK for mini-BaaS applications",
+  "description": "Supabase-shaped TypeScript/JavaScript SDK for the Grobase BaaS: auth, data, storage, realtime, functions, schema and more over one engine-agnostic gateway.",
   "type": "module",
+  "license": "MIT",
+  "author": "dlesieur",
+  "homepage": "https://github.com/Univers42/grobase/tree/main/sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Univers42/grobase.git",
+    "directory": "sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/Univers42/grobase/issues"
+  },
+  "keywords": [
+    "baas",
+    "backend-as-a-service",
+    "grobase",
+    "supabase-alternative",
+    "sdk",
+    "postgrest",
+    "auth",
+    "realtime",
+    "storage"
+  ],
   "main": "dist/index.js",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
   "bin": {
     "baas": "dist/bin/baas.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepare": "npm run build",
+    "prepublishOnly": "npm run build && npm test",
     "typecheck": "tsc -p tsconfig.typecheck.json",
     "test": "node --test tests/*.test.mjs",
     "openapi:collect": "bash ../mini-baas-infra/scripts/openapi-collect.sh",

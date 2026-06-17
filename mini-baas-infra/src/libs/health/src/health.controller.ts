@@ -14,10 +14,19 @@ import { Controller, Get } from '@nestjs/common';
 import {
   HealthCheck,
   HealthCheckService,
-  HealthIndicator,
   HealthIndicatorResult,
+  HealthIndicatorService,
 } from '@nestjs/terminus';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+
+/**
+ * A service registered as a health indicator. It reports its own readiness
+ * as a boolean; the controller maps that to a Terminus result keyed by the
+ * service's class name.
+ */
+export interface HealthReportingIndicator {
+  isHealthy(): Promise<boolean>;
+}
 
 /**
  * Generic liveness + readiness health controller.
@@ -28,7 +37,8 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 export class HealthController {
   constructor(
     private readonly health: HealthCheckService,
-    private readonly indicators: HealthIndicator[],
+    private readonly indicators: HealthReportingIndicator[],
+    private readonly indicatorService: HealthIndicatorService,
   ) {}
 
   @Get('live')
@@ -42,11 +52,16 @@ export class HealthController {
   @ApiOperation({ summary: 'Readiness probe — checks all registered health indicators' })
   ready() {
     return this.health.check(
-      this.indicators.map(
-        (indicator) => () =>
-          (indicator as HealthIndicator & { isHealthy: (key: string) => Promise<HealthIndicatorResult> })
-            .isHealthy(indicator.constructor.name),
-      ),
+      this.indicators.map((indicator) => () => this.checkIndicator(indicator)),
     );
+  }
+
+  private async checkIndicator(
+    indicator: HealthReportingIndicator,
+  ): Promise<HealthIndicatorResult> {
+    const key = indicator.constructor.name;
+    const session = this.indicatorService.check(key);
+    const healthy = await indicator.isHealthy();
+    return healthy ? session.up() : session.down();
   }
 }

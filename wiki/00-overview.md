@@ -140,7 +140,7 @@ The **product modes** that make a plane swappable at runtime:
 
 | Component | Mode today | Evidence |
 |---|---|---|
-| Rust data-plane-router | **LIVE** (`enabled`), all 5 engines forwarded | `docker-compose.yml` query-router env `RUST_DATA_PLANE_FORWARD=1`, `FORWARD_ENGINES=postgresql,mongodb,mysql,redis,http`; TS engine files deleted (`git status`) |
+| Rust data-plane-router | **LIVE** (`enabled`), all 5 engines forwarded — Rust is the **sole live data path** | `docker-compose.yml` query-router env `RUST_DATA_PLANE_FORWARD=1`, `FORWARD_ENGINES=postgresql,mongodb,mysql,redis,http`. The query-router's TS engine *adapters* were removed, but the legacy TS query-router/permission-engine path is **retained behind the deletion gate** (m18 live-traffic + shadow-parity + CI-forward — UNKNOWN = FAIL), not deleted. See `wiki/cutover-status.md`. |
 | Go adapter-registry | **PRIMARY** (TS retired) | compose comment + `ADAPTER_REGISTRY_URL` → `adapter-registry-go:3021`; TS `src/apps/adapter-registry` deleted |
 | Go tenant-control | **shadow** | `TENANT_CONTROL_PRODUCT_MODE=shadow` |
 | Go webhook-dispatcher | **shadow** | `WEBHOOK_DISPATCHER_PRODUCT_MODE=shadow` |

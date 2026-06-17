@@ -48,7 +48,7 @@ echo ""
 
 # ── 1. Shell syntax check (bash -n) ──────────────────────────────
 echo -e "${BOLD}1. Shell syntax${NC}"
-sh_files=$(find "$ROOT_DIR/scripts" "$ROOT_DIR/vendor/scripts" -type f -name '*.sh' 2>/dev/null || true)
+sh_files=$(find "$ROOT_DIR/scripts" -type f -name '*.sh' 2>/dev/null || true)
 if [[ -z "$sh_files" ]]; then
   echo -e "  ${YELLOW}⚠${NC} No .sh files found"
 else

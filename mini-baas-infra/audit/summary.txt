@@ -1,0 +1,25 @@
+══════════════════════════════════════════════════
+ SonarCloud Audit Report — 2026-06-17 00:11 UTC
+ Project: Univers42_grobase
+══════════════════════════════════════════════════
+
+  BLOCKER    0
+  CRITICAL   0
+  MAJOR      0
+  MINOR      4
+  INFO       0
+
+── By Type ────────────────────────────────────────
+  BUG                0
+  VULNERABILITY      0
+  CODE_SMELL         4
+
+── Detailed Issues ────────────────────────────────
+[MINOR] CODE_SMELL — src/apps/analytics-service/src/events/events.service.ts:115 — This assertion is unnecessary since the receiver accepts the original type of the expression.
+[MINOR] CODE_SMELL — src/apps/analytics-service/src/events/events.service.ts:86 — This assertion is unnecessary since the receiver accepts the original type of the expression.
+[MINOR] CODE_SMELL — src/apps/query-router/src/query/automations.service.spec.ts:95 — This assertion is unnecessary since the receiver accepts the original type of the expression.
+[MINOR] CODE_SMELL — src/apps/query-router/src/query/realtime-publisher.service.spec.ts:30 — This assertion is unnecessary since the receiver accepts the original type of the expression.
+
+══════════════════════════════════════════════════
+ Total: 4 open issues
+══════════════════════════════════════════════════

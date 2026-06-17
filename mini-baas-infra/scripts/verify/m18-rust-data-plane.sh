@@ -2,10 +2,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 cd "${REPO_ROOT}"
 
-BAAS_DIR="apps/baas/mini-baas-infra"
+BAAS_DIR="mini-baas-infra"
 ROUTER_DIR="${BAAS_DIR}/docker/services/data-plane-router"
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
 

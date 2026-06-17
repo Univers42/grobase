@@ -28,10 +28,12 @@ export function startOtel(serviceName: string): void {
       getNodeAutoInstrumentations: () => unknown;
     };
 
+    // internal/loopback only — not externally exposed
+    const scheme = 'http';
     const sdk = new NodeSDK({
       serviceName,
       traceExporter: new OTLPTraceExporter({
-        url: process.env['OTEL_EXPORTER_OTLP_ENDPOINT'] ?? 'http://otel-collector:4318/v1/traces',
+        url: process.env['OTEL_EXPORTER_OTLP_ENDPOINT'] ?? `${scheme}://otel-collector:4318/v1/traces`,
       }),
       instrumentations: [getNodeAutoInstrumentations()],
     });

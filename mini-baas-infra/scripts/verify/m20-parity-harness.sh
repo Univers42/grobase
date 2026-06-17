@@ -19,10 +19,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 cd "${REPO_ROOT}"
 
-BAAS_DIR="apps/baas/mini-baas-infra"
+BAAS_DIR="mini-baas-infra"
 PARITY="${BAAS_DIR}/scripts/verify/parity.sh"
 PARITY_DIR="${BAAS_DIR}/scripts/verify/parity"
 MAKEFILE="${BAAS_DIR}/Makefile"

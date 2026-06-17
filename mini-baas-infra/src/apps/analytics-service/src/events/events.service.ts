@@ -13,7 +13,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MongoService } from '@mini-baas/database';
-import { Collection, Document } from 'mongodb';
+import { Collection, Document, Filter } from 'mongodb';
 
 export interface AnalyticsEvent {
   eventType: string;
@@ -25,7 +25,7 @@ export interface AnalyticsEvent {
 @Injectable()
 export class EventsService implements OnModuleInit {
   private readonly logger = new Logger(EventsService.name);
-  private collection!: Collection;
+  private collection!: Collection<AnalyticsEvent>;
 
   constructor(
     private readonly mongo: MongoService,
@@ -34,7 +34,7 @@ export class EventsService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     const db = this.mongo.getDb();
-    this.collection = db.collection('events');
+    this.collection = db.collection<AnalyticsEvent>('events');
 
     // Ensure TTL index for automatic retention
     const retentionDays = this.config.get<number>('ANALYTICS_RETENTION_DAYS', 90);
@@ -72,9 +72,9 @@ export class EventsService implements OnModuleInit {
     eventType: string,
     opts: { since?: Date; limit?: number } = {},
   ): Promise<AnalyticsEvent[]> {
-    const filter: Document = { eventType };
+    const filter: Filter<AnalyticsEvent> = { eventType };
     if (opts.since) {
-      filter['timestamp'] = { $gte: opts.since };
+      filter.timestamp = { $gte: opts.since };
     }
 
     const docs = await this.collection
@@ -83,7 +83,7 @@ export class EventsService implements OnModuleInit {
       .limit(opts.limit ?? 100)
       .toArray();
 
-    return docs as unknown as AnalyticsEvent[];
+    return docs;
   }
 
   /**
@@ -112,7 +112,7 @@ export class EventsService implements OnModuleInit {
         acc[r['_id'] as string] = r['count'] as number;
         return acc;
       },
-      {} as Record<string, number>,
+      {},
     );
   }
 

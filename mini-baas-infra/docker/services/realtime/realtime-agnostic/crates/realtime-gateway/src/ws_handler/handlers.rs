@@ -113,6 +113,31 @@ pub(super) async fn handle_subscribe(
     Action::Continue
 }
 
+/// Handle a `SUBSCRIBE_BATCH` client message — register many subscriptions in one frame.
+///
+/// @brief Batch subscribe, authorizing EVERY item exactly like the single-subscribe path.
+///
+/// @par Vulnerability (CWE-285 Improper Authorization)
+/// The earlier implementation authorized a single `SUBSCRIBE` via
+/// `authorize_subscribe` (the JWT `namespaces` allow-list, keyed on the first
+/// topic segment) but the batch variant checked only `auth.authenticated` and
+/// then registered each client-supplied topic with NO `authorize_subscribe`
+/// call. Authorization is exclusively the gateway's job — the engine registry
+/// has none — so an authenticated client scoped to `tenant-A` could send a
+/// `SUBSCRIBE_BATCH` for `tenant-B/...` / `admin/...` topics and receive every
+/// event, broadcast and presence message fanned out there: cross-tenant data
+/// exfiltration that defeats the namespace isolation model.
+///
+/// @par Remediation
+/// Each item is now gated on `authorize_subscribe` BEFORE it is registered,
+/// mirroring `handle_subscribe` byte-for-byte (only authorize when `claims` is
+/// present, preserving NoAuth-mode parity). A denied item is skipped with an
+/// `AUTHZ_DENIED` error frame (consistent with the batch path's existing
+/// per-item `CAPACITY_EXCEEDED` frame) instead of being silently registered.
+/// The fix lives purely in the gateway authorization layer, so it is
+/// engine-/bus-agnostic.
+///
+/// @see https://cwe.mitre.org/data/definitions/285.html
 pub(super) async fn handle_subscribe_batch(
     subscriptions: Vec<SubscribeItem>,
     conn_id: ConnectionId,
@@ -125,10 +150,33 @@ pub(super) async fn handle_subscribe_batch(
         return Action::Continue;
     }
     for item in subscriptions {
+        let pattern = TopicPattern::parse(&item.topic);
+        // CWE-285: authorize every batched item against the JWT namespace
+        // allow-list, exactly as handle_subscribe does — the batch door must
+        // never be weaker than the single-subscribe door.
+        if let Some(ref c) = auth.claims {
+            if state
+                .auth_provider
+                .authorize_subscribe(c, &pattern)
+                .await
+                .is_err()
+            {
+                warn!(conn_id = %conn_id, sub_id = %item.sub_id, "Subscribe (batch) denied");
+                send_ctrl(
+                    ctrl_tx,
+                    &ServerMessage::error(
+                        "AUTHZ_DENIED",
+                        "subscription denied: topic namespace not permitted".to_string(),
+                    ),
+                )
+                .await;
+                continue;
+            }
+        }
         let sub = Subscription {
             sub_id: SubscriptionId(SmolStr::new(&item.sub_id)),
             conn_id,
-            topic: TopicPattern::parse(&item.topic),
+            topic: pattern,
             filter: item.filter.and_then(|f| FilterExpr::from_json(&f)),
             config: parse_sub_config(item.options),
         };

@@ -20,15 +20,21 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 export class ColumnDefinition {
+  // CWE-89 defense-in-depth: reject non-identifier column names at the API
+  // boundary so attacker DDL never reaches the per-engine builders. The engines
+  // (postgres/mysql) re-validate identically — this is the outer of two walls.
+  // @see https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html#defense-option-4-allow-list-input-validation
   @ApiProperty({ example: 'title' })
   @IsString()
   @IsNotEmpty()
+  @Matches(/^[a-zA-Z_]\w{0,63}$/, { message: String.raw`name must be a bare SQL identifier ([A-Za-z_]\w*)` })
   name!: string;
 
   @ApiProperty({ example: 'text', description: 'Postgres type or JSON Schema type' })

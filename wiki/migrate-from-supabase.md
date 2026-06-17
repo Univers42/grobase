@@ -57,9 +57,9 @@ shape.
 Install (no npm registry — distribution is Docker Hub + this repo by design):
 
 ```sh
-npm install ./apps/baas/sdk
+npm install ./sdk
 # or straight from git:
-npm install git+https://github.com/Univers42/groot.git#main:apps/baas/sdk
+npm install git+https://github.com/Univers42/grobase.git#main:sdk
 ```
 
 ---

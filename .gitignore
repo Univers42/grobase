@@ -374,3 +374,15 @@ certs/*
 # Migration debris: orphan embedded git repo (gitlink) left by the monorepo
 # extraction. De-tracked from the index; kept ignored so it can't be re-added.
 /grobase/
+
+# Vendored dev/analysis tool (own .git) — Egonex "Understand Anything" plugin used
+# to generate the architecture knowledge graph. Local tooling, NOT product code:
+# ignored so it can't be re-added as an orphan gitlink (same hazard as /grobase/).
+# Update in place with: git -C vendor/Understand-Anything pull
+/vendor/Understand-Anything/
+
+# Knowledge-graph output produced by the tool. Ignored to keep the repo clean —
+# it is fully reproducible from vendor/Understand-Anything (the .ua-*.mjs scripts).
+# NOTE: .understand-anything/knowledge-graph.json IS commit-safe if you want to
+# share the graph with teammates (see the tool README; use git-lfs above ~10 MB).
+.understand-anything/

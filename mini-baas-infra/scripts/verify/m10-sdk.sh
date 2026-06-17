@@ -27,11 +27,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 cd "${REPO_ROOT}"
 
-BAAS_DIR="apps/baas/mini-baas-infra"
-SDK_DIR="apps/baas/sdk"
+BAAS_DIR="mini-baas-infra"
+SDK_DIR="sdk"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
 red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }

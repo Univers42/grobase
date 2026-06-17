@@ -1,0 +1,298 @@
+# File: .github/workflows/nightly-proof.yml
+# CONTINUOUS-PROOF — nightly regression guard for the headline differentiators
+# ("fast / lightweight / isolated"). The point-in-time competitive artifacts
+# (footprint-*.json, share-pools-*.json, the nano/one image budgets) live OUTSIDE
+# the push CI, so nothing catches the day a slim image balloons or pool-collapse
+# isolation regresses. This workflow re-proves them on a cadence.
+#
+# WHY A SEPARATE FILE (not a job in ci.yml): a `schedule`-only job placed inside
+# ci.yml renders as a SKIPPED job on every push (its `if:` is false), which the
+# repo owner explicitly dislikes. Triggering this workflow ONLY on `schedule` +
+# `workflow_dispatch` means it never appears in a push run at all — push CI
+# (ci.yml) stays byte-for-byte unchanged and skip-free.
+#
+# Pinned actions are copied verbatim from ci.yml (same SHAs/refs) so this file
+# inherits the repo's supply-chain pinning.
+#
+# RELIABILITY POSTURE (per-job `if:`):
+#   • slim-image-budgets — deterministic on a hosted runner (docker image inspect
+#     of a FROM-scratch static binary). Runs on schedule + dispatch.
+#   • footprint-drift — boots the `query` edition and records RAM; the assertion
+#     bar is generous and the bench step is `continue-on-error`, so a noisy
+#     hosted-runner reading records drift as an ARTIFACT without flapping red.
+#     Runs on schedule + dispatch.
+#   • isolation-conformance — the HEAVY live proof: it provisions real tenants
+#     (m46 SHARE_POOLS_PROBE) and cold-compiles the Rust engine-conformance battery
+#     against live postgres+mongo. That shape is too slow/fragile to keep reliably
+#     GREEN unattended on a 2-CPU/7-GiB hosted runner (full stack boot + tenant
+#     provisioning + multi-minute Rust build). Per the "don't ship a perpetually
+#     red nightly" rule it is **workflow_dispatch-only** (see its `if:` + comment),
+#     so it is run on demand / on a beefier self-hosted runner, never auto-failed
+#     nightly. It still uploads its artifacts when run.
+name: Nightly Proof
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 04:10 UTC daily — offset from ci.yml's 02:30 nightly so the two heavy
+    # workflows don't contend for the same hosted-runner pool.
+    - cron: '10 4 * * *'
+
+concurrency:
+  group: nightly-proof-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  # ─── Job 1: Slim-image budgets — the "lightweight" regression guard ──────────
+  # Builds the two single-binary product editions and asserts each FROM-scratch
+  # image is still under its byte budget (m37 nano ≤15 MB, m40 one ≤12 MB). m40
+  # additionally exercises register→login→per-user CRUD→SSE on the static binary,
+  # so this is also a functional smoke of the nano/one offer. Deterministic on a
+  # hosted runner → runs on schedule. The headline "5 MB single binary" claim
+  # gets a real regression alarm here.
+  slim-image-budgets:
+    name: Slim-image budgets (nano ≤15MB · one ≤12MB)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mini-baas-infra
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+                      /usr/local/share/boost /usr/local/share/powershell \
+                      /usr/lib/jvm "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
+          df -h / | tail -1
+
+      - name: Generate env (compose interpolation)
+        run: FORCE=1 bash scripts/generate-env.sh .env
+
+      - name: Build nano + one images
+        run: |
+          set -euo pipefail
+          make nano-build
+          make one-build
+
+      - name: Nano image budget gate (m37 ≤15 MB)
+        run: bash scripts/verify/m37-nano.sh
+
+      - name: One image budget + auth/CRUD/SSE gate (m40 ≤12 MB)
+        run: bash scripts/verify/m40-one.sh
+
+      - name: Record measured image sizes (drift artifact)
+        if: always()
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts
+          {
+            echo "# nightly slim-image sizes ($(date -u +%FT%TZ), ${GITHUB_SHA})"
+            for img in binocle-nano binocle-one; do
+              if docker image inspect "$img" >/dev/null 2>&1; then
+                bytes=$(docker image inspect --format '{{.Size}}' "$img")
+                printf '%s\t%s bytes\t%s MB\n' "$img" "$bytes" "$((bytes/1024/1024))"
+              else
+                printf '%s\t(not built)\n' "$img"
+              fi
+            done
+          } | tee artifacts/nightly-image-sizes.txt
+
+      - name: Upload image-size artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-image-sizes-${{ github.run_id }}
+          path: mini-baas-infra/artifacts/nightly-image-sizes.txt
+          retention-days: 30
+
+  # ─── Job 2: Footprint drift — the "lightweight (running)" artifact ───────────
+  # Boots the `query` edition and measures live RAM/disk with `make bench-footprint`.
+  # The bar is generous (a regression alarm, not a tight SLO) and the bench step is
+  # continue-on-error so a noisy hosted-runner stats reading records the number as a
+  # drift ARTIFACT instead of flapping the nightly red. The uploaded footprint-*.json
+  # is the visible trend line behind the "30 MiB data plane / 2 MiB idle" claims.
+  footprint-drift:
+    name: Footprint drift (query edition)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: mini-baas-infra
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+                      /usr/local/share/boost /usr/local/share/powershell \
+                      /usr/lib/jvm "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
+          df -h / | tail -1
+
+      - name: Generate env
+        run: FORCE=1 bash scripts/generate-env.sh .env
+
+      - name: Boot query edition
+        run: |
+          set -euo pipefail
+          make build EDITION=query
+          make up EDITION=query
+          # Give containers a moment to register with docker stats before measuring.
+          sleep 20
+          docker compose -f docker-compose.yml ps
+
+      # Generous ceiling: this is a drift alarm, not the tight per-tier SLO. The
+      # exact-shape RAM proof is the `make bench-*` artifacts reproduced on a
+      # controlled host; here we just want the number recorded + an alarm if the
+      # query edition balloons past a clearly-broken bound.
+      - name: Measure footprint (records artifact; non-fatal on hosted-runner noise)
+        id: footprint
+        continue-on-error: true
+        run: make bench-footprint EDITION=query BAR_MB=4096
+
+      - name: Capture compose state + footprint artifact
+        if: always()
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts
+          docker compose -f docker-compose.yml ps > artifacts/nightly-footprint-ps.txt 2>&1 || true
+          ls -la artifacts/footprint-*.json 2>/dev/null || echo "no footprint json produced"
+
+      - name: Upload footprint artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-footprint-${{ github.run_id }}
+          path: |
+            mini-baas-infra/artifacts/footprint-*.json
+            mini-baas-infra/artifacts/nightly-footprint-ps.txt
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker-compose.yml down -v
+
+  # ─── Job 3: Isolation + multi-engine conformance — the "isolated" proof ──────
+  # The differentiator proof that can't be faked: (a) SHARE_POOLS pool-collapse
+  # isolation on mysql+mongo (m46 with SHARE_POOLS_PROBE=1 — actually provisions two
+  # tenants on one backend and asserts no cross-tenant leak + the pool-count
+  # collapse), and (b) live engine-conformance CRUD parity for postgres + mongo
+  # (the Rust adapter driven against the real engines — beyond compile).
+  #
+  # DISPATCH-ONLY, ON PURPOSE: this job provisions real tenants through the full
+  # control plane AND cold-compiles the Rust engine-conformance battery against
+  # live databases. On a 2-CPU/7-GiB GitHub-hosted runner that shape (full stack
+  # boot + tenant-control health + tenant provisioning + multi-minute Rust build ×2
+  # engines) is too slow/flaky to keep reliably GREEN unattended — shipping it on
+  # `schedule` would mean a perpetually-red nightly, which the rules forbid. So it
+  # is `workflow_dispatch`-only: run it on demand (or wire a self-hosted/larger
+  # runner) when you want the live isolation+conformance evidence. It still uploads
+  # its share-pools-*.json + logs every time it runs.
+  isolation-conformance:
+    name: Isolation + conformance (dispatch-only — heavy live)
+    # Gate to manual runs only. On a `schedule` trigger this `if:` is false and the
+    # job is simply not created — and because the WORKFLOW itself only triggers on
+    # schedule/dispatch, it never shows up as "skipped" in any push run.
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: mini-baas-infra
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+                      /usr/local/share/boost /usr/local/share/powershell \
+                      /usr/lib/jvm "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
+          df -h / | tail -1
+
+      - name: Generate env
+        run: FORCE=1 bash scripts/generate-env.sh .env
+
+      - name: Boot query edition (+ mysql/mongo for the cross-engine probe)
+        run: |
+          set -euo pipefail
+          make build EDITION=query
+          make up EDITION=query
+          # m46 + conformance need live mysql + mongo on the mini-baas network.
+          docker compose -f docker-compose.yml up -d --build \
+            mysql mongo-keyfile mongo mongo-init || true
+          sleep 30
+          docker compose -f docker-compose.yml ps
+
+      # m46 self-SKIPs (exit 0) unless SHARE_POOLS_PROBE=1 and the data plane +
+      # tenant-control are healthy — so SHARE_POOLS_PROBE=1 forces the REAL probe.
+      # continue-on-error keeps a flaky live boot from masking the conformance leg;
+      # the verdict is in the uploaded share-pools artifact + the step status.
+      - name: SHARE_POOLS cross-engine isolation gate (m46)
+        id: m46
+        continue-on-error: true
+        env:
+          SHARE_POOLS_PROBE: "1"
+          SHARE_POOLS_EXPECT: "1"
+        run: bash scripts/verify/m46-share-pools-isolation.sh
+
+      # Live multi-engine CRUD parity: the Rust EngineAdapter driven against the
+      # real engines (the m27 battery), not just `cargo build`. Each engine SKIPs
+      # cleanly if its container is down; here both are up, so they run for real.
+      - name: Engine conformance — postgres
+        id: conf_pg
+        continue-on-error: true
+        run: make conformance-postgresql
+
+      - name: Engine conformance — mongo
+        id: conf_mongo
+        continue-on-error: true
+        run: make conformance-mongodb
+
+      - name: Verdict (fail the job if any live proof regressed)
+        run: |
+          set -euo pipefail
+          echo "m46 isolation : ${{ steps.m46.outcome }}"
+          echo "conf postgres : ${{ steps.conf_pg.outcome }}"
+          echo "conf mongo    : ${{ steps.conf_mongo.outcome }}"
+          rc=0
+          [ "${{ steps.m46.outcome }}" = "success" ]      || { echo "::error::m46 isolation gate did not pass"; rc=1; }
+          [ "${{ steps.conf_pg.outcome }}" = "success" ]  || { echo "::error::postgres conformance did not pass"; rc=1; }
+          [ "${{ steps.conf_mongo.outcome }}" = "success" ] || { echo "::error::mongo conformance did not pass"; rc=1; }
+          exit "$rc"
+
+      - name: Capture compose logs + isolation artifact
+        if: always()
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts
+          docker compose -f docker-compose.yml ps   > artifacts/nightly-iso-ps.txt   2>&1 || true
+          docker compose -f docker-compose.yml logs --no-color --tail=400 > artifacts/nightly-iso-logs.txt 2>&1 || true
+          ls -la artifacts/bench/share-pools-*.json 2>/dev/null || echo "no share-pools json produced"
+
+      - name: Upload isolation + conformance artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-isolation-${{ github.run_id }}
+          path: |
+            mini-baas-infra/artifacts/bench/share-pools-*.json
+            mini-baas-infra/artifacts/nightly-iso-ps.txt
+            mini-baas-infra/artifacts/nightly-iso-logs.txt
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker-compose.yml down -v

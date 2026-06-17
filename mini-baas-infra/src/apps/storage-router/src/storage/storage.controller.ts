@@ -81,7 +81,7 @@ export class StorageController {
     // parseTransform returns undefined when STORAGE_TRANSFORMS_ENABLED is OFF (so
     // the original bytes are served, byte-identical) OR when ON with no transform
     // params. A bounded TransformSpec only when at least one valid param is present.
-    const transform = parseTransform(req.query as Record<string, unknown>);
+    const transform = parseTransform(req.query);
     const obj = await this.service.getObject(
       bucket, this.wildcard(req), user.id, principalOf(user), transform,
     );

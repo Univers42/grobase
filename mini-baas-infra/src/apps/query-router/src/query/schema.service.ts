@@ -240,9 +240,9 @@ export class SchemaService {
       normalized_type: requested.normalized_type,
       nullable: requested.nullable ?? current.nullable,
       // `undefined` = "keep the current default"; an explicit `null` clears it.
-      default: requested.default !== undefined ? requested.default : current.default,
+      default: requested.default === undefined ? current.default : requested.default,
       enum_values:
-        requested.enum_values !== undefined ? requested.enum_values : current.enum_values,
+        requested.enum_values === undefined ? current.enum_values : requested.enum_values,
     };
   }
 

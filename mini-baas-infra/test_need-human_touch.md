@@ -8,7 +8,7 @@ All artifacts verified — here's the exact step-by-step runbook for each human 
   🔵 a. Create the npm org — npmjs.com → avatar → Add Organization → name mini-baas → Free.
   🔵 b. Create an automation token — npmjs.com → avatar → Access Tokens → Generate → Granular Access Token (or Classic Automation — this is
   the one that bypasses the 2FA OTP that CI can't enter) → read/write on scope @mini-baas → copy (npm_…).
-  🔵 c. Add it as the GitHub secret — github.com/Univers42/groot → Settings → Secrets and variables → Actions → New repository secret → name
+  🔵 c. Add it as the GitHub secret — github.com/Univers42/grobase → Settings → Secrets and variables → Actions → New repository secret → name
   NPM_TOKEN, value = the token.
   ⚪ d. Publish (the tag fires .github/workflows/baas-cli-publish.yml → npm publish --provenance --access public):
   cd /home/dlesieur/Documents/ft_transcendence && git tag baas-cli-v0.2.0 && git push origin baas-cli-v0.2.0

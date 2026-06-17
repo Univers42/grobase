@@ -64,7 +64,7 @@ export class AuditInterceptor implements NestInterceptor {
           resource: req.originalUrl || req.url,
           payload: this.summarizeBody(req.body),
           ip,
-          userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
+          userAgent: req.headers['user-agent'] ?? null,
         });
       }),
     );

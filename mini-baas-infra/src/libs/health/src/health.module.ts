@@ -11,11 +11,11 @@
 /* ************************************************************************** */
 
 import { DynamicModule, Module, Provider } from '@nestjs/common';
-import { TerminusModule, HealthIndicator } from '@nestjs/terminus';
-import { HealthController } from './health.controller';
+import { TerminusModule } from '@nestjs/terminus';
+import { HealthController, HealthReportingIndicator } from './health.controller';
 
 export interface HealthModuleOptions {
-  indicators: Provider<HealthIndicator>[];
+  indicators: Provider<HealthReportingIndicator>[];
 }
 
 /**
@@ -35,7 +35,7 @@ export class HealthModule {
         ...options.indicators,
         {
           provide: 'HEALTH_INDICATORS',
-          useFactory: (...indicators: HealthIndicator[]) => indicators,
+          useFactory: (...indicators: HealthReportingIndicator[]) => indicators,
           inject: options.indicators as never[],
         },
       ],

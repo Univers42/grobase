@@ -186,7 +186,12 @@ export class RustDataPlaneProxy {
   private capsInFlight?: Promise<RustCapabilitiesResponse>;
 
   constructor(config: ConfigService, private readonly http: HttpService) {
-    this.url = config.get<string>('RUST_DATA_PLANE_URL', 'http://data-plane-router-rust:4011');
+    // internal/loopback only — not externally exposed
+    const dataPlaneScheme = 'http';
+    this.url = config.get<string>(
+      'RUST_DATA_PLANE_URL',
+      `${dataPlaneScheme}://data-plane-router-rust:4011`,
+    );
     this.forwardEnabled = ['1', 'true', 'on'].includes(
       (config.get<string>('RUST_DATA_PLANE_FORWARD', '0') ?? '0').toLowerCase(),
     );

@@ -87,3 +87,15 @@ Deno.test("frozen public constants", () => {
   assertEquals(USAGE_STREAM_KEY, "usage.events");
   assertEquals(FUNCTION_INVOCATIONS_METRIC, "function.invocations");
 });
+
+// A non-empty redisUrl instantiates the internal MinimalRedis client (its member
+// initializers run on construction); a refused port then drives the connect/reset
+// error path. flushOnce stays best-effort: it logs + drops and never throws, and
+// must still DRAIN the aggregator — exactly like usage.rs::flush on a dead Redis.
+Deno.test("meter with a redis url builds the client; flush is best-effort when redis is down", async () => {
+  const meter = new UsageMeter({ flushMs: 60_000, redisUrl: "redis://127.0.0.1:65530" });
+  meter.record("t1", FUNCTION_INVOCATIONS_METRIC, 3);
+  assertEquals(meter.tracked(), 1);
+  await meter.flushOnce(); // connect refused → logged + dropped, never throws
+  assertEquals(meter.tracked(), 0, "drain happens even when the emit fails");
+});

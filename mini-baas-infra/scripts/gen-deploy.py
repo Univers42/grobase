@@ -83,7 +83,7 @@ def parse_makefile() -> tuple[dict, dict]:
     for e in (val("EDITIONS") or "").split():
         raw = val(f"EDITION_{e}") or ""
         if "filter-out" in raw:  # $(filter-out playground,$(PLANES))
-            drop = re.search(r"filter-out\s+([^,]+),", raw).group(1).split()
+            drop = re.search(r"filter-out[ \t]+([^\s,][^,]*),", raw).group(1).split()
             editions[e] = [pl for pl in planes if pl not in drop]
         else:
             editions[e] = raw.split()
@@ -148,35 +148,42 @@ def to_probe(hc) -> dict | None:
     }
 
 
+def parse_resources(spec) -> dict:
+    """limits + half-as-much requests for whatever mem/cpu the service declares."""
+    res = {}
+    if (mem := parse_mem(spec.get("mem_limit"))):
+        res.setdefault("limits", {})["memory"] = mem
+        res.setdefault("requests", {})["memory"] = parse_mem(
+            str(float(re.sub(r"\D", "", mem)) / 2)) or mem
+    if (cpu := parse_cpu(spec.get("cpus"))):
+        res.setdefault("limits", {})["cpu"] = cpu
+        res.setdefault("requests", {})["cpu"] = parse_cpu(float(re.sub(r"\D", "", cpu)) / 2000) or cpu
+    return res
+
+
+def service_facts(name, spec) -> dict:
+    image = spec.get("image") or f"{REGISTRY}/mini-baas-{name}:latest"  # locally-built service
+    svc = {
+        "enabled": False,
+        "image": image,
+        "replicas": 1,
+        "profiles": sorted(spec.get("profiles", []) or []),
+        "ports": container_ports(spec.get("ports")),
+    }
+    if (res := parse_resources(spec)):
+        svc["resources"] = res
+    if (probe := to_probe(spec.get("healthcheck"))):
+        svc["probe"] = probe
+    return svc
+
+
 def parse_compose():
     doc = yaml.safe_load(open(COMPOSE, encoding="utf-8"))
     services = {}
     for name, spec in (doc.get("services") or {}).items():
         if not isinstance(spec, dict):
             continue
-        image = spec.get("image")
-        if not image:
-            image = f"{REGISTRY}/mini-baas-{name}:latest"  # locally-built service
-        svc = {
-            "enabled": False,
-            "image": image,
-            "replicas": 1,
-            "profiles": sorted(spec.get("profiles", []) or []),
-            "ports": container_ports(spec.get("ports")),
-        }
-        res = {}
-        if (mem := parse_mem(spec.get("mem_limit"))):
-            res.setdefault("limits", {})["memory"] = mem
-            res.setdefault("requests", {})["memory"] = parse_mem(
-                str(float(re.sub(r"\D", "", mem)) / 2)) or mem
-        if (cpu := parse_cpu(spec.get("cpus"))):
-            res.setdefault("limits", {})["cpu"] = cpu
-            res.setdefault("requests", {})["cpu"] = parse_cpu(float(re.sub(r"\D", "", cpu)) / 2000) or cpu
-        if res:
-            svc["resources"] = res
-        if (probe := to_probe(spec.get("healthcheck"))):
-            svc["probe"] = probe
-        services[name] = svc
+        services[name] = service_facts(name, spec)
     return services
 
 

@@ -30,7 +30,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-REPO_ROOT="$(cd "${INFRA_ROOT}/../../.." && pwd)"
+REPO_ROOT="$(cd "${INFRA_ROOT}/.." && pwd)"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
 red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }

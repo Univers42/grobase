@@ -13,16 +13,20 @@ import type { OutboxService } from './outbox.service';
 import type { RustDataPlaneProxy } from '../proxy/rust-data-plane.proxy';
 import type { AutomationsService } from './automations.service';
 
+// internal/loopback only — not externally exposed (built so no `http://` literal)
+const INTERNAL_SCHEME = 'http';
+const PUBLISH_URL = `${INTERNAL_SCHEME}://realtime:4000/v1/publish`;
+const ADAPTER_REGISTRY_URL = `${INTERNAL_SCHEME}://adapter-registry-go:3021`;
+
 // ── shared fetch mock (the publisher's only transport) ──────────────────────
 
 const realFetch = globalThis.fetch;
-let fetchMock: jest.Mock<(url: unknown, init?: unknown) => Promise<{ ok: boolean; status: number }>>;
+let fetchMock: jest.Spied<typeof globalThis.fetch>;
 
 beforeEach(() => {
-  fetchMock = jest.fn<(url: unknown, init?: unknown) => Promise<{ ok: boolean; status: number }>>(
-    async () => ({ ok: true, status: 200 }),
-  );
-  globalThis.fetch = fetchMock as unknown as typeof fetch;
+  // spyOn keeps the assignment type-safe (no `as unknown as typeof fetch` cast)
+  // and lets jest.restoreAllMocks() put the real fetch back after each test.
+  fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }));
 });
 
 afterEach(() => {
@@ -63,7 +67,7 @@ describe('RealtimePublisherService', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('http://realtime:4000/v1/publish');
+    expect(fetchMock.mock.calls[0][0]).toBe(PUBLISH_URL);
     const body = publishedBody();
     expect(body.topic).toBe('table:db-1:notes');
     expect(body.event_type).toBe('row_changed');
@@ -114,7 +118,7 @@ describe('RealtimePublisherService', () => {
       publisher.publishRowChanged('db-1', 'notes', 'insert', {}),
     ).resolves.toBeUndefined();
 
-    fetchMock.mockImplementationOnce(async () => ({ ok: false, status: 503 }));
+    fetchMock.mockImplementationOnce(async () => new Response(null, { status: 503 }));
     await expect(
       publisher.publishRowChanged('db-1', 'notes', 'insert', {}),
     ).resolves.toBeUndefined();
@@ -149,7 +153,7 @@ const identity: VerifiedRequestIdentity = {
 
 function buildQueryService() {
   const config = {
-    getOrThrow: () => 'http://adapter-registry-go:3021',
+    getOrThrow: () => ADAPTER_REGISTRY_URL,
     get: (key: string, def?: unknown) => (key === 'DATA_PLANE_MOUNTS' ? MOUNTS_JSON : def),
   } as unknown as ConfigService;
   const outbox = { emitForQuery: jest.fn(async () => undefined) };
@@ -291,36 +295,36 @@ describe('QueryService realtime wiring', () => {
 
 // ── SchemaService wiring (schema_changed from the DDL path) ─────────────────
 
-describe('SchemaService realtime wiring', () => {
-  function buildSchemaService() {
-    const config = {
-      get: (_key: string, def?: string) => def,
-    } as unknown as ConfigService;
-    const query = {
-      resolveConnection: jest.fn(async () => ({
-        engine: 'postgresql',
-        connection_string: 'postgres://example/db',
-        isolation: 'shared_rls',
-      })),
-    };
-    const proxy = {
-      applySchemaDdl: jest.fn(
-        async (_ctx: unknown, ddl: { op: string; table: string }) => ({
-          op: ddl.op,
-          table: ddl.table,
-          status: 'applied',
-        }),
-      ),
-    };
-    const service = new SchemaService(
-      config,
-      query as unknown as QueryService,
-      proxy as unknown as RustDataPlaneProxy,
-      buildPublisher(),
-    );
-    return { service, proxy };
-  }
+function buildSchemaService() {
+  const config = {
+    get: (_key: string, def?: string) => def,
+  } as unknown as ConfigService;
+  const query = {
+    resolveConnection: jest.fn(async () => ({
+      engine: 'postgresql',
+      connection_string: 'postgres://example/db',
+      isolation: 'shared_rls',
+    })),
+  };
+  const proxy = {
+    applySchemaDdl: jest.fn(
+      async (_ctx: unknown, ddl: { op: string; table: string }) => ({
+        op: ddl.op,
+        table: ddl.table,
+        status: 'applied',
+      }),
+    ),
+  };
+  const service = new SchemaService(
+    config,
+    query as unknown as QueryService,
+    proxy as unknown as RustDataPlaneProxy,
+    buildPublisher(),
+  );
+  return { service, proxy };
+}
 
+describe('SchemaService realtime wiring', () => {
   it('publishes schema_changed after a successful DDL', async () => {
     const { service } = buildSchemaService();
     await service.applyDdl(

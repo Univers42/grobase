@@ -76,7 +76,7 @@ AR="m123-ar-$$"           # adapter-registry with CMEK_ENABLED=1
 AR2="m123-ar2-$$"         # adapter-registry with CMEK disabled (parity arm)
 PORT_AR="${M123_PORT_AR:-18995}"
 PORT_AR2="${M123_PORT_AR2:-18996}"
-PGPW="postgres"
+PGPW="${PGPASSWORD:-postgres}"
 SVC_TOKEN="m123-internal-service-token-$$"
 VAULT_TOKEN="m123-dev-root-$$"
 ENC_KEY="m123-real-master-key-not-a-placeholder-$$"

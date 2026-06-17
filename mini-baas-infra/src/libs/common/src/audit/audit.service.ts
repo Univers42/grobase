@@ -33,7 +33,7 @@ export interface AuditEntry {
 
 function auditFailureCounter(): Counter<string> {
   const existing = register.getSingleMetric('mini_baas_audit_log_write_failed_total');
-  if (existing instanceof Counter) return existing as Counter<string>;
+  if (existing instanceof Counter) return existing;
   return new Counter({
     name: 'mini_baas_audit_log_write_failed_total',
     help: 'Failed audit_log writes by mini-BaaS services.',

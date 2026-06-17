@@ -24,6 +24,8 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import { Pool } from 'pg';
 import { AutomationRuleDto } from './dto/automations.dto';
 
@@ -56,11 +58,54 @@ const TRIGGER_OPS: Record<string, readonly string[]> = {
 const RULES_CACHE_TTL_MS = 30_000;
 const WEBHOOK_TIMEOUT_MS = 5_000;
 
-const PRIVATE_HOST_PATTERNS = [
-  /^localhost$/i, /^127\./, /^10\./, /^192\.168\./, /^169\.254\./,
-  /^172\.(1[6-9]|2\d|3[01])\./, /^0\./, /^\[?::1\]?$/, /^\[?f[cd][0-9a-f]{2}:/i,
-  /\.local$/i, /^[^.]+$/, // bare hostnames (docker service names) are internal
-];
+/**
+ * @brief Classify an already-parsed IP literal as non-public (SSRF block-list).
+ *
+ * Unmaps an IPv4-mapped-IPv6 literal (`::ffff:169.254.169.254`) to its dotted
+ * form first — the documented bypass for hostname denylists — then applies the
+ * IPv4 / IPv6 private-range rules: loopback, RFC1918/ULA private, link-local
+ * (incl. the 169.254.169.254 cloud-metadata range) and CGNAT. Anything not
+ * parseable as an IP fails closed (treated as private).
+ *
+ * @see https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
+ *
+ * Exported for unit tests.
+ */
+export function isPrivateAddress(ip: string): boolean {
+  let addr = ip;
+  // Unmap a *dotted* IPv4-mapped IPv6 literal (::ffff:169.254.169.254) so the
+  // IPv4 rules below catch it. The WHATWG URL parser may instead hand us the
+  // *hex* form (::ffff:a9fe:a9fe) — that is caught wholesale in the IPv6 branch
+  // below (any address that is not global-unicast is refused).
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(addr);
+  if (mapped) addr = mapped[1];
+  const fam = isIP(addr);
+  if (fam === 4) {
+    const o = addr.split('.').map(Number);
+    return (
+      o[0] === 0 || o[0] === 10 || o[0] === 127 ||
+      (o[0] === 169 && o[1] === 254) ||             // link-local + cloud metadata
+      (o[0] === 172 && o[1] >= 16 && o[1] <= 31) || // 172.16.0.0/12
+      (o[0] === 192 && o[1] === 168) ||             // 192.168.0.0/16
+      (o[0] === 100 && o[1] >= 64 && o[1] <= 127)   // CGNAT 100.64.0.0/10
+    );
+  }
+  if (fam === 6) {
+    // Global-unicast IPv6 (the only public range, 2000::/3) never starts with
+    // `::`, so refusing every `::*` form blocks loopback (::1), unspecified (::)
+    // and BOTH encodings of IPv4-mapped/-compatible addresses (::ffff:a9fe:a9fe
+    // and ::ffff:169.254.169.254) — closing the IPv4-mapped-IPv6 bypass. ULA
+    // (fc/fd), link-local (fe80) and multicast (ff) are likewise non-public.
+    const lower = addr.toLowerCase();
+    return (
+      lower.startsWith('::') ||
+      lower.startsWith('fe80:') ||
+      lower.startsWith('fc') || lower.startsWith('fd') ||
+      lower.startsWith('ff')
+    );
+  }
+  return true; // not an IP literal → fail closed
+}
 
 @Injectable()
 export class AutomationsService {
@@ -151,17 +196,40 @@ export class AutomationsService {
     }
   }
 
-  /** HTTPS-only + private-address guard; 5s timeout; no retry. */
+  /**
+   * @brief POST the webhook to a resolve-validated, redirect-proof public HTTPS target.
+   *
+   * @par Vulnerability (CWE-918 Server-Side Request Forgery)
+   * The previous guard inspected only the URL's literal hostname against a regex
+   * denylist and then called `fetch(url)` with the default `redirect: 'follow'`.
+   * Two bypasses followed: (1) a public-looking host could 3xx-redirect to
+   * `http://169.254.169.254/` or an in-cluster service (`http://vault:8200`),
+   * which undici silently followed WITHOUT re-validation; (2) a hostname that
+   * merely *resolves* to an internal IP — or an IPv4-mapped-IPv6 literal — passed
+   * the string-only denylist. The query-router could thus be coerced into
+   * reaching the cloud-metadata endpoint and internal-only services.
+   *
+   * @par Remediation
+   * `assertPublicHttpsTarget` enforces https, validates literal IPs (unmapping
+   * IPv4-mapped-IPv6), and for hostnames DNS-resolves and refuses if ANY resolved
+   * address is non-public (fail-closed on resolution failure). The fetch sets
+   * `redirect: 'error'` so a 3xx to an unvalidated internal target fails delivery
+   * rather than being followed. Residual: a sub-millisecond DNS-rebind between
+   * resolve and connect is not closed here (Node global fetch re-resolves at
+   * dial); the Go push dispatcher pins the connected IP for its equivalent path.
+   * Engine-agnostic — applies regardless of which DB engine fired the automation.
+   *
+   * @see https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
+   * @see https://cwe.mitre.org/data/definitions/918.html
+   */
   private async postWebhook(url: string, rule: AutomationRuleDto, event: AutomationWriteEvent): Promise<void> {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'https:' || PRIVATE_HOST_PATTERNS.some((pattern) => pattern.test(parsed.hostname))) {
-      throw new Error(`webhook target rejected (https + public hosts only): ${parsed.hostname}`);
-    }
+    await this.assertPublicHttpsTarget(url);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
     try {
       await fetch(url, {
         method: 'POST',
+        redirect: 'error',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           rule: { id: rule.id, name: rule.name },
@@ -172,6 +240,35 @@ export class AutomationsService {
       });
     } finally {
       clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Reject any webhook URL that is not a public HTTPS endpoint (CWE-918). A
+   * literal IP is validated directly; a hostname is DNS-resolved and rejected if
+   * any resolved address is non-public, so a public-looking name pointing at an
+   * internal/metadata IP cannot pass.
+   */
+  private async assertPublicHttpsTarget(rawUrl: string): Promise<void> {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'https:') {
+      throw new Error(`webhook target rejected (https only): ${parsed.protocol}`);
+    }
+    const host = parsed.hostname.replace(/^\[|\]$/g, ''); // strip IPv6 brackets
+    if (isIP(host)) {
+      if (isPrivateAddress(host)) {
+        throw new Error(`webhook target rejected (non-public address): ${host}`);
+      }
+      return;
+    }
+    let records: Array<{ address: string }>;
+    try {
+      records = await lookup(host, { all: true });
+    } catch {
+      throw new Error(`webhook target rejected (unresolvable host): ${host}`);
+    }
+    if (records.length === 0 || records.some((r) => isPrivateAddress(r.address))) {
+      throw new Error(`webhook target rejected (resolves to non-public address): ${host}`);
     }
   }
 
@@ -211,18 +308,26 @@ export function evaluateCondition(
     case 'equals': return looseEquals(value, condition.value);
     case 'not_equals': return !looseEquals(value, condition.value);
     case 'contains':
-      return String(value ?? '').toLowerCase().includes(String(condition.value ?? '').toLowerCase());
+      return stringify(value ?? '').toLowerCase().includes(stringify(condition.value ?? '').toLowerCase());
     case 'greater_than': return Number(value) > Number(condition.value);
     case 'less_than': return Number(value) < Number(condition.value);
     default: return false;
   }
 }
 
+/** Stable text form of any condition operand. Primitives match `String(x)`
+ *  exactly (the normal case); objects serialise to JSON instead of collapsing
+ *  to the unhelpful `[object Object]`. */
+function stringify(value: unknown): string {
+  if (value !== null && typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
 function looseEquals(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   // numeric strings vs numbers (engines disagree on wire types)
   if (a !== null && b !== null && a !== undefined && b !== undefined) {
-    return String(a) === String(b);
+    return stringify(a) === stringify(b);
   }
   return false;
 }

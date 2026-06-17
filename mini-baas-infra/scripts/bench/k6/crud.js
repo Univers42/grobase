@@ -55,7 +55,7 @@ export default function () {
 
 export function handleSummary(data) {
 	const t = (m) => {
-		const v = (data.metrics[m] || {}).values || {};
+		const v = data.metrics[m]?.values || {};
 		return { med: v.med ?? null, p95: v['p(95)'] ?? null, p99: v['p(99)'] ?? null, count: v.count ?? 0 };
 	};
 	return compactSummary(data, {

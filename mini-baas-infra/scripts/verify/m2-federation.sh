@@ -29,10 +29,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 cd "${REPO_ROOT}"
 
-BAAS_DIR="apps/baas/mini-baas-infra"
+BAAS_DIR="mini-baas-infra"
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
 
 cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
@@ -110,9 +110,9 @@ pass "mysql + iceberg-rest + minio-iceberg-init declared & trino mounts updated"
 # ── 6) SDK codegen pipeline ───────────────────────────────────────────────────
 step "checking SDK codegen pipeline"
 [[ -x "${BAAS_DIR}/scripts/openapi-collect.sh" ]] || fail "openapi-collect.sh missing or not executable"
-[[ -f apps/baas/sdk/scripts/codegen.mjs ]] || fail "codegen.mjs missing"
-grep -q '"codegen"'              apps/baas/sdk/package.json || fail "SDK package.json missing codegen script"
-grep -q 'openapi-typescript-codegen' apps/baas/sdk/package.json || fail "SDK package.json missing openapi-typescript-codegen dep"
+[[ -f sdk/scripts/codegen.mjs ]] || fail "codegen.mjs missing"
+grep -q '"codegen"'              sdk/package.json || fail "SDK package.json missing codegen script"
+grep -q 'openapi-typescript-codegen' sdk/package.json || fail "SDK package.json missing openapi-typescript-codegen dep"
 pass "openapi-collect + codegen + dep present"
 
 # ── 7) Live probes (only with --live) ─────────────────────────────────────────

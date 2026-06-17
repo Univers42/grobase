@@ -21,7 +21,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-REPO_ROOT="$(cd "${INFRA_ROOT}/../../.." && pwd)"
+REPO_ROOT="$(cd "${INFRA_ROOT}/.." && pwd)"
 TENANT_ENV="${INFRA_ROOT}/.agency-tenant.env"
 PEOPLE_ENV="${REPO_ROOT}/tools/seeds/.agency-people.env"
 

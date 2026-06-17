@@ -1,0 +1,174 @@
+[
+  {
+    "key": "AZ7S1b4BKgcXX4bO3SpL",
+    "rule": "typescript:S4325",
+    "severity": "MINOR",
+    "component": "Univers42_grobase:src/apps/analytics-service/src/events/events.service.ts",
+    "project": "Univers42_grobase",
+    "line": 86,
+    "hash": "44c615d5aca7b0e646fe8125033134f5",
+    "textRange": {
+      "startLine": 86,
+      "endLine": 86,
+      "startOffset": 11,
+      "endOffset": 46
+    },
+    "flows": [],
+    "status": "OPEN",
+    "message": "This assertion is unnecessary since the receiver accepts the original type of the expression.",
+    "effort": "1min",
+    "debt": "1min",
+    "assignee": "LESdylan-PV1JM@github",
+    "author": "dev.pro.photo@gmail.com",
+    "tags": [
+      "redundant",
+      "type-dependent"
+    ],
+    "creationDate": "2026-06-16T23:47:11+0000",
+    "updateDate": "2026-06-16T23:47:11+0000",
+    "type": "CODE_SMELL",
+    "organization": "univers42",
+    "cleanCodeAttribute": "CLEAR",
+    "cleanCodeAttributeCategory": "INTENTIONAL",
+    "impacts": [
+      {
+        "softwareQuality": "MAINTAINABILITY",
+        "severity": "LOW"
+      }
+    ],
+    "issueStatus": "OPEN",
+    "projectName": "grobase",
+    "internalTags": [],
+    "lastChangeAnalysisUuid": "bb1fa879-1e40-4d8b-9ded-c415ec28e997",
+    "lastChangeSource": "ANALYSIS"
+  },
+  {
+    "key": "AZ7S1b4BKgcXX4bO3SpM",
+    "rule": "typescript:S4325",
+    "severity": "MINOR",
+    "component": "Univers42_grobase:src/apps/analytics-service/src/events/events.service.ts",
+    "project": "Univers42_grobase",
+    "line": 115,
+    "hash": "938bb1054c3f609cc3adc5dbe297100a",
+    "textRange": {
+      "startLine": 115,
+      "endLine": 115,
+      "startOffset": 6,
+      "endOffset": 34
+    },
+    "flows": [],
+    "status": "OPEN",
+    "message": "This assertion is unnecessary since the receiver accepts the original type of the expression.",
+    "effort": "1min",
+    "debt": "1min",
+    "assignee": "LESdylan-PV1JM@github",
+    "author": "dev.pro.photo@gmail.com",
+    "tags": [
+      "redundant",
+      "type-dependent"
+    ],
+    "creationDate": "2026-06-16T23:47:11+0000",
+    "updateDate": "2026-06-16T23:47:11+0000",
+    "type": "CODE_SMELL",
+    "organization": "univers42",
+    "cleanCodeAttribute": "CLEAR",
+    "cleanCodeAttributeCategory": "INTENTIONAL",
+    "impacts": [
+      {
+        "softwareQuality": "MAINTAINABILITY",
+        "severity": "LOW"
+      }
+    ],
+    "issueStatus": "OPEN",
+    "projectName": "grobase",
+    "internalTags": [],
+    "lastChangeAnalysisUuid": "bb1fa879-1e40-4d8b-9ded-c415ec28e997",
+    "lastChangeSource": "ANALYSIS"
+  },
+  {
+    "key": "AZ7S1b0fKgcXX4bO3SpJ",
+    "rule": "typescript:S4325",
+    "severity": "MINOR",
+    "component": "Univers42_grobase:src/apps/query-router/src/query/automations.service.spec.ts",
+    "project": "Univers42_grobase",
+    "line": 95,
+    "hash": "3270b96a6cf31e3501ace3a1957c0c8d",
+    "textRange": {
+      "startLine": 95,
+      "endLine": 95,
+      "startOffset": 23,
+      "endOffset": 59
+    },
+    "flows": [],
+    "status": "OPEN",
+    "message": "This assertion is unnecessary since the receiver accepts the original type of the expression.",
+    "effort": "1min",
+    "debt": "1min",
+    "assignee": "LESdylan-PV1JM@github",
+    "author": "dev.pro.photo@gmail.com",
+    "tags": [
+      "redundant",
+      "type-dependent"
+    ],
+    "creationDate": "2026-06-16T23:47:11+0000",
+    "updateDate": "2026-06-16T23:47:11+0000",
+    "type": "CODE_SMELL",
+    "organization": "univers42",
+    "cleanCodeAttribute": "CLEAR",
+    "cleanCodeAttributeCategory": "INTENTIONAL",
+    "impacts": [
+      {
+        "softwareQuality": "MAINTAINABILITY",
+        "severity": "LOW"
+      }
+    ],
+    "issueStatus": "OPEN",
+    "projectName": "grobase",
+    "internalTags": [],
+    "lastChangeAnalysisUuid": "bb1fa879-1e40-4d8b-9ded-c415ec28e997",
+    "lastChangeSource": "ANALYSIS"
+  },
+  {
+    "key": "AZ7S1b3HKgcXX4bO3SpK",
+    "rule": "typescript:S4325",
+    "severity": "MINOR",
+    "component": "Univers42_grobase:src/apps/query-router/src/query/realtime-publisher.service.spec.ts",
+    "project": "Univers42_grobase",
+    "line": 30,
+    "hash": "3270b96a6cf31e3501ace3a1957c0c8d",
+    "textRange": {
+      "startLine": 30,
+      "endLine": 30,
+      "startOffset": 21,
+      "endOffset": 57
+    },
+    "flows": [],
+    "status": "OPEN",
+    "message": "This assertion is unnecessary since the receiver accepts the original type of the expression.",
+    "effort": "1min",
+    "debt": "1min",
+    "assignee": "LESdylan-PV1JM@github",
+    "author": "dev.pro.photo@gmail.com",
+    "tags": [
+      "redundant",
+      "type-dependent"
+    ],
+    "creationDate": "2026-06-16T23:47:11+0000",
+    "updateDate": "2026-06-16T23:47:11+0000",
+    "type": "CODE_SMELL",
+    "organization": "univers42",
+    "cleanCodeAttribute": "CLEAR",
+    "cleanCodeAttributeCategory": "INTENTIONAL",
+    "impacts": [
+      {
+        "softwareQuality": "MAINTAINABILITY",
+        "severity": "LOW"
+      }
+    ],
+    "issueStatus": "OPEN",
+    "projectName": "grobase",
+    "internalTags": [],
+    "lastChangeAnalysisUuid": "bb1fa879-1e40-4d8b-9ded-c415ec28e997",
+    "lastChangeSource": "ANALYSIS"
+  }
+]

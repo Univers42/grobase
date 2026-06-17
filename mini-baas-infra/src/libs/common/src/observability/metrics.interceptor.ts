@@ -19,13 +19,13 @@ type RequestMetricLabels = 'service' | 'method' | 'route' | 'status_code';
 
 function counter(name: string, help: string, labelNames: RequestMetricLabels[]): Counter<RequestMetricLabels> {
   const existing = register.getSingleMetric(name);
-  if (existing instanceof Counter) return existing as Counter<RequestMetricLabels>;
+  if (existing instanceof Counter) return existing;
   return new Counter<RequestMetricLabels>({ name, help, labelNames });
 }
 
 function histogram(name: string, help: string, labelNames: RequestMetricLabels[]): Histogram<RequestMetricLabels> {
   const existing = register.getSingleMetric(name);
-  if (existing instanceof Histogram) return existing as Histogram<RequestMetricLabels>;
+  if (existing instanceof Histogram) return existing;
   return new Histogram<RequestMetricLabels>({
     name,
     help,

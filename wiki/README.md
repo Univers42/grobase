@@ -894,7 +894,7 @@ La **reproductibilité** n'était pas un "nice to have" : c'était la condition 
 
 La contrainte la plus structurante était l'environnement d'exécution. Le repo documente explicitement que la stack doit passer par **Docker Compose uniquement** : il ne faut pas installer les dépendances applicatives sur l'hôte, ni démarrer le website ou Osionos avec des scripts locaux `npm`, `pnpm` ou `node`. Le fichier [README.md](../README.md) indique que le `docker-compose.yml` racine est la source de vérité pour le backend, le site marketing, l'application Osionos et les bridges.
 
-En pratique, le développement se faisait dans une VM `b2b` sous VirtualBox — la VM construite à partir du repo [`Univers42/born2root`](https://github.com/Univers42/born2root.git) — avec Docker à l'intérieur de la VM et parfois le navigateur sur la machine hôte. Cela a créé une vraie contrainte réseau : le chemin complet devenait `navigateur hôte -> localhost hôte -> NAT VirtualBox -> VM -> ports Docker -> proxy HTTPS -> container`. Le document [wiki/host-browser-https-pipeline.md](host-browser-https-pipeline.md) explique ce pipeline en détail. Une stack verte dans Docker ne suffisait pas : il fallait aussi que les ports soient publiés sur `0.0.0.0`, que le certificat local soit reconnu par le navigateur, et que l'utilisateur n'ouvre pas un port VS Code transféré au hasard à la place du port Compose canonique.
+En pratique, le développement se faisait dans une VM `b2b` sous VirtualBox — la VM construite à partir du repo [`Univers42/born2root`](https://github.com/Univers42/born2root.git) — avec Docker à l'intérieur de la VM et parfois le navigateur sur la machine hôte. Cela a créé une vraie contrainte réseau : le chemin complet devenait `navigateur hôte -> localhost hôte -> NAT VirtualBox -> VM -> ports Docker -> proxy HTTPS -> container`. Ce pipeline (génération des certificats locaux, import de la CA dans le navigateur, vérification des ports publiés) a été documenté et automatisé en détail pendant le projet. Une stack verte dans Docker ne suffisait pas : il fallait aussi que les ports soient publiés sur `0.0.0.0`, que le certificat local soit reconnu par le navigateur, et que l'utilisateur n'ouvre pas un port VS Code transféré au hasard à la place du port Compose canonique.
 
 Cette contrainte nous a forcés à automatiser beaucoup de choses : génération des certificats locaux, import de la CA dans les stores système et navigateur, vérification des ports, `make all` comme pipeline principal, et `container-only.mjs` côté `opposite-osiris` pour empêcher l'exécution hors container.
 
@@ -3125,7 +3125,40 @@ C'est exactement la différence entre « ça tourne » et « c'est un produit »
 
 La sécurité, c'est probablement la partie du projet où j'ai le plus appris à dire "je sais pas, on va vérifier". Du code qui marche c'est facile — du code sécurisé, ça se vérifie.
 
-L'architecture de sécurité repose sur deux services centraux : **GoTrue** (authentification, hashage bcrypt, émission des JWT) et **Kong** (API gateway, vérification des JWT, contrôle CORS, injection des claims en headers internes). Le flux public prévu passe par WAF puis Kong ; en développement, certains ports locaux restent volontairement exposés pour le debug, et l'overlay de production retire les accès directs aux bases. Ce chapitre détaille comment ces deux services s'assemblent avec les couches applicatives.
+L'architecture de sécurité repose sur deux services centraux : **GoTrue** (authentification, hashage bcrypt, émission des JWT) et **Kong** (API gateway, vérification des JWT, contrôle CORS, injection des claims en headers internes). Le flux public prévu passe par WAF puis Kong ; en développement, certains ports locaux restent volontairement exposés pour le debug, et l'overlay de production retire les accès directs aux bases. Ce chapitre détaille comment ces deux services s'assemblent avec les couches applicatives. Mais avant de parler d'identité, il faut sécuriser le **transport** lui-même — c'est par là que je commence.
+
+### Sécurisation du transport : HTTPS / TLS (la liaison navigateur ↔ back-end)
+
+Avant même de parler d'authentification, il y a une question plus basique : **est-ce que les données circulent en clair sur le réseau ?** Chez nous, non — jamais. Tout le trafic public est en **HTTPS**, donc chiffré par **TLS**. Concrètement, ça m'apporte trois garanties que j'explique toujours simplement :
+
+- **Confidentialité** — personne sur le réseau (un wifi public, un FAI, un proxy d'entreprise) ne peut lire le contenu : ni le mot de passe, ni le JWT, ni les données métier.
+- **Intégrité** — si un seul octet est modifié en route, la connexion casse. On ne peut pas injecter de contenu en douce.
+- **Authenticité du serveur** — le navigateur vérifie qu'il parle bien à *notre* serveur, et pas à un imposteur (l'attaque dite « de l'homme du milieu »).
+
+> L'image que j'utilise en soutenance : **TLS, c'est une enveloppe scellée et infalsifiable** ; **le certificat, c'est la carte d'identité du serveur** ; et **l'autorité de certification (CA), c'est le notaire** qui garantit que cette carte est authentique.
+
+**La chaîne de certificats que je génère** ([`generate-localhost-cert.sh`](../mini-baas-infra/scripts/generate-localhost-cert.sh)) suit exactement la logique de production :
+
+- Je crée d'abord une **autorité de certification (CA) locale** (« Track Binocle Local Development CA ») : clé RSA **4096 bits**, certificat auto-signé en SHA-256, marqué `CA:TRUE, pathlen:0` et limité à la signature de certificats (`keyCertSign, cRLSign`). C'est mon « notaire ».
+- Cette CA signe ensuite le **certificat serveur** : clé RSA **2048 bits**, usage `serverAuth` uniquement, `CA:FALSE`, valable **397 jours** (la durée maximale tolérée par les navigateurs), avec les *SAN* `localhost`, `127.0.0.1`, `::1` — car un navigateur moderne valide le nom via les SAN, plus via le vieux champ CN.
+- Les permissions sont strictes : clé privée de la CA en `600`, clé serveur en `640` (lisible seulement par le groupe du WAF). En développement, je fais confiance à ma CA en l'important dans le magasin de confiance du système et du navigateur via le script [`trust-localhost-cert.sh`](../mini-baas-infra/scripts/trust-localhost-cert.sh).
+
+**Où le TLS se termine, et comment la requête voyage** — c'est le cœur de la réponse « comment la liaison front ↔ back est sécurisée » :
+
+```
+Navigateur ──HTTPS (TLS 1.2/1.3)──▶ WAF nginx (ModSecurity + OWASP CRS)
+                                       │  seul port public exposé (443)
+                                       ▼  réseau Docker privé, non joignable de l'extérieur
+                                    Kong (clé d'API + JWT + rate-limit + en-têtes)
+                                       ▼
+                                    services back-end (auth, REST, données…)
+```
+
+- Le **WAF nginx est le _seul_ point d'entrée public** — c'est écrit noir sur blanc dans [`docker/services/waf/conf/nginx.conf`](../mini-baas-infra/docker/services/waf/conf/nginx.conf) : *« This is the ONLY public-facing listener; Kong's :8000 becomes internal. »* Il écoute en `443 ssl http2`, n'accepte que **TLS 1.2 et 1.3** (les versions anciennes et vulnérables — SSLv3, TLS 1.0/1.1 — sont refusées), puis relaie en interne vers `http://kong:8000`. C'est ce qu'on appelle la **terminaison TLS**.
+- Le saut WAF → Kong se fait sur un **réseau Docker privé** : même en clair, il n'est jamais joignable depuis Internet. On centralise ainsi le déchiffrement et le filtrage en un seul endroit plutôt que de distribuer des certificats à chaque micro-service.
+- Au passage, Kong **ajoute les en-têtes de sécurité du transport** via son plugin `response-transformer` ([`kong.track-binocle.yml`](../mini-baas-infra/docker/services/kong/conf/kong.track-binocle.yml)) : surtout **HSTS** (`Strict-Transport-Security: max-age=31536000; includeSubDomains`), qui force le navigateur à n'utiliser que HTTPS pendant un an, plus `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` et `Referrer-Policy`. Ces en-têtes sont en plus *renforcés* au niveau applicatif par `helmet` dans chaque service NestJS.
+
+**Et en production ?** Le chiffrement ne s'arrête pas au navigateur. Avec `SECURITY_MODE=max` ([SECURITY.md](../mini-baas-infra/SECURITY.md)), une base de données externe branchée par un client doit présenter une chaîne TLS *vérifiable* : `sslmode=require` est automatiquement relevé en **`verify-full`** (on valide réellement le certificat de la base, pas juste « c'est chiffré »), avec une CA d'entreprise possible via `DATA_PLANE_TLS_CA_FILE`. En production, ma CA locale est simplement remplacée par une **autorité publique (Let's Encrypt)** : le code et la chaîne ne changent pas, seul le signataire du certificat change. Le trajet d'une donnée est donc chiffré de bout en bout : navigateur → WAF, puis back-end → base.
 
 ### Authentification et gestion des rôles
 
@@ -3690,6 +3723,44 @@ Dernière chose, et je veux être honnête là-dessus : le jour de l'examen, le 
 > Rappel de lecture (voir la note en tête de dossier) : ici les fichiers back-end sont sous
 > `mini-baas-infra/…` ; les chemins `apps/osionos/…` ou `apps/opposite-osiris/…` désignent les
 > front-ends du monorepo, pas ce dépôt.
+
+**Sommaire — les 24 questions de ce chapitre** (regroupées par thème ; chaque numéro se retrouve tel quel plus bas)
+
+*Langages & exécution*
+- **8.1** — Les trois langages : qui fait quoi, et pourquoi ?
+- **8.14** — Pourquoi NestJS plutôt qu'Express ?
+- **8.18** — Les « injectables » NestJS (injection de dépendances)
+- **8.19** — Les « guardrails » de chaque langage (TS / Go / Rust)
+- **8.20** — Un binaire qui « fait du web » + WebAssembly
+
+*Docker, réseau & ressources*
+- **8.2** — Construire nos images plutôt que tirer des images « grasses »
+- **8.3** — Le réseau Docker : comment les services se parlent
+- **8.4** — Les volumes : où vivent vraiment les données
+- **8.5** — Communiquer avec les images au quotidien
+- **8.6** — L'efficacité des ressources (trade-offs)
+- **8.21** — Conteneurisation par langage & protocoles (HTTP vs natif)
+
+*Échanges, données & moteurs*
+- **8.17** — Comment les trois plans communiquent (endpoints, async)
+- **8.22** — OLTP vs OLAP, et comment inspecter l'OLTP
+- **8.23** — Fiabilité des connexions aux bases
+- **8.24** — Front agnostique du moteur (normalisation) & vocabulaire CRUD
+
+*Sécurité*
+- **8.10** — Transactions de données sécurisées (toutes les mesures)
+- **8.12** — HTTPS / TLS : la liaison navigateur ↔ back-end
+- **8.13** — Authentification vs autorisation
+- **8.15** — Que se passe-t-il si une couche tombe ? (résilience)
+
+*Évolutivité, SDK & qualité*
+- **8.7** — Est-ce scalable ?
+- **8.8** — Brancher un nouveau frontend demain
+- **8.9** — À quoi servent les répertoires SDK
+- **8.16** — L'évolution du schéma de base de données (migrations)
+- **8.11** — Les tests : types, lancement, et sortie terminal
+
+---
 
 ## 8.1 — Les trois langages : qui fait quoi, et pourquoi ?
 
@@ -4471,15 +4542,25 @@ automatiquement par la CI à chaque push.
 |---|---|---|---|---|
 | 1 | **Unitaire Go** | la logique du plan de contrôle (clés, audit, quotas…) | `make go-control-plane-check` | `go/control-plane/internal/**/*_test.go` |
 | 1 | **Unitaire TS/NestJS** | la logique des services applicatifs | `make nestjs-ci` | `src/apps/**/*.spec.ts` |
-| 1 | **Unitaire Rust** | la logique du plan de données + realtime | `cargo test --workspace` (en conteneur) | `docker/services/.../crates/**` |
-| 1 | **Unitaire SDK** | le client TypeScript (retry, erreurs typées…) | `cd sdk && npm test` | `sdk/tests/*.test.mjs` |
+| 1 | **Unitaire Rust** | la logique du plan de données + realtime | `make rust-data-plane-test` · `make rust-realtime-test` | `docker/services/.../crates/**` |
+| 1 | **Unitaire SDK** | le client TypeScript (retry, erreurs typées…) | `make sdk-test` | `sdk/tests/*.test.mjs` |
 | 2 | **Intégration / smoke** | le vrai HTTP de bout en bout via Kong | `make tests` | `scripts/phase1..16-*.sh` |
-| 3 | **Preuve « stack live »** | les capacités d'une offre sur une stack réelle | (Newman/Postman) | `artifacts/test/postman-offers.xml` |
+| 3 | **Offres (stack live)** | les capacités d'une offre sur une stack réelle | `make test-offers` | `postman/grobase-offers.postman_collection.json` |
+| 3 | **Edge / cas hostiles** | 1 381 entrées tordues → jamais de 5xx, jamais de fuite | `make test-edge` | `postman/corpus/` (9 familles) |
+| 3 | **WAF (bord)** | SQLi/XSS bloqués au périmètre | `make waf-test` | (Nginx + ModSecurity) |
 | 4 | **Conformité moteur** | les 8 moteurs se comportent pareil | `make conformance` | `scripts/verify/m27-conformance.sh` |
 | 5 | **Parité shadow TS↔Rust** | l'ancien et le nouveau chemin donnent le même résultat | `make parity NEW=<url>` | `scripts/verify/parity.sh` |
 | 6 | **Gates de jalon** | une feature précise marche *et* reste OFF=parité | `bash scripts/verify/mNN-*.sh` | 126 scripts `scripts/verify/` |
 | 7 | **Benchmarks** | la perf chiffrée (latence, capacité, RAM) | `make bench-load` … | `artifacts/bench/*.json` |
 | 8 | **Sécurité / supply-chain** | pas de CVE ni de secret commité | `make audit-deps` | `artifacts/security*/` |
+
+> **Une seule commande pour tout lancer.** `make test-all` (depuis `mini-baas-infra/`) enchaîne
+> l'ensemble : il lance **toujours** les tests unitaires (`make test-unit` = Go + Rust data-plane +
+> Rust realtime + NestJS, sans stack), puis — **si la stack est démarrée** (`make up`) — les phases
+> d'intégration, les suites Postman *offers* + *edge*, le test WAF et la conformité moteur. Stack
+> éteinte, il fait l'unitaire et signale clairement ce qui est sauté (au lieu d'échouer à tort).
+> Pour n'exécuter qu'un cran : `make test-unit` (rapide, hors-ligne) ou une famille précise du
+> tableau ci-dessus.
 
 ---
 
@@ -4663,6 +4744,51 @@ n'a donc **pas exécuté la requête** — il a renvoyé `503 auth_verify_unavai
 plutôt que d'agir sans identité prouvée. C'est exactement la couture identité→exécution du §8.1 :
 pas de vérification d'identité ⇒ pas d'accès aux données.
 
+Tout le nécessaire vit sous `mini-baas-infra/postman/` : deux collections
+(`grobase-offers.postman_collection.json` ci-dessus, et `grobase-edge.postman_collection.json`
+ci-dessous), un environnement local, et un dossier `corpus/`. Deux commandes les lancent :
+
+```bash
+make test-offers     # collection « offres » → artifacts/test/postman-offers-report.html (39 tests)
+make test-edge       # corpus edge (1 381 vecteurs) → artifacts/test/edge-report.html
+```
+
+#### Le gros morceau : 1 381 cas hostiles (`make test-edge`)
+
+C'est ici que vivent « les centaines de tests Postman ». La suite *edge* est **pilotée par les
+données** : un seul template de requête, rejoué une fois par vecteur d'un corpus de **1 381 entrées
+distinctes** (`postman/corpus/edge-corpus.json`), réparties en **9 familles** de cas tordus —
+exactement les sujets de cette question :
+
+| Famille | Vecteurs | Ce qu'elle attaque |
+|---|---|---|
+| injection-security | 233 | SQLi, NoSQL `$`-opérateurs, traversée de chemin, templating |
+| unicode-encoding | 212 | UTF-8 mal formé, homoglyphes, octets nuls, surrogates |
+| capability-tier | 200 | dépassement des capacités/tier de l'offre |
+| tenant-isolation | 172 | tentatives de lire/écrire chez un autre tenant |
+| idempotency-concurrency | 153 | rejoues, courses, doublons |
+| payload-limits | 152 | corps géants, profondeur d'imbrication |
+| types-and-error-mapping | 145 | confusion de types, mauvais JSON |
+| malformed-protocol | 122 | en-têtes/HTTP cassés |
+| numeric-boundary | 120 | bornes entières, NaN, ±∞, débordements |
+
+Le contrat n'est pas « tel code exact » (les moteurs choisissent légitimement des 4xx différents),
+mais trois **invariants de fiabilité** vérifiés sur **chaque** vecteur :
+
+1. **jamais de 5xx** (`code < 500`) — un 500 sur une entrée hostile serait un *défaut* : l'erreur
+   moteur aurait dû être traduite en un 4xx propre, pas faire planter la requête ;
+2. **statut HTTP valide** (`200..499`) — sinon c'est un blocage / une connexion coupée ;
+3. **aucune fuite** — le corps ne contient jamais de *stack trace*, de `/etc/passwd`, ni de marqueur
+   d'usurpation inter-tenant (`attacker-owner` / `spoof-tenant`).
+
+```bash
+EDGE_SMOKE=1 make test-edge    # sous-ensemble représentatif de 108 vecteurs (12/famille), tient dans le cache de 30 s
+```
+
+C'est la preuve « boîte noire » qui complète les tests unitaires d'entrée du §8.11-1 : ces derniers
+prouvent qu'une *fonction* rejette une entrée tordue ; l'edge corpus prouve que **toute la stack**,
+de Kong au moteur, encaisse 1 381 entrées hostiles sans jamais cracher ni fuir.
+
 ---
 
 ### 4. Conformité moteur — `make conformance` (le test « engine-agnostic »)
@@ -4772,3 +4898,517 @@ qui rend le « ça marche » vérifiable plutôt que déclaratif.
 > tests d'intégration, l'égalité des 8 moteurs en conformité, l'ancien vs le nouveau chemin en
 > parité, chaque feature derrière un gate qui prouve aussi « OFF = parité », la perf en chiffres
 > reproductibles, et la sécurité en scanners — le tout rejoué par la CI à chaque push.*
+
+---
+
+## 8.12 — HTTPS / TLS : comment la liaison navigateur ↔ back-end est-elle réellement chiffrée ?
+
+> C'est une question quasi systématique en soutenance, et elle mérite mieux qu'un « on est en
+> HTTPS ». Voici la réponse complète, avec le vrai code de génération et de terminaison TLS.
+
+### Q. Concrètement, qu'est-ce que le HTTPS apporte, et où est-il en place ?
+
+Le HTTPS, c'est du HTTP transporté **sur TLS** : tout ce qui circule entre le navigateur et mon
+back-end est chiffré. Sans lui, un mot de passe ou un jeton de session transiterait en clair —
+lisible par quiconque sur le réseau (un wifi public, un FAI). Il m'apporte trois choses :
+**confidentialité** (un tiers ne lit rien), **intégrité** (toute modification en transit casse la
+connexion) et **authenticité** (le client est certain de parler à mon serveur, pas à un imposteur).
+Dans le projet, **le seul port public est le WAF nginx, en TLS 1.2/1.3**
+([`docker/services/waf/conf/nginx.conf`](../mini-baas-infra/docker/services/waf/conf/nginx.conf)) ;
+tout le reste vit sur un réseau Docker privé.
+
+### Q. C'est quoi un « certificat » et une « autorité de certification » ?
+
+Un **certificat**, c'est la carte d'identité du serveur : il atteste « je suis bien ce domaine » et
+porte la clé publique qui sert à établir le chiffrement. Mais une carte d'identité ne vaut que si
+quelqu'un de confiance la signe : c'est le rôle de l'**autorité de certification (CA)**, le
+« notaire ». Mon script [`generate-localhost-cert.sh`](../mini-baas-infra/scripts/generate-localhost-cert.sh)
+reproduit cette hiérarchie en local : une **CA** (clé RSA 4096 bits, `CA:TRUE`) signe un
+**certificat serveur** (RSA 2048 bits, usage `serverAuth`, 397 jours, SAN `localhost`/`127.0.0.1`/`::1`).
+Le navigateur fait confiance au serveur **parce qu'il fait confiance à la CA** qui l'a signé — d'où
+le script [`trust-localhost-cert.sh`](../mini-baas-infra/scripts/trust-localhost-cert.sh) qui importe
+ma CA dans le magasin de confiance du système et du navigateur.
+
+### Q. Le HTTPS s'arrête où ? Et le trafic interne, alors ?
+
+Le TLS **se termine au WAF** (on parle de *terminaison TLS*) : c'est lui qui déchiffre, applique les
+règles ModSecurity/OWASP CRS, puis relaie la requête à Kong **sur le réseau Docker interne**. Ce saut
+interne n'est pas exposé à Internet — il vit dans un réseau privé entre containers. C'est un choix
+classique et assumé : on centralise la terminaison TLS et le filtrage en **un seul point d'entrée**,
+plutôt que de redistribuer des certificats à chaque micro-service. Derrière, Kong rajoute les
+en-têtes de sécurité du transport — dont **HSTS** (`max-age=31536000; includeSubDomains`), qui
+interdit au navigateur de retomber en HTTP pendant un an
+([`kong.track-binocle.yml`](../mini-baas-infra/docker/services/kong/conf/kong.track-binocle.yml)).
+
+### Q. Et en production, avec de vrais certificats ?
+
+Deux choses changent, **sans toucher au code**. (1) La CA locale est remplacée par une **autorité
+publique** (Let's Encrypt) : le certificat serveur est alors reconnu par tous les navigateurs sans
+import manuel. (2) Le chiffrement s'étend **jusqu'aux bases** : `SECURITY_MODE=max` relève
+`sslmode=require` en **`verify-full`** ([SECURITY.md](../mini-baas-infra/SECURITY.md)), donc le
+back-end vérifie réellement le certificat de chaque base externe avant de s'y connecter (une CA
+d'entreprise peut être fournie via `DATA_PLANE_TLS_CA_FILE`). Le trajet d'une donnée est ainsi
+chiffré de bout en bout : navigateur → WAF, puis back-end → base.
+
+## 8.13 — Authentification vs autorisation : quelle différence, et où vivent-elles ?
+
+### Q. Le jury demande souvent la nuance — comment la fais-tu dans le code ?
+
+Ce sont deux questions distinctes, que je traite à deux endroits différents :
+
+- **L'authentification, c'est « qui es-tu ? »** Elle se règle **au bord**, une fois pour toutes :
+  GoTrue vérifie l'identité (bcrypt sur le mot de passe) et émet un **JWT** ; **Kong** valide la
+  signature de ce JWT (HS256, algorithme figé — pas de substitution possible) à chaque requête, puis
+  injecte l'identité en en-têtes internes (`X-User-Id`, `X-User-Role`…). Pour les appels
+  machine-à-machine, c'est une **clé d'API**, vérifiée par empreinte et jamais stockée en clair.
+- **L'autorisation, c'est « as-tu le droit de faire _ça_ sur _cette_ ressource ? »** Elle se règle
+  **plus en profondeur**, en plusieurs couches : le `RolesGuard` NestJS (RBAC : ton rôle suffit-il ?),
+  puis l'**ABAC** (`has_permission()` en SQL, en *deny-first*, qui regarde la ressource précise et des
+  attributs comme `owner_only`), et enfin **la base elle-même** avec la **RLS forcée**
+  (`owner_id = auth.uid()`), qui a le dernier mot.
+
+> En une phrase de soutenance : *« L'authentification prouve **qui** appelle (JWT validé par Kong) ;
+> l'autorisation décide **ce qu'il peut toucher** (RBAC dans les guards, ABAC en SQL, et la RLS
+> PostgreSQL comme garde-fou ultime). »* Même si une couche applicative se trompe, la base refuse de
+> renvoyer une ligne qui n'appartient pas à l'appelant.
+
+## 8.14 — Pourquoi NestJS plutôt qu'Express ?
+
+### Q. Express aurait suffi, non ? Pourquoi avoir pris NestJS ?
+
+Express, c'est un routeur minimaliste : rapide à démarrer, mais on réécrit vite la même tuyauterie
+(validation, authentification, gestion d'erreurs) **à la main, route par route**. **NestJS** ajoute une
+**structure** par-dessus Express — modules, injection de dépendances, *guards*, *pipes*, *filters* — et
+c'est exactement cette structure qui porte ma sécurité **de façon transversale**, pas dupliquée :
+
+- un **`AuthGuard`** ([auth.guard.ts](../mini-baas-infra/src/libs/common/src/guards/auth.guard.ts)) posé en
+  décorateur `@UseGuards()`, au lieu d'un `if (!req.user)` recopié dans chaque contrôleur ;
+- un **`RolesGuard`** ([roles.guard.ts](../mini-baas-infra/src/libs/common/src/guards/roles.guard.ts)) pour
+  un RBAC **déclaratif** (`@Roles('admin')`) ;
+- un **`ValidationPipe` global** ([validation.pipe.ts](../mini-baas-infra/src/libs/common/src/pipes/validation.pipe.ts))
+  qui valide et nettoie chaque payload (whitelist) une fois pour toutes ;
+- un **filtre d'exception global** ([all-exceptions.filter.ts](../mini-baas-infra/src/libs/common/src/filters/all-exceptions.filter.ts))
+  qui normalise toutes les erreurs en une seule forme JSON et **masque les 5xx** (un bug serveur ne fuit
+  jamais sa stack au client).
+
+Autrement dit : avec Express, j'aurais une sécurité « à la main, en espérant ne rien oublier » ; avec
+NestJS, elle est **centralisée, déclarative et testable**. C'est aussi ce qui rend le code lisible pour
+un correcteur — chaque protection est au même endroit, réutilisée par tous les contrôleurs.
+
+## 8.15 — Que se passe-t-il si une couche — ou un service — tombe ?
+
+### Q. Et la résilience ? Si le WAF, Kong, ou un service interne lâche ?
+
+C'est tout l'intérêt de la **défense en profondeur** : aucune couche n'est censée suffire seule, donc
+la chute de l'une **n'ouvre pas** la porte.
+
+- **Si le WAF est contourné**, Kong tient encore (clé d'API, JWT, rate-limit). **Si Kong laissait
+  passer** une requête mal authentifiée, la **RLS PostgreSQL forcée** (`owner_id = auth.uid()`,
+  migration [065](../mini-baas-infra/scripts/migrations/postgresql/065_least_privilege_rls.sql)) refuse
+  quand même de rendre une ligne qui n'appartient pas à l'appelant. **La base a toujours le dernier mot.**
+- **Auth en échec → fermé, pas ouvert** (*fail-closed*) : une clé invalide ou absente renvoie 401,
+  jamais un accès par défaut — c'est exactement ce que vérifie le gate m37.
+- **Si une dépendance non critique tombe, le service dégrade au lieu de planter.** Concrètement : si le
+  plan temps réel est injoignable, **l'écriture réussit quand même** et seule la notification est sautée
+  ([realtime-publisher.service.ts:151-156](../mini-baas-infra/src/apps/query-router/src/query/realtime-publisher.service.ts#L151-L156)) ;
+  si le service de capabilities ne répond pas, **le schéma est tout de même servi** (les capabilities
+  sont optionnelles, typées `RustEngineCapabilities | null` dans
+  [schema.service.ts](../mini-baas-infra/src/apps/query-router/src/query/schema.service.ts)). Ces chemins
+  « dépendance absente » sont exercés par leurs tests respectifs — ce ne sont pas des hypothèses.
+- **Au niveau infra**, l'overlay de production
+  ([docker-compose.prod.yml](../mini-baas-infra/docker-compose.prod.yml)) ajoute des *restart policies* et
+  retire les ports directs des bases ; un container qui meurt redémarre tout seul.
+
+> En une phrase : *une panne **dégrade** le service, elle ne le rend jamais **dangereux**.*
+
+## 8.16 — Comment gères-tu l'évolution du schéma de base de données ?
+
+### Q. Les migrations : comment ça marche, et pourquoi c'est important ?
+
+Par des **migrations SQL versionnées**, numérotées et rejouables, dans
+[`scripts/migrations/postgresql/`](../mini-baas-infra/scripts/migrations/postgresql/) — de
+`001_initial_schema.sql` jusqu'à `065_least_privilege_rls.sql`. Chaque changement de schéma est un
+fichier numéroté qui entre dans Git : il est donc **relu en code review**, **rejouable à l'identique**
+sur n'importe quel environnement, et **traçable**. Je les applique par des cibles Make dédiées :
+
+```bash
+make migrate         # applique les migrations PostgreSQL en attente
+make migrate-status  # montre les versions déjà appliquées
+make migrate-all     # PG + Mongo + MySQL d'un coup
+```
+
+L'intérêt, pour un correcteur : l'état de la base n'est jamais « bricolé à la main » sur un serveur ; il
+se **reconstruit depuis zéro** à partir des fichiers versionnés — ce qui garantit que développement, CI
+et production partagent **exactement le même schéma**. Les bases Mongo et MySQL suivent la même logique
+(`make migrate-mongo` / `make migrate-mysql`).
+
+## 8.17 — Comment les trois plans (TypeScript, Go, Rust) communiquent-ils ?
+
+> C'est la question d'architecture la plus importante du back-end. La 8.1 disait *qui fait quoi* ;
+> voici *comment ils se parlent* — les endpoints, le format d'échange, l'identité, et l'asynchrone.
+
+### Q. Concrètement, par quoi passent les données entre les trois langages ?
+
+Par **HTTP + JSON**, point. Il n'y a **aucun appel « en mémoire » entre langages** : chaque plan est
+un **service réseau** indépendant, dans son propre container. La langue commune, c'est donc l'**HTTP**,
+et le format d'échange, c'est le **JSON**. L'image que j'utilise : trois bureaux qui ne partagent pas
+de tiroir — ils s'écrivent par **courrier recommandé** (une requête HTTP, signée, avec un contenu JSON).
+
+Exemple réel : quand `RUST_DATA_PLANE_FORWARD=1`, le query-router NestJS n'exécute pas la requête
+lui-même — il **POST une enveloppe JSON** `{ identity, mount, operation }` vers le data plane Rust
+([rust-data-plane.proxy.ts](../mini-baas-infra/src/apps/query-router/src/proxy/rust-data-plane.proxy.ts)) :
+
+```ts
+// src/apps/query-router/src/proxy/rust-data-plane.proxy.ts (simplifié)
+async execute(context, resource, op, opts): Promise<QueryResult> {
+  const envelope = { identity, mount, operation };            // contrat JSON partagé
+  const { data } = await firstValueFrom(                       // Observable rxjs → Promise
+    this.http.post(`${this.url}/v1/query`, envelope, { headers }),
+  );
+  return this.normalizeResult(data);                          // re-normalise vers la forme legacy
+}
+```
+
+Détail qui compte : le JSON est en **snake_case sur le fil** (`tenant_id`, `affected_rows`…) pour
+coller **exactement** aux `struct` Rust — le contrat de données est partagé entre TS et Rust, pas
+réinventé de chaque côté.
+
+### Q. C'est quoi un « endpoint API » ici, et qui appelle qui ?
+
+Un **endpoint**, c'est une route HTTP qu'un service expose. On en a de deux sortes :
+
+- **Publics** (exposés via WAF → Kong) : `/auth/v1`, `/rest/v1`… — c'est ce que le front consomme.
+- **Internes** (réseau Docker privé, jamais exposés) : le **data plane Rust** expose `/v1/query`,
+  `/v1/schema`, `/v1/transactions`, `/v1/capabilities` ; le **control plane Go** expose
+  `/v1/keys/verify`, `/v1/tenants/…`.
+
+Le chemin porteur d'une requête de données est : le query-router (TS) demande d'abord au **Go**
+« cette clé d'API correspond à quelle identité ? » (`POST /v1/keys/verify`), puis transmet la requête
+au **Rust** (`POST /v1/query`) qui l'exécute et la *owner-scope*. Chaque langage fait donc le métier
+pour lequel il est le meilleur, et ils se passent le relais par HTTP.
+
+### Q. Et l'identité / la confiance dans ces appels internes ?
+
+Un appel interne n'est pas « ouvert » sous prétexte qu'il vient d'un autre container. Chaque requête
+service-à-service est **signée en HMAC** ([service-auth.ts](../mini-baas-infra/src/libs/common/src/security/service-auth.ts)) :
+
+```
+X-Service-Auth: v1.<ts>.<hmac-sha256(token, "<ts>\n<METHOD>\n<PATH>\n<sha256(body)>")>
+```
+
+Le point fort, et c'est ce qui rend la communication entre les trois fiable : **les trois langages
+signent à l'octet près**. Les mêmes vecteurs de test (« golden vectors ») valident la signature en
+Go ([shared/token.go](../mini-baas-infra/go/control-plane/internal/shared/token.go) + `token_test.go`),
+en Rust ([service_auth.rs](../mini-baas-infra/docker/services/data-plane-router/crates/data-plane-pool/src/service_auth.rs))
+et en TypeScript. Donc qu'un appel parte de TS vers Go, ou de TS vers Rust, l'authentification est
+**identique**. À cela s'ajoute l'**enveloppe d'identité signée** (`source: 'signed_envelope'`) qui
+transporte tenant/user/rôle de façon infalsifiable (voir chapitre 5).
+
+### Q. Et l'asynchrone (les « promises ») dans tout ça ?
+
+Chaque langage a son modèle, mais l'idée est **la même partout** : pendant qu'on attend le réseau ou
+le disque, on **ne bloque pas** le thread — on libère la main pour traiter d'autres requêtes.
+
+- **TypeScript** — `async`/`await` + `Promise`. Une méthode déclarée `async execute(...): Promise<…>`
+  rend la main pendant l'appel réseau. L'appel HTTP via `@nestjs/axios` renvoie un *Observable* rxjs,
+  qu'on convertit en Promise avec `firstValueFrom`. Exemple concret de maîtrise de l'async :
+  `getCapabilitiesCached()` partage **une seule Promise en vol** entre les appels concurrents — si
+  10 requêtes arrivent en même temps sur un cache froid, il n'y a **qu'un seul** appel réseau, pas dix
+  (anti *thundering herd*).
+- **Go** — chaque requête HTTP est servie dans sa **propre goroutine** (le serveur `net/http` le fait
+  automatiquement), et on propage un `context.Context` pour les délais et l'annulation. Exemple :
+  `func (b *builderAPI) createMount(w http.ResponseWriter, r *http.Request)`
+  ([builder.go](../mini-baas-infra/go/control-plane/internal/tenants/builder.go)).
+- **Rust** — `async`/`await` sur le runtime **tokio** (`#[tokio::main] async fn main()`,
+  [main.rs](../mini-baas-infra/docker/services/data-plane-router/crates/data-plane-server/src/main.rs) ;
+  `pub async fn verify_key(…)`,
+  [auth.rs](../mini-baas-infra/docker/services/data-plane-router/crates/data-plane-server/src/auth.rs)).
+  C'est aussi là que vit l'optimisation majeure : le plan Rust garde des **pools de connexions longue
+  durée** par mount, alors que l'ancienne version TS ouvrait un client par appel.
+
+> En une phrase : *trois services réseau qui s'échangent du JSON par HTTP signé en HMAC ; chacun
+> asynchrone à sa manière (Promise/await en TS, goroutines en Go, tokio en Rust) pour ne jamais
+> bloquer pendant une attente.*
+
+## 8.18 — Les « injectables » NestJS : c'est quoi, et comment ça marche ?
+
+### Q. Tu parles d'injectables et d'injection de dépendances — explique simplement.
+
+Un service annoté **`@Injectable()`** est un **fournisseur** (*provider*) que NestJS sait **construire
+et fournir tout seul** là où on en a besoin. Je n'écris **jamais** `new MonService()` à la main : je
+déclare le service dans un module, je le **demande dans un constructeur**, et le conteneur d'**injection
+de dépendances** (DI) s'occupe de le fabriquer et de le brancher.
+
+Exemple réel — le proxy vers Rust déclare ses besoins dans son constructeur :
+
+```ts
+// src/apps/query-router/src/proxy/rust-data-plane.proxy.ts
+@Injectable()
+export class RustDataPlaneProxy {
+  constructor(config: ConfigService, private readonly http: HttpService) { /* … */ }
+}
+```
+
+NestJS voit que ce service a besoin d'un `ConfigService` et d'un `HttpService`, et les lui **passe
+automatiquement** à la construction (*injection par constructeur*). Il suffit de l'avoir déclaré une
+fois dans le module :
+
+```ts
+// src/apps/query-router/src/app.module.ts
+@Module({
+  providers: [QueryService, /* … */ RustDataPlaneProxy],
+})
+export class AppModule {}
+```
+
+### Q. Pourquoi c'est utile, concrètement ?
+
+Trois bénéfices très concrets, que j'utilise vraiment :
+
+- **Testabilité** — en test, j'injecte un **faux** `ConfigService` et un **faux** `HttpService` au lieu
+  des vrais : c'est exactement ce que font mes specs (`rust-data-plane.proxy.spec.ts`). Pas besoin de
+  démarrer toute l'application pour tester une classe.
+- **Singletons** — NestJS ne crée qu'**un seul exemplaire** partagé du provider. C'est pour ça que le
+  cache de capabilities du proxy est unique pour toute l'app (un seul cache, un seul fetch en vol).
+- **Découplage** — un service ne sait pas *comment* ses dépendances sont fabriquées ; il déclare juste
+  ce dont il a besoin. On peut remplacer une implémentation (ex. un faux client en test) sans toucher
+  au code qui l'utilise.
+
+Et surtout : c'est **le même mécanisme** qui fait fonctionner les `Guards`, `Pipes` et `Filters` de
+sécurité du chapitre 5 (`AuthGuard`, `RolesGuard`, `ValidationPipe`, `AllExceptionsFilter`). Ils sont
+des injectables appliqués de façon **transversale** par décorateur — c'est ce qui rend la sécurité
+centralisée plutôt que recopiée dans chaque contrôleur (voir 8.14).
+
+> En une phrase : *`@Injectable()` + le constructeur, c'est NestJS qui « câble » les dépendances à ma
+> place — d'où un code découplé, testable avec des doublures, et une sécurité appliquée une fois pour
+> toutes au lieu d'être recopiée partout.*
+
+## 8.19 — Les « guardrails » de chaque langage : qu'est-ce qui me protège en TS, Go, Rust ?
+
+### Q. Pourquoi ces trois langages précisément ? Qu'apporte chacun en garde-fous ?
+
+C'est une des vraies raisons du choix à trois langages : pour chaque métier, je prends le langage dont
+les **garde-fous** correspondent au **risque**. Plus le code est dangereux (toucher les bases, gérer
+la mémoire sous charge), plus le langage doit être strict.
+
+**TypeScript — le plan applicatif (réception, validation, orchestration).** Garde-fous à deux moments :
+
+- **À la compilation** : typage statique strict — `tsconfig.json` active `strict`, `strictNullChecks`,
+  `noImplicitAny` ([tsconfig.json](../mini-baas-infra/src/tsconfig.json)), donc `tsc --noEmit` refuse de
+  compiler du code mal typé (c'est une étape de `make nestjs-ci`), + ESLint.
+- **À l'exécution** : attention, les types TS sont **effacés au runtime** (JavaScript ne les connaît
+  pas). Le vrai garde-fou face à une entrée hostile, c'est donc la **validation au runtime** —
+  class-validator / Zod avec `whitelist` (chapitre 5) — *en plus* des types.
+
+**Go — le plan de contrôle (tenants, clés, facturation).** Garde-fous de **simplicité et robustesse** :
+
+- Typage statique + **ramasse-miettes (GC)** : pas de gestion mémoire manuelle, donc pas de
+  *use-after-free* à la main.
+- Concurrence plus sûre : goroutines + channels, et un **détecteur de data races** intégré
+  (`go test -race`).
+- **Binaire statique** (`CGO_ENABLED=0`) : aucune dépendance système à traîner.
+- Scan de vulnérabilités : **govulncheck** via `make audit-deps`.
+- Garde-fou métier : le plan Go **refuse de démarrer** sur un token de service vide ou faible
+  (*fail-fast* au boot).
+
+**Rust — le plan de données (exécution des requêtes, pools, owner-scoping).** Les garde-fous **les plus
+stricts, prouvés à la compilation** :
+
+- **Ownership / borrow checker** : la sécurité mémoire est **garantie par le compilateur**, *sans* GC.
+  Pas de pointeur nul, pas de *use-after-free*, pas de *data race* — le code qui pourrait les provoquer
+  ne compile tout simplement pas.
+- **Pas de `null`** : on utilise `Option<T>` (présent/absent) et `Result<T, E>` (succès/erreur) — l'erreur
+  et l'absence sont **dans le type**, impossible de les oublier (≈ 85 occurrences rien que dans
+  `data-plane-core`). Le `match` exhaustif force à traiter **tous** les cas.
+- Scan CVE : **cargo-audit** via `make audit-deps`.
+
+C'est précisément pour ça que **le plan de données est en Rust** : c'est lui qui manipule les bases et
+isole les clients à chaque requête — le risque y est maximal, donc on y met le langage aux garde-fous
+les plus forts.
+
+> En une phrase : *TS attrape les erreurs de forme à la compilation et les entrées hostiles au runtime ;
+> Go offre une concurrence sûre et un binaire robuste ; Rust prouve au compilateur l'absence de bug
+> mémoire et de data race — chaque langage est placé là où ses garde-fous comptent le plus.*
+
+## 8.20 — Comment un binaire (Go, Rust) « fait du web » ? Et WebAssembly là-dedans ?
+
+### Q. Un programme compilé, ça sert des requêtes HTTP comment ?
+
+Contrairement à Node/TypeScript — qui est **interprété/JIT** et a besoin du **runtime Node** pour
+tourner — Go et Rust **compilent en exécutable natif qui embarque lui-même un serveur HTTP**. Pas
+d'interpréteur, pas de machine virtuelle : le binaire *est* le serveur.
+
+- **Go** : le serveur `net/http` est inclus dans le binaire ; chaque requête est servie dans une
+  goroutine. On compile en **statique** et on livre dans une image **distroless nonroot** (sans shell ni
+  libc) :
+
+  ```dockerfile
+  # go/control-plane/Dockerfile
+  CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/...
+  FROM gcr.io/distroless/static-debian12:nonroot AS runtime
+  ```
+
+- **Rust** : serveur HTTP **axum** sur le runtime asynchrone **tokio**
+  ([data-plane-server/Cargo.toml](../mini-baas-infra/docker/services/data-plane-router/crates/data-plane-server/Cargo.toml)) ;
+  l'édition *nano* se livre dans une image **`FROM scratch`** — littéralement « l'image EST le binaire »
+  ([Dockerfile.nano](../mini-baas-infra/docker/services/data-plane-router/Dockerfile.nano)) —, avec un
+  profil release `strip = true` + LTO ([Cargo.toml](../mini-baas-infra/docker/services/data-plane-router/Cargo.toml))
+  pour un exécutable minuscule (≈ 5 Mo).
+
+L'intérêt concret, pour un jury : **démarrage quasi instantané**, **empreinte mémoire minuscule**,
+**surface d'attaque réduite** (pas d'OS ni de shell dans l'image), et **un seul fichier** à déployer.
+
+### Q. Et WebAssembly (WASM) ? Vous l'utilisez ?
+
+**Non, pas dans le back-end** — et c'est un choix assumé, pas un oubli. WASM sert surtout à deux choses :
+(a) faire tourner du code compilé **dans le navigateur**, et (b) côté serveur, **mettre du code non
+fiable dans un bac à sable portable**. Or :
+
+- **(a) ne nous concerne pas** : mes plans Go/Rust tournent **côté serveur**, dans des containers — ils
+  n'ont pas besoin d'être embarqués dans un navigateur. Le natif est plus simple et plus rapide pour ça.
+- **(b) le besoin existe** (exécuter les **Edge Functions** écrites par les utilisateurs sans qu'elles
+  cassent la plateforme), mais je le résous **autrement** : la *functions-runtime* utilise **Deno** — un
+  **isolat V8 frais par invocation** (Deno Worker), avec un **jeu de permissions minimal** (pas d'accès
+  fichier, pas d'env, réseau limité à une allow-list)
+  ([functions-runtime/Dockerfile](../mini-baas-infra/docker/services/functions-runtime/Dockerfile)),
+  le tout par-dessus l'isolation du container.
+
+Honnêtement, **où WASM pourrait entrer un jour** : pour imposer des **plafonds CPU/RAM durs** par
+fonction utilisateur (via wasmtime/WASI), là où l'isolat Deno V8 actuel ne pose pas de quota dur — c'est
+d'ailleurs noté comme piste d'évolution dans ce même Dockerfile. Mais ce n'est pas nécessaire
+aujourd'hui.
+
+> En une phrase : *Go et Rust n'ont pas besoin de WebAssembly — ce sont des binaires natifs qui
+> embarquent leur propre serveur HTTP et tournent dans des images minuscules (distroless / scratch).
+> WASM viserait surtout le navigateur ou un bac à sable serveur ; or notre bac à sable, c'est Deno
+> (isolat V8 + permissions), pas WASM.*
+
+## 8.21 — Docker : comment chaque langage est conteneurisé, et par quel protocole les services se parlent
+
+### Q. Chaque service (TS, Go, Rust) tourne comment, et comment se trouvent-ils ?
+
+Chaque plan est **sa propre image, son propre container**, démarré par docker-compose. Ils ne se
+cherchent pas par une IP codée en dur : Docker fournit un **DNS interne** où le **nom du service** est
+l'hôte. Le query-router NestJS appelle donc simplement `http://kong:8000`, `http://gotrue:9999`,
+`data-plane-router-rust:4011` — par leur **nom**. Docker me donne aussi : des **réseaux** isolés (le
+public ne voit que le WAF), des **healthchecks** (43 services en déclarent un dans le compose), des
+**volumes** (les données survivent au redémarrage), `depends_on` (ordre de démarrage), et des
+**overlays/profils** (les éditions). Chaque langage profite donc des mêmes briques Docker, sans rien de
+spécifique au langage.
+
+### Q. Ils communiquent en HTTP, ou par d'autres protocoles ?
+
+Les deux — selon l'interlocuteur :
+
+- **Entre services** (TS ↔ Go ↔ Rust) : **HTTP + JSON** (REST), signé en HMAC (cf. 8.17). C'est le
+  « langage commun » des trois langages.
+- **Vers les bases de données** : chaque moteur parle son **protocole natif**, via son **vrai pilote** —
+  pas du HTTP. Le plan de données Rust embarque un pilote par moteur dans
+  [data-plane-pool](../mini-baas-infra/docker/services/data-plane-router/crates/data-plane-pool) :
+  `tokio-postgres` (protocole PostgreSQL), `mongodb` (wire protocol Mongo), `mysql_async`
+  (MySQL/MariaDB), `redis` (RESP), `tiberius` (TDS / SQL Server), `rusqlite` (SQLite),
+  `aws-sdk-dynamodb`. Bref : **HTTP pour parler entre nous, protocole natif pour parler à la base** —
+  chacun au plus efficace.
+
+## 8.22 — OLTP vs OLAP : la différence, et comment je « vois » dans l'OLTP
+
+### Q. C'est quoi la différence, et nous, on est quoi ?
+
+- **OLTP** (*Online Transaction Processing*) = beaucoup de **petites** opérations transactionnelles à
+  **faible latence** : créer une ligne, lire une fiche, changer un statut. C'est le quotidien d'une appli.
+- **OLAP** (*Online Analytical Processing*) = de **grosses agrégations** analytiques sur énormément de
+  lignes : « chiffre d'affaires par mois et par région ». Peu de requêtes, mais lourdes.
+
+**Nous sommes d'abord un moteur OLTP** : le plan de données est optimisé pour le CRUD à faible latence,
+et c'est **prouvé** par les gates [m25-oltp-matrix](../mini-baas-infra/scripts/verify/m25-oltp-matrix.sh)
+et [m26-oltp-completeness](../mini-baas-infra/scripts/verify/m26-oltp-completeness.sh). Pour les besoins
+**OLAP**, j'ai (a) l'opération `aggregate` (group_by + fonctions d'agrégat) exposée uniformément,
+(b) l'**analytics-service** ([src/apps/analytics-service](../mini-baas-infra/src/apps/analytics-service))
+pour les événements, et (c) la possibilité de **fédérer** plusieurs sources via **Trino**
+([docker/services/trino](../mini-baas-infra/docker/services/trino)) quand il faut croiser des bases
+hétérogènes.
+
+### Q. Comment « voir » dans l'OLTP — inspecter et observer la base ?
+
+Deux usages bien distincts :
+
+- **Inspecter le contenu / le schéma** : **pg-meta** (route interne `/meta/v1`, restreinte aux IP
+  privées) et **Studio** (UI type Supabase) — voir les tables, les lignes, les politiques RLS.
+- **Observer la santé / la charge** : la stack **Prometheus + Grafana + Loki + Promtail** (métriques,
+  dashboards, logs corrélés par `X-Request-ID`), plus le **metering** par tenant (table `tenant_usage`)
+  qui compte requêtes / lignes / stockage.
+
+## 8.23 — Comment être sûr que toutes les connexions aux bases sont fiables ?
+
+### Q. Avec 8 moteurs et du multi-tenant, comment garantir la fiabilité des connexions ?
+
+Plusieurs mécanismes qui se **cumulent** :
+
+- **Pools de connexions** par mount (côté Rust, via `deadpool_postgres` dans
+  [postgres.rs](../mini-baas-infra/docker/services/data-plane-router/crates/data-plane-pool/src/postgres.rs)) :
+  on **réutilise** des connexions au lieu d'en ouvrir une neuve à chaque requête (l'ancienne faiblesse du
+  chemin TS). La politique est explicite — `min`, `max`, `idle_ttl_ms`, `max_lifetime_ms` — donc une
+  connexion trop vieille est **recyclée**, pas gardée indéfiniment.
+- **Healthchecks** : 43 services du compose déclarent un `healthcheck`, et chaque moteur implémente un
+  `health_check() -> EngineHealth`
+  ([ports.rs](../mini-baas-infra/docker/services/data-plane-router/crates/data-plane-core/src/ports.rs)) —
+  une base qui ne répond plus est **détectée**, pas découverte au pire moment.
+- **TLS vérifié** en production (`SECURITY_MODE=max` → `verify-full`, cf. ch. 5) : on ne se connecte pas
+  à une base dont le certificat ne se valide pas.
+- **Timeouts + dégradation** : un appel au data plane a un timeout (`RUST_DATA_PLANE_TIMEOUT_MS`) ; s'il
+  échoue, l'erreur est mappée proprement (502) plutôt que de « pendre », et les dépendances non
+  critiques dégradent au lieu de planter (cf. 8.15).
+- **Montée en charge** : pour 10 000 tenants, un **pooler** (Supavisor,
+  [docker-compose.pooler.yml](../mini-baas-infra/docker-compose.pooler.yml)) peut s'intercaler ;
+  `SHARE_POOLS` fait déjà tenir des milliers de tenants sur un même pool, parce que l'isolation est **par
+  requête**, pas par connexion (cf. 8.10c).
+- **Preuve** : la conformité (`make conformance`, m27) et m25/m26 exercent les **8 moteurs** de la même
+  façon — la fiabilité est **testée**, pas supposée.
+
+## 8.24 — Le front sait-il si c'est MongoDB, PostgreSQL ou MariaDB ? Et comment demande-t-on un CRUD ?
+
+### Q. Le front doit-il connaître le moteur derrière ? Est-ce normalisé ?
+
+**Non — et c'est tout l'intérêt du produit.** Le front (via le SDK) **ne sait pas**, et n'a pas besoin de
+savoir, quel moteur exécute. Tout est **normalisé** :
+
+- **Même forme de résultat** quel que soit le moteur : le data plane renvoie toujours
+  `QueryResult { rows, rowCount }` (`normalizeResult` dans
+  [rust-data-plane.proxy.ts](../mini-baas-infra/src/apps/query-router/src/proxy/rust-data-plane.proxy.ts)).
+- **Schéma normalisé** : chaque colonne porte un `normalized_type` commun
+  (`text | integer | float | decimal | boolean | date | datetime | json | uuid | enum | array | objectid`),
+  donc une date Mongo et une date Postgres arrivent sous le **même type** côté front.
+- **Capacités en direct** : ce qu'un moteur sait faire vient de `/v1/capabilities` (`EngineCapabilities`,
+  la **source de vérité** contre laquelle le SDK est typé) — pas un tableau écrit à la main.
+
+### Q. Donc on ne code pas en dur les besoins par moteur ?
+
+Non. Le schéma est **introspecté en direct** (`POST /v1/schema`) et les capacités **lues en direct** —
+rien n'est figé par moteur dans le front. C'est le principe **engine-agnostic by construction** : une
+correction qui marche pour Postgres mais casse les 7 autres moteurs **n'est pas considérée comme finie**
+(vérifié par la conformité m27).
+
+### Q. Concrètement, comment demande-t-on un get / set / fetch / delete ?
+
+Par un **vocabulaire d'opérations unique**, le même pour les 8 moteurs — `AdapterOp` dans
+[adapter.contract.ts](../mini-baas-infra/src/libs/database/src/adapter.contract.ts) :
+
+```
+list | get | insert | update | delete | upsert | aggregate
+```
+
+Le front envoie (via le SDK, [sdk/src/domains/query.ts](../sdk/src/domains/query.ts)) une opération
+`{ op, resource, data?, filter?, sort?, limit?, offset? }`. La correspondance avec ce que tu appelles
+get/set/fetch/delete :
+
+- **fetch / lister** → `op: 'list'` (+ `filter`, `sort`, `limit`) ; **lire un** → `op: 'get'` ;
+- **set / créer** → `op: 'insert'` (ou `upsert`) ; **modifier** → `op: 'update'` (+ `filter`) ;
+- **supprimer** → `op: 'delete'` (+ `filter`).
+
+C'est **le même appel** quel que soit le moteur : c'est le data plane qui traduit `op: 'get'` en
+`SELECT … WHERE id = $1` pour Postgres, en `find()` pour Mongo, en commande RESP pour Redis, etc. Le
+front parle **CRUD** ; le moteur parle **son dialecte** — et la traduction est mon travail, pas le sien.
+
+> En une phrase : *le front parle un seul langage CRUD (`list/get/insert/update/delete/upsert/aggregate`)
+> et reçoit une seule forme de données normalisée ; savoir que derrière c'est Mongo, Postgres ou
+> MariaDB, c'est le travail du data plane, jamais celui du front.*

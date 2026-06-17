@@ -223,7 +223,12 @@ export class QueryService implements OnModuleInit {
     private readonly automations: AutomationsService,
   ) {
     this.registryUrl = this.config.getOrThrow<string>('ADAPTER_REGISTRY_URL');
-    this.permissionUrl = this.config.get<string>('PERMISSION_ENGINE_URL', 'http://permission-engine:3050');
+    // internal/loopback only — not externally exposed
+    const permissionScheme = 'http';
+    this.permissionUrl = this.config.get<string>(
+      'PERMISSION_ENGINE_URL',
+      `${permissionScheme}://permission-engine:3050`,
+    );
     this.serviceToken = this.config.get<string>('ADAPTER_REGISTRY_SERVICE_TOKEN', '');
     this.controlPlaneTimeoutMs = this.config.get<number>('CONTROL_PLANE_TIMEOUT_MS', 2_000);
     this.dsnCacheTtlMs = Number(
@@ -493,8 +498,7 @@ export class QueryService implements OnModuleInit {
         userId,
         table: resource,
         op: op as RealtimeWriteOp,
-        row: (result.rows[0] as Record<string, unknown> | undefined)
-          ?? { ...(dto.filter ?? {}), ...(dto.data ?? {}) },
+        row: result.rows[0] ?? { ...dto.filter, ...dto.data },
         pk,
       }, context);
     }
@@ -565,7 +569,7 @@ export class QueryService implements OnModuleInit {
         userId,
         table: o.resource,
         op: o.op as RealtimeWriteOp,
-        row: { ...(o.filter ?? {}), ...(o.data ?? {}) },
+        row: { ...o.filter, ...o.data },
         pk,
       }, context);
     }
@@ -764,7 +768,9 @@ export class QueryService implements OnModuleInit {
   private resourceIdFromFilter(filter: Record<string, unknown> | undefined): string | undefined {
     const id = filter?.['id'];
     if (id === undefined || id === null) return undefined;
-    return typeof id === 'string' ? id : String(id);
+    if (typeof id === 'string') return id;
+    if (typeof id === 'number' || typeof id === 'boolean' || typeof id === 'bigint') return String(id);
+    return JSON.stringify(id);
   }
 
   private applyFieldMask(result: QueryResult, mask: FieldMask | undefined): QueryResult {

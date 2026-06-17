@@ -45,7 +45,8 @@ ART="${ART_DIR}/share-pools-cross-engine-expect${EXPECT}.json"
 
 # Same DSNs for BOTH tenants → effective_pool_key collapses them onto one pool
 # per engine when SHARE_POOLS is on. Creds + in-network hostnames from compose.
-MYSQL_DSN="mysql://mini_baas:mini_baas_pw@mysql:3306/mini_baas"
+MYSQL_PW="${MYSQL_PW:-mini_baas_pw}"
+MYSQL_DSN="mysql://mini_baas:${MYSQL_PW}@mysql:3306/mini_baas"
 MONGO_DSN="mongodb://mongo:mongo@mongo:27017/mini_baas?authSource=admin"
 TABLE="sp_items_${TS}"   # unique per run (mysql table + mongo collection)
 

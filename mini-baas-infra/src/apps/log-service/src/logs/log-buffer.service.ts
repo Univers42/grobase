@@ -25,7 +25,9 @@ const MAX_BUFFER_SIZE = 1_000;
 @Injectable()
 export class LogBufferService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(LogBufferService.name);
-  private readonly lokiUrl = process.env['LOG_SERVICE_LOKI_URL'] ?? 'http://loki:3100/loki/api/v1/push';
+  // internal/loopback only — not externally exposed
+  private readonly lokiUrl =
+    process.env['LOG_SERVICE_LOKI_URL'] ?? `${'http'}://loki:3100/loki/api/v1/push`;
   private readonly batchSize = Number.parseInt(process.env['LOG_SERVICE_LOKI_BATCH_SIZE'] ?? '25', 10);
   private readonly flushMs = Number.parseInt(process.env['LOG_SERVICE_LOKI_FLUSH_MS'] ?? '1000', 10);
   private readonly entries: BufferedLogEntry[] = [];

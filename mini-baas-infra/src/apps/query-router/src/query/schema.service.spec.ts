@@ -176,7 +176,7 @@ describe('SchemaService', () => {
       const { service, proxy } = build();
       for (const op of ['drop_column', 'drop_table'] as const) {
         await expect(
-          service.applyDdl('db-1', 'user-1', { op, table: 'orders', column_name: 'x' } as never, identity),
+          service.applyDdl('db-1', 'user-1', { op, table: 'orders', column_name: 'x' }, identity),
         ).rejects.toMatchObject({ status: 400 });
       }
       expect(proxy.applySchemaDdl).not.toHaveBeenCalled();

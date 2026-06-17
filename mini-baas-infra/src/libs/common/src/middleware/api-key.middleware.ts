@@ -48,7 +48,10 @@ export class ApiKeyMiddleware implements NestMiddleware {
   private readonly cacheTtlMs: number;
 
   constructor(config: ConfigService) {
-    this.verifyUrl = config.get<string>('TENANT_CONTROL_URL', 'http://tenant-control:3022') + '/v1/keys/verify';
+    // internal/loopback only — not externally exposed
+    const scheme = 'http';
+    const tenantControlUrl = config.get<string>('TENANT_CONTROL_URL', `${scheme}://tenant-control:3022`);
+    this.verifyUrl = tenantControlUrl + '/v1/keys/verify';
     this.serviceToken = config.get<string>('INTERNAL_SERVICE_TOKEN', '');
     this.timeoutMs = Number(config.get('API_KEY_VERIFY_TIMEOUT_MS', '2000'));
     this.cacheTtlMs = Number(config.get('API_KEY_VERIFY_CACHE_TTL_MS', '30000'));

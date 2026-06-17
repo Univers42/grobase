@@ -40,7 +40,7 @@
 | 11 | Lawyer review + DPO / EU representative | cloud + ent | Procurement / "TOS·DPA·SLA·privacy + RoPA/DPIA" | 🔵 💰 |
 | 12 | Live IdP for SSO (OIDC) + SCIM | enterprise | Enterprise auth / "real-IdP SSO+SCIM" | 🔵 💰 |
 | 13 | Cloud KMS backend for CMEK (Vault Transit works today; m123 ✅) | enterprise | Compliance / "customer-managed encryption" | ✅ code · 🔵 💰 cloud-KMS optional |
-| 14 | Remove the two `*.rootowned-stale` dirs | housekeeping | Repo hygiene / "no dead duplicates" | ⚪ (sudo) |
+| 14 | Remove the two `*.rootowned-stale` dirs | housekeeping | Repo hygiene / "no dead duplicates" | ⚪ (`git rm`; sudo only if root-owned) |
 
 > "PENDING measurement" = honestly **not yet measured** (the 100K is *projected*;
 > failover is *unbuilt*). Do not quote an availability % or a 100K-load number until
@@ -61,7 +61,7 @@ Workflow: `.github/workflows/baas-cli-publish.yml` (fires on `baas-cli-v*`).
 - 🔵 **b. Create an automation token.** npmjs.com → avatar → **Access Tokens** → Generate →
       **Granular Access Token** (read/write on scope `@mini-baas`) **or Classic Automation**
       (bypasses the 2FA OTP CI can't enter) → copy `npm_…`.
-- 🔵 **c. Add the GitHub secret.** github.com/Univers42/groot → Settings → Secrets and
+- 🔵 **c. Add the GitHub secret.** github.com/Univers42/grobase → Settings → Secrets and
       variables → Actions → **New repository secret** → name `NPM_TOKEN`, value = the token.
 - ⚪📌 **d. Publish** (the tag fires the held `publish` job → `npm publish --provenance --access public`):
   ```bash
@@ -327,14 +327,18 @@ distinct KEKs are schema-supported (`cmek_kms_key_id` per row).
 ## 14 · Remove the two `*.rootowned-stale` dirs
 
 **Unblocks:** repo hygiene / *"no dead root-owned duplicates"*. These are dead duplicates of
-`sdk-dart/` and `sdk-python/` (never edit them; use the un-suffixed dirs). They are root-owned,
-so removal needs `sudo` (the user runs it — no passwordless sudo in this env).
+`sdk-dart/` and `sdk-python/` (never edit them; use the un-suffixed dirs). They are still
+git-tracked (≈81 + 133 files). On the maintainer's own checkout they are owned by the user and
+removable directly; on a checkout where they landed root-owned, removal needs `sudo`. Left as a
+**deliberate manual cleanup** (not auto-deleted by docs work — it removes hundreds of tracked SDK
+files and overlaps the SDK story, so it stays a human-triggered step).
 
-- ⚪ **a.** (human, sudo):
+- ⚪ **a.** Remove them (the `git rm` works without sudo where the files are user-owned; fall back to
+  `sudo rm -rf` first only if they are root-owned on your checkout):
   ```bash
-  cd /home/dlesieur/Documents/ft_transcendence/apps/baas
-  sudo rm -rf sdk-dart.rootowned-stale sdk-python.rootowned-stale
-  git add -A && git commit -m "chore(baas): remove dead root-owned stale SDK duplicates"
+  cd /home/dlesieur/Documents/ft_transcendence/apps/baas/grobase
+  git rm -r sdk-dart.rootowned-stale sdk-python.rootowned-stale   # or: sudo rm -rf … && git add -A
+  git commit -m "chore(baas): remove dead stale SDK duplicates"
   ```
 
 **Irreversible?** A delete, but recoverable from git history — low risk.

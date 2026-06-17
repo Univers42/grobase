@@ -8,7 +8,7 @@ This doc covers the cross-cutting layers: the **Makefile orchestrator** (the ope
 
 ## 1. The Makefile orchestrator (G1)
 
-> Lives at `mini-baas-infra/Makefile`. The prior 641-line file is preserved at `mini-baas-infra/Makefile.legacy` for reference. **All Docker manipulation goes through `make` — never raw `docker compose`.**
+> Lives at `mini-baas-infra/Makefile`. **All Docker manipulation goes through `make` — never raw `docker compose`.**
 
 ### Design principle: one matrix, generated targets
 

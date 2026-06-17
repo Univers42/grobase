@@ -8,7 +8,7 @@ The intent is to provide a single stack that any frontend — or any set of micr
 
 ```sh
 # Single binary (PocketBase-class, linux-amd64, no Docker):
-curl -fsSL https://github.com/Univers42/groot/releases/download/baas-v1.0.0/install.sh | sh
+curl -fsSL https://github.com/Univers42/grobase/releases/download/baas-v1.0.0/install.sh | sh
 
 # Full stack (Docker Compose):
 make quickstart                  # .env → stack up → health (default tier: essential)
@@ -18,7 +18,7 @@ make quickstart                  # .env → stack up → health (default tier: e
 · **[SECURITY.md](SECURITY.md)** (model + checklist) · **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**
 · **[RELEASE.md](RELEASE.md)** (how versions ship)
 
-Images: `dlesieur/mini-baas-<service>:1.0.0` + `dlesieur/binocle-{nano,one}` on Docker Hub (SDK ships in-repo at `apps/baas/sdk`)
+Images: `dlesieur/mini-baas-<service>:1.0.0` + `dlesieur/binocle-{nano,one}` on Docker Hub (SDK ships in-repo at `../sdk`)
 
 ---
 

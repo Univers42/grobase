@@ -12,7 +12,7 @@
 // The repo's jest setup does not ship `@types/jest` — import globals explicitly.
 import { describe, expect, it, jest } from '@jest/globals';
 import { ConfigService } from '@nestjs/config';
-import { AutomationsService, evaluateCondition, type AutomationWriteEvent } from './automations.service';
+import { AutomationsService, evaluateCondition, isPrivateAddress, type AutomationWriteEvent } from './automations.service';
 import type { AutomationRuleDto } from './dto/automations.dto';
 
 function makeService(rules: AutomationRuleDto[]): AutomationsService {
@@ -28,7 +28,7 @@ function rule(overrides: Partial<AutomationRuleDto>): AutomationRuleDto {
     id: 'r1', name: 'Rule', enabled: true, table: 'orders',
     trigger: 'row_updated', actions: [{ type: 'notify', message: 'hi' }],
     ...overrides,
-  } as AutomationRuleDto;
+  };
 }
 
 function event(overrides: Partial<AutomationWriteEvent> = {}): AutomationWriteEvent {
@@ -90,20 +90,49 @@ describe('AutomationsService.runForWrite', () => {
   });
 
   it('webhooks reject private/internal targets (SSRF guard)', async () => {
-    const realFetch = globalThis.fetch;
-    const fetchMock = jest.fn(async (_url: unknown, _init?: unknown) => ({ ok: true, status: 200 }));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    // spyOn keeps the assignment type-safe (no `as unknown as typeof fetch` cast).
+    const fetchMock = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 200 }));
     try {
       const service = makeService([
+        // private literal → rejected
         rule({ actions: [{ type: 'webhook', url: 'https://192.168.1.10/hook' }] }),
-        rule({ id: 'r2', actions: [{ type: 'webhook', url: 'https://realtime/hook' }] }),
-        rule({ id: 'r3', actions: [{ type: 'webhook', url: 'https://hooks.example.com/x' }] }),
+        // IPv4-mapped-IPv6 cloud-metadata literal → rejected (bypass closed)
+        rule({ id: 'r2', actions: [{ type: 'webhook', url: 'https://[::ffff:169.254.169.254]/x' }] }),
+        // bare internal service name → unresolvable offline / internal IP → rejected
+        rule({ id: 'r3', actions: [{ type: 'webhook', url: 'https://realtime/hook' }] }),
+        // public IP literal → accepted (no DNS needed, works offline)
+        rule({ id: 'r4', actions: [{ type: 'webhook', url: 'https://93.184.216.34/x' }] }),
       ]);
       await service.runForWrite(event(), jest.fn(async () => undefined), jest.fn(async () => undefined));
       expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(String(fetchMock.mock.calls[0][0])).toBe('https://hooks.example.com/x');
+      // The data plane passes the raw URL string as fetch's first arg, so assert
+      // it directly — no String() coercion (which Sonar S6551 flags as risking
+      // '[object Object]' for the RequestInfo | URL union).
+      expect(fetchMock.mock.calls[0][0]).toBe('https://93.184.216.34/x');
     } finally {
-      globalThis.fetch = realFetch;
+      fetchMock.mockRestore();
+    }
+  });
+});
+
+describe('isPrivateAddress (SSRF classifier)', () => {
+  it('blocks loopback / private / link-local / CGNAT and both IPv4-mapped-IPv6 encodings', () => {
+    for (const a of [
+      '127.0.0.1', '10.0.0.5', '192.168.1.10', '172.16.0.1', '169.254.169.254',
+      '100.64.0.1', '0.0.0.0',
+      '::1', '::', 'fe80::1', 'fc00::1', 'fd12:3456::1', 'ff02::1',
+      '::ffff:169.254.169.254', '::ffff:a9fe:a9fe', // dotted + hex IPv4-mapped metadata
+      'not-an-ip',
+    ]) {
+      expect(isPrivateAddress(a)).toBe(true);
+    }
+  });
+
+  it('allows public IPv4 and global-unicast IPv6', () => {
+    for (const a of ['93.184.216.34', '1.1.1.1', '8.8.8.8', '2606:4700:4700::1111']) {
+      expect(isPrivateAddress(a)).toBe(false);
     }
   });
 });

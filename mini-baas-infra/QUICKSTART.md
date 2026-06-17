@@ -3,8 +3,8 @@
 Two ways in. **Path A** is a single static binary (no Docker, no root). **Path B** is the
 full self-hosted stack via Docker Compose. Pick one.
 
-> In the `ft_transcendence` monorepo this directory is `apps/baas/mini-baas-infra/`;
-> as a standalone checkout it is the repo root. All commands below run from here.
+> This is the buildable heart of the standalone `grobase` repo: the directory is
+> `grobase/mini-baas-infra/` and there is no root Makefile. All commands below run from here.
 
 ---
 
@@ -20,7 +20,7 @@ zero dependencies.
 
 ```sh
 # install (verifies sha256; BINOCLE_EDITION=nano for headless)
-curl -fsSL https://github.com/Univers42/groot/releases/download/baas-v1.0.0/install.sh | sh
+curl -fsSL https://github.com/Univers42/grobase/releases/download/baas-v1.0.0/install.sh | sh
 
 ./binocle-one
 #  → admin key printed on FIRST boot only — save it
@@ -51,8 +51,8 @@ Prerequisites: `git`, `make`, `curl`, Docker with the compose plugin. ~1 GB RAM
 for the default tier.
 
 ```sh
-git clone https://github.com/Univers42/groot.git
-cd ft_transcendence/apps/baas/mini-baas-infra
+git clone https://github.com/Univers42/grobase.git
+cd grobase/mini-baas-infra
 
 make quickstart                  # .env (generated, chmod 600) → stack up → health
 # or pick a tier explicitly:
@@ -79,9 +79,9 @@ involved; distribution is Docker Hub + this repo by design):
 
 ```sh
 # as a file dependency from a checkout
-npm install ./apps/baas/sdk
+npm install ./sdk
 # or straight from git
-npm install git+https://github.com/Univers42/groot.git#main:apps/baas/sdk
+npm install git+https://github.com/Univers42/grobase.git#main:sdk
 ```
 
 ```ts

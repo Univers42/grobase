@@ -247,7 +247,7 @@ export class StorageService implements OnModuleInit, OnApplicationShutdown {
         key: (o.Key ?? '').slice(ownerPrefix.length),
         size: o.Size ?? 0,
         lastModified: o.LastModified ? o.LastModified.toISOString() : null,
-        etag: o.ETag?.replace(/"/g, ''),
+        etag: o.ETag?.replaceAll('"', ''),
       }));
     } catch (err) {
       throw this.mapS3Error(err, 'bucket');

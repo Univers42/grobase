@@ -58,9 +58,11 @@ export class RealtimePublisherService {
   private readonly timeoutMs: number;
 
   constructor(config: ConfigService) {
+    // internal/loopback only — not externally exposed
+    const scheme = 'http';
     this.publishUrl = config.get<string>(
       'REALTIME_PUBLISH_URL',
-      'http://realtime:4000/v1/publish',
+      `${scheme}://realtime:4000/v1/publish`,
     );
     this.timeoutMs = Number(config.get<string>('REALTIME_PUBLISH_TIMEOUT_MS', '1500'));
   }

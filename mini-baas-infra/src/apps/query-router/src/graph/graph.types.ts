@@ -5,12 +5,10 @@
 
 import { BadRequestException } from '@nestjs/common';
 
-/** Global node identity: `<mountId>:<resource>:<pk>` — the BaaS addressing. */
-export type NodeId = string;
-
-/** A node = one row/record from any backend, normalised to JSON. */
+/** A node = one row/record from any backend, normalised to JSON.
+ *  Node identity (`id`) is the global `<mountId>:<resource>:<pk>` address. */
 export interface GraphNode {
-  id: NodeId;
+  id: string;
   mount: string;
   resource: string;
   pk: string;
@@ -22,8 +20,8 @@ export interface GraphNode {
 /** An edge = a row in the dedicated `edges` mount (the PRIMARY edge source). */
 export interface EdgeRecord {
   id: string;
-  from: NodeId;
-  to: NodeId;
+  from: string;
+  to: string;
   type: string;
   label?: string;
   directed?: boolean;
@@ -68,7 +66,7 @@ export type GraphGuarantee = 'per_node_atomic' | 'subgraph_eventual';
 
 export interface GraphResponse {
   /** The focus node for a local graph; absent for the global `/graph/overview`. */
-  focus?: NodeId;
+  focus?: string;
   depth: number;
   nodes: GraphNode[];
   edges: EdgeRecord[];
@@ -76,7 +74,7 @@ export interface GraphResponse {
 }
 
 /** Split a `mount:resource:pk` id; `pk` may itself contain `:`. */
-export function parseNodeId(id: NodeId): { dbId: string; resource: string; pk: string } {
+export function parseNodeId(id: string): { dbId: string; resource: string; pk: string } {
   const i1 = id.indexOf(':');
   const i2 = i1 < 0 ? -1 : id.indexOf(':', i1 + 1);
   if (i1 <= 0 || i2 <= i1 || i2 === id.length - 1) {
@@ -85,7 +83,7 @@ export function parseNodeId(id: NodeId): { dbId: string; resource: string; pk: s
   return { dbId: id.slice(0, i1), resource: id.slice(i1 + 1, i2), pk: id.slice(i2 + 1) };
 }
 
-export const formatNodeId = (dbId: string, resource: string, pk: string): NodeId =>
+export const formatNodeId = (dbId: string, resource: string, pk: string): string =>
   `${dbId}:${resource}:${pk}`;
 
 /** Coerce a row from the `edges` mount into an `EdgeRecord` (null if malformed). */

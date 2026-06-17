@@ -213,6 +213,48 @@ async function deleteFn(req: Request, m: RegExpMatchArray): Promise<Response> {
   }
 }
 
+// Read the invocation input body, mirroring the request's content-type: JSON is
+// parsed (invalid JSON degrades to null, as today); anything else is read as
+// text. Extracted from invokeFn to keep the handler's complexity low.
+async function readInvokeBody(req: Request): Promise<unknown> {
+  const ctype = req.headers.get("content-type") ?? "";
+  if (!ctype.includes("application/json")) {
+    return await req.text();
+  }
+  try {
+    return await req.json();
+  } catch {
+    return null;
+  }
+}
+
+// Map an errored InvokeResult to its Response. A runaway invocation killed by the
+// memory watchdog maps to 429 (the caller exceeded a resource limit, not a bug in
+// our runtime); everything else is a 500 function error — same status the cold
+// path returns today.
+function invokeErrorResponse(error: string, warm: boolean | undefined): Response {
+  if (error.startsWith("memory_limit_exceeded")) {
+    const r = json(429, { error: "resource_limit", message: error });
+    r.headers.set("X-Function-Warm", warm ? "hit" : "miss");
+    return r;
+  }
+  return json(500, { error: "function_error", message: error });
+}
+
+// Build the success Response from a completed InvokeResult. Surfaces the warm-pool
+// reuse signal only when the pool is engaged so the OFF path response is
+// byte-identical to today (no extra header).
+function invokeSuccessResponse(result: InvokeResult): Response {
+  const headersOut: Record<string, string> = {
+    "content-type": result.contentType ?? "application/json",
+  };
+  if (WARM_POOL) headersOut["X-Function-Warm"] = result.warm ? "hit" : "miss";
+  return new Response(typeof result.body === "string" ? result.body : JSON.stringify(result.body), {
+    status: result.status ?? 200,
+    headers: headersOut,
+  });
+}
+
 async function invokeFn(req: Request, m: RegExpMatchArray): Promise<Response> {
   const tenant = tenantOf(req);
   if (!tenant) return unauthorized();
@@ -227,17 +269,7 @@ async function invokeFn(req: Request, m: RegExpMatchArray): Promise<Response> {
     throw err;
   }
 
-  let inputBody: unknown = null;
-  const ctype = req.headers.get("content-type") ?? "";
-  if (ctype.includes("application/json")) {
-    try {
-      inputBody = await req.json();
-    } catch {
-      inputBody = null;
-    }
-  } else {
-    inputBody = await req.text();
-  }
+  const inputBody = await readInvokeBody(req);
 
   const headers: Record<string, string> = {};
   req.headers.forEach((v, k) => { headers[k] = v; });
@@ -255,15 +287,7 @@ async function invokeFn(req: Request, m: RegExpMatchArray): Promise<Response> {
     ? await pool.invoke(tenant, name, codePath, input, secrets)
     : await invokeInWorker(codePath, input, secrets);
   if (result.error) {
-    // A runaway invocation killed by the memory watchdog maps to 429 (the caller
-    // exceeded a resource limit, not a bug in our runtime); everything else is a
-    // 500 function error — same status the cold path returns today.
-    if (result.error.startsWith("memory_limit_exceeded")) {
-      const r = json(429, { error: "resource_limit", message: result.error });
-      r.headers.set("X-Function-Warm", result.warm ? "hit" : "miss");
-      return r;
-    }
-    return json(500, { error: "function_error", message: result.error });
+    return invokeErrorResponse(result.error, result.warm);
   }
   // B1d metering — count this SUCCESSFUL invocation (qty 1) for the caller's
   // authenticated tenant. `tenant` is taken from the same identity the rest of
@@ -271,16 +295,7 @@ async function invokeFn(req: Request, m: RegExpMatchArray): Promise<Response> {
   // record is a cheap non-blocking += into the windowed aggregator; the flusher
   // emits the cumulative window total. Guarded on the flag so OFF == parity.
   usageMeter?.record(tenant, FUNCTION_INVOCATIONS_METRIC, 1);
-  const headersOut: Record<string, string> = {
-    "content-type": result.contentType ?? "application/json",
-  };
-  // Surface the warm-pool reuse signal only when the pool is engaged so the OFF
-  // path response is byte-identical to today (no extra header).
-  if (WARM_POOL) headersOut["X-Function-Warm"] = result.warm ? "hit" : "miss";
-  return new Response(typeof result.body === "string" ? result.body : JSON.stringify(result.body), {
-    status: result.status ?? 200,
-    headers: headersOut,
-  });
+  return invokeSuccessResponse(result);
 }
 
 // resolveSecrets fetches the tenant+function's decrypted secrets from the Go
@@ -436,7 +451,7 @@ interface WarmWorker {
 }
 
 class WarmPool {
-  private byKey = new Map<string, WarmWorker>();
+  private readonly byKey = new Map<string, WarmWorker>();
 
   private buildPersistentSource(codePath: string, secrets: Record<string, string>): string {
     // Persistent variant of invokeInWorker's source: import once, then serve a
@@ -528,7 +543,7 @@ class WarmPool {
     };
     // Evict the pool's oldest if we are at capacity (simple bound).
     if (this.byKey.size >= WARM_POOL_MAX) {
-      const first = this.byKey.values().next().value as WarmWorker | undefined;
+      const first = this.byKey.values().next().value;
       if (first && !first.busy) this.discard(first);
     }
     this.byKey.set(key, ww);
@@ -537,8 +552,8 @@ class WarmPool {
 
   private discard(ww: WarmWorker): void {
     if (ww.idleTimer !== null) clearTimeout(ww.idleTimer);
-    try { ww.worker.terminate(); } catch (_) { /* ignore */ }
-    try { URL.revokeObjectURL(ww.url); } catch (_) { /* ignore */ }
+    try { ww.worker.terminate(); } catch (err) { console.debug(`[functions] warm worker terminate on discard: ${err}`); }
+    try { URL.revokeObjectURL(ww.url); } catch (err) { console.debug(`[functions] warm worker url revoke on discard: ${err}`); }
     if (this.byKey.get(ww.key) === ww) this.byKey.delete(ww.key);
   }
 
@@ -580,7 +595,7 @@ class WarmPool {
       target.worker.postMessage({ id, input });
     });
     // If the worker self-closed (memory cap) discard it so it is never reused.
-    if (result.error && result.error.startsWith("memory_limit_exceeded")) {
+    if (result.error?.startsWith("memory_limit_exceeded")) {
       this.discard(target);
     } else if (this.byKey.get(key) === target) {
       target.busy = false;

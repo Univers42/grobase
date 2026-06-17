@@ -42,8 +42,8 @@ BEGIN
 
   DROP POLICY IF EXISTS fdw_external_resources_tenant ON public.fdw_external_resources;
   CREATE POLICY fdw_external_resources_tenant ON public.fdw_external_resources
-    FOR ALL USING (tenant_id::text = auth.current_user_id()::text)
-    WITH CHECK (tenant_id::text = auth.current_user_id()::text);
+    FOR ALL USING (tenant_id::text = auth.current_tenant_id()::text)
+    WITH CHECK (tenant_id::text = auth.current_tenant_id()::text);
 
   GRANT SELECT, INSERT, UPDATE, DELETE ON public.fdw_external_resources TO authenticated, service_role;
 END $$;
@@ -181,6 +181,58 @@ BEGIN
   RETURN alias_name;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ===========================================================================
+-- @brief Lock down the SECURITY DEFINER FDW helpers (privilege-management fix).
+--
+-- @par Vulnerability (CWE-269 Improper Privilege Management)
+--   ensure_fdw_extension / fdws_bootstrap_available / materialize_fdw_server /
+--   register_fdw_foreign_table are SECURITY DEFINER and owned by the `postgres`
+--   superuser (migrations run as `psql -U postgres`), so their bodies execute
+--   with superuser rights — running CREATE EXTENSION / CREATE SERVER DDL and
+--   RLS-bypassing INSERTs. PostgreSQL grants EXECUTE to PUBLIC on every new
+--   function by default, and PostgREST is published over `public` with
+--   `PGRST_DB_ANON_ROLE=anon`, so each function was reachable as
+--   POST /rpc/<fn> by the anon/authenticated roles. A low-privilege HTTP caller
+--   could thus install any FDW shipped in the image and create foreign-data
+--   servers as superuser — a privilege-escalation stepping stone to
+--   exfiltration/RCE. Migration 065 hardened TABLE grants but left FUNCTION
+--   EXECUTE untouched, so this gap survived it.
+--
+-- @par Remediation
+--   REVOKE EXECUTE FROM PUBLIC (and explicitly from anon, authenticated) on the
+--   four privileged functions, GRANT EXECUTE only to service_role (the control
+--   plane / adapter-registry path; the postgres owner keeps access inherently),
+--   and pin each function's search_path so it cannot be hijacked via a
+--   caller-controlled schema. This block is idempotent and — because the
+--   migrate runner re-applies every file — repairs already-migrated databases
+--   on the next `make migrate`.
+--
+-- @see https://www.postgresql.org/docs/current/sql-createfunction.html#SQL-CREATEFUNCTION-SECURITY
+-- @see https://cwe.mitre.org/data/definitions/269.html
+-- ===========================================================================
+REVOKE EXECUTE ON FUNCTION
+  public.ensure_fdw_extension(text),
+  public.fdws_bootstrap_available(),
+  public.materialize_fdw_server(text, text, jsonb),
+  public.register_fdw_foreign_table(uuid, uuid, text, text, text, text, jsonb, jsonb)
+FROM PUBLIC, anon, authenticated;
+
+GRANT EXECUTE ON FUNCTION
+  public.ensure_fdw_extension(text),
+  public.fdws_bootstrap_available(),
+  public.materialize_fdw_server(text, text, jsonb),
+  public.register_fdw_foreign_table(uuid, uuid, text, text, text, text, jsonb, jsonb)
+TO service_role;
+
+ALTER FUNCTION public.ensure_fdw_extension(text)
+  SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION public.fdws_bootstrap_available()
+  SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION public.materialize_fdw_server(text, text, jsonb)
+  SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION public.register_fdw_foreign_table(uuid, uuid, text, text, text, text, jsonb, jsonb)
+  SET search_path = pg_catalog, public, pg_temp;
 
 SELECT * FROM public.fdws_bootstrap_available();
 
