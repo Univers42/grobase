@@ -113,16 +113,20 @@ CREATE TABLE IF NOT EXISTS public.schema_registry (
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.schema_registry TO authenticated;
 
+-- Qualify public.current_tenant_id() (text) explicitly: search_path is `auth,
+-- public` (set above), and a migration also defines auth.current_tenant_id()
+-- RETURNS uuid — an unqualified call binds to the uuid one and breaks `tenant_id
+-- (text) = uuid`. The qualified text function matches the text column.
 DROP POLICY IF EXISTS tenant_databases_select ON public.tenant_databases;
 CREATE POLICY tenant_databases_select ON public.tenant_databases
-  FOR SELECT USING (tenant_id = current_tenant_id());
+  FOR SELECT USING (tenant_id = public.current_tenant_id());
 
 DROP POLICY IF EXISTS tenant_databases_insert ON public.tenant_databases;
 CREATE POLICY tenant_databases_insert ON public.tenant_databases
-  FOR INSERT WITH CHECK (tenant_id = current_tenant_id());
+  FOR INSERT WITH CHECK (tenant_id = public.current_tenant_id());
 
 DROP POLICY IF EXISTS tenant_databases_update ON public.tenant_databases;
 CREATE POLICY tenant_databases_update ON public.tenant_databases
-  FOR UPDATE USING (tenant_id = current_tenant_id()) WITH CHECK (tenant_id = current_tenant_id());
+  FOR UPDATE USING (tenant_id = public.current_tenant_id()) WITH CHECK (tenant_id = public.current_tenant_id());
 
 GRANT UPDATE (last_healthy_at) ON public.tenant_databases TO adapter_registry_role;
