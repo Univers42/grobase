@@ -3,7 +3,7 @@ package sessionsvc
 import (
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 /* ─────── Revocation endpoints (user-scoped + service_role admin) ─────── */
@@ -17,7 +17,7 @@ func (s *Service) revoke(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{"revoked": true})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"revoked": true})
 }
 
 func (s *Service) revokeAll(w http.ResponseWriter, r *http.Request) {
@@ -29,7 +29,7 @@ func (s *Service) revokeAll(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{"revoked": n})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"revoked": n})
 }
 
 func (s *Service) adminForceRevoke(w http.ResponseWriter, r *http.Request) {
@@ -40,7 +40,7 @@ func (s *Service) adminForceRevoke(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{"revoked": true})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"revoked": true})
 }
 
 func (s *Service) adminForceRevokeAll(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +51,7 @@ func (s *Service) adminForceRevokeAll(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{"revoked": n})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"revoked": n})
 }
 
 func (s *Service) adminCleanup(w http.ResponseWriter, r *http.Request) {
@@ -62,5 +62,5 @@ func (s *Service) adminCleanup(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{"deletedCount": n})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"deletedCount": n})
 }

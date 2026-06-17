@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // patchRequest is the PATCH /v1/tenants/me body. Only `plan` is self-service;
@@ -41,7 +41,7 @@ func (ss *selfServe) patch(w http.ResponseWriter, r *http.Request) {
 		ss.syncBillingPlan(r, tenantID, plan)
 	}
 	pkgName, _ := ss.manifest.For(t.Plan)
-	shared.WriteJSON(w, http.StatusOK, map[string]any{
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{
 		"tenant":  meTenant{ID: t.ID, UUID: t.UUID, Slug: t.ID, Name: t.Name, Plan: t.Plan, Status: t.Status},
 		"package": pkgName,
 	})
@@ -54,16 +54,16 @@ func (ss *selfServe) patch(w http.ResponseWriter, r *http.Request) {
 func (ss *selfServe) decodePlan(w http.ResponseWriter, r *http.Request) (string, bool) {
 	var req patchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 		return "", false
 	}
 	plan := strings.TrimSpace(req.Plan)
 	if plan == "" {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "plan is required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "plan is required")
 		return "", false
 	}
 	if !ss.knownPlan(plan) {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error",
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error",
 			"unknown plan "+plan+" (not in package manifest)")
 		return "", false
 	}
@@ -106,9 +106,9 @@ func (ss *selfServe) handleLookup(w http.ResponseWriter, err error) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, ErrNotFound):
-		shared.WriteError(w, http.StatusNotFound, "not_found", "tenant not found")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "tenant not found")
 	default:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	}
 	return true
 }

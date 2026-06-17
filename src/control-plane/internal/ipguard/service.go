@@ -37,7 +37,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// idb is the minimal Postgres surface the service needs. *shared.Postgres
+// idb is the minimal Postgres surface the service needs. *pg.Postgres
 // satisfies it (the guard runs as the BYPASSRLS control-plane role); a fake
 // satisfies it in unit tests so the decision + CRUD contracts are provable
 // without a live database.

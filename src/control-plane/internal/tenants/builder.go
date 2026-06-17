@@ -6,7 +6,7 @@ import (
 
 	ent "github.com/dlesieur/mini-baas/control-plane/internal/entitlements"
 	"github.com/dlesieur/mini-baas/control-plane/internal/packages"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // builderAPI is the DYNAMIC BUILDER control surface (BUILDER_ENABLED). It gives a
@@ -85,7 +85,7 @@ func (b *builderAPI) ceilingFor(ctx context.Context, slug, plan string) (package
 
 // validServiceToken gates the operator routes (constant-time compare).
 func (b *builderAPI) validServiceToken(r *http.Request) bool {
-	return shared.VerifyServiceRequest(r, b.svcToken)
+	return serviceauth.VerifyServiceRequest(r, b.svcToken)
 }
 
 // selfAuthScope resolves the caller's tenant and enforces the named scope in one

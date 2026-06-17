@@ -6,7 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	redis "github.com/redis/go-redis/v9"
 )
 
@@ -42,14 +43,14 @@ type Consumer struct {
 // the two share one Redis URL convention. METERING_INGEST gates everything; the
 // master METERING_ENABLED is honored too (either OFF ⇒ disabled), so a single
 // master switch can disable the whole pipeline without touching sub-flags.
-func New(log *slog.Logger, db *shared.Postgres) *Consumer {
+func New(log *slog.Logger, db *pg.Postgres) *Consumer {
 	return &Consumer{
 		log:       log,
 		store:     NewStore(db),
-		enabled:   shared.EnvBool("METERING_ENABLED") && shared.EnvBool("METERING_INGEST"),
-		redisURL:  shared.EnvStr("OUTBOX_REDIS_URL", shared.EnvStr("REDIS_URL", "redis://redis:6379")),
-		blockWait: time.Duration(shared.EnvInt("METERING_INGEST_BLOCK_MS", 2_000)) * time.Millisecond,
-		batchSize: int64(shared.EnvInt("METERING_INGEST_BATCH", 100)),
+		enabled:   config.EnvBool("METERING_ENABLED") && config.EnvBool("METERING_INGEST"),
+		redisURL:  config.EnvStr("OUTBOX_REDIS_URL", config.EnvStr("REDIS_URL", "redis://redis:6379")),
+		blockWait: time.Duration(config.EnvInt("METERING_INGEST_BLOCK_MS", 2_000)) * time.Millisecond,
+		batchSize: int64(config.EnvInt("METERING_INGEST_BATCH", 100)),
 	}
 }
 

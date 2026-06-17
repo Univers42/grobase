@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 func buildMountSpecs(dsn, isolation string, mounts int) []mountSpec {
@@ -85,7 +85,7 @@ func provisionOne(client *http.Client, base, token, slug, plan, dsn, isolation s
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		return record{Slug: slug, Status: "error",
-			Error: fmt.Sprintf("provision %d: %s", resp.StatusCode, shared.RedactDSN(string(raw)))}
+			Error: fmt.Sprintf("provision %d: %s", resp.StatusCode, httpx.RedactDSN(string(raw)))}
 	}
 	var out provisionResponse
 	if err := json.Unmarshal(raw, &out); err != nil {

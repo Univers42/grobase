@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // CheckRequest is the POST /v1/ipguard/check body — what an edge plugin sends.
@@ -20,13 +21,13 @@ type CheckRequest struct {
 // decision that REPORTS a block, not a server error — the gate's load-bearing
 // REJECT asserts allow==false for an out-of-range IP.
 func (rt *routes) check(w http.ResponseWriter, r *http.Request) {
-	if !shared.VerifyServiceRequest(r, rt.serviceToken) {
-		shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
+	if !serviceauth.VerifyServiceRequest(r, rt.serviceToken) {
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
 		return
 	}
 	var req CheckRequest
 	if err := decodeJSON(r, &req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 	// The edge passes the resolved client IP explicitly; if it instead forwards
@@ -41,18 +42,18 @@ func (rt *routes) check(w http.ResponseWriter, r *http.Request) {
 		writeCheckError(w, err)
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, dec)
+	httpx.WriteJSON(w, http.StatusOK, dec)
 }
 
 // writeCheckError maps an edge-check service error to its HTTP status.
 func writeCheckError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrEmptyTenant):
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "tenant_id required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "tenant_id required")
 	case errors.Is(err, ErrBadIP):
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "invalid client IP")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "invalid client IP")
 	default:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	}
 }
 

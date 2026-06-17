@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 	"github.com/dlesieur/mini-baas/control-plane/internal/packages"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 )
 
 // selfServe holds the dependencies for the tenant self-service API (B4a).
@@ -64,13 +64,13 @@ func MountSelfServe(mux *http.ServeMux, svc *Service, jwt *JWTVerifier, manifest
 // On any failure it writes a 401 and returns ok=false. The returned tenantID is
 // the canonical SLUG (what every downstream Service method keys on).
 func (ss *selfServe) selfAuth(w http.ResponseWriter, r *http.Request) (tenantID string, scopes []string, ok bool) {
-	if raw := shared.APIKeyFromRequest(r); raw != "" {
+	if raw := httpx.APIKeyFromRequest(r); raw != "" {
 		return ss.authByAPIKey(w, r, raw)
 	}
 	if auth := strings.TrimSpace(r.Header.Get("Authorization")); auth != "" {
 		return ss.authByJWT(w, r, auth)
 	}
-	shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
+	httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",
 		"X-API-Key, Authorization: Bearer <api-key>, or Authorization: Bearer <jwt> required")
 	return "", nil, false
 }
@@ -79,11 +79,11 @@ func (ss *selfServe) selfAuth(w http.ResponseWriter, r *http.Request) (tenantID 
 func (ss *selfServe) authByAPIKey(w http.ResponseWriter, r *http.Request, raw string) (string, []string, bool) {
 	out, err := ss.svc.VerifyKey(r.Context(), raw)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return "", nil, false
 	}
 	if !out.Valid {
-		shared.WriteError(w, http.StatusUnauthorized, "invalid_key", "API key is not valid")
+		httpx.WriteError(w, http.StatusUnauthorized, "invalid_key", "API key is not valid")
 		return "", nil, false
 	}
 	return out.TenantID, out.Scopes, true
@@ -98,23 +98,23 @@ func (ss *selfServe) authByAPIKey(w http.ResponseWriter, r *http.Request, raw st
 // self-management scopes.
 func (ss *selfServe) authByJWT(w http.ResponseWriter, r *http.Request, auth string) (string, []string, bool) {
 	if ss.jwt == nil {
-		shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",
 			"JWT self-auth not configured (no GOTRUE_JWT_SECRET); use an API key")
 		return "", nil, false
 	}
 	identity, err := ss.jwt.Verify(auth)
 	if err != nil {
-		shared.WriteError(w, http.StatusUnauthorized, "invalid_token", err.Error())
+		httpx.WriteError(w, http.StatusUnauthorized, "invalid_token", err.Error())
 		return "", nil, false
 	}
 	t, err := ss.svc.findForUser(r.Context(), identity.UserID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			shared.WriteError(w, http.StatusNotFound, "no_tenant",
+			httpx.WriteError(w, http.StatusNotFound, "no_tenant",
 				"no tenant for this user yet — POST /v1/tenants/me/bootstrap to create one")
 			return "", nil, false
 		}
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return "", nil, false
 	}
 	return t.ID, []string{"read", "write", "admin"}, true

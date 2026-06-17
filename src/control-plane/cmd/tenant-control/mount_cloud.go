@@ -6,10 +6,10 @@ import (
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/abuseguard"
 	"github.com/dlesieur/mini-baas/control-plane/internal/audit"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 	"github.com/dlesieur/mini-baas/control-plane/internal/erase"
 	"github.com/dlesieur/mini-baas/control-plane/internal/ipguard"
 	"github.com/dlesieur/mini-baas/control-plane/internal/orgs"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 )
 
 // mountAbuse mounts the free-tier abuse/KYC-lite guard (ABUSE_GUARD_ENABLED).
@@ -30,7 +30,7 @@ func (b *bootCtx) mountAbuse(ctx context.Context) {
 
 // mountAudit mounts the D3 tamper-evident tenant audit log (TENANT_AUDIT_ENABLED).
 func (b *bootCtx) mountAudit() {
-	if !shared.EnvBool("TENANT_AUDIT_ENABLED") {
+	if !config.EnvBool("TENANT_AUDIT_ENABLED") {
 		b.log.Info("tenant audit log disabled (TENANT_AUDIT_ENABLED off) — /v1/audit* not mounted")
 		return
 	}
@@ -41,7 +41,7 @@ func (b *bootCtx) mountAudit() {
 // mountErase mounts the D4.4 hard-erase/teardown route (HARD_ERASE_ENABLED). The
 // erase service reuses the D3 audit chain so the receipt is verifiable.
 func (b *bootCtx) mountErase() {
-	if !shared.EnvBool("HARD_ERASE_ENABLED") {
+	if !config.EnvBool("HARD_ERASE_ENABLED") {
 		b.log.Info("hard-erase disabled (HARD_ERASE_ENABLED off) — /v1/tenants/{id}/erase not mounted; teardown is soft-delete only")
 		return
 	}
@@ -54,7 +54,7 @@ func (b *bootCtx) mountErase() {
 // mountOrgs mounts the D1 organizations/RBAC layer (ORG_MODEL_ENABLED). A nil
 // jwtVerifier is passed UNTYPED to keep the rt.jwt == nil guard honest.
 func (b *bootCtx) mountOrgs() {
-	if !shared.EnvBool("ORG_MODEL_ENABLED") {
+	if !config.EnvBool("ORG_MODEL_ENABLED") {
 		b.log.Info("organizations API disabled (ORG_MODEL_ENABLED off) — /v1/orgs* not mounted")
 		return
 	}
@@ -70,13 +70,13 @@ func (b *bootCtx) mountOrgs() {
 // mountIPGuard mounts the D2e tenant IP allowlist (TENANT_IP_ALLOWLIST_ENABLED),
 // with self-serve CRUD only when TENANT_SELFSERVE_ENABLED is also truthy.
 func (b *bootCtx) mountIPGuard() {
-	if !shared.EnvBool("TENANT_IP_ALLOWLIST_ENABLED") {
+	if !config.EnvBool("TENANT_IP_ALLOWLIST_ENABLED") {
 		b.log.Info("tenant IP allowlist disabled (TENANT_IP_ALLOWLIST_ENABLED off) — /v1/ipguard* + ip-allowlist routes not mounted")
 		return
 	}
 	ipsvc := ipguard.NewService(b.db)
 	ipguard.Mount(b.mux, ipsvc, b.cfg.ServiceToken)
-	if shared.EnvBool("TENANT_SELFSERVE_ENABLED") {
+	if config.EnvBool("TENANT_SELFSERVE_ENABLED") {
 		ipguard.MountSelfServe(b.mux, ipsvc, b.svc)
 		b.log.Info("ip-allowlist self-serve enabled (/v1/tenants/me/ip-allowlist, API-key)")
 	}

@@ -9,9 +9,10 @@ import (
 	"time"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/adapterregistry"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 	"github.com/dlesieur/mini-baas/control-plane/internal/funcsecrets"
 	"github.com/dlesieur/mini-baas/control-plane/internal/functriggers"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/dlesieur/mini-baas/control-plane/internal/webhooks"
 )
 
@@ -29,15 +30,15 @@ func resolveRedisURL() string {
 
 // buildWebhooks wires the webhook subscriptions service and its Redis-backed
 // delivery dispatcher.
-func buildWebhooks(ctx context.Context, db *shared.Postgres, log *slog.Logger, redisURL string) (*webhooks.Service, *webhooks.Dispatcher, error) {
+func buildWebhooks(ctx context.Context, db *pg.Postgres, log *slog.Logger, redisURL string) (*webhooks.Service, *webhooks.Dispatcher, error) {
 	svc := webhooks.NewService(db, log)
 	if err := svc.EnsureSchema(ctx); err != nil {
 		return nil, nil, err
 	}
 	dispatcher, err := webhooks.NewDispatcher(db, log, webhooks.DispatcherConfig{
 		RedisURL:    redisURL,
-		GroupName:   shared.EnvStr("WEBHOOK_GROUP", "webhook-dispatcher"),
-		ConsumerID:  shared.EnvStr("WEBHOOK_CONSUMER", "webhook-dispatcher-0"),
+		GroupName:   config.EnvStr("WEBHOOK_GROUP", "webhook-dispatcher"),
+		ConsumerID:  config.EnvStr("WEBHOOK_CONSUMER", "webhook-dispatcher-0"),
 		PollPause:   1 * time.Second,
 		RetryPeriod: 10 * time.Second,
 	})
@@ -46,16 +47,16 @@ func buildWebhooks(ctx context.Context, db *shared.Postgres, log *slog.Logger, r
 
 // buildFunctriggers wires the DB-event -> function-trigger service and its
 // dispatcher. A missing schema is non-fatal (warns, like the original).
-func buildFunctriggers(ctx context.Context, db *shared.Postgres, log *slog.Logger, redisURL string) (*functriggers.Service, *functriggers.Dispatcher, error) {
+func buildFunctriggers(ctx context.Context, db *pg.Postgres, log *slog.Logger, redisURL string) (*functriggers.Service, *functriggers.Dispatcher, error) {
 	ftSvc := functriggers.NewService(db, log)
 	if err := ftSvc.EnsureSchema(ctx); err != nil {
 		log.Warn("function_triggers schema check failed — run migration 035", "err", err)
 	}
 	d, err := functriggers.NewDispatcher(db, log, functriggers.DispatcherConfig{
 		RedisURL:    redisURL,
-		GroupName:   shared.EnvStr("FUNCTION_TRIGGER_GROUP", "function-dispatcher"),
-		ConsumerID:  shared.EnvStr("FUNCTION_TRIGGER_CONSUMER", "function-dispatcher-0"),
-		RuntimeURL:  shared.EnvStr("FUNCTIONS_RUNTIME_URL", "http://functions-runtime:3060"),
+		GroupName:   config.EnvStr("FUNCTION_TRIGGER_GROUP", "function-dispatcher"),
+		ConsumerID:  config.EnvStr("FUNCTION_TRIGGER_CONSUMER", "function-dispatcher-0"),
+		RuntimeURL:  config.EnvStr("FUNCTIONS_RUNTIME_URL", "http://functions-runtime:3060"),
 		PollPause:   1 * time.Second,
 		RetryPeriod: 10 * time.Second,
 	})
@@ -65,7 +66,7 @@ func buildFunctriggers(ctx context.Context, db *shared.Postgres, log *slog.Logge
 // mountFuncSecrets mounts the per-function secret store when VAULT_ENC_KEY is
 // present; absence (or an invalid key) leaves the surface unmounted, matching
 // the original behavior exactly.
-func mountFuncSecrets(ctx context.Context, mux *http.ServeMux, db *shared.Postgres, log *slog.Logger, serviceToken string) {
+func mountFuncSecrets(ctx context.Context, mux *http.ServeMux, db *pg.Postgres, log *slog.Logger, serviceToken string) {
 	encKey := os.Getenv("VAULT_ENC_KEY")
 	if encKey == "" {
 		log.Info("function secrets disabled (no VAULT_ENC_KEY)")

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -70,7 +70,7 @@ func parseExpiresArg(raw string) (any, error) {
 // keyConflictOr maps a unique violation to a friendly "name already exists"
 // error, passing other errors through unchanged.
 func keyConflictOr(err error, name string) error {
-	if shared.IsUniqueViolation(err) {
+	if pg.IsUniqueViolation(err) {
 		return fmt.Errorf("key name %q already exists for tenant", name)
 	}
 	return err

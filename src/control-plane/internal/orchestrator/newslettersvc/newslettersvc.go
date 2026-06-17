@@ -18,7 +18,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // emailSender abstracts the outbound /send call (fakeable in tests).
@@ -50,14 +51,14 @@ type Service struct {
 
 // New builds the service from env. The default email seam posts to
 // EMAIL_SERVICE_URL/send (parity with the Node fetch).
-func New(log *slog.Logger, pg *shared.Postgres) *Service {
-	emailURL := shared.EnvStr("EMAIL_SERVICE_URL", "http://email-service:3030")
+func New(log *slog.Logger, pg *pg.Postgres) *Service {
+	emailURL := config.EnvStr("EMAIL_SERVICE_URL", "http://email-service:3030")
 	client := &http.Client{Timeout: 10 * time.Second}
 	return &Service{
 		log:       log,
 		store:     &store{pg: pg},
-		baseURL:   shared.EnvStr("NEWSLETTER_BASE_URL", "http://localhost:8000/newsletter/v1"),
-		batchSize: shared.EnvInt("NEWSLETTER_BATCH_SIZE", 5),
+		baseURL:   config.EnvStr("NEWSLETTER_BASE_URL", "http://localhost:8000/newsletter/v1"),
+		batchSize: config.EnvInt("NEWSLETTER_BATCH_SIZE", 5),
 		send:      httpEmailSender(client, emailURL),
 	}
 }

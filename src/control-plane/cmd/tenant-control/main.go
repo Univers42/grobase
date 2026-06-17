@@ -22,12 +22,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
 )
 
 func main() {
-	log := shared.NewLogger("tenant-control")
-	cfg, err := shared.LoadConfig("TENANT_CONTROL")
+	log := observability.NewLogger("tenant-control")
+	cfg, err := config.LoadConfig("TENANT_CONTROL")
 	if err != nil {
 		log.Error("config error", "err", err)
 		os.Exit(1)
@@ -50,7 +52,7 @@ func main() {
 // mountAll registers every route group, in the same order main() did. Each
 // flag-gated block is OFF by default = byte-parity with the OSS edition.
 func (b *bootCtx) mountAll(ctx context.Context) {
-	b.mux = shared.NewRouter("tenant-control", b.db)
+	b.mux = httpx.NewRouter("tenant-control", b.db)
 	b.mountCore()
 	b.mountSelfServe()
 	b.mountBackup()
@@ -90,7 +92,7 @@ func splitCSV(s string) []string {
 	return out
 }
 
-func healthcheck(cfg shared.Config) int {
+func healthcheck(cfg config.Config) int {
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get("http://127.0.0.1:" + cfg.Port + "/health/live")
 	if err != nil {

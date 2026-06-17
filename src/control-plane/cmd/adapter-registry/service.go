@@ -6,15 +6,16 @@ import (
 	"os"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/adapterregistry"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 	"github.com/dlesieur/mini-baas/control-plane/internal/entitlements"
 	"github.com/dlesieur/mini-baas/control-plane/internal/packages"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // buildService constructs the adapterregistry service and applies the two
 // flag-gated layers (CMEK, dynamic builder), then ensures the schema. Both
 // flags default OFF = byte-parity.
-func buildService(ctx context.Context, db *shared.Postgres, log *slog.Logger) *adapterregistry.Service {
+func buildService(ctx context.Context, db *pg.Postgres, log *slog.Logger) *adapterregistry.Service {
 	enc, err := adapterregistry.NewEncryptor(os.Getenv("VAULT_ENC_KEY"))
 	if err != nil {
 		log.Error("encryptor init failed", "err", err)
@@ -40,7 +41,7 @@ func buildService(ctx context.Context, db *shared.Postgres, log *slog.Logger) *a
 // shred). CMEK lives entirely here in the control plane — it never enters the
 // Rust data plane / pool key, so SHARE_POOLS density is untouched.
 func applyCMEK(svc *adapterregistry.Service, log *slog.Logger) {
-	if !shared.EnvBool("CMEK_ENABLED") {
+	if !config.EnvBool("CMEK_ENABLED") {
 		log.Info("CMEK / BYOK disabled (CMEK_ENABLED off) — inline DSNs use the platform master key (byte-parity)")
 		return
 	}
@@ -64,8 +65,8 @@ func applyCMEK(svc *adapterregistry.Service, log *slog.Logger) {
 // (migration 062); requires the same table tenant-control's builder API writes.
 // Resolve CLAMPS on every read, so even a stale over-ceiling row can never widen
 // the stamp.
-func applyBuilder(svc *adapterregistry.Service, db *shared.Postgres, log *slog.Logger) {
-	if !shared.EnvBool("BUILDER_ENABLED") {
+func applyBuilder(svc *adapterregistry.Service, db *pg.Postgres, log *slog.Logger) {
+	if !config.EnvBool("BUILDER_ENABLED") {
 		log.Info("dynamic builder disabled (BUILDER_ENABLED off) — /connect stamps the named tier verbatim (byte-parity)")
 		return
 	}

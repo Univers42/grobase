@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // SuspendRequest is the POST /v1/abuse/(un)suspend body.
@@ -22,11 +22,11 @@ func (rt *routes) setSusp(w http.ResponseWriter, r *http.Request, suspended bool
 	}
 	var req SuspendRequest
 	if err := decodeJSON(r, &req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 	if strings.TrimSpace(req.TenantID) == "" {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "tenant_id required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "tenant_id required")
 		return
 	}
 	reason := req.Reason
@@ -34,8 +34,8 @@ func (rt *routes) setSusp(w http.ResponseWriter, r *http.Request, suspended bool
 		reason = "admin"
 	}
 	if err := rt.g.setSuspended(r.Context(), req.TenantID, suspended, reason); err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{"tenant_id": req.TenantID, "suspended": suspended})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"tenant_id": req.TenantID, "suspended": suspended})
 }

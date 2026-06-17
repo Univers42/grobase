@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 )
 
 // emailRe is the same pragmatic shape class-validator's @IsEmail accepts for the
@@ -46,12 +46,12 @@ type Service struct {
 func New(log *slog.Logger) *Service {
 	s := &Service{
 		log:    log,
-		host:   shared.EnvStr("SMTP_HOST", "mailpit"),
-		port:   shared.EnvInt("SMTP_PORT", 1025),
-		secure: shared.EnvStr("SMTP_SECURE", "false") == "true",
-		user:   shared.EnvStr("SMTP_USER", ""),
-		pass:   shared.EnvStr("SMTP_PASS", ""),
-		from:   shared.EnvStr("EMAIL_FROM", "noreply@mini-baas.local"),
+		host:   config.EnvStr("SMTP_HOST", "mailpit"),
+		port:   config.EnvInt("SMTP_PORT", 1025),
+		secure: config.EnvStr("SMTP_SECURE", "false") == "true",
+		user:   config.EnvStr("SMTP_USER", ""),
+		pass:   config.EnvStr("SMTP_PASS", ""),
+		from:   config.EnvStr("EMAIL_FROM", "noreply@mini-baas.local"),
 	}
 	s.send = s.smtpSend
 	return s

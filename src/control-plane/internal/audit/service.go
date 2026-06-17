@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 )
 
-// adb is the minimal Postgres surface the service needs. *shared.Postgres
+// adb is the minimal Postgres surface the service needs. *pg.Postgres
 // satisfies it (the audit service runs as the BYPASSRLS control-plane role); a
 // fake satisfies it in unit tests so the append + read contracts are provable
 // without a live database. Append needs a transaction for the read-prev /
@@ -118,7 +118,7 @@ func (s *Service) List(ctx context.Context, tenantID string, from, to time.Time,
 	if limit <= 0 || limit > maxListLimit {
 		limit = maxListLimit
 	}
-	rows, err := s.db.AdminQuery(ctx, listSQL, tenantID, shared.NullableTime(from), shared.NullableTime(to), limit)
+	rows, err := s.db.AdminQuery(ctx, listSQL, tenantID, pg.NullableTime(from), pg.NullableTime(to), limit)
 	if err != nil {
 		return nil, err
 	}

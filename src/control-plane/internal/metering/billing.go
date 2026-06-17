@@ -25,12 +25,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 )
 
 // billingRW is the Postgres surface the reporter needs: read un-reported usage
-// windows (AdminQuery) and mark a window reported (AdminExec). *shared.Postgres
+// windows (AdminQuery) and mark a window reported (AdminExec). *pg.Postgres
 // satisfies it (the reporter runs as the BYPASSRLS service role, like the B1c read
 // API and the QuotaGuard); fakes satisfy the per-window flush logic in tests.
 type billingRW interface {
@@ -75,17 +76,17 @@ type BillingReporter struct {
 // everything; the master METERING_ENABLED is honored too (either OFF ⇒ disabled).
 // Default OFF ⇒ parity. The report cadence defaults to hourly; the period defaults
 // to "month" (independent of the quota period).
-func NewBillingReporter(log *slog.Logger, db *shared.Postgres) *BillingReporter {
+func NewBillingReporter(log *slog.Logger, db *pg.Postgres) *BillingReporter {
 	return &BillingReporter{
 		log:           log,
 		db:            db,
-		enabled:       shared.EnvBool("METERING_ENABLED") && shared.EnvBool("BILLING_ENABLED"),
-		interval:      time.Duration(shared.EnvInt("BILLING_REPORT_INTERVAL_MS", 3_600_000)) * time.Millisecond,
-		lookback:      time.Duration(shared.EnvInt("BILLING_REPORT_LOOKBACK_MS", 0)) * time.Millisecond,
-		period:        shared.EnvStr("BILLING_PERIOD", "month"),
-		base:          shared.EnvStr("STRIPE_API_BASE", "https://api.stripe.com"),
-		apiKey:        shared.EnvStr("STRIPE_API_KEY", ""),
-		sendTimestamp: shared.EnvBool("BILLING_SEND_WINDOW_TIMESTAMP"),
+		enabled:       config.EnvBool("METERING_ENABLED") && config.EnvBool("BILLING_ENABLED"),
+		interval:      time.Duration(config.EnvInt("BILLING_REPORT_INTERVAL_MS", 3_600_000)) * time.Millisecond,
+		lookback:      time.Duration(config.EnvInt("BILLING_REPORT_LOOKBACK_MS", 0)) * time.Millisecond,
+		period:        config.EnvStr("BILLING_PERIOD", "month"),
+		base:          config.EnvStr("STRIPE_API_BASE", "https://api.stripe.com"),
+		apiKey:        config.EnvStr("STRIPE_API_KEY", ""),
+		sendTimestamp: config.EnvBool("BILLING_SEND_WINDOW_TIMESTAMP"),
 	}
 }
 

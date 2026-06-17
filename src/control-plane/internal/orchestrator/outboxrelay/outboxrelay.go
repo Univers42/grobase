@@ -23,14 +23,15 @@ import (
 	"os"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	redis "github.com/redis/go-redis/v9"
 )
 
 // Service is the outbox-relay sub-service.
 type Service struct {
 	log      *slog.Logger
-	pg       *shared.Postgres
+	pg       *pg.Postgres
 	rdb      *redis.Client
 	project  projector
 	client   *http.Client
@@ -51,20 +52,20 @@ type Service struct {
 }
 
 // New builds the service from env (parity with the Node defaults).
-func New(log *slog.Logger, pg *shared.Postgres) *Service {
+func New(log *slog.Logger, pg *pg.Postgres) *Service {
 	return &Service{
 		log:          log,
 		pg:           pg,
 		project:      noopProjector{log: log},
 		client:       &http.Client{},
-		redisURL:     shared.EnvStr("OUTBOX_REDIS_URL", shared.EnvStr("REDIS_URL", "redis://redis:6379")),
+		redisURL:     config.EnvStr("OUTBOX_REDIS_URL", config.EnvStr("REDIS_URL", "redis://redis:6379")),
 		mongoURL:     os.Getenv("OUTBOX_MONGO_URL"),
-		pollEvery:    time.Duration(shared.EnvInt("OUTBOX_RELAY_POLL_MS", 500)) * time.Millisecond,
-		batchSize:    shared.EnvInt("OUTBOX_RELAY_BATCH_SIZE", 25),
-		maxAttempts:  shared.EnvInt("OUTBOX_RELAY_MAX_ATTEMPTS", 5),
-		dedupeTTL:    time.Duration(shared.EnvInt("OUTBOX_RELAY_DEDUPE_TTL_SECONDS", 86_400)) * time.Second,
+		pollEvery:    time.Duration(config.EnvInt("OUTBOX_RELAY_POLL_MS", 500)) * time.Millisecond,
+		batchSize:    config.EnvInt("OUTBOX_RELAY_BATCH_SIZE", 25),
+		maxAttempts:  config.EnvInt("OUTBOX_RELAY_MAX_ATTEMPTS", 5),
+		dedupeTTL:    time.Duration(config.EnvInt("OUTBOX_RELAY_DEDUPE_TTL_SECONDS", 86_400)) * time.Second,
 		realtimeURL:  os.Getenv("REALTIME_PUBLISH_URL"),
-		realtimeWait: time.Duration(shared.EnvInt("REALTIME_PUBLISH_TIMEOUT_MS", 1_000)) * time.Millisecond,
+		realtimeWait: time.Duration(config.EnvInt("REALTIME_PUBLISH_TIMEOUT_MS", 1_000)) * time.Millisecond,
 	}
 }
 

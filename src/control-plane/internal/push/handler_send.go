@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 func (rt *routes) revoke(w http.ResponseWriter, r *http.Request) {
@@ -20,14 +20,14 @@ func (rt *routes) send(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("id")
 	var req SendRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 		return
 	}
 	res, err := rt.svc.Send(r.Context(), tenantID, req)
 	if rt.handleErr(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, res)
+	httpx.WriteJSON(w, http.StatusOK, res)
 }
 
 // handleErr maps the push service's sentinel errors to HTTP status codes.
@@ -41,13 +41,13 @@ func (rt *routes) handleErr(w http.ResponseWriter, err error) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, ErrBlockedTarget):
-		shared.WriteError(w, http.StatusBadRequest, "blocked_target", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "blocked_target", err.Error())
 	case errors.Is(err, ErrValidation):
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 	case errors.Is(err, ErrNotFound):
-		shared.WriteError(w, http.StatusNotFound, "not_found", "push subscription not found")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "push subscription not found")
 	default:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	}
 	return true
 }

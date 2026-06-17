@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 const msgNotFound = "database not found"
@@ -43,11 +43,11 @@ func (rt *routes) register(w http.ResponseWriter, r *http.Request) {
 	}
 	var req RegisterDatabaseRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if err := req.Validate(); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 	res, err := rt.svc.Register(r.Context(), userID, req)
@@ -55,7 +55,7 @@ func (rt *routes) register(w http.ResponseWriter, r *http.Request) {
 		writeRegisterError(w, req, err)
 		return
 	}
-	shared.WriteJSON(w, http.StatusCreated, res)
+	httpx.WriteJSON(w, http.StatusCreated, res)
 }
 
 func (rt *routes) list(w http.ResponseWriter, r *http.Request) {
@@ -65,10 +65,10 @@ func (rt *routes) list(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := rt.svc.List(r.Context(), userID)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func (rt *routes) findOne(w http.ResponseWriter, r *http.Request) {
@@ -80,12 +80,12 @@ func (rt *routes) findOne(w http.ResponseWriter, r *http.Request) {
 	if rt.handleLookupError(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, db)
+	httpx.WriteJSON(w, http.StatusOK, db)
 }
 
 func (rt *routes) connect(w http.ResponseWriter, r *http.Request) {
 	if !validServiceToken(r, rt.serviceToken) {
-		shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
 		return
 	}
 	userID, ok := rt.requireUser(w, r)
@@ -96,5 +96,5 @@ func (rt *routes) connect(w http.ResponseWriter, r *http.Request) {
 	if rt.handleLookupError(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, conn)
+	httpx.WriteJSON(w, http.StatusOK, conn)
 }

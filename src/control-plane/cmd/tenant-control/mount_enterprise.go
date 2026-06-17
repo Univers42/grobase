@@ -5,17 +5,17 @@ import (
 	"os"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/compliance"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 	"github.com/dlesieur/mini-baas/control-plane/internal/export"
 	"github.com/dlesieur/mini-baas/control-plane/internal/orgs"
 	"github.com/dlesieur/mini-baas/control-plane/internal/scim"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 	"github.com/dlesieur/mini-baas/control-plane/internal/sso"
 )
 
 // mountCompliance mounts the D4.1 SOC2-lite evidence collector
 // (SOC2_EVIDENCE_ENABLED), platform-level admin-only (service token).
 func (b *bootCtx) mountCompliance(ctx context.Context) {
-	if !shared.EnvBool("SOC2_EVIDENCE_ENABLED") {
+	if !config.EnvBool("SOC2_EVIDENCE_ENABLED") {
 		b.log.Info("SOC2-lite compliance evidence collector disabled (SOC2_EVIDENCE_ENABLED off) — /v1/compliance* not mounted")
 		return
 	}
@@ -28,7 +28,7 @@ func (b *bootCtx) mountCompliance(ctx context.Context) {
 // mountExport mounts the D4.3 tenant data-export API (TENANT_EXPORT_ENABLED),
 // with self-serve narrowed by TENANT_SELFSERVE_ENABLED.
 func (b *bootCtx) mountExport() {
-	if !shared.EnvBool("TENANT_EXPORT_ENABLED") {
+	if !config.EnvBool("TENANT_EXPORT_ENABLED") {
 		b.log.Info("tenant data-export disabled (TENANT_EXPORT_ENABLED off) — /v1/tenants/{id}/export* not mounted")
 		return
 	}
@@ -39,7 +39,7 @@ func (b *bootCtx) mountExport() {
 	}
 	esvc := export.NewService(b.db, estore, b.log)
 	export.Mount(b.mux, esvc, b.cfg.ServiceToken)
-	if shared.EnvBool("TENANT_SELFSERVE_ENABLED") {
+	if config.EnvBool("TENANT_SELFSERVE_ENABLED") {
 		export.MountSelfServe(b.mux, esvc.WithTenants(b.svc), esvc)
 		b.log.Info("tenant data-export self-serve enabled (/v1/tenants/me/export(s), API-key)")
 	}
@@ -49,7 +49,7 @@ func (b *bootCtx) mountExport() {
 // mountSSO mounts the D2a enterprise OIDC SSO (SSO_ENABLED). Requires the shared
 // GoTrue secret (session mint) and SSO_SECRET_KEY (client-secret sealing).
 func (b *bootCtx) mountSSO() {
-	if !shared.EnvBool("SSO_ENABLED") {
+	if !config.EnvBool("SSO_ENABLED") {
 		b.log.Info("enterprise OIDC SSO disabled (SSO_ENABLED off) — /v1/auth/sso/* not mounted")
 		return
 	}
@@ -71,11 +71,11 @@ func (b *bootCtx) mountSSO() {
 // mountSCIM mounts the D2b SCIM 2.0 provisioning API (SCIM_ENABLED). Requires
 // ORG_MODEL_ENABLED (orgs is the membership backend SCIM provisions into).
 func (b *bootCtx) mountSCIM() {
-	if !shared.EnvBool("SCIM_ENABLED") {
+	if !config.EnvBool("SCIM_ENABLED") {
 		b.log.Info("SCIM 2.0 provisioning disabled (SCIM_ENABLED off) — /scim/v2/* not mounted")
 		return
 	}
-	if !shared.EnvBool("ORG_MODEL_ENABLED") {
+	if !config.EnvBool("ORG_MODEL_ENABLED") {
 		b.log.Error("scim: SCIM_ENABLED requires ORG_MODEL_ENABLED (SCIM provisions org members)")
 		os.Exit(1)
 	}

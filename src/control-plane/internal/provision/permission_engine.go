@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -32,7 +32,7 @@ type PermissionEngine interface {
 	Decide(ctx context.Context, userID, resourceType, resourceName, op string) (bool, error)
 }
 
-// DB is the minimal Postgres surface sqlBackend needs. *shared.Postgres
+// DB is the minimal Postgres surface sqlBackend needs. *pg.Postgres
 // satisfies it; tests provide a fake.
 type DB interface {
 	AdminQuery(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
@@ -172,7 +172,7 @@ func (b *sqlBackend) Decide(ctx context.Context, userID, resourceType, resourceN
 	if resp.StatusCode != http.StatusOK {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		// Defense-in-depth: scrub any DSN-shaped substring from the echoed body.
-		return false, fmt.Errorf("permission-engine %d: %s", resp.StatusCode, shared.RedactDSN(strings.TrimSpace(string(msg))))
+		return false, fmt.Errorf("permission-engine %d: %s", resp.StatusCode, httpx.RedactDSN(strings.TrimSpace(string(msg))))
 	}
 	var out struct {
 		Allow bool `json:"allow"`

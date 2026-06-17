@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // issueKey mints a new key for the caller's own tenant; the full secret is
@@ -19,7 +19,7 @@ func (ss *selfServe) issueKey(w http.ResponseWriter, r *http.Request) {
 	}
 	var req IssueKeyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 		return
 	}
 	if !ss.containScopes(w, &req, scopes) {
@@ -27,10 +27,10 @@ func (ss *selfServe) issueKey(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := ss.svc.IssueKey(r.Context(), tenantID, req)
 	if err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusCreated, out)
+	httpx.WriteJSON(w, http.StatusCreated, out)
 }
 
 // containScopes enforces scope containment: a caller may never mint a key
@@ -42,7 +42,7 @@ func (ss *selfServe) issueKey(w http.ResponseWriter, r *http.Request) {
 func (ss *selfServe) containScopes(w http.ResponseWriter, req *IssueKeyRequest, held []string) bool {
 	eff, ok := scopesWithinCaller(req.Scopes, held)
 	if !ok {
-		shared.WriteError(w, http.StatusForbidden, "forbidden",
+		httpx.WriteError(w, http.StatusForbidden, "forbidden",
 			"cannot issue a key with scopes broader than your own credential")
 		return false
 	}
@@ -64,5 +64,5 @@ func (ss *selfServe) revokeKey(w http.ResponseWriter, r *http.Request) {
 	if ss.handleLookup(w, ss.svc.RevokeKey(r.Context(), tenantID, r.PathValue("keyId"))) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]bool{"revoked": true})
+	httpx.WriteJSON(w, http.StatusOK, map[string]bool{"revoked": true})
 }

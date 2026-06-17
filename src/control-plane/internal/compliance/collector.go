@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 )
 
 // Collector snapshots the evidence sections from REALITY into the sealed store.
@@ -48,7 +48,7 @@ type Collector struct {
 }
 
 // accessDB is the minimal Postgres surface the access-review section needs.
-// *shared.Postgres satisfies it; a fake satisfies it in unit tests.
+// *pg.Postgres satisfies it; a fake satisfies it in unit tests.
 type accessDB interface {
 	AdminQuery(ctx context.Context, sql string, args ...any) (pgxRows, error)
 }
@@ -67,7 +67,7 @@ type pgxRows interface {
 // the gate points them at controlled fixtures so the load-bearing reject can
 // seed a FAILING control.
 func NewCollector(db accessDB) *Collector {
-	gatesDir := shared.EnvStr("SOC2_EVIDENCE_GATES_DIR", "scripts/verify")
+	gatesDir := config.EnvStr("SOC2_EVIDENCE_GATES_DIR", "scripts/verify")
 	return &Collector{
 		db:         db,
 		gatesDir:   gatesDir,

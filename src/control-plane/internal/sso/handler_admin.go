@@ -3,7 +3,7 @@ package sso
 import (
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // ── admin handlers (register/list a tenant's connections) ────────────────────
@@ -15,7 +15,7 @@ func (rt *routes) register(w http.ResponseWriter, r *http.Request) {
 	}
 	var in RegisterInput
 	if err := decodeJSON(r, &in); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 	in.TenantID = tenantID
@@ -24,7 +24,7 @@ func (rt *routes) register(w http.ResponseWriter, r *http.Request) {
 		rt.writeErr(w, err)
 		return
 	}
-	shared.WriteJSON(w, http.StatusCreated, conn)
+	httpx.WriteJSON(w, http.StatusCreated, conn)
 }
 
 func (rt *routes) list(w http.ResponseWriter, r *http.Request) {
@@ -37,5 +37,5 @@ func (rt *routes) list(w http.ResponseWriter, r *http.Request) {
 		rt.writeErr(w, err)
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{"connections": conns})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"connections": conns})
 }

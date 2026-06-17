@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 func (rt *routes) verifyOne(w http.ResponseWriter, r *http.Request) {
@@ -19,28 +20,28 @@ func (rt *routes) doVerify(w http.ResponseWriter, r *http.Request, sid string) {
 	res, err := rt.svc.Verify(r.Context(), sid)
 	if err != nil {
 		if errors.Is(err, errNoSnapshot) {
-			shared.WriteError(w, http.StatusNotFound, "not_found", "no compliance evidence snapshot")
+			httpx.WriteError(w, http.StatusNotFound, "not_found", "no compliance evidence snapshot")
 			return
 		}
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
 	// 200 whether intact or tampered — the CALLER acts on res.Intact. A tampered
 	// snapshot is a SUCCESSFUL verification that REPORTS the break, not a server
 	// error (the gate's load-bearing REJECT asserts intact==false + broken_section).
-	shared.WriteJSON(w, http.StatusOK, res)
+	httpx.WriteJSON(w, http.StatusOK, res)
 }
 
 func (rt *routes) writeSnapshot(w http.ResponseWriter, sid string, rows []EvidenceRow, err error) {
 	if err != nil {
 		if errors.Is(err, errNoSnapshot) {
-			shared.WriteError(w, http.StatusNotFound, "not_found", "no compliance evidence snapshot")
+			httpx.WriteError(w, http.StatusNotFound, "not_found", "no compliance evidence snapshot")
 			return
 		}
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, buildResponse(sid, rows))
+	httpx.WriteJSON(w, http.StatusOK, buildResponse(sid, rows))
 }
 
 // buildResponse assembles the snapshot body + its verify summary from the sealed
@@ -64,9 +65,9 @@ func buildResponse(sid string, rows []EvidenceRow) SnapshotResponse {
 // no tenant-self path: compliance evidence is platform-level and must never be
 // reachable by a tenant credential.
 func (rt *routes) admin(w http.ResponseWriter, r *http.Request) bool {
-	if shared.VerifyServiceRequest(r, rt.serviceToken) {
+	if serviceauth.VerifyServiceRequest(r, rt.serviceToken) {
 		return true
 	}
-	shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
+	httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
 	return false
 }

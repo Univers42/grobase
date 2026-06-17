@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 func (s *Service) handleIngest(w http.ResponseWriter, r *http.Request) {
@@ -16,7 +16,7 @@ func (s *Service) handleIngest(w http.ResponseWriter, r *http.Request) {
 		Data    map[string]any `json:"data"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		shared.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_body"})
+		httpx.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_body"})
 		return
 	}
 	entry, full := s.add(Entry{
@@ -28,7 +28,7 @@ func (s *Service) handleIngest(w http.ResponseWriter, r *http.Request) {
 	if full {
 		go s.flush()
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{"accepted": true, "entry": entry})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"accepted": true, "entry": entry})
 }
 
 func (s *Service) handleList(w http.ResponseWriter, r *http.Request) {
@@ -39,13 +39,13 @@ func (s *Service) handleList(w http.ResponseWriter, r *http.Request) {
 		out := make([]Entry, limit)
 		copy(out, s.entries[n-limit:]) // last `limit` entries
 		s.mu.Unlock()
-		shared.WriteJSON(w, http.StatusOK, out)
+		httpx.WriteJSON(w, http.StatusOK, out)
 		return
 	}
 	out := make([]Entry, n)
 	copy(out, s.entries)
 	s.mu.Unlock()
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func listLimit(r *http.Request) int {

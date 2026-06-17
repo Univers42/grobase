@@ -29,15 +29,16 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 	"github.com/dlesieur/mini-baas/control-plane/internal/packages"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 	redis "github.com/redis/go-redis/v9"
 )
 
 // quotaReader is the minimal Postgres read surface the guard needs — one query
 // that sums current-period usage per tenant joined to the tenant's plan. The
-// real *shared.Postgres satisfies it; a fake satisfies it in unit tests so the
+// real *pg.Postgres satisfies it; a fake satisfies it in unit tests so the
 // over/under decision is provable without a live database.
 type quotaReader interface {
 	AdminQuery(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
@@ -90,14 +91,14 @@ func (g *QuotaGuard) SetResolver(r quotaResolver) {
 // NewQuotaGuard builds the guard from env. QUOTA_ENFORCEMENT gates everything; the
 // master METERING_ENABLED is honored too (either OFF ⇒ disabled). Default OFF ⇒
 // parity. The capped metric is `query.count` (the dimension packages.json caps).
-func NewQuotaGuard(log *slog.Logger, db *shared.Postgres) *QuotaGuard {
+func NewQuotaGuard(log *slog.Logger, db *pg.Postgres) *QuotaGuard {
 	return &QuotaGuard{
 		log:      log,
 		db:       db,
-		enabled:  shared.EnvBool("METERING_ENABLED") && shared.EnvBool("QUOTA_ENFORCEMENT"),
-		redisURL: shared.EnvStr("OUTBOX_REDIS_URL", shared.EnvStr("REDIS_URL", "redis://redis:6379")),
-		interval: time.Duration(shared.EnvInt("QUOTA_ENFORCEMENT_INTERVAL_MS", 15_000)) * time.Millisecond,
-		metric:   shared.EnvStr("QUOTA_ENFORCEMENT_METRIC", "query.count"),
+		enabled:  config.EnvBool("METERING_ENABLED") && config.EnvBool("QUOTA_ENFORCEMENT"),
+		redisURL: config.EnvStr("OUTBOX_REDIS_URL", config.EnvStr("REDIS_URL", "redis://redis:6379")),
+		interval: time.Duration(config.EnvInt("QUOTA_ENFORCEMENT_INTERVAL_MS", 15_000)) * time.Millisecond,
+		metric:   config.EnvStr("QUOTA_ENFORCEMENT_METRIC", "query.count"),
 	}
 }
 

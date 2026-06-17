@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	ent "github.com/dlesieur/mini-baas/control-plane/internal/entitlements"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // mountBudget is the registered-vs-allowed mount count for the effective package.
@@ -28,10 +28,10 @@ func (b *builderAPI) listMounts(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := b.adapter.listMounts(r.Context(), tenantID)
 	if err != nil {
-		shared.WriteError(w, http.StatusBadGateway, "adapter_error", err.Error())
+		httpx.WriteError(w, http.StatusBadGateway, "adapter_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 // mountBudget computes the registered-vs-allowed mount count. Best-effort — an

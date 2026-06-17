@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // Mount registers the admin per-tenant push routes onto the shared mux (Track-E
@@ -40,8 +41,8 @@ const msgInvalidJSON = "invalid JSON"
 // byte-identical to export/backup/scim's requireServiceToken.
 func (rt *routes) requireServiceToken(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !shared.VerifyServiceRequest(r, rt.serviceToken) {
-			shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
+		if !serviceauth.VerifyServiceRequest(r, rt.serviceToken) {
+			httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
 			return
 		}
 		next(w, r)
@@ -52,23 +53,23 @@ func (rt *routes) register(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("id")
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 		return
 	}
 	sub, err := rt.svc.Register(r.Context(), tenantID, req)
 	if rt.handleErr(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusCreated, sub)
+	httpx.WriteJSON(w, http.StatusCreated, sub)
 }
 
 func (rt *routes) list(w http.ResponseWriter, r *http.Request) {
 	out, err := rt.svc.List(r.Context(), r.PathValue("id"))
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 // revoke, send and handleErr live in handler_send.go.

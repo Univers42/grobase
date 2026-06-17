@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // Mount registers the abuse-guard routes onto the shared mux. Caller mounts this
@@ -44,22 +45,22 @@ func (rt *routes) admit(w http.ResponseWriter, r *http.Request) {
 	}
 	var req AdmitRequest
 	if err := decodeJSON(r, &req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 	res, err := rt.g.Admit(r.Context(), req.Principal, req.TenantID, req.Tier, req.Action)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
 	if !res.Admit {
 		// 403 carries the deny + the machine reason in the body (the caller acts on
 		// admit:false; the status makes it unambiguous over the wire — the
 		// load-bearing reject the gate asserts).
-		shared.WriteJSON(w, http.StatusForbidden, res)
+		httpx.WriteJSON(w, http.StatusForbidden, res)
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, res)
+	httpx.WriteJSON(w, http.StatusOK, res)
 }
 
 // StateResponse is the GET /v1/abuse/state/{tenantId} body.
@@ -77,15 +78,15 @@ func (rt *routes) state(w http.ResponseWriter, r *http.Request) {
 	}
 	tenantID := r.PathValue("tenantId")
 	if tenantID == "" {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "tenantId required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "tenantId required")
 		return
 	}
 	s, err := rt.g.readSafety(r.Context(), tenantID)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, StateResponse{
+	httpx.WriteJSON(w, http.StatusOK, StateResponse{
 		TenantID:      tenantID,
 		EmailVerified: s.emailVerified,
 		PhoneVerified: s.phoneVerified,
@@ -99,10 +100,10 @@ func (rt *routes) state(w http.ResponseWriter, r *http.Request) {
 // service token configured (g.serviceToken == ""), the routes are still mounted but
 // every call is rejected, so an enabled-but-untokened guard cannot be abused.
 func (rt *routes) authorized(w http.ResponseWriter, r *http.Request) bool {
-	if rt.g.serviceToken != "" && shared.VerifyServiceRequest(r, rt.g.serviceToken) {
+	if rt.g.serviceToken != "" && serviceauth.VerifyServiceRequest(r, rt.g.serviceToken) {
 		return true
 	}
-	shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
+	httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
 	return false
 }
 

@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -15,12 +15,12 @@ import (
 // over the admin pool (BYPASSRLS service_role) — the Go capability gate is the
 // first wall, the RLS policies on the org tables are the second.
 type Service struct {
-	db  *shared.Postgres
+	db  *pg.Postgres
 	log *slog.Logger
 }
 
 // NewService wires the DB pool + logger.
-func NewService(db *shared.Postgres, log *slog.Logger) *Service {
+func NewService(db *pg.Postgres, log *slog.Logger) *Service {
 	return &Service{db: db, log: log}
 }
 
@@ -86,7 +86,7 @@ func insertOrgWithOwner(ctx context.Context, tx pgx.Tx, req CreateOrgRequest,
 		          created_at::text, updated_at::text`,
 		req.Slug, req.Name, plan, metaJSON, createdBy)
 	if err := scanOrg(row, &o); err != nil {
-		if shared.IsUniqueViolation(err) {
+		if pg.IsUniqueViolation(err) {
 			return Org{}, ErrConflict
 		}
 		return Org{}, err

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // streamBundle writes the bundle to w with the portable content type, mapping
@@ -19,9 +19,9 @@ func (rt *routes) streamBundle(w http.ResponseWriter, ctx context.Context, tenan
 		// before any byte), the status line is still settable.
 		switch {
 		case errors.Is(err, ErrNotFound):
-			shared.WriteError(w, http.StatusNotFound, "not_found", "export not found")
+			httpx.WriteError(w, http.StatusNotFound, "not_found", "export not found")
 		default:
-			shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+			httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		}
 	}
 }
@@ -39,13 +39,13 @@ func (rt *routes) handleErr(w http.ResponseWriter, err error) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, ErrIsolationDeferred):
-		shared.WriteError(w, http.StatusBadRequest, "isolation_unsupported", ErrIsolationDeferred.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "isolation_unsupported", ErrIsolationDeferred.Error())
 	case errors.Is(err, ErrNoMount):
-		shared.WriteError(w, http.StatusNotFound, "not_found", ErrNoMount.Error())
+		httpx.WriteError(w, http.StatusNotFound, "not_found", ErrNoMount.Error())
 	case errors.Is(err, ErrNotFound):
-		shared.WriteError(w, http.StatusNotFound, "not_found", "export not found")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "export not found")
 	default:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	}
 	return true
 }

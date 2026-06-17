@@ -19,7 +19,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // repo is the gdpr persistence seam (satisfied by *store; faked in tests).
@@ -55,7 +55,7 @@ type Service struct {
 
 // New builds the service from env, wiring the webhook seams to their default
 // HTTP implementations.
-func New(log *slog.Logger, pg *shared.Postgres) *Service {
+func New(log *slog.Logger, pg *pg.Postgres) *Service {
 	client := &http.Client{Timeout: 10 * time.Second}
 	return &Service{
 		log:        log,

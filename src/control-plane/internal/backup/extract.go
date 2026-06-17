@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -74,7 +74,7 @@ func (c *countingWriter) Write(p []byte) (int, error) {
 // are quoted via pgx.Identifier.Sanitize() (double-belt: schema is already
 // injection-safe via tenants.TenantSchema, table names come only from
 // information_schema). COPY streams straight into w — no full-artifact buffer.
-func extractSchema(ctx context.Context, db *shared.Postgres, schema string, w io.Writer) error {
+func extractSchema(ctx context.Context, db *pg.Postgres, schema string, w io.Writer) error {
 	conn, err := db.AcquireConn(ctx)
 	if err != nil {
 		return fmt.Errorf("backup: acquire conn: %w", err)

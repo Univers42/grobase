@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // Sentinel errors → HTTP status in the handler layer (parity with the Nest
@@ -16,7 +16,7 @@ var (
 )
 
 type store struct {
-	pg *shared.Postgres
+	pg *pg.Postgres
 }
 
 // Subscriber is the full newsletter.subscriber row (RETURNING *).

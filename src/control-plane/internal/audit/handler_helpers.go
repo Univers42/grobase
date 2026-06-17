@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // tokenOrSelf authorises by either a control-plane service token (admin, any
@@ -17,13 +18,13 @@ import (
 // for its own id) and again in the SQL (tenant_id is always bound), atop the RLS
 // policy on tenant_audit_log.
 func (rt *routes) tokenOrSelf(w http.ResponseWriter, r *http.Request, id string) bool {
-	if shared.VerifyServiceRequest(r, rt.serviceToken) {
+	if serviceauth.VerifyServiceRequest(r, rt.serviceToken) {
 		return true
 	}
 	if id != "" && (r.Header.Get("X-Baas-Tenant-Id") == id || r.Header.Get("X-Tenant-Id") == id) {
 		return true
 	}
-	shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
+	httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",
 		"service token or matching tenant header required")
 	return false
 }
@@ -43,7 +44,7 @@ func (rt *routes) parseWindow(w http.ResponseWriter, r *http.Request) (time.Time
 	if raw := strings.TrimSpace(q.Get("limit")); raw != "" {
 		n, err := strconv.Atoi(raw)
 		if err != nil || n < 0 {
-			shared.WriteError(w, http.StatusBadRequest, "validation_error", "invalid limit")
+			httpx.WriteError(w, http.StatusBadRequest, "validation_error", "invalid limit")
 			return time.Time{}, time.Time{}, 0, false
 		}
 		limit = n
@@ -63,7 +64,7 @@ func parseBound(w http.ResponseWriter, raw, field string) (time.Time, bool) {
 	if ms, err := strconv.ParseInt(raw, 10, 64); err == nil && ms >= 0 {
 		return time.UnixMilli(ms).UTC(), true
 	}
-	shared.WriteError(w, http.StatusBadRequest, "validation_error",
+	httpx.WriteError(w, http.StatusBadRequest, "validation_error",
 		"invalid "+field+": want RFC3339 or unix-ms")
 	return time.Time{}, false
 }

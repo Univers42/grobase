@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // MetricAgg is one metric's summed usage over the selected window (mirrors
@@ -61,7 +62,7 @@ func parseTimeParam(w http.ResponseWriter, raw, field string) (time.Time, bool) 
 	if ms, err := strconv.ParseInt(raw, 10, 64); err == nil && ms >= 0 {
 		return time.UnixMilli(ms).UTC(), true
 	}
-	shared.WriteError(w, http.StatusBadRequest, "validation_error",
+	httpx.WriteError(w, http.StatusBadRequest, "validation_error",
 		"invalid "+field+": want RFC3339 or unix-ms")
 	return time.Time{}, false
 }
@@ -77,7 +78,7 @@ func (s *Service) aggregateUsage(ctx context.Context, tenantID, metric string, f
 		Metrics:  make([]MetricAgg, 0),
 	}
 	rows, err := s.db.AdminQuery(ctx, usageAggregateSQL,
-		tenantID, shared.NullableStr(metric), shared.NullableTime(from), shared.NullableTime(to))
+		tenantID, pg.NullableStr(metric), pg.NullableTime(from), pg.NullableTime(to))
 	if err != nil {
 		return resp, err
 	}

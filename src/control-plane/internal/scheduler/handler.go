@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // Mount registers function-schedule routes onto the shared mux. Tenant-scoped
@@ -27,9 +27,9 @@ func handleLookup(w http.ResponseWriter, err error) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, ErrNotFound):
-		shared.WriteError(w, http.StatusNotFound, "not_found", "function schedule not found")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "function schedule not found")
 	default:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	}
 	return true
 }
@@ -40,7 +40,7 @@ func requireTenant(w http.ResponseWriter, r *http.Request) (string, bool) {
 			return v, true
 		}
 	}
-	shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
+	httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",
 		"missing tenant header (X-Baas-Tenant-Id, X-Baas-User-Id, X-Tenant-Id or X-User-Id)")
 	return "", false
 }

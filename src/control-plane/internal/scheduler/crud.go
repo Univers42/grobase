@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -26,7 +26,7 @@ func (s *Service) Create(ctx context.Context, tenantID string, req CreateRequest
 		return scanSchedule(r, &row)
 	})
 	if err != nil {
-		if shared.IsUniqueViolation(err) {
+		if pg.IsUniqueViolation(err) {
 			return ScheduleRow{}, ErrConflict
 		}
 		return ScheduleRow{}, err

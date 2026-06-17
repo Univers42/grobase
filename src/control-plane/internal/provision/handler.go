@@ -6,7 +6,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // Handle decodes a StackSpec, validates, reconciles and writes the mapped HTTP
@@ -17,24 +18,24 @@ import (
 func Handle(ctx context.Context, w http.ResponseWriter, body json.RawMessage, rc *Reconciler) {
 	var spec StackSpec
 	if err := json.Unmarshal(body, &spec); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON")
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON")
 		return
 	}
 	spec.Normalize()
 	if err := spec.Validate(); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 	out, err := rc.Reconcile(ctx, spec)
 	switch {
 	case errors.Is(err, ErrBusy):
-		shared.WriteError(w, http.StatusConflict, "conflict", err.Error())
+		httpx.WriteError(w, http.StatusConflict, "conflict", err.Error())
 		return
 	case err != nil:
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, HTTPStatus(out.Outcome, out.APIKey != nil), out)
+	httpx.WriteJSON(w, HTTPStatus(out.Outcome, out.APIKey != nil), out)
 }
 
 // Mount wires POST /v1/provision onto mux, service-token gated. tenant-control
@@ -43,13 +44,13 @@ func Handle(ctx context.Context, w http.ResponseWriter, body json.RawMessage, rc
 // mux (and is exercised by the handler tests).
 func Mount(mux *http.ServeMux, rc *Reconciler, serviceToken string) {
 	mux.HandleFunc("POST /v1/provision", func(w http.ResponseWriter, r *http.Request) {
-		if !shared.VerifyServiceRequest(r, serviceToken) {
-			shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
+		if !serviceauth.VerifyServiceRequest(r, serviceToken) {
+			httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
 			return
 		}
 		body, err := readBody(w, r)
 		if err != nil {
-			shared.WriteError(w, http.StatusBadRequest, "bad_request", "invalid body")
+			httpx.WriteError(w, http.StatusBadRequest, "bad_request", "invalid body")
 			return
 		}
 		Handle(r.Context(), w, body, rc)

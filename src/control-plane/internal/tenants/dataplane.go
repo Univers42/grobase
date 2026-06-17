@@ -10,7 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
 )
 
 // DataPlane is a minimal client for the Rust data-plane-router's admin migrate
@@ -89,7 +90,7 @@ func (dp *DataPlane) postAdmin(ctx context.Context, path string, envelope map[st
 	if dp.serviceToken != "" {
 		req.Header.Set("X-Service-Token", dp.serviceToken)
 	}
-	shared.PropagateHeaders(ctx, req)
+	observability.PropagateHeaders(ctx, req)
 	resp, err := dp.http.Do(req)
 	if err != nil {
 		return err
@@ -107,7 +108,7 @@ func dataPlaneRespErr(resp *http.Response, errLabel string, redact bool) error {
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 	msg := strings.TrimSpace(string(b))
 	if redact {
-		msg = shared.RedactDSN(msg)
+		msg = httpx.RedactDSN(msg)
 	}
 	return fmt.Errorf("%s %d: %s", errLabel, resp.StatusCode, msg)
 }

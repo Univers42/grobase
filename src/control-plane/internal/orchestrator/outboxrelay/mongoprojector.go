@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -54,7 +54,7 @@ func newMongoProjector(ctx context.Context, log *slog.Logger, uri string) (*mong
 	if uri == "" {
 		return nil, false
 	}
-	dbName := shared.EnvStr("MONGO_DB_NAME", "mini_baas")
+	dbName := config.EnvStr("MONGO_DB_NAME", "mini_baas")
 	client, ok := connectMongo(ctx, log, uri)
 	if !ok {
 		return nil, false

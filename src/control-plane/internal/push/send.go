@@ -3,7 +3,7 @@ package push
 import (
 	"context"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
 	"github.com/google/uuid"
 )
 
@@ -45,10 +45,10 @@ func (s *Service) fanOut(ctx context.Context, subs []liveSub, body []byte, notif
 		res.Deliveries = append(res.Deliveries, dr)
 		if dr.OK {
 			res.Delivered++
-			shared.IncCounter("baas_push_deliveries_total", pushDeliveryHelp, "outcome", "success")
+			observability.IncCounter("baas_push_deliveries_total", pushDeliveryHelp, "outcome", "success")
 		} else {
 			res.Failed++
-			shared.IncCounter("baas_push_deliveries_total", pushDeliveryHelp, "outcome", "failed")
+			observability.IncCounter("baas_push_deliveries_total", pushDeliveryHelp, "outcome", "failed")
 		}
 	}
 	return res

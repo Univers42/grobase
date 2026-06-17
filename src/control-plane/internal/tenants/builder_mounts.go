@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // createMount registers a mount for the CALLER's own tenant via the adapter-
@@ -34,7 +34,7 @@ func (b *builderAPI) createMount(w http.ResponseWriter, r *http.Request) {
 	if status == "exists" {
 		code = http.StatusOK
 	}
-	shared.WriteJSON(w, code, map[string]any{"id": id, "status": status, "engine": req.Engine, "name": req.Name})
+	httpx.WriteJSON(w, code, map[string]any{"id": id, "status": status, "engine": req.Engine, "name": req.Name})
 }
 
 // decodeMountSpec decodes the body and requires engine+name. ok=false means a
@@ -42,11 +42,11 @@ func (b *builderAPI) createMount(w http.ResponseWriter, r *http.Request) {
 func decodeMountSpec(w http.ResponseWriter, r *http.Request) (MountSpec, bool) {
 	var req MountSpec
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 		return MountSpec{}, false
 	}
 	if strings.TrimSpace(req.Engine) == "" || strings.TrimSpace(req.Name) == "" {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "engine and name are required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "engine and name are required")
 		return MountSpec{}, false
 	}
 	return req, true
@@ -58,7 +58,7 @@ func (b *builderAPI) requireAdapter(w http.ResponseWriter, action string) bool {
 	if b.adapter != nil {
 		return true
 	}
-	shared.WriteError(w, http.StatusServiceUnavailable, "adapter_unavailable",
+	httpx.WriteError(w, http.StatusServiceUnavailable, "adapter_unavailable",
 		action+" unavailable (ADAPTER_REGISTRY_URL not set)")
 	return false
 }
@@ -69,10 +69,10 @@ func (b *builderAPI) requireAdapter(w http.ResponseWriter, action string) bool {
 func writeAdapterError(w http.ResponseWriter, err error) {
 	msg := err.Error()
 	if strings.Contains(msg, "403") {
-		shared.WriteError(w, http.StatusForbidden, "mount_denied", msg)
+		httpx.WriteError(w, http.StatusForbidden, "mount_denied", msg)
 		return
 	}
-	shared.WriteError(w, http.StatusBadGateway, "adapter_error", msg)
+	httpx.WriteError(w, http.StatusBadGateway, "adapter_error", msg)
 }
 
 // deleteMount deletes one of the caller's OWN mounts by id, CALLER-SCOPED. The
@@ -89,12 +89,12 @@ func (b *builderAPI) deleteMount(w http.ResponseWriter, r *http.Request) {
 	}
 	deleted, err := b.adapter.deleteMount(r.Context(), tenantID, r.PathValue("mountId"))
 	if err != nil {
-		shared.WriteError(w, http.StatusBadGateway, "adapter_error", err.Error())
+		httpx.WriteError(w, http.StatusBadGateway, "adapter_error", err.Error())
 		return
 	}
 	if !deleted {
-		shared.WriteError(w, http.StatusNotFound, "not_found", "no such mount for this tenant")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "no such mount for this tenant")
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+	httpx.WriteJSON(w, http.StatusOK, map[string]bool{"deleted": true})
 }

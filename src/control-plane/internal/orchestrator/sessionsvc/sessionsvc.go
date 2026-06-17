@@ -3,7 +3,7 @@
 // It owns the `session.user_sessions` table and exposes the same user-scoped
 // (create / list-mine / validate / extend / revoke / revoke-all) and admin
 // (list-all / stats / force-revoke / cleanup) HTTP surface as the NestJS
-// SessionService — a faithful port over shared.Postgres so a caller cannot tell
+// SessionService — a faithful port over pg.Postgres so a caller cannot tell
 // which runtime served it. Running it inside the orchestrator binary instead of
 // a ~50 MiB Node runtime is the R2 footprint win.
 //
@@ -19,7 +19,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // repo is the session persistence seam (satisfied by *store; faked in tests).
@@ -45,10 +46,10 @@ type Service struct {
 }
 
 // New builds the service from env (SESSION_TTL_DAYS default 7).
-func New(log *slog.Logger, pg *shared.Postgres) *Service {
+func New(log *slog.Logger, pg *pg.Postgres) *Service {
 	return &Service{
 		log:   log,
-		store: &store{pg: pg, ttlDays: shared.EnvInt("SESSION_TTL_DAYS", 7)},
+		store: &store{pg: pg, ttlDays: config.EnvInt("SESSION_TTL_DAYS", 7)},
 	}
 }
 

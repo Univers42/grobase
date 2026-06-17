@@ -10,7 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
 )
 
 // AdapterRegistry is a minimal client for the Go adapter-registry's
@@ -43,7 +44,7 @@ func (ar *AdapterRegistry) newRequest(ctx context.Context, method, path, tenantS
 	if ar.serviceToken != "" {
 		req.Header.Set("X-Service-Token", ar.serviceToken)
 	}
-	shared.PropagateHeaders(ctx, req)
+	observability.PropagateHeaders(ctx, req)
 	return req, nil
 }
 
@@ -98,6 +99,6 @@ func (ar *AdapterRegistry) parseRegisterResp(ctx context.Context, resp *http.Res
 		return id, "exists", nil
 	default:
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return "", "", fmt.Errorf("adapter-registry %d: %s", resp.StatusCode, shared.RedactDSN(strings.TrimSpace(string(b))))
+		return "", "", fmt.Errorf("adapter-registry %d: %s", resp.StatusCode, httpx.RedactDSN(strings.TrimSpace(string(b))))
 	}
 }

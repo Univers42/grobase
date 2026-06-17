@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // handler_invite.go — the org invite HTTP handlers (issue / list / revoke /
@@ -20,21 +20,21 @@ func (rt *routes) issueInvite(w http.ResponseWriter, r *http.Request) {
 	}
 	var req InviteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 		return
 	}
 	if err := req.Validate(); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 	out, err := rt.svc.IssueInvite(r.Context(), orgID, req.Email, req.Role, userID)
 	switch {
 	case errors.Is(err, ErrConflict):
-		shared.WriteError(w, http.StatusConflict, "conflict", "a pending invite already exists for this email")
+		httpx.WriteError(w, http.StatusConflict, "conflict", "a pending invite already exists for this email")
 	case err != nil:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	default:
-		shared.WriteJSON(w, http.StatusCreated, out)
+		httpx.WriteJSON(w, http.StatusCreated, out)
 	}
 }
 
@@ -45,10 +45,10 @@ func (rt *routes) listInvites(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := rt.svc.ListInvites(r.Context(), orgID)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func (rt *routes) revokeInvite(w http.ResponseWriter, r *http.Request) {
@@ -60,7 +60,7 @@ func (rt *routes) revokeInvite(w http.ResponseWriter, r *http.Request) {
 	if rt.handleLookup(w, rt.svc.RevokeInvite(r.Context(), orgID, inviteID)) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]bool{"revoked": true})
+	httpx.WriteJSON(w, http.StatusOK, map[string]bool{"revoked": true})
 }
 
 // acceptInvite consumes a cleartext invite token. It is authenticated by the
@@ -73,18 +73,18 @@ func (rt *routes) acceptInvite(w http.ResponseWriter, r *http.Request) {
 	}
 	var req AcceptInviteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 		return
 	}
 	if strings.TrimSpace(req.Token) == "" {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "token is required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "token is required")
 		return
 	}
 	o, role, err := rt.svc.AcceptInvite(r.Context(), req.Token, userID)
 	if writeInviteError(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{"org": o, "role": role})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"org": o, "role": role})
 }
 
 // writeInviteError maps an AcceptInvite error to its specific status (401/410/409
@@ -95,13 +95,13 @@ func writeInviteError(w http.ResponseWriter, err error) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, ErrInviteInvalid):
-		shared.WriteError(w, http.StatusUnauthorized, "invalid_invite", "invite token is invalid")
+		httpx.WriteError(w, http.StatusUnauthorized, "invalid_invite", "invite token is invalid")
 	case errors.Is(err, ErrInviteExpired):
-		shared.WriteError(w, http.StatusGone, "invite_expired", "invite token has expired")
+		httpx.WriteError(w, http.StatusGone, "invite_expired", "invite token has expired")
 	case errors.Is(err, ErrInviteConsumed):
-		shared.WriteError(w, http.StatusConflict, "invite_consumed", "invite has already been used or revoked")
+		httpx.WriteError(w, http.StatusConflict, "invite_consumed", "invite has already been used or revoked")
 	default:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	}
 	return true
 }

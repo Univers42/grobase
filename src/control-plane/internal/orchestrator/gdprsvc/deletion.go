@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 func (s *Service) withdrawNonEssential(w http.ResponseWriter, r *http.Request) {
@@ -18,7 +18,7 @@ func (s *Service) withdrawNonEssential(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{"updated": n})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"updated": n})
 }
 
 /* ─────── export ─────── */
@@ -29,7 +29,7 @@ func (s *Service) export(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	appData := s.doExport(r.Context(), userID)
-	shared.WriteJSON(w, http.StatusOK, map[string]any{
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{
 		"exportedAt":    time.Now().UTC().Format(time.RFC3339Nano),
 		"formatVersion": "1.0",
 		"userId":        userID,
@@ -53,14 +53,14 @@ func (s *Service) createDeletion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if exists {
-		shared.WriteError(w, http.StatusConflict, "conflict", "A pending data deletion request already exists")
+		httpx.WriteError(w, http.StatusConflict, "conflict", "A pending data deletion request already exists")
 		return
 	}
 	d, err := s.store.createDeletion(r.Context(), userID, optional(b.Reason))
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusCreated, d)
+	httpx.WriteJSON(w, http.StatusCreated, d)
 }
 
 func (s *Service) myDeletion(w http.ResponseWriter, r *http.Request) {
@@ -73,10 +73,10 @@ func (s *Service) myDeletion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if d == nil {
-		shared.WriteJSON(w, http.StatusOK, nil)
+		httpx.WriteJSON(w, http.StatusOK, nil)
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, d)
+	httpx.WriteJSON(w, http.StatusOK, d)
 }
 
 func (s *Service) cancelDeletion(w http.ResponseWriter, r *http.Request) {
@@ -86,11 +86,11 @@ func (s *Service) cancelDeletion(w http.ResponseWriter, r *http.Request) {
 	}
 	d, err := s.store.cancelRequest(r.Context(), userID)
 	if errors.Is(err, errNotFound) {
-		shared.WriteError(w, http.StatusNotFound, "not_found", "No pending deletion request found")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "No pending deletion request found")
 		return
 	}
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, d)
+	httpx.WriteJSON(w, http.StatusOK, d)
 }

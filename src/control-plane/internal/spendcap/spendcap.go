@@ -32,7 +32,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 	redis "github.com/redis/go-redis/v9"
 )
@@ -50,7 +51,7 @@ const (
 
 // spendDB is the minimal Postgres surface the guard needs: read per-tenant
 // period usage joined to its budget (AdminQuery) and stamp the once-per-period
-// alert (AdminExec). The real *shared.Postgres satisfies it (the guard runs as
+// alert (AdminExec). The real *pg.Postgres satisfies it (the guard runs as
 // the BYPASSRLS control-plane role, like the QuotaGuard); a fake satisfies it in
 // unit tests so the over/under + alert decisions are provable without a database.
 type spendDB interface {
@@ -86,16 +87,16 @@ type Guard struct {
 // parity. The per-metric cents rates come from env (SPEND_RATE_*), so $-pricing is
 // per-deployment and never baked into the byte-identical packages.json — exactly
 // the convention B3 billing uses for Stripe meter ids (billing_catalog.go).
-func NewGuard(log *slog.Logger, db *shared.Postgres) *Guard {
+func NewGuard(log *slog.Logger, db *pg.Postgres) *Guard {
 	return &Guard{
 		log:      log,
 		db:       db,
 		alerter:  logAlerter{log: log},
 		rates:    loadRateTable(),
-		enabled:  shared.EnvBool("METERING_ENABLED") && shared.EnvBool("SPEND_CAPS_ENABLED"),
-		redisURL: shared.EnvStr("OUTBOX_REDIS_URL", shared.EnvStr("REDIS_URL", "redis://redis:6379")),
-		interval: time.Duration(shared.EnvInt("SPEND_CAPS_INTERVAL_MS", 15_000)) * time.Millisecond,
-		alertPct: shared.EnvInt("SPEND_CAPS_ALERT_PCT", 80),
+		enabled:  config.EnvBool("METERING_ENABLED") && config.EnvBool("SPEND_CAPS_ENABLED"),
+		redisURL: config.EnvStr("OUTBOX_REDIS_URL", config.EnvStr("REDIS_URL", "redis://redis:6379")),
+		interval: time.Duration(config.EnvInt("SPEND_CAPS_INTERVAL_MS", 15_000)) * time.Millisecond,
+		alertPct: config.EnvInt("SPEND_CAPS_ALERT_PCT", 80),
 	}
 }
 

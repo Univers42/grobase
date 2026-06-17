@@ -5,15 +5,15 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 	"github.com/dlesieur/mini-baas/control-plane/internal/provision"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 )
 
 func (rt *routes) bootstrap(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var req BootstrapRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 		return
 	}
 	name := id
@@ -22,10 +22,10 @@ func (rt *routes) bootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := rt.svc.Bootstrap(r.Context(), id, name, req)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusCreated, out)
+	httpx.WriteJSON(w, http.StatusCreated, out)
 }
 
 func (rt *routes) provision(w http.ResponseWriter, r *http.Request) {
@@ -42,10 +42,10 @@ func (rt *routes) provision(w http.ResponseWriter, r *http.Request) {
 	// Fallback (no reconciler wired): the original one-shot Provision path.
 	out, err := rt.svc.Provision(r.Context(), req)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusCreated, out)
+	httpx.WriteJSON(w, http.StatusCreated, out)
 }
 
 // decodeProvision caps the body (DoS guard: the payload carries unbounded
@@ -56,11 +56,11 @@ func decodeProvision(w http.ResponseWriter, r *http.Request) (ProvisionRequest, 
 	r.Body = http.MaxBytesReader(w, r.Body, provision.MaxRequestBodyBytes)
 	var req ProvisionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 		return ProvisionRequest{}, false
 	}
 	if err := req.Validate(); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return ProvisionRequest{}, false
 	}
 	return req, true
@@ -71,10 +71,10 @@ func (rt *routes) reconcile(w http.ResponseWriter, r *http.Request, req Provisio
 	out, err := rt.reconciler.Reconcile(r.Context(), req.Compile())
 	switch {
 	case errors.Is(err, provision.ErrBusy):
-		shared.WriteError(w, http.StatusConflict, "conflict", err.Error())
+		httpx.WriteError(w, http.StatusConflict, "conflict", err.Error())
 	case err != nil:
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 	default:
-		shared.WriteJSON(w, provision.HTTPStatus(out.Outcome, out.APIKey != nil), out)
+		httpx.WriteJSON(w, provision.HTTPStatus(out.Outcome, out.APIKey != nil), out)
 	}
 }

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // Mount registers the SSO routes onto the shared mux (Track-D D2a). The caller
@@ -60,11 +60,11 @@ type callbackRequest struct {
 func (rt *routes) begin(w http.ResponseWriter, r *http.Request) {
 	var req beginRequest
 	if err := decodeJSON(r, &req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 	if strings.TrimSpace(req.ConnectionID) == "" && strings.TrimSpace(req.Email) == "" {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "connection_id or email required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "connection_id or email required")
 		return
 	}
 	res, err := rt.svc.BeginLogin(r.Context(), BeginInput{
@@ -76,7 +76,7 @@ func (rt *routes) begin(w http.ResponseWriter, r *http.Request) {
 		rt.writeErr(w, err)
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, res)
+	httpx.WriteJSON(w, http.StatusOK, res)
 }
 
 func (rt *routes) callbackGET(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +86,7 @@ func (rt *routes) callbackGET(w http.ResponseWriter, r *http.Request) {
 func (rt *routes) callbackPOST(w http.ResponseWriter, r *http.Request) {
 	var req callbackRequest
 	if err := decodeJSON(r, &req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 	rt.finish(w, r, req.State, req.Code)
@@ -98,5 +98,5 @@ func (rt *routes) finish(w http.ResponseWriter, r *http.Request, state, code str
 		rt.writeErr(w, err)
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, session)
+	httpx.WriteJSON(w, http.StatusOK, session)
 }

@@ -6,7 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/identity"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // Mount registers the metering read-back route onto the shared mux (B1c).
@@ -23,7 +26,7 @@ import (
 // empty and the endpoint returns empty aggregates, so route addition changes no
 // existing path (that IS the parity story). Adding the route never creates,
 // emits, or schedules anything.
-func Mount(mux *http.ServeMux, db *shared.Postgres, serviceToken string) {
+func Mount(mux *http.ServeMux, db *pg.Postgres, serviceToken string) {
 	rt := &readRoutes{reader: &Reader{db: pgPool{db: db}}, serviceToken: serviceToken}
 	mux.HandleFunc("GET /v1/tenants/{id}/usage", rt.usage)
 }
@@ -57,30 +60,30 @@ func (rt *readRoutes) usage(w http.ResponseWriter, r *http.Request) {
 
 	out, err := rt.reader.Aggregate(r.Context(), tenantID, metric, from, to)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 // tokenOrSelf authorises read of a tenant's usage by either a control-plane
 // service token (admin) or a tenant-self assertion via X-Baas-Tenant-Id (a
 // tenant reading its own usage) — byte-identical to tenants.routes.tokenOrSelf,
 // which guards GET /v1/tenants/{id}. The self arm goes through
-// shared.TenantSelfMatch: when TENANT_HEADER_IDENTITY_HMAC is set a forged
+// identity.TenantSelfMatch: when TENANT_HEADER_IDENTITY_HMAC is set a forged
 // header alone cannot authorize (a valid X-Baas-Identity-Auth signature over the
 // asserted id is required); OFF (default) it is the unchanged `header == id`
 // check. The ISOLATION guarantee is now enforced THREE ways: the optional HMAC
 // at the edge, the edge id-match (a tenant can only ASK for its own id), and the
 // SQL (tenant_id is always bound in the WHERE), atop the RLS policy on the table.
 func (rt *readRoutes) tokenOrSelf(w http.ResponseWriter, r *http.Request, id string) bool {
-	if shared.VerifyServiceRequest(r, rt.serviceToken) {
+	if serviceauth.VerifyServiceRequest(r, rt.serviceToken) {
 		return true
 	}
-	if shared.TenantSelfMatch(r, rt.serviceToken, id) {
+	if identity.TenantSelfMatch(r, rt.serviceToken, id) {
 		return true
 	}
-	shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
+	httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",
 		"service token or matching tenant header required")
 	return false
 }
@@ -100,7 +103,7 @@ func parseWindowBound(w http.ResponseWriter, raw, field string) (time.Time, bool
 	if ms, err := strconv.ParseInt(raw, 10, 64); err == nil && ms >= 0 {
 		return time.UnixMilli(ms).UTC(), true
 	}
-	shared.WriteError(w, http.StatusBadRequest, "validation_error",
+	httpx.WriteError(w, http.StatusBadRequest, "validation_error",
 		"invalid "+field+": want RFC3339 or unix-ms")
 	return time.Time{}, false
 }

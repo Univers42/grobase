@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -15,7 +15,7 @@ import (
 // on the functions-runtime, then advances next_run by the schedule's interval.
 // It uses the admin pool (RLS-bypass) because the loop has no tenant context.
 type Runner struct {
-	db         *shared.Postgres
+	db         *pg.Postgres
 	log        *slog.Logger
 	httpClient *http.Client
 	runtimeURL string
@@ -30,7 +30,7 @@ type RunnerConfig struct {
 }
 
 // NewRunner builds a runner; the caller owns the lifecycle.
-func NewRunner(db *shared.Postgres, log *slog.Logger, cfg RunnerConfig) *Runner {
+func NewRunner(db *pg.Postgres, log *slog.Logger, cfg RunnerConfig) *Runner {
 	if cfg.RuntimeURL == "" {
 		cfg.RuntimeURL = "http://functions-runtime:3060"
 	}

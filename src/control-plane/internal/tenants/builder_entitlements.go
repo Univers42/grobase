@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	ent "github.com/dlesieur/mini-baas/control-plane/internal/entitlements"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 	"github.com/dlesieur/mini-baas/control-plane/internal/packages"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 )
 
 // entitlementsResponse is the GET /me/entitlements body: the stored custom
@@ -63,7 +63,7 @@ func (b *builderAPI) getEntitlements(w http.ResponseWriter, r *http.Request) {
 	}
 	rec := b.loadOrEmpty(r.Context(), tenantID)
 	ceiling, ceilingName := b.ceilingFor(r.Context(), tenantID, t.Plan)
-	shared.WriteJSON(w, http.StatusOK, b.entitlementsResponse(tenantID, t.Plan, rec, ceiling, ceilingName))
+	httpx.WriteJSON(w, http.StatusOK, b.entitlementsResponse(tenantID, t.Plan, rec, ceiling, ceilingName))
 }
 
 // entitlementsResponse projects a stored record + ceiling into the GET/PATCH
@@ -96,14 +96,14 @@ func (b *builderAPI) patchEntitlements(w http.ResponseWriter, r *http.Request) {
 	ceiling, ceilingName := b.ceilingFor(r.Context(), tenantID, t.Plan)
 	// COMPOSE-time privilege-boundary gate: a clean 403 naming the offending axis.
 	if vErr := packages.ValidateWithin(custom.ToPackage(), ceiling); vErr != nil {
-		shared.WriteError(w, http.StatusForbidden, "entitlement_exceeds_ceiling", vErr.Error())
+		httpx.WriteError(w, http.StatusForbidden, "entitlement_exceeds_ceiling", vErr.Error())
 		return
 	}
 	rec, ok := b.persistEntitlement(w, r, tenantID, custom)
 	if !ok {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, b.entitlementsResponse(tenantID, t.Plan, rec, ceiling, ceilingName))
+	httpx.WriteJSON(w, http.StatusOK, b.entitlementsResponse(tenantID, t.Plan, rec, ceiling, ceilingName))
 }
 
 // authPatchEntitlement self-auths, requires admin scope (composing the backend
@@ -120,7 +120,7 @@ func (b *builderAPI) authPatchEntitlement(w http.ResponseWriter, r *http.Request
 	}
 	var custom ent.CustomEntitlement
 	if err := json.NewDecoder(r.Body).Decode(&custom); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 		return "", ent.CustomEntitlement{}, false
 	}
 	return tenantID, custom, true

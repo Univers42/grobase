@@ -16,11 +16,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 func main() {
-	log := shared.NewLogger("webhook-dispatcher")
+	log := observability.NewLogger("webhook-dispatcher")
 	cfg, ctx, stop, db := bootstrap(log)
 	defer stop()
 	defer db.Close()
@@ -48,8 +50,8 @@ func main() {
 
 // bootstrap loads config, dispatches the --healthcheck subcommand, installs the
 // signal-cancelled context, and opens the Postgres pool. Any fatal step exits.
-func bootstrap(log *slog.Logger) (shared.Config, context.Context, context.CancelFunc, *shared.Postgres) {
-	cfg, err := shared.LoadConfig("WEBHOOK_DISPATCHER")
+func bootstrap(log *slog.Logger) (config.Config, context.Context, context.CancelFunc, *pg.Postgres) {
+	cfg, err := config.LoadConfig("WEBHOOK_DISPATCHER")
 	if err != nil {
 		log.Error("config error", "err", err)
 		os.Exit(1)
@@ -58,7 +60,7 @@ func bootstrap(log *slog.Logger) (shared.Config, context.Context, context.Cancel
 		os.Exit(healthcheck(cfg))
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	db, err := shared.NewPostgres(ctx, cfg.DatabaseURL)
+	db, err := pg.NewPostgres(ctx, cfg.DatabaseURL)
 	if err != nil {
 		log.Error("postgres connect failed", "err", err)
 		stop()
@@ -67,7 +69,7 @@ func bootstrap(log *slog.Logger) (shared.Config, context.Context, context.Cancel
 	return cfg, ctx, stop, db
 }
 
-func healthcheck(cfg shared.Config) int {
+func healthcheck(cfg config.Config) int {
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get("http://127.0.0.1:" + cfg.Port + "/health/live")
 	if err != nil {

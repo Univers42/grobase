@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 /* ─────── consent ─────── */
@@ -18,7 +18,7 @@ func (s *Service) listConsents(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func (s *Service) getConsent(w http.ResponseWriter, r *http.Request) {
@@ -31,10 +31,10 @@ func (s *Service) getConsent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if c == nil {
-		shared.WriteJSON(w, http.StatusOK, nil) // parity: Node returns null
+		httpx.WriteJSON(w, http.StatusOK, nil) // parity: Node returns null
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, c)
+	httpx.WriteJSON(w, http.StatusOK, c)
 }
 
 func (s *Service) setConsent(w http.ResponseWriter, r *http.Request) {
@@ -47,14 +47,14 @@ func (s *Service) setConsent(w http.ResponseWriter, r *http.Request) {
 		Consented   *bool  `json:"consented"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&b); err != nil || b.ConsentType == "" || b.Consented == nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "consent_type and consented are required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "consent_type and consented are required")
 		return
 	}
 	c, err := s.store.setConsent(r.Context(), userID, b.ConsentType, *b.Consented)
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusCreated, c)
+	httpx.WriteJSON(w, http.StatusCreated, c)
 }
 
 func (s *Service) updateConsent(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +66,7 @@ func (s *Service) updateConsent(w http.ResponseWriter, r *http.Request) {
 		Consented *bool `json:"consented"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&b); err != nil || b.Consented == nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "consented is required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "consented is required")
 		return
 	}
 	ctype := r.PathValue("type")
@@ -77,7 +77,7 @@ func (s *Service) updateConsent(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, c)
+	httpx.WriteJSON(w, http.StatusOK, c)
 }
 
 // consentExists writes a 404/500 and returns false when the consent is missing
@@ -88,7 +88,7 @@ func (s *Service) consentExists(w http.ResponseWriter, r *http.Request, userID, 
 		return false
 	}
 	if existing == nil {
-		shared.WriteError(w, http.StatusNotFound, "not_found", "Consent not found")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "Consent not found")
 		return false
 	}
 	return true

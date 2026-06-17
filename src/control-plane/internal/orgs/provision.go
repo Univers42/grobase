@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 	"github.com/dlesieur/mini-baas/control-plane/internal/provision"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 	"github.com/dlesieur/mini-baas/control-plane/internal/tenants"
 )
 
@@ -31,7 +31,7 @@ func (rt *routes) createProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if rt.reconciler == nil {
-		shared.WriteError(w, http.StatusNotImplemented, "not_implemented",
+		httpx.WriteError(w, http.StatusNotImplemented, "not_implemented",
 			"org-scoped provisioning requires a reconciler (ADAPTER_REGISTRY_URL / data plane wiring)")
 		return
 	}
@@ -45,7 +45,7 @@ func (rt *routes) createProject(w http.ResponseWriter, r *http.Request) {
 	}
 	// (3) The ONE additive control-plane write: link the project to its org.
 	rt.attachProvisioned(r, out, orgID)
-	shared.WriteJSON(w, provision.HTTPStatus(out.Outcome, out.APIKey != nil), out)
+	httpx.WriteJSON(w, provision.HTTPStatus(out.Outcome, out.APIKey != nil), out)
 }
 
 // reconcileOrgProject runs the EXISTING reconciler — byte-identical to the
@@ -56,10 +56,10 @@ func (rt *routes) reconcileOrgProject(w http.ResponseWriter, r *http.Request,
 	out, err := rt.reconciler.Reconcile(r.Context(), pr.Compile())
 	switch {
 	case errors.Is(err, provision.ErrBusy):
-		shared.WriteError(w, http.StatusConflict, "conflict", err.Error())
+		httpx.WriteError(w, http.StatusConflict, "conflict", err.Error())
 		return provision.ReconcileResult{}, false
 	case err != nil:
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return provision.ReconcileResult{}, false
 	}
 	return out, true
@@ -76,12 +76,12 @@ func (rt *routes) decodeProvisionRequest(w http.ResponseWriter, r *http.Request)
 	r.Body = http.MaxBytesReader(w, r.Body, provision.MaxRequestBodyBytes)
 	var req CreateProjectRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 		return tenants.ProvisionRequest{}, false
 	}
 	pr := req.toProvisionRequest()
 	if err := pr.Validate(); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return tenants.ProvisionRequest{}, false
 	}
 	return pr, true

@@ -4,10 +4,10 @@ import (
 	"os"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/backup"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 	"github.com/dlesieur/mini-baas/control-plane/internal/entitlements"
 	"github.com/dlesieur/mini-baas/control-plane/internal/metering"
 	"github.com/dlesieur/mini-baas/control-plane/internal/packages"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 	"github.com/dlesieur/mini-baas/control-plane/internal/tenants"
 )
 
@@ -21,7 +21,7 @@ func (b *bootCtx) mountCore() {
 // mountSelfServe mounts /v1/tenants/me* (TENANT_SELFSERVE_ENABLED) and, nested,
 // the dynamic builder (BUILDER_ENABLED). FLAG-GATED OFF = byte-parity.
 func (b *bootCtx) mountSelfServe() {
-	if !shared.EnvBool("TENANT_SELFSERVE_ENABLED") {
+	if !config.EnvBool("TENANT_SELFSERVE_ENABLED") {
 		b.log.Info("tenant self-service API disabled (TENANT_SELFSERVE_ENABLED off) — /v1/tenants/me* not mounted")
 		return
 	}
@@ -30,7 +30,7 @@ func (b *bootCtx) mountSelfServe() {
 		b.log.Error("tenant self-serve: package manifest load failed", "err", err)
 		os.Exit(1)
 	}
-	billing := shared.EnvBool("BILLING_ENABLED")
+	billing := config.EnvBool("BILLING_ENABLED")
 	tenants.MountSelfServe(b.mux, b.svc, b.jwtVerifier, manifest, billing)
 	b.log.Info("tenant self-service API enabled (/v1/tenants/me*)", "billing", billing)
 	b.mountBuilder(manifest)
@@ -39,7 +39,7 @@ func (b *bootCtx) mountSelfServe() {
 // mountBuilder mounts the dynamic-builder routes (BUILDER_ENABLED), nested under
 // the self-serve block so it reuses selfAuth. OFF = builder routes 404 (parity).
 func (b *bootCtx) mountBuilder(manifest *packages.Manifest) {
-	if !shared.EnvBool("BUILDER_ENABLED") {
+	if !config.EnvBool("BUILDER_ENABLED") {
 		b.log.Info("dynamic builder disabled (BUILDER_ENABLED off) — builder routes not mounted; resolution is the named tier verbatim (byte-parity)")
 		return
 	}
@@ -52,7 +52,7 @@ func (b *bootCtx) mountBuilder(manifest *packages.Manifest) {
 // mountBackup mounts the per-tenant backup/restore API (TENANT_BACKUP_ENABLED),
 // with an optional read-only self-serve route (TENANT_BACKUP_SELFSERVE_ENABLED).
 func (b *bootCtx) mountBackup() {
-	if !shared.EnvBool("TENANT_BACKUP_ENABLED") {
+	if !config.EnvBool("TENANT_BACKUP_ENABLED") {
 		b.log.Info("per-tenant backup/restore API disabled (TENANT_BACKUP_ENABLED off) — routes not mounted")
 		return
 	}
@@ -63,7 +63,7 @@ func (b *bootCtx) mountBackup() {
 	}
 	bsvc := backup.NewService(b.db, store, b.log)
 	backup.Mount(b.mux, bsvc, b.cfg.ServiceToken)
-	if shared.EnvBool("TENANT_BACKUP_SELFSERVE_ENABLED") {
+	if config.EnvBool("TENANT_BACKUP_SELFSERVE_ENABLED") {
 		backup.MountSelfServe(b.mux, bsvc, b.svc)
 		b.log.Info("tenant backup self-serve read enabled (/v1/tenants/me/backups, API-key)")
 	}

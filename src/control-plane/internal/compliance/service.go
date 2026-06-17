@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// sdb is the minimal Postgres surface the Service needs. *shared.Postgres
+// sdb is the minimal Postgres surface the Service needs. *pg.Postgres
 // satisfies it (the collector + read API run as the BYPASSRLS control-plane
 // service role); a fake satisfies it in unit tests so the persist + read
 // contracts are provable without a live database.
@@ -30,7 +30,7 @@ type Service struct {
 
 // NewService wraps the privileged Postgres handle and builds the collector from
 // env. db must satisfy BOTH sdb (for persist/read) and the collector's accessDB
-// (for the access-review section); *shared.Postgres satisfies both via the
+// (for the access-review section); *pg.Postgres satisfies both via the
 // rowsAdapter wrapping in collectAccess below.
 func NewService(db sdb) *Service {
 	return &Service{db: db, collector: NewCollector(accessAdapter{db})}

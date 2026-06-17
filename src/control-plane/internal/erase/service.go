@@ -40,7 +40,7 @@ import (
 	"log/slog"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/audit"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // ErrUnsupportedScope is returned when a tenant's isolation model is not one of
@@ -57,7 +57,7 @@ var ErrNoMount = errors.New("tenant has no registered data mount")
 // destroys the tenant's Postgres-resident data, revokes+deletes its API keys,
 // and writes both a D3 audit receipt and an erasure_receipts ledger row.
 type Service struct {
-	db    *shared.Postgres
+	db    *pg.Postgres
 	audit *audit.Service // D3 — seals the tamper-evident erase receipt onto the chain
 	log   *slog.Logger
 	// flushKeyCache invalidates the control-plane key-verify cache after the keys
@@ -69,7 +69,7 @@ type Service struct {
 // NewService wires the privileged Postgres handle + the D3 audit service. The
 // audit service is REQUIRED (the erase receipt is the whole point); main.go
 // constructs it the same way the D3 mount does (audit.NewService(db)).
-func NewService(db *shared.Postgres, auditSvc *audit.Service, log *slog.Logger) *Service {
+func NewService(db *pg.Postgres, auditSvc *audit.Service, log *slog.Logger) *Service {
 	return &Service{db: db, audit: auditSvc, log: log}
 }
 

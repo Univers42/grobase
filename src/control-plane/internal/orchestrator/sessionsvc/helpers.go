@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // fail maps store errors to HTTP status (404/403/500). Returns true if it wrote
@@ -15,12 +15,12 @@ func (s *Service) fail(w http.ResponseWriter, err error) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, errNotFound):
-		shared.WriteError(w, http.StatusNotFound, "not_found", "session not found")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "session not found")
 	case errors.Is(err, errForbidden):
-		shared.WriteError(w, http.StatusForbidden, "forbidden", "not your session")
+		httpx.WriteError(w, http.StatusForbidden, "forbidden", "not your session")
 	default:
 		s.log.Error("session store error", "err", err)
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", "unexpected error")
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", "unexpected error")
 	}
 	return true
 }
@@ -33,7 +33,7 @@ func requireUser(w http.ResponseWriter, r *http.Request) (string, bool) {
 			return v, true
 		}
 	}
-	shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "missing verified identity")
+	httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "missing verified identity")
 	return "", false
 }
 
@@ -43,7 +43,7 @@ func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 	if r.Header.Get("X-Baas-Role") != "service_role" {
-		shared.WriteError(w, http.StatusForbidden, "forbidden", "requires one of: service_role")
+		httpx.WriteError(w, http.StatusForbidden, "forbidden", "requires one of: service_role")
 		return false
 	}
 	return true

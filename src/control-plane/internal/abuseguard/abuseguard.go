@@ -33,7 +33,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 	redis "github.com/redis/go-redis/v9"
 )
@@ -49,7 +50,7 @@ const (
 	ActionProjectCreate = "project_create"
 )
 
-// gdb is the minimal Postgres surface the guard needs. *shared.Postgres satisfies
+// gdb is the minimal Postgres surface the guard needs. *pg.Postgres satisfies
 // it (the guard runs as the BYPASSRLS control-plane role); a fake satisfies it in
 // unit tests so the admission + velocity + suspend decisions are provable without a
 // live database.
@@ -92,16 +93,16 @@ type Guard struct {
 // NewGuard builds the guard from env. ABUSE_GUARD_ENABLED gates everything; default
 // OFF ⇒ parity. The velocity bound, window, auto-suspend, and per-tier verification
 // requirements are all env-driven (per-deployment policy).
-func NewGuard(log *slog.Logger, db *shared.Postgres, serviceToken string) *Guard {
+func NewGuard(log *slog.Logger, db *pg.Postgres, serviceToken string) *Guard {
 	return &Guard{
 		log:            log,
 		db:             db,
 		serviceToken:   serviceToken,
-		enabled:        shared.EnvBool("ABUSE_GUARD_ENABLED"),
-		redisURL:       shared.EnvStr("OUTBOX_REDIS_URL", shared.EnvStr("REDIS_URL", "redis://redis:6379")),
-		velocityMax:    shared.EnvInt("ABUSE_VELOCITY_MAX", 20),
-		velocityWindow: time.Duration(shared.EnvInt("ABUSE_VELOCITY_WINDOW_MS", 3_600_000)) * time.Millisecond,
-		autoSuspend:    shared.EnvBoolDefault("ABUSE_AUTO_SUSPEND", true),
+		enabled:        config.EnvBool("ABUSE_GUARD_ENABLED"),
+		redisURL:       config.EnvStr("OUTBOX_REDIS_URL", config.EnvStr("REDIS_URL", "redis://redis:6379")),
+		velocityMax:    config.EnvInt("ABUSE_VELOCITY_MAX", 20),
+		velocityWindow: time.Duration(config.EnvInt("ABUSE_VELOCITY_WINDOW_MS", 3_600_000)) * time.Millisecond,
+		autoSuspend:    config.EnvBoolDefault("ABUSE_AUTO_SUSPEND", true),
 		tierReqs:       loadTierRequirements(),
 	}
 }
@@ -148,7 +149,7 @@ func loadTierRequirements() map[string]requirement {
 	// The known tier names (packages.json keys + legacy aliases). A deployment sets
 	// ABUSE_REQUIRE_NANO=email, ABUSE_REQUIRE_FREE=email,phone, etc.
 	for _, tier := range []string{"nano", "basic", "essential", "pro", "max", "free", "enterprise"} {
-		raw := strings.TrimSpace(shared.EnvStr("ABUSE_REQUIRE_"+strings.ToUpper(tier), ""))
+		raw := strings.TrimSpace(config.EnvStr("ABUSE_REQUIRE_"+strings.ToUpper(tier), ""))
 		if raw == "" {
 			continue
 		}

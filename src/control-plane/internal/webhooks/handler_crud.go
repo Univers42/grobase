@@ -5,49 +5,49 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 func (rt *routes) create(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := shared.RequireTenant(w, r)
+	tenantID, ok := httpx.RequireTenant(w, r)
 	if !ok {
 		return
 	}
 	var req CreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON")
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON")
 		return
 	}
 	if err := req.Validate(); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 	sub, err := rt.svc.Create(r.Context(), tenantID, req)
 	switch {
 	case errors.Is(err, ErrConflict):
-		shared.WriteError(w, http.StatusConflict, "conflict", err.Error())
+		httpx.WriteError(w, http.StatusConflict, "conflict", err.Error())
 	case err != nil:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	default:
-		shared.WriteJSON(w, http.StatusCreated, sub)
+		httpx.WriteJSON(w, http.StatusCreated, sub)
 	}
 }
 
 func (rt *routes) list(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := shared.RequireTenant(w, r)
+	tenantID, ok := httpx.RequireTenant(w, r)
 	if !ok {
 		return
 	}
 	out, err := rt.svc.List(r.Context(), tenantID)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func (rt *routes) findOne(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := shared.RequireTenant(w, r)
+	tenantID, ok := httpx.RequireTenant(w, r)
 	if !ok {
 		return
 	}
@@ -55,5 +55,5 @@ func (rt *routes) findOne(w http.ResponseWriter, r *http.Request) {
 	if handleLookup(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, sub)
+	httpx.WriteJSON(w, http.StatusOK, sub)
 }

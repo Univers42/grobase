@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	ent "github.com/dlesieur/mini-baas/control-plane/internal/entitlements"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // operatorCeilingRequest sets a per-tenant ceiling_plan (a sales deal). The
@@ -36,7 +36,7 @@ func (b *builderAPI) operatorSetCeiling(w http.ResponseWriter, r *http.Request) 
 	}
 	var req operatorCeilingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 		return
 	}
 	ceiling, ok := b.requireCeiling(w, req.CeilingPlan)
@@ -47,10 +47,10 @@ func (b *builderAPI) operatorSetCeiling(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err := b.store.SetCeiling(r.Context(), slug, ceiling); err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{"tenant_id": slug, "ceiling_plan": ceiling})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"tenant_id": slug, "ceiling_plan": ceiling})
 }
 
 // requireCeiling trims a REQUIRED ceiling_plan and validates it against the
@@ -58,11 +58,11 @@ func (b *builderAPI) operatorSetCeiling(w http.ResponseWriter, r *http.Request) 
 func (b *builderAPI) requireCeiling(w http.ResponseWriter, raw string) (string, bool) {
 	ceiling := strings.TrimSpace(raw)
 	if ceiling == "" {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "ceiling_plan is required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "ceiling_plan is required")
 		return "", false
 	}
 	if !b.knownPlan(ceiling) {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error",
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error",
 			"unknown ceiling_plan "+ceiling+" (not in package manifest)")
 		return "", false
 	}
@@ -73,7 +73,7 @@ func (b *builderAPI) requireCeiling(w http.ResponseWriter, raw string) (string, 
 // {id}. ok=false means a 401 was already written.
 func (b *builderAPI) operatorSlug(w http.ResponseWriter, r *http.Request) (string, bool) {
 	if !b.validServiceToken(r) {
-		shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
 		return "", false
 	}
 	return r.PathValue("id"), true
@@ -87,10 +87,10 @@ func (b *builderAPI) requireTenantExists(w http.ResponseWriter, r *http.Request,
 		return true
 	}
 	if errors.Is(err, ErrNotFound) {
-		shared.WriteError(w, http.StatusNotFound, "not_found", "tenant not found")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "tenant not found")
 		return false
 	}
-	shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+	httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	return false
 }
 
@@ -106,7 +106,7 @@ func (b *builderAPI) operatorUpsertEntitlement(w http.ResponseWriter, r *http.Re
 	}
 	var req operatorEntitlementRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 		return
 	}
 	if !b.requireTenantExists(w, r, slug) {
@@ -117,8 +117,8 @@ func (b *builderAPI) operatorUpsertEntitlement(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if err := b.store.Upsert(r.Context(), rec); err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, operatorEntitlementResponse(rec))
+	httpx.WriteJSON(w, http.StatusOK, operatorEntitlementResponse(rec))
 }

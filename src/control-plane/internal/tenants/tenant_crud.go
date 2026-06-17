@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -53,7 +53,7 @@ func (s *Service) Create(ctx context.Context, req CreateTenantRequest) (Tenant, 
 // errors through unchanged. pgx may surface the violation either on query or on
 // scan (CTE INSERT...RETURNING), so both call sites route through here.
 func mapUniqueViolation(err error) error {
-	if shared.IsUniqueViolation(err) {
+	if pg.IsUniqueViolation(err) {
 		return ErrConflict
 	}
 	return err

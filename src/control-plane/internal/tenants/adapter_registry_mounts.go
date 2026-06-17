@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // MountView is one mount row as the self-serve builder surfaces it (no secret
@@ -70,7 +70,7 @@ func (ar *AdapterRegistry) listMounts(ctx context.Context, tenantScope string) (
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("list databases: %d: %s", resp.StatusCode, shared.RedactDSN(strings.TrimSpace(string(b))))
+		return nil, fmt.Errorf("list databases: %d: %s", resp.StatusCode, httpx.RedactDSN(strings.TrimSpace(string(b))))
 	}
 	out := make([]MountView, 0)
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {

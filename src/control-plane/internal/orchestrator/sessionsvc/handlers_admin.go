@@ -3,7 +3,7 @@ package sessionsvc
 import (
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 /* ─────── Admin read endpoints (require service_role) ─────── */
@@ -16,7 +16,7 @@ func (s *Service) adminAll(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func (s *Service) adminStats(w http.ResponseWriter, r *http.Request) {
@@ -27,5 +27,5 @@ func (s *Service) adminStats(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, st)
+	httpx.WriteJSON(w, http.StatusOK, st)
 }

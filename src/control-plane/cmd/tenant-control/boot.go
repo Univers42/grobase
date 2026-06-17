@@ -8,8 +8,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/dlesieur/mini-baas/control-plane/internal/provision"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 	"github.com/dlesieur/mini-baas/control-plane/internal/tenants"
 )
 
@@ -18,8 +20,8 @@ import (
 // the locals main() previously held.
 type bootCtx struct {
 	log         *slog.Logger
-	cfg         shared.Config
-	db          *shared.Postgres
+	cfg         config.Config
+	db          *pg.Postgres
 	svc         *tenants.Service
 	perm        provision.PermissionEngine
 	reconciler  *provision.Reconciler
@@ -74,7 +76,7 @@ func (b *bootCtx) setupJWT() {
 // openDB connects Postgres and ensures the tenant schema — fatal on either error,
 // preserving main()'s original log messages + os.Exit(1).
 func (b *bootCtx) openDB(ctx context.Context) {
-	db, err := shared.NewPostgres(ctx, b.cfg.DatabaseURL)
+	db, err := pg.NewPostgres(ctx, b.cfg.DatabaseURL)
 	if err != nil {
 		b.log.Error("postgres connect failed", "err", err)
 		os.Exit(1)
@@ -92,7 +94,7 @@ func (b *bootCtx) openDB(ctx context.Context) {
 func (b *bootCtx) serve(ctx context.Context, stop context.CancelFunc) {
 	srv := &http.Server{
 		Addr:              b.cfg.ListenAddr(),
-		Handler:           shared.WithMiddleware(b.mux, b.log),
+		Handler:           httpx.WithMiddleware(b.mux, b.log),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {

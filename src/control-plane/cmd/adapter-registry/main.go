@@ -15,12 +15,15 @@ import (
 	"time"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/adapterregistry"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 func main() {
-	log := shared.NewLogger("adapter-registry")
-	cfg, err := shared.LoadConfig("ADAPTER_REGISTRY")
+	log := observability.NewLogger("adapter-registry")
+	cfg, err := config.LoadConfig("ADAPTER_REGISTRY")
 	if err != nil {
 		log.Error("config error", "err", err)
 		os.Exit(1)
@@ -31,19 +34,19 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
-	db, err := shared.NewPostgres(ctx, cfg.DatabaseURL)
+	db, err := pg.NewPostgres(ctx, cfg.DatabaseURL)
 	if err != nil {
 		log.Error("postgres connect failed", "err", err)
 		os.Exit(1)
 	}
 	defer db.Close()
 	svc := buildService(ctx, db, log)
-	mux := shared.NewRouter("adapter-registry", db)
+	mux := httpx.NewRouter("adapter-registry", db)
 	adapterregistry.Mount(mux, svc, cfg.ServiceToken)
 	runServer(ctx, stop, cfg, mux, log)
 }
 
-func healthcheck(cfg shared.Config) int {
+func healthcheck(cfg config.Config) int {
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get("http://127.0.0.1:" + cfg.Port + "/health/live")
 	if err != nil {

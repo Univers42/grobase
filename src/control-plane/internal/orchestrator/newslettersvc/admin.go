@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 func (s *Service) adminSubscribers(w http.ResponseWriter, r *http.Request) {
@@ -18,7 +18,7 @@ func (s *Service) adminSubscribers(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func (s *Service) adminStats(w http.ResponseWriter, r *http.Request) {
@@ -29,7 +29,7 @@ func (s *Service) adminStats(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, st)
+	httpx.WriteJSON(w, http.StatusOK, st)
 }
 
 /* ─────── Campaign (all admin) ─────── */
@@ -46,14 +46,14 @@ func (s *Service) campaignSend(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&b); err != nil ||
 		strings.TrimSpace(b.Subject) == "" || strings.TrimSpace(b.HTML) == "" {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "subject and html are required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "subject and html are required")
 		return
 	}
 	sent, failed, err := s.sendCampaign(r.Context(), b.Subject, b.HTML, b.Text, userID)
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{"sent": sent, "failed": failed})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"sent": sent, "failed": failed})
 }
 
 func (s *Service) campaignHistory(w http.ResponseWriter, r *http.Request) {
@@ -64,5 +64,5 @@ func (s *Service) campaignHistory(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }

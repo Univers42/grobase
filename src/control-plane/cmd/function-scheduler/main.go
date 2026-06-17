@@ -22,11 +22,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
 )
 
 func main() {
-	log := shared.NewLogger("function-scheduler")
+	log := observability.NewLogger("function-scheduler")
 	cfg, ctx, stop := bootstrap(log)
 	defer stop()
 
@@ -48,8 +49,8 @@ func main() {
 
 // bootstrap loads config (fatal on error), honours the --healthcheck probe arg,
 // and returns a signal-cancelled context plus its stop func.
-func bootstrap(log *slog.Logger) (shared.Config, context.Context, context.CancelFunc) {
-	cfg, err := shared.LoadConfig("FUNCTION_SCHEDULER")
+func bootstrap(log *slog.Logger) (config.Config, context.Context, context.CancelFunc) {
+	cfg, err := config.LoadConfig("FUNCTION_SCHEDULER")
 	if err != nil {
 		log.Error("config error", "err", err)
 		os.Exit(1)
@@ -72,7 +73,7 @@ func cronEnabled() bool {
 	}
 }
 
-func healthcheck(cfg shared.Config) int {
+func healthcheck(cfg config.Config) int {
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get("http://127.0.0.1:" + cfg.Port + "/health/live")
 	if err != nil {

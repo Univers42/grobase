@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	ent "github.com/dlesieur/mini-baas/control-plane/internal/entitlements"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 	"github.com/dlesieur/mini-baas/control-plane/internal/packages"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 )
 
 // previewRequest is the POST /me/builder body: a hypothetical custom entitlement
@@ -36,7 +36,7 @@ func (b *builderAPI) persistEntitlement(w http.ResponseWriter, r *http.Request, 
 	rec.Entitlement = custom
 	rec.Status = "active"
 	if err := b.store.Upsert(r.Context(), rec); err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return ent.Record{}, false
 	}
 	return rec, true
@@ -52,7 +52,7 @@ func (b *builderAPI) preview(w http.ResponseWriter, r *http.Request) {
 	}
 	var req previewRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 		return
 	}
 	t, err := b.ss.svc.FindOne(r.Context(), tenantID)
@@ -61,7 +61,7 @@ func (b *builderAPI) preview(w http.ResponseWriter, r *http.Request) {
 	}
 	ceiling, ceilingName := b.ceilingFor(r.Context(), tenantID, t.Plan)
 	eff := b.effectiveFor(req.Entitlement, ceiling, ceilingName)
-	shared.WriteJSON(w, http.StatusOK, previewResponse{
+	httpx.WriteJSON(w, http.StatusOK, previewResponse{
 		TenantID:    tenantID,
 		Plan:        t.Plan,
 		CeilingPlan: ceilingName,

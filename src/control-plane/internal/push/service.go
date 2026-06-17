@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // Service orchestrates the push registry + the fan-out send. It owns the store
@@ -20,7 +20,7 @@ type Service struct {
 // NewService wires the service from the shared Postgres pool. The token sealer is
 // derived from PUSH_SECRET_KEY (nil when unset — valid for a webhook-only
 // deployment; an attempt to store a provider token without a key fails fast).
-func NewService(db *shared.Postgres, log *slog.Logger) *Service {
+func NewService(db *pg.Postgres, log *slog.Logger) *Service {
 	return &Service{
 		store: newStore(db, newSealerFromEnv()),
 		disp:  newDispatcher(),

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // Mount registers the SOC2-lite compliance evidence API onto the shared mux
@@ -54,10 +54,10 @@ func (rt *routes) collect(w http.ResponseWriter, r *http.Request) {
 	}
 	sid, rows, err := rt.svc.Collect(r.Context())
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusCreated, buildResponse(sid, rows))
+	httpx.WriteJSON(w, http.StatusCreated, buildResponse(sid, rows))
 }
 
 func (rt *routes) latest(w http.ResponseWriter, r *http.Request) {

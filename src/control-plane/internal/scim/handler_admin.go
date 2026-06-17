@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // handler_admin.go — the admin (service-token) surface: issue / revoke a SCIM
@@ -32,20 +32,20 @@ func (rt *routes) issueToken(w http.ResponseWriter, r *http.Request) {
 	}
 	tenantID := r.PathValue("id")
 	if strings.TrimSpace(tenantID) == "" {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "tenant id required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "tenant id required")
 		return
 	}
 	var req issueTokenRequest
 	if err := decodeJSON(r, &req); err != nil && !errors.Is(err, io.EOF) {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 	cleartext, tokenID, err := rt.svc.IssueToken(r.Context(), tenantID, req.OrgID, req.Description)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusCreated, issueTokenResponse{
+	httpx.WriteJSON(w, http.StatusCreated, issueTokenResponse{
 		ID: tokenID, TenantID: tenantID, OrgID: req.OrgID,
 		Token: cleartext, Description: req.Description,
 	})
@@ -58,7 +58,7 @@ func (rt *routes) revokeToken(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("id")
 	tokenID := r.PathValue("tokenId")
 	if err := rt.svc.RevokeToken(r.Context(), tenantID, tokenID); err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

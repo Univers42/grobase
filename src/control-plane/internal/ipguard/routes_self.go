@@ -3,7 +3,7 @@ package ipguard
 import (
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // ── self-serve (/v1/tenants/me/ip-allowlist) — credential-resolved tenant ──────
@@ -37,22 +37,22 @@ func (rt *routes) meRemove(w http.ResponseWriter, r *http.Request) {
 // tenant a request can touch. A nil resolver (not wired) ⇒ 501.
 func (rt *routes) selfTenant(w http.ResponseWriter, r *http.Request) (string, bool) {
 	if rt.resolver == nil {
-		shared.WriteError(w, http.StatusNotImplemented, "not_configured", "self-serve allowlist not configured")
+		httpx.WriteError(w, http.StatusNotImplemented, "not_configured", "self-serve allowlist not configured")
 		return "", false
 	}
-	raw := shared.APIKeyFromRequest(r)
+	raw := httpx.APIKeyFromRequest(r)
 	if raw == "" {
-		shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",
 			"X-API-Key or Authorization: Bearer <api-key> required")
 		return "", false
 	}
 	out, err := rt.resolver.VerifyKey(r.Context(), raw)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return "", false
 	}
 	if !out.Valid || out.TenantID == "" {
-		shared.WriteError(w, http.StatusUnauthorized, "invalid_key", "API key is not valid")
+		httpx.WriteError(w, http.StatusUnauthorized, "invalid_key", "API key is not valid")
 		return "", false
 	}
 	return out.TenantID, true

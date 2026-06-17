@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 func (s *Service) fail(w http.ResponseWriter, err error) bool {
@@ -20,12 +20,12 @@ func (s *Service) fail(w http.ResponseWriter, err error) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, errConflict):
-		shared.WriteError(w, http.StatusConflict, "conflict", "This email is already subscribed")
+		httpx.WriteError(w, http.StatusConflict, "conflict", "This email is already subscribed")
 	case errors.Is(err, errNotFound):
-		shared.WriteError(w, http.StatusNotFound, "not_found", "invalid token")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "invalid token")
 	default:
 		s.log.Error("newsletter store error", "err", err)
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", "unexpected error")
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", "unexpected error")
 	}
 	return true
 }
@@ -66,11 +66,11 @@ func requireAdminUser(w http.ResponseWriter, r *http.Request) (string, bool) {
 		userID = r.Header.Get("X-User-Id")
 	}
 	if userID == "" {
-		shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "missing verified identity")
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "missing verified identity")
 		return "", false
 	}
 	if r.Header.Get("X-Baas-Role") != "service_role" {
-		shared.WriteError(w, http.StatusForbidden, "forbidden", "requires one of: service_role")
+		httpx.WriteError(w, http.StatusForbidden, "forbidden", "requires one of: service_role")
 		return "", false
 	}
 	return userID, true

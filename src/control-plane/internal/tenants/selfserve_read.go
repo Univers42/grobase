@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 	"github.com/dlesieur/mini-baas/control-plane/internal/packages"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 )
 
 // MeResponse is the GET /v1/tenants/me body: the caller's tenant summary plus
@@ -58,7 +58,7 @@ func (ss *selfServe) me(w http.ResponseWriter, r *http.Request) {
 			Quota:        pkg.Limits.Quota,
 		},
 	}
-	shared.WriteJSON(w, http.StatusOK, resp)
+	httpx.WriteJSON(w, http.StatusOK, resp)
 }
 
 // meUsage sums the caller's own tenant_usage over an optional [from,to) window.
@@ -86,10 +86,10 @@ func (ss *selfServe) meUsage(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := ss.svc.aggregateUsage(r.Context(), tenantID, metric, from, to)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 // listKeys returns the caller's own keys, redacted (no secret). [scope: read]
@@ -103,8 +103,8 @@ func (ss *selfServe) listKeys(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := ss.svc.ListKeys(r.Context(), tenantID)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }

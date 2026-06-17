@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 )
 
 const maxBufferSize = 1000
@@ -46,9 +46,9 @@ func New(log *slog.Logger) *Service {
 	return &Service{
 		log:       log,
 		client:    &http.Client{Timeout: 5 * time.Second},
-		lokiURL:   shared.EnvStr("LOG_SERVICE_LOKI_URL", "http://loki:3100/loki/api/v1/push"),
-		batchSize: shared.EnvInt("LOG_SERVICE_LOKI_BATCH_SIZE", 25),
-		flushMS:   shared.EnvInt("LOG_SERVICE_LOKI_FLUSH_MS", 1000),
+		lokiURL:   config.EnvStr("LOG_SERVICE_LOKI_URL", "http://loki:3100/loki/api/v1/push"),
+		batchSize: config.EnvInt("LOG_SERVICE_LOKI_BATCH_SIZE", 25),
+		flushMS:   config.EnvInt("LOG_SERVICE_LOKI_FLUSH_MS", 1000),
 		entries:   make([]Entry, 0, maxBufferSize),
 	}
 }

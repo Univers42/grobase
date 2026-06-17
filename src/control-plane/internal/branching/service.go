@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // ErrNotFound is returned when a branch id is not the caller's (or unknown). The
@@ -23,12 +23,12 @@ var ErrBranchExists = errors.New("a branch with that name already exists")
 // (tenants.TenantSchema for the per-tenant schema) so a branch only ever clones
 // ONE tenant's own schema.
 type Service struct {
-	db  *shared.Postgres
+	db  *pg.Postgres
 	log *slog.Logger
 }
 
 // NewService builds the branching service.
-func NewService(db *shared.Postgres, log *slog.Logger) *Service {
+func NewService(db *pg.Postgres, log *slog.Logger) *Service {
 	return &Service{db: db, log: log}
 }
 
@@ -50,7 +50,7 @@ func (s *Service) CreateBranch(ctx context.Context, tenantID, mount, rawName str
 	branchID, err := s.insertPending(ctx, tenantID, mount, branchName, bSchema, iso)
 	if err != nil {
 		// A UNIQUE(tenant_id, branch_name) collision is a 409, not a 500.
-		if shared.IsUniqueViolation(err) {
+		if pg.IsUniqueViolation(err) {
 			return BranchRow{}, ErrBranchExists
 		}
 		return BranchRow{}, err

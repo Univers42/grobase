@@ -4,7 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // deliveryOutcomeHelp documents the baas_webhook_deliveries_total counter:
@@ -32,7 +33,7 @@ func (d *Dispatcher) recordSuccess(ctx context.Context, subscriptionID, eventID 
 		       last_error = NULL, delivered_at = now()
 		 WHERE subscription_id = $1::uuid AND event_id = $2`,
 		subscriptionID, eventID, attempts, statusCode)
-	shared.IncCounter("baas_webhook_deliveries_total", deliveryOutcomeHelp, "outcome", "success")
+	observability.IncCounter("baas_webhook_deliveries_total", deliveryOutcomeHelp, "outcome", "success")
 }
 
 func (d *Dispatcher) recordDead(ctx context.Context,
@@ -42,19 +43,19 @@ func (d *Dispatcher) recordDead(ctx context.Context,
 		   SET status = 'dead', attempts = $3, last_status_code = $4,
 		       last_error = $5
 		 WHERE subscription_id = $1::uuid AND event_id = $2`,
-		subscriptionID, eventID, attempts, shared.NullableInt(statusCode), errMsg)
-	shared.IncCounter("baas_webhook_deliveries_total", deliveryOutcomeHelp, "outcome", "dead")
+		subscriptionID, eventID, attempts, pg.NullableInt(statusCode), errMsg)
+	observability.IncCounter("baas_webhook_deliveries_total", deliveryOutcomeHelp, "outcome", "dead")
 	d.log.Warn("delivery moved to DLQ", "sub", subscriptionID, "event", eventID, "attempts", attempts)
 }
 
 func (d *Dispatcher) recordRetry(ctx context.Context,
 	subscriptionID, eventID string, attempts, statusCode int, errMsg string) {
-	shared.IncCounter("baas_webhook_deliveries_total", deliveryOutcomeHelp, "outcome", "retry")
+	observability.IncCounter("baas_webhook_deliveries_total", deliveryOutcomeHelp, "outcome", "retry")
 	next := time.Now().Add(backoff(attempts))
 	_ = d.db.AdminExec(ctx, `
 		UPDATE public.webhook_deliveries
 		   SET status = 'pending', attempts = $3, last_status_code = $4,
 		       last_error = $5, next_attempt_at = $6
 		 WHERE subscription_id = $1::uuid AND event_id = $2`,
-		subscriptionID, eventID, attempts, shared.NullableInt(statusCode), errMsg, next)
+		subscriptionID, eventID, attempts, pg.NullableInt(statusCode), errMsg, next)
 }

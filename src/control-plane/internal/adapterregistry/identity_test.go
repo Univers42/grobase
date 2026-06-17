@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 const testToken = "test-service-token"
 
 // signIdentity produces a valid X-Baas-Identity-Auth value for the given tuple.
 func signIdentity(token, userID, tenantID string, ts int64) string {
-	return shared.ComputeServiceSignature(token, "IDENTITY", canonicalIdentity(userID, tenantID), nil, ts)
+	return serviceauth.ComputeServiceSignature(token, "IDENTITY", canonicalIdentity(userID, tenantID), nil, ts)
 }
 
 func TestRequireUserDefaultTrustsHeaders(t *testing.T) {

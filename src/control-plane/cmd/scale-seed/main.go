@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 type mountSpec struct {
@@ -69,7 +69,7 @@ type record struct {
 func serviceHeaders(req *http.Request, token, body string) {
 	if strings.EqualFold(os.Getenv("SERVICE_TOKEN_MODE"), "hmac") {
 		req.Header.Set("X-Service-Auth",
-			shared.ComputeServiceSignature(token, req.Method, req.URL.Path, []byte(body), time.Now().Unix()))
+			serviceauth.ComputeServiceSignature(token, req.Method, req.URL.Path, []byte(body), time.Now().Unix()))
 	} else {
 		req.Header.Set("X-Service-Token", token)
 	}

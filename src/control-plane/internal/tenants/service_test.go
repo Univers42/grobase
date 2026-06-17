@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -23,7 +23,7 @@ func TestIsUniqueViolation(t *testing.T) {
 		{"other pg code", &pgconn.PgError{Code: "23503"}, false},
 	}
 	for _, c := range cases {
-		if got := shared.IsUniqueViolation(c.err); got != c.want {
+		if got := pg.IsUniqueViolation(c.err); got != c.want {
 			t.Errorf("%s: isUniqueViolation = %v, want %v", c.name, got, c.want)
 		}
 	}

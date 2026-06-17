@@ -80,7 +80,7 @@ func (c *Collector) collectBackupPosture() (json.RawMessage, error) {
 // envBool does (1/true/yes/on, case-insensitive). An unset/empty value is false,
 // so a missing flag records the control disabled — never green by omission.
 //
-// ponytail: kept local (not shared.EnvBool) because it parses an already-fetched
+// ponytail: kept local (not config.EnvBool) because it parses an already-fetched
 // string via the collector's indirected env source — promote to shared if a
 // string-input variant is added there.
 func isTruthy(v string) bool {

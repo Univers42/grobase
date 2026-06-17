@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // Mount registers the tenant-facing CRUD routes.
@@ -29,19 +29,19 @@ func (rt *routes) set(w http.ResponseWriter, r *http.Request) {
 	}
 	var req SetRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON")
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON")
 		return
 	}
 	if err := req.Validate(); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 	meta, err := rt.svc.Set(r.Context(), tenantID, req)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusCreated, meta)
+	httpx.WriteJSON(w, http.StatusCreated, meta)
 }
 
 func (rt *routes) list(w http.ResponseWriter, r *http.Request) {
@@ -51,10 +51,10 @@ func (rt *routes) list(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := rt.svc.List(r.Context(), tenantID)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func (rt *routes) remove(w http.ResponseWriter, r *http.Request) {
@@ -66,10 +66,10 @@ func (rt *routes) remove(w http.ResponseWriter, r *http.Request) {
 	err := rt.svc.Delete(r.Context(), tenantID, fn, r.PathValue("key"))
 	switch {
 	case errors.Is(err, ErrNotFound):
-		shared.WriteError(w, http.StatusNotFound, "not_found", "function secret not found")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "function secret not found")
 	case err != nil:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	default:
-		shared.WriteJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+		httpx.WriteJSON(w, http.StatusOK, map[string]bool{"deleted": true})
 	}
 }

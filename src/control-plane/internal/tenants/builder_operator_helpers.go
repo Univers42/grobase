@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	ent "github.com/dlesieur/mini-baas/control-plane/internal/entitlements"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // buildOperatorRecord validates the optional ceiling + status and assembles the
@@ -38,7 +38,7 @@ func operatorEntitlementResponse(rec ent.Record) map[string]any {
 func (b *builderAPI) optionalCeiling(w http.ResponseWriter, raw string) (string, bool) {
 	ceiling := strings.TrimSpace(raw)
 	if ceiling != "" && !b.knownPlan(ceiling) {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error",
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error",
 			"unknown ceiling_plan "+ceiling+" (not in package manifest)")
 		return "", false
 	}
@@ -53,7 +53,7 @@ func normalizeEntitlementStatus(w http.ResponseWriter, raw string) (string, bool
 		status = "active"
 	}
 	if status != "active" && status != "draft" {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "status must be active or draft")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "status must be active or draft")
 		return "", false
 	}
 	return status, true

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -22,7 +22,7 @@ import (
 // DDL-snapshot restore (column/type recreation) is a documented B6b follow-up;
 // for the two MVP-clean isolation models the data-replay restore is exact for an
 // unchanged table shape, which is the gate's round-trip contract.
-func restoreSchema(ctx context.Context, db *shared.Postgres, schema string, r io.Reader) error {
+func restoreSchema(ctx context.Context, db *pg.Postgres, schema string, r io.Reader) error {
 	body, m, err := splitArtifact(r)
 	if err != nil {
 		return err

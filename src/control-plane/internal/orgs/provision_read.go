@@ -3,7 +3,7 @@ package orgs
 import (
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // provision_read.go — the read-side org-project handlers (list projects + usage
@@ -17,10 +17,10 @@ func (rt *routes) listProjects(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := rt.svc.ListProjects(r.Context(), orgID)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 // usage returns the per-org usage rollup over member projects (D1.5). It reads
@@ -33,8 +33,8 @@ func (rt *routes) usage(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := rt.svc.OrgUsageRollup(r.Context(), orgID)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }

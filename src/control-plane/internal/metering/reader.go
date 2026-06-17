@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // rows is the minimal cursor surface the Reader scans. pgx.Rows (returned by
-// shared.Postgres.AdminQuery) satisfies it; a fake satisfies it in unit tests so
+// pg.Postgres.AdminQuery) satisfies it; a fake satisfies it in unit tests so
 // the aggregation + isolation contract needs no live database.
 type rows interface {
 	Next() bool
@@ -18,16 +18,16 @@ type rows interface {
 }
 
 // querier is the minimal Postgres read surface the Reader needs.
-// shared.Postgres (AdminQuery — privileged, BYPASSRLS) satisfies it via the
+// pg.Postgres (AdminQuery — privileged, BYPASSRLS) satisfies it via the
 // adapter below; a fake satisfies it directly in unit tests.
 type querier interface {
 	AdminQuery(ctx context.Context, sql string, args ...any) (rows, error)
 }
 
-// pgPool adapts shared.Postgres (whose AdminQuery returns pgx.Rows) to querier
+// pgPool adapts pg.Postgres (whose AdminQuery returns pgx.Rows) to querier
 // (whose AdminQuery returns the narrow rows interface). pgx.Rows already has
 // Next/Scan/Err/Close, so the adapt is purely a return-type widen.
-type pgPool struct{ db *shared.Postgres }
+type pgPool struct{ db *pg.Postgres }
 
 func (p pgPool) AdminQuery(ctx context.Context, sql string, args ...any) (rows, error) {
 	return p.db.AdminQuery(ctx, sql, args...)
@@ -90,7 +90,7 @@ func (r *Reader) Aggregate(ctx context.Context, tenantID, metric string, from, t
 		Metrics:  make([]MetricAgg, 0),
 	}
 	rows, err := r.db.AdminQuery(ctx, aggregateSQL,
-		tenantID, shared.NullableStr(metric), shared.NullableTime(from), shared.NullableTime(to))
+		tenantID, pg.NullableStr(metric), pg.NullableTime(from), pg.NullableTime(to))
 	if err != nil {
 		return resp, err
 	}

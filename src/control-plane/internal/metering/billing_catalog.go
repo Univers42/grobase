@@ -3,7 +3,7 @@ package metering
 import (
 	"sort"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 )
 
 // billingCatalog (Track-B B3) maps a B1 usage metric name → the Stripe billing
@@ -35,7 +35,7 @@ var billableMetricEnv = map[string]string{
 func loadBillingCatalog() billingCatalog {
 	m := make(map[string]string, len(billableMetricEnv))
 	for metric, ev := range billableMetricEnv {
-		if name := shared.EnvStr(ev, ""); name != "" {
+		if name := config.EnvStr(ev, ""); name != "" {
 			m[metric] = name
 		}
 	}

@@ -4,16 +4,16 @@ import (
 	"os"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/branching"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 	"github.com/dlesieur/mini-baas/control-plane/internal/passkeys"
 	"github.com/dlesieur/mini-baas/control-plane/internal/push"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 	"github.com/dlesieur/mini-baas/control-plane/internal/trust"
 )
 
 // mountPasskeys mounts the D2c WebAuthn ceremonies (PASSKEYS_ENABLED). Requires
 // the shared GoTrue secret (session mint) plus a configured relying party.
 func (b *bootCtx) mountPasskeys() {
-	if !shared.EnvBool("PASSKEYS_ENABLED") {
+	if !config.EnvBool("PASSKEYS_ENABLED") {
 		b.log.Info("passkeys / WebAuthn disabled (PASSKEYS_ENABLED off) — /v1/auth/passkeys/* not mounted")
 		return
 	}
@@ -24,7 +24,7 @@ func (b *bootCtx) mountPasskeys() {
 	rpID, rpOrigins := b.passkeysRP()
 	minter := passkeys.NewSessionMinter(b.jwtSecret, os.Getenv("GOTRUE_JWT_ISSUER"), 0)
 	pkSvc, err := passkeys.NewService(b.db, passkeys.Config{
-		RPID: rpID, RPDisplayName: shared.EnvStr("PASSKEYS_RP_DISPLAY_NAME", "Grobase"), RPOrigins: rpOrigins,
+		RPID: rpID, RPDisplayName: config.EnvStr("PASSKEYS_RP_DISPLAY_NAME", "Grobase"), RPOrigins: rpOrigins,
 	}, minter, b.log)
 	if err != nil {
 		b.log.Error("passkeys: relying-party init failed", "err", err)
@@ -49,11 +49,11 @@ func (b *bootCtx) passkeysRP() (string, []string) {
 // mountTrust mounts the D4.6 read-only trust center (TRUST_CENTER_ENABLED) from a
 // file manifest (TRUST_MANIFEST) or the embedded copy when unset.
 func (b *bootCtx) mountTrust() {
-	if !shared.EnvBool("TRUST_CENTER_ENABLED") {
+	if !config.EnvBool("TRUST_CENTER_ENABLED") {
 		b.log.Info("trust center disabled (TRUST_CENTER_ENABLED off) — /v1/trust* not mounted")
 		return
 	}
-	if mp := shared.EnvStr("TRUST_MANIFEST", ""); mp != "" {
+	if mp := config.EnvStr("TRUST_MANIFEST", ""); mp != "" {
 		m, err := trust.LoadManifest(mp)
 		if err != nil {
 			b.log.Error("trust: posture manifest load failed", "path", mp, "err", err)
@@ -74,7 +74,7 @@ func (b *bootCtx) mountTrust() {
 
 // mountBranching mounts the Track-E DB-branching API (DB_BRANCHING_ENABLED).
 func (b *bootCtx) mountBranching() {
-	if !shared.EnvBool("DB_BRANCHING_ENABLED") {
+	if !config.EnvBool("DB_BRANCHING_ENABLED") {
 		b.log.Info("DB branching disabled (DB_BRANCHING_ENABLED off) — /v1/tenants/{id}/branches* not mounted")
 		return
 	}
@@ -84,7 +84,7 @@ func (b *bootCtx) mountBranching() {
 
 // mountPush mounts the Track-E push/messaging API (PUSH_ENABLED).
 func (b *bootCtx) mountPush() {
-	if !shared.EnvBool("PUSH_ENABLED") {
+	if !config.EnvBool("PUSH_ENABLED") {
 		b.log.Info("push / messaging disabled (PUSH_ENABLED off) — /v1/tenants/{id}/push/* not mounted")
 		return
 	}

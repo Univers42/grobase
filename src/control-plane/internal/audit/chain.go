@@ -30,7 +30,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/jsoncanon"
 )
 
 // Event is one link in a tenant's audit chain — the canonical form the hash is
@@ -79,7 +79,7 @@ func canonicalBytes(tenantID string, seq int64, ts time.Time, actor, action, tar
 	add(actor)
 	add(action)
 	add(target)
-	add(string(shared.CanonicalJSON(payload)))
+	add(string(jsoncanon.CanonicalJSON(payload)))
 	return b
 }
 

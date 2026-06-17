@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 const msgInvalidJSON = "invalid JSON"
@@ -27,7 +27,7 @@ func (rt *routes) createBranch(w http.ResponseWriter, r *http.Request) {
 	var req createBranchRequest
 	if r.ContentLength != 0 {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+			httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 			return
 		}
 	}
@@ -35,17 +35,17 @@ func (rt *routes) createBranch(w http.ResponseWriter, r *http.Request) {
 	if rt.handleErr(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusCreated, row)
+	httpx.WriteJSON(w, http.StatusCreated, row)
 }
 
 // listBranches returns the tenant's branch rows, newest first.
 func (rt *routes) listBranches(w http.ResponseWriter, r *http.Request) {
 	out, err := rt.svc.ListBranches(r.Context(), r.PathValue("id"))
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 // dropBranch drops the {branchId} branch belonging to {id}. The service validates

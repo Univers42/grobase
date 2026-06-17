@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -28,7 +28,7 @@ func (b *sqlBackend) decideRequest(ctx context.Context, userID, resourceType, re
 	if b.serviceToken != "" {
 		req.Header.Set("X-Service-Token", b.serviceToken)
 	}
-	shared.PropagateHeaders(ctx, req)
+	observability.PropagateHeaders(ctx, req)
 	return req, nil
 }
 

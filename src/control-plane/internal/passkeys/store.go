@@ -28,7 +28,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// pdb is the minimal Postgres surface the store needs. *shared.Postgres
+// pdb is the minimal Postgres surface the store needs. *pg.Postgres
 // satisfies it (the passkeys service runs as the BYPASSRLS control-plane role);
 // a fake satisfies it in unit tests so the ceremony logic is provable without a
 // live database.

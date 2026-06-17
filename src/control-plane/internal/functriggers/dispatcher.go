@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	redis "github.com/redis/go-redis/v9"
 )
 
@@ -19,7 +19,7 @@ import (
 // invoke as the delivery target instead of an external HTTP POST. Failures are
 // retried with exponential backoff and parked in the DLQ after max_attempts.
 type Dispatcher struct {
-	db          *shared.Postgres
+	db          *pg.Postgres
 	rdb         *redis.Client
 	log         *slog.Logger
 	groupName   string
@@ -41,7 +41,7 @@ type DispatcherConfig struct {
 }
 
 // NewDispatcher builds a dispatcher; the caller owns the lifecycle.
-func NewDispatcher(db *shared.Postgres, log *slog.Logger, cfg DispatcherConfig) (*Dispatcher, error) {
+func NewDispatcher(db *pg.Postgres, log *slog.Logger, cfg DispatcherConfig) (*Dispatcher, error) {
 	opts, err := redis.ParseURL(cfg.RedisURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse redis url: %w", err)

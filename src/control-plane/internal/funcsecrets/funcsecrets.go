@@ -22,7 +22,7 @@ import (
 	"regexp"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/adapterregistry"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // ErrNotFound is returned when a secret key does not exist for the tenant.
@@ -32,13 +32,13 @@ var keyRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,127}$`)
 
 // Service owns CRUD + resolve on function_secrets.
 type Service struct {
-	db  *shared.Postgres
+	db  *pg.Postgres
 	enc *adapterregistry.Encryptor
 	log *slog.Logger
 }
 
 // NewService wires the DB pool + AES encryptor.
-func NewService(db *shared.Postgres, enc *adapterregistry.Encryptor, log *slog.Logger) *Service {
+func NewService(db *pg.Postgres, enc *adapterregistry.Encryptor, log *slog.Logger) *Service {
 	return &Service{db: db, enc: enc, log: log}
 }
 

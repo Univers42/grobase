@@ -3,7 +3,7 @@ package sso
 import (
 	"context"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // Store is the durable sso_connections registry (migration 053). It speaks SQL
@@ -12,12 +12,12 @@ import (
 // sso_connections is the second. The client secret is sealed (AES-256-GCM) on
 // Insert and opened on read, so the plaintext never lives in a column.
 type Store struct {
-	db     *shared.Postgres
+	db     *pg.Postgres
 	sealer *secretSealer
 }
 
 // NewStore wires the DB pool + the secret sealer (the AEAD over SSO_SECRET_KEY).
-func NewStore(db *shared.Postgres, sealer *secretSealer) *Store {
+func NewStore(db *pg.Postgres, sealer *secretSealer) *Store {
 	return &Store{db: db, sealer: sealer}
 }
 
@@ -43,7 +43,7 @@ func (s *Store) Insert(ctx context.Context, in RegisterInput) (Connection, error
 		in.TenantID, in.OrgID, in.Issuer, in.ClientID, enc,
 		in.AuthorizeURL, in.TokenURL, in.JWKSURL, in.RedirectURI, in.EmailDomain, role)
 	if err != nil {
-		if shared.IsUniqueViolation(err) {
+		if pg.IsUniqueViolation(err) {
 			return Connection{}, ErrConflict
 		}
 		return Connection{}, err

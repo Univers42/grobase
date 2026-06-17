@@ -3,7 +3,7 @@ package tenants
 import (
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // hasScope reports whether the credential carries the named scope, treating
@@ -42,7 +42,7 @@ func (ss *selfServe) requireScope(w http.ResponseWriter, scopes []string, want s
 	if hasScope(scopes, want) {
 		return true
 	}
-	shared.WriteError(w, http.StatusForbidden, "forbidden",
+	httpx.WriteError(w, http.StatusForbidden, "forbidden",
 		"this credential lacks the required scope: "+want)
 	return false
 }

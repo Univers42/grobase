@@ -20,7 +20,7 @@ func (c *verifyCache) flush() {
 }
 
 // envInt reads a positive int env var, returning def when unset/unparseable or
-// non-positive. (Distinct from shared.EnvInt, which accepts zero/negative.)
+// non-positive. (Distinct from config.EnvInt, which accepts zero/negative.)
 func envInt(name string, def int) int {
 	if v, err := strconv.Atoi(os.Getenv(name)); err == nil && v > 0 {
 		return v

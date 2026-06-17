@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -46,8 +46,8 @@ func (s *Service) GetConnection(ctx context.Context, userID, id string) (Connect
 func (m mountRow) credentialRef() *CredentialRefInput {
 	return &CredentialRefInput{
 		Provider:  *m.provider,
-		Reference: shared.DerefStr(m.reference),
-		Version:   shared.DerefStr(m.version),
+		Reference: pg.DerefStr(m.reference),
+		Version:   pg.DerefStr(m.version),
 	}
 }
 

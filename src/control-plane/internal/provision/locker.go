@@ -17,7 +17,7 @@ type PoolConn interface {
 }
 
 // ConnAcquirer hands out a dedicated connection for the lock's whole lifetime.
-// *shared.Postgres satisfies it via AcquireConn.
+// *pg.Postgres satisfies it via AcquireConn.
 type ConnAcquirer interface {
 	AcquireConn(ctx context.Context) (*pgxpool.Conn, error)
 }

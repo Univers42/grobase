@@ -32,7 +32,7 @@ import (
 	"encoding/hex"
 	"errors"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // ErrTokenInvalid is the load-bearing reject: a missing/unknown/revoked SCIM
@@ -60,10 +60,10 @@ type TokenBinding struct {
 // (BYPASSRLS service_role) and ALWAYS binds tenant_id in its WHERE clauses
 // (defense-in-depth behind the RLS policies in migration 054).
 type store struct {
-	db *shared.Postgres
+	db *pg.Postgres
 }
 
-func newStore(db *shared.Postgres) *store { return &store{db: db} }
+func newStore(db *pg.Postgres) *store { return &store{db: db} }
 
 // hashToken is the fast, non-reversible lookup token for a cleartext SCIM bearer
 // (sha256 lower-hex). A high-entropy token → fast hash (kernel rule #7); the

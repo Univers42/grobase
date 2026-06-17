@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // Audit residual O6: adapter-registry historically TRUSTED the gateway-injected
@@ -21,7 +21,7 @@ import (
 //   - identityHMACEnabled() gates the whole feature on ADAPTER_REGISTRY_IDENTITY_HMAC.
 //   - When ON, a caller must present X-Baas-Identity-Auth: a v1 signature (the
 //     same v1.<ts>.<hex> envelope as the service-auth HMAC, reusing
-//     shared.ComputeServiceSignature) computed over the canonical identity
+//     serviceauth.ComputeServiceSignature) computed over the canonical identity
 //     string "<user-id>\n<tenant-id>" as the signed "path", keyed by the same
 //     service token the write routes already verify. This binds the asserted
 //     identity to a holder of the service token within a ±skew window, so a peer
@@ -50,7 +50,7 @@ func canonicalIdentity(userID, tenantID string) string {
 
 // verifyIdentitySignature validates X-Baas-Identity-Auth against the canonical
 // identity using the service token as the HMAC key. Mirrors the verification
-// shape of shared.VerifyServiceRequest (v1 envelope + ±skew window) but binds
+// shape of serviceauth.VerifyServiceRequest (v1 envelope + ±skew window) but binds
 // the identity tuple instead of method/path/body. Returns false on any
 // malformed header, expired/early timestamp, or signature mismatch.
 func verifyIdentitySignature(r *http.Request, serviceToken, userID, tenantID string) bool {
@@ -73,7 +73,7 @@ func verifyIdentitySignature(r *http.Request, serviceToken, userID, tenantID str
 	}
 	// Reuse the golden-vector-tested HMAC primitive: the canonical identity is
 	// the signed "path"; method is fixed and there is no body.
-	want := shared.ComputeServiceSignature(serviceToken, "IDENTITY", canonicalIdentity(userID, tenantID), nil, ts)
+	want := serviceauth.ComputeServiceSignature(serviceToken, "IDENTITY", canonicalIdentity(userID, tenantID), nil, ts)
 	return subtle.ConstantTimeCompare([]byte(hdr), []byte(want)) == 1
 }
 

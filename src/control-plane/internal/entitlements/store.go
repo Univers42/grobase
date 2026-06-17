@@ -35,7 +35,7 @@ import (
 )
 
 // pgIface is the minimal Postgres surface the Store needs (admin/BYPASSRLS read +
-// write, exactly like the other Track-B/D stores). The real *shared.Postgres
+// write, exactly like the other Track-B/D stores). The real *pg.Postgres
 // satisfies it; a fake satisfies it in unit tests so Resolve is provable without
 // a live DB.
 type pgIface interface {

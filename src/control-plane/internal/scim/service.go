@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // memberProvisioner is the seam onto internal/orgs membership lifecycle. SCIM
@@ -29,7 +29,7 @@ type Service struct {
 }
 
 // NewService wires the DB-backed store + the org membership provisioner + logger.
-func NewService(db *shared.Postgres, members memberProvisioner, log *slog.Logger) *Service {
+func NewService(db *pg.Postgres, members memberProvisioner, log *slog.Logger) *Service {
 	return &Service{store: newStore(db), members: members, log: log}
 }
 

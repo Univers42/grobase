@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // invite.go — email invite issue/list/revoke (sha256-HASHED token). The token
@@ -61,14 +61,14 @@ func (s *Service) insertInvite(ctx context.Context, orgID, email, role, tokenHas
 		          expires_at::text, created_at::text, accepted_by`,
 		orgID, email, role, tokenHash, invitedBy, defaultInviteTTLHours)
 	if err != nil {
-		if shared.IsUniqueViolation(err) {
+		if pg.IsUniqueViolation(err) {
 			return Invite{}, ErrConflict
 		}
 		return Invite{}, err
 	}
 	var inv Invite
 	if err := scanInvite(&singleRow{rows: rows}, &inv); err != nil {
-		if shared.IsUniqueViolation(err) {
+		if pg.IsUniqueViolation(err) {
 			return Invite{}, ErrConflict
 		}
 		return Invite{}, err

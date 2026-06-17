@@ -30,7 +30,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/jsoncanon"
 )
 
 // Section is the control family one evidence row attests. The collector
@@ -100,7 +100,7 @@ func canonicalBytes(section string, collectedAt time.Time, payload []byte) []byt
 	}
 	add(section)
 	add(collectedAt.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano))
-	add(string(shared.CanonicalJSON(payload)))
+	add(string(jsoncanon.CanonicalJSON(payload)))
 	return b
 }
 

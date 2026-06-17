@@ -3,7 +3,7 @@ package adapterregistry
 import (
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 func (rt *routes) requireUser(w http.ResponseWriter, r *http.Request) (string, bool) {
@@ -20,12 +20,12 @@ func (rt *routes) requireUser(w http.ResponseWriter, r *http.Request) (string, b
 	// identity.go) so a peer on a flat bridge can no longer spoof identity.
 	userID, tenantID, resolved := resolveIdentityHeaders(r)
 	if resolved == "" {
-		shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",
 			"missing user/tenant header (X-Baas-User-Id, X-Baas-Tenant-Id, X-User-Id or X-Tenant-Id)")
 		return "", false
 	}
 	if identityHMACEnabled() && !verifyIdentitySignature(r, rt.serviceToken, userID, tenantID) {
-		shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",
 			"invalid or missing identity signature ("+identityAuthHeader+")")
 		return "", false
 	}

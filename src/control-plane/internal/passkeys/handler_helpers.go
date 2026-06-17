@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/identity"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // decodeFinish parses the begin→finish bridge body and validates the two
@@ -15,15 +17,15 @@ import (
 func (rt *routes) decodeFinish(w http.ResponseWriter, r *http.Request) (finishRequest, bool) {
 	var req finishRequest
 	if err := decodeJSON(r, &req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return finishRequest{}, false
 	}
 	if strings.TrimSpace(req.ChallengeID) == "" {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "challenge_id required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "challenge_id required")
 		return finishRequest{}, false
 	}
 	if len(req.Response) == 0 {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "response required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "response required")
 		return finishRequest{}, false
 	}
 	return req, true
@@ -38,13 +40,13 @@ func (rt *routes) decodeFinish(w http.ResponseWriter, r *http.Request) (finishRe
 func (rt *routes) writeErr(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrAssertionRejected):
-		shared.WriteError(w, http.StatusUnauthorized, "assertion_rejected", "passkey authentication failed")
+		httpx.WriteError(w, http.StatusUnauthorized, "assertion_rejected", "passkey authentication failed")
 	case errors.Is(err, ErrChallengeNotFound):
-		shared.WriteError(w, http.StatusNotFound, "challenge_not_found", ErrChallengeNotFound.Error())
+		httpx.WriteError(w, http.StatusNotFound, "challenge_not_found", ErrChallengeNotFound.Error())
 	case errors.Is(err, ErrNoCredentials):
-		shared.WriteError(w, http.StatusNotFound, "no_credentials", ErrNoCredentials.Error())
+		httpx.WriteError(w, http.StatusNotFound, "no_credentials", ErrNoCredentials.Error())
 	default:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	}
 }
 
@@ -54,19 +56,19 @@ func (rt *routes) writeErr(w http.ResponseWriter, err error) {
 // untenanted (empty) deployment a bare service token is required (TenantSelfMatch
 // never matches an empty id), so a public unauthenticated begin is impossible.
 //
-// The self arm goes through shared.TenantSelfMatch: when TENANT_HEADER_IDENTITY_HMAC
+// The self arm goes through identity.TenantSelfMatch: when TENANT_HEADER_IDENTITY_HMAC
 // is set, a forged X-Baas-Tenant-Id cannot START a ceremony for another tenant's
 // user on its own (a valid X-Baas-Identity-Auth signature over the asserted id is
 // required); OFF (default) it is the unchanged `tenantID != "" && header == id`
 // check (parity). The service-token (admin) arm never relies on the header.
 func (rt *routes) tokenOrSelf(w http.ResponseWriter, r *http.Request, tenantID string) bool {
-	if shared.VerifyServiceRequest(r, rt.serviceToken) {
+	if serviceauth.VerifyServiceRequest(r, rt.serviceToken) {
 		return true
 	}
-	if shared.TenantSelfMatch(r, rt.serviceToken, tenantID) {
+	if identity.TenantSelfMatch(r, rt.serviceToken, tenantID) {
 		return true
 	}
-	shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
+	httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",
 		"service token or matching tenant header required")
 	return false
 }

@@ -7,12 +7,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 	"github.com/dlesieur/mini-baas/control-plane/internal/scheduler"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 )
 
 // serve runs the HTTP listener in the background, signalling stop on fatal error.
-func serve(srv *http.Server, cfg shared.Config, log *slog.Logger, stop func()) {
+func serve(srv *http.Server, cfg config.Config, log *slog.Logger, stop func()) {
 	go func() {
 		log.Info("listening", "addr", cfg.ListenAddr(), "mode", cfg.ProductMode)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

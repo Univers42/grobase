@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // Sentinel errors map to HTTP status in the handler layer (parity with the Nest
@@ -16,9 +16,9 @@ var (
 )
 
 // store is the Postgres-backed session repository — a faithful port of the
-// NestJS SessionService DB methods over shared.Postgres.
+// NestJS SessionService DB methods over pg.Postgres.
 type store struct {
-	pg      *shared.Postgres
+	pg      *pg.Postgres
 	ttlDays int
 }
 

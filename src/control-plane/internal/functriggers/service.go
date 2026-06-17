@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -18,12 +18,12 @@ var ErrConflict = errors.New("function trigger with that name already exists")
 
 // Service owns CRUD on function_triggers and the delivery ledger.
 type Service struct {
-	db  *shared.Postgres
+	db  *pg.Postgres
 	log *slog.Logger
 }
 
 // NewService wires the DB pool.
-func NewService(db *shared.Postgres, log *slog.Logger) *Service {
+func NewService(db *pg.Postgres, log *slog.Logger) *Service {
 	return &Service{db: db, log: log}
 }
 
@@ -63,7 +63,7 @@ func (s *Service) Create(ctx context.Context, tenantID string, req CreateRequest
 		return scanTrigger(row, &tr)
 	})
 	if err != nil {
-		if shared.IsUniqueViolation(err) {
+		if pg.IsUniqueViolation(err) {
 			return Trigger{}, ErrConflict
 		}
 		return Trigger{}, err

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -71,7 +71,7 @@ func enumerateSharedTables(ctx context.Context, conn *pgxpool.Conn, tenantID str
 // isolation model, and writes the portable bundle to w. The connection is held
 // only for the duration of the write (streamed). schema is the resolved
 // per-tenant schema (schema_per_tenant) or "" (shared_rls).
-func extractScoped(ctx context.Context, db *shared.Postgres, iso, tenantID, schema string, w io.Writer) (Manifest, error) {
+func extractScoped(ctx context.Context, db *pg.Postgres, iso, tenantID, schema string, w io.Writer) (Manifest, error) {
 	conn, err := db.AcquireConn(ctx)
 	if err != nil {
 		return Manifest{}, fmt.Errorf("export: acquire conn: %w", err)

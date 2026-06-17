@@ -31,7 +31,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -48,7 +49,7 @@ type rows interface {
 
 // exportDB is the minimal Postgres surface the exporter needs: list the enabled
 // targets (AdminQuery), read a tenant's usage since its cursor (AdminQuery), and
-// advance its cursor (AdminExec). The real *shared.Postgres is adapted to it via
+// advance its cursor (AdminExec). The real *pg.Postgres is adapted to it via
 // pgPool below (the exporter runs as the BYPASSRLS control-plane role, like the
 // QuotaGuard and the spend-cap guard); a fake satisfies it in unit tests so the
 // batch-building and per-tenant scoping are provable without a database.
@@ -57,11 +58,11 @@ type exportDB interface {
 	AdminExec(ctx context.Context, sql string, args ...any) error
 }
 
-// pgPool adapts *shared.Postgres (whose AdminQuery returns the concrete pgx.Rows)
+// pgPool adapts *pg.Postgres (whose AdminQuery returns the concrete pgx.Rows)
 // to the narrow exportDB interface, mirroring internal/metering's pgPool adapter.
 // A pgx.Rows already satisfies the narrow `rows` interface, so the adaptation is a
 // pure type-narrowing — no behavior change.
-type pgPool struct{ db *shared.Postgres }
+type pgPool struct{ db *pg.Postgres }
 
 // pgxRows narrows a pgx.Rows to the four methods the exporter uses.
 type pgxRows struct{ pgx.Rows }
@@ -99,15 +100,15 @@ type Exporter struct {
 // everything; default OFF ⇒ parity. The exporter is engine-agnostic: it reads the
 // engine-neutral public.tenant_usage aggregate (the same B1 truth every data-plane
 // adapter feeds), so no per-engine wiring is needed.
-func New(log *slog.Logger, db *shared.Postgres) *Exporter {
+func New(log *slog.Logger, db *pg.Postgres) *Exporter {
 	return &Exporter{
 		log:       log,
 		db:        pgPool{db: db},
 		sink:      &httpSink{client: &http.Client{}},
-		enabled:   shared.EnvBool("TENANT_TELEMETRY_EXPORT_ENABLED"),
-		interval:  time.Duration(shared.EnvInt("TENANT_TELEMETRY_EXPORT_INTERVAL_MS", 30_000)) * time.Millisecond,
-		batchRows: shared.EnvInt("TENANT_TELEMETRY_EXPORT_BATCH_ROWS", 500),
-		timeout:   time.Duration(shared.EnvInt("TENANT_TELEMETRY_EXPORT_TIMEOUT_MS", 5_000)) * time.Millisecond,
+		enabled:   config.EnvBool("TENANT_TELEMETRY_EXPORT_ENABLED"),
+		interval:  time.Duration(config.EnvInt("TENANT_TELEMETRY_EXPORT_INTERVAL_MS", 30_000)) * time.Millisecond,
+		batchRows: config.EnvInt("TENANT_TELEMETRY_EXPORT_BATCH_ROWS", 500),
+		timeout:   time.Duration(config.EnvInt("TENANT_TELEMETRY_EXPORT_TIMEOUT_MS", 5_000)) * time.Millisecond,
 	}
 }
 

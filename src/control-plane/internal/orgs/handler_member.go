@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // handler_member.go — the org membership HTTP handlers (list / set-role / remove).
@@ -17,10 +17,10 @@ func (rt *routes) listMembers(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := rt.svc.ListMembers(r.Context(), orgID)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func (rt *routes) setMemberRole(w http.ResponseWriter, r *http.Request) {
@@ -36,13 +36,13 @@ func (rt *routes) setMemberRole(w http.ResponseWriter, r *http.Request) {
 	}
 	err := rt.svc.SetMemberRole(r.Context(), orgID, targetUser, req.Role)
 	if errors.Is(err, ErrLastOwner) {
-		shared.WriteError(w, http.StatusConflict, "conflict", "cannot demote the last owner")
+		httpx.WriteError(w, http.StatusConflict, "conflict", "cannot demote the last owner")
 		return
 	}
 	if rt.handleLookup(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]string{"user_id": targetUser, "role": req.Role})
+	httpx.WriteJSON(w, http.StatusOK, map[string]string{"user_id": targetUser, "role": req.Role})
 }
 
 // authorizeRoleChange decodes the body, validates the requested role, and enforces
@@ -52,21 +52,21 @@ func (rt *routes) authorizeRoleChange(w http.ResponseWriter, r *http.Request,
 	orgID, targetUser string, actorRole Role) (SetRoleRequest, bool) {
 	var req SetRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 		return req, false
 	}
 	if !validRole(req.Role) {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error",
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error",
 			"role must be one of owner|admin|developer|billing|viewer")
 		return req, false
 	}
 	currentRole, member := rt.svc.MemberRole(r.Context(), orgID, targetUser)
 	if !member {
-		shared.WriteError(w, http.StatusNotFound, "not_found", "member not found")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "member not found")
 		return req, false
 	}
 	if !canSetRole(actorRole, Role(req.Role), currentRole) {
-		shared.WriteError(w, http.StatusForbidden, "forbidden",
+		httpx.WriteError(w, http.StatusForbidden, "forbidden",
 			"an admin may not create or modify an owner; only an owner can")
 		return req, false
 	}
@@ -81,11 +81,11 @@ func (rt *routes) removeMember(w http.ResponseWriter, r *http.Request) {
 	}
 	err := rt.svc.RemoveMember(r.Context(), orgID, targetUser)
 	if errors.Is(err, ErrLastOwner) {
-		shared.WriteError(w, http.StatusConflict, "conflict", "cannot remove the last owner")
+		httpx.WriteError(w, http.StatusConflict, "conflict", "cannot remove the last owner")
 		return
 	}
 	if rt.handleLookup(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]bool{"removed": true})
+	httpx.WriteJSON(w, http.StatusOK, map[string]bool{"removed": true})
 }

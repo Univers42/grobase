@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 	"github.com/dlesieur/mini-baas/control-plane/internal/provision"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 	"github.com/dlesieur/mini-baas/control-plane/internal/tenants"
 )
 
@@ -72,22 +72,22 @@ func Mount(mux *http.ServeMux, svc *Service, tenantSvc *tenants.Service,
 // Bearer JWT. On any failure it writes 401 and returns ok=false.
 func (rt *routes) authJWT(w http.ResponseWriter, r *http.Request) (userID string, ok bool) {
 	if rt.jwt == nil {
-		shared.WriteError(w, http.StatusNotImplemented, "not_implemented",
+		httpx.WriteError(w, http.StatusNotImplemented, "not_implemented",
 			"org API requires a JWT verifier (set GOTRUE_JWT_SECRET)")
 		return "", false
 	}
 	auth := strings.TrimSpace(r.Header.Get("Authorization"))
 	if auth == "" {
-		shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "Authorization: Bearer <jwt> required")
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "Authorization: Bearer <jwt> required")
 		return "", false
 	}
 	id, err := rt.jwt.Verify(auth)
 	if err != nil {
-		shared.WriteError(w, http.StatusUnauthorized, "invalid_token", err.Error())
+		httpx.WriteError(w, http.StatusUnauthorized, "invalid_token", err.Error())
 		return "", false
 	}
 	if id.UserID == "" {
-		shared.WriteError(w, http.StatusUnauthorized, "invalid_token", "token missing sub")
+		httpx.WriteError(w, http.StatusUnauthorized, "invalid_token", "token missing sub")
 		return "", false
 	}
 	return id.UserID, true
@@ -110,11 +110,11 @@ func (rt *routes) requireCapability(w http.ResponseWriter, r *http.Request, orgI
 	if !member {
 		// Opaque 404: a non-member cannot distinguish "no such org" from "an org
 		// you are not in" — cross-org isolation by membership lookup, not by id.
-		shared.WriteError(w, http.StatusNotFound, "not_found", "org not found")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "org not found")
 		return "", "", false
 	}
 	if !Can(role, cap) {
-		shared.WriteError(w, http.StatusForbidden, "forbidden",
+		httpx.WriteError(w, http.StatusForbidden, "forbidden",
 			"your org role ("+string(role)+") may not perform "+cap)
 		return "", "", false
 	}
@@ -128,9 +128,9 @@ func (rt *routes) handleLookup(w http.ResponseWriter, err error) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, ErrNotFound):
-		shared.WriteError(w, http.StatusNotFound, "not_found", "not found")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "not found")
 	default:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	}
 	return true
 }

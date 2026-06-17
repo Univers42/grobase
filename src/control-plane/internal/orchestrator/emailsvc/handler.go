@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // sendRequest mirrors SendEmailDto.
@@ -35,11 +35,11 @@ func (r sendRequest) validate() error {
 func (s *Service) handleSend(w http.ResponseWriter, r *http.Request) {
 	var req sendRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		shared.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_body"})
+		httpx.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid_body"})
 		return
 	}
 	if err := req.validate(); err != nil {
-		shared.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		httpx.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
 	m := &message{
@@ -52,9 +52,9 @@ func (s *Service) handleSend(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.send(m); err != nil {
 		s.log.Error("smtp send failed", "to", req.To, "err", err)
-		shared.WriteJSON(w, http.StatusBadGateway, map[string]any{"error": "send_failed"})
+		httpx.WriteJSON(w, http.StatusBadGateway, map[string]any{"error": "send_failed"})
 		return
 	}
 	s.log.Info("email sent", "messageId", m.messageID, "to", req.To)
-	shared.WriteJSON(w, http.StatusOK, map[string]any{"messageId": m.messageID})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"messageId": m.messageID})
 }

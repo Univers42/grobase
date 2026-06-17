@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // selfBootstrap is the GoTrue-JWT-authenticated counterpart to /bootstrap.
@@ -27,14 +27,14 @@ func (rt *routes) selfBootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := rt.svc.BootstrapForUser(r.Context(), identity.UserID, identity.Email, keyName)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
 	status := http.StatusOK
 	if out.Created || out.APIKey != nil {
 		status = http.StatusCreated
 	}
-	shared.WriteJSON(w, status, out)
+	httpx.WriteJSON(w, status, out)
 }
 
 // authJWTIdentity verifies the Authorization: Bearer <jwt>, returning the
@@ -42,18 +42,18 @@ func (rt *routes) selfBootstrap(w http.ResponseWriter, r *http.Request) {
 // missing header, or invalid token).
 func (rt *routes) authJWTIdentity(w http.ResponseWriter, r *http.Request) (VerifiedIdentity, bool) {
 	if rt.jwt == nil {
-		shared.WriteError(w, http.StatusNotImplemented, "not_implemented",
+		httpx.WriteError(w, http.StatusNotImplemented, "not_implemented",
 			"tenant-control is not configured with GOTRUE_JWT_SECRET")
 		return VerifiedIdentity{}, false
 	}
 	auth := r.Header.Get("Authorization")
 	if auth == "" {
-		shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "Authorization: Bearer <jwt> required")
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "Authorization: Bearer <jwt> required")
 		return VerifiedIdentity{}, false
 	}
 	identity, err := rt.jwt.Verify(auth)
 	if err != nil {
-		shared.WriteError(w, http.StatusUnauthorized, "invalid_token", err.Error())
+		httpx.WriteError(w, http.StatusUnauthorized, "invalid_token", err.Error())
 		return VerifiedIdentity{}, false
 	}
 	return identity, true
@@ -69,7 +69,7 @@ func decodeKeyName(w http.ResponseWriter, r *http.Request) (string, bool) {
 		DefaultKeyName string `json:"default_key_name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 		return "", false
 	}
 	return body.DefaultKeyName, true

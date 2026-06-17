@@ -5,18 +5,18 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 )
 
 // Service owns CRUD on function_schedules.
 type Service struct {
-	db  *shared.Postgres
+	db  *pg.Postgres
 	log *slog.Logger
 }
 
 // NewService wires the DB pool.
-func NewService(db *shared.Postgres, log *slog.Logger) *Service {
+func NewService(db *pg.Postgres, log *slog.Logger) *Service {
 	return &Service{db: db, log: log}
 }
 

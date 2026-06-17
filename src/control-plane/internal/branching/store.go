@@ -25,7 +25,7 @@ package branching
 import (
 	"context"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // BranchRow is one ledger row (the ListBranches element + the create/get
@@ -45,7 +45,7 @@ type BranchRow struct {
 
 // listBranches returns the tenant's branches, most-recent-first. tenant_id is a
 // bind param (the cross-tenant wall); RLS is a second wall for any non-admin path.
-func listBranches(ctx context.Context, db *shared.Postgres, tenantID string) ([]BranchRow, error) {
+func listBranches(ctx context.Context, db *pg.Postgres, tenantID string) ([]BranchRow, error) {
 	rows, err := db.AdminQuery(ctx,
 		`SELECT id::text, tenant_id, COALESCE(parent_mount,''), branch_name, branch_schema,
 		        isolation, status, table_count, row_count, created_at::text
@@ -72,7 +72,7 @@ func listBranches(ctx context.Context, db *shared.Postgres, tenantID string) ([]
 // caller==owner check: a branchId that is not the caller's — or unknown — yields
 // ErrNotFound, never another tenant's branch). Returns the branch_schema (needed
 // to DROP) alongside the row.
-func loadBranch(ctx context.Context, db *shared.Postgres, tenantID, branchID string) (BranchRow, error) {
+func loadBranch(ctx context.Context, db *pg.Postgres, tenantID, branchID string) (BranchRow, error) {
 	rows, err := db.AdminQuery(ctx,
 		`SELECT id::text, tenant_id, COALESCE(parent_mount,''), branch_name, branch_schema,
 		        isolation, status, table_count, row_count, created_at::text
@@ -98,7 +98,7 @@ func loadBranch(ctx context.Context, db *shared.Postgres, tenantID, branchID str
 
 // deleteBranchRow removes the ledger row AFTER its schema has been dropped.
 // tenant_id is bound so a row is only ever deleted by its owner.
-func deleteBranchRow(ctx context.Context, db *shared.Postgres, tenantID, branchID string) error {
+func deleteBranchRow(ctx context.Context, db *pg.Postgres, tenantID, branchID string) error {
 	return db.AdminExec(ctx,
 		`DELETE FROM public.tenant_branches WHERE id = $1 AND tenant_id = $2`, branchID, tenantID)
 }

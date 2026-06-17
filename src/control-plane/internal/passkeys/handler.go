@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // Mount registers the passkey ceremony routes onto the shared mux (Track-D D2c).
@@ -83,7 +83,7 @@ type loginBeginRequest struct {
 func (rt *routes) registerBegin(w http.ResponseWriter, r *http.Request) {
 	var req registerBeginRequest
 	if err := decodeJSON(r, &req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 	tenantID := tenantOf(r)
@@ -91,17 +91,17 @@ func (rt *routes) registerBegin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.TrimSpace(req.UserID) == "" {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "user_id required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "user_id required")
 		return
 	}
 	creation, challengeID, err := rt.svc.BeginRegister(r.Context(), BeginRegisterInput{
 		TenantID: tenantID, UserID: req.UserID, Name: req.Name, DisplayName: req.DisplayName,
 	})
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{
 		"challenge_id": challengeID,
 		"publicKey":    creation.Response, // the navigator.credentials.create options
 	})
@@ -117,7 +117,7 @@ func (rt *routes) registerFinish(w http.ResponseWriter, r *http.Request) {
 		rt.writeErr(w, err)
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{
 		"verified":      true,
 		"credential_id": credID,
 	})
@@ -126,7 +126,7 @@ func (rt *routes) registerFinish(w http.ResponseWriter, r *http.Request) {
 func (rt *routes) loginBegin(w http.ResponseWriter, r *http.Request) {
 	var req loginBeginRequest
 	if err := decodeJSON(r, &req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 	tenantID := tenantOf(r)
@@ -134,7 +134,7 @@ func (rt *routes) loginBegin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.TrimSpace(req.UserID) == "" {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "user_id required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "user_id required")
 		return
 	}
 	assertion, challengeID, err := rt.svc.BeginLogin(r.Context(), BeginLoginInput{
@@ -144,7 +144,7 @@ func (rt *routes) loginBegin(w http.ResponseWriter, r *http.Request) {
 		rt.writeErr(w, err)
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{
 		"challenge_id": challengeID,
 		"publicKey":    assertion.Response, // the navigator.credentials.get options
 	})
@@ -160,7 +160,7 @@ func (rt *routes) loginFinish(w http.ResponseWriter, r *http.Request) {
 		rt.writeErr(w, err)
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, session)
+	httpx.WriteJSON(w, http.StatusOK, session)
 }
 
 // helpers live in handler_helpers.go.

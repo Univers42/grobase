@@ -30,7 +30,7 @@ const (
 var errBadEntry = errors.New("metering: malformed usage entry")
 
 // execer is the minimal Postgres surface the store needs: one parameterized
-// statement. shared.Postgres.AdminExec satisfies it (the consumer writes as the
+// statement. pg.Postgres.AdminExec satisfies it (the consumer writes as the
 // privileged control-plane role, which is BYPASSRLS), and a fake satisfies it in
 // unit tests — no live database required to prove the dedup contract.
 type execer interface {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 func (s *Service) adminListDeletions(w http.ResponseWriter, r *http.Request) {
@@ -16,7 +16,7 @@ func (s *Service) adminListDeletions(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func (s *Service) adminProcessDeletion(w http.ResponseWriter, r *http.Request) {
@@ -41,7 +41,7 @@ func (s *Service) adminProcessDeletion(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, updated)
+	httpx.WriteJSON(w, http.StatusOK, updated)
 }
 
 // decodeProcess parses the admin process body, validating the status; ok==false
@@ -52,7 +52,7 @@ func decodeProcess(w http.ResponseWriter, r *http.Request) (status, note string,
 		AdminNote string `json:"admin_note"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&b); err != nil || !validStatus(b.Status) {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error",
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error",
 			"status must be one of in_progress, completed, rejected")
 		return "", "", false
 	}
@@ -64,14 +64,14 @@ func decodeProcess(w http.ResponseWriter, r *http.Request) (status, note string,
 func (s *Service) loadProcessable(w http.ResponseWriter, r *http.Request, id string) (*DeletionRequest, bool) {
 	req, err := s.store.getRequest(r.Context(), id)
 	if errors.Is(err, errNotFound) {
-		shared.WriteError(w, http.StatusNotFound, "not_found", "Deletion request not found")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "Deletion request not found")
 		return nil, false
 	}
 	if s.fail(w, err) {
 		return nil, false
 	}
 	if req.Status == "completed" {
-		shared.WriteError(w, http.StatusBadRequest, "bad_request", "Request already completed")
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", "Request already completed")
 		return nil, false
 	}
 	return req, true

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/dlesieur/mini-baas/control-plane/internal/provision"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
 )
 
 // ErrNotFound is returned when a tenant or key row doesn't exist.
@@ -16,7 +16,7 @@ var ErrConflict = errors.New("tenant already exists")
 
 // Service implements tenant lifecycle CRUD + key issuance.
 type Service struct {
-	db        *shared.Postgres
+	db        *pg.Postgres
 	log       *slog.Logger
 	adapter   *AdapterRegistry           // optional; enables mount reconciliation in Provision
 	dataPlane *DataPlane                 // optional; enables schema_per_tenant schema creation
@@ -27,7 +27,7 @@ type Service struct {
 // NewService wires the DB pool. The PermissionEngine seam defaults to the
 // SQL backend over the same admin pool (no HTTP decide), so seedDefaultRole has
 // exactly one role implementation. SetPermissionEngine can override it.
-func NewService(db *shared.Postgres, log *slog.Logger) *Service {
+func NewService(db *pg.Postgres, log *slog.Logger) *Service {
 	return &Service{db: db, log: log, perm: provision.NewSQLBackend(db, "", ""), verifyC: newVerifyCache()}
 }
 

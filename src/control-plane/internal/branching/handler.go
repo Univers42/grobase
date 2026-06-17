@@ -4,7 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // Mount registers the admin per-tenant DB-branching routes onto the shared mux
@@ -41,8 +42,8 @@ type routes struct {
 // byte-identical to backup/export/erase's.
 func (rt *routes) requireServiceToken(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !shared.VerifyServiceRequest(r, rt.serviceToken) {
-			shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
+		if !serviceauth.VerifyServiceRequest(r, rt.serviceToken) {
+			httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
 			return
 		}
 		next(w, r)
@@ -64,17 +65,17 @@ func (rt *routes) handleErr(w http.ResponseWriter, err error) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, ErrIsolationDeferred):
-		shared.WriteError(w, http.StatusBadRequest, "isolation_unsupported", ErrIsolationDeferred.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "isolation_unsupported", ErrIsolationDeferred.Error())
 	case errors.Is(err, ErrInvalidBranchName):
-		shared.WriteError(w, http.StatusBadRequest, "invalid_branch_name", ErrInvalidBranchName.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "invalid_branch_name", ErrInvalidBranchName.Error())
 	case errors.Is(err, ErrBranchExists):
-		shared.WriteError(w, http.StatusConflict, "branch_exists", ErrBranchExists.Error())
+		httpx.WriteError(w, http.StatusConflict, "branch_exists", ErrBranchExists.Error())
 	case errors.Is(err, ErrNoMount):
-		shared.WriteError(w, http.StatusNotFound, "not_found", ErrNoMount.Error())
+		httpx.WriteError(w, http.StatusNotFound, "not_found", ErrNoMount.Error())
 	case errors.Is(err, ErrNotFound):
-		shared.WriteError(w, http.StatusNotFound, "not_found", "branch not found")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "branch not found")
 	default:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	}
 	return true
 }

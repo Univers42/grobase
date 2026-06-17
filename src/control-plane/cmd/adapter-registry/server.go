@@ -7,15 +7,16 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // runServer starts the HTTP server and blocks until the context is cancelled,
 // then performs a graceful shutdown.
-func runServer(ctx context.Context, stop context.CancelFunc, cfg shared.Config, mux http.Handler, log *slog.Logger) {
+func runServer(ctx context.Context, stop context.CancelFunc, cfg config.Config, mux http.Handler, log *slog.Logger) {
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr(),
-		Handler:           shared.WithMiddleware(mux, log),
+		Handler:           httpx.WithMiddleware(mux, log),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {

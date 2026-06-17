@@ -4,7 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // Mount registers the SCIM 2.0 routes onto the shared mux (Track-D D2b). The
@@ -46,10 +47,10 @@ type routes struct {
 
 // admin gates the issue/revoke routes on the control-plane service token.
 func (rt *routes) admin(w http.ResponseWriter, r *http.Request) bool {
-	if shared.VerifyServiceRequest(r, rt.serviceToken) {
+	if serviceauth.VerifyServiceRequest(r, rt.serviceToken) {
 		return true
 	}
-	shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
+	httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
 	return false
 }
 

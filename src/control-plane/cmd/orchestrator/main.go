@@ -23,8 +23,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
 	"github.com/dlesieur/mini-baas/control-plane/internal/orchestrator/envelope"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // SubService is one consolidated orchestrator module. Mount registers its HTTP
@@ -43,7 +46,7 @@ type initializer interface {
 }
 
 func main() {
-	log := shared.NewLogger("orchestrator")
+	log := observability.NewLogger("orchestrator")
 	ctx, stop, cfg, db := boot(log)
 	defer stop()
 	defer db.Close()
@@ -55,7 +58,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	mux := shared.NewRouter("orchestrator", db)
+	mux := httpx.NewRouter("orchestrator", db)
 	mountServices(ctx, mux, enabled, log)
 	serve(ctx, cfg, mux, log, stop)
 }
@@ -63,8 +66,8 @@ func main() {
 // boot loads config (a --healthcheck argv short-circuits to the probe), wires a
 // SIGTERM/SIGINT-cancelled context, and opens the Postgres pool. A failed step
 // is fatal — the orchestrator cannot serve without it.
-func boot(log *slog.Logger) (context.Context, context.CancelFunc, shared.Config, *shared.Postgres) {
-	cfg, err := shared.LoadConfig("ORCHESTRATOR")
+func boot(log *slog.Logger) (context.Context, context.CancelFunc, config.Config, *pg.Postgres) {
+	cfg, err := config.LoadConfig("ORCHESTRATOR")
 	if err != nil {
 		log.Error("config error", "err", err)
 		os.Exit(1)
@@ -73,7 +76,7 @@ func boot(log *slog.Logger) (context.Context, context.CancelFunc, shared.Config,
 		os.Exit(healthcheck(cfg))
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	db, err := shared.NewPostgres(ctx, cfg.DatabaseURL)
+	db, err := pg.NewPostgres(ctx, cfg.DatabaseURL)
 	if err != nil {
 		log.Error("postgres connect failed", "err", err)
 		stop()
@@ -86,10 +89,10 @@ func boot(log *slog.Logger) (context.Context, context.CancelFunc, shared.Config,
 // envelope.Wrap mirrors the Node TransformInterceptor so a cutover is
 // transparent to clients (Track-2 A parity); WithMiddleware (logging,
 // request-id, metrics) wraps that so it still observes the real status.
-func serve(ctx context.Context, cfg shared.Config, mux *http.ServeMux, log *slog.Logger, stop func()) {
+func serve(ctx context.Context, cfg config.Config, mux *http.ServeMux, log *slog.Logger, stop func()) {
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr(),
-		Handler:           shared.WithMiddleware(envelope.Wrap(mux), log),
+		Handler:           httpx.WithMiddleware(envelope.Wrap(mux), log),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {
@@ -109,7 +112,7 @@ func serve(ctx context.Context, cfg shared.Config, mux *http.ServeMux, log *slog
 	log.Info("stopped")
 }
 
-func healthcheck(cfg shared.Config) int {
+func healthcheck(cfg config.Config) int {
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get("http://127.0.0.1:" + cfg.Port + "/health/live")
 	if err != nil {

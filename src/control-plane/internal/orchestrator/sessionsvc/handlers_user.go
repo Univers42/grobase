@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 /* ─────── User endpoints ─────── */
@@ -24,14 +24,14 @@ func (s *Service) create(w http.ResponseWriter, r *http.Request) {
 	}
 	var b createBody
 	if err := json.NewDecoder(r.Body).Decode(&b); err != nil || strings.TrimSpace(b.Token) == "" {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "token is required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "token is required")
 		return
 	}
 	sess, err := s.store.create(r.Context(), userID, b.Token, b.DeviceInfo, b.IPAddress)
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusCreated, sess)
+	httpx.WriteJSON(w, http.StatusCreated, sess)
 }
 
 func (s *Service) mine(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +43,7 @@ func (s *Service) mine(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func (s *Service) validate(w http.ResponseWriter, r *http.Request) {
@@ -59,7 +59,7 @@ func (s *Service) validate(w http.ResponseWriter, r *http.Request) {
 	if sess != nil {
 		resp["session"] = sess
 	}
-	shared.WriteJSON(w, http.StatusOK, resp)
+	httpx.WriteJSON(w, http.StatusOK, resp)
 }
 
 func (s *Service) extend(w http.ResponseWriter, r *http.Request) {
@@ -78,5 +78,5 @@ func (s *Service) extend(w http.ResponseWriter, r *http.Request) {
 	if s.fail(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{"id": sess.ID, "expires_at": sess.ExpiresAt})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"id": sess.ID, "expires_at": sess.ExpiresAt})
 }

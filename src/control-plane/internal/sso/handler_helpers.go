@@ -6,7 +6,9 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/identity"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // writeErr maps the service sentinels to HTTP status:
@@ -20,17 +22,17 @@ import (
 func (rt *routes) writeErr(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrStateNotFound):
-		shared.WriteError(w, http.StatusUnauthorized, "state_rejected", ErrStateNotFound.Error())
+		httpx.WriteError(w, http.StatusUnauthorized, "state_rejected", ErrStateNotFound.Error())
 	case errors.Is(err, ErrTokenRejected):
-		shared.WriteError(w, http.StatusUnauthorized, "token_rejected", "id_token verification failed")
+		httpx.WriteError(w, http.StatusUnauthorized, "token_rejected", "id_token verification failed")
 	case errors.Is(err, ErrConnectionNotFound):
-		shared.WriteError(w, http.StatusNotFound, "connection_not_found", ErrConnectionNotFound.Error())
+		httpx.WriteError(w, http.StatusNotFound, "connection_not_found", ErrConnectionNotFound.Error())
 	case errors.Is(err, ErrConflict):
-		shared.WriteError(w, http.StatusConflict, "conflict", ErrConflict.Error())
+		httpx.WriteError(w, http.StatusConflict, "conflict", ErrConflict.Error())
 	case errors.Is(err, ErrValidation):
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 	default:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	}
 }
 
@@ -40,19 +42,19 @@ func (rt *routes) writeErr(w http.ResponseWriter, err error) {
 // passkeys.routes.tokenOrSelf / audit use. For an untenanted (empty) deployment a
 // bare service token is required (TenantSelfMatch never matches an empty id).
 //
-// The self arm goes through shared.TenantSelfMatch: when TENANT_HEADER_IDENTITY_HMAC
+// The self arm goes through identity.TenantSelfMatch: when TENANT_HEADER_IDENTITY_HMAC
 // is set, a forged X-Baas-Tenant-Id cannot register/list ANOTHER tenant's SSO
 // connections on its own (a valid X-Baas-Identity-Auth signature over the asserted
 // {id} is required); OFF (default) it is the unchanged `tenantID != "" && header
 // == id` check (parity). The service-token (admin) arm never relies on the header.
 func (rt *routes) tokenOrSelf(w http.ResponseWriter, r *http.Request, tenantID string) bool {
-	if shared.VerifyServiceRequest(r, rt.serviceToken) {
+	if serviceauth.VerifyServiceRequest(r, rt.serviceToken) {
 		return true
 	}
-	if shared.TenantSelfMatch(r, rt.serviceToken, tenantID) {
+	if identity.TenantSelfMatch(r, rt.serviceToken, tenantID) {
 		return true
 	}
-	shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
+	httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",
 		"service token or matching tenant header required")
 	return false
 }

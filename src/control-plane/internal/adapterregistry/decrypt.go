@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/cmek"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
 // resolveConnString returns the decrypted DSN, decrypting only when the
@@ -46,7 +46,7 @@ func (s *Service) resolveConnString(ctx context.Context, id string, row mountRow
 func (s *Service) decryptMount(ctx context.Context, row mountRow) (string, error) {
 	if len(row.cmekWrap) > 0 {
 		ct := cmek.JoinCiphertext(row.payload.Encrypted, row.payload.Tag)
-		plain, err := cmek.Open(ctx, s.kms, shared.DerefStr(row.cmekKeyPtr), row.cmekWrap, row.payload.IV, ct)
+		plain, err := cmek.Open(ctx, s.kms, pg.DerefStr(row.cmekKeyPtr), row.cmekWrap, row.payload.IV, ct)
 		if err != nil {
 			return "", err
 		}

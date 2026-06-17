@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // Mount registers the admin per-tenant export routes onto the shared mux
@@ -43,8 +44,8 @@ const msgInvalidJSON = "invalid JSON"
 // byte-identical to backup.routes.requireServiceToken / erase's.
 func (rt *routes) requireServiceToken(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !shared.VerifyServiceRequest(r, rt.serviceToken) {
-			shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
+		if !serviceauth.VerifyServiceRequest(r, rt.serviceToken) {
+			httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
 			return
 		}
 		next(w, r)
@@ -67,7 +68,7 @@ func (rt *routes) createExport(w http.ResponseWriter, r *http.Request) {
 	var req createExportRequest
 	if r.ContentLength != 0 {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+			httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 			return
 		}
 	}
@@ -75,7 +76,7 @@ func (rt *routes) createExport(w http.ResponseWriter, r *http.Request) {
 	if rt.handleErr(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusAccepted, map[string]string{
+	httpx.WriteJSON(w, http.StatusAccepted, map[string]string{
 		"export_id": exportID,
 		"status":    "pending",
 	})
@@ -85,10 +86,10 @@ func (rt *routes) createExport(w http.ResponseWriter, r *http.Request) {
 func (rt *routes) listExports(w http.ResponseWriter, r *http.Request) {
 	out, err := rt.svc.ListExports(r.Context(), r.PathValue("id"))
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 // download streams the portable bundle for {exportId} belonging to {id}. The

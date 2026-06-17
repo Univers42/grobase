@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -16,7 +16,7 @@ import (
 // each is additionally quoted via pgx.Identifier.Sanitize() (double-belt). The
 // clone runs in ONE transaction so a mid-clone failure leaves NO half-built
 // schema (all-or-nothing).
-func cloneSchema(ctx context.Context, db *shared.Postgres, parentSchema, branchSchemaName string) (int, int64, error) {
+func cloneSchema(ctx context.Context, db *pg.Postgres, parentSchema, branchSchemaName string) (int, int64, error) {
 	conn, err := db.AcquireConn(ctx)
 	if err != nil {
 		return 0, 0, fmt.Errorf("branching: acquire conn: %w", err)
@@ -91,7 +91,7 @@ func cloneTables(ctx context.Context, tx pgx.Tx, parentSchema, branchSchemaName 
 // pool. branchSchemaName is the already-sanitized schema recorded in the ledger;
 // it is re-quoted via pgx.Identifier (double-belt). `IF EXISTS` makes a re-drop a
 // no-op, so dropping an already-gone branch is idempotent.
-func dropSchema(ctx context.Context, db *shared.Postgres, branchSchemaName string) error {
+func dropSchema(ctx context.Context, db *pg.Postgres, branchSchemaName string) error {
 	q := pgx.Identifier{branchSchemaName}.Sanitize()
 	if err := db.AdminExec(ctx, fmt.Sprintf(`DROP SCHEMA IF EXISTS %s CASCADE`, q)); err != nil {
 		return fmt.Errorf("branching: drop branch schema %s: %w", branchSchemaName, err)

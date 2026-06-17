@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/dlesieur/mini-baas/control-plane/internal/tenants"
 )
 
@@ -31,14 +31,14 @@ var ErrNotFound = errors.New("tenant not found")
 // schema_per_tenant, the shared-table discovery + tenant_id filter for
 // shared_rls) so an export sees exactly one tenant's data.
 type Service struct {
-	db    *shared.Postgres
+	db    *pg.Postgres
 	store ArtifactStore
 	keys  *tenants.Service // optional: credential resolution for the self-serve read route
 	log   *slog.Logger
 }
 
 // NewService builds the export service.
-func NewService(db *shared.Postgres, store ArtifactStore, log *slog.Logger) *Service {
+func NewService(db *pg.Postgres, store ArtifactStore, log *slog.Logger) *Service {
 	return &Service{db: db, store: store, log: log}
 }
 

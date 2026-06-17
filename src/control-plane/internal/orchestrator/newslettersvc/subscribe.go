@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 /* ─────── Subscription ─────── */
@@ -15,7 +15,7 @@ func (s *Service) subscribe(w http.ResponseWriter, r *http.Request) {
 		FirstName string `json:"firstName"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&b); err != nil || !validEmail(b.Email) {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "a valid email is required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "a valid email is required")
 		return
 	}
 	ctx := r.Context()
@@ -35,7 +35,7 @@ func (s *Service) subscribe(w http.ResponseWriter, r *http.Request) {
 func (s *Service) reactivateExisting(w http.ResponseWriter, r *http.Request,
 	email, firstName string, existingFirst *string, id int64, active bool) {
 	if active {
-		shared.WriteError(w, http.StatusConflict, "conflict", "This email is already subscribed")
+		httpx.WriteError(w, http.StatusConflict, "conflict", "This email is already subscribed")
 		return
 	}
 	ctx := r.Context()
@@ -45,7 +45,7 @@ func (s *Service) reactivateExisting(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	s.notifyConfirmation(ctx, email, firstOr(firstName, existingFirst), token)
-	shared.WriteJSON(w, http.StatusCreated, map[string]any{"reactivated": true, "subscriber": sub})
+	httpx.WriteJSON(w, http.StatusCreated, map[string]any{"reactivated": true, "subscriber": sub})
 }
 
 // subscribeNew inserts a brand-new subscriber and sends the confirmation email.
@@ -57,7 +57,7 @@ func (s *Service) subscribeNew(w http.ResponseWriter, r *http.Request, email, fi
 		return
 	}
 	s.notifyConfirmation(ctx, email, firstName, token)
-	shared.WriteJSON(w, http.StatusCreated, map[string]any{"subscribed": true, "subscriber": sub})
+	httpx.WriteJSON(w, http.StatusCreated, map[string]any{"subscribed": true, "subscriber": sub})
 }
 
 func (s *Service) confirm(w http.ResponseWriter, r *http.Request) {
@@ -66,10 +66,10 @@ func (s *Service) confirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ok {
-		shared.WriteError(w, http.StatusNotFound, "not_found", "Invalid or already-used token")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "Invalid or already-used token")
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{"confirmed": true})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"confirmed": true})
 }
 
 func (s *Service) unsubscribe(w http.ResponseWriter, r *http.Request) {
@@ -78,8 +78,8 @@ func (s *Service) unsubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ok {
-		shared.WriteError(w, http.StatusNotFound, "not_found", "Invalid token")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "Invalid token")
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, map[string]any{"unsubscribed": true})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"unsubscribed": true})
 }

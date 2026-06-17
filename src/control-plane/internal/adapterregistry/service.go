@@ -9,7 +9,7 @@ import (
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/cmek"
 	"github.com/dlesieur/mini-baas/control-plane/internal/packages"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -36,7 +36,7 @@ var ErrPlaintextDsnForbidden = errors.New("security_mode=max forbids an inline p
 
 // Service implements the adapter-registry control-plane logic.
 type Service struct {
-	db   *shared.Postgres
+	db   *pg.Postgres
 	enc  *Encryptor
 	log  *slog.Logger
 	pkgs *packages.Manifest
@@ -121,7 +121,7 @@ type connCacheEntry struct {
 // (embedded, so this never touches the filesystem); a manifest-load failure is
 // logged and tiering degrades to OFF (fail-open to parity, never fail-closed on
 // a config bug — a broken manifest must not take the data path down).
-func NewService(db *shared.Postgres, enc *Encryptor, log *slog.Logger) *Service {
+func NewService(db *pg.Postgres, enc *Encryptor, log *slog.Logger) *Service {
 	s := &Service{db: db, enc: enc, log: log, enforce: os.Getenv("PACKAGE_ENFORCEMENT") == "1"}
 	m, err := packages.Load()
 	if err != nil {

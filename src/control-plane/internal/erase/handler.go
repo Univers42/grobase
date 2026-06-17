@@ -4,7 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // Mount registers the admin hard-erase route onto the shared mux (Track-D D4.4):
@@ -41,8 +42,8 @@ type routes struct {
 // requireServiceToken — hard-erase is a privileged control-plane operation.
 func (rt *routes) requireServiceToken(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !shared.VerifyServiceRequest(r, rt.serviceToken) {
-			shared.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
+		if !serviceauth.VerifyServiceRequest(r, rt.serviceToken) {
+			httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
 			return
 		}
 		next(w, r)
@@ -59,7 +60,7 @@ func (rt *routes) erase(w http.ResponseWriter, r *http.Request) {
 	if rt.handleErr(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, receipt)
+	httpx.WriteJSON(w, http.StatusOK, receipt)
 }
 
 // handleErr maps the erase service's sentinel errors to HTTP status codes,
@@ -73,11 +74,11 @@ func (rt *routes) handleErr(w http.ResponseWriter, err error) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, ErrUnsupportedScope):
-		shared.WriteError(w, http.StatusBadRequest, "scope_unsupported", ErrUnsupportedScope.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "scope_unsupported", ErrUnsupportedScope.Error())
 	case errors.Is(err, ErrNoMount):
-		shared.WriteError(w, http.StatusNotFound, "not_found", ErrNoMount.Error())
+		httpx.WriteError(w, http.StatusNotFound, "not_found", ErrNoMount.Error())
 	default:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	}
 	return true
 }

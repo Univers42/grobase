@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // handleBackupErr maps the backup service's sentinel errors to HTTP status codes,
@@ -20,7 +20,7 @@ func (rt *routes) handleBackupErr(w http.ResponseWriter, err error) bool {
 	case err == nil:
 		return false
 	case errors.Is(err, ErrIsolationDeferred):
-		shared.WriteError(w, http.StatusBadRequest, "isolation_unsupported",
+		httpx.WriteError(w, http.StatusBadRequest, "isolation_unsupported",
 			"isolation not supported for backup/restore (deferred)")
 	case errors.Is(err, ErrNotOwned):
 		// 404 (not 403) so the existence of another tenant's backup is not even
@@ -28,9 +28,9 @@ func (rt *routes) handleBackupErr(w http.ResponseWriter, err error) bool {
 		// module-slice Restore returns ErrNotOwned for BOTH a wrong-tenant backup
 		// and an unknown id (the SELECT binds id AND tenant_id), so this one arm
 		// covers the whole load-bearing caller==owner contract.
-		shared.WriteError(w, http.StatusNotFound, "not_found", "backup not found")
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "backup not found")
 	default:
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	}
 	return true
 }

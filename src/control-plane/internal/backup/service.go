@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/dlesieur/mini-baas/control-plane/internal/tenants"
 )
 
@@ -37,7 +37,7 @@ type ConnResolver interface {
 // Postgres (for the tenant_backups ledger + schema_per_tenant data), an
 // ArtifactStore (where artifacts land), and a ConnResolver (db_per_tenant DSN).
 type Service struct {
-	db    *shared.Postgres
+	db    *pg.Postgres
 	store ArtifactStore
 	res   ConnResolver
 	keys  *tenants.Service // optional: credential resolution for the self-serve read route
@@ -47,7 +47,7 @@ type Service struct {
 // NewService builds the backup service. The ConnResolver is optional at
 // construction (schema_per_tenant works without it); a nil resolver makes
 // db_per_tenant backups fail cleanly with a clear error rather than panicking.
-func NewService(db *shared.Postgres, store ArtifactStore, log *slog.Logger) *Service {
+func NewService(db *pg.Postgres, store ArtifactStore, log *slog.Logger) *Service {
 	return &Service{db: db, store: store, log: log}
 }
 

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // Mount registers the tenant-facing audit API onto the shared mux (D3). The
@@ -58,11 +58,11 @@ func (rt *routes) append(w http.ResponseWriter, r *http.Request) {
 	}
 	var req AppendRequest
 	if err := decodeJSON(r, &req); err != nil {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 	if strings.TrimSpace(req.Action) == "" {
-		shared.WriteError(w, http.StatusBadRequest, "validation_error", "action required")
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "action required")
 		return
 	}
 	ev, err := rt.svc.Append(r.Context(), AppendInput{
@@ -73,10 +73,10 @@ func (rt *routes) append(w http.ResponseWriter, r *http.Request) {
 		Payload:  req.Payload,
 	})
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusCreated, ev)
+	httpx.WriteJSON(w, http.StatusCreated, ev)
 }
 
 // QueryResponse is the GET .../events body — the tenant's events in chain order.
@@ -97,10 +97,10 @@ func (rt *routes) query(w http.ResponseWriter, r *http.Request) {
 	}
 	events, err := rt.svc.List(r.Context(), tenantID, from, to, limit)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, QueryResponse{TenantID: tenantID, Count: len(events), Events: events})
+	httpx.WriteJSON(w, http.StatusOK, QueryResponse{TenantID: tenantID, Count: len(events), Events: events})
 }
 
 // ExportBundle is the GET .../export body — a portable, self-verifiable audit
@@ -122,7 +122,7 @@ func (rt *routes) export(w http.ResponseWriter, r *http.Request) {
 	}
 	events, err := rt.svc.List(r.Context(), tenantID, time.Time{}, time.Time{}, maxListLimit)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
 	bundle := ExportBundle{
@@ -134,7 +134,7 @@ func (rt *routes) export(w http.ResponseWriter, r *http.Request) {
 		Events:     events,
 	}
 	w.Header().Set("Content-Disposition", "attachment; filename=\"audit-"+sanitize(tenantID)+".json\"")
-	shared.WriteJSON(w, http.StatusOK, bundle)
+	httpx.WriteJSON(w, http.StatusOK, bundle)
 }
 
 func (rt *routes) verify(w http.ResponseWriter, r *http.Request) {
@@ -144,12 +144,12 @@ func (rt *routes) verify(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := rt.svc.Verify(r.Context(), tenantID)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
 	// 200 whether intact or broken — the CALLER acts on res.Intact / res.BrokenSeq.
 	// A broken chain is a successful verification that REPORTS tampering, not a
 	// server error (the gate's load-bearing REJECT asserts intact==false +
 	// broken_seq at the tampered link).
-	shared.WriteJSON(w, http.StatusOK, res)
+	httpx.WriteJSON(w, http.StatusOK, res)
 }

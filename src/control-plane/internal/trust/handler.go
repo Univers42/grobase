@@ -3,7 +3,7 @@ package trust
 import (
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
 // Mount registers the read-only Trust Center routes onto the shared mux (D4.6).
@@ -40,13 +40,13 @@ type routes struct {
 func (rt *routes) posture(w http.ResponseWriter, _ *http.Request) {
 	out := *rt.manifest // copy the envelope; replace controls with the sorted view
 	out.Controls = SortControls(rt.manifest.Controls)
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 // controls serves just the controls array (the same payload the m112 gate counts
 // against config/trust/posture.json to prove the endpoint reflects the file).
 func (rt *routes) controls(w http.ResponseWriter, _ *http.Request) {
-	shared.WriteJSON(w, http.StatusOK, map[string]any{
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{
 		"count":    len(rt.manifest.Controls),
 		"controls": SortControls(rt.manifest.Controls),
 	})

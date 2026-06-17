@@ -7,15 +7,17 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 	"github.com/dlesieur/mini-baas/control-plane/internal/functriggers"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/dlesieur/mini-baas/control-plane/internal/webhooks"
 )
 
 // buildRouter assembles the HTTP surface: webhook CRUD, function-trigger CRUD,
 // and (when VAULT_ENC_KEY is set) the per-function secret store.
-func buildRouter(ctx context.Context, db *shared.Postgres, log *slog.Logger, svc *webhooks.Service, ftSvc *functriggers.Service, serviceToken string) *http.ServeMux {
-	mux := shared.NewRouter("webhook-dispatcher", db)
+func buildRouter(ctx context.Context, db *pg.Postgres, log *slog.Logger, svc *webhooks.Service, ftSvc *functriggers.Service, serviceToken string) *http.ServeMux {
+	mux := httpx.NewRouter("webhook-dispatcher", db)
 	webhooks.Mount(mux, svc, serviceToken)
 	functriggers.Mount(mux, ftSvc, serviceToken)
 	mountFuncSecrets(ctx, mux, db, log, serviceToken)
@@ -23,16 +25,16 @@ func buildRouter(ctx context.Context, db *shared.Postgres, log *slog.Logger, svc
 }
 
 // newServer builds the HTTP server with the original timeouts and middleware.
-func newServer(cfg shared.Config, mux *http.ServeMux, log *slog.Logger) *http.Server {
+func newServer(cfg config.Config, mux *http.ServeMux, log *slog.Logger) *http.Server {
 	return &http.Server{
 		Addr:              cfg.ListenAddr(),
-		Handler:           shared.WithMiddleware(mux, log),
+		Handler:           httpx.WithMiddleware(mux, log),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 }
 
 // serve runs ListenAndServe and stops the process on an unexpected error.
-func serve(srv *http.Server, cfg shared.Config, log *slog.Logger, stop func()) {
+func serve(srv *http.Server, cfg config.Config, log *slog.Logger, stop func()) {
 	log.Info("listening", "addr", cfg.ListenAddr(), "mode", cfg.ProductMode)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Error("server error", "err", err)
@@ -42,7 +44,7 @@ func serve(srv *http.Server, cfg shared.Config, log *slog.Logger, stop func()) {
 
 // launchLoops starts the HTTP server and both dispatcher loops as goroutines,
 // each able to trigger a graceful stop on failure.
-func launchLoops(ctx context.Context, log *slog.Logger, redisURL string, srv *http.Server, cfg shared.Config, wh, ft func(context.Context) error, stop func()) {
+func launchLoops(ctx context.Context, log *slog.Logger, redisURL string, srv *http.Server, cfg config.Config, wh, ft func(context.Context) error, stop func()) {
 	go serve(srv, cfg, log, stop)
 	go runLoop(ctx, log, redisURL, loopLabels{
 		start: "dispatcher loop starting", end: "dispatcher loop ended",

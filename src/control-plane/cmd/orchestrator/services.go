@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 	"github.com/dlesieur/mini-baas/control-plane/internal/entitlements"
 	"github.com/dlesieur/mini-baas/control-plane/internal/metering"
 	"github.com/dlesieur/mini-baas/control-plane/internal/orchestrator/emailsvc"
@@ -16,7 +17,7 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/orchestrator/outboxrelay"
 	"github.com/dlesieur/mini-baas/control-plane/internal/orchestrator/sessionsvc"
 	"github.com/dlesieur/mini-baas/control-plane/internal/packages"
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/dlesieur/mini-baas/control-plane/internal/spendcap"
 	"github.com/dlesieur/mini-baas/control-plane/internal/telemetryexport"
 )
@@ -28,9 +29,9 @@ import (
 // called and the over-quota decision is byte-identical to pre-builder. The guard
 // is ALSO gated by QUOTA_ENFORCEMENT (default OFF), so the builder bites only
 // when both flags are on.
-func newQuotaGuard(log *slog.Logger, db *shared.Postgres) *metering.QuotaGuard {
+func newQuotaGuard(log *slog.Logger, db *pg.Postgres) *metering.QuotaGuard {
 	guard := metering.NewQuotaGuard(log, db)
-	if !shared.EnvBool("BUILDER_ENABLED") {
+	if !config.EnvBool("BUILDER_ENABLED") {
 		return guard
 	}
 	manifest, err := packages.Load()
@@ -51,7 +52,7 @@ func newQuotaGuard(log *slog.Logger, db *shared.Postgres) *metering.QuotaGuard {
 // BILLING_ENABLED / SPEND_CAPS_ENABLED / TENANT_TELEMETRY_EXPORT_ENABLED, all
 // default OFF) — when off, Init/Run are no-ops, so the orchestrator stays
 // byte-parity with today and the default-all selection stays parity.
-func availableServices(log *slog.Logger, db *shared.Postgres, quotaGuard *metering.QuotaGuard) map[string]SubService {
+func availableServices(log *slog.Logger, db *pg.Postgres, quotaGuard *metering.QuotaGuard) map[string]SubService {
 	return map[string]SubService{
 		"log":              logsvc.New(log),
 		"email":            emailsvc.New(log),

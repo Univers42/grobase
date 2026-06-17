@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 	"github.com/dlesieur/mini-baas/control-plane/internal/tenants"
 )
 
@@ -53,7 +53,7 @@ func (ss *selfRoutes) createMine(w http.ResponseWriter, r *http.Request) {
 	var req createExportRequest
 	if r.ContentLength != 0 {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			shared.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
+			httpx.WriteError(w, http.StatusBadRequest, "bad_request", msgInvalidJSON)
 			return
 		}
 	}
@@ -61,7 +61,7 @@ func (ss *selfRoutes) createMine(w http.ResponseWriter, r *http.Request) {
 	if (&routes{}).handleErr(w, err) {
 		return
 	}
-	shared.WriteJSON(w, http.StatusAccepted, map[string]string{"export_id": exportID, "status": "pending"})
+	httpx.WriteJSON(w, http.StatusAccepted, map[string]string{"export_id": exportID, "status": "pending"})
 }
 
 func (ss *selfRoutes) listMine(w http.ResponseWriter, r *http.Request) {
@@ -71,10 +71,10 @@ func (ss *selfRoutes) listMine(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := ss.svc.ListExports(r.Context(), tenantID)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	shared.WriteJSON(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func (ss *selfRoutes) downloadMine(w http.ResponseWriter, r *http.Request) {
@@ -90,19 +90,19 @@ func (ss *selfRoutes) downloadMine(w http.ResponseWriter, r *http.Request) {
 // returned id is the canonical tenant slug every scoped query keys on — a caller
 // can therefore only ever act on its OWN tenant's data.
 func (ss *selfRoutes) selfAuth(w http.ResponseWriter, r *http.Request) (tenantID string, ok bool) {
-	raw := shared.APIKeyFromRequest(r)
+	raw := httpx.APIKeyFromRequest(r)
 	if raw == "" {
-		shared.WriteError(w, http.StatusUnauthorized, "unauthorized",
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",
 			"X-API-Key or Authorization: Bearer <api-key> required")
 		return "", false
 	}
 	out, err := ss.keys.VerifyKey(r.Context(), raw)
 	if err != nil {
-		shared.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return "", false
 	}
 	if !out.Valid {
-		shared.WriteError(w, http.StatusUnauthorized, "invalid_key", "API key is not valid")
+		httpx.WriteError(w, http.StatusUnauthorized, "invalid_key", "API key is not valid")
 		return "", false
 	}
 	return out.TenantID, true

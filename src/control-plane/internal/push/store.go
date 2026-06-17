@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -15,11 +15,11 @@ import (
 // owning role). This is the SAME discipline webhooks' dispatcher applies (the
 // `AND tenant_id = $1` predicate is authoritative, not optional).
 type store struct {
-	db     *shared.Postgres
+	db     *pg.Postgres
 	sealer *tokenSealer
 }
 
-func newStore(db *shared.Postgres, sealer *tokenSealer) *store {
+func newStore(db *pg.Postgres, sealer *tokenSealer) *store {
 	return &store{db: db, sealer: sealer}
 }
 

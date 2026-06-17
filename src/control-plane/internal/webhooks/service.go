@@ -6,7 +6,7 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/shared"
+	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -19,12 +19,12 @@ var ErrConflict = errors.New("webhook with that name already exists")
 
 // Service owns CRUD on webhook_subscriptions and the delivery ledger.
 type Service struct {
-	db  *shared.Postgres
+	db  *pg.Postgres
 	log *slog.Logger
 }
 
 // NewService wires the DB pool.
-func NewService(db *shared.Postgres, log *slog.Logger) *Service {
+func NewService(db *pg.Postgres, log *slog.Logger) *Service {
 	return &Service{db: db, log: log}
 }
 
@@ -64,7 +64,7 @@ func (s *Service) Create(ctx context.Context, tenantID string, req CreateRequest
 		return insertSubscription(ctx, tx, args, &sub)
 	})
 	if err != nil {
-		if shared.IsUniqueViolation(err) {
+		if pg.IsUniqueViolation(err) {
 			return Subscription{}, ErrConflict
 		}
 		return Subscription{}, err
