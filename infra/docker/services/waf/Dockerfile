@@ -63,6 +63,10 @@ FROM scratch
 
 COPY --from=waf_runtime / /
 
+# MODSEC_TAG is referenced below as an ESCAPED literal (\${MODSEC_TAG}) — Docker does
+# NOT expand it at build time; envsubst expands it at runtime. So this is not a real
+# same-ENV self-reference, and DL3044 is a false positive here.
+# hadolint ignore=DL3044
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
   LD_LIBRARY_PATH=/lib:/usr/lib:/usr/local/lib \
   NGINX_HOME=/etc/nginx \

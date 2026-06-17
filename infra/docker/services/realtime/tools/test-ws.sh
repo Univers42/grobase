@@ -42,4 +42,4 @@ else
   exit 1
 fi
 
-echo "WebSocket test complet
+echo "WebSocket test complete"

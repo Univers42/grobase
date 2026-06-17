@@ -1,8 +1,15 @@
-# ========================================================================== #
-##@ Planes (change layers live — up-<plane> / down-<plane> / logs-<plane>)
-# ========================================================================== #
-# These targets are GENERATED from $(PLANES). One eval loop → every verb for
-# every plane, with zero repeated recipes. Run `make planes` to list them.
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    30-planes.mk                                       :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2026/06/17 23:00:00 by dlesieur          #+#    #+#              #
+#    Updated: 2026/06/17 23:00:02 by dlesieur         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
 define PLANE_RULES
 up-$(1): _require-compose ## (generated) start the '$(1)' plane on a running core
 	@echo -e "$(_B)+ plane $(_W)$(1)$(_0) → $(_C)$(PROFILES_$(1))$(_0)"
@@ -41,4 +48,3 @@ doctor: ## Environment sanity check
 	@docker compose version >/dev/null 2>&1 && echo "  ✓ compose v2" || echo "  ✗ compose v2"
 	@[ -f .env ] && echo "  ✓ .env present" || echo "  • .env missing (run: make env)"
 	@echo "  • EDITION=$(EDITION) → profiles: $(ACTIVE_PROFILES)"
-

@@ -1,6 +1,15 @@
-# ========================================================================== #
-##@ Help
-# ========================================================================== #
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    99-help.mk                                         :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2026/06/17 22:59:17 by dlesieur          #+#    #+#              #
+#    Updated: 2026/06/17 22:59:20 by dlesieur         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
 help: ## Show this help
 	@echo ""
 	@echo -e "$(_W)$(_C)$(PROJECT) — layer/edition orchestrator$(_0)"
@@ -12,16 +21,3 @@ help: ## Show this help
 	@echo ""
 	@echo -e "$(_D)Generated per-plane verbs: up-<plane> down-<plane> restart-<plane> logs-<plane>$(_0)"
 	@echo ""
-
-.PHONY: all all-full clean fclean re up down restart ps logs pull build health \
-        bench-startup bench-load bench-capacity bench-mem bench-compare scale-seed scale-teardown observe planes editions doctor tests test-postgres test-offers test-edge \
-        verify-all parity waf-test migrate migrate-mongo migrate-mysql migrate-all \
-        migrate-status seed-mongo seed-live-demo secrets secrets-validate secrets-rotate \
-        check-secrets env certs vault-init vault-status vault-rotate nestjs-ci \
-        sonar-coverage sonar-scan \
-        rust-data-plane-check rust-data-plane-build go-control-plane-check \
-        rust-realtime-check rust-realtime-test rust-realtime-build _rust-toolchain \
-        go-control-plane-build preflight hooks update help \
-        quickstart release-binaries release-images release-check _require-version \
-        backup-now restore-verify cloud-flags-print cloud-up cloud-down \
-        _require-docker _require-compose _rm-stale

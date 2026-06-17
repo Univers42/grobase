@@ -1,6 +1,15 @@
-# ========================================================================== #
-##@ Ops
-# ========================================================================== #
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    80-ops.mk                                          :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2026/06/17 22:59:35 by dlesieur          #+#    #+#              #
+#    Updated: 2026/06/17 22:59:37 by dlesieur         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
 preflight: ## Run pre-deployment checks
 	@bash scripts/ci/preflight-check.sh
 hooks: ## Activate git hooks
@@ -18,13 +27,13 @@ restore-verify: ## Prove a backup restores (dump→drop→restore→checksum, sc
 	@bash scripts/verify/m47-backup-restore.sh
 
 cloud-flags-print: ## Print the managed-cloud flag manifest (B7.1 single flip point — OPT-IN, no behaviour)
-	@cat config/cloud/flags.env.example
+	@cat infra/config/cloud/flags.env.example
 	@echo ""
 	@echo -e "$(_D)Opt-in: the default stack ignores this manifest (all flags default OFF in code = byte-parity).$(_0)"
-	@echo -e "$(_D)Promotion ladder (staging→canary→prod): config/cloud/README.md$(_0)"
+	@echo -e "$(_D)Promotion ladder (staging→canary→prod): infra/config/cloud/README.md$(_0)"
 
 # ── Cloud edition (managed-cloud, all flags ON, mock Stripe) ─────────────────
-# The env-only overlay docker-compose.cloud.yml + config/cloud/flags.env.cloud
+# The env-only overlay docker-compose.cloud.yml + infra/config/cloud/flags.env.cloud
 # layered onto the default compose with the EDITION=prod planes + the `cloud`
 # profile (stripe-mock). OPT-IN: a non-cloud `make up` never passes these `-f`s,
 # so the default stack stays byte-parity (kernel #5). Design: wiki/cloud-edition-design.md.
@@ -39,9 +48,8 @@ cloud-up: _require-compose _rm-stale ## Boot the FULL managed-cloud stack locall
 	@echo -e "$(_B)Starting CLOUD edition (all managed-cloud flags ON, mock Stripe) → prod planes + cloud profile$(_0)"
 	@eval "$$(bash scripts/ops/resolve-ports.sh 2>/dev/null || true)"; \
 	  docker compose $(CLOUD_FILES) $(CLOUD_PROFILES) up -d $(SERVICE)
-	@echo -e "$(_G)✓ Cloud edition up (config/cloud/flags.env.cloud layered; stripe-mock in the cloud profile)$(_0)"
+	@echo -e "$(_G)✓ Cloud edition up (infra/config/cloud/flags.env.cloud layered; stripe-mock in the cloud profile)$(_0)"
 
 cloud-down: _require-compose ## Stop the cloud edition (overlay + cloud profile)
 	@docker compose $(CLOUD_FILES) $(CLOUD_PROFILES) down
 	@echo -e "$(_G)✓ Cloud edition down$(_0)"
-

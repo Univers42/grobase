@@ -1,6 +1,7 @@
 # ops plane — pg-backup, supavisor
 services:
   pg-backup:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-pg-backup:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/pg-backup
@@ -24,9 +25,6 @@ services:
       minio:
         condition: service_started
         required: false
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "/opt/pg-backup/entrypoint.sh", "liveness"]
       interval: 30s
@@ -38,6 +36,7 @@ services:
 
   # ─── Connection Pooler (control plane / close to Postgres) ────────
   supavisor:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-supavisor:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/supavisor
@@ -60,9 +59,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - mini-baas
-    restart: unless-stopped
 
   # ─── Admin Dashboard (extras) ────────────────────────────────────
   # Studio talks to pg-meta for schema inspection and proxies postgres for

@@ -1,6 +1,7 @@
 # observability plane — prometheus, grafana, loki, promtail
 services:
   prometheus:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-prometheus:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/prometheus
@@ -19,12 +20,10 @@ services:
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"
-    networks:
-      - mini-baas
-    restart: unless-stopped
 
   # ─── Observability: Grafana ──────────────────────────────────────
   grafana:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-grafana:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/grafana
@@ -45,12 +44,10 @@ services:
       - grafana-data:/var/lib/grafana
     ports:
       - "3030:3000"
-    networks:
-      - mini-baas
-    restart: unless-stopped
 
   # ─── Observability: Loki ─────────────────────────────────────────
   loki:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-loki:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/loki
@@ -69,9 +66,6 @@ services:
     command: ["-config.file=/etc/loki/config.yaml"]
     ports:
       - "${LOKI_PORT:-3100}:3100"
-    networks:
-      - mini-baas
-    restart: unless-stopped
     # The one long-running service that had no base cap: a heavy log day blew
     # it to 750+ MiB of chunk/index cache (uncapped = host-RAM-bounded). Under
     # a cap loki evicts caches and keeps working; prod overlay tightens to 384m.
@@ -80,6 +74,7 @@ services:
 
   # ─── Observability: Promtail ─────────────────────────────────────
   promtail:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-promtail:latest   # pull-fallback (built from ./build context below)
     # No healthcheck BY DESIGN: the promtail image ships neither curl nor wget.
     # It is a push-only agent — failure is visible as missing log streams, and
@@ -94,8 +89,5 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./infra/config/promtail/promtail.yaml:/etc/promtail/config.yaml:ro
     command: ["-config.file=/etc/promtail/config.yaml"]
-    networks:
-      - mini-baas
-    restart: unless-stopped
 
   # ─── Playground Frontend ─────────────────────────────────────────

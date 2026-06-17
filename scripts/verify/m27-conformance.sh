@@ -51,7 +51,7 @@ env_of() { # $1 container, $2 var
   docker inspect "$1" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
     | grep "^$2=" | head -1 | cut -d= -f2-
 }
-container_up() { docker inspect "$1" >/dev/null 2>&1; }
+container_up() { [ "$(docker inspect -f "{{.State.Running}}{{if .State.Restarting}}-r{{end}}" "$1" 2>/dev/null)" = "true" ]; }
 
 # Engine → (container, in-network DSN). Echoes DSN, or empty if engine down.
 dsn_for() {

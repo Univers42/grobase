@@ -1,9 +1,15 @@
-# ========================================================================== #
-##@ Release
-# ========================================================================== #
-# v1.0 release machinery (RELEASE.md is the checklist authority). The GitHub
-# pipeline (.github/workflows/baas-release.yml at the monorepo root) fires on
-# baas-v* tags; these targets are its local mirror for dry-runs and operators.
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    90-release.mk                                      :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2026/06/17 22:59:28 by dlesieur          #+#    #+#              #
+#    Updated: 2026/06/17 22:59:31 by dlesieur         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
 VERSION ?=
 
 _require-version:
@@ -46,4 +52,3 @@ release-check: ## Release: run the pre-tag gate checklist (see RELEASE.md)
 	@[ -f scripts/ci/install.sh ] && echo -e "  $(_G)✓ scripts/ci/install.sh present$(_0)" \
 		|| echo -e "  $(_R)✗ scripts/ci/install.sh missing (release asset)$(_0)"
 	@echo -e "  $(_D)Remaining (manual): make verify-all · CI green · SDK build+test · tag baas-vX.Y.Z$(_0)"
-

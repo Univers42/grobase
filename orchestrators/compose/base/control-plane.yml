@@ -1,6 +1,7 @@
 # control-plane plane — adapter-registry-go, tenant-control, webhook-dispatcher, orchestrator, function-scheduler
 services:
   adapter-registry-go:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-adapter-registry-go:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src/control-plane
@@ -35,9 +36,6 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
       - "127.0.0.1:${ADAPTER_REGISTRY_GO_PORT:-3021}:3021"
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "/app/app", "--healthcheck"]
       interval: 5s
@@ -62,6 +60,7 @@ services:
   # the JWT-authenticated path the just-signed-up user calls to provision
   # their tenant + receive their first API key.
   tenant-control:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-tenant-control:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src/control-plane
@@ -125,9 +124,6 @@ services:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "/app/app", "--healthcheck"]
       interval: 5s
@@ -142,6 +138,7 @@ services:
   # Owns webhook_subscriptions CRUD + consumes outbox.<aggregate> Redis
   # streams + HMAC-signed POSTs to subscribers with retry + DLQ.
   webhook-dispatcher:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-webhook-dispatcher:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src/control-plane
@@ -177,9 +174,6 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "/app/app", "--healthcheck"]
       interval: 5s
@@ -195,6 +189,7 @@ services:
   # parity is checked before any Node container is retired. ~32 MiB mem_limit
   # vs ~55 MiB PER Node service is the −359 MiB / essential $13→$6.5 win.
   orchestrator:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-orchestrator:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src/control-plane
@@ -256,9 +251,6 @@ services:
     depends_on:
       db-bootstrap:
         condition: service_completed_successfully
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "/app/app", "--healthcheck"]
       interval: 5s
@@ -274,6 +266,7 @@ services:
   # Zero-dep interval grammar (@every / @hourly / @daily / bare duration).
   # NOTE: own port 3027 — the orchestrator owns 3026 on this (scale-program) base.
   function-scheduler:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-function-scheduler:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src/control-plane
@@ -298,9 +291,6 @@ services:
     depends_on:
       db-bootstrap:
         condition: service_completed_successfully
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "/app/app", "--healthcheck"]
       interval: 5s

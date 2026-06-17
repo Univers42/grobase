@@ -55,7 +55,7 @@ BANNER
 # ── paths ──────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"          # repo root (script now at scripts/test/postman/)
-POSTMAN_DIR="${INFRA_DIR}/postman"
+POSTMAN_DIR="${INFRA_DIR}/infra/config/postman"
 CORPUS="${POSTMAN_DIR}/corpus/edge-corpus.json"
 # EDGE_SMOKE=1 runs a representative per-category subset (fast, low stack load).
 RUN_CORPUS_FILE="edge-corpus.json"

@@ -35,6 +35,6 @@ WORKDIR /data
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1
 
-# No ENTRYPOINT: compose's `command: server /data --console-address ":9001"`
-# replaces this CMD wholesale, so there is no doubled `minio`.
-CMD ["minio"]
+# `minio` is the ENTRYPOINT, so compose's `command: server /data --console-address ":9001"`
+# is appended as its args -> `minio server /data ...` (the official image's contract).
+ENTRYPOINT ["minio"]

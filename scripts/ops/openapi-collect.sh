@@ -11,22 +11,22 @@
 #                                                                              #
 # **************************************************************************** #
 #
-# Collect every NestJS app's /docs-json into apps/baas/mini-baas-infra/openapi/
+# Collect every NestJS app's /docs-json into infra/config/openapi/
 # Each file is the live OpenAPI 3.0 document Swagger generates from the app's
 # decorators. The SDK codegen step consumes these files (`npm run codegen`
-# under apps/baas/sdk/) to produce typed clients.
+# under sdks/js/) to produce typed clients.
 #
 # Usage:
-#   bash apps/baas/mini-baas-infra/scripts/openapi-collect.sh
-#   bash apps/baas/mini-baas-infra/scripts/openapi-collect.sh --apps query-router,mongo-api
+#   bash scripts/ops/openapi-collect.sh
+#   bash scripts/ops/openapi-collect.sh --apps query-router,mongo-api
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-OUT_DIR="apps/baas/mini-baas-infra/openapi"
+OUT_DIR="infra/config/openapi"
 mkdir -p "${OUT_DIR}"
 
 declare -A APP_PORTS=(

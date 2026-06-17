@@ -1,6 +1,7 @@
 # data-plane plane — data-plane-router-rust, realtime
 services:
   data-plane-router-rust:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-data-plane-router:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src/data-plane-router
@@ -48,14 +49,11 @@ services:
       RUST_LOG: ${RUST_LOG:-info}
     ports:
       - "127.0.0.1:${DATA_PLANE_RUST_PORT:-4011}:4011"
-    networks:
-      - mini-baas
     # host-gateway: lets external-client mounts (gourmand-tenant.sh dev
     # fallback) dial a Postgres published on the HOST (vite-gourmand's own
     # compose) via host.docker.internal — Linux needs the explicit mapping.
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "/app/data-plane-router", "--healthcheck"]
       interval: 5s
@@ -67,6 +65,7 @@ services:
 
   # ─── Go Control Plane: adapter-registry (shadow migration path) ───
   realtime:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     # Pinned upstream (versioned like kong:3.8 — bump procedure in RELEASE.md).
     # The build: context below always wins locally; the pin is for pull-only
     # deployments so they never drift on `latest`.
@@ -107,9 +106,6 @@ services:
       mongo-init:
         condition: service_completed_successfully
         required: false
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "/app/realtime-server", "--healthcheck"]
       interval: 5s

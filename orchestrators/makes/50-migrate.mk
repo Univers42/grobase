@@ -1,6 +1,15 @@
-# ========================================================================== #
-##@ Migrations & data
-# ========================================================================== #
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    50-migrate.mk                                      :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2026/06/17 22:59:51 by dlesieur          #+#    #+#              #
+#    Updated: 2026/06/17 22:59:53 by dlesieur         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
 migrate: ## Apply pending PostgreSQL migrations
 	@set -e; for f in $$(ls -1 scripts/migrations/postgresql/*.sql 2>/dev/null | sort); do \
 		echo "  Applying: $$f"; sed '/^#/d' "$$f" | $(DC) exec -T postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f -; \
@@ -26,4 +35,3 @@ seed-mongo: _require-compose ## Seed MongoDB demo data
 
 seed-live-demo: _require-compose ## Seed the live-database demo across pg+mysql+mongo (owned by the osionos app key; RESEED=1 wipes first)
 	@bash scripts/seed/seed-live-demo.sh
-

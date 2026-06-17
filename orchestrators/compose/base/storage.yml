@@ -1,6 +1,7 @@
 # storage plane — minio, functions-runtime
 services:
   minio:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-minio:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/minio
@@ -23,9 +24,6 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     volumes:
       - minio-data:/data
-    networks:
-      - mini-baas
-    restart: unless-stopped
 
   # ─── Edge Functions Runtime (Deno worker-per-invocation MVP) ──────
   # Tenants POST TS/JS code to /v1/functions and invoke them at
@@ -33,6 +31,7 @@ services:
   # minimal permission set. Read wiki/back/08_edge_functions.md for the
   # security trade-offs.
   functions-runtime:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-functions-runtime:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/functions-runtime
@@ -60,9 +59,6 @@ services:
       - "127.0.0.1:${FUNCTIONS_PORT:-3060}:3060"
     volumes:
       - functions-data:/data
-    networks:
-      - mini-baas
-    restart: unless-stopped
     mem_limit: 256m
     cpus: 0.5
 

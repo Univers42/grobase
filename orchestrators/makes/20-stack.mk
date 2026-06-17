@@ -1,6 +1,15 @@
-# ========================================================================== #
-##@ Stack (edition-driven — set EDITION=lean|query|realtime|analytics|prod|full)
-# ========================================================================== #
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    20-stack.mk                                        :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2026/06/17 23:00:04 by dlesieur          #+#    #+#              #
+#    Updated: 2026/06/17 23:00:06 by dlesieur         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
 up: _require-compose _rm-stale ## Start the selected EDITION (detached)
 	@[ -f .env ] || { echo -e "$(_Y).env missing → generating (make env)…$(_0)"; $(MAKE) --no-print-directory env; }
 	@[ -f certs/localhost.pem ] || { echo -e "$(_Y)TLS cert missing → generating (make certs)…$(_0)"; $(MAKE) --no-print-directory certs; }
@@ -79,9 +88,9 @@ bench-compare: ## Competitive graph report from scripts/bench/compare-data.json 
 
 master-report: ## ONE detailed HTML comparison report (perf + offers + matrix + edge) → wiki/reports/comparison-report.html (zero-dep, no host node)
 	@docker run --rm -u "$(shell id -u):$(shell id -g)" \
-		-v "$(CURDIR)/..":/b -w /b public.ecr.aws/docker/library/node:22-bookworm \
-		node /b/mini-baas-infra/scripts/report/master-report.mjs \
-			--infra /b/mini-baas-infra --out /b/wiki/reports/comparison-report.html
+		-v "$(CURDIR)":/b -w /b public.ecr.aws/docker/library/node:22-bookworm \
+		node /b/scripts/report/master-report.mjs \
+			--infra /b --out /b/wiki/reports/comparison-report.html
 	@echo -e "$(_G)$(_W)✓ comparison report → wiki/reports/comparison-report.html$(_0)"
 
 # All HTML reports flow through ONE design system (scripts/lib/lib-report.mjs):
@@ -93,13 +102,13 @@ reports: master-report ## Regenerate EVERY HTML report (comparison + supabase-ve
 	@for g in $(REPORT_GENS); do \
 		echo "  → $$g"; \
 		docker run --rm -u "$(shell id -u):$(shell id -g)" \
-			-v "$(CURDIR)/..":/b -w /b public.ecr.aws/docker/library/node:22-bookworm \
-			node /b/mini-baas-infra/scripts/report/$$g.mjs || exit 1; \
+			-v "$(CURDIR)":/b -w /b public.ecr.aws/docker/library/node:22-bookworm \
+			node /b/scripts/report/$$g.mjs || exit 1; \
 	done
 	@docker run --rm -u "$(shell id -u):$(shell id -g)" \
-		-v "$(CURDIR)/..":/b -w /b public.ecr.aws/docker/library/node:22-bookworm \
-		node /b/mini-baas-infra/scripts/report/portal.mjs \
-			--data /b/mini-baas-infra/scripts/bench/offers-compare-data.json \
+		-v "$(CURDIR)":/b -w /b public.ecr.aws/docker/library/node:22-bookworm \
+		node /b/scripts/report/portal.mjs \
+			--data /b/scripts/bench/offers-compare-data.json \
 			--out /b/wiki/reports/index.html \
 			--bench3 benchmark-3way.html --bench9 benchmark-9way.html --postman postman-offers-report.html
 	@echo -e "$(_G)$(_W)✓ all HTML reports + portal → wiki/reports/ (open wiki/reports/index.html)$(_0)"
@@ -139,4 +148,3 @@ scale-teardown: _require-compose ## Soft-delete every tenant in artifacts/scale/
 
 audit-deps: ## Supply-chain CVE scan — cargo-audit (Rust) + govulncheck (Go)
 	@bash scripts/security/audit-deps.sh
-

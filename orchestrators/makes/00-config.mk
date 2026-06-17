@@ -1,13 +1,12 @@
 # **************************************************************************** #
 #                                                                              #
 #                                                         :::      ::::::::    #
-#    Makefile  (layer/edition orchestrator)            :+:      :+:    :+:     #
-#                                                     +:+ +:+         +:+       #
-#    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+          #
-#                                                 +#+#+#+#+#+   +#+             #
-#    mini-baas — one control surface for a swappable-layer BaaS                #
-#    Split into orchestrators/makes/*.mk, loaded in order (00-config first).   #
-#    Run `make help` for the menu; pre-split monolith kept as Makefile.bak.    #
+#    00-config.mk                                       :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2026/06/17 23:00:09 by dlesieur          #+#    #+#              #
+#    Updated: 2026/06/17 23:00:29 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -15,9 +14,6 @@ SHELL          := /bin/bash
 .SHELLFLAGS    := -ec
 .DEFAULT_GOAL  := help
 
-# --------------------------------------------------------------------------- #
-#  Variables                                                                   #
-# --------------------------------------------------------------------------- #
 PROJECT        := mini-baas
 COMPOSE_FILE   ?= docker-compose.yml
 IMAGE_TAG      ?= latest
@@ -119,9 +115,6 @@ endif
 PROFILE_FLAGS := $(addprefix --profile ,$(ACTIVE_PROFILES))
 DCE           := $(DC) $(PROFILE_FLAGS)
 
-# --------------------------------------------------------------------------- #
-#  Internal prerequisites (no ## = hidden from help)                           #
-# --------------------------------------------------------------------------- #
 _require-docker:
 	@command -v docker >/dev/null 2>&1 || { echo >&2 "Docker is not installed."; exit 1; }
 
@@ -131,4 +124,3 @@ _require-compose: _require-docker
 _rm-stale:
 	@ids=$$(docker ps -a --format '{{.ID}} {{.Names}} {{.Status}}' | awk '/ mini-baas-/ && ($$3=="Created"||$$3=="Exited") {print $$1}'); \
 	[ -z "$$ids" ] || { echo -e "$(_Y)Removing stale containers…$(_0)"; docker rm -f $$ids >/dev/null; }
-

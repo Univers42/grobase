@@ -43,7 +43,7 @@ set -euo pipefail
 # ── paths ──────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"          # repo root (script now at scripts/test/postman/)
-POSTMAN_DIR="${INFRA_DIR}/postman"
+POSTMAN_DIR="${INFRA_DIR}/infra/config/postman"
 REPORT_DIR="${INFRA_DIR}/artifacts/test"
 COLLECTION="grobase-offers.postman_collection.json"
 GEN_ENV="grobase-offers.generated.env.json"            # written into POSTMAN_DIR

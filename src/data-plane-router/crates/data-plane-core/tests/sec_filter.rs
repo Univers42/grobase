@@ -48,7 +48,7 @@ fn non_object_filters_are_rejected() {
         json!(true),
         json!(null),
         json!([1, 2, 3]),
-        json!(3.14),
+        json!(2.5),
         json!("'; DROP TABLE users; --"),
     ] {
         assert!(Filter::parse(&v).is_err(), "non-object {v:?} must be rejected");

@@ -408,7 +408,7 @@ mod tests {
             json!(true),
             json!(0),
             json!(i64::MAX),
-            json!(3.14),
+            json!(2.5),
             json!(""),
             json!("str"),
             json!([1, 2]),

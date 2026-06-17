@@ -1,6 +1,7 @@
 # lakehouse plane — trino, iceberg-rest, debezium, minio-iceberg-init
 services:
   trino:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-trino:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/trino
@@ -40,12 +41,10 @@ services:
         condition: service_healthy
       iceberg-rest:
         condition: service_started
-    networks:
-      - mini-baas
-    restart: unless-stopped
 
   # ─── MySQL (M2 federation — analytical + tenant CRUD via query-router) ──
   iceberg-rest:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-iceberg-rest:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/iceberg-rest
@@ -72,14 +71,12 @@ services:
     depends_on:
       minio-iceberg-init:
         condition: service_completed_successfully
-    networks:
-      - mini-baas
-    restart: unless-stopped
     mem_limit: 384m
     cpus: 0.5
 
   # ─── Outbox relay (M3 coherence — PG WAL → Redis Streams → Mongo projection) ──
   debezium:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-debezium:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/debezium
@@ -104,14 +101,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - mini-baas
-    restart: unless-stopped
     mem_limit: 384m
     cpus: 0.5
 
   # ─── Iceberg warehouse bucket bootstrap (M2 federation) ──────────
   minio-iceberg-init:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-mc:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/mc
@@ -134,8 +129,6 @@ services:
     depends_on:
       minio:
         condition: service_started
-    networks:
-      - mini-baas
     restart: "no"
 
   # ─── Relational Database (custom image with pg_net) ───────────────

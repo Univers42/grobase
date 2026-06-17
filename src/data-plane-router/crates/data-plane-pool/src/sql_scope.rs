@@ -376,7 +376,7 @@ mod tests {
             json!(i64::MAX),
             json!(i64::MIN),
             json!(u64::MAX),
-            json!(3.14),
+            json!(2.5),
             json!(-2.5e10),
             json!(0.0),
             json!(""),

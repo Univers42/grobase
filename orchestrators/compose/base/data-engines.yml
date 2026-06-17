@@ -1,6 +1,7 @@
 # data-engines plane — postgres, db-bootstrap, redis, mongo, mongo-keyfile, mongo-init
 services:
   postgres:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-postgres:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/postgres
@@ -27,7 +28,6 @@ services:
       mini-baas:
         aliases:
           - db
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
       interval: 5s
@@ -44,6 +44,7 @@ services:
 
   # ─── Database Bootstrap ──────────────────────────────────────────
   db-bootstrap:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-db-bootstrap:latest   # pull-fallback (built from ./build context below)
     # Self-built: an init container that only runs psql/pg_isready then exits, so it
     # needs a postgres CLIENT (~13 MB) not the 438 MB pgvector engine image. The
@@ -72,12 +73,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - mini-baas
     restart: "no"
 
   # ─── Document Database ───────────────────────────────────────────
   redis:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-redis:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/redis
@@ -96,9 +96,6 @@ services:
     command: redis-server --appendonly yes --auto-aof-rewrite-percentage 100 --auto-aof-rewrite-min-size 64mb --maxmemory 384mb --maxmemory-policy volatile-lru
     volumes:
       - redis-data:/data
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -116,6 +113,7 @@ services:
 
   # ─── Query Router (adapter plane — normalized data API) ───────────
   mongo:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-mongo:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/mongo
@@ -135,9 +133,6 @@ services:
     volumes:
       - mongo-data:/data/db
       - mongo-keyfile:/etc/mongo
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --eval \"try { rs.status().myState === 1 ? quit(0) : quit(1) } catch(e) { db.runCommand({ ping: 1 }).ok ? quit(0) : quit(1) }\""]
       interval: 5s
@@ -150,6 +145,7 @@ services:
   # ─── MongoDB keyfile generator (runs once, exits) ────────────────
   # Generates a shared keyfile for replica set internal auth.
   mongo-keyfile:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-mongo-keyfile:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/mongo-keyfile
@@ -158,8 +154,6 @@ services:
     profiles: [data-plane]
     volumes:
       - mongo-keyfile:/etc/mongo
-    networks:
-      - mini-baas
     restart: "no"
     entrypoint: >
       bash -c '
@@ -177,6 +171,7 @@ services:
   # Required for Change Streams (used by realtime CDC producer).
   # Runs once and exits with code 0.
   mongo-init:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-mongo-init:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/mongo-init
@@ -186,8 +181,6 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-    networks:
-      - mini-baas
     restart: "no"
     environment:
       MONGO_USER: ${MONGO_INITDB_ROOT_USERNAME:-mongo}

@@ -1,6 +1,15 @@
-# ========================================================================== #
-##@ Secrets & Vault
-# ========================================================================== #
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    60-secrets.mk                                      :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2026/06/17 22:59:47 by dlesieur          #+#    #+#              #
+#    Updated: 2026/06/17 22:59:48 by dlesieur         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
 secrets: ## Generate all secrets → .env
 	@bash scripts/secrets/generate-secrets.sh
 secrets-validate: ## Validate required secrets exist
@@ -23,4 +32,3 @@ vault-status: _require-compose ## Check Vault seal status
 	@docker exec mini-baas-vault vault status -address=http://127.0.0.1:8200 2>/dev/null || echo -e "$(_R)Vault not running$(_0)"
 vault-rotate: _require-compose ## Rotate Vault secrets (GROUP=jwt|postgres|mongo|minio|kong|all)
 	@docker exec mini-baas-vault /vault/scripts/rotate-secrets.sh $${GROUP:-all}
-

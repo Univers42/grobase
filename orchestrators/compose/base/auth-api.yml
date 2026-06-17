@@ -1,6 +1,7 @@
 # auth-api plane — gotrue, postgrest, pg-meta, mongo-api
 services:
   gotrue:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-gotrue:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/gotrue
@@ -64,9 +65,6 @@ services:
     depends_on:
       db-bootstrap:
         condition: service_completed_successfully
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9999/health || exit 1"]
       interval: 5s
@@ -78,6 +76,7 @@ services:
 
   # ─── PostgreSQL REST API ─────────────────────────────────────────
   postgrest:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-postgrest:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/postgrest
@@ -106,14 +105,12 @@ services:
         condition: service_healthy
       db-bootstrap:
         condition: service_completed_successfully
-    networks:
-      - mini-baas
-    restart: unless-stopped
     mem_limit: 128m
     cpus: 0.25
 
   # ─── PostgreSQL Metadata (control plane / extras) ─────────────────
   pg-meta:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-pg-meta:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/pg-meta
@@ -138,12 +135,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - mini-baas
-    restart: unless-stopped
 
   # ─── Realtime / WebSocket ────────────────────────────────────────
   mongo-api:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-mongo-api:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -162,9 +157,6 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3010/health/live || exit 1"]
       interval: 5s

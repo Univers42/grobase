@@ -4,7 +4,7 @@
 # **************************************************************************** #
 #
 # A4: polyglot SDKs generated from the canonical OpenAPI 3.1 spec
-#   apps/baas/mini-baas-infra/openapi/grobase-public.json
+#   infra/config/openapi/grobase-public.json
 # into committed, regenerable packages:
 #   apps/baas/sdks/python   (urllib3-based)
 #   apps/baas/sdks/dart     (http-based)
@@ -21,7 +21,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # apps/baas/sdks/js/scripts
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"             # apps/baas
-SPEC="mini-baas-infra/openapi/grobase-public.json"
+SPEC="infra/config/openapi/grobase-public.json"
 IMG="${OPENAPI_GENERATOR_IMAGE:-openapitools/openapi-generator-cli:latest}"
 VERSION="${SDK_VERSION:-0.2.0}"
 

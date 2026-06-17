@@ -1,6 +1,7 @@
 # app-services plane — query-router, outbox-relay, email-service, storage-router, permission-engine, schema-service, analytics-service, gdpr-service, newsletter-service, ai-service, log-service, session-service
 services:
   query-router:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-query-router:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -82,9 +83,6 @@ services:
         condition: service_started
       data-plane-router-rust:
         condition: service_healthy
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:4001/health/live || exit 1"]
       interval: 5s
@@ -96,6 +94,7 @@ services:
 
   # ─── Rust Data Plane Router (live cutover — see parity-probe.sh) ──
   outbox-relay:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-outbox-relay:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -129,9 +128,6 @@ services:
       realtime:
         condition: service_healthy
         required: false
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3130/health/live || exit 1"]
       interval: 10s
@@ -143,6 +139,7 @@ services:
 
   # ─── Debezium outbox CDC (M8 coherence — PG outbox → Redis Streams) ──
   email-service:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-email-service:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -162,9 +159,6 @@ services:
       EMAIL_FROM: ${EMAIL_FROM:-noreply@mini-baas.local}
       JWT_SECRET: ${JWT_SECRET}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3030/health/live || exit 1"]
       interval: 5s
@@ -176,6 +170,7 @@ services:
 
   # ─── Storage Router (NestJS — presigned URLs) ───────────────────
   storage-router:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-storage-router:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -203,9 +198,6 @@ services:
     depends_on:
       minio:
         condition: service_started
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3040/health/live || exit 1"]
       interval: 5s
@@ -217,6 +209,7 @@ services:
 
   # ─── Permission Engine (control plane — ABAC) ─────────────────────
   permission-engine:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-permission-engine:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -240,9 +233,6 @@ services:
     depends_on:
       db-bootstrap:
         condition: service_completed_successfully
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3050/health/live || exit 1"]
       interval: 5s
@@ -254,6 +244,7 @@ services:
 
   # ─── Schema Service (control plane — DDL management) ──────────────
   schema-service:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-schema-service:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -279,9 +270,6 @@ services:
     depends_on:
       adapter-registry-go:
         condition: service_healthy
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3060/health/live || exit 1"]
       interval: 5s
@@ -293,6 +281,7 @@ services:
 
   # ─── Analytics Service (analytics/background plane) ───────────────
   analytics-service:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-analytics-service:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -314,9 +303,6 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3070/health/live || exit 1"]
       interval: 5s
@@ -328,6 +314,7 @@ services:
 
   # ─── GDPR Service (background/control plane) ─────────────────────
   gdpr-service:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-gdpr-service:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -347,9 +334,6 @@ services:
     depends_on:
       db-bootstrap:
         condition: service_completed_successfully
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3080/health/live || exit 1"]
       interval: 5s
@@ -361,6 +345,7 @@ services:
 
   # ─── Newsletter Service (background plane) ────────────────────────
   newsletter-service:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-newsletter-service:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -383,9 +368,6 @@ services:
         condition: service_completed_successfully
       email-service:
         condition: service_started
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3090/health/live || exit 1"]
       interval: 5s
@@ -397,6 +379,7 @@ services:
 
   # ─── AI Service (background/data plane) ──────────────────────────
   ai-service:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-ai-service:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -423,9 +406,6 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3100/health/live || exit 1"]
       interval: 5s
@@ -437,6 +417,7 @@ services:
 
   # ─── Log Service (observability/background plane) ────────────────
   log-service:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-log-service:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -452,9 +433,6 @@ services:
       LOG_STREAM_TOKEN: ${LOG_STREAM_TOKEN:-}
       JWT_SECRET: ${JWT_SECRET}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3110/health/live || exit 1"]
       interval: 5s
@@ -466,6 +444,7 @@ services:
 
   # ─── Session Service (background plane) ──────────────────────────
   session-service:
+    extends: {file: orchestrators/compose/base/_common.yml, service: base}
     image: ghcr.io/univers42/grobase-session-service:latest   # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -484,9 +463,6 @@ services:
     depends_on:
       db-bootstrap:
         condition: service_completed_successfully
-    networks:
-      - mini-baas
-    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3120/health/live || exit 1"]
       interval: 5s

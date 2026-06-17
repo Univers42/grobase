@@ -35,14 +35,14 @@ jobs:
       - name: Shellcheck repo scripts
         run: |
           set -euo pipefail
-          # Lint the repo's own shell scripts: root host-helpers + mini-baas-infra.
+          # Lint the repo's own shell scripts under scripts/.
           # Robust to a missing root (so a pruned path can't abort under set -e) and
           # prunes third-party/generated trees. Ignored codes: SC1091 (sourced file
           # not followed), SC2034 (unused vars — colour constants), SC1128 (the
           # uniform 42-school header banner above the shebang — cosmetic, scripts are
           # always invoked as `bash <file>` so the shebang line is never honoured).
           roots=()
-          for d in scripts mini-baas-infra/scripts; do
+          for d in scripts; do
             [ -d "$d" ] && roots+=("$d")
           done
           if [ "${#roots[@]}" -eq 0 ]; then
@@ -60,8 +60,8 @@ jobs:
           echo "shellcheck passed on ${#shfiles[@]} files"
 
   # ─── Job 2: Docker build for each service ──────────────────────
-  # Build contexts live under mini-baas-infra/. NestJS apps build from src/ with
-  # an APP build-arg; the Go control plane from go/control-plane/ with APP+PORT;
+  # Build contexts live under the repo root. NestJS apps build from src/ with
+  # an APP build-arg; the Go control plane from src/control-plane/ with APP+PORT;
   # the Rust data plane from its own dir. (The old flat ./docker/services/<svc>
   # layout never existed for these — every run errored "context not found".)
   docker-build:
@@ -72,28 +72,28 @@ jobs:
       matrix:
         include:
           - service: mongo-api
-            context: mini-baas-infra/src
+            context: src
             build-args: |
               APP=mongo-api
           - service: query-router
-            context: mini-baas-infra/src
+            context: src
             build-args: |
               APP=query-router
           - service: email-service
-            context: mini-baas-infra/src
+            context: src
             build-args: |
               APP=email-service
           - service: storage-router
-            context: mini-baas-infra/src
+            context: src
             build-args: |
               APP=storage-router
           - service: adapter-registry
-            context: mini-baas-infra/go/control-plane
+            context: src/control-plane
             build-args: |
               APP=adapter-registry
               PORT=3021
           - service: data-plane-router   # Rust — slow cold build (minutes)
-            context: mini-baas-infra/docker/services/data-plane-router
+            context: src/data-plane-router
             build-args: ""
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -145,36 +145,36 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { service: redis,        context: mini-baas-infra/docker/services/redis }
-          - { service: postgrest,    context: mini-baas-infra/docker/services/postgrest }
-          - { service: db-bootstrap, context: mini-baas-infra/docker/services/db-bootstrap }
-          - { service: mongo-keyfile, context: mini-baas-infra/docker/services/mongo-keyfile }
-          - { service: kong,         context: mini-baas-infra/docker/services/kong }
-          - { service: gotrue,       context: mini-baas-infra/docker/services/gotrue }
-          - { service: mongo,        context: mini-baas-infra/docker/services/mongo }
-          - { service: mongo-init,   context: mini-baas-infra/docker/services/mongo-init }
-          - { service: mysql,        context: mini-baas-infra/docker/services/mysql }
-          - { service: mariadb,      context: mini-baas-infra/docker/services/mariadb }
-          - { service: minio,        context: mini-baas-infra/docker/services/minio }
-          - { service: mc,           context: mini-baas-infra/docker/services/mc }
-          - { service: cockroach,    context: mini-baas-infra/docker/services/cockroach }
-          - { service: prometheus,   context: mini-baas-infra/docker/services/prometheus }
-          - { service: grafana,      context: mini-baas-infra/docker/services/grafana }
-          - { service: loki,         context: mini-baas-infra/docker/services/loki }
-          - { service: promtail,     context: mini-baas-infra/docker/services/promtail }
-          - { service: trino,        context: mini-baas-infra/docker/services/trino }
-          - { service: debezium,     context: mini-baas-infra/docker/services/debezium }
-          - { service: iceberg-rest, context: mini-baas-infra/docker/services/iceberg-rest }
-          - { service: supavisor,    context: mini-baas-infra/docker/services/supavisor }
-          - { service: pg-meta,      context: mini-baas-infra/docker/services/pg-meta }
-          - { service: studio,       context: mini-baas-infra/docker/services/studio }
-          - { service: mssql,        context: mini-baas-infra/docker/services/mssql }
+          - { service: redis,        context: infra/docker/services/redis }
+          - { service: postgrest,    context: infra/docker/services/postgrest }
+          - { service: db-bootstrap, context: infra/docker/services/db-bootstrap }
+          - { service: mongo-keyfile, context: infra/docker/services/mongo-keyfile }
+          - { service: kong,         context: infra/docker/services/kong }
+          - { service: gotrue,       context: infra/docker/services/gotrue }
+          - { service: mongo,        context: infra/docker/services/mongo }
+          - { service: mongo-init,   context: infra/docker/services/mongo-init }
+          - { service: mysql,        context: infra/docker/services/mysql }
+          - { service: mariadb,      context: infra/docker/services/mariadb }
+          - { service: minio,        context: infra/docker/services/minio }
+          - { service: mc,           context: infra/docker/services/mc }
+          - { service: cockroach,    context: infra/docker/services/cockroach }
+          - { service: prometheus,   context: infra/docker/services/prometheus }
+          - { service: grafana,      context: infra/docker/services/grafana }
+          - { service: loki,         context: infra/docker/services/loki }
+          - { service: promtail,     context: infra/docker/services/promtail }
+          - { service: trino,        context: infra/docker/services/trino }
+          - { service: debezium,     context: infra/docker/services/debezium }
+          - { service: iceberg-rest, context: infra/docker/services/iceberg-rest }
+          - { service: supavisor,    context: infra/docker/services/supavisor }
+          - { service: pg-meta,      context: infra/docker/services/pg-meta }
+          - { service: studio,       context: infra/docker/services/studio }
+          - { service: mssql,        context: infra/docker/services/mssql }
           # The two slowest source builds (Rust cold-compile + postgres pg_net/pgvector
           # from source) — published so a fresh clone pulls them instead of compiling.
           # data-plane-router is also built by docker-build (integration's gate); here it
           # is additionally PUBLISHED. Shared buildx cache key makes the rebuild cheap.
-          - { service: postgres,     context: mini-baas-infra/docker/services/postgres }
-          - { service: data-plane-router, context: mini-baas-infra/docker/services/data-plane-router }
+          - { service: postgres,     context: infra/docker/services/postgres }
+          - { service: data-plane-router, context: src/data-plane-router }
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
@@ -247,7 +247,7 @@ jobs:
         functions-runtime pg-backup
     defaults:
       run:
-        working-directory: mini-baas-infra
+        working-directory: .
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
@@ -276,7 +276,7 @@ jobs:
     timeout-minutes: 25
     defaults:
       run:
-        working-directory: mini-baas-infra
+        working-directory: .
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
@@ -396,7 +396,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-artifacts-${{ github.run_id }}
-          path: mini-baas-infra/artifacts/
+          path: artifacts/
           retention-days: 7
 
       - name: Teardown stack
@@ -418,7 +418,7 @@ jobs:
     timeout-minutes: 50
     defaults:
       run:
-        working-directory: mini-baas-infra
+        working-directory: .
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
@@ -498,7 +498,7 @@ jobs:
           sdk: stable
       - if: matrix.sdk == 'dart'
         run: |
-          docker run --rm -v "$PWD/mini-baas-infra/openapi:/spec:ro" -v "$PWD/sdks/dart:/out" \
+          docker run --rm -v "$PWD/infra/config/openapi:/spec:ro" -v "$PWD/sdks/dart:/out" \
             openapitools/openapi-generator-cli:latest generate \
             -i /spec/grobase-public.json -g dart -o /out --additional-properties=pubName=grobase
           # `dart analyze` proves the regenerated client compiles + type-checks. The
@@ -523,7 +523,7 @@ jobs:
     timeout-minutes: 40
     defaults:
       run:
-        working-directory: mini-baas-infra
+        working-directory: .
     strategy:
       fail-fast: false
       matrix:
@@ -561,7 +561,7 @@ jobs:
     timeout-minutes: 180
     defaults:
       run:
-        working-directory: mini-baas-infra
+        working-directory: .
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
@@ -577,7 +577,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: gate-battery-logs-${{ github.run_id }}
-          path: mini-baas-infra/artifacts/gate-battery/
+          path: artifacts/gate-battery/
           retention-days: 14
 
   # ─── Job 8: Unit tests — the repo's own source-level tests ─────
@@ -598,7 +598,7 @@ jobs:
       # Go — control plane (~30 packages)
       - if: matrix.suite == 'go'
         run: |
-          docker run --rm -v "$PWD/mini-baas-infra/go/control-plane:/src" -w /src \
+          docker run --rm -v "$PWD/src/control-plane:/src" -w /src \
             golang:1.25-bookworm go test ./...
 
       # Rust — data-plane workspace (data-plane-core/pool/server + engine-conformance)
@@ -607,14 +607,14 @@ jobs:
           # CARGO_HTTP_MULTIPLEXING=false forces HTTP/1.1 (avoids the intermittent
           # crates.io "Error in the HTTP2 framing layer" flake); NET_RETRY rides out blips.
           docker run --rm -e CARGO_NET_RETRY=10 -e CARGO_HTTP_MULTIPLEXING=false \
-            -v "$PWD/mini-baas-infra/docker/services/data-plane-router:/src" -w /src \
+            -v "$PWD/src/data-plane-router:/src" -w /src \
             rust:1-bookworm cargo test --workspace
 
       # Rust — realtime workspace (event bus + IRC bridge)
       - if: matrix.suite == 'rust-realtime'
         run: |
           docker run --rm -e CARGO_NET_RETRY=10 -e CARGO_HTTP_MULTIPLEXING=false \
-            -v "$PWD/mini-baas-infra/docker/services/realtime/realtime-agnostic:/src" -w /src \
+            -v "$PWD/infra/docker/services/realtime/realtime-agnostic:/src" -w /src \
             rust:1-bookworm cargo test --workspace
 
       # NestJS — apps + libs (jest)
@@ -623,7 +623,7 @@ jobs:
         with:
           node-version: '20'
       - if: matrix.suite == 'nestjs'
-        working-directory: mini-baas-infra/src
+        working-directory: src
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npx jest

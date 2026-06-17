@@ -1,0 +1,610 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="Grobase — Offer capability proof (live stack)" tests="39" time="20.713">
+  <testsuite name="00 Health / Data plane direct — GET /v1/health" id="18ee5f27-e017-4bdd-881d-f5d4257de44d" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="0" errors="0" time="0.033">
+    <testcase name="data plane is up (200)" time="0.033" classname="GrobaseOfferCapabilityProofLiveStack"/>
+    <testcase name="reports service=data-plane-router status=ok" time="0.033" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="00 Health / Control plane — GET /health/live" id="ca596b0c-2c85-45ed-8b05-7e4795e492e3" timestamp="2026-06-17T21:30:52.022Z" tests="1" failures="0" errors="0" time="0.009">
+    <testcase name="control plane (tenant-control) is up (200)" time="0.009" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="00 Health / Kong → auth — GET /auth/v1/health" id="bbd780db-bc56-4b8c-8472-4f28a4f00072" timestamp="2026-06-17T21:30:52.022Z" tests="1" failures="0" errors="0" time="0.004">
+    <testcase name="Kong → auth health is up (200)" time="0.004" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="00 Health / Realtime — GET /realtime/v1 (WS endpoint live)" id="82c23c90-5a0f-4465-bbf7-f03f364cbc7e" timestamp="2026-06-17T21:30:52.022Z" tests="1" failures="0" errors="0" time="0.002">
+    <testcase name="realtime WS endpoint is reachable (400 upgrade-required, not 5xx)" time="0.002" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="10 Provision / Mint unique slug (pre-request)" id="2fcbce36-6cca-48a4-9b82-3dfe56832311" timestamp="2026-06-17T21:30:52.022Z" tests="1" failures="0" errors="0" time="0.002">
+    <testcase name="slug minted into env" time="0.002" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="10 Provision / Create tenant — POST /v1/tenants" id="518a0351-efc9-456a-9e45-26d23abb76b6" timestamp="2026-06-17T21:30:52.022Z" tests="1" failures="0" errors="0" time="0.009">
+    <testcase name="tenant created or already exists (201/409)" time="0.009" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="10 Provision / Upgrade plan → enterprise — PATCH /v1/tenants/{id}" id="90831797-57f7-4dd0-9a12-a4ee3842f5b1" timestamp="2026-06-17T21:30:52.022Z" tests="1" failures="0" errors="0" time="0.004">
+    <testcase name="plan upgrade accepted or cleanly unsupported (not 5xx)" time="0.004" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="10 Provision / Mint API key — POST /v1/tenants/{id}/keys" id="f6487a54-f703-4b59-8e5c-f9dd97a98201" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="0" errors="0" time="0.006">
+    <testcase name="key minted (201)" time="0.006" classname="GrobaseOfferCapabilityProofLiveStack"/>
+    <testcase name="returns a full mbk_ key" time="0.006" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="10 Provision / Register postgresql mount — POST {Kong}/admin/v1/databases" id="35288ab9-11c9-4574-a180-2d8fce07dced" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="0" errors="0" time="0.038">
+    <testcase name="mount registered (201)" time="0.038" classname="GrobaseOfferCapabilityProofLiveStack"/>
+    <testcase name="mount has an id" time="0.038" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="20 Auth / Signup — POST /auth/v1/signup" id="abd7006c-852a-4862-84b7-9c6926fabd19" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="0" errors="0" time="0.003">
+    <testcase name="signup endpoint reachable + returns JSON" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack"/>
+    <testcase name="signup succeeds OR fails only on email DELIVERY (Mailpit env gap) OR is a clean validation/disabled response" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="20 Auth / Token (password grant) — POST /auth/v1/token?grant_type=password" id="a3a40c25-328d-49c4-9f08-274713c11d71" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="0" errors="0" time="0.002">
+    <testcase name="token endpoint reachable" time="0.002" classname="GrobaseOfferCapabilityProofLiveStack"/>
+    <testcase name="token grant succeeds OR is a clean auth rejection (user unconfirmed: mail not delivered on this run)" time="0.002" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="20 Auth / Get user — GET /auth/v1/user" id="da7aa8d5-820f-45fc-90d6-ee39fb77e965" timestamp="2026-06-17T21:30:52.022Z" tests="1" failures="0" errors="0" time="0.003">
+    <testcase name="no-session get user is a clean 401 (autoconfirm OFF)" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="30 Data CRUD / Create scratch table — POST /query/v1/{dbId}/schema/ddl" id="aed8d8d2-a8db-4f25-9f33-06036a72ab8c" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="2" errors="0" time="0.148">
+    <testcase name="create_table applied (2xx)" time="0.148" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected 500 to be within 200..299">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 30 Data CRUD / Create scratch table — POST /query/v1/{dbId}/schema/ddl.]]>
+        <![CDATA[Test description: create_table applied (2xx).]]>
+        <![CDATA[Error message: expected 500 to be within 200..299.]]>
+        <![CDATA[Stacktrace: AssertionError: expected 500 to be within 200..299
+   at Object.eval sandbox-script.js:1:13).]]>
+      </failure>
+    </testcase>
+    <testcase name="DDL status=applied" time="0.148" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected '{&quot;error&quot;:&quot;identity_unavailable&quot;,&quot;mess…' to include 'applied'">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 30 Data CRUD / Create scratch table — POST /query/v1/{dbId}/schema/ddl.]]>
+        <![CDATA[Test description: DDL status=applied.]]>
+        <![CDATA[Error message: expected '{"error":"identity_unavailable","mess…' to include 'applied'.]]>
+        <![CDATA[Stacktrace: AssertionError: expected '{"error":"identity_unavailable","mess…' to include 'applied'
+   at Object.eval sandbox-script.js:2:13).]]>
+      </failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="30 Data CRUD / Insert — op=insert" id="0a36d1dd-454b-4bb1-94fd-9072c63ecea3" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="2" errors="0" time="0.005">
+    <testcase name="insert succeeded (2xx)" time="0.005" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected 500 to be within 200..299">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 30 Data CRUD / Insert — op=insert.]]>
+        <![CDATA[Test description: insert succeeded (2xx).]]>
+        <![CDATA[Error message: expected 500 to be within 200..299.]]>
+        <![CDATA[Stacktrace: AssertionError: expected 500 to be within 200..299
+   at Object.eval sandbox-script.js:1:14).]]>
+      </failure>
+    </testcase>
+    <testcase name="insert reports rowCount 1" time="0.005" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected '{&quot;error&quot;:&quot;identity_unavailable&quot;,&quot;mess…' to match /&quot;rowCount&quot;\s*:\s*1/">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 30 Data CRUD / Insert — op=insert.]]>
+        <![CDATA[Test description: insert reports rowCount 1.]]>
+        <![CDATA[Error message: expected '{"error":"identity_unavailable","mess…' to match /"rowCount"\s*:\s*1/.]]>
+        <![CDATA[Stacktrace: AssertionError: expected '{"error":"identity_unavailable","mess…' to match /"rowCount"\s*:\s*1/
+   at Object.eval sandbox-script.js:2:14).]]>
+      </failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="30 Data CRUD / List — op=list" id="ffd0df77-e681-49da-88c5-502fa40d82e4" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="2" errors="0" time="0.004">
+    <testcase name="list succeeded (200)" time="0.004" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="status: expected 500 to be one of [ 200, 201 ]">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 30 Data CRUD / List — op=list.]]>
+        <![CDATA[Test description: list succeeded (200).]]>
+        <![CDATA[Error message: status: expected 500 to be one of [ 200, 201 ].]]>
+        <![CDATA[Stacktrace: AssertionError: status: expected 500 to be one of [ 200, 201 ]
+   at Object.eval sandbox-script.js:1:15).]]>
+      </failure>
+    </testcase>
+    <testcase name="list returns our inserted row (alpha)" time="0.004" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected '{&quot;error&quot;:&quot;identity_unavailable&quot;,&quot;mess…' to include 'alpha'">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 30 Data CRUD / List — op=list.]]>
+        <![CDATA[Test description: list returns our inserted row (alpha).]]>
+        <![CDATA[Error message: expected '{"error":"identity_unavailable","mess…' to include 'alpha'.]]>
+        <![CDATA[Stacktrace: AssertionError: expected '{"error":"identity_unavailable","mess…' to include 'alpha'
+   at Object.eval sandbox-script.js:2:15).]]>
+      </failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="30 Data CRUD / Get — op=get" id="56622bec-898b-41d9-8310-754a2586bd75" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="2" errors="0" time="0.004">
+    <testcase name="get succeeded (200)" time="0.004" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="status: expected 500 to be one of [ 200, 201 ]">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 30 Data CRUD / Get — op=get.]]>
+        <![CDATA[Test description: get succeeded (200).]]>
+        <![CDATA[Error message: status: expected 500 to be one of [ 200, 201 ].]]>
+        <![CDATA[Stacktrace: AssertionError: status: expected 500 to be one of [ 200, 201 ]
+   at Object.eval sandbox-script.js:1:16).]]>
+      </failure>
+    </testcase>
+    <testcase name="get returns the exact row (id=r1, name=alpha)" time="0.004" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected '{&quot;error&quot;:&quot;identity_unavailable&quot;,&quot;mess…' to include '&quot;name&quot;:&quot;alpha&quot;'">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 30 Data CRUD / Get — op=get.]]>
+        <![CDATA[Test description: get returns the exact row (id=r1, name=alpha).]]>
+        <![CDATA[Error message: expected '{"error":"identity_unavailable","mess…' to include '"name":"alpha"'.]]>
+        <![CDATA[Stacktrace: AssertionError: expected '{"error":"identity_unavailable","mess…' to include '"name":"alpha"'
+   at Object.eval sandbox-script.js:2:16).]]>
+      </failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="30 Data CRUD / Update — op=update" id="5070166f-b23f-4db7-9d7f-158f6612b75f" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="2" errors="0" time="0.003">
+    <testcase name="update succeeded (2xx)" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected 500 to be within 200..299">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 30 Data CRUD / Update — op=update.]]>
+        <![CDATA[Test description: update succeeded (2xx).]]>
+        <![CDATA[Error message: expected 500 to be within 200..299.]]>
+        <![CDATA[Stacktrace: AssertionError: expected 500 to be within 200..299
+   at Object.eval sandbox-script.js:1:17).]]>
+      </failure>
+    </testcase>
+    <testcase name="update reports rowCount 1" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected '{&quot;error&quot;:&quot;identity_unavailable&quot;,&quot;mess…' to match /&quot;rowCount&quot;\s*:\s*1/">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 30 Data CRUD / Update — op=update.]]>
+        <![CDATA[Test description: update reports rowCount 1.]]>
+        <![CDATA[Error message: expected '{"error":"identity_unavailable","mess…' to match /"rowCount"\s*:\s*1/.]]>
+        <![CDATA[Stacktrace: AssertionError: expected '{"error":"identity_unavailable","mess…' to match /"rowCount"\s*:\s*1/
+   at Object.eval sandbox-script.js:2:17).]]>
+      </failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="30 Data CRUD / Get after update — value changed" id="05b57d46-f11d-403e-90d6-256dd74fe11a" timestamp="2026-06-17T21:30:52.022Z" tests="3" failures="2" errors="0" time="0.004">
+    <testcase name="get after update succeeded (200)" time="0.004" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="status: expected 500 to be one of [ 200, 201 ]">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 30 Data CRUD / Get after update — value changed.]]>
+        <![CDATA[Test description: get after update succeeded (200).]]>
+        <![CDATA[Error message: status: expected 500 to be one of [ 200, 201 ].]]>
+        <![CDATA[Stacktrace: AssertionError: status: expected 500 to be one of [ 200, 201 ]
+   at Object.eval sandbox-script.js:1:18).]]>
+      </failure>
+    </testcase>
+    <testcase name="value round-tripped: name is now beta" time="0.004" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected '{&quot;error&quot;:&quot;identity_unavailable&quot;,&quot;mess…' to include '&quot;name&quot;:&quot;beta&quot;'">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 30 Data CRUD / Get after update — value changed.]]>
+        <![CDATA[Test description: value round-tripped: name is now beta.]]>
+        <![CDATA[Error message: expected '{"error":"identity_unavailable","mess…' to include '"name":"beta"'.]]>
+        <![CDATA[Stacktrace: AssertionError: expected '{"error":"identity_unavailable","mess…' to include '"name":"beta"'
+   at Object.eval sandbox-script.js:2:18).]]>
+      </failure>
+    </testcase>
+    <testcase name="old value alpha is gone" time="0.004" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="30 Data CRUD / Delete — op=delete" id="1fdc3feb-70e9-4e75-bbc2-382c11ee1bd1" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="2" errors="0" time="0.003">
+    <testcase name="delete succeeded (2xx)" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected 500 to be within 200..299">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 30 Data CRUD / Delete — op=delete.]]>
+        <![CDATA[Test description: delete succeeded (2xx).]]>
+        <![CDATA[Error message: expected 500 to be within 200..299.]]>
+        <![CDATA[Stacktrace: AssertionError: expected 500 to be within 200..299
+   at Object.eval sandbox-script.js:1:19).]]>
+      </failure>
+    </testcase>
+    <testcase name="delete reports rowCount 1" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected '{&quot;error&quot;:&quot;identity_unavailable&quot;,&quot;mess…' to match /&quot;rowCount&quot;\s*:\s*1/">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 30 Data CRUD / Delete — op=delete.]]>
+        <![CDATA[Test description: delete reports rowCount 1.]]>
+        <![CDATA[Error message: expected '{"error":"identity_unavailable","mess…' to match /"rowCount"\s*:\s*1/.]]>
+        <![CDATA[Stacktrace: AssertionError: expected '{"error":"identity_unavailable","mess…' to match /"rowCount"\s*:\s*1/
+   at Object.eval sandbox-script.js:2:19).]]>
+      </failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="30 Data CRUD / Get after delete — row gone" id="07e1f390-e70c-492d-b312-01958b579600" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="1" errors="0" time="0.006">
+    <testcase name="get after delete succeeded (200)" time="0.006" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="status: expected 500 to be one of [ 200, 201 ]">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 30 Data CRUD / Get after delete — row gone.]]>
+        <![CDATA[Test description: get after delete succeeded (200).]]>
+        <![CDATA[Error message: status: expected 500 to be one of [ 200, 201 ].]]>
+        <![CDATA[Stacktrace: AssertionError: status: expected 500 to be one of [ 200, 201 ]
+   at Object.eval sandbox-script.js:1:20).]]>
+      </failure>
+    </testcase>
+    <testcase name="row is gone (rowCount 0 / no beta)" time="0.006" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="40 Query / Seed q1/q2/q3 — batch insert" id="d919a0af-e587-4098-be0f-4cab3b8c1a51" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="2" errors="0" time="0.004">
+    <testcase name="seed batch succeeded (2xx)" time="0.004" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected 500 to be within 200..299">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 40 Query / Seed q1/q2/q3 — batch insert.]]>
+        <![CDATA[Test description: seed batch succeeded (2xx).]]>
+        <![CDATA[Error message: expected 500 to be within 200..299.]]>
+        <![CDATA[Stacktrace: AssertionError: expected 500 to be within 200..299
+   at Object.eval sandbox-script.js:1:21).]]>
+      </failure>
+    </testcase>
+    <testcase name="batch reports atomic true" time="0.004" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected '{&quot;error&quot;:&quot;identity_unavailable&quot;,&quot;mess…' to include '&quot;atomic&quot;:true'">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 40 Query / Seed q1/q2/q3 — batch insert.]]>
+        <![CDATA[Test description: batch reports atomic true.]]>
+        <![CDATA[Error message: expected '{"error":"identity_unavailable","mess…' to include '"atomic":true'.]]>
+        <![CDATA[Stacktrace: AssertionError: expected '{"error":"identity_unavailable","mess…' to include '"atomic":true'
+   at Object.eval sandbox-script.js:2:21).]]>
+      </failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="40 Query / Filter + sort — op=list" id="da479d7d-7a07-430e-8f02-0679c8fc234c" timestamp="2026-06-17T21:30:52.022Z" tests="4" failures="3" errors="0" time="0.003">
+    <testcase name="filtered list succeeded (2xx)" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="status: expected 500 to be one of [ 200, 201 ]">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 40 Query / Filter + sort — op=list.]]>
+        <![CDATA[Test description: filtered list succeeded (2xx).]]>
+        <![CDATA[Error message: status: expected 500 to be one of [ 200, 201 ].]]>
+        <![CDATA[Stacktrace: AssertionError: status: expected 500 to be one of [ 200, 201 ]
+   at Object.eval sandbox-script.js:1:22).]]>
+      </failure>
+    </testcase>
+    <testcase name="filter honored: exactly the two name=gamma rows" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected +0 to deeply equal 2">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 40 Query / Filter + sort — op=list.]]>
+        <![CDATA[Test description: filter honored: exactly the two name=gamma rows.]]>
+        <![CDATA[Error message: expected +0 to deeply equal 2.]]>
+        <![CDATA[Stacktrace: AssertionError: expected +0 to deeply equal 2
+   at Object.eval sandbox-script.js:2:22).]]>
+      </failure>
+    </testcase>
+    <testcase name="every returned row is name=gamma" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack"/>
+    <testcase name="sort honored: n ascending (q1.n=10 before q3.n=20)" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="Cannot read properties of undefined (reading 'id')">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 40 Query / Filter + sort — op=list.]]>
+        <![CDATA[Test description: sort honored: n ascending (q1.n=10 before q3.n=20).]]>
+        <![CDATA[Error message: Cannot read properties of undefined (reading 'id').]]>
+        <![CDATA[Stacktrace: TypeError: Cannot read properties of undefined (reading 'id')
+   at Object.eval sandbox-script.js:4:22).]]>
+      </failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="50 Aggregate / Count + sum — op=aggregate" id="af67f800-73ef-4b4c-897c-91eb5ebb6ea9" timestamp="2026-06-17T21:30:52.022Z" tests="3" failures="3" errors="0" time="0.004">
+    <testcase name="aggregate succeeded (200)" time="0.004" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="status: expected 500 to be one of [ 200, 201 ]">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 50 Aggregate / Count + sum — op=aggregate.]]>
+        <![CDATA[Test description: aggregate succeeded (200).]]>
+        <![CDATA[Error message: status: expected 500 to be one of [ 200, 201 ].]]>
+        <![CDATA[Stacktrace: AssertionError: status: expected 500 to be one of [ 200, 201 ]
+   at Object.eval sandbox-script.js:1:23).]]>
+      </failure>
+    </testcase>
+    <testcase name="count total = 3" time="0.004" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected '{&quot;error&quot;:&quot;identity_unavailable&quot;,&quot;mess…' to match /&quot;total&quot;\s*:\s*&quot;?3&quot;?/">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 50 Aggregate / Count + sum — op=aggregate.]]>
+        <![CDATA[Test description: count total = 3.]]>
+        <![CDATA[Error message: expected '{"error":"identity_unavailable","mess…' to match /"total"\s*:\s*"?3"?/.]]>
+        <![CDATA[Stacktrace: AssertionError: expected '{"error":"identity_unavailable","mess…' to match /"total"\s*:\s*"?3"?/
+   at Object.eval sandbox-script.js:2:23).]]>
+      </failure>
+    </testcase>
+    <testcase name="sum_n = 60 (10+30+20)" time="0.004" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected '{&quot;error&quot;:&quot;identity_unavailable&quot;,&quot;mess…' to match /&quot;sum_n&quot;\s*:\s*&quot;?60&quot;?/">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 50 Aggregate / Count + sum — op=aggregate.]]>
+        <![CDATA[Test description: sum_n = 60 (10+30+20).]]>
+        <![CDATA[Error message: expected '{"error":"identity_unavailable","mess…' to match /"sum_n"\s*:\s*"?60"?/.]]>
+        <![CDATA[Stacktrace: AssertionError: expected '{"error":"identity_unavailable","mess…' to match /"sum_n"\s*:\s*"?60"?/
+   at Object.eval sandbox-script.js:3:23).]]>
+      </failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="50 Aggregate / Group by name — op=aggregate" id="e20d9d25-a9d8-404f-8863-0b7458353c9b" timestamp="2026-06-17T21:30:52.022Z" tests="4" failures="4" errors="0" time="0.003">
+    <testcase name="group_by aggregate succeeded (200)" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="status: expected 500 to be one of [ 200, 201 ]">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 50 Aggregate / Group by name — op=aggregate.]]>
+        <![CDATA[Test description: group_by aggregate succeeded (200).]]>
+        <![CDATA[Error message: status: expected 500 to be one of [ 200, 201 ].]]>
+        <![CDATA[Stacktrace: AssertionError: status: expected 500 to be one of [ 200, 201 ]
+   at Object.eval sandbox-script.js:1:24).]]>
+      </failure>
+    </testcase>
+    <testcase name="two groups (gamma, delta)" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected +0 to deeply equal 2">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 50 Aggregate / Group by name — op=aggregate.]]>
+        <![CDATA[Test description: two groups (gamma, delta).]]>
+        <![CDATA[Error message: expected +0 to deeply equal 2.]]>
+        <![CDATA[Stacktrace: AssertionError: expected +0 to deeply equal 2
+   at Object.eval sandbox-script.js:2:24).]]>
+      </failure>
+    </testcase>
+    <testcase name="gamma group has count 2" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="gamma group present: expected undefined not to be undefined">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 50 Aggregate / Group by name — op=aggregate.]]>
+        <![CDATA[Test description: gamma group has count 2.]]>
+        <![CDATA[Error message: gamma group present: expected undefined not to be undefined.]]>
+        <![CDATA[Stacktrace: AssertionError: gamma group present: expected undefined not to be undefined
+   at Object.eval sandbox-script.js:3:24).]]>
+      </failure>
+    </testcase>
+    <testcase name="delta group has count 1" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="delta group present: expected undefined not to be undefined">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 50 Aggregate / Group by name — op=aggregate.]]>
+        <![CDATA[Test description: delta group has count 1.]]>
+        <![CDATA[Error message: delta group present: expected undefined not to be undefined.]]>
+        <![CDATA[Stacktrace: AssertionError: delta group present: expected undefined not to be undefined
+   at Object.eval sandbox-script.js:4:24).]]>
+      </failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="60 Transactions / Atomic multi-insert — POST /query/v1/txn" id="531674ba-21fa-40d7-8b57-2c68b77060ed" timestamp="2026-06-17T21:30:52.022Z" tests="3" failures="3" errors="0" time="0.006">
+    <testcase name="txn committed (2xx)" time="0.006" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected 500 to be within 200..299">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 60 Transactions / Atomic multi-insert — POST /query/v1/txn.]]>
+        <![CDATA[Test description: txn committed (2xx).]]>
+        <![CDATA[Error message: expected 500 to be within 200..299.]]>
+        <![CDATA[Stacktrace: AssertionError: expected 500 to be within 200..299
+   at Object.eval sandbox-script.js:1:25).]]>
+      </failure>
+    </testcase>
+    <testcase name="txn response is not an error envelope" time="0.006" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected '{&quot;error&quot;:&quot;identity_unavailable&quot;,&quot;mess…' to not include '&quot;error&quot;'">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 60 Transactions / Atomic multi-insert — POST /query/v1/txn.]]>
+        <![CDATA[Test description: txn response is not an error envelope.]]>
+        <![CDATA[Error message: expected '{"error":"identity_unavailable","mess…' to not include '"error"'.]]>
+        <![CDATA[Stacktrace: AssertionError: expected '{"error":"identity_unavailable","mess…' to not include '"error"'
+   at Object.eval sandbox-script.js:2:25).]]>
+      </failure>
+    </testcase>
+    <testcase name="txn acknowledges a commit / 2 operations" time="0.006" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected '{&quot;error&quot;:&quot;identity_unavailable&quot;,&quot;mess…' to match /commit|atomic|&quot;results&quot;|rowcount|&quot;ok&quot;/">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 60 Transactions / Atomic multi-insert — POST /query/v1/txn.]]>
+        <![CDATA[Test description: txn acknowledges a commit / 2 operations.]]>
+        <![CDATA[Error message: expected '{"error":"identity_unavailable","mess…' to match /commit|atomic|"results"|rowcount|"ok"/.]]>
+        <![CDATA[Stacktrace: AssertionError: expected '{"error":"identity_unavailable","mess…' to match /commit|atomic|"results"|rowcount|"ok"/
+   at Object.eval sandbox-script.js:3:25).]]>
+      </failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="60 Transactions / Verify both txn rows landed — op=aggregate" id="aeffe541-01ec-4c06-831f-628df57909ea" timestamp="2026-06-17T21:30:52.022Z" tests="3" failures="3" errors="0" time="0.003">
+    <testcase name="aggregate succeeded (200)" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="status: expected 500 to be one of [ 200, 201 ]">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 60 Transactions / Verify both txn rows landed — op=aggregate.]]>
+        <![CDATA[Test description: aggregate succeeded (200).]]>
+        <![CDATA[Error message: status: expected 500 to be one of [ 200, 201 ].]]>
+        <![CDATA[Stacktrace: AssertionError: status: expected 500 to be one of [ 200, 201 ]
+   at Object.eval sandbox-script.js:1:26).]]>
+      </failure>
+    </testcase>
+    <testcase name="both txn rows committed (count name=txn = 2)" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected '{&quot;error&quot;:&quot;identity_unavailable&quot;,&quot;mess…' to match /&quot;total&quot;\s*:\s*&quot;?2&quot;?/">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 60 Transactions / Verify both txn rows landed — op=aggregate.]]>
+        <![CDATA[Test description: both txn rows committed (count name=txn = 2).]]>
+        <![CDATA[Error message: expected '{"error":"identity_unavailable","mess…' to match /"total"\s*:\s*"?2"?/.]]>
+        <![CDATA[Stacktrace: AssertionError: expected '{"error":"identity_unavailable","mess…' to match /"total"\s*:\s*"?2"?/
+   at Object.eval sandbox-script.js:2:26).]]>
+      </failure>
+    </testcase>
+    <testcase name="txn sum landed (sum_n = 300)" time="0.003" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected '{&quot;error&quot;:&quot;identity_unavailable&quot;,&quot;mess…' to match /&quot;sum_n&quot;\s*:\s*&quot;?300&quot;?/">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 60 Transactions / Verify both txn rows landed — op=aggregate.]]>
+        <![CDATA[Test description: txn sum landed (sum_n = 300).]]>
+        <![CDATA[Error message: expected '{"error":"identity_unavailable","mess…' to match /"sum_n"\s*:\s*"?300"?/.]]>
+        <![CDATA[Stacktrace: AssertionError: expected '{"error":"identity_unavailable","mess…' to match /"sum_n"\s*:\s*"?300"?/
+   at Object.eval sandbox-script.js:3:26).]]>
+      </failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="70 Realtime / WS endpoint live — GET /realtime/v1/ws" id="57e6c3b2-a2ef-4e0b-82ab-9e2af2f86c58" timestamp="2026-06-17T21:30:52.022Z" tests="1" failures="0" errors="0" time="0.004">
+    <testcase name="realtime /ws route is live (upgrade-required, not 404/5xx)" time="0.004" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="70 Realtime / Realtime token / publish gate — POST /realtime/v1/publish" id="dca2182a-e7a6-4286-bb3a-688ce99d403a" timestamp="2026-06-17T21:30:52.022Z" tests="1" failures="0" errors="0" time="0.006">
+    <testcase name="public publish is not exposed as an open 200 (4xx, not 5xx)" time="0.006" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="80 Storage / Create bucket — POST /storage/v1/bucket/{name}" id="f6ddd63e-a4cc-489b-8d8f-96c3f94094f0" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="2" errors="0" time="10.071">
+    <testcase name="bucket created (201)" time="10.071" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected response to have status code 201 but got 500">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 80 Storage / Create bucket — POST /storage/v1/bucket/{name}.]]>
+        <![CDATA[Test description: bucket created (201).]]>
+        <![CDATA[Error message: expected response to have status code 201 but got 500.]]>
+        <![CDATA[Stacktrace: AssertionError: expected response to have status code 201 but got 500
+   at Object.eval sandbox-script.js:1:29).]]>
+      </failure>
+    </testcase>
+    <testcase name="response names the bucket + created flag" time="10.071" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected undefined to deeply equal 'pmb1781731861523'">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 80 Storage / Create bucket — POST /storage/v1/bucket/{name}.]]>
+        <![CDATA[Test description: response names the bucket + created flag.]]>
+        <![CDATA[Error message: expected undefined to deeply equal 'pmb1781731861523'.]]>
+        <![CDATA[Stacktrace: AssertionError: expected undefined to deeply equal 'pmb1781731861523'
+   at Object.eval sandbox-script.js:2:29).]]>
+      </failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="80 Storage / Upload object — PUT /storage/v1/object/{bucket}/{key}" id="c5986c44-a4e5-4438-91de-ecdb16a0e703" timestamp="2026-06-17T21:30:52.022Z" tests="3" failures="3" errors="0" time="5.016">
+    <testcase name="upload succeeded (200)" time="5.016" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="status: expected 500 to be one of [ 200, 201 ]">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 80 Storage / Upload object — PUT /storage/v1/object/{bucket}/{key}.]]>
+        <![CDATA[Test description: upload succeeded (200).]]>
+        <![CDATA[Error message: status: expected 500 to be one of [ 200, 201 ].]]>
+        <![CDATA[Stacktrace: AssertionError: status: expected 500 to be one of [ 200, 201 ]
+   at Object.eval sandbox-script.js:1:30).]]>
+      </failure>
+    </testcase>
+    <testcase name="server reports the owner-prefixed key" time="5.016" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected undefined to deeply equal 'pmstore1781731861522/pm/note.txt'">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 80 Storage / Upload object — PUT /storage/v1/object/{bucket}/{key}.]]>
+        <![CDATA[Test description: server reports the owner-prefixed key.]]>
+        <![CDATA[Error message: expected undefined to deeply equal 'pmstore1781731861522/pm/note.txt'.]]>
+        <![CDATA[Stacktrace: AssertionError: expected undefined to deeply equal 'pmstore1781731861522/pm/note.txt'
+   at Object.eval sandbox-script.js:2:30).]]>
+      </failure>
+    </testcase>
+    <testcase name="server reports a byte size" time="5.016" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected undefined to be a number">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 80 Storage / Upload object — PUT /storage/v1/object/{bucket}/{key}.]]>
+        <![CDATA[Test description: server reports a byte size.]]>
+        <![CDATA[Error message: expected undefined to be a number.]]>
+        <![CDATA[Stacktrace: AssertionError: expected undefined to be a number
+   at Object.eval sandbox-script.js:3:30).]]>
+      </failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="80 Storage / List bucket — GET /storage/v1/list/{bucket}" id="f39f55c8-91bd-4ffe-90f3-ef8bfa49685a" timestamp="2026-06-17T21:30:52.022Z" tests="3" failures="2" errors="0" time="5.013">
+    <testcase name="list succeeded (200)" time="5.013" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="status: expected 500 to be one of [ 200, 201 ]">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 80 Storage / List bucket — GET /storage/v1/list/{bucket}.]]>
+        <![CDATA[Test description: list succeeded (200).]]>
+        <![CDATA[Error message: status: expected 500 to be one of [ 200, 201 ].]]>
+        <![CDATA[Stacktrace: AssertionError: status: expected 500 to be one of [ 200, 201 ]
+   at Object.eval sandbox-script.js:1:31).]]>
+      </failure>
+    </testcase>
+    <testcase name="our object appears with the owner prefix stripped" time="5.013" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected '{&quot;statusCode&quot;:500,&quot;error&quot;:&quot;Internal S…' to include 'pm/note.txt'">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 80 Storage / List bucket — GET /storage/v1/list/{bucket}.]]>
+        <![CDATA[Test description: our object appears with the owner prefix stripped.]]>
+        <![CDATA[Error message: expected '{"statusCode":500,"error":"Internal S…' to include 'pm/note.txt'.]]>
+        <![CDATA[Stacktrace: AssertionError: expected '{"statusCode":500,"error":"Internal S…' to include 'pm/note.txt'
+   at Object.eval sandbox-script.js:2:31).]]>
+      </failure>
+    </testcase>
+    <testcase name="raw owner namespace is NOT leaked in list keys" time="5.013" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="80 Storage / Presign — POST /storage/v1/sign/{bucket}/{key}" id="66a778c2-6c44-4320-b9f0-7c0a164a937c" timestamp="2026-06-17T21:30:52.022Z" tests="3" failures="0" errors="0" time="0.017">
+    <testcase name="createSignedUrl succeeded (201)" time="0.017" classname="GrobaseOfferCapabilityProofLiveStack"/>
+    <testcase name="returns a signedUrl" time="0.017" classname="GrobaseOfferCapabilityProofLiveStack"/>
+    <testcase name="signed url is a SigV4 presigned URL" time="0.017" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="80 Storage / Anon-only upload is rejected — PUT (no JWT)" id="8c789477-fe9f-4180-9460-7857392c9e1d" timestamp="2026-06-17T21:30:52.022Z" tests="1" failures="0" errors="0" time="0.005">
+    <testcase name="anon-only upload is 401 (storage needs a user identity)" time="0.005" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="90 Functions / Deploy echo function — POST /functions/v1" id="93ca474c-b90f-405c-af57-0f0fd7a85950" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="0" errors="0" time="0.106">
+    <testcase name="deploy succeeded (201)" time="0.106" classname="GrobaseOfferCapabilityProofLiveStack"/>
+    <testcase name="response names the deployed function" time="0.106" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="90 Functions / List functions — GET /functions/v1" id="a729b4e7-b447-402e-bf83-fa7b367c9f35" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="0" errors="0" time="0.014">
+    <testcase name="list succeeded (200)" time="0.014" classname="GrobaseOfferCapabilityProofLiveStack"/>
+    <testcase name="our function is listed" time="0.014" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="90 Functions / Invoke echo function — POST /functions/v1/{name}/invoke" id="0fe675a3-7de4-4057-b4ce-d646a2687aed" timestamp="2026-06-17T21:30:52.022Z" tests="3" failures="0" errors="0" time="0.061">
+    <testcase name="invoke succeeded (200)" time="0.061" classname="GrobaseOfferCapabilityProofLiveStack"/>
+    <testcase name="handler ran in the Deno worker (ok:true)" time="0.061" classname="GrobaseOfferCapabilityProofLiveStack"/>
+    <testcase name="handler echoed our payload" time="0.061" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="90 Functions / Anon-only deploy is rejected — POST (no JWT)" id="480cf8a4-e363-4ec9-8da0-0b2dd35cbe56" timestamp="2026-06-17T21:30:52.022Z" tests="1" failures="0" errors="0" time="0.004">
+    <testcase name="anon-only deploy is 401" time="0.004" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="95 Self-service / GET /v1/tenants/me (X-API-Key)" id="68f19e70-3dee-4d46-9d77-05c824d4e4a1" timestamp="2026-06-17T21:30:52.022Z" tests="2" failures="0" errors="0" time="0.079">
+    <testcase name="self-service works OR is cleanly disabled (200 / 401 / 404 / 501)" time="0.079" classname="GrobaseOfferCapabilityProofLiveStack"/>
+    <testcase name="200 resolves to THIS tenant (our slug) — no path id, no cross-tenant" time="0.079" classname="GrobaseOfferCapabilityProofLiveStack"/>
+  </testsuite>
+  <testsuite name="95 Self-service / GET /v1/tenants/me/usage (X-API-Key)" id="866a00b9-fb16-4233-aedf-f80e03bde96f" timestamp="2026-06-17T21:30:52.022Z" tests="1" failures="1" errors="0" time="0.002">
+    <testcase name="usage works OR is cleanly disabled (200 / 401 / 404 / 501)" time="0.002" classname="GrobaseOfferCapabilityProofLiveStack">
+      <failure type="AssertionFailure" message="expected [ 200, 401, 404, 501 ] to include 500">
+        <![CDATA[Failed 1 times.]]>
+        <![CDATA[Collection JSON ID: 9b3f6a2e-0c41-4a8d-9b1e-grobaseoffers01.]]>
+        <![CDATA[Collection name: Grobase — Offer capability proof (live stack).]]>
+        <![CDATA[Request name: 95 Self-service / GET /v1/tenants/me/usage (X-API-Key).]]>
+        <![CDATA[Test description: usage works OR is cleanly disabled (200 / 401 / 404 / 501).]]>
+        <![CDATA[Error message: expected [ 200, 401, 404, 501 ] to include 500.]]>
+        <![CDATA[Stacktrace: AssertionError: expected [ 200, 401, 404, 501 ] to include 500
+   at Object.eval sandbox-script.js:1:39).]]>
+      </failure>
+    </testcase>
+  </testsuite>
+</testsuites>

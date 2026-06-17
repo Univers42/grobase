@@ -390,6 +390,12 @@ certs/*
 # Update in place with: git -C vendor/Understand-Anything pull
 /vendor/Understand-Anything/
 
+# Other vendored side-projects with their own .git (MovieVerse, the devil's-advocate
+# tool) — same orphan-gitlink hazard: ignored so `git add -A` can't embed them as
+# broken gitlinks in this repo. They are independent clones, not product code.
+/vendor/MovieVerse/
+/vendor/claude-deal-with-the-devil/
+
 # Knowledge-graph output produced by the tool. Ignored to keep the repo clean —
 # it is fully reproducible from vendor/Understand-Anything (the .ua-*.mjs scripts).
 # NOTE: .understand-anything/knowledge-graph.json IS commit-safe if you want to

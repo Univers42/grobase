@@ -1,7 +1,16 @@
-# ========================================================================== #
-##@ Tests & verification
-# ========================================================================== #
-tests: ## Run all phase smoke tests (phase1→N)
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    40-tests.mk                                        :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2026/06/17 22:59:56 by dlesieur          #+#    #+#              #
+#    Updated: 2026/06/17 22:59:57 by dlesieur         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
+test-smoke: ## Run all phase smoke tests (phase1→N) vs the live stack
 	@export APIKEY=$${APIKEY:-$$(grep '^ANON_KEY=' .env 2>/dev/null | cut -d= -f2-)}; \
 	export PUBLIC_APIKEY=$${PUBLIC_APIKEY:-$$APIKEY}; \
 	export SERVICE_ROLE_KEY=$${SERVICE_ROLE_KEY:-$$(grep '^SERVICE_ROLE_KEY=' .env 2>/dev/null | cut -d= -f2-)}; \
@@ -37,7 +46,7 @@ test-all: ## Run EVERYTHING available: unit + (if the stack is up) integration p
 	$(MAKE) --no-print-directory test-unit || rc=1; \
 	if docker ps --format '{{.Names}}' | grep -q '^mini-baas-kong$$'; then \
 		echo -e "$(_B)── live-stack suites (stack detected) ──$(_0)"; \
-		$(MAKE) --no-print-directory tests       || rc=1; \
+		$(MAKE) --no-print-directory test-smoke  || rc=1; \
 		$(MAKE) --no-print-directory test-offers || rc=1; \
 		$(MAKE) --no-print-directory test-edge   || rc=1; \
 		$(MAKE) --no-print-directory waf-test    || true; \
@@ -80,4 +89,3 @@ waf-test: ## Confirm the WAF blocks SQLi/XSS at the edge
 		code=$$(curl -s -o /dev/null -w '%{http_code}' "http://localhost/rest/v1/$$q"); \
 		[ "$$code" = "403" ] && echo "  ✓ blocked ($$q)" || echo "  ✗ expected 403, got $$code ($$q)"; \
 	done
-
