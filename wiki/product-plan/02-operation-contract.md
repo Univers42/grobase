@@ -92,7 +92,7 @@ Every `field` is validated against `^[a-zA-Z_]\w{0,63}$`; every `value` is a **b
 > 3. Extract a small **`SqlDialect`** (`quote_ident` / placeholder / `ilike`) so
 >    Postgres (`$n`), MySQL (`?`), and the Trino adapter share one `lower<D>`.
 > 4. A **`filter_operators` capability** (None/IdOnly/Comparison/Full) so Redis/HTTP
->    (which ignore operators today) are honest, and the planner can reject. ([04](04-honest-capabilities-and-planner.md))
+>    (which ignore operators today) are honest, and the planner can reject. ([04](./04-honest-capabilities-and-planner.md))
 
 ### Value coercion — one policy, reused by every adapter (scheduled)
 
@@ -100,7 +100,7 @@ Every `field` is validated against `^[a-zA-Z_]\w{0,63}$`; every `value` is a **b
 > currently decided **per adapter**, and they diverge. Postgres' `JsonParam`
 > rejects an out-of-range `int4` with a clean error; MySQL does
 > `as_f64().unwrap_or(0.0)` (silent). That is the "engine semantic drift"
-> [03](03-engine-adapters-full-crud-and-rich-reads.md) warns about.
+> [03](./03-engine-adapters-full-crud-and-rich-reads.md) warns about.
 
 Two concerns are tangled and must be split by layer:
 
@@ -179,7 +179,7 @@ pub enum Page { Offset { limit: u32, offset: u32 }, Cursor { limit: u32, after: 
 pub struct Join { pub resource: String, pub on: Vec<(String,String)>, pub kind: JoinKind, pub select: Vec<Projection> }
 ```
 
-A join the engine can do natively (Postgres/MySQL `cost.joins == native`) runs in-engine; a cross-engine/heterogeneous join (`joins == none`) is **routed to Trino** (see [05](05-olap-oltp-unified-query-plane.md)). The contract is identical either way — that is the whole point.
+A join the engine can do natively (Postgres/MySQL `cost.joins == native`) runs in-engine; a cross-engine/heterogeneous join (`joins == none`) is **routed to Trino** (see [05](./05-olap-oltp-unified-query-plane.md)). The contract is identical either way — that is the whole point.
 
 ## Capability mapping (the link to 04)
 

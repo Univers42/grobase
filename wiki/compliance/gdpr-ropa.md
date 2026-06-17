@@ -54,7 +54,7 @@ and authentication data — processed to run the service. The controller record 
 | **Special-category data (Art. 9)** | None processed by Grobase as controller |
 | **Categories of recipients** | Internal authorized staff (least-privilege, `m136`); payment processor + email provider as subprocessors ([`../legal/subprocessors.md`](../legal/subprocessors.md)) |
 | **International transfers** | `[TBD]` — depends on hosting region; SCC references in the DPA where applicable |
-| **Retention** | Account/billing data retained for the contractual + statutory period; deleted/anonymised on closure per [`security-policies/data-retention-policy.md`](security-policies/data-retention-policy.md) |
+| **Retention** | Account/billing data retained for the contractual + statutory period; deleted/anonymised on closure per [`security-policies/data-retention-policy.md`](./security-policies/data-retention-policy.md) |
 | **Lawful basis** | Contract (Art. 6(1)(b)) for service delivery; legitimate interests (Art. 6(1)(f)) for security/abuse; legal obligation (Art. 6(1)(c)) for billing records |
 | **Technical & organizational security measures** | Same control set as View A; secrets via Vault, high-entropy keys fast-hashed, passwords Argon2id |
 | **Technical processing record** | Tamper-evident audit chain — gate `m104` |
@@ -71,5 +71,5 @@ and authentication data — processed to run the service. The controller record 
   data category, new transfer). The change-management gate harness flags posture drift; the audit
   chain is the durable evidence.
 
-See also: [`gdpr-article-matrix.md`](gdpr-article-matrix.md) (article-by-article),
-[`dpia-template.md`](dpia-template.md) (Art. 35), [`../legal/data-processing-addendum.md`](../legal/data-processing-addendum.md) (Art. 28).
+See also: [`gdpr-article-matrix.md`](./gdpr-article-matrix.md) (article-by-article),
+[`dpia-template.md`](./dpia-template.md) (Art. 35), [`../legal/data-processing-addendum.md`](../legal/data-processing-addendum.md) (Art. 28).

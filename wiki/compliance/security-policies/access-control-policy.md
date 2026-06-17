@@ -25,5 +25,5 @@ A.5.15–A.5.18; SOC 2 CC6.)
 
 ## Review
 Access rights reviewed at least annually; changes flow through change management
-([`change-management-policy.md`](change-management-policy.md)). Exceptions are recorded in the risk
+([`change-management-policy.md`](./change-management-policy.md)). Exceptions are recorded in the risk
 register ([`../risk-register.md`](../risk-register.md)).

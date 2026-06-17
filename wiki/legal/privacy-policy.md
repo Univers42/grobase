@@ -2,13 +2,13 @@
 
 > **TEMPLATE — review by counsel before use; not legal advice.** Scaffold for the
 > Grobase managed-cloud offering. Not lawyer-reviewed. Bracketed `[…]` fields must
-> be completed; the subprocessor list must match [subprocessors.md](subprocessors.md).
+> be completed; the subprocessor list must match [subprocessors.md](./subprocessors.md).
 
 **Effective date:** `[DATE]`
 **Controller (for account data):** `[LEGAL ENTITY NAME, ADDRESS]`.
 
 For **Customer Data** that you submit through the Service, Grobase acts as a
-**processor**; the [Data Processing Addendum](data-processing-addendum.md) governs
+**processor**; the [Data Processing Addendum](./data-processing-addendum.md) governs
 that processing. This Privacy Policy describes data Grobase collects as a
 **controller** to operate the Service (account, billing, telemetry).
 
@@ -27,7 +27,7 @@ We do **not** sell personal data.
 ## 2. Customer Data
 
 Data you store in your project (rows, files, realtime messages) is **Customer Data**.
-We process it only to provide the Service, under the [DPA](data-processing-addendum.md).
+We process it only to provide the Service, under the [DPA](./data-processing-addendum.md).
 We do not access Customer Data except as needed to operate, secure, or support the
 Service, or as you instruct.
 
@@ -38,7 +38,7 @@ consent where required.]`
 
 ## 4. Subprocessors and transfers
 
-We use the subprocessors listed in [subprocessors.md](subprocessors.md). International
+We use the subprocessors listed in [subprocessors.md](./subprocessors.md). International
 transfers rely on `[Standard Contractual Clauses / other mechanism]` as referenced in
 the DPA.
 
@@ -46,7 +46,7 @@ the DPA.
 
 - Account/billing data: retained for the life of the account plus `[N]` for tax/legal.
 - Customer Data: retained while your account is active; deletable on request
-  (GDPR right to erasure is supported — see the [trust center](../trust-center.md),
+  (GDPR right to erasure is supported — see the [trust center](../security/trust-center.md),
   control `hard-erase`, gate m105) and exportable (control `data-portability-export`,
   gate m109).
 - Usage metering / telemetry: retained `[N days/months]`.
@@ -58,7 +58,7 @@ Access, rectification, erasure, portability, restriction, objection — exercisa
 
 ## 7. Security
 
-See the [trust center](../trust-center.md). Each control is evidence-backed.
+See the [trust center](../security/trust-center.md). Each control is evidence-backed.
 
 ## 8. Children
 
