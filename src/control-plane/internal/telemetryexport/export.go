@@ -58,7 +58,8 @@ UPDATE public.tenant_telemetry_targets
 // forward only that tenant's new usage to only that tenant's endpoint. One tenant's
 // failure is isolated (logged, cursor unadvanced, retried) and never aborts the
 // sweep. Returns the count of tenants that exported at least one row (used by the
-// initial-sweep log line + tests).
+// initial-sweep log line + tests). On a per-tenant failure tenant_id is emitted as a
+// structured log FIELD (cardinality-safe, the B5 convention — never a Prometheus label).
 func (e *Exporter) exportOnce(ctx context.Context) int {
 	targets, err := e.listTargets(ctx)
 	if err != nil {
@@ -69,8 +70,6 @@ func (e *Exporter) exportOnce(ctx context.Context) int {
 	for _, t := range targets {
 		n, err := e.exportTenant(ctx, t)
 		if err != nil {
-			// tenant_id is a structured FIELD (cardinality-safe, the B5 convention:
-			// tenant_id is a log FIELD, never a Prometheus label).
 			e.log.Warn("telemetry export: tenant export failed (cursor unadvanced, retried next tick)",
 				"tenant_id", t.tenantID, "err", err)
 			continue
@@ -85,27 +84,26 @@ func (e *Exporter) exportOnce(ctx context.Context) int {
 // exportTenant forwards ONE tenant's new usage to ITS endpoint. It (1) reads only
 // rows for t.tenantID newer than t.cursor, (2) builds a batch tagged with t.tenantID,
 // (3) delivers it to ONLY t.endpoint, (4) advances t's cursor to the max shipped
-// window. If there is nothing new it is a no-op (no delivery, no cursor write). The
-// per-tenant query scope + the per-tenant endpoint together make a cross-tenant
-// export impossible by construction.
+// window (rows are window-ordered, so the newest is the last). If there is nothing
+// new it is a no-op (no delivery, no cursor write). The per-tenant query scope + the
+// per-tenant endpoint together make a cross-tenant export impossible by construction.
+// If delivery succeeds but the cursor write fails, the failure is logged and the same
+// window re-ships next tick (at-least-once; a collector dedups on resource + timestamp
+// — better a duplicate than silent loss).
 func (e *Exporter) exportTenant(ctx context.Context, t target) (int, error) {
 	rows, err := e.tenantUsageSince(ctx, t.tenantID, t.cursor)
 	if err != nil {
 		return 0, fmt.Errorf("read usage: %w", err)
 	}
 	if len(rows) == 0 {
-		return 0, nil // nothing new for this tenant
+		return 0, nil
 	}
 	body, contentType := e.buildBatch(t, rows)
 	if err := e.sink.Deliver(ctx, t.endpoint, t.authHeader, contentType, body); err != nil {
 		return 0, fmt.Errorf("deliver to %s: %w", t.endpoint, err)
 	}
-	// Advance the cursor to the newest shipped window (rows are window-ordered).
 	newCursor := rows[len(rows)-1].windowStart
 	if err := e.db.AdminExec(ctx, advanceCursorSQL, t.tenantID, newCursor); err != nil {
-		// The batch was delivered but the cursor write failed: log and let the same
-		// window re-ship next tick (at-least-once; a collector dedups on resource +
-		// timestamp). Better a duplicate than silent loss.
 		e.log.Warn("telemetry export: cursor advance failed (window may re-ship)",
 			"tenant_id", t.tenantID, "err", err)
 	}

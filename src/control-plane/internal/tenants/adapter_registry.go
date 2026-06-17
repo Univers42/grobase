@@ -80,8 +80,13 @@ func (ar *AdapterRegistry) register(ctx context.Context, tenantScope string, m M
 }
 
 // parseRegisterResp interprets a POST /databases response: 201 → (id,"created"),
-// 409 → recover the existing id by name ("exists", idempotent re-provision), any
-// other status → a DSN-redacted error.
+// 409 → recover the existing id by name (tenant-scoped) as ("exists"), any other
+// status → a DSN-redacted error.
+//
+// The 409 recovery is what keeps re-provision idempotent: it returns a usable
+// mount id even when the mount already exists. Without it every reconcile after
+// the first loses the db_id, which breaks resumable bulk provisioning and re-run
+// scale experiments.
 func (ar *AdapterRegistry) parseRegisterResp(ctx context.Context, resp *http.Response, tenantScope, name string) (string, string, error) {
 	switch resp.StatusCode {
 	case http.StatusCreated:
@@ -91,10 +96,6 @@ func (ar *AdapterRegistry) parseRegisterResp(ctx context.Context, resp *http.Res
 		_ = json.NewDecoder(resp.Body).Decode(&out)
 		return out.ID, "created", nil
 	case http.StatusConflict:
-		// Idempotency: the mount already exists. Recover its id (by name,
-		// tenant-scoped) so a re-provision still returns a usable mount id —
-		// without it, every reconcile after the first loses the db_id, which
-		// breaks resumable bulk provisioning and re-run scale experiments.
 		id, _ := ar.findMountID(ctx, tenantScope, name)
 		return id, "exists", nil
 	default:

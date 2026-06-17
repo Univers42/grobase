@@ -98,7 +98,8 @@ func parseManifest(raw []byte, src string) (*Manifest, error) {
 
 // validateControl enforces one control's honesty rules and records its id in seen
 // (mutated). It rejects an empty/duplicate id, a status outside the enum, or — the
-// load-bearing rule — an "implemented" claim with no evidence pointer.
+// load-bearing honesty boundary — an "implemented" claim with no evidence pointer:
+// an unproven control may be partial/planned, never implemented-without-evidence.
 func validateControl(i int, c Control, seen map[string]bool) error {
 	id := strings.TrimSpace(c.ID)
 	if id == "" {
@@ -111,8 +112,6 @@ func validateControl(i int, c Control, seen map[string]bool) error {
 	if !isAllowedStatus(c.Status) {
 		return fmt.Errorf("trust: control %q has invalid status %q (want implemented|partial|planned)", id, c.Status)
 	}
-	// THE honesty boundary: implemented => must cite evidence. An unproven
-	// control may be partial/planned, never implemented-without-evidence.
 	if c.Status == "implemented" && strings.TrimSpace(c.Evidence) == "" {
 		return fmt.Errorf("trust: control %q is status=implemented but has NO evidence pointer (an unproven claim must be partial/planned)", id)
 	}

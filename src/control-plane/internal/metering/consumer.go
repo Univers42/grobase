@@ -65,7 +65,8 @@ func (c *Consumer) Mount(_ *http.ServeMux) {}
 // Disabled ⇒ no connection, no group creation ⇒ parity. A failed connect when
 // enabled is fatal (the service cannot ingest), matching the outbox-relay Init
 // contract. The PARITY guard is the first line: when off this returns nil before
-// touching any infra.
+// touching any infra. MKSTREAM creates the stream if the producers haven't yet;
+// a BUSYGROUP reply means the group already exists (idempotent, not an error).
 func (c *Consumer) Init(ctx context.Context) error {
 	if !c.enabled {
 		c.log.Info("metering ingest disabled (METERING_INGEST off) — no subscription")
@@ -80,8 +81,6 @@ func (c *Consumer) Init(ctx context.Context) error {
 	if err := c.rdb.Ping(ctx).Err(); err != nil {
 		return err
 	}
-	// MKSTREAM creates the stream if the producers haven't yet; BUSYGROUP means
-	// the group already exists (idempotent, not an error).
 	if err := c.rdb.XGroupCreateMkStream(ctx, usageStream, usageGroup, "0").Err(); err != nil &&
 		!isBusyGroup(err) {
 		return err

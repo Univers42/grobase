@@ -103,7 +103,9 @@ func collectDue(rows pgx.Rows) []dueRow {
 
 // fire invokes one schedule and advances its next_run. next_run is advanced
 // FIRST (anchored on the previous next_run so cadence is preserved) so a slow
-// invoke doesn't cause the same row to be picked up twice.
+// invoke doesn't cause the same row to be picked up twice. The cadence is
+// anchored on the scheduled next_run, not on wall-clock now, so drift doesn't
+// accumulate; Next() catches up if we missed intervals.
 func (r *Runner) fire(ctx context.Context, d dueRow, now time.Time) {
 	sched, err := ParseSchedule(d.scheduleExpr)
 	if err != nil {
@@ -111,8 +113,6 @@ func (r *Runner) fire(ctx context.Context, d dueRow, now time.Time) {
 		_ = r.db.AdminExec(ctx, `UPDATE public.function_schedules SET enabled=false, last_error=$2 WHERE id=$1`, d.id, err.Error())
 		return
 	}
-	// Anchor the cadence on the scheduled next_run, not on wall-clock now, so
-	// drift doesn't accumulate; Next() catches up if we missed intervals.
 	next := sched.Next(d.nextRun, now)
 
 	status, invErr := r.invoke(ctx, d, sched.Interval)

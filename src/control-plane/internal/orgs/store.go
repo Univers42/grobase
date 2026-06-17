@@ -10,12 +10,14 @@ import (
 
 // store.go — low-level SQL helpers (mirror tenants.Service.queryOne/exec/singleRow).
 
+// exec runs a write over the admin pool and returns its command tag. It drains
+// the (empty) result set so the CommandTag is populated before reading RowsAffected.
 func (s *Service) exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
 	rows, err := s.db.AdminQuery(ctx, sql, args...)
 	if err != nil {
 		return pgconn.CommandTag{}, err
 	}
-	for rows.Next() { /* drain */
+	for rows.Next() {
 	}
 	return rows.CommandTag(), rows.Err()
 }

@@ -28,18 +28,19 @@ func (rt *routes) bootstrap(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusCreated, out)
 }
 
+// provision handles POST /v1/provision. When a reconciler is wired it routes the
+// legacy declarative request through the reconcile brain (Compile maps the old
+// shape onto a typed StackSpec); otherwise it falls back to the original one-shot
+// Provision path.
 func (rt *routes) provision(w http.ResponseWriter, r *http.Request) {
 	req, ok := decodeProvision(w, r)
 	if !ok {
 		return
 	}
-	// Preferred path: route the legacy declarative request through the new
-	// reconcile brain (Compile maps the old shape onto a typed StackSpec).
 	if rt.reconciler != nil {
 		rt.reconcile(w, r, req)
 		return
 	}
-	// Fallback (no reconciler wired): the original one-shot Provision path.
 	out, err := rt.svc.Provision(r.Context(), req)
 	if err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())

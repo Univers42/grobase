@@ -143,11 +143,11 @@ func (g *Guard) Init(ctx context.Context) error {
 
 // loadTierRequirements reads ABUSE_REQUIRE_<TIER> env into a tier→requirement map.
 // Each value is a comma list of required signals: "email,phone,pay". An absent tier
-// requires nothing (the parity default — no verification gate).
+// requires nothing (the parity default — no verification gate). The tier names are
+// the packages.json keys plus legacy aliases; a deployment sets e.g.
+// ABUSE_REQUIRE_NANO=email, ABUSE_REQUIRE_FREE=email,phone.
 func loadTierRequirements() map[string]requirement {
 	out := map[string]requirement{}
-	// The known tier names (packages.json keys + legacy aliases). A deployment sets
-	// ABUSE_REQUIRE_NANO=email, ABUSE_REQUIRE_FREE=email,phone, etc.
 	for _, tier := range []string{"nano", "basic", "essential", "pro", "max", "free", "enterprise"} {
 		raw := strings.TrimSpace(config.EnvStr("ABUSE_REQUIRE_"+strings.ToUpper(tier), ""))
 		if raw == "" {

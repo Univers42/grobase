@@ -108,7 +108,7 @@ func Decide(isOver bool, stage Stage) Action {
 		return ActionWarnHeader
 	case StageEnforce:
 		return ActionBlock
-	default: // StageOff (and any unrecognized → off)
+	default:
 		return ActionAllow
 	}
 }

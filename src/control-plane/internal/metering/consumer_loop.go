@@ -25,7 +25,7 @@ func (c *Consumer) readBatch(ctx context.Context) ([]redis.XStream, error) {
 // backed off before the next attempt. The bool is "stop", not "retry".
 func (c *Consumer) handleReadErr(ctx context.Context, err error) bool {
 	if errors.Is(err, redis.Nil) || errors.Is(err, context.Canceled) {
-		return false // BLOCK timeout with no new entries — normal idle
+		return false
 	}
 	if ctx.Err() != nil {
 		return true
@@ -35,18 +35,19 @@ func (c *Consumer) handleReadErr(ctx context.Context, err error) bool {
 	return false
 }
 
-// drain ingests a batch of messages, acking each one it has durably handled.
+// drain ingests a batch of messages, acking each one it has durably handled. A
+// poison entry (errBadEntry) is acked + skipped so a malformed message never
+// wedges the group; a transient DB error leaves the message un-acked for
+// redelivery (dedup on the idempotency_key makes a redelivered identical window
+// a no-op).
 func (c *Consumer) drain(ctx context.Context, msgs []redis.XMessage) {
 	for _, m := range msgs {
 		if err := c.store.Upsert(ctx, m.Values); err != nil {
 			if errors.Is(err, errBadEntry) {
-				// Poison entry: ack + skip so it never wedges the group.
 				c.log.Warn("metering skipping malformed entry", "id", m.ID)
 				_ = c.rdb.XAck(ctx, usageStream, usageGroup, m.ID).Err()
 				continue
 			}
-			// Transient DB error: leave un-acked for redelivery (dedup on the
-			// idempotency_key makes a redelivered identical window a no-op).
 			c.log.Warn("metering upsert failed — will redeliver", "id", m.ID, "err", err)
 			continue
 		}

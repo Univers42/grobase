@@ -34,7 +34,7 @@ func clampQuota(custom, ceiling *Quota) *Quota {
 	if period == "" {
 		period = ceiling.Period
 	} else {
-		period = ceiling.Period // the catalog period is authoritative; never widen the window
+		period = ceiling.Period
 	}
 	if ceiling.QueryCount != 0 && (count == 0 || count > ceiling.QueryCount) {
 		count = ceiling.QueryCount

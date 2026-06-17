@@ -65,7 +65,7 @@ func (s *stateStore) take(id string) (loginState, bool) {
 	if !ok {
 		return loginState{}, false
 	}
-	delete(s.m, id) // single-use: even a same-id retry must fail.
+	delete(s.m, id)
 	if s.now().After(ls.expiresAt) {
 		return loginState{}, false
 	}

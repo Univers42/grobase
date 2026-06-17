@@ -54,8 +54,10 @@ func (c *Collector) collectCryptoPosture() (json.RawMessage, error) {
 // collectBackupPosture records the observable backup/recovery posture: any
 // PITR/retention config the process exposes (PG_BACKUP_PITR, BACKUP_RETENTION /
 // PG_BACKUP_RETENTION). When NO backup env is observable it still records the
-// static mechanism fact (m87 logical per-tenant backup + m99 restore) so the
-// section is never vacuous — but `pitr_enabled`/`retention_configured` reflect
+// static, always-true mechanism fact (m87 logical per-tenant backup + m99
+// restore) so the section is never vacuous — but that "mechanism" entry is a
+// capability statement, not a "configured/enabled" claim:
+// `pitr_enabled`/`retention_configured` carry the live posture and reflect
 // REALITY, so an unconfigured deploy reads pitr_enabled:false.
 func (c *Collector) collectBackupPosture() (json.RawMessage, error) {
 	pitr := isTruthy(c.env("PG_BACKUP_PITR"))
@@ -69,10 +71,7 @@ func (c *Collector) collectBackupPosture() (json.RawMessage, error) {
 		"pitr_flag":            "PG_BACKUP_PITR",
 		"retention":            retention,
 		"retention_configured": retention != "",
-		// Static, always-true mechanism fact: the platform SHIPS logical per-tenant
-		// backup (m87) + restore (m99). This is a capability statement, not a
-		// "configured/enabled" claim — the flags above carry the live posture.
-		"mechanism": "m87-logical-per-tenant-backup;m99-restore",
+		"mechanism":            "m87-logical-per-tenant-backup;m99-restore",
 	})
 }
 

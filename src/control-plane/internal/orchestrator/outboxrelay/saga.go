@@ -23,7 +23,7 @@ func (s *Service) sagaDispatch(ctx context.Context, e *outboxEvent) error {
 	case "stream":
 		return s.dispatchStream(ctx, e)
 	default:
-		return nil // no saga target
+		return nil
 	}
 }
 
@@ -45,7 +45,7 @@ func (s *Service) dispatchStream(ctx context.Context, e *outboxEvent) error {
 func (s *Service) sagaCompensate(ctx context.Context, tx pgx.Tx, e *outboxEvent) error {
 	comp := objectJSON(e.CompensationPayload)
 	if comp == nil {
-		return nil // nothing to compensate
+		return nil
 	}
 	_, err := tx.Exec(ctx,
 		`INSERT INTO public.outbox_events

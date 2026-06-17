@@ -58,7 +58,6 @@ func Mount(mux *http.ServeMux, d Deps) {
 	mux.HandleFunc("POST /v1/orgs", rt.createOrg)
 	mux.HandleFunc("GET /v1/orgs", rt.listOrgs)
 
-	// Static literal first (precedence): invite acceptance carries no orgId.
 	mux.HandleFunc("POST /v1/orgs/invites/accept", rt.acceptInvite)
 
 	mux.HandleFunc("GET /v1/orgs/{orgId}", rt.getOrg)
@@ -104,10 +103,11 @@ func (rt *routes) authJWT(w http.ResponseWriter, r *http.Request) (userID string
 }
 
 // requireCapability is the load-bearing gate: it resolves the caller's role in
-// the org and checks the RBAC matrix. A NON-member (no role) → 404 (the org's
-// existence is not even confirmed to a probing non-member = cross-org isolation).
-// A member lacking the capability → 403 (the load-bearing reject). On success it
-// returns the caller's user id + role.
+// the org and checks the RBAC matrix. A NON-member (no role) → an opaque 404: a
+// non-member cannot distinguish "no such org" from "an org you are not in", so
+// the org's existence is not even confirmed to a probing non-member — cross-org
+// isolation by membership lookup, not by id. A member lacking the capability →
+// 403 (the load-bearing reject). On success it returns the caller's user id + role.
 //
 // This is a pure control-plane decision — it never consults the data-plane ABAC
 // PDP and never touches RequestIdentity or the RLS GUCs.
@@ -118,8 +118,6 @@ func (rt *routes) requireCapability(w http.ResponseWriter, r *http.Request, orgI
 	}
 	role, member := rt.svc.MemberRole(r.Context(), orgID, userID)
 	if !member {
-		// Opaque 404: a non-member cannot distinguish "no such org" from "an org
-		// you are not in" — cross-org isolation by membership lookup, not by id.
 		httpx.WriteError(w, http.StatusNotFound, "not_found", "org not found")
 		return "", "", false
 	}

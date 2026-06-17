@@ -62,6 +62,11 @@ type Event struct {
 // "json.Marshal a struct" (Go's map/json ordering and escaping are not a
 // contract). payload is canonicalized via canonicalJSON so two semantically
 // equal JSON objects (key order aside) hash identically.
+//
+// The timestamp is truncated to MICROSECOND precision: postgres timestamptz
+// stores µs, so a nanosecond Go time would hash differently at seal vs after the
+// DB round-trip at verify. pgx floors ns->µs, matching time.Truncate, so the
+// seal hash == the verify hash.
 func canonicalBytes(e Event) []byte {
 	var b []byte
 	add := func(s string) {
@@ -72,9 +77,6 @@ func canonicalBytes(e Event) []byte {
 	}
 	add(e.TenantID)
 	add(strconv.FormatInt(e.Seq, 10))
-	// Truncate to MICROSECOND: postgres timestamptz stores µs precision, so a
-	// nanosecond Go time hashes differently at seal vs after the DB round-trip at
-	// verify. pgx floors ns->µs, matching time.Truncate, so seal == verify.
 	add(e.Ts.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano))
 	add(e.Actor)
 	add(e.Action)

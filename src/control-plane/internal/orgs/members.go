@@ -58,7 +58,6 @@ func (s *Service) AddMember(ctx context.Context, orgID, userID, role, invitedBy 
 // is enforced in the handler (canSetRole) before this is called.
 func (s *Service) SetMemberRole(ctx context.Context, orgID, userID, newRole string) error {
 	if newRole != string(RoleOwner) {
-		// Demoting away from owner: block if this is the last owner.
 		isOwner, owners, err := s.ownerCount(ctx, orgID, userID)
 		if err != nil {
 			return err

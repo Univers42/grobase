@@ -44,7 +44,7 @@ func securityRank(mode string) int {
 	switch mode {
 	case "max":
 		return 1
-	default: // "baseline" / "" / unknown
+	default:
 		return 0
 	}
 }
@@ -99,7 +99,7 @@ func mergeCapabilities(custom, ceiling map[string]bool) map[string]bool {
 		out[k] = v
 	}
 	for k, v := range custom {
-		out[k] = v && ceiling[k] // can turn OFF freely, never ON past ceiling
+		out[k] = v && ceiling[k]
 	}
 	return out
 }

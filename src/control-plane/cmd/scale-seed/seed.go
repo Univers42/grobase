@@ -70,6 +70,10 @@ func openSink(out string, resume bool) (*os.File, error) {
 	return os.OpenFile(out, mode, 0o600)
 }
 
+// seed runs the bulk provision and streams JSONL records to the out file. On a
+// failing run (errs > 0) it exits non-zero, but os.Exit skips deferred
+// functions, so the JSONL is flushed explicitly first — error records (the
+// diagnosis) are never lost.
 func seed(client *http.Client, cfg seedConfig) error {
 	done := loadDone(*cfg.out, *cfg.resume)
 	sink, err := openSink(*cfg.out, *cfg.resume)
@@ -80,8 +84,6 @@ func seed(client *http.Client, cfg seedConfig) error {
 	w := bufio.NewWriter(sink)
 	defer w.Flush()
 	if errs := runWorkers(client, cfg, done, w); errs > 0 {
-		// os.Exit skips deferred functions — flush the JSONL explicitly so error
-		// records (the diagnosis) are never lost on a failing run.
 		_ = w.Flush()
 		_ = sink.Close()
 		os.Exit(1)

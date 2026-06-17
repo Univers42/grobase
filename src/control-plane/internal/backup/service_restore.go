@@ -32,19 +32,17 @@ func (s *Service) ListBackups(ctx context.Context, tenantID string) ([]BackupRow
 }
 
 // Restore restores a backup into the OWNING tenant only. It loads the row by
-// (id, tenant_id) — the load-bearing caller==owner check — BEFORE any DDL; an
-// empty result is ErrNotOwned (403/404). It then guards isolation, downloads the
-// artifact, and replays into A's OWN schema/db. Status flips restoring->restored
-// (or 'failed').
+// (id, tenant_id) — the load-bearing caller==owner check — BEFORE any DDL; a
+// backup id that is not the caller's (or does not exist) is indistinguishable and
+// yields an empty result -> ErrNotOwned (403/404), with no DDL having run. It then
+// guards isolation, downloads the artifact, and replays into A's OWN schema/db.
+// Status flips restoring->restored (or 'failed').
 func (s *Service) Restore(ctx context.Context, tenantID, backupID string) error {
 	iso, mount, found, err := s.loadRestoreRow(ctx, tenantID, backupID)
 	if err != nil {
 		return err
 	}
 	if !found {
-		// Load-bearing caller==owner: a backup id that is not the caller's (or
-		// does not exist) is indistinguishable -> ErrNotOwned (403/404). NO DDL
-		// has run at this point.
 		return ErrNotOwned
 	}
 	if err := guardIsolation(iso); err != nil {

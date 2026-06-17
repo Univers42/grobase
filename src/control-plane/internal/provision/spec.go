@@ -43,13 +43,14 @@ type Defaults struct {
 // the compiled regexes are no longer shared mutable state. Built on each call
 // (provisioning is API-rate, not a hot path); field values/patterns are
 // byte-identical to the prior literal.
+//
+// RoleNamePattern shares the slug charset family (lowercase alnum + _ -),
+// bounded to <=63 chars, so a name can never carry `:` (the namespace
+// separator), `*`, or whitespace, nor be unbounded. Defense-in-depth: the slug
+// prefix already isolates tenants; this keeps the un-prefixed name well-formed.
 func defaultSpec() Defaults {
 	return Defaults{
-		SlugPattern: regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{1,62}$`),
-		// Role names share the slug charset family (lowercase alnum + _ -), bounded
-		// to <=63 chars, so a name can never carry `:` (the namespace separator),
-		// `*`, or whitespace, nor be unbounded. Defense-in-depth: the slug prefix
-		// already isolates tenants, this keeps the un-prefixed name well-formed.
+		SlugPattern:     regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{1,62}$`),
 		RoleNamePattern: regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,62}$`),
 		Isolation:       "shared_rls",
 		MountIsolation:  "shared_rls",

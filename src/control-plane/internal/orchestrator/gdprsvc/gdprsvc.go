@@ -79,15 +79,12 @@ func (s *Service) Init(ctx context.Context) error {
 
 // Mount registers the HTTP surface.
 func (s *Service) Mount(mux *http.ServeMux) {
-	// consent
 	mux.HandleFunc("GET /consents", s.listConsents)
 	mux.HandleFunc("POST /consents", s.setConsent)
 	mux.HandleFunc("DELETE /consents/non-essential", s.withdrawNonEssential)
 	mux.HandleFunc("GET /consents/{type}", s.getConsent)
 	mux.HandleFunc("PUT /consents/{type}", s.updateConsent)
-	// export
 	mux.HandleFunc("GET /export", s.export)
-	// deletion
 	mux.HandleFunc("POST /deletion-requests", s.createDeletion)
 	mux.HandleFunc("GET /deletion-requests/mine", s.myDeletion)
 	mux.HandleFunc("DELETE /deletion-requests/mine", s.cancelDeletion)

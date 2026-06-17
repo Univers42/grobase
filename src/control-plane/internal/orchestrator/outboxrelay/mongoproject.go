@@ -20,14 +20,14 @@ func (m *mongoProjector) projectOrder(ctx context.Context, e *outboxEvent) error
 }
 
 // dispatchMongo applies a saga mongodb-target event (upsert/delete) — the Go
-// port of SagaCoordinatorService.dispatchMongo.
+// port of SagaCoordinatorService.dispatchMongo. A non-object saga payload yields
+// no projection (parity with the Node objectPayload guard that returns early when
+// the payload is not an object).
 func (m *mongoProjector) dispatchMongo(ctx context.Context, e *outboxEvent) error {
 	coll := e.TargetResource
 	if coll == "" {
 		coll = e.Aggregate
 	}
-	// objectPayload guard: a non-object saga payload yields no projection (parity
-	// with `const payload = this.objectPayload(event.payload); if (!payload) return;`).
 	if objectJSON(e.Payload) == nil {
 		return nil
 	}

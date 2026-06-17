@@ -39,6 +39,10 @@ type AdmitRequest struct {
 	Action    string `json:"action"` // e.g. "project_create"
 }
 
+// admit handles POST /v1/abuse/admit. On a deny it returns 403 carrying the deny
+// plus the machine reason in the body: the caller acts on admit:false, while the
+// status makes it unambiguous over the wire — the load-bearing reject the gate
+// asserts. An admit returns 200.
 func (rt *routes) admit(w http.ResponseWriter, r *http.Request) {
 	if !rt.authorized(w, r) {
 		return
@@ -54,9 +58,6 @@ func (rt *routes) admit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !res.Admit {
-		// 403 carries the deny + the machine reason in the body (the caller acts on
-		// admit:false; the status makes it unambiguous over the wire — the
-		// load-bearing reject the gate asserts).
 		httpx.WriteJSON(w, http.StatusForbidden, res)
 		return
 	}

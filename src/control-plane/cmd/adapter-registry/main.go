@@ -21,6 +21,10 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
+// main boots the adapter-registry: load config, open Postgres, build the
+// service, mount the routes, and serve until SIGTERM/SIGINT. A "--healthcheck"
+// first arg short-circuits to the probe mode used by the container HEALTHCHECK
+// (without a shell) and exits with its status.
 func main() {
 	log := observability.NewLogger("adapter-registry")
 	cfg, err := config.LoadConfig("ADAPTER_REGISTRY")
@@ -28,7 +32,6 @@ func main() {
 		log.Error("config error", "err", err)
 		os.Exit(1)
 	}
-	// --healthcheck mode: used by the container HEALTHCHECK without a shell.
 	if len(os.Args) > 1 && os.Args[1] == "--healthcheck" {
 		os.Exit(healthcheck(cfg))
 	}

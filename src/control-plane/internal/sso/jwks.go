@@ -67,6 +67,8 @@ func fetchJWKS(ctx context.Context, jwksURL string) (jwksDoc, error) {
 
 // pickRSAKey selects the RSA key matching kid, falling back to the first RSA key
 // when kid is empty or unmatched. Returns nil when no RSA key is present.
+// pickRSAKey returns the RSA key whose kid matches (or the first RSA key when kid
+// is empty); when no kid matches it falls back to the first RSA key seen.
 func pickRSAKey(keys []jwksKey, kid string) *jwksKey {
 	var chosen *jwksKey
 	for i := range keys {
@@ -78,7 +80,7 @@ func pickRSAKey(keys []jwksKey, kid string) *jwksKey {
 			return k
 		}
 		if chosen == nil {
-			chosen = k // fallback: first RSA key if no kid match
+			chosen = k
 		}
 	}
 	return chosen

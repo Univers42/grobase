@@ -93,13 +93,13 @@ type BackupRow struct {
 
 // isolationFor resolves the isolation model for (tenant, mount). When a resolver
 // is wired it is authoritative (it also yields the db_per_tenant DSN); otherwise
-// the control-plane DB is consulted directly (schema_per_tenant path).
+// the fallback reads isolation straight from tenant_databases (tenant_id always a
+// bind param) for the schema_per_tenant path — no DSN decryption here, so
+// db_per_tenant needs a resolver.
 func (s *Service) isolationFor(ctx context.Context, tenantID, mount string) (iso, dsn string, err error) {
 	if s.res != nil {
 		return s.res.Resolve(ctx, tenantID, mount)
 	}
-	// Fallback: read isolation straight from tenant_databases (tenant_id always a
-	// bind param). No DSN decryption here — db_per_tenant needs a resolver.
 	rows, qerr := s.db.AdminQuery(ctx,
 		`SELECT isolation FROM public.tenant_databases
 		  WHERE tenant_id = $1 AND ($2 = '' OR name = $2)

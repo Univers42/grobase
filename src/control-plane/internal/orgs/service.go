@@ -36,8 +36,6 @@ const selectOrg = `
 // holds from birth). createdBy is the GoTrue user uuid of the caller.
 func (s *Service) CreateOrg(ctx context.Context, req CreateOrgRequest, createdBy string) (Org, error) {
 	metaJSON, plan := normalizeOrgInput(req)
-	// Acquire ONE dedicated pooled connection so the org INSERT + the owner
-	// membership INSERT commit atomically (the break-glass anchor invariant).
 	conn, err := s.db.AcquireConn(ctx)
 	if err != nil {
 		return Org{}, err
@@ -99,7 +97,6 @@ func insertOrgWithOwner(ctx context.Context, tx pgx.Tx, n newOrgInsert) (Org, er
 		}
 		return Org{}, err
 	}
-	// Atomically make the creator the first member with role=owner.
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO public.org_members (org_id, user_id, role, invited_by)
 		VALUES ($1::uuid, $2, 'owner', $2)`,

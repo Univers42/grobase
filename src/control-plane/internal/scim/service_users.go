@@ -17,7 +17,6 @@ func (s *Service) CreateUser(ctx context.Context, b TokenBinding, in SCIMUser) (
 		return SCIMUser{}, ErrNoOrg
 	}
 	userID := in.resolveUserID()
-	// Add (or upsert) the org membership — the EXISTING membership API.
 	if err := s.members.AddMember(ctx, b.OrgID, userID, defaultMemberRole, "scim"); err != nil {
 		return SCIMUser{}, err
 	}
@@ -43,7 +42,7 @@ func newUserRecord(b TokenBinding, in SCIMUser, userID string) userRecord {
 		UserID:      userID,
 		DisplayName: in.displayName(),
 		Emails:      in.Emails,
-		Active:      true, // a newly provisioned user is active
+		Active:      true,
 	}
 }
 

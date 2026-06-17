@@ -38,7 +38,7 @@ func (g *Guard) readSafety(ctx context.Context, tenantID string) (safetyRow, err
 	}
 	defer rows.Close()
 	if !rows.Next() {
-		return safetyRow{}, rows.Err() // no row → parity default
+		return safetyRow{}, rows.Err()
 	}
 	var s safetyRow
 	if err := rows.Scan(&s.emailVerified, &s.phoneVerified, &s.payMethod, &s.suspended); err != nil {
@@ -94,7 +94,7 @@ func (g *Guard) Admit(ctx context.Context, principal, tenant, tier, action strin
 func (g *Guard) verificationGate(tier string, s safetyRow) (string, bool) {
 	req, ok := g.tierReqs[tier]
 	if !ok {
-		return "", true // no requirement for this tier → parity
+		return "", true
 	}
 	if req.email && !s.emailVerified {
 		return "email_unverified", false

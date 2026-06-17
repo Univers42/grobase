@@ -20,6 +20,10 @@ type CheckRequest struct {
 // EDGE acts on `allow` (forward vs 403). A 200 with allow=false is a successful
 // decision that REPORTS a block, not a server error — the gate's load-bearing
 // REJECT asserts allow==false for an out-of-range IP.
+//
+// The edge passes the resolved client IP explicitly; if it instead forwards the
+// raw X-Forwarded-For chain we take the LEFT-MOST entry (the original client),
+// the same convention an ip-restriction plugin uses.
 func (rt *routes) check(w http.ResponseWriter, r *http.Request) {
 	if !serviceauth.VerifyServiceRequest(r, rt.serviceToken) {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
@@ -30,9 +34,6 @@ func (rt *routes) check(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
-	// The edge passes the resolved client IP explicitly; if it instead forwards
-	// the raw X-Forwarded-For chain we take the LEFT-MOST entry (the original
-	// client), the same convention an ip-restriction plugin uses.
 	ip := strings.TrimSpace(req.IP)
 	if ip == "" {
 		ip = clientIPFromHeaders(r)

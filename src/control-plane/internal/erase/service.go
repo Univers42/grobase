@@ -144,18 +144,18 @@ type finishParams struct {
 }
 
 // finishErase runs the post-destruction steps once data is provably gone: flush
-// the key-verify cache, soft-mark the tenant deleted, seal the D3 receipt, and
-// finalize the erasure_receipts ledger row into the completed Receipt.
+// the key-verify cache (the DB key rows are gone, so dropping the fast-path cache
+// stops the credential authenticating immediately rather than after the cache
+// TTL), soft-mark the tenant deleted, then seal the tamper-evident D3 receipt and
+// finalize the erasure_receipts ledger row into the completed Receipt. The D3
+// receipt is the proof the erase HAPPENED — it lives on the per-tenant hash
+// chain, which the auditor can verify even after every other trace of the tenant
+// is gone.
 func (s *Service) finishErase(ctx context.Context, p finishParams) (Receipt, error) {
-	// The DB key rows are gone — drop the verify fast-path cache so the credential
-	// stops authenticating immediately (otherwise it lingers until the cache TTL).
 	if s.flushKeyCache != nil {
 		s.flushKeyCache()
 	}
 	s.markTenantDeleted(ctx, p.tenantID)
-	// Seal the tamper-evident D3 receipt. This is the proof the erase HAPPENED —
-	// it lives on the per-tenant hash chain, which the auditor can verify even
-	// after every other trace of the tenant is gone.
 	auditSeq := s.sealReceipt(ctx, sealParams{
 		tenantID: p.tenantID, requestedBy: p.requestedBy, scope: p.scope,
 		rows: p.rows, keys: p.keys,

@@ -22,6 +22,10 @@ func (p Package) QuotaPeriod() string {
 // the Rust planner (apply_capability_overrides) and rate limiter (tier_rate)
 // read off DatabaseMount.capability_overrides. Returned as the JSON the
 // query-router stamps onto the mount it forwards to Rust.
+//
+// G-QoS sliceA: max_rows is only carried when the tier sets it, so tiers without
+// a cap produce byte-identical overrides to today (Rust treats absent =
+// unlimited).
 func (p Package) CapabilityOverrides() map[string]any {
 	out := make(map[string]any, len(p.Capabilities)+2)
 	for k, v := range p.Capabilities {
@@ -29,9 +33,6 @@ func (p Package) CapabilityOverrides() map[string]any {
 	}
 	out["rps"] = p.Limits.RPS
 	out["burst"] = p.Limits.Burst
-	// G-QoS sliceA: only carry max_rows when the tier sets it, so tiers without
-	// a cap produce byte-identical overrides to today (Rust treats absent =
-	// unlimited).
 	if p.Limits.MaxRows != nil {
 		out["max_rows"] = *p.Limits.MaxRows
 	}

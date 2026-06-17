@@ -18,7 +18,9 @@ type httpSink struct{ client *http.Client }
 // Deliver POSTs body to endpoint. authHeader, when non-empty, is sent as the
 // Authorization header (the customer's collector token). A non-2xx response or a
 // transport error is returned so the exporter leaves the cursor unadvanced and
-// retries the tenant next tick (at-least-once delivery, never silent loss).
+// retries the tenant next tick (at-least-once delivery, never silent loss). The
+// response body is drained to io.Discard before close so the keep-alive
+// connection can be reused.
 func (s *httpSink) Deliver(ctx context.Context, endpoint, authHeader, contentType string, body []byte) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
@@ -33,7 +35,7 @@ func (s *httpSink) Deliver(ctx context.Context, endpoint, authHeader, contentTyp
 		return err
 	}
 	defer func() {
-		_, _ = io.Copy(io.Discard, resp.Body) // drain so the connection can be reused
+		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
 	}()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {

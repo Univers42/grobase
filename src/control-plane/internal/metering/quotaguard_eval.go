@@ -49,14 +49,15 @@ SELECT u.tenant_id, COALESCE(t.plan, '') AS plan, COALESCE(SUM(u.qty), 0)::bigin
 // Run is the evaluation loop: every interval, recompute the over-quota set and
 // publish it. Disabled ⇒ returns immediately (no loop) ⇒ parity. Stops on ctx
 // cancellation. An evaluation error is logged and retried next tick (never fatal
-// at steady state — a transient DB/Redis blip must not wedge the guard).
+// at steady state — a transient DB/Redis blip must not wedge the guard). The
+// first evaluation runs immediately, before the ticker starts, so enforcement is
+// live within ms of boot rather than after a full interval (the gate relies on
+// this fast first pass).
 func (g *QuotaGuard) Run(ctx context.Context) {
 	if !g.enabled || g.rdb == nil {
 		return
 	}
 	defer func() { _ = g.rdb.Close() }()
-	// Evaluate once immediately so enforcement is live within ms of boot, not
-	// after the first full interval (the gate relies on this fast first pass).
 	if err := g.evaluate(ctx); err != nil {
 		g.log.Warn("quota-guard initial evaluation failed", "err", err)
 	}
@@ -74,12 +75,12 @@ func (g *QuotaGuard) Run(ctx context.Context) {
 	}
 }
 
-// evaluate recomputes the over-quota set and publishes it atomically.
+// evaluate recomputes the over-quota set and publishes it atomically. Under
+// BUILDER_ENABLED it queries the variant that joins tenant_entitlements so the
+// resolver's per-tenant cap is the one enforced; the default (nil resolver) keeps
+// the byte-identical pre-builder query + manifest.For resolution.
 func (g *QuotaGuard) evaluate(ctx context.Context) error {
 	periodStart := periodStartFor(g.defaultPeriod(), time.Now().UTC())
-	// BUILDER_ENABLED: join tenant_entitlements so the resolver's per-tenant cap is
-	// the one enforced. Default (nil resolver) keeps the byte-identical pre-builder
-	// query + manifest.For resolution.
 	usageSQL := usageByTenantSQL
 	if g.builderEnabled {
 		usageSQL = usageByTenantBuilderSQL
@@ -120,11 +121,11 @@ func (g *QuotaGuard) scanOverQuota(ctx context.Context, rows pgx.Rows) ([]string
 // quota block) is unlimited → never over quota (the parity path). The plan is
 // resolved through the manifest's alias/default chain, so a stale/empty plan
 // degrades to the safe baseline tier rather than going unlimited by accident.
+// Under the dynamic builder (BUILDER_ENABLED) the EFFECTIVE per-tenant cap (custom
+// entitlement clamped to its ceiling) is what the data plane stamps, so it must be
+// what quota is enforced against; when no resolver is wired (the default) the plan
+// resolves via manifest.For verbatim — byte-identical to pre-builder.
 func (g *QuotaGuard) isOverQuota(ctx context.Context, slug, plan string, qty int64) bool {
-	// Dynamic builder (BUILDER_ENABLED): the EFFECTIVE per-tenant cap (custom
-	// entitlement clamped to its ceiling) is what the data plane stamps, so it must
-	// be what quota is enforced against. When no resolver is wired (the default),
-	// resolve the plan via manifest.For verbatim — byte-identical to pre-builder.
 	var pkg packages.Package
 	if g.resolver != nil {
 		_, pkg = g.resolver.Resolve(ctx, slug, plan)

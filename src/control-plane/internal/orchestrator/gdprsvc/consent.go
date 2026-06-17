@@ -21,6 +21,8 @@ func (s *Service) listConsents(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
+// getConsent returns the user's consent of the path type, or a 200 with a null
+// body when none exists (parity: the Node service returns null, not a 404).
 func (s *Service) getConsent(w http.ResponseWriter, r *http.Request) {
 	userID, ok := requireUser(w, r)
 	if !ok {
@@ -31,7 +33,7 @@ func (s *Service) getConsent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if c == nil {
-		httpx.WriteJSON(w, http.StatusOK, nil) // parity: Node returns null
+		httpx.WriteJSON(w, http.StatusOK, nil)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, c)

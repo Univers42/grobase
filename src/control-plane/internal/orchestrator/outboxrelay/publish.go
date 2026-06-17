@@ -30,7 +30,7 @@ func (s *Service) relay(ctx context.Context, e *outboxEvent) error {
 func (s *Service) publish(ctx context.Context, e *outboxEvent) error {
 	key := publishedDedupeKey(e.ID)
 	if v, err := s.rdb.Get(ctx, key).Result(); err == nil && v != "" {
-		return nil // already published
+		return nil
 	} else if err != nil && !errors.Is(err, redis.Nil) {
 		return err
 	}

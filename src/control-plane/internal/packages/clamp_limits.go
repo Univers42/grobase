@@ -4,7 +4,7 @@ package packages
 // field: a custom 0/absent means "inherit the ceiling" — NEVER "unlimited" — so
 // an unset field can never widen the cap.
 func clampLimits(custom, ceiling Limits) Limits {
-	out := ceiling // start from ceiling, then lower per-field
+	out := ceiling
 	out.RPS = clampU32(custom.RPS, ceiling.RPS)
 	out.Burst = clampU32(custom.Burst, ceiling.Burst)
 	out.MaxRows = clampMaxRows(custom.MaxRows, ceiling.MaxRows)
@@ -36,7 +36,7 @@ func clampU32(custom, ceiling uint32) uint32 {
 	if custom == 0 {
 		return ceiling
 	}
-	if ceiling == 0 { // ceiling unlimited → custom is the (lower) bound
+	if ceiling == 0 {
 		return custom
 	}
 	if custom > ceiling {

@@ -86,7 +86,6 @@ func canSetRole(actor, target, current Role) bool {
 	if actor == RoleOwner {
 		return true
 	}
-	// actor is admin: may not mint a new owner, and may not touch an existing owner.
 	if target == RoleOwner || current == RoleOwner {
 		return false
 	}

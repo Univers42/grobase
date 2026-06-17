@@ -44,12 +44,15 @@ func (m *Metrics) ObserveTenant(status int, tenantID string) {
 // membership is published, so two concurrent first-touches of the SAME new
 // tenant consume at most one slot total (the loser's reservation is rolled
 // back). Net: tenantSetSize is the exact distinct-admitted count, never > cap.
+// An incoming label equal to overCapSentinel is returned as-is so a real id can
+// never masquerade as the fold-in sentinel; an already-admitted label returns
+// unchanged without consuming a new slot.
 func (m *Metrics) admitTenant(label string) string {
 	if label == overCapSentinel {
-		return overCapSentinel // never let a real id masquerade as the sentinel
+		return overCapSentinel
 	}
 	if _, ok := m.tenantSet.Load(label); ok {
-		return label // already admitted
+		return label
 	}
 	for {
 		n := atomic.LoadInt64(&m.tenantSetSize)

@@ -60,7 +60,9 @@ func NewService(db pdb, cfg Config, minter *SessionMinter, log *slog.Logger) (*S
 // CredentialCreation options (handed verbatim to navigator.credentials.create on
 // the client) and a one-time challengeID the client echoes back on finish. The
 // server-side SessionData (carrying the challenge) is retained under that id —
-// never trusted from the client — so the challenge cannot be forged.
+// never trusted from the client — so the challenge cannot be forged. Already-registered
+// credentials are passed as exclusions so the same authenticator is not double-registered
+// for this user.
 func (s *Service) BeginRegister(ctx context.Context, in BeginRegisterInput) (*protocol.CredentialCreation, string, error) {
 	stored, err := s.store.LoadByUser(ctx, in.TenantID, in.UserID)
 	if err != nil && !errors.Is(err, ErrNoCredentials) {
@@ -71,8 +73,6 @@ func (s *Service) BeginRegister(ctx context.Context, in BeginRegisterInput) (*pr
 	if err != nil {
 		return nil, "", err
 	}
-	// Exclude already-registered credentials so the same authenticator is not
-	// double-registered for this user.
 	creation, session, err := s.wa.BeginRegistration(user,
 		webauthn.WithExclusions(withAllowCredentials(stored)))
 	if err != nil {

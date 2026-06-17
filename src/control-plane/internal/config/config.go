@@ -36,6 +36,12 @@ type Config struct {
 
 // LoadConfig reads <PREFIX>_HOST / <PREFIX>_PORT and shared DATABASE_URL.
 // Example prefix: "ADAPTER_REGISTRY".
+//
+// G-Vault (A6): at SECURITY_MODE=max the control plane REQUIRES a Vault-backed
+// master credential and FAILS CLOSED here (a LoadConfig error → main() os.Exit(1))
+// if it is absent or a repo-visible placeholder. The default ("baseline") mode
+// short-circuits in requireVaultBackedCredentials, so the boot path stays
+// byte-identical to today.
 func LoadConfig(prefix string) (Config, error) {
 	cfg := Config{
 		Host:         EnvStr(prefix+"_HOST", "0.0.0.0"),
@@ -55,10 +61,6 @@ func LoadConfig(prefix string) (Config, error) {
 			weakServiceToken,
 		)
 	}
-	// G-Vault (A6) — at SECURITY_MODE=max the control plane REQUIRES a
-	// Vault-backed master credential and FAILS CLOSED here (LoadConfig error →
-	// main() os.Exit(1)) if it is absent or a repo-visible placeholder. Default
-	// mode short-circuits → boot path byte-identical to today.
 	if err := requireVaultBackedCredentials(cfg.SecurityMode); err != nil {
 		return Config{}, err
 	}

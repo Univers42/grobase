@@ -6,14 +6,14 @@ import (
 
 // ── Injected dependency interfaces (all fakeable) ────────────────────────────
 
-// complete/partial (→ 201/200).
+// complete/partial (→ 201/200). A per-slug advisory lock guards concurrency:
+// only one reconcile per slug runs at a time.
 func (rc *Reconciler) Reconcile(ctx context.Context, spec StackSpec) (ReconcileResult, error) {
 	spec.Normalize()
 	if err := spec.Validate(); err != nil {
 		return ReconcileResult{}, err
 	}
 
-	// Concurrency guard: one in-flight reconcile per slug.
 	release, err := rc.acquireSlugLock(ctx, spec.Tenant)
 	if err != nil {
 		return ReconcileResult{}, err
@@ -117,14 +117,15 @@ const (
 // PoolConn is one checked-out connection. *pgxpool.Conn satisfies it. Because a
 // session advisory lock is bound to the backend connection that took it, the
 // HTTPStatus maps an outcome to its HTTP status code. Centralized so handler +
-// tests agree on the mapping.
+// tests agree on the mapping. The default arm is the "complete" outcome: 201
+// when a key was freshly minted, otherwise 200.
 func HTTPStatus(outcome string, freshKey bool) int {
 	switch outcome {
 	case OutcomeFailed:
 		return 500
 	case OutcomePartial:
 		return 200
-	default: // complete
+	default:
 		if freshKey {
 			return 201
 		}

@@ -71,7 +71,6 @@ func (s *Service) Append(ctx context.Context, in AppendInput) (Event, error) {
 		return Event{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	// serialize appends for THIS tenant only, then read tip / seal / insert.
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, lockKey(in.TenantID)); err != nil {
 		return Event{}, err
 	}

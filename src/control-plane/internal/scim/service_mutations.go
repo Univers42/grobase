@@ -20,7 +20,6 @@ func (s *Service) ReplaceUser(ctx context.Context, b TokenBinding, scimID string
 	if err := s.store.UpdateUser(ctx, rec); err != nil {
 		return SCIMUser{}, err
 	}
-	// Mirror the active flag onto the org membership (the deactivate signal).
 	if err := s.store.SetActive(ctx, rec, in.Active); err != nil {
 		return SCIMUser{}, err
 	}
@@ -46,15 +45,15 @@ func (s *Service) PatchUser(ctx context.Context, b TokenBinding, scimID string, 
 // DeleteUser deprovisions a SCIM User: it removes the org membership (reusing
 // orgs.Service.RemoveMember) and deletes the SCIM mapping. Scoped to the token's
 // tenant — a T2 token can never delete a T1 user (GetUser returns ErrNotFound).
+// RemoveMember enforces orgs' own last-owner guard; a SCIM-provisioned member is
+// never the last owner (role=developer), so this is safe, and a last-owner error
+// is surfaced (the IdP should not deprovision the owner).
 func (s *Service) DeleteUser(ctx context.Context, b TokenBinding, scimID string) error {
 	rec, err := s.store.GetUser(ctx, b.TenantID, scimID)
 	if err != nil {
 		return err
 	}
 	if rec.OrgID != "" {
-		// RemoveMember enforces orgs' own last-owner guard; a SCIM-provisioned
-		// member is never the last owner (role=developer), so this is safe. A
-		// last-owner error is surfaced (the IdP should not deprovision the owner).
 		if err := s.members.RemoveMember(ctx, rec.OrgID, rec.UserID); err != nil {
 			return err
 		}

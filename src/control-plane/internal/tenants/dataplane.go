@@ -34,6 +34,8 @@ func NewDataPlane(baseURL, serviceToken string) *DataPlane {
 // ensureSchema runs `CREATE SCHEMA IF NOT EXISTS <schema>` against the mount's
 // database via POST /v1/admin/migrate (admin-gated, idempotent marker). `schema`
 // must already be sanitized by [tenantSchema] — it is interpolated into the DDL.
+// The migrate envelope carries the inline DSN, so the response is scrubbed of any
+// echo of it.
 func (dp *DataPlane) ensureSchema(ctx context.Context, slug, schema string, m MountSpec) error {
 	envelope := map[string]any{
 		"identity": map[string]any{
@@ -53,7 +55,6 @@ func (dp *DataPlane) ensureSchema(ctx context.Context, slug, schema string, m Mo
 		"name":       "baas-ensure-schema-" + schema,
 		"statements": []string{"CREATE SCHEMA IF NOT EXISTS " + schema},
 	}
-	// The migrate envelope carries the inline DSN; scrub it from any echo.
 	return dp.postAdmin(ctx, "/v1/admin/migrate", envelope, "data-plane migrate", true)
 }
 

@@ -31,12 +31,13 @@ func (s *Service) queryOne(ctx context.Context, sql string, args ...any) (pgx.Ro
 }
 
 // exec runs a non-returning statement via the admin pool, returning the tag.
+// The Next loop drains the rows cursor so the command tag is finalized.
 func (s *Service) exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
 	rows, err := s.db.AdminQuery(ctx, sql, args...)
 	if err != nil {
 		return pgconn.CommandTag{}, err
 	}
-	for rows.Next() { /* drain */
+	for rows.Next() {
 	}
 	return rows.CommandTag(), rows.Err()
 }

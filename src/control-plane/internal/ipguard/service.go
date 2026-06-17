@@ -106,6 +106,10 @@ type AddInput struct {
 // engine-agnostic and a single IPv4/IPv6 host is handled identically to a /32 or
 // /128. tenant_id is ALWAYS bound in the rule load (the cross-tenant wall, atop
 // RLS): a check for tenant T can never read tenant U's rules.
+//
+// The OPT-IN default (no rule ⇒ unrestricted ⇒ allow) is what keeps the feature
+// additive — a tenant that never configured an allowlist is exactly as open as
+// today even with the flag ON.
 func (s *Service) Allowed(ctx context.Context, tenantID, clientIP string) (Decision, error) {
 	tenantID = strings.TrimSpace(tenantID)
 	if tenantID == "" {
@@ -119,9 +123,6 @@ func (s *Service) Allowed(ctx context.Context, tenantID, clientIP string) (Decis
 	if err != nil {
 		return Decision{}, err
 	}
-	// OPT-IN default: no rule ⇒ unrestricted ⇒ allow. This is what keeps the
-	// feature additive — a tenant that never configured an allowlist is exactly
-	// as open as today even with the flag ON.
 	if len(rules) == 0 {
 		return Decision{TenantID: tenantID, IP: ip.String(), Allow: true, Restricted: false, Reason: "no_allowlist"}, nil
 	}
@@ -129,13 +130,14 @@ func (s *Service) Allowed(ctx context.Context, tenantID, clientIP string) (Decis
 }
 
 // List returns a tenant's allowlist rules (newest first). tenant_id is ALWAYS
-// bound — a tenant can never list another tenant's rules.
+// bound — a tenant can never list another tenant's rules. When the listFn test
+// seam is set (never in production) it is used instead of the DB.
 func (s *Service) List(ctx context.Context, tenantID string) ([]Rule, error) {
 	tenantID = strings.TrimSpace(tenantID)
 	if tenantID == "" {
 		return nil, ErrEmptyTenant
 	}
-	if s.listFn != nil { // test seam — never set in production
+	if s.listFn != nil {
 		return s.listFn(ctx, tenantID)
 	}
 	rows, err := s.db.AdminQuery(ctx, `

@@ -7,7 +7,9 @@ import "encoding/json"
 // order or insignificant whitespace. Invalid/empty JSON canonicalizes to "{}"
 // so a NULL/garbage payload never panics a hash chain. This is the single source
 // of truth for the audit chain (audit.chain) and the compliance seal — both hash
-// over its output, so they MUST canonicalize identically.
+// over its output, so they MUST canonicalize identically. json.Marshal sorts
+// map[string]any keys and our decoded objects are map[string]any, so the
+// re-marshal yields a key-sorted canonical form.
 func CanonicalJSON(raw []byte) []byte {
 	if len(raw) == 0 {
 		return []byte("{}")
@@ -16,8 +18,6 @@ func CanonicalJSON(raw []byte) []byte {
 	if err := json.Unmarshal(raw, &v); err != nil {
 		return []byte("{}")
 	}
-	// json.Marshal sorts map[string]any keys, and our decoded objects are
-	// map[string]any, so a re-marshal yields a key-sorted canonical form.
 	out, err := json.Marshal(sortValue(v))
 	if err != nil {
 		return []byte("{}")

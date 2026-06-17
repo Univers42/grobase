@@ -71,7 +71,7 @@ func (s *sessionStore) take(id string) (pending, bool) {
 	if !ok {
 		return pending{}, false
 	}
-	delete(s.m, id) // single-use: even a same-id retry must fail.
+	delete(s.m, id)
 	if s.now().After(p.expiresAt) {
 		return pending{}, false
 	}

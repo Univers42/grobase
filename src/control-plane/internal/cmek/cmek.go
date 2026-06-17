@@ -63,8 +63,10 @@ type KMSProvider interface {
 // Seal envelope-encrypts plaintext under a fresh DEK whose wrapped form is
 // produced by provider.WrapDEK(keyID). It returns the wrapped DEK, the GCM
 // nonce (iv), and the ciphertext (which already carries the 16-byte GCM auth
-// tag appended by Seal). The fresh DEK is ZEROED before return whether or not
-// an error occurred.
+// tag appended by gcm.Seal — the tag is the trailing 16 bytes). The fresh DEK
+// is ZEROED before return whether or not an error occurred, so a plaintext DEK
+// never lingers in process memory after the seal. The DEK is wrapped with the
+// EXTERNAL KEK and the platform never persists the DEK itself.
 //
 // CMEK reuses the adapterregistry connection_enc/iv/tag columns: callers split
 // ciphertext into {connection_enc = ct[:len-16], connection_tag = ct[len-16:]}
@@ -78,14 +80,12 @@ func Seal(ctx context.Context, provider KMSProvider, keyID string, plaintext []b
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	defer zero(dek) // never leave a plaintext DEK in memory after the seal.
+	defer zero(dek)
 	gcm, err := newGCM(dek)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	// Seal returns ciphertext||tag (the tag is the trailing 16 bytes).
 	ct := gcm.Seal(nil, nonce, plaintext, nil)
-	// Wrap the DEK with the EXTERNAL KEK. The platform never persists the DEK.
 	w, err := provider.WrapDEK(ctx, keyID, dek)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("cmek: KMS wrap DEK: %w", err)
@@ -135,7 +135,9 @@ type Envelope struct {
 // Open reverses Seal: it asks provider.UnwrapDEK(keyID, env.Wrapped) for the
 // DEK, then AES-256-GCM-decrypts env.Ciphertext (ct||tag) with env.IV. The DEK
 // is ZEROED before return. If the KMS cannot unwrap (revoked/deleted KEK), Open
-// returns ErrShredded — the plaintext is permanently unrecoverable.
+// returns ErrShredded — the plaintext is permanently unrecoverable. If the
+// GCM auth check fails instead (ciphertext/iv/tag tampered, or the DEK is
+// wrong), Open returns a wrapped GCM-open error rather than ErrShredded.
 func Open(ctx context.Context, provider KMSProvider, keyID string, env Envelope) ([]byte, error) {
 	if err := validateArgs(provider, keyID); err != nil {
 		return nil, err
@@ -154,18 +156,17 @@ func Open(ctx context.Context, provider KMSProvider, keyID string, env Envelope)
 	}
 	plain, err := gcm.Open(nil, env.IV, env.Ciphertext, nil)
 	if err != nil {
-		// GCM auth failed: ciphertext/iv/tag tampered, or the DEK is wrong.
 		return nil, fmt.Errorf("cmek: GCM open failed (tampered ciphertext or wrong DEK): %w", err)
 	}
 	return plain, nil
 }
 
 // unwrapDEK asks the KMS to unwrap the DEK and validates its length. A KMS
-// failure (revoked/deleted KEK) maps to ErrShredded — the crypto-shred path.
+// failure means the KEK is gone or wrong (revoked/deleted), so the data can no
+// longer be decrypted: it maps to ErrShredded — the crypto-shred path.
 func unwrapDEK(ctx context.Context, provider KMSProvider, keyID string, wrapped []byte) ([]byte, error) {
 	dek, err := provider.UnwrapDEK(ctx, keyID, wrapped)
 	if err != nil {
-		// CRYPTO-SHRED: the KEK is gone (or wrong) — the data cannot be decrypted.
 		return nil, fmt.Errorf("%w: %v", ErrShredded, err)
 	}
 	if len(dek) != dekLen {

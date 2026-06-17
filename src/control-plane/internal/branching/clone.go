@@ -60,9 +60,10 @@ func cloneInTx(ctx context.Context, conn *pgxpool.Conn, parentSchema, branchSche
 }
 
 // cloneTables creates the branch schema then per-table replicates structure
-// (LIKE … INCLUDING ALL) + a full row copy inside the open tx, returning the
-// total rows copied. Both schema names are pre-sanitized and re-quoted via
-// pgx.Identifier (double-belt).
+// (LIKE … INCLUDING ALL — copies columns, defaults, constraints, indexes) plus a
+// full row copy (INSERT … SELECT *) inside the open tx, returning the total rows
+// copied. Both schema names are pre-sanitized and re-quoted via pgx.Identifier
+// (double-belt).
 func cloneTables(ctx context.Context, tx pgx.Tx, parentSchema, branchSchemaName string, tables []string) (int64, error) {
 	branchQ := pgx.Identifier{branchSchemaName}.Sanitize()
 	if _, err := tx.Exec(ctx, fmt.Sprintf(`CREATE SCHEMA %s`, branchQ)); err != nil {
@@ -72,12 +73,10 @@ func cloneTables(ctx context.Context, tx pgx.Tx, parentSchema, branchSchemaName 
 	for _, t := range tables {
 		parentT := pgx.Identifier{parentSchema, t}.Sanitize()
 		branchT := pgx.Identifier{branchSchemaName, t}.Sanitize()
-		// Structure: INCLUDING ALL copies columns, defaults, constraints, indexes.
 		if _, err := tx.Exec(ctx,
 			fmt.Sprintf(`CREATE TABLE %s (LIKE %s INCLUDING ALL)`, branchT, parentT)); err != nil {
 			return 0, fmt.Errorf("branching: create table %s: %w", branchT, err)
 		}
-		// Data: full row copy.
 		tag, err := tx.Exec(ctx, fmt.Sprintf(`INSERT INTO %s SELECT * FROM %s`, branchT, parentT))
 		if err != nil {
 			return 0, fmt.Errorf("branching: copy rows %s: %w", branchT, err)

@@ -24,7 +24,6 @@ func buildKMSProvider() (cmek.KMSProvider, string, error) {
 	case "", "vault-transit":
 		return vaultTransitProvider(defaultKey)
 	case "local":
-		// TEST-ONLY: an in-process AES KEK. Documented as non-production.
 		seed := os.Getenv("CMEK_LOCAL_KEK_SEED")
 		if seed == "" {
 			seed = "cmek-local-default-seed"

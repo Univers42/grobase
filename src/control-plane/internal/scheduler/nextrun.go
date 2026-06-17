@@ -14,7 +14,6 @@ func (s Schedule) Next(from, now time.Time) time.Time {
 	if next.After(now) {
 		return next
 	}
-	// Catch up: skip whole missed intervals so the next run is in the future.
 	missed := now.Sub(from) / s.Interval
 	return from.Add((missed + 1) * s.Interval)
 }

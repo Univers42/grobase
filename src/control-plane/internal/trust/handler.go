@@ -36,9 +36,10 @@ type routes struct {
 }
 
 // posture serves the whole manifest (envelope + controls), controls sorted for a
-// stable, glanceable response.
+// stable, glanceable response. It copies the envelope and replaces controls with
+// the sorted view.
 func (rt *routes) posture(w http.ResponseWriter, _ *http.Request) {
-	out := *rt.manifest // copy the envelope; replace controls with the sorted view
+	out := *rt.manifest
 	out.Controls = SortControls(rt.manifest.Controls)
 	httpx.WriteJSON(w, http.StatusOK, out)
 }

@@ -141,6 +141,12 @@ func NewService(db *pg.Postgres, enc *Encryptor, log *slog.Logger) *Service {
 // packageForTenant resolves a tenant slug to its (name, package) via the
 // tenant's `plan` column. Returns ok=false when tiering is disabled or the
 // manifest is unavailable, so callers cleanly skip enforcement (parity).
+//
+// Dynamic builder (BUILDER_ENABLED): when a resolver is wired, the EFFECTIVE
+// package is the tenant's custom entitlement clamped to its ceiling. When nil
+// (the default), the plan resolves via the manifest verbatim — byte-parity.
+// Both return a packages.Package, so the AllowsEngine gate, the MaxMounts cap,
+// and the CapabilityOverrides stamp are identical downstream.
 func (s *Service) packageForTenant(ctx context.Context, tenantSlug string) (string, packages.Package, bool) {
 	if !s.enforce || s.pkgs == nil {
 		return "", packages.Package{}, false
@@ -155,11 +161,6 @@ func (s *Service) packageForTenant(ctx context.Context, tenantSlug string) (stri
 	} else {
 		s.log.Warn("package lookup failed; treating as default tier", "tenant", tenantSlug, "error", err)
 	}
-	// Dynamic builder (BUILDER_ENABLED): when a resolver is wired, the EFFECTIVE
-	// package is the tenant's custom entitlement clamped to its ceiling. When nil
-	// (the default), resolve the plan via the manifest verbatim — byte-parity.
-	// Both return a packages.Package, so the AllowsEngine gate, the MaxMounts cap,
-	// and the CapabilityOverrides stamp are identical downstream.
 	if s.resolver != nil {
 		name, pkg := s.resolver.Resolve(ctx, tenantSlug, plan)
 		return name, pkg, true

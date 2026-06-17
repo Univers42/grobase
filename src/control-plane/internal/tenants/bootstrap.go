@@ -8,12 +8,17 @@ import (
 
 // Bootstrap creates a tenant + default ABAC role + first API key in one shot.
 //
+// Self-serve bootstrap has no plan selection, so the tenant defaults to free
+// (""). Key issuance is idempotent: it reuses an existing active key of the
+// same name rather than re-minting a secret (which would invalidate live
+// clients), mirroring BootstrapForUser so both bootstrap paths behave
+// identically.
+//
 // The ABAC seeding speaks SQL directly into the same Postgres because
 // permission-engine lives in the same DB; cross-service call would be
 // transactional gymnastics. If you swap permission-engine to an external
 // store, swap this for an HTTP call to it.
 func (s *Service) Bootstrap(ctx context.Context, id, name string, req BootstrapRequest) (BootstrapResponse, error) {
-	// Self-serve bootstrap has no plan selection — defaults to free ("").
 	tenant, created, err := s.findOrCreateBySlug(ctx, id, name, req.OwnerUserID, "")
 	if err != nil {
 		return BootstrapResponse{}, err
@@ -21,9 +26,6 @@ func (s *Service) Bootstrap(ctx context.Context, id, name string, req BootstrapR
 	roles := s.seedBootstrapRoles(ctx, id, req)
 	keyName := defaultKeyName(req.DefaultKeyName)
 
-	// Idempotent key issuance: reuse an existing active key with this name
-	// rather than re-minting a secret (which would invalidate live clients).
-	// Mirrors BootstrapForUser so both bootstrap paths behave identically.
 	existing, err := s.findActiveKeyByName(ctx, id, keyName)
 	if err != nil {
 		return BootstrapResponse{}, err

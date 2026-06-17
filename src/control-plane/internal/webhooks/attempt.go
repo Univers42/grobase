@@ -10,7 +10,10 @@ import (
 )
 
 // handleEvent inserts pending delivery rows for every matching subscription,
-// then triggers an immediate first attempt for each one.
+// then triggers an immediate first attempt for each one. Outbox events are
+// tenant-attributed via the payload's tenant_id field when present; otherwise the
+// event is broadcast to subscribers across all tenants of the same aggregate. The
+// dispatcher only delivers to subscriptions matching the event's tenant_id.
 func (d *Dispatcher) handleEvent(ctx context.Context, aggregate string, msg redis.XMessage) error {
 	eventID, _ := msg.Values["id"].(string)
 	eventType, _ := msg.Values["event_type"].(string)
@@ -20,10 +23,6 @@ func (d *Dispatcher) handleEvent(ctx context.Context, aggregate string, msg redi
 		return nil
 	}
 
-	// Outbox events are tenant-attributed via payload (tenant_id field) when
-	// present; otherwise the event is broadcast to subscribers across all
-	// tenants of the same aggregate. The dispatcher only delivers to subs
-	// matching the event's tenant_id.
 	var payload map[string]any
 	if payloadStr != "" {
 		_ = json.Unmarshal([]byte(payloadStr), &payload)

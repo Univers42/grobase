@@ -71,7 +71,9 @@ func writeRegisterError(w http.ResponseWriter, req RegisterDatabaseRequest, err 
 	}
 }
 
+// validServiceToken reports whether the request carries a valid service token.
+// It delegates to serviceauth.VerifyServiceRequest, which does a constant-time
+// compare (timing-leak fix) — see serviceauth.SecureCompare.
 func validServiceToken(r *http.Request, expected string) bool {
-	// Constant-time compare (timing-leak fix) — see serviceauth.SecureCompare.
 	return serviceauth.VerifyServiceRequest(r, expected)
 }

@@ -76,7 +76,8 @@ func restoreTx(ctx context.Context, conn *pgx.Conn, body []byte, m manifest, qua
 // restoreDatabase restores a db_per_tenant backup into A's OWN database via the
 // resolved DSN: per-table TRUNCATE + COPY FROM STDIN inside one transaction.
 // NEVER the shared control-plane DB; NEVER a shared object. Atomic — rollback on
-// any error. Table names in the manifest are already schema-qualified.
+// any error. Manifest names are already schema-qualified + pgx.Identifier-sanitized
+// at extract time, so the qualify step is identity.
 func restoreDatabase(ctx context.Context, dsn string, r io.Reader) error {
 	body, m, err := splitArtifact(r)
 	if err != nil {
@@ -88,8 +89,6 @@ func restoreDatabase(ctx context.Context, dsn string, r io.Reader) error {
 	}
 	defer func() { _ = conn.Close(ctx) }()
 
-	// Manifest names are already schema-qualified + pgx.Identifier-sanitized at
-	// extract time, so the qualify step is identity.
 	qualify := func(tbl string) string { return tbl }
 	return restoreTx(ctx, conn, body, m, qualify)
 }

@@ -75,6 +75,9 @@ func (c *verifyCache) get(h string) (VerifyKeyResponse, bool) {
 // put stores a positive result. Bounded: when at capacity it first sweeps
 // expired entries, then evicts one arbitrary entry if still full — O(n) only on
 // the rare full-insert, never on the hot get path.
+// put stores a valid response, no-op when the cache is disabled or the response
+// is invalid. When the cache is at capacity it first sweeps expired entries, and
+// if still full evicts one arbitrary entry to make room.
 func (c *verifyCache) put(h string, resp VerifyKeyResponse) {
 	if !c.enabled() || !resp.Valid {
 		return
@@ -89,7 +92,7 @@ func (c *verifyCache) put(h string, resp VerifyKeyResponse) {
 			}
 		}
 		if len(c.m) >= c.max {
-			for k := range c.m { // evict one arbitrary entry to make room
+			for k := range c.m {
 				delete(c.m, k)
 				break
 			}

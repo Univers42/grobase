@@ -6,18 +6,22 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
+// requireUser resolves the asserted identity, writing 401 and returning ok=false
+// when it is missing or (under identity HMAC) unverifiable.
+//
+// Header precedence (post-M11 signed-envelope migration):
+//  1. X-Baas-User-Id   — signed envelope user id
+//  2. X-Baas-Tenant-Id — signed envelope tenant id (rows are keyed by tenant)
+//  3. X-User-Id        — legacy raw header (compat mode only)
+//  4. X-Tenant-Id      — legacy raw tenant header
+//
+// The TS service did full HMAC verification on the X-Baas-* headers; the Go
+// service TRUSTS them by default (the data plane and adapter-registry sit on a
+// private docker network, and write paths additionally require the service
+// token). Audit residual O6: set ADAPTER_REGISTRY_IDENTITY_HMAC=1 to require an
+// X-Baas-Identity-Auth signature over the asserted identity (see identity.go)
+// so a peer on a flat bridge can no longer spoof identity.
 func (rt *routes) requireUser(w http.ResponseWriter, r *http.Request) (string, bool) {
-	// Header precedence (post-M11 signed-envelope migration):
-	//   1. X-Baas-User-Id   — signed envelope user id
-	//   2. X-Baas-Tenant-Id — signed envelope tenant id (rows are keyed by tenant)
-	//   3. X-User-Id        — legacy raw header (compat mode only)
-	//   4. X-Tenant-Id      — legacy raw tenant header
-	// The TS service did full HMAC verification on the X-Baas-* headers; the Go
-	// service TRUSTS them by default (the data plane and adapter-registry sit on
-	// a private docker network, and write paths additionally require the service
-	// token). Audit residual O6: set ADAPTER_REGISTRY_IDENTITY_HMAC=1 to require
-	// an X-Baas-Identity-Auth signature over the asserted identity (see
-	// identity.go) so a peer on a flat bridge can no longer spoof identity.
 	userID, tenantID, resolved := resolveIdentityHeaders(r)
 	if resolved == "" {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",

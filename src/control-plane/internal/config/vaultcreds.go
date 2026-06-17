@@ -24,8 +24,8 @@ const minVaultEncKeyChars = 16
 // (unset → no credential at all) is in the set.
 func isPlaceholderEncKey(s string) bool {
 	switch s {
-	case "", // unset → no credential at all
-		"0123456789abcdef0123456789abcdef", // the compose default-of-last-resort
+	case "",
+		"0123456789abcdef0123456789abcdef",
 		"changeme",
 		"change-me",
 		"dev-vault-enc-key":
@@ -44,7 +44,7 @@ func isPlaceholderEncKey(s string) bool {
 //     from Vault. Otherwise we refuse to boot, with no silent env fallback.
 func requireVaultBackedCredentials(mode string) error {
 	if mode != securityModeMax {
-		return nil // OFF (default) — byte-parity short-circuit, before any work.
+		return nil
 	}
 	if err := validateEncKey(os.Getenv(vaultEncKeyEnv)); err != nil {
 		return err

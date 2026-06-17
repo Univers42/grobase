@@ -70,7 +70,6 @@ func (r *Resolver) Resolve(ctx context.Context, slug, plan string) (string, pack
 		return r.manifest.For(plan)
 	}
 	if rec.Status != "active" {
-		// draft/other → not yet in force; resolve the named tier (parity).
 		return r.manifest.For(plan)
 	}
 	return r.applyActive(rec, plan)

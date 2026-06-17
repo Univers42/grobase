@@ -7,13 +7,13 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// List returns tenant database metadata, newest first.
+// List returns tenant database metadata, newest first. Defense-in-depth: the
+// query binds tenant_id EXPLICITLY (atop RLS), so isolation never depends on
+// the DB role / RLS being active — a self-serve /me/mounts caller must only
+// ever see its OWN mounts even if the connection bypasses RLS.
 func (s *Service) List(ctx context.Context, userID string) ([]TenantDatabase, error) {
 	out := make([]TenantDatabase, 0)
 	err := s.db.TenantTx(ctx, userID, func(tx pgx.Tx) error {
-		// Defense-in-depth: bind tenant_id EXPLICITLY (atop RLS), so isolation never
-		// depends on the DB role / RLS being active — a self-serve /me/mounts caller
-		// must only ever see its OWN mounts even if the connection bypasses RLS.
 		rows, err := tx.Query(ctx,
 			`SELECT id::text, tenant_id::text, engine, name, created_at::text, last_healthy_at::text
 			   FROM public.tenant_databases

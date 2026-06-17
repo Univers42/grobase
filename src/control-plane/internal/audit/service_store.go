@@ -66,9 +66,10 @@ func normalizePayload(p []byte) json.RawMessage {
 // lockKey hashes a tenant id to a stable signed 64-bit pg_advisory lock key, so
 // appends serialize per tenant (different tenants get different keys → no
 // cross-tenant contention). FNV-1a is deterministic and fast; the value is
-// reinterpreted as int64 (pg_advisory_xact_lock(bigint)).
+// reinterpreted as int64 (pg_advisory_xact_lock(bigint)) — wrapping to a signed
+// bigint, where a collision only costs serialization, never correctness.
 func lockKey(tenantID string) int64 {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(tenantID))
-	return int64(h.Sum64()) // wrap to signed bigint; collision only costs serialization, never correctness
+	return int64(h.Sum64())
 }

@@ -51,6 +51,10 @@ func NewPGLocker(src ConnAcquirer) Locker {
 // connection affinity) without a live Postgres.
 func newPGLockerWithSource(src connSource) Locker { return &pgLocker{src: src} }
 
+// TryLock acquires the session advisory lock on a pinned connection. When the
+// lock is held elsewhere it fast-fails to a 409 by returning ok=false and
+// releasing the connection immediately — no lock was taken, so there is nothing
+// to unlock.
 func (l *pgLocker) TryLock(ctx context.Context, slug string) (func(), bool, error) {
 	conn, err := l.src.acquire(ctx)
 	if err != nil {
@@ -67,8 +71,6 @@ func (l *pgLocker) TryLock(ctx context.Context, slug string) (func(), bool, erro
 		return nil, false, scanErr
 	}
 	if !ok {
-		// Lock held elsewhere → fast-fail to 409. Return the connection
-		// immediately; we never took the lock so there is nothing to unlock.
 		conn.Release()
 		return nil, false, nil
 	}

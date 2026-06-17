@@ -81,9 +81,6 @@ func (rt *routes) createBackup(w http.ResponseWriter, r *http.Request) {
 	if rt.handleBackupErr(w, err) {
 		return
 	}
-	// CreateBackup returns the ledger id (and reaches a terminal status before
-	// returning); the API surface stays async-shaped (202 + status:"pending") so a
-	// future queued backend is a drop-in without a contract change.
 	httpx.WriteJSON(w, http.StatusAccepted, map[string]string{
 		"backup_id": backupID,
 		"status":    "pending",
@@ -104,14 +101,14 @@ func (rt *routes) listBackups(w http.ResponseWriter, r *http.Request) {
 // (load-bearing) that the backup row's tenant_id matches {id} BEFORE any DDL: a
 // mismatch (or unknown backup) yields ErrNotOwned -> 404, so a restore of A can
 // never touch B even if a B caller guessed A's backup id. A deferred isolation
-// model is rejected 400.
+// model is rejected 400. Restore returns only error (it flips the ledger status
+// itself); the handler reports the async-shaped acknowledgement the contract
+// specifies.
 func (rt *routes) restore(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	backupID := r.PathValue("backupId")
 	if err := rt.svc.Restore(r.Context(), id, backupID); rt.handleBackupErr(w, err) {
 		return
 	}
-	// Restore returns only error (it flips the ledger status itself); the handler
-	// reports the async-shaped acknowledgement the contract specifies.
 	httpx.WriteJSON(w, http.StatusAccepted, map[string]string{"status": "restoring"})
 }

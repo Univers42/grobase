@@ -64,13 +64,14 @@ func (d *Dispatcher) attempt(ctx context.Context, triggerID, eventID string) {
 
 // invoke POSTs the change payload to functions-runtime
 // POST <runtime>/v1/functions/<name>/invoke with the tenant header so the
-// runtime resolves the function under the right namespace.
+// runtime resolves the function under the right namespace. The request deadline
+// is the function's own timeout budget plus 5s of slack, so the runtime has time
+// to respond on top of the function's own budget.
 func (d *Dispatcher) invoke(ctx context.Context, tenantID, functionName string, timeoutMs int, body string) (int, error) {
 	timeout := time.Duration(timeoutMs) * time.Millisecond
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	// allow runtime time on top of the function's own budget
 	reqCtx, cancel := context.WithTimeout(ctx, timeout+5*time.Second)
 	defer cancel()
 

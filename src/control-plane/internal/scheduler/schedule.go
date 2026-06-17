@@ -74,12 +74,13 @@ func aliasInterval(lower string) (time.Duration, bool) {
 	return 0, false
 }
 
+// parseDuration parses a duration string; a bare integer is interpreted as
+// seconds, otherwise it falls back to Go's time.ParseDuration grammar.
 func parseDuration(s string) (time.Duration, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return 0, fmt.Errorf("empty duration")
 	}
-	// Bare integer => seconds.
 	if n, err := strconv.Atoi(s); err == nil {
 		return time.Duration(n) * time.Second, nil
 	}

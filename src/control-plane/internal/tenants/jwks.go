@@ -100,7 +100,7 @@ func parseJWKKeys(doc jwksDoc) map[string]*rsa.PublicKey {
 		}
 		pub, err := rsaPublicKeyFromJWK(jwk.N, jwk.E)
 		if err != nil {
-			continue // skip malformed keys, keep the rest
+			continue
 		}
 		parsed[jwk.Kid] = pub
 	}

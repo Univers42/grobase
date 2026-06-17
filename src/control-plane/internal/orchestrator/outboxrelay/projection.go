@@ -63,7 +63,7 @@ func (m *mongoProjector) sagaProjection(e *outboxEvent) (bson.M, bson.M) {
 	}
 	set["aggregate_id"] = e.AggregateID
 	set["outbox_event_id"] = e.ID
-	set["request_id"] = pg.NullableStr(e.RequestID) // "" -> BSON null (parity with Node request_id)
+	set["request_id"] = pg.NullableStr(e.RequestID)
 	set["updated_at"] = m.projectorNow()
 	return bson.M{"_id": e.AggregateID}, bson.M{"$set": set}
 }

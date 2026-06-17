@@ -73,7 +73,12 @@ func New(log *slog.Logger, pg *pg.Postgres) *Service {
 func (s *Service) Name() string { return "outbox-relay" }
 
 // Init connects Redis before the poll loop starts (parity with onModuleInit).
-// The outbox_events table itself is owned by migrations, not created here.
+// The outbox_events table itself is owned by migrations, not created here. Mongo
+// is a SOFT dependency (parity with MONGO_OPTIONAL): the driver-backed projector
+// is selected only when OUTBOX_MONGO_URL is set AND a connection succeeds;
+// otherwise the no-op projector is kept so a deployment without Mongo (lean /
+// single-tenant CRUD tiers) boots degraded and skips projections loudly. A Mongo
+// connect failure never blocks Init.
 func (s *Service) Init(ctx context.Context) error {
 	opts, err := redis.ParseURL(s.redisURL)
 	if err != nil {
@@ -85,11 +90,6 @@ func (s *Service) Init(ctx context.Context) error {
 		return err
 	}
 	s.log.Info("outbox relay redis connected")
-	// Mongo is a SOFT dependency (parity with MONGO_OPTIONAL): select the
-	// driver-backed projector only when OUTBOX_MONGO_URL is set AND a connection
-	// succeeds; otherwise keep the no-op so a deployment without Mongo (lean /
-	// single-tenant CRUD tiers) boots degraded and skips projections loudly. A
-	// connect failure never blocks Init.
 	if p, ok := newMongoProjector(ctx, s.log, s.mongoURL); ok {
 		s.project = p
 	}
@@ -100,13 +100,14 @@ func (s *Service) Init(ctx context.Context) error {
 // is a background worker.
 func (s *Service) Mount(_ *http.ServeMux) {}
 
-// Run is the poll loop: every pollEvery, drain a batch. A tick is skipped if the
+// Run is the poll loop: every pollEvery, drain a batch, after an immediate first
+// drain (parity with the Node await this.tick()). A tick is skipped if the
 // previous one is still running (the loop is single-threaded, so serialization
 // is implicit). Stops on ctx cancellation.
 func (s *Service) Run(ctx context.Context) {
 	ticker := time.NewTicker(s.pollEvery)
 	defer ticker.Stop()
-	s.tick(ctx) // immediate first drain (parity with the Node await this.tick())
+	s.tick(ctx)
 	for {
 		select {
 		case <-ctx.Done():

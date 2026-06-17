@@ -49,12 +49,16 @@ type LocalFileStore struct{ dir string }
 // NewLocalFileStore returns a filesystem-backed ArtifactStore rooted at dir.
 func NewLocalFileStore(dir string) *LocalFileStore { return &LocalFileStore{dir: dir} }
 
+// path resolves the on-disk location for key, which is "<tenant>/<backupId>";
+// both segments are sanitized upstream (tenant id and a gen_random_uuid()), but
+// Clean defends against any "../" regardless.
 func (s *LocalFileStore) path(key string) string {
-	// key is "<tenant>/<backupId>"; both are sanitized upstream (tenant id and a
-	// gen_random_uuid()), but Clean defends against any "../" regardless.
 	return filepath.Join(s.dir, filepath.Clean("/"+key))
 }
 
+// Upload streams r into a temp file (sha256 computed in-stream) then publishes it
+// atomically via rename, so a partial write is never observable as a completed
+// artifact. The deferred temp-file Remove is a no-op after a successful rename.
 func (s *LocalFileStore) Upload(ctx context.Context, key string, r io.Reader) (string, int64, string, error) {
 	dst := s.path(key)
 	if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
@@ -65,7 +69,7 @@ func (s *LocalFileStore) Upload(ctx context.Context, key string, r io.Reader) (s
 		return "", 0, "", fmt.Errorf("backup: create temp artifact: %w", err)
 	}
 	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }() // no-op after a successful rename
+	defer func() { _ = os.Remove(tmpName) }()
 
 	n, sum, err := streamToTemp(tmp, r)
 	if err != nil {

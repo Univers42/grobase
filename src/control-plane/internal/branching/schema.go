@@ -25,6 +25,9 @@ const ErrInvalidBranchName branchingErr = "invalid branch name (must be a non-em
 // THIS IS THE SQL-IDENTIFIER-INJECTION GUARD. The returned value is interpolated
 // into branchSchema(), which is interpolated into CREATE SCHEMA DDL (identifiers
 // cannot be bind params). branching_test.go pins this against meta-char inputs.
+// Any meta char (';', ' ', '"', '-', etc.) is a hard reject — the injection wall,
+// not a best-effort cleanup. A name that is ALL underscores trims to empty and is
+// not a usable schema suffix, so it is rejected too.
 func sanitizeBranchName(name string) (string, error) {
 	name = strings.TrimSpace(strings.ToLower(name))
 	if name == "" || len(name) > 40 {
@@ -33,15 +36,10 @@ func sanitizeBranchName(name string) (string, error) {
 	for _, r := range name {
 		switch {
 		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '_':
-			// ok
 		default:
-			// Any meta char (';', ' ', '"', '-', etc.) is a hard reject — this is
-			// the injection wall, not a best-effort cleanup.
 			return "", ErrInvalidBranchName
 		}
 	}
-	// A branch name that is ALL underscores trims to empty -> not a usable schema
-	// suffix; reject it too.
 	if strings.Trim(name, "_") == "" {
 		return "", ErrInvalidBranchName
 	}

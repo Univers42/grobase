@@ -38,11 +38,12 @@ func argon2MaxConcurrent() int {
 
 // hashPayload runs argon2id over (payload || prefix). The prefix doubles as
 // the salt so the same payload string yields different hashes per key, but
-// we don't need to store a separate salt column.
+// we don't need to store a separate salt column. The cost parameters are
+// timeCost=1, memoryCost=32*1024 (32 MiB), threads=2, outputLen=32.
 func (h *keyHasher) hashPayload(payload, prefix string) string {
 	const (
 		timeCost   = 1
-		memoryCost = 32 * 1024 // 32 MiB
+		memoryCost = 32 * 1024
 		threads    = 2
 		outputLen  = 32
 	)

@@ -26,7 +26,8 @@ func message(method string, status int) string {
 // { success, statusCode, message, data, path, timestamp }. Untouched (verbatim
 // passthrough): non-2xx (the error filter owns those), non-JSON bodies, and the
 // /metrics + /health* operational endpoints (the interceptor skips /metrics;
-// health probes must stay a bare body for the container HEALTHCHECK).
+// health probes must stay a bare body for the container HEALTHCHECK). On the
+// passthrough branch the captured body is replayed unchanged so it is never lost.
 func Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/metrics" || strings.HasPrefix(r.URL.Path, "/health") {
@@ -38,7 +39,7 @@ func Wrap(next http.Handler) http.Handler {
 
 		body := c.buf.Bytes()
 		out, err := buildEnvelope(r, c, body)
-		if out == nil || err != nil { // passthrough; never lose the body
+		if out == nil || err != nil {
 			writeVerbatim(w, c, body)
 			return
 		}
@@ -51,7 +52,9 @@ func Wrap(next http.Handler) http.Handler {
 }
 
 // buildEnvelope returns the wrapped { success,… } body, or (nil,nil) when the
-// response must pass through verbatim (non-2xx, non-JSON, or invalid body).
+// response must pass through verbatim (non-2xx, non-JSON, or invalid body). The
+// original body is embedded as json.RawMessage so the payload is never re-parsed,
+// and timestamp matches JS new Date().toISOString() (millis + a literal Z).
 func buildEnvelope(r *http.Request, c *capture, body []byte) ([]byte, error) {
 	ct := c.header.Get("Content-Type")
 	if c.status < 200 || c.status >= 300 ||
@@ -62,9 +65,8 @@ func buildEnvelope(r *http.Request, c *capture, body []byte) ([]byte, error) {
 		"success":    true,
 		"statusCode": c.status,
 		"message":    message(r.Method, c.status),
-		"data":       json.RawMessage(body), // verbatim — never re-parse the payload
+		"data":       json.RawMessage(body),
 		"path":       r.URL.RequestURI(),
-		// JS new Date().toISOString() form: millis + literal Z.
-		"timestamp": time.Now().UTC().Format("2006-01-02T15:04:05.000") + "Z",
+		"timestamp":  time.Now().UTC().Format("2006-01-02T15:04:05.000") + "Z",
 	})
 }

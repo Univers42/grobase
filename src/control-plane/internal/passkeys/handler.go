@@ -80,6 +80,9 @@ type loginBeginRequest struct {
 
 // ── handlers ───────────────────────────────────────────────────────────────
 
+// registerBegin starts WebAuthn registration: it returns the challenge id and the
+// publicKey creation options (creation.Response) the browser feeds to
+// navigator.credentials.create.
 func (rt *routes) registerBegin(w http.ResponseWriter, r *http.Request) {
 	var req registerBeginRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -103,7 +106,7 @@ func (rt *routes) registerBegin(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{
 		"challenge_id": challengeID,
-		"publicKey":    creation.Response, // the navigator.credentials.create options
+		"publicKey":    creation.Response,
 	})
 }
 
@@ -123,6 +126,9 @@ func (rt *routes) registerFinish(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// loginBegin starts WebAuthn login: it returns the challenge id and the publicKey
+// request options (assertion.Response) the browser feeds to
+// navigator.credentials.get.
 func (rt *routes) loginBegin(w http.ResponseWriter, r *http.Request) {
 	var req loginBeginRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -146,7 +152,7 @@ func (rt *routes) loginBegin(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{
 		"challenge_id": challengeID,
-		"publicKey":    assertion.Response, // the navigator.credentials.get options
+		"publicKey":    assertion.Response,
 	})
 }
 

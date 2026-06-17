@@ -65,7 +65,10 @@ func (s *Service) BeginLogin(ctx context.Context, in BeginInput) (BeginResult, e
 }
 
 // resolveConnection picks the connection by explicit id, or by the email's domain
-// within the tenant. A missing connection is ErrConnectionNotFound.
+// within the tenant. A missing connection is ErrConnectionNotFound. An email-domain
+// lookup requires a tenant scope — without one it would be a cross-tenant scan, so it
+// is refused (ErrValidation); an untenanted deployment must name a connection_id (or
+// send the tenant header) instead.
 func (s *Service) resolveConnection(ctx context.Context, in BeginInput) (Connection, error) {
 	if id := strings.TrimSpace(in.ConnectionID); id != "" {
 		return s.store.GetByID(ctx, id)
@@ -80,9 +83,6 @@ func (s *Service) resolveConnection(ctx context.Context, in BeginInput) (Connect
 	}
 	domain := strings.ToLower(email[at+1:])
 	if strings.TrimSpace(in.TenantID) == "" {
-		// Without a tenant scope an email-domain lookup would be a cross-tenant
-		// scan — refuse it. The caller must name a connection_id (or send the
-		// tenant header) for an untenanted deployment.
 		return Connection{}, ErrValidation
 	}
 	return s.store.GetByEmailDomain(ctx, in.TenantID, domain)
@@ -90,14 +90,15 @@ func (s *Service) resolveConnection(ctx context.Context, in BeginInput) (Connect
 
 // FinishLogin consumes the single-use state, exchanges the code at the IdP,
 // verifies the returned id_token (signature + iss/aud/exp/nonce), resolves the
-// user from the verified claims, and mints a session JWT. A missing/expired/
+// user from the verified claims, and mints a session JWT. The state is single-use —
+// taking it consumes it, so even a same-state retry misses. A missing/expired/
 // replayed state is ErrStateNotFound; any id_token verification failure is
 // ErrTokenRejected — NO session is minted in either case.
 func (s *Service) FinishLogin(ctx context.Context, state, code string) (MintedSession, error) {
 	if strings.TrimSpace(state) == "" || strings.TrimSpace(code) == "" {
 		return MintedSession{}, ErrValidation
 	}
-	ls, ok := s.states.take(state) // single-use: even a same-state retry misses.
+	ls, ok := s.states.take(state)
 	if !ok {
 		return MintedSession{}, ErrStateNotFound
 	}

@@ -9,8 +9,9 @@ import (
 )
 
 // parseCIJobs extracts the `<id>:` job keys under a `jobs:` block of a CI
-// workflow YAML (a lightweight parse — no YAML dep). Returns nil when no
-// workflow is configured, which is fine: the CI section then evidences gates
+// workflow YAML (a lightweight parse — no YAML dep) via jobKeyRe, which matches
+// a `<id>:` job key indented two spaces under a `jobs:` block. Returns nil when
+// no workflow is configured, which is fine: the CI section then evidences gates
 // only. This is enough to record "which CI jobs exist" as control evidence.
 // perf: regex compiled per call — compliance collection, cold path.
 func (c *Collector) parseCIJobs() ([]string, error) {
@@ -25,7 +26,6 @@ func (c *Collector) parseCIJobs() ([]string, error) {
 		return nil, err
 	}
 	defer f.Close()
-	// jobKeyRe matches a `<id>:` job key indented two spaces under a `jobs:` block.
 	jobKeyRe := regexp.MustCompile(`^  ([A-Za-z0-9_-]+):\s*$`)
 	jobs, err := scanWorkflowJobs(f, jobKeyRe)
 	if err != nil {

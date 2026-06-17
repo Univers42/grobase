@@ -137,6 +137,10 @@ func (rt *routes) export(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, bundle)
 }
 
+// verify recomputes the tenant's chain and returns 200 whether intact or broken —
+// the CALLER acts on res.Intact / res.BrokenSeq. A broken chain is a successful
+// verification that REPORTS tampering, not a server error (the gate's load-bearing
+// REJECT asserts intact==false + broken_seq at the tampered link).
 func (rt *routes) verify(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("id")
 	if !rt.tokenOrSelf(w, r, tenantID) {
@@ -147,9 +151,5 @@ func (rt *routes) verify(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	// 200 whether intact or broken — the CALLER acts on res.Intact / res.BrokenSeq.
-	// A broken chain is a successful verification that REPORTS tampering, not a
-	// server error (the gate's load-bearing REJECT asserts intact==false +
-	// broken_seq at the tampered link).
 	httpx.WriteJSON(w, http.StatusOK, res)
 }

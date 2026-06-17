@@ -15,6 +15,12 @@ import (
 //	                            the module slice returns this for an unknown backup
 //	                            too, since the lookup binds (id, tenant_id))
 //	anything else        -> 500
+//
+// ErrNotOwned is mapped 404 (not 403) so the existence of another tenant's backup
+// is not even confirmed to a probing caller — same opacity as a missing row. The
+// module-slice Restore returns ErrNotOwned for BOTH a wrong-tenant backup and an
+// unknown id (the SELECT binds id AND tenant_id), so this one arm covers the whole
+// load-bearing caller==owner contract.
 func (rt *routes) handleBackupErr(w http.ResponseWriter, err error) bool {
 	switch {
 	case err == nil:
@@ -23,11 +29,6 @@ func (rt *routes) handleBackupErr(w http.ResponseWriter, err error) bool {
 		httpx.WriteError(w, http.StatusBadRequest, "isolation_unsupported",
 			"isolation not supported for backup/restore (deferred)")
 	case errors.Is(err, ErrNotOwned):
-		// 404 (not 403) so the existence of another tenant's backup is not even
-		// confirmed to a probing caller — same opacity as a missing row. The
-		// module-slice Restore returns ErrNotOwned for BOTH a wrong-tenant backup
-		// and an unknown id (the SELECT binds id AND tenant_id), so this one arm
-		// covers the whole load-bearing caller==owner contract.
 		httpx.WriteError(w, http.StatusNotFound, "not_found", "backup not found")
 	default:
 		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())

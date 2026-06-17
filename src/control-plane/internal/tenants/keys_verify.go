@@ -61,6 +61,10 @@ func (s *Service) cacheGet(full string) (string, VerifyKeyResponse, bool) {
 // payload+prefix (constant-time). On a match it stamps last_used_at + lazily
 // upgrades a legacy hash (both async) and returns a valid response; no match
 // returns Reason "no_match", an expired row returns "expired".
+//
+// The lazy migration rewrites the first verify of a legacy argon2id key to the
+// fast scheme, so a live fleet drains off argon2 without re-provisioning
+// (best-effort, async; KEY_HASH_UPGRADE=0 disables it).
 func (s *Service) matchKeyRows(rows pgx.Rows, prefix, payload string) (VerifyKeyResponse, error) {
 	for rows.Next() {
 		var (
@@ -78,9 +82,6 @@ func (s *Service) matchKeyRows(rows pgx.Rows, prefix, payload string) (VerifyKey
 			continue
 		}
 		go s.touchLastUsed(keyID)
-		// Lazy hash migration: the first verify of a legacy argon2id key rewrites
-		// it to the fast scheme, so a live fleet drains off argon2 without re-
-		// provisioning (best-effort, async; KEY_HASH_UPGRADE=0 disables).
 		if !isFastHash(storedHash) && os.Getenv("KEY_HASH_UPGRADE") != "0" {
 			go s.upgradeKeyHash(keyID, payload, prefix)
 		}

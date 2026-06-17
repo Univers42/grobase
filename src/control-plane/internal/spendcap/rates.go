@@ -20,6 +20,8 @@ type rateTable struct {
 // loadRateTable reads the SPEND_RATE_* env into a metric→milli-cents map. Only
 // metrics with a positive rate are included (opt-in per dimension); an unparsable
 // or non-positive rate is skipped (it would price that dimension at zero anyway).
+// Each raw value is a cents-per-unit decimal converted to a milli-cents integer
+// (×1000), rounded.
 func loadRateTable() rateTable {
 	metrics := billableMetrics()
 	m := make(map[string]int64, len(metrics))
@@ -28,7 +30,6 @@ func loadRateTable() rateTable {
 		if raw == "" {
 			continue
 		}
-		// cents-per-unit decimal → milli-cents integer (×1000), rounded.
 		if cents, ok := parseCentsToMilli(raw); ok && cents > 0 {
 			m[metric] = cents
 		}
@@ -37,14 +38,14 @@ func loadRateTable() rateTable {
 }
 
 // parseCentsToMilli converts a decimal cents string ("0.0001") to milli-cents
-// (cents×1000) as an integer, rounding to the nearest milli-cent. Returns false on
-// a malformed value so a typo cannot silently price a dimension wrong.
+// (cents×1000) as an integer, rounding to the nearest milli-cent (the +0.5 term
+// gives round-to-nearest on the positive domain). Returns false on a malformed
+// value so a typo cannot silently price a dimension wrong.
 func parseCentsToMilli(s string) (int64, bool) {
 	var f float64
 	if _, err := fmt.Sscanf(s, "%g", &f); err != nil || f < 0 {
 		return 0, false
 	}
-	// +0.5 for round-to-nearest on the positive domain.
 	return int64(f*1000 + 0.5), true
 }
 

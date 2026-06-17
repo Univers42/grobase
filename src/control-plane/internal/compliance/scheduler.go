@@ -26,7 +26,7 @@ import (
 func (s *Service) StartScheduler(ctx context.Context) {
 	raw := os.Getenv("SOC2_EVIDENCE_SCHEDULE")
 	if raw == "" {
-		return // default: no scheduled snapshots (today's behavior)
+		return
 	}
 	d, err := time.ParseDuration(raw)
 	if err != nil || d <= 0 {
@@ -62,13 +62,14 @@ func (s *Service) runSchedule(ctx context.Context, d time.Duration) {
 // module does not vendor github.com/google/uuid (the audit/backup tables use the
 // DB-side gen_random_uuid() default); snapshot_id has no DB default, so we mint
 // it in Go without adding a dependency. 16 random bytes with the version/variant
-// nibbles set is a standard, collision-safe v4.
+// nibbles set is a standard, collision-safe v4: byte 6's high nibble is forced to
+// 0x4 (version 4) and byte 8's top two bits to 0b10 (variant 10).
 func newUUID() (string, error) {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		return "", err
 	}
-	b[6] = (b[6] & 0x0f) | 0x40 // version 4
-	b[8] = (b[8] & 0x3f) | 0x80 // variant 10
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
 }

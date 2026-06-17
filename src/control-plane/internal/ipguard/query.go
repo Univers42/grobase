@@ -60,11 +60,12 @@ func normalizeCIDR(raw string) (string, error) {
 	return ip.String() + "/128", nil
 }
 
-// parseIP parses a single IP, tolerating an IPv6 zone and surrounding brackets.
+// parseIP parses a single IP, tolerating an IPv6 zone (e.g. fe80::1%eth0, whose
+// %zone suffix is stripped) and surrounding brackets.
 func parseIP(raw string) net.IP {
 	raw = strings.TrimSpace(raw)
 	raw = strings.TrimPrefix(strings.TrimSuffix(raw, "]"), "[")
-	if i := strings.IndexByte(raw, '%'); i >= 0 { // strip IPv6 zone (fe80::1%eth0)
+	if i := strings.IndexByte(raw, '%'); i >= 0 {
 		raw = raw[:i]
 	}
 	return net.ParseIP(raw)

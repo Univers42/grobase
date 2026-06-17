@@ -59,6 +59,11 @@ type BuilderDeps struct {
 	ServiceToken string
 }
 
+// MountBuilder registers the dynamic-builder routes on mux, split into two
+// authority tiers: TENANT self-serve routes carry no path id (tenant resolved
+// from the credential) and cover mounts, entitlements, and builder preview;
+// OPERATOR admin routes carry a path id, require the service token, and hold
+// ceiling authority over a tenant's plan and entitlements.
 func MountBuilder(mux *http.ServeMux, d BuilderDeps) {
 	b := &builderAPI{
 		ss:       &selfServe{svc: d.Svc, jwt: d.JWT, manifest: d.Manifest},
@@ -68,7 +73,6 @@ func MountBuilder(mux *http.ServeMux, d BuilderDeps) {
 		svcToken: d.ServiceToken,
 	}
 
-	// ── TENANT self-serve (no path id; tenant from credential) ──────────────────
 	mux.HandleFunc("POST /v1/tenants/me/mounts", b.createMount)
 	mux.HandleFunc("GET /v1/tenants/me/mounts", b.listMounts)
 	mux.HandleFunc("DELETE /v1/tenants/me/mounts/{mountId}", b.deleteMount)
@@ -76,7 +80,6 @@ func MountBuilder(mux *http.ServeMux, d BuilderDeps) {
 	mux.HandleFunc("PATCH /v1/tenants/me/entitlements", b.patchEntitlements)
 	mux.HandleFunc("POST /v1/tenants/me/builder", b.preview)
 
-	// ── OPERATOR admin (path id; service-token; ceiling authority) ──────────────
 	mux.HandleFunc("PATCH /v1/tenants/{id}/ceiling", b.operatorSetCeiling)
 	mux.HandleFunc("PUT /v1/tenants/{id}/entitlement", b.operatorUpsertEntitlement)
 }

@@ -47,11 +47,12 @@ type Manifest struct {
 // It returns the computed Manifest (table list + counts) so the service can
 // record it in the ledger. The bundle's sha256/size come from the store's Upload
 // (it tees the stream), so this function only PRODUCES the bytes.
+//
+// The manifest must be emitted FIRST (so a streaming reader sees it up front) but
+// its row counts are only known after each table is read; resolved by counting
+// rows per table first (cheap COUNT(*)), then streaming the data — so the
+// manifest is complete before a single data byte is written.
 func writeBundle(ctx context.Context, conn *pgxpool.Conn, w io.Writer, m Manifest, tbls []exportTable) (Manifest, error) {
-	// We must emit the manifest FIRST (so a streaming reader sees it up front) but
-	// its row counts are only known after each table is read. Resolve this by
-	// counting rows per table first (cheap COUNT(*)), then streaming the data —
-	// the manifest is complete before a single data byte is written.
 	m, err := countManifestRows(ctx, conn, m, tbls)
 	if err != nil {
 		return Manifest{}, err
@@ -84,12 +85,13 @@ func countManifestRows(ctx context.Context, conn *pgxpool.Conn, m Manifest, tbls
 }
 
 // writeManifestHeader opens the document and emits the complete manifest plus
-// the `"data":{` opener.
+// the `"data":{` opener. json.Encode appends a newline, harmless in JSON
+// whitespace.
 func writeManifestHeader(w io.Writer, m Manifest) error {
 	if _, err := io.WriteString(w, `{"manifest":`); err != nil {
 		return fmt.Errorf("export: write manifest open: %w", err)
 	}
-	if err := json.NewEncoder(w).Encode(m); err != nil { // Encode appends a newline — harmless in JSON whitespace
+	if err := json.NewEncoder(w).Encode(m); err != nil {
 		return fmt.Errorf("export: encode manifest: %w", err)
 	}
 	if _, err := io.WriteString(w, `,"data":{`); err != nil {
@@ -99,6 +101,8 @@ func writeManifestHeader(w io.Writer, m Manifest) error {
 }
 
 // writeBundleData streams each table as `"<label>": [rows]`, comma-separated.
+// The key is the manifest label (schema-relative for schema_per_tenant, the bare
+// table name for shared_rls), JSON-quoted.
 func writeBundleData(ctx context.Context, conn *pgxpool.Conn, w io.Writer, tbls []exportTable) error {
 	for i := range tbls {
 		if i > 0 {
@@ -106,8 +110,6 @@ func writeBundleData(ctx context.Context, conn *pgxpool.Conn, w io.Writer, tbls 
 				return err
 			}
 		}
-		// Key: the manifest label (schema-relative for schema_per_tenant, the bare
-		// table name for shared_rls), JSON-quoted.
 		keyB, _ := json.Marshal(tbls[i].label)
 		if _, err := w.Write(keyB); err != nil {
 			return err

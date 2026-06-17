@@ -13,13 +13,16 @@ import (
 // cred-ref mount (S2) it returns the credential_ref so the data plane resolves
 // the real DSN itself via its CredentialProvider registry — no plaintext DSN
 // ever travels back through the control plane for a Vault-backed mount.
+//
+// A cred-ref mount surfaces provider+reference with NO decrypt; the DB XOR
+// check guarantees an inline row never has cred_* set. A CMEK / BYOK (D4.8)
+// cmek-envelope mount decrypts via the EXTERNAL KMS in resolveConnString; if
+// CMEK is disabled/unconfigured it fails closed.
 func (s *Service) GetConnection(ctx context.Context, userID, id string) (ConnectionResult, error) {
 	row, err := s.loadMountRow(ctx, userID, id)
 	if err != nil {
 		return ConnectionResult{}, err
 	}
-	// Cred-ref mount: surface provider+reference (NO decrypt; the DB XOR check
-	// guarantees an inline row never has cred_* set).
 	if row.provider != nil && *row.provider != "" {
 		result := ConnectionResult{
 			Engine:        row.engine,
@@ -28,8 +31,6 @@ func (s *Service) GetConnection(ctx context.Context, userID, id string) (Connect
 		}
 		return s.stampPackage(ctx, userID, result), nil
 	}
-	// CMEK / BYOK (D4.8): a cmek-envelope mount decrypts via the EXTERNAL KMS in
-	// resolveConnString; if CMEK is disabled/unconfigured, fail closed.
 	if len(row.cmekWrap) > 0 && (!s.cmekEnabled || s.kms == nil) {
 		return ConnectionResult{}, errors.New("cmek mount stored but CMEK is disabled/unconfigured — cannot decrypt")
 	}

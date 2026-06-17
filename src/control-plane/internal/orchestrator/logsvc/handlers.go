@@ -31,13 +31,15 @@ func (s *Service) handleIngest(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"accepted": true, "entry": entry})
 }
 
+// handleList returns the most recent ring entries, capped to the requested
+// limit (the last `limit` entries when the ring holds more than that).
 func (s *Service) handleList(w http.ResponseWriter, r *http.Request) {
 	limit := listLimit(r)
 	s.mu.Lock()
 	n := len(s.entries)
 	if limit < n {
 		out := make([]Entry, limit)
-		copy(out, s.entries[n-limit:]) // last `limit` entries
+		copy(out, s.entries[n-limit:])
 		s.mu.Unlock()
 		httpx.WriteJSON(w, http.StatusOK, out)
 		return

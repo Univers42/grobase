@@ -49,15 +49,18 @@ UPDATE public.tenant_budgets
 // evaluate recomputes the over-budget set, publishes it atomically, and fires any
 // due 80% alerts. periodStart is the current period floor; because a tenant may set
 // its own period, we compute spend per row against its OWN period — but to keep ONE
-// SQL scan we floor on the common current-period start ($2). Tenants on a shorter
+// SQL scan we floor on the common current-period start ($2), the widest (month)
+// period so the scan stays conservative for hard caps. Tenants on a shorter
 // period (hour/day) than the scan floor (we floor on the LONGEST configured period,
 // month) only ever over-count toward their cap by including older windows — which
 // is conservative for a HARD cap (fail toward protecting the budget). A future
 // per-period scan would split this; for the MVP a single month-floor scan is the
-// safe, simple choice and is documented here so the trade-off is explicit.
+// safe, simple choice and is documented here so the trade-off is explicit. A budget
+// of 0 means unlimited (no cap) — such a tenant is never over and never alerts (the
+// safe default).
 func (g *Guard) evaluate(ctx context.Context) error {
 	now := time.Now().UTC()
-	floor := periodStartFor("month", now) // widest period = month → conservative for hard caps
+	floor := periodStartFor("month", now)
 	rows, err := g.db.AdminQuery(ctx, spendUsageSQL, g.rates.metrics(), floor)
 	if err != nil {
 		return fmt.Errorf("spend-cap: query usage: %w", err)
@@ -69,7 +72,7 @@ func (g *Guard) evaluate(ctx context.Context) error {
 	over := make([]string, 0)
 	for _, ts := range byTenant {
 		if ts.budgetCents <= 0 {
-			continue // 0 = unlimited → never over, never alert (safe default)
+			continue
 		}
 		spent := g.rates.spendCentsFor(ts.usageByMetric)
 		if spent >= ts.budgetCents {
@@ -169,7 +172,7 @@ func periodStartFor(period string, now time.Time) time.Time {
 		return time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, time.UTC)
 	case "day":
 		return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	default: // "month"
+	default:
 		return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	}
 }

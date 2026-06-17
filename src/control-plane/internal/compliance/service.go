@@ -44,12 +44,15 @@ func NewService(db sdb) *Service {
 // adapter performs the (interface-to-interface) handoff explicitly.
 type accessAdapter struct{ db sdb }
 
+// AdminQuery forwards to the wrapped sdb and returns its pgx.Rows as a pgxRows;
+// pgx.Rows satisfies pgxRows structurally, so the returned rows need no
+// conversion beyond this interface-to-interface handoff.
 func (a accessAdapter) AdminQuery(ctx context.Context, sql string, args ...any) (pgxRows, error) {
 	rows, err := a.db.AdminQuery(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
-	return rows, nil // pgx.Rows satisfies pgxRows structurally
+	return rows, nil
 }
 
 // Collect runs the collector, then SEALS and PERSISTS each of the three section

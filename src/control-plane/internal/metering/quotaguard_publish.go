@@ -19,13 +19,15 @@ const (
 // publish replaces the over-quota set atomically: clear the staging key, add the
 // new members, RENAME staging→live (so a reader never sees a partial set), then
 // PEXPIRE the live set so a crashed guard cannot leave a stale set enforcing
-// forever. An EMPTY over set means "no tenant is over quota" — we DELETE the live
-// key so the data plane's SMEMBERS returns empty (fail-OPEN: no enforcement).
+// forever. The stale-set TTL is 3× the interval so a couple of missed ticks don't
+// expire a still-valid set, while a crashed guard's set self-clears within ~45s at
+// the default interval. An EMPTY over set means "no tenant is over quota" — we
+// DELETE the live key so the data plane's SMEMBERS returns empty (fail-OPEN: no
+// enforcement).
 func (g *QuotaGuard) publish(ctx context.Context, over []string) error {
 	pipe := g.rdb.TxPipeline()
 	pipe.Del(ctx, quotaOverStaging)
 	if len(over) == 0 {
-		// No over-quota tenants → the live set must be empty/absent.
 		pipe.Del(ctx, quotaOverSet)
 		if _, err := pipe.Exec(ctx); err != nil {
 			return fmt.Errorf("quota-guard: publish empty set: %w", err)
@@ -38,8 +40,6 @@ func (g *QuotaGuard) publish(ctx context.Context, over []string) error {
 		members[i] = m
 	}
 	pipe.SAdd(ctx, quotaOverStaging, members...)
-	// Stale-set TTL: 3× the interval so a couple of missed ticks don't expire a
-	// still-valid set, but a crashed guard's set self-clears within ~45s default.
 	pipe.PExpire(ctx, quotaOverStaging, 3*g.interval)
 	pipe.Rename(ctx, quotaOverStaging, quotaOverSet)
 	if _, err := pipe.Exec(ctx); err != nil {
@@ -59,7 +59,7 @@ func periodStartFor(period string, now time.Time) time.Time {
 		return time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, time.UTC)
 	case "day":
 		return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	default: // "month"
+	default:
 		return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	}
 }

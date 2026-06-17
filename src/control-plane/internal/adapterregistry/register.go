@@ -13,14 +13,15 @@ import (
 // connection string at rest (today's path, byte-for-byte). A cred-ref mount (S2)
 // stores cred_provider/cred_reference/cred_version with NO encryption — the data
 // plane resolves the real DSN at query time via its CredentialProvider registry.
+//
+// Phase 4 tiering: the engine must be in the tenant's package (the max_mounts
+// cap is enforced inside the tx). A no-op when PACKAGE_ENFORCEMENT=0 / manifest
+// unavailable.
 func (s *Service) Register(ctx context.Context, userID string, req RegisterDatabaseRequest) (RegisterResult, error) {
 	isolation := req.Isolation
 	if isolation == "" {
 		isolation = "shared_rls"
 	}
-	// Phase 4 tiering: the engine must be in the tenant's package (the
-	// max_mounts cap is enforced inside the tx). A no-op when
-	// PACKAGE_ENFORCEMENT=0 / manifest unavailable.
 	_, pkg, tiered := s.packageForTenant(ctx, userID)
 	if tiered && !pkg.AllowsEngine(req.Engine) {
 		return RegisterResult{}, fmt.Errorf("%w: %q (package allows %v)", ErrEngineNotInPackage, req.Engine, pkg.Engines)

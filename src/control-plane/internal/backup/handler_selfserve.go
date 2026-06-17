@@ -40,10 +40,10 @@ type keyResolver interface {
 //
 // keys is the credential resolver (the tenants Service); it must be non-nil when
 // this route is mounted. The backup Service supplies the RLS-scoped ListBackups.
+// The static "me" route out-ranks the {id} wildcard (net/http most-specific-pattern
+// precedence), so it never collides with the admin GET .../{id}/backups.
 func MountSelfServe(mux *http.ServeMux, svc *Service, keys keyResolver) {
 	ss := &selfRoutes{svc: svc, keys: keys}
-	// Static "me" out-ranks the {id} wildcard (net/http most-specific-pattern
-	// precedence), so this never collides with the admin GET .../{id}/backups.
 	mux.HandleFunc("GET /v1/tenants/me/backups", ss.listMine)
 }
 

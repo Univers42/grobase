@@ -31,7 +31,7 @@ type VerifyResult struct {
 // tenant_id and ORDER BY seq) — this function trusts the slice is that scope.
 func VerifyChain(tenantID string, events []Event) VerifyResult {
 	res := VerifyResult{TenantID: tenantID, Count: len(events), Intact: true}
-	prev := "" // genesis prev_hash
+	prev := ""
 	var prevSeq int64
 	for i, e := range events {
 		if bad := verifyLink(res, linkCtx{e: e, i: i, prev: prev, prevSeq: prevSeq}); bad != nil {
@@ -56,7 +56,6 @@ type linkCtx struct {
 // integrity in that order. It returns a *VerifyResult on the FIRST failing
 // check (the first break wins) or nil when the link is intact.
 func verifyLink(res VerifyResult, l linkCtx) *VerifyResult {
-	// seq contiguity: first must be 1, each subsequent +1.
 	wantSeq := l.prevSeq + 1
 	if l.i == 0 {
 		wantSeq = 1
@@ -65,12 +64,10 @@ func verifyLink(res VerifyResult, l linkCtx) *VerifyResult {
 		r := broken(res, breakAt{seq: l.e.Seq, reason: "seq_gap"})
 		return &r
 	}
-	// prev_hash linkage to the previous stored hash.
 	if l.e.PrevHash != l.prev {
 		r := broken(res, breakAt{seq: l.e.Seq, reason: "prev_hash_mismatch", expected: l.prev, stored: l.e.PrevHash})
 		return &r
 	}
-	// hash integrity: recompute from THIS row's fields + its claimed prev.
 	if want := recompute(l.e); want != l.e.Hash {
 		r := broken(res, breakAt{seq: l.e.Seq, reason: "hash_mismatch", expected: want, stored: l.e.Hash})
 		return &r

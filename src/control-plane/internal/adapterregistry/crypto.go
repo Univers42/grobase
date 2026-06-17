@@ -51,7 +51,8 @@ func NewEncryptor(masterKey string) (*Encryptor, error) {
 }
 
 // Encrypt produces an EncryptedPayload compatible with the Node format:
-// ciphertext and tag are stored separately.
+// ciphertext and tag are stored separately. gcm.Seal returns ciphertext||tag,
+// which is split here to match the Node column layout.
 func (e *Encryptor) Encrypt(plaintext string) (EncryptedPayload, error) {
 	salt := make([]byte, saltLength)
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
@@ -65,7 +66,6 @@ func (e *Encryptor) Encrypt(plaintext string) (EncryptedPayload, error) {
 	if err != nil {
 		return EncryptedPayload{}, err
 	}
-	// Seal returns ciphertext||tag; split to match the Node column layout.
 	sealed := gcm.Seal(nil, iv, []byte(plaintext), nil)
 	cut := len(sealed) - authTagLen
 	return EncryptedPayload{

@@ -26,6 +26,9 @@ func (s *Service) findForUser(ctx context.Context, userID string) (Tenant, error
 	return t, nil
 }
 
+// findOrCreateForUser resolves the tenant owned by userID, creating one when no
+// row exists. A missing row means the post-signup trigger failed or a backfill
+// missed this user, so it defensively creates the tenant now.
 func (s *Service) findOrCreateForUser(ctx context.Context, userID, email string) (Tenant, bool, error) {
 	row, err := s.queryOne(ctx, selectTenant+` WHERE owner_user_id = $1 LIMIT 1`, userID)
 	if err != nil {
@@ -37,7 +40,6 @@ func (s *Service) findOrCreateForUser(ctx context.Context, userID, email string)
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return Tenant{}, false, err
 	}
-	// Defensive: trigger failed or backfill missed this user. Create now.
 	return s.createForUser(ctx, userID, email)
 }
 

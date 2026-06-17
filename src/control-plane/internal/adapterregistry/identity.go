@@ -52,7 +52,9 @@ func canonicalIdentity(userID, tenantID string) string {
 // identity using the service token as the HMAC key. Mirrors the verification
 // shape of serviceauth.VerifyServiceRequest (v1 envelope + ±skew window) but binds
 // the identity tuple instead of method/path/body. Returns false on any
-// malformed header, expired/early timestamp, or signature mismatch.
+// malformed header, expired/early timestamp, or signature mismatch. It reuses
+// the golden-vector-tested HMAC primitive: the canonical identity is the signed
+// "path", method is fixed, and there is no body.
 func verifyIdentitySignature(r *http.Request, serviceToken, userID, tenantID string) bool {
 	if serviceToken == "" {
 		return false
@@ -71,8 +73,6 @@ func verifyIdentitySignature(r *http.Request, serviceToken, userID, tenantID str
 	if ts < now-skew || ts > now+skew {
 		return false
 	}
-	// Reuse the golden-vector-tested HMAC primitive: the canonical identity is
-	// the signed "path"; method is fixed and there is no body.
 	want := serviceauth.ComputeServiceSignature(serviceToken, serviceauth.SignedRequest{
 		Method: "IDENTITY", Path: canonicalIdentity(userID, tenantID), TS: ts,
 	})

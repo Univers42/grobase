@@ -141,7 +141,7 @@ func TenantSelfMatch(r *http.Request, serviceToken, id string) bool {
 		return false
 	}
 	if !TenantHeaderHMACEnabled() {
-		return true // default: trust the matching header (unchanged behavior)
+		return true
 	}
 	userID := r.Header.Get("X-Baas-User-Id")
 	if userID == "" {

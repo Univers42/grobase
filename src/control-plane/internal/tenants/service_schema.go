@@ -11,6 +11,12 @@ import (
 // tenant_databases isolation CHECK. Migration 005 pinned the constraint at
 // ('free','pro','enterprise'), so without this a plan PATCH to a real tier key
 // (nano/basic/essential/max) 500s and PACKAGE_ENFORCEMENT cannot be used.
+//
+// The interior rows.Close() frees the pooled conn before the ALTERs run (the
+// deferred Close is then a no-op). The widen is additive + idempotent: existing
+// rows (free/pro/enterprise, or NULL) all satisfy the widened set, so the ADD
+// never fails on legacy data. Failures are logged, not fatal — a stale
+// constraint degrades tiering, it doesn't stop serving.
 func (s *Service) EnsureSchema(ctx context.Context) error {
 	const q = `SELECT 1 FROM information_schema.tables
 	            WHERE table_schema='public' AND table_name='tenants'`
@@ -22,11 +28,8 @@ func (s *Service) EnsureSchema(ctx context.Context) error {
 	if !rows.Next() {
 		return errors.New("public.tenants missing — run migration 032_tenants.sql")
 	}
-	rows.Close() // free the pooled conn before the ALTERs below (defer is a no-op then)
+	rows.Close()
 
-	// Additive + idempotent. Existing rows (free/pro/enterprise, or NULL) all
-	// satisfy the widened set, so the ADD never fails on legacy data. Logged,
-	// not fatal: a stale constraint degrades tiering, it doesn't stop serving.
 	if err := s.db.AdminExec(ctx,
 		`ALTER TABLE public.tenants DROP CONSTRAINT IF EXISTS tenants_plan_check`); err != nil {
 		s.log.Warn("drop stale tenants_plan_check failed (continuing)", "error", err)

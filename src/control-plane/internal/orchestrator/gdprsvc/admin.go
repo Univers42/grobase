@@ -19,6 +19,9 @@ func (s *Service) adminListDeletions(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
+// adminProcessDeletion advances a deletion request to the admin-chosen status.
+// On a "completed" transition it fires the app erasure webhook BEFORE marking
+// the request done (parity with the Node ordering).
 func (s *Service) adminProcessDeletion(w http.ResponseWriter, r *http.Request) {
 	adminID, ok := requireAdminUser(w, r)
 	if !ok {
@@ -33,7 +36,6 @@ func (s *Service) adminProcessDeletion(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// On completion, fire the app erasure webhook BEFORE marking done (parity).
 	if status == "completed" {
 		s.doDeletion(r.Context(), req.UserID)
 	}

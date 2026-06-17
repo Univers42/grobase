@@ -19,6 +19,13 @@ import (
 //
 // Refusing on resolution failure is intentional fail-closed: a name we cannot
 // resolve is not a proven-public destination.
+//
+// A narrow operator allowlist (PUSH_SSRF_ALLOW_HOSTS, comma-separated host
+// entries; default empty) is consulted first and permits naming specific
+// internal webhook targets for in-cluster delivery. Default empty => nothing
+// private is allowed => the rest of the guard applies unchanged (production stays
+// SSRF-locked = byte-parity). A literal-IP host is then checked directly; a
+// hostname is resolved and validated.
 func guardTarget(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
@@ -28,14 +35,9 @@ func guardTarget(raw string) error {
 	if host == "" {
 		return fmt.Errorf("%w: empty host", ErrBlockedTarget)
 	}
-	// A narrow operator allowlist (PUSH_SSRF_ALLOW_HOSTS, comma-separated host
-	// entries; default empty) permits naming specific internal webhook targets for
-	// in-cluster delivery. Default empty => nothing private is allowed => the SSRF
-	// guard below applies unchanged (production stays SSRF-locked = byte-parity).
 	if hostAllowlisted(host) {
 		return nil
 	}
-	// A literal IP target is checked directly.
 	if ip := net.ParseIP(host); ip != nil {
 		if isBlockedIP(ip) {
 			return fmt.Errorf("%w: %s is a private/loopback/link-local address", ErrBlockedTarget, host)
@@ -82,7 +84,8 @@ func hostAllowlisted(host string) bool {
 
 // isBlockedIP reports whether ip is in a range we must never POST to from the
 // control plane: loopback, link-local (incl. 169.254.0.0/16 — the cloud
-// metadata range), private RFC1918/ULA, unspecified, and the
+// metadata range), private RFC1918/ULA, unspecified, and — via extraBlockedV4,
+// the additional reserved IPv4 ranges the net.IP helpers do not cover — the
 // carrier-grade-NAT / benchmarking / documentation ranges that should never be
 // a legitimate public push endpoint.
 func isBlockedIP(ip net.IP) bool {
@@ -90,7 +93,6 @@ func isBlockedIP(ip net.IP) bool {
 		ip.IsPrivate() || ip.IsUnspecified() || ip.IsMulticast() {
 		return true
 	}
-	// Additional reserved IPv4 ranges net.IP helpers do not cover.
 	for _, cidr := range extraBlockedV4() {
 		if cidr.Contains(ip) {
 			return true

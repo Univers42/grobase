@@ -15,9 +15,12 @@ type capture struct {
 
 func (c *capture) Header() http.Header { return c.header }
 func (c *capture) WriteHeader(s int)   { c.status = s; c.wrote = true }
+
+// Write buffers the body and, like net/http, records an implicit 200 on the
+// first Write when the handler never called WriteHeader.
 func (c *capture) Write(b []byte) (int, error) {
 	if !c.wrote {
-		c.status = http.StatusOK // net/http implicit-200 on first Write
+		c.status = http.StatusOK
 		c.wrote = true
 	}
 	return c.buf.Write(b)
@@ -30,9 +33,10 @@ func writeVerbatim(w http.ResponseWriter, c *capture, body []byte) {
 	_, _ = w.Write(body)
 }
 
+// copyHeader copies src into dst, skipping Content-Length because Wrap re-sets
+// Content-Length/Type itself on the wrapped path.
 func copyHeader(dst, src http.Header) {
 	for k, vs := range src {
-		// Content-Length/Type are re-set by Wrap on the wrapped path.
 		if k == "Content-Length" {
 			continue
 		}

@@ -34,15 +34,14 @@ func NewService(db *pg.Postgres, log *slog.Logger, m *observability.Metrics) *Se
 // EnsureSchema verifies migration 056 ran.
 func (s *Service) EnsureSchema(ctx context.Context) error { return s.store.EnsureSchema(ctx) }
 
-// Register validates the request, applies the SSRF guard to target_url (a
-// subscription pointing at an internal address is rejected BEFORE it is stored),
-// and inserts the row under tenantID.
+// Register validates the request, applies the SSRF guard to target_url, and
+// inserts the row under tenantID. The guard is load-bearing: it refuses a target
+// that resolves to internal space at REGISTER time, so a blocked subscription is
+// rejected BEFORE it is stored and never even lands in the table.
 func (s *Service) Register(ctx context.Context, tenantID string, req RegisterRequest) (Subscription, error) {
 	if err := req.Validate(); err != nil {
 		return Subscription{}, err
 	}
-	// Load-bearing: refuse a target that resolves to internal space at REGISTER
-	// time, so a blocked subscription never even lands in the table.
 	if err := guardTarget(req.TargetURL); err != nil {
 		return Subscription{}, err
 	}

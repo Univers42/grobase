@@ -21,6 +21,13 @@ type routes struct {
 // injects the authenticated tenant as the `X-User-Id` header. The internal
 // `/connect` and delete routes additionally require the service token,
 // mirroring the legacy ServiceTokenGuard / RolesGuard.
+//
+// DELETE /databases/{id}/self is the caller-scoped delete for the self-serve
+// dynamic builder (BUILDER): unlike the admin DELETE /databases/{id} (which
+// bypasses RLS for operator teardown), it binds `AND tenant_id = $caller` in
+// the SQL, so a mount UUID is NEVER a bearer capability — a tenant can only
+// delete its OWN mount. It is service-token gated like /connect (the trust
+// boundary forwards the asserted tenant header).
 func Mount(mux *http.ServeMux, svc *Service, serviceToken string) {
 	rt := &routes{svc: svc, serviceToken: serviceToken}
 	mux.HandleFunc("POST /databases", rt.register)
@@ -28,11 +35,6 @@ func Mount(mux *http.ServeMux, svc *Service, serviceToken string) {
 	mux.HandleFunc("GET /databases/{id}", rt.findOne)
 	mux.HandleFunc("GET /databases/{id}/connect", rt.connect)
 	mux.HandleFunc("DELETE /databases/{id}", rt.remove)
-	// Caller-scoped delete for the self-serve dynamic builder (BUILDER): unlike the
-	// admin DELETE /databases/{id} (which bypasses RLS for operator teardown), this
-	// route binds `AND tenant_id = $caller` in the SQL, so a mount UUID is NEVER a
-	// bearer capability — a tenant can only delete its OWN mount. Service-token
-	// gated like /connect (the trust boundary forwards the asserted tenant header).
 	mux.HandleFunc("DELETE /databases/{id}/self", rt.removeScoped)
 }
 

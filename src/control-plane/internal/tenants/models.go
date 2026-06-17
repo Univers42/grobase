@@ -187,7 +187,7 @@ func (r ProvisionRequest) Compile() provision.StackSpec {
 	spec := provision.StackSpec{
 		Tenant:      r.Tenant,
 		Name:        r.Name,
-		Plan:        r.Plan, // "" → StackSpec.Normalize stamps Defaults().Plan (free)
+		Plan:        r.Plan,
 		OwnerUserID: r.OwnerUserID,
 	}
 	if r.DefaultKeyName != "" {
@@ -195,7 +195,7 @@ func (r ProvisionRequest) Compile() provision.StackSpec {
 	}
 	if r.SeedRoles {
 		spec.Roles = []provision.RoleSpec{{
-			Name:     r.DefaultRoleName, // "" → Normalize stamps Defaults().RoleName
+			Name:     r.DefaultRoleName,
 			Policies: []provision.PolicySpec{provision.D().RolePolicy},
 		}}
 	}

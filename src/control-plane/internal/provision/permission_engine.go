@@ -96,18 +96,15 @@ func (b *sqlBackend) EnsureRole(ctx context.Context, slug string, r RoleSpec) (s
 // EnsurePolicy content-keyed-upserts one resource_policies row. resource_policies
 // has no natural unique constraint, so idempotency is enforced by a NOT EXISTS
 // guard on the same semantic content the diff hashes (type+name+actions+effect+
-// priority). conditions is compared as canonical JSONB.
+// priority). Both the conditions JSON and the actions are bound in the SAME
+// canonical form policyContentHash folds into the identity key, so the stored
+// row and the dedup hash can never disagree: conditions as canonical JSONB (no
+// float-vs-int / nested-value drift), and actions sorted because the guard's
+// `rp.actions = $4::text[]` comparison is order-sensitive in Postgres — binding
+// the raw (possibly reordered) slice would let a re-run with reordered actions
+// insert a DUPLICATE row.
 func (b *sqlBackend) EnsurePolicy(ctx context.Context, roleID string, p PolicySpec) (bool, error) {
-	// conditions JSON is the SAME canonical form policyContentHash folds into the
-	// identity key, so the stored `$5::jsonb` value and the dedup hash can never
-	// disagree (no float-vs-int / nested-value drift).
 	condJSON := canonicalConditionsJSON(p.Conditions)
-	// Bind actions in the SAME canonical (sorted) order policyContentHash uses.
-	// The identity diff treats {select,insert} == {insert,select}, but the SQL
-	// guard compares `rp.actions = $4::text[]` which IS order-sensitive in
-	// Postgres — so binding the raw (possibly reordered) slice would let a re-run
-	// with reordered actions insert a DUPLICATE row. Sorting here keeps the stored
-	// row and the identity key derived from one canonical form.
 	sortedActions := append([]string(nil), p.Actions...)
 	sort.Strings(sortedActions)
 	row, err := b.queryOne(ctx, sqlEnsurePolicy,
@@ -155,7 +152,8 @@ func (b *sqlBackend) AssignRole(ctx context.Context, userID, roleName string) er
 
 // Decide self-verifies via POST /permissions/decide using the internal service
 // token (ServiceTokenGuard). The endpoint speaks `op`, not raw action, so we
-// pass the op straight through.
+// pass the op straight through. As defense-in-depth, a non-200 body is scrubbed
+// of any DSN-shaped substring (RedactDSN) before being echoed into the error.
 func (b *sqlBackend) Decide(ctx context.Context, userID, resourceType, resourceName, op string) (bool, error) {
 	if b.decideURL == "" {
 		return false, errors.New("permission-engine URL not configured")
@@ -171,7 +169,6 @@ func (b *sqlBackend) Decide(ctx context.Context, userID, resourceType, resourceN
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		// Defense-in-depth: scrub any DSN-shaped substring from the echoed body.
 		return false, fmt.Errorf("permission-engine %d: %s", resp.StatusCode, httpx.RedactDSN(strings.TrimSpace(string(msg))))
 	}
 	var out struct {

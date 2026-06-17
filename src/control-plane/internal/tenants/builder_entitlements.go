@@ -90,11 +90,12 @@ func (b *builderAPI) entitlementsResponse(v entitlementsView) entitlementsRespon
 	}
 }
 
-// patchEntitlements is the COMPOSE-time gate. A tenant submits a custom
-// entitlement; ValidateWithin checks it against the ceiling and rejects an
-// over-ceiling request with 403 entitlement_exceeds_ceiling BEFORE persisting.
-// Within-ceiling requests are UPSERT'd. The resolve-time Clamp is still the
-// backstop — but this gives the tenant a clean, immediate error. [scope: admin]
+// patchEntitlements is the COMPOSE-time privilege-boundary gate. A tenant
+// submits a custom entitlement; ValidateWithin checks it against the ceiling and
+// rejects an over-ceiling request with a clean 403 entitlement_exceeds_ceiling
+// naming the offending axis, BEFORE persisting. Within-ceiling requests are
+// UPSERT'd. The resolve-time Clamp is still the backstop — but this gives the
+// tenant a clean, immediate error. [scope: admin]
 func (b *builderAPI) patchEntitlements(w http.ResponseWriter, r *http.Request) {
 	tenantID, custom, ok := b.authPatchEntitlement(w, r)
 	if !ok {
@@ -105,7 +106,6 @@ func (b *builderAPI) patchEntitlements(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ceiling, ceilingName := b.ceilingFor(r.Context(), tenantID, t.Plan)
-	// COMPOSE-time privilege-boundary gate: a clean 403 naming the offending axis.
 	if vErr := packages.ValidateWithin(custom.ToPackage(), ceiling); vErr != nil {
 		httpx.WriteError(w, http.StatusForbidden, "entitlement_exceeds_ceiling", vErr.Error())
 		return

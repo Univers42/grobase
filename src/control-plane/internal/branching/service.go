@@ -45,7 +45,9 @@ func NewService(db *pg.Postgres, log *slog.Logger) *Service {
 //
 // tenant_id is always a bind param and the parent schema is the tenant's OWN
 // schema (tenants.TenantSchema), so a branch can NEVER clone another tenant's
-// data. A deferred isolation model is rejected 400 BEFORE any work.
+// data. A deferred isolation model is rejected 400 BEFORE any work. A
+// UNIQUE(tenant_id, branch_name) collision on the pending insert maps to
+// ErrBranchExists (409), never a 500.
 func (s *Service) CreateBranch(ctx context.Context, tenantID, mount, rawName string) (BranchRow, error) {
 	branchName, parentSchema, iso, err := s.resolveBranchTarget(ctx, tenantID, mount, rawName)
 	if err != nil {
@@ -54,7 +56,6 @@ func (s *Service) CreateBranch(ctx context.Context, tenantID, mount, rawName str
 	bSchema := branchSchema(parentSchema, branchName)
 	branchID, err := s.insertPending(ctx, pendingRow{tenantID, mount, branchName, bSchema, iso})
 	if err != nil {
-		// A UNIQUE(tenant_id, branch_name) collision is a 409, not a 500.
 		if pg.IsUniqueViolation(err) {
 			return BranchRow{}, ErrBranchExists
 		}
@@ -92,13 +93,13 @@ func (s *Service) resolveBranchTarget(ctx context.Context, tenantID, mount, rawN
 
 // cloneAndFinalize clones the parent schema into bSchema, then finalizes the
 // ledger row to 'completed' (counts) — or marks it 'failed' and best-effort drops
-// the partial schema. Returns the clone/finalize error if any.
+// the partial schema. The clone tx rolls back on failure, but a stray empty schema
+// from a CREATE-then-fail path is dropped here too. Returns the clone/finalize
+// error if any.
 func (s *Service) cloneAndFinalize(ctx context.Context, branchID, parentSchema, bSchema string) error {
 	tableCount, rowCount, cerr := cloneSchema(ctx, s.db, parentSchema, bSchema)
 	if cerr != nil {
 		s.markFailed(ctx, branchID, cerr.Error())
-		// Best-effort cleanup of a partial schema (the clone tx rolls back, but a
-		// stray empty schema from a CREATE-then-fail path is dropped here too).
 		_ = dropSchema(ctx, s.db, bSchema)
 		return cerr
 	}

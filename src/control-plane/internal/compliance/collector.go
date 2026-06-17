@@ -103,11 +103,11 @@ func (c *Collector) env(key string) string {
 // Collect reads every section from its real source and returns the payloads to
 // seal + persist. It returns the SAME collected_at for all of them so they
 // belong to one snapshot. It never invents "compliant" — each section carries
-// the observed truth (including failing/absent/disabled controls).
+// the observed truth (including failing/absent/disabled controls). Each entry
+// in the collectors table pairs a canonical section with its collector, in the
+// fixed canonical Sections order, so a freshly collected snapshot is complete.
 func (c *Collector) Collect(ctx context.Context) (Snapshot, error) {
 	at := c.now()
-	// Each entry pairs a canonical section with its collector. The fixed order
-	// is the canonical Sections set, so a freshly collected snapshot is complete.
 	collectors := []struct {
 		section string
 		fn      func() (json.RawMessage, error)

@@ -125,6 +125,6 @@ func (r *BillingReporter) sendWindow(ctx context.Context, u usageRow) (bool, err
 // revenue-loss edge. A multi-period outage needs a larger BILLING_REPORT_LOOKBACK_MS.
 func (r *BillingReporter) billingFloor(now time.Time) time.Time {
 	cur := periodStartFor(r.period, now)
-	prev := periodStartFor(r.period, cur.Add(-time.Nanosecond)) // start of the previous period
+	prev := periodStartFor(r.period, cur.Add(-time.Nanosecond))
 	return prev.Add(-r.lookback)
 }

@@ -23,14 +23,12 @@ func patchedActive(p PatchOp) (active bool, ok bool) {
 		if !strings.EqualFold(op.Op, "replace") && !strings.EqualFold(op.Op, "add") {
 			continue
 		}
-		// path == "active": value is the boolean directly.
 		if strings.EqualFold(strings.TrimSpace(op.Path), "active") {
 			if b, isBool := asBool(op.Value); isBool {
 				return b, true
 			}
 			continue
 		}
-		// path-less: value is an object that may carry {"active": ...}.
 		if strings.TrimSpace(op.Path) == "" {
 			if m, isMap := op.Value.(map[string]interface{}); isMap {
 				if v, present := m["active"]; present {

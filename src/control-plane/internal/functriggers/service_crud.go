@@ -43,9 +43,7 @@ func (s *Service) Update(ctx context.Context, tenantID, id string, req UpdateReq
 			 WHERE id = $1
 			 RETURNING id::text, tenant_id, name, function_name, event_types, aggregates,
 			           enabled, max_attempts, timeout_ms, created_at::text, updated_at::text`,
-			id, req.FunctionName,
-			pg.NullableStrSlice(req.EventTypes), pg.NullableStrSlice(req.Aggregates),
-			req.Enabled, req.MaxAttempts, req.TimeoutMs,
+			id, req.FunctionName, pg.NullableStrSlice(req.EventTypes), pg.NullableStrSlice(req.Aggregates), req.Enabled, req.MaxAttempts, req.TimeoutMs,
 		)
 		err := scanTrigger(row, &tr)
 		if errors.Is(err, pgx.ErrNoRows) {

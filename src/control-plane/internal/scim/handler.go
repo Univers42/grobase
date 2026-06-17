@@ -23,17 +23,17 @@ import (
 //
 // The static literal /scim/v2/Users out-ranks /scim/v2/Users/{id} (net/http
 // most-specific-pattern precedence), so the list/filter and the by-id routes
-// never collide.
+// never collide. The admin (service-token) routes issue / revoke a SCIM bearer
+// for a tenant; the SCIM IdP surface (bearer token) is the Users CRUD, where the
+// list route supports ?filter=userName eq "x".
 func Mount(mux *http.ServeMux, svc *Service, serviceToken string) {
 	rt := &routes{svc: svc, serviceToken: serviceToken}
 
-	// Admin (service token): issue / revoke a SCIM bearer for a tenant.
 	mux.HandleFunc("POST /v1/tenants/{id}/scim/tokens", rt.issueToken)
 	mux.HandleFunc("DELETE /v1/tenants/{id}/scim/tokens/{tokenId}", rt.revokeToken)
 
-	// SCIM IdP surface (bearer token).
 	mux.HandleFunc("POST /scim/v2/Users", rt.createUser)
-	mux.HandleFunc("GET /scim/v2/Users", rt.listUsers) // ?filter=userName eq "x"
+	mux.HandleFunc("GET /scim/v2/Users", rt.listUsers)
 	mux.HandleFunc("GET /scim/v2/Users/{id}", rt.getUser)
 	mux.HandleFunc("PUT /scim/v2/Users/{id}", rt.replaceUser)
 	mux.HandleFunc("PATCH /scim/v2/Users/{id}", rt.patchUser)

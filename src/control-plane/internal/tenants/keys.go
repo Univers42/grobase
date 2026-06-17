@@ -30,9 +30,10 @@ func b32() *base32.Encoding {
 
 // generateKey returns a (prefix, fullKey) pair plus an argon2id hash of the
 // payload portion. The payload is what gets hashed — the prefix is in
-// cleartext so we can look it up cheaply.
+// cleartext so we can look it up cheaply. The prefix random buffer is sized so
+// its base32 encoding yields prefixLen chars (~8 raw bytes → 12 base32 chars).
 func (h *keyHasher) generateKey() (prefix, fullKey, hash string, err error) {
-	pBytes := make([]byte, (prefixLen*5+7)/8) // ~8 bytes -> 12 base32 chars
+	pBytes := make([]byte, (prefixLen*5+7)/8)
 	if _, err = rand.Read(pBytes); err != nil {
 		return "", "", "", err
 	}

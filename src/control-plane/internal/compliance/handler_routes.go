@@ -16,6 +16,11 @@ func (rt *routes) verifyOne(w http.ResponseWriter, r *http.Request) {
 	rt.doVerify(w, r, r.PathValue("sid"))
 }
 
+// doVerify recomputes a snapshot's seals and writes the VerifyResult. It returns
+// 200 whether the snapshot is intact or tampered — the CALLER acts on
+// res.Intact. A tampered snapshot is a SUCCESSFUL verification that REPORTS the
+// break, not a server error (the gate's load-bearing REJECT asserts intact==false
+// + broken_section). A missing snapshot maps to 404.
 func (rt *routes) doVerify(w http.ResponseWriter, r *http.Request, sid string) {
 	res, err := rt.svc.Verify(r.Context(), sid)
 	if err != nil {
@@ -26,9 +31,6 @@ func (rt *routes) doVerify(w http.ResponseWriter, r *http.Request, sid string) {
 		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	// 200 whether intact or tampered — the CALLER acts on res.Intact. A tampered
-	// snapshot is a SUCCESSFUL verification that REPORTS the break, not a server
-	// error (the gate's load-bearing REJECT asserts intact==false + broken_section).
 	httpx.WriteJSON(w, http.StatusOK, res)
 }
 

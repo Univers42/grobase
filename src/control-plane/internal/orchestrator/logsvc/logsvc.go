@@ -69,7 +69,7 @@ func (s *Service) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			s.flush() // final drain on shutdown
+			s.flush()
 			return
 		case <-t.C:
 			s.flush()

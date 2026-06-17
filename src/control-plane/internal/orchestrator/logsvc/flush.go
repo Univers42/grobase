@@ -26,7 +26,7 @@ func (s *Service) flush() {
 
 	if err := s.push(batch); err != nil {
 		s.mu.Lock()
-		s.queue = append(batch, s.queue...) // requeue at the front
+		s.queue = append(batch, s.queue...)
 		s.mu.Unlock()
 		s.log.Warn("loki push failed", "err", err)
 	}

@@ -18,11 +18,13 @@ type ciControl struct {
 	Passing bool   `json:"passing"` // true iff the script emits a <gate>=PASS marker
 }
 
+// collectCI scans the gates dir into ciControls (each gate script + whether it
+// self-attests PASS), parses the CI workflow's job names, and marshals the CI
+// gate-posture section. A missing gates dir is itself evidence (zero controls),
+// not a fatal error — it records an empty inventory rather than failing.
 func (c *Collector) collectCI() (json.RawMessage, error) {
 	entries, err := os.ReadDir(c.gatesDir)
 	if err != nil {
-		// A missing gates dir is itself evidence (zero controls) — not a fatal
-		// collector error. Record it as an empty inventory rather than failing.
 		if os.IsNotExist(err) {
 			return c.marshalCI([]ciControl{}, nil)
 		}
@@ -68,7 +70,9 @@ func (c *Collector) scanGateControls(entries []os.DirEntry) ([]ciControl, error)
 // fileHasPassMarker scans a gate script for its `<gate>=PASS` self-attestation.
 // A gate that authors the marker is "passing"; one that does not (a stub, a
 // known-failing control, or a script with no gate emission) is "not passing".
-// passRe is the caller's compiled `m([0-9]+)=PASS` matcher (reused per file).
+// passRe is the caller's compiled `m([0-9]+)=PASS` matcher (reused per file). A
+// substring hit is confirmed against passRe so a comment that merely mentions
+// the string in prose does not count as a PASS token.
 func fileHasPassMarker(path, gate string, passRe *regexp.Regexp) (bool, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -81,8 +85,6 @@ func fileHasPassMarker(path, gate string, passRe *regexp.Regexp) (bool, error) {
 	for sc.Scan() {
 		line := sc.Text()
 		if strings.Contains(line, want) {
-			// also confirm the regex agrees this is a PASS token (defense vs a
-			// comment that merely mentions the string in prose).
 			for _, mm := range passRe.FindAllStringSubmatch(line, -1) {
 				if "m"+mm[1]+"=PASS" == want {
 					return true, nil

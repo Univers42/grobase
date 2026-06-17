@@ -23,10 +23,13 @@ import (
 // createProject provisions a project (=tenant) owned by an org. The ONLY
 // differences from POST /v1/provision are (1) the capability gate before the
 // call and (2) the org_id stamp after it.
+//
+// (1) is the LOAD-BEARING REJECT: a role lacking project:create (e.g. viewer) →
+// 403, and a non-member → 404 (cross-org isolation), checked BEFORE any
+// reconcile. (3) is the ONE additive control-plane write — linking the project
+// to its org.
 func (rt *routes) createProject(w http.ResponseWriter, r *http.Request) {
 	orgID := r.PathValue("orgId")
-	// (1) LOAD-BEARING REJECT: a role lacking project:create (e.g. viewer) → 403,
-	// and a non-member → 404 (cross-org isolation). Checked BEFORE any reconcile.
 	if _, _, ok := rt.requireCapability(w, r, orgID, CapProjectCreate); !ok {
 		return
 	}
@@ -43,7 +46,6 @@ func (rt *routes) createProject(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// (3) The ONE additive control-plane write: link the project to its org.
 	rt.attachProvisioned(r, out, orgID)
 	httpx.WriteJSON(w, provision.HTTPStatus(out.Outcome, out.APIKey != nil), out)
 }
@@ -71,9 +73,10 @@ func (rt *routes) reconcileOrgProject(w http.ResponseWriter, r *http.Request,
 // provisioning shape, no new defaults. ok=false means a response was already
 // written. The org route is a thin authorization wrapper over the same input
 // contract /v1/provision uses.
+//
+// The body is capped before decoding (DoS guard) with the same centralized cap as
+// /v1/provision, because the provision payload carries unbounded mount arrays.
 func (rt *routes) decodeProvisionRequest(w http.ResponseWriter, r *http.Request) (tenants.ProvisionRequest, bool) {
-	// Cap the body before decoding (DoS guard) — same centralized cap as
-	// /v1/provision (the provision payload carries unbounded mount arrays).
 	r.Body = http.MaxBytesReader(w, r.Body, provision.MaxRequestBodyBytes)
 	var req CreateProjectRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

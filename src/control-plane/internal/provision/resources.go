@@ -13,6 +13,11 @@ func isUUID(s string) bool {
 	return uuidRe.MatchString(s)
 }
 
+// reconcileTenant find-or-creates the tenant row. On create it threads the
+// requested billing plan (default "free") so a provision asking for e.g. `pro`
+// actually lands a pro tenant — without this the plan field was silently
+// dropped and every tenant defaulted to free, which is why the scale experiment
+// had to disable PACKAGE_ENFORCEMENT to register non-sqlite mounts.
 func (rc *Reconciler) reconcileTenant(ctx context.Context, res *ReconcileResult, d DesiredState, out ResourceResult) ResourceResult {
 	info, exists, err := rc.Tenants.GetTenant(ctx, d.Slug)
 	if err != nil {
@@ -24,11 +29,6 @@ func (rc *Reconciler) reconcileTenant(ctx context.Context, res *ReconcileResult,
 		out.Action, out.Status, out.ID = string(ActionNoOp), StatusExists, info.Slug
 		return out
 	}
-	// Thread the requested billing plan (default "free") so a provision that
-	// asks for e.g. `pro` actually lands a pro tenant — without this the plan
-	// field was silently dropped and every tenant defaulted to free, which is
-	// why the scale experiment had to disable PACKAGE_ENFORCEMENT to register
-	// non-sqlite mounts.
 	created, err := rc.Tenants.CreateTenant(ctx, d.Slug, d.Name, d.OwnerUser, d.Plan)
 	if err != nil {
 		out.Status, out.Error = StatusError, err.Error()
@@ -39,6 +39,9 @@ func (rc *Reconciler) reconcileTenant(ctx context.Context, res *ReconcileResult,
 	return out
 }
 
+// reconcileKey find-or-issues the tenant API key. Idempotent: when an active
+// key by that name already exists it is a no-op — a live secret is never
+// re-minted.
 func (rc *Reconciler) reconcileKey(ctx context.Context, res *ReconcileResult, spec StackSpec, r Resource, out ResourceResult) ResourceResult {
 	k := r.Key3
 	has, err := rc.Tenants.ActiveKeyExists(ctx, spec.Tenant, k.Name)
@@ -47,7 +50,6 @@ func (rc *Reconciler) reconcileKey(ctx context.Context, res *ReconcileResult, sp
 		return out
 	}
 	if has {
-		// Idempotent: never re-mint a live secret.
 		out.Action, out.Status, out.Detail = string(ActionNoOp), StatusExists, k.Name
 		return out
 	}
@@ -74,6 +76,9 @@ type roleCtx struct {
 	roleIDByKey map[string]string
 }
 
+// reconcileRole ensures the slug-namespaced role and records its DB id. It then
+// assigns the role to the owner only when OwnerUserID is a UUID (mirrors prior
+// seed semantics). Any failure blocks the role's dependent policy steps.
 func (rc *Reconciler) reconcileRole(ctx context.Context, rcx roleCtx) ResourceResult {
 	spec, r, out, blocked, roleIDByKey := rcx.spec, rcx.r, rcx.out, rcx.blocked, rcx.roleIDByKey
 	roleID, created, err := rc.Perm.EnsureRole(ctx, spec.Tenant, r.Role)
@@ -86,7 +91,6 @@ func (rc *Reconciler) reconcileRole(ctx context.Context, rcx roleCtx) ResourceRe
 	out.ID = roleID
 	out.Detail = NamespacedRoleName(r.Key)
 
-	// Assign the role to the owner if it is a UUID (mirrors prior seed semantics).
 	if isUUID(spec.OwnerUserID) {
 		if aerr := rc.Perm.AssignRole(ctx, spec.OwnerUserID, NamespacedRoleName(r.Key)); aerr != nil {
 			out.Status, out.Error = StatusError, aerr.Error()

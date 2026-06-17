@@ -31,10 +31,11 @@ type keyResolver interface {
 // and TENANT_SELFSERVE_ENABLED are truthy (the tenants Service is the
 // key->tenant resolver), exactly as backup narrows its self-serve surface. When
 // either is OFF these routes are not registered -> 404 = parity.
+//
+// Static "me" out-ranks the {id} wildcard (net/http most-specific-pattern
+// precedence), so these never collide with the admin .../{id}/... routes.
 func MountSelfServe(mux *http.ServeMux, svc *Service, keys keyResolver) {
 	ss := &selfRoutes{svc: svc, keys: keys}
-	// Static "me" out-ranks the {id} wildcard (net/http most-specific-pattern
-	// precedence), so these never collide with the admin .../{id}/... routes.
 	mux.HandleFunc("POST /v1/tenants/me/export", ss.createMine)
 	mux.HandleFunc("GET /v1/tenants/me/exports", ss.listMine)
 	mux.HandleFunc("GET /v1/tenants/me/export/{exportId}", ss.downloadMine)

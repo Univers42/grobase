@@ -42,6 +42,13 @@ type Deps struct {
 	Reconciler   *provision.Reconciler
 }
 
+// Mount registers the tenant control-plane routes on mux.
+//
+// POST /v1/provision is a declarative reconcile (tenant + key + role + data
+// mounts in one call). POST /v1/tenants/me/bootstrap is the JWT self-bootstrap
+// where a signed-in user provisions their own tenant; its static "me" path is
+// matched before the {id} parameterised one because net/http mux gives
+// precedence to the most-specific pattern.
 func Mount(mux *http.ServeMux, d Deps) {
 	rt := &routes{svc: d.Svc, serviceToken: d.ServiceToken, jwt: d.JWT, reconciler: d.Reconciler}
 
@@ -53,12 +60,8 @@ func Mount(mux *http.ServeMux, d Deps) {
 
 	mux.HandleFunc("POST /v1/tenants/{id}/bootstrap", rt.requireServiceToken(rt.bootstrap))
 
-	// Declarative reconcile: tenant + key + role + data mounts in one call.
 	mux.HandleFunc("POST /v1/provision", rt.requireServiceToken(rt.provision))
 
-	// Self-bootstrap by JWT: the signed-in user provisions their own tenant.
-	// Static "me" path is matched before the {id} parameterised one because
-	// net/http mux gives precedence to the most-specific pattern.
 	mux.HandleFunc("POST /v1/tenants/me/bootstrap", rt.selfBootstrap)
 
 	mux.HandleFunc("POST /v1/tenants/{id}/keys", rt.requireServiceToken(rt.issueKey))

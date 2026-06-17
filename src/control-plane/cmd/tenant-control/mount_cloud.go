@@ -52,15 +52,15 @@ func (b *bootCtx) mountErase() {
 }
 
 // mountOrgs mounts the D1 organizations/RBAC layer (ORG_MODEL_ENABLED). A nil
-// jwtVerifier is passed UNTYPED to keep the rt.jwt == nil guard honest.
+// jwtVerifier is passed UNTYPED to keep the rt.jwt == nil guard honest: JWT is
+// left as the zero (nil interface) when there is no verifier — assigning a
+// typed-nil *JWTVerifier would make rt.jwt != nil and break the guard.
 func (b *bootCtx) mountOrgs() {
 	if !config.EnvBool("ORG_MODEL_ENABLED") {
 		b.log.Info("organizations API disabled (ORG_MODEL_ENABLED off) — /v1/orgs* not mounted")
 		return
 	}
 	osvc := orgs.NewService(b.db, b.log)
-	// Leave JWT as the zero (nil interface) when there is no verifier — assigning a
-	// typed-nil *JWTVerifier would make rt.jwt != nil and break the guard.
 	d := orgs.Deps{Svc: osvc, TenantSvc: b.svc, Reconciler: b.reconciler, ServiceToken: b.cfg.ServiceToken}
 	if b.jwtVerifier != nil {
 		d.JWT = b.jwtVerifier

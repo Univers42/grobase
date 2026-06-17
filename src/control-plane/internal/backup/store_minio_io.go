@@ -16,11 +16,11 @@ func (s *MinIOStore) objectURL(key string) string {
 	return fmt.Sprintf("%s://%s/%s/%s", s.scheme(), s.endpoint, s.bucket, obj)
 }
 
+// Upload PUTs the artifact to MinIO. S3 PUT must sign a payload hash, so the body
+// is read into memory; this is bounded — the MinIO backend is the production path,
+// size-capped by MAX_BACKUP_SIZE_BYTES upstream (very large artifacts stream to the
+// LocalFileStore default instead).
 func (s *MinIOStore) Upload(ctx context.Context, key string, r io.Reader) (string, int64, string, error) {
-	// S3 PUT must sign a payload hash; we read into memory only for the small
-	// control-plane process. For very large artifacts the service streams to the
-	// LocalFileStore default; the MinIO backend is for the production path and is
-	// size-bounded by MAX_BACKUP_SIZE_BYTES upstream.
 	body, err := io.ReadAll(r)
 	if err != nil {
 		return "", 0, "", fmt.Errorf("backup: read upload body: %w", err)
