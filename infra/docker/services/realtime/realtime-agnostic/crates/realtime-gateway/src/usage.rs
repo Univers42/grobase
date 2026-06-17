@@ -127,9 +127,7 @@ impl UsageAggregate {
     /// can read to prove OFF == 0 entries.
     #[must_use]
     pub fn tracked(&self) -> usize {
-        self.counters
-            .lock()
-            .map_or(0, |m| m.len())
+        self.counters.lock().map_or(0, |m| m.len())
     }
 }
 
@@ -206,8 +204,7 @@ pub fn idempotency_key(tenant: &str, metric: &str, window_start: u64) -> String 
 fn now_unix_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
-        .unwrap_or(0)
+        .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
 
 /// The metering handle wired into `AppState` (as `Option<Usage>`).
@@ -392,7 +389,10 @@ mod tests {
             "ONE window total == SUM of the N events, never 1 or duplicated"
         );
         assert_eq!(agg.tracked(), 0, "drain reset the aggregate");
-        assert!(agg.drain().is_empty(), "second drain empty (no double-count)");
+        assert!(
+            agg.drain().is_empty(),
+            "second drain empty (no double-count)"
+        );
     }
 
     #[test]
@@ -434,7 +434,9 @@ mod tests {
     fn idempotency_key_matches_frozen_contract() {
         let k = idempotency_key("t1", CONNECTION_SECONDS, 120_000);
         assert_eq!(k.len(), 64);
-        assert!(k.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert!(k
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
         let preimage = format!("t1|{CONNECTION_SECONDS}|120000");
         let mut hasher = Sha256::new();
         hasher.update(preimage.as_bytes());
@@ -443,7 +445,10 @@ mod tests {
             use std::fmt::Write;
             let _ = write!(golden, "{b:02x}");
         }
-        assert_eq!(k, golden, "key == sha256_hex(\"tenant|metric|window_start_ms\")");
+        assert_eq!(
+            k, golden,
+            "key == sha256_hex(\"tenant|metric|window_start_ms\")"
+        );
     }
 
     #[test]
@@ -474,13 +479,22 @@ mod tests {
         usage.record("t1", CONNECTION_SECONDS, 7);
         usage.record("t1", CONNECTION_SECONDS, 3);
         assert_eq!(usage.tracked(), 1);
-        assert_eq!(usage.aggregate.drain(), vec![("t1".to_string(), CONNECTION_SECONDS, 10)]);
+        assert_eq!(
+            usage.aggregate.drain(),
+            vec![("t1".to_string(), CONNECTION_SECONDS, 10)]
+        );
     }
 
     #[test]
     fn stream_sink_is_opt_in_via_nonempty_url() {
         assert!(Usage::new().stream.is_none(), "no sink by default");
-        assert!(Usage::new().with_stream_url("  ").stream.is_none(), "blank URL ⇒ no sink");
-        assert!(Usage::new().with_stream_url("redis://127.0.0.1:6379").stream.is_some());
+        assert!(
+            Usage::new().with_stream_url("  ").stream.is_none(),
+            "blank URL ⇒ no sink"
+        );
+        assert!(Usage::new()
+            .with_stream_url("redis://127.0.0.1:6379")
+            .stream
+            .is_some());
     }
 }

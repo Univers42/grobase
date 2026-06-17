@@ -50,7 +50,7 @@ impl SubscriptionRegistry {
         let total = self.by_sub_id.len();
         if total >= max_total {
             return Err(RealtimeError::CapacityExceeded {
-                reason: format!("global subscription count {total} reached limit of {max_total}",),
+                reason: format!("global subscription count {total} reached limit of {max_total}"),
             });
         }
 

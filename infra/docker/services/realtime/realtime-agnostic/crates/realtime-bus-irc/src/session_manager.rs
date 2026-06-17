@@ -92,7 +92,10 @@ impl SessionManager {
             self.drop_user(user_id);
             return;
         }
-        *user.last_active.lock().unwrap_or_else(PoisonError::into_inner) = Instant::now();
+        *user
+            .last_active
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Instant::now();
     }
 
     fn get_or_create(&self, user_id: &str, handle: &str) -> Arc<UserHandle> {
@@ -139,7 +142,11 @@ impl SessionManager {
         let now = Instant::now();
         let mut stale = Vec::new();
         for kv in &self.users {
-            let last = *kv.value().last_active.lock().unwrap_or_else(PoisonError::into_inner);
+            let last = *kv
+                .value()
+                .last_active
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
             if now.duration_since(last) > max_idle {
                 stale.push(kv.key().clone());
             }

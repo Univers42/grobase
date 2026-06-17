@@ -69,7 +69,12 @@ impl PresenceTracker {
     ///
     /// [`ServerMessage::Presence`]: realtime_core::ServerMessage
     #[must_use]
-    pub fn track(&self, topic: &str, conn_id: ConnectionId, member: PresenceMember) -> Vec<PresenceMember> {
+    pub fn track(
+        &self,
+        topic: &str,
+        conn_id: ConnectionId,
+        member: PresenceMember,
+    ) -> Vec<PresenceMember> {
         let entry = self.topics.entry(topic.to_string()).or_default();
         entry.insert(conn_id.0, member);
         entry.value().iter().map(|m| m.value().clone()).collect()
@@ -199,7 +204,10 @@ mod tests {
         let _ = p.track("room/1", ConnectionId(2), member(2, "bob"));
         let affected = p.remove_connection(ConnectionId(1));
         assert_eq!(affected.len(), 2, "left two topics");
-        assert!(p.members("room/1").iter().all(|m| m.user_id.as_deref() != Some("alice")));
+        assert!(p
+            .members("room/1")
+            .iter()
+            .all(|m| m.user_id.as_deref() != Some("alice")));
         assert_eq!(p.members("room/2").len(), 0);
     }
 }

@@ -294,7 +294,10 @@ fn build_usage() -> Option<realtime_gateway::usage::Usage> {
 /// convention so the same `1` turns the whole metering pipeline on.
 fn env_flag_on(key: &str) -> bool {
     matches!(
-        std::env::var(key).unwrap_or_default().to_ascii_lowercase().as_str(),
+        std::env::var(key)
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str(),
         "1" | "true" | "yes" | "on"
     )
 }

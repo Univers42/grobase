@@ -249,8 +249,7 @@ impl SharedPresence {
             return false;
         };
         let fut = async {
-            let r: redis::RedisResult<String> =
-                redis::cmd("PING").query_async(&mut conn).await;
+            let r: redis::RedisResult<String> = redis::cmd("PING").query_async(&mut conn).await;
             r
         };
         matches!(

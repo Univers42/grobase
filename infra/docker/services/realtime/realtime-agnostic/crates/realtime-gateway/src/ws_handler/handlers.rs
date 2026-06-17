@@ -16,7 +16,8 @@ use bytes::Bytes;
 use chrono::Utc;
 use realtime_core::{
     filter::FilterExpr, AuthContext, ConnectionId, EventEnvelope, EventSource, PresenceMember,
-    ServerMessage, SourceKind, SubscribeItem, Subscription, SubscriptionId, TopicPath, TopicPattern,
+    ServerMessage, SourceKind, SubscribeItem, Subscription, SubscriptionId, TopicPath,
+    TopicPattern,
 };
 use smol_str::SmolStr;
 use tokio::sync::mpsc;
@@ -137,7 +138,7 @@ pub(super) async fn handle_subscribe(
 /// The fix lives purely in the gateway authorization layer, so it is
 /// engine-/bus-agnostic.
 ///
-/// @see https://cwe.mitre.org/data/definitions/285.html
+/// @see <https://cwe.mitre.org/data/definitions/285.html>
 pub(super) async fn handle_subscribe_batch(
     subscriptions: Vec<SubscribeItem>,
     conn_id: ConnectionId,
@@ -347,8 +348,11 @@ pub(super) async fn handle_broadcast(
         warn!(conn_id = %conn_id, len = payload_bytes.len(), "Broadcast payload too large");
         return Action::Continue;
     }
-    let mut envelope =
-        EventEnvelope::new(TopicPath::new(&topic), "broadcast", Bytes::from(payload_bytes));
+    let mut envelope = EventEnvelope::new(
+        TopicPath::new(&topic),
+        "broadcast",
+        Bytes::from(payload_bytes),
+    );
     envelope.source = api_source(auth);
     if let Err(e) = state
         .bus_publisher
@@ -443,8 +447,11 @@ async fn publish_presence(
             return;
         }
     };
-    let mut envelope =
-        EventEnvelope::new(TopicPath::new(topic), "presence", Bytes::from(payload_bytes));
+    let mut envelope = EventEnvelope::new(
+        TopicPath::new(topic),
+        "presence",
+        Bytes::from(payload_bytes),
+    );
     envelope.source = api_source(auth);
     if let Err(e) = state
         .bus_publisher

@@ -1067,7 +1067,10 @@ async fn test_presence_join_then_leave() {
         "topic": "doc/42",
         "meta": { "name": "alice", "color": "blue" }
     });
-    write_a.send(Message::Text(track_a.to_string())).await.unwrap();
+    write_a
+        .send(Message::Text(track_a.to_string()))
+        .await
+        .unwrap();
 
     // B should receive a presence snapshot listing at least one member.
     let join = next_event(&mut read_b, Some("presence"), Duration::from_secs(3)).await;

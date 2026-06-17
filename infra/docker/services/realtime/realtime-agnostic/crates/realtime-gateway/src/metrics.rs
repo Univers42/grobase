@@ -71,16 +71,38 @@ pub fn render_prometheus() -> String {
     let _ = writeln!(s, "# HELP baas_realtime_up 1 while the gateway is serving");
     let _ = writeln!(s, "# TYPE baas_realtime_up gauge");
     let _ = writeln!(s, "baas_realtime_up{{service=\"realtime\"}} 1");
-    let _ = writeln!(s, "# HELP baas_realtime_events_dispatched_total Events written to a connection send queue");
+    let _ = writeln!(
+        s,
+        "# HELP baas_realtime_events_dispatched_total Events written to a connection send queue"
+    );
     let _ = writeln!(s, "# TYPE baas_realtime_events_dispatched_total counter");
-    let _ = writeln!(s, "baas_realtime_events_dispatched_total{{service=\"realtime\"}} {}", v(&m.dispatched));
+    let _ = writeln!(
+        s,
+        "baas_realtime_events_dispatched_total{{service=\"realtime\"}} {}",
+        v(&m.dispatched)
+    );
     let _ = writeln!(s, "# HELP baas_realtime_events_dropped_total Events NOT delivered, by reason (overflow = slow-consumer loss)");
     let _ = writeln!(s, "# TYPE baas_realtime_events_dropped_total counter");
-    let _ = writeln!(s, "baas_realtime_events_dropped_total{{service=\"realtime\",reason=\"overflow\"}} {}", v(&m.dropped_overflow));
-    let _ = writeln!(s, "baas_realtime_events_dropped_total{{service=\"realtime\",reason=\"connection_gone\"}} {}", v(&m.connection_gone));
+    let _ = writeln!(
+        s,
+        "baas_realtime_events_dropped_total{{service=\"realtime\",reason=\"overflow\"}} {}",
+        v(&m.dropped_overflow)
+    );
+    let _ = writeln!(
+        s,
+        "baas_realtime_events_dropped_total{{service=\"realtime\",reason=\"connection_gone\"}} {}",
+        v(&m.connection_gone)
+    );
     let _ = writeln!(s, "# HELP baas_realtime_slow_consumers_disconnected_total Consumers disconnected for being too slow");
-    let _ = writeln!(s, "# TYPE baas_realtime_slow_consumers_disconnected_total counter");
-    let _ = writeln!(s, "baas_realtime_slow_consumers_disconnected_total{{service=\"realtime\"}} {}", v(&m.slow_disconnected));
+    let _ = writeln!(
+        s,
+        "# TYPE baas_realtime_slow_consumers_disconnected_total counter"
+    );
+    let _ = writeln!(
+        s,
+        "baas_realtime_slow_consumers_disconnected_total{{service=\"realtime\"}} {}",
+        v(&m.slow_disconnected)
+    );
     s
 }
 

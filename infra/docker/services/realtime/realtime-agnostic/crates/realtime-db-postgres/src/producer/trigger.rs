@@ -19,7 +19,7 @@
 /// 2. Drops any existing trigger on the table.
 /// 3. Creates a new `AFTER INSERT OR UPDATE OR DELETE` trigger.
 pub fn generate_trigger_sql(table: &str, channel: &str) -> String {
-    format!("{}\n{}", notify_function_sql(channel), trigger_ddl(table),)
+    format!("{}\n{}", notify_function_sql(channel), trigger_ddl(table))
 }
 
 fn notify_function_sql(channel: &str) -> String {

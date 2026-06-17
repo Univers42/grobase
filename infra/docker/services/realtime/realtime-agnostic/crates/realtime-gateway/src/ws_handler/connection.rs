@@ -151,8 +151,11 @@ async fn publish_presence_snapshot(
     let Ok(payload_bytes) = serde_json::to_vec(&body) else {
         return;
     };
-    let envelope =
-        EventEnvelope::new(TopicPath::new(topic), "presence", Bytes::from(payload_bytes));
+    let envelope = EventEnvelope::new(
+        TopicPath::new(topic),
+        "presence",
+        Bytes::from(payload_bytes),
+    );
     if let Err(e) = bus_publisher.publish(topic, &envelope).await {
         error!(conn_id = %conn_id, "Failed to publish presence on disconnect: {}", e);
     }

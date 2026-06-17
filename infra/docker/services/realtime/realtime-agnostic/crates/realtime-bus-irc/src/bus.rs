@@ -19,8 +19,8 @@ use crate::subscriber::IrcSubscriber;
 use crate::IrcBusConfig;
 
 /// How often to sweep for idle per-user sessions, and the idle cutoff.
-const REAP_INTERVAL: Duration = Duration::from_secs(60);
-const USER_IDLE: Duration = Duration::from_secs(300);
+const REAP_INTERVAL: Duration = Duration::from_mins(1);
+const USER_IDLE: Duration = Duration::from_mins(5);
 
 /// IRC-backed event bus with a shared service connection + per-user sessions.
 pub struct IrcBus {

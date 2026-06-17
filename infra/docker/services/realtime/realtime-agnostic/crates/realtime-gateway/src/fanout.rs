@@ -44,9 +44,7 @@ impl FanOutWorkerPool {
     pub fn start(&self) -> mpsc::Sender<DispatchMessage> {
         // Treat 0 as auto-detect: use the number of available CPU cores (min 1).
         let count = if self.worker_count == 0 {
-            std::thread::available_parallelism()
-                .map(std::num::NonZero::get)
-                .unwrap_or(4)
+            std::thread::available_parallelism().map_or(4, std::num::NonZero::get)
         } else {
             self.worker_count
         };
@@ -87,7 +85,10 @@ async fn dispatch_loop(
         let idx = next % n;
         next = next.wrapping_add(1);
         if worker_txs[idx].send(message).await.is_err() {
-            debug!(worker = idx, "Fan-out worker channel closed; dropping dispatch");
+            debug!(
+                worker = idx,
+                "Fan-out worker channel closed; dropping dispatch"
+            );
         }
     }
 }

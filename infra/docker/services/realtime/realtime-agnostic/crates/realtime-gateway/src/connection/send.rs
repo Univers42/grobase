@@ -19,7 +19,12 @@ use tracing::{debug, warn};
 use super::{ConnectionManager, SendResult};
 
 impl ConnectionManager {
-    pub fn try_send(&self, conn_id: ConnectionId, sub_id: String, event: Arc<EventEnvelope>) -> SendResult {
+    pub fn try_send(
+        &self,
+        conn_id: ConnectionId,
+        sub_id: String,
+        event: Arc<EventEnvelope>,
+    ) -> SendResult {
         let Some(state) = self.connections.get(&conn_id) else {
             return SendResult::ConnectionGone;
         };

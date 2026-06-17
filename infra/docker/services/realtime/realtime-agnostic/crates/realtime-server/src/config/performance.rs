@@ -55,7 +55,5 @@ const fn default_dispatch_capacity() -> usize {
 }
 
 fn num_cpus() -> usize {
-    std::thread::available_parallelism()
-        .map(std::num::NonZero::get)
-        .unwrap_or(4)
+    std::thread::available_parallelism().map_or(4, std::num::NonZero::get)
 }

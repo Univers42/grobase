@@ -110,7 +110,11 @@ mod tests {
     use realtime_core::{EventPayload, ServerMessage, TopicPath};
 
     fn envelope(payload: &str) -> EventEnvelope {
-        EventEnvelope::new(TopicPath::new("orders"), "inserted", bytes::Bytes::from(payload.to_owned()))
+        EventEnvelope::new(
+            TopicPath::new("orders"),
+            "inserted",
+            bytes::Bytes::from(payload.to_owned()),
+        )
     }
 
     /// The serialize-once frame must be byte-identical to the previous
@@ -143,7 +147,10 @@ mod tests {
         let ev = envelope(r#"{"a":1}"#);
         let first = ev.rendered_payload_json();
         let second = ev.rendered_payload_json();
-        assert!(std::ptr::eq(first, second), "fragment must be memoized, not re-serialized");
+        assert!(
+            std::ptr::eq(first, second),
+            "fragment must be memoized, not re-serialized"
+        );
     }
 
     /// Cloning the envelope's Arc shares the cache, so two subscribers holding
@@ -156,6 +163,9 @@ mod tests {
         // Prime via one clone, then the other must return the same backing str.
         let pa = a.rendered_payload_json();
         let pb = b.rendered_payload_json();
-        assert!(std::ptr::eq(pa, pb), "Arc clones must share the rendered cache");
+        assert!(
+            std::ptr::eq(pa, pb),
+            "Arc clones must share the rendered cache"
+        );
     }
 }

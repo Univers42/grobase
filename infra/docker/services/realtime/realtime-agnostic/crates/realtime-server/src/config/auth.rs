@@ -40,7 +40,9 @@ impl std::fmt::Debug for AuthConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NoAuth => write!(f, "NoAuth"),
-            Self::Jwt { issuer, audience, .. } => f
+            Self::Jwt {
+                issuer, audience, ..
+            } => f
                 .debug_struct("Jwt")
                 .field("secret", &"<redacted>")
                 .field("issuer", issuer)
