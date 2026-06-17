@@ -1260,6 +1260,7 @@ fn sqlite_path(dsn: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn dsn_parsing() {
@@ -1384,5 +1385,240 @@ mod tests {
             primary_key: None,
         };
         assert!(build_sqlite_ddl(&req).is_err());
+    }
+
+    // ── value conversion: json_to_sql / sql_to_json (round-trip & shape) ─────
+
+    #[test]
+    fn json_to_sql_null_bool_int_float_string() {
+        assert!(matches!(json_to_sql(&Value::Null), SqlValue::Null));
+        assert!(matches!(json_to_sql(&json!(true)), SqlValue::Integer(1)));
+        assert!(matches!(json_to_sql(&json!(false)), SqlValue::Integer(0)));
+        assert!(matches!(json_to_sql(&json!(42)), SqlValue::Integer(42)));
+        assert!(matches!(json_to_sql(&json!(-7)), SqlValue::Integer(-7)));
+        assert!(matches!(json_to_sql(&json!(0)), SqlValue::Integer(0)));
+        let SqlValue::Real(f) = json_to_sql(&json!(3.5)) else {
+            panic!("expected Real");
+        };
+        assert_eq!(f, 3.5);
+        let SqlValue::Text(s) = json_to_sql(&json!("hi")) else {
+            panic!("expected Text");
+        };
+        assert_eq!(s, "hi");
+    }
+
+    #[test]
+    fn json_to_sql_i64_extremes_stay_integer() {
+        assert!(matches!(
+            json_to_sql(&json!(i64::MAX)),
+            SqlValue::Integer(i) if i == i64::MAX
+        ));
+        assert!(matches!(
+            json_to_sql(&json!(i64::MIN)),
+            SqlValue::Integer(i) if i == i64::MIN
+        ));
+    }
+
+    #[test]
+    fn json_to_sql_u64_above_i64_max_falls_to_real() {
+        // u64::MAX is not representable as i64, so as_i64() is None → Real path.
+        let SqlValue::Real(f) = json_to_sql(&json!(u64::MAX)) else {
+            panic!("expected Real for u64::MAX, got non-Real");
+        };
+        assert!(f > 0.0);
+    }
+
+    #[test]
+    fn json_to_sql_empty_and_unicode_strings() {
+        assert!(matches!(json_to_sql(&json!("")), SqlValue::Text(s) if s.is_empty()));
+        let SqlValue::Text(s) = json_to_sql(&json!("héllo-🦀-世界")) else {
+            panic!("expected Text");
+        };
+        assert_eq!(s, "héllo-🦀-世界");
+    }
+
+    #[test]
+    fn json_to_sql_arrays_and_objects_become_json_text() {
+        let SqlValue::Text(arr) = json_to_sql(&json!([1, 2, 3])) else {
+            panic!("expected Text for array");
+        };
+        assert_eq!(arr, "[1,2,3]");
+        let SqlValue::Text(obj) = json_to_sql(&json!({ "k": 1 })) else {
+            panic!("expected Text for object");
+        };
+        assert_eq!(obj, r#"{"k":1}"#);
+        // Nested composite also stringifies.
+        let SqlValue::Text(nested) = json_to_sql(&json!({ "a": [true, null] })) else {
+            panic!("expected Text for nested");
+        };
+        assert_eq!(nested, r#"{"a":[true,null]}"#);
+    }
+
+    #[test]
+    fn json_to_sql_large_float_is_real() {
+        let SqlValue::Real(f) = json_to_sql(&json!(1.7976931348623157e308_f64)) else {
+            panic!("expected Real");
+        };
+        assert!(f.is_finite());
+    }
+
+    #[test]
+    fn sql_to_json_round_trips_each_variant() {
+        assert_eq!(sql_to_json(SqlValue::Null), Value::Null);
+        assert_eq!(sql_to_json(SqlValue::Integer(9)), json!(9));
+        assert_eq!(sql_to_json(SqlValue::Text("x".into())), json!("x"));
+        let r = sql_to_json(SqlValue::Real(2.5));
+        assert_eq!(r, json!(2.5));
+        // A blob surfaces as a descriptive string (never panics).
+        let b = sql_to_json(SqlValue::Blob(vec![1, 2, 3]));
+        assert_eq!(b, json!("blob:3 bytes"));
+    }
+
+    #[test]
+    fn sql_to_json_non_finite_real_becomes_null() {
+        // from_f64 returns None for NaN/Inf, so the helper maps it to Null
+        // rather than panicking.
+        assert_eq!(sql_to_json(SqlValue::Real(f64::NAN)), Value::Null);
+        assert_eq!(sql_to_json(SqlValue::Real(f64::INFINITY)), Value::Null);
+    }
+
+    #[test]
+    fn json_to_sql_then_back_preserves_scalars() {
+        for v in [json!(7), json!("str"), Value::Null, json!(true)] {
+            let back = sql_to_json(json_to_sql(&v));
+            // bool round-trips to its integer form (SQLite has no bool type).
+            let expected = if v == json!(true) { json!(1) } else { v.clone() };
+            assert_eq!(back, expected, "round-trip {v}");
+        }
+    }
+
+    // ── identifier quoting: valid + injection rejection ──────────────────────
+
+    #[test]
+    fn quote_ident_accepts_ordinary_names() {
+        for ok in ["a", "name", "_x", "col1", "Owner_Id", "a b c", "select"] {
+            // SQLite allows spaces inside a quoted identifier; only the quote/
+            // NUL/control bytes are barred.
+            assert_eq!(quote_ident(ok).unwrap(), format!("\"{ok}\""), "{ok}");
+        }
+    }
+
+    #[test]
+    fn quote_ident_rejects_quote_nul_and_control() {
+        for bad in [
+            "",
+            "a\"b",
+            "a\0b",
+            "a\tb",
+            "a\nb",
+            "a\rb",
+            "x\x07y",
+        ] {
+            assert!(quote_ident(bad).is_err(), "should reject {bad:?}");
+        }
+    }
+
+    #[test]
+    fn quote_ident_rejects_overlong_identifier() {
+        let ok = "a".repeat(128);
+        assert!(quote_ident(&ok).is_ok(), "128 chars is the limit");
+        let too_long = "a".repeat(129);
+        assert!(quote_ident(&too_long).is_err(), "129 chars is rejected");
+    }
+
+    #[test]
+    fn quote_ident_escapes_nothing_so_embedded_quote_is_refused() {
+        // The contract is reject-not-escape for double quotes: a name with a "
+        // never produces an escaped identifier, it errors.
+        assert!(quote_ident("a\";DROP TABLE x;--").is_err());
+        assert!(quote_ident("\"injected\"").is_err());
+    }
+
+    // ── sqlite_literal: quote-doubling, no backslash escapes ─────────────────
+
+    #[test]
+    fn sqlite_literal_doubles_single_quotes_only() {
+        assert_eq!(sqlite_literal("plain"), "'plain'");
+        assert_eq!(sqlite_literal("it's"), "'it''s'");
+        assert_eq!(sqlite_literal("''"), "''''''");
+        // backslash is NOT an escape char in SQLite — it passes through literally.
+        assert_eq!(sqlite_literal("a\\b"), "'a\\b'");
+        assert_eq!(sqlite_literal(""), "''");
+    }
+
+    // ── conflict classification: backend / ddl ───────────────────────────────
+
+    #[test]
+    fn backend_classifies_constraint_violations_as_conflict() {
+        for msg in [
+            "UNIQUE constraint failed: t.email",
+            "CHECK constraint failed: t",
+            "NOT NULL constraint failed: t.name",
+            "FOREIGN KEY constraint failed",
+        ] {
+            let e = backend(rusqlite::Error::ToSqlConversionFailure(msg.into()));
+            assert!(
+                matches!(e, DataPlaneError::Conflict { .. }),
+                "{msg:?} → {e:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn backend_classifies_generic_errors_as_backend() {
+        for msg in [
+            "database is locked",
+            "disk I/O error",
+            "no such function: foo",
+        ] {
+            let e = backend(rusqlite::Error::ToSqlConversionFailure(msg.into()));
+            assert!(
+                matches!(e, DataPlaneError::Backend { .. }),
+                "{msg:?} → {e:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn backend_classification_is_case_insensitive() {
+        let e = backend(rusqlite::Error::ToSqlConversionFailure(
+            "UNIQUE CONSTRAINT FAILED".into(),
+        ));
+        assert!(matches!(e, DataPlaneError::Conflict { .. }), "{e:?}");
+    }
+
+    #[test]
+    fn ddl_error_classifies_schema_shape_mistakes_as_invalid_request() {
+        for msg in [
+            "table \"posts\" already exists",
+            "no such table: ghost",
+            "no such column: missing",
+            "duplicate column name: dup",
+        ] {
+            let e = classify_sqlite_ddl_error(&rusqlite::Error::ToSqlConversionFailure(msg.into()));
+            assert!(
+                matches!(e, DataPlaneError::InvalidRequest { .. }),
+                "{msg:?} → {e:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn ddl_error_classifies_other_failures_as_backend() {
+        let e = classify_sqlite_ddl_error(&rusqlite::Error::ToSqlConversionFailure(
+            "database disk image is malformed".into(),
+        ));
+        assert!(matches!(e, DataPlaneError::Backend { .. }), "{e:?}");
+    }
+
+    // ── DSN parsing edge cases ───────────────────────────────────────────────
+
+    #[test]
+    fn dsn_parsing_edge_cases() {
+        assert_eq!(sqlite_path("sqlite:"), ":memory:");
+        assert_eq!(sqlite_path("sqlite://relative/db.sqlite"), "relative/db.sqlite");
+        assert_eq!(sqlite_path(""), ":memory:");
+        assert_eq!(sqlite_path(":memory:"), ":memory:");
+        assert_eq!(sqlite_path("sqlite:///tmp/a b.db"), "/tmp/a b.db");
     }
 }

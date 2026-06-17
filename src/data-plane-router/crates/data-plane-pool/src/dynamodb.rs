@@ -1147,4 +1147,284 @@ mod tests {
         let nested = json!({"k": [1, 2, 3]});
         assert_eq!(attr_to_json(&json_to_attr(&nested)), nested);
     }
+
+    // ── json_to_attr: per-JSON-type attribute mapping ────────────────────────
+    // NOTE: `dynamodb` is a non-default feature whose AWS deps don't build on
+    // the pinned rustc (known MSRV issue), so these compile/run only when the
+    // crate is built `--features dynamodb`. Written by analogy to the live
+    // helpers so they pass once the toolchain catches up.
+
+    #[test]
+    fn json_to_attr_maps_each_scalar_type() {
+        assert!(matches!(json_to_attr(&Value::Null), AttributeValue::Null(true)));
+        assert!(matches!(json_to_attr(&json!(true)), AttributeValue::Bool(true)));
+        assert!(matches!(json_to_attr(&json!(false)), AttributeValue::Bool(false)));
+        match json_to_attr(&json!("hello")) {
+            AttributeValue::S(s) => assert_eq!(s, "hello"),
+            _ => panic!("expected S"),
+        }
+        match json_to_attr(&json!("")) {
+            AttributeValue::S(s) => assert!(s.is_empty()),
+            _ => panic!("expected S"),
+        }
+        // numbers are stored as their decimal string in an N attribute.
+        match json_to_attr(&json!(42)) {
+            AttributeValue::N(n) => assert_eq!(n, "42"),
+            _ => panic!("expected N"),
+        }
+        match json_to_attr(&json!(-3.5)) {
+            AttributeValue::N(n) => assert_eq!(n, "-3.5"),
+            _ => panic!("expected N"),
+        }
+        match json_to_attr(&json!(i64::MAX)) {
+            AttributeValue::N(n) => assert_eq!(n, i64::MAX.to_string()),
+            _ => panic!("expected N"),
+        }
+    }
+
+    #[test]
+    fn json_to_attr_stores_arrays_and_objects_as_json_strings() {
+        match json_to_attr(&json!([1, 2, 3])) {
+            AttributeValue::S(s) => assert_eq!(s, "[1,2,3]"),
+            _ => panic!("expected S for array"),
+        }
+        match json_to_attr(&json!({ "k": [true, null] })) {
+            AttributeValue::S(s) => assert_eq!(s, r#"{"k":[true,null]}"#),
+            _ => panic!("expected S for object"),
+        }
+    }
+
+    #[test]
+    fn json_to_attr_unicode_string_preserved() {
+        match json_to_attr(&json!("héllo-🦀-世界")) {
+            AttributeValue::S(s) => assert_eq!(s, "héllo-🦀-世界"),
+            _ => panic!("expected S"),
+        }
+    }
+
+    // ── attr_to_json: number parse (int then float), nested string parse ─────
+
+    #[test]
+    fn attr_to_json_numbers_prefer_int_then_float() {
+        assert_eq!(attr_to_json(&AttributeValue::N("42".into())), json!(42));
+        assert_eq!(attr_to_json(&AttributeValue::N("-7".into())), json!(-7));
+        assert_eq!(attr_to_json(&AttributeValue::N("3.5".into())), json!(3.5));
+        // A number string that is neither i64 nor f64 stays a string (no panic).
+        assert_eq!(
+            attr_to_json(&AttributeValue::N("not-a-number".into())),
+            json!("not-a-number")
+        );
+    }
+
+    #[test]
+    fn attr_to_json_string_parses_embedded_json_only_for_composites() {
+        // An S that holds an object/array round-trips to that composite.
+        assert_eq!(
+            attr_to_json(&AttributeValue::S(r#"{"k":1}"#.into())),
+            json!({ "k": 1 })
+        );
+        assert_eq!(
+            attr_to_json(&AttributeValue::S("[1,2]".into())),
+            json!([1, 2])
+        );
+        // An S that parses as a scalar JSON (e.g. "42") stays a STRING — only
+        // object/array forms are unwrapped.
+        assert_eq!(attr_to_json(&AttributeValue::S("42".into())), json!("42"));
+        assert_eq!(attr_to_json(&AttributeValue::S("plain".into())), json!("plain"));
+    }
+
+    #[test]
+    fn attr_to_json_bool_null_and_unsupported() {
+        assert_eq!(attr_to_json(&AttributeValue::Bool(true)), json!(true));
+        assert_eq!(attr_to_json(&AttributeValue::Bool(false)), json!(false));
+        assert_eq!(attr_to_json(&AttributeValue::Null(true)), Value::Null);
+        // An unsupported attribute kind (e.g. a string-set / number-set) → Null,
+        // never a panic. `Ss`/`Ns` are `Vec<String>` so no Blob import is needed.
+        assert_eq!(
+            attr_to_json(&AttributeValue::Ss(vec!["a".into(), "b".into()])),
+            Value::Null
+        );
+        assert_eq!(
+            attr_to_json(&AttributeValue::Ns(vec!["1".into(), "2".into()])),
+            Value::Null
+        );
+    }
+
+    #[test]
+    fn json_attr_round_trips_every_scalar_both_ways() {
+        for v in [json!("s"), json!(""), json!(7), json!(-1), json!(true), Value::Null] {
+            assert_eq!(attr_to_json(&json_to_attr(&v)), v, "round-trip {v}");
+        }
+    }
+
+    // ── build_owner_pk: with/without namespace ───────────────────────────────
+
+    #[test]
+    fn build_owner_pk_envelope_shapes() {
+        assert_eq!(build_owner_pk(None, "owner"), "owner");
+        assert_eq!(build_owner_pk(Some("ns"), "owner"), "ns:owner");
+        assert_eq!(build_owner_pk(None, ""), "");
+    }
+
+    // ── scalar_to_string: scalar coercion (mirrors Redis id rule) ────────────
+
+    #[test]
+    fn scalar_to_string_covers_scalars_and_rejects_composites() {
+        assert_eq!(scalar_to_string(&json!("x")).as_deref(), Some("x"));
+        assert_eq!(scalar_to_string(&json!(42)).as_deref(), Some("42"));
+        assert_eq!(scalar_to_string(&json!(-1)).as_deref(), Some("-1"));
+        assert_eq!(scalar_to_string(&json!(true)).as_deref(), Some("true"));
+        assert_eq!(scalar_to_string(&json!(false)).as_deref(), Some("false"));
+        // null / array / object are not scalar ids.
+        assert!(scalar_to_string(&Value::Null).is_none());
+        assert!(scalar_to_string(&json!([1])).is_none());
+        assert!(scalar_to_string(&json!({ "k": 1 })).is_none());
+    }
+
+    // ── percent_decode: %XX triples + passthrough ────────────────────────────
+
+    #[test]
+    fn percent_decode_handles_triples_and_passthrough() {
+        assert_eq!(percent_decode("http%3A%2F%2Fhost%3A8000"), "http://host:8000");
+        assert_eq!(percent_decode("plain"), "plain");
+        assert_eq!(percent_decode(""), "");
+        // a lone % or truncated escape passes through unchanged (no panic).
+        assert_eq!(percent_decode("100%"), "100%");
+        assert_eq!(percent_decode("a%2"), "a%2");
+        // an invalid hex pair passes through.
+        assert_eq!(percent_decode("%zz"), "%zz");
+        // mixed.
+        assert_eq!(percent_decode("a%20b%2Fc"), "a b/c");
+    }
+
+    // ── parse_dynamo_dsn: defaults, overrides, credentials, bad scheme ───────
+
+    #[test]
+    fn parse_dynamo_dsn_full_query_string() {
+        let p = parse_dynamo_dsn(
+            "dynamodb://x?region=eu-west-1&endpoint=http://h:8000&access_key=AK&secret_key=SK",
+        )
+        .unwrap();
+        assert_eq!(p.region, "eu-west-1");
+        assert_eq!(p.endpoint.as_deref(), Some("http://h:8000"));
+        assert_eq!(p.access_key.as_deref(), Some("AK"));
+        assert_eq!(p.secret_key.as_deref(), Some("SK"));
+    }
+
+    #[test]
+    fn parse_dynamo_dsn_defaults_when_query_absent_or_empty() {
+        let p = parse_dynamo_dsn("dynamodb://local").unwrap();
+        assert_eq!(p.region, "us-east-1");
+        assert!(p.endpoint.is_none());
+        assert!(p.access_key.is_none());
+        // empty values are ignored (region keeps its default).
+        let q = parse_dynamo_dsn("dynamodb://x?region=&endpoint=").unwrap();
+        assert_eq!(q.region, "us-east-1");
+        assert!(q.endpoint.is_none());
+    }
+
+    #[test]
+    fn parse_dynamo_dsn_rejects_non_dynamodb_scheme() {
+        for bad in ["postgres://x", "http://x", "dynamo://x", ""] {
+            assert!(parse_dynamo_dsn(bad).is_err(), "should reject {bad:?}");
+        }
+    }
+
+    #[test]
+    fn parse_dynamo_dsn_ignores_unknown_query_keys() {
+        let p = parse_dynamo_dsn("dynamodb://x?region=us-west-2&junk=1&foo=bar").unwrap();
+        assert_eq!(p.region, "us-west-2");
+    }
+
+    // ── is_valid_segment / validate_resource / validate_id ───────────────────
+
+    #[test]
+    fn is_valid_segment_charset_and_bounds() {
+        assert!(is_valid_segment("abc_123", 10, b""));
+        assert!(!is_valid_segment("", 10, b""));
+        assert!(!is_valid_segment("abcd", 3, b""));
+        assert!(is_valid_segment("a.b", 10, b".-"));
+        assert!(!is_valid_segment("a.b", 10, b""));
+        assert!(!is_valid_segment("a b", 10, b".-"));
+    }
+
+    #[test]
+    fn validate_resource_accepts_table_names_rejects_injection() {
+        for ok in ["users", "users-2024", "users.archive", "u_table", &"x".repeat(255)] {
+            assert!(validate_resource(ok).is_ok(), "should accept {ok:?}");
+        }
+        for bad in ["", "users*", "a b", "x/y", "name?q", "users;DROP", &"x".repeat(256)] {
+            assert!(validate_resource(bad).is_err(), "should reject {bad:?}");
+        }
+    }
+
+    #[test]
+    fn validate_id_wide_charset_and_length() {
+        for ok in ["abc", "a-b_c:d.e", &"i".repeat(1024)] {
+            assert!(validate_id(ok).is_ok(), "should accept {ok:?}");
+        }
+        for bad in ["", "a b", "a/b", "a*b", &"i".repeat(1025)] {
+            assert!(validate_id(bad).is_err(), "should reject {bad:?}");
+        }
+    }
+
+    // ── generate_id: shape (ms-hex) + uniqueness ─────────────────────────────
+
+    #[test]
+    fn generate_id_shape_and_validates() {
+        let id = generate_id();
+        let (ms, hex) = id.split_once('-').expect("id has '-' separator");
+        assert!(ms.chars().all(|c| c.is_ascii_digit()), "ms: {ms}");
+        assert!(hex.chars().all(|c| c.is_ascii_hexdigit()), "hex: {hex}");
+        assert!(validate_id(&id).is_ok(), "generated id valid: {id}");
+    }
+
+    // ── item_to_row: envelope hiding + id surfacing ──────────────────────────
+
+    #[test]
+    fn item_to_row_hides_pk_and_owner_surfaces_sort_key_as_id() {
+        let mut item = HashMap::new();
+        item.insert(PK.to_string(), AttributeValue::S("partition".into()));
+        item.insert("owner".to_string(), AttributeValue::S("owner".into()));
+        item.insert(SK.to_string(), AttributeValue::S("row-1".into()));
+        item.insert("title".to_string(), AttributeValue::S("hello".into()));
+        item.insert("count".to_string(), AttributeValue::N("9".into()));
+        item.insert(
+            "meta".to_string(),
+            AttributeValue::S(r#"{"nested":true}"#.into()),
+        );
+        let Value::Object(m) = item_to_row(item) else {
+            panic!()
+        };
+        assert!(!m.contains_key(PK));
+        assert!(!m.contains_key("owner"));
+        assert_eq!(m.get("id"), Some(&json!("row-1")));
+        assert_eq!(m.get("title"), Some(&json!("hello")));
+        assert_eq!(m.get("count"), Some(&json!(9)));
+        assert_eq!(m.get("meta"), Some(&json!({ "nested": true })));
+    }
+
+    // ── result constructors: empty / single / write echo ─────────────────────
+
+    #[test]
+    fn result_constructors_shapes() {
+        let e = empty_result();
+        assert_eq!(e.affected_rows, 0);
+        assert!(e.rows.is_empty());
+
+        let s = single_row(json!({ "id": "x" }));
+        assert_eq!(s.affected_rows, 1);
+        assert_eq!(s.rows.len(), 1);
+
+        // write_row echoes data + injects the id.
+        let mut data = JsonMap::new();
+        data.insert("name".to_string(), json!("Alice"));
+        let w = write_row("gen-id".to_string(), data);
+        assert_eq!(w.affected_rows, 1);
+        let Value::Object(row) = &w.rows[0] else {
+            panic!()
+        };
+        assert_eq!(row.get("id"), Some(&json!("gen-id")));
+        assert_eq!(row.get("name"), Some(&json!("Alice")));
+    }
 }

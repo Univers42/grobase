@@ -1801,4 +1801,433 @@ mod tests {
             DataPlaneError::Backend { .. }
         ));
     }
+
+    // ── value_to_bson / json_to_doc: every JSON type ─────────────────────────
+
+    #[test]
+    fn value_to_bson_maps_each_scalar_type() {
+        assert!(matches!(value_to_bson(&Value::Null).unwrap(), Bson::Null));
+        assert!(matches!(value_to_bson(&json!(true)).unwrap(), Bson::Boolean(true)));
+        assert!(matches!(value_to_bson(&json!(false)).unwrap(), Bson::Boolean(false)));
+        // serde_json small integers become Int64 through bson.
+        assert!(matches!(value_to_bson(&json!(42)).unwrap(), Bson::Int64(42)));
+        assert!(matches!(value_to_bson(&json!(-7)).unwrap(), Bson::Int64(-7)));
+        assert!(matches!(
+            value_to_bson(&json!(i64::MAX)).unwrap(),
+            Bson::Int64(i) if i == i64::MAX
+        ));
+        assert!(matches!(
+            value_to_bson(&json!(i64::MIN)).unwrap(),
+            Bson::Int64(i) if i == i64::MIN
+        ));
+        // floats become Double.
+        let Bson::Double(d) = value_to_bson(&json!(3.5)).unwrap() else {
+            panic!("expected Double");
+        };
+        assert_eq!(d, 3.5);
+        // strings become String (incl. empty + unicode).
+        assert_eq!(value_to_bson(&json!("")).unwrap(), Bson::String("".into()));
+        assert_eq!(
+            value_to_bson(&json!("héllo-🦀")).unwrap(),
+            Bson::String("héllo-🦀".into())
+        );
+    }
+
+    #[test]
+    fn value_to_bson_handles_arrays_and_nested_objects() {
+        let Bson::Array(arr) = value_to_bson(&json!([1, "two", true])).unwrap() else {
+            panic!("expected Array");
+        };
+        assert_eq!(arr.len(), 3);
+        let Bson::Document(d) = value_to_bson(&json!({ "a": { "b": [null] } })).unwrap() else {
+            panic!("expected Document");
+        };
+        assert!(d.contains_key("a"));
+    }
+
+    #[test]
+    fn value_to_bson_rejects_u64_above_i64_max_as_backend_error() {
+        // bson 2.x has no unsigned-integer type, so a JSON number above i64::MAX
+        // cannot serialize. The helper maps that to a Backend error (graceful) —
+        // it must NEVER panic. (Values up to i64::MAX still round-trip as Int64.)
+        let err = value_to_bson(&json!(u64::MAX)).unwrap_err();
+        assert!(
+            matches!(err, DataPlaneError::Backend { .. }),
+            "u64::MAX → Backend error, got {err:?}"
+        );
+        // The largest value that DOES fit is i64::MAX.
+        assert!(matches!(
+            value_to_bson(&json!(i64::MAX as u64)).unwrap(),
+            Bson::Int64(i) if i == i64::MAX
+        ));
+        // One past it (i64::MAX + 1) already fails.
+        assert!(value_to_bson(&json!((i64::MAX as u64) + 1)).is_err());
+    }
+
+    #[test]
+    fn json_to_doc_requires_an_object() {
+        let d = json_to_doc(&json!({ "k": 1, "nested": { "x": [1, 2] } })).unwrap();
+        assert_eq!(d.get_i64("k").unwrap(), 1);
+        // non-objects are rejected as InvalidRequest (not Backend, not panic).
+        for bad in [json!([1, 2]), json!("s"), json!(7), Value::Null, json!(true)] {
+            assert!(matches!(
+                json_to_doc(&bad),
+                Err(DataPlaneError::InvalidRequest { .. })
+            ), "should reject {bad}");
+        }
+    }
+
+    #[test]
+    fn json_to_doc_empty_object_is_empty_document() {
+        let d = json_to_doc(&json!({})).unwrap();
+        assert!(d.is_empty());
+    }
+
+    // ── coerce_id_filter: hex → dual-match, others passthrough ───────────────
+
+    #[test]
+    fn coerce_id_filter_expands_24_hex_to_objectid_or_string() {
+        let hex = "507f1f77bcf86cd799439011";
+        let coerced = coerce_id_filter(Bson::String(hex.to_string()));
+        // → { $in: [ObjectId(hex), "hex"] }
+        let Bson::Document(d) = coerced else {
+            panic!("expected a $in document");
+        };
+        let arr = d.get_array("$in").unwrap();
+        assert_eq!(arr.len(), 2);
+        assert!(matches!(arr[0], Bson::ObjectId(_)));
+        assert_eq!(arr[1], Bson::String(hex.to_string()));
+    }
+
+    #[test]
+    fn coerce_id_filter_leaves_non_hex_string_unchanged() {
+        let s = "not-an-oid";
+        assert_eq!(
+            coerce_id_filter(Bson::String(s.into())),
+            Bson::String(s.into())
+        );
+        // too-short hex isn't an ObjectId either.
+        assert_eq!(
+            coerce_id_filter(Bson::String("abc".into())),
+            Bson::String("abc".into())
+        );
+    }
+
+    #[test]
+    fn coerce_id_filter_passes_through_non_strings() {
+        assert_eq!(coerce_id_filter(Bson::Int64(5)), Bson::Int64(5));
+        assert_eq!(coerce_id_filter(Bson::Null), Bson::Null);
+        let doc = doc! { "$gt": 1 };
+        assert_eq!(
+            coerce_id_filter(Bson::Document(doc.clone())),
+            Bson::Document(doc)
+        );
+    }
+
+    // ── build_sort: direction mapping, empty, multi-key ──────────────────────
+
+    #[test]
+    fn build_sort_maps_directions_and_handles_empty() {
+        assert!(build_sort(None).is_none());
+        let empty = std::collections::BTreeMap::new();
+        assert!(build_sort(Some(&empty)).is_none());
+
+        let mut m = std::collections::BTreeMap::new();
+        m.insert("a".to_string(), "asc".to_string());
+        m.insert("b".to_string(), "DESC".to_string());
+        m.insert("c".to_string(), "whatever".to_string()); // non-desc → asc(1)
+        let doc = build_sort(Some(&m)).unwrap();
+        assert_eq!(doc.get_i32("a").unwrap(), 1);
+        assert_eq!(doc.get_i32("b").unwrap(), -1);
+        assert_eq!(doc.get_i32("c").unwrap(), 1);
+    }
+
+    // ── normalize_doc: _id→id, ObjectId hex, logical-id preservation ─────────
+
+    #[test]
+    fn normalize_doc_promotes_objectid_id_to_hex_string() {
+        let oid = bson::oid::ObjectId::new();
+        let mut d = Document::new();
+        d.insert("_id", oid);
+        d.insert("name", "x");
+        let Value::Object(m) = normalize_doc(d) else {
+            panic!()
+        };
+        assert_eq!(m.get("id"), Some(&json!(oid.to_hex())));
+        assert!(!m.contains_key("_id"), "_id is consumed");
+        assert_eq!(m.get("name"), Some(&json!("x")));
+    }
+
+    #[test]
+    fn normalize_doc_preserves_logical_id_and_drops_objectid() {
+        // A document with BOTH a logical `id` and an `_id` keeps the logical id
+        // (so graph edges stay connected); _id is removed, not promoted.
+        let oid = bson::oid::ObjectId::new();
+        let mut d = Document::new();
+        d.insert("_id", oid);
+        d.insert("id", "logical-123");
+        let Value::Object(m) = normalize_doc(d) else {
+            panic!()
+        };
+        assert_eq!(m.get("id"), Some(&json!("logical-123")));
+        assert!(!m.contains_key("_id"));
+    }
+
+    #[test]
+    fn normalize_doc_string_id_promotes_verbatim() {
+        let mut d = Document::new();
+        d.insert("_id", "string-id");
+        let Value::Object(m) = normalize_doc(d) else {
+            panic!()
+        };
+        assert_eq!(m.get("id"), Some(&json!("string-id")));
+    }
+
+    #[test]
+    fn normalize_doc_without_id_is_unchanged_shape() {
+        let mut d = Document::new();
+        d.insert("name", "x");
+        d.insert("n", 5_i64);
+        let Value::Object(m) = normalize_doc(d) else {
+            panic!()
+        };
+        assert!(!m.contains_key("id"));
+        assert_eq!(m.get("name"), Some(&json!("x")));
+    }
+
+    // ── safe_agg_key: $-prefix / dot / NUL / empty ───────────────────────────
+
+    #[test]
+    fn safe_agg_key_accepts_plain_names() {
+        for ok in ["name", "total_amount", "col1", "Owner"] {
+            assert!(safe_agg_key(ok).is_ok(), "should accept {ok:?}");
+        }
+    }
+
+    #[test]
+    fn safe_agg_key_rejects_operators_paths_and_nul() {
+        for bad in ["", "$sum", "$where", "a.b", "nested.path", "a\0b"] {
+            assert!(safe_agg_key(bad).is_err(), "should reject {bad:?}");
+        }
+    }
+
+    // ── build_mongo_aggregate_expr: per-func shapes + guards ──────────────────
+
+    fn agg(func: AggFunc, field: Option<&str>) -> Aggregate {
+        Aggregate {
+            func,
+            field: field.map(str::to_string),
+            distinct: false,
+            alias: "out".to_string(),
+        }
+    }
+
+    #[test]
+    fn aggregate_count_with_and_without_field() {
+        // count() with no field → { $sum: 1 }
+        let b = build_mongo_aggregate_expr(&agg(AggFunc::Count, None)).unwrap();
+        assert_eq!(b, Bson::Document(doc! { "$sum": 1 }));
+        // count(field) → conditional sum (presence/non-null)
+        let Bson::Document(d) =
+            build_mongo_aggregate_expr(&agg(AggFunc::Count, Some("col"))).unwrap()
+        else {
+            panic!()
+        };
+        assert!(d.contains_key("$sum"));
+    }
+
+    #[test]
+    fn aggregate_sum_avg_min_max_reference_the_field() {
+        for (func, key) in [
+            (AggFunc::Sum, "$sum"),
+            (AggFunc::Avg, "$avg"),
+            (AggFunc::Min, "$min"),
+            (AggFunc::Max, "$max"),
+        ] {
+            let Bson::Document(d) =
+                build_mongo_aggregate_expr(&agg(func, Some("amount"))).unwrap()
+            else {
+                panic!()
+            };
+            assert_eq!(d.get_str(key).unwrap(), "$amount", "func {func:?}");
+        }
+    }
+
+    #[test]
+    fn aggregate_sum_without_field_is_rejected() {
+        for func in [AggFunc::Sum, AggFunc::Avg, AggFunc::Min, AggFunc::Max] {
+            assert!(
+                matches!(
+                    build_mongo_aggregate_expr(&agg(func, None)),
+                    Err(DataPlaneError::InvalidRequest { .. })
+                ),
+                "func {func:?} requires a field"
+            );
+        }
+    }
+
+    #[test]
+    fn aggregate_rejects_unsafe_field_name() {
+        assert!(build_mongo_aggregate_expr(&agg(AggFunc::Sum, Some("$injected"))).is_err());
+        assert!(build_mongo_aggregate_expr(&agg(AggFunc::Max, Some("a.b"))).is_err());
+    }
+
+    // ── reject_top_level_operators / reject_unsafe_operators ──────────────────
+
+    #[test]
+    fn reject_top_level_operators_blocks_dollar_keys_only_at_top() {
+        assert!(reject_top_level_operators(&json!({ "name": "x", "n": 1 })).is_ok());
+        // dotted (nested-path) keys ARE allowed at the top level.
+        assert!(reject_top_level_operators(&json!({ "a.b": 1 })).is_ok());
+        // a $-key at the top is rejected.
+        assert!(reject_top_level_operators(&json!({ "$set": { "x": 1 } })).is_err());
+        // a nested $-key is fine for THIS check (it only inspects the top).
+        assert!(reject_top_level_operators(&json!({ "doc": { "$x": 1 } })).is_ok());
+        // a non-object is a no-op (Ok).
+        assert!(reject_top_level_operators(&json!([1, 2])).is_ok());
+    }
+
+    #[test]
+    fn reject_unsafe_operators_allows_safe_recurses_into_arrays() {
+        // safe operators pass at any depth.
+        assert!(reject_unsafe_operators(&json!({ "age": { "$gte": 18 } })).is_ok());
+        assert!(reject_unsafe_operators(&json!({ "$and": [ { "a": 1 }, { "b": { "$in": [1, 2] } } ] })).is_ok());
+        assert!(reject_unsafe_operators(&json!({ "tags": { "$all": ["x"] } })).is_ok());
+        // unsafe operators are rejected wherever they appear.
+        assert!(reject_unsafe_operators(&json!({ "$where": "this.x" })).is_err());
+        assert!(reject_unsafe_operators(&json!({ "a": { "$expr": {} } })).is_err());
+        assert!(reject_unsafe_operators(&json!({ "$or": [ { "$function": {} } ] })).is_err());
+        // case-sensitive: $GT is NOT in the allowlist.
+        assert!(reject_unsafe_operators(&json!({ "a": { "$GT": 1 } })).is_err());
+    }
+
+    #[test]
+    fn reject_unsafe_operators_ignores_non_dollar_field_names() {
+        // Field names (non-$) are unrestricted — only operators are gated.
+        assert!(reject_unsafe_operators(&json!({ "weird name!": 1, "owner_id": "x" })).is_ok());
+    }
+
+    // ── require_row_filter: selectivity guard ────────────────────────────────
+
+    #[test]
+    fn require_row_filter_demands_a_client_chosen_field() {
+        // None / empty / only-trust-fields → refused (full-collection guard).
+        assert!(require_row_filter(None, "delete").is_err());
+        assert!(require_row_filter(Some(&json!({})), "delete").is_err());
+        assert!(require_row_filter(Some(&json!({ "owner_id": "x" })), "update").is_err());
+        assert!(require_row_filter(Some(&json!({ "owner_id": "x", "tenant_id": "y" })), "update").is_err());
+        // a non-object is not selective.
+        assert!(require_row_filter(Some(&json!([1])), "delete").is_err());
+        // at least one client field → ok.
+        assert!(require_row_filter(Some(&json!({ "_id": "x" })), "get").is_ok());
+        assert!(require_row_filter(Some(&json!({ "status": "open" })), "update").is_ok());
+        assert!(require_row_filter(Some(&json!({ "owner_id": "x", "name": "real" })), "delete").is_ok());
+    }
+
+    // ── bson_type_to_normalized / bson_value_type_name (inverse pair) ─────────
+
+    #[test]
+    fn bson_type_to_normalized_covers_the_creatable_set() {
+        use NormalizedType::*;
+        let cases = [
+            ("objectId", Objectid),
+            ("string", Text),
+            ("int", Integer),
+            ("long", Integer),
+            ("double", Float),
+            ("decimal", Decimal),
+            ("bool", Boolean),
+            ("date", Datetime),
+            ("array", Array),
+            ("object", Json),
+            ("nonsense", Unknown),
+            ("", Unknown),
+        ];
+        for (name, want) in cases {
+            assert_eq!(bson_type_to_normalized(name), want, "bsonType {name}");
+        }
+    }
+
+    #[test]
+    fn bson_value_type_name_matches_jsonschema_names() {
+        assert_eq!(bson_value_type_name(&Bson::Double(1.0)), "double");
+        assert_eq!(bson_value_type_name(&Bson::String("x".into())), "string");
+        assert_eq!(bson_value_type_name(&Bson::Array(vec![])), "array");
+        assert_eq!(bson_value_type_name(&Bson::Document(Document::new())), "object");
+        assert_eq!(bson_value_type_name(&Bson::Boolean(true)), "bool");
+        assert_eq!(bson_value_type_name(&Bson::Null), "null");
+        assert_eq!(bson_value_type_name(&Bson::Int32(1)), "int");
+        assert_eq!(bson_value_type_name(&Bson::Int64(1)), "long");
+        assert_eq!(bson_value_type_name(&Bson::ObjectId(bson::oid::ObjectId::new())), "objectId");
+        assert_eq!(bson_value_type_name(&Bson::Decimal128("1".parse().unwrap())), "decimal");
+        // a variant outside the mapped set → "unknown" (never panics).
+        assert_eq!(bson_value_type_name(&Bson::MinKey), "unknown");
+    }
+
+    // ── ddl_bson_type: creatable mapping + describe-only rejection ────────────
+
+    #[test]
+    fn ddl_bson_type_maps_creatable_and_rejects_describe_only() {
+        let mk = |ty: NormalizedType| DdlColumnDef {
+            name: "c".into(),
+            normalized_type: ty,
+            nullable: true,
+            default: None,
+            enum_values: None,
+        };
+        use NormalizedType::*;
+        for (ty, want) in [
+            (Text, "string"),
+            (Uuid, "string"),
+            (Integer, "long"),
+            (Float, "double"),
+            (Decimal, "decimal"),
+            (Boolean, "bool"),
+            (Date, "date"),
+            (Datetime, "date"),
+            (Json, "object"),
+            (Array, "array"),
+            (Enum, "string"),
+        ] {
+            assert_eq!(ddl_bson_type(&mk(ty)).unwrap(), want, "type {ty:?}");
+        }
+        // objectid / unknown are describe-only → InvalidRequest.
+        assert!(ddl_bson_type(&mk(Objectid)).is_err());
+        assert!(ddl_bson_type(&mk(Unknown)).is_err());
+    }
+
+    // ── parse_db_name: DSN → database name, with default ──────────────────────
+
+    #[test]
+    fn parse_db_name_extracts_path_or_defaults_to_test() {
+        assert_eq!(parse_db_name("mongodb://host:27017/mydb"), "mydb");
+        assert_eq!(parse_db_name("mongodb://u:p@host/appdb?retryWrites=true"), "appdb");
+        assert_eq!(parse_db_name("mongodb+srv://host/prod"), "prod");
+        // no path → default "test".
+        assert_eq!(parse_db_name("mongodb://host:27017"), "test");
+        assert_eq!(parse_db_name("mongodb://host/"), "test");
+        assert_eq!(parse_db_name("garbage"), "test");
+    }
+
+    // ── classify_mongo_message: validation + duplicate-key → Conflict ─────────
+
+    #[test]
+    fn classify_mongo_message_full_matrix() {
+        for conflict in [
+            "Document failed validation",
+            "DocumentValidationFailure: schema mismatch",
+            "E11000 duplicate key error collection: db.t",
+        ] {
+            assert!(
+                matches!(classify_mongo_message(conflict.into()), DataPlaneError::Conflict { .. }),
+                "{conflict:?} → Conflict"
+            );
+        }
+        for backend in ["connection timed out", "not master", "server selection error"] {
+            assert!(
+                matches!(classify_mongo_message(backend.into()), DataPlaneError::Backend { .. }),
+                "{backend:?} → Backend"
+            );
+        }
+    }
 }

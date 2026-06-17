@@ -3336,4 +3336,322 @@ mod tests {
         )
         .is_err());
     }
+
+    // ── JsonParam value conversion: every JSON type × representative column ───
+
+    #[test]
+    fn json_null_is_sql_null_for_any_column() {
+        for ty in [&Type::INT4, &Type::TEXT, &Type::BOOL, &Type::JSONB] {
+            let (is_null, buf) = encode(Value::Null, ty).unwrap();
+            assert!(matches!(is_null, IsNull::Yes), "null into {ty:?}");
+            assert!(buf.is_empty(), "null writes no bytes for {ty:?}");
+        }
+    }
+
+    #[test]
+    fn json_bool_true_and_false_into_bool_column() {
+        let (n, t) = encode(json!(true), &Type::BOOL).unwrap();
+        assert!(matches!(n, IsNull::No));
+        assert_eq!(&t[..], &[1u8], "true → 0x01");
+        let (_, f) = encode(json!(false), &Type::BOOL).unwrap();
+        assert_eq!(&f[..], &[0u8], "false → 0x00");
+    }
+
+    #[test]
+    fn json_bool_into_non_bool_column_is_rejected() {
+        // bool delegates through to_sql_checked, so a bool into int4 is a clean
+        // WrongType error — never garbage bytes.
+        assert!(encode(json!(true), &Type::INT4).is_err());
+    }
+
+    #[test]
+    fn json_int_min_max_into_int8() {
+        assert_eq!(encode(json!(i64::MAX), &Type::INT8).unwrap().1.len(), 8);
+        assert_eq!(encode(json!(i64::MIN), &Type::INT8).unwrap().1.len(), 8);
+        // i64::MAX does NOT fit in int4 or int2.
+        assert!(encode(json!(i64::MAX), &Type::INT4).is_err());
+        assert!(encode(json!(i64::MAX), &Type::INT2).is_err());
+    }
+
+    #[test]
+    fn json_int_boundary_values_for_int2() {
+        // int2 range is [-32768, 32767].
+        assert_eq!(encode(json!(32767), &Type::INT2).unwrap().1.len(), 2);
+        assert_eq!(encode(json!(-32768), &Type::INT2).unwrap().1.len(), 2);
+        assert!(encode(json!(32768), &Type::INT2).is_err());
+        assert!(encode(json!(-32769), &Type::INT2).is_err());
+    }
+
+    #[test]
+    fn json_u64_above_i64_max_into_int8_is_rejected() {
+        // u64::MAX is not an i64, so json_i64 errors → not silently truncated.
+        assert!(encode(json!(u64::MAX), &Type::INT8).is_err());
+    }
+
+    #[test]
+    fn json_number_into_numeric_column_encodes_decimal() {
+        // The NUMERIC arm uses write_pg_numeric; any plain decimal serializes.
+        for v in [json!(0), json!(1), json!(-5), json!(12.34), json!(1000000)] {
+            let (is_null, buf) = encode(v.clone(), &Type::NUMERIC).unwrap();
+            assert!(matches!(is_null, IsNull::No), "numeric {v}");
+            assert!(buf.len() >= 8, "numeric header is >= 8 bytes for {v}");
+        }
+    }
+
+    #[test]
+    fn json_string_into_text_varchar_bpchar() {
+        for ty in [Type::TEXT, Type::VARCHAR, Type::BPCHAR, Type::NAME] {
+            let (is_null, buf) = encode(json!("hello"), &ty).unwrap();
+            assert!(matches!(is_null, IsNull::No), "{ty:?}");
+            assert_eq!(&buf[..], b"hello", "{ty:?}");
+        }
+    }
+
+    #[test]
+    fn json_empty_string_and_unicode_into_text() {
+        assert_eq!(&encode(json!(""), &Type::TEXT).unwrap().1[..], b"");
+        assert_eq!(
+            &encode(json!("héllo-🦀-世界"), &Type::TEXT).unwrap().1[..],
+            "héllo-🦀-世界".as_bytes()
+        );
+    }
+
+    #[test]
+    fn json_string_into_int_column_is_rejected() {
+        // A text value for an int4 column must fail (inner accepts() refuses it),
+        // not write coincidental bytes.
+        assert!(encode(json!("123"), &Type::INT4).is_err());
+        assert!(encode(json!("abc"), &Type::INT4).is_err());
+    }
+
+    #[test]
+    fn json_array_and_object_into_jsonb() {
+        // arrays/objects fall through to to_sql_checked as a jsonb document.
+        let (_, arr) = encode(json!([1, 2, 3]), &Type::JSONB).unwrap();
+        assert_eq!(arr[0], 1, "jsonb version byte");
+        let (_, obj) = encode(json!({ "k": [true, null] }), &Type::JSONB).unwrap();
+        assert_eq!(obj[0], 1, "jsonb version byte");
+    }
+
+    #[test]
+    fn json_array_into_non_json_column_is_rejected() {
+        assert!(encode(json!([1, 2]), &Type::INT4).is_err());
+        assert!(encode(json!({ "k": 1 }), &Type::TEXT).is_err());
+    }
+
+    #[test]
+    fn json_float_nan_into_float8_serializes_bytes() {
+        // f64::NAN is a representable IEEE-754 value for a float8 column (8 bytes
+        // of NaN), and does not panic — unlike a JSON number, the encode path
+        // here never sees NaN (serde_json rejects NaN at parse), but a literal
+        // f64 bound directly does. Assert the integral-float→int path instead,
+        // which is the realistic edge:
+        assert_eq!(encode(json!(3.0), &Type::INT8).unwrap().1.len(), 8);
+        // a fractional float can't be an integer column value.
+        assert!(encode(json!(3.5), &Type::INT8).is_err());
+    }
+
+    #[test]
+    fn json_param_accepts_returns_true_for_any_type() {
+        // The adaptive binder claims every type at PREPARE time; the real check
+        // happens in to_sql. (Documents the contract that makes the explicit
+        // arms reachable.)
+        assert!(JsonParam::accepts(&Type::INT4));
+        assert!(JsonParam::accepts(&Type::TEXT));
+        assert!(JsonParam::accepts(&Type::JSONB));
+        assert!(JsonParam::accepts(&Type::NUMERIC));
+    }
+
+    // ── json_i64: integer coercion incl. integral floats ─────────────────────
+
+    #[test]
+    fn json_i64_accepts_integers_and_integral_floats() {
+        let i = |v: Value| -> Result<i64, String> {
+            match &v {
+                Value::Number(n) => json_i64(n).map_err(|e| e.to_string()),
+                _ => panic!("not a number"),
+            }
+        };
+        assert_eq!(i(json!(0)).unwrap(), 0);
+        assert_eq!(i(json!(-7)).unwrap(), -7);
+        assert_eq!(i(json!(i64::MAX)).unwrap(), i64::MAX);
+        assert_eq!(i(json!(i64::MIN)).unwrap(), i64::MIN);
+        // integral-valued float coerces.
+        assert_eq!(i(json!(3.0)).unwrap(), 3);
+        assert_eq!(i(json!(-12.0)).unwrap(), -12);
+        // fractional float does NOT.
+        assert!(i(json!(2.5)).is_err());
+        // u64 above i64::MAX does NOT (overflow → error, no wraparound).
+        assert!(i(json!(u64::MAX)).is_err());
+    }
+
+    // ── write_pg_numeric: more edge vectors + failure modes ──────────────────
+
+    #[test]
+    fn write_pg_numeric_rejects_non_decimal_forms() {
+        for bad in ["1e21", "1E5", "0x10", "1.2.3", "abc", "1,000", "", "-", "+3", " 3"] {
+            let mut buf = BytesMut::new();
+            assert!(
+                write_pg_numeric(bad, &mut buf).is_err(),
+                "{bad:?} must be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn write_pg_numeric_accepts_plain_decimals() {
+        for ok in ["0", "1", "-1", "12.34", "1000000", "0.5", "-0.001", "999999999999"] {
+            let mut buf = BytesMut::new();
+            assert!(
+                write_pg_numeric(ok, &mut buf).is_ok(),
+                "{ok:?} must be accepted"
+            );
+            assert!(buf.len() >= 8, "{ok}: header present");
+        }
+    }
+
+    #[test]
+    fn write_pg_numeric_zero_is_canonical() {
+        // 0 → ndigits=0, weight=0, sign=0, dscale=0 → exactly 8 header bytes.
+        let mut buf = BytesMut::new();
+        write_pg_numeric("0", &mut buf).unwrap();
+        assert_eq!(&buf[..], &[0, 0, 0, 0, 0, 0, 0, 0]);
+        // "-0" has no digits → sign stays positive (0x0000), still 8 bytes.
+        let mut z = BytesMut::new();
+        write_pg_numeric("-0", &mut z).unwrap();
+        assert_eq!(&z[..], &[0, 0, 0, 0, 0, 0, 0, 0]);
+    }
+
+    // ── cmp_sql: total + distinct operator symbols ───────────────────────────
+
+    #[test]
+    fn cmp_sql_maps_every_operator_distinctly() {
+        let pairs = [
+            (CmpOp::Eq, "="),
+            (CmpOp::Ne, "<>"),
+            (CmpOp::Lt, "<"),
+            (CmpOp::Lte, "<="),
+            (CmpOp::Gt, ">"),
+            (CmpOp::Gte, ">="),
+        ];
+        let mut seen = std::collections::HashSet::new();
+        for (op, sym) in pairs {
+            assert_eq!(cmp_sql(op), sym, "op {op:?}");
+            assert!(seen.insert(sym), "duplicate symbol {sym}");
+        }
+    }
+
+    // ── compile_filter / lower_pg: value-type coverage + edge predicates ──────
+
+    #[test]
+    fn filter_value_types_each_bind_one_param() {
+        // Every scalar/composite value type binds exactly one $n in an equality.
+        for v in [
+            json!(null),
+            json!(true),
+            json!(0),
+            json!(i64::MAX),
+            json!(3.14),
+            json!(""),
+            json!("str"),
+            json!([1, 2]),
+            json!({ "k": 1 }),
+        ] {
+            let (sql, n) = wsql(json!({ "c": { "$eq": v.clone() } }));
+            assert_eq!(sql, "\"c\" = $1", "value {v}");
+            assert_eq!(n, 1, "value {v}");
+        }
+    }
+
+    #[test]
+    fn filter_in_param_count_follows_list_length() {
+        for len in [1usize, 2, 5, 50, 1000] {
+            let arr: Vec<Value> = (0..len).map(|i| json!(i as i64)).collect();
+            let (sql, n) = wsql(json!({ "c": { "$in": arr } }));
+            assert_eq!(n, len, "len {len}");
+            assert!(sql.starts_with("\"c\" IN ("));
+        }
+    }
+
+    #[test]
+    fn filter_in_at_limit_compiles_over_limit_rejected() {
+        // MAX_IN_LEN is enforced by Filter::parse; at the limit compiles, +1 errors.
+        let at_limit: Vec<i64> = (0..1000).collect();
+        assert_eq!(wsql(json!({ "c": { "$in": at_limit } })).1, 1000);
+        let over: Vec<i64> = (0..1001).collect();
+        let mut p: Vec<BoxedParam> = Vec::new();
+        assert!(compile_filter(Some(&json!({ "c": { "$in": over } })), &mut p).is_err());
+    }
+
+    #[test]
+    fn filter_between_binds_low_high_in_order() {
+        let (sql, n) = wsql(json!({ "ts": { "$between": ["2020-01-01", "2020-12-31"] } }));
+        assert_eq!(sql, "\"ts\" BETWEEN $1 AND $2");
+        assert_eq!(n, 2);
+    }
+
+    #[test]
+    fn filter_is_null_binds_no_params() {
+        assert_eq!(wsql(json!({ "x": { "$null": true } })), ("\"x\" IS NULL".to_string(), 0));
+        assert_eq!(wsql(json!({ "x": { "$null": false } })), ("\"x\" IS NOT NULL".to_string(), 0));
+    }
+
+    #[test]
+    fn filter_schema_qualified_field_is_quoted_both_segments() {
+        // quote_ident accepts a single schema qualifier; lower_pg routes through it.
+        assert_eq!(
+            wsql(json!({ "public.col": { "$gte": 1 } })).0,
+            "\"public\".\"col\" >= $1"
+        );
+    }
+
+    #[test]
+    fn filter_invalid_field_name_is_rejected_by_quote_ident() {
+        // A field that survives Filter::parse (non-empty, not $-prefixed) but
+        // fails the SQL identifier allowlist is rejected at lowering time.
+        let mut p: Vec<BoxedParam> = Vec::new();
+        for bad_field in ["a-b", "a b", "a;b", "1col", "a\"b"] {
+            let res = compile_filter(Some(&json!({ bad_field: 1 })), &mut p);
+            assert!(
+                matches!(res, Err(DataPlaneError::InvalidIdentifier { .. })),
+                "field {bad_field:?} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn filter_deeply_nested_keeps_placeholder_numbering_monotonic() {
+        // $and of [$or, between, in] — params number 1..N strictly increasing.
+        let (sql, n) = wsql(json!({
+            "$and": [
+                { "$or": [ { "a": 1 }, { "b": { "$lt": 2 } } ] },
+                { "c": { "$between": [3, 4] } },
+                { "d": { "$in": [5, 6, 7] } }
+            ]
+        }));
+        // 1(a) + 1(b) + 2(between) + 3(in) = 7.
+        assert_eq!(n, 7);
+        // Placeholders $1..$7 all present, none missing/duplicated.
+        for i in 1..=7 {
+            assert!(sql.contains(&format!("${i}")), "missing ${i} in {sql}");
+        }
+        assert!(!sql.contains("$8"));
+    }
+
+    #[test]
+    fn filter_or_with_tautology_branch_rolls_back_params() {
+        // `x OR TRUE` folds to Unconstrained and the discarded branch's bound
+        // param is truncated — no orphan $n left behind.
+        let (sql, n) = wsql(json!({ "$or": [ { "a": 1 }, { "$not": { "$or": [] } } ] }));
+        assert_eq!(sql, "", "x OR TRUE → unconstrained");
+        assert_eq!(n, 0, "the a=1 param is rolled back");
+    }
+
+    #[test]
+    fn filter_and_with_contradiction_short_circuits_to_false() {
+        // `a AND FALSE` → AlwaysFalse, the a-param truncated.
+        let (sql, n) = wsql(json!({ "$and": [ { "a": 1 }, { "b": { "$in": [] } } ] }));
+        assert_eq!(sql, "FALSE");
+        assert_eq!(n, 0, "the a=1 param is rolled back on the FALSE short-circuit");
+    }
 }

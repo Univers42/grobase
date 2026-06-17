@@ -1940,4 +1940,288 @@ mod tests {
         // Anything else is a Backend error on both paths.
         assert!(matches!(ddl_backend("connection reset"), DataPlaneError::Backend { .. }));
     }
+
+    // ── value conversion: json_to_mysql_value (every JSON type) ──────────────
+
+    #[test]
+    fn json_to_mysql_value_null_bool_int() {
+        assert!(matches!(json_to_mysql_value(&Value::Null), MysqlValue::NULL));
+        assert!(matches!(json_to_mysql_value(&json!(true)), MysqlValue::Int(1)));
+        assert!(matches!(json_to_mysql_value(&json!(false)), MysqlValue::Int(0)));
+        assert!(matches!(json_to_mysql_value(&json!(0)), MysqlValue::Int(0)));
+        assert!(matches!(json_to_mysql_value(&json!(-99)), MysqlValue::Int(-99)));
+    }
+
+    #[test]
+    fn json_to_mysql_value_i64_extremes_use_int() {
+        assert!(matches!(
+            json_to_mysql_value(&json!(i64::MAX)),
+            MysqlValue::Int(i) if i == i64::MAX
+        ));
+        assert!(matches!(
+            json_to_mysql_value(&json!(i64::MIN)),
+            MysqlValue::Int(i) if i == i64::MIN
+        ));
+    }
+
+    #[test]
+    fn json_to_mysql_value_u64_above_i64_max_uses_uint() {
+        // u64::MAX has no i64 form, so it takes the UInt arm (NOT the float arm
+        // — MySQL preserves the full unsigned 64-bit value).
+        assert!(matches!(
+            json_to_mysql_value(&json!(u64::MAX)),
+            MysqlValue::UInt(u) if u == u64::MAX
+        ));
+        // A value just above i64::MAX still goes UInt.
+        let just_over = (i64::MAX as u64) + 1;
+        assert!(matches!(
+            json_to_mysql_value(&json!(just_over)),
+            MysqlValue::UInt(u) if u == just_over
+        ));
+    }
+
+    #[test]
+    fn json_to_mysql_value_floats_use_double() {
+        for (v, want) in [(json!(3.5), 3.5_f64), (json!(-2.5e9), -2.5e9), (json!(0.5), 0.5)] {
+            assert!(
+                matches!(json_to_mysql_value(&v), MysqlValue::Double(d) if d == want),
+                "value {v}"
+            );
+        }
+    }
+
+    #[test]
+    fn json_to_mysql_value_empty_and_unicode_strings() {
+        assert!(matches!(
+            json_to_mysql_value(&json!("")),
+            MysqlValue::Bytes(b) if b.is_empty()
+        ));
+        let MysqlValue::Bytes(b) = json_to_mysql_value(&json!("héllo-🦀")) else {
+            panic!("expected Bytes");
+        };
+        assert_eq!(b, "héllo-🦀".as_bytes());
+    }
+
+    #[test]
+    fn json_to_mysql_value_arrays_become_json_bytes() {
+        let MysqlValue::Bytes(b) = json_to_mysql_value(&json!([1, 2, 3])) else {
+            panic!("expected Bytes for array");
+        };
+        assert_eq!(String::from_utf8(b).unwrap(), "[1,2,3]");
+        let MysqlValue::Bytes(nested) = json_to_mysql_value(&json!({ "a": [true, null] })) else {
+            panic!("expected Bytes for object");
+        };
+        assert_eq!(String::from_utf8(nested).unwrap(), r#"{"a":[true,null]}"#);
+    }
+
+    // ── value conversion: mysql_value_to_json (round-trip & edge) ────────────
+
+    #[test]
+    fn mysql_value_to_json_scalars_and_uint() {
+        assert_eq!(mysql_value_to_json(MysqlValue::NULL), Value::Null);
+        assert_eq!(mysql_value_to_json(MysqlValue::Int(7)), json!(7));
+        assert_eq!(mysql_value_to_json(MysqlValue::Int(-3)), json!(-3));
+        assert_eq!(
+            mysql_value_to_json(MysqlValue::UInt(u64::MAX)),
+            Value::Number(serde_json::Number::from(u64::MAX))
+        );
+    }
+
+    #[test]
+    fn mysql_value_to_json_float_and_double() {
+        assert_eq!(mysql_value_to_json(MysqlValue::Double(2.5)), json!(2.5));
+        assert_eq!(mysql_value_to_json(MysqlValue::Float(1.5_f32)), json!(1.5));
+    }
+
+    #[test]
+    fn mysql_value_to_json_bytes_utf8_and_non_utf8() {
+        assert_eq!(
+            mysql_value_to_json(MysqlValue::Bytes(b"hello".to_vec())),
+            json!("hello")
+        );
+        assert_eq!(
+            mysql_value_to_json(MysqlValue::Bytes(Vec::new())),
+            json!("")
+        );
+        // Invalid UTF-8 surfaces as Null rather than panicking.
+        assert_eq!(
+            mysql_value_to_json(MysqlValue::Bytes(vec![0xff, 0xfe, 0x00])),
+            Value::Null
+        );
+    }
+
+    #[test]
+    fn mysql_value_to_json_date_and_time_format() {
+        assert_eq!(
+            mysql_value_to_json(MysqlValue::Date(2026, 6, 17, 12, 30, 45, 123456)),
+            json!("2026-06-17T12:30:45.123456Z")
+        );
+        assert_eq!(
+            mysql_value_to_json(MysqlValue::Time(false, 1, 2, 3, 4, 5)),
+            json!("26:03:04.000005") // 1 day + 2h = 26h
+        );
+        assert_eq!(
+            mysql_value_to_json(MysqlValue::Time(true, 0, 5, 6, 7, 8)),
+            json!("-05:06:07.000008")
+        );
+    }
+
+    #[test]
+    fn mysql_value_round_trips_scalars_through_both_directions() {
+        for v in [json!(42), json!("text"), Value::Null] {
+            let back = mysql_value_to_json(json_to_mysql_value(&v));
+            assert_eq!(back, v, "round-trip {v}");
+        }
+        // bool → Int(1) → number 1 (MySQL has no native bool).
+        assert_eq!(
+            mysql_value_to_json(json_to_mysql_value(&json!(true))),
+            json!(1)
+        );
+    }
+
+    // ── json_number_from_f64: finite vs non-finite ───────────────────────────
+
+    #[test]
+    fn json_number_from_f64_handles_finite_and_non_finite() {
+        assert_eq!(json_number_from_f64(2.5), json!(2.5));
+        assert_eq!(json_number_from_f64(-7.0), json!(-7.0));
+        assert_eq!(json_number_from_f64(f64::NAN), Value::Null);
+        assert_eq!(json_number_from_f64(f64::INFINITY), Value::Null);
+        assert_eq!(json_number_from_f64(f64::NEG_INFINITY), Value::Null);
+    }
+
+    // ── identifier quoting: backticks + injection ────────────────────────────
+
+    #[test]
+    fn quote_mysql_ident_backticks_plain_and_schema_qualified() {
+        assert_eq!(quote_mysql_ident("users").unwrap(), "`users`");
+        assert_eq!(
+            quote_mysql_ident("ops.orders").unwrap(),
+            "`ops`.`orders`"
+        );
+        assert_eq!(quote_mysql_ident("_underscore1").unwrap(), "`_underscore1`");
+    }
+
+    #[test]
+    fn quote_mysql_ident_rejects_injection_and_bad_shapes() {
+        for bad in [
+            "",
+            "users; DROP TABLE x",
+            "a.b.c",       // > 1 qualifier
+            "1abc",        // leading digit
+            "us`er",       // embedded backtick
+            "u-v",         // hyphen
+            "a b",         // space
+            "tbl;--",
+            "naïve",       // non-ASCII (the ident allowlist is ASCII-only)
+            &"a".repeat(64), // segment over 63 chars
+        ] {
+            assert!(quote_mysql_ident(bad).is_err(), "should reject {bad:?}");
+        }
+        // exactly 63 chars is the boundary that IS accepted.
+        assert!(quote_mysql_ident(&"a".repeat(63)).is_ok());
+    }
+
+    // ── classify_mysql_error: full matrix (query path vs DDL path) ───────────
+
+    #[test]
+    fn classify_integrity_violations_are_conflict_on_both_paths() {
+        for msg in [
+            "Duplicate entry 'a@b.c' for key 'users.email'",
+            "Cannot add or update a child row: a foreign key constraint fails",
+        ] {
+            assert!(matches!(
+                classify_mysql_error(msg.into(), false),
+                DataPlaneError::Conflict { .. }
+            ));
+            assert!(matches!(
+                classify_mysql_error(msg.into(), true),
+                DataPlaneError::Conflict { .. }
+            ));
+        }
+    }
+
+    #[test]
+    fn classify_truncation_and_range_errors_are_conflict_on_both_paths() {
+        for msg in [
+            "Data truncated for column 'status' at row 1",
+            "Truncated incorrect DECIMAL value: 'x'",
+            "Out of range value for column 'qty' at row 1",
+            "Incorrect integer value: 'abc' for column 'n'",
+        ] {
+            assert!(
+                matches!(classify_mysql_error(msg.into(), false), DataPlaneError::Conflict { .. }),
+                "query path: {msg}"
+            );
+            assert!(
+                matches!(classify_mysql_error(msg.into(), true), DataPlaneError::Conflict { .. }),
+                "ddl path: {msg}"
+            );
+        }
+    }
+
+    #[test]
+    fn classify_ddl_only_shape_errors_split_by_path() {
+        // "duplicate column name" / "already exists" → Conflict, but ONLY on the
+        // DDL path; the query path falls through to Backend.
+        for msg in ["Duplicate column name 'status'", "Table 'ops.t' already exists"] {
+            assert!(matches!(
+                classify_mysql_error(msg.into(), true),
+                DataPlaneError::Conflict { .. }
+            ));
+            assert!(matches!(
+                classify_mysql_error(msg.into(), false),
+                DataPlaneError::Backend { .. }
+            ));
+        }
+        // "unknown column" / "doesn't exist" / "check that column/key exists"
+        // → InvalidRequest on DDL, Backend on the query path.
+        for msg in [
+            "Unknown column 'ghost' in 'field list'",
+            "Table 'ops.ghost' doesn't exist",
+            "Can't DROP 'ghost'; check that column/key exists",
+        ] {
+            assert!(matches!(
+                classify_mysql_error(msg.into(), true),
+                DataPlaneError::InvalidRequest { .. }
+            ));
+            assert!(matches!(
+                classify_mysql_error(msg.into(), false),
+                DataPlaneError::Backend { .. }
+            ));
+        }
+    }
+
+    #[test]
+    fn classify_unknown_error_is_backend_on_both_paths() {
+        for msg in ["Lost connection to MySQL server", "Access denied for user"] {
+            assert!(matches!(
+                classify_mysql_error(msg.into(), false),
+                DataPlaneError::Backend { .. }
+            ));
+            assert!(matches!(
+                classify_mysql_error(msg.into(), true),
+                DataPlaneError::Backend { .. }
+            ));
+        }
+    }
+
+    #[test]
+    fn classify_is_case_insensitive() {
+        assert!(matches!(
+            classify_mysql_error("DUPLICATE ENTRY 'x' FOR KEY 'PRIMARY'".into(), false),
+            DataPlaneError::Conflict { .. }
+        ));
+    }
+
+    #[test]
+    fn backend_and_ddl_backend_prefix_the_message() {
+        // Both wrappers embed "mysql backend: " before classifying.
+        let e = backend("Duplicate entry 'z' for key 'u'");
+        if let DataPlaneError::Conflict { message } = e {
+            assert!(message.contains("mysql backend:"), "{message}");
+        } else {
+            panic!("expected Conflict");
+        }
+    }
 }
