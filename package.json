@@ -1,0 +1,6 @@
+{
+	"scripts": {
+		"local-action": "bash ./scripts/ci/run-ci-local.sh",
+		"ci:local": "bash ./scripts/ci/run-ci-local.sh"
+	}
+}

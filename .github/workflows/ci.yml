@@ -257,7 +257,7 @@ jobs:
                       /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
 
       - name: Generate env (compose interpolation)
-        run: FORCE=1 bash scripts/generate-env.sh .env
+        run: FORCE=1 bash scripts/env/generate-env.sh .env
 
       - name: Build app images (validates the lightweight layer)
         run: docker compose -f docker-compose.yml build $APP_SVCS
@@ -283,7 +283,7 @@ jobs:
       - name: Generate CI environment
         run: |
           set -euo pipefail
-          FORCE=1 bash scripts/generate-env.sh .env
+          FORCE=1 bash scripts/env/generate-env.sh .env
           # CI has no SMTP sink (mailpit is not a service in this compose), so GoTrue
           # 500s trying to send a signup confirmation email. Auto-confirm signups so
           # the phase tests can sign up and immediately log in. This is exactly what
@@ -361,7 +361,7 @@ jobs:
           # Phases 9 (storage) and 11-13 (realtime) need extra planes — added once
           # those services are wired into this job.
           for phase in 1 2 3 4 5 6 7 8 10 14 15 16; do
-            script=$(ls scripts/phase${phase}-*.sh scripts/phase${phase}-*.py 2>/dev/null | head -1 || true)
+            script=$(ls scripts/test/phase/phase${phase}-*.sh scripts/test/phase/phase${phase}-*.py 2>/dev/null | head -1 || true)
             if [ -z "$script" ]; then
               echo "No test script for phase ${phase}, skipping"; continue
             fi
@@ -543,7 +543,7 @@ jobs:
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
       - name: Generate env (edition builds interpolate .env)
-        run: FORCE=1 bash scripts/generate-env.sh .env
+        run: FORCE=1 bash scripts/env/generate-env.sh .env
 
       - name: Compile/enforce ${{ matrix.offer }}
         run: ${{ matrix.run }}
