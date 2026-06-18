@@ -299,6 +299,10 @@ jobs:
       - name: Build and start core stack
         run: |
           set -euo pipefail
+          # The waf consumes certs/localhost{,-key}.pem as Docker secrets (root
+          # compose secrets:). CI has no local certs, so generate them before `up`
+          # or the secret bind-mount fails (idempotent; openssl only, no sudo/trust).
+          bash scripts/certs/generate-localhost-cert.sh
           docker compose -f docker-compose.yml build
           docker compose -f docker-compose.yml up -d
           # Mongo path for phases 14/15 — start the data-plane mongo services BY NAME
