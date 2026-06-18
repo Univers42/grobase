@@ -82,11 +82,8 @@ func (s *Service) loadMountRow(ctx context.Context, userID, id string) (mountRow
 		err := row.Scan(&m.engine, &m.isolation, &m.payload.Encrypted, &m.payload.IV, &m.payload.Tag, &m.payload.Salt,
 			&m.provider, &m.reference, &m.version,
 			&m.cmekWrap, &m.cmekKeyPtr)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
 		if err != nil {
-			return err
+			return mapMountLookupErr(err)
 		}
 		_, _ = tx.Exec(ctx, `UPDATE public.tenant_databases SET last_healthy_at = now() WHERE id = $1 AND tenant_id = $2`, id, userID)
 		return nil

@@ -5,6 +5,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsEnum,
+  IsNotEmpty,
   IsObject,
   IsOptional,
   IsString,
@@ -52,6 +53,7 @@ export class TxnOpDto {
 export class TxnRequestDto {
   @ApiProperty({ description: 'Mount id (dbId); all operations run in one transaction on it' })
   @IsString()
+  @IsNotEmpty()
   mount!: string;
 
   @ApiProperty({
