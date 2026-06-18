@@ -4,8 +4,9 @@
 package webhooks
 
 import (
+	"crypto/rand"
 	"fmt"
-	"math/rand/v2"
+	"math/big"
 	"net/url"
 	"time"
 )
@@ -123,8 +124,10 @@ func matchAny(patterns []string, candidate string) bool {
 // outage) don't resynchronize their retries into a thundering herd the moment
 // the endpoint recovers. Result is always within [d/2, d] — never over the cap.
 //
-// (Until now this was deterministic despite the doc-comment claiming jitter —
-// the herd risk was real; see TestBackoffJitterBounds.)
+// The jitter is drawn from crypto/rand even though it is not security-sensitive:
+// the security scan forbids math/rand outright, and on this cold retry path the
+// extra cost is irrelevant. A crypto/rand read error falls back to the capped
+// delay d (still within bounds). See TestBackoffJitterBounds.
 func backoff(attempt int) time.Duration {
 	if attempt < 1 {
 		attempt = 1
@@ -134,7 +137,11 @@ func backoff(attempt int) time.Duration {
 		d = maxBackoff
 	}
 	half := d / 2
-	return half + time.Duration(rand.Int64N(int64(half)+1))
+	n, err := rand.Int(rand.Reader, big.NewInt(int64(half)+1))
+	if err != nil {
+		return d
+	}
+	return half + time.Duration(n.Int64())
 }
 
 func min(a, b int) int {

@@ -33,6 +33,7 @@
           "if (pm.request.headers.get('X-Service-Token')) {",
           "  const token = pm.environment.get('serviceToken');",
           "  if (token) {",
+          "    const CryptoJS = require('crypto-js');",
           "    const ts = Math.floor(Date.now() / 1000);",
           "    const method = (pm.request.method || 'GET').toUpperCase();",
           "    const rawUrl = pm.variables.replaceIn(pm.request.url.toString());",

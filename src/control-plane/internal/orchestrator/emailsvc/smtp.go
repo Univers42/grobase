@@ -44,7 +44,7 @@ func (s *Service) smtpSend(m *message) error {
 // sendImplicitTLS handles the secure=true (TLS-on-connect, e.g. :465) path that
 // smtp.SendMail does not cover.
 func (s *Service) sendImplicitTLS(addr string, auth smtp.Auth, m *message) error {
-	conn, err := tls.Dial("tcp", addr, &tls.Config{ServerName: s.host})
+	conn, err := tls.Dial("tcp", addr, &tls.Config{ServerName: s.host, MinVersion: tls.VersionTLS12})
 	if err != nil {
 		return err
 	}

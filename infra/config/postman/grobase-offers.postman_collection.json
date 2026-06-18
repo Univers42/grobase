@@ -1445,7 +1445,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "// Mint an HS256 JWT (iss=supabase, sub=storage owner) like m55's mint_jwt.",
-                  "// CryptoJS ships with the newman/pm sandbox.",
+                  "const CryptoJS = require('crypto-js');",
                   "const secret = pm.environment.get('jwtSecret');",
                   "if (secret) {",
                   "  const b64u = (s) => CryptoJS.enc.Base64.stringify(s).replace(/=+$/,'').replace(/\\+/g,'-').replace(/\\//g,'_');",
@@ -2024,6 +2024,7 @@
           "if (pm.request.headers.get('X-Service-Token')) {",
           "  const token = pm.environment.get('serviceToken');",
           "  if (token) {",
+          "    const CryptoJS = require('crypto-js');",
           "    const ts = Math.floor(Date.now() / 1000);",
           "    const method = (pm.request.method || 'GET').toUpperCase();",
           "    const rawUrl = pm.variables.replaceIn(pm.request.url.toString());",
