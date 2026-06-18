@@ -37,6 +37,19 @@ impl RequestIdentity {
     pub fn owner_principal(&self) -> &str {
         self.user_id.as_deref().unwrap_or(self.tenant_id.as_str())
     }
+
+    /// Whether this caller is an administrator — a role/scope that an
+    /// owner-scope bypass (F2, `DATA_PLANE_ADMIN_BYPASS`) honours so an admin
+    /// reads/updates/deletes across owners. True when `roles` contains `admin`
+    /// or `scopes` carries `admin` / `apikey:admin` (the projected API-key admin
+    /// scope). Pure over the already-verified identity — the bypass that
+    /// consults it is itself flag-gated OFF by default, so this never widens
+    /// access on its own.
+    #[must_use]
+    pub fn is_admin(&self) -> bool {
+        self.roles.iter().any(|r| r == "admin")
+            || self.scopes.iter().any(|s| s == "admin" || s == "apikey:admin")
+    }
 }
 
 #[cfg(test)]
@@ -62,5 +75,20 @@ mod tests {
         // an explicit empty user_id is still a present user (parity with the old
         // `.clone().unwrap_or_else(..)` — Some("") does not fall back to tenant).
         assert_eq!(id(Some(""), "t1").owner_principal(), "");
+    }
+
+    #[test]
+    fn is_admin_reads_roles_and_scopes() {
+        let mut base = id(Some("u1"), "t1");
+        assert!(!base.is_admin(), "no role/scope → not admin (parity default)");
+        base.roles = vec!["admin".to_string()];
+        assert!(base.is_admin(), "role=admin");
+        let mut by_scope = id(Some("u1"), "t1");
+        by_scope.scopes = vec!["apikey:admin".to_string()];
+        assert!(by_scope.is_admin(), "scope=apikey:admin");
+        let mut other = id(Some("u1"), "t1");
+        other.roles = vec!["authenticated".to_string()];
+        other.scopes = vec!["read".to_string(), "write".to_string()];
+        assert!(!other.is_admin(), "ordinary client is never admin");
     }
 }
