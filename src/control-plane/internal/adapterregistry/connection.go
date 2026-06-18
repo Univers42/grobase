@@ -2,6 +2,7 @@ package adapterregistry
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
@@ -29,7 +30,7 @@ func (s *Service) GetConnection(ctx context.Context, userID, id string) (Connect
 			Isolation:     row.isolation,
 			CredentialRef: row.credentialRef(),
 		}
-		return s.stampPackage(ctx, userID, result), nil
+		return mergeSharedResources(s.stampPackage(ctx, userID, result), row.sharedResources), nil
 	}
 	if len(row.cmekWrap) > 0 && (!s.cmekEnabled || s.kms == nil) {
 		return ConnectionResult{}, errors.New("cmek mount stored but CMEK is disabled/unconfigured — cannot decrypt")
@@ -39,7 +40,23 @@ func (s *Service) GetConnection(ctx context.Context, userID, id string) (Connect
 		return ConnectionResult{}, err
 	}
 	result := ConnectionResult{Engine: row.engine, ConnectionString: conn, Isolation: row.isolation}
-	return s.stampPackage(ctx, userID, result), nil
+	return mergeSharedResources(s.stampPackage(ctx, userID, result), row.sharedResources), nil
+}
+
+// mergeSharedResources stamps the mount's non-owner-scoped table list onto the
+// result's CapabilityOverrides under the reserved key the data plane reads
+// (DatabaseMount::shared_resources). It allocates the map when the tier mask is
+// nil (PACKAGE_ENFORCEMENT off), so the list survives an otherwise-empty mask. A
+// nil/empty list is left untouched ⇒ byte-parity with a mount that never opted in.
+func mergeSharedResources(result ConnectionResult, shared []string) ConnectionResult {
+	if len(shared) == 0 {
+		return result
+	}
+	if result.CapabilityOverrides == nil {
+		result.CapabilityOverrides = map[string]any{}
+	}
+	result.CapabilityOverrides["shared_resources"] = shared
+	return result
 }
 
 // credentialRef flattens the nullable cred_* columns into the wire struct for a
@@ -56,14 +73,15 @@ func (m mountRow) credentialRef() *CredentialRefInput {
 // branches: inline ciphertext (payload), cred-ref (provider/reference/version),
 // or CMEK envelope (cmekWrap + cmekKeyPtr).
 type mountRow struct {
-	engine     string
-	isolation  string
-	payload    EncryptedPayload
-	provider   *string
-	reference  *string
-	version    *string
-	cmekWrap   []byte
-	cmekKeyPtr *string
+	engine          string
+	isolation       string
+	payload         EncryptedPayload
+	provider        *string
+	reference       *string
+	version         *string
+	cmekWrap        []byte
+	cmekKeyPtr      *string
+	sharedResources []string
 }
 
 // loadMountRow reads the mount under EXPLICIT tenant scope (not just RLS): the
@@ -73,22 +91,40 @@ type mountRow struct {
 // stamps last_healthy_at fire-and-forget, matching the Node service.
 func (s *Service) loadMountRow(ctx context.Context, userID, id string) (mountRow, error) {
 	var m mountRow
+	var sharedRaw []byte
 	err := s.db.TenantTx(ctx, userID, func(tx pgx.Tx) error {
 		row := tx.QueryRow(ctx,
 			`SELECT engine, isolation, connection_enc, connection_iv, connection_tag, connection_salt,
 			        cred_provider, cred_reference, cred_version,
-			        cmek_wrapped_dek, cmek_kms_key_id
+			        cmek_wrapped_dek, cmek_kms_key_id, shared_resources
 			   FROM public.tenant_databases WHERE id = $1 AND tenant_id = $2`, id, userID)
 		err := row.Scan(&m.engine, &m.isolation, &m.payload.Encrypted, &m.payload.IV, &m.payload.Tag, &m.payload.Salt,
 			&m.provider, &m.reference, &m.version,
-			&m.cmekWrap, &m.cmekKeyPtr)
+			&m.cmekWrap, &m.cmekKeyPtr, &sharedRaw)
 		if err != nil {
 			return mapMountLookupErr(err)
 		}
 		_, _ = tx.Exec(ctx, `UPDATE public.tenant_databases SET last_healthy_at = now() WHERE id = $1 AND tenant_id = $2`, id, userID)
 		return nil
 	})
+	if err == nil {
+		m.sharedResources = decodeSharedResources(sharedRaw)
+	}
 	return m, err
+}
+
+// decodeSharedResources unmarshals the JSONB shared_resources column into a slice
+// of table names. NULL/empty (no opt-in) and any malformed value degrade to nil
+// ⇒ nothing merged ⇒ byte-parity with a mount that never declared a shared list.
+func decodeSharedResources(raw []byte) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	var names []string
+	if err := json.Unmarshal(raw, &names); err != nil {
+		return nil
+	}
+	return names
 }
 
 // stampPackage adds the tenant's tier mask (Phase 4) so the data plane enforces

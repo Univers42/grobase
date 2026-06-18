@@ -69,6 +69,13 @@ type RegisterDatabaseRequest struct {
 	// platform stores only the wrapped DEK + ciphertext and cannot decrypt without
 	// the KMS. Ignored (parity) when CMEK is disabled or a credential_ref is used.
 	KMSKeyID string `json:"kms_key_id"`
+	// SharedResources is the optional list of table names on this mount that are
+	// NOT owner-scoped (a shared catalog readable across owners). It is carried
+	// verbatim into the mount's capability_overrides under the reserved key
+	// `shared_resources`, which the Rust data plane reads
+	// (DatabaseMount::shared_resources). Absent/empty = no shared tables = every
+	// table owner-scoped (parity). Entries must be plain table-name strings.
+	SharedResources []string `json:"shared_resources"`
 }
 
 // Validate enforces the same constraints as the Node DTO + DB check, plus the
@@ -86,7 +93,42 @@ func (r RegisterDatabaseRequest) Validate() error {
 	if r.Isolation != "" && !isAllowedIsolation(r.Isolation) {
 		return fmt.Errorf("unsupported isolation %q", r.Isolation)
 	}
+	if err := validateSharedResources(r.SharedResources); err != nil {
+		return err
+	}
 	return nil
+}
+
+// validateSharedResources rejects any shared-table entry that is not a plain
+// table-name string. The names are interpolated nowhere on the control-plane
+// path (they travel as a JSON array into capability_overrides), but the data
+// plane matches on them, so they are kept clean: 1..64 chars, no whitespace,
+// quotes, or semicolons. An empty/nil list is valid (no opt-in = parity).
+func validateSharedResources(names []string) error {
+	for _, n := range names {
+		if l := len(n); l < 1 || l > 64 {
+			return fmt.Errorf("shared_resources entry must be 1..64 chars")
+		}
+		if !isPlainTableName(n) {
+			return fmt.Errorf("invalid shared_resources entry %q", n)
+		}
+	}
+	return nil
+}
+
+// isPlainTableName reports whether s is a plain table identifier — ASCII
+// letters/digits/underscore only (a leading dot is allowed for a schema-qualified
+// name). Switch-based, no regexp global; rejects whitespace, quotes, semicolons,
+// and any other punctuation by construction.
+func isPlainTableName(s string) bool {
+	for _, c := range s {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '_', c == '.':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // validateCredentialSource enforces the S2 EXACTLY-ONE-OF {connection_string,
