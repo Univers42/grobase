@@ -425,3 +425,8 @@ certs/*
 /src/control-plane/scale-seed
 /src/control-plane/tenant-control
 /src/control-plane/webhook-dispatcher
+
+# ── Per-tenant provisioning state (secrets: api keys, ids) — never track. ──
+# Emitted by scripts/seed/*-tenant.sh; sourced by re-runs + the verify gates.
+.hambooking-tenant.env
+.canagrou-tenant.env
