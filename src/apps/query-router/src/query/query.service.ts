@@ -447,6 +447,8 @@ export class QueryService implements OnModuleInit {
           projectId: identity?.projectId,
           appId: identity?.appId,
           userId,
+          roles: identity?.roleNames,
+          scopes: identity?.scopes,
           credentialReference: dbId,
           credentialVersion: 'live',
           connectionString: connection_string,
@@ -545,6 +547,8 @@ export class QueryService implements OnModuleInit {
       projectId: identity?.projectId,
       appId: identity?.appId,
       userId,
+      roles: identity?.roleNames,
+      scopes: identity?.scopes,
       credentialReference: dbId,
       credentialVersion: 'live',
       connectionString: connection_string,
@@ -757,7 +761,14 @@ export class QueryService implements OnModuleInit {
     op: string,
   ): PermissionDecision | undefined {
     if (identity?.authMethod !== 'kong-hmac') return undefined;
-    if (!identity.userId?.startsWith('api-key:')) return undefined;
+    // Authorize by the app key's scopes for an app-key caller — whether the
+    // OWNER is the key itself (`api-key:<id>`) or a user riding alongside it
+    // (`user:<sub>`, appId `api-key`). The user identity drives owner-scoping in
+    // the data plane; the app key's scopes still gate the op (no ABAC roles
+    // need to be seeded for per-user app traffic).
+    const isApiKeyOwner = identity.userId?.startsWith('api-key:');
+    const isUserUnderApiKey = identity.userId?.startsWith('user:') && identity.appId === 'api-key';
+    if (!isApiKeyOwner && !isUserUnderApiKey) return undefined;
 
     const scopes = new Set(identity.scopes ?? []);
     if (scopes.has('admin')) return { allow: true, reason: 'api-key admin scope' };

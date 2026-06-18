@@ -117,6 +117,11 @@ services:
       # exact pre-B4a behavior (the public Kong route then 404/401s at the upstream =
       # harmless). Gate: scripts/verify/m84-selfserve-kong.sh (ON + OFF parity arms).
       TENANT_SELFSERVE_ENABLED: ${TENANT_SELFSERVE_ENABLED:-1}
+      # Dynamic builder (BUILDER_ENABLED) — mounts the self-serve /v1/tenants/me*
+      # builder routes AND the operator routes (PATCH /v1/tenants/{id}/ceiling,
+      # PUT /v1/tenants/{id}/entitlement). OFF by default = byte-parity (routes 404,
+      # tenant_entitlements unread, resolution is manifest.For verbatim).
+      BUILDER_ENABLED: ${BUILDER_ENABLED:-0}
     ports:
       - "127.0.0.1:${TENANT_CONTROL_PORT:-3022}:3022"
     depends_on:
