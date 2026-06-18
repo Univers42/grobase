@@ -18,7 +18,7 @@ import { useRevenueData } from './useRevenueData';
 
 /** RevenuePage composes the money model showcase and the payment flow. */
 export function RevenuePage() {
-  const { accounts, txns, ledger, loading, error, refetch } = useRevenueData();
+  const { accounts, txns, ledger, postedRevenueCents, loading, error, refetch } = useRevenueData();
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const customers = accounts.filter((a) => a.kind === 'customer');
@@ -43,7 +43,7 @@ export function RevenuePage() {
         <div className="flex items-center gap-2 text-sm text-muted"><Spinner /> Loading revenue data…</div>
       ) : (
         <>
-          <RevenueSummary accounts={accounts} txns={txns} />
+          <RevenueSummary accounts={accounts} postedRevenueCents={postedRevenueCents} />
           <div className="grid gap-5 lg:grid-cols-2">
             <Motion><AccountsPanel accounts={accounts} /></Motion>
             <Motion delay={70}><TxTable txns={txns} /></Motion>

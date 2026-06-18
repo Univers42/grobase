@@ -32,8 +32,8 @@ export function useMessages(): MessagesState {
     setLoading(true);
     setError(null);
     db.mongo
-      .list('messages', { filter: { status: { $ne: 'archived' } }, sort: { created_at: 'desc' } })
-      .then((r) => !cancelled && setMessages(r.rows.map(parseMessage)))
+      .listAll('messages', { filter: { status: { $ne: 'archived' } }, sort: { created_at: 'desc' } })
+      .then((rows) => !cancelled && setMessages(rows.map(parseMessage)))
       .catch((e: unknown) => !cancelled && setError(e instanceof Error ? e.message : 'failed to load messages'))
       .finally(() => !cancelled && setLoading(false));
     return () => {

@@ -4,14 +4,19 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useBaas } from '../../providers/useBaas';
+import { asNumber } from '../../lib/guards';
 import type { Account, Txn, LedgerEntry } from './money';
 import { toAccount, toTxn, toLedgerEntry } from './money';
 
-/** RevenueData is the loaded snapshot plus reload/refetch controls. */
+/** RevenueData is the loaded snapshot plus reload/refetch controls. Accounts are
+ *  fetched in full (listAll) so the single revenue account is always present even
+ *  past the data plane's per-page cap; the recent txns/ledger lists are capped for
+ *  display; postedRevenueCents is a TRUE aggregate, so it stays correct at scale. */
 export type RevenueData = {
   accounts: Account[];
   txns: Txn[];
   ledger: LedgerEntry[];
+  postedRevenueCents: number;
   loading: boolean;
   error: string | null;
   refetch: () => void;
@@ -23,6 +28,7 @@ export function useRevenueData(): RevenueData {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [txns, setTxns] = useState<Txn[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  const [postedRevenueCents, setPostedRevenueCents] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
@@ -33,15 +39,17 @@ export function useRevenueData(): RevenueData {
     setError(null);
     const pg = baas.db.pg;
     Promise.all([
-      pg.list('accounts'),
+      pg.listAll('accounts', { sort: { id: 'asc' } }),
       pg.list('txns', { sort: { created_at: 'desc' }, limit: 50 }),
       pg.list('ledger_entries', { sort: { id: 'desc' }, limit: 20 }),
+      pg.listAll('txns', { filter: { status: { $eq: 'posted' }, kind: { $eq: 'payment' } } }),
     ])
-      .then(([a, t, l]) => {
+      .then(([a, t, l, posted]) => {
         if (cancelled) return;
-        setAccounts(a.rows.map(toAccount));
+        setAccounts(a.map(toAccount));
         setTxns(t.rows.map(toTxn));
         setLedger(l.rows.map(toLedgerEntry));
+        setPostedRevenueCents(posted.reduce((acc, row) => acc + asNumber(row.amount_cents), 0));
       })
       .catch((e: unknown) => !cancelled && setError(e instanceof Error ? e.message : 'failed to load revenue data'))
       .finally(() => !cancelled && setLoading(false));
@@ -51,5 +59,5 @@ export function useRevenueData(): RevenueData {
   }, [baas, tick]);
 
   const refetch = useCallback(() => setTick((t) => t + 1), []);
-  return { accounts, txns, ledger, loading, error, refetch };
+  return { accounts, txns, ledger, postedRevenueCents, loading, error, refetch };
 }

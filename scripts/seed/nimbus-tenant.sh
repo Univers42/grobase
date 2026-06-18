@@ -189,37 +189,53 @@ fi
 [[ -n "${ADMIN_SUB}" ]] || fail "could not create/find GoTrue admin (${code}): $(head -c 200 /tmp/nimbus-admin.json)"
 cyan "admin sub=${ADMIN_SUB:0:8}…"
 
-# ── 7) demo seed via the gateway (idempotent — skip if app_users already seeded) ──
-seeded=0
-gw_q "${PG_DB_ID}" app_users '{"op":"list","filter":{"id":{"$eq":"'"${ADMIN_SUB}"'"}}}' >/dev/null 2>&1 || true
-grep -q "\"id\":\"${ADMIN_SUB}\"" /tmp/nimbus-q.json 2>/dev/null && seeded=1
-if [[ "${seeded}" == "1" ]]; then
-  cyan "demo data already present — skipping seed (idempotent)"
-else
-  cyan "seeding demo data through the gateway"
-  # app_users — the admin + two customers + one staff.
-  gw_q "${PG_DB_ID}" app_users "{\"op\":\"insert\",\"data\":{\"id\":\"${ADMIN_SUB}\",\"email\":\"${ADMIN_EMAIL}\",\"name\":\"Nimbus Admin\",\"role\":\"admin\"}}" >/dev/null
-  gw_q "${PG_DB_ID}" app_users '{"op":"insert","data":{"id":"nimbus-cust-1","email":"alice@nimbus.local","name":"Alice Customer","role":"customer"}}' >/dev/null
-  gw_q "${PG_DB_ID}" app_users '{"op":"insert","data":{"id":"nimbus-cust-2","email":"bob@nimbus.local","name":"Bob Customer","role":"customer"}}' >/dev/null
-  gw_q "${PG_DB_ID}" app_users '{"op":"insert","data":{"id":"nimbus-staff-1","email":"carol@nimbus.local","name":"Carol Staff","role":"staff"}}' >/dev/null
+# ── 7) generated business seed (deterministic · idempotent · ledger-balanced) ──
+# Probe the gateway once for the app-key principal the data plane stamps as
+# owner_id, then bulk-load the generated business under that exact owner so the
+# app's owner-scoped reads see every row. TRUNCATE in the generated SQL +
+# deleteMany in the mongo script make re-runs converge (byte-identical output).
+cyan "probing gateway for the owner principal (one PG row)"
+gw_q "${PG_DB_ID}" app_users \
+  '{"op":"insert","data":{"id":"nimbus-owner-probe","email":"probe@nimbus.local","name":"Probe","role":"customer","status":"active"}}' >/dev/null
+SEED_OWNER="$(python3 -c 'import json;print(json.load(open("/tmp/nimbus-q.json"))["rows"][0]["owner_id"])' 2>/dev/null || echo "")"
+gw_q "${PG_DB_ID}" app_users '{"op":"delete","filter":{"id":{"$eq":"nimbus-owner-probe"}}}' >/dev/null 2>&1 || true
+[[ -n "${SEED_OWNER}" ]] || fail "could not read owner_id from the gateway probe"
+cyan "owner principal: ${SEED_OWNER}"
 
-  # accounts — order matters: id 1 customer, id 2 revenue, id 3 fees.
-  gw_q "${PG_DB_ID}" accounts '{"op":"insert","data":{"owner_user_id":"nimbus-cust-1","kind":"customer","balance_cents":100000,"currency":"USD"}}' >/dev/null
-  gw_q "${PG_DB_ID}" accounts '{"op":"insert","data":{"kind":"revenue","balance_cents":0,"currency":"USD"}}' >/dev/null
-  gw_q "${PG_DB_ID}" accounts '{"op":"insert","data":{"kind":"fees","balance_cents":0,"currency":"USD"}}' >/dev/null
+NODE_IMAGE="${NIMBUS_NODE_IMAGE:-node:22-alpine}"
+GEN_MJS="${SCRIPT_DIR}/nimbus-data-generate.mjs"
+[[ -f "${GEN_MJS}" ]] || fail "generator missing: ${GEN_MJS}"
+OUT_DIR="$(mktemp -d /tmp/nimbus-seed.XXXXXX)"
+trap 'rm -rf "${OUT_DIR}"' EXIT
 
-  # subscription + invoice for the first customer.
-  gw_q "${PG_DB_ID}" subscriptions '{"op":"insert","data":{"user_id":"nimbus-cust-1","plan":"pro","amount_cents":2999,"currency":"USD","status":"active"}}' >/dev/null
-  SUB_ID="$(python3 -c 'import json;d=json.load(open("/tmp/nimbus-q.json"));print(d["rows"][0]["id"])' 2>/dev/null || echo "")"
-  gw_q "${PG_DB_ID}" invoices "{\"op\":\"insert\",\"data\":{\"subscription_id\":${SUB_ID:-null},\"user_id\":\"nimbus-cust-1\",\"amount_cents\":2999,\"currency\":\"USD\",\"status\":\"open\"}}" >/dev/null
+cyan "generating the Nimbus business (seed 42, deterministic)"
+docker run --rm --network none \
+  -v "${GEN_MJS}:/gen.mjs:ro" -v "${OUT_DIR}:/out" \
+  -e SEED_OWNER="${SEED_OWNER}" -e SEED_TENANT="${TENANT_SLUG}" \
+  "${NODE_IMAGE}" node /gen.mjs || fail "generator failed (ledger imbalance or error)"
 
-  # Mongo: messages (open + closed), a settings content doc, an activity doc.
-  gw_q "${MONGO_DB_ID}" messages '{"op":"insert","data":{"subject":"Welcome to Nimbus","body":"Thanks for joining.","status":"open"}}' >/dev/null
-  gw_q "${MONGO_DB_ID}" messages '{"op":"insert","data":{"subject":"Resolved ticket","body":"Closed by staff.","status":"closed"}}' >/dev/null
-  gw_q "${MONGO_DB_ID}" content '{"op":"upsert","filter":{"key":"site.settings"},"data":{"key":"site.settings","type":"settings","value":{"siteName":"Nimbus","supportEmail":"support@nimbus.local"}}}' >/dev/null
-  gw_q "${MONGO_DB_ID}" activity '{"op":"insert","data":{"action":"tenant.provisioned","actor":"system","detail":"nimbus seeded"}}' >/dev/null
-  cyan "demo data seeded"
-fi
+cyan "loading PostgreSQL business (TRUNCATE + COPY, idempotent)"
+docker exec -i "${PG_CTN}" psql -U "${PG_USER}" -d "${NIMBUS_DB}" -q -v ON_ERROR_STOP=1 \
+  <"${OUT_DIR}/pg-nimbus.sql" >/dev/null || fail "postgres business load failed"
+
+# Re-stamp the GoTrue admin as an app_users row (TRUNCATE removed it) so the
+# admin can sign in and appear in the console under their real auth sub. The
+# owner-scoped mount has no ON CONFLICT target, so delete-then-insert is the
+# idempotent path (re-runs converge on one admin row).
+gw_q "${PG_DB_ID}" app_users '{"op":"delete","filter":{"id":{"$eq":"'"${ADMIN_SUB}"'"}}}' >/dev/null 2>&1 || true
+gw_q "${PG_DB_ID}" app_users \
+  "{\"op\":\"insert\",\"data\":{\"id\":\"${ADMIN_SUB}\",\"email\":\"${ADMIN_EMAIL}\",\"name\":\"Nimbus Admin\",\"role\":\"admin\",\"status\":\"active\"}}" >/dev/null
+
+cyan "loading MongoDB collections (drop + insert, owner-stamped)"
+STACK_NET="$(docker inspect "${MONGO_CTN}" \
+  --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' | head -1)"
+MONGO_IMAGE="$(docker inspect "${MONGO_CTN}" --format '{{.Config.Image}}')"
+docker run --rm --network "${STACK_NET}" \
+  -v "${OUT_DIR}/mongo-nimbus.js:/seed.js:ro" "${MONGO_IMAGE}" \
+  mongosh --quiet \
+  "mongodb://$(urlenc "${MONGO_USER}"):$(urlenc "${MONGO_PASS}")@mongo:27017/${NIMBUS_DB}?authSource=admin" \
+  /seed.js >/dev/null || fail "mongo business load failed"
+cyan "business seeded — $(python3 -c 'import json;c=json.load(open("'"${OUT_DIR}"'/counts.json"));print("pg",c["pg"],"mongo",c["mongo"])')"
 
 # ── 8) emit frontend config + state ──────────────────────────────────────────
 cyan "writing frontend config"

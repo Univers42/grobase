@@ -41,19 +41,19 @@ export function useOverview(): OverviewData {
     let cancelled = false;
     setData((prev) => ({ ...prev, loading: true, error: null }));
     Promise.all([
-      db.pg.list('txns', { filter: { status: { $eq: 'posted' } }, sort: { created_at: 'desc' }, limit: 500 }),
-      db.pg.list('app_users', { filter: { status: { $eq: 'active' } }, limit: 1 }),
-      db.mongo.list('messages', { filter: { status: { $eq: 'open' } }, limit: 1 }),
-      db.pg.list('accounts', { limit: 500 }),
+      db.pg.listAll('txns', { filter: { status: { $eq: 'posted' } }, sort: { created_at: 'desc' } }),
+      db.pg.count('app_users', { filter: { status: { $eq: 'active' } } }),
+      db.mongo.count('messages', { filter: { status: { $eq: 'open' } } }),
+      db.pg.listAll('accounts', {}),
       db.mongo.list('activity', { sort: { ts: 'desc' }, limit: 8 }),
     ])
-      .then(([txns, users, mail, accounts, activity]) => {
+      .then(([txns, activeUsers, openMail, accounts, activity]) => {
         if (cancelled) return;
-        const series = revenueSeries(txns.rows);
-        const revenueCents = sumCents(txns.rows, 'amount_cents');
-        const balanceCents = sumCents(accounts.rows, 'balance_cents');
+        const series = revenueSeries(txns);
+        const revenueCents = sumCents(txns, 'amount_cents');
+        const balanceCents = sumCents(accounts, 'balance_cents');
         setData({
-          kpis: buildKpis(revenueCents, users.rowCount, mail.rowCount, balanceCents, series),
+          kpis: buildKpis(revenueCents, activeUsers, openMail, balanceCents, series),
           revenue: series,
           activity: activity.rows.map(toActivityItem),
           loading: false,

@@ -37,6 +37,7 @@ run_spec() {
 for spec in \
   browser-landing.mjs \
   browser-auth.mjs \
+  browser-register-is-real.mjs \
   browser-overview.mjs \
   browser-users.mjs \
   browser-inbox.mjs \
