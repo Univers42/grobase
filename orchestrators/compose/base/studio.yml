@@ -1,0 +1,48 @@
+# studio plane — studio
+services:
+  studio:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-studio:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/studio
+      dockerfile: Dockerfile
+    container_name: mini-baas-studio
+    profiles: [control-plane, extras, studio]
+    env_file: [.env]
+    environment:
+      HOSTNAME: 0.0.0.0
+      STUDIO_PG_META_URL: http://pg-meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DEFAULT_ORGANIZATION_NAME: ${STUDIO_DEFAULT_ORG_NAME:-Mini BaaS Dev}
+      DEFAULT_PROJECT_NAME: ${STUDIO_DEFAULT_PROJECT_NAME:-mini-baas}
+      SUPABASE_URL: ${SUPABASE_URL:-http://kong:8000}
+      SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL:-http://localhost:8000}
+      SUPABASE_ANON_KEY: ${ANON_KEY:-anon-key-placeholder}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY:-service-key-placeholder}
+      LOGFLARE_API_KEY: ${STUDIO_LOGFLARE_API_KEY:-}
+      LOGFLARE_URL: ${STUDIO_LOGFLARE_URL:-}
+      NEXT_PUBLIC_ENABLE_LOGS: "false"
+      NEXT_ANALYTICS_BACKEND_PROVIDER: postgres
+    ports:
+      - "127.0.0.1:${STUDIO_PORT:-3000}:3000"
+    depends_on:
+      pg-meta:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:3000/api/profile'').then(r => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    mem_limit: 384m
+    cpus: 0.5
+
+  # ─── Observability: Prometheus ───────────────────────────────────

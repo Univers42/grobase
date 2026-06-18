@@ -1,0 +1,13 @@
+# Auto-provisioned Grafana dashboard provider
+apiVersion: 1
+
+providers:
+  - name: "mini-baas"
+    orgId: 1
+    folder: "mini-BaaS"
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

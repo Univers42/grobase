@@ -1,0 +1,303 @@
+# control-plane plane — adapter-registry-go, tenant-control, webhook-dispatcher, orchestrator, function-scheduler
+services:
+  adapter-registry-go:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-adapter-registry-go:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src/control-plane
+      dockerfile: Dockerfile
+      args:
+        APP: adapter-registry
+        PORT: 3021
+    profiles: [control-plane, go-control-plane]
+    container_name: mini-baas-adapter-registry-go
+    env_file: [.env]
+    environment:
+      ADAPTER_REGISTRY_HOST: 0.0.0.0
+      ADAPTER_REGISTRY_PORT: 3021
+      # enabled: adapter-registry-go is the live mount-resolution path (the
+      # scrypt-convoy fix m39, isolation m46, enforcement m53 all run against
+      # it). ProductMode is an informational label; this just makes status honest.
+      ADAPTER_REGISTRY_PRODUCT_MODE: ${ADAPTER_REGISTRY_GO_PRODUCT_MODE:-enabled}
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      VAULT_ENC_KEY: ${VAULT_ENC_KEY:-0123456789abcdef0123456789abcdef}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
+      # Phase 4 tiering kill switch. Default 0 (OFF) so enabling tiering never
+      # retroactively gates existing `free` tenants — flip to 1 once tenant
+      # plans are assigned to enforce engine allowlist + mount quota + the
+      # capability/rate mask the data plane reads off /connect.
+      PACKAGE_ENFORCEMENT: ${PACKAGE_ENFORCEMENT:-0}
+      # scrypt concurrency bound (crypto.go scryptSlots). Each DSN encryption
+      # derives a key at ~16 MiB; the mem_limit below budgets baseline + slots
+      # × 16 MiB. Before this bound a 16-way bulk mount registration OOM-crash-
+      # looped this service (measured 2026-06-11, 17 restarts).
+      SCRYPT_MAX_CONCURRENT: ${SCRYPT_MAX_CONCURRENT:-2}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "127.0.0.1:${ADAPTER_REGISTRY_GO_PORT:-3021}:3021"
+    healthcheck:
+      test: ["CMD", "/app/app", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    # baseline (~12 MiB) + SCRYPT_MAX_CONCURRENT × 16 MiB + headroom. The CPU
+    # budget is sized for the RESOLVE role, not just registration: /connect
+    # cold misses each cost one scrypt (~80ms of a full core), and a fan-out
+    # across N fresh mounts needs slots × cores ≈ 25 scrypts/s to keep the
+    # tail under the data plane's 10s resolve timeout (m39). Steady state is
+    # cache-hits (decrypted-DSN cache keyed by ciphertext tag + singleflight).
+    mem_limit: 192m
+    cpus: 2.0
+
+  # ─── Go Control Plane: tenant-control ─────────────────────────────
+  # Owns the top-level tenants registry + tenant_api_keys CRUD. Exposes
+  # /v1/tenants and /v1/keys/verify. Bootstrap endpoint wires a new tenant
+  # up with a default ABAC role + first API key in one call.
+  #
+  # JWT_SECRET (shared with GoTrue) enables POST /v1/tenants/me/bootstrap —
+  # the JWT-authenticated path the just-signed-up user calls to provision
+  # their tenant + receive their first API key.
+  tenant-control:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-tenant-control:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src/control-plane
+      dockerfile: Dockerfile
+      args:
+        APP: tenant-control
+        PORT: 3022
+    profiles: [control-plane, go-control-plane]
+    container_name: mini-baas-tenant-control
+    env_file: [.env]
+    environment:
+      TENANT_CONTROL_HOST: 0.0.0.0
+      TENANT_CONTROL_PORT: 3022
+      # enabled: tenant-control is the ONLY auth/key/tenant path — not shadow,
+      # the production control plane (m12, m28, the B3/m50 revoke drill).
+      TENANT_CONTROL_PRODUCT_MODE: ${TENANT_CONTROL_PRODUCT_MODE:-enabled}
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
+      # User-JWT verification (audit O2). Default HS256 with JWT_SECRET. Set
+      # JWT_ALG=RS256 + JWKS_URL (e.g. GoTrue's .well-known/jwks.json once it
+      # issues RS256) to verify asymmetric tokens against rotating public keys —
+      # verify-only, pinned to one alg (no algorithm-confusion). Unit: jwks_test.go.
+      JWT_ALG: ${JWT_ALG:-HS256}
+      JWKS_URL: ${JWKS_URL:-}
+      # Enables POST /v1/provision to register a tenant's data mounts in one call,
+      # and to create the per-tenant schema for schema_per_tenant mounts.
+      ADAPTER_REGISTRY_URL: ${ADAPTER_REGISTRY_URL:-http://adapter-registry-go:3021}
+      RUST_DATA_PLANE_URL: ${RUST_DATA_PLANE_URL:-http://data-plane-router-rust:4011}
+      # ABAC seam: the provisioning reconciler self-verifies seeded roles/policies
+      # via permission-engine's POST /permissions/decide (service-token gated).
+      # Role/policy SEEDING works without this (direct SQL); only Decide() needs it.
+      PERMISSION_ENGINE_URL: ${PERMISSION_ENGINE_URL:-http://permission-engine:3050}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Argon2id concurrency bound (keys.go argon2Slots). Each hash allocates
+      # 32 MiB; the mem_limit below budgets baseline + slots × 32 MiB. Before
+      # this bound, a 16-way bulk provision OOM-crashlooped this container
+      # (measured 2026-06-11, 8 restarts) and every in-flight verify died.
+      ARGON2_MAX_CONCURRENT: ${ARGON2_MAX_CONCURRENT:-2}
+      # B4-verify: Argon2-only-on-first-seen fast path. The measured 1K-tenant
+      # ceiling was ~40 verify/s (cold keys × Argon2 @ 2-concurrent). This cache
+      # makes a repeat verify of an already-seen key a hash-map lookup, so the
+      # Argon2 cost is a one-time warmup, not a per-request tax. TTL bounds
+      # revocation/expiry staleness (revoke also flushes); 0 disables (parity).
+      TENANT_CONTROL_VERIFY_CACHE_TTL_MS: ${TENANT_CONTROL_VERIFY_CACHE_TTL_MS:-60000}
+      TENANT_CONTROL_VERIFY_CACHE_MAX: ${TENANT_CONTROL_VERIFY_CACHE_MAX:-16384}
+      # Track-B B4b: tenant self-service console surface (/v1/tenants/me*). The Go
+      # source defaults this OFF (main.go envBool → MountSelfServe skipped = no /me
+      # routes = byte-parity with the pre-B4a {id}-wildcard baseline). We default it
+      # ON here (:-1) so the osionos BaaS Console is wired LIVE out-of-the-box, with a
+      # one-token kill switch: set TENANT_SELFSERVE_ENABLED=0 in .env to revert to the
+      # exact pre-B4a behavior (the public Kong route then 404/401s at the upstream =
+      # harmless). Gate: scripts/verify/m84-selfserve-kong.sh (ON + OFF parity arms).
+      TENANT_SELFSERVE_ENABLED: ${TENANT_SELFSERVE_ENABLED:-1}
+    ports:
+      - "127.0.0.1:${TENANT_CONTROL_PORT:-3022}:3022"
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/app", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    # baseline (~20 MiB) + ARGON2_MAX_CONCURRENT × 32 MiB + headroom.
+    mem_limit: 160m
+    cpus: 0.5
+
+  # ─── Go Control Plane: webhook-dispatcher ─────────────────────────
+  # Owns webhook_subscriptions CRUD + consumes outbox.<aggregate> Redis
+  # streams + HMAC-signed POSTs to subscribers with retry + DLQ.
+  webhook-dispatcher:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-webhook-dispatcher:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src/control-plane
+      dockerfile: Dockerfile
+      args:
+        APP: webhook-dispatcher
+        PORT: 3025
+    profiles: [control-plane, background, go-control-plane]
+    container_name: mini-baas-webhook-dispatcher
+    env_file: [.env]
+    environment:
+      WEBHOOK_DISPATCHER_HOST: 0.0.0.0
+      WEBHOOK_DISPATCHER_PORT: 3025
+      # enabled: the dispatcher delivers webhooks live (m29 automations, the F2
+      # jitter + baas_webhook_deliveries_total metrics). The orchestrator below
+      # stays `shadow` — the six Node services still serve Kong (A not cut over).
+      WEBHOOK_DISPATCHER_PRODUCT_MODE: ${WEBHOOK_DISPATCHER_PRODUCT_MODE:-enabled}
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      WEBHOOK_REDIS_URL: ${WEBHOOK_REDIS_URL:-${OUTBOX_REDIS_URL:-redis://redis:6379}}
+      WEBHOOK_GROUP: ${WEBHOOK_GROUP:-webhook-dispatcher}
+      WEBHOOK_CONSUMER: ${WEBHOOK_CONSUMER:-webhook-dispatcher-0}
+      # A2: function-trigger dispatcher (DB-event -> function invoke) + secrets.
+      FUNCTION_TRIGGER_GROUP: ${FUNCTION_TRIGGER_GROUP:-function-dispatcher}
+      FUNCTION_TRIGGER_CONSUMER: ${FUNCTION_TRIGGER_CONSUMER:-function-dispatcher-0}
+      FUNCTIONS_RUNTIME_URL: ${FUNCTIONS_RUNTIME_URL:-http://functions-runtime:3060}
+      VAULT_ENC_KEY: ${VAULT_ENC_KEY:-}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "127.0.0.1:${WEBHOOK_DISPATCHER_PORT:-3025}:3025"
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/app", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 96m
+    cpus: 0.25
+
+  # ─── Orchestrator (R2 — consolidated Go orchestrators) ─────────────
+  # Folds the small Node orchestrators into ONE Go binary (one runtime, not
+  # six). Runs in SHADOW alongside the Node services it ports (today: log) so
+  # parity is checked before any Node container is retired. ~32 MiB mem_limit
+  # vs ~55 MiB PER Node service is the −359 MiB / essential $13→$6.5 win.
+  orchestrator:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-orchestrator:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src/control-plane
+      dockerfile: Dockerfile
+      args:
+        APP: orchestrator
+        PORT: 3026
+    profiles: [control-plane, background, go-control-plane]
+    container_name: mini-baas-orchestrator
+    env_file: [.env]
+    environment:
+      ORCHESTRATOR_HOST: 0.0.0.0
+      ORCHESTRATOR_PORT: 3026
+      # A4 cutover (2026-06-13): the orchestrator is now the LIVE path — Kong
+      # routes /logs /sessions /newsletter /gdpr /email here (kong.yml), and the
+      # six Node orchestrators are quarantined to the `legacy-node` profile (not
+      # started by default). enabled, not shadow. Rollback: re-point kong.yml +
+      # start the legacy-node profile. Gates: m48 (parity), m49 (through-Kong).
+      ORCHESTRATOR_PRODUCT_MODE: ${ORCHESTRATOR_PRODUCT_MODE:-enabled}
+      # Comma list of ported sub-services (empty = all). Start with log only.
+      # Empty = ALL ported sub-services (selectServices default). The cutover
+      # runs the full six; override to a subset only for shadow experiments.
+      ORCHESTRATOR_SERVICES: ${ORCHESTRATOR_SERVICES:-}
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      LOG_SERVICE_LOKI_URL: ${LOG_SERVICE_LOKI_URL:-http://loki:3100/loki/api/v1/push}
+      # email sub-service SMTP (parity with email-service defaults → Mailpit)
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@mini-baas.local}
+      # session sub-service TTL
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-7}
+      # newsletter sub-service (outbound mail + confirm links)
+      EMAIL_SERVICE_URL: ${EMAIL_SERVICE_URL:-http://email-service:3030}
+      NEWSLETTER_BASE_URL: ${NEWSLETTER_BASE_URL:-http://localhost:8000/newsletter/v1}
+      NEWSLETTER_BATCH_SIZE: ${NEWSLETTER_BATCH_SIZE:-5}
+      # gdpr sub-service (schema-agnostic export/erasure webhooks)
+      GDPR_EXPORT_WEBHOOK_URL: ${GDPR_EXPORT_WEBHOOK_URL:-}
+      GDPR_DELETION_WEBHOOK_URL: ${GDPR_DELETION_WEBHOOK_URL:-}
+      # outbox-relay sub-service (pg outbox → redis streams + realtime fan-out).
+      # Mongo projection is a soft dependency (A3): the driver-backed
+      # mongoProjector activates when OUTBOX_MONGO_URL resolves + connects, else
+      # degrades to the no-op (a pg write is never failed for a missing sink).
+      OUTBOX_REDIS_URL: ${OUTBOX_REDIS_URL:-redis://redis:6379}
+      OUTBOX_MONGO_URL: ${OUTBOX_MONGO_URL:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017/mini_baas?authSource=admin}
+      MONGO_DB_NAME: ${OUTBOX_MONGO_DB_NAME:-mini_baas}
+      OUTBOX_RELAY_POLL_MS: ${OUTBOX_RELAY_POLL_MS:-500}
+      OUTBOX_RELAY_BATCH_SIZE: ${OUTBOX_RELAY_BATCH_SIZE:-25}
+      OUTBOX_RELAY_MAX_ATTEMPTS: ${OUTBOX_RELAY_MAX_ATTEMPTS:-5}
+      OUTBOX_RELAY_DEDUPE_TTL_SECONDS: ${OUTBOX_RELAY_DEDUPE_TTL_SECONDS:-86400}
+      REALTIME_PUBLISH_URL: ${REALTIME_PUBLISH_URL:-http://realtime:4000/v1/publish}
+      REALTIME_PUBLISH_TIMEOUT_MS: ${REALTIME_PUBLISH_TIMEOUT_MS:-1000}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "127.0.0.1:${ORCHESTRATOR_PORT:-3026}:3026"
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/app/app", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 32m
+    cpus: 0.25
+
+  # ─── Go Control Plane: function-scheduler (A2 Functions DX) ────────
+  # Polls function_schedules for due rows and invokes the target function on
+  # the functions-runtime, advancing next_run by the schedule's interval.
+  # Zero-dep interval grammar (@every / @hourly / @daily / bare duration).
+  # NOTE: own port 3027 — the orchestrator owns 3026 on this (scale-program) base.
+  function-scheduler:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-function-scheduler:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src/control-plane
+      dockerfile: Dockerfile
+      args:
+        APP: function-scheduler
+        PORT: 3027
+    profiles: [functions, background, go-control-plane]
+    container_name: mini-baas-function-scheduler
+    env_file: [.env]
+    environment:
+      FUNCTION_SCHEDULER_HOST: 0.0.0.0
+      FUNCTION_SCHEDULER_PORT: 3027
+      FUNCTION_SCHEDULER_PRODUCT_MODE: ${FUNCTION_SCHEDULER_PRODUCT_MODE:-shadow}
+      FUNCTION_SCHEDULER_TICK_SECONDS: ${FUNCTION_SCHEDULER_TICK_SECONDS:-10}
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      FUNCTIONS_RUNTIME_URL: ${FUNCTIONS_RUNTIME_URL:-http://functions-runtime:3060}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "127.0.0.1:${FUNCTION_SCHEDULER_PORT:-3027}:3027"
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/app/app", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 96m
+    cpus: 0.25
+
+  # ─── Email Service (background plane) ─────────────────────────────

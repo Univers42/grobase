@@ -1,0 +1,232 @@
+# data-engines plane — postgres, db-bootstrap, redis, mongo, mongo-keyfile, mongo-init
+services:
+  postgres:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-postgres:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/postgres
+      dockerfile: Dockerfile
+    container_name: mini-baas-postgres
+    env_file: [.env]
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    command: >
+      postgres
+        -c shared_preload_libraries=pg_net
+        -c wal_level=logical
+        -c pg_net.database_name=${POSTGRES_DB:-postgres}
+        -c max_connections=${PG_MAX_CONNECTIONS:-300}
+    networks:
+      mini-baas:
+        aliases:
+          - db
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      # Crash-recovery boots (ungraceful stop on a sizable volume) spend 40s+
+      # in fsync + WAL redo before accepting connections — 10s of grace marked
+      # a perfectly healthy recovery "unhealthy" and aborted every dependent.
+      # start_period failures don't count toward retries and the first passing
+      # probe flips healthy immediately, so fast boots lose nothing.
+      start_period: 90s
+    mem_limit: 512m
+    cpus: 1.0
+
+  # ─── Database Bootstrap ──────────────────────────────────────────
+  db-bootstrap:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-db-bootstrap:latest # pull-fallback (built from ./build context below)
+    # Self-built: an init container that only runs psql/pg_isready then exits, so it
+    # needs a postgres CLIENT (~13 MB) not the 438 MB pgvector engine image. The
+    # `vector` extension lives in the postgres SERVER image (docker/services/postgres).
+    build:
+      context: ./infra/docker/services/db-bootstrap
+      dockerfile: Dockerfile
+    container_name: mini-baas-db-bootstrap
+    env_file: [.env]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      REALTIME_DB_NAME: realtime
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Password for the non-superuser PostgREST `authenticator` role created by
+      # db-bootstrap.psql (see migration 065 — safe-by-construction REST isolation).
+      AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD:-}
+    command: >
+      sh -ec '
+        until pg_isready -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"; do sleep 1; done;
+        psql -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" -v ON_ERROR_STOP=1 -v pwd="$${POSTGRES_PASSWORD}" -v realtime_db="$${REALTIME_DB_NAME}" -v authenticator_pwd="$${AUTHENTICATOR_PASSWORD}" -f /bootstrap/db-bootstrap.psql;
+      '
+    volumes:
+      - ./scripts/db/db-bootstrap.psql:/bootstrap/db-bootstrap.psql:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # ─── Document Database ───────────────────────────────────────────
+  redis:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-redis:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/redis
+      dockerfile: Dockerfile
+    container_name: mini-baas-redis
+    env_file: [.env]
+    ports:
+      # Loopback-only publish: protected-mode is off (so docker-network peers —
+      # conformance, ratelimit, outbox-relay — can connect), so do NOT expose an
+      # unauthenticated redis to the LAN. Host tools still reach it on 127.0.0.1.
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    # Rewrite is back ON (100%/64mb floor): it was disabled after OOM loops at
+    # 128m, but with maxmemory capping the working set the rewrite is safe —
+    # and DISABLED rewrite means unbounded AOF growth on disk (a bench day
+    # proved the stream side: 250 MB in one untrimmed CDC stream). Eviction is
+    # volatile-lru, NOT allkeys: the outbox.* streams are relay durability
+    # state — better that writes fail loudly at the cap than events silently
+    # evaporate; cache users set TTLs and stay evictable.
+    # protected-mode no: default redis (no bind/no password) refuses every
+    # non-loopback peer, which broke cross-container connects (conformance +
+    # any network consumer died with "driver unexpectedly terminated - IoError").
+    # Safe here because the publish above is loopback-only + the network is
+    # internal. ponytail: --requirepass for the prod overlay — see prod compose.
+    command: redis-server --protected-mode no --appendonly yes --auto-aof-rewrite-percentage 100 --auto-aof-rewrite-min-size 64mb --maxmemory 384mb --maxmemory-policy volatile-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      start_period: 5s
+      retries: 5
+    mem_limit: 512m
+    cpus: 0.25
+
+  # ─── Adapter Registry: see `adapter-registry-go` further below. The TS
+  # NestJS adapter-registry was retired after parity-probe.sh proved the Go
+  # implementation byte-compatible (same AES-256-GCM crypto scheme + same
+  # RLS contract + same /databases route surface). Removed: ~700 lines of
+  # TS, ~150 MB RAM in production, an entire build target.
+
+  # ─── Query Router (adapter plane — normalized data API) ───────────
+  mongo:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-mongo:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/mongo
+      dockerfile: Dockerfile
+    container_name: mini-baas-mongo
+    profiles: [data-plane]
+    env_file: [.env]
+    command:
+      [
+        "--replSet",
+        "rs0",
+        "--bind_ip_all",
+        "--keyFile",
+        "/etc/mongo/rs-keyfile",
+      ]
+    depends_on:
+      mongo-keyfile:
+        condition: service_completed_successfully
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-mongo}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-mongo}
+    volumes:
+      - mongo-data:/data/db
+      - mongo-keyfile:/etc/mongo
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'mongosh --quiet --eval "try { rs.status().myState === 1 ? quit(0) : quit(1) } catch(e) { db.runCommand({ ping: 1 }).ok ? quit(0) : quit(1) }"',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+    mem_limit: 512m
+    cpus: 0.5
+
+  # ─── MongoDB keyfile generator (runs once, exits) ────────────────
+  # Generates a shared keyfile for replica set internal auth.
+  mongo-keyfile:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-mongo-keyfile:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/mongo-keyfile
+      dockerfile: Dockerfile
+    container_name: mini-baas-mongo-keyfile
+    profiles: [data-plane]
+    volumes:
+      - mongo-keyfile:/etc/mongo
+    restart: "no"
+    entrypoint: >
+      bash -c '
+        if [ ! -f /etc/mongo/rs-keyfile ]; then
+          openssl rand -base64 756 > /etc/mongo/rs-keyfile;
+          chmod 400 /etc/mongo/rs-keyfile;
+          chown 999:999 /etc/mongo/rs-keyfile;
+          echo "KeyFile generated";
+        else
+          echo "KeyFile already exists";
+        fi
+      '
+
+  # ─── MongoDB Replica Set Initialisation ──────────────────────────
+  # Required for Change Streams (used by realtime CDC producer).
+  # Runs once and exits with code 0.
+  mongo-init:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-mongo-init:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/mongo-init
+      dockerfile: Dockerfile
+    container_name: mini-baas-mongo-init
+    profiles: [data-plane]
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      MONGO_USER: ${MONGO_INITDB_ROOT_USERNAME:-mongo}
+      MONGO_PASS: ${MONGO_INITDB_ROOT_PASSWORD:-mongo}
+    entrypoint:
+      - bash
+      - -c
+      - |
+        mongosh --host mongo \
+          -u "$$MONGO_USER" -p "$$MONGO_PASS" \
+          --authenticationDatabase admin --quiet --eval '
+            try { rs.status(); print("Replica set already initialised"); }
+            catch(e) {
+              rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongo:27017" }] });
+              print("Replica set initiated — waiting for PRIMARY election…");
+            }
+            // Block until this node becomes PRIMARY (max ~30 s)
+            let attempts = 0;
+            while (!db.hello().isWritablePrimary && attempts < 30) {
+              sleep(1000); attempts++;
+            }
+            if (db.hello().isWritablePrimary) print("Node is PRIMARY — ready");
+            else { print("WARN: node not yet PRIMARY after 30 s"); quit(1); }
+          '
+
+  # ─── MongoDB REST API (NestJS) ──────────────────────────────────

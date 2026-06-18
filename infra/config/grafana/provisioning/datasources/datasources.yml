@@ -1,0 +1,37 @@
+# Auto-provisioned Grafana datasources for mini-BaaS
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+
+  # B5 per-tenant observability (Pillar 2): a Postgres datasource over the
+  # platform DB so a Grafana dashboard can read per-tenant USAGE straight from
+  # public.tenant_usage (the B1 metering truth) — ZERO Prometheus cardinality.
+  # Credentials come from env (Grafana expands ${...} at provisioning time); the
+  # password is cleartext at rest in Grafana's standard model — production should
+  # source GF_POSTGRES_* from Vault and rotate. Inert until GF_POSTGRES_* and the
+  # compose wiring exist; provisioning a datasource alone changes no live behavior.
+  - name: Postgres-Usage
+    uid: postgres-usage
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    user: ${GF_POSTGRES_USER} # service_role / read-capable; from env, not cleartext
+    jsonData:
+      database: postgres
+      sslmode: disable
+      postgresVersion: 1500
+    secureJsonData:
+      password: ${GF_POSTGRES_PASSWORD}
+    editable: false

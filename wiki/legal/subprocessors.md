@@ -3,8 +3,8 @@
 > **TEMPLATE — review by counsel before use; not legal advice.** This list must
 > reflect the **real** deployment. Entries marked `[TBD]` mean a vendor has not been
 > chosen for the managed-cloud go-live — fill them in before publishing, and keep this
-> list in sync with the [DPA](data-processing-addendum.md) §6 and the
-> [Privacy Policy](privacy-policy.md) §4.
+> list in sync with the [DPA](./data-processing-addendum.md) §6 and the
+> [Privacy Policy](./privacy-policy.md) §4.
 
 A subprocessor is a third party engaged by the Processor to process Customer Data.
 The Grobase stack is intentionally small; the table below lists the components that
@@ -28,4 +28,4 @@ Notes:
   are tenant-chosen mounts; if a tenant points Grobase at an external managed database,
   that database is the **Controller's** subprocessor, not Grobase's.
 - Update this table whenever a `[TBD]` is resolved or a vendor changes, and notify
-  Controllers per [DPA](data-processing-addendum.md) §6.
+  Controllers per [DPA](./data-processing-addendum.md) §6.

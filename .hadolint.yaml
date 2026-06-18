@@ -1,0 +1,13 @@
+# Hadolint configuration for the Grobase Docker build tree.
+#
+# ignored: rules deliberately disabled as ACCEPTED project policy.
+#   DL3018 — "Pin versions in apk add" (apk add foo=1.2.3)
+#   DL3008 — "Pin versions in apt-get install" (apt-get install foo=1.2.3)
+# Rationale: pinning every transitive OS package across 40 images that track
+# distro / official upstream bases is brittle (versions vanish from mirrors,
+# breaking rebuilds) and is a widely-recognised anti-pattern for rolling base
+# images. Reproducibility here comes from pinned BASE IMAGE tags and from
+# application-layer lockfiles, not from per-package OS pins.
+ignored:
+  - DL3018
+  - DL3008

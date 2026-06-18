@@ -1,0 +1,10 @@
+# Shared base — common config every service inherits via Compose `extends` (cross-file reuse).
+# Only TRULY-universal fields live here: every service joins the `mini-baas` network and
+# defaults to `restart: unless-stopped`. Per-service exceptions stay in the service and win
+# on merge (init containers use `restart: "no"`; `env_file`/aliases are per-service).
+# NOT listed in the root include: — this is a reusable template, not a plane.
+services:
+  base:
+    networks:
+      - mini-baas
+    restart: unless-stopped

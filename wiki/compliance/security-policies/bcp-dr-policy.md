@@ -17,7 +17,7 @@ A.5.29–A.5.30; SOC 2 CC9.1 + Availability A1.)
   A.8.14).
 - **Objectives — stated honestly.** Recovery-time and recovery-point objectives, and any uptime SLA,
   are **not asserted as live numbers**: per-tier targets are TARGETS pending the C7 uptime probe
-  (`sla-uptime` = planned). The draft commitments live in [`../../sla-draft.md`](../../sla-draft.md);
+  (`sla-uptime` = planned). The draft commitments live in [`../../sla-draft.md`](../../operations/sla-draft.md);
   they become enforceable only once a probe writes durable availability samples (tracked as
   R-UPTIME in [`../risk-register.md`](../risk-register.md)).
 

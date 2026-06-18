@@ -1,0 +1,174 @@
+# auth-api plane — gotrue, postgrest, pg-meta, mongo-api
+services:
+  gotrue:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-gotrue:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/gotrue
+      dockerfile: Dockerfile
+    container_name: mini-baas-gotrue
+    env_file: [.env]
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}
+      GOTRUE_SITE_URL: ${GOTRUE_SITE_URL:-http://localhost:5173}
+      GOTRUE_URI_ALLOW_LIST: ${GOTRUE_URI_ALLOW_LIST:-http://localhost:5173/**,http://localhost:3000,http://localhost:3001,http://localhost:3100}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      # Email
+      GOTRUE_MAILER_AUTOCONFIRM: ${GOTRUE_MAILER_AUTOCONFIRM:-false}
+      GOTRUE_SMTP_HOST: ${SMTP_HOST:-mailpit}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT:-1025}
+      GOTRUE_SMTP_USER: ${SMTP_USER:-}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS:-}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${EMAIL_FROM:-noreply@mini-baas.local}
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/verify
+      # JWT
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_ISSUER: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}
+      # MFA / 2FA (TOTP)
+      GOTRUE_MFA_ENABLED: "true"
+      GOTRUE_SECURITY_MFA_MAX_ENROLLED_FACTORS: 5
+      GOTRUE_SECURITY_MFA_MAX_VERIFIED_FACTORS: 5
+      # Refresh token security
+      GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: "true"
+      GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: 10
+      # Password policy
+      GOTRUE_PASSWORD_MIN_LENGTH: 8
+      # Rate limiting (per-IP) — raised for E2E test suite
+      GOTRUE_RATE_LIMIT_HEADER: X-Real-IP
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: ${GOTRUE_RATE_LIMIT_EMAIL_SENT:-100}
+      # OAuth: Google
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_OAUTH_ENABLED:-false}
+      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}/callback
+      # OAuth: GitHub
+      GOTRUE_EXTERNAL_GITHUB_ENABLED: ${GITHUB_OAUTH_ENABLED:-false}
+      GOTRUE_EXTERNAL_GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_GITHUB_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}/callback
+      # OAuth: 42 School (custom OIDC)
+      GOTRUE_EXTERNAL_FORTYTWO_ENABLED: ${FORTYTWO_OAUTH_ENABLED:-false}
+      GOTRUE_EXTERNAL_FORTYTWO_CLIENT_ID: ${FORTYTWO_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_FORTYTWO_SECRET: ${FORTYTWO_CLIENT_SECRET:-}
+      GOTRUE_EXTERNAL_FORTYTWO_REDIRECT_URI: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}/callback
+      GOTRUE_EXTERNAL_FORTYTWO_URL: https://api.intra.42.fr/oauth/authorize
+      GOTRUE_EXTERNAL_FORTYTWO_API_URL: https://api.intra.42.fr
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9999/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 15s
+      retries: 8
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── PostgreSQL REST API ─────────────────────────────────────────
+  postgrest:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-postgrest:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/postgrest
+      dockerfile: Dockerfile
+    container_name: mini-baas-postgrest
+    # No healthcheck BY DESIGN: the postgrest image is shell-less (no sh/curl/
+    # wget), so an exec probe is impossible. Its health is observed upstream —
+    # Kong's /rest/v1 route + `make health` probe it over HTTP.
+    env_file: [.env]
+    environment:
+      # PostgREST connects as the dedicated non-superuser `authenticator` role
+      # (NOBYPASSRLS), so RLS + FORCE RLS always bind the public REST/GraphQL
+      # surface. The superuser DSN is NEVER used here (a superuser bypasses RLS
+      # unconditionally). The fallback below mirrors the .env that
+      # scripts/env/generate-env.sh writes; it still uses the authenticator role.
+      PGRST_DB_URI: ${PGRST_DB_URI:-postgres://authenticator:${AUTHENTICATOR_PASSWORD:-authenticator}@postgres:5432/postgres}
+      PGRST_DB_SCHEMA: ${PGRST_DB_SCHEMA:-public}
+      PGRST_SERVER_PORT: 3000
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-bootstrap:
+        condition: service_completed_successfully
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── PostgreSQL Metadata (control plane / extras) ─────────────────
+  pg-meta:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-pg-meta:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/pg-meta
+      dockerfile: Dockerfile
+    healthcheck:
+      # node-based image (no curl/wget) — probe with node fetch, supabase's own pattern
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://localhost:8080/health'').then(r=>{if(r.status!==200)throw 1}).catch(()=>process.exit(1))"',
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+    container_name: mini-baas-pg-meta
+    profiles: [control-plane, extras]
+    env_file: [.env]
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: ${PG_META_DB_HOST:-postgres}
+      PG_META_DB_PORT: ${PG_META_DB_PORT:-5432}
+      PG_META_DB_NAME: ${PG_META_DB_NAME:-postgres}
+      PG_META_DB_USER: ${PG_META_DB_USER:-postgres}
+      PG_META_DB_PASSWORD: ${PG_META_DB_PASSWORD:-postgres}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ─── Realtime / WebSocket ────────────────────────────────────────
+  mongo-api:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-mongo-api:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+      args:
+        APP: mongo-api
+    profiles: [data-plane]
+    container_name: mini-baas-mongo-api
+    env_file: [.env]
+    environment:
+      PORT: 3010
+      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017
+      MONGO_DB_NAME: ${MONGO_DB_NAME:-mini_baas}
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3010/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── Authentication ──────────────────────────────────────────────

@@ -13,7 +13,7 @@
 
 - **Capabilities are derived from what the adapter actually dispatches** — a descriptor cannot claim an op the code doesn't run.
 - **`/v1/capabilities` reports implemented reality**, including the new feature flags (aggregate, cursor, search, joins) and the cost model.
-- **The planner is the routing brain**: validate the [02 operation](02-operation-contract.md) against real caps, then decide *native / federation / reject* using `cost` — the hook 05 plugs into.
+- **The planner is the routing brain**: validate the [02 operation](./02-operation-contract.md) against real caps, then decide *native / federation / reject* using `cost` — the hook 05 plugs into.
 - **The SDK regenerates** from honest capabilities; its compile-time typing becomes true.
 
 ## Design
@@ -124,7 +124,7 @@ These flip **only** when the adapter implements them (tied to 03's slices). The 
 > **Still deferred. Inert (not lies, no op consumes them yet):** `stream`,
 > `savepoints`, `two_phase_commit`, `cost.{joins,pattern_search}`,
 > `isolation_levels` — advisory metadata until a join/search/stream op exists.
-> **Pre-existing (record for [08](08-sdk-graphql-and-e2e-tests.md)):** the TS
+> **Pre-existing (record for [08](./08-dx-sdk-graphql-testing.md)):** the TS
 > query-router `rustForwardedCaps()` stub + SDK baseline disagree with the Rust
 > descriptor (e.g. postgres `upsert`) — the SDK is generated from the TS stub, not
 > `/v1/capabilities`; unify in 08.

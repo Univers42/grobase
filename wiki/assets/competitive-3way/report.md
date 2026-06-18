@@ -32,7 +32,7 @@ _Generated 2026-06-15T02:32:08.047Z_
 
 resources · MiB — lower is better
 
-![idle_footprint_mib](charts/idle_footprint_mib.svg)
+![idle_footprint_mib](./idle_footprint_mib.svg)
 
 **🏆 Winner: binocle-nano** — 2.01 MiB — 8.73% lower than runner-up vs binocle-one
 
@@ -46,7 +46,7 @@ resources · MiB — lower is better
 
 resources · MB — lower is better
 
-![binary_or_image_mb](charts/binary_or_image_mb.svg)
+![binary_or_image_mb](./binary_or_image_mb.svg)
 
 **🏆 Winner: binocle-nano** — 4.9 MB — 1.31× lower than runner-up vs binocle-one
 
@@ -60,7 +60,7 @@ resources · MB — lower is better
 
 resources · MiB — lower is better
 
-![rss_under_load_mib](charts/rss_under_load_mib.svg)
+![rss_under_load_mib](./rss_under_load_mib.svg)
 
 **🏆 Winner: binocle-nano** — 14.9 MiB — 1.25× lower than runner-up vs binocle-one
 
@@ -74,7 +74,7 @@ resources · MiB — lower is better
 
 resources · MB — lower is better
 
-![disk_after_100k_mb](charts/disk_after_100k_mb.svg)
+![disk_after_100k_mb](./disk_after_100k_mb.svg)
 
 **🏆 Winner: binocle-one** — 30.5 MB — 2.24% lower than runner-up vs binocle-nano
 
@@ -88,7 +88,7 @@ resources · MB — lower is better
 
 ops · ms — lower is better
 
-![cold_start_ms](charts/cold_start_ms.svg)
+![cold_start_ms](./cold_start_ms.svg)
 
 **🏆 Winner: binocle-one** — 5 ms — 1.2× lower than runner-up vs binocle-nano
 
@@ -104,7 +104,7 @@ ops · ms — lower is better
 
  · rps — x = tenant count (log scale)
 
-![Insert throughput vs concurrency (rps, higher better)](charts/insert_rps_vs_concurrency.svg)
+![Insert throughput vs concurrency (rps, higher better)](./insert_rps_vs_concurrency.svg)
 
 **🏆 Winner: binocle-nano** — 18,240 rps — higher than runner-up vs binocle-one
 
@@ -118,7 +118,7 @@ ops · ms — lower is better
 
  · ms — x = tenant count (log scale)
 
-![Insert p99 tail vs concurrency (ms, lower better)](charts/insert_p99_vs_concurrency.svg)
+![Insert p99 tail vs concurrency (ms, lower better)](./insert_p99_vs_concurrency.svg)
 
 **🏆 Winner: binocle-nano** — 9.4 ms — lower than runner-up vs binocle-one
 
@@ -132,7 +132,7 @@ ops · ms — lower is better
 
  · rps — x = tenant count (log scale)
 
-![List/read throughput vs concurrency (rps, higher better)](charts/list_rps_vs_concurrency.svg)
+![List/read throughput vs concurrency (rps, higher better)](./list_rps_vs_concurrency.svg)
 
 **🏆 Winner: pocketbase** — 19,206 rps — 1.33× higher than runner-up vs binocle-one
 
@@ -146,7 +146,7 @@ ops · ms — lower is better
 
  · ms — x = tenant count (log scale)
 
-![List/read p99 tail vs concurrency (ms, lower better)](charts/list_p99_vs_concurrency.svg)
+![List/read p99 tail vs concurrency (ms, lower better)](./list_p99_vs_concurrency.svg)
 
 **🏆 Winner: binocle-one** — 7.6 ms — lower than runner-up vs binocle-nano
 
@@ -160,7 +160,7 @@ ops · ms — lower is better
 
  · MiB — x = tenant count (log scale)
 
-![RAM to HOST N tenants (MiB, lower better) — the multi-tenancy reality](charts/rss_vs_tenants.svg)
+![RAM to HOST N tenants (MiB, lower better) — the multi-tenancy reality](./rss_vs_tenants.svg)
 
 **🏆 Winner: binocle-platform** — 3 MiB _(modeled)_ — 437,000× lower than runner-up vs pocketbase-n-instances
 
