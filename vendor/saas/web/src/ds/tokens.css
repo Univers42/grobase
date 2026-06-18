@@ -1,0 +1,32 @@
+/* tokens.css — the dark design-system custom properties. The single source of the
+   palette; Tailwind reads the same hex values from tailwind.config.js. */
+
+:root {
+  color-scheme: dark;
+
+  --canvas: #0a0a0f;
+  --surface: #12121a;
+  --surface-2: #16161f;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.14);
+
+  --ink: #ececf3;
+  --muted: #8a8aa3;
+
+  --accent: #6f4ff0;
+  --accent-fg: #ffffff;
+  --accent-soft: rgba(111, 79, 240, 0.16);
+  --cyan: #39e5c8;
+
+  --danger: #ff6b6b;
+  --success: #3ed598;
+  --warn: #ffb454;
+
+  --radius: 1.25rem;
+  --ring: 0 0 0 2px var(--canvas), 0 0 0 4px var(--accent);
+  --shadow-glass: 0 1px 0 0 rgba(255, 255, 255, 0.05) inset, 0 20px 60px -20px rgba(0, 0, 0, 0.7);
+
+  --glass-bg: rgba(18, 18, 26, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-inner: 0 1px 0 0 rgba(255, 255, 255, 0.06) inset;
+}
