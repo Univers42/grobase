@@ -23,9 +23,10 @@ pub(super) async fn run_list(
     q: &mut impl Queryable,
     op: &DataOperation,
     identity: &RequestIdentity,
+    scoped: bool,
 ) -> DataPlaneResult<DataResult> {
     let table = quote_mysql_ident(&op.resource)?;
-    let (where_sql, params) = build_owner_filter(op.filter.as_ref(), identity)?;
+    let (where_sql, params) = build_owner_filter(op.filter.as_ref(), identity, scoped)?;
     let order_sql = build_order_by(op.sort.as_ref())?;
     let limit = op.limit.unwrap_or(100).min(500);
     let offset = op.offset.unwrap_or(0);
@@ -45,9 +46,10 @@ pub(super) async fn run_get(
     q: &mut impl Queryable,
     op: &DataOperation,
     identity: &RequestIdentity,
+    scoped: bool,
 ) -> DataPlaneResult<DataResult> {
     let table = quote_mysql_ident(&op.resource)?;
-    let (where_sql, params) = build_owner_filter(op.filter.as_ref(), identity)?;
+    let (where_sql, params) = build_owner_filter(op.filter.as_ref(), identity, scoped)?;
 
     let sql = format!("SELECT * FROM {table}{where_sql} LIMIT 1");
     let row: Option<Row> = q
@@ -66,9 +68,10 @@ pub(super) async fn run_insert(
     q: &mut impl Queryable,
     op: &DataOperation,
     identity: &RequestIdentity,
+    scoped: bool,
 ) -> DataPlaneResult<DataResult> {
     let table = quote_mysql_ident(&op.resource)?;
-    let columns = build_owned_columns(op.data.as_ref(), identity)?;
+    let columns = build_owned_columns(op.data.as_ref(), identity, scoped)?;
     if columns.is_empty() {
         return Err(DataPlaneError::InvalidRequest {
             message: "insert `data` must not be empty".to_string(),
@@ -103,6 +106,7 @@ pub(super) async fn run_update(
     q: &mut impl Queryable,
     op: &DataOperation,
     identity: &RequestIdentity,
+    scoped: bool,
 ) -> DataPlaneResult<DataResult> {
     let table = quote_mysql_ident(&op.resource)?;
     crate::sql_scope::guard_constraining_filter(op.filter.as_ref(), &RESERVED_COLUMNS)?;
@@ -122,7 +126,7 @@ pub(super) async fn run_update(
         params.push(json_to_mysql_value(val));
     }
 
-    let (where_sql, mut where_params) = build_owner_filter(op.filter.as_ref(), identity)?;
+    let (where_sql, mut where_params) = build_owner_filter(op.filter.as_ref(), identity, scoped)?;
     params.append(&mut where_params);
 
     let sql = format!(
@@ -142,10 +146,11 @@ pub(super) async fn run_delete(
     q: &mut impl Queryable,
     op: &DataOperation,
     identity: &RequestIdentity,
+    scoped: bool,
 ) -> DataPlaneResult<DataResult> {
     let table = quote_mysql_ident(&op.resource)?;
     crate::sql_scope::guard_constraining_filter(op.filter.as_ref(), &RESERVED_COLUMNS)?;
-    let (where_sql, params) = build_owner_filter(op.filter.as_ref(), identity)?;
+    let (where_sql, params) = build_owner_filter(op.filter.as_ref(), identity, scoped)?;
 
     let sql = format!("DELETE FROM {table}{where_sql}");
     let result = q
@@ -164,9 +169,10 @@ pub(super) async fn run_upsert(
     q: &mut impl Queryable,
     op: &DataOperation,
     identity: &RequestIdentity,
+    scoped: bool,
 ) -> DataPlaneResult<DataResult> {
     let table = quote_mysql_ident(&op.resource)?;
-    let columns = build_owned_columns(op.data.as_ref(), identity)?;
+    let columns = build_owned_columns(op.data.as_ref(), identity, scoped)?;
     if columns.is_empty() {
         return Err(DataPlaneError::InvalidRequest {
             message: "upsert `data` must not be empty".to_string(),
@@ -238,6 +244,7 @@ pub(super) async fn run_aggregate(
     q: &mut impl Queryable,
     op: &DataOperation,
     identity: &RequestIdentity,
+    scoped: bool,
 ) -> DataPlaneResult<DataResult> {
     let table = quote_mysql_ident(&op.resource)?;
     let spec = op
@@ -278,7 +285,7 @@ pub(super) async fn run_aggregate(
         select_cols.push(build_mysql_aggregate_expr(agg)?);
     }
 
-    let (where_sql, params) = build_owner_filter(op.filter.as_ref(), identity)?;
+    let (where_sql, params) = build_owner_filter(op.filter.as_ref(), identity, scoped)?;
     let group_sql = if group_cols.is_empty() {
         String::new()
     } else {

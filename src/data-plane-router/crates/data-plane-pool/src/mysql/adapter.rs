@@ -55,22 +55,54 @@ pub(crate) const SUPPORTED_OPS: &[DataOperationKind] = &[
     DataOperationKind::Batch,
 ];
 
+/// Per-table isolation master flag (`DATA_PLANE_PER_TABLE_ISOLATION`). OFF by
+/// default → the shared set is forced empty in `open_pool`, so every table stays
+/// owner-scoped (byte-parity). Only a NAMED table on an opted-in mount can skip
+/// owner-scoping.
+fn per_table_isolation_enabled() -> bool {
+    matches!(
+        std::env::var("DATA_PLANE_PER_TABLE_ISOLATION").as_deref(),
+        Ok("1" | "true" | "TRUE" | "on" | "ON" | "yes")
+    )
+}
+
+/// Admin owner-scope bypass master flag (`DATA_PLANE_ADMIN_BYPASS`, F2). OFF by
+/// default → an admin identity is owner-scoped exactly like any caller
+/// (byte-parity). ON → an [`RequestIdentity::is_admin`] caller's reads and
+/// filter-based mutations (update/delete) skip the `owner_id` predicate so an
+/// admin sees/operates across owners; admin INSERTs still stamp `owner_id` (the
+/// row keeps a defined owner).
+fn admin_bypass_enabled() -> bool {
+    matches!(
+        std::env::var("DATA_PLANE_ADMIN_BYPASS").as_deref(),
+        Ok("1" | "true" | "TRUE" | "on" | "ON" | "yes")
+    )
+}
+
 /// Single (non-batch) operation dispatch shared by the auto-commit and tx
 /// paths — the arms `run_batch` loops over. Exhaustive by enumeration so the
-/// match can't silently drift from SUPPORTED_OPS.
+/// match can't silently drift from SUPPORTED_OPS. `scoped` is derived from THIS
+/// operation's resource: false only for a NAMED shared table, true otherwise.
 pub(super) async fn dispatch_single(
     q: &mut impl Queryable,
     operation: &DataOperation,
     identity: &RequestIdentity,
+    shared: &[String],
 ) -> DataPlaneResult<DataResult> {
+    let scoped = !shared.iter().any(|t| t == &operation.resource);
+    // F2 admin bypass: an admin's reads + filter-based mutations skip the owner
+    // predicate (read across owners). INSERT/UPSERT keep `scoped` so an admin's
+    // new rows still stamp `owner_id`. OFF by default → read_scoped == scoped
+    // (byte-parity).
+    let read_scoped = scoped && !(admin_bypass_enabled() && identity.is_admin());
     match operation.op {
-        DataOperationKind::List => run_list(q, operation, identity).await,
-        DataOperationKind::Get => run_get(q, operation, identity).await,
-        DataOperationKind::Insert => run_insert(q, operation, identity).await,
-        DataOperationKind::Update => run_update(q, operation, identity).await,
-        DataOperationKind::Delete => run_delete(q, operation, identity).await,
-        DataOperationKind::Upsert => run_upsert(q, operation, identity).await,
-        DataOperationKind::Aggregate => run_aggregate(q, operation, identity).await,
+        DataOperationKind::List => run_list(q, operation, identity, read_scoped).await,
+        DataOperationKind::Get => run_get(q, operation, identity, read_scoped).await,
+        DataOperationKind::Insert => run_insert(q, operation, identity, scoped).await,
+        DataOperationKind::Update => run_update(q, operation, identity, read_scoped).await,
+        DataOperationKind::Delete => run_delete(q, operation, identity, read_scoped).await,
+        DataOperationKind::Upsert => run_upsert(q, operation, identity, scoped).await,
+        DataOperationKind::Aggregate => run_aggregate(q, operation, identity, read_scoped).await,
         DataOperationKind::Batch => Err(DataPlaneError::InvalidRequest {
             message: "nested batches are not allowed".to_string(),
         }),
@@ -84,6 +116,7 @@ pub(super) async fn run_batch(
     q: &mut impl Queryable,
     operation: &DataOperation,
     identity: &RequestIdentity,
+    shared: &[String],
 ) -> DataPlaneResult<DataResult> {
     let items = operation
         .batch_items()
@@ -91,7 +124,7 @@ pub(super) async fn run_batch(
     let mut outcomes = Vec::with_capacity(items.len());
     let mut total: u64 = 0;
     for (idx, item) in items.iter().enumerate() {
-        let result = dispatch_single(q, item, identity)
+        let result = dispatch_single(q, item, identity, shared)
             .await
             .map_err(|e| DataPlaneError::prefix_message(&format!("batch item {idx}: "), e))?;
         total += result.affected_rows;
@@ -173,6 +206,13 @@ impl EngineAdapter for MysqlEngineAdapter {
         // db_per_tenant → no `USE`, byte-identical to before G5.
         let namespace = resolve_namespace(&mount);
         let shared_pool = crate::pools_shared(&mount);
+        // F1 per-table isolation: the set of NAMED tables that skip owner-scoping.
+        // Forced empty unless the master flag is ON → byte-parity by construction.
+        let shared_resources: std::sync::Arc<[String]> = if per_table_isolation_enabled() {
+            mount.shared_resources().into()
+        } else {
+            Vec::new().into()
+        };
 
         Ok(Box::new(MysqlPool {
             mount_id: mount.id,
@@ -180,6 +220,7 @@ impl EngineAdapter for MysqlEngineAdapter {
             shared_pool,
             pool,
             namespace,
+            shared_resources,
         }))
     }
 

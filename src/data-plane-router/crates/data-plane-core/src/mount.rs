@@ -145,6 +145,25 @@ impl DatabaseMount {
         Isolation::from_mount(self.isolation.as_deref())
     }
 
+    /// Tables on this mount that are NOT owner-scoped (a shared catalog
+    /// readable across owners), carried as a reserved `shared_resources`
+    /// array inside `capability_overrides`. Empty for any mount that doesn't
+    /// opt in → byte-parity (every table owner-scoped).
+    #[must_use]
+    pub fn shared_resources(&self) -> Vec<String> {
+        self.capability_overrides
+            .as_ref()
+            .and_then(|v| v.get("shared_resources"))
+            .and_then(serde_json::Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// The per-tenant schema name for a `schema_per_tenant` mount, or `None`
     /// for any other isolation strategy (shared / db-per-tenant need no
     /// `search_path` change).
@@ -262,6 +281,24 @@ mod tests {
         assert_eq!(mount("acme", None).tenant_schema(), None);
         assert_eq!(mount("acme", Some("shared_rls")).tenant_schema(), None);
         assert_eq!(mount("acme", Some("db_per_tenant")).tenant_schema(), None);
+    }
+
+    #[test]
+    fn shared_resources_empty_without_override_and_lists_when_populated() {
+        // Absent capability_overrides → no opt-in → byte-parity (every table scoped).
+        assert!(mount("acme", None).shared_resources().is_empty());
+        // An override object WITHOUT the reserved key still yields nothing.
+        let mut other = mount("acme", None);
+        other.capability_overrides = Some(serde_json::json!({ "aggregate": false }));
+        assert!(other.shared_resources().is_empty());
+        // A populated reserved array yields exactly the named tables (non-strings dropped).
+        let mut shared = mount("acme", None);
+        shared.capability_overrides =
+            Some(serde_json::json!({ "shared_resources": ["catalog", "regions", 7] }));
+        assert_eq!(
+            shared.shared_resources(),
+            vec!["catalog".to_string(), "regions".to_string()]
+        );
     }
 
     #[test]
