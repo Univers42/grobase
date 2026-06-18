@@ -58,7 +58,7 @@ func TestSigV4Key(t *testing.T) {
 
 	base := hex.EncodeToString(sigV4Key(secret, date, region, svc))
 	cases := []struct {
-		name                            string
+		name                          string
 		secret, date, region, service string
 	}{
 		{"diff secret", "other", date, region, svc},

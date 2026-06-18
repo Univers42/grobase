@@ -56,11 +56,11 @@ type errBody struct {
 // and any other error -> 500. The wrapped cases prove it matches through %w.
 func TestHandleBackupErr(t *testing.T) {
 	cases := []struct {
-		name       string
-		err        error
+		name        string
+		err         error
 		wantHandled bool
-		wantStatus int
-		wantCode   string
+		wantStatus  int
+		wantCode    string
 	}{
 		{"nil", nil, false, http.StatusOK, ""},
 		{"isolation", ErrIsolationDeferred, true, http.StatusBadRequest, "isolation_unsupported"},
