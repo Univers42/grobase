@@ -22,12 +22,16 @@
 #   4. events carry the owner stamp.
 
 set -euo pipefail
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
-step(){ cyan "[M44] $*"; }
-fail(){ red "[M44] FAIL — $*"; cleanup; exit 1; }
-ok(){ green "  ✓ $*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+step() { cyan "[M44] $*"; }
+fail() {
+  red "[M44] FAIL — $*"
+  cleanup
+  exit 1
+}
+ok() { green "  ✓ $*"; }
 
 IMAGE="${ONE_IMAGE:-binocle-one}"
 NAME="m44-one-$$"
@@ -36,18 +40,21 @@ KEY="m44-admin-$(date +%s)-deterministic"
 BASE="http://127.0.0.1:${PORT}"
 TMP="$(mktemp -d)"
 
-cleanup(){ docker rm -fv "${NAME}" >/dev/null 2>&1 || true; rm -rf "${TMP}"; }
+cleanup() {
+  docker rm -fv "${NAME}" >/dev/null 2>&1 || true
+  rm -rf "${TMP}"
+}
 trap cleanup EXIT
 
-req(){ # method path auth body → body<TAB>status
+req() { # method path auth body → body<TAB>status
   local method="$1" path="$2" auth="$3" body="${4:-}"
   local args=(-s -w $'\t%{http_code}' -X "${method}" "${BASE}${path}" -H "Content-Type: application/json")
   [[ -n "${auth}" ]] && args+=(-H "${auth}")
   [[ -n "${body}" ]] && args+=(-d "${body}")
   curl "${args[@]}"
 }
-status_of(){ awk -F'\t' '{print $NF}' <<<"$1"; }
-jget(){ python3 -c "import sys,json;d=json.loads(sys.stdin.read().rsplit('\t',1)[0]);print($1)" <<<"$2"; }
+status_of() { awk -F'\t' '{print $NF}' <<<"$1"; }
+jget() { python3 -c "import sys,json;d=json.loads(sys.stdin.read().rsplit('\t',1)[0]);print($1)" <<<"$2"; }
 
 step "0/4 boot + two users + tables"
 docker image inspect "${IMAGE}" >/dev/null 2>&1 || fail "image '${IMAGE}' not built (make one-build)"
@@ -58,7 +65,8 @@ for i in $(seq 1 20); do
   sleep 0.5
 done
 R=$(req POST /one/v1/auth/register "" '{"email":"kate@local.dev","password":"kate-pass-1234"}')
-TOK_K=$(jget "d['token']" "$R"); UID_K=$(jget "d['user']['id']" "$R")
+TOK_K=$(jget "d['token']" "$R")
+UID_K=$(jget "d['user']['id']" "$R")
 R=$(req POST /one/v1/auth/register "" '{"email":"liam@local.dev","password":"liam-pass-1234"}')
 TOK_L=$(jget "d['token']" "$R")
 req POST /nano/v1/raw "X-Baas-Api-Key: ${KEY}" '{"db_id":"main","statement":"CREATE TABLE IF NOT EXISTS alpha (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, title TEXT, secret TEXT)"}' >/dev/null
@@ -77,8 +85,8 @@ grep -q '"secret":"s3cr3t"' <<<"$R" || fail "absent fields must return full rows
 ok "fields:[id,title] narrows rows; absent fields = full rows"
 
 step "2/4 SSE ?topics= filters tables and dbs"
-( timeout 10 curl -sN "${BASE}/nano/v1/realtime?key=${KEY}&topics=alpha" > "${TMP}/sub_alpha" 2>/dev/null & )
-( timeout 10 curl -sN "${BASE}/nano/v1/realtime?key=${KEY}&topics=db:main" > "${TMP}/sub_db" 2>/dev/null & )
+(timeout 10 curl -sN "${BASE}/nano/v1/realtime?key=${KEY}&topics=alpha" >"${TMP}/sub_alpha" 2>/dev/null &)
+(timeout 10 curl -sN "${BASE}/nano/v1/realtime?key=${KEY}&topics=db:main" >"${TMP}/sub_db" 2>/dev/null &)
 sleep 1
 req POST /data/v1/query "Authorization: Bearer ${TOK_K}" '{"db_id":"main","operation":{"op":"insert","resource":"beta","data":{"id":"b1","title":"beta row"}}}' >/dev/null
 req POST /data/v1/query "Authorization: Bearer ${TOK_K}" '{"db_id":"main","operation":{"op":"insert","resource":"alpha","data":{"id":"a2","title":"alpha row"}}}' >/dev/null
@@ -93,8 +101,8 @@ grep -q '"table":"alpha"' "${TMP}/sub_db" || fail "db:main subscriber missed the
 ok "table topic excludes other tables; db topic sees both"
 
 step "3/4 owner filtering for user subscribers"
-( timeout 10 curl -sN "${BASE}/nano/v1/realtime?token=${TOK_K}" > "${TMP}/sub_kate" 2>/dev/null & )
-( timeout 10 curl -sN "${BASE}/nano/v1/realtime?key=${KEY}" > "${TMP}/sub_admin" 2>/dev/null & )
+(timeout 10 curl -sN "${BASE}/nano/v1/realtime?token=${TOK_K}" >"${TMP}/sub_kate" 2>/dev/null &)
+(timeout 10 curl -sN "${BASE}/nano/v1/realtime?key=${KEY}" >"${TMP}/sub_admin" 2>/dev/null &)
 sleep 1
 req POST /data/v1/query "Authorization: Bearer ${TOK_L}" '{"db_id":"main","operation":{"op":"insert","resource":"alpha","data":{"id":"a3","title":"liam private"}}}' >/dev/null
 req POST /data/v1/query "Authorization: Bearer ${TOK_K}" '{"db_id":"main","operation":{"op":"insert","resource":"alpha","data":{"id":"a4","title":"kate own"}}}' >/dev/null

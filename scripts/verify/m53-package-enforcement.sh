@@ -30,13 +30,19 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M53] $*"; }
-pass()  { green "[M53] PASS: $*"; }
-fail()  { red "[M53] FAIL: $*"; exit 1; }
-skip()  { printf '\033[1;33m[M53] SKIP: %s\033[0m\n' "$*"; exit 0; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M53] $*"; }
+pass() { green "[M53] PASS: $*"; }
+fail() {
+  red "[M53] FAIL: $*"
+  exit 1
+}
+skip() {
+  printf '\033[1;33m[M53] SKIP: %s\033[0m\n' "$*"
+  exit 0
+}
 
 # shellcheck source=scripts/lib/lib-live-tenant.sh
 source "${SCRIPT_DIR}/../lib/lib-live-tenant.sh"

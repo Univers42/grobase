@@ -50,40 +50,40 @@ MUTATION_USER_ID="00000000-0000-0000-0000-000000000010"
 MUTATION_EMAIL="phase10_mutation_$(date +%s)@example.com"
 
 pass() {
-    local name="$1"
-    echo -e "${GREEN}[PASS]${NC} $name"
-    ((++TESTS_PASSED))
-    return 0
+  local name="$1"
+  echo -e "${GREEN}[PASS]${NC} $name"
+  ((++TESTS_PASSED))
+  return 0
 }
 
 fail() {
-    local name="$1"
-    local details="$2"
-    echo -e "${RED}[FAIL]${NC} $name - $details"
-    ((++TESTS_FAILED))
-    return 0
+  local name="$1"
+  local details="$2"
+  echo -e "${RED}[FAIL]${NC} $name - $details"
+  ((++TESTS_FAILED))
+  return 0
 }
 
 assert_code_one_of() {
-    local name="$1"
-    local actual="$2"
-    shift 2
-    local allowed=("$@")
+  local name="$1"
+  local actual="$2"
+  shift 2
+  local allowed=("$@")
 
-    for expected in "${allowed[@]}"; do
-        if [[ "$actual" == "$expected" ]]; then
-            pass "$name"
-            return
-        fi
-    done
+  for expected in "${allowed[@]}"; do
+    if [[ "$actual" == "$expected" ]]; then
+      pass "$name"
+      return
+    fi
+  done
 
-    fail "$name" "expected one of ${allowed[*]}, got $actual"
-    return 0
+  fail "$name" "expected one of ${allowed[*]}, got $actual"
+  return 0
 }
 
 cleanup() {
-    rm -rf "$TMPDIR" >/dev/null 2>&1 || true
-    return 0
+  rm -rf "$TMPDIR" >/dev/null 2>&1 || true
+  return 0
 }
 
 trap cleanup EXIT
@@ -114,9 +114,9 @@ JWT=$(jq -r '.access_token // empty' "$TMPDIR/login.json" 2>/dev/null)
 AUTH_USER_ID=$(jq -r '.user.id // .id // empty' "$TMPDIR/signup.json" 2>/dev/null)
 
 if [[ -n "$JWT" ]] && [[ -n "$AUTH_USER_ID" ]]; then
-    pass "JWT and user id extracted"
+  pass "JWT and user id extracted"
 else
-    fail "JWT and user id extracted" "missing token or user id"
+  fail "JWT and user id extracted" "missing token or user id"
 fi
 
 ui_step "Test 1: Batch INSERT on /rest/v1/users"
@@ -165,9 +165,9 @@ assert_code_one_of "Filtered query status" "$FILTER_CODE" "200"
 
 FILTER_IS_ARRAY=$(jq -r 'if type=="array" then "yes" else "no" end' "$TMPDIR/filter.json" 2>/dev/null || echo "no")
 if [[ "$FILTER_IS_ARRAY" == "yes" ]]; then
-    pass "Filtered query returns JSON array"
+  pass "Filtered query returns JSON array"
 else
-    fail "Filtered query returns JSON array" "unexpected body format"
+  fail "Filtered query returns JSON array" "unexpected body format"
 fi
 
 ui_step "Test 5: Pagination with limit + offset"
@@ -180,9 +180,9 @@ assert_code_one_of "Pagination query status" "$PAGINATION_CODE" "200"
 
 PAGE_SIZE=$(jq 'if type=="array" then length else -1 end' "$TMPDIR/pagination.json" 2>/dev/null || echo "-1")
 if [[ "$PAGE_SIZE" -ge 0 ]] && [[ "$PAGE_SIZE" -le 2 ]]; then
-    pass "Pagination result size respects limit"
+  pass "Pagination result size respects limit"
 else
-    fail "Pagination result size respects limit" "unexpected length $PAGE_SIZE"
+  fail "Pagination result size respects limit" "unexpected length $PAGE_SIZE"
 fi
 
 ui_step "Test 6: Complex OR filter"
@@ -195,9 +195,9 @@ assert_code_one_of "OR filter query status" "$OR_CODE" "200"
 
 OR_IS_ARRAY=$(jq -r 'if type=="array" then "yes" else "no" end' "$TMPDIR/or_filter.json" 2>/dev/null || echo "no")
 if [[ "$OR_IS_ARRAY" == "yes" ]]; then
-    pass "OR filter returns JSON array"
+  pass "OR filter returns JSON array"
 else
-    fail "OR filter returns JSON array" "unexpected body format"
+  fail "OR filter returns JSON array" "unexpected body format"
 fi
 
 ui_step "Test 7: HEAD request with exact count"
@@ -212,9 +212,9 @@ HEAD_CODE="$(printf '%s' "$HEAD_CODE" | tr -cd '0-9' | cut -c1-3)"
 assert_code_one_of "HEAD query status" "$HEAD_CODE" "200" "206"
 
 if grep -qi '^content-range:' "$HEAD_HEADERS"; then
-    pass "HEAD response includes Content-Range"
+  pass "HEAD response includes Content-Range"
 else
-    fail "HEAD response includes Content-Range" "header missing"
+  fail "HEAD response includes Content-Range" "header missing"
 fi
 
 ui_step "Test 8: Invalid cast/filter validation"
@@ -240,7 +240,7 @@ echo "✓ Temporary files cleaned up"
 ui_summary "$TESTS_PASSED" "$TESTS_FAILED" "Phase 10 advanced data tests passed!" "Phase 10 advanced data tests failed"
 
 if [[ $TESTS_FAILED -eq 0 ]]; then
-    exit 0
+  exit 0
 else
-    exit 1
+  exit 1
 fi

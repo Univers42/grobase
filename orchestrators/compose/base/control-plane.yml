@@ -1,8 +1,8 @@
 # control-plane plane — adapter-registry-go, tenant-control, webhook-dispatcher, orchestrator, function-scheduler
 services:
   adapter-registry-go:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-adapter-registry-go:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-adapter-registry-go:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src/control-plane
       dockerfile: Dockerfile
@@ -60,8 +60,8 @@ services:
   # the JWT-authenticated path the just-signed-up user calls to provision
   # their tenant + receive their first API key.
   tenant-control:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-tenant-control:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-tenant-control:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src/control-plane
       dockerfile: Dockerfile
@@ -138,8 +138,8 @@ services:
   # Owns webhook_subscriptions CRUD + consumes outbox.<aggregate> Redis
   # streams + HMAC-signed POSTs to subscribers with retry + DLQ.
   webhook-dispatcher:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-webhook-dispatcher:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-webhook-dispatcher:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src/control-plane
       dockerfile: Dockerfile
@@ -189,8 +189,8 @@ services:
   # parity is checked before any Node container is retired. ~32 MiB mem_limit
   # vs ~55 MiB PER Node service is the −359 MiB / essential $13→$6.5 win.
   orchestrator:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-orchestrator:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-orchestrator:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src/control-plane
       dockerfile: Dockerfile
@@ -266,8 +266,8 @@ services:
   # Zero-dep interval grammar (@every / @hourly / @daily / bare duration).
   # NOTE: own port 3027 — the orchestrator owns 3026 on this (scale-program) base.
   function-scheduler:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-function-scheduler:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-function-scheduler:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src/control-plane
       dockerfile: Dockerfile

@@ -10,12 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
-} from '@nestjs/common';
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Request, Response } from 'express';
@@ -46,9 +41,7 @@ const METHOD_MESSAGES: Record<string, Record<number, string>> = {
  * Use as global interceptor: `app.useGlobalInterceptors(new TransformInterceptor())`.
  */
 @Injectable()
-export class TransformInterceptor<T>
-  implements NestInterceptor<T, ApiSuccessResponse<T> | T>
-{
+export class TransformInterceptor<T> implements NestInterceptor<T, ApiSuccessResponse<T> | T> {
   intercept(
     context: ExecutionContext,
     next: CallHandler<T>,
@@ -64,9 +57,7 @@ export class TransformInterceptor<T>
       map((data) => ({
         success: true as const,
         statusCode: res.statusCode,
-        message:
-          METHOD_MESSAGES[req.method]?.[res.statusCode] ??
-          'Operation successful',
+        message: METHOD_MESSAGES[req.method]?.[res.statusCode] ?? 'Operation successful',
         data,
         path: req.url,
         timestamp: new Date().toISOString(),

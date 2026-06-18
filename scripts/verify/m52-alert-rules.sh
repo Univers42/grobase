@@ -23,12 +23,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M52] $*"; }
-pass()  { green "[M52] PASS: $*"; }
-fail()  { red "[M52] FAIL: $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M52] $*"; }
+pass() { green "[M52] PASS: $*"; }
+fail() {
+  red "[M52] FAIL: $*"
+  exit 1
+}
 
 PROM_IMG="prom/prometheus:v2.52.0"
 CFG="${BAAS_DIR}/config/prometheus"
@@ -39,9 +42,15 @@ CFG="${BAAS_DIR}/config/prometheus"
 # ── 1) rules parse + expressions compile ─────────────────────────────────────
 step "promtool check rules"
 docker run --rm --entrypoint promtool -v "${CFG}":/cfg "${PROM_IMG}" \
-  check rules /cfg/rules/platform.yml >/tmp/m52-rules.txt 2>&1 \
-  || { cat /tmp/m52-rules.txt; fail "rule validation failed"; }
-grep -q 'SUCCESS' /tmp/m52-rules.txt || { cat /tmp/m52-rules.txt; fail "no SUCCESS in promtool output"; }
+  check rules /cfg/rules/platform.yml >/tmp/m52-rules.txt 2>&1 ||
+  {
+    cat /tmp/m52-rules.txt
+    fail "rule validation failed"
+  }
+grep -q 'SUCCESS' /tmp/m52-rules.txt || {
+  cat /tmp/m52-rules.txt
+  fail "no SUCCESS in promtool output"
+}
 RULES_N="$(grep -oE '[0-9]+ rules found' /tmp/m52-rules.txt | grep -oE '[0-9]+' | head -1)"
 [ "${RULES_N:-0}" -ge 1 ] || fail "no rules found"
 pass "${RULES_N} alert rules valid"
@@ -49,8 +58,11 @@ pass "${RULES_N} alert rules valid"
 # ── 2) full config (rule_files glob resolves) ────────────────────────────────
 step "promtool check config"
 docker run --rm --entrypoint promtool -v "${CFG}":/etc/prometheus "${PROM_IMG}" \
-  check config /etc/prometheus/prometheus.yml >/tmp/m52-cfg.txt 2>&1 \
-  || { cat /tmp/m52-cfg.txt; fail "config validation failed"; }
+  check config /etc/prometheus/prometheus.yml >/tmp/m52-cfg.txt 2>&1 ||
+  {
+    cat /tmp/m52-cfg.txt
+    fail "config validation failed"
+  }
 grep -q 'rule files found' /tmp/m52-cfg.txt || fail "prometheus.yml does not load any rule files (rule_files missing?)"
 pass "prometheus config valid + rule_files wired"
 

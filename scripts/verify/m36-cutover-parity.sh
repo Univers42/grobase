@@ -20,10 +20,16 @@
 # the fallback (no deletion). Skips cleanly if the live-demo seed is absent.
 set -uo pipefail
 
-fail() { printf '\033[0;31m[M36] FAIL: %s\033[0m\n' "$*" >&2; exit 1; }
-ok()   { printf '\033[0;32m[M36] %s\033[0m\n' "$*"; }
+fail() {
+  printf '\033[0;31m[M36] FAIL: %s\033[0m\n' "$*" >&2
+  exit 1
+}
+ok() { printf '\033[0;32m[M36] %s\033[0m\n' "$*"; }
 step() { printf '\033[0;36m[M36] %s\033[0m\n' "$*"; }
-skip() { printf '\033[0;33m[M36] SKIP: %s\033[0m\n' "$*"; exit 0; }
+skip() {
+  printf '\033[0;33m[M36] SKIP: %s\033[0m\n' "$*"
+  exit 0
+}
 
 APP_ENV="${APP_ENV:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)/apps/osionos/app/.env}"
 [[ -f "${APP_ENV}" ]] || skip "no app .env (${APP_ENV}) — run make seed-live-demo first"

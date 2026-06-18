@@ -19,7 +19,12 @@ import { MongoModule } from '@mini-baas/database';
 import { CollectionsModule } from './collections/collections.module';
 import { AdminModule } from './admin/admin.module';
 import { HealthController } from './health.controller';
-import { AuditModule, IdempotencyMiddleware, ObservabilityModule, createPinoHttpOptions } from '@mini-baas/common';
+import {
+  AuditModule,
+  IdempotencyMiddleware,
+  ObservabilityModule,
+  createPinoHttpOptions,
+} from '@mini-baas/common';
 
 @Module({
   imports: [

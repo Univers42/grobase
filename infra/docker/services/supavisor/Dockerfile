@@ -67,11 +67,9 @@ RUN set -eux; \
 # broken TLS.  Only the cargo registry is cache-mounted (a disjoint path).
 ENV HEX_UNSAFE_HTTPS=1
 RUN --mount=type=cache,target=/root/.cargo,sharing=locked \
-  mix deps.get --only prod
-RUN --mount=type=cache,target=/root/.cargo,sharing=locked \
-  mix deps.compile
-RUN --mount=type=cache,target=/root/.cargo,sharing=locked \
-  mix compile
+  mix deps.get --only prod \
+  && mix deps.compile \
+  && mix compile
 RUN mix release supavisor
 
 # ─── Stage 2: minimal Alpine runtime ─────────────────────────────
@@ -95,6 +93,9 @@ COPY --from=build --chown=1001:1001 /app/_build/prod/rel/supavisor ./
 
 # Inline limits.sh: raise RLIMIT_NOFILE then exec the release foreground server.
 # Equivalent to upstream's ENTRYPOINT tini -> limits.sh, CMD bin/server.
+# SC2016: ${RLIMIT_NOFILE} must stay literal — it expands at RUNTIME inside the
+# generated limits.sh, not at build time, so single quotes are intentional.
+# hadolint ignore=SC2016
 RUN printf '#!/bin/sh\nset -eu\nif [ -n "${RLIMIT_NOFILE:-}" ]; then ulimit -n "$RLIMIT_NOFILE" || true; fi\nexec /app/bin/server\n' \
       > /app/limits.sh \
   && chmod 0555 /app/limits.sh

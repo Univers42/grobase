@@ -10,7 +10,13 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-import { Injectable, Logger, ConflictException, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ConflictException,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { MongoService } from '@mini-baas/database';
 import { Collection } from 'mongodb';
 
@@ -38,7 +44,8 @@ export class PromptsService implements OnModuleInit {
     if (count === 0) {
       await this.collection.insertOne({
         mode: 'default',
-        template: 'You are a helpful assistant. Answer the user\'s questions accurately and concisely.\n\nContext:\n{context}',
+        template:
+          "You are a helpful assistant. Answer the user's questions accurately and concisely.\n\nContext:\n{context}",
         description: 'Default general-purpose assistant',
         createdAt: new Date(),
         updatedAt: new Date(),

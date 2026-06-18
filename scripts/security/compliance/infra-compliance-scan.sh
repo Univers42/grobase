@@ -72,7 +72,7 @@ SKIP_CHECKS="${COMPLIANCE_SKIP_CHECKS:-}"
 
 # Default: every chart dir under deploy/helm that has a Chart.yaml.
 if [[ -n "${COMPLIANCE_HELM_DIRS:-}" ]]; then
-  read -r -a HELM_DIRS <<< "${COMPLIANCE_HELM_DIRS}"
+  read -r -a HELM_DIRS <<<"${COMPLIANCE_HELM_DIRS}"
 else
   HELM_DIRS=()
   while IFS= read -r chart; do
@@ -81,22 +81,22 @@ else
 fi
 
 # ── colour helpers (mirror run-security-scans.sh) ────────────────────────────
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 amber() { printf '\033[0;33m%s\033[0m\n' "$*"; }
-step()  { cyan  "[iac] ${*}"; }
-fail()  { red   "[iac] FAIL: $*"; }
-warn()  { amber "[iac] WARN: $*"; }
-ok()    { green "[iac] OK:   $*"; }
+step() { cyan "[iac] ${*}"; }
+fail() { red "[iac] FAIL: $*"; }
+warn() { amber "[iac] WARN: $*"; }
+ok() { green "[iac] OK:   $*"; }
 
 # ── help ─────────────────────────────────────────────────────────────────────
 for arg in "$@"; do
   case "${arg}" in
-    --help|-h)
-      sed -n '/^# Usage:/,/^# Exit code:/p' "$0" | sed 's/^# \?//'
-      exit 0
-      ;;
+  --help | -h)
+    sed -n '/^# Usage:/,/^# Exit code:/p' "$0" | sed 's/^# \?//'
+    exit 0
+    ;;
   esac
 done
 
@@ -132,7 +132,10 @@ total_passed=0
 scanned=0
 
 for dir in "${HELM_DIRS[@]}"; do
-  [[ -d "${dir}" ]] || { warn "skip missing chart dir ${dir}"; continue; }
+  [[ -d "${dir}" ]] || {
+    warn "skip missing chart dir ${dir}"
+    continue
+  }
   chart_name="$(basename "${dir}")"
   out_json="${ARTIFACTS_DIR}/checkov-${chart_name}.json"
   step "scanning chart: ${dir}"
@@ -151,7 +154,7 @@ for dir in "${HELM_DIRS[@]}"; do
     --quiet \
     "${skip_args[@]}" \
     -o json \
-    > "${out_json}" 2>"${ARTIFACTS_DIR}/checkov-${chart_name}.stderr"
+    >"${out_json}" 2>"${ARTIFACTS_DIR}/checkov-${chart_name}.stderr"
   rc=$?
   set -e
 
@@ -166,7 +169,8 @@ for dir in "${HELM_DIRS[@]}"; do
   # passed/failed counts robustly across either shape.
   passed=$(jq -r '[(if type=="array" then .[] else . end) | .summary.passed // 0] | add // 0' "${out_json}" 2>/dev/null || echo 0)
   failed=$(jq -r '[(if type=="array" then .[] else . end) | .summary.failed // 0] | add // 0' "${out_json}" 2>/dev/null || echo 0)
-  passed=${passed:-0}; failed=${failed:-0}
+  passed=${passed:-0}
+  failed=${failed:-0}
   scanned=$((scanned + 1))
   total_passed=$((total_passed + passed))
   total_failed=$((total_failed + failed))
@@ -189,29 +193,29 @@ step "summary: ${scanned} chart(s) scanned · ${total_passed} passed · ${total_
 echo "[iac] reports: ${ARTIFACTS_DIR}/checkov-*.json"
 
 case "${FAIL_LEVEL}" in
-  off)
-    ok "fail-level=off — informational scan, exit 0 regardless of findings."
-    exit 0
-    ;;
-  warn)
-    if [[ ${total_failed} -gt 0 ]]; then
-      warn "fail-level=warn — ${total_failed} failed check(s) reported but NOT blocking."
-      warn "Flip COMPLIANCE_FAIL_LEVEL=error once the charts are clean to gate hard."
-    else
-      ok "no failed checks across all charts."
-    fi
-    exit 0
-    ;;
-  error)
-    if [[ ${total_failed} -gt 0 ]]; then
-      fail "fail-level=error — ${total_failed} failed check(s). Inspect ${ARTIFACTS_DIR}/"
-      exit 1
-    fi
-    ok "fail-level=error — every chart clean."
-    exit 0
-    ;;
-  *)
-    fail "unknown COMPLIANCE_FAIL_LEVEL='${FAIL_LEVEL}' (want off|warn|error)"
-    exit 2
-    ;;
+off)
+  ok "fail-level=off — informational scan, exit 0 regardless of findings."
+  exit 0
+  ;;
+warn)
+  if [[ ${total_failed} -gt 0 ]]; then
+    warn "fail-level=warn — ${total_failed} failed check(s) reported but NOT blocking."
+    warn "Flip COMPLIANCE_FAIL_LEVEL=error once the charts are clean to gate hard."
+  else
+    ok "no failed checks across all charts."
+  fi
+  exit 0
+  ;;
+error)
+  if [[ ${total_failed} -gt 0 ]]; then
+    fail "fail-level=error — ${total_failed} failed check(s). Inspect ${ARTIFACTS_DIR}/"
+    exit 1
+  fi
+  ok "fail-level=error — every chart clean."
+  exit 0
+  ;;
+*)
+  fail "unknown COMPLIANCE_FAIL_LEVEL='${FAIL_LEVEL}' (want off|warn|error)"
+  exit 2
+  ;;
 esac

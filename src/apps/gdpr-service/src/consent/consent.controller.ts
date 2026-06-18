@@ -32,19 +32,13 @@ export class ConsentController {
 
   @Get(':type')
   @ApiOperation({ summary: 'Get a specific consent' })
-  async get(
-    @Param('type') type: string,
-    @CurrentUser() user: UserContext,
-  ) {
+  async get(@Param('type') type: string, @CurrentUser() user: UserContext) {
     return this.service.getUserConsent(user.id, type);
   }
 
   @Post()
   @ApiOperation({ summary: 'Set a consent (create or update)' })
-  async set(
-    @Body() dto: SetConsentDto,
-    @CurrentUser() user: UserContext,
-  ) {
+  async set(@Body() dto: SetConsentDto, @CurrentUser() user: UserContext) {
     return this.service.setConsent(user.id, dto.consent_type, dto.consented);
   }
 

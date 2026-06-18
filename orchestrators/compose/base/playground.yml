@@ -1,7 +1,7 @@
 # playground plane — playground
 services:
   playground:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
     # No healthcheck BY DESIGN: dev-only static playground whose content is
     # optional (./playground assets) — a content probe would flap on a bare
     # checkout. Never part of a production edition.
@@ -16,4 +16,3 @@ services:
     depends_on:
       kong:
         condition: service_started
-

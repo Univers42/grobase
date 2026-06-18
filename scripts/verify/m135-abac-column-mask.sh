@@ -31,17 +31,20 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"            # mini-baas-infra
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 DEC="${INFRA_DIR}/src/apps/permission-engine/src/decisions/decisions.service.ts"
 QRY="${INFRA_DIR}/src/apps/query-router/src/query/query.service.ts"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M135] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M135] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M135] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M135] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M135_PG_IMAGE:-postgres:16-alpine}"
 PG="m135-pg-$$"
@@ -54,9 +57,9 @@ apply() { sed '/^#/d' "$1" | docker exec -i "${PG}" psql -U postgres -d postgres
 step "1/3 static contract — mask resolution + per-table tiebreak + applyFieldMask"
 [[ -f "${MIG_DIR}/063_permission_conditions.sql" ]] || fail "migration 063 missing"
 grep -q "maskFromConditions" "${DEC}" || fail "DecisionsService lost maskFromConditions (mask resolution)"
-grep -q "resolveMask"        "${DEC}" || fail "DecisionsService lost resolveMask"
-grep -q 'rp.resource_name = \$3) DESC' "${DEC}" \
-  || fail "DecisionsService lost the B3 per-table mask tiebreak ((rp.resource_name = \$3) DESC)"
+grep -q "resolveMask" "${DEC}" || fail "DecisionsService lost resolveMask"
+grep -q 'rp.resource_name = \$3) DESC' "${DEC}" ||
+  fail "DecisionsService lost the B3 per-table mask tiebreak ((rp.resource_name = \$3) DESC)"
 grep -q "applyFieldMask" "${QRY}" || fail "QueryService lost applyFieldMask (mask never applied to results)"
 ok "mask resolution + tiebreak + application all wired in source"
 
@@ -79,7 +82,7 @@ DO $r$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role; END IF;
 END $r$;
 SQL
-apply "${MIG_DIR}/007_permissions_system.sql"   || fail "migration 007 failed"
+apply "${MIG_DIR}/007_permissions_system.sql" || fail "migration 007 failed"
 apply "${MIG_DIR}/063_permission_conditions.sql" || fail "migration 063 failed"
 ok "007 + 063 applied"
 
@@ -98,8 +101,8 @@ INSERT INTO public.resource_policies (role_id, resource_type, resource_name, act
 SQL
 # the EXACT resolveMask ORDER BY (mirrors decisions.service.ts)
 WINNER="$(val "SELECT conditions->'mask'->'hide'->>0 FROM public.resource_policies rp JOIN public.user_roles ur ON ur.role_id=rp.role_id WHERE ur.user_id='${U}'::uuid AND (rp.resource_type='postgresql' OR rp.resource_type='*') AND (rp.resource_name='crm_contacts' OR rp.resource_name='*') AND 'select'=ANY(rp.actions) AND rp.effect='allow' AND rp.conditions ? 'mask' ORDER BY (rp.resource_name='crm_contacts') DESC, (rp.resource_type='postgresql') DESC, rp.priority DESC LIMIT 1")"
-[[ "${WINNER}" == "secret" ]] \
-  || fail "table mask did not win over wildcard (got [${WINNER}] want [secret]) — B3 tiebreak broken"
+[[ "${WINNER}" == "secret" ]] ||
+  fail "table mask did not win over wildcard (got [${WINNER}] want [secret]) — B3 tiebreak broken"
 ok "crm_contacts mask (hide=secret) wins over wildcard mask at higher priority"
 # the 063 demo seed documents the canonical mask shape
 DEMO="$(val "SELECT (conditions->'mask'->'hide'->>0='secret' AND conditions->'mask'->'redact'->>'email'='***') FROM public.resource_policies rp JOIN public.roles r ON r.id=rp.role_id WHERE r.name='abac:demo' AND rp.resource_name='crm_contacts'")"

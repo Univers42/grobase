@@ -16,7 +16,12 @@ import { LoggerModule } from 'nestjs-pino';
 import { TerminusModule } from '@nestjs/terminus';
 import { StorageModule } from './storage/storage.module';
 import { HealthController } from './health.controller';
-import { AuditModule, IdempotencyMiddleware, ObservabilityModule, createPinoHttpOptions } from '@mini-baas/common';
+import {
+  AuditModule,
+  IdempotencyMiddleware,
+  ObservabilityModule,
+  createPinoHttpOptions,
+} from '@mini-baas/common';
 
 @Module({
   imports: [

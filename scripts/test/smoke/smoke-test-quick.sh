@@ -62,20 +62,20 @@ echo ""
 t0=$(date +%s)
 
 # ── Kong gateway health ──────────────────────────────────────────
-smoke "Kong gateway"           "$BASE_URL/auth/v1/health"
+smoke "Kong gateway" "$BASE_URL/auth/v1/health"
 
 # ── GoTrue auth health ──────────────────────────────────────────
-smoke "GoTrue auth"            "$BASE_URL/auth/v1/health"
+smoke "GoTrue auth" "$BASE_URL/auth/v1/health"
 
 # ── PostgREST schema ────────────────────────────────────────────
 # PostgREST returns the OpenAPI schema on GET /
-smoke "PostgREST schema"       "$BASE_URL/rest/v1/"
+smoke "PostgREST schema" "$BASE_URL/rest/v1/"
 
 # ── Mongo-api health ────────────────────────────────────────────
-smoke "Mongo-api liveness"     "$BASE_URL/mongo/v1/health/live"
+smoke "Mongo-api liveness" "$BASE_URL/mongo/v1/health/live"
 
 # ── Adapter-registry liveness ────────────────────────────────────
-smoke "Adapter-registry"       "$BASE_URL/admin/v1/databases/health/live" "401"
+smoke "Adapter-registry" "$BASE_URL/admin/v1/databases/health/live" "401"
 # 401 is expected: no JWT, but service is alive and responding
 
 t1=$(date +%s)

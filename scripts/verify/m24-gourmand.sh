@@ -25,12 +25,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 REPO_ROOT="$(cd "${INFRA_ROOT}/.." && pwd)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-fail()  { red "[M24] FAIL: $*"; exit 1; }
-step()  { cyan "[M24] ${*}"; }
-pass()  { green "[M24] PASS: ${*}"; }
+fail() {
+  red "[M24] FAIL: $*"
+  exit 1
+}
+step() { cyan "[M24] ${*}"; }
+pass() { green "[M24] PASS: ${*}"; }
 
 step "1/3 platform capabilities (tenant_owned + TLS)"
 bash "${SCRIPT_DIR}/m24-tenant-owned.sh" || fail "tenant-owned gate failed"
@@ -47,8 +50,8 @@ eval "$(grep -E '^GOURMAND_(ORG_WORKSPACE_ID|OWNER_UUID|OWNER_EMAIL|STAFF_COUNT)
 WS="${GOURMAND_ORG_WORKSPACE_ID:?}"
 PSQL() { docker exec -i track-binocle-postgres-1 psql -U postgres -d postgres -tAc "$1"; }
 members=$(PSQL "SELECT count(*) FROM public.osionos_workspace_members WHERE workspace_id='${WS}'")
-[[ "${members}" -ge "${GOURMAND_STAFF_COUNT:-1}" ]] \
-  || fail "expected ≥${GOURMAND_STAFF_COUNT} workspace members, found ${members}"
+[[ "${members}" -ge "${GOURMAND_STAFF_COUNT:-1}" ]] ||
+  fail "expected ≥${GOURMAND_STAFF_COUNT} workspace members, found ${members}"
 pages=$(PSQL "SELECT count(*) FROM public.osionos_pages WHERE workspace_id='${WS}' AND content::text LIKE '%baas:%'")
 [[ "${pages}" -ge 9 ]] || fail "expected ≥9 live database pages, found ${pages}"
 wikis=$(PSQL "SELECT count(*) FROM public.osionos_pages WHERE workspace_id='${WS}' AND surface='wiki'")

@@ -52,10 +52,13 @@ export class CollectionsService implements OnModuleInit {
             required: ['owner_id', 'title', 'created_at', 'updated_at'],
             properties: {
               owner_id: { bsonType: 'string', description: 'UUID of the owning user' },
-              title:    { bsonType: 'string', description: 'Human-readable title' },
-              body:     { bsonType: 'string', description: 'Optional free-form content' },
-              tags:     { bsonType: 'array',  description: 'Optional string tags',
-                          items: { bsonType: 'string' } },
+              title: { bsonType: 'string', description: 'Human-readable title' },
+              body: { bsonType: 'string', description: 'Optional free-form content' },
+              tags: {
+                bsonType: 'array',
+                description: 'Optional string tags',
+                items: { bsonType: 'string' },
+              },
             },
           },
         },
@@ -82,11 +85,23 @@ export class CollectionsService implements OnModuleInit {
   }
 
   private isPlainRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date) && !(value instanceof ObjectId);
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      !(value instanceof Date) &&
+      !(value instanceof ObjectId)
+    );
   }
 
   private assertSafeFieldName(field: string): void {
-    if (!field || field === '_id' || field === 'owner_id' || field.startsWith('$') || field.includes('.')) {
+    if (
+      !field ||
+      field === '_id' ||
+      field === 'owner_id' ||
+      field.startsWith('$') ||
+      field.includes('.')
+    ) {
       throw new BadRequestException('Invalid filter field');
     }
   }
@@ -196,7 +211,12 @@ export class CollectionsService implements OnModuleInit {
     return this.normalizeDoc(doc);
   }
 
-  async patch(collectionName: string, userId: string, docId: string, patch: Record<string, unknown>) {
+  async patch(
+    collectionName: string,
+    userId: string,
+    docId: string,
+    patch: Record<string, unknown>,
+  ) {
     if (!ObjectId.isValid(docId)) {
       throw new BadRequestException('Invalid document ID');
     }

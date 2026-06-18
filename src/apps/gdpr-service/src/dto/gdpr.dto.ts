@@ -14,7 +14,10 @@ import { IsString, IsOptional, IsBoolean, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class SetConsentDto {
-  @ApiProperty({ example: 'marketing', description: 'Consent type (free-form string — e.g. marketing, analytics, third_party)' })
+  @ApiProperty({
+    example: 'marketing',
+    description: 'Consent type (free-form string — e.g. marketing, analytics, third_party)',
+  })
   @IsString()
   consent_type!: string;
 

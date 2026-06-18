@@ -98,7 +98,10 @@ export class OutboxRelayService implements OnModuleInit, OnModuleDestroy {
     // relay's core job — pg outbox → Redis streams + realtime fan-out — must
     // not depend on the projection sink existing.
     if (this.mongo.isAvailable) {
-      await this.mongo.getDb().collection<OrderProjection>('orders_view').createIndex({ aggregate_id: 1 });
+      await this.mongo
+        .getDb()
+        .collection<OrderProjection>('orders_view')
+        .createIndex({ aggregate_id: 1 });
     }
     this.timer = setInterval(() => void this.tick(), this.pollIntervalMs);
     this.timer.unref?.();
@@ -252,20 +255,23 @@ export class OutboxRelayService implements OnModuleInit, OnModuleDestroy {
     if (event.aggregate !== 'order') return;
     const payload = this.payload(event);
     delete payload['_id'];
-    await this.mongo.getDb().collection<OrderProjection>('orders_view').updateOne(
-      { _id: event.aggregate_id },
-      {
-        $set: {
-          ...payload,
-          _id: event.aggregate_id,
-          aggregate_id: event.aggregate_id,
-          last_event_type: event.event_type,
-          outbox_event_id: event.id,
-          updated_at: new Date(),
+    await this.mongo
+      .getDb()
+      .collection<OrderProjection>('orders_view')
+      .updateOne(
+        { _id: event.aggregate_id },
+        {
+          $set: {
+            ...payload,
+            _id: event.aggregate_id,
+            aggregate_id: event.aggregate_id,
+            last_event_type: event.event_type,
+            outbox_event_id: event.id,
+            updated_at: new Date(),
+          },
         },
-      },
-      { upsert: true },
-    );
+        { upsert: true },
+      );
   }
 
   private async markFailed(

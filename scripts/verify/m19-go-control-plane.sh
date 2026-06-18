@@ -9,12 +9,15 @@ BAAS_DIR="."
 GO_DIR="${BAAS_DIR}/src/control-plane"
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-fail()  { red "[M19] FAIL: $*"; exit 1; }
-step()  { cyan "[M19] ${*}"; }
-pass()  { green "[M19] PASS: ${*}"; }
+fail() {
+  red "[M19] FAIL: $*"
+  exit 1
+}
+step() { cyan "[M19] ${*}"; }
+pass() { green "[M19] PASS: ${*}"; }
 
 LIVE=0
 for arg in "$@"; do
@@ -50,8 +53,8 @@ grep -q "ivLength    = 16" "${CRYPTO}" || fail "IV length must be 16 to match No
 pass "crypto parameters match the legacy format"
 
 step "checking RLS tenant isolation is preserved"
-grep -q "set_config('app.current_user_id'" "${GO_DIR}/internal/shared/postgres.go" \
-  || fail "tenant queries must set app.current_user_id GUC"
+grep -q "set_config('app.current_user_id'" "${GO_DIR}/internal/shared/postgres.go" ||
+  fail "tenant queries must set app.current_user_id GUC"
 pass "Go tenant queries reuse the existing RLS contract"
 
 step "checking compose: Go adapter-registry is primary; TS retired post-cutover"
@@ -64,8 +67,8 @@ if grep -q "^  adapter-registry:" "${COMPOSE_FILE}"; then
   fail "TS adapter-registry service should be deleted post-cutover"
 fi
 grep -q "^  adapter-registry-go:" "${COMPOSE_FILE}" || fail "Go adapter-registry service missing"
-grep -qE "ADAPTER_REGISTRY_URL.*adapter-registry-go:3021" "${COMPOSE_FILE}" \
-  || fail "compose default ADAPTER_REGISTRY_URL must point at the Go service"
+grep -qE "ADAPTER_REGISTRY_URL.*adapter-registry-go:3021" "${COMPOSE_FILE}" ||
+  fail "compose default ADAPTER_REGISTRY_URL must point at the Go service"
 pass "compose: Go adapter-registry is primary, TS retired"
 
 step "running go vet + go test"
@@ -86,8 +89,8 @@ if [[ ${LIVE} -eq 1 ]]; then
   command -v curl >/dev/null 2>&1 || fail "curl required for --live mode"
   step "live: building + starting Go adapter-registry shadow service"
   docker compose -f "${COMPOSE_FILE}" --profile go-control-plane up -d --build --wait adapter-registry-go
-  body=$(curl -fsS "http://127.0.0.1:${ADAPTER_REGISTRY_GO_PORT:-3021}/health/live") \
-    || fail "live health endpoint failed"
+  body=$(curl -fsS "http://127.0.0.1:${ADAPTER_REGISTRY_GO_PORT:-3021}/health/live") ||
+    fail "live health endpoint failed"
   echo "${body}" | grep -q '"service":"adapter-registry"' || fail "health missing service tag"
   docker compose -f "${COMPOSE_FILE}" --profile go-control-plane stop adapter-registry-go >/dev/null
   docker compose -f "${COMPOSE_FILE}" --profile go-control-plane rm -f adapter-registry-go >/dev/null

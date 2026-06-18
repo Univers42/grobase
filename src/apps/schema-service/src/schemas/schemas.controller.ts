@@ -10,7 +10,16 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { AuthGuard, CurrentUser, UserContext } from '@mini-baas/common';
 import { SchemasService } from './schemas.service';
@@ -43,10 +52,7 @@ export class SchemasController {
   @Delete(':id')
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiOperation({ summary: 'Drop a schema (table/collection) and remove from registry' })
-  async drop(
-    @CurrentUser() user: UserContext,
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+  async drop(@CurrentUser() user: UserContext, @Param('id', ParseUUIDPipe) id: string) {
     return this.service.drop(user.id, id);
   }
 }

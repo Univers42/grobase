@@ -49,19 +49,22 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIGRATION_040="${INFRA_DIR}/scripts/migrations/postgresql/040_tenant_usage.sql"
 MIGRATION_046="${INFRA_DIR}/scripts/migrations/postgresql/046_tenant_telemetry_targets.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M100] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M100] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M100] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M100] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M100_PG_IMAGE:-postgres:16-alpine}"
 GO_IMAGE="${M100_GO_IMAGE:-golang:1.24}"
@@ -69,16 +72,16 @@ SINK_IMAGE="${M100_SINK_IMAGE:-python:3-alpine}"
 ORCH_IMG="m100-orch-$$:scratch"
 NET="m100net-$$"
 PG="m100-pg-$$"
-SINK_T="m100-sink-t-$$"        # tenant T's customer collector
-SINK_U="m100-sink-u-$$"        # tenant U's customer collector
-ORCH_ON="m100-orch-on-$$"      # exporter ENABLED (A + B)
-ORCH_OFF="m100-orch-off-$$"    # parity arm (flag unset) (C)
+SINK_T="m100-sink-t-$$"     # tenant T's customer collector
+SINK_U="m100-sink-u-$$"     # tenant U's customer collector
+ORCH_ON="m100-orch-on-$$"   # exporter ENABLED (A + B)
+ORCH_OFF="m100-orch-off-$$" # parity arm (flag unset) (C)
 PGPW="postgres"
 TENANT_T="m100-tenant-t-$$"
 TENANT_U="m100-tenant-u-$$"
 METRIC="query.count"
-QTY_T=4242                     # T's distinctive qty (must arrive at SINK-T)
-QTY_U=9999991                  # U's distinctive secret qty (must NEVER arrive at SINK-T)
+QTY_T=4242    # T's distinctive qty (must arrive at SINK-T)
+QTY_U=9999991 # U's distinctive secret qty (must NEVER arrive at SINK-T)
 EXPORT_MS="${M100_EXPORT_MS:-700}"
 SINK_PORT=8080
 STRONG_TOKEN="m100-strong-internal-svc-token-not-for-prod-0123456789ab"
@@ -93,13 +96,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 
 # The echo sink captures EVERY received request to stdout (so `docker logs` is the
 # capture). One stdlib line per POST: "RECV <content-type> <body>" — no body parsing,
 # so any tenant_id leak is plainly visible in the log.
-sink_log()  { docker logs "$1" 2>&1; }
+sink_log() { docker logs "$1" 2>&1; }
 
 wait_log() { # $1=container  $2=needle  $3=tries
   local i
@@ -114,15 +117,15 @@ wait_log() { # $1=container  $2=needle  $3=tries
 # ── 0) UNIT arm: prove the per-tenant routing + attribution decisions in isolation ─
 step "0/9 (UNIT) go test internal/telemetryexport — per-tenant routing-no-leak + OTLP attribution + no-op arms"
 docker run --rm -v "${GO_DIR}":/src -w /src -e GOFLAGS=-mod=mod -e GOCACHE=/tmp/gc -e GOMODCACHE=/tmp/gm \
-  "${GO_IMAGE}" sh -c 'go test ./internal/telemetryexport/... 2>&1' \
-  || fail "telemetry-export unit tests failed — the per-tenant routing/attribution decisions are not proven"
+  "${GO_IMAGE}" sh -c 'go test ./internal/telemetryexport/... 2>&1' ||
+  fail "telemetry-export unit tests failed — the per-tenant routing/attribution decisions are not proven"
 ok "(UNIT) routing-no-leak (T→SINK-T, U→SINK-U, no cross), OTLP tenant_id attribution, disabled-Run no-op — all green"
 
 # ── 1) build the scratch orchestrator FROM CURRENT (drafted) source ────────────
 step "1/9 build scratch Go orchestrator from CURRENT source (the C9 exporter code)"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=orchestrator --build-arg PORT=3060 \
-  -t "${ORCH_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch orchestrator image build failed — gate must exercise the drafted exporter"
+  -t "${ORCH_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch orchestrator image build failed — gate must exercise the drafted exporter"
 ok "orchestrator built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 2) isolated network + postgres (prelude + REAL 040 + 046) ──────────────────
@@ -151,13 +154,17 @@ DO $r$ BEGIN
 END $r$;
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed"; sleep 0.5; done
-docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "${MIGRATION_040}" >/dev/null 2>&1 \
-  || fail "real migration 040_tenant_usage.sql failed to apply"
-docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "${MIGRATION_046}" >/dev/null 2>&1 \
-  || fail "real migration 046_tenant_telemetry_targets.sql failed to apply"
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed"
+  sleep 0.5
+done
+docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <"${MIGRATION_040}" >/dev/null 2>&1 ||
+  fail "real migration 040_tenant_usage.sql failed to apply"
+docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <"${MIGRATION_046}" >/dev/null 2>&1 ||
+  fail "real migration 046_tenant_telemetry_targets.sql failed to apply"
 [[ "$(psql_val "SELECT count(*) FROM public.tenant_telemetry_targets")" == "0" ]] || fail "tenant_telemetry_targets should start EMPTY"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_usage")"            == "0" ]] || fail "tenant_usage should start EMPTY"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_usage")" == "0" ]] || fail "tenant_usage should start EMPTY"
 ok "migrations 040 + 046 applied — tenant_usage + tenant_telemetry_targets exist and are empty"
 
 # ── 3) boot the two throwaway echo-sink collectors ─────────────────────────────
@@ -183,7 +190,11 @@ docker run -d --name "${SINK_T}" --network "${NET}" "${SINK_IMAGE}" python3 -c "
 docker run -d --name "${SINK_U}" --network "${NET}" "${SINK_IMAGE}" python3 -c "${SINK_PY}" >/dev/null
 # The stdlib server logs nothing until it serves; assert the process is alive instead.
 for s in "${SINK_T}" "${SINK_U}"; do
-  for i in $(seq 1 40); do docker inspect -f '{{.State.Running}}' "$s" 2>/dev/null | grep -q true && break; [[ $i -eq 40 ]] && fail "echo sink $s never started"; sleep 0.25; done
+  for i in $(seq 1 40); do
+    docker inspect -f '{{.State.Running}}' "$s" 2>/dev/null | grep -q true && break
+    [[ $i -eq 40 ]] && fail "echo sink $s never started"
+    sleep 0.25
+  done
 done
 ok "SINK-T + SINK-U running (each echoes every POST body to its docker logs)"
 
@@ -202,7 +213,11 @@ INSERT INTO public.tenant_usage(tenant_id, metric, window_start, qty, idempotenc
   ON CONFLICT (idempotency_key) DO NOTHING;
 SQL
 }
-for i in $(seq 1 20); do seed && break; [[ $i -eq 20 ]] && fail "seed never committed"; sleep 0.5; done
+for i in $(seq 1 20); do
+  seed && break
+  [[ $i -eq 20 ]] && fail "seed never committed"
+  sleep 0.5
+done
 [[ "$(psql_val "SELECT qty FROM public.tenant_usage WHERE tenant_id='${TENANT_T}'")" == "${QTY_T}" ]] || fail "T usage not seeded"
 [[ "$(psql_val "SELECT qty FROM public.tenant_usage WHERE tenant_id='${TENANT_U}'")" == "${QTY_U}" ]] || fail "U usage not seeded"
 [[ "$(psql_val "SELECT count(*) FROM public.tenant_telemetry_targets WHERE enabled")" == "2" ]] || fail "both targets not seeded enabled"
@@ -220,17 +235,29 @@ docker run -d --name "${ORCH_OFF}" --network "${NET}" \
   -e INTERNAL_SERVICE_TOKEN="${STRONG_TOKEN}" \
   -e LOG_LEVEL=debug \
   "${ORCH_IMG}" >/dev/null
-wait_log "${ORCH_OFF}" "telemetry export disabled" 60 \
-  || { red "off-exporter logs:"; docker logs "${ORCH_OFF}" 2>&1 | tail -20; fail "OFF exporter did not report disabled (flag default not OFF?)"; }
+wait_log "${ORCH_OFF}" "telemetry export disabled" 60 ||
+  {
+    red "off-exporter logs:"
+    docker logs "${ORCH_OFF}" 2>&1 | tail -20
+    fail "OFF exporter did not report disabled (flag default not OFF?)"
+  }
 # Give it several intervals' worth of wall-time to PROVE it never forwards.
 sleep "$(awk "BEGIN{print (${EXPORT_MS}*4/1000)+2}")"
 PARITY_T="$(sink_log "${SINK_T}" | grep -c 'RECV' || true)"
 PARITY_U="$(sink_log "${SINK_U}" | grep -c 'RECV' || true)"
-[[ "${PARITY_T}" == "0" ]] || { red "SINK-T received:"; sink_log "${SINK_T}" | tail -3; fail "(C) SINK-T received ${PARITY_T} request(s) with the flag OFF — NOT byte-parity"; }
-[[ "${PARITY_U}" == "0" ]] || { red "SINK-U received:"; sink_log "${SINK_U}" | tail -3; fail "(C) SINK-U received ${PARITY_U} request(s) with the flag OFF — NOT byte-parity"; }
+[[ "${PARITY_T}" == "0" ]] || {
+  red "SINK-T received:"
+  sink_log "${SINK_T}" | tail -3
+  fail "(C) SINK-T received ${PARITY_T} request(s) with the flag OFF — NOT byte-parity"
+}
+[[ "${PARITY_U}" == "0" ]] || {
+  red "SINK-U received:"
+  sink_log "${SINK_U}" | tail -3
+  fail "(C) SINK-U received ${PARITY_U} request(s) with the flag OFF — NOT byte-parity"
+}
 # Cursors must also stay at the epoch default (nothing forwarded ⇒ no advance).
-[[ "$(psql_val "SELECT (last_cursor = to_timestamp(0)) FROM public.tenant_telemetry_targets WHERE tenant_id='${TENANT_T}'")" == "t" ]] \
-  || fail "(C) T's cursor advanced with the flag OFF — NOT byte-parity"
+[[ "$(psql_val "SELECT (last_cursor = to_timestamp(0)) FROM public.tenant_telemetry_targets WHERE tenant_id='${TENANT_T}'")" == "t" ]] ||
+  fail "(C) T's cursor advanced with the flag OFF — NOT byte-parity"
 ok "(C) flag OFF: neither sink received anything, no cursor advanced — byte-identical to today"
 
 # ── 6) (A) POSITIVE: stop OFF arm, boot ENABLED exporter → T's data reaches SINK-T ─
@@ -247,24 +274,37 @@ docker run -d --name "${ORCH_ON}" --network "${NET}" \
   -e TENANT_TELEMETRY_EXPORT_INTERVAL_MS="${EXPORT_MS}" \
   -e LOG_LEVEL=debug \
   "${ORCH_IMG}" >/dev/null
-wait_log "${ORCH_ON}" "telemetry export enabled" 60 \
-  || { red "exporter logs:"; docker logs "${ORCH_ON}" 2>&1 | tail -20; fail "exporter never enabled"; }
+wait_log "${ORCH_ON}" "telemetry export enabled" 60 ||
+  {
+    red "exporter logs:"
+    docker logs "${ORCH_ON}" 2>&1 | tail -20
+    fail "exporter never enabled"
+  }
 ok "exporter enabled — forwarding each opted-in tenant's usage to its own collector"
 
 step "7/9 (A) wait for T's telemetry to ARRIVE at SINK-T, attributed to T (tenant_id + qty)"
 ARRIVED=
 for i in $(seq 1 60); do
-  if sink_log "${SINK_T}" | grep -q "${TENANT_T}"; then ARRIVED=1; break; fi
+  if sink_log "${SINK_T}" | grep -q "${TENANT_T}"; then
+    ARRIVED=1
+    break
+  fi
   sleep 0.5
 done
-[[ -n "${ARRIVED}" ]] || { red "SINK-T logs:"; sink_log "${SINK_T}" | tail -5; red "exporter logs:"; docker logs "${ORCH_ON}" 2>&1 | tail -10; fail "(A) T's telemetry NEVER arrived at SINK-T — export not delivered"; }
+[[ -n "${ARRIVED}" ]] || {
+  red "SINK-T logs:"
+  sink_log "${SINK_T}" | tail -5
+  red "exporter logs:"
+  docker logs "${ORCH_ON}" 2>&1 | tail -10
+  fail "(A) T's telemetry NEVER arrived at SINK-T — export not delivered"
+}
 RECV_T="$(sink_log "${SINK_T}")"
-grep -q "\"tenant_id\":\"${TENANT_T}\"" <<<"${RECV_T}" \
-  || fail "(A) SINK-T body does not carry tenant_id=\"${TENANT_T}\" — telemetry not attributed to T"
-grep -q "\"qty\":${QTY_T}" <<<"${RECV_T}" \
-  || fail "(A) SINK-T body does not carry T's qty=${QTY_T} — wrong/empty telemetry"
-grep -q "Bearer tok-${TENANT_T}" <<<"${RECV_T}" \
-  || fail "(A) SINK-T did not receive T's configured Authorization header"
+grep -q "\"tenant_id\":\"${TENANT_T}\"" <<<"${RECV_T}" ||
+  fail "(A) SINK-T body does not carry tenant_id=\"${TENANT_T}\" — telemetry not attributed to T"
+grep -q "\"qty\":${QTY_T}" <<<"${RECV_T}" ||
+  fail "(A) SINK-T body does not carry T's qty=${QTY_T} — wrong/empty telemetry"
+grep -q "Bearer tok-${TENANT_T}" <<<"${RECV_T}" ||
+  fail "(A) SINK-T did not receive T's configured Authorization header"
 ok "(A) T's usage ARRIVED at SINK-T, attributed tenant_id=\"${TENANT_T}\", qty=${QTY_T}, with T's auth header"
 
 # ── 8) (B) LOAD-BEARING REJECT: SINK-T received NONE of U's telemetry ───────────
@@ -272,15 +312,33 @@ step "8/9 (B · LOAD-BEARING) assert SINK-T received NONE of U's telemetry (no c
 # Give the exporter a few more ticks so that IF a leak existed, it would have surfaced.
 sleep "$(awk "BEGIN{print (${EXPORT_MS}*3/1000)+1}")"
 RECV_T="$(sink_log "${SINK_T}")"
-grep -q "${TENANT_U}" <<<"${RECV_T}" \
-  && { red "SINK-T contains U's tenant_id:"; grep "${TENANT_U}" <<<"${RECV_T}" | tail -3; fail "(B) CROSS-TENANT LEAK — U's tenant_id reached SINK-T"; }
-grep -q "${QTY_U}" <<<"${RECV_T}" \
-  && { red "SINK-T contains U's qty:"; grep "${QTY_U}" <<<"${RECV_T}" | tail -3; fail "(B) CROSS-TENANT LEAK — U's qty=${QTY_U} reached SINK-T"; }
+grep -q "${TENANT_U}" <<<"${RECV_T}" &&
+  {
+    red "SINK-T contains U's tenant_id:"
+    grep "${TENANT_U}" <<<"${RECV_T}" | tail -3
+    fail "(B) CROSS-TENANT LEAK — U's tenant_id reached SINK-T"
+  }
+grep -q "${QTY_U}" <<<"${RECV_T}" &&
+  {
+    red "SINK-T contains U's qty:"
+    grep "${QTY_U}" <<<"${RECV_T}" | tail -3
+    fail "(B) CROSS-TENANT LEAK — U's qty=${QTY_U} reached SINK-T"
+  }
 # Conversely, prove U's OWN telemetry DID reach SINK-U (the export works for U too,
 # so the absence at SINK-T is isolation, not a dead exporter).
 ARRIVED_U=
-for i in $(seq 1 30); do sink_log "${SINK_U}" | grep -q "${TENANT_U}" && { ARRIVED_U=1; break; }; sleep 0.5; done
-[[ -n "${ARRIVED_U}" ]] || { red "SINK-U logs:"; sink_log "${SINK_U}" | tail -5; fail "(B) U's telemetry never reached SINK-U — cannot conclude isolation vs dead exporter"; }
+for i in $(seq 1 30); do
+  sink_log "${SINK_U}" | grep -q "${TENANT_U}" && {
+    ARRIVED_U=1
+    break
+  }
+  sleep 0.5
+done
+[[ -n "${ARRIVED_U}" ]] || {
+  red "SINK-U logs:"
+  sink_log "${SINK_U}" | tail -5
+  fail "(B) U's telemetry never reached SINK-U — cannot conclude isolation vs dead exporter"
+}
 grep -q "${QTY_U}" <<<"$(sink_log "${SINK_U}")" || fail "(B) SINK-U missing U's qty=${QTY_U}"
 ok "(B) SINK-T saw NONE of U's tenant_id/qty while SINK-U DID receive U's data — no cross-tenant export leak"
 
@@ -292,7 +350,8 @@ green "[M100] (C) PARITY:      flag OFF → neither sink received anything, no c
 green "[M100] (UNIT):          go test internal/telemetryexport — routing-no-leak + OTLP attribution + no-op arms green"
 
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-c9-tenant-telemetry-export}"

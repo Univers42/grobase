@@ -32,7 +32,9 @@ export class AdminService {
     if (!info.length) {
       return { name, validator: null };
     }
-    const entry = info[0] as { options?: { validator?: unknown; validationLevel?: string; validationAction?: string } };
+    const entry = info[0] as {
+      options?: { validator?: unknown; validationLevel?: string; validationAction?: string };
+    };
     return {
       name,
       validator: entry?.options?.validator ?? null,

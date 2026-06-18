@@ -24,14 +24,18 @@ export class ChatMessageDto {
   @IsString()
   message!: string;
 
-  @ApiPropertyOptional({ example: 'default', description: 'Prompt mode — maps to a registered system prompt template' })
+  @ApiPropertyOptional({
+    example: 'default',
+    description: 'Prompt mode — maps to a registered system prompt template',
+  })
   @IsOptional()
   @IsString()
   mode?: string;
 
   @ApiPropertyOptional({
     example: { products: ['Widget A', 'Widget B'] },
-    description: 'Arbitrary context injected into the system prompt. The consuming app provides domain data here.',
+    description:
+      'Arbitrary context injected into the system prompt. The consuming app provides domain data here.',
   })
   @IsOptional()
   @IsObject()
@@ -45,7 +49,8 @@ export class CreatePromptDto {
   mode!: string;
 
   @ApiProperty({
-    example: 'You are a helpful customer support agent. Answer questions based on this context:\n{context}',
+    example:
+      'You are a helpful customer support agent. Answer questions based on this context:\n{context}',
     description: 'System prompt template. Use {context} placeholder for injected context.',
   })
   @IsNotEmpty()

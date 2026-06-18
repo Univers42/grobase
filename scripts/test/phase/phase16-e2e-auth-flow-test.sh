@@ -337,7 +337,7 @@ if [[ "$RATE_LIMITED" == "true" ]]; then
   ((++TESTS_PASSED))
 else
   echo -e "  ${YELLOW}⚠${NC} Rate limit not triggered in 65 requests (may be tuned higher)"
-  ((++TESTS_PASSED))  # soft pass — limit may be set to 60/min
+  ((++TESTS_PASSED)) # soft pass — limit may be set to 60/min
 fi
 
 # ═══════════════════════════════════════════════════════════════════

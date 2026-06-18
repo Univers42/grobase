@@ -26,16 +26,22 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M49] $*"; }
-pass()  { green "[M49] PASS: $*"; }
-fail()  { red "[M49] FAIL: $*"; exit 1; }
-skip()  { printf '\033[1;33m[M49] SKIP: %s\033[0m\n' "$*"; exit 0; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M49] $*"; }
+pass() { green "[M49] PASS: $*"; }
+fail() {
+  red "[M49] FAIL: $*"
+  exit 1
+}
+skip() {
+  printf '\033[1;33m[M49] SKIP: %s\033[0m\n' "$*"
+  exit 0
+}
 
-docker inspect -f '{{.State.Running}}' mini-baas-orchestrator 2>/dev/null | grep -q true \
-  || skip "orchestrator not running (this gate is post-flip)"
+docker inspect -f '{{.State.Running}}' mini-baas-orchestrator 2>/dev/null | grep -q true ||
+  skip "orchestrator not running (this gate is post-flip)"
 
 KONG_PORT="$(docker port mini-baas-kong 8000/tcp 2>/dev/null | head -1 | sed 's/.*://')"
 [ -n "${KONG_PORT}" ] || skip "kong host port not found"
@@ -66,11 +72,12 @@ pass "newsletter served end-to-end by the orchestrator through Kong (201)"
 # "does Kong route to a LIVE upstream" — a 502/503 means the swap is broken.
 reaches() { # $1 label  $2 method  $3 path  [$4 data]
   local label="$1" method="$2" path="$3" data="${4:-}"
-  local c; c="$(code "${method}" "${path}" "${data}")"
+  local c
+  c="$(code "${method}" "${path}" "${data}")"
   case "${c}" in
-    502|503|504) fail "${label}: Kong got ${c} — upstream unreachable (URL swap wrong / sub-service not mounted)";;
-    000)         fail "${label}: no response from Kong";;
-    *)           pass "${label}: orchestrator reached through Kong (HTTP ${c}, not a gateway error)";;
+  502 | 503 | 504) fail "${label}: Kong got ${c} — upstream unreachable (URL swap wrong / sub-service not mounted)" ;;
+  000) fail "${label}: no response from Kong" ;;
+  *) pass "${label}: orchestrator reached through Kong (HTTP ${c}, not a gateway error)" ;;
   esac
 }
 step "session /sessions/v1/admin/stats routes to the orchestrator"
@@ -86,7 +93,10 @@ reaches "email" POST /email/v1/send '{"to":"x@example.com","subject":"m49","body
 step "Node orchestrators are stopped (cost win realized)"
 up=0
 for c in log-service email-service session-service newsletter-service gdpr-service outbox-relay; do
-  docker inspect -f '{{.State.Running}}' "mini-baas-${c}" 2>/dev/null | grep -q true && { red "  still running: mini-baas-${c}"; up=$((up+1)); }
+  docker inspect -f '{{.State.Running}}' "mini-baas-${c}" 2>/dev/null | grep -q true && {
+    red "  still running: mini-baas-${c}"
+    up=$((up + 1))
+  }
 done
 [ "${up}" = "0" ] || fail "${up} Node orchestrator(s) still running — the footprint win is not realized"
 pass "all 6 Node orchestrators stopped — the orchestrator carries their traffic"

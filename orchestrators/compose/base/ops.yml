@@ -1,8 +1,8 @@
 # ops plane — pg-backup, supavisor
 services:
   pg-backup:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-pg-backup:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-pg-backup:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/pg-backup
       dockerfile: Dockerfile
@@ -36,13 +36,17 @@ services:
 
   # ─── Connection Pooler (control plane / close to Postgres) ────────
   supavisor:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-supavisor:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-supavisor:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/supavisor
       dockerfile: Dockerfile
     healthcheck:
-      test: ["CMD-SHELL", "curl -sSfL --head -o /dev/null http://127.0.0.1:4000/api/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sSfL --head -o /dev/null http://127.0.0.1:4000/api/health || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       start_period: 30s

@@ -22,7 +22,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
-import { AuthGuard, CurrentIdentity, CurrentUser, UserContext, VerifiedRequestIdentity } from '@mini-baas/common';
+import {
+  AuthGuard,
+  CurrentIdentity,
+  CurrentUser,
+  UserContext,
+  VerifiedRequestIdentity,
+} from '@mini-baas/common';
 import { QueryService } from './query.service';
 import { ExecuteQueryDto } from './dto/query.dto';
 import type { Request } from 'express';

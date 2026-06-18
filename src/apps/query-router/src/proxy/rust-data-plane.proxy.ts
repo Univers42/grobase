@@ -185,7 +185,10 @@ export class RustDataPlaneProxy {
    *  never cached (a transient error must not poison the next request). */
   private capsInFlight?: Promise<RustCapabilitiesResponse>;
 
-  constructor(config: ConfigService, private readonly http: HttpService) {
+  constructor(
+    config: ConfigService,
+    private readonly http: HttpService,
+  ) {
     // internal/loopback only — not externally exposed
     const dataPlaneScheme = 'http';
     this.url = config.get<string>(
@@ -448,7 +451,7 @@ export class RustDataPlaneProxy {
             returning: null,
             aggregate: null,
           }))
-        : opts.data ?? null;
+        : (opts.data ?? null);
     return {
       op,
       resource,
@@ -520,9 +523,11 @@ export class RustDataPlaneProxy {
   private wrapError(error: unknown, label: string): Error {
     const status =
       typeof error === 'object' && error !== null
-        ? (error as {
-            response?: { status?: number; data?: { error?: string; message?: string } };
-          }).response
+        ? (
+            error as {
+              response?: { status?: number; data?: { error?: string; message?: string } };
+            }
+          ).response
         : undefined;
     const dpMessage = status?.data?.message;
     // The data plane's `ApiError` envelope carries a machine-readable code in

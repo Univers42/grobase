@@ -27,10 +27,32 @@ const COLUMN_REGEX = /^[a-zA-Z_]\w{0,63}$/;
 const SAFE_DEFAULT_REGEX =
   /^(CURRENT_TIMESTAMP|CURRENT_DATE|NULL|TRUE|FALSE|-?\d+(\.\d+)?|now\(\)|gen_random_uuid\(\)|'[^']{0,200}')$/i;
 const VALID_TYPES = new Set([
-  'text', 'varchar', 'char', 'integer', 'int', 'bigint', 'smallint',
-  'serial', 'bigserial', 'boolean', 'bool', 'timestamp', 'timestamptz',
-  'date', 'time', 'uuid', 'jsonb', 'json', 'numeric', 'decimal',
-  'real', 'double precision', 'bytea', 'inet', 'cidr', 'macaddr',
+  'text',
+  'varchar',
+  'char',
+  'integer',
+  'int',
+  'bigint',
+  'smallint',
+  'serial',
+  'bigserial',
+  'boolean',
+  'bool',
+  'timestamp',
+  'timestamptz',
+  'date',
+  'time',
+  'uuid',
+  'jsonb',
+  'json',
+  'numeric',
+  'decimal',
+  'real',
+  'double precision',
+  'bytea',
+  'inet',
+  'cidr',
+  'macaddr',
 ]);
 
 /**

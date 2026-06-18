@@ -23,13 +23,15 @@ describe('buildColumnDef', () => {
   });
 
   it('appends an allow-listed niladic-function DEFAULT (trimmed)', () => {
-    expect(buildColumnDef(col({ type: 'timestamptz', default_value: '  now()  ' })))
-      .toBe('"title" timestamptz NOT NULL DEFAULT now()');
+    expect(buildColumnDef(col({ type: 'timestamptz', default_value: '  now()  ' }))).toBe(
+      '"title" timestamptz NOT NULL DEFAULT now()',
+    );
   });
 
   it('accepts a quoted string-literal DEFAULT', () => {
-    expect(buildColumnDef(col({ default_value: "'draft'" })))
-      .toBe(`"title" text NOT NULL DEFAULT 'draft'`);
+    expect(buildColumnDef(col({ default_value: "'draft'" }))).toBe(
+      `"title" text NOT NULL DEFAULT 'draft'`,
+    );
   });
 
   it('rejects a type that is not on the allow-list', () => {
@@ -43,7 +45,7 @@ describe('buildColumnDef', () => {
   });
 
   it('rejects a DEFAULT that is not on the safe allow-list (CWE-89)', () => {
-    for (const dv of ["1); DROP TABLE users;--", 'pg_sleep(10)', '(SELECT 1)']) {
+    for (const dv of ['1); DROP TABLE users;--', 'pg_sleep(10)', '(SELECT 1)']) {
       expect(() => buildColumnDef(col({ default_value: dv }))).toThrow(BadRequestException);
     }
   });

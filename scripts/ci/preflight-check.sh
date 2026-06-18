@@ -23,9 +23,24 @@ PASS=0
 FAIL=0
 WARN=0
 
-pass() { local msg="$1"; echo "  ✓ $msg"; PASS=$((PASS + 1)); return 0; }
-fail() { local msg="$1"; echo "  ✗ $msg"; FAIL=$((FAIL + 1)); return 0; }
-warn() { local msg="$1"; echo "  ⚠ $msg"; WARN=$((WARN + 1)); return 0; }
+pass() {
+  local msg="$1"
+  echo "  ✓ $msg"
+  PASS=$((PASS + 1))
+  return 0
+}
+fail() {
+  local msg="$1"
+  echo "  ✗ $msg"
+  FAIL=$((FAIL + 1))
+  return 0
+}
+warn() {
+  local msg="$1"
+  echo "  ⚠ $msg"
+  WARN=$((WARN + 1))
+  return 0
+}
 
 echo "$SEP_LINE"
 echo " mini-BaaS Preflight Check"
@@ -127,8 +142,8 @@ echo ""
 # ─── 6. Port conflicts ───────────────────────────────────────────
 echo "Ports:"
 for port in 8000 5432 27017 6379 9000 3010 3020 4001 3030 9090; do
-  if ss -tlnp 2>/dev/null | grep -q ":${port} " || \
-     netstat -tlnp 2>/dev/null | grep -q ":${port} "; then
+  if ss -tlnp 2>/dev/null | grep -q ":${port} " ||
+    netstat -tlnp 2>/dev/null | grep -q ":${port} "; then
     warn "Port $port already in use"
   else
     pass "Port $port available"

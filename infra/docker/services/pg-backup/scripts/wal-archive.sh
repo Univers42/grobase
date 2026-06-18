@@ -27,7 +27,10 @@ SEG_NAME="${2:?usage: wal-archive.sh <%p source-path> <%f segment-name>}"
 # segment / history file name, never a path. Refusing '/' keeps the object key
 # pinned under the wal/ prefix.
 case "${SEG_NAME}" in
-  */*|..) echo "[wal-archive] refusing suspicious segment name '${SEG_NAME}'" >&2; exit 1 ;;
+*/* | ..)
+  echo "[wal-archive] refusing suspicious segment name '${SEG_NAME}'" >&2
+  exit 1
+  ;;
 esac
 
 DEST_KEY="baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/wal/${SEG_NAME}"
@@ -38,7 +41,7 @@ DEST_KEY="baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/wal/${SEG_NAME}"
 # `archive_command` invocation that did not inherit the alias still works.
 if [ -n "${MINIO_ENDPOINT:-}" ]; then
   mc alias set baas "${MINIO_ENDPOINT}" \
-     "${MINIO_ROOT_USER:-minioadmin}" "${MINIO_ROOT_PASSWORD:-minioadmin}" >/dev/null 2>&1 || true
+    "${MINIO_ROOT_USER:-minioadmin}" "${MINIO_ROOT_PASSWORD:-minioadmin}" >/dev/null 2>&1 || true
 fi
 
 # Idempotent: if the segment is already stored (postgres retried a previously

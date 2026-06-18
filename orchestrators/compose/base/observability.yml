@@ -1,13 +1,17 @@
 # observability plane — prometheus, grafana, loki, promtail
 services:
   prometheus:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-prometheus:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-prometheus:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/prometheus
       dockerfile: Dockerfile
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy >/dev/null || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:9090/-/healthy >/dev/null || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       start_period: 15s
@@ -23,13 +27,17 @@ services:
 
   # ─── Observability: Grafana ──────────────────────────────────────
   grafana:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-grafana:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-grafana:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/grafana
       dockerfile: Dockerfile
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health >/dev/null || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:3000/api/health >/dev/null || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       start_period: 20s
@@ -47,13 +55,17 @@ services:
 
   # ─── Observability: Loki ─────────────────────────────────────────
   loki:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-loki:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-loki:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/loki
       dockerfile: Dockerfile
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready >/dev/null || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:3100/ready >/dev/null || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       start_period: 20s
@@ -74,8 +86,8 @@ services:
 
   # ─── Observability: Promtail ─────────────────────────────────────
   promtail:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-promtail:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-promtail:latest # pull-fallback (built from ./build context below)
     # No healthcheck BY DESIGN: the promtail image ships neither curl nor wget.
     # It is a push-only agent — failure is visible as missing log streams, and
     # Loki's own /ready healthcheck covers the receiving end of the pipeline.

@@ -10,12 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
 import { Counter, register } from 'prom-client';
 

@@ -14,7 +14,10 @@ import { IsNotEmpty, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CheckPermissionDto {
-  @ApiProperty({ example: 'table', description: 'Resource type: table, collection, bucket, endpoint, …' })
+  @ApiProperty({
+    example: 'table',
+    description: 'Resource type: table, collection, bucket, endpoint, …',
+  })
   @IsString()
   @IsNotEmpty()
   resource_type!: string;

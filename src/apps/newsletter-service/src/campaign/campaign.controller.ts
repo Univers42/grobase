@@ -27,10 +27,7 @@ export class CampaignController {
 
   @Post('send')
   @ApiOperation({ summary: 'Send a campaign to all confirmed subscribers (admin)' })
-  async send(
-    @Body() dto: SendCampaignDto,
-    @CurrentUser() user: UserContext,
-  ) {
+  async send(@Body() dto: SendCampaignDto, @CurrentUser() user: UserContext) {
     return this.service.sendCampaign(dto.subject, dto.html, dto.text, user.id);
   }
 

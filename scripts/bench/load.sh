@@ -39,39 +39,50 @@ source "${SCRIPT_DIR}/../lib/lib-live-tenant.sh"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/lib-workload.sh"
 
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 
 PACKAGE="${PACKAGE:-essential}"
 WORKLOAD="${WORKLOAD:-crud}"
 MODE="${MODE:-short}"
 RATE="${RATE:-$(bench_budget ".load.${PACKAGE}.rps" 2>/dev/null || echo 50)}"
 [[ "${RATE}" == "null" ]] && RATE=50
-DURATION="60s"; [[ "${MODE}" == "full" ]] && DURATION="300s"
+DURATION="60s"
+[[ "${MODE}" == "full" ]] && DURATION="300s"
 TABLE="bench_items"
 LABEL="load-${PACKAGE}-${WORKLOAD}"
 
-case "${WORKLOAD}" in crud|aggregate|batch) ;; *) red "unknown WORKLOAD ${WORKLOAD}"; exit 2;; esac
+case "${WORKLOAD}" in crud | aggregate | batch) ;; *)
+  red "unknown WORKLOAD ${WORKLOAD}"
+  exit 2
+  ;;
+esac
 
 cyan "[bench-load] ${PACKAGE}/${WORKLOAD} — rate ${RATE} rps × 3×${DURATION} (+30s warmup) through Kong /data/v1"
 
 # ── bench tenant + mount (fresh, cleaned on exit) ───────────────────────────
-live_tenant_provision "bench-load-$(date +%s)" || { red "provision failed (stack up?)"; exit 1; }
+live_tenant_provision "bench-load-$(date +%s)" || {
+  red "provision failed (stack up?)"
+  exit 1
+}
 trap 'bw_drop_table "${TABLE}"; live_tenant_cleanup' EXIT
 KONG="${LIVE_KONG_URL}"
 
 # ── table + 500-row working set (METHOD.md canonical shape) ─────────────────
 cyan "[bench-load] creating ${TABLE} + seeding 500 rows"
-bw_setup_table "${TABLE}" || { red "working-set setup failed"; exit 1; }
+bw_setup_table "${TABLE}" || {
+  red "working-set setup failed"
+  exit 1
+}
 green "[bench-load] seeded"
 
 # ── k6: 30s warmup (discarded) + 3 measured runs ────────────────────────────
 run_k6() { # $1 out-file $2 duration
-	bench_k6 "${WORKLOAD}.js" "$1" \
-		-e BASE="${KONG}" -e ANON="${LIVE_ANON_APIKEY}" -e APPK="${LIVE_TENANT_API_KEY}" \
-		-e DBID="${LIVE_TENANT_DB_ID}" -e TABLE="${TABLE}" \
-		-e RATE="${RATE}" -e DURATION="$2"
+  bench_k6 "${WORKLOAD}.js" "$1" \
+    -e BASE="${KONG}" -e ANON="${LIVE_ANON_APIKEY}" -e APPK="${LIVE_TENANT_API_KEY}" \
+    -e DBID="${LIVE_TENANT_DB_ID}" -e TABLE="${TABLE}" \
+    -e RATE="${RATE}" -e DURATION="$2"
 }
 
 cyan "[bench-load] warmup 30s (discarded)"
@@ -79,9 +90,9 @@ run_k6 "${LABEL}-warmup.json" "30s" >/dev/null
 
 RUNS=()
 for n in 1 2 3; do
-	cyan "[bench-load] run ${n}/3 (${DURATION})"
-	run_k6 "${LABEL}-run${n}.json" "${DURATION}"
-	RUNS+=("${BENCH_OUT_DIR}/${LABEL}-run${n}.json")
+  cyan "[bench-load] run ${n}/3 (${DURATION})"
+  run_k6 "${LABEL}-run${n}.json" "${DURATION}"
+  RUNS+=("${BENCH_OUT_DIR}/${LABEL}-run${n}.json")
 done
 
 MEDIAN="$(bench_median3_by '.rps_achieved' "${RUNS[@]}")"
@@ -89,14 +100,14 @@ MEDIAN="$(bench_median3_by '.rps_achieved' "${RUNS[@]}")"
 # ── final artifact: 3 runs + median + env ───────────────────────────────────
 FINAL="${BENCH_OUT_DIR}/${LABEL}.json"
 jq -n \
-	--arg package "${PACKAGE}" --arg workload "${WORKLOAD}" --arg mode "${MODE}" \
-	--argjson rate "${RATE}" \
-	--slurpfile r1 "${RUNS[0]}" --slurpfile r2 "${RUNS[1]}" --slurpfile r3 "${RUNS[2]}" \
-	--slurpfile median "${MEDIAN}" \
-	--argjson env "$(bench_env_json)" \
-	'{package:$package, workload:$workload, mode:$mode, rate_target:$rate,
+  --arg package "${PACKAGE}" --arg workload "${WORKLOAD}" --arg mode "${MODE}" \
+  --argjson rate "${RATE}" \
+  --slurpfile r1 "${RUNS[0]}" --slurpfile r2 "${RUNS[1]}" --slurpfile r3 "${RUNS[2]}" \
+  --slurpfile median "${MEDIAN}" \
+  --argjson env "$(bench_env_json)" \
+  '{package:$package, workload:$workload, mode:$mode, rate_target:$rate,
 	  median:$median[0], runs:[$r1[0],$r2[0],$r3[0]], env:$env}' \
-	> "${FINAL}"
+  >"${FINAL}"
 rm -f "${BENCH_OUT_DIR}/${LABEL}-warmup.json"
 
 green "[bench-load] artifact: ${FINAL#${BENCH_ROOT}/}"

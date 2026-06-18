@@ -30,34 +30,34 @@ OUT_DIR="infra/config/openapi"
 mkdir -p "${OUT_DIR}"
 
 declare -A APP_PORTS=(
-  [log-service]=3010
-  [adapter-registry]=3020
-  [ai-service]=3030
-  [storage-router]=3040
-  [permission-engine]=3050
-  [email-service]=3060
-  [gdpr-service]=3070
-  [newsletter-service]=3080
-  [schema-service]=3090
-  [session-service]=3100
-  [analytics-service]=3110
-  [mongo-api]=3120
-  [query-router]=4001
+  [log - service]=3010
+  [adapter - registry]=3020
+  [ai - service]=3030
+  [storage - router]=3040
+  [permission - engine]=3050
+  [email - service]=3060
+  [gdpr - service]=3070
+  [newsletter - service]=3080
+  [schema - service]=3090
+  [session - service]=3100
+  [analytics - service]=3110
+  [mongo - api]=3120
+  [query - router]=4001
 )
 
 FILTER=""
 HOST="localhost"
 for arg in "$@"; do
   case "$arg" in
-    --apps=*|--apps)
-      FILTER="${arg#--apps=}"
-      ;;
-    --docker-network)
-      # When called from inside the mini-baas docker network, reach services
-      # by their DNS name (mini-baas-adapter-registry etc.). Each service
-      # listens on its <PORT> env var — same value as the host port above.
-      HOST="DOCKER_DNS"
-      ;;
+  --apps=* | --apps)
+    FILTER="${arg#--apps=}"
+    ;;
+  --docker-network)
+    # When called from inside the mini-baas docker network, reach services
+    # by their DNS name (mini-baas-adapter-registry etc.). Each service
+    # listens on its <PORT> env var — same value as the host port above.
+    HOST="DOCKER_DNS"
+    ;;
   esac
 done
 
@@ -79,18 +79,18 @@ for app in "${!APP_PORTS[@]}"; do
   if curl -fsS "$url" -o "${out}.tmp" 2>/dev/null; then
     # Normalise output if `jq` is available, otherwise leave as-is.
     if command -v jq >/dev/null 2>&1; then
-      jq -S '.' "${out}.tmp" > "${out}"
+      jq -S '.' "${out}.tmp" >"${out}"
       rm -f "${out}.tmp"
     else
       mv "${out}.tmp" "${out}"
     fi
-    size=$(wc -c < "${out}")
+    size=$(wc -c <"${out}")
     echo "  ✓ ${app} (${size}B) → ${out}"
-    ok=$((ok+1))
+    ok=$((ok + 1))
   else
     rm -f "${out}.tmp"
     echo "  ✗ ${app} (${url} unreachable)"
-    fail=$((fail+1))
+    fail=$((fail + 1))
   fi
 done
 

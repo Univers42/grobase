@@ -24,12 +24,16 @@
 #   6. idle RSS ≤ 15 MiB.
 
 set -euo pipefail
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
-step(){ cyan "[M42] $*"; }
-fail(){ red "[M42] FAIL — $*"; cleanup; exit 1; }
-ok(){ green "  ✓ $*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+step() { cyan "[M42] $*"; }
+fail() {
+  red "[M42] FAIL — $*"
+  cleanup
+  exit 1
+}
+ok() { green "  ✓ $*"; }
 
 IMAGE="${ONE_IMAGE:-binocle-one}"
 NET="m42-net-$$"
@@ -41,29 +45,29 @@ KEY="m42-admin-$(date +%s)-deterministic"
 BASE="http://127.0.0.1:${PORT}"
 MAPI="http://127.0.0.1:${MAIL_PORT}/api/v1"
 
-cleanup(){
+cleanup() {
   docker rm -fv "${ONE}" "${MAIL}" >/dev/null 2>&1 || true
   docker network rm "${NET}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
-req(){ # method path auth body → body<TAB>status
+req() { # method path auth body → body<TAB>status
   local method="$1" path="$2" auth="$3" body="${4:-}"
   local args=(-s -w $'\t%{http_code}' -X "${method}" "${BASE}${path}" -H "Content-Type: application/json")
   [[ -n "${auth}" ]] && args+=(-H "${auth}")
   [[ -n "${body}" ]] && args+=(-d "${body}")
   curl "${args[@]}"
 }
-status_of(){ awk -F'\t' '{print $NF}' <<<"$1"; }
-jget(){ python3 -c "import sys,json;d=json.loads(sys.stdin.read().rsplit('\t',1)[0]);print($1)" <<<"$2"; }
+status_of() { awk -F'\t' '{print $NF}' <<<"$1"; }
+jget() { python3 -c "import sys,json;d=json.loads(sys.stdin.read().rsplit('\t',1)[0]);print($1)" <<<"$2"; }
 
 # Latest 8-digit code Mailpit holds for a recipient (and wipe the inbox after,
 # so the next read can't pick up a stale message).
-mail_code(){ # email → code
+mail_code() { # email → code
   local to="$1" code=""
   for i in $(seq 1 20); do
-    code=$(curl -s "${MAPI}/search?query=to:${to}" \
-      | python3 -c '
+    code=$(curl -s "${MAPI}/search?query=to:${to}" |
+      python3 -c '
 import sys, json, re, urllib.request
 data = json.load(sys.stdin)
 msgs = data.get("messages") or []
@@ -82,8 +86,8 @@ if msgs:
 
 step "0/6 boot Mailpit + binocle-one"
 docker image inspect "${IMAGE}" >/dev/null 2>&1 || fail "image '${IMAGE}' not built (make one-build)"
-IMG_MB=$(( $(docker image inspect --format '{{.Size}}' "${IMAGE}") / 1024 / 1024 ))
-(( IMG_MB <= 12 )) || fail "image ${IMG_MB} MB > 12 MB budget"
+IMG_MB=$(($(docker image inspect --format '{{.Size}}' "${IMAGE}") / 1024 / 1024))
+((IMG_MB <= 12)) || fail "image ${IMG_MB} MB > 12 MB budget"
 docker network create "${NET}" >/dev/null
 docker run -d --name "${MAIL}" --network "${NET}" -p "${MAIL_PORT}:8025" axllent/mailpit >/dev/null
 for i in $(seq 1 20); do
@@ -106,7 +110,8 @@ ok "image ${IMG_MB} MB ≤ 12 MB; mailpit + server up"
 step "1/6 email verification round-trip"
 R=$(req POST /one/v1/auth/register "" '{"email":"grace@local.dev","password":"grace-pass-123"}')
 [[ "$(status_of "$R")" == "201" ]] || fail "register grace: $R"
-TOK_G=$(jget "d['token']" "$R"); REF_G=$(jget "d['refresh']" "$R")
+TOK_G=$(jget "d['token']" "$R")
+REF_G=$(jget "d['refresh']" "$R")
 [[ "$(jget "d['user']['verified']" "$R")" == "False" ]] || fail "fresh account must be unverified"
 R=$(req POST /one/v1/auth/request-verification "Authorization: Bearer ${TOK_G}")
 [[ "$(status_of "$R")" == "202" ]] || fail "request-verification: $R"
@@ -159,7 +164,7 @@ R=$(req POST /one/v1/auth/totp/enroll "Authorization: Bearer ${TOK_G}")
 [[ "$(status_of "$R")" == "200" ]] || fail "enroll: $R"
 SECRET=$(jget "d['secret']" "$R")
 grep -q "otpauth://totp/" <<<"$R" || fail "no otpauth url: $R"
-totp(){ python3 -c "
+totp() { python3 -c "
 import base64, hashlib, hmac, struct, time
 key = base64.b32decode('${SECRET}' + '=' * ((8 - len('${SECRET}') % 8) % 8))
 c = int(time.time()) // 30

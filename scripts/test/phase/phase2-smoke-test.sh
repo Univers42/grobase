@@ -41,47 +41,47 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/test-ui.sh"
 
 pass() {
-    local name="$1"
-    echo -e "${GREEN}[PASS]${NC} $name"
-    ((++TESTS_PASSED))
-    return 0
+  local name="$1"
+  echo -e "${GREEN}[PASS]${NC} $name"
+  ((++TESTS_PASSED))
+  return 0
 }
 
 fail() {
-    local name="$1"
-    local details="$2"
-    echo -e "${RED}[FAIL]${NC} $name - $details"
-    ((++TESTS_FAILED))
-    return 0
+  local name="$1"
+  local details="$2"
+  echo -e "${RED}[FAIL]${NC} $name - $details"
+  ((++TESTS_FAILED))
+  return 0
 }
 
 assert_code() {
-    local name="$1"
-    local expected="$2"
-    local actual="$3"
-    if [[ "$actual" == "$expected" ]]; then
-        pass "$name"
-    else
-        fail "$name" "expected $expected, got $actual"
-    fi
-    return 0
+  local name="$1"
+  local expected="$2"
+  local actual="$3"
+  if [[ "$actual" == "$expected" ]]; then
+    pass "$name"
+  else
+    fail "$name" "expected $expected, got $actual"
+  fi
+  return 0
 }
 
 assert_one_of() {
-    local name="$1"
-    local actual="$2"
-    shift 2
-    local allowed=("$@")
+  local name="$1"
+  local actual="$2"
+  shift 2
+  local allowed=("$@")
 
-    for expected in "${allowed[@]}"; do
-        if [[ "$actual" == "$expected" ]]; then
-            pass "$name"
-            return
-        fi
-    done
+  for expected in "${allowed[@]}"; do
+    if [[ "$actual" == "$expected" ]]; then
+      pass "$name"
+      return
+    fi
+  done
 
-    fail "$name" "expected one of: ${allowed[*]}, got $actual"
-    return 0
+  fail "$name" "expected one of: ${allowed[*]}, got $actual"
+  return 0
 }
 
 ui_banner "Phase 2 Smoke Test Suite" "Kong gateway security controls"
@@ -136,11 +136,11 @@ LARGE_PAYLOAD="$TMPDIR/payload_11mb.bin"
 SMALL_PAYLOAD="$TMPDIR/payload_1kb.bin"
 
 if [[ ! -f "$LARGE_PAYLOAD" ]]; then
-    dd if=/dev/zero of="$LARGE_PAYLOAD" bs=1M count=11 status=none
+  dd if=/dev/zero of="$LARGE_PAYLOAD" bs=1M count=11 status=none
 fi
 
 if [[ ! -f "$SMALL_PAYLOAD" ]]; then
-    dd if=/dev/zero of="$SMALL_PAYLOAD" bs=1K count=1 status=none
+  dd if=/dev/zero of="$SMALL_PAYLOAD" bs=1K count=1 status=none
 fi
 
 SIZE_BLOCKED_CODE=$(curl -sS -o "$TMPDIR/storage_size_limit.json" -w "$CURL_FMT" \
@@ -159,57 +159,57 @@ SIZE_ALLOWED_CODE=$(curl -sS -o "$TMPDIR/storage_small_payload.json" -w "$CURL_F
   --max-time "$TIMEOUT" 2>/dev/null || echo "000")
 
 if [[ "$SIZE_ALLOWED_CODE" == "413" ]] || [[ "$SIZE_ALLOWED_CODE" == "401" ]]; then
-    fail "Storage small payload passes gateway limits" "unexpected code $SIZE_ALLOWED_CODE"
+  fail "Storage small payload passes gateway limits" "unexpected code $SIZE_ALLOWED_CODE"
 else
-    pass "Storage small payload passes gateway limits"
+  pass "Storage small payload passes gateway limits"
 fi
 
 # 5) CORS preflight should include origin header through Kong plugin
 ui_step "Test 4: CORS preflight headers"
 CORS_HEADERS=$(curl -sS -D - -o /dev/null \
   -X OPTIONS "$BASE_URL/rest/v1/" \
-    -H "Origin: $TEST_ORIGIN" \
+  -H "Origin: $TEST_ORIGIN" \
   -H 'Access-Control-Request-Method: GET' \
   -H "$HDR_APIKEY" \
   --max-time "$TIMEOUT" 2>/dev/null || true)
 
 if echo "$CORS_HEADERS" | grep -qi '^access-control-allow-origin:'; then
-    pass "CORS preflight returns access-control-allow-origin"
+  pass "CORS preflight returns access-control-allow-origin"
 else
-    fail "CORS preflight returns access-control-allow-origin" "header missing"
+  fail "CORS preflight returns access-control-allow-origin" "header missing"
 fi
 
 # 6) Optional stress test for route rate-limiting
 ui_step "Test 5: Optional rate-limit burst"
 if [[ "$RUN_RATE_LIMIT_TEST" == "true" ]]; then
-    echo -e "${YELLOW}[INFO]${NC} Running rate-limit burst test with $RATE_LIMIT_BURST requests..."
-    HIT_429=false
+  echo -e "${YELLOW}[INFO]${NC} Running rate-limit burst test with $RATE_LIMIT_BURST requests..."
+  HIT_429=false
 
-    for i in $(seq 1 "$RATE_LIMIT_BURST"); do
-        code=$(curl -sS -o /dev/null -w "$CURL_FMT" \
-          -X GET "$BASE_URL/auth/v1/health" \
-          -H "$HDR_APIKEY" \
-          --max-time "$TIMEOUT" 2>/dev/null || echo "000")
+  for i in $(seq 1 "$RATE_LIMIT_BURST"); do
+    code=$(curl -sS -o /dev/null -w "$CURL_FMT" \
+      -X GET "$BASE_URL/auth/v1/health" \
+      -H "$HDR_APIKEY" \
+      --max-time "$TIMEOUT" 2>/dev/null || echo "000")
 
-        if [[ "$code" == "429" ]]; then
-            HIT_429=true
-            break
-        fi
-    done
-
-    if [[ "$HIT_429" == "true" ]]; then
-        pass "Rate limit triggers 429 under burst traffic"
-    else
-        fail "Rate limit triggers 429 under burst traffic" "no 429 seen in $RATE_LIMIT_BURST requests"
+    if [[ "$code" == "429" ]]; then
+      HIT_429=true
+      break
     fi
+  done
+
+  if [[ "$HIT_429" == "true" ]]; then
+    pass "Rate limit triggers 429 under burst traffic"
+  else
+    fail "Rate limit triggers 429 under burst traffic" "no 429 seen in $RATE_LIMIT_BURST requests"
+  fi
 else
-    echo -e "${YELLOW}[SKIP]${NC} Rate-limit burst test skipped (set RUN_RATE_LIMIT_TEST=true to enable)"
+  echo -e "${YELLOW}[SKIP]${NC} Rate-limit burst test skipped (set RUN_RATE_LIMIT_TEST=true to enable)"
 fi
 
 ui_summary "$TESTS_PASSED" "$TESTS_FAILED" "Phase 2 gateway controls validated." "Phase 2 gateway controls have failures."
 
 if [[ $TESTS_FAILED -eq 0 ]]; then
-    exit 0
+  exit 0
 else
-    exit 1
+  exit 1
 fi

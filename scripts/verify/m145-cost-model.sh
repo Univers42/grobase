@@ -53,28 +53,32 @@
 # **************************************************************************** #
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 SITE="${BAAS_DIR}/site"
 COST_JSON="${INFRA_DIR}/infra/config/cost-model.json"
 PACKAGES_JSON="${INFRA_DIR}/infra/config/packages/packages.json"
 COST_TS="${SITE}/src/data/cost-model.ts"
-ARTIFACTS_DIR="${INFRA_DIR}"                                    # artifact paths in JSON are relative to mini-baas-infra
+ARTIFACTS_DIR="${INFRA_DIR}" # artifact paths in JSON are relative to mini-baas-infra
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M145] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M145] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M145] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M145] FAIL — $*"
+  exit 1
+}
 
 command -v python3 >/dev/null 2>&1 || fail "python3 not found (required to parse cost-model.json + artifacts)"
 
 # ── 1) shape: file exists, valid JSON, required top-level keys ────────────────────
 step "1/7 cost-model.json present, valid JSON, has version/as_of/components/hosters/density/tiers"
 [[ -s "${COST_JSON}" ]] || fail "missing/empty: ${COST_JSON#"${BAAS_DIR}/"}"
-SHAPE="$(python3 - "${COST_JSON}" <<'PY'
+SHAPE="$(
+  python3 - "${COST_JSON}" <<'PY'
 import json, sys
 try:
     d = json.load(open(sys.argv[1]))
@@ -94,7 +98,8 @@ ok "valid JSON; all required top-level keys present"
 
 # ── 2) measured-truth: every cited-artifact RAM number matches its artifact ───────
 step "2/7 measured: each component/edition RAM matches its cited artifact file (tol 0.05 MiB)"
-MEAS="$(python3 - "${COST_JSON}" "${ARTIFACTS_DIR}" <<'PY'
+MEAS="$(
+  python3 - "${COST_JSON}" "${ARTIFACTS_DIR}" <<'PY'
 import json, os, re, sys
 cm = json.load(open(sys.argv[1])); BASE = sys.argv[2]
 TOL = 0.05  # absolute MiB tolerance — artifact RSS is reported to 0.1; 0.05 catches any real drift
@@ -213,7 +218,8 @@ ok "${MEAS_CHECKED} measured component RAM numbers + 5 edition idle floors match
 # price == round(min_cost/(1-margin),2) AND margin_pct == default_margin_pct.
 # A tier priced below its cheapest hoster, or with a drifted margin, FAILS here.
 step "3/7 margin: each priced tier's price > cheapest infra_cost & == round(min_cost/(1-margin),2)"
-MARGIN="$(python3 - "${COST_JSON}" <<'PY'
+MARGIN="$(
+  python3 - "${COST_JSON}" <<'PY'
 import json, sys
 cm = json.load(open(sys.argv[1]))
 errs = []
@@ -249,7 +255,8 @@ ok "every priced tier is strictly above its cheapest-hoster cost at its PER-TIER
 
 # ── 4) math-consistency: re-implement the formula, reproduce stored numbers ────────
 step "4/7 math: re-implement the cost formula (Fly per-GB) and reproduce stored numbers (tol 0.02)"
-MATH="$(python3 - "${COST_JSON}" <<'PY'
+MATH="$(
+  python3 - "${COST_JSON}" <<'PY'
 import json, sys
 cm = json.load(open(sys.argv[1]))
 f = cm["factors"]; m = f["default_margin_pct"]
@@ -299,7 +306,8 @@ ok "the basic/Fly amortized worked example + every tier's Fly infra_cost reprodu
 
 # ── 5) honesty: as_of + per-hoster source_url/confidence + no placeholders ─────────
 step "5/7 honesty: as_of present; every hoster has source_url + confidence∈{measured,published,estimated}; no TODO/TBD/FIXME"
-HONEST="$(python3 - "${COST_JSON}" <<'PY'
+HONEST="$(
+  python3 - "${COST_JSON}" <<'PY'
 import json, sys
 cm = json.load(open(sys.argv[1]))
 errs = []
@@ -324,7 +332,8 @@ ok "as_of present; all hosters carry source_url + a valid confidence; no placeho
 # ── 6) site parity: cost-model.ts mirrors the JSON (tiers + hosters + density) ─────
 step "6/7 site parity: site/src/data/cost-model.ts mirrors cost-model.json (tier names, hoster names, per_tenant_marginal_mib)"
 [[ -s "${COST_TS}" ]] || fail "site simulator mirror missing: ${COST_TS#"${BAAS_DIR}/"} — the cost simulator's single source must be mirrored into the site (same discipline as m144's security.ts). Create it from infra/config/cost-model.json (tier names, hoster names, density.per_tenant_marginal_mib) so the public simulator cannot drift from the canonical model."
-SITEPAR="$(python3 - "${COST_JSON}" "${COST_TS}" <<'PY'
+SITEPAR="$(
+  python3 - "${COST_JSON}" "${COST_TS}" <<'PY'
 import json, re, sys
 cm = json.load(open(sys.argv[1])); ts = open(sys.argv[2]).read()
 errs = []
@@ -354,7 +363,8 @@ ok "cost-model.ts mirrors every tier + hoster name and the per-tenant marginal d
 # ── 7) packages parity: tier names + rps match packages.json ──────────────────────
 step "7/7 packages parity: each tier name + rps in cost-model.json matches packages.json (limits.rps)"
 [[ -s "${PACKAGES_JSON}" ]] || fail "packages.json missing: ${PACKAGES_JSON#"${BAAS_DIR}/"}"
-PKGPAR="$(python3 - "${COST_JSON}" "${PACKAGES_JSON}" <<'PY'
+PKGPAR="$(
+  python3 - "${COST_JSON}" "${PACKAGES_JSON}" <<'PY'
 import json, sys
 cm = json.load(open(sys.argv[1])); pk = json.load(open(sys.argv[2]))
 pkgs = pk.get("packages", pk)
@@ -377,7 +387,8 @@ ok "every tier name + rps matches packages.json (no tier/rps drift)"
 # ── summary + gate event ──────────────────────────────────────────────────────────
 green "[M145] (1) shape  (2) ${MEAS_CHECKED} RAM numbers measured-true  (3) positive margin  (4) formula-consistent  (5) honest  (6) site mirror in lockstep  (7) packages in lockstep"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-cost-model-gate}"

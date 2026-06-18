@@ -46,12 +46,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 DPR_DIR="${BAAS_DIR}/src/data-plane-router"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M73] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M73] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M73] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M73] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M73_PG_IMAGE:-postgres:16-alpine}"
 SCRATCH_IMG="m73-dpr-$$:scratch"
@@ -63,8 +66,8 @@ PGPW="postgres"
 TABLE="m73_cap_probe"
 TENANT="m73-tenant-$$"
 DSN_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
-CAP=10        # max_rows in the POSITIVE mask
-COUNT=25      # seeded rows (> CAP, and < the server's 100 default list cap)
+CAP=10   # max_rows in the POSITIVE mask
+COUNT=25 # seeded rows (> CAP, and < the server's 100 default list cap)
 
 cleanup() {
   docker rm -fv "${DPR}" "${PG}" >/dev/null 2>&1 || true
@@ -95,22 +98,22 @@ step "0/6 packages.json single-source-of-truth (config == Go-embedded copy)"
 CFG="${BAAS_DIR}/infra/config/packages/packages.json"
 EMB="${BAAS_DIR}/src/control-plane/internal/packages/packages.json"
 [[ -f "${CFG}" && -f "${EMB}" ]] || fail "packages.json manifest missing (${CFG} / ${EMB})"
-cmp -s "${CFG}" "${EMB}" \
-  || fail "packages.json config and Go-embedded copy diverged (cmp -s) — re-copy infra/config/packages/packages.json into internal/packages/"
+cmp -s "${CFG}" "${EMB}" ||
+  fail "packages.json config and Go-embedded copy diverged (cmp -s) — re-copy infra/config/packages/packages.json into internal/packages/"
 ok "packages.json byte-identical across the two copies (m28 manifest parity)"
 # Explicit A6 invariant: the new optional `max_rows` key, when present in one
 # copy, MUST be present in the other (omit = unlimited = parity). Counting it in
 # each copy and asserting equality names the exact divergence this gate guards.
 N_CFG="$(grep -c 'max_rows' "${CFG}" || true)"
 N_EMB="$(grep -c 'max_rows' "${EMB}" || true)"
-[[ "${N_CFG}" == "${N_EMB}" ]] \
-  || fail "max_rows key count diverged: config has ${N_CFG}, Go-embedded has ${N_EMB} — the optional cap must exist in BOTH packages.json or NEITHER"
+[[ "${N_CFG}" == "${N_EMB}" ]] ||
+  fail "max_rows key count diverged: config has ${N_CFG}, Go-embedded has ${N_EMB} — the optional cap must exist in BOTH packages.json or NEITHER"
 ok "max_rows key present in BOTH copies in lock-step (${N_CFG} == ${N_EMB} occurrences)"
 
 # ── 1) build the scratch DPR image FROM THE CURRENT (modified) source ─────────
 step "1/6 build scratch data-plane-router from CURRENT source (contains THIS build)"
-DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${DPR_DIR}" >/dev/null \
-  || fail "scratch DPR image build failed — the gate must exercise the new code"
+DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${DPR_DIR}" >/dev/null ||
+  fail "scratch DPR image build failed — the gate must exercise the new code"
 ok "scratch image ${SCRATCH_IMG} built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?')"
 
 # ── 2) isolated net + throwaway postgres seeded with COUNT (>CAP) rows ─────────
@@ -136,7 +139,11 @@ FROM generate_series(1, ${COUNT}) g
 ON CONFLICT (id) DO NOTHING;
 SQL
 }
-for i in $(seq 1 20); do seed && break; [[ $i -eq 20 ]] && fail "seed never committed"; sleep 0.5; done
+for i in $(seq 1 20); do
+  seed && break
+  [[ $i -eq 20 ]] && fail "seed never committed"
+  sleep 0.5
+done
 ACTUAL="$(docker exec "${PG}" psql -U postgres -d postgres -tAc "SELECT count(*) FROM public.${TABLE}")"
 [[ "${ACTUAL}" == "${COUNT}" ]] || fail "seed mismatch: expected ${COUNT} rows, got ${ACTUAL}"
 ok "postgres up; ${TABLE} seeded with ${COUNT} owner-stamped rows (> cap ${CAP}, < server default 100)"
@@ -148,8 +155,14 @@ docker run -d --name "${DPR}" --network "${NET}" \
   -p "127.0.0.1:${PORT}:4011" "${SCRATCH_IMG}" >/dev/null
 for i in $(seq 1 60); do
   curl -fsS -o /dev/null "http://127.0.0.1:${PORT}/v1/capabilities" 2>/dev/null && break
-  docker inspect "${DPR}" >/dev/null 2>&1 || { docker logs "${DPR}" 2>&1 | tail -15; fail "router exited early"; }
-  [[ $i -eq 60 ]] && { docker logs "${DPR}" 2>&1 | tail -15; fail "router never became ready"; }
+  docker inspect "${DPR}" >/dev/null 2>&1 || {
+    docker logs "${DPR}" 2>&1 | tail -15
+    fail "router exited early"
+  }
+  [[ $i -eq 60 ]] && {
+    docker logs "${DPR}" 2>&1 | tail -15
+    fail "router never became ready"
+  }
   sleep 0.5
 done
 ok "scratch router up on :${PORT}"
@@ -160,8 +173,8 @@ CAP_MASK="$(printf '{"max_rows":%d}' "${CAP}")"
 code="$(post_q "$(payload "${CAP_MASK}")")"
 [[ "${code}" == "200" ]] || fail "POSITIVE list expected 200, got ${code} — $(head -c 300 /tmp/m73_body.$$)"
 GOT="$(rows_len /tmp/m73_body.$$)"
-[[ "${GOT}" == "${CAP}" ]] \
-  || fail "max_rows=${CAP} did NOT clamp: list returned ${GOT} rows, expected exactly ${CAP}"
+[[ "${GOT}" == "${CAP}" ]] ||
+  fail "max_rows=${CAP} did NOT clamp: list returned ${GOT} rows, expected exactly ${CAP}"
 ok "server clamp held: ${GOT} == ${CAP} rows (max_rows enforced before the adapter ran)"
 
 # ── 5) PARITY: an IDENTICAL mount with NO max_rows returns the FULL count ──────
@@ -169,8 +182,8 @@ step "5/6 PARITY — the SAME list with NO max_rows mask → FULL ${COUNT} rows 
 code="$(post_q "$(payload null)")"
 [[ "${code}" == "200" ]] || fail "PARITY list expected 200, got ${code} — $(head -c 300 /tmp/m73_body.$$)"
 GOT="$(rows_len /tmp/m73_body.$$)"
-[[ "${GOT}" == "${COUNT}" ]] \
-  || fail "NO max_rows must NOT clamp: list returned ${GOT} rows, expected the full ${COUNT} (baseline NOT byte-parity!)"
+[[ "${GOT}" == "${COUNT}" ]] ||
+  fail "NO max_rows must NOT clamp: list returned ${GOT} rows, expected the full ${COUNT} (baseline NOT byte-parity!)"
 ok "no cap → full ${GOT} rows == seeded ${COUNT}: the default path is unclamped (byte-parity)"
 
 # ── 6) cross-check the two arms actually diverged on the SAME data ─────────────

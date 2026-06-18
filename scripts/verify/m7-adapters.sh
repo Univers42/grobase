@@ -8,12 +8,15 @@ cd "${REPO_ROOT}"
 BAAS_DIR="."
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-fail()  { red "[M7] FAIL: $*"; exit 1; }
-step()  { cyan "[M7] ${*}"; }
-pass()  { green "[M7] PASS: ${*}"; }
+fail() {
+  red "[M7] FAIL: $*"
+  exit 1
+}
+step() { cyan "[M7] ${*}"; }
+pass() { green "[M7] PASS: ${*}"; }
 
 LIVE=0
 for arg in "$@"; do [[ "${arg}" == "--live" ]] && LIVE=1; done
@@ -54,11 +57,11 @@ if [[ ${LIVE} -eq 1 ]]; then
 
   step "live: /engines advertises the 5 real adapters (no stubs)"
   body=$(docker compose -f "${COMPOSE_FILE}" exec -T query-router \
-    node -e "fetch('http://127.0.0.1:4001/engines').then(async (r) => { if (!r.ok) process.exit(1); console.log(await r.text()); }).catch(() => process.exit(1));") \
-    || fail "GET /engines inside query-router failed"
+    node -e "fetch('http://127.0.0.1:4001/engines').then(async (r) => { if (!r.ok) process.exit(1); console.log(await r.text()); }).catch(() => process.exit(1));") ||
+    fail "GET /engines inside query-router failed"
   for engine in postgresql mongodb mysql redis http; do
-    echo "${body}" | jq -e --arg engine "${engine}" '.engines | index($engine)' >/dev/null \
-      || fail "real engine ${engine} not advertised"
+    echo "${body}" | jq -e --arg engine "${engine}" '.engines | index($engine)' >/dev/null ||
+      fail "real engine ${engine} not advertised"
   done
   # The deleted stubs MUST NOT appear (catalog matches reality).
   for stub in jdbc cassandra neo4j elasticsearch qdrant influx; do
@@ -72,11 +75,11 @@ if [[ ${LIVE} -eq 1 ]]; then
   # 5 engines as /engines — the SDK introspection surface stays self-consistent.
   step "live: /capabilities lists the same 5 engines as /engines (G6)"
   caps=$(docker compose -f "${COMPOSE_FILE}" exec -T query-router \
-    node -e "fetch('http://127.0.0.1:4001/capabilities').then(async (r) => { if (!r.ok) process.exit(1); console.log(await r.text()); }).catch(() => process.exit(1));") \
-    || fail "GET /capabilities inside query-router failed"
+    node -e "fetch('http://127.0.0.1:4001/capabilities').then(async (r) => { if (!r.ok) process.exit(1); console.log(await r.text()); }).catch(() => process.exit(1));") ||
+    fail "GET /capabilities inside query-router failed"
   for engine in postgresql mongodb mysql redis http; do
-    echo "${caps}" | jq -e --arg engine "${engine}" '.engines[] | select(.engine == $engine)' >/dev/null \
-      || fail "/capabilities missing engine ${engine}"
+    echo "${caps}" | jq -e --arg engine "${engine}" '.engines[] | select(.engine == $engine)' >/dev/null ||
+      fail "/capabilities missing engine ${engine}"
   done
   pass "/capabilities lists the same 5 Rust-backed engines as /engines"
 fi

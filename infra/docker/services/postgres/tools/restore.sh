@@ -29,5 +29,5 @@ if [[ ! -f "${BACKUP_FILE}" ]]; then
 fi
 
 echo "Restoring PostgreSQL from ${BACKUP_FILE}..."
-docker compose exec -T postgres pg_restore -U postgres -d postgres < "${BACKUP_FILE}"
+docker compose exec -T postgres pg_restore -U postgres -d postgres <"${BACKUP_FILE}"
 echo "Restore complete."

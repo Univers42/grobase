@@ -43,18 +43,21 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIGRATION_045="${INFRA_DIR}/scripts/migrations/postgresql/045_tenant_safety.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M90] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M90] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M90] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M90] FAIL — $*"
+  exit 1
+}
 
 REDIS_IMAGE="${M90_REDIS_IMAGE:-redis:7-alpine}"
 PG_IMAGE="${M90_PG_IMAGE:-postgres:16-alpine}"
@@ -62,8 +65,8 @@ TC_IMG="m90-tc-$$:scratch"
 NET="m90net-$$"
 PG="m90-pg-$$"
 REDIS="m90-redis-$$"
-TC_ON="m90-tc-on-$$"    # abuse guard ENABLED
-TC_OFF="m90-tc-off-$$"  # parity arm (flag unset)
+TC_ON="m90-tc-on-$$"   # abuse guard ENABLED
+TC_OFF="m90-tc-off-$$" # parity arm (flag unset)
 PORT_ON="${M90_PORT_ON:-19090}"
 PORT_OFF="${M90_PORT_OFF:-19091}"
 PGPW="postgres"
@@ -84,7 +87,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 redis_cli() { docker exec -i "${REDIS}" redis-cli "$@"; }
 
@@ -98,17 +101,23 @@ admit() { # $1=port  $2=tenant  $3=action
 wait_ready() { # $1=container  $2=port
   for i in $(seq 1 60); do
     curl -fsS -o /dev/null "http://127.0.0.1:$2/health/live" 2>/dev/null && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # ── 0) build the scratch tenant-control FROM CURRENT (drafted) source ──────────
 step "0/8 build scratch tenant-control from CURRENT source (the B7.9 abuse-guard code)"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT=3060 \
-  -t "${TC_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch tenant-control image build failed — gate must exercise the drafted abuse guard"
+  -t "${TC_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch tenant-control image build failed — gate must exercise the drafted abuse guard"
 ok "tenant-control built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated network + redis + postgres ─────────────────────────────────────
@@ -116,7 +125,11 @@ step "1/8 boot isolated net (${NET}): redis + postgres"
 docker network create "${NET}" >/dev/null
 docker run -d --name "${REDIS}" --network "${NET}" "${REDIS_IMAGE}" >/dev/null
 docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD="${PGPW}" "${PG_IMAGE}" >/dev/null
-for i in $(seq 1 60); do redis_cli PING 2>/dev/null | grep -q PONG && break; [[ $i -eq 60 ]] && fail "scratch redis never PONGed"; sleep 0.5; done
+for i in $(seq 1 60); do
+  redis_cli PING 2>/dev/null | grep -q PONG && break
+  [[ $i -eq 60 ]] && fail "scratch redis never PONGed"
+  sleep 0.5
+done
 for i in $(seq 1 80); do
   [[ "$(docker logs "${PG}" 2>&1 | grep -c 'database system is ready to accept connections')" -ge 2 ]] && break
   [[ $i -eq 80 ]] && fail "scratch postgres never reached steady state"
@@ -147,10 +160,14 @@ CREATE TABLE IF NOT EXISTS public.tenants (
   created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now());
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed"; sleep 0.5; done
-docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "${MIGRATION_045}" >/dev/null 2>&1 \
-  || fail "real migration 045_tenant_safety.sql failed to apply"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_safety")"    == "0" ]] || fail "tenant_safety should start EMPTY"
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed"
+  sleep 0.5
+done
+docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <"${MIGRATION_045}" >/dev/null 2>&1 ||
+  fail "real migration 045_tenant_safety.sql failed to apply"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_safety")" == "0" ]] || fail "tenant_safety should start EMPTY"
 [[ "$(psql_val "SELECT count(*) FROM public.principal_events")" == "0" ]] || fail "principal_events should start EMPTY"
 ok "migration 045 applied — tenant_safety + principal_events exist and are empty"
 
@@ -163,7 +180,11 @@ INSERT INTO public.tenant_safety(tenant_id, email_verified, suspended) VALUES
   ON CONFLICT (tenant_id) DO UPDATE SET email_verified = EXCLUDED.email_verified, suspended = false;
 SQL
 }
-for i in $(seq 1 20); do seed && break; [[ $i -eq 20 ]] && fail "seed never committed"; sleep 0.5; done
+for i in $(seq 1 20); do
+  seed && break
+  [[ $i -eq 20 ]] && fail "seed never committed"
+  sleep 0.5
+done
 ok "seeded: ${TENANT} email_verified=true, suspended=false"
 
 # ── 3) (A) boot tenant-control with the abuse guard ENABLED ────────────────────
@@ -181,8 +202,11 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3060" "${TC_IMG}" >/dev/null
 wait_ready "${TC_ON}" "${PORT_ON}" || fail "ENABLED tenant-control not ready"
-{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "abuse guard enabled" \
-  || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "abuse guard never reported enabled"; }
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "abuse guard enabled" ||
+  {
+    docker logs "${TC_ON}" 2>&1 | tail -20
+    fail "abuse guard never reported enabled"
+  }
 ok "tenant-control up with abuse guard mounted (/v1/abuse/*)"
 
 # ── 4) (A) REJECT load-bearing: a verified, within-velocity caller is ADMITTED ─
@@ -206,10 +230,14 @@ for i in $(seq 1 20); do
   [[ "$(psql_val "SELECT suspended FROM public.tenant_safety WHERE tenant_id='${TENANT}'")" == "t" ]] && break
   sleep 0.3
 done
-[[ "$(psql_val "SELECT suspended FROM public.tenant_safety WHERE tenant_id='${TENANT}'")" == "t" ]] \
-  || fail "(A) tenant not suspended in tenant_safety after velocity breach"
-[[ "$(redis_cli SISMEMBER tenant:suspended "${TENANT}" 2>/dev/null)" == "1" ]] \
-  || { red "tenant:suspended members:"; redis_cli SMEMBERS tenant:suspended 2>&1; fail "(A) tenant absent from Redis tenant:suspended set"; }
+[[ "$(psql_val "SELECT suspended FROM public.tenant_safety WHERE tenant_id='${TENANT}'")" == "t" ]] ||
+  fail "(A) tenant not suspended in tenant_safety after velocity breach"
+[[ "$(redis_cli SISMEMBER tenant:suspended "${TENANT}" 2>/dev/null)" == "1" ]] ||
+  {
+    red "tenant:suspended members:"
+    redis_cli SMEMBERS tenant:suspended 2>&1
+    fail "(A) tenant absent from Redis tenant:suspended set"
+  }
 ok "(A) tenant auto-suspended: tenant_safety.suspended=true AND ∈ Redis tenant:suspended"
 
 step "5c/8 (A) a further admit for the now-suspended tenant → 403 tenant_suspended"
@@ -228,22 +256,26 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3060" "${TC_IMG}" >/dev/null
 wait_ready "${TC_OFF}" "${PORT_OFF}" || fail "PARITY tenant-control not ready"
-{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "abuse guard disabled" \
-  || { docker logs "${TC_OFF}" 2>&1 | tail -20; fail "OFF tenant-control did not report abuse guard disabled (flag default not OFF?)"; }
+{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "abuse guard disabled" ||
+  {
+    docker logs "${TC_OFF}" 2>&1 | tail -20
+    fail "OFF tenant-control did not report abuse guard disabled (flag default not OFF?)"
+  }
 CODE="$(admit "${PORT_OFF}" "${TENANT}" project_create)"
-[[ "${CODE}" == "404" ]] \
-  || fail "(B) /v1/abuse/admit expected 404 with the flag OFF (route not mounted), got ${CODE} — $(head -c 200 "${BODY_TMP}")"
+[[ "${CODE}" == "404" ]] ||
+  fail "(B) /v1/abuse/admit expected 404 with the flag OFF (route not mounted), got ${CODE} — $(head -c 200 "${BODY_TMP}")"
 ok "(B) flag OFF: /v1/abuse/admit → 404 (routes not mounted) — byte-identical to today"
 
 # ── 7) cross-check + summarize ─────────────────────────────────────────────────
 step "7/8 cross-check: ON admits-within-velocity / suspends-on-breach / OFF 404s"
-green "[M90] (A) ENABLED: verified ≤${VELOCITY_MAX} → admit · #$((VELOCITY_MAX+1)) → 403 velocity_exceeded + auto-suspend · suspended → 403"
+green "[M90] (A) ENABLED: verified ≤${VELOCITY_MAX} → admit · #$((VELOCITY_MAX + 1)) → 403 velocity_exceeded + auto-suspend · suspended → 403"
 green "[M90] (B) PARITY:  /v1/abuse/admit → 404 (routes unmounted) — byte-parity baseline"
 
 # ── 8) emit the gate event via the kernel log helper (best-effort) ─────────────
 step "8/8 log GATE m90=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-b7-abuse-guard}"

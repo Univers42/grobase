@@ -24,12 +24,15 @@
 #
 set -euo pipefail
 
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
-fail(){ red "[M33] FAIL: $*"; exit 1; }
-step(){ cyan "[M33] ${*}"; }
-pass(){ green "[M33] PASS: ${*}"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+fail() {
+  red "[M33] FAIL: $*"
+  exit 1
+}
+step() { cyan "[M33] ${*}"; }
+pass() { green "[M33] PASS: ${*}"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
@@ -47,8 +50,11 @@ bypass() { # $1 path  $2 key  $3 body  → echoes "<body> HTTP<code>"
 # ── 1. footprint ──────────────────────────────────────────────────────────
 step "footprint: PACKAGE=basic must fit ≤512 MiB"
 PROFILES="go-control-plane rust-data-plane" LABEL="basic" BAR_MB=512 \
-  bash "${SCRIPT_DIR}/../bench/footprint.sh" >/tmp/m33-fp.txt 2>&1 \
-  || { cat /tmp/m33-fp.txt; fail "basic tier exceeds its 512 MiB budget"; }
+  bash "${SCRIPT_DIR}/../bench/footprint.sh" >/tmp/m33-fp.txt 2>&1 ||
+  {
+    cat /tmp/m33-fp.txt
+    fail "basic tier exceeds its 512 MiB budget"
+  }
 grep -E 'TOTAL|budget' /tmp/m33-fp.txt
 pass "basic tier within the Pi-class budget"
 
@@ -57,7 +63,7 @@ step "provisioning a probe tenant + key + mount (Node-free Go control plane)"
 live_tenant_provision "basic-$(date +%s)" || fail "provision failed"
 trap 'bypass schema/ddl "${LIVE_TENANT_API_KEY}" "{\"db_id\":\"${LIVE_TENANT_DB_ID}\",\"ddl\":{\"op\":\"drop_table\",\"table\":\"${TBL}\"}}" >/dev/null 2>&1 || true; live_tenant_cleanup' EXIT
 DBID="${LIVE_TENANT_DB_ID}"
-WKEY="${LIVE_TENANT_API_KEY}"   # read+write
+WKEY="${LIVE_TENANT_API_KEY}" # read+write
 
 # ── 2. Node-free lifecycle: create table → introspect → insert → read ───────
 step "create table via /data/v1/schema/ddl (write scope, Node-free DDL)"

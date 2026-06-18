@@ -50,16 +50,19 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M91] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M91] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M91] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M91] FAIL — $*"
+  exit 1
+}
 
 KONG_IMAGE="${M91_KONG_IMAGE:-kong:3.8}"
 # A shell-less, always-200 echo upstream. Kong's own image carries no http
@@ -70,8 +73,8 @@ ECHO_IMAGE="${M91_ECHO_IMAGE:-kennethreitz/httpbin}"
 
 NET="m91net-$$"
 ECHO="m91-echo-$$"
-KONG_DEP="m91-kong-dep-$$"     # config WITH the route-scoped deprecation overlay
-KONG_BASE="m91-kong-base-$$"   # config WITHOUT any overlay (parity)
+KONG_DEP="m91-kong-dep-$$"   # config WITH the route-scoped deprecation overlay
+KONG_BASE="m91-kong-base-$$" # config WITHOUT any overlay (parity)
 PORT_KONG_DEP="${M91_PORT_KONG_DEP:-18997}"
 PORT_KONG_BASE="${M91_PORT_KONG_BASE:-18998}"
 HDR_TMP="$(mktemp)"
@@ -83,10 +86,10 @@ chmod 644 "$KONG_DEP_YML" "$KONG_BASE_YML"
 
 # A Sunset instant STRICTLY in the future (the contract: a valid future date).
 # Compute it dynamically so the gate never goes stale: now + ~365 days, RFC 1123.
-SUNSET_FUTURE="$(date -u -d '+365 days' '+%a, %d %b %Y %H:%M:%S GMT' 2>/dev/null \
-  || date -u -v+365d '+%a, %d %b %Y %H:%M:%S GMT')"   # GNU || BSD date
-SUNSET_EPOCH="$(date -u -d "${SUNSET_FUTURE}" +%s 2>/dev/null \
-  || date -u -j -f '%a, %d %b %Y %H:%M:%S GMT' "${SUNSET_FUTURE}" +%s)"
+SUNSET_FUTURE="$(date -u -d '+365 days' '+%a, %d %b %Y %H:%M:%S GMT' 2>/dev/null ||
+  date -u -v+365d '+%a, %d %b %Y %H:%M:%S GMT')" # GNU || BSD date
+SUNSET_EPOCH="$(date -u -d "${SUNSET_FUTURE}" +%s 2>/dev/null ||
+  date -u -j -f '%a, %d %b %Y %H:%M:%S GMT' "${SUNSET_FUTURE}" +%s)"
 
 cleanup() {
   docker rm -fv "${KONG_DEP}" "${KONG_BASE}" "${ECHO}" >/dev/null 2>&1 || true
@@ -116,12 +119,18 @@ wait_kong_route() {
   for i in $(seq 1 60); do
     code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2$3" 2>/dev/null || true)"
     case "${code}" in
-      2[0-9][0-9]|3[0-9][0-9]|4[0-9][0-9]) return 0 ;;
+    2[0-9][0-9] | 3[0-9][0-9] | 4[0-9][0-9]) return 0 ;;
     esac
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never routed (last code='${code}'):"; docker logs "$1" 2>&1 | tail -25; return 1
+  red "$1 never routed (last code='${code}'):"
+  docker logs "$1" 2>&1 | tail -25
+  return 1
 }
 
 # The config WITH the deprecation overlay: TWO routes share one echo upstream —
@@ -131,7 +140,7 @@ wait_kong_route() {
 #                    never under the top-level `plugins:` block — that scoping is
 #                    exactly what arm B verifies did not regress.
 write_kong_dep_yml() {
-  cat > "${KONG_DEP_YML}" <<YAML
+  cat >"${KONG_DEP_YML}" <<YAML
 _format_version: "3.0"
 
 services:
@@ -159,7 +168,7 @@ YAML
 # The config WITHOUT any overlay (parity): the SAME two routes, NO plugins at all
 # — byte-faithful to the live default kong.yml posture (no route deprecated).
 write_kong_base_yml() {
-  cat > "${KONG_BASE_YML}" <<YAML
+  cat >"${KONG_BASE_YML}" <<YAML
 _format_version: "3.0"
 
 services:
@@ -197,15 +206,15 @@ boot_kong() {
 # ── 0) sanity: the computed Sunset really is in the future ─────────────────────
 step "0/7 compute a future Sunset instant (RFC 1123) — the contract requires a valid FUTURE date"
 NOW_EPOCH="$(date -u +%s)"
-[[ -n "${SUNSET_EPOCH:-}" && "${SUNSET_EPOCH}" -gt "${NOW_EPOCH}" ]] \
-  || fail "computed Sunset '${SUNSET_FUTURE}' is not in the future (epoch ${SUNSET_EPOCH:-?} ≤ now ${NOW_EPOCH}) (line: sunset compute)"
+[[ -n "${SUNSET_EPOCH:-}" && "${SUNSET_EPOCH}" -gt "${NOW_EPOCH}" ]] ||
+  fail "computed Sunset '${SUNSET_FUTURE}' is not in the future (epoch ${SUNSET_EPOCH:-?} ≤ now ${NOW_EPOCH}) (line: sunset compute)"
 ok "Sunset = ${SUNSET_FUTURE} (epoch ${SUNSET_EPOCH} > now ${NOW_EPOCH})"
 
 # ── 1) isolated net + echo upstream ────────────────────────────────────────────
 step "1/7 boot isolated net (${NET}) + always-200 echo upstream (${ECHO_IMAGE})"
 docker network create "${NET}" >/dev/null
-docker run -d --name "${ECHO}" --network "${NET}" "${ECHO_IMAGE}" >/dev/null \
-  || fail "echo upstream failed to start — set M91_ECHO_IMAGE to an always-200 echo image (line: echo run)"
+docker run -d --name "${ECHO}" --network "${NET}" "${ECHO_IMAGE}" >/dev/null ||
+  fail "echo upstream failed to start — set M91_ECHO_IMAGE to an always-200 echo image (line: echo run)"
 ok "echo upstream up (alias ${ECHO})"
 
 # ── 2) boot Kong WITH the route-scoped deprecation overlay ─────────────────────
@@ -223,10 +232,10 @@ has_header Deprecation || fail "(A) deprecated route is MISSING the Deprecation 
 has_header Sunset || fail "(A) deprecated route is MISSING the Sunset header — $(head -c 300 "${HDR_TMP}") (line: A sunset present)"
 SUN="$(header_val Sunset)"
 GOT_EPOCH="$(date -u -d "${SUN}" +%s 2>/dev/null || date -u -j -f '%a, %d %b %Y %H:%M:%S GMT' "${SUN}" +%s 2>/dev/null || echo 0)"
-[[ "${GOT_EPOCH}" -gt "${NOW_EPOCH}" ]] \
-  || fail "(A) Sunset '${SUN}' is NOT a valid future date (epoch ${GOT_EPOCH} ≤ now ${NOW_EPOCH}) — a past/unparseable Sunset tells clients the route is already gone (line: A sunset future)"
-grep -qi 'rel="successor-version"' "${HDR_TMP}" \
-  || fail "(A) deprecated route missing the rel=\"successor-version\" Link (where to migrate) — $(head -c 300 "${HDR_TMP}") (line: A successor)"
+[[ "${GOT_EPOCH}" -gt "${NOW_EPOCH}" ]] ||
+  fail "(A) Sunset '${SUN}' is NOT a valid future date (epoch ${GOT_EPOCH} ≤ now ${NOW_EPOCH}) — a past/unparseable Sunset tells clients the route is already gone (line: A sunset future)"
+grep -qi 'rel="successor-version"' "${HDR_TMP}" ||
+  fail "(A) deprecated route missing the rel=\"successor-version\" Link (where to migrate) — $(head -c 300 "${HDR_TMP}") (line: A successor)"
 ok "(A) /deprecated/v1 → 200 + Deprecation:$(header_val Deprecation) + Sunset (future: ${SUN}) + successor-version Link"
 
 # ── 4) (B · REJECT, LOAD-BEARING) the active route stamps NOTHING ──────────────
@@ -262,7 +271,8 @@ green "[M91] (B) REJECT:   /active/v1 (same Kong) → 200 + NO Sunset/Deprecatio
 green "[M91] (C) PARITY:   overlay-free Kong → BOTH routes 200 + NO lifecycle headers = byte-identical to the default kong.yml"
 
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-b7-api-version-contract}"

@@ -24,6 +24,7 @@ ENV KONG_PREFIX=${KONG_PREFIX}
 # Download + install the official Kong .deb, resolve its apt deps, then strip
 # the build-only bits (curl, apt lists, the .deb) in the same layer so nothing
 # leaks into the final image. The .deb's postinst creates the `kong` user/group.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends curl ca-certificates; \

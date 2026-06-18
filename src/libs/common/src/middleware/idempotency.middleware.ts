@@ -45,7 +45,8 @@ export class IdempotencyMiddleware implements NestMiddleware, OnModuleDestroy {
   private readonly logger = new Logger(IdempotencyMiddleware.name);
   private readonly redisUrl: string;
   private readonly ttlSeconds: number;
-  private readonly serviceName = process.env['OTEL_SERVICE_NAME'] ?? process.env['APP_NAME'] ?? 'unknown-service';
+  private readonly serviceName =
+    process.env['OTEL_SERVICE_NAME'] ?? process.env['APP_NAME'] ?? 'unknown-service';
   private readonly metrics = idempotencyCounter();
   private redisClient?: Redis;
 
@@ -194,7 +195,8 @@ export class IdempotencyMiddleware implements NestMiddleware, OnModuleDestroy {
 
   private stableStringify(value: unknown): string {
     if (value === null || typeof value !== 'object') return JSON.stringify(value);
-    if (Array.isArray(value)) return `[${value.map((item) => this.stableStringify(item)).join(',')}]`;
+    if (Array.isArray(value))
+      return `[${value.map((item) => this.stableStringify(item)).join(',')}]`;
     const record = value as Record<string, unknown>;
     return `{${Object.keys(record)
       .sort((left, right) => left.localeCompare(right))

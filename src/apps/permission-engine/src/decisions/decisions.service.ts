@@ -86,13 +86,20 @@ export class DecisionsService {
     const allow = rows[0]?.has_permission ?? false;
     const decision: PermissionDecision = {
       allow,
-      reason: allow ? `Allowed by ${this.mode.toUpperCase()} policy` : `Denied by ${this.mode.toUpperCase()} policy`,
+      reason: allow
+        ? `Allowed by ${this.mode.toUpperCase()} policy`
+        : `Denied by ${this.mode.toUpperCase()} policy`,
       mode: this.mode,
     };
     // RBAC mode short-circuits before mask resolution — that's the whole
     // point of the simpler mode (no JSONB conditions, no per-field masks).
     if (allow && this.mode === 'abac') {
-      const mask = await this.resolveMask(dto.user.id, dto.resource_type, dto.resource_name, action);
+      const mask = await this.resolveMask(
+        dto.user.id,
+        dto.resource_type,
+        dto.resource_name,
+        action,
+      );
       if (mask) decision.mask = mask;
     }
     this.logger.debug(
@@ -162,13 +169,17 @@ export class DecisionsService {
     return this.maskFromConditions(rows[0]?.conditions);
   }
 
-  private maskFromConditions(conditions: Record<string, unknown> | null | undefined): FieldMask | undefined {
+  private maskFromConditions(
+    conditions: Record<string, unknown> | null | undefined,
+  ): FieldMask | undefined {
     if (!conditions) return undefined;
     const maskValue = conditions['mask'] ?? conditions['field_mask'];
     if (!maskValue || typeof maskValue !== 'object' || Array.isArray(maskValue)) return undefined;
     const mask = maskValue as Record<string, unknown>;
     const hide = Array.isArray(mask['hide'])
-      ? mask['hide'].filter((field): field is string => typeof field === 'string' && field.length > 0)
+      ? mask['hide'].filter(
+          (field): field is string => typeof field === 'string' && field.length > 0,
+        )
       : undefined;
     const redact = this.stringRecord(mask['redact']);
     if (!hide && !redact) return undefined;

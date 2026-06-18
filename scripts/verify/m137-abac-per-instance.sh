@@ -37,12 +37,15 @@ DTO="${INFRA_DIR}/src/apps/permission-engine/src/decisions/dto/decision.dto.ts"
 QRY="${INFRA_DIR}/src/apps/query-router/src/query/query.service.ts"
 DEC="${INFRA_DIR}/src/apps/permission-engine/src/decisions/decisions.service.ts"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M137] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M137] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M137] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M137] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M137_PG_IMAGE:-postgres:16-alpine}"
 PG="m137-pg-$$"
@@ -79,7 +82,7 @@ DO $r$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role; END IF;
 END $r$;
 SQL
-apply "${MIG_DIR}/007_permissions_system.sql"   || fail "migration 007 failed"
+apply "${MIG_DIR}/007_permissions_system.sql" || fail "migration 007 failed"
 apply "${MIG_DIR}/063_permission_conditions.sql" || fail "migration 063 failed"
 ok "007 + 063 applied"
 

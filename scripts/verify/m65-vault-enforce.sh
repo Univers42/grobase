@@ -50,25 +50,28 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"          # mini-baas-infra
+BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
 CP_DIR="${BAAS_DIR}/src/control-plane"
-REPO_BAAS_DIR="$(cd "${BAAS_DIR}/.." && pwd)"          # apps/baas (for .claude/lib/log.sh)
+REPO_BAAS_DIR="$(cd "${BAAS_DIR}/.." && pwd)" # apps/baas (for .claude/lib/log.sh)
 LOG_HELPER="${REPO_BAAS_DIR}/.claude/lib/log.sh"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M65] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M65] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M65] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M65] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M65_PG_IMAGE:-postgres:16-alpine}"
 SCRATCH_IMG="m65-ar-$$:scratch"
 NET="m65net-$$"
 PG="m65-pg-$$"
-AR_NEG="m65-ar-neg-$$"     # (1) NEGATIVE arm  — max, no Vault creds → fail closed
-AR_POS="m65-ar-pos-$$"     # (2) POSITIVE arm  — max, real key + VAULT_ADDR → serves
-AR_PAR="m65-ar-par-$$"     # (3) PARITY arm    — default mode, placeholder key → serves
+AR_NEG="m65-ar-neg-$$" # (1) NEGATIVE arm  — max, no Vault creds → fail closed
+AR_POS="m65-ar-pos-$$" # (2) POSITIVE arm  — max, real key + VAULT_ADDR → serves
+AR_PAR="m65-ar-par-$$" # (3) PARITY arm    — default mode, placeholder key → serves
 PORT_POS="${M65_PORT_POS:-18965}"
 PORT_PAR="${M65_PORT_PAR:-18966}"
 PGPW="postgres"
@@ -103,18 +106,27 @@ wait_serving() { # $1=container  $2=port  -> 0 if it serves /health/live=200
   for _ in $(seq 1 60); do
     [[ "$(health_code "$2")" == "200" ]] && return 0
     docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null | grep -q true || {
-      red "$1 exited before serving:"; docker logs "$1" 2>&1 | tail -15; return 1; }
+      red "$1 exited before serving:"
+      docker logs "$1" 2>&1 | tail -15
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never served /health/live:"; docker logs "$1" 2>&1 | tail -15; return 1
+  red "$1 never served /health/live:"
+  docker logs "$1" 2>&1 | tail -15
+  return 1
 }
 
 # Wait for a container to EXIT; echo its exit code (or "running" if still up after
 # the budget — a fail-closed boot must exit promptly).
 wait_exit() { # $1=container -> stdout: exit code | "running"
   for _ in $(seq 1 40); do
-    local running; running="$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null || echo true)"
-    [[ "${running}" == "false" ]] && { docker inspect -f '{{.State.ExitCode}}' "$1"; return 0; }
+    local running
+    running="$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null || echo true)"
+    [[ "${running}" == "false" ]] && {
+      docker inspect -f '{{.State.ExitCode}}' "$1"
+      return 0
+    }
     sleep 0.25
   done
   echo running
@@ -124,8 +136,8 @@ wait_exit() { # $1=container -> stdout: exit code | "running"
 step "0/6 build scratch adapter-registry from CURRENT source (contains THE A6 boot guard)"
 DOCKER_BUILDKIT=1 docker build -q \
   --build-arg APP=adapter-registry --build-arg PORT=3021 \
-  -f "${CP_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${CP_DIR}" >/dev/null \
-  || fail "scratch adapter-registry image build failed — the gate must exercise the drafted code (line: docker build)"
+  -f "${CP_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${CP_DIR}" >/dev/null ||
+  fail "scratch adapter-registry image build failed — the gate must exercise the drafted code (line: docker build)"
 ok "scratch image ${SCRATCH_IMG} built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated network + throwaway postgres (for the boot-completing arms) ────
@@ -150,7 +162,11 @@ CREATE OR REPLACE FUNCTION auth.current_tenant_id() RETURNS text
   LANGUAGE sql STABLE AS $fn$ SELECT current_setting('request.tenant_id', true) $fn$;
 SQL
 }
-for i in $(seq 1 20); do seed_auth && break; [[ $i -eq 20 ]] && fail "auth-schema seed never committed (line: seed_auth loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  seed_auth && break
+  [[ $i -eq 20 ]] && fail "auth-schema seed never committed (line: seed_auth loop)"
+  sleep 0.5
+done
 ok "postgres up on the private network (auth.current_tenant_id() stub seeded)"
 
 # ── 2) (1) NEGATIVE / FAIL-CLOSED arm: max + NO Vault creds → MUST refuse boot ─
@@ -166,19 +182,19 @@ docker run -d --name "${AR_NEG}" --network "${NET}" --restart=no \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
   "${SCRATCH_IMG}" >/dev/null
 NEG_EXIT="$(wait_exit "${AR_NEG}")"
-[[ "${NEG_EXIT}" != "running" ]] \
-  || fail "NEGATIVE: container is STILL RUNNING under SECURITY_MODE=max with a placeholder VAULT_ENC_KEY — it did NOT fail closed (line: NEG still running)"
-[[ "${NEG_EXIT}" != "0" ]] \
-  || fail "NEGATIVE: container exited 0 under SECURITY_MODE=max with no Vault creds — fail-closed means a NON-ZERO exit (line: NEG exit 0)"
+[[ "${NEG_EXIT}" != "running" ]] ||
+  fail "NEGATIVE: container is STILL RUNNING under SECURITY_MODE=max with a placeholder VAULT_ENC_KEY — it did NOT fail closed (line: NEG still running)"
+[[ "${NEG_EXIT}" != "0" ]] ||
+  fail "NEGATIVE: container exited 0 under SECURITY_MODE=max with no Vault creds — fail-closed means a NON-ZERO exit (line: NEG exit 0)"
 ok "container exited NON-ZERO (${NEG_EXIT}) — it refused to boot"
 
 step "2b/6 ASSERT (1): the refusal names the explicit Vault requirement (clear error, no silent fallback)"
 NEG_LOGS="$(docker logs "${AR_NEG}" 2>&1)"
-grep -q "${REFUSAL_SUBSTR}" <<<"${NEG_LOGS}" \
-  || fail "NEGATIVE: logs lack the explicit refusal '${REFUSAL_SUBSTR}' — $(tail -5 <<<"${NEG_LOGS}") (line: NEG refusal substr)"
+grep -q "${REFUSAL_SUBSTR}" <<<"${NEG_LOGS}" ||
+  fail "NEGATIVE: logs lack the explicit refusal '${REFUSAL_SUBSTR}' — $(tail -5 <<<"${NEG_LOGS}") (line: NEG refusal substr)"
 # It must NOT have silently fallen back and started listening.
-grep -qiE 'listening' <<<"${NEG_LOGS}" \
-  && fail "NEGATIVE: the service logged 'listening' — it silently fell back instead of failing closed (line: NEG listening leak)"
+grep -qiE 'listening' <<<"${NEG_LOGS}" &&
+  fail "NEGATIVE: the service logged 'listening' — it silently fell back instead of failing closed (line: NEG listening leak)"
 ok "logs carry the explicit '${REFUSAL_SUBSTR} VAULT_ENC_KEY' refusal and the service never started listening"
 
 # ── 3) (1) confirm it truly never served (refused, not merely slow) ───────────
@@ -187,9 +203,9 @@ NEG_IP="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{
 # It already exited, so there is nothing to curl — assert via a fresh probe from
 # inside the net that nothing answers on 3021 for that (now-dead) container.
 docker run --rm --network "${NET}" "${PG_IMAGE}" \
-  sh -c "timeout 2 sh -c 'echo > /dev/tcp/${AR_NEG}/3021' 2>/dev/null" \
-  && fail "NEGATIVE: something is still listening on ${AR_NEG}:3021 — it did not fail closed (line: NEG port open)" \
-  || ok "nothing listens for the refused container — fail-closed confirmed"
+  sh -c "timeout 2 sh -c 'echo > /dev/tcp/${AR_NEG}/3021' 2>/dev/null" &&
+  fail "NEGATIVE: something is still listening on ${AR_NEG}:3021 — it did not fail closed (line: NEG port open)" ||
+  ok "nothing listens for the refused container — fail-closed confirmed"
 
 # ── 4) (2) POSITIVE arm: max + real key + VAULT_ADDR + postgres → MUST serve ──
 step "4/6 boot adapter-registry SECURITY_MODE=max WITH a real key + VAULT_ADDR (2 · POSITIVE)"
@@ -200,11 +216,11 @@ docker run -d --name "${AR_POS}" --network "${NET}" \
   -e DATABASE_URL="${DSN_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
   -p "127.0.0.1:${PORT_POS}:3021" "${SCRATCH_IMG}" >/dev/null
-wait_serving "${AR_POS}" "${PORT_POS}" \
-  || fail "POSITIVE: SECURITY_MODE=max with a real Vault-backed key did NOT serve — the positive path is broken (line: POS wait_serving)"
+wait_serving "${AR_POS}" "${PORT_POS}" ||
+  fail "POSITIVE: SECURITY_MODE=max with a real Vault-backed key did NOT serve — the positive path is broken (line: POS wait_serving)"
 POS_CODE="$(health_code "${PORT_POS}")"
-[[ "${POS_CODE}" == "200" ]] \
-  || fail "POSITIVE: /health/live returned ${POS_CODE}, expected 200 (line: POS health code)"
+[[ "${POS_CODE}" == "200" ]] ||
+  fail "POSITIVE: /health/live returned ${POS_CODE}, expected 200 (line: POS health code)"
 ok "SECURITY_MODE=max with a real Vault-backed key BOOTS and serves /health/live=200"
 
 # ── 5) (3) PARITY arm: default mode + SAME placeholder key + postgres → serves ─
@@ -216,21 +232,21 @@ docker run -d --name "${AR_PAR}" --network "${NET}" \
   -e DATABASE_URL="${DSN_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
   -p "127.0.0.1:${PORT_PAR}:3021" "${SCRATCH_IMG}" >/dev/null
-wait_serving "${AR_PAR}" "${PORT_PAR}" \
-  || fail "PARITY: default SECURITY_MODE did NOT boot on the placeholder key — the default is NOT byte-parity! (line: PAR wait_serving)"
+wait_serving "${AR_PAR}" "${PORT_PAR}" ||
+  fail "PARITY: default SECURITY_MODE did NOT boot on the placeholder key — the default is NOT byte-parity! (line: PAR wait_serving)"
 PAR_CODE="$(health_code "${PORT_PAR}")"
-[[ "${PAR_CODE}" == "200" ]] \
-  || fail "PARITY: /health/live returned ${PAR_CODE}, expected 200 (line: PAR health code)"
+[[ "${PAR_CODE}" == "200" ]] ||
+  fail "PARITY: /health/live returned ${PAR_CODE}, expected 200 (line: PAR health code)"
 # And the parity boot must NOT have logged the max-mode refusal.
 PAR_LOGS="$(docker logs "${AR_PAR}" 2>&1)"
-grep -q "${REFUSAL_SUBSTR}" <<<"${PAR_LOGS}" \
-  && fail "PARITY: default mode logged the max-mode Vault refusal — the guard leaked into the default path (line: PAR refusal leak)"
+grep -q "${REFUSAL_SUBSTR}" <<<"${PAR_LOGS}" &&
+  fail "PARITY: default mode logged the max-mode Vault refusal — the guard leaked into the default path (line: PAR refusal leak)"
 ok "default SECURITY_MODE BOOTS and serves on the SAME placeholder key (Vault not required) — live baseline byte-parity"
 
 # ── 6) cross-check: the ONLY difference between (1) and (3) is SECURITY_MODE ───
 step "6/6 cross-check: SAME placeholder key — max REFUSES (1), default SERVES (3)"
-[[ "${NEG_EXIT}" != "0" && "${NEG_EXIT}" != "running" && "${PAR_CODE}" == "200" ]] \
-  || fail "arm outcomes inconsistent (NEG exit=${NEG_EXIT}, PARITY health=${PAR_CODE}) (line: cross-check)"
+[[ "${NEG_EXIT}" != "0" && "${NEG_EXIT}" != "running" && "${PAR_CODE}" == "200" ]] ||
+  fail "arm outcomes inconsistent (NEG exit=${NEG_EXIT}, PARITY health=${PAR_CODE}) (line: cross-check)"
 ok "SECURITY_MODE=max is the SOLE gate on the Vault-backed-credential requirement"
 
 green "[M65] ALL GATES GREEN — SECURITY_MODE=max FAILS CLOSED (non-zero exit + explicit '${REFUSAL_SUBSTR} VAULT_ENC_KEY' refusal, no silent fallback) when Vault creds are absent; BOOTS+serves with a real Vault-backed key; DEFAULT mode boots on the placeholder = byte-parity live baseline"
@@ -239,7 +255,7 @@ green "[M65] ALL GATES GREEN — SECURITY_MODE=max FAILS CLOSED (non-zero exit +
 if [[ -f "${LOG_HELPER}" ]]; then
   # shellcheck source=/dev/null
   if AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-A6-vault}" \
-       source "${LOG_HELPER}" 2>/dev/null; then
+    source "${LOG_HELPER}" 2>/dev/null; then
     log_event GATE --outcome PASS --ref m65-vault-enforce \
       --gate "m65-vault-enforce=PASS" \
       --msg "SECURITY_MODE=max requires Vault-backed VAULT_ENC_KEY and fails closed (non-zero exit + explicit refusal); default mode byte-parity" \

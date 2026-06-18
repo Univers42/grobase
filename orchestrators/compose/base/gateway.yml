@@ -1,8 +1,8 @@
 # gateway plane — waf, kong
 services:
   waf:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-waf:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-waf:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/waf
       dockerfile: Dockerfile
@@ -27,8 +27,8 @@ services:
 
   # ─── HashiCorp Vault (control plane: boot/CI secrets) ─────────────
   kong:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-kong:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-kong:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/kong
       dockerfile: Dockerfile

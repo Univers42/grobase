@@ -51,38 +51,41 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"           # mini-baas-infra
-CP_DIR="${BAAS_DIR}/src/control-plane"                   # adapter-registry build context
+BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+CP_DIR="${BAAS_DIR}/src/control-plane"        # adapter-registry build context
 CLAUDE_DIR="$(cd "${BAAS_DIR}/../.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M67] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M67] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M67] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M67] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M67_PG_IMAGE:-postgres:16-alpine}"
 SCRATCH_IMG="m67-ar-$$:scratch"
 NET="m67net-$$"
 PG="m67-pg-$$"
-AR_ON="m67-ar-on-$$"      # (A/B) flag-ON adapter-registry
-AR_OFF="m67-ar-off-$$"    # (C)   flag-OFF (default) adapter-registry
-XCHK="m67-xcheck-$$"      # ephemeral Go signature cross-check container name
+AR_ON="m67-ar-on-$$"   # (A/B) flag-ON adapter-registry
+AR_OFF="m67-ar-off-$$" # (C)   flag-OFF (default) adapter-registry
+XCHK="m67-xcheck-$$"   # ephemeral Go signature cross-check container name
 PORT_ON="${M67_PORT_ON:-18967}"
 PORT_OFF="${M67_PORT_OFF:-18968}"
 PGPW="postgres"
 # A strong, NON-placeholder service token (LoadConfig refuses empty / the weak default).
 TOKEN="m67-service-token-$$-strong-value-0123456789"
-ENC_KEY="0123456789abcdef0123456789abcdef"            # >= 32 chars for NewEncryptor
+ENC_KEY="0123456789abcdef0123456789abcdef" # >= 32 chars for NewEncryptor
 # auth.current_tenant_id() casts to UUID, so identities MUST be UUIDs.
 USER_A="11111111-1111-1111-1111-111111111111"
 TEN_A="11111111-1111-1111-1111-111111111111"
-USER_B="22222222-2222-2222-2222-222222222222"          # the spoof target
+USER_B="22222222-2222-2222-2222-222222222222" # the spoof target
 DSN_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 BODY_TMP="$(mktemp)"
 IDHDR="X-Baas-Identity-Auth"
-EMPTY_SHA="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"  # sha256("")
+EMPTY_SHA="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" # sha256("")
 
 cleanup() {
   docker rm -fv "${AR_ON}" "${AR_OFF}" "${PG}" "${XCHK}" >/dev/null 2>&1 || true
@@ -121,18 +124,24 @@ get_dbs_spoof() { # $1=port $2=idauth-for-userA
 wait_ready() { # $1=container $2=port
   for i in $(seq 1 60); do
     curl -fsS -o /dev/null "http://127.0.0.1:$2/health/ready" 2>/dev/null && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -15; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -15
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -15; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -15
+  return 1
 }
 
 # ── 0) build the scratch adapter-registry image FROM THE CURRENT source ───────
 step "0/8 build scratch adapter-registry from CURRENT source (contains THE G-Hdr build)"
 DOCKER_BUILDKIT=1 docker build -q \
   --build-arg APP=adapter-registry --build-arg PORT=3021 \
-  -f "${CP_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${CP_DIR}" >/dev/null \
-  || fail "scratch adapter-registry image build failed — the gate must exercise the drafted code (line: docker build)"
+  -f "${CP_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${CP_DIR}" >/dev/null ||
+  fail "scratch adapter-registry image build failed — the gate must exercise the drafted code (line: docker build)"
 ok "scratch image ${SCRATCH_IMG} built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 0b) cross-check: openssl HMAC == Go shared.ComputeServiceSignature ────────
@@ -155,8 +164,8 @@ EOF
 go run /tmp/x.go' 2>/dev/null)"
 OS_SIG="$(sign_identity "${TOKEN}" "${USER_A}" "${TEN_A}" 1700000000)"
 [[ -n "${GO_SIG}" ]] || fail "Go cross-check produced no signature (line: GO_SIG empty)"
-[[ "${GO_SIG}" == "${OS_SIG}" ]] \
-  || fail "openssl signer != Go primitive — gate signer is wrong (go=${GO_SIG} openssl=${OS_SIG}) (line: signer cross-check)"
+[[ "${GO_SIG}" == "${OS_SIG}" ]] ||
+  fail "openssl signer != Go primitive — gate signer is wrong (go=${GO_SIG} openssl=${OS_SIG}) (line: signer cross-check)"
 ok "openssl signer is byte-identical to shared.ComputeServiceSignature: ${OS_SIG}"
 
 # ── 1) isolated network + throwaway postgres + minimal auth schema ────────────
@@ -194,7 +203,11 @@ LANGUAGE sql STABLE AS $$
 $$;
 SQL
 }
-for i in $(seq 1 20); do bootstrap && break; [[ $i -eq 20 ]] && fail "auth schema bootstrap never committed (line: bootstrap loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  bootstrap && break
+  [[ $i -eq 20 ]] && fail "auth schema bootstrap never committed (line: bootstrap loop)"
+  sleep 0.5
+done
 ok "postgres up; auth.current_user_id()/current_tenant_id() bootstrapped (live 016 shape)"
 
 # ── 2) (A/B arm) boot scratch adapter-registry with the flag ON ───────────────
@@ -214,23 +227,23 @@ step "3/8 (A) flag ON, request WITH a valid HMAC over the asserted identity"
 TS="$(date -u +%s)"
 SIG_OK="$(sign_identity "${TOKEN}" "${USER_A}" "${TEN_A}" "${TS}")"
 code="$(get_dbs "${PORT_ON}" "${SIG_OK}")"
-[[ "${code}" == "200" ]] \
-  || fail "(A) valid signature expected 200, got ${code} — $(head -c 300 "${BODY_TMP}") (line: A status)"
+[[ "${code}" == "200" ]] ||
+  fail "(A) valid signature expected 200, got ${code} — $(head -c 300 "${BODY_TMP}") (line: A status)"
 ok "(A) valid identity signature ACCEPTED — GET /databases => 200 (handler ran end-to-end)"
 
 # ── 4) (B1 · REJECT — load-bearing) flag ON + NO signature => 401 ─────────────
 step "4/8 (B1·REJECT) flag ON, UNSIGNED caller (no ${IDHDR}) must be rejected"
 code="$(get_dbs "${PORT_ON}" "")"
-[[ "${code}" == "401" || "${code}" == "403" ]] \
-  || fail "(B1) unsigned caller expected 401/403, got ${code} — $(head -c 300 "${BODY_TMP}") (line: B1 reject)"
+[[ "${code}" == "401" || "${code}" == "403" ]] ||
+  fail "(B1) unsigned caller expected 401/403, got ${code} — $(head -c 300 "${BODY_TMP}") (line: B1 reject)"
 ok "(B1) unsigned identity REJECTED with ${code} (the spoof-on-a-flat-bridge vector is closed)"
 
 # ── 5) (B2 · REJECT — load-bearing) flag ON + WRONG-token signature => 401 ────
 step "5/8 (B2·REJECT) flag ON, signature keyed by the WRONG service token => 401"
 SIG_BAD="$(sign_identity "wrong-token-not-the-service-token" "${USER_A}" "${TEN_A}" "${TS}")"
 code="$(get_dbs "${PORT_ON}" "${SIG_BAD}")"
-[[ "${code}" == "401" || "${code}" == "403" ]] \
-  || fail "(B2) wrong-token signature expected 401/403, got ${code} — $(head -c 300 "${BODY_TMP}") (line: B2 reject)"
+[[ "${code}" == "401" || "${code}" == "403" ]] ||
+  fail "(B2) wrong-token signature expected 401/403, got ${code} — $(head -c 300 "${BODY_TMP}") (line: B2 reject)"
 ok "(B2) wrong-key signature REJECTED with ${code} (only a service-token holder can sign identity)"
 
 # ── 6) (B3 · REJECT — load-bearing) flag ON + SPOOFED identity => 401 ─────────
@@ -238,8 +251,8 @@ ok "(B2) wrong-key signature REJECTED with ${code} (only a service-token holder 
 # the core anti-spoof property. SIG_OK is valid for USER_A; assert it cannot move.
 step "6/8 (B3·REJECT) flag ON, signature for USER_A but header asserts USER_B => 401"
 code="$(get_dbs_spoof "${PORT_ON}" "${SIG_OK}")"
-[[ "${code}" == "401" || "${code}" == "403" ]] \
-  || fail "(B3) replayed signature on a DIFFERENT identity expected 401/403, got ${code} — $(head -c 300 "${BODY_TMP}") (line: B3 reject)"
+[[ "${code}" == "401" || "${code}" == "403" ]] ||
+  fail "(B3) replayed signature on a DIFFERENT identity expected 401/403, got ${code} — $(head -c 300 "${BODY_TMP}") (line: B3 reject)"
 ok "(B3) signature minted for USER_A REJECTED (${code}) when asserting USER_B — identity is bound"
 
 # ── 7) (C · PARITY) flag OFF (default) + SAME unsigned request => 200 ─────────
@@ -253,15 +266,16 @@ docker run -d --name "${AR_OFF}" --network "${NET}" \
 wait_ready "${AR_OFF}" "${PORT_OFF}" || fail "flag-OFF adapter-registry not ready (line: wait_ready AR_OFF)"
 step "7b/8 (C) the SAME unsigned request that 401'd under ON must 200 under OFF"
 code="$(get_dbs "${PORT_OFF}" "")"
-[[ "${code}" == "200" ]] \
-  || fail "(C·PARITY) unsigned request expected 200 with the flag OFF (current trust model), got ${code} — $(head -c 300 "${BODY_TMP}") (line: C parity)"
+[[ "${code}" == "200" ]] ||
+  fail "(C·PARITY) unsigned request expected 200 with the flag OFF (current trust model), got ${code} — $(head -c 300 "${BODY_TMP}") (line: C parity)"
 ok "(C) flag OFF (default): the unsigned request is TRUSTED => 200 = byte-parity live baseline"
 
 # ── 8) cross-check: the flag is the SOLE difference ───────────────────────────
 step "8/8 cross-check: ON rejects the unsigned request, OFF accepts it — flag is the only diff"
-ON_UNSIGNED="$(get_dbs "${PORT_ON}" "")";  OFF_UNSIGNED="$(get_dbs "${PORT_OFF}" "")"
-[[ ( "${ON_UNSIGNED}" == "401" || "${ON_UNSIGNED}" == "403" ) && "${OFF_UNSIGNED}" == "200" ]] \
-  || fail "arm statuses inconsistent (ON unsigned=${ON_UNSIGNED}, OFF unsigned=${OFF_UNSIGNED}) (line: cross-check)"
+ON_UNSIGNED="$(get_dbs "${PORT_ON}" "")"
+OFF_UNSIGNED="$(get_dbs "${PORT_OFF}" "")"
+[[ ("${ON_UNSIGNED}" == "401" || "${ON_UNSIGNED}" == "403") && "${OFF_UNSIGNED}" == "200" ]] ||
+  fail "arm statuses inconsistent (ON unsigned=${ON_UNSIGNED}, OFF unsigned=${OFF_UNSIGNED}) (line: cross-check)"
 ok "ADAPTER_REGISTRY_IDENTITY_HMAC is the sole gate on identity-signature enforcement (ON=${ON_UNSIGNED}, OFF=${OFF_UNSIGNED})"
 
 # ── PASS: emit the gate event via the kernel log helper (best-effort) ─────────
@@ -269,7 +283,8 @@ ok "ADAPTER_REGISTRY_IDENTITY_HMAC is the sole gate on identity-signature enforc
 # exit code — the gate's verdict is decided by the assertions above, not by log
 # bookkeeping. `set +e` inside, swallow all output, always return 0 to the trap.
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-a6-hdr}"

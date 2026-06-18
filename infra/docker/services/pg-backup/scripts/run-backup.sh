@@ -17,8 +17,8 @@ echo "[pg-backup] $(date -u +%F\ %T) starting logical backup -> ${LOGICAL_FILE}"
 
 # Custom format (-Fc) is compressed and supports parallel restore.
 pg_dump --no-owner --no-privileges --format=custom \
-        --file="$LOGICAL_FILE" \
-        "$DATABASE_URL"
+  --file="$LOGICAL_FILE" \
+  "$DATABASE_URL"
 
 echo "[pg-backup] dump complete ($(du -h "$LOGICAL_FILE" | cut -f1))"
 
@@ -40,7 +40,7 @@ if [ "${PG_BACKUP_PHYSICAL:-0}" = "1" ]; then
   export PGHOST PGPORT PGUSER PGPASSWORD
 
   pg_basebackup -D "$PHYS_DIR" --format=tar --gzip --checkpoint=fast \
-                --progress --no-password
+    --progress --no-password
   for f in "$PHYS_DIR"/*; do
     mc cp "$f" "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/physical/base-${STAMP}/$(basename "$f")"
   done
@@ -59,12 +59,12 @@ DAYS="${PG_BACKUP_RETAIN_DAYS:-14}"
 if [ "${PG_BACKUP_PITR:-0}" = "1" ]; then
   TIER="${PG_BACKUP_TIER:-essential}"
   case "${TIER}" in
-    nano)      TIER_DAYS="${PG_BACKUP_RETAIN_NANO_DAYS:-1}" ;;
-    basic)     TIER_DAYS="${PG_BACKUP_RETAIN_BASIC_DAYS:-3}" ;;
-    essential) TIER_DAYS="${PG_BACKUP_RETAIN_ESSENTIAL_DAYS:-7}" ;;
-    pro)       TIER_DAYS="${PG_BACKUP_RETAIN_PRO_DAYS:-30}" ;;
-    max)       TIER_DAYS="${PG_BACKUP_RETAIN_MAX_DAYS:-90}" ;;
-    *)         TIER_DAYS="${DAYS}" ;;
+  nano) TIER_DAYS="${PG_BACKUP_RETAIN_NANO_DAYS:-1}" ;;
+  basic) TIER_DAYS="${PG_BACKUP_RETAIN_BASIC_DAYS:-3}" ;;
+  essential) TIER_DAYS="${PG_BACKUP_RETAIN_ESSENTIAL_DAYS:-7}" ;;
+  pro) TIER_DAYS="${PG_BACKUP_RETAIN_PRO_DAYS:-30}" ;;
+  max) TIER_DAYS="${PG_BACKUP_RETAIN_MAX_DAYS:-90}" ;;
+  *) TIER_DAYS="${DAYS}" ;;
   esac
   DAYS="${TIER_DAYS}"
   echo "[pg-backup] retention-by-tier: tier='${TIER}' -> ${DAYS}d (logical + physical + wal)"
@@ -72,13 +72,13 @@ fi
 
 echo "[pg-backup] pruning artifacts older than ${DAYS}d"
 mc rm --recursive --force --older-than "${DAYS}d" \
-       "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/logical/" 2>/dev/null || true
+  "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/logical/" 2>/dev/null || true
 mc rm --recursive --force --older-than "${DAYS}d" \
-       "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/physical/" 2>/dev/null || true
+  "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/physical/" 2>/dev/null || true
 # WAL is only ever produced/pruned when PITR is on; never touched in the OFF path.
 if [ "${PG_BACKUP_PITR:-0}" = "1" ]; then
   mc rm --recursive --force --older-than "${DAYS}d" \
-         "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/wal/" 2>/dev/null || true
+    "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/wal/" 2>/dev/null || true
 fi
 
 echo "[pg-backup] $(date -u +%F\ %T) done"

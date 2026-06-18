@@ -21,12 +21,15 @@
 # is Node-free through /data/v1; the rule is seeded directly into the control DB.
 set -euo pipefail
 
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
-fail(){ red "[M35] FAIL: $*"; exit 1; }
-step(){ cyan "[M35] ${*}"; }
-pass(){ green "[M35] PASS: ${*}"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+fail() {
+  red "[M35] FAIL: $*"
+  exit 1
+}
+step() { cyan "[M35] ${*}"; }
+pass() { green "[M35] PASS: ${*}"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
@@ -36,16 +39,25 @@ RUST_PORT="$(docker port mini-baas-data-plane-router-rust 4011/tcp 2>/dev/null |
 RUST="http://127.0.0.1:${RUST_PORT:-4011}"
 
 live_tenant_provision "auto-$(date +%s)" || fail "provision failed"
-DBID="${LIVE_TENANT_DB_ID}"; KEY="${LIVE_TENANT_API_KEY}"; SLUG="${LIVE_TENANT_SLUG}"
+DBID="${LIVE_TENANT_DB_ID}"
+KEY="${LIVE_TENANT_API_KEY}"
+SLUG="${LIVE_TENANT_SLUG}"
 TBL="auto_$(date +%s)"
-bp(){ curl -s -X POST "${RUST}/data/v1/$1" -H "X-Baas-Api-Key: ${KEY}" -H 'Content-Type: application/json' -d "$2"; }
-drop_t(){ bp schema/ddl "{\"db_id\":\"${DBID}\",\"ddl\":{\"op\":\"drop_table\",\"table\":\"${TBL}\"}}" >/dev/null 2>&1 || true; }
+bp() { curl -s -X POST "${RUST}/data/v1/$1" -H "X-Baas-Api-Key: ${KEY}" -H 'Content-Type: application/json' -d "$2"; }
+drop_t() { bp schema/ddl "{\"db_id\":\"${DBID}\",\"ddl\":{\"op\":\"drop_table\",\"table\":\"${TBL}\"}}" >/dev/null 2>&1 || true; }
 
-PGUSER=$(_lt_env mini-baas-postgres POSTGRES_USER); PGUSER=${PGUSER:-postgres}
-PGPASS=$(_lt_env mini-baas-postgres POSTGRES_PASSWORD); PGPASS=${PGPASS:-postgres}
-PGDB=$(_lt_env mini-baas-postgres POSTGRES_DB); PGDB=${PGDB:-postgres}
-psql_c(){ docker exec -e PGPASSWORD="${PGPASS}" mini-baas-postgres psql -U "${PGUSER}" -d "${PGDB}" -v ON_ERROR_STOP=1 -qtAc "$1"; }
-cleanup(){ drop_t; psql_c "DELETE FROM automation_rules WHERE tenant_id='${SLUG}'" >/dev/null 2>&1 || true; live_tenant_cleanup; }
+PGUSER=$(_lt_env mini-baas-postgres POSTGRES_USER)
+PGUSER=${PGUSER:-postgres}
+PGPASS=$(_lt_env mini-baas-postgres POSTGRES_PASSWORD)
+PGPASS=${PGPASS:-postgres}
+PGDB=$(_lt_env mini-baas-postgres POSTGRES_DB)
+PGDB=${PGDB:-postgres}
+psql_c() { docker exec -e PGPASSWORD="${PGPASS}" mini-baas-postgres psql -U "${PGUSER}" -d "${PGDB}" -v ON_ERROR_STOP=1 -qtAc "$1"; }
+cleanup() {
+  drop_t
+  psql_c "DELETE FROM automation_rules WHERE tenant_id='${SLUG}'" >/dev/null 2>&1 || true
+  live_tenant_cleanup
+}
 trap cleanup EXIT
 
 step "create table ${TBL}(id,status,archived) via /data/v1/schema/ddl"
@@ -54,8 +66,8 @@ echo "$(bp schema/ddl "{\"db_id\":\"${DBID}\",\"ddl\":{\"op\":\"create_table\",\
 step "seed the automation rule: on row_added to ${TBL}, set archived='yes'"
 psql_c "CREATE TABLE IF NOT EXISTS automation_rules (tenant_id text NOT NULL, db_id uuid NOT NULL, rules jsonb NOT NULL DEFAULT '[]'::jsonb, updated_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (tenant_id, db_id))" >/dev/null
 RULE="[{\"table\":\"${TBL}\",\"trigger\":\"row_added\",\"enabled\":true,\"actions\":[{\"type\":\"set_property\",\"column\":\"archived\",\"value\":\"yes\"}]}]"
-psql_c "INSERT INTO automation_rules (tenant_id, db_id, rules) VALUES ('${SLUG}', '${DBID}'::uuid, '${RULE}'::jsonb) ON CONFLICT (tenant_id, db_id) DO UPDATE SET rules = EXCLUDED.rules" >/dev/null \
-  || fail "could not seed the rule (is DBID a uuid? ${DBID})"
+psql_c "INSERT INTO automation_rules (tenant_id, db_id, rules) VALUES ('${SLUG}', '${DBID}'::uuid, '${RULE}'::jsonb) ON CONFLICT (tenant_id, db_id) DO UPDATE SET rules = EXCLUDED.rules" >/dev/null ||
+  fail "could not seed the rule (is DBID a uuid? ${DBID})"
 
 step "insert a row with NO archived value (the automation must fill it)"
 INS="$(bp query "{\"db_id\":\"${DBID}\",\"operation\":{\"op\":\"insert\",\"resource\":\"${TBL}\",\"data\":{\"id\":\"r1\",\"status\":\"open\"}}}")"

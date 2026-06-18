@@ -60,7 +60,7 @@ if [[ -d "$MIGRATION_DIR" ]]; then
     if docker compose exec -T mongo mongosh --quiet \
       -u "$MONGO_USER" -p "$MONGO_PASS" \
       --authenticationDatabase admin \
-      "$MONGO_DB" < "$f" 2>/dev/null; then
+      "$MONGO_DB" <"$f" 2>/dev/null; then
       echo -e "${GREEN}OK${NC}"
     else
       echo -e "${YELLOW}SKIP (may already exist)${NC}"
@@ -77,7 +77,7 @@ echo -e "${BOLD}2. Seeding demo documents${NC}"
 docker compose exec -T mongo mongosh --quiet \
   -u "$MONGO_USER" -p "$MONGO_PASS" \
   --authenticationDatabase admin \
-  "$MONGO_DB" << 'MONGOSH_EOF'
+  "$MONGO_DB" <<'MONGOSH_EOF'
 
 // ── mock_catalog: generic demo documents ─────────────────────────
 const now = new Date();

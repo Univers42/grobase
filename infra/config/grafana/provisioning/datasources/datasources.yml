@@ -27,7 +27,7 @@ datasources:
     type: postgres
     access: proxy
     url: postgres:5432
-    user: ${GF_POSTGRES_USER}            # service_role / read-capable; from env, not cleartext
+    user: ${GF_POSTGRES_USER} # service_role / read-capable; from env, not cleartext
     jsonData:
       database: postgres
       sslmode: disable

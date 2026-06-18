@@ -30,13 +30,16 @@ HELM="${DEPLOY}/helm/mini-baas"
 COMPOSE="${BAAS_DIR}/docker-compose.yml"
 MANIFEST="${DEPLOY}/edition-manifest.yaml"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-yellow(){ printf '\033[1;33m%s\033[0m\n' "$*"; }
-fail()  { red "[M21] FAIL: $*"; exit 1; }
-step()  { cyan "[M21] ${*}"; }
-pass()  { green "[M21] PASS: ${*}"; }
+yellow() { printf '\033[1;33m%s\033[0m\n' "$*"; }
+fail() {
+  red "[M21] FAIL: $*"
+  exit 1
+}
+step() { cyan "[M21] ${*}"; }
+pass() { green "[M21] PASS: ${*}"; }
 
 command -v python3 >/dev/null 2>&1 || fail "python3 required"
 
@@ -51,7 +54,7 @@ done
 pass "gen-deploy.py + deploy-gen/deploy-template + chart skeleton present"
 
 step "freshness: generator re-runs clean and produces the manifest"
-( cd "${BAAS_DIR}" && python3 scripts/gen-deploy.py >/dev/null ) || fail "gen-deploy.py exited non-zero"
+(cd "${BAAS_DIR}" && python3 scripts/gen-deploy.py >/dev/null) || fail "gen-deploy.py exited non-zero"
 [[ -f "${MANIFEST}" ]] || fail "generator did not produce ${MANIFEST}"
 python3 -c "import yaml;yaml.safe_load(open('${MANIFEST}'))" || fail "edition-manifest.yaml is not valid YAML"
 pass "generator regenerates the manifest cleanly"
@@ -78,13 +81,15 @@ if docker compose -f "${COMPOSE}" config --services >/dev/null 2>&1; then
   editions=$(python3 -c "import yaml;print(' '.join(sorted(yaml.safe_load(open('${MANIFEST}'))['editionPlanes'])))")
   for e in ${editions}; do
     profs=$(python3 -c "import yaml;print(' '.join('--profile '+p for p in yaml.safe_load(open('${MANIFEST}'))['editionProfiles']['${e}']))")
-    docker compose -f "${COMPOSE}" ${profs} config --services 2>/dev/null | sort > /tmp/m21-compose-${e}.txt
-    python3 -c "import yaml;print('\n'.join(yaml.safe_load(open('${MANIFEST}'))['editionServices']['${e}']))" | sort > /tmp/m21-man-${e}.txt
+    docker compose -f "${COMPOSE}" ${profs} config --services 2>/dev/null | sort >/tmp/m21-compose-${e}.txt
+    python3 -c "import yaml;print('\n'.join(yaml.safe_load(open('${MANIFEST}'))['editionServices']['${e}']))" | sort >/tmp/m21-man-${e}.txt
     if ! diff -q /tmp/m21-compose-${e}.txt /tmp/m21-man-${e}.txt >/dev/null; then
-      red "  edition '${e}' diverges from compose:"; diff /tmp/m21-compose-${e}.txt /tmp/m21-man-${e}.txt || true
-      rm -f /tmp/m21-*-*.txt; fail "edition '${e}' service set != compose --profile selection"
+      red "  edition '${e}' diverges from compose:"
+      diff /tmp/m21-compose-${e}.txt /tmp/m21-man-${e}.txt || true
+      rm -f /tmp/m21-*-*.txt
+      fail "edition '${e}' service set != compose --profile selection"
     fi
-    printf '  %-9s %s services match compose\n' "${e}" "$(wc -l < /tmp/m21-man-${e}.txt | tr -d ' ')"
+    printf '  %-9s %s services match compose\n' "${e}" "$(wc -l </tmp/m21-man-${e}.txt | tr -d ' ')"
     rm -f /tmp/m21-compose-${e}.txt /tmp/m21-man-${e}.txt
   done
   pass "every edition matches its docker compose --profile selection"
@@ -97,10 +102,14 @@ if command -v helm >/dev/null 2>&1; then
   step "helm: lint + render every edition to valid K8s YAML"
   helm lint "${HELM}" >/dev/null || fail "helm lint failed"
   for f in "${HELM}"/values-*.yaml; do
-    e=$(basename "${f}" .yaml); e=${e#values-}
-    out=$(helm template mini-baas "${HELM}" -f "${f}" 2>&1) || { red "${out}" | tail -5; fail "helm template ${e} failed"; }
-    printf '%s' "${out}" | python3 -c "import sys,yaml;list(yaml.safe_load_all(sys.stdin))" \
-      || fail "helm template ${e} produced invalid YAML"
+    e=$(basename "${f}" .yaml)
+    e=${e#values-}
+    out=$(helm template mini-baas "${HELM}" -f "${f}" 2>&1) || {
+      red "${out}" | tail -5
+      fail "helm template ${e} failed"
+    }
+    printf '%s' "${out}" | python3 -c "import sys,yaml;list(yaml.safe_load_all(sys.stdin))" ||
+      fail "helm template ${e} produced invalid YAML"
     deps=$(printf '%s' "${out}" | grep -c '^kind: Deployment' || true)
     printf '  %-9s renders %s Deployments (valid YAML)\n' "${e}" "${deps}"
   done

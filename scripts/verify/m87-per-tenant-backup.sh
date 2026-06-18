@@ -67,8 +67,8 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 MIGRATION_005="${MIG_DIR}/005_add_tenant_table.sql"
@@ -78,19 +78,22 @@ MIGRATION_041="${MIG_DIR}/041_tenant_billing.sql"
 MIGRATION_042="${MIG_DIR}/042_tenant_backups.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M87] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M87] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M87] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M87] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M87_PG_IMAGE:-postgres:16-alpine}"
 TC_IMG="m87-tc-$$:scratch"
 NET="m87net-$$"
 PG="m87-pg-$$"
-TC_ON="m87-tc-on-$$"      # TENANT_BACKUP_ENABLED=1  (A · positive / B · reject)
-TC_OFF="m87-tc-off-$$"    # TENANT_BACKUP_ENABLED unset (C · parity)
+TC_ON="m87-tc-on-$$"   # TENANT_BACKUP_ENABLED=1  (A · positive / B · reject)
+TC_OFF="m87-tc-off-$$" # TENANT_BACKUP_ENABLED unset (C · parity)
 PORT_ON="${M87_PORT_ON:-18988}"
 PORT_OFF="${M87_PORT_OFF:-18989}"
 PGPW="postgres"
@@ -98,9 +101,9 @@ DB_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 SVC_TOKEN="m87-internal-service-token-$$"
 TENANT_A="m87-a-$$"
 TENANT_B="m87-b-$$"
-TENANT_S="m87-s-$$"               # shared_rls mount -> backup must 400 (deferred)
-TENANT_D="m87-d-$$"               # db_per_tenant mount -> backup must 400 (deferred, B6b)
-TENANT_T="m87-t-$$"               # atomicity tenant: 2-table schema, forced COPY failure
+TENANT_S="m87-s-$$" # shared_rls mount -> backup must 400 (deferred)
+TENANT_D="m87-d-$$" # db_per_tenant mount -> backup must 400 (deferred, B6b)
+TENANT_T="m87-t-$$" # atomicity tenant: 2-table schema, forced COPY failure
 # Per-run artifact dir on the big disk (kernel: Docker work on /mnt/storage),
 # under the user-owned bench base so the gate can mkdir it without sudo (the
 # /mnt/storage root is root-owned). Overridable via M87_ARTIFACT_DIR.
@@ -134,7 +137,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 
 # Apply one migration file the SAME way `make migrate` does: strip the leading
@@ -175,17 +178,23 @@ wait_ready() { # $1=container $2=port
     # /health/live is the shared router liveness route (used by the binary's own
     # --healthcheck); a 200 there means the HTTP server + EnsureSchema are up.
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2/health/live" 2>/dev/null)" == "200" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # ── 0) build the scratch tenant-control FROM CURRENT (drafted) source ──────────
 step "0/9 build scratch tenant-control from CURRENT source (the B6 backup/restore code)"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT=3020 \
-  -t "${TC_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch tenant-control image build failed — gate must exercise the drafted backup/restore code (line: docker build TC)"
+  -t "${TC_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch tenant-control image build failed — gate must exercise the drafted backup/restore code (line: docker build TC)"
 ok "tenant-control built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated net + postgres + prelude + REAL 005/032/040/041/042 ────────────
@@ -234,7 +243,11 @@ CREATE TABLE IF NOT EXISTS public.tenant_databases (
 );
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
 apply_migration "${MIGRATION_005}" || fail "real migration 005_add_tenant_table.sql failed to apply (line: apply 005)"
 apply_migration "${MIGRATION_032}" || fail "real migration 032_tenants.sql failed to apply (line: apply 032)"
 apply_migration "${MIGRATION_040}" || fail "real migration 040_tenant_usage.sql failed to apply (line: apply 040)"
@@ -242,18 +255,18 @@ apply_migration "${MIGRATION_041}" || fail "real migration 041_tenant_billing.sq
 [[ -f "${MIGRATION_042}" ]] || fail "migration 042_tenant_backups.sql is MISSING — the B6 migration slice must land before m87 can run (line: 042 exists)"
 apply_migration "${MIGRATION_042}" || fail "real migration 042_tenant_backups.sql failed to apply (line: apply 042)"
 [[ "$(psql_val "SELECT count(*) FROM public.tenants")" == "0" ]] || fail "tenants should start EMPTY (line: 032 empty check)"
-[[ "$(psql_val "SELECT to_regclass('public.tenant_databases') IS NOT NULL")" == "t" ]] \
-  || fail "public.tenant_databases not scaffolded by the prelude (line: tenant_databases check)"
-[[ "$(psql_val "SELECT to_regclass('public.tenant_backups') IS NOT NULL")" == "t" ]] \
-  || fail "public.tenant_backups not created by migration 042 (line: 042 table check)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_backups")" == "0" ]] \
-  || fail "tenant_backups should start EMPTY (line: 042 empty check)"
+[[ "$(psql_val "SELECT to_regclass('public.tenant_databases') IS NOT NULL")" == "t" ]] ||
+  fail "public.tenant_databases not scaffolded by the prelude (line: tenant_databases check)"
+[[ "$(psql_val "SELECT to_regclass('public.tenant_backups') IS NOT NULL")" == "t" ]] ||
+  fail "public.tenant_backups not created by migration 042 (line: 042 table check)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_backups")" == "0" ]] ||
+  fail "tenant_backups should start EMPTY (line: 042 empty check)"
 ok "migrations 005 + 032 + 040 + 041 + 042 applied — tenants / tenant_databases / tenant_backups exist and are empty"
 
 # ── 2) boot the BACKUP-ON tenant-control (TENANT_BACKUP_ENABLED=1) ─────────────
 step "2/9 boot tenant-control TENANT_BACKUP_ENABLED=1, BACKUP_DATA_DIR=/artifacts on 127.0.0.1:${PORT_ON} (A · positive / B · reject)"
-mkdir -p "${ARTIFACT_DIR}" 2>/dev/null \
-  || fail "could not create local artifact dir ${ARTIFACT_DIR} (run once: sudo install -d -o \$USER /mnt/storage/$(basename "${ARTIFACT_DIR%-$$}")) (line: artifact mkdir)"
+mkdir -p "${ARTIFACT_DIR}" 2>/dev/null ||
+  fail "could not create local artifact dir ${ARTIFACT_DIR} (run once: sudo install -d -o \$USER /mnt/storage/$(basename "${ARTIFACT_DIR%-$$}")) (line: artifact mkdir)"
 # tenant-control runs as a non-host uid inside the container, so it cannot write
 # to a bind mount owned by the host user; make the ephemeral per-run ($$) artifact
 # dir world-writable so the LocalFileStore can mkdir/write under /artifacts. The
@@ -335,10 +348,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE
 SQL
 }
 seed_sql || fail "seeding tenant_databases mounts + A/B/T schemas failed — $(tail -c 600 "${BODY_TMP}.seederr" 2>/dev/null) (line: seed_sql)"
-[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m87_marker")" == "${ROWS_A}" ]] \
-  || fail "A schema ${SCHEMA_A}.m87_marker should hold ${ROWS_A} rows (line: A seed count)"
-[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_B}\".m87_marker")" == "${ROWS_B}" ]] \
-  || fail "B schema ${SCHEMA_B}.m87_marker should hold ${ROWS_B} rows (line: B seed count)"
+[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m87_marker")" == "${ROWS_A}" ]] ||
+  fail "A schema ${SCHEMA_A}.m87_marker should hold ${ROWS_A} rows (line: A seed count)"
+[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_B}\".m87_marker")" == "${ROWS_B}" ]] ||
+  fail "B schema ${SCHEMA_B}.m87_marker should hold ${ROWS_B} rows (line: B seed count)"
 ok "A=${ROWS_A} rows in ${SCHEMA_A}.m87_marker, B=${ROWS_B} rows in ${SCHEMA_B}.m87_marker; S registered shared_rls"
 
 step "3c/9 capture deterministic baseline checksums md5(string_agg(t::text,'|' ORDER BY id))"
@@ -355,10 +368,10 @@ ok "baselines captured — A=${BASE_CK_A} B=${BASE_CK_B}"
 # ── 4) (A · POSITIVE) backup A → assert artifact + tenant_backups row ──────────
 step "4a/9 (A · POSITIVE) POST /v1/tenants/${TENANT_A}/backup → backup_id; artifact under ${ARTIFACT_DIR}/${TENANT_A}/; size>0; sha256 hex; listed completed"
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_A}/backup" '{"mount":"m87-mount-a"}')"
-[[ "${C}" == "200" || "${C}" == "201" || "${C}" == "202" ]] \
-  || fail "(A) POST /backup expected 200/201/202, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A backup)"
+[[ "${C}" == "200" || "${C}" == "201" || "${C}" == "202" ]] ||
+  fail "(A) POST /backup expected 200/201/202, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A backup)"
 BACKUP_A="$(json_str backup_id)"
-[[ -z "${BACKUP_A}" ]] && BACKUP_A="$(json_str id)"   # tolerate {id} or {backup_id}
+[[ -z "${BACKUP_A}" ]] && BACKUP_A="$(json_str id)" # tolerate {id} or {backup_id}
 [[ -n "${BACKUP_A}" ]] || fail "(A) POST /backup returned no backup id — $(head -c 300 "${BODY_TMP}") (line: A backup id)"
 # The backup is recorded pending->completed asynchronously by the service; poll
 # tenant_backups for the terminal status (completed) by id.
@@ -371,40 +384,40 @@ for i in $(seq 1 60); do
 done
 [[ "${A_STATUS}" == "completed" ]] || fail "(A) backup ${BACKUP_A} never reached status=completed (last='${A_STATUS}') (line: A backup completed)"
 A_SIZE="$(psql_val "SELECT size_bytes FROM public.tenant_backups WHERE id='${BACKUP_A}'")"
-[[ -n "${A_SIZE}" && "${A_SIZE}" -gt 0 ]] 2>/dev/null \
-  || fail "(A) tenant_backups.size_bytes for ${BACKUP_A} not >0 (got '${A_SIZE}') (line: A size>0)"
+[[ -n "${A_SIZE}" && "${A_SIZE}" -gt 0 ]] 2>/dev/null ||
+  fail "(A) tenant_backups.size_bytes for ${BACKUP_A} not >0 (got '${A_SIZE}') (line: A size>0)"
 A_SHA="$(psql_val "SELECT sha256 FROM public.tenant_backups WHERE id='${BACKUP_A}'")"
-[[ "${A_SHA}" =~ ^[0-9a-f]+$ ]] \
-  || fail "(A) tenant_backups.sha256 for ${BACKUP_A} is not lower-hex (got '${A_SHA}') (line: A sha hex)"
+[[ "${A_SHA}" =~ ^[0-9a-f]+$ ]] ||
+  fail "(A) tenant_backups.sha256 for ${BACKUP_A} is not lower-hex (got '${A_SHA}') (line: A sha hex)"
 # Artifact really exists on the mounted local store (the LocalFileStore writes
 # BACKUP_DATA_DIR/{tenant}/{backupId}). Count any file under the tenant dir.
-A_FILES="$( { find "${ARTIFACT_DIR}/${TENANT_A}" -type f 2>/dev/null | wc -l || true; } | tr -d '[:space:]')"
-[[ -n "${A_FILES}" && "${A_FILES}" -ge 1 ]] 2>/dev/null \
-  || fail "(A) no artifact file found under ${ARTIFACT_DIR}/${TENANT_A}/ — LocalFileStore did not persist (line: A artifact on disk)"
+A_FILES="$({ find "${ARTIFACT_DIR}/${TENANT_A}" -type f 2>/dev/null | wc -l || true; } | tr -d '[:space:]')"
+[[ -n "${A_FILES}" && "${A_FILES}" -ge 1 ]] 2>/dev/null ||
+  fail "(A) no artifact file found under ${ARTIFACT_DIR}/${TENANT_A}/ — LocalFileStore did not persist (line: A artifact on disk)"
 ok "(A) backup ${BACKUP_A} completed; size_bytes=${A_SIZE}; sha256=${A_SHA:0:16}…; ${A_FILES} artifact file(s) on disk"
 
 step "4b/9 (A · POSITIVE) GET /v1/tenants/${TENANT_A}/backups lists the backup with status=completed"
 C="$(admin_req GET "${PORT_ON}" "/v1/tenants/${TENANT_A}/backups")"
 [[ "${C}" == "200" ]] || fail "(A) GET /backups expected 200, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A list backups)"
-grep -q "\"id\":\"${BACKUP_A}\"" "${BODY_TMP}" \
-  || fail "(A) GET /backups does not list backup ${BACKUP_A} — $(head -c 300 "${BODY_TMP}") (line: A list has id)"
-grep -q '"status":"completed"' "${BODY_TMP}" \
-  || fail "(A) GET /backups does not show status=completed — $(head -c 300 "${BODY_TMP}") (line: A list completed)"
+grep -q "\"id\":\"${BACKUP_A}\"" "${BODY_TMP}" ||
+  fail "(A) GET /backups does not list backup ${BACKUP_A} — $(head -c 300 "${BODY_TMP}") (line: A list has id)"
+grep -q '"status":"completed"' "${BODY_TMP}" ||
+  fail "(A) GET /backups does not show status=completed — $(head -c 300 "${BODY_TMP}") (line: A list completed)"
 ok "(A) GET /backups → 200; lists backup ${BACKUP_A} status=completed"
 
 # ── 5) MUTATE A (the destructive step the restore must undo) ───────────────────
 step "5/9 MUTATE A: DELETE FROM ${SCHEMA_A}.m87_marker → count 0"
-psql_q -c "DELETE FROM \"${SCHEMA_A}\".m87_marker;" >/dev/null 2>&1 \
-  || fail "(A) could not DELETE A's marker rows (line: A mutate delete)"
-[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m87_marker")" == "0" ]] \
-  || fail "(A) A's marker rows not actually deleted (line: A mutate count 0)"
+psql_q -c "DELETE FROM \"${SCHEMA_A}\".m87_marker;" >/dev/null 2>&1 ||
+  fail "(A) could not DELETE A's marker rows (line: A mutate delete)"
+[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m87_marker")" == "0" ]] ||
+  fail "(A) A's marker rows not actually deleted (line: A mutate count 0)"
 ok "(A) A's rows wiped (count 0) — restore must bring back EXACTLY ${ROWS_A} rows"
 
 # ── 6) (A · POSITIVE) restore A → rows return EXACTLY (count + checksum) ───────
 step "6/9 (A · POSITIVE) POST /v1/tenants/${TENANT_A}/restore/${BACKUP_A} → A's rows return EXACTLY (count==${ROWS_A} AND md5==baseline)"
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_A}/restore/${BACKUP_A}")"
-[[ "${C}" == "200" || "${C}" == "201" || "${C}" == "202" ]] \
-  || fail "(A) POST /restore expected 200/201/202, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A restore)"
+[[ "${C}" == "200" || "${C}" == "201" || "${C}" == "202" ]] ||
+  fail "(A) POST /restore expected 200/201/202, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A restore)"
 # Restore may be async (status restoring->restored); wait for the row count to
 # settle back to ROWS_A before fingerprinting.
 A_RESTORED_CT=""
@@ -413,53 +426,53 @@ for i in $(seq 1 60); do
   [[ "${A_RESTORED_CT}" == "${ROWS_A}" ]] && break
   sleep 0.5
 done
-[[ "${A_RESTORED_CT}" == "${ROWS_A}" ]] \
-  || fail "(A) restore did not return ${ROWS_A} rows (got '${A_RESTORED_CT}') — $(head -c 300 "${BODY_TMP}") (line: A restore count)"
+[[ "${A_RESTORED_CT}" == "${ROWS_A}" ]] ||
+  fail "(A) restore did not return ${ROWS_A} rows (got '${A_RESTORED_CT}') — $(head -c 300 "${BODY_TMP}") (line: A restore count)"
 A_CK_AFTER="$(psql_val "${CK_SQL_A}")"
-[[ "${A_CK_AFTER}" == "${BASE_CK_A}" ]] \
-  || fail "(A) restore checksum mismatch — got ${A_CK_AFTER}, baseline ${BASE_CK_A} (count right, BYTES wrong) (line: A restore checksum)"
+[[ "${A_CK_AFTER}" == "${BASE_CK_A}" ]] ||
+  fail "(A) restore checksum mismatch — got ${A_CK_AFTER}, baseline ${BASE_CK_A} (count right, BYTES wrong) (line: A restore checksum)"
 ok "(A) restore EXACT — count==${ROWS_A} AND md5==baseline (${BASE_CK_A}); the round-trip is lossless"
 
 # ── 7) (B · REJECT, LOAD-BEARING) B byte-UNTOUCHED throughout ──────────────────
 step "7/9 (B · REJECT, LOAD-BEARING) B byte-UNTOUCHED — count + md5 of ${SCHEMA_B}.m87_marker == B baseline"
-[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_B}\".m87_marker")" == "${ROWS_B}" ]] \
-  || fail "(B) B's row count changed during A's backup/mutate/restore — cross-tenant write! (line: B count untouched)"
+[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_B}\".m87_marker")" == "${ROWS_B}" ]] ||
+  fail "(B) B's row count changed during A's backup/mutate/restore — cross-tenant write! (line: B count untouched)"
 B_CK_AFTER="$(psql_val "${CK_SQL_B}")"
-[[ "${B_CK_AFTER}" == "${BASE_CK_B}" ]] \
-  || fail "(B) B's checksum changed during A's restore — got ${B_CK_AFTER}, baseline ${BASE_CK_B}: cross-tenant corruption! (line: B checksum untouched)"
+[[ "${B_CK_AFTER}" == "${BASE_CK_B}" ]] ||
+  fail "(B) B's checksum changed during A's restore — got ${B_CK_AFTER}, baseline ${BASE_CK_B}: cross-tenant corruption! (line: B checksum untouched)"
 ok "(B) B byte-UNTOUCHED through A's whole cycle (count==${ROWS_B}, md5==${BASE_CK_B}) — restore is scoped to A by construction"
 
 # ── 8) (B · REJECT) cross-tenant restore + shared_rls deferred + parity ────────
 step "8a/9 (B · REJECT, LOAD-BEARING) cross-tenant restore — POST /v1/tenants/${TENANT_B}/restore/${BACKUP_A} → 403/404 (backup.tenant_id != B)"
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_B}/restore/${BACKUP_A}")"
-[[ "${C}" == "403" || "${C}" == "404" ]] \
-  || fail "(B) cross-tenant restore of A's backup under B got ${C} (want 403/404) — caller==owner is NOT enforced before DDL! (line: B cross-tenant restore)"
+[[ "${C}" == "403" || "${C}" == "404" ]] ||
+  fail "(B) cross-tenant restore of A's backup under B got ${C} (want 403/404) — caller==owner is NOT enforced before DDL! (line: B cross-tenant restore)"
 # And it really did NOT touch B (defence in depth: even if the route had run, B
 # must be intact). Re-assert B's fingerprint after the rejected attempt.
-[[ "$(psql_val "${CK_SQL_B}")" == "${BASE_CK_B}" ]] \
-  || fail "(B) B's data changed after a REJECTED cross-tenant restore attempt (line: B intact post-reject)"
+[[ "$(psql_val "${CK_SQL_B}")" == "${BASE_CK_B}" ]] ||
+  fail "(B) B's data changed after a REJECTED cross-tenant restore attempt (line: B intact post-reject)"
 ok "(B) cross-tenant restore rejected ${C}; B still byte-identical — ownership validated before any DDL"
 
 step "8b/9 (B · REJECT) shared_rls deferred — POST /v1/tenants/${TENANT_S}/backup → 400 \"isolation not supported for backup/restore (deferred)\""
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_S}/backup" '{"mount":"m87-mount-s"}')"
-[[ "${C}" == "400" ]] \
-  || fail "(B) shared_rls backup got ${C} (want 400) — the deferral is not enforced — $(head -c 300 "${BODY_TMP}") (line: S deferred 400)"
-grep -qi 'deferred' "${BODY_TMP}" \
-  || fail "(B) shared_rls 400 body missing the 'deferred' message — $(head -c 300 "${BODY_TMP}") (line: S deferred msg)"
+[[ "${C}" == "400" ]] ||
+  fail "(B) shared_rls backup got ${C} (want 400) — the deferral is not enforced — $(head -c 300 "${BODY_TMP}") (line: S deferred 400)"
+grep -qi 'deferred' "${BODY_TMP}" ||
+  fail "(B) shared_rls 400 body missing the 'deferred' message — $(head -c 300 "${BODY_TMP}") (line: S deferred msg)"
 # No backup row should have been recorded for S (rejected before INSERT, or
 # rolled back) — defence that the deferral is clean, not a half-written row.
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_backups WHERE tenant_id='${TENANT_S}' AND status='completed'")" == "0" ]] \
-  || fail "(B) a completed backup row exists for shared_rls tenant S — the deferral leaked an artifact (line: S no completed row)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_backups WHERE tenant_id='${TENANT_S}' AND status='completed'")" == "0" ]] ||
+  fail "(B) a completed backup row exists for shared_rls tenant S — the deferral leaked an artifact (line: S no completed row)"
 ok "(B) shared_rls backup → 400 deferred (message present, no completed row) — MVP scope honestly enforced"
 
 step "8c/9 (B · REJECT) db_per_tenant deferred (B6b) — POST /v1/tenants/${TENANT_D}/backup → 400 \"deferred\""
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_D}/backup" '{"mount":"m87-mount-d"}')"
-[[ "${C}" == "400" ]] \
-  || fail "(B) db_per_tenant backup got ${C} (want 400) — the B6b deferral is not enforced — $(head -c 300 "${BODY_TMP}") (line: D deferred 400)"
-grep -qi 'deferred' "${BODY_TMP}" \
-  || fail "(B) db_per_tenant 400 body missing the 'deferred' message — $(head -c 300 "${BODY_TMP}") (line: D deferred msg)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_backups WHERE tenant_id='${TENANT_D}' AND status='completed'")" == "0" ]] \
-  || fail "(B) a completed backup row exists for db_per_tenant tenant D — the deferral leaked an artifact (line: D no completed row)"
+[[ "${C}" == "400" ]] ||
+  fail "(B) db_per_tenant backup got ${C} (want 400) — the B6b deferral is not enforced — $(head -c 300 "${BODY_TMP}") (line: D deferred 400)"
+grep -qi 'deferred' "${BODY_TMP}" ||
+  fail "(B) db_per_tenant 400 body missing the 'deferred' message — $(head -c 300 "${BODY_TMP}") (line: D deferred msg)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_backups WHERE tenant_id='${TENANT_D}' AND status='completed'")" == "0" ]] ||
+  fail "(B) a completed backup row exists for db_per_tenant tenant D — the deferral leaked an artifact (line: D no completed row)"
 ok "(B) db_per_tenant backup → 400 deferred (no completed row) — only schema_per_tenant is advertised (db_per_tenant = B6b)"
 
 # ── 8d) (SAFETY · LOAD-BEARING) restore atomicity: a forced mid-restore COPY
@@ -472,9 +485,10 @@ ok "(B) db_per_tenant backup → 400 deferred (no completed row) — only schema
 #        would leave t_aa holding the replayed rows (count != 1). ─────────────────
 step "8d/9 (SAFETY · LOAD-BEARING) restore ATOMICITY — forced t_bb COPY failure must roll t_aa back to the sentinel"
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_T}/backup" '{"mount":"m87-mount-t"}')"
-[[ "${C}" == "200" || "${C}" == "201" || "${C}" == "202" ]] \
-  || fail "(ATOM) backup T expected 200/201/202, got ${C} — $(head -c 300 "${BODY_TMP}") (line: T backup)"
-BACKUP_T="$(json_str backup_id)"; [[ -z "${BACKUP_T}" ]] && BACKUP_T="$(json_str id)"
+[[ "${C}" == "200" || "${C}" == "201" || "${C}" == "202" ]] ||
+  fail "(ATOM) backup T expected 200/201/202, got ${C} — $(head -c 300 "${BODY_TMP}") (line: T backup)"
+BACKUP_T="$(json_str backup_id)"
+[[ -z "${BACKUP_T}" ]] && BACKUP_T="$(json_str id)"
 [[ -n "${BACKUP_T}" ]] || fail "(ATOM) backup T returned no id — $(head -c 300 "${BODY_TMP}") (line: T backup id)"
 T_STATUS=""
 for i in $(seq 1 60); do
@@ -493,12 +507,12 @@ INSERT INTO "${SCHEMA_T}".t_aa (id, payload) VALUES (999, 'sentinel');
 INSERT INTO "${SCHEMA_T}".t_bb (id, payload) VALUES (999, 'sentinel');
 ALTER TABLE "${SCHEMA_T}".t_bb DROP COLUMN payload;
 SQL
-[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_T}\".t_aa")" == "1" ]] \
-  || fail "(ATOM) pre-restore t_aa should hold exactly the sentinel row (line: T pre-restore count)"
+[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_T}\".t_aa")" == "1" ]] ||
+  fail "(ATOM) pre-restore t_aa should hold exactly the sentinel row (line: T pre-restore count)"
 # Attempt the restore — it MUST fail (t_bb COPY errors) and roll back ATOMICALLY.
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_T}/restore/${BACKUP_T}")"
-[[ "${C}" != "200" && "${C}" != "201" && "${C}" != "202" ]] \
-  || fail "(ATOM) restore with a broken t_bb returned success ${C} — the forced COPY failure did not propagate (line: T restore must fail)"
+[[ "${C}" != "200" && "${C}" != "201" && "${C}" != "202" ]] ||
+  fail "(ATOM) restore with a broken t_bb returned success ${C} — the forced COPY failure did not propagate (line: T restore must fail)"
 # Assert ROLLBACK: t_aa must STILL be exactly the sentinel (count==1, id=999) —
 # t_aa's COPY rolled back with the aborted tx. A non-atomic restore would show !=1.
 T_AA_CT=""
@@ -507,12 +521,12 @@ for i in $(seq 1 20); do
   [[ -n "${T_AA_CT}" ]] && break
   sleep 0.25
 done
-[[ "${T_AA_CT}" == "1" ]] \
-  || fail "(ATOM) NON-ATOMIC restore — t_aa holds ${T_AA_CT} rows after a failed restore (want 1: the sentinel); t_aa's COPY did NOT roll back with the tx (line: T atomic count)"
-[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_T}\".t_aa WHERE id=999")" == "1" ]] \
-  || fail "(ATOM) the sentinel row vanished — the TRUNCATE committed without the COPY (not atomic) (line: T sentinel survives)"
-[[ "$(psql_val "SELECT status FROM public.tenant_backups WHERE id='${BACKUP_T}'")" == "failed" ]] \
-  || fail "(ATOM) ledger status for the broken restore is not 'failed' — the failure was swallowed (line: T ledger failed)"
+[[ "${T_AA_CT}" == "1" ]] ||
+  fail "(ATOM) NON-ATOMIC restore — t_aa holds ${T_AA_CT} rows after a failed restore (want 1: the sentinel); t_aa's COPY did NOT roll back with the tx (line: T atomic count)"
+[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_T}\".t_aa WHERE id=999")" == "1" ]] ||
+  fail "(ATOM) the sentinel row vanished — the TRUNCATE committed without the COPY (not atomic) (line: T sentinel survives)"
+[[ "$(psql_val "SELECT status FROM public.tenant_backups WHERE id='${BACKUP_T}'")" == "failed" ]] ||
+  fail "(ATOM) ledger status for the broken restore is not 'failed' — the failure was swallowed (line: T ledger failed)"
 ok "(ATOM) forced mid-restore COPY failure rolled back ATOMICALLY — t_aa kept exactly the sentinel, ledger='failed'; restore is all-or-nothing"
 
 # ── 9) (C · PARITY) flag OFF → backup routes 404, base admin route still 200 ──
@@ -529,13 +543,13 @@ ok "backup-OFF tenant-control up (same DB, same seeded tenants)"
 
 step "9b/9 (C · PARITY) POST /v1/tenants/${TENANT_A}/backup on the OFF router → 404 (route NOT mounted) WHILE base admin GET /v1/tenants/${TENANT_A} → 200"
 C="$(admin_req POST "${PORT_OFF}" "/v1/tenants/${TENANT_A}/backup" '{"mount":"m87-mount-a"}')"
-[[ "${C}" == "404" ]] \
-  || fail "(C) PARITY: POST /backup with TENANT_BACKUP_ENABLED off expected 404 (route absent), got ${C} — $(head -c 300 "${BODY_TMP}") (line: C backup 404)"
+[[ "${C}" == "404" ]] ||
+  fail "(C) PARITY: POST /backup with TENANT_BACKUP_ENABLED off expected 404 (route absent), got ${C} — $(head -c 300 "${BODY_TMP}") (line: C backup 404)"
 C="$(admin_req GET "${PORT_OFF}" "/v1/tenants/${TENANT_A}")"
-[[ "${C}" == "200" ]] \
-  || fail "(C) PARITY: base admin GET /v1/tenants/{id} expected 200 on OFF router, got ${C} — $(head -c 300 "${BODY_TMP}") (line: C admin 200)"
-grep -q "\"id\":\"${TENANT_A}\"" "${BODY_TMP}" \
-  || fail "(C) PARITY: base admin GET /v1/tenants/{id} did not return A — $(head -c 300 "${BODY_TMP}") (line: C admin is A)"
+[[ "${C}" == "200" ]] ||
+  fail "(C) PARITY: base admin GET /v1/tenants/{id} expected 200 on OFF router, got ${C} — $(head -c 300 "${BODY_TMP}") (line: C admin 200)"
+grep -q "\"id\":\"${TENANT_A}\"" "${BODY_TMP}" ||
+  fail "(C) PARITY: base admin GET /v1/tenants/{id} did not return A — $(head -c 300 "${BODY_TMP}") (line: C admin is A)"
 ok "(C) backup route 404 with flag OFF while base admin /v1/tenants/{id} still 200 — byte-parity to today"
 
 # ── summarize ──────────────────────────────────────────────────────────────────
@@ -548,7 +562,8 @@ green "[M87] (C) PARITY:   TENANT_BACKUP_ENABLED off → POST /backup 404 (route
 # ── emit the gate event via the kernel log helper (best-effort) ─────────────────
 step "log GATE m87=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-b6-per-tenant-backup}"

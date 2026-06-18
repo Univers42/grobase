@@ -84,7 +84,13 @@ export class ConsentService implements OnModuleInit {
          granted_at = CASE WHEN EXCLUDED.is_granted THEN now() ELSE gdpr.user_consent.granted_at END,
          revoked_at = CASE WHEN NOT EXCLUDED.is_granted THEN now() ELSE NULL END
        RETURNING *`,
-      [userId, consentType, consented, consented ? new Date() : null, consented ? null : new Date()],
+      [
+        userId,
+        consentType,
+        consented,
+        consented ? new Date() : null,
+        consented ? null : new Date(),
+      ],
     );
     return rows[0];
   }

@@ -34,15 +34,14 @@ async function bootstrap() {
   applySecurityMiddleware(app);
   app.useGlobalPipes(createValidationPipe());
   app.useGlobalFilters(new AllExceptionsFilter());
-  app.useGlobalInterceptors(
-    new CorrelationIdInterceptor(),
-    new TransformInterceptor(),
-  );
+  app.useGlobalInterceptors(new CorrelationIdInterceptor(), new TransformInterceptor());
   app.enableShutdownHooks();
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('GDPR Service')
-    .setDescription('Generic GDPR compliance: consent management, data deletion requests, data export')
+    .setDescription(
+      'Generic GDPR compliance: consent management, data deletion requests, data export',
+    )
     .setVersion('1.0.0')
     .addApiKey({ type: 'apiKey', name: 'apikey', in: 'header' }, 'apikey')
     .addBearerAuth()

@@ -57,18 +57,22 @@ export AUDIT_ARTIFACTS_DIR="${ARTIFACTS_DIR}"
 TARGET="${TARGET_URL:-http://127.0.0.1:8000}"
 SITE="${SITE_URL:-http://127.0.0.1:4325}"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 amber() { printf '\033[0;33m%s\033[0m\n' "$*"; }
 
 # ── argument parsing (mirror run-security-scans.sh) ──────────────────────────
-ONLY=""; SKIP=""
+ONLY=""
+SKIP=""
 for arg in "$@"; do
   case "${arg}" in
-    --only=*) ONLY="${arg#--only=}" ;;
-    --skip=*) SKIP="${arg#--skip=}" ;;
-    --help|-h) sed -n '/^# Usage:/,/^# Exit code:/p' "${SCRIPT_DIR}/$(basename "${BASH_SOURCE[0]}")" | sed 's/^# \?//'; exit 0 ;;
+  --only=*) ONLY="${arg#--only=}" ;;
+  --skip=*) SKIP="${arg#--skip=}" ;;
+  --help | -h)
+    sed -n '/^# Usage:/,/^# Exit code:/p' "${SCRIPT_DIR}/$(basename "${BASH_SOURCE[0]}")" | sed 's/^# \?//'
+    exit 0
+    ;;
   esac
 done
 enabled() {
@@ -80,17 +84,22 @@ enabled() {
 
 # probe: does a URL answer with any HTTP code?
 reachable() {
-  curl -ksS -o /dev/null -w '%{http_code}' --max-time 5 "$1" 2>/dev/null \
-    | grep -qE "^[2-5][0-9][0-9]$"
+  curl -ksS -o /dev/null -w '%{http_code}' --max-time 5 "$1" 2>/dev/null |
+    grep -qE "^[2-5][0-9][0-9]$"
 }
 
 # ── summary table state (parallel arrays: name | ran? | result) ──────────────
 declare -a S_NAME S_RAN S_RESULT
-record() { S_NAME+=("$1"); S_RAN+=("$2"); S_RESULT+=("$3"); }
+record() {
+  S_NAME+=("$1")
+  S_RAN+=("$2")
+  S_RESULT+=("$3")
+}
 
 run_one() {
   # $1 tool key, $2 script, $3 friendly label, rest = extra args
-  local key="$1" script="$2" label="$3"; shift 3
+  local key="$1" script="$2" label="$3"
+  shift 3
   if ! enabled "${key}"; then
     record "${label}" "skipped(flag)" "—"
     amber "[audit] ${label}: skipped (--only/--skip)"
@@ -102,9 +111,18 @@ run_one() {
   local rc=0
   bash "${SCRIPT_DIR}/${script}" "$@" || rc=$?
   case "${rc}" in
-    0) record "${label}" "yes" "clean";        green "[audit] ${label}: clean" ;;
-    2) record "${label}" "no (target down)" "n/a"; amber "[audit] ${label}: no-op (target unreachable)" ;;
-    *) record "${label}" "yes" "FINDINGS";     red   "[audit] ${label}: FINDINGS (rc=${rc})" ;;
+  0)
+    record "${label}" "yes" "clean"
+    green "[audit] ${label}: clean"
+    ;;
+  2)
+    record "${label}" "no (target down)" "n/a"
+    amber "[audit] ${label}: no-op (target unreachable)"
+    ;;
+  *)
+    record "${label}" "yes" "FINDINGS"
+    red "[audit] ${label}: FINDINGS (rc=${rc})"
+    ;;
   esac
   return "${rc}"
 }

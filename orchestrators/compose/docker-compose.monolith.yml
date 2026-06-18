@@ -4,7 +4,7 @@ name: mini-baas
 services:
   # ─── WAF (Nginx + ModSecurity + OWASP CRS) ──────────────────────
   waf:
-    image: ghcr.io/univers42/grobase-waf:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-waf:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/waf
       dockerfile: Dockerfile
@@ -32,7 +32,7 @@ services:
 
   # ─── HashiCorp Vault (control plane: boot/CI secrets) ─────────────
   vault:
-    image: ghcr.io/univers42/grobase-vault:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-vault:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/vault
       dockerfile: Dockerfile
@@ -53,7 +53,11 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "vault status -address=http://127.0.0.1:8200 2>/dev/null | grep -q 'Sealed.*false' || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "vault status -address=http://127.0.0.1:8200 2>/dev/null | grep -q 'Sealed.*false' || exit 1",
+        ]
       interval: 5s
       timeout: 3s
       start_period: 15s
@@ -63,7 +67,7 @@ services:
 
   # ─── Vault Bootstrap (control plane one-shot) ─────────────────────
   vault-init:
-    image: ghcr.io/univers42/grobase-vault-init:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-vault-init:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/vault
       dockerfile: Dockerfile
@@ -84,7 +88,7 @@ services:
 
   # ─── API Gateway ─────────────────────────────────────────────────
   kong:
-    image: ghcr.io/univers42/grobase-kong:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-kong:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/kong
       dockerfile: Dockerfile
@@ -151,12 +155,16 @@ services:
 
   # ─── SQL Federation (M2) ─────────────────────────────────────────
   trino:
-    image: ghcr.io/univers42/grobase-trino:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-trino:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/trino
       dockerfile: Dockerfile
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/v1/info >/dev/null || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:8080/v1/info >/dev/null || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       start_period: 60s
@@ -196,7 +204,7 @@ services:
 
   # ─── MySQL (M2 federation — analytical + tenant CRUD via query-router) ──
   mysql:
-    image: ghcr.io/univers42/grobase-mysql:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-mysql:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/mysql
       dockerfile: Dockerfile
@@ -218,7 +226,17 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-mysqlroot}"]
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "127.0.0.1",
+          "-u",
+          "root",
+          "-p${MYSQL_ROOT_PASSWORD:-mysqlroot}",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -231,7 +249,7 @@ services:
   # `mariadb` engine id. Lives in the optional `engines-extra` profile (the
   # `engines` plane / Max package), never in default editions.
   mariadb:
-    image: ghcr.io/univers42/grobase-mariadb:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-mariadb:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/mariadb
       dockerfile: Dockerfile
@@ -266,7 +284,7 @@ services:
   # node; RAM-capped via --cache/--max-sql-memory so it stays inside mem_limit.
   # Optional `engines-extra` profile (the `engines` plane / Max package).
   cockroach:
-    image: ghcr.io/univers42/grobase-cockroach:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-cockroach:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/cockroach
       dockerfile: Dockerfile
@@ -287,7 +305,16 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "cockroach", "sql", "--insecure", "--host=127.0.0.1:26257", "-e", "SELECT 1"]
+      test:
+        [
+          "CMD",
+          "cockroach",
+          "sql",
+          "--insecure",
+          "--host=127.0.0.1:26257",
+          "-e",
+          "SELECT 1",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -300,7 +327,7 @@ services:
   # needs ~2 GB; lives in the optional `engines-extra` profile (the `engines`
   # plane / Max package), NEVER in default editions. Developer edition (free).
   mssql:
-    image: ghcr.io/univers42/grobase-mssql:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-mssql:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/mssql
       dockerfile: Dockerfile
@@ -318,7 +345,11 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -No -Q 'SELECT 1' -b -o /dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -No -Q ''SELECT 1'' -b -o /dev/null',
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -328,12 +359,16 @@ services:
 
   # ─── Iceberg REST Catalog (M2 federation) ────────────────────────
   iceberg-rest:
-    image: ghcr.io/univers42/grobase-iceberg-rest:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-iceberg-rest:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/iceberg-rest
       dockerfile: Dockerfile
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8181/v1/config >/dev/null || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:8181/v1/config >/dev/null || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       start_period: 20s
@@ -362,13 +397,13 @@ services:
 
   # ─── Outbox relay (M3 coherence — PG WAL → Redis Streams → Mongo projection) ──
   outbox-relay:
-    image: ghcr.io/univers42/grobase-outbox-relay:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-outbox-relay:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: outbox-relay
-    profiles: [legacy-node]   # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
+    profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
     container_name: mini-baas-outbox-relay
     env_file: [.env]
     environment:
@@ -399,7 +434,8 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3130/health/live || exit 1"]
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3130/health/live || exit 1"]
       interval: 10s
       timeout: 3s
       start_period: 10s
@@ -409,12 +445,16 @@ services:
 
   # ─── Debezium outbox CDC (M8 coherence — PG outbox → Redis Streams) ──
   debezium:
-    image: ghcr.io/univers42/grobase-debezium:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-debezium:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/debezium
       dockerfile: Dockerfile
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/q/health >/dev/null || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:8080/q/health >/dev/null || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       start_period: 30s
@@ -441,7 +481,7 @@ services:
 
   # ─── Iceberg warehouse bucket bootstrap (M2 federation) ──────────
   minio-iceberg-init:
-    image: ghcr.io/univers42/grobase-mc:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-mc:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/mc
       dockerfile: Dockerfile
@@ -469,7 +509,7 @@ services:
 
   # ─── Relational Database (custom image with pg_net) ───────────────
   postgres:
-    image: ghcr.io/univers42/grobase-postgres:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-postgres:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/postgres
       dockerfile: Dockerfile
@@ -497,7 +537,11 @@ services:
           - db
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -512,7 +556,7 @@ services:
 
   # ─── Database Bootstrap ──────────────────────────────────────────
   db-bootstrap:
-    image: ghcr.io/univers42/grobase-db-bootstrap:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-db-bootstrap:latest # pull-fallback (built from ./build context below)
     # Self-built: an init container that only runs psql/pg_isready then exits, so it
     # needs a postgres CLIENT (~13 MB) not the 438 MB pgvector engine image. The
     # `vector` extension lives in the postgres SERVER image (docker/services/postgres).
@@ -546,14 +590,21 @@ services:
 
   # ─── Document Database ───────────────────────────────────────────
   mongo:
-    image: ghcr.io/univers42/grobase-mongo:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-mongo:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/mongo
       dockerfile: Dockerfile
     container_name: mini-baas-mongo
     profiles: [data-plane]
     env_file: [.env]
-    command: ["--replSet", "rs0", "--bind_ip_all", "--keyFile", "/etc/mongo/rs-keyfile"]
+    command:
+      [
+        "--replSet",
+        "rs0",
+        "--bind_ip_all",
+        "--keyFile",
+        "/etc/mongo/rs-keyfile",
+      ]
     depends_on:
       mongo-keyfile:
         condition: service_completed_successfully
@@ -569,7 +620,11 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "mongosh --quiet --eval \"try { rs.status().myState === 1 ? quit(0) : quit(1) } catch(e) { db.runCommand({ ping: 1 }).ok ? quit(0) : quit(1) }\""]
+      test:
+        [
+          "CMD-SHELL",
+          'mongosh --quiet --eval "try { rs.status().myState === 1 ? quit(0) : quit(1) } catch(e) { db.runCommand({ ping: 1 }).ok ? quit(0) : quit(1) }"',
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -580,7 +635,7 @@ services:
   # ─── MongoDB keyfile generator (runs once, exits) ────────────────
   # Generates a shared keyfile for replica set internal auth.
   mongo-keyfile:
-    image: ghcr.io/univers42/grobase-mongo-keyfile:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-mongo-keyfile:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/mongo-keyfile
       dockerfile: Dockerfile
@@ -607,7 +662,7 @@ services:
   # Required for Change Streams (used by realtime CDC producer).
   # Runs once and exits with code 0.
   mongo-init:
-    image: ghcr.io/univers42/grobase-mongo-init:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-mongo-init:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/mongo-init
       dockerfile: Dockerfile
@@ -645,7 +700,7 @@ services:
 
   # ─── MongoDB REST API (NestJS) ──────────────────────────────────
   mongo-api:
-    image: ghcr.io/univers42/grobase-mongo-api:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-mongo-api:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
       dockerfile: Dockerfile
@@ -667,7 +722,8 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3010/health/live || exit 1"]
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3010/health/live || exit 1"]
       interval: 5s
       timeout: 3s
       start_period: 30s
@@ -677,7 +733,7 @@ services:
 
   # ─── Authentication ──────────────────────────────────────────────
   gotrue:
-    image: ghcr.io/univers42/grobase-gotrue:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-gotrue:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/gotrue
       dockerfile: Dockerfile
@@ -754,7 +810,7 @@ services:
 
   # ─── PostgreSQL REST API ─────────────────────────────────────────
   postgrest:
-    image: ghcr.io/univers42/grobase-postgrest:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-postgrest:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/postgrest
       dockerfile: Dockerfile
@@ -790,13 +846,17 @@ services:
 
   # ─── PostgreSQL Metadata (control plane / extras) ─────────────────
   pg-meta:
-    image: ghcr.io/univers42/grobase-pg-meta:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-pg-meta:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/pg-meta
       dockerfile: Dockerfile
     healthcheck:
       # node-based image (no curl/wget) — probe with node fetch, supabase's own pattern
-      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:8080/health').then(r=>{if(r.status!==200)throw 1}).catch(()=>process.exit(1))\""]
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://localhost:8080/health'').then(r=>{if(r.status!==200)throw 1}).catch(()=>process.exit(1))"',
+        ]
       interval: 15s
       timeout: 5s
       start_period: 15s
@@ -874,7 +934,7 @@ services:
 
   # ─── In-Memory Cache ─────────────────────────────────────────────
   redis:
-    image: ghcr.io/univers42/grobase-redis:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-redis:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/redis
       dockerfile: Dockerfile
@@ -912,7 +972,7 @@ services:
 
   # ─── Query Router (adapter plane — normalized data API) ───────────
   query-router:
-    image: ghcr.io/univers42/grobase-query-router:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-query-router:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
       dockerfile: Dockerfile
@@ -997,7 +1057,8 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:4001/health/live || exit 1"]
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:4001/health/live || exit 1"]
       interval: 5s
       timeout: 3s
       start_period: 30s
@@ -1007,7 +1068,7 @@ services:
 
   # ─── Rust Data Plane Router (live cutover — see parity-probe.sh) ──
   data-plane-router-rust:
-    image: ghcr.io/univers42/grobase-data-plane-router:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-data-plane-router:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/data-plane-router
       dockerfile: Dockerfile
@@ -1073,7 +1134,7 @@ services:
 
   # ─── Go Control Plane: adapter-registry (shadow migration path) ───
   adapter-registry-go:
-    image: ghcr.io/univers42/grobase-adapter-registry-go:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-adapter-registry-go:latest # pull-fallback (built from ./build context below)
     build:
       context: ./go/control-plane
       dockerfile: Dockerfile
@@ -1134,7 +1195,7 @@ services:
   # the JWT-authenticated path the just-signed-up user calls to provision
   # their tenant + receive their first API key.
   tenant-control:
-    image: ghcr.io/univers42/grobase-tenant-control:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-tenant-control:latest # pull-fallback (built from ./build context below)
     build:
       context: ./go/control-plane
       dockerfile: Dockerfile
@@ -1214,7 +1275,7 @@ services:
   # Owns webhook_subscriptions CRUD + consumes outbox.<aggregate> Redis
   # streams + HMAC-signed POSTs to subscribers with retry + DLQ.
   webhook-dispatcher:
-    image: ghcr.io/univers42/grobase-webhook-dispatcher:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-webhook-dispatcher:latest # pull-fallback (built from ./build context below)
     build:
       context: ./go/control-plane
       dockerfile: Dockerfile
@@ -1267,7 +1328,7 @@ services:
   # parity is checked before any Node container is retired. ~32 MiB mem_limit
   # vs ~55 MiB PER Node service is the −359 MiB / essential $13→$6.5 win.
   orchestrator:
-    image: ghcr.io/univers42/grobase-orchestrator:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-orchestrator:latest # pull-fallback (built from ./build context below)
     build:
       context: ./go/control-plane
       dockerfile: Dockerfile
@@ -1346,7 +1407,7 @@ services:
   # Zero-dep interval grammar (@every / @hourly / @daily / bare duration).
   # NOTE: own port 3027 — the orchestrator owns 3026 on this (scale-program) base.
   function-scheduler:
-    image: ghcr.io/univers42/grobase-function-scheduler:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-function-scheduler:latest # pull-fallback (built from ./build context below)
     build:
       context: ./go/control-plane
       dockerfile: Dockerfile
@@ -1384,13 +1445,13 @@ services:
 
   # ─── Email Service (background plane) ─────────────────────────────
   email-service:
-    image: ghcr.io/univers42/grobase-email-service:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-email-service:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: email-service
-    profiles: [legacy-node]   # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
+    profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
     container_name: mini-baas-email-service
     env_file: [.env]
     environment:
@@ -1407,7 +1468,8 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3030/health/live || exit 1"]
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3030/health/live || exit 1"]
       interval: 5s
       timeout: 3s
       start_period: 30s
@@ -1417,7 +1479,7 @@ services:
 
   # ─── Storage Router (NestJS — presigned URLs) ───────────────────
   storage-router:
-    image: ghcr.io/univers42/grobase-storage-router:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-storage-router:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
       dockerfile: Dockerfile
@@ -1448,7 +1510,8 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3040/health/live || exit 1"]
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3040/health/live || exit 1"]
       interval: 5s
       timeout: 3s
       start_period: 30s
@@ -1458,7 +1521,7 @@ services:
 
   # ─── Permission Engine (control plane — ABAC) ─────────────────────
   permission-engine:
-    image: ghcr.io/univers42/grobase-permission-engine:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-permission-engine:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
       dockerfile: Dockerfile
@@ -1485,7 +1548,8 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3050/health/live || exit 1"]
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3050/health/live || exit 1"]
       interval: 5s
       timeout: 3s
       start_period: 30s
@@ -1495,7 +1559,7 @@ services:
 
   # ─── Schema Service (control plane — DDL management) ──────────────
   schema-service:
-    image: ghcr.io/univers42/grobase-schema-service:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-schema-service:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
       dockerfile: Dockerfile
@@ -1524,7 +1588,8 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3060/health/live || exit 1"]
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3060/health/live || exit 1"]
       interval: 5s
       timeout: 3s
       start_period: 30s
@@ -1534,7 +1599,7 @@ services:
 
   # ─── Analytics Service (analytics/background plane) ───────────────
   analytics-service:
-    image: ghcr.io/univers42/grobase-analytics-service:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-analytics-service:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
       dockerfile: Dockerfile
@@ -1559,7 +1624,8 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3070/health/live || exit 1"]
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3070/health/live || exit 1"]
       interval: 5s
       timeout: 3s
       start_period: 30s
@@ -1569,13 +1635,13 @@ services:
 
   # ─── GDPR Service (background/control plane) ─────────────────────
   gdpr-service:
-    image: ghcr.io/univers42/grobase-gdpr-service:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-gdpr-service:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: gdpr-service
-    profiles: [legacy-node]   # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
+    profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
     container_name: mini-baas-gdpr-service
     env_file: [.env]
     environment:
@@ -1592,7 +1658,8 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3080/health/live || exit 1"]
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3080/health/live || exit 1"]
       interval: 5s
       timeout: 3s
       start_period: 30s
@@ -1602,13 +1669,13 @@ services:
 
   # ─── Newsletter Service (background plane) ────────────────────────
   newsletter-service:
-    image: ghcr.io/univers42/grobase-newsletter-service:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-newsletter-service:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: newsletter-service
-    profiles: [legacy-node]   # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
+    profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
     container_name: mini-baas-newsletter-service
     env_file: [.env]
     environment:
@@ -1628,7 +1695,8 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3090/health/live || exit 1"]
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3090/health/live || exit 1"]
       interval: 5s
       timeout: 3s
       start_period: 30s
@@ -1638,7 +1706,7 @@ services:
 
   # ─── AI Service (background/data plane) ──────────────────────────
   ai-service:
-    image: ghcr.io/univers42/grobase-ai-service:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-ai-service:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
       dockerfile: Dockerfile
@@ -1668,7 +1736,8 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/health/live || exit 1"]
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3100/health/live || exit 1"]
       interval: 5s
       timeout: 3s
       start_period: 30s
@@ -1678,13 +1747,13 @@ services:
 
   # ─── Log Service (observability/background plane) ────────────────
   log-service:
-    image: ghcr.io/univers42/grobase-log-service:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-log-service:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: log-service
-    profiles: [legacy-node]   # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
+    profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
     container_name: mini-baas-log-service
     env_file: [.env]
     environment:
@@ -1697,7 +1766,8 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3110/health/live || exit 1"]
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3110/health/live || exit 1"]
       interval: 5s
       timeout: 3s
       start_period: 30s
@@ -1707,13 +1777,13 @@ services:
 
   # ─── Session Service (background plane) ──────────────────────────
   session-service:
-    image: ghcr.io/univers42/grobase-session-service:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-session-service:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
       dockerfile: Dockerfile
       args:
         APP: session-service
-    profiles: [legacy-node]   # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
+    profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
     container_name: mini-baas-session-service
     env_file: [.env]
     environment:
@@ -1729,7 +1799,8 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3120/health/live || exit 1"]
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3120/health/live || exit 1"]
       interval: 5s
       timeout: 3s
       start_period: 30s
@@ -1739,13 +1810,17 @@ services:
 
   # ─── Object Storage (extras) ─────────────────────────────────────
   minio:
-    image: ghcr.io/univers42/grobase-minio:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-minio:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/minio
       dockerfile: Dockerfile
     container_name: mini-baas-minio
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       start_period: 15s
@@ -1771,7 +1846,7 @@ services:
   # minimal permission set. Read wiki/back/08_edge_functions.md for the
   # security trade-offs.
   functions-runtime:
-    image: ghcr.io/univers42/grobase-functions-runtime:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-functions-runtime:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/functions-runtime
       dockerfile: Dockerfile
@@ -1780,7 +1855,13 @@ services:
     env_file: [.env]
     healthcheck:
       # deno-based image (no curl/wget) — probe the /health/live route with deno itself
-      test: ["CMD", "deno", "eval", "try{const r=await fetch('http://localhost:3060/health/live');Deno.exit(r.ok?0:1)}catch{Deno.exit(1)}"]
+      test:
+        [
+          "CMD",
+          "deno",
+          "eval",
+          "try{const r=await fetch('http://localhost:3060/health/live');Deno.exit(r.ok?0:1)}catch{Deno.exit(1)}",
+        ]
       interval: 15s
       timeout: 5s
       start_period: 10s
@@ -1808,7 +1889,7 @@ services:
   # Profile `backups` keeps it out of the lean dev loop. Add `--profile backups`
   # or include it in BAAS_LEAN_PROFILES_EXTRA for production deployments.
   pg-backup:
-    image: ghcr.io/univers42/grobase-pg-backup:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-pg-backup:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/pg-backup
       dockerfile: Dockerfile
@@ -1845,12 +1926,16 @@ services:
 
   # ─── Connection Pooler (control plane / close to Postgres) ────────
   supavisor:
-    image: ghcr.io/univers42/grobase-supavisor:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-supavisor:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/supavisor
       dockerfile: Dockerfile
     healthcheck:
-      test: ["CMD-SHELL", "curl -sSfL --head -o /dev/null http://127.0.0.1:4000/api/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sSfL --head -o /dev/null http://127.0.0.1:4000/api/health || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       start_period: 30s
@@ -1877,7 +1962,7 @@ services:
   # container reports healthy. The DEFAULT_* env vars skip the first-run
   # wizard so the dashboard loads straight into the dev project.
   studio:
-    image: ghcr.io/univers42/grobase-studio:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-studio:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/studio
       dockerfile: Dockerfile
@@ -1911,7 +1996,11 @@ services:
       - mini-baas
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/profile').then(r => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))\""]
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:3000/api/profile'').then(r => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))"',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1921,12 +2010,16 @@ services:
 
   # ─── Observability: Prometheus ───────────────────────────────────
   prometheus:
-    image: ghcr.io/univers42/grobase-prometheus:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-prometheus:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/prometheus
       dockerfile: Dockerfile
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy >/dev/null || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:9090/-/healthy >/dev/null || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       start_period: 15s
@@ -1945,12 +2038,16 @@ services:
 
   # ─── Observability: Grafana ──────────────────────────────────────
   grafana:
-    image: ghcr.io/univers42/grobase-grafana:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-grafana:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/grafana
       dockerfile: Dockerfile
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health >/dev/null || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:3000/api/health >/dev/null || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       start_period: 20s
@@ -1971,12 +2068,16 @@ services:
 
   # ─── Observability: Loki ─────────────────────────────────────────
   loki:
-    image: ghcr.io/univers42/grobase-loki:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-loki:latest # pull-fallback (built from ./build context below)
     build:
       context: ./docker/services/loki
       dockerfile: Dockerfile
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready >/dev/null || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:3100/ready >/dev/null || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       start_period: 20s
@@ -2000,7 +2101,7 @@ services:
 
   # ─── Observability: Promtail ─────────────────────────────────────
   promtail:
-    image: ghcr.io/univers42/grobase-promtail:latest   # pull-fallback (built from ./build context below)
+    image: ghcr.io/univers42/grobase-promtail:latest # pull-fallback (built from ./build context below)
     # No healthcheck BY DESIGN: the promtail image ships neither curl nor wget.
     # It is a push-only agent — failure is visible as missing log streams, and
     # Loki's own /ready healthcheck covers the receiving end of the pipeline.

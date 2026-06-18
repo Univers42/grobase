@@ -59,10 +59,7 @@ export class PermissionsController {
   @ApiParam({ name: 'userId', type: 'string', format: 'uuid' })
   @ApiParam({ name: 'roleName' })
   @ApiOperation({ summary: 'Revoke a role from a user (admin only)' })
-  async revoke(
-    @Param('userId') userId: string,
-    @Param('roleName') roleName: string,
-  ) {
+  async revoke(@Param('userId') userId: string, @Param('roleName') roleName: string) {
     return this.service.revokeRole(userId, roleName);
   }
 }

@@ -43,12 +43,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M59] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M59] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M59] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M59] FAIL — $*"
+  exit 1
+}
 
 IMAGE="${GRAPHQL_PG_IMAGE:-mini-baas-postgres-graphql:16}"
 PGREST_IMAGE="postgrest/postgrest:v12.2.3"
@@ -86,8 +89,8 @@ psql_pg() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP
 
 # ── 0) bring up the isolated graphql postgres ────────────────────────────────
 step "0/6 boot isolated postgres-graphql (${IMAGE})"
-docker image inspect "${IMAGE}" >/dev/null 2>&1 \
-  || fail "image '${IMAGE}' not built — docker build -t ${IMAGE} infra/docker/services/postgres-graphql"
+docker image inspect "${IMAGE}" >/dev/null 2>&1 ||
+  fail "image '${IMAGE}' not built — docker build -t ${IMAGE} infra/docker/services/postgres-graphql"
 docker network create "${NET}" >/dev/null
 docker run -d --name "${PG}" --network "${NET}" \
   -e POSTGRES_PASSWORD="${PGPW}" "${IMAGE}" \
@@ -174,7 +177,7 @@ BODY="$(python3 -c 'import json,sys;print(json.dumps({"query":sys.argv[1]}))' "$
 # graphql_public is NOT PostgREST's default (first) schema, so /rpc resolution
 # needs Content-Profile to pick it (Kong injects this on the real /graphql/v1).
 HTTP="$(curl -s -o /tmp/m59.json -w '%{http_code}' -X POST "http://127.0.0.1:${PORT}/rpc/graphql" \
-        -H 'Content-Type: application/json' -H 'Content-Profile: graphql_public' -d "${BODY}")"
+  -H 'Content-Type: application/json' -H 'Content-Profile: graphql_public' -d "${BODY}")"
 [[ "${HTTP}" == "200" ]] || fail "POST /rpc/graphql expected 200, got ${HTTP} — $(head -c 300 /tmp/m59.json)"
 grep -q 'buy milk' /tmp/m59.json || fail "HTTP GraphQL response missing data — $(head -c 300 /tmp/m59.json)"
 grep -q '"data"' /tmp/m59.json || fail "HTTP GraphQL response has no data envelope — $(head -c 300 /tmp/m59.json)"
@@ -184,7 +187,7 @@ ok "POST /rpc/graphql → {data:{todosCollection:…}} over HTTP via PostgREST"
 step "4/6 a bad query returns a GraphQL errors array (200)"
 BADBODY="$(python3 -c 'import json;print(json.dumps({"query":"{ no_such_field }"}))')"
 HTTP="$(curl -s -o /tmp/m59.json -w '%{http_code}' -X POST "http://127.0.0.1:${PORT}/rpc/graphql" \
-        -H 'Content-Type: application/json' -H 'Content-Profile: graphql_public' -d "${BADBODY}")"
+  -H 'Content-Type: application/json' -H 'Content-Profile: graphql_public' -d "${BADBODY}")"
 [[ "${HTTP}" == "200" ]] || fail "bad query should be 200 per GraphQL-over-HTTP, got ${HTTP}"
 grep -q '"errors"' /tmp/m59.json || fail "bad query did not return a GraphQL errors array — $(head -c 300 /tmp/m59.json)"
 ok "GraphQL-level error returned as 200 + errors[] (not a transport 500)"
@@ -221,8 +224,8 @@ ok "each tenant sees only its rows; anon sees none — GraphQL inherits RLS unde
 step "6/6 Kong route /graphql/v1 → postgrest /rpc/graphql"
 KCONF="${BAAS_DIR}/infra/docker/services/kong/conf/kong.yml"
 grep -q 'rpc/graphql' "${KCONF}" || fail "kong.yml graphql route does not target /rpc/graphql"
-awk '/- name: graphql$/{f=1} f&&/paths:.*graphql\/v1/{print; found=1} END{exit !found}' "${KCONF}" >/dev/null \
-  || fail "kong.yml has no /graphql/v1 route"
+awk '/- name: graphql$/{f=1} f&&/paths:.*graphql\/v1/{print; found=1} END{exit !found}' "${KCONF}" >/dev/null ||
+  fail "kong.yml has no /graphql/v1 route"
 ok "kong.yml: /graphql/v1 → http://postgrest:3000/rpc/graphql"
 
 green "[M59] ALL GATES GREEN — GraphQL live + RLS-honest: pg_graphql image + graphql_public INVOKER wrapper + PostgREST /rpc/graphql over HTTP, two-tenant isolation proven"

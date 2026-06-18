@@ -22,7 +22,13 @@
 
 /** Coarse capability flags advertised by each adapter for the planner. */
 export type EngineJoinCapability = 'native' | 'limited' | 'none';
-export type EnginePatternSearchCapability = 'native' | 'indexed' | 'limited' | 'scan' | 'remote' | 'none';
+export type EnginePatternSearchCapability =
+  | 'native'
+  | 'indexed'
+  | 'limited'
+  | 'scan'
+  | 'remote'
+  | 'none';
 export type EngineLatencyClass = 'native' | 'adapter' | 'fdw' | 'remote';
 
 export interface EngineSemanticCaps {

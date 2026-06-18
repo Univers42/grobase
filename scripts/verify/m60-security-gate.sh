@@ -63,17 +63,20 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"          # …/apps/baas/mini-baas-infra
-BAAS_ROOT="$(cd "${BAAS_DIR}/.." && pwd)"              # …/apps/baas (wiki + .github live here)
-REPO_ROOT="$(cd "${BAAS_ROOT}/../.." && pwd)"          # repo root (the other .github)
+BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # …/apps/baas/mini-baas-infra
+BAAS_ROOT="$(cd "${BAAS_DIR}/.." && pwd)"     # …/apps/baas (wiki + .github live here)
+REPO_ROOT="$(cd "${BAAS_ROOT}/../.." && pwd)" # repo root (the other .github)
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-yellow(){ printf '\033[0;33m%s\033[0m\n' "$*"; }
-step()  { cyan "[M60] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M60] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+yellow() { printf '\033[0;33m%s\033[0m\n' "$*"; }
+step() { cyan "[M60] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M60] FAIL — $*"
+  exit 1
+}
 
 # shellcheck source=scripts/lib/lib-live-tenant.sh
 source "${SCRIPT_DIR}/../lib/lib-live-tenant.sh"
@@ -83,7 +86,10 @@ WF=""
 for c in \
   "${BAAS_ROOT}/.github/workflows/mini-baas-security.yml" \
   "${REPO_ROOT}/.github/workflows/mini-baas-security.yml"; do
-  [[ -f "$c" ]] && { WF="$c"; break; }
+  [[ -f "$c" ]] && {
+    WF="$c"
+    break
+  }
 done
 ASVS="${BAAS_ROOT}/wiki/security-audit-asvs.md"
 AUDIT="${BAAS_ROOT}/wiki/security-audit.md"
@@ -93,9 +99,17 @@ SLUG="m60$(date +%s)$$"
 FOE_SLUG="m60foe$(date +%s)$$"
 # Identifiers captured explicitly so cleanup is correct even after the lib
 # overwrites the LIVE_* vars on the SECOND (foreign) provision.
-A_SLUG=""; A_KEY_ID=""; A_DB=""; A_KEY=""
-B_SLUG=""; B_KEY_ID=""; B_DB=""
-OWN_OK=0; TBL=""; KONG=""; ANON=""
+A_SLUG=""
+A_KEY_ID=""
+A_DB=""
+A_KEY=""
+B_SLUG=""
+B_KEY_ID=""
+B_DB=""
+OWN_OK=0
+TBL=""
+KONG=""
+ANON=""
 
 cleanup() {
   # best-effort: drop the positive-control probe table on OUR (tenant A) mount.
@@ -122,7 +136,7 @@ declare -A CORE=(
   [trufflehog]='trufflehog'
   [semgrep]='semgrep'
   [trivy]='trivy'
-  [cargo-audit]='cargo[ -]audit'
+  [cargo - audit]='cargo[ -]audit'
   [govulncheck]='govulncheck'
   [zap]='zap'
 )
@@ -166,9 +180,9 @@ step "3/5 live prerequisites (migration 039 + scratch tenants)"
 ANON_GRANT="$(docker exec mini-baas-postgres psql -U postgres -d postgres -tAc \
   "SELECT count(*) FROM information_schema.role_table_grants WHERE table_name='outbox_events' AND grantee IN ('anon','authenticated')" 2>/dev/null || echo '?')"
 if [[ "${ANON_GRANT}" != "0" ]]; then
-  sed '/^#/d' "${BAAS_DIR}/scripts/migrations/postgresql/039_internal_table_hardening.sql" \
-    | docker exec -i mini-baas-postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - >/dev/null \
-    || fail "could not apply migration 039 (internal-table hardening)"
+  sed '/^#/d' "${BAAS_DIR}/scripts/migrations/postgresql/039_internal_table_hardening.sql" |
+    docker exec -i mini-baas-postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - >/dev/null ||
+    fail "could not apply migration 039 (internal-table hardening)"
 fi
 # Re-affirm the lockdown is in place at the DB level (the backstop behind the
 # live HTTP negative below).
@@ -181,9 +195,12 @@ ANON_GRANT="$(docker exec mini-baas-postgres psql -U postgres -d postgres -tAc \
 ok "migration 039 effective: outbox_events RLS=on, 0 anon/authenticated grants"
 
 live_tenant_provision "${SLUG}" || fail "tenant provisioning failed (is the stack up?)"
-KONG="${LIVE_KONG_URL}"; ANON="${LIVE_ANON_APIKEY}"
-A_SLUG="${LIVE_TENANT_SLUG}"; A_DB="${LIVE_TENANT_DB_ID}"
-A_KEY="${LIVE_TENANT_API_KEY}"; A_KEY_ID="${LIVE_TENANT_KEY_ID}"
+KONG="${LIVE_KONG_URL}"
+ANON="${LIVE_ANON_APIKEY}"
+A_SLUG="${LIVE_TENANT_SLUG}"
+A_DB="${LIVE_TENANT_DB_ID}"
+A_KEY="${LIVE_TENANT_API_KEY}"
+A_KEY_ID="${LIVE_TENANT_KEY_ID}"
 ok "tenant '${A_SLUG}' provisioned (mount ${A_DB})"
 
 # ── 4) LIVE NEGATIVES — the teeth ─────────────────────────────────────────────
@@ -194,34 +211,36 @@ body() { head -c 300 "${TMP}/r.json"; }
 step "4/5 LIVE NEGATIVE (a): anon CANNOT read the CDC ledger / migrations (039)"
 # outbox_events — the multi-tenant CDC ledger. anon (no JWT → PostgREST anon role).
 code="$(req GET "/rest/v1/outbox_events?limit=1" -H "apikey: ${ANON}")"
-[[ "${code}" == "401" || "${code}" == "403" ]] \
-  || fail "anon read of outbox_events returned ${code} (expected 401/403 DENY) — $(body)"
-grep -q '42501' "${TMP}/r.json" \
-  || fail "anon outbox read denied by ${code} but NOT a Postgres role denial (42501) — $(body)"
-grep -qi 'permission denied for table' "${TMP}/r.json" \
-  || fail "anon outbox denial message is not a table-permission denial — $(body)"
+[[ "${code}" == "401" || "${code}" == "403" ]] ||
+  fail "anon read of outbox_events returned ${code} (expected 401/403 DENY) — $(body)"
+grep -q '42501' "${TMP}/r.json" ||
+  fail "anon outbox read denied by ${code} but NOT a Postgres role denial (42501) — $(body)"
+grep -qi 'permission denied for table' "${TMP}/r.json" ||
+  fail "anon outbox denial message is not a table-permission denial — $(body)"
 # and it must NOT have leaked any row payload.
-grep -q '"payload"' "${TMP}/r.json" \
-  && fail "LEAK: anon outbox read exposed a payload — $(body)"
+grep -q '"payload"' "${TMP}/r.json" &&
+  fail "LEAK: anon outbox read exposed a payload — $(body)"
 ok "anon → outbox_events: ${code} 42501 'permission denied for table' (no rows leaked)"
 # schema_migrations — same 039 lockdown.
 code="$(req GET "/rest/v1/schema_migrations?limit=1" -H "apikey: ${ANON}")"
-[[ "${code}" == "401" || "${code}" == "403" ]] \
-  || fail "anon read of schema_migrations returned ${code} (expected DENY) — $(body)"
-grep -q '42501' "${TMP}/r.json" \
-  || fail "anon schema_migrations denial is not a Postgres role denial (42501) — $(body)"
+[[ "${code}" == "401" || "${code}" == "403" ]] ||
+  fail "anon read of schema_migrations returned ${code} (expected DENY) — $(body)"
+grep -q '42501' "${TMP}/r.json" ||
+  fail "anon schema_migrations denial is not a Postgres role denial (42501) — $(body)"
 ok "anon → schema_migrations: ${code} 42501 (internal tables locked, REST + GraphQL)"
 
 step "4/5 LIVE NEGATIVE (b): forged JWT (alg=none / wrong-sig) is rejected"
 # Mint a none-alg token claiming service_role; iss=supabase so the apikey consumer
 # is selected and the request reaches PostgREST's JWS validation.
-NONE_JWT="$(python3 - <<'PY'
+NONE_JWT="$(
+  python3 - <<'PY'
 import base64, json
 b = lambda o: base64.urlsafe_b64encode(json.dumps(o, separators=(',',':')).encode()).rstrip(b'=').decode()
 print(b({"alg":"none","typ":"JWT"}) + "." + b({"iss":"supabase","role":"service_role","exp":9999999999}) + ".")
 PY
 )"
-WRONG_JWT="$(python3 - <<'PY'
+WRONG_JWT="$(
+  python3 - <<'PY'
 import base64, json, hmac, hashlib
 b = lambda o: base64.urlsafe_b64encode(json.dumps(o, separators=(',',':')).encode()).rstrip(b'=')
 hdr = b({"alg":"HS256","typ":"JWT"}); pl = b({"iss":"supabase","role":"service_role","exp":9999999999})
@@ -231,17 +250,17 @@ PY
 )"
 # alg=none must NOT be honored as service_role (would be a full auth bypass).
 code="$(req GET "/rest/v1/outbox_events?limit=1" -H "apikey: ${ANON}" -H "Authorization: Bearer ${NONE_JWT}")"
-[[ "${code}" == "401" || "${code}" == "403" ]] \
-  || fail "alg=none JWT (role=service_role) returned ${code} — MUST be rejected (auth bypass!) — $(body)"
-grep -q '"payload"' "${TMP}/r.json" \
-  && fail "AUTH BYPASS: alg=none token read outbox payloads — $(body)"
+[[ "${code}" == "401" || "${code}" == "403" ]] ||
+  fail "alg=none JWT (role=service_role) returned ${code} — MUST be rejected (auth bypass!) — $(body)"
+grep -q '"payload"' "${TMP}/r.json" &&
+  fail "AUTH BYPASS: alg=none token read outbox payloads — $(body)"
 ok "alg=none JWT (claiming service_role) → ${code} rejected (no service_role granted)"
 # wrong-signature token must also be rejected.
 code="$(req GET "/rest/v1/outbox_events?limit=1" -H "apikey: ${ANON}" -H "Authorization: Bearer ${WRONG_JWT}")"
-[[ "${code}" == "401" || "${code}" == "403" ]] \
-  || fail "wrong-signature JWT returned ${code} — MUST be rejected — $(body)"
-grep -q '"payload"' "${TMP}/r.json" \
-  && fail "AUTH BYPASS: wrong-signature token read outbox payloads — $(body)"
+[[ "${code}" == "401" || "${code}" == "403" ]] ||
+  fail "wrong-signature JWT returned ${code} — MUST be rejected — $(body)"
+grep -q '"payload"' "${TMP}/r.json" &&
+  fail "AUTH BYPASS: wrong-signature token read outbox payloads — $(body)"
 ok "wrong-signature JWT → ${code} rejected (JWS signature validated)"
 
 step "4/5 LIVE NEGATIVE (c): a foreign tenant cannot read our mount"
@@ -257,38 +276,41 @@ own_create="$(req POST "/query/v1/${A_DB}/schema/ddl" -H "apikey: ${ANON}" -H "X
   -H 'Content-Type: application/json' \
   -d "{\"op\":\"create_table\",\"table\":\"${TBL}\",\"columns\":[{\"name\":\"id\",\"normalized_type\":\"integer\",\"nullable\":false,\"default\":null,\"enum_values\":null},{\"name\":\"secret\",\"normalized_type\":\"text\",\"nullable\":true,\"default\":null,\"enum_values\":null}],\"primary_key\":[\"id\"]}")"
 case "${own_create}" in
-  20*|409)
-    req POST "/query/v1/${A_DB}/tables/${TBL}" -H "apikey: ${ANON}" -H "X-Baas-Api-Key: ${A_KEY}" \
-      -H 'Content-Type: application/json' -d "{\"op\":\"insert\",\"data\":{\"id\":1,\"secret\":\"${MARK}\"}}" >/dev/null
-    own_read="$(req POST "/query/v1/${A_DB}/tables/${TBL}" -H "apikey: ${ANON}" -H "X-Baas-Api-Key: ${A_KEY}" \
-      -H 'Content-Type: application/json' -d '{"op":"list"}')"
-    if [[ "${own_read}" =~ ^2 ]]; then
-      # A real 2xx read of our OWN mount that returns OUR marker — this proves
-      # the cross-tenant 404 below is SELECTIVE (the deny isn't universal) and
-      # that the data path actually serves data (anti-vacuity for assertion (c)).
-      grep -q "${MARK}" "${TMP}/r.json" \
-        || fail "positive control: our key read our mount (${own_read}) but our marker '${MARK}' was missing — $(body)"
-      ok "positive control: OUR key reads OUR mount (${own_read}, marker present) — isolation is SELECTIVE, not a blanket 404"
-      OWN_OK=1
-    elif [[ "${own_read}" =~ ^(401|403|404)$ ]]; then
-      fail "positive control REGRESSED: our OWN key was denied (${own_read}) on our OWN mount — $(body)"
-    else
-      yellow "  · positive control inconclusive (own read ${own_read}, infra) — cross-tenant 404 below still proves the resolution-layer isolation"
-      OWN_OK=0
-    fi
-    ;;
-  502|503)
-    yellow "  · positive control skipped (data plane degraded ${own_create}, the documented wedge) — cross-tenant 404 below still proves resolution-layer isolation"
+20* | 409)
+  req POST "/query/v1/${A_DB}/tables/${TBL}" -H "apikey: ${ANON}" -H "X-Baas-Api-Key: ${A_KEY}" \
+    -H 'Content-Type: application/json' -d "{\"op\":\"insert\",\"data\":{\"id\":1,\"secret\":\"${MARK}\"}}" >/dev/null
+  own_read="$(req POST "/query/v1/${A_DB}/tables/${TBL}" -H "apikey: ${ANON}" -H "X-Baas-Api-Key: ${A_KEY}" \
+    -H 'Content-Type: application/json' -d '{"op":"list"}')"
+  if [[ "${own_read}" =~ ^2 ]]; then
+    # A real 2xx read of our OWN mount that returns OUR marker — this proves
+    # the cross-tenant 404 below is SELECTIVE (the deny isn't universal) and
+    # that the data path actually serves data (anti-vacuity for assertion (c)).
+    grep -q "${MARK}" "${TMP}/r.json" ||
+      fail "positive control: our key read our mount (${own_read}) but our marker '${MARK}' was missing — $(body)"
+    ok "positive control: OUR key reads OUR mount (${own_read}, marker present) — isolation is SELECTIVE, not a blanket 404"
+    OWN_OK=1
+  elif [[ "${own_read}" =~ ^(401|403|404)$ ]]; then
+    fail "positive control REGRESSED: our OWN key was denied (${own_read}) on our OWN mount — $(body)"
+  else
+    yellow "  · positive control inconclusive (own read ${own_read}, infra) — cross-tenant 404 below still proves the resolution-layer isolation"
     OWN_OK=0
-    ;;
-  *)
-    fail "positive control: unexpected create code ${own_create} — $(body)"
-    ;;
+  fi
+  ;;
+502 | 503)
+  yellow "  · positive control skipped (data plane degraded ${own_create}, the documented wedge) — cross-tenant 404 below still proves resolution-layer isolation"
+  OWN_OK=0
+  ;;
+*)
+  fail "positive control: unexpected create code ${own_create} — $(body)"
+  ;;
 esac
 
 # Provision a SECOND tenant; its key is real + verified by the control plane.
 live_tenant_provision "${FOE_SLUG}" || fail "foreign tenant provisioning failed"
-B_SLUG="${LIVE_TENANT_SLUG}"; B_KEY="${LIVE_TENANT_API_KEY}"; B_KEY_ID="${LIVE_TENANT_KEY_ID}"; B_DB="${LIVE_TENANT_DB_ID}"
+B_SLUG="${LIVE_TENANT_SLUG}"
+B_KEY="${LIVE_TENANT_API_KEY}"
+B_KEY_ID="${LIVE_TENANT_KEY_ID}"
+B_DB="${LIVE_TENANT_DB_ID}"
 # Sanity: the FOREIGN key verifies on ITS OWN control-plane surface, so a denial
 # of OUR mount below is a security decision, not a broken/unknown key. The mount
 # resolution that denies cross-tenant access lives in the query-router BEFORE the
@@ -302,28 +324,28 @@ B_SLUG="${LIVE_TENANT_SLUG}"; B_KEY="${LIVE_TENANT_API_KEY}"; B_KEY_ID="${LIVE_T
 code=""
 for _ in $(seq 1 8); do
   code="$(req POST "/query/v1/${A_DB}/tables/m60probe" -H "apikey: ${ANON}" -H "X-Baas-Api-Key: ${B_KEY}" \
-          -H 'Content-Type: application/json' -d '{"op":"list"}')"
+    -H 'Content-Type: application/json' -d '{"op":"list"}')"
   [[ "${code}" == "502" || "${code}" == "503" ]] || break
   sleep 2
 done
 case "${code}" in
-  404|403)
-    grep -qi 'not found for this tenant' "${TMP}/r.json" \
-      || fail "cross-tenant mount denied (${code}) but not by tenant-scoped resolution — $(body)"
-    ;;
-  502|503)
-    fail "cross-tenant probe stuck on infra-unavailable (${code}) after retries — cannot ASSERT denial; data plane/tenant-control is degraded (the documented stale-IP wedge → 'docker restart mini-baas-tenant-control mini-baas-query-router'). Re-run. — $(body)"
-    ;;
-  200)
-    fail "CROSS-TENANT BREACH: foreign key ${B_SLUG} read our mount ${A_DB} (HTTP 200) — $(body)"
-    ;;
-  *)
-    fail "cross-tenant probe returned unexpected ${code} — $(body)"
-    ;;
+404 | 403)
+  grep -qi 'not found for this tenant' "${TMP}/r.json" ||
+    fail "cross-tenant mount denied (${code}) but not by tenant-scoped resolution — $(body)"
+  ;;
+502 | 503)
+  fail "cross-tenant probe stuck on infra-unavailable (${code}) after retries — cannot ASSERT denial; data plane/tenant-control is degraded (the documented stale-IP wedge → 'docker restart mini-baas-tenant-control mini-baas-query-router'). Re-run. — $(body)"
+  ;;
+200)
+  fail "CROSS-TENANT BREACH: foreign key ${B_SLUG} read our mount ${A_DB} (HTTP 200) — $(body)"
+  ;;
+*)
+  fail "cross-tenant probe returned unexpected ${code} — $(body)"
+  ;;
 esac
 # the foreign caller must never have seen any of our rows.
-grep -q '"rows"' "${TMP}/r.json" \
-  && fail "CROSS-TENANT BREACH: foreign caller received a rows envelope from our mount — $(body)"
+grep -q '"rows"' "${TMP}/r.json" &&
+  fail "CROSS-TENANT BREACH: foreign caller received a rows envelope from our mount — $(body)"
 ok "foreign tenant ${B_SLUG} → our mount ${A_DB}: ${code} 'not found for this tenant' (no rows)"
 
 # ── 5) KNOWN-OPEN residuals — printed, NOT claimed closed ────────────────────

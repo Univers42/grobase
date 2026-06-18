@@ -42,20 +42,23 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIGRATION_040="${INFRA_DIR}/scripts/migrations/postgresql/040_tenant_usage.sql"
 MIGRATION_041="${INFRA_DIR}/scripts/migrations/postgresql/041_tenant_billing.sql"
 MOCK_DIR="${SCRIPT_DIR}/m82-mock-stripe"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M82] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M82] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M82] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M82] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M82_PG_IMAGE:-postgres:16-alpine}"
 NODE_IMAGE="${M82_NODE_IMAGE:-node:22-alpine}"
@@ -72,11 +75,15 @@ PGPW="postgres"
 DB_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 INTERVAL_MS="${M82_INTERVAL_MS:-700}"
 EVENT_NAME="grobase_query_count"
-T1="m82-t1-$$"          # BILLED tenant (has a tenant_billing row + non-empty customer)
-T2="m82-t2-$$"          # UNBILLED tenant (usage but NO tenant_billing row → skipped)
-T3="m82-t3-$$"          # UNBILLED tenant (tenant_billing row but EMPTY customer → skipped)
+T1="m82-t1-$$" # BILLED tenant (has a tenant_billing row + non-empty customer)
+T2="m82-t2-$$" # UNBILLED tenant (usage but NO tenant_billing row → skipped)
+T3="m82-t3-$$" # UNBILLED tenant (tenant_billing row but EMPTY customer → skipped)
 CUS1="cus_${T1}"
-K1="m82-k1-$$"; K2="m82-k2-$$"; KROWS="m82-krows-$$"; KT2="m82-kt2-$$"; KT3="m82-kt3-$$"
+K1="m82-k1-$$"
+K2="m82-k2-$$"
+KROWS="m82-krows-$$"
+KT2="m82-kt2-$$"
+KT3="m82-kt3-$$"
 SVC_TOKEN="m82-internal-service-token-$$"
 EVENTS_TMP="$(mktemp)"
 
@@ -88,7 +95,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 
 # GET the mock's recorded events into EVENTS_TMP; echo the event count. The grep is
@@ -112,16 +119,16 @@ wait_log() { # $1=container $2=needle $3=tries
 # ── 0) build the scratch orchestrator FROM CURRENT (drafted) source ────────────
 step "0/7 build scratch Go orchestrator from CURRENT source (the B3 BillingReporter)"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=orchestrator --build-arg PORT=3060 \
-  -t "${ORCH_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch orchestrator image build failed (line: docker build ORCH)"
+  -t "${ORCH_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch orchestrator image build failed (line: docker build ORCH)"
 ok "orchestrator built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated net + postgres (prelude + REAL 040 + REAL 041) ─────────────────
 step "1/7 boot isolated net (${NET}): postgres + 2 mock-stripe servers"
 docker network create "${NET}" >/dev/null
 docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD="${PGPW}" "${PG_IMAGE}" >/dev/null
-docker run -d --name "${MOCK_ON}"  --network "${NET}" -e PORT=8080 -v "${MOCK_DIR}":/app:ro \
-  -p "127.0.0.1:${PORT_ON}:8080"  "${NODE_IMAGE}" node /app/server.mjs >/dev/null
+docker run -d --name "${MOCK_ON}" --network "${NET}" -e PORT=8080 -v "${MOCK_DIR}":/app:ro \
+  -p "127.0.0.1:${PORT_ON}:8080" "${NODE_IMAGE}" node /app/server.mjs >/dev/null
 docker run -d --name "${MOCK_OFF}" --network "${NET}" -e PORT=8080 -v "${MOCK_DIR}":/app:ro \
   -p "127.0.0.1:${PORT_OFF}:8080" "${NODE_IMAGE}" node /app/server.mjs >/dev/null
 for i in $(seq 1 80); do
@@ -130,8 +137,8 @@ for i in $(seq 1 80); do
   sleep 0.5
 done
 for i in $(seq 1 60); do
-  curl -fsS -o /dev/null "http://127.0.0.1:${PORT_ON}/_health" 2>/dev/null \
-    && curl -fsS -o /dev/null "http://127.0.0.1:${PORT_OFF}/_health" 2>/dev/null && break
+  curl -fsS -o /dev/null "http://127.0.0.1:${PORT_ON}/_health" 2>/dev/null &&
+    curl -fsS -o /dev/null "http://127.0.0.1:${PORT_OFF}/_health" 2>/dev/null && break
   [[ $i -eq 60 ]] && fail "mock-stripe servers never became ready (line: mock ready loop)"
   sleep 0.5
 done
@@ -151,12 +158,16 @@ DO $r$ BEGIN
 END $r$;
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
-docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "${MIGRATION_040}" >/dev/null 2>&1 \
-  || fail "real migration 040_tenant_usage.sql failed to apply (line: apply 040)"
-docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "${MIGRATION_041}" >/dev/null 2>&1 \
-  || fail "real migration 041_tenant_billing.sql failed to apply (line: apply 041)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_billing")" == "0" ]]   || fail "tenant_billing should start EMPTY (line: 041 empty check)"
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
+docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <"${MIGRATION_040}" >/dev/null 2>&1 ||
+  fail "real migration 040_tenant_usage.sql failed to apply (line: apply 040)"
+docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <"${MIGRATION_041}" >/dev/null 2>&1 ||
+  fail "real migration 041_tenant_billing.sql failed to apply (line: apply 041)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_billing")" == "0" ]] || fail "tenant_billing should start EMPTY (line: 041 empty check)"
 [[ "$(psql_val "SELECT count(*) FROM public.billing_reported")" == "0" ]] || fail "billing_reported should start EMPTY (line: 041 ledger empty)"
 ok "migrations 040 + 041 applied — tenant_usage / tenant_billing / billing_reported exist and are empty"
 
@@ -178,7 +189,11 @@ INSERT INTO public.tenant_usage(tenant_id, metric, window_start, qty, idempotenc
   ON CONFLICT (idempotency_key) DO NOTHING;
 SQL
 }
-for i in $(seq 1 20); do seed && break; [[ $i -eq 20 ]] && fail "seed never committed (line: seed loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  seed && break
+  [[ $i -eq 20 ]] && fail "seed never committed (line: seed loop)"
+  sleep 0.5
+done
 [[ "$(psql_val "SELECT count(*) FROM public.tenant_usage")" == "5" ]] || fail "expected 5 seeded usage rows (line: verify seed)"
 ok "seeded: T1 2 billable (10,20) + 1 non-billable (99); T2 usage but NO billing row (77); T3 billing row but EMPTY customer (55)"
 
@@ -196,12 +211,16 @@ docker run -d --name "${ORCH_OFF}" --network "${NET}" \
   -e BILLING_REPORT_INTERVAL_MS="${INTERVAL_MS}" \
   -e LOG_LEVEL=debug \
   "${ORCH_IMG}" >/dev/null
-wait_log "${ORCH_OFF}" "billing disabled" 60 \
-  || { red "orch_off logs:"; docker logs "${ORCH_OFF}" 2>&1 | tail -20; fail "reporter did not report disabled with BILLING_ENABLED off (line: wait_log OFF disabled)"; }
+wait_log "${ORCH_OFF}" "billing disabled" 60 ||
+  {
+    red "orch_off logs:"
+    docker logs "${ORCH_OFF}" 2>&1 | tail -20
+    fail "reporter did not report disabled with BILLING_ENABLED off (line: wait_log OFF disabled)"
+  }
 sleep "$(awk "BEGIN{print (${INTERVAL_MS}*3/1000)+1}")"
 OFF_COUNT="$(mock_events "${PORT_OFF}")"
-[[ "${OFF_COUNT}" == "0" ]] \
-  || fail "(B) PARITY: mock_off received ${OFF_COUNT} events with BILLING_ENABLED off — expected 0 (line: B zero)"
+[[ "${OFF_COUNT}" == "0" ]] ||
+  fail "(B) PARITY: mock_off received ${OFF_COUNT} events with BILLING_ENABLED off — expected 0 (line: B zero)"
 ok "(B) PARITY: BILLING_ENABLED off → zero Stripe calls = byte-parity"
 
 # ── 4) (A) REPORT arm: orchestrator with BILLING_ENABLED=1 → exactly 2 events ──
@@ -219,8 +238,12 @@ docker run -d --name "${ORCH_ON}" --network "${NET}" \
   -e BILLING_REPORT_INTERVAL_MS="${INTERVAL_MS}" \
   -e LOG_LEVEL=debug \
   "${ORCH_IMG}" >/dev/null
-wait_log "${ORCH_ON}" "billing enabled" 60 \
-  || { red "orch_on logs:"; docker logs "${ORCH_ON}" 2>&1 | tail -20; fail "BillingReporter never enabled (line: wait_log ON enabled)"; }
+wait_log "${ORCH_ON}" "billing enabled" 60 ||
+  {
+    red "orch_on logs:"
+    docker logs "${ORCH_ON}" 2>&1 | tail -20
+    fail "BillingReporter never enabled (line: wait_log ON enabled)"
+  }
 ok "BillingReporter enabled — reporting un-reported windows"
 
 step "4b/7 (A) wait for mock_on to receive EXACTLY 2 billable windows"
@@ -230,18 +253,22 @@ for i in $(seq 1 40); do
   [[ "${ON_COUNT}" == "2" ]] && break
   sleep 0.5
 done
-[[ "${ON_COUNT}" == "2" ]] \
-  || { red "mock_on events:"; cat "${EVENTS_TMP}"; fail "(A) expected 2 meter events, got ${ON_COUNT} (line: A count==2)"; }
+[[ "${ON_COUNT}" == "2" ]] ||
+  {
+    red "mock_on events:"
+    cat "${EVENTS_TMP}"
+    fail "(A) expected 2 meter events, got ${ON_COUNT} (line: A count==2)"
+  }
 ok "(A) mock_on received exactly 2 events"
 
 step "4c/7 (A) verify the events: customer ${CUS1}, values {10,20}, event_name ${EVENT_NAME}, identifiers {K1,K2}"
-mock_events "${PORT_ON}" >/dev/null    # refresh EVENTS_TMP
-grep -q "\"customer\":\"${CUS1}\""        "${EVENTS_TMP}" || fail "(A) no event for customer ${CUS1} (line: A customer)"
+mock_events "${PORT_ON}" >/dev/null # refresh EVENTS_TMP
+grep -q "\"customer\":\"${CUS1}\"" "${EVENTS_TMP}" || fail "(A) no event for customer ${CUS1} (line: A customer)"
 grep -q "\"event_name\":\"${EVENT_NAME}\"" "${EVENTS_TMP}" || fail "(A) event_name ${EVENT_NAME} missing (line: A event_name)"
-grep -q "\"value\":\"10\""                "${EVENTS_TMP}" || fail "(A) value 10 missing (line: A value10)"
-grep -q "\"value\":\"20\""                "${EVENTS_TMP}" || fail "(A) value 20 missing (line: A value20)"
-grep -q "\"identifier\":\"${K1}\""        "${EVENTS_TMP}" || fail "(A) identifier K1 missing (line: A K1)"
-grep -q "\"identifier\":\"${K2}\""        "${EVENTS_TMP}" || fail "(A) identifier K2 missing (line: A K2)"
+grep -q "\"value\":\"10\"" "${EVENTS_TMP}" || fail "(A) value 10 missing (line: A value10)"
+grep -q "\"value\":\"20\"" "${EVENTS_TMP}" || fail "(A) value 20 missing (line: A value20)"
+grep -q "\"identifier\":\"${K1}\"" "${EVENTS_TMP}" || fail "(A) identifier K1 missing (line: A K1)"
+grep -q "\"identifier\":\"${K2}\"" "${EVENTS_TMP}" || fail "(A) identifier K2 missing (line: A K2)"
 # Load-bearing NEGATIVES — non-billable metric / no-billing-row / empty-customer MUST be absent.
 if grep -q "\"value\":\"99\"" "${EVENTS_TMP}"; then fail "(A) query.rows (value 99) was wrongly billed — non-billable metric leaked (line: A neg99)"; fi
 if grep -q "\"value\":\"77\"" "${EVENTS_TMP}"; then fail "(A) T2 usage (value 77) was wrongly billed — tenant has no tenant_billing row (line: A neg77)"; fi
@@ -253,18 +280,18 @@ ok "(A) events correct; non-billable (99), no-billing-row (77), and empty-custom
 step "4d/7 (A · IDEMPOTENT) wait 3 more intervals → mock_on count MUST STILL be 2 (no re-send)"
 sleep "$(awk "BEGIN{print (${INTERVAL_MS}*3/1000)+1}")"
 ON_COUNT2="$(mock_events "${PORT_ON}")"
-[[ "${ON_COUNT2}" == "2" ]] \
-  || fail "(A) idempotency broken — count grew to ${ON_COUNT2} after re-ticks (the sent-ledger must suppress re-sends) (line: A idempotent)"
+[[ "${ON_COUNT2}" == "2" ]] ||
+  fail "(A) idempotency broken — count grew to ${ON_COUNT2} after re-ticks (the sent-ledger must suppress re-sends) (line: A idempotent)"
 ok "(A) IDEMPOTENT — re-ticks sent nothing new (still 2); the billing_reported ledger suppresses re-sends"
 
 # ── 5) ledger cross-check: exactly the 2 billable windows recorded as reported ─
 step "5/7 cross-check public.billing_reported = exactly {K1,K2}"
-[[ "$(psql_val "SELECT count(*) FROM public.billing_reported")" == "2" ]] \
-  || fail "billing_reported should have exactly 2 rows (line: ledger count)"
-[[ "$(psql_val "SELECT count(*) FROM public.billing_reported WHERE idempotency_key IN ('${K1}','${K2}')")" == "2" ]] \
-  || fail "billing_reported should contain exactly K1 and K2 (line: ledger members)"
-[[ "$(psql_val "SELECT count(*) FROM public.billing_reported WHERE idempotency_key IN ('${KROWS}','${KT2}','${KT3}')")" == "0" ]] \
-  || fail "billing_reported wrongly contains a skipped window (query.rows / T2 / T3) (line: ledger negatives)"
+[[ "$(psql_val "SELECT count(*) FROM public.billing_reported")" == "2" ]] ||
+  fail "billing_reported should have exactly 2 rows (line: ledger count)"
+[[ "$(psql_val "SELECT count(*) FROM public.billing_reported WHERE idempotency_key IN ('${K1}','${K2}')")" == "2" ]] ||
+  fail "billing_reported should contain exactly K1 and K2 (line: ledger members)"
+[[ "$(psql_val "SELECT count(*) FROM public.billing_reported WHERE idempotency_key IN ('${KROWS}','${KT2}','${KT3}')")" == "0" ]] ||
+  fail "billing_reported wrongly contains a skipped window (query.rows / T2 / T3) (line: ledger negatives)"
 ok "ledger = {K1,K2}; skipped windows (query.rows, T2 no-row, T3 empty-customer) correctly absent"
 
 # ── 6) summarize ──────────────────────────────────────────────────────────────
@@ -276,7 +303,8 @@ green "[M82] (B) PARITY: BILLING_ENABLED off → 0 meter events = byte-parity"
 # ── 7) emit the gate event via the kernel log helper (best-effort) ─────────────
 step "7/7 log GATE m82=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-b3-billing-report}"

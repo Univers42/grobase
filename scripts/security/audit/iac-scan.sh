@@ -45,18 +45,22 @@ TRIVY_IMAGE="${TRIVY_IMAGE:-aquasec/trivy:latest}"
 CHECKOV_IMAGE="${CHECKOV_IMAGE:-bridgecrew/checkov:latest}"
 FAIL_LEVEL="${AUDIT_FAIL_LEVEL:-HIGH}"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 amber() { printf '\033[0;33m%s\033[0m\n' "$*"; }
 
 # ── argument parsing (mirror run-security-scans.sh) ──────────────────────────
-ONLY=""; SKIP=""
+ONLY=""
+SKIP=""
 for arg in "$@"; do
   case "${arg}" in
-    --only=*) ONLY="${arg#--only=}" ;;
-    --skip=*) SKIP="${arg#--skip=}" ;;
-    --help|-h) sed -n '/^# Usage:/,/^# .*override/p' "${SCRIPT_DIR}/$(basename "${BASH_SOURCE[0]}")" | sed 's/^# \?//'; exit 0 ;;
+  --only=*) ONLY="${arg#--only=}" ;;
+  --skip=*) SKIP="${arg#--skip=}" ;;
+  --help | -h)
+    sed -n '/^# Usage:/,/^# .*override/p' "${SCRIPT_DIR}/$(basename "${BASH_SOURCE[0]}")" | sed 's/^# \?//'
+    exit 0
+    ;;
   esac
 done
 enabled() {
@@ -82,12 +86,12 @@ cyan "[iac] fail-level >= ${FAIL_LEVEL}"
 # ── scan scope (paths relative to BAAS_DIR, mounted at /src) ──────────────────
 SCAN_PATHS=()
 for p in "deploy/helm/grobase" "deploy/helm/mini-baas"; do
-  [[ -d "${BAAS_DIR}/${p}" ]] && SCAN_PATHS+=( "${p}" ) && echo "  + dir  ${p}"
+  [[ -d "${BAAS_DIR}/${p}" ]] && SCAN_PATHS+=("${p}") && echo "  + dir  ${p}"
 done
 # All docker-compose*.yml in the BaaS dir.
 while IFS= read -r f; do
   rel="${f#"${BAAS_DIR}/"}"
-  SCAN_PATHS+=( "${rel}" )
+  SCAN_PATHS+=("${rel}")
   echo "  + file ${rel}"
 done < <(find "${BAAS_DIR}" -maxdepth 1 -name 'docker-compose*.yml' | sort)
 
@@ -106,10 +110,10 @@ run_trivy_config() {
   local sev="${FAIL_LEVEL}"
   # Trivy severity is a comma list of bands at-or-above; expand the floor.
   case "${FAIL_LEVEL}" in
-    CRITICAL) sev="CRITICAL" ;;
-    HIGH)     sev="CRITICAL,HIGH" ;;
-    MEDIUM)   sev="CRITICAL,HIGH,MEDIUM" ;;
-    LOW)      sev="CRITICAL,HIGH,MEDIUM,LOW" ;;
+  CRITICAL) sev="CRITICAL" ;;
+  HIGH) sev="CRITICAL,HIGH" ;;
+  MEDIUM) sev="CRITICAL,HIGH,MEDIUM" ;;
+  LOW) sev="CRITICAL,HIGH,MEDIUM,LOW" ;;
   esac
   local out="${ARTIFACTS_DIR}/trivy-config.json"
   rm -f "${out}"
@@ -122,16 +126,19 @@ run_trivy_config() {
     -v "${REPO_ROOT}/${ARTIFACTS_DIR}:/out" \
     "${TRIVY_IMAGE}" \
     config --quiet \
-      --severity "${sev}" \
-      --format json \
-      --output /out/trivy-config.json \
-      --skip-dirs 'node_modules,dist,.git,coverage,playwright-report,vendor,artifacts,target' \
-      /src 2>&1 | tail -12; then
+    --severity "${sev}" \
+    --format json \
+    --output /out/trivy-config.json \
+    --skip-dirs 'node_modules,dist,.git,coverage,playwright-report,vendor,artifacts,target' \
+    /src 2>&1 | tail -12; then
     red "[iac] Trivy config run failed"
     return 1
   fi
 
-  [[ -f "${out}" ]] || { red "[iac] no trivy-config.json produced"; return 1; }
+  [[ -f "${out}" ]] || {
+    red "[iac] no trivy-config.json produced"
+    return 1
+  }
   local n
   n=$(jq -r '[.Results[]?.Misconfigurations[]?] | length' "${out}" 2>/dev/null || echo 0)
   if [[ "${n}" -gt 0 ]]; then
@@ -162,7 +169,7 @@ run_checkov() {
     --output json \
     --compact \
     --quiet \
-    > "${out}" 2>"${ARTIFACTS_DIR}/checkov.stderr.log" || true
+    >"${out}" 2>"${ARTIFACTS_DIR}/checkov.stderr.log" || true
 
   # Second pass: Dockerfiles across the subtree. Checkov has NO dedicated
   # 'docker_compose' framework (valid frameworks are dockerfile/kubernetes/helm/
@@ -177,7 +184,7 @@ run_checkov() {
     --output json \
     --compact \
     --quiet \
-    > "${ARTIFACTS_DIR}/checkov-dockerfile.json" 2>>"${ARTIFACTS_DIR}/checkov.stderr.log" || true
+    >"${ARTIFACTS_DIR}/checkov-dockerfile.json" 2>>"${ARTIFACTS_DIR}/checkov.stderr.log" || true
 
   if [[ ! -s "${out}" ]]; then
     amber "[iac] Checkov produced no JSON (see checkov.stderr.log) — treating as non-blocking"
@@ -220,8 +227,8 @@ run_checkov() {
 }
 
 # ── orchestrate ──────────────────────────────────────────────────────────────
-if enabled trivy;   then run_trivy_config || fail_count=$((fail_count + 1)); fi
-if enabled checkov; then run_checkov      || fail_count=$((fail_count + 1)); fi
+if enabled trivy; then run_trivy_config || fail_count=$((fail_count + 1)); fi
+if enabled checkov; then run_checkov || fail_count=$((fail_count + 1)); fi
 
 echo
 if [[ ${fail_count} -eq 0 ]]; then

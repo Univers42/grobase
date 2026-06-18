@@ -59,8 +59,8 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 MIGRATION_005="${MIG_DIR}/005_add_tenant_table.sql"
@@ -68,12 +68,15 @@ MIGRATION_032="${MIG_DIR}/032_tenants.sql"
 MIGRATION_050="${MIG_DIR}/050_webauthn_credentials.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M107] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M107] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M107] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M107] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M107_PG_IMAGE:-postgres:16-alpine}"
 GO_IMAGE="${M107_GO_IMAGE:-golang:1.25-bookworm}"
@@ -81,8 +84,8 @@ TC_IMG="m107-tc-$$:scratch"
 AUTH_IMG="m107-auth-$$:scratch"
 NET="m107net-$$"
 PG="m107-pg-$$"
-TC_ON="m107-tc-on-$$"      # PASSKEYS_ENABLED=1   (A/B/C)
-TC_OFF="m107-tc-off-$$"    # PASSKEYS_ENABLED unset (D · flag-off parity)
+TC_ON="m107-tc-on-$$"   # PASSKEYS_ENABLED=1   (A/B/C)
+TC_OFF="m107-tc-off-$$" # PASSKEYS_ENABLED unset (D · flag-off parity)
 # UNIQUE port pair for this gate (others default 19106/19107 / 19108/19109).
 PORT_ON="${M107_PORT_ON:-19110}"
 PORT_OFF="${M107_PORT_OFF:-19111}"
@@ -111,7 +114,7 @@ cleanup() {
 trap cleanup EXIT
 
 # shellcheck disable=SC2120  # "$@" passthrough is intentional (house psql_q helper); callers pipe heredocs
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 
 # Apply a migration the SAME way make migrate does: strip the leading `#` 42-banner
@@ -139,10 +142,16 @@ wait_ready() { # $1=container $2=port
   local i
   for i in $(seq 1 60); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2/health/live" 2>/dev/null)" == "200" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # ── 0) write the SOFTWARE AUTHENTICATOR source (built FROM CURRENT module) ─────
@@ -159,7 +168,7 @@ wait_ready() { # $1=container $2=port
 # with the challenge_id for the finish call). go-webauthn parses it verbatim.
 step "0/12 write + build the software authenticator + tenant-control FROM CURRENT source"
 mkdir -p "${WORK}/auth"
-cat > "${WORK}/auth/main.go" <<'GOEOF'
+cat >"${WORK}/auth/main.go" <<'GOEOF'
 package main
 
 import (
@@ -415,7 +424,7 @@ func marshalECDSASig(r, s *big.Int) []byte {
 GOEOF
 
 # A tiny asn1 helper in its own file (keeps main.go free of encoding/asn1 quirks).
-cat > "${WORK}/auth/asn1.go" <<'GOEOF'
+cat >"${WORK}/auth/asn1.go" <<'GOEOF'
 package main
 
 import (
@@ -448,7 +457,11 @@ build_authenticator() {
       go build -o /out/m107-authenticator ./cmd/m107-authenticator
     ' >/dev/null 2>"${WORK}/authbuild.err"
 }
-build_authenticator || { red "authenticator build failed:"; tail -30 "${WORK}/authbuild.err"; fail "software authenticator must build from CURRENT module (line: build authenticator)"; }
+build_authenticator || {
+  red "authenticator build failed:"
+  tail -30 "${WORK}/authbuild.err"
+  fail "software authenticator must build from CURRENT module (line: build authenticator)"
+}
 [[ -x "${WORK}/m107-authenticator" ]] || fail "authenticator binary not produced (line: authenticator binary)"
 ok "software authenticator built (ES256 virtual authenticator, fmt=none)"
 
@@ -457,8 +470,8 @@ ok "software authenticator built (ES256 virtual authenticator, fmt=none)"
 authn() { docker run --rm -v "${WORK}":/w -w /w "${GO_IMAGE}" /w/m107-authenticator "$@"; }
 
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT=3070 \
-  -t "${TC_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch tenant-control image build failed — gate must exercise the drafted D2c code (line: docker build TC)"
+  -t "${TC_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch tenant-control image build failed — gate must exercise the drafted D2c code (line: docker build TC)"
 ok "tenant-control built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated net + postgres (TCP-ready, not just socket) ─────────────────────
@@ -466,9 +479,12 @@ step "1/12 boot isolated net (${NET}): postgres"
 docker network create "${NET}" >/dev/null
 docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD="${PGPW}" "${PG_IMAGE}" >/dev/null
 for i in $(seq 1 80); do
-  if docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 \
-     && [[ "$(psql_val 'SELECT 1')" == "1" ]]; then break; fi
-  [[ $i -eq 80 ]] && { docker logs "${PG}" 2>&1 | tail -20; fail "scratch postgres never reached TCP-ready"; }
+  if docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 &&
+    [[ "$(psql_val 'SELECT 1')" == "1" ]]; then break; fi
+  [[ $i -eq 80 ]] && {
+    docker logs "${PG}" 2>&1 | tail -20
+    fail "scratch postgres never reached TCP-ready"
+  }
   sleep 0.5
 done
 ok "postgres up + TCP-ready (SELECT 1 ok)"
@@ -489,17 +505,21 @@ DO $r$ BEGIN
 END $r$;
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
 # tenant-control's boot schema-check requires public.tenants (005 + 032) — apply
 # the base tenant schema before the D2c migration, exactly as m105/m106 do.
 apply_migration "${MIGRATION_005}" || fail "real migration 005_add_tenant_table.sql failed to apply (line: apply 005)"
 apply_migration "${MIGRATION_032}" || fail "real migration 032_tenants.sql failed to apply (line: apply 032)"
 [[ -f "${MIGRATION_050}" ]] || fail "migration 050_webauthn_credentials.sql is MISSING — the D2c migration must land before m107 (line: 050 exists)"
 apply_migration "${MIGRATION_050}" || fail "real migration 050_webauthn_credentials.sql failed to apply (line: apply 050)"
-[[ "$(psql_val "SELECT to_regclass('public.webauthn_credentials') IS NOT NULL")" == "t" ]] \
-  || fail "public.webauthn_credentials not created by migration 050 (line: 050 table check)"
-[[ "$(psql_val "SELECT count(*) FROM public.webauthn_credentials")" == "0" ]] \
-  || fail "webauthn_credentials should start EMPTY (line: 050 empty check)"
+[[ "$(psql_val "SELECT to_regclass('public.webauthn_credentials') IS NOT NULL")" == "t" ]] ||
+  fail "public.webauthn_credentials not created by migration 050 (line: 050 table check)"
+[[ "$(psql_val "SELECT count(*) FROM public.webauthn_credentials")" == "0" ]] ||
+  fail "webauthn_credentials should start EMPTY (line: 050 empty check)"
 # Append/manage-only at the grant layer: authenticated must NOT have INSERT/UPDATE/DELETE.
 HASW="$(psql_val "SELECT count(*) FROM information_schema.role_table_grants WHERE table_name='webauthn_credentials' AND grantee='authenticated' AND privilege_type IN ('INSERT','UPDATE','DELETE')")" || HASW="?"
 [[ "${HASW}" == "0" ]] || fail "authenticated must NOT have INSERT/UPDATE/DELETE on webauthn_credentials, got ${HASW} (line: 050 grants)"
@@ -519,8 +539,11 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3070" "${TC_IMG}" >/dev/null
 wait_ready "${TC_ON}" "${PORT_ON}" || fail "passkeys-ON tenant-control not ready (line: wait_ready TC_ON)"
-{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "passkeys / WebAuthn enabled" \
-  || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "passkeys never reported enabled (line: TC_ON enabled log)"; }
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "passkeys / WebAuthn enabled" ||
+  {
+    docker logs "${TC_ON}" 2>&1 | tail -20
+    fail "passkeys never reported enabled (line: TC_ON enabled log)"
+  }
 ok "passkeys-ON tenant-control up (/v1/auth/passkeys/* mounted)"
 
 # ── 3) (A · POSITIVE) register a passkey for U1 ────────────────────────────────
@@ -534,21 +557,25 @@ REG_CH="$(json_str challenge_id)"
 grep -q '"challenge"' "${WORK}/reg_begin.json" || fail "(A) register/begin missing publicKey.challenge (line: A reg pkchallenge)"
 # Software authenticator builds the attestation response, saves U1's private key.
 authn --mode register --rp "${RP_ID}" --origin "${RP_ORIGIN}" \
-  --in /w/reg_begin.json --out-key /w/u1.key > "${WORK}/reg_resp.json" \
-  || { red "authenticator register failed"; cat "${WORK}/reg_resp.json" 2>/dev/null; fail "(A) authenticator register (line: A authn register)"; }
+  --in /w/reg_begin.json --out-key /w/u1.key >"${WORK}/reg_resp.json" ||
+  {
+    red "authenticator register failed"
+    cat "${WORK}/reg_resp.json" 2>/dev/null
+    fail "(A) authenticator register (line: A authn register)"
+  }
 # The credential id the authenticator chose (top-level "id"), saved as a sidecar
 # so the login step asserts the same credential.
 REG_CID="$(grep -o '"id":"[^"]*"' "${WORK}/reg_resp.json" | head -1 | sed 's/"id":"//; s/"$//')"
 [[ -n "${REG_CID}" ]] || fail "(A) authenticator did not emit a credential id (line: A authn cid)"
-printf '%s' "${REG_CID}" > "${WORK}/u1.key.cid"
+printf '%s' "${REG_CID}" >"${WORK}/u1.key.cid"
 # finish: {challenge_id, response:<the authenticator response>}.
 FIN_BODY="$(printf '{"challenge_id":"%s","response":%s}' "${REG_CH}" "$(cat "${WORK}/reg_resp.json")")"
 C="$(admin_req POST "${PORT_ON}" /v1/auth/passkeys/register/finish "${FIN_BODY}")"
 [[ "${C}" == "200" ]] || fail "(A) register/finish expected 200, got ${C} — $(head -c 400 "${BODY_TMP}") (line: A reg finish)"
 grep -q '"verified":true' "${BODY_TMP}" || fail "(A) register/finish not verified — $(head -c 400 "${BODY_TMP}") (line: A reg verified)"
 # The credential is durably stored for U1, sign_count seeded from the attestation.
-[[ "$(psql_val "SELECT count(*) FROM public.webauthn_credentials WHERE user_id='${USER_1}'")" == "1" ]] \
-  || fail "(A) U1's credential not persisted to webauthn_credentials (line: A cred stored)"
+[[ "$(psql_val "SELECT count(*) FROM public.webauthn_credentials WHERE user_id='${USER_1}'")" == "1" ]] ||
+  fail "(A) U1's credential not persisted to webauthn_credentials (line: A cred stored)"
 SIGN_BEFORE="$(psql_val "SELECT sign_count FROM public.webauthn_credentials WHERE user_id='${USER_1}'")"
 ok "(A) U1 passkey registered + stored (sign_count=${SIGN_BEFORE})"
 
@@ -560,8 +587,12 @@ cp "${BODY_TMP}" "${WORK}/login_begin.json"
 LOGIN_CH="$(json_str challenge_id)"
 [[ -n "${LOGIN_CH}" ]] || fail "(A) login/begin did not return a challenge_id (line: A login challenge)"
 authn --mode login --rp "${RP_ID}" --origin "${RP_ORIGIN}" \
-  --in /w/login_begin.json --key /w/u1.key --sign-count 2 > "${WORK}/login_resp.json" \
-  || { red "authenticator login failed"; cat "${WORK}/login_resp.json" 2>/dev/null; fail "(A) authenticator login (line: A authn login)"; }
+  --in /w/login_begin.json --key /w/u1.key --sign-count 2 >"${WORK}/login_resp.json" ||
+  {
+    red "authenticator login failed"
+    cat "${WORK}/login_resp.json" 2>/dev/null
+    fail "(A) authenticator login (line: A authn login)"
+  }
 FIN_BODY="$(printf '{"challenge_id":"%s","response":%s}' "${LOGIN_CH}" "$(cat "${WORK}/login_resp.json")")"
 C="$(admin_req POST "${PORT_ON}" /v1/auth/passkeys/login/finish "${FIN_BODY}")"
 [[ "${C}" == "200" ]] || fail "(A) login/finish expected 200, got ${C} — $(head -c 500 "${BODY_TMP}") (line: A login finish)"
@@ -575,12 +606,16 @@ ok "(A) login => 200, session JWT issued for U1"
 # via a tiny openssl HMAC over header.payload). This proves the session is real,
 # not a placebo string.
 step "4b/12 (A) the session JWT VERIFIES under the GoTrue HS256 secret + sub==U1"
-H="${ACCESS%%.*}"; REST="${ACCESS#*.}"; P="${REST%%.*}"; SIG="${ACCESS##*.}"
+H="${ACCESS%%.*}"
+REST="${ACCESS#*.}"
+P="${REST%%.*}"
+SIG="${ACCESS##*.}"
 SIGNED_PART="${H}.${P}"
 EXPECT_SIG="$(printf '%s' "${SIGNED_PART}" | openssl dgst -sha256 -hmac "${JWT_SECRET}" -binary | base64 | tr '+/' '-_' | tr -d '=')"
 [[ "${SIG}" == "${EXPECT_SIG}" ]] || fail "(A) session JWT signature does NOT verify under the GoTrue secret (got ${SIG} want ${EXPECT_SIG}) (line: A jwt sig)"
 # decode the payload (add base64 padding) and assert sub==U1, role authenticated.
-PAD=$(( (4 - ${#P} % 4) % 4 )); PADP="${P}$(printf '%*s' "${PAD}" '' | tr ' ' '=')"
+PAD=$(((4 - ${#P} % 4) % 4))
+PADP="${P}$(printf '%*s' "${PAD}" '' | tr ' ' '=')"
 CLAIMS="$(printf '%s' "${PADP}" | tr '_-' '/+' | base64 -d 2>/dev/null || true)"
 echo "${CLAIMS}" | grep -q "\"sub\":\"${USER_1}\"" || fail "(A) JWT sub != U1 — claims: ${CLAIMS} (line: A jwt sub)"
 echo "${CLAIMS}" | grep -q '"role":"authenticated"' || fail "(A) JWT role != authenticated — claims: ${CLAIMS} (line: A jwt role)"
@@ -589,8 +624,8 @@ ok "(A) session JWT verifies under the GoTrue secret; sub=U1, role=authenticated
 # ── 5) (A) sign_count INCREMENTED after the verified login ─────────────────────
 step "5/12 (A) the credential sign_count was INCREMENTED by the verified login"
 SIGN_AFTER="$(psql_val "SELECT sign_count FROM public.webauthn_credentials WHERE user_id='${USER_1}'")"
-[[ -n "${SIGN_AFTER}" && "${SIGN_AFTER}" -gt "${SIGN_BEFORE}" ]] 2>/dev/null \
-  || fail "(A) sign_count not incremented: before=${SIGN_BEFORE} after=${SIGN_AFTER} (line: A sign_count bump)"
+[[ -n "${SIGN_AFTER}" && "${SIGN_AFTER}" -gt "${SIGN_BEFORE}" ]] 2>/dev/null ||
+  fail "(A) sign_count not incremented: before=${SIGN_BEFORE} after=${SIGN_AFTER} (line: A sign_count bump)"
 ok "(A) sign_count ${SIGN_BEFORE} -> ${SIGN_AFTER} (replay/clone evidence advanced)"
 
 # ── 6) (B · REJECT) an assertion signed by the WRONG key -> 401 ────────────────
@@ -601,8 +636,8 @@ cp "${BODY_TMP}" "${WORK}/b_begin.json"
 B_CH="$(json_str challenge_id)"
 # wrong key, but the SAME (registered) credential id (sidecar via --key path).
 authn --mode login --rp "${RP_ID}" --origin "${RP_ORIGIN}" \
-  --in /w/b_begin.json --wrong-key --cred-id "${REG_CID}" --sign-count 3 > "${WORK}/b_resp.json" \
-  || fail "(B) authenticator (wrong-key) failed to emit a response (line: B authn)"
+  --in /w/b_begin.json --wrong-key --cred-id "${REG_CID}" --sign-count 3 >"${WORK}/b_resp.json" ||
+  fail "(B) authenticator (wrong-key) failed to emit a response (line: B authn)"
 FIN_BODY="$(printf '{"challenge_id":"%s","response":%s}' "${B_CH}" "$(cat "${WORK}/b_resp.json")")"
 C="$(admin_req POST "${PORT_ON}" /v1/auth/passkeys/login/finish "${FIN_BODY}")"
 [[ "${C}" == "401" ]] || fail "(B) wrong-key assertion expected 401, got ${C} — $(head -c 400 "${BODY_TMP}") (line: B wrong-key 401)"
@@ -614,8 +649,8 @@ step "6b/12 (B · REJECT) a REPLAYED challenge id (already consumed in step 4) =
 # Re-use step 4's challenge_id + response (both already consumed at finish).
 FIN_BODY="$(printf '{"challenge_id":"%s","response":%s}' "${LOGIN_CH}" "$(cat "${WORK}/login_resp.json")")"
 C="$(admin_req POST "${PORT_ON}" /v1/auth/passkeys/login/finish "${FIN_BODY}")"
-[[ "${C}" == "404" || "${C}" == "401" ]] \
-  || fail "(B) replayed challenge expected 404/401, got ${C} — $(head -c 300 "${BODY_TMP}") (line: B replay)"
+[[ "${C}" == "404" || "${C}" == "401" ]] ||
+  fail "(B) replayed challenge expected 404/401, got ${C} — $(head -c 300 "${BODY_TMP}") (line: B replay)"
 grep -q '"access_token"' "${BODY_TMP}" && fail "(B) a REPLAYED challenge minted a session — single-use broken! (line: B replay no token)"
 ok "(B) replayed/consumed challenge rejected ${C} (single-use enforced, no session)"
 
@@ -628,10 +663,10 @@ C="$(admin_req POST "${PORT_ON}" /v1/auth/passkeys/register/begin \
 cp "${BODY_TMP}" "${WORK}/u2_reg_begin.json"
 U2_REG_CH="$(json_str challenge_id)"
 authn --mode register --rp "${RP_ID}" --origin "${RP_ORIGIN}" \
-  --in /w/u2_reg_begin.json --out-key /w/u2.key > "${WORK}/u2_reg_resp.json" \
-  || fail "(C) authenticator register U2 (line: C u2 authn register)"
+  --in /w/u2_reg_begin.json --out-key /w/u2.key >"${WORK}/u2_reg_resp.json" ||
+  fail "(C) authenticator register U2 (line: C u2 authn register)"
 U2_CID="$(grep -o '"id":"[^"]*"' "${WORK}/u2_reg_resp.json" | head -1 | sed 's/"id":"//; s/"$//')"
-printf '%s' "${U2_CID}" > "${WORK}/u2.key.cid"
+printf '%s' "${U2_CID}" >"${WORK}/u2.key.cid"
 FIN_BODY="$(printf '{"challenge_id":"%s","response":%s}' "${U2_REG_CH}" "$(cat "${WORK}/u2_reg_resp.json")")"
 C="$(admin_req POST "${PORT_ON}" /v1/auth/passkeys/register/finish "${FIN_BODY}")"
 [[ "${C}" == "200" ]] || fail "(C) U2 register/finish expected 200, got ${C} — $(head -c 400 "${BODY_TMP}") (line: C u2 reg finish)"
@@ -642,8 +677,8 @@ cp "${BODY_TMP}" "${WORK}/c_begin.json"
 C_CH="$(json_str challenge_id)"
 # The attacker asserts U1's credential id (REG_CID) but signs with U2's key.
 authn --mode login --rp "${RP_ID}" --origin "${RP_ORIGIN}" \
-  --in /w/c_begin.json --key /w/u2.key --cred-id "${REG_CID}" --sign-count 5 > "${WORK}/c_resp.json" \
-  || fail "(C) authenticator (cross-user) failed to emit a response (line: C authn)"
+  --in /w/c_begin.json --key /w/u2.key --cred-id "${REG_CID}" --sign-count 5 >"${WORK}/c_resp.json" ||
+  fail "(C) authenticator (cross-user) failed to emit a response (line: C authn)"
 FIN_BODY="$(printf '{"challenge_id":"%s","response":%s}' "${C_CH}" "$(cat "${WORK}/c_resp.json")")"
 C="$(admin_req POST "${PORT_ON}" /v1/auth/passkeys/login/finish "${FIN_BODY}")"
 [[ "${C}" == "401" ]] || fail "(C) cross-user assertion expected 401, got ${C} — $(head -c 400 "${BODY_TMP}") (line: C cross-user 401)"
@@ -663,8 +698,11 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3070" "${TC_IMG}" >/dev/null
 wait_ready "${TC_OFF}" "${PORT_OFF}" || fail "passkeys-OFF tenant-control not ready (line: wait_ready TC_OFF)"
-{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "passkeys / WebAuthn disabled" \
-  || { docker logs "${TC_OFF}" 2>&1 | tail -20; fail "OFF tenant-control did not report passkeys disabled (flag default not OFF?) (line: TC_OFF disabled log)"; }
+{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "passkeys / WebAuthn disabled" ||
+  {
+    docker logs "${TC_OFF}" 2>&1 | tail -20
+    fail "OFF tenant-control did not report passkeys disabled (flag default not OFF?) (line: TC_OFF disabled log)"
+  }
 ok "passkeys-OFF tenant-control up (PASSKEYS_ENABLED unset)"
 
 step "9/12 (D) EVERY /v1/auth/passkeys/* route 404 with the flag OFF (byte-parity — gotrue has no passkeys)"
@@ -674,21 +712,21 @@ for path in \
   "/v1/auth/passkeys/login/begin" \
   "/v1/auth/passkeys/login/finish"; do
   C="$(admin_req POST "${PORT_OFF}" "${path}" '{"user_id":"x"}')"
-  [[ "${C}" == "404" ]] \
-    || fail "(D) PARITY: ${path} with PASSKEYS_ENABLED off expected 404 (route absent), got ${C} — $(head -c 200 "${BODY_TMP}") (line: D 404 ${path})"
+  [[ "${C}" == "404" ]] ||
+    fail "(D) PARITY: ${path} with PASSKEYS_ENABLED off expected 404 (route absent), got ${C} — $(head -c 200 "${BODY_TMP}") (line: D 404 ${path})"
 done
 ok "(D) all four passkeys routes 404 with the flag OFF"
 
 step "10/12 (D) the base admin surface STILL works on the OFF router (proves only passkeys is gated)"
 C="$(admin_req GET "${PORT_OFF}" "/v1/tenants")"
-[[ "${C}" == "200" ]] \
-  || fail "(D) PARITY: base admin GET /v1/tenants expected 200 on OFF router, got ${C} — $(head -c 200 "${BODY_TMP}") (line: D admin 200)"
+[[ "${C}" == "200" ]] ||
+  fail "(D) PARITY: base admin GET /v1/tenants expected 200 on OFF router, got ${C} — $(head -c 200 "${BODY_TMP}") (line: D admin 200)"
 ok "(D) base admin GET /v1/tenants => 200 — the baseline is untouched; only passkeys is flag-gated"
 
 step "11/12 (D) the OFF router NEVER consulted webauthn_credentials (count unchanged, no new rows)"
 CRED_AFTER="$(psql_val "SELECT count(*) FROM public.webauthn_credentials")"
-[[ "${CRED_AFTER}" == "${CRED_BEFORE}" ]] \
-  || fail "(D) PARITY: webauthn_credentials changed under the OFF router (before=${CRED_BEFORE} after=${CRED_AFTER}) (line: D no writes)"
+[[ "${CRED_AFTER}" == "${CRED_BEFORE}" ]] ||
+  fail "(D) PARITY: webauthn_credentials changed under the OFF router (before=${CRED_BEFORE} after=${CRED_AFTER}) (line: D no writes)"
 ok "(D) webauthn_credentials unchanged (${CRED_AFTER}) — the table is never touched with the flag OFF"
 
 # ── summarize ──────────────────────────────────────────────────────────────────
@@ -701,7 +739,8 @@ green "[M107] (D) PARITY:   PASSKEYS_ENABLED off => all /v1/auth/passkeys/* 404 
 # ── emit the gate event via the kernel log helper (best-effort) ─────────────────
 step "log GATE m107=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-d2c-passkeys}"

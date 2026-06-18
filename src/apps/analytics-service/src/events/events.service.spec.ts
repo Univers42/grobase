@@ -41,10 +41,7 @@ describe('EventsService', () => {
     const m = makeMongo([sample]);
     collection = m.collection;
     const config = { get: (_key: string, def?: unknown) => def };
-    svc = new EventsService(
-      m.mongo as unknown as MongoService,
-      config as unknown as ConfigService,
-    );
+    svc = new EventsService(m.mongo as unknown as MongoService, config as unknown as ConfigService);
     await svc.onModuleInit(); // resolves the collection + ensures indexes
   });
 

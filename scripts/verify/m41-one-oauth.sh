@@ -25,12 +25,16 @@
 #      email is linked, not duplicated.
 
 set -euo pipefail
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
-step(){ cyan "[M41] $*"; }
-fail(){ red "[M41] FAIL — $*"; cleanup; exit 1; }
-ok(){ green "  ✓ $*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+step() { cyan "[M41] $*"; }
+fail() {
+  red "[M41] FAIL — $*"
+  cleanup
+  exit 1
+}
+ok() { green "  ✓ $*"; }
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE="${ONE_IMAGE:-binocle-one}"
@@ -43,21 +47,21 @@ KEY="m41-admin-$(date +%s)-deterministic"
 BASE="http://127.0.0.1:${PORT}"
 ISSUER="http://${MOCK}:9460"
 
-cleanup(){
+cleanup() {
   docker rm -fv "${ONE}" "${MOCK}" >/dev/null 2>&1 || true
   docker network rm "${NET}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
-req(){ # method path auth body → body<TAB>status
+req() { # method path auth body → body<TAB>status
   local method="$1" path="$2" auth="$3" body="${4:-}"
   local args=(-s -w $'\t%{http_code}' -X "${method}" "${BASE}${path}" -H "Content-Type: application/json")
   [[ -n "${auth}" ]] && args+=(-H "${auth}")
   [[ -n "${body}" ]] && args+=(-d "${body}")
   curl "${args[@]}"
 }
-status_of(){ awk -F'\t' '{print $NF}' <<<"$1"; }
-jget(){ # python-expr response → value  (expr sees the parsed body as `d`)
+status_of() { awk -F'\t' '{print $NF}' <<<"$1"; }
+jget() { # python-expr response → value  (expr sees the parsed body as `d`)
   python3 -c "import sys,json;d=json.loads(sys.stdin.read().rsplit('\t',1)[0]);print($1)" <<<"$2"
 }
 
@@ -103,7 +107,7 @@ ok "PKCE S256 + state present"
 
 # The issuer URL uses the container-network hostname; the gate drives the
 # browser leg from the host, so rewrite it to the published port.
-authorize(){ # auth-url → callback-url (the issuer's 302 Location)
+authorize() { # auth-url → callback-url (the issuer's 302 Location)
   local host_url="${1//${MOCK}:9460/127.0.0.1:${MOCK_PORT}}"
   curl -s -o /dev/null -w '%{redirect_url}' "${host_url}"
 }

@@ -43,31 +43,31 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/test-ui.sh"
 
 pass() {
-    local name="$1"
-    echo -e "${GREEN}[PASS]${NC} $name"
-    ((++TESTS_PASSED))
-    return 0
+  local name="$1"
+  echo -e "${GREEN}[PASS]${NC} $name"
+  ((++TESTS_PASSED))
+  return 0
 }
 
 fail() {
-    local name="$1"
-    local details="$2"
-    echo -e "${RED}[FAIL]${NC} $name - $details"
-    ((++TESTS_FAILED))
-    return 0
+  local name="$1"
+  local details="$2"
+  echo -e "${RED}[FAIL]${NC} $name - $details"
+  ((++TESTS_FAILED))
+  return 0
 }
 
 check_header() {
-    local name="$1"
-    local header="$2"
-    local response="$3"
-    
-    if echo "$response" | grep -qi "^$header:"; then
-        pass "$name"
-    else
-        fail "$name" "$MSG_HDR_NOT_FOUND"
-    fi
-    return 0
+  local name="$1"
+  local header="$2"
+  local response="$3"
+
+  if echo "$response" | grep -qi "^$header:"; then
+    pass "$name"
+  else
+    fail "$name" "$MSG_HDR_NOT_FOUND"
+  fi
+  return 0
 }
 
 ui_banner "Phase 13 Test Suite" "CORS Preflight and Cross-Origin Requests"
@@ -78,17 +78,17 @@ ui_hr
 
 ui_step "Test 1: Preflight OPTIONS request to /auth/v1"
 PREFLIGHT_RESPONSE=$(curl -sS -i -X OPTIONS "$BASE_URL/auth/v1/" \
-    -H "Origin: $TEST_ORIGIN" \
-    -H "$HDR_CORS_METHOD" \
-    -H "Access-Control-Request-Headers: Content-Type" \
-    --max-time "$TIMEOUT" 2>/dev/null)
+  -H "Origin: $TEST_ORIGIN" \
+  -H "$HDR_CORS_METHOD" \
+  -H "Access-Control-Request-Headers: Content-Type" \
+  --max-time "$TIMEOUT" 2>/dev/null)
 
 PREFLIGHT_CODE=$(echo "$PREFLIGHT_RESPONSE" | head -1 | awk '{print $2}')
 
 if [[ "$PREFLIGHT_CODE" == "200" ]] || [[ "$PREFLIGHT_CODE" == "204" ]]; then
-    pass "Preflight OPTIONS request succeeds"
+  pass "Preflight OPTIONS request succeeds"
 else
-    fail "Preflight OPTIONS request succeeds" "got HTTP $PREFLIGHT_CODE"
+  fail "Preflight OPTIONS request succeeds" "got HTTP $PREFLIGHT_CODE"
 fi
 
 # Check for CORS headers
@@ -96,125 +96,125 @@ echo "$PREFLIGHT_RESPONSE" | grep -iq "$HDR_CORS_ORIGIN" && echo -e "${YELLOW}  
 
 ui_step "Test 2: CORS Allow-Origin header present"
 CORS_RESPONSE=$(curl -sS -i -X GET "$BASE_URL/rest/v1/users?limit=1" \
-    -H "Origin: $TEST_ORIGIN" \
-    -H "$HDR_APIKEY" \
-    --max-time "$TIMEOUT" 2>/dev/null)
+  -H "Origin: $TEST_ORIGIN" \
+  -H "$HDR_APIKEY" \
+  --max-time "$TIMEOUT" 2>/dev/null)
 
 if echo "$CORS_RESPONSE" | grep -qi "$HDR_CORS_ORIGIN"; then
-    pass "Access-Control-Allow-Origin header present"
+  pass "Access-Control-Allow-Origin header present"
 else
-    fail "Access-Control-Allow-Origin header present" "$MSG_HDR_NOT_FOUND"
+  fail "Access-Control-Allow-Origin header present" "$MSG_HDR_NOT_FOUND"
 fi
 
 ui_step "Test 3: CORS Allow-Methods header includes expected methods"
 CORS_METHODS=$(curl -sS -i -X OPTIONS "$BASE_URL/rest/v1/" \
-    -H "Origin: $TEST_ORIGIN" \
-    -H "Access-Control-Request-Method: PATCH" \
-    --max-time "$TIMEOUT" 2>/dev/null | grep -i "Access-Control-Allow-Methods" | head -1)
+  -H "Origin: $TEST_ORIGIN" \
+  -H "Access-Control-Request-Method: PATCH" \
+  --max-time "$TIMEOUT" 2>/dev/null | grep -i "Access-Control-Allow-Methods" | head -1)
 
 if [[ -n "$CORS_METHODS" ]]; then
-    pass "Access-Control-Allow-Methods header present"
-    echo -e "${BLUE}    $CORS_METHODS${NC}"
+  pass "Access-Control-Allow-Methods header present"
+  echo -e "${BLUE}    $CORS_METHODS${NC}"
 else
-    fail "Access-Control-Allow-Methods header present" "$MSG_HDR_NOT_FOUND"
+  fail "Access-Control-Allow-Methods header present" "$MSG_HDR_NOT_FOUND"
 fi
 
 ui_step "Test 4: CORS credentials allowed"
 CORS_CREDS=$(curl -sS -i -X OPTIONS "$BASE_URL/auth/v1/" \
-    -H "Origin: $TEST_ORIGIN" \
-    -H "$HDR_CORS_METHOD" \
-    --max-time "$TIMEOUT" 2>/dev/null | grep -i "Access-Control-Allow-Credentials")
+  -H "Origin: $TEST_ORIGIN" \
+  -H "$HDR_CORS_METHOD" \
+  --max-time "$TIMEOUT" 2>/dev/null | grep -i "Access-Control-Allow-Credentials")
 
 if echo "$CORS_CREDS" | grep -qi "true"; then
-    pass "Credentials allowed (Access-Control-Allow-Credentials: true)"
+  pass "Credentials allowed (Access-Control-Allow-Credentials: true)"
 else
-    fail "Credentials allowed" "not found or not true"
+  fail "Credentials allowed" "not found or not true"
 fi
 
 ui_step "Test 5: CORS headers on actual requests (not just preflight)"
 ACTUAL_REQUEST=$(curl -sS -i -X POST "$BASE_URL/auth/v1/signup" \
-    -H "Origin: $TEST_ORIGIN" \
-    -H "Content-Type: application/json" \
-    -H "$HDR_APIKEY" \
-    -d '{"email":"corstest@example.com","password":"TestPass123!"}' \
-    --max-time "$TIMEOUT" 2>/dev/null)
+  -H "Origin: $TEST_ORIGIN" \
+  -H "Content-Type: application/json" \
+  -H "$HDR_APIKEY" \
+  -d '{"email":"corstest@example.com","password":"TestPass123!"}' \
+  --max-time "$TIMEOUT" 2>/dev/null)
 
 if echo "$ACTUAL_REQUEST" | grep -qi "$HDR_CORS_ORIGIN"; then
-    pass "CORS headers present on actual requests"
+  pass "CORS headers present on actual requests"
 else
-    fail "CORS headers present on actual requests" "headers not found"
+  fail "CORS headers present on actual requests" "headers not found"
 fi
 
 ui_step "Test 6: CORS allow-headers includes apikey"
 CORS_HEADERS=$(curl -sS -i -X OPTIONS "$BASE_URL/storage/v1/" \
-    -H "Origin: $TEST_ORIGIN" \
-    -H "Access-Control-Request-Method: GET" \
-    -H "Access-Control-Request-Headers: apikey" \
-    -H "$HDR_APIKEY" \
-    --max-time "$TIMEOUT" 2>/dev/null | grep -i "Access-Control-Allow-Headers")
+  -H "Origin: $TEST_ORIGIN" \
+  -H "Access-Control-Request-Method: GET" \
+  -H "Access-Control-Request-Headers: apikey" \
+  -H "$HDR_APIKEY" \
+  --max-time "$TIMEOUT" 2>/dev/null | grep -i "Access-Control-Allow-Headers")
 
 if echo "$CORS_HEADERS" | grep -iq "apikey"; then
-    pass "CORS allow-headers includes 'apikey'"
+  pass "CORS allow-headers includes 'apikey'"
 else
-    fail "CORS allow-headers includes 'apikey'" "header missing apikey"
+  fail "CORS allow-headers includes 'apikey'" "header missing apikey"
 fi
 
 ui_step "Test 7: CORS allow-headers includes Authorization"
 CORS_AUTH_HEADERS=$(curl -sS -i -X OPTIONS "$BASE_URL/rest/v1/" \
-    -H "Origin: $TEST_ORIGIN" \
-    -H "Access-Control-Request-Method: GET" \
-    -H "Access-Control-Request-Headers: Authorization" \
-    -H "$HDR_APIKEY" \
-    --max-time "$TIMEOUT" 2>/dev/null | grep -i "Access-Control-Allow-Headers")
+  -H "Origin: $TEST_ORIGIN" \
+  -H "Access-Control-Request-Method: GET" \
+  -H "Access-Control-Request-Headers: Authorization" \
+  -H "$HDR_APIKEY" \
+  --max-time "$TIMEOUT" 2>/dev/null | grep -i "Access-Control-Allow-Headers")
 
 if echo "$CORS_AUTH_HEADERS" | grep -iq "Authorization"; then
-    pass "CORS allow-headers includes 'Authorization'"
+  pass "CORS allow-headers includes 'Authorization'"
 else
-    fail "CORS allow-headers includes 'Authorization'" "header missing Authorization"
+  fail "CORS allow-headers includes 'Authorization'" "header missing Authorization"
 fi
 
 ui_step "Test 8: Preflight to different routes"
 for route in "/auth/v1" "/rest/v1" "/realtime/v1" "/storage/v1"; do
-    CODE=$(curl -sS -o /dev/null -w "$CURL_FMT" -X OPTIONS "$BASE_URL$route" \
-        -H "Origin: $TEST_ORIGIN" \
-        -H "$HDR_CORS_METHOD" \
-        -H "$HDR_APIKEY" \
-        --max-time 3 2>/dev/null || echo "000")
-    
-    if [[ "$CODE" == "200" ]] || [[ "$CODE" == "204" ]]; then
-        pass "Preflight to $route succeeds"
-    else
-        fail "Preflight to $route succeeds" "got HTTP $CODE"
-    fi
+  CODE=$(curl -sS -o /dev/null -w "$CURL_FMT" -X OPTIONS "$BASE_URL$route" \
+    -H "Origin: $TEST_ORIGIN" \
+    -H "$HDR_CORS_METHOD" \
+    -H "$HDR_APIKEY" \
+    --max-time 3 2>/dev/null || echo "000")
+
+  if [[ "$CODE" == "200" ]] || [[ "$CODE" == "204" ]]; then
+    pass "Preflight to $route succeeds"
+  else
+    fail "Preflight to $route succeeds" "got HTTP $CODE"
+  fi
 done
 
 ui_step "Test 9: CORS max-age header for caching"
 MAX_AGE=$(curl -sS -i -X OPTIONS "$BASE_URL/auth/v1/" \
-    -H "Origin: $TEST_ORIGIN" \
-    -H "$HDR_CORS_METHOD" \
-    -H "$HDR_APIKEY" \
-    --max-time "$TIMEOUT" 2>/dev/null | grep -i "Access-Control-Max-Age")
+  -H "Origin: $TEST_ORIGIN" \
+  -H "$HDR_CORS_METHOD" \
+  -H "$HDR_APIKEY" \
+  --max-time "$TIMEOUT" 2>/dev/null | grep -i "Access-Control-Max-Age")
 
 if [[ -n "$MAX_AGE" ]]; then
-    pass "Access-Control-Max-Age header present"
-    echo -e "${BLUE}    $MAX_AGE${NC}"
+  pass "Access-Control-Max-Age header present"
+  echo -e "${BLUE}    $MAX_AGE${NC}"
 else
-    fail "Access-Control-Max-Age header present" "$MSG_HDR_NOT_FOUND"
+  fail "Access-Control-Max-Age header present" "$MSG_HDR_NOT_FOUND"
 fi
 
 ui_step "Test 10: Simple GET request includes CORS headers"
 GET_RESPONSE=$(curl -sS -i -X GET "$BASE_URL/rest/v1/users?limit=1" \
-    -H "Origin: $TEST_ORIGIN" \
-    -H "$HDR_APIKEY" \
-    --max-time "$TIMEOUT" 2>/dev/null)
+  -H "Origin: $TEST_ORIGIN" \
+  -H "$HDR_APIKEY" \
+  --max-time "$TIMEOUT" 2>/dev/null)
 
 CORS_ORIGIN=$(echo "$GET_RESPONSE" | grep -i "$HDR_CORS_ORIGIN" | head -1 | sed 's/^.*: //')
 
 if [[ -n "$CORS_ORIGIN" ]]; then
-    pass "GET response includes Allow-Origin header"
-    echo -e "${BLUE}    Allowed origin: $CORS_ORIGIN${NC}"
+  pass "GET response includes Allow-Origin header"
+  echo -e "${BLUE}    Allowed origin: $CORS_ORIGIN${NC}"
 else
-    fail "GET response includes Allow-Origin header" "$MSG_HDR_NOT_FOUND"
+  fail "GET response includes Allow-Origin header" "$MSG_HDR_NOT_FOUND"
 fi
 
 ui_hr

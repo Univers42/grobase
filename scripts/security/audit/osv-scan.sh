@@ -42,8 +42,8 @@ OSV_IMAGE="${OSV_IMAGE:-ghcr.io/google/osv-scanner:latest}"
 FAIL_LEVEL="${AUDIT_FAIL_LEVEL:-HIGH}"
 
 # ── colour helpers (mirror zap-baseline.sh) ──────────────────────────────────
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 amber() { printf '\033[0;33m%s\033[0m\n' "$*"; }
 
@@ -82,7 +82,7 @@ LOCK_ARGS=()
 present=0
 for lf in "${LOCKFILES[@]}"; do
   if [[ -f "${BAAS_DIR}/${lf}" ]]; then
-    LOCK_ARGS+=( "--lockfile=/src/${lf}" )
+    LOCK_ARGS+=("--lockfile=/src/${lf}")
     present=$((present + 1))
     echo "  + ${lf}"
   else
@@ -103,9 +103,9 @@ docker run --rm \
   -v "${REPO_ROOT}/${BAAS_DIR}:/src:ro" \
   "${OSV_IMAGE}" \
   scan source \
-    --format=json \
-    "${LOCK_ARGS[@]}" \
-  > "${JSON_OUT}" 2>"${ARTIFACTS_DIR}/osv.stderr.log" || true
+  --format=json \
+  "${LOCK_ARGS[@]}" \
+  >"${JSON_OUT}" 2>"${ARTIFACTS_DIR}/osv.stderr.log" || true
 
 if [[ ! -s "${JSON_OUT}" ]]; then
   red "[osv] no JSON produced — scanner aborted (see ${ARTIFACTS_DIR}/osv.stderr.log)"
@@ -119,9 +119,9 @@ docker run --rm \
   -v "${REPO_ROOT}/${BAAS_DIR}:/src:ro" \
   "${OSV_IMAGE}" \
   scan source \
-    --format=table \
-    "${LOCK_ARGS[@]}" \
-  > "${TABLE_OUT}" 2>/dev/null || true
+  --format=table \
+  "${LOCK_ARGS[@]}" \
+  >"${TABLE_OUT}" 2>/dev/null || true
 
 # ── verdict: count vulns by severity from the JSON ───────────────────────────
 # OSV severity lives per-package; we read the worst CVSS band per vuln. The OSV
@@ -131,11 +131,11 @@ docker run --rm \
 band_at_or_above() {
   # $1 = threshold band → returns the jq numeric floor
   case "$1" in
-    CRITICAL) echo 9.0 ;;
-    HIGH)     echo 7.0 ;;
-    MEDIUM)   echo 4.0 ;;
-    LOW)      echo 0.1 ;;
-    *)        echo 7.0 ;;
+  CRITICAL) echo 9.0 ;;
+  HIGH) echo 7.0 ;;
+  MEDIUM) echo 4.0 ;;
+  LOW) echo 0.1 ;;
+  *) echo 7.0 ;;
   esac
 }
 floor="$(band_at_or_above "${FAIL_LEVEL}")"

@@ -218,7 +218,8 @@ export class ExecuteQueryDto {
 
   @ApiPropertyOptional({
     type: AggregateDto,
-    description: 'Aggregation spec — required when `op: "aggregate"` (COUNT/SUM/AVG/MIN/MAX + GROUP BY).',
+    description:
+      'Aggregation spec — required when `op: "aggregate"` (COUNT/SUM/AVG/MIN/MAX + GROUP BY).',
   })
   @IsOptional()
   @ValidateNested()

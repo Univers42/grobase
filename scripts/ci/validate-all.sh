@@ -58,7 +58,7 @@ else
       echo -e "  ${RED}✗${NC} Syntax error: $f" >&2
       sh_fail=1
     fi
-  done <<< "$sh_files"
+  done <<<"$sh_files"
   CHECKS=$((CHECKS + 1))
   if [[ "$sh_fail" -eq 0 ]]; then
     count=$(echo "$sh_files" | wc -l)
@@ -81,7 +81,7 @@ else
       echo -e "  ${RED}✗${NC} Syntax error: $f" >&2
       js_fail=1
     fi
-  done <<< "$js_files"
+  done <<<"$js_files"
   CHECKS=$((CHECKS + 1))
   if [[ "$js_fail" -eq 0 ]]; then
     count=$(echo "$js_files" | wc -l)
@@ -99,8 +99,8 @@ check "docker compose config --quiet" \
 # ── 4. Secrets validation ────────────────────────────────────────
 echo -e "${BOLD}4. Secrets${NC}"
 if [[ -f "$ROOT_DIR/.env" ]]; then
-  if [[ -x "$ROOT_DIR/scripts/secrets/validate-secrets.sh" ]] || \
-     [[ -f "$ROOT_DIR/scripts/secrets/validate-secrets.sh" ]]; then
+  if [[ -x "$ROOT_DIR/scripts/secrets/validate-secrets.sh" ]] ||
+    [[ -f "$ROOT_DIR/scripts/secrets/validate-secrets.sh" ]]; then
     check "make secrets-validate" \
       bash "$ROOT_DIR/scripts/secrets/validate-secrets.sh"
   else

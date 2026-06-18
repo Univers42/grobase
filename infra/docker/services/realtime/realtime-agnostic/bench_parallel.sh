@@ -31,46 +31,46 @@ PIDS=()
 NAMES=()
 
 run_bench() {
-    local name=$1
-    echo "▶ Starting bench_${name}..."
-    cargo bench -p realtime-engine --bench "bench_${name}" 2>&1 \
-        | grep -E "time:|Benchmarking|Performance|change:" &
-    PIDS+=($!)
-    NAMES+=("$name")
-    return 0
+  local name=$1
+  echo "▶ Starting bench_${name}..."
+  cargo bench -p realtime-engine --bench "bench_${name}" 2>&1 |
+    grep -E "time:|Benchmarking|Performance|change:" &
+  PIDS+=($!)
+  NAMES+=("$name")
+  return 0
 }
 
 if [[ $# -eq 0 ]]; then
-    # Build all benches first (sequential — avoids cargo lock contention)
-    echo "⏳ Building all bench targets..."
-    cargo bench -p realtime-engine --no-run 2>&1 | tail -3
-    echo ""
+  # Build all benches first (sequential — avoids cargo lock contention)
+  echo "⏳ Building all bench targets..."
+  cargo bench -p realtime-engine --no-run 2>&1 | tail -3
+  echo ""
 
-    # Run all 3 groups in parallel
-    run_bench micro
-    run_bench filter
-    run_bench registry
+  # Run all 3 groups in parallel
+  run_bench micro
+  run_bench filter
+  run_bench registry
 else
-    cargo bench -p realtime-engine --bench "bench_$1" --no-run 2>&1 | tail -3
-    run_bench "$1"
+  cargo bench -p realtime-engine --bench "bench_$1" --no-run 2>&1 | tail -3
+  run_bench "$1"
 fi
 
 # Wait for all and report
 FAILED=0
 for i in "${!PIDS[@]}"; do
-    if ! wait "${PIDS[$i]}"; then
-        echo "✗ bench_${NAMES[$i]} failed"
-        FAILED=1
-    else
-        echo "✓ bench_${NAMES[$i]} done"
-    fi
+  if ! wait "${PIDS[$i]}"; then
+    echo "✗ bench_${NAMES[$i]} failed"
+    FAILED=1
+  else
+    echo "✓ bench_${NAMES[$i]} done"
+  fi
 done
 
 if [[ $FAILED -eq 0 ]]; then
-    echo ""
-    echo "✓ All benchmarks completed."
+  echo ""
+  echo "✓ All benchmarks completed."
 else
-    echo ""
-    echo "✗ Some benchmarks failed."
-    exit 1
+  echo ""
+  echo "✗ Some benchmarks failed."
+  exit 1
 fi

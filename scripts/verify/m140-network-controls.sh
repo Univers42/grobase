@@ -50,19 +50,22 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERIFY_DIR="${SCRIPT_DIR}"
-BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"        # apps/baas/mini-baas-infra
-ROOT_DIR="$(cd "${BAAS_DIR}/.." && pwd)"             # apps/baas
+BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # apps/baas/mini-baas-infra
+ROOT_DIR="$(cd "${BAAS_DIR}/.." && pwd)"      # apps/baas
 CLAUDE_DIR="${ROOT_DIR}/.claude"
 BASE_COMPOSE="${BAAS_DIR}/docker-compose.yml"
 NETSEG_COMPOSE="${BAAS_DIR}/docker-compose.netseg.yml"
 
-cyan()   { printf '\033[0;36m%s\033[0m\n' "$*"; }
-green()  { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()    { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[0;33m%s\033[0m\n' "$*"; }
-step()   { cyan "[M140] $*"; }
-ok()     { green "  ✓ $*"; }
-fail()   { red "[M140] FAIL — $*"; exit 1; }
+step() { cyan "[M140] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M140] FAIL — $*"
+  exit 1
+}
 
 PINNED_NETIMG="alpine:3.20"
 WAF_CRS_IMG="owasp/modsecurity-crs:4-nginx-202604040104"
@@ -74,18 +77,18 @@ PREFIX="m140ns-${SUFFIX}"
 SCRATCH_BASE="${NETSEG_SCRATCH_BASE:-/mnt/storage/bench}"
 SCRATCH="${SCRATCH_BASE}/m140-netctl-${SUFFIX}"
 SCRATCH_COMPOSE="${SCRATCH}/docker-compose.scratch.yml"
-WAF_THROWAWAY=""   # set if we have to spin our own CRS container
+WAF_THROWAWAY="" # set if we have to spin our own CRS container
 
 # ── EXIT-trap cleanup (always) ──────────────────────────────────────────────
 cleanup() {
   set +e
-  [[ -f "${SCRATCH_COMPOSE}" ]] && \
+  [[ -f "${SCRATCH_COMPOSE}" ]] &&
     docker compose -p "${PROJECT}" -f "${SCRATCH_COMPOSE}" down -v --remove-orphans \
       --timeout 5 >/dev/null 2>&1
-  docker ps -aq --filter "label=com.docker.compose.project=${PROJECT}" 2>/dev/null \
-    | xargs -r docker rm -f >/dev/null 2>&1
-  docker network ls -q --filter "name=${PREFIX}-" 2>/dev/null \
-    | xargs -r docker network rm >/dev/null 2>&1
+  docker ps -aq --filter "label=com.docker.compose.project=${PROJECT}" 2>/dev/null |
+    xargs -r docker rm -f >/dev/null 2>&1
+  docker network ls -q --filter "name=${PREFIX}-" 2>/dev/null |
+    xargs -r docker network rm >/dev/null 2>&1
   [[ -n "${WAF_THROWAWAY}" ]] && docker rm -f "${WAF_THROWAWAY}" >/dev/null 2>&1
   rm -rf "${SCRATCH}" 2>/dev/null
 }
@@ -94,10 +97,10 @@ trap cleanup EXIT INT TERM
 # ── preflight ───────────────────────────────────────────────────────────────
 step "preflight"
 command -v docker >/dev/null 2>&1 || fail "docker not on PATH"
-docker info >/dev/null 2>&1        || fail "docker daemon unreachable"
-command -v curl  >/dev/null 2>&1   || fail "curl not on PATH"
-[[ -f "${BASE_COMPOSE}" ]]         || fail "base compose missing: ${BASE_COMPOSE}"
-[[ -f "${NETSEG_COMPOSE}" ]]       || fail "netseg overlay missing: ${NETSEG_COMPOSE}"
+docker info >/dev/null 2>&1 || fail "docker daemon unreachable"
+command -v curl >/dev/null 2>&1 || fail "curl not on PATH"
+[[ -f "${BASE_COMPOSE}" ]] || fail "base compose missing: ${BASE_COMPOSE}"
+[[ -f "${NETSEG_COMPOSE}" ]] || fail "netseg overlay missing: ${NETSEG_COMPOSE}"
 ok "docker up · curl present · base+overlay present"
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -120,16 +123,16 @@ fi
 
 if [[ -z "${WAF_URL}" ]]; then
   yellow "  · live WAF not running — standing up a throwaway CRS container (${WAF_CRS_IMG})"
-  docker image inspect "${WAF_CRS_IMG}" >/dev/null 2>&1 \
-    || docker pull "${WAF_CRS_IMG}" >/dev/null 2>&1 \
-    || fail "CRS image ${WAF_CRS_IMG} unavailable (offline?) and no live WAF"
+  docker image inspect "${WAF_CRS_IMG}" >/dev/null 2>&1 ||
+    docker pull "${WAF_CRS_IMG}" >/dev/null 2>&1 ||
+    fail "CRS image ${WAF_CRS_IMG} unavailable (offline?) and no live WAF"
   WAF_THROWAWAY="m140-waf-${SUFFIX}"
   # Minimal CRS in blocking mode; BACKEND points at a harmless static that returns
   # 200 so a benign request is a clean PASS while attacks are CRS-blocked (403).
   docker run -d --name "${WAF_THROWAWAY}" \
     -e MODSEC_RULE_ENGINE=on -e BLOCKING_PARANOIA=2 -e ANOMALY_INBOUND=5 \
-    -e BACKEND="http://127.0.0.1:80" -P "${WAF_CRS_IMG}" >/dev/null 2>&1 \
-    || fail "could not start throwaway CRS container"
+    -e BACKEND="http://127.0.0.1:80" -P "${WAF_CRS_IMG}" >/dev/null 2>&1 ||
+    fail "could not start throwaway CRS container"
   for _ in $(seq 1 30); do
     wp="$(docker port "${WAF_THROWAWAY}" 80/tcp 2>/dev/null | head -1 | sed 's/.*://')"
     [[ -n "${wp}" ]] && curl -s -o /dev/null --max-time 2 "http://127.0.0.1:${wp}/" && break
@@ -144,7 +147,8 @@ code() { curl -s -o /dev/null -w '%{http_code}' --max-time 8 "$@"; }
 
 # helper: assert a probe is blocked (403) by the WAF
 assert_block() { # $1 label  $2 url
-  local c; c="$(code "$2")"
+  local c
+  c="$(code "$2")"
   [[ "${c}" == "403" ]] || fail "WAF did NOT block ${1} (got HTTP ${c}, expected 403)"
   ok "WAF BLOCK ${1} → 403 (OWASP CRS)"
 }
@@ -153,8 +157,8 @@ assert_block() { # $1 label  $2 url
 SQLI_Q="id=1%27%20OR%20%271%27%3D%271%20--%20UNION%20SELECT%20password%20FROM%20users"
 XSS_Q="q=%3Cscript%3Ealert(1)%3C%2Fscript%3E"
 TRAV_Q="file=../../../../etc/passwd"
-assert_block "SQLi"      "${WAF_URL}/anything?${SQLI_Q}"
-assert_block "XSS"       "${WAF_URL}/search?${XSS_Q}"
+assert_block "SQLi" "${WAF_URL}/anything?${SQLI_Q}"
+assert_block "XSS" "${WAF_URL}/search?${XSS_Q}"
 assert_block "traversal" "${WAF_URL}/static?${TRAV_Q}"
 
 # --- PASS arm: benign requests are NOT 403 (WAF lets them through) ----------
@@ -191,12 +195,12 @@ fi
 # appear in the recent WAF log — attributing the 403 to specific OWASP CRS rules,
 # not a generic deny.
 if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'mini-baas-waf'; then
-  code "${WAF_URL}/search?${XSS_Q}" >/dev/null 2>&1   # fresh block to log
+  code "${WAF_URL}/search?${XSS_Q}" >/dev/null 2>&1 # fresh block to log
   crs_ids=""
   for _ in 1 2 3 4 5; do
-    crs_ids="$(docker logs mini-baas-waf --since 30s 2>&1 \
-      | grep -oE '"ruleId":"(942100|941100|941110|941160|930100|930110|932160|949110)"' \
-      | sort -u | tr '\n' ' ')"
+    crs_ids="$(docker logs mini-baas-waf --since 30s 2>&1 |
+      grep -oE '"ruleId":"(942100|941100|941110|941160|930100|930110|932160|949110)"' |
+      sort -u | tr '\n' ' ')"
     [[ -n "${crs_ids}" ]] && break
     sleep 1
   done
@@ -213,9 +217,9 @@ fi
 step "ARM B — per-plane network segmentation (edge↛data REFUSED, front-door ALLOWED)"
 
 # off-is-parity: base alone still renders ONLY the flat 'mini-baas' network.
-BASE_NETS="$(docker compose -f "${BASE_COMPOSE}" config 2>/dev/null \
-  | awk '/^networks:/{f=1;next} f&&/^[a-z]/{f=0} f&&/^  [a-z]/{gsub(/:/,"");print $1}' \
-  | sort -u)"
+BASE_NETS="$(docker compose -f "${BASE_COMPOSE}" config 2>/dev/null |
+  awk '/^networks:/{f=1;next} f&&/^[a-z]/{f=0} f&&/^  [a-z]/{gsub(/:/,"");print $1}' |
+  sort -u)"
 [[ -n "${BASE_NETS}" ]] || fail "could not read base networks (compose config failed)"
 if [[ "$(printf '%s\n' "${BASE_NETS}")" != "mini-baas" ]]; then
   red "base networks rendered: ${BASE_NETS//$'\n'/ }"
@@ -223,13 +227,13 @@ if [[ "$(printf '%s\n' "${BASE_NETS}")" != "mini-baas" ]]; then
 fi
 ok "off-is-parity: base renders exactly ONE flat network 'mini-baas' (overlay is opt-in)"
 
-docker image inspect "${PINNED_NETIMG}" >/dev/null 2>&1 \
-  || docker pull "${PINNED_NETIMG}" >/dev/null 2>&1 \
-  || fail "pinned image ${PINNED_NETIMG} unavailable (offline?)"
+docker image inspect "${PINNED_NETIMG}" >/dev/null 2>&1 ||
+  docker pull "${PINNED_NETIMG}" >/dev/null 2>&1 ||
+  fail "pinned image ${PINNED_NETIMG} unavailable (offline?)"
 mkdir -p "${SCRATCH}" || fail "cannot create scratch ${SCRATCH} (run: sudo install -d -o \$USER ${SCRATCH_BASE})"
 
 # Stand up the plane wiring with NO escape bridge so the negative edge is REAL.
-cat > "${SCRATCH_COMPOSE}" <<YAML
+cat >"${SCRATCH_COMPOSE}" <<YAML
 # generated by m140-network-controls.sh — throwaway; mirrors docker-compose.netseg.yml
 name: ${PROJECT}
 
@@ -269,12 +273,12 @@ services:
     networks: [net-edge]
 YAML
 
-docker compose -p "${PROJECT}" -f "${SCRATCH_COMPOSE}" up -d >/dev/null 2>&1 \
-  || fail "scratch segmentation topology failed to come up"
+docker compose -p "${PROJECT}" -f "${SCRATCH_COMPOSE}" up -d >/dev/null 2>&1 ||
+  fail "scratch segmentation topology failed to come up"
 # let the nc listeners bind (proven via the legal front-door)
 for _ in $(seq 1 12); do
   if docker compose -p "${PROJECT}" -f "${SCRATCH_COMPOSE}" exec -T query-router \
-       nc -z -w 1 postgres 5432 >/dev/null 2>&1; then break; fi
+    nc -z -w 1 postgres 5432 >/dev/null 2>&1; then break; fi
   sleep 1
 done
 ok "segmented topology up (bridges ${PREFIX}-{edge,control,data}; no escape bridge)"
@@ -285,8 +289,8 @@ probe() { # <from-svc> <host> <port>  → real nc exit code
 }
 
 # ALLOW: legal front-door reaches the data plane engine
-probe query-router postgres 5432 \
-  || fail "ALLOW arm broken: query-router (front-door) CANNOT reach postgres:5432"
+probe query-router postgres 5432 ||
+  fail "ALLOW arm broken: query-router (front-door) CANNOT reach postgres:5432"
 ok "ALLOW: query-router (edge+control+data) → postgres:5432 CONNECTS (legal front-door)"
 
 # REJECT (load-bearing): the public edge CANNOT reach the data engine
@@ -312,13 +316,14 @@ green "  · NETSEG : public edge REFUSED at the data plane; legal front-door ALL
 
 # ── log PASS via the team helper (JSONL, never hand-rolled) ──────────────────
 if [[ -f "${CLAUDE_DIR}/lib/log.sh" ]]; then
-  ( cd "${CLAUDE_DIR}" \
-    && AGENT_RUN="m140-${SUFFIX}" AGENT_TASK="network-controls" \
-       AGENT_ROLE="tester" AGENT_PHASE="PROVE" \
-       bash -c 'source lib/log.sh
+  (
+    cd "${CLAUDE_DIR}" &&
+      AGENT_RUN="m140-${SUFFIX}" AGENT_TASK="network-controls" \
+        AGENT_ROLE="tester" AGENT_PHASE="PROVE" \
+        bash -c 'source lib/log.sh
          log_event REPORT --outcome PASS --gate m140=PASS \
            --msg "network controls proven: OWASP-CRS WAF blocks SQLi/XSS/traversal (403) + passes benign + WAF-attributed; per-plane segmentation refuses edge->data, allows front-door; off-is-parity" \
-           --data "{\"waf\":{\"block\":[\"sqli=403\",\"xss=403\",\"traversal=403\"],\"pass\":[\"waf-health=200\",\"data/v1/health!=403\"],\"neg_control\":\"kong-direct!=403\"},\"netseg\":{\"reject\":[\"kong->postgres:5432\",\"kong->adapter-registry:3021\"],\"allow\":[\"query-router->postgres:5432\"],\"parity\":\"base=mini-baas only\"}}"' \
+           --data "{\"waf\":{\"block\":[\"sqli=403\",\"xss=403\",\"traversal=403\"],\"pass\":[\"waf-health=200\",\"data/v1/health!=403\"],\"neg_control\":\"kong-direct!=403\"},\"netseg\":{\"reject\":[\"kong->postgres:5432\",\"kong->adapter-registry:3021\"],\"allow\":[\"query-router->postgres:5432\"],\"parity\":\"base=mini-baas only\"}}"'
   ) >/dev/null 2>&1 || yellow "  · log.sh emit skipped (non-fatal)"
 fi
 

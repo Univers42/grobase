@@ -19,5 +19,5 @@ set -euo pipefail
 BACKUP_FILE="backup_$(date +%Y%m%d).dump"
 
 echo "Creating PostgreSQL backup: ${BACKUP_FILE}"
-docker compose exec postgres pg_dump -U postgres -Fc > "${BACKUP_FILE}"
+docker compose exec postgres pg_dump -U postgres -Fc >"${BACKUP_FILE}"
 echo "Backup saved to ${BACKUP_FILE}"

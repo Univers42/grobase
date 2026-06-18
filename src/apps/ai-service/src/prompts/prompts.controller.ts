@@ -45,10 +45,7 @@ export class PromptsController {
 
   @Put(':mode')
   @ApiOperation({ summary: 'Update a prompt template (admin)' })
-  async update(
-    @Param('mode') mode: string,
-    @Body() dto: CreatePromptDto,
-  ) {
+  async update(@Param('mode') mode: string, @Body() dto: CreatePromptDto) {
     return this.service.update(mode, dto.template, dto.description);
   }
 

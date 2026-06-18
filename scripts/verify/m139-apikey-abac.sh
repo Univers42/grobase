@@ -36,12 +36,15 @@ INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 QRY="${INFRA_DIR}/src/apps/query-router/src/query/query.service.ts"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M139] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M139] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M139] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M139] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M139_PG_IMAGE:-postgres:16-alpine}"
 PG="m139-pg-$$"
@@ -58,8 +61,8 @@ grep -q "apiKeyUuid" "${QRY}" || fail "QueryService lost apiKeyUuid (the PDP sub
 grep -q "decideByApiKeyScope" "${QRY}" || fail "QueryService lost decideByApiKeyScope (flag-OFF scope-only path)"
 # default OFF: the config default must be a falsy literal '0'
 grep -q "API_KEY_ABAC_ENABLED', '0'" "${QRY}" || fail "API_KEY_ABAC_ENABLED default is not '0' (must be OFF = byte-parity)"
-grep -q "apikey:read\|apikey:write\|apikey:admin" "${MIG_DIR}/063_permission_conditions.sql" \
-  || fail "063 does not seed the apikey:* projection roles"
+grep -q "apikey:read\|apikey:write\|apikey:admin" "${MIG_DIR}/063_permission_conditions.sql" ||
+  fail "063 does not seed the apikey:* projection roles"
 ok "flag default OFF; scope-only fallback intact; apikey:* roles seeded by 063"
 
 # ── 2) boot scratch postgres + REAL 007 + 063 ──────────────────────────────────
@@ -81,7 +84,7 @@ DO $r$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role; END IF;
 END $r$;
 SQL
-apply "${MIG_DIR}/007_permissions_system.sql"   || fail "migration 007 failed"
+apply "${MIG_DIR}/007_permissions_system.sql" || fail "migration 007 failed"
 apply "${MIG_DIR}/063_permission_conditions.sql" || fail "migration 063 failed"
 ok "007 + 063 applied"
 
@@ -90,14 +93,14 @@ step "3/3 prove api-key scope→role projection honors read-only vs write"
 P() { [[ "$2" == "$3" ]] && ok "$1" || fail "$1 (got [$2] want [$3])"; }
 P "apikey:read / write / admin roles seeded" \
   "$(val "SELECT count(*) FROM public.roles WHERE name IN ('apikey:read','apikey:write','apikey:admin')")" "3"
-RK="55555555-5555-4555-8555-555555555555"  # an api-key uuid granted read scope
-WK="66666666-6666-4666-8666-666666666666"  # write scope
+RK="55555555-5555-4555-8555-555555555555" # an api-key uuid granted read scope
+WK="66666666-6666-4666-8666-666666666666" # write scope
 docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 >/dev/null 2>&1 <<SQL
 INSERT INTO public.user_roles (user_id, role_id) SELECT '${RK}'::uuid, id FROM public.roles WHERE name='apikey:read'  ON CONFLICT DO NOTHING;
 INSERT INTO public.user_roles (user_id, role_id) SELECT '${WK}'::uuid, id FROM public.roles WHERE name='apikey:write' ON CONFLICT DO NOTHING;
 SQL
-P "read scope ⇒ select ALLOW"  "$(val "SELECT public.has_permission('${RK}'::uuid,'postgresql','anything','select')")" "t"
-P "read scope ⇒ insert DENY"   "$(val "SELECT public.has_permission('${RK}'::uuid,'postgresql','anything','insert')")" "f"
+P "read scope ⇒ select ALLOW" "$(val "SELECT public.has_permission('${RK}'::uuid,'postgresql','anything','select')")" "t"
+P "read scope ⇒ insert DENY" "$(val "SELECT public.has_permission('${RK}'::uuid,'postgresql','anything','insert')")" "f"
 P "write scope ⇒ insert ALLOW" "$(val "SELECT public.has_permission('${WK}'::uuid,'postgresql','anything','insert')")" "t"
 P "write scope ⇒ delete ALLOW" "$(val "SELECT public.has_permission('${WK}'::uuid,'postgresql','anything','delete')")" "t"
 # flag-OFF parity: an unmapped api-key uuid (no membership) gets nothing from the PDP

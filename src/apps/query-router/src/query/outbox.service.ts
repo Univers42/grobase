@@ -99,29 +99,11 @@ export class OutboxService implements OnModuleDestroy {
   async emit(event: OutboxEventInput): Promise<void> {
     if (!this.enabled) return;
     const pool = this.getPool();
-    await pool.query(
-      `INSERT INTO public.outbox_events
+    await pool
+      .query(
+        `INSERT INTO public.outbox_events
         (aggregate, aggregate_id, event_type, payload, request_id, actor_id, target_engine, target_resource, op, compensation_payload, idempotency_key)
        VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10::jsonb, $11)`,
-      [
-        event.aggregate,
-        event.aggregateId,
-        event.eventType,
-        JSON.stringify(event.payload),
-        this.uuidOrNull(event.requestId),
-        this.uuidOrNull(event.actorId),
-        event.targetEngine ?? null,
-        event.targetResource ?? null,
-        event.op ?? null,
-        event.compensationPayload ? JSON.stringify(event.compensationPayload) : null,
-        event.idempotencyKey ?? null,
-      ],
-    ).catch(async (error: unknown) => {
-      if ((error as { code?: string }).code !== '42703') throw error;
-      await pool.query(
-        `INSERT INTO public.outbox_events
-          (aggregate, aggregate_id, event_type, payload, request_id, actor_id)
-         VALUES ($1, $2, $3, $4::jsonb, $5, $6)`,
         [
           event.aggregate,
           event.aggregateId,
@@ -129,35 +111,37 @@ export class OutboxService implements OnModuleDestroy {
           JSON.stringify(event.payload),
           this.uuidOrNull(event.requestId),
           this.uuidOrNull(event.actorId),
+          event.targetEngine ?? null,
+          event.targetResource ?? null,
+          event.op ?? null,
+          event.compensationPayload ? JSON.stringify(event.compensationPayload) : null,
+          event.idempotencyKey ?? null,
         ],
-      );
-    });
+      )
+      .catch(async (error: unknown) => {
+        if ((error as { code?: string }).code !== '42703') throw error;
+        await pool.query(
+          `INSERT INTO public.outbox_events
+          (aggregate, aggregate_id, event_type, payload, request_id, actor_id)
+         VALUES ($1, $2, $3, $4::jsonb, $5, $6)`,
+          [
+            event.aggregate,
+            event.aggregateId,
+            event.eventType,
+            JSON.stringify(event.payload),
+            this.uuidOrNull(event.requestId),
+            this.uuidOrNull(event.actorId),
+          ],
+        );
+      });
   }
 
   async emitWithClient(client: Pick<PoolClient, 'query'>, event: OutboxEventInput): Promise<void> {
-    await client.query(
-      `INSERT INTO public.outbox_events
+    await client
+      .query(
+        `INSERT INTO public.outbox_events
         (aggregate, aggregate_id, event_type, payload, request_id, actor_id, target_engine, target_resource, op, compensation_payload, idempotency_key)
        VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10::jsonb, $11)`,
-      [
-        event.aggregate,
-        event.aggregateId,
-        event.eventType,
-        JSON.stringify(event.payload),
-        this.uuidOrNull(event.requestId),
-        this.uuidOrNull(event.actorId),
-        event.targetEngine ?? null,
-        event.targetResource ?? null,
-        event.op ?? null,
-        event.compensationPayload ? JSON.stringify(event.compensationPayload) : null,
-        event.idempotencyKey ?? null,
-      ],
-    ).catch(async (error: unknown) => {
-      if ((error as { code?: string }).code !== '42703') throw error;
-      await client.query(
-        `INSERT INTO public.outbox_events
-          (aggregate, aggregate_id, event_type, payload, request_id, actor_id)
-         VALUES ($1, $2, $3, $4::jsonb, $5, $6)`,
         [
           event.aggregate,
           event.aggregateId,
@@ -165,9 +149,29 @@ export class OutboxService implements OnModuleDestroy {
           JSON.stringify(event.payload),
           this.uuidOrNull(event.requestId),
           this.uuidOrNull(event.actorId),
+          event.targetEngine ?? null,
+          event.targetResource ?? null,
+          event.op ?? null,
+          event.compensationPayload ? JSON.stringify(event.compensationPayload) : null,
+          event.idempotencyKey ?? null,
         ],
-      );
-    });
+      )
+      .catch(async (error: unknown) => {
+        if ((error as { code?: string }).code !== '42703') throw error;
+        await client.query(
+          `INSERT INTO public.outbox_events
+          (aggregate, aggregate_id, event_type, payload, request_id, actor_id)
+         VALUES ($1, $2, $3, $4::jsonb, $5, $6)`,
+          [
+            event.aggregate,
+            event.aggregateId,
+            event.eventType,
+            JSON.stringify(event.payload),
+            this.uuidOrNull(event.requestId),
+            this.uuidOrNull(event.actorId),
+          ],
+        );
+      });
   }
 
   private getPool(): Pool {
@@ -206,7 +210,9 @@ export class OutboxService implements OnModuleDestroy {
     return undefined;
   }
 
-  private compensationPayload(data: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  private compensationPayload(
+    data: Record<string, unknown> | undefined,
+  ): Record<string, unknown> | undefined {
     const value = data?.['compensation_payload'];
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       return value as Record<string, unknown>;

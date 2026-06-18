@@ -18,10 +18,7 @@ import type {
   EngineLatencyClass,
   EnginePatternSearchCapability,
 } from '@mini-baas/database';
-import {
-  RustDataPlaneProxy,
-  type RustEngineCapabilities,
-} from '../proxy/rust-data-plane.proxy';
+import { RustDataPlaneProxy, type RustEngineCapabilities } from '../proxy/rust-data-plane.proxy';
 
 // G6: the Rust router's /v1/capabilities is the single source of truth. We map
 // its EngineCapabilities (snake_case, with a cost model) into the legacy TS
@@ -31,7 +28,12 @@ import {
 // remote/none/…), so the cast is sound; an unexpected value falls back safely.
 const JOIN_VALUES: readonly EngineJoinCapability[] = ['native', 'limited', 'none'];
 const PATTERN_VALUES: readonly EnginePatternSearchCapability[] = [
-  'native', 'indexed', 'limited', 'scan', 'remote', 'none',
+  'native',
+  'indexed',
+  'limited',
+  'scan',
+  'remote',
+  'none',
 ];
 const LATENCY_VALUES: readonly EngineLatencyClass[] = ['native', 'adapter', 'fdw', 'remote'];
 

@@ -177,12 +177,12 @@ upsert_user_row() {
     -d "{\"id\":\"$user_id\",\"email\":\"$email\",\"name\":\"$label\"}")
 
   case "$code" in
-    200|201)
-      pass "Upsert user row for $label"
-      ;;
-    *)
-      fail_and_exit "Upsert user row failed for $label (status $code)"
-      ;;
+  200 | 201)
+    pass "Upsert user row for $label"
+    ;;
+  *)
+    fail_and_exit "Upsert user row failed for $label (status $code)"
+    ;;
   esac
   return 0
 }
@@ -229,12 +229,12 @@ CREATE_CODE=$(request_code "$CREATE_OUT" \
   -d "{\"user_id\":\"$USER_A_ID\",\"title\":\"MVP Post\",\"content\":\"Created from postgres-mvp-flow\",\"is_public\":false}")
 
 case "$CREATE_CODE" in
-  200|201)
-    pass "User A created private post"
-    ;;
-  *)
-    fail_and_exit "Create private post failed (status $CREATE_CODE)"
-    ;;
+200 | 201)
+  pass "User A created private post"
+  ;;
+*)
+  fail_and_exit "Create private post failed (status $CREATE_CODE)"
+  ;;
 esac
 
 POST_ID=$(jq -r '.[0].id // empty' "$CREATE_OUT" 2>/dev/null || true)
@@ -262,12 +262,12 @@ A_PATCH_CODE=$(request_code "$A_PATCH_OUT" \
   -d '{"title":"MVP Post Updated"}')
 
 case "$A_PATCH_CODE" in
-  200|204)
-    pass "User A updated own post"
-    ;;
-  *)
-    fail_and_exit "User A patch failed (status $A_PATCH_CODE)"
-    ;;
+200 | 204)
+  pass "User A updated own post"
+  ;;
+*)
+  fail_and_exit "User A patch failed (status $A_PATCH_CODE)"
+  ;;
 esac
 
 ui_step "Step 6: User B cannot read User A private post"
@@ -290,12 +290,12 @@ INVALID_CODE=$(request_code "$INVALID_OUT" \
   -H "$HDR_APIKEY")
 
 case "$INVALID_CODE" in
-  401|403)
-    pass "Invalid JWT is rejected"
-    ;;
-  *)
-    fail_and_exit "Invalid JWT expected 401/403, got $INVALID_CODE"
-    ;;
+401 | 403)
+  pass "Invalid JWT is rejected"
+  ;;
+*)
+  fail_and_exit "Invalid JWT expected 401/403, got $INVALID_CODE"
+  ;;
 esac
 
 ui_step "Step 8: User A deletes own post"
@@ -307,12 +307,12 @@ DELETE_CODE=$(request_code "$DELETE_OUT" \
   -H "$HDR_APIKEY")
 
 case "$DELETE_CODE" in
-  200|204)
-    pass "User A deleted own post"
-    ;;
-  *)
-    fail_and_exit "Delete failed (status $DELETE_CODE)"
-    ;;
+200 | 204)
+  pass "User A deleted own post"
+  ;;
+*)
+  fail_and_exit "Delete failed (status $DELETE_CODE)"
+  ;;
 esac
 
 VERIFY_OUT="$TMPDIR/verify_deleted.json"

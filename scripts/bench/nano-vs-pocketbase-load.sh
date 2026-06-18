@@ -23,8 +23,8 @@
 # Writes artifacts/nano-vs-pocketbase-load.json + a human table.
 
 set -euo pipefail
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -38,7 +38,7 @@ PB_PORT=18952
 WORK="$(mktemp -d)"
 OHA_IMG="ghcr.io/hatoo/oha:latest"
 
-cleanup(){
+cleanup() {
   docker rm -fv load-nano load-pb >/dev/null 2>&1 || true
   docker volume rm -f load-nano-data >/dev/null 2>&1 || true
   docker run --rm -v "${WORK}:/w" public.ecr.aws/docker/library/alpine:3.20 \
@@ -47,13 +47,16 @@ cleanup(){
 }
 trap cleanup EXIT
 
-docker image inspect binocle-nano >/dev/null 2>&1 || { echo "build first: make nano-build"; exit 1; }
+docker image inspect binocle-nano >/dev/null 2>&1 || {
+  echo "build first: make nano-build"
+  exit 1
+}
 docker pull -q "${OHA_IMG}" >/dev/null
 
 # oha runner: --network host so it reaches the published 127.0.0.1 ports.
-oha(){ docker run --rm --network host "${OHA_IMG}" --no-tui --output-format json "$@"; }
+oha() { docker run --rm --network host "${OHA_IMG}" --no-tui --output-format json "$@"; }
 # Extract "rps p50 p95 p99(ms)" from an oha JSON report.
-parse(){ python3 -c "
+parse() { python3 -c "
 import sys, json
 r = json.load(sys.stdin)
 rps = r['summary']['requestsPerSec']
@@ -78,7 +81,10 @@ PB="http://127.0.0.1:${PB_PORT}"
 
 for i in $(seq 1 30); do
   curl -sf "${NANO}/v1/health" >/dev/null 2>&1 && curl -sf "${PB}/api/health" >/dev/null 2>&1 && break
-  [[ $i -eq 30 ]] && { echo "boot timeout"; exit 1; }
+  [[ $i -eq 30 ]] && {
+    echo "boot timeout"
+    exit 1
+  }
   sleep 0.5
 done
 
@@ -88,9 +94,12 @@ curl -s -X POST "${NANO}/nano/v1/raw" -H "X-Baas-Api-Key: ${NK}" -H "Content-Typ
 docker exec load-pb /pb/pocketbase superuser upsert bench@local.dev super-secret-pw-123 --dir /pb/pb_data >/dev/null 2>&1
 PB_TOKEN=$(curl -s -X POST "${PB}/api/collections/_superusers/auth-with-password" \
   -H "Content-Type: application/json" \
-  -d '{"identity":"bench@local.dev","password":"super-secret-pw-123"}' \
-  | python3 -c 'import sys,json;print(json.load(sys.stdin).get("token",""))')
-[[ -n "${PB_TOKEN}" ]] || { echo "PocketBase auth failed"; exit 1; }
+  -d '{"identity":"bench@local.dev","password":"super-secret-pw-123"}' |
+  python3 -c 'import sys,json;print(json.load(sys.stdin).get("token",""))')
+[[ -n "${PB_TOKEN}" ]] || {
+  echo "PocketBase auth failed"
+  exit 1
+}
 curl -s -X POST "${PB}/api/collections" -H "Authorization: ${PB_TOKEN}" -H "Content-Type: application/json" \
   -d '{"name":"bench","type":"base","fields":[{"name":"title","type":"text"}]}' >/dev/null
 
@@ -99,7 +108,7 @@ NANO_LIST_BODY='{"db_id":"main","operation":{"op":"list","resource":"bench","lim
 PB_INS_BODY='{"title":"load"}'
 
 # ── concurrency sweep ────────────────────────────────────────────────────────
-declare -A R   # R[system,op,c] = "rps p50 p95 p99"
+declare -A R # R[system,op,c] = "rps p50 p95 p99"
 for c in 1 16 64; do
   cyan "[load] c=${c} insert ${DUR} each"
   R[nano,ins,$c]=$(oha -z "${DUR}" -c "${c}" -m POST \
@@ -119,7 +128,10 @@ done
 
 # ── RSS under load (sampled mid-flight of a c=64 insert run) ────────────────
 cyan "[load] RSS under c=64 insert load"
-( sleep 3; docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' load-nano load-pb > "${WORK}/rss.txt" ) &
+(
+  sleep 3
+  docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' load-nano load-pb >"${WORK}/rss.txt"
+) &
 SAMPLER=$!
 oha -z 7s -c 64 -m POST -H "X-Baas-Api-Key: ${NK}" -H "Content-Type: application/json" \
   -d "${NANO_INS_BODY}" "${NANO}/data/v1/query" >/dev/null &
@@ -141,19 +153,22 @@ NANO_DISK=$(docker run --rm -v load-nano-data:/d public.ecr.aws/docker/library/a
 PB_DISK=$(docker exec load-pb du -sk /pb/pb_data | awk '{printf "%.1f MB", $1/1024}')
 
 # ── boot-to-first-200 ────────────────────────────────────────────────────────
-boot_ms(){ # container url
+boot_ms() { # container url
   docker restart "$1" >/dev/null
-  local t0; t0=$(date +%s%N)
+  local t0
+  t0=$(date +%s%N)
   while ! curl -sf "$2" >/dev/null 2>&1; do sleep 0.01; done
-  awk -v d=$(( $(date +%s%N) - t0 )) 'BEGIN{printf "%.0f", d/1000000}'
+  awk -v d=$(($(date +%s%N) - t0)) 'BEGIN{printf "%.0f", d/1000000}'
 }
 cyan "[load] boot-to-first-200"
 NANO_BOOT=$(boot_ms load-nano "${NANO}/v1/health")
 PB_BOOT=$(boot_ms load-pb "${PB}/api/health")
 
 # ── report ───────────────────────────────────────────────────────────────────
-row(){ # label key
-  local n=(${R[nano,$2,$3]}) p=(${R[pb,$2,$3]})
+row() { # label key
+  local n p
+  read -ra n <<<"${R[nano,$2,$3]}"
+  read -ra p <<<"${R[pb,$2,$3]}"
   printf '  %-22s %9s %7s %7s %7s   %9s %7s %7s %7s\n' \
     "$1" "${n[0]}" "${n[1]}" "${n[2]}" "${n[3]}" "${p[0]}" "${p[1]}" "${p[2]}" "${p[3]}"
 }
@@ -163,7 +178,8 @@ printf '  %-22s %s   %s\n' "" "──────── binocle-nano ───�
 printf '  %-22s %9s %7s %7s %7s   %9s %7s %7s %7s\n' "op @ concurrency" "RPS" "p50" "p95" "p99" "RPS" "p50" "p95" "p99"
 for c in 1 16 64; do row "insert @ c=${c}" ins "$c"; done
 for c in 1 16 64; do row "list 30 @ c=${c}" list "$c"; done
-N_BIG=(${NANO_BIG}); P_BIG=(${PB_BIG})
+read -ra N_BIG <<<"${NANO_BIG}"
+read -ra P_BIG <<<"${PB_BIG}"
 printf '  %-22s %9s %7s %7s %7s   %9s %7s %7s %7s\n' "${BIG_N}-row @ c=64" "${N_BIG[0]}" "${N_BIG[1]}" "${N_BIG[2]}" "${N_BIG[3]}" "${P_BIG[0]}" "${P_BIG[1]}" "${P_BIG[2]}" "${P_BIG[3]}"
 printf '  %-22s %25s   %25s\n' "RSS under c=64 load" "${NANO_RSS_LOAD}" "${PB_RSS_LOAD}"
 printf '  %-22s %25s   %25s\n' "disk after ${BIG_N}+" "${NANO_DISK}" "${PB_DISK}"
@@ -171,7 +187,7 @@ printf '  %-22s %22s ms   %22s ms\n' "boot → first 200" "${NANO_BOOT}" "${PB_B
 echo
 
 mkdir -p artifacts
-python3 - "$PB_VERSION" "$DUR" "$BIG_N" <<EOF > artifacts/nano-vs-pocketbase-load.json
+python3 - "$PB_VERSION" "$DUR" "$BIG_N" <<EOF >artifacts/nano-vs-pocketbase-load.json
 import json, sys, datetime
 R = {
 $(for c in 1 16 64; do for op in ins list; do

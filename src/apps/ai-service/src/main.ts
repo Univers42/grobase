@@ -34,15 +34,14 @@ async function bootstrap() {
   applySecurityMiddleware(app);
   app.useGlobalPipes(createValidationPipe());
   app.useGlobalFilters(new AllExceptionsFilter());
-  app.useGlobalInterceptors(
-    new CorrelationIdInterceptor(),
-    new TransformInterceptor(),
-  );
+  app.useGlobalInterceptors(new CorrelationIdInterceptor(), new TransformInterceptor());
   app.enableShutdownHooks();
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('AI Service')
-    .setDescription('Generic LLM conversation engine — multi-turn chat with configurable prompts and context injection')
+    .setDescription(
+      'Generic LLM conversation engine — multi-turn chat with configurable prompts and context injection',
+    )
     .setVersion('1.0.0')
     .addApiKey({ type: 'apiKey', name: 'apikey', in: 'header' }, 'apikey')
     .addBearerAuth()

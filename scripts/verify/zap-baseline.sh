@@ -29,8 +29,8 @@ if [[ -z "${TARGET}" ]]; then
   TARGET="https://127.0.0.1:${WAF_HTTPS_PORT:-18443}"
 fi
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 amber() { printf '\033[0;33m%s\033[0m\n' "$*"; }
 
@@ -46,13 +46,13 @@ docker run --rm \
   -v "${REPO_ROOT}/${ARTIFACTS_DIR}:/zap/wrk:rw" \
   zaproxy/zap-stable:latest \
   zap-baseline.py \
-    -t "${TARGET}" \
-    -J zap-baseline.json \
-    -r zap-baseline.html \
-    -w zap-baseline.md \
-    -I \
-    -m 2 \
-    -d 2>&1 | tail -80 || true
+  -t "${TARGET}" \
+  -J zap-baseline.json \
+  -r zap-baseline.html \
+  -w zap-baseline.md \
+  -I \
+  -m 2 \
+  -d 2>&1 | tail -80 || true
 
 report="${ARTIFACTS_DIR}/zap-baseline.json"
 if [[ ! -f "${report}" ]]; then

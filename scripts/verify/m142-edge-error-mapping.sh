@@ -22,19 +22,26 @@
 #    Live, through Kong, on a scratch tenant (lib-live-tenant.sh).           #
 # **************************************************************************** #
 set -uo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
-fail() { printf '\033[0;31m[M142] FAIL: %s\033[0m\n' "$*" >&2; exit 1; }
-ok()   { printf '\033[0;32m[M142] PASS: %s\033[0m\n' "$*"; }
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+fail() {
+  printf '\033[0;31m[M142] FAIL: %s\033[0m\n' "$*" >&2
+  exit 1
+}
+ok() { printf '\033[0;32m[M142] PASS: %s\033[0m\n' "$*"; }
 step() { printf '\033[0;36m[M142] %s\033[0m\n' "$*"; }
 
 source lib/lib-live-tenant.sh
 SLUG="m142-$(date +%s)"
 live_tenant_provision "$SLUG" || fail "provision failed (is the stack up?)"
 trap 'live_tenant_cleanup || true' EXIT
-K="$LIVE_KONG_URL"; A="$LIVE_ANON_APIKEY"; T="$LIVE_TENANT_API_KEY"; DB="$LIVE_TENANT_DB_ID"
+K="$LIVE_KONG_URL"
+A="$LIVE_ANON_APIKEY"
+T="$LIVE_TENANT_API_KEY"
+DB="$LIVE_TENANT_DB_ID"
 H=(-H "apikey: $A" -H "X-Baas-Api-Key: $T" -H 'Content-Type: application/json')
 TBL="m142_edge_$(date +%s)"
-TMP="$(mktemp -d)"; trap 'live_tenant_cleanup || true; rm -rf "$TMP"' EXIT
+TMP="$(mktemp -d)"
+trap 'live_tenant_cleanup || true; rm -rf "$TMP"' EXIT
 
 # ── setup: a tiny table to address (id, val) ─────────────────────────────────
 step "create table ($TBL: id, val) via /query/v1/<db>/schema/ddl"
@@ -71,7 +78,7 @@ BIG="$TMP/big.json"
   printf '{"op":"insert","data":{"id":1,"val":"'
   head -c 2200000 /dev/zero | tr '\0' 'A'
   printf '"}}'
-} > "$BIG"
+} >"$BIG"
 code1=000
 for i in $(seq 1 8); do
   code1=$(curl -s -o "$TMP/r1.json" -w '%{http_code}' "${H[@]}" -X POST "$K/query/v1/${DB}/tables/${TBL}" --data-binary @"$BIG")

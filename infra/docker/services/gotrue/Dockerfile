@@ -59,10 +59,8 @@ RUN git clone --depth 1 --branch "v${AUTH_VERSION}" \
 # `auth` in the repo root, per the module name.
 RUN --mount=type=cache,id=gomod-gotrue,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,id=gobuild-gotrue,target=/root/.cache/go-build,sharing=locked \
-    make deps
-RUN --mount=type=cache,id=gomod-gotrue,target=/go/pkg/mod,sharing=locked \
-    --mount=type=cache,id=gobuild-gotrue,target=/root/.cache/go-build,sharing=locked \
-    RELEASE_VERSION="${AUTH_VERSION}" make build
+    make deps \
+ && RELEASE_VERSION="${AUTH_VERSION}" make build
 
 # Stage everything the scratch runtime needs, in the builder (which HAS a shell):
 #   • ca-certificates → the CA bundle file for outbound TLS;

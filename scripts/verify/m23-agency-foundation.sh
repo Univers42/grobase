@@ -25,9 +25,12 @@ REPO_ROOT="$(cd "${INFRA_ROOT}/.." && pwd)"
 TENANT_ENV="${INFRA_ROOT}/.agency-tenant.env"
 PEOPLE_ENV="${REPO_ROOT}/tools/seeds/.agency-people.env"
 
-cyan()  { printf '\033[0;36m[M23] %s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m[M23] %s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m[M23] PASS: %s\033[0m\n' "$*"; }
-fail()  { printf '\033[0;31m[M23] FAIL: %s\033[0m\n' "$*" >&2; exit 1; }
+fail() {
+  printf '\033[0;31m[M23] FAIL: %s\033[0m\n' "$*" >&2
+  exit 1
+}
 
 [[ -f "${TENANT_ENV}" ]] || fail "missing ${TENANT_ENV} (run make agency-seed)"
 [[ -f "${PEOPLE_ENV}" ]] || fail "missing ${PEOPLE_ENV} (run make agency-people)"
@@ -36,8 +39,8 @@ source "${TENANT_ENV}"
 OWNER_UUID="$(grep '^AGENCY_OWNER_UUID=' "${PEOPLE_ENV}" | cut -d= -f2)"
 ORG_WS_ID="$(grep '^AGENCY_ORG_WORKSPACE_ID=' "${PEOPLE_ENV}" | cut -d= -f2)"
 person_uuid() { grep "^AGENCY_PERSON_$1=" "${PEOPLE_ENV}" | cut -d= -f2 | cut -d'|' -f1; }
-ANALYST_UUID="$(person_uuid 11)"   # Erik Johansson — analyst
-AGENT_UUID="$(person_uuid 7)"      # Jack Sullivan — field_agent
+ANALYST_UUID="$(person_uuid 11)" # Erik Johansson — analyst
+AGENT_UUID="$(person_uuid 7)"    # Jack Sullivan — field_agent
 
 # ── 1) tenant tables + row counts through the gateway ────────────────────────
 cyan "checking the 11 agency tables through the gateway"
@@ -47,8 +50,8 @@ declare -A EXPECT=(
   [assignments]=100 [edges]=80
 )
 schema="$(curl -fsS "${AGENCY_KONG_URL}/query/v1/${AGENCY_DB_ID}/schema" \
-  -H "apikey: ${AGENCY_ANON_APIKEY}" -H "X-Baas-Api-Key: ${AGENCY_API_KEY}")" \
-  || fail "gateway schema fetch failed"
+  -H "apikey: ${AGENCY_ANON_APIKEY}" -H "X-Baas-Api-Key: ${AGENCY_API_KEY}")" ||
+  fail "gateway schema fetch failed"
 for table in "${!EXPECT[@]}"; do
   echo "${schema}" | grep -q "\"name\":\"${table}\"" || fail "schema missing table ${table}"
 done
@@ -56,10 +59,10 @@ for table in cases transactions edges; do
   body="$(curl -fsS -X POST "${AGENCY_KONG_URL}/query/v1/${AGENCY_DB_ID}/tables/${table}" \
     -H "apikey: ${AGENCY_ANON_APIKEY}" -H "X-Baas-Api-Key: ${AGENCY_API_KEY}" \
     -H 'Content-Type: application/json' \
-    -d '{"op":"aggregate","aggregate":{"aggregates":[{"func":"count","alias":"n"}]}}')" \
-    || fail "aggregate count on ${table} failed"
-  echo "${body}" | grep -q "\"n\":[ ]*\"\?${EXPECT[${table}]}" \
-    || fail "${table} count != ${EXPECT[${table}]}: ${body}"
+    -d '{"op":"aggregate","aggregate":{"aggregates":[{"func":"count","alias":"n"}]}}')" ||
+    fail "aggregate count on ${table} failed"
+  echo "${body}" | grep -q "\"n\":[ ]*\"\?${EXPECT[${table}]}" ||
+    fail "${table} count != ${EXPECT[${table}]}: ${body}"
 done
 green "11 tables present; spot counts (cases/transactions/edges) match"
 
@@ -68,8 +71,8 @@ cyan "checking the investigation graph"
 graph="$(curl -fsS -X POST "${AGENCY_KONG_URL}/query/v1/graph/overview" \
   -H "apikey: ${AGENCY_ANON_APIKEY}" -H "X-Baas-Api-Key: ${AGENCY_API_KEY}" \
   -H 'Content-Type: application/json' \
-  -d "{\"resources\":[{\"dbId\":\"${AGENCY_DB_ID}\",\"table\":\"cases\"},{\"dbId\":\"${AGENCY_DB_ID}\",\"table\":\"subjects\"}],\"edgesDbId\":\"${AGENCY_DB_ID}\",\"limit\":200}")" \
-  || fail "graph overview failed"
+  -d "{\"resources\":[{\"dbId\":\"${AGENCY_DB_ID}\",\"table\":\"cases\"},{\"dbId\":\"${AGENCY_DB_ID}\",\"table\":\"subjects\"}],\"edgesDbId\":\"${AGENCY_DB_ID}\",\"limit\":200}")" ||
+  fail "graph overview failed"
 echo "${graph}" | grep -q '"type":"associate"' || fail "graph missing explicit associate edges"
 nodes=$(echo "${graph}" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["nodes"]))')
 [[ "${nodes}" -ge 100 ]] || fail "graph returned only ${nodes} nodes"
@@ -107,15 +110,15 @@ const run = async () => {
 run().catch((e) => { console.error(e.message); process.exit(1); });
 ' || fail "gotrue invite path failed"
 sleep 1
-curl -s "http://localhost:8025/api/v1/search?query=${PROBE_EMAIL}" | grep -q "You have been invited" \
-  || fail "invitation email for ${PROBE_EMAIL} not found in Mailpit"
+curl -s "http://localhost:8025/api/v1/search?query=${PROBE_EMAIL}" | grep -q "You have been invited" ||
+  fail "invitation email for ${PROBE_EMAIL} not found in Mailpit"
 green "21 accounts + identities + org members; invite→Mailpit path verified live"
 
 # ── 4) ABAC decisions ─────────────────────────────────────────────────────────
 cyan "checking role-differentiated ABAC decisions"
 PE_TOKEN="$(docker inspect mini-baas-permission-engine \
-  --format '{{range .Config.Env}}{{println .}}{{end}}' \
-  | grep '^ADAPTER_REGISTRY_SERVICE_TOKEN=' | cut -d= -f2-)"
+  --format '{{range .Config.Env}}{{println .}}{{end}}' |
+  grep '^ADAPTER_REGISTRY_SERVICE_TOKEN=' | cut -d= -f2-)"
 [[ -n "${PE_TOKEN}" ]] || fail "permission-engine service token not found"
 decide() { # $1 user uuid, $2 table, $3 op
   curl -s -X POST "${AGENCY_KONG_URL}/permissions/v1/permissions/decide" \
@@ -123,22 +126,22 @@ decide() { # $1 user uuid, $2 table, $3 op
     -H "X-Tenant-Id: agency" -H 'Content-Type: application/json' \
     -d "{\"user\":{\"id\":\"$1\"},\"resource_type\":\"table\",\"resource_name\":\"$2\",\"op\":\"$3\"}"
 }
-decide "${OWNER_UUID}" transactions list | grep -q '"allow":true' \
-  || fail "director must be allowed on transactions"
+decide "${OWNER_UUID}" transactions list | grep -q '"allow":true' ||
+  fail "director must be allowed on transactions"
 analyst="$(decide "${ANALYST_UUID}" transactions list)"
 echo "${analyst}" | grep -q '"allow":true' || fail "analyst must be allowed on transactions"
 echo "${analyst}" | grep -q '"amount":"\*\*\*"' || fail "analyst transactions must carry the amount mask: ${analyst}"
-decide "${AGENT_UUID}" communications list | grep -q '"allow":false' \
-  || fail "field agent must be denied on communications"
-decide "${AGENT_UUID}" subjects list | grep -q '"hide":\["ssn"\]' \
-  || fail "field agent subjects must hide ssn"
-decide "${AGENT_UUID}" transactions update | grep -q '"allow":false' \
-  || fail "field agent must be denied transaction writes"
+decide "${AGENT_UUID}" communications list | grep -q '"allow":false' ||
+  fail "field agent must be denied on communications"
+decide "${AGENT_UUID}" subjects list | grep -q '"hide":\["ssn"\]' ||
+  fail "field agent subjects must hide ssn"
+decide "${AGENT_UUID}" transactions update | grep -q '"allow":false' ||
+  fail "field agent must be denied transaction writes"
 GUEST_UUID="00000000-0000-4000-8000-00000000beef"
 docker exec -i mini-baas-postgres psql -U postgres -d postgres -q -c \
   "INSERT INTO user_roles (user_id, role_id) SELECT '${GUEST_UUID}'::uuid, id FROM roles WHERE name='guest' ON CONFLICT DO NOTHING"
-decide "${GUEST_UUID}" evidence list | grep -q '"allow":false' \
-  || fail "guest must be denied on evidence"
+decide "${GUEST_UUID}" evidence list | grep -q '"allow":false' ||
+  fail "guest must be denied on evidence"
 green "director allow / analyst masked / agent denied+hidden / guest denied"
 
 green "M23 agency foundation OK — tenant, data, graph, identities, ABAC all live"

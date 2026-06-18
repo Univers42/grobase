@@ -21,8 +21,8 @@
 # **************************************************************************** #
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 SITE="${BAAS_DIR}/site"
 POSTURE_JSON="${INFRA_DIR}/config/trust/posture.json"
 SECURITY_TS="${SITE}/src/data/security.ts"
@@ -31,12 +31,15 @@ SECURITY_TXT="${SITE}/public/.well-known/security.txt"
 COMP_DIR="${SITE}/src/components/security"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M144] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M144] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M144] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M144] FAIL — $*"
+  exit 1
+}
 
 # ── 0) inputs present ────────────────────────────────────────────────────────────
 step "0/4 inputs present (posture.json, security.ts, security.astro, security.txt)"
@@ -47,7 +50,8 @@ ok "all four inputs present"
 
 # ── 1) control set + statuses match posture.json exactly ─────────────────────────
 step "1/4 site security.ts control set + statuses == posture.json (no drift)"
-DRIFT="$(python3 - "${POSTURE_JSON}" "${SECURITY_TS}" <<'PY'
+DRIFT="$(
+  python3 - "${POSTURE_JSON}" "${SECURITY_TS}" <<'PY'
 import json, re, sys
 posture = {c["id"]: c["status"] for c in json.load(open(sys.argv[1])).get("controls", [])}
 ts = open(sys.argv[2]).read()
@@ -89,7 +93,8 @@ ok "security.txt Contact+Expires present; #disclosure anchor present on the page
 step "4/4 summary"
 green "[M144] (1) page<->posture parity OK  (2) no overclaim literal  (3) security.txt + disclosure anchor OK"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-trust-page-parity}"

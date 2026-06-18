@@ -13,7 +13,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck disable=SC1007  # `CDPATH= cd` intentionally clears CDPATH for the cd
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+# shellcheck disable=SC1007  # `CDPATH= cd` intentionally clears CDPATH for the cd
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../../.." && pwd)
 cd "$REPO_ROOT"
 
@@ -148,7 +150,7 @@ if ! "${FLY_CMD[@]}" auth whoami >/dev/null 2>&1; then
 fi
 
 printf '[vault-admin] requesting a fresh Vault admin token from %s\n' "$VAULT_APP"
-if ! "${FLY_CMD[@]}" ssh console --app "$VAULT_APP" --command 'bash -se' < "$REMOTE_SCRIPT" > "$TMP_JSON"; then
+if ! "${FLY_CMD[@]}" ssh console --app "$VAULT_APP" --command 'bash -se' <"$REMOTE_SCRIPT" >"$TMP_JSON"; then
   fail 'remote Vault admin token regeneration failed; if the unseal key is gone too, use make vault-fly-reset as the destructive reseed path'
 fi
 
@@ -173,7 +175,7 @@ umask 077
   write_env_line VAULT_ENV_PREFIX "$VAULT_PREFIX"
   write_env_line VAULT_ADMIN_EMAIL "$RECOVERY_EMAIL"
   write_env_line VAULT_ADMIN_GENERATED_AT "$GENERATED_AT"
-} > "$ADMIN_FILE"
+} >"$ADMIN_FILE"
 chmod 600 "$ADMIN_FILE"
 
 {
@@ -186,7 +188,7 @@ chmod 600 "$ADMIN_FILE"
   write_env_line ADMIN_CRED_LOST_ADMIN_FILE "$ADMIN_FILE"
   write_env_line ADMIN_CRED_LOST_READER_FILE "${VAULT_READER_TOKEN_FILE:-.vault/track-binocle-reader.env}"
   write_env_line ADMIN_CRED_LOST_WRITER_FILE "${VAULT_WRITER_TOKEN_FILE:-.vault/track-binocle-writer.env}"
-} > "$RECEIPT_FILE"
+} >"$RECEIPT_FILE"
 chmod 600 "$RECEIPT_FILE"
 
 printf '[vault-admin] wrote admin credential file: %s\n' "$ADMIN_FILE"

@@ -72,11 +72,11 @@ networks:
   net-control:
     driver: bridge
     name: ${NETSEG_PREFIX:-netseg}-control
-    internal: true          # control plane has no host/WAN egress
+    internal: true # control plane has no host/WAN egress
   net-data:
     driver: bridge
     name: ${NETSEG_PREFIX:-netseg}-data
-    internal: true          # engines are internal-only: no host/WAN egress
+    internal: true # engines are internal-only: no host/WAN egress
   net-observ:
     driver: bridge
     name: ${NETSEG_PREFIX:-netseg}-observ
@@ -95,7 +95,7 @@ services:
   gotrue:
     networks: [net-edge]
   postgrest:
-    networks: [net-edge, net-data]   # postgrest binds straight to postgres
+    networks: [net-edge, net-data] # postgrest binds straight to postgres
   realtime:
     networks: [net-edge, net-data]
 
@@ -145,7 +145,7 @@ services:
   prometheus:
     networks: [net-observ]
   grafana:
-    networks: [net-observ, net-edge]   # grafana UI reachable from the edge
+    networks: [net-observ, net-edge] # grafana UI reachable from the edge
   loki:
     networks: [net-observ]
   promtail:

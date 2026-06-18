@@ -45,10 +45,7 @@ export class SubscriptionController {
   @Roles('service_role')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List active subscribers (admin)' })
-  async listSubscribers(
-    @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
-  ) {
+  async listSubscribers(@Query('limit') limit?: number, @Query('offset') offset?: number) {
     return this.service.getSubscribers(
       limit ? Number(limit) : undefined,
       offset ? Number(offset) : undefined,

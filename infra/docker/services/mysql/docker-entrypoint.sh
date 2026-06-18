@@ -26,7 +26,7 @@ DATADIR=/var/lib/mysql
 # trigger datadir initialization — just run the binary and exit.
 for _arg in "$@"; do
   case "$_arg" in
-    --version|-V|--help|-?|--print-defaults) exec "$@" ;;
+  --version | -V | --help | -? | --print-defaults) exec "$@" ;;
   esac
 done
 
@@ -63,9 +63,9 @@ if [ ! -d "$DATADIR/mysql" ]; then
       fi
     fi
     echo "FLUSH PRIVILEGES;"
-  } > "$BOOTSTRAP"
+  } >"$BOOTSTRAP"
 
-  mariadbd --user=mysql --datadir="$DATADIR" --bootstrap < "$BOOTSTRAP"
+  mariadbd --user=mysql --datadir="$DATADIR" --bootstrap <"$BOOTSTRAP"
   rm -f "$BOOTSTRAP"
   echo "[entrypoint] initialization complete"
 fi
@@ -74,6 +74,6 @@ if [ "$#" -eq 0 ]; then
   set -- mysqld
 fi
 case "$1" in
-  mysqld|mariadbd) exec "$@" --user=mysql --datadir="$DATADIR" ;;
-  *) exec "$@" ;;
+mysqld | mariadbd) exec "$@" --user=mysql --datadir="$DATADIR" ;;
+*) exec "$@" ;;
 esac

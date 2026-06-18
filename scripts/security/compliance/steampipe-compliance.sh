@@ -68,49 +68,49 @@ BENCHMARK="${BENCHMARK:-soc_2}"
 STEAMPIPE_IMAGE="${STEAMPIPE_IMAGE:-turbot/steampipe:latest}"
 POWERPIPE_IMAGE="${POWERPIPE_IMAGE:-turbot/powerpipe:latest}"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 amber() { printf '\033[0;33m%s\033[0m\n' "$*"; }
-step()  { cyan  "[steampipe] ${*}"; }
-fail()  { red   "[steampipe] FAIL: $*"; }
-warn()  { amber "[steampipe] WARN: $*"; }
-ok()    { green "[steampipe] OK:   $*"; }
+step() { cyan "[steampipe] ${*}"; }
+fail() { red "[steampipe] FAIL: $*"; }
+warn() { amber "[steampipe] WARN: $*"; }
+ok() { green "[steampipe] OK:   $*"; }
 
 for arg in "$@"; do
   case "${arg}" in
-    --help|-h)
-      sed -n '/^# Usage:/,/^# Exit code:/p' "$0" | sed 's/^# \?//'
-      exit 0
-      ;;
+  --help | -h)
+    sed -n '/^# Usage:/,/^# Exit code:/p' "$0" | sed 's/^# \?//'
+    exit 0
+    ;;
   esac
 done
 
 # Same credential detection contract as prowler-scan.sh.
 have_creds() {
   case "${CLOUD}" in
-    aws)
-      [[ -n "${AWS_ACCESS_KEY_ID:-}" && -n "${AWS_SECRET_ACCESS_KEY:-}" ]] && return 0
-      [[ -n "${AWS_PROFILE:-}" ]] && return 0
-      [[ -f "${HOME}/.aws/credentials" ]] && return 0
-      return 1
-      ;;
-    gcp)
-      [[ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" && -f "${GOOGLE_APPLICATION_CREDENTIALS}" ]] && return 0
-      [[ -f "${HOME}/.config/gcloud/application_default_credentials.json" ]] && return 0
-      return 1
-      ;;
-    azure)
-      [[ -n "${AZURE_CLIENT_ID:-}" && -n "${AZURE_CLIENT_SECRET:-}" && -n "${AZURE_TENANT_ID:-}" ]] && return 0
-      [[ -d "${HOME}/.azure" ]] && return 0
-      return 1
-      ;;
-    kubernetes)
-      [[ -n "${KUBECONFIG:-}" && -f "${KUBECONFIG}" ]] && return 0
-      [[ -f "${HOME}/.kube/config" ]] && return 0
-      return 1
-      ;;
-    *) return 1 ;;
+  aws)
+    [[ -n "${AWS_ACCESS_KEY_ID:-}" && -n "${AWS_SECRET_ACCESS_KEY:-}" ]] && return 0
+    [[ -n "${AWS_PROFILE:-}" ]] && return 0
+    [[ -f "${HOME}/.aws/credentials" ]] && return 0
+    return 1
+    ;;
+  gcp)
+    [[ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" && -f "${GOOGLE_APPLICATION_CREDENTIALS}" ]] && return 0
+    [[ -f "${HOME}/.config/gcloud/application_default_credentials.json" ]] && return 0
+    return 1
+    ;;
+  azure)
+    [[ -n "${AZURE_CLIENT_ID:-}" && -n "${AZURE_CLIENT_SECRET:-}" && -n "${AZURE_TENANT_ID:-}" ]] && return 0
+    [[ -d "${HOME}/.azure" ]] && return 0
+    return 1
+    ;;
+  kubernetes)
+    [[ -n "${KUBECONFIG:-}" && -f "${KUBECONFIG}" ]] && return 0
+    [[ -f "${HOME}/.kube/config" ]] && return 0
+    return 1
+    ;;
+  *) return 1 ;;
   esac
 }
 
@@ -124,45 +124,47 @@ if ! have_creds; then
   amber " NO ${CLOUD^^} CREDENTIALS DETECTED — this is the EXPECTED local state."
   amber "════════════════════════════════════════════════════════════════════════"
   echo
-  cyan  "Steampipe queries a LIVE ${CLOUD} account as SQL; Powerpipe runs the"
-  cyan  "compliance benchmarks against it. With no credentials it cannot — and we"
-  cyan  "do NOT pretend a local run audits 'SOC 2'. Export real ${CLOUD} creds and"
-  cyan  "re-run this exact script to get a genuine benchmark report."
+  cyan "Steampipe queries a LIVE ${CLOUD} account as SQL; Powerpipe runs the"
+  cyan "compliance benchmarks against it. With no credentials it cannot — and we"
+  cyan "do NOT pretend a local run audits 'SOC 2'. Export real ${CLOUD} creds and"
+  cyan "re-run this exact script to get a genuine benchmark report."
   echo
-  cyan  "WHAT IT WOULD RUN:"
-  echo  "  plugin     : steampipe plugin install ${CLOUD}"
-  echo  "  mod        : ${MOD}  (Powerpipe compliance mod)"
-  echo  "  benchmark  : benchmark.${BENCHMARK}"
-  echo  "  maps to    : SOC 2 TSC / ISO 27001 A.8 / GDPR — LIVE infra half"
-  echo  "  reports to : ${ARTIFACTS_DIR}/  (powerpipe --output json)"
+  cyan "WHAT IT WOULD RUN:"
+  echo "  plugin     : steampipe plugin install ${CLOUD}"
+  echo "  mod        : ${MOD}  (Powerpipe compliance mod)"
+  echo "  benchmark  : benchmark.${BENCHMARK}"
+  echo "  maps to    : SOC 2 TSC / ISO 27001 A.8 / GDPR — LIVE infra half"
+  echo "  reports to : ${ARTIFACTS_DIR}/  (powerpipe --output json)"
   echo
-  cyan  "THE COMMANDS IT WOULD RUN (mount your creds, then this):"
-  echo  "  # 1. start steampipe as the SQL backend (foreground service container)"
-  echo  "  docker run -d --name steampipe \\"
+  cyan "THE COMMANDS IT WOULD RUN (mount your creds, then this):"
+  echo "  # 1. start steampipe as the SQL backend (foreground service container)"
+  echo "  docker run -d --name steampipe \\"
   case "${CLOUD}" in
-    aws)   echo "    -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN \\"
-           echo "    -v \"\$HOME/.aws:/home/steampipe/.aws:ro\" \\" ;;
-    gcp)   echo "    -e GOOGLE_APPLICATION_CREDENTIALS=/creds.json -v \"\$GOOGLE_APPLICATION_CREDENTIALS:/creds.json:ro\" \\" ;;
-    azure) echo "    -e AZURE_CLIENT_ID -e AZURE_CLIENT_SECRET -e AZURE_TENANT_ID \\" ;;
-    kubernetes) echo "    -v \"\$HOME/.kube:/home/steampipe/.kube:ro\" \\" ;;
+  aws)
+    echo "    -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN \\"
+    echo "    -v \"\$HOME/.aws:/home/steampipe/.aws:ro\" \\"
+    ;;
+  gcp) echo "    -e GOOGLE_APPLICATION_CREDENTIALS=/creds.json -v \"\$GOOGLE_APPLICATION_CREDENTIALS:/creds.json:ro\" \\" ;;
+  azure) echo "    -e AZURE_CLIENT_ID -e AZURE_CLIENT_SECRET -e AZURE_TENANT_ID \\" ;;
+  kubernetes) echo "    -v \"\$HOME/.kube:/home/steampipe/.kube:ro\" \\" ;;
   esac
-  echo  "    ${STEAMPIPE_IMAGE} steampipe service start --foreground"
-  echo  "  docker exec steampipe steampipe plugin install ${CLOUD}"
+  echo "    ${STEAMPIPE_IMAGE} steampipe service start --foreground"
+  echo "  docker exec steampipe steampipe plugin install ${CLOUD}"
   echo
-  echo  "  # 2. run the benchmark with powerpipe against that steampipe DB"
-  echo  "  docker run --rm --link steampipe \\"
-  echo  "    -e STEAMPIPE_DATABASE_HOST=steampipe \\"
-  echo  "    -v \"${REPO_ROOT}/${ARTIFACTS_DIR}:/out\" \\"
-  echo  "    ${POWERPIPE_IMAGE} sh -c \\"
-  echo  "      'powerpipe mod install github.com/turbot/steampipe-mod-${MOD} && \\"
-  echo  "       powerpipe benchmark run benchmark.${BENCHMARK} \\"
-  echo  "         --output json > /out/powerpipe-${BENCHMARK}.json'"
+  echo "  # 2. run the benchmark with powerpipe against that steampipe DB"
+  echo "  docker run --rm --link steampipe \\"
+  echo "    -e STEAMPIPE_DATABASE_HOST=steampipe \\"
+  echo "    -v \"${REPO_ROOT}/${ARTIFACTS_DIR}:/out\" \\"
+  echo "    ${POWERPIPE_IMAGE} sh -c \\"
+  echo "      'powerpipe mod install github.com/turbot/steampipe-mod-${MOD} && \\"
+  echo "       powerpipe benchmark run benchmark.${BENCHMARK} \\"
+  echo "         --output json > /out/powerpipe-${BENCHMARK}.json'"
   echo
-  cyan  "List the benchmarks the mod ships:"
-  echo  "  docker run --rm ${POWERPIPE_IMAGE} sh -c \\"
-  echo  "    'powerpipe mod install github.com/turbot/steampipe-mod-${MOD} && powerpipe benchmark list'"
+  cyan "List the benchmarks the mod ships:"
+  echo "  docker run --rm ${POWERPIPE_IMAGE} sh -c \\"
+  echo "    'powerpipe mod install github.com/turbot/steampipe-mod-${MOD} && powerpipe benchmark list'"
   echo
-  ok    "needs live cloud creds — wired and documented, nothing to fail. Exit 0."
+  ok "needs live cloud creds — wired and documented, nothing to fail. Exit 0."
   exit 0
 fi
 
@@ -186,24 +188,24 @@ trap cleanup EXIT
 # Per-cloud credential mounts for the steampipe service container.
 sp_creds=()
 case "${CLOUD}" in
-  aws)
-    sp_creds+=(-e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN -e AWS_PROFILE -e AWS_DEFAULT_REGION)
-    [[ -d "${HOME}/.aws" ]] && sp_creds+=(-v "${HOME}/.aws:/home/steampipe/.aws:ro")
-    ;;
-  gcp)
-    if [[ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]]; then
-      sp_creds+=(-e GOOGLE_APPLICATION_CREDENTIALS=/creds.json -v "${GOOGLE_APPLICATION_CREDENTIALS}:/creds.json:ro")
-    else
-      sp_creds+=(-v "${HOME}/.config/gcloud:/home/steampipe/.config/gcloud:ro")
-    fi
-    ;;
-  azure)
-    sp_creds+=(-e AZURE_CLIENT_ID -e AZURE_CLIENT_SECRET -e AZURE_TENANT_ID -e AZURE_SUBSCRIPTION_ID)
-    [[ -d "${HOME}/.azure" ]] && sp_creds+=(-v "${HOME}/.azure:/home/steampipe/.azure:ro")
-    ;;
-  kubernetes)
-    sp_creds+=(-v "${HOME}/.kube:/home/steampipe/.kube:ro")
-    ;;
+aws)
+  sp_creds+=(-e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN -e AWS_PROFILE -e AWS_DEFAULT_REGION)
+  [[ -d "${HOME}/.aws" ]] && sp_creds+=(-v "${HOME}/.aws:/home/steampipe/.aws:ro")
+  ;;
+gcp)
+  if [[ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]]; then
+    sp_creds+=(-e GOOGLE_APPLICATION_CREDENTIALS=/creds.json -v "${GOOGLE_APPLICATION_CREDENTIALS}:/creds.json:ro")
+  else
+    sp_creds+=(-v "${HOME}/.config/gcloud:/home/steampipe/.config/gcloud:ro")
+  fi
+  ;;
+azure)
+  sp_creds+=(-e AZURE_CLIENT_ID -e AZURE_CLIENT_SECRET -e AZURE_TENANT_ID -e AZURE_SUBSCRIPTION_ID)
+  [[ -d "${HOME}/.azure" ]] && sp_creds+=(-v "${HOME}/.azure:/home/steampipe/.azure:ro")
+  ;;
+kubernetes)
+  sp_creds+=(-v "${HOME}/.kube:/home/steampipe/.kube:ro")
+  ;;
 esac
 
 step "starting steampipe service container (${SP_NAME})"

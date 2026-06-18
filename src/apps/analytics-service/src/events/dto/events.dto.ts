@@ -36,7 +36,10 @@ export class QueryEventsDto {
   @IsString()
   type!: string;
 
-  @ApiPropertyOptional({ example: '2025-01-01T00:00:00Z', description: 'ISO date — only return events after this' })
+  @ApiPropertyOptional({
+    example: '2025-01-01T00:00:00Z',
+    description: 'ISO date — only return events after this',
+  })
   @IsOptional()
   @IsString()
   since?: string;

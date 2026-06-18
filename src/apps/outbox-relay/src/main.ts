@@ -15,7 +15,13 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger as PinoLogger } from 'nestjs-pino';
-import { AllExceptionsFilter, CorrelationIdInterceptor, applySecurityMiddleware, createValidationPipe, startOtel } from '@mini-baas/common';
+import {
+  AllExceptionsFilter,
+  CorrelationIdInterceptor,
+  applySecurityMiddleware,
+  createValidationPipe,
+  startOtel,
+} from '@mini-baas/common';
 import { AppModule } from './app.module';
 
 startOtel('outbox-relay');

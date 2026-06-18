@@ -24,9 +24,7 @@ export function createValidationPipe(): NestValidationPipe {
     transform: true,
     transformOptions: { enableImplicitConversion: true },
     exceptionFactory: (errors: ValidationError[]) => {
-      const messages = errors.flatMap((e) =>
-        Object.values(e.constraints ?? {}).map((msg) => msg),
-      );
+      const messages = errors.flatMap((e) => Object.values(e.constraints ?? {}).map((msg) => msg));
       return new BadRequestException({
         statusCode: 400,
         error: 'Validation Error',

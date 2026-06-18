@@ -83,11 +83,13 @@ export function isPrivateAddress(ip: string): boolean {
   if (fam === 4) {
     const o = addr.split('.').map(Number);
     return (
-      o[0] === 0 || o[0] === 10 || o[0] === 127 ||
-      (o[0] === 169 && o[1] === 254) ||             // link-local + cloud metadata
+      o[0] === 0 ||
+      o[0] === 10 ||
+      o[0] === 127 ||
+      (o[0] === 169 && o[1] === 254) || // link-local + cloud metadata
       (o[0] === 172 && o[1] >= 16 && o[1] <= 31) || // 172.16.0.0/12
-      (o[0] === 192 && o[1] === 168) ||             // 192.168.0.0/16
-      (o[0] === 100 && o[1] >= 64 && o[1] <= 127)   // CGNAT 100.64.0.0/10
+      (o[0] === 192 && o[1] === 168) || // 192.168.0.0/16
+      (o[0] === 100 && o[1] >= 64 && o[1] <= 127) // CGNAT 100.64.0.0/10
     );
   }
   if (fam === 6) {
@@ -100,7 +102,8 @@ export function isPrivateAddress(ip: string): boolean {
     return (
       lower.startsWith('::') ||
       lower.startsWith('fe80:') ||
-      lower.startsWith('fc') || lower.startsWith('fd') ||
+      lower.startsWith('fc') ||
+      lower.startsWith('fd') ||
       lower.startsWith('ff')
     );
   }
@@ -132,7 +135,11 @@ export class AutomationsService {
   }
 
   /** Replace-all rule set for (tenant, mount) — PUT semantics. */
-  async putRules(tenantId: string, dbId: string, rules: AutomationRuleDto[]): Promise<AutomationRuleDto[]> {
+  async putRules(
+    tenantId: string,
+    dbId: string,
+    rules: AutomationRuleDto[],
+  ): Promise<AutomationRuleDto[]> {
     const pool = await this.getPool();
     await pool.query(
       `INSERT INTO automation_rules (tenant_id, db_id, rules, updated_at)
@@ -168,7 +175,10 @@ export class AutomationsService {
       if (rule.condition && !evaluateCondition(event.row, rule.condition)) continue;
       for (const action of rule.actions) {
         await this.runAction(rule, action, event, execute, publishNotify).catch((error: Error) =>
-          this.logger.warn(`automation "${rule.name}" action ${action.type} failed: ${error.message}`));
+          this.logger.warn(
+            `automation "${rule.name}" action ${action.type} failed: ${error.message}`,
+          ),
+        );
       }
     }
   }
@@ -222,7 +232,11 @@ export class AutomationsService {
    * @see https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
    * @see https://cwe.mitre.org/data/definitions/918.html
    */
-  private async postWebhook(url: string, rule: AutomationRuleDto, event: AutomationWriteEvent): Promise<void> {
+  private async postWebhook(
+    url: string,
+    rule: AutomationRuleDto,
+    event: AutomationWriteEvent,
+  ): Promise<void> {
     await this.assertPublicHttpsTarget(url);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
@@ -233,8 +247,11 @@ export class AutomationsService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           rule: { id: rule.id, name: rule.name },
-          dbId: event.dbId, table: event.table, op: event.op,
-          pk: event.pk ?? null, ts: new Date().toISOString(),
+          dbId: event.dbId,
+          table: event.table,
+          op: event.op,
+          pk: event.pk ?? null,
+          ts: new Date().toISOString(),
         }),
         signal: controller.signal,
       });
@@ -303,15 +320,24 @@ export function evaluateCondition(
   const value = row[condition.column];
   const empty = value === undefined || value === null || value === '';
   switch (condition.operator) {
-    case 'is_empty': return empty;
-    case 'is_not_empty': return !empty;
-    case 'equals': return looseEquals(value, condition.value);
-    case 'not_equals': return !looseEquals(value, condition.value);
+    case 'is_empty':
+      return empty;
+    case 'is_not_empty':
+      return !empty;
+    case 'equals':
+      return looseEquals(value, condition.value);
+    case 'not_equals':
+      return !looseEquals(value, condition.value);
     case 'contains':
-      return stringify(value ?? '').toLowerCase().includes(stringify(condition.value ?? '').toLowerCase());
-    case 'greater_than': return Number(value) > Number(condition.value);
-    case 'less_than': return Number(value) < Number(condition.value);
-    default: return false;
+      return stringify(value ?? '')
+        .toLowerCase()
+        .includes(stringify(condition.value ?? '').toLowerCase());
+    case 'greater_than':
+      return Number(value) > Number(condition.value);
+    case 'less_than':
+      return Number(value) < Number(condition.value);
+    default:
+      return false;
   }
 }
 

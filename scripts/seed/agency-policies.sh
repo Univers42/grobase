@@ -29,7 +29,10 @@ PEOPLE_ENV="${REPO_ROOT}/tools/seeds/.agency-people.env"
 PG_CTN="mini-baas-postgres"
 
 cyan() { printf '\033[0;36m[agency-policies] %s\033[0m\n' "$*"; }
-fail() { printf '\033[0;31m[agency-policies] FAIL: %s\033[0m\n' "$*" >&2; exit 1; }
+fail() {
+  printf '\033[0;31m[agency-policies] FAIL: %s\033[0m\n' "$*" >&2
+  exit 1
+}
 
 [[ -f "${PEOPLE_ENV}" ]] || fail "missing ${PEOPLE_ENV} (run seed_agency_people.sh first)"
 docker inspect "${PG_CTN}" >/dev/null 2>&1 || fail "${PG_CTN} not running"

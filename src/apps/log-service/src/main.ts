@@ -34,10 +34,7 @@ async function bootstrap() {
   applySecurityMiddleware(app);
   app.useGlobalPipes(createValidationPipe());
   app.useGlobalFilters(new AllExceptionsFilter());
-  app.useGlobalInterceptors(
-    new CorrelationIdInterceptor(),
-    new TransformInterceptor(),
-  );
+  app.useGlobalInterceptors(new CorrelationIdInterceptor(), new TransformInterceptor());
   app.enableShutdownHooks();
 
   const swaggerConfig = new DocumentBuilder()

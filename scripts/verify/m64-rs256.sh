@@ -52,12 +52,15 @@ BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 CP_DIR="${BAAS_DIR}/src/control-plane"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/../.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M64] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M64] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M64] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M64] FAIL — $*"
+  exit 1
+}
 
 # ── identifiers — all $$-suffixed, all isolated from the live mini-baas-* stack ─
 NODE_IMAGE="${M64_NODE_IMAGE:-node:22-alpine}"
@@ -66,8 +69,8 @@ SCRATCH_IMG="m64-tc-$$:scratch"
 NET="m64net-$$"
 PG="m64-pg-$$"
 SIGNER="m64-jwks-$$"
-TC_ON="m64-tc-on-$$"     # ON  arm: JWT_ALG=RS256 + JWKS_URL
-TC_OFF="m64-tc-off-$$"   # OFF arm: default HS256 (parity)
+TC_ON="m64-tc-on-$$"   # ON  arm: JWT_ALG=RS256 + JWKS_URL
+TC_OFF="m64-tc-off-$$" # OFF arm: default HS256 (parity)
 PORT_ON="${M64_PORT_ON:-18964}"
 PORT_OFF="${M64_PORT_OFF:-18965}"
 PORT_SIGNER="${M64_PORT_SIGNER:-18966}"
@@ -79,7 +82,7 @@ JWT_SECRET="m64-shared-hs256-secret-$$-deterministic"
 ISSUER="https://m64-issuer.test/auth/v1"
 DSN_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 JWKS_INNET="http://${SIGNER}:8080/.well-known/jwks.json"
-SCRATCH="/mnt/storage/bench/m64-$$"          # host-side temp on the BIG disk only
+SCRATCH="/mnt/storage/bench/m64-$$" # host-side temp on the BIG disk only
 BODY="${SCRATCH}/body.json"
 
 cleanup() {
@@ -97,7 +100,7 @@ mkdir -p "${SCRATCH}" || fail "cannot create scratch ${SCRATCH} on /mnt/storage 
 # the first key's public half at /.well-known/jwks.json, and mints tokens on
 # demand. base64url + a hand-built JWS keeps it dependency-free (no jose/PyJWT).
 SIGNER_JS="${SCRATCH}/signer.mjs"
-cat > "${SIGNER_JS}" <<'NODEEOF'
+cat >"${SIGNER_JS}" <<'NODEEOF'
 import http from 'node:http';
 import crypto from 'node:crypto';
 
@@ -169,8 +172,8 @@ NODEEOF
 step "0/8 build scratch tenant-control from CURRENT source (contains the A6 RS256 seam)"
 DOCKER_BUILDKIT=1 docker build -q \
   --build-arg APP=tenant-control --build-arg PORT=3022 \
-  -f "${CP_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${CP_DIR}" >/dev/null \
-  || fail "scratch tenant-control image build failed — the gate must exercise the real seam (line: docker build)"
+  -f "${CP_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${CP_DIR}" >/dev/null ||
+  fail "scratch tenant-control image build failed — the gate must exercise the real seam (line: docker build)"
 ok "scratch image ${SCRATCH_IMG} built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) private network + the RSA signer/JWKS endpoint ─────────────────────────
@@ -183,15 +186,22 @@ docker run -d --name "${SIGNER}" --network "${NET}" \
   "${NODE_IMAGE}" node /signer.mjs >/dev/null
 for i in $(seq 1 60); do
   curl -fsS -o /dev/null "http://127.0.0.1:${PORT_SIGNER}/.well-known/jwks.json" 2>/dev/null && break
-  docker inspect "${SIGNER}" >/dev/null 2>&1 || { red "signer exited early:"; docker logs "${SIGNER}" 2>&1 | tail -15; fail "signer crashed (line: signer ready)"; }
-  [[ $i -eq 60 ]] && { docker logs "${SIGNER}" 2>&1 | tail -15; fail "signer never served JWKS (line: signer ready loop)"; }
+  docker inspect "${SIGNER}" >/dev/null 2>&1 || {
+    red "signer exited early:"
+    docker logs "${SIGNER}" 2>&1 | tail -15
+    fail "signer crashed (line: signer ready)"
+  }
+  [[ $i -eq 60 ]] && {
+    docker logs "${SIGNER}" 2>&1 | tail -15
+    fail "signer never served JWKS (line: signer ready loop)"
+  }
   sleep 0.5
 done
 # The served JWKS MUST be a real RSA sig key with the expected kid (sanity: the
 # verify path resolves keys by kid from THIS document).
 JWKS_DOC="$(curl -fsS "http://127.0.0.1:${PORT_SIGNER}/.well-known/jwks.json")"
 grep -q '"kid":"m64-key-1"' <<<"${JWKS_DOC}" || fail "JWKS missing kid m64-key-1 — ${JWKS_DOC} (line: jwks kid)"
-grep -q '"kty":"RSA"'       <<<"${JWKS_DOC}" || fail "JWKS key is not RSA — ${JWKS_DOC} (line: jwks kty)"
+grep -q '"kty":"RSA"' <<<"${JWKS_DOC}" || fail "JWKS key is not RSA — ${JWKS_DOC} (line: jwks kty)"
 ok "JWKS endpoint serving an RSA sig key (kid=m64-key-1)"
 
 # ── 2) throwaway postgres with the MINIMAL bootstrap schema ────────────────────
@@ -236,7 +246,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS tenant_api_keys_tenant_name_key
   ON public.tenant_api_keys (tenant_id, name) WHERE revoked_at IS NULL;
 SQL
 }
-for i in $(seq 1 20); do seed && break; [[ $i -eq 20 ]] && fail "schema seed never committed (line: seed loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  seed && break
+  [[ $i -eq 20 ]] && fail "schema seed never committed (line: seed loop)"
+  sleep 0.5
+done
 HAS_TENANTS="$(docker exec -i "${PG}" psql -U postgres -d postgres -tAc \
   "SELECT to_regclass('public.tenants') IS NOT NULL" 2>/dev/null | tr -d '[:space:]')"
 [[ "${HAS_TENANTS}" == "t" ]] || fail "public.tenants not created (line: HAS_TENANTS)"
@@ -262,17 +276,23 @@ wait_tc() { # $1=container  $2=port  — tenant-control has no /health; probe a 
     curl -fsS -o /dev/null "http://127.0.0.1:$2/v1/keys/verify" 2>/dev/null && return 0
     code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2/v1/tenants" 2>/dev/null || echo 000)"
     [[ "${code}" != "000" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 # POST a bootstrap with the given bearer token; echo HTTP status, body->$BODY.
 post_bootstrap() { # $1=port  $2=token
   curl -s -o "${BODY}" -w '%{http_code}' -X POST "http://127.0.0.1:$1/v1/tenants/me/bootstrap" \
     -H "Authorization: Bearer $2" -H 'Content-Length: 0'
 }
-tok() { curl -fsS "http://127.0.0.1:${PORT_SIGNER}/token/$1"; }  # mint a token by kind
+tok() { curl -fsS "http://127.0.0.1:${PORT_SIGNER}/token/$1"; } # mint a token by kind
 
 # ── 3) ON arm: boot tenant-control with JWT_ALG=RS256 + JWKS_URL ───────────────
 step "3/8 boot scratch tenant-control with JWT_ALG=RS256 + JWKS_URL (ON arm)"
@@ -285,26 +305,27 @@ ok "ON-arm tenant-control up (JWT_ALG=RS256) on 127.0.0.1:${PORT_ON}"
 # ── 4) ON·ACCEPT: a valid RS256 token verifies via the JWKS -> 201 + a key ─────
 step "4/8 ON·ACCEPT — RS256 token signed by the JWKS key -> POST /me/bootstrap"
 code="$(post_bootstrap "${PORT_ON}" "$(tok valid)")"
-[[ "${code}" == "201" ]] \
-  || fail "ON·ACCEPT expected 201, got ${code} — $(head -c 400 "${BODY}") (line: ON accept status)"
+[[ "${code}" == "201" ]] ||
+  fail "ON·ACCEPT expected 201, got ${code} — $(head -c 400 "${BODY}") (line: ON accept status)"
 # A real accept mints a real key — the body carries the api_key + a tenant.
-grep -q '"key"' "${BODY}" || grep -q '"api_key"' "${BODY}" \
-  || fail "ON·ACCEPT 201 but no minted key in the body — $(head -c 400 "${BODY}") (line: ON accept body)"
+grep -q '"key"' "${BODY}" || grep -q '"api_key"' "${BODY}" ||
+  fail "ON·ACCEPT 201 but no minted key in the body — $(head -c 400 "${BODY}") (line: ON accept body)"
 ok "valid RS256 token ACCEPTED — 201 with a freshly minted API key (the RS256 verify path works)"
 
 # ── 5) ON·REJECT (load-bearing): forgeries/wrong-key/unknown-kid/none -> 401 ───
 step "5/8 ON·REJECT (load-bearing) — every attack token must be 401 invalid_token"
 assert_reject() { # $1=kind  $2=human label
-  local c; c="$(post_bootstrap "${PORT_ON}" "$(tok "$1")")"
+  local c
+  c="$(post_bootstrap "${PORT_ON}" "$(tok "$1")")"
   [[ "${c}" == "401" ]] || fail "ON·REJECT ${2}: expected 401, got ${c} — $(head -c 300 "${BODY}") (line: reject ${1} status)"
-  grep -q '"invalid_token"' "${BODY}" || grep -q '"unauthorized"' "${BODY}" \
-    || fail "ON·REJECT ${2}: 401 but not an auth-error body — $(head -c 300 "${BODY}") (line: reject ${1} body)"
+  grep -q '"invalid_token"' "${BODY}" || grep -q '"unauthorized"' "${BODY}" ||
+    fail "ON·REJECT ${2}: 401 but not an auth-error body — $(head -c 300 "${BODY}") (line: reject ${1} body)"
   ok "${2} REJECTED — 401 (read off the wire)"
 }
-assert_reject hsforge    "RS->HS algorithm-confusion forgery (HS256 signed with the RSA modulus)"
-assert_reject wrongkey   "RS256 token signed by an UNRELATED key (signature mismatch)"
+assert_reject hsforge "RS->HS algorithm-confusion forgery (HS256 signed with the RSA modulus)"
+assert_reject wrongkey "RS256 token signed by an UNRELATED key (signature mismatch)"
 assert_reject unknownkid "RS256 token with a kid absent from the JWKS"
-assert_reject none       "alg=none downgrade"
+assert_reject none "alg=none downgrade"
 # Cross-check the rejects are NOT a blanket 401 (i.e. the ON arm CAN say 201) —
 # already proven in step 4, so the reject arm is discriminating, not vacuous.
 ok "all four attack classes REJECTED with 401 while a valid token got 201 — reject arm is load-bearing"
@@ -318,8 +339,8 @@ ok "OFF-arm tenant-control up (default HS256) on 127.0.0.1:${PORT_OFF}"
 # ── 7) OFF·PARITY accept: an HS256 token signed with the shared secret -> 201 ──
 step "7/8 OFF·PARITY — HS256 token signed with the shared JWT_SECRET -> 201 (baseline unchanged)"
 code="$(post_bootstrap "${PORT_OFF}" "$(tok hs256)")"
-[[ "${code}" == "201" ]] \
-  || fail "OFF·PARITY HS256 accept expected 201, got ${code} — $(head -c 400 "${BODY}") (line: OFF accept status)"
+[[ "${code}" == "201" ]] ||
+  fail "OFF·PARITY HS256 accept expected 201, got ${code} — $(head -c 400 "${BODY}") (line: OFF accept status)"
 ok "default HS256 verify still ACCEPTS a shared-secret token — 201 (live issuer path byte-identical)"
 
 # ── 8) OFF·PARITY reject: an RS256 token must be 401 on the HS256 arm ──────────
@@ -327,10 +348,10 @@ ok "default HS256 verify still ACCEPTS a shared-secret token — 201 (live issue
 # is pinned to HS256 and rejects RS256 (no silent dual-alg / no behavior drift).
 step "8/8 OFF·PARITY — an RS256 token on the HS256 arm must be REJECTED 401"
 code="$(post_bootstrap "${PORT_OFF}" "$(tok valid)")"
-[[ "${code}" == "401" ]] \
-  || fail "OFF·PARITY RS256 must be 401 (HS256-pinned), got ${code} — $(head -c 300 "${BODY}") (line: OFF reject status)"
-grep -q '"invalid_token"' "${BODY}" \
-  || fail "OFF·PARITY RS256 reject: 401 but not invalid_token — $(head -c 300 "${BODY}") (line: OFF reject body)"
+[[ "${code}" == "401" ]] ||
+  fail "OFF·PARITY RS256 must be 401 (HS256-pinned), got ${code} — $(head -c 300 "${BODY}") (line: OFF reject status)"
+grep -q '"invalid_token"' "${BODY}" ||
+  fail "OFF·PARITY RS256 reject: 401 but not invalid_token — $(head -c 300 "${BODY}") (line: OFF reject body)"
 ok "default arm is pinned to HS256 — an RS256 token is REJECTED (JWT_ALG is the sole gate; OFF = byte-parity)"
 
 # ── PASS (logged via .claude/lib/log.sh) ──────────────────────────────────────
@@ -338,8 +359,8 @@ green "[M64] ALL GATES GREEN — JWT_ALG=RS256+JWKS_URL verifies a JWKS-signed R
 
 if [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]]; then
   AGENT_RUN="${AGENT_RUN:-m64-$$}" AGENT_TASK="${AGENT_TASK:-A6-rs256}" \
-  AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_PHASE="${AGENT_PHASE:-PROVE}" \
-  bash -c 'source "'"${CLAUDE_DIR}"'/lib/log.sh"
+    AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_PHASE="${AGENT_PHASE:-PROVE}" \
+    bash -c 'source "'"${CLAUDE_DIR}"'/lib/log.sh"
     log_event REPORT --outcome PASS --gate m64=PASS \
       --ref scripts/verify/m64-rs256.sh \
       --msg "G-RS256: RS256/JWKS verify accepts JWKS-signed token + rejects forgery/wrong-key/unknown-kid/none (401); default HS256 byte-parity (RS256 rejected). prove-on-scratch, live issuer not flipped" \

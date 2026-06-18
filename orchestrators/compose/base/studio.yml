@@ -1,8 +1,8 @@
 # studio plane — studio
 services:
   studio:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-studio:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-studio:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/studio
       dockerfile: Dockerfile
@@ -33,7 +33,11 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/profile').then(r => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))\""]
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:3000/api/profile'').then(r => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))"',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5

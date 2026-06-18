@@ -41,30 +41,36 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"          # …/mini-baas-infra
-SDK_DIR="$(cd "${BAAS_DIR}/sdks/js" && pwd)"            # …/apps/baas/sdk
+BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # …/mini-baas-infra
+SDK_DIR="$(cd "${BAAS_DIR}/sdks/js" && pwd)"  # …/apps/baas/sdk
 SPEC="${BAAS_DIR}/infra/config/openapi/grobase-public.json"
 ROUTES_TS="${SDK_DIR}/src/core/routes.ts"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M57] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M57] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M57] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M57] FAIL — $*"
+  exit 1
+}
 
 # shellcheck source=scripts/lib/lib-live-tenant.sh
 source "${SCRIPT_DIR}/../lib/lib-live-tenant.sh"
 
-command -v jq >/dev/null      || fail "jq is required"
+command -v jq >/dev/null || fail "jq is required"
 command -v python3 >/dev/null || fail "python3 is required"
 
 TMP="$(mktemp -d)"
-SLUG="m57sdk$(date +%s)$$"          # unique scratch slug per run (no collisions)
-TABLE="m57rows$(date +%s)$$"        # no underscores → 1:1 PostgREST resource name
+SLUG="m57sdk$(date +%s)$$"   # unique scratch slug per run (no collisions)
+TABLE="m57rows$(date +%s)$$" # no underscores → 1:1 PostgREST resource name
 # response-file grep helpers (m56 pattern): write a body, then assert on it.
-has()  { grep -q "$1" "$2" || fail "$3: missing '$1' — $(head -c 300 "$2")"; }
-nhas() { grep -q "$1" "$2" && fail "$3: leaked '$1' — $(head -c 300 "$2")"; return 0; }
+has() { grep -q "$1" "$2" || fail "$3: missing '$1' — $(head -c 300 "$2")"; }
+nhas() {
+  grep -q "$1" "$2" && fail "$3: leaked '$1' — $(head -c 300 "$2")"
+  return 0
+}
 
 PROVISIONED=""
 cleanup() {
@@ -89,16 +95,16 @@ NPATHS="$(jq -r '.paths | length' "${SPEC}")"
 # five public Kong-fronted surfaces are ALL present. We assert each REQUIRED
 # family by checking the discovered set contains it — discovery-driven, so a
 # spec that renames /query/v1 → /data/v1 fails here, not silently.
-jq -r '.paths | keys[]' "${SPEC}" | sed -E 's#^/([^/]+/[^/]+).*#\1#' | sort -u > "${TMP}/spec_families.txt"
+jq -r '.paths | keys[]' "${SPEC}" | sed -E 's#^/([^/]+/[^/]+).*#\1#' | sort -u >"${TMP}/spec_families.txt"
 for fam in auth/v1 rest/v1 storage/v1 query/v1 functions/v1; do
   grep -qx "${fam}" "${TMP}/spec_families.txt" || fail "spec is missing required public family /${fam}"
 done
 # And assert a few CONCRETE operations exist (not just the family prefix): the
 # data-plane execute, an edge-function-by-name, a storage bucket op, the auth
 # token grant, and the PostgREST resource the fluent builder targets.
-for p in /query/v1/execute /functions/v1/{name} /storage/v1/bucket /auth/v1/token '/rest/v1/{resource}'; do
-  jq -e --arg p "$p" '.paths | has($p)' "${SPEC}" >/dev/null \
-    || fail "spec does not declare expected path ${p}"
+for p in /query/v1/execute '/functions/v1/{name}' /storage/v1/bucket /auth/v1/token '/rest/v1/{resource}'; do
+  jq -e --arg p "$p" '.paths | has($p)' "${SPEC}" >/dev/null ||
+    fail "spec does not declare expected path ${p}"
 done
 ok "OpenAPI ${OAVER}, ${NPATHS} paths, all 5 public families + key ops declared"
 
@@ -106,21 +112,22 @@ ok "OpenAPI ${OAVER}, ${NPATHS} paths, all 5 public families + key ops declared"
 step "2/3 SDK route table ⇄ spec congruence (no drift)"
 [[ -f "${ROUTES_TS}" ]] || fail "SDK route table not found at ${ROUTES_TS}"
 # Spec paths, template-normalized: {param} → * ; trailing slash stripped.
-jq -r '.paths | keys[]' "${SPEC}" \
-  | sed -E 's#\{[^}]+\}#*#g' | sed 's#/$##' | sort -u > "${TMP}/spec_paths.txt"
+jq -r '.paths | keys[]' "${SPEC}" |
+  sed -E 's#\{[^}]+\}#*#g' | sed 's#/$##' | sort -u >"${TMP}/spec_paths.txt"
 # SDK path literals from routes.ts, template-normalized: collapse ${expr} → * ,
 # drop any query-string (?…), drop a dangling ${ from inline ternaries, strip
 # trailing slash. This yields the set of route TEMPLATES the SDK can build.
-grep -oE "'/[^']+'|\`/[^\`]+\`" "${ROUTES_TS}" | tr -d "'\`" \
-  | sed -E 's#\$\{[^}]*\}#*#g' | sed -E 's#\?.*##' | sed -E 's#\$\{.*##' \
-  | sed 's#/$##' | sort -u > "${TMP}/sdk_paths.txt"
+grep -oE "'/[^']+'|\`/[^\`]+\`" "${ROUTES_TS}" | tr -d "'\`" |
+  sed -E 's#\$\{[^}]*\}#*#g' | sed -E 's#\?.*##' | sed -E 's#\$\{.*##' |
+  sed 's#/$##' | sort -u >"${TMP}/sdk_paths.txt"
 # Drift = a PUBLIC spec path with no matching SDK route template. (The SDK route
 # table is allowed to be a SUPERSET — it also carries admin/analytics/graphql/
 # realtime surfaces the *public* spec intentionally omits — so we check the
 # spec⊆SDK direction, which is the contract the SDK must keep.)
 DRIFT="$(comm -23 "${TMP}/spec_paths.txt" "${TMP}/sdk_paths.txt" || true)"
 if [[ -n "${DRIFT}" ]]; then
-  red "  spec paths with NO SDK route (drift):"; printf '    %s\n' ${DRIFT}
+  red "  spec paths with NO SDK route (drift):"
+  printf '    %s\n' ${DRIFT}
   fail "route-table drift: ${NPATHS} spec paths not all covered by routes.ts"
 fi
 # Sanity: the comparison is not a no-op (both sides non-empty and overlapping),
@@ -156,8 +163,8 @@ SQL
 # give PostgREST a moment to pick up the schema cache reload.
 for _ in $(seq 1 20); do
   curl -s -o /dev/null -w '%{http_code}' \
-    "${KONG}/rest/v1/${TABLE}?select=id&limit=1" -H "apikey: ${ANON}" 2>/dev/null \
-    | grep -q '^200$' && break
+    "${KONG}/rest/v1/${TABLE}?select=id&limit=1" -H "apikey: ${ANON}" 2>/dev/null |
+    grep -q '^200$' && break
   sleep 0.5
 done
 ok "probe table ${TABLE} seeded (match id=57001, decoy id=57002), anon SELECT granted"
@@ -173,12 +180,12 @@ docker run --rm -v "${SDK_DIR}:/sdk" -w /sdk node:20 sh -c '
 ' || fail "SDK npm ci + build failed in node:20"
 # guard: the engines route (the drift this gate's step 2 pins) must be in the
 # BUILT output too — proving the source edit survives compilation.
-grep -q "'/query/v1/engines'" "${SDK_DIR}/dist/core/routes.js" \
-  || fail "built routes.js missing the /query/v1/engines route (build did not reflect source)"
+grep -q "'/query/v1/engines'" "${SDK_DIR}/dist/core/routes.js" ||
+  fail "built routes.js missing the /query/v1/engines route (build did not reflect source)"
 ok "SDK built from source in node:20 (npm ci + tsc → dist/index.js)"
 
 # 3d) run the fluent chain against the LIVE stack and assert the returned row.
-cat > "${TMP}/fluent.mjs" <<'MJS'
+cat >"${TMP}/fluent.mjs" <<'MJS'
 import { createClient } from '/sdk/dist/index.js';
 const client = createClient({ url: process.env.KONG, anonKey: process.env.ANON });
 const t = process.env.TABLE;
@@ -206,23 +213,23 @@ MJS
 docker run --rm --network host \
   -v "${SDK_DIR}:/sdk" -v "${TMP}/fluent.mjs:/fluent.mjs" \
   -e KONG="${KONG}" -e ANON="${ANON}" -e TABLE="${TABLE}" \
-  node:20 node /fluent.mjs > "${TMP}/fluent.out" 2>&1 \
-  || fail "fluent query run failed — $(tail -c 500 "${TMP}/fluent.out")"
+  node:20 node /fluent.mjs >"${TMP}/fluent.out" 2>&1 ||
+  fail "fluent query run failed — $(tail -c 500 "${TMP}/fluent.out")"
 # The snippet itself is the primary judge (exit 3/4/5 on mismatch / non-scalar /
 # eq-not-filtered); these bash asserts re-bind the printed evidence. We isolate
 # the SINGLE= line so the decoy assertion targets the single() RESULT, not the
 # separate DECOY= probe line we print on purpose to prove eq() narrows.
-grep '^SINGLE=' "${TMP}/fluent.out" > "${TMP}/single.line" || fail "no SINGLE= line — $(tail -c 300 "${TMP}/fluent.out")"
-has 'FLUENT_OK'          "${TMP}/fluent.out" "fluent run did not complete"
-has '"id":57001'         "${TMP}/single.line" "single() did not return the match row id"
+grep '^SINGLE=' "${TMP}/fluent.out" >"${TMP}/single.line" || fail "no SINGLE= line — $(tail -c 300 "${TMP}/fluent.out")"
+has 'FLUENT_OK' "${TMP}/fluent.out" "fluent run did not complete"
+has '"id":57001' "${TMP}/single.line" "single() did not return the match row id"
 has '"name":"m57-match"' "${TMP}/single.line" "single() returned wrong name"
-has '"score":4242'       "${TMP}/single.line" "single() returned wrong score"
-nhas 'm57-decoy'         "${TMP}/single.line" "single().eq() leaked the decoy row (eq filter not applied)"
+has '"score":4242' "${TMP}/single.line" "single() returned wrong score"
+nhas 'm57-decoy' "${TMP}/single.line" "single().eq() leaked the decoy row (eq filter not applied)"
 # The DECOY= probe must carry ONLY the decoy (eq(id,57002) narrowed to one row);
 # if it also held the match, eq() would be a no-op returning the whole table.
-grep '^DECOY=' "${TMP}/fluent.out" > "${TMP}/decoy.line" || fail "no DECOY= line"
-has  '"id":57002' "${TMP}/decoy.line" "decoy eq() did not return the decoy row"
-nhas '57001'      "${TMP}/decoy.line" "decoy eq() leaked the match row (eq filter not applied)"
+grep '^DECOY=' "${TMP}/fluent.out" >"${TMP}/decoy.line" || fail "no DECOY= line"
+has '"id":57002' "${TMP}/decoy.line" "decoy eq() did not return the decoy row"
+nhas '57001' "${TMP}/decoy.line" "decoy eq() leaked the match row (eq filter not applied)"
 ok "fluent .from().query().select().eq(id,57001).single() → exact inserted row; .eq() filtered the decoy both ways"
 
 green "[M57] ALL GATES GREEN — OpenAPI 3.x spec valid + declares the 5 public families · SDK route table congruent with the spec (no drift) · LIVE fluent builder query returns the exact inserted row (eq filter proven)"

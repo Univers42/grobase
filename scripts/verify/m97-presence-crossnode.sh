@@ -57,8 +57,8 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                        # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 RT_DIR="${INFRA_DIR}/infra/docker/services/realtime/realtime-agnostic"
 LOG_SH="${BAAS_DIR}/.claude/lib/log.sh"
 ART_DIR="${INFRA_DIR}/artifacts/a5"
@@ -67,28 +67,31 @@ ART="${ART_DIR}/m97.txt"
 mkdir -p "${ART_DIR}"
 exec > >(tee "${ART}") 2>&1
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M97] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M97] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M97] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M97] FAIL — $*"
+  exit 1
+}
 
 REDIS_IMAGE="${M97_REDIS_IMAGE:-redis:7-alpine}"
 NODE_IMAGE="${M97_NODE_IMAGE:-node:20-bookworm-slim}"
 RT_IMG="m97-rt-$$:scratch"
 NET="m97net-$$"
 REDIS="m97-redis-$$"
-RT_A_ON="m97-rt-a-on-$$"     # node A, shared ON
-RT_B_ON="m97-rt-b-on-$$"     # node B, shared ON
-RT_A_OFF="m97-rt-a-off-$$"   # node A, shared OFF (parity)
-RT_B_OFF="m97-rt-b-off-$$"   # node B, shared OFF (parity)
+RT_A_ON="m97-rt-a-on-$$"   # node A, shared ON
+RT_B_ON="m97-rt-b-on-$$"   # node B, shared ON
+RT_A_OFF="m97-rt-a-off-$$" # node A, shared OFF (parity)
+RT_B_OFF="m97-rt-b-off-$$" # node B, shared OFF (parity)
 REDIS_INNET="redis://${REDIS}:6379"
-PREFIX="m97-$$"              # isolate this run's presence namespace in Redis
+PREFIX="m97-$$" # isolate this run's presence namespace in Redis
 # Channels: the member joins X; Y is the decoy used to prove no cross-channel leak.
 CH_X="room/x-$$"
 CH_Y="room/y-$$"
-USER_A="alice-$$"           # token == claims.sub under NoAuth ⇒ the member's user_id
+USER_A="alice-$$" # token == claims.sub under NoAuth ⇒ the member's user_id
 RT_PORT_A_ON="${M97_PORT_A_ON:-19190}"
 RT_PORT_B_ON="${M97_PORT_B_ON:-19191}"
 RT_PORT_A_OFF="${M97_PORT_A_OFF:-19192}"
@@ -113,7 +116,7 @@ trap cleanup EXIT
 # until told to leave. It writes JOINED to stdout once TRACK is sent, holds for
 # HOLD_SECS, then sends a real CLOSE frame (the genuine UNTRACK/disconnect path).
 # Prints LEFT after closing. Drives the REAL /ws endpoint — no stub.
-cat > "${WSCLIENT}" <<'JS'
+cat >"${WSCLIENT}" <<'JS'
 const net = require("net");
 const crypto = require("crypto");
 const host = process.env.RT_HOST, token = process.env.TOKEN;
@@ -218,23 +221,33 @@ wait_http() { # $1=container  $2=port  $3=path
   local i
   for i in $(seq 1 60); do
     curl -fsS -o /dev/null "http://127.0.0.1:$2$3" 2>/dev/null && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -15; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -15
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -15; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -15
+  return 1
 }
 
 # ── 0) build the scratch realtime-server image FROM CURRENT SOURCE ──────────────
 step "0/7 build scratch realtime-server from CURRENT source (A5 shared presence)"
-DOCKER_BUILDKIT=1 docker build -q -f "${RT_DIR}/Dockerfile" -t "${RT_IMG}" "${RT_DIR}" >/dev/null \
-  || fail "scratch realtime-server image build failed — gate must exercise the drafted shared-presence backend (line: docker build RT)"
+DOCKER_BUILDKIT=1 docker build -q -f "${RT_DIR}/Dockerfile" -t "${RT_IMG}" "${RT_DIR}" >/dev/null ||
+  fail "scratch realtime-server image build failed — gate must exercise the drafted shared-presence backend (line: docker build RT)"
 ok "scratch image built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated network + redis ────────────────────────────────────────────────
 step "1/7 boot isolated network (${NET}) + redis (${REDIS})"
 docker network create "${NET}" >/dev/null
 docker run -d --name "${REDIS}" --network "${NET}" "${REDIS_IMAGE}" >/dev/null
-for i in $(seq 1 60); do redis_cli PING 2>/dev/null | grep -q PONG && break; [[ $i -eq 60 ]] && fail "scratch redis never answered PING (line: redis ready)"; sleep 0.5; done
+for i in $(seq 1 60); do
+  redis_cli PING 2>/dev/null | grep -q PONG && break
+  [[ $i -eq 60 ]] && fail "scratch redis never answered PING (line: redis ready)"
+  sleep 0.5
+done
 ok "redis up"
 
 # ── 2) (A)+(R) boot TWO nodes with shared presence ON, same redis ──────────────
@@ -253,22 +266,30 @@ done
 wait_http "${RT_A_ON}" "${RT_PORT_A_ON}" "/v1/health" || fail "node A (ON) not ready (line: wait_http RT_A_ON)"
 wait_http "${RT_B_ON}" "${RT_PORT_B_ON}" "/v1/health" || fail "node B (ON) not ready (line: wait_http RT_B_ON)"
 for n in "${RT_A_ON}" "${RT_B_ON}"; do
-  docker logs "${n}" 2>&1 | grep -q "cross-node presence ON" \
-    || { red "${n} logs:"; docker logs "${n}" 2>&1 | tail -15; fail "${n} did not announce cross-node presence ON (line: ${n} announce)"; }
+  docker logs "${n}" 2>&1 | grep -q "cross-node presence ON" ||
+    {
+      red "${n} logs:"
+      docker logs "${n}" 2>&1 | tail -15
+      fail "${n} did not announce cross-node presence ON (line: ${n} announce)"
+    }
 done
 ok "both nodes up with shared presence ON (A:${RT_PORT_A_ON}, B:${RT_PORT_B_ON})"
 
 # ── 3) (A) POSITIVE — join channel X on node A, query node B ────────────────────
 step "3/7 (A) POSITIVE — client joins ${CH_X} on node A; query node B for ${CH_X}"
 WSC_A="$(start_ws "${RT_A_ON}" "${CH_X}" "" 8)"
-wait_substr "${WSC_A}" "JOINED" 40 \
-  || { red "ws client logs:"; docker logs "${WSC_A}" 2>&1 | tail -15; fail "client never joined ${CH_X} on node A (line: A JOINED)"; }
+wait_substr "${WSC_A}" "JOINED" 40 ||
+  {
+    red "ws client logs:"
+    docker logs "${WSC_A}" 2>&1 | tail -15
+    fail "client never joined ${CH_X} on node A (line: A JOINED)"
+  }
 # Member is now in Redis; query the OTHER node (B) by container name.
 JB="$(presence_query "${RT_B_ON}" "${CH_X}")"
 echo "    node B /v1/presence?topic=${CH_X} → ${JB}"
 NB="$(count_member "${JB}")"
-[[ "${NB}" == "1" ]] \
-  || fail "(A) node B did NOT list the member that joined node A — got count='${NB}' body='${JB}' (line: A cross-node count != 1)"
+[[ "${NB}" == "1" ]] ||
+  fail "(A) node B did NOT list the member that joined node A — got count='${NB}' body='${JB}' (line: A cross-node count != 1)"
 ok "(A) member joined on node A is visible on node B — cross-node merge proven"
 
 # ── 4) (R1) LOAD-BEARING REJECT — no cross-channel leak ────────────────────────
@@ -276,25 +297,28 @@ step "4/7 (R1) REJECT — member is in ${CH_X}, query node B for the DECOY ${CH_
 JY="$(presence_query "${RT_B_ON}" "${CH_Y}")"
 echo "    node B /v1/presence?topic=${CH_Y} → ${JY}"
 NY="$(count_member "${JY}")"
-[[ "${NY}" == "0" ]] \
-  || fail "(R1) CROSS-CHANNEL LEAK — a member in ${CH_X} surfaced in a query for ${CH_Y} (count='${NY}' body='${JY}') (line: R1 leak)"
+[[ "${NY}" == "0" ]] ||
+  fail "(R1) CROSS-CHANNEL LEAK — a member in ${CH_X} surfaced in a query for ${CH_Y} (count='${NY}' body='${JY}') (line: R1 leak)"
 ok "(R1) member in channel X is NOT visible in channel Y — no cross-channel leak"
 
 # ── 5) (R2) LOAD-BEARING REJECT — leave on A removes from B ─────────────────────
 step "5/7 (R2) REJECT — client leaves ${CH_X} on node A (close); query node B again"
-docker stop "${WSC_A}" >/dev/null 2>&1 || true   # triggers the real disconnect path on node A
-wait_substr "${WSC_A}" "LEFT" 20 || true          # best-effort; stop forces close regardless
+docker stop "${WSC_A}" >/dev/null 2>&1 || true # triggers the real disconnect path on node A
+wait_substr "${WSC_A}" "LEFT" 20 || true       # best-effort; stop forces close regardless
 # Poll node B until the member is gone (allow the disconnect + Redis HDEL to land).
 GONE=0
 for i in $(seq 1 40); do
   JBL="$(presence_query "${RT_B_ON}" "${CH_X}")"
   NBL="$(count_member "${JBL}")"
-  if [[ "${NBL}" == "0" ]]; then GONE=1; break; fi
+  if [[ "${NBL}" == "0" ]]; then
+    GONE=1
+    break
+  fi
   sleep 0.5
 done
 echo "    node B /v1/presence?topic=${CH_X} (after leave) → ${JBL}"
-[[ "${GONE}" == "1" ]] \
-  || fail "(R2) leave on node A did NOT remove the member from node B — still count='${NBL}' body='${JBL}' (line: R2 leave not propagated)"
+[[ "${GONE}" == "1" ]] ||
+  fail "(R2) leave on node A did NOT remove the member from node B — still count='${NBL}' body='${JBL}' (line: R2 leave not propagated)"
 ok "(R2) leave on node A removed the member from node B — cross-node leave proven"
 docker rm -f "${WSC_A}" >/dev/null 2>&1 || true
 
@@ -320,31 +344,35 @@ wait_http "${RT_A_OFF}" "${RT_PORT_A_OFF}" "/v1/health" || fail "(P) node A (OFF
 wait_http "${RT_B_OFF}" "${RT_PORT_B_OFF}" "/v1/health" || fail "(P) node B (OFF) not ready (line: wait_http RT_B_OFF)"
 # With the flag OFF the server must NOT announce cross-node presence ON.
 for n in "${RT_A_OFF}" "${RT_B_OFF}"; do
-  docker logs "${n}" 2>&1 | grep -q "cross-node presence ON" \
-    && fail "(P) ${n} announced cross-node presence ON with the flag UNSET — NOT parity (line: P announce leak)"
+  docker logs "${n}" 2>&1 | grep -q "cross-node presence ON" &&
+    fail "(P) ${n} announced cross-node presence ON with the flag UNSET — NOT parity (line: P announce leak)"
 done
 ok "(P) both OFF nodes up, no cross-node announce (A:${RT_PORT_A_OFF}, B:${RT_PORT_B_OFF})"
 
 step "6b/7 (P) join ${CH_X} on OFF node A; query OFF node B (must NOT see) + OFF node A (must see locally)"
 WSC_A2="$(start_ws "${RT_A_OFF}" "${CH_X}" "" 8)"
-wait_substr "${WSC_A2}" "JOINED" 40 \
-  || { red "ws client logs:"; docker logs "${WSC_A2}" 2>&1 | tail -15; fail "(P) client never joined ${CH_X} on OFF node A (line: P JOINED)"; }
+wait_substr "${WSC_A2}" "JOINED" 40 ||
+  {
+    red "ws client logs:"
+    docker logs "${WSC_A2}" 2>&1 | tail -15
+    fail "(P) client never joined ${CH_X} on OFF node A (line: P JOINED)"
+  }
 # Node B (a different node) must NOT see node A's member — single-node baseline.
 JPB="$(presence_query "${RT_B_OFF}" "${CH_X}")"
 echo "    OFF node B /v1/presence?topic=${CH_X} → ${JPB}"
 NPB="$(count_member "${JPB}")"
-[[ "${NPB}" == "0" ]] \
-  || fail "(P) PARITY BROKEN — OFF node B saw node A's member (count='${NPB}' body='${JPB}'); the flag-OFF baseline must NOT merge (line: P B sees A)"
+[[ "${NPB}" == "0" ]] ||
+  fail "(P) PARITY BROKEN — OFF node B saw node A's member (count='${NPB}' body='${JPB}'); the flag-OFF baseline must NOT merge (line: P B sees A)"
 # But node A itself must still list the member LOCALLY — presence still works.
 JPA="$(presence_query "${RT_A_OFF}" "${CH_X}")"
 echo "    OFF node A /v1/presence?topic=${CH_X} → ${JPA}"
 NPA="$(count_member "${JPA}")"
-[[ "${NPA}" == "1" ]] \
-  || fail "(P) OFF node A did NOT list its OWN member locally (count='${NPA}' body='${JPA}'); presence must still work single-node (line: P A self)"
+[[ "${NPA}" == "1" ]] ||
+  fail "(P) OFF node A did NOT list its OWN member locally (count='${NPA}' body='${JPA}'); presence must still work single-node (line: P A self)"
 # And NO presence keys were written to Redis (no shared store opened at all).
 RKEYS2="$(redis_cli --scan --pattern "${PREFIX}:*" 2>/dev/null | wc -l | tr -d '[:space:]')"
-[[ "${RKEYS2}" == "0" ]] \
-  || fail "(P) PARITY BROKEN — OFF nodes wrote ${RKEYS2} presence key(s) to redis (expected 0; no shared store when OFF) (line: P redis writes)"
+[[ "${RKEYS2}" == "0" ]] ||
+  fail "(P) PARITY BROKEN — OFF nodes wrote ${RKEYS2} presence key(s) to redis (expected 0; no shared store when OFF) (line: P redis writes)"
 docker rm -f "${WSC_A2}" >/dev/null 2>&1 || true
 ok "(P) OFF: node B does NOT see node A (single-node), node A sees itself, ZERO redis writes = byte-parity"
 
@@ -359,11 +387,12 @@ green "[M97] ALL GATES GREEN — cross-node presence merge works ON; single-node
 step "record PASS to the agent log"
 if [[ -f "${LOG_SH}" ]]; then
   # shellcheck disable=SC1090
-  ( . "${LOG_SH}" \
-      && AGENT_ROLE="tester" AGENT_TASK="m97-presence-crossnode" \
-         log_event REPORT --outcome PASS --gate m97=PASS \
-         --ref "scripts/verify/m97-presence-crossnode.sh" \
-         --msg "A5 cross-node presence: join on node A visible on node B via shared redis; no cross-channel leak; leave propagates; OFF=byte-parity (B blind to A, A local-only, 0 redis writes)" \
+  (
+    . "${LOG_SH}" &&
+      AGENT_ROLE="tester" AGENT_TASK="m97-presence-crossnode" \
+        log_event REPORT --outcome PASS --gate m97=PASS \
+        --ref "scripts/verify/m97-presence-crossnode.sh" \
+        --msg "A5 cross-node presence: join on node A visible on node B via shared redis; no cross-channel leak; leave propagates; OFF=byte-parity (B blind to A, A local-only, 0 redis writes)"
   ) 2>/dev/null || red "[M97] (note) log.sh helper present but log_event failed — gate result still PASS"
 else
   red "[M97] (note) ${LOG_SH} not found — skipping agent-log PASS record (gate result still PASS)"

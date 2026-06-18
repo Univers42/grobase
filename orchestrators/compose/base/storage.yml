@@ -1,14 +1,18 @@
 # storage plane — minio, functions-runtime
 services:
   minio:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-minio:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-minio:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/minio
       dockerfile: Dockerfile
     container_name: mini-baas-minio
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1",
+        ]
       interval: 15s
       timeout: 5s
       start_period: 15s
@@ -31,8 +35,8 @@ services:
   # minimal permission set. Read wiki/back/08_edge_functions.md for the
   # security trade-offs.
   functions-runtime:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-functions-runtime:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-functions-runtime:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/functions-runtime
       dockerfile: Dockerfile
@@ -41,7 +45,13 @@ services:
     env_file: [.env]
     healthcheck:
       # deno-based image (no curl/wget) — probe the /health/live route with deno itself
-      test: ["CMD", "deno", "eval", "try{const r=await fetch('http://localhost:3060/health/live');Deno.exit(r.ok?0:1)}catch{Deno.exit(1)}"]
+      test:
+        [
+          "CMD",
+          "deno",
+          "eval",
+          "try{const r=await fetch('http://localhost:3060/health/live');Deno.exit(r.ok?0:1)}catch{Deno.exit(1)}",
+        ]
       interval: 15s
       timeout: 5s
       start_period: 10s

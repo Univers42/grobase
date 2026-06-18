@@ -60,8 +60,8 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 MIGRATION_005="${MIG_DIR}/005_add_tenant_table.sql"
@@ -70,19 +70,22 @@ MIGRATION_047="${MIG_DIR}/047_tenant_audit_log.sql"
 MIGRATION_048="${MIG_DIR}/048_tenant_erasure.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M105] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M105] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M105] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M105] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M105_PG_IMAGE:-postgres:16-alpine}"
 TC_IMG="m105-tc-$$:scratch"
 NET="m105net-$$"
 PG="m105-pg-$$"
-TC_ON="m105-tc-on-$$"      # HARD_ERASE_ENABLED=1 (A · positive / B · reject)
-TC_OFF="m105-tc-off-$$"    # HARD_ERASE_ENABLED unset (C · flag-off parity)
+TC_ON="m105-tc-on-$$"   # HARD_ERASE_ENABLED=1 (A · positive / B · reject)
+TC_OFF="m105-tc-off-$$" # HARD_ERASE_ENABLED unset (C · flag-off parity)
 PORT_ON="${M105_PORT_ON:-19106}"
 PORT_OFF="${M105_PORT_OFF:-19107}"
 PGPW="postgres"
@@ -90,7 +93,7 @@ DB_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 SVC_TOKEN="m105-internal-service-token-$$"
 TENANT_A="m105-a-$$"
 TENANT_B="m105-b-$$"
-TENANT_C="m105-c-$$"       # parity tenant: must stay INTACT with the flag OFF
+TENANT_C="m105-c-$$" # parity tenant: must stay INTACT with the flag OFF
 ROWS_A=100
 ROWS_B=50
 ROWS_C=7
@@ -120,7 +123,7 @@ cleanup() {
 trap cleanup EXIT
 
 # shellcheck disable=SC2120  # "$@" passthrough is intentional (house psql_q helper); callers pipe heredocs
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 
 # Apply one migration file the SAME way `make migrate` does: strip the leading
@@ -165,17 +168,23 @@ wait_ready() { # $1=container $2=port
   local i
   for i in $(seq 1 60); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2/health/live" 2>/dev/null)" == "200" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # ── 0) build the scratch tenant-control FROM CURRENT (drafted) source ──────────
 step "0/10 build scratch tenant-control from CURRENT source (the D4.4 hard-erase code)"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT=3070 \
-  -t "${TC_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch tenant-control image build failed — gate must exercise the drafted hard-erase code (line: docker build TC)"
+  -t "${TC_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch tenant-control image build failed — gate must exercise the drafted hard-erase code (line: docker build TC)"
 ok "tenant-control built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated net + postgres (TCP-ready, not just socket) ─────────────────────
@@ -185,9 +194,12 @@ docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD="${PGPW}" "
 # The postgres image init runs a SOCKET-ONLY temp server then restarts — gate
 # readiness on TCP (pg_isready -h 127.0.0.1) + a real SELECT 1, not the socket.
 for i in $(seq 1 80); do
-  if docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 \
-     && [[ "$(psql_val 'SELECT 1')" == "1" ]]; then break; fi
-  [[ $i -eq 80 ]] && { docker logs "${PG}" 2>&1 | tail -20; fail "scratch postgres never reached TCP-ready"; }
+  if docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 &&
+    [[ "$(psql_val 'SELECT 1')" == "1" ]]; then break; fi
+  [[ $i -eq 80 ]] && {
+    docker logs "${PG}" 2>&1 | tail -20
+    fail "scratch postgres never reached TCP-ready"
+  }
   sleep 0.5
 done
 ok "postgres up + TCP-ready (SELECT 1 ok)"
@@ -226,16 +238,20 @@ CREATE TABLE IF NOT EXISTS public.tenant_databases (
 );
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
 apply_migration "${MIGRATION_005}" || fail "real migration 005_add_tenant_table.sql failed to apply (line: apply 005)"
 apply_migration "${MIGRATION_032}" || fail "real migration 032_tenants.sql failed to apply (line: apply 032)"
 apply_migration "${MIGRATION_047}" || fail "real migration 047_tenant_audit_log.sql failed to apply (line: apply 047)"
 [[ -f "${MIGRATION_048}" ]] || fail "migration 048_tenant_erasure.sql is MISSING — the D4.4 migration slice must land before m105 can run (line: 048 exists)"
 apply_migration "${MIGRATION_048}" || fail "real migration 048_tenant_erasure.sql failed to apply (line: apply 048)"
-[[ "$(psql_val "SELECT to_regclass('public.erasure_receipts') IS NOT NULL")" == "t" ]] \
-  || fail "public.erasure_receipts not created by migration 048 (line: 048 table check)"
-[[ "$(psql_val "SELECT count(*) FROM public.erasure_receipts")" == "0" ]] \
-  || fail "erasure_receipts should start EMPTY (line: 048 empty check)"
+[[ "$(psql_val "SELECT to_regclass('public.erasure_receipts') IS NOT NULL")" == "t" ]] ||
+  fail "public.erasure_receipts not created by migration 048 (line: 048 table check)"
+[[ "$(psql_val "SELECT count(*) FROM public.erasure_receipts")" == "0" ]] ||
+  fail "erasure_receipts should start EMPTY (line: 048 empty check)"
 # Append-only at the grant layer: authenticated must NOT have UPDATE/DELETE.
 HASUPD="$(psql_val "SELECT count(*) FROM information_schema.role_table_grants WHERE table_name='erasure_receipts' AND grantee='authenticated' AND privilege_type IN ('UPDATE','DELETE')")" || HASUPD="?"
 [[ "${HASUPD}" == "0" ]] || fail "authenticated must NOT have UPDATE/DELETE on erasure_receipts, got ${HASUPD} (line: 048 grants)"
@@ -253,8 +269,11 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3070" "${TC_IMG}" >/dev/null
 wait_ready "${TC_ON}" "${PORT_ON}" || fail "erase-ON tenant-control not ready (line: wait_ready TC_ON)"
-{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "hard-erase enabled" \
-  || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "hard-erase never reported enabled (line: TC_ON enabled log)"; }
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "hard-erase enabled" ||
+  {
+    docker logs "${TC_ON}" 2>&1 | tail -20
+    fail "hard-erase never reported enabled (line: TC_ON enabled log)"
+  }
 ok "erase-ON tenant-control up (POST /v1/tenants/{id}/erase + /v1/audit* mounted)"
 
 # ── 3) SEED tenants A + B + a key each, then schema_per_tenant mounts + rows ────
@@ -296,10 +315,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE
 SQL
 }
 seed_sql || fail "seeding tenant_databases mounts + A/B schemas failed — $(tail -c 600 "${BODY_TMP}.seederr" 2>/dev/null) (line: seed_sql)"
-[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m105_marker")" == "${ROWS_A}" ]] \
-  || fail "A schema ${SCHEMA_A}.m105_marker should hold ${ROWS_A} rows (line: A seed count)"
-[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_B}\".m105_marker")" == "${ROWS_B}" ]] \
-  || fail "B schema ${SCHEMA_B}.m105_marker should hold ${ROWS_B} rows (line: B seed count)"
+[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m105_marker")" == "${ROWS_A}" ]] ||
+  fail "A schema ${SCHEMA_A}.m105_marker should hold ${ROWS_A} rows (line: A seed count)"
+[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_B}\".m105_marker")" == "${ROWS_B}" ]] ||
+  fail "B schema ${SCHEMA_B}.m105_marker should hold ${ROWS_B} rows (line: B seed count)"
 BASE_CK_B="$(psql_val "SELECT md5(string_agg(t::text, '|' ORDER BY id)) FROM \"${SCHEMA_B}\".m105_marker t")"
 [[ -n "${BASE_CK_B}" ]] || fail "could not compute B baseline checksum (line: B baseline ck)"
 ok "A=${ROWS_A} rows in ${SCHEMA_A}, B=${ROWS_B} rows in ${SCHEMA_B}; B baseline md5=${BASE_CK_B}"
@@ -322,16 +341,16 @@ grep -q '"status":"completed"' "${BODY_TMP}" || fail "(A) erase response not com
 A_ROWS_PURGED="$(json_num rows_purged)"
 [[ "${A_ROWS_PURGED}" == "${ROWS_A}" ]] || fail "(A) rows_purged expected ${ROWS_A}, got '${A_ROWS_PURGED}' — $(head -c 400 "${BODY_TMP}") (line: A rows_purged)"
 A_AUDIT_SEQ="$(json_num audit_seq)"
-[[ -n "${A_AUDIT_SEQ}" && "${A_AUDIT_SEQ}" -gt 0 ]] 2>/dev/null \
-  || fail "(A) audit_seq should be >0 (the sealed D3 link), got '${A_AUDIT_SEQ}' (line: A audit_seq)"
+[[ -n "${A_AUDIT_SEQ}" && "${A_AUDIT_SEQ}" -gt 0 ]] 2>/dev/null ||
+  fail "(A) audit_seq should be >0 (the sealed D3 link), got '${A_AUDIT_SEQ}' (line: A audit_seq)"
 ok "(A) erase 200 completed; rows_purged=${A_ROWS_PURGED}; audit_seq=${A_AUDIT_SEQ}"
 
 # ── 6) (A) PROVE the data is GONE: schema dropped, 0 tables/rows ────────────────
 step "6/10 (A) PROVE destruction — schema ${SCHEMA_A} DROPPED (to_regschema NULL), 0 tables"
-[[ "$(psql_val "SELECT count(*) FROM information_schema.schemata WHERE schema_name='${SCHEMA_A}'")" == "0" ]] \
-  || fail "(A) schema ${SCHEMA_A} STILL EXISTS after hard-erase — destruction did not happen! (line: A schema gone)"
-[[ "$(psql_val "SELECT to_regclass('\"${SCHEMA_A}\".m105_marker') IS NULL")" == "t" ]] \
-  || fail "(A) ${SCHEMA_A}.m105_marker STILL resolvable after erase (line: A table gone)"
+[[ "$(psql_val "SELECT count(*) FROM information_schema.schemata WHERE schema_name='${SCHEMA_A}'")" == "0" ]] ||
+  fail "(A) schema ${SCHEMA_A} STILL EXISTS after hard-erase — destruction did not happen! (line: A schema gone)"
+[[ "$(psql_val "SELECT to_regclass('\"${SCHEMA_A}\".m105_marker') IS NULL")" == "t" ]] ||
+  fail "(A) ${SCHEMA_A}.m105_marker STILL resolvable after erase (line: A table gone)"
 ok "(A) ${SCHEMA_A} schema + all its tables are GONE — provable destruction"
 
 # ── 7) (A) the API key NO LONGER authenticates ─────────────────────────────────
@@ -340,10 +359,10 @@ C="$(admin_req POST "${PORT_ON}" /v1/keys/verify "{\"key\":\"${KEY_A}\"}")"
 # A now-invalid key returns HTTP 401 (verifyKey sets status 401 when !valid) with a
 # {valid:false} body — the dead-credential signal, not 200.
 [[ "${C}" == "401" ]] || fail "(A) verify after erase expected 401 (dead key), got ${C} (line: A post verify code)"
-grep -q '"valid":false' "${BODY_TMP}" \
-  || fail "(A) A's key STILL authenticates after hard-erase — credentials not revoked! — $(head -c 200 "${BODY_TMP}") (line: A key dead)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_api_keys k JOIN public.tenants t ON t.id=k.tenant_id WHERE t.slug='${TENANT_A}'")" == "0" ]] \
-  || fail "(A) A still has API key rows after erase (line: A keys deleted in DB)"
+grep -q '"valid":false' "${BODY_TMP}" ||
+  fail "(A) A's key STILL authenticates after hard-erase — credentials not revoked! — $(head -c 200 "${BODY_TMP}") (line: A key dead)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_api_keys k JOIN public.tenants t ON t.id=k.tenant_id WHERE t.slug='${TENANT_A}'")" == "0" ]] ||
+  fail "(A) A still has API key rows after erase (line: A keys deleted in DB)"
 ok "(A) A's key invalid (valid:false) + 0 key rows remain — no credential authenticates"
 
 # ── 8) (A) D3 audit receipt EXISTS + VERIFIES + erasure_receipts row records it ─
@@ -353,16 +372,16 @@ step "8/10 (A) D3 audit receipt verifies (chain INTACT, action tenant.erase) + e
 # tenant status). Verify the chain is INTACT.
 C="$(audit_self "${PORT_ON}" "${TENANT_A}" verify)"
 [[ "${C}" == "200" ]] || fail "(A) audit verify expected 200, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A audit verify code)"
-grep -q '"intact":true' "${BODY_TMP}" \
-  || fail "(A) the erase receipt chain must verify INTACT — $(head -c 400 "${BODY_TMP}") (line: A chain intact)"
+grep -q '"intact":true' "${BODY_TMP}" ||
+  fail "(A) the erase receipt chain must verify INTACT — $(head -c 400 "${BODY_TMP}") (line: A chain intact)"
 # The receipt event itself: query the chain, assert a tenant.erase event exists.
 C="$(audit_self "${PORT_ON}" "${TENANT_A}" events)"
 [[ "${C}" == "200" ]] || fail "(A) audit events expected 200, got ${C} (line: A audit events code)"
-grep -q '"action":"tenant.erase"' "${BODY_TMP}" \
-  || fail "(A) no tenant.erase event on the chain — the D3 receipt was not sealed — $(head -c 400 "${BODY_TMP}") (line: A erase event)"
+grep -q '"action":"tenant.erase"' "${BODY_TMP}" ||
+  fail "(A) no tenant.erase event on the chain — the D3 receipt was not sealed — $(head -c 400 "${BODY_TMP}") (line: A erase event)"
 # Cross-check the chain in the DB too (defence): the audit row survives the data.
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_audit_log WHERE tenant_id='${TENANT_A}' AND action='tenant.erase'")" == "1" ]] \
-  || fail "(A) exactly one tenant.erase audit row should exist for A (line: A audit row in DB)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_audit_log WHERE tenant_id='${TENANT_A}' AND action='tenant.erase'")" == "1" ]] ||
+  fail "(A) exactly one tenant.erase audit row should exist for A (line: A audit row in DB)"
 # The erasure_receipts ledger row records the purge.
 ERASE_STATUS="$(psql_val "SELECT status FROM public.erasure_receipts WHERE tenant_id='${TENANT_A}'")"
 [[ "${ERASE_STATUS}" == "completed" ]] || fail "(A) erasure_receipts status for A is '${ERASE_STATUS}', want completed (line: A receipt status)"
@@ -376,19 +395,19 @@ ok "(A) D3 receipt verifies INTACT (tenant.erase sealed) + erasure_receipts row:
 
 # ── 9) (B · REJECT, LOAD-BEARING) tenant B byte-UNTOUCHED + key still works ─────
 step "9/10 (B · REJECT, LOAD-BEARING) B byte-UNTOUCHED — schema exists, count==${ROWS_B}, md5==baseline, B's key STILL authenticates"
-[[ "$(psql_val "SELECT count(*) FROM information_schema.schemata WHERE schema_name='${SCHEMA_B}'")" == "1" ]] \
-  || fail "(B) B's schema ${SCHEMA_B} was destroyed by A's erase — CROSS-TENANT DESTRUCTION! (line: B schema exists)"
-[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_B}\".m105_marker")" == "${ROWS_B}" ]] \
-  || fail "(B) B's row count changed during A's erase — cross-tenant write! (line: B count untouched)"
+[[ "$(psql_val "SELECT count(*) FROM information_schema.schemata WHERE schema_name='${SCHEMA_B}'")" == "1" ]] ||
+  fail "(B) B's schema ${SCHEMA_B} was destroyed by A's erase — CROSS-TENANT DESTRUCTION! (line: B schema exists)"
+[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_B}\".m105_marker")" == "${ROWS_B}" ]] ||
+  fail "(B) B's row count changed during A's erase — cross-tenant write! (line: B count untouched)"
 B_CK_AFTER="$(psql_val "SELECT md5(string_agg(t::text, '|' ORDER BY id)) FROM \"${SCHEMA_B}\".m105_marker t")"
-[[ "${B_CK_AFTER}" == "${BASE_CK_B}" ]] \
-  || fail "(B) B's checksum changed during A's erase — got ${B_CK_AFTER}, baseline ${BASE_CK_B}: cross-tenant corruption! (line: B checksum)"
+[[ "${B_CK_AFTER}" == "${BASE_CK_B}" ]] ||
+  fail "(B) B's checksum changed during A's erase — got ${B_CK_AFTER}, baseline ${BASE_CK_B}: cross-tenant corruption! (line: B checksum)"
 C="$(admin_req POST "${PORT_ON}" /v1/keys/verify "{\"key\":\"${KEY_B}\"}")"
 [[ "${C}" == "200" ]] || fail "(B) verify B key expected 200, got ${C} (line: B post verify code)"
-grep -q '"valid":true' "${BODY_TMP}" \
-  || fail "(B) B's key stopped authenticating during A's erase — A's erase revoked B's credential! — $(head -c 200 "${BODY_TMP}") (line: B key alive)"
-[[ "$(psql_val "SELECT count(*) FROM public.erasure_receipts WHERE tenant_id='${TENANT_B}'")" == "0" ]] \
-  || fail "(B) an erasure_receipts row exists for B — A's erase recorded a B purge! (line: B no receipt)"
+grep -q '"valid":true' "${BODY_TMP}" ||
+  fail "(B) B's key stopped authenticating during A's erase — A's erase revoked B's credential! — $(head -c 200 "${BODY_TMP}") (line: B key alive)"
+[[ "$(psql_val "SELECT count(*) FROM public.erasure_receipts WHERE tenant_id='${TENANT_B}'")" == "0" ]] ||
+  fail "(B) an erasure_receipts row exists for B — A's erase recorded a B purge! (line: B no receipt)"
 ok "(B) B byte-UNTOUCHED (schema + ${ROWS_B} rows + md5==baseline), B's key STILL valid, 0 B receipts — only A was purged"
 
 # ── 10) (C · FLAG-OFF PARITY) flag unset → route 404, no receipts, data intact ─
@@ -414,21 +433,24 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3070" "${TC_IMG}" >/dev/null
 wait_ready "${TC_OFF}" "${PORT_OFF}" || fail "erase-OFF tenant-control not ready (line: wait_ready TC_OFF)"
-{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "hard-erase disabled" \
-  || { docker logs "${TC_OFF}" 2>&1 | tail -20; fail "OFF tenant-control did not report hard-erase disabled (flag default not OFF?) (line: TC_OFF disabled log)"; }
+{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "hard-erase disabled" ||
+  {
+    docker logs "${TC_OFF}" 2>&1 | tail -20
+    fail "OFF tenant-control did not report hard-erase disabled (flag default not OFF?) (line: TC_OFF disabled log)"
+  }
 # POST .../erase → 404 (route NOT mounted) WHILE base admin GET /v1/tenants/{id} → 200.
 C="$(admin_req POST "${PORT_OFF}" "/v1/tenants/${TENANT_C}/erase")"
-[[ "${C}" == "404" ]] \
-  || fail "(C) PARITY: POST /erase with HARD_ERASE_ENABLED off expected 404 (route absent), got ${C} — $(head -c 300 "${BODY_TMP}") (line: C erase 404)"
+[[ "${C}" == "404" ]] ||
+  fail "(C) PARITY: POST /erase with HARD_ERASE_ENABLED off expected 404 (route absent), got ${C} — $(head -c 300 "${BODY_TMP}") (line: C erase 404)"
 C="$(admin_req GET "${PORT_OFF}" "/v1/tenants/${TENANT_C}")"
-[[ "${C}" == "200" ]] \
-  || fail "(C) PARITY: base admin GET /v1/tenants/{id} expected 200 on OFF router, got ${C} — $(head -c 300 "${BODY_TMP}") (line: C admin 200)"
+[[ "${C}" == "200" ]] ||
+  fail "(C) PARITY: base admin GET /v1/tenants/{id} expected 200 on OFF router, got ${C} — $(head -c 300 "${BODY_TMP}") (line: C admin 200)"
 # Data intact: C's schema + rows untouched, NO new erasure_receipts row written.
-[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_C}\".m105_marker")" == "${ROWS_C}" ]] \
-  || fail "(C) PARITY: C's data was destroyed with the flag OFF — soft-delete only violated! (line: C data intact)"
+[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_C}\".m105_marker")" == "${ROWS_C}" ]] ||
+  fail "(C) PARITY: C's data was destroyed with the flag OFF — soft-delete only violated! (line: C data intact)"
 RECEIPTS_AFTER="$(psql_val "SELECT count(*) FROM public.erasure_receipts")"
-[[ "${RECEIPTS_AFTER}" == "${RECEIPTS_BEFORE}" ]] \
-  || fail "(C) PARITY: flag OFF wrote an erasure_receipts row (before=${RECEIPTS_BEFORE} after=${RECEIPTS_AFTER}) (line: C no new receipt)"
+[[ "${RECEIPTS_AFTER}" == "${RECEIPTS_BEFORE}" ]] ||
+  fail "(C) PARITY: flag OFF wrote an erasure_receipts row (before=${RECEIPTS_BEFORE} after=${RECEIPTS_AFTER}) (line: C no new receipt)"
 ok "(C) flag OFF: POST /erase → 404 (unmounted) while admin GET /v1/tenants/{id} → 200; C's ${ROWS_C} rows INTACT; 0 new receipts — byte-parity (soft-delete only)"
 
 # ── summarize ──────────────────────────────────────────────────────────────────
@@ -440,7 +462,8 @@ green "[M105] (C) PARITY:   HARD_ERASE_ENABLED off → POST /erase 404 (route ab
 # ── emit the gate event via the kernel log helper (best-effort) ─────────────────
 step "log GATE m105=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-d4-4-hard-erase}"

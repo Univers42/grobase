@@ -71,23 +71,29 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 DPR_DIR="${BAAS_DIR}/src/data-plane-router"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M74] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M74] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M74] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M74] FAIL — $*"
+  exit 1
+}
 # has/nhas: assert a string is / is NOT present in a captured log blob (arg, not
 # a file — the router logs live in `docker logs`, not on disk).
-has()  { grep -q "$1" <<<"$3" || fail "$2"; }
-nhas() { grep -q "$1" <<<"$3" && fail "$2"; return 0; }
+has() { grep -q "$1" <<<"$3" || fail "$2"; }
+nhas() {
+  grep -q "$1" <<<"$3" && fail "$2"
+  return 0
+}
 
 PG_IMAGE="${M74_PG_IMAGE:-postgres:16-alpine}"
 SCRATCH_IMG="m74-dpr-$$:scratch"
 NET="m74net-$$"
 PG="m74-pg-$$"
-DPR_ON="m74-dpr-on-$$"     # (A) POSITIVE arm router (metering ON)
-DPR_OFF="m74-dpr-off-$$"   # (B) PARITY   arm router (metering OFF/unset)
+DPR_ON="m74-dpr-on-$$"   # (A) POSITIVE arm router (metering ON)
+DPR_OFF="m74-dpr-off-$$" # (B) PARITY   arm router (metering OFF/unset)
 PORT_ON="${M74_PORT_ON:-18974}"
 PORT_OFF="${M74_PORT_OFF:-18975}"
 PGPW="postgres"
@@ -99,9 +105,9 @@ PGPW="postgres"
 TABLE_ON="m74_usage_probe_on"
 TABLE_OFF="m74_usage_probe_off"
 TENANT="m74-tenant-$$"
-ROWS=5                    # exact seeded row count → query.rows qty
-M=3                       # batch insert items → write.rows qty (affected_rows)
-FLUSH_MS="${M74_FLUSH_MS:-800}"   # LOW so a flush fires during the test
+ROWS=5                          # exact seeded row count → query.rows qty
+M=3                             # batch insert items → write.rows qty (affected_rows)
+FLUSH_MS="${M74_FLUSH_MS:-800}" # LOW so a flush fires during the test
 DSN_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 BODY_TMP="$(mktemp)"
 
@@ -165,10 +171,16 @@ logs_clean() { docker logs "$1" 2>&1 | strip_ansi; }
 wait_ready() { # $1=container  $2=port
   for i in $(seq 1 60); do
     curl -fsS -o /dev/null "http://127.0.0.1:$2/v1/capabilities" 2>/dev/null && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -15; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -15
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -15; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -15
+  return 1
 }
 
 # Assert EXACTLY ONE usage line for `metric` carrying the right tenant, and that
@@ -180,8 +192,8 @@ assert_usage() {
   n="$(grep -c . <<<"${lines}" || true)"
   # grep -c on an empty string still reports 1 (one empty line) — normalize.
   [[ -z "${lines}" ]] && n=0
-  [[ "${n}" == "1" ]] \
-    || fail "metric=${metric}: expected EXACTLY 1 usage line, found ${n} — $(tail -3 <<<"${lines}") (line: assert_usage ${metric} count)"
+  [[ "${n}" == "1" ]] ||
+    fail "metric=${metric}: expected EXACTLY 1 usage line, found ${n} — $(tail -3 <<<"${lines}") (line: assert_usage ${metric} count)"
   line="${lines}"
   has "tenant=${TENANT}" "metric=${metric} usage line missing tenant=${TENANT} — line: ${line} (line: assert_usage ${metric} tenant)" "${line}"
   has "qty=${want}" "metric=${metric} qty != ground truth (${want}) — line: ${line} (line: assert_usage ${metric} qty)" "${line}"
@@ -190,8 +202,8 @@ assert_usage() {
 
 # ── 0) build the scratch DPR image FROM THE CURRENT (drafted) source ──────────
 step "0/7 build scratch data-plane-router from CURRENT source (contains THE B1a build)"
-DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${DPR_DIR}" >/dev/null \
-  || fail "scratch DPR image build failed — the gate must exercise the drafted code (line: docker build)"
+DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${DPR_DIR}" >/dev/null ||
+  fail "scratch DPR image build failed — the gate must exercise the drafted code (line: docker build)"
 ok "scratch image ${SCRATCH_IMG} built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated network + throwaway postgres with EXACTLY ${ROWS} seeded rows ─
@@ -228,7 +240,11 @@ INSERT INTO public.${TABLE_OFF}(id, owner_id, tenant_id, label) VALUES
   ('r5','${TENANT}','${TENANT}','five') ON CONFLICT (id) DO NOTHING;
 SQL
 }
-for i in $(seq 1 20); do seed && break; [[ $i -eq 20 ]] && fail "seed never committed (line: seed loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  seed && break
+  [[ $i -eq 20 ]] && fail "seed never committed (line: seed loop)"
+  sleep 0.5
+done
 for T in "${TABLE_ON}" "${TABLE_OFF}"; do
   SEEDED="$(docker exec -i "${PG}" psql -U postgres -d postgres -tAc "SELECT count(*) FROM public.${T}" 2>/dev/null | tr -d '[:space:]')"
   [[ "${SEEDED}" == "${ROWS}" ]] || fail "expected ${ROWS} seeded rows in ${T}, found '${SEEDED}' (line: SEEDED count ${T})"
@@ -268,12 +284,12 @@ step "3/7 wait > flush window (${FLUSH_MS}ms) so the background flusher emits th
 sleep "$(awk "BEGIN{printf \"%.1f\", ${FLUSH_MS}/1000*3 + 1}")"
 LOGS_ON="$(logs_clean "${DPR_ON}")"
 N_USAGE_ON="$(grep -c "${USAGE_ANCHOR}" <<<"${LOGS_ON}" || true)"
-[[ "${N_USAGE_ON}" -ge 3 ]] \
-  || fail "expected ≥3 \"${USAGE_ANCHOR}\" (usage) lines (query.count/query.rows/write.rows), found ${N_USAGE_ON} — $(grep "${USAGE_ANCHOR}" <<<"${LOGS_ON}" | tail -5) (line: N_USAGE_ON < 3)"
+[[ "${N_USAGE_ON}" -ge 3 ]] ||
+  fail "expected ≥3 \"${USAGE_ANCHOR}\" (usage) lines (query.count/query.rows/write.rows), found ${N_USAGE_ON} — $(grep "${USAGE_ANCHOR}" <<<"${LOGS_ON}" | tail -5) (line: N_USAGE_ON < 3)"
 step "3b/7 ASSERT (A): each metric emits ONE usage line with qty == the known truth"
-assert_usage "query.count" 1        "${LOGS_ON}"
-assert_usage "query.rows"  "${ROWS}" "${LOGS_ON}"
-assert_usage "write.rows"  "${M}"    "${LOGS_ON}"
+assert_usage "query.count" 1 "${LOGS_ON}"
+assert_usage "query.rows" "${ROWS}" "${LOGS_ON}"
+assert_usage "write.rows" "${M}" "${LOGS_ON}"
 ok "(A) all three metering dimensions emitted the exact ground-truth qty for tenant=${TENANT}"
 
 # ── 4) (B) PARITY arm: an IDENTICAL router with the flags OFF (default) ────────
@@ -294,8 +310,8 @@ SERVED_OFF="$(grep -o '"label"' "${BODY_TMP}" | wc -l | tr -d '[:space:]')"
 # so its read returns the same ${ROWS} and its batch write genuinely succeeds with
 # 200 — the IDENTICAL mutation path. What proves parity is ZERO usage lines.
 code="$(post_q "${PORT_OFF}" "$(payload batch "${TABLE_OFF}" "$(batch_data "${TABLE_OFF}")")")"
-[[ "${code}" == "200" ]] \
-  || fail "PARITY batch write expected 200, got ${code} — $(head -c 400 "${BODY_TMP}") (line: PARITY write status)"
+[[ "${code}" == "200" ]] ||
+  fail "PARITY batch write expected 200, got ${code} — $(head -c 400 "${BODY_TMP}") (line: PARITY write status)"
 ok "the same read+write still serve 200 through the PARITY router (no behavior change)"
 
 # ── 5) (B) ASSERT: ZERO usage lines with the flags OFF (byte-parity) ──────────
@@ -303,15 +319,15 @@ step "5/7 wait the same window, then ASSERT (B): ZERO usage lines"
 sleep "$(awk "BEGIN{printf \"%.1f\", ${FLUSH_MS}/1000*3 + 1}")"
 LOGS_OFF="$(logs_clean "${DPR_OFF}")"
 N_USAGE_OFF="$(grep -c "${USAGE_ANCHOR}" <<<"${LOGS_OFF}" || true)"
-[[ "${N_USAGE_OFF}" == "0" ]] \
-  || fail "PARITY router emitted ${N_USAGE_OFF} \"${USAGE_ANCHOR}\" (usage) line(s) — the default is NOT byte-parity! $(grep "${USAGE_ANCHOR}" <<<"${LOGS_OFF}" | tail -5) (line: N_USAGE_OFF != 0)"
+[[ "${N_USAGE_OFF}" == "0" ]] ||
+  fail "PARITY router emitted ${N_USAGE_OFF} \"${USAGE_ANCHOR}\" (usage) line(s) — the default is NOT byte-parity! $(grep "${USAGE_ANCHOR}" <<<"${LOGS_OFF}" | tail -5) (line: N_USAGE_OFF != 0)"
 nhas "${USAGE_ANCHOR}" "PARITY router leaked a usage line with the flags OFF (line: nhas usage)" "${LOGS_OFF}"
 ok "(B) ZERO usage lines with the flags OFF — live baseline is byte-parity"
 
 # ── 6) cross-check: the two arms differ ONLY by the usage events ──────────────
 step "6/7 cross-check: ON emitted ${N_USAGE_ON} usage lines, OFF emitted 0 — the flag is the only difference"
-[[ "${N_USAGE_ON}" -ge 3 && "${N_USAGE_OFF}" == "0" ]] \
-  || fail "arm counts inconsistent (ON=${N_USAGE_ON}, OFF=${N_USAGE_OFF}) (line: cross-check)"
+[[ "${N_USAGE_ON}" -ge 3 && "${N_USAGE_OFF}" == "0" ]] ||
+  fail "arm counts inconsistent (ON=${N_USAGE_ON}, OFF=${N_USAGE_OFF}) (line: cross-check)"
 ok "METERING_ENABLED+DATA_PLANE_METERING is the sole gate on the usage emission"
 
 # ── 7) done ───────────────────────────────────────────────────────────────────

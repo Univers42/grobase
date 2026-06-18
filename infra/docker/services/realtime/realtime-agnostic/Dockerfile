@@ -11,11 +11,12 @@
 # ─────────────────────────────────────────────────────────────────────────────
 FROM public.ecr.aws/docker/library/rust:1.89-slim-bookworm AS deps
 WORKDIR /build
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=apt-lists,target=/var/lib/apt/lists,sharing=locked \
     apt-get update && \
-    apt-get install -y pkg-config libssl-dev
+    apt-get install -y --no-install-recommends pkg-config libssl-dev
 
 # Copy manifests only — this layer is cached as long as deps don't change.
 COPY Cargo.toml Cargo.lock ./

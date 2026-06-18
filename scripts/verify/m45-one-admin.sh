@@ -22,12 +22,16 @@
 #   5. idle RSS ≤ 15 MiB with the UI embedded.
 
 set -euo pipefail
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
-step(){ cyan "[M45] $*"; }
-fail(){ red "[M45] FAIL — $*"; cleanup; exit 1; }
-ok(){ green "  ✓ $*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+step() { cyan "[M45] $*"; }
+fail() {
+  red "[M45] FAIL — $*"
+  cleanup
+  exit 1
+}
+ok() { green "  ✓ $*"; }
 
 ONE_IMAGE="${ONE_IMAGE:-binocle-one}"
 NANO_IMAGE="${NANO_IMAGE:-binocle-nano}"
@@ -38,22 +42,22 @@ NANO_PORT="${NANO_GATE_PORT:-18948}"
 KEY="m45-admin-$(date +%s)-deterministic"
 BASE="http://127.0.0.1:${PORT}"
 
-cleanup(){ docker rm -fv "${ONE_NAME}" "${NANO_NAME}" >/dev/null 2>&1 || true; }
+cleanup() { docker rm -fv "${ONE_NAME}" "${NANO_NAME}" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
-req(){ # method path auth body → body<TAB>status
+req() { # method path auth body → body<TAB>status
   local method="$1" path="$2" auth="$3" body="${4:-}"
   local args=(-s -w $'\t%{http_code}' -X "${method}" "${BASE}${path}" -H "Content-Type: application/json")
   [[ -n "${auth}" ]] && args+=(-H "${auth}")
   [[ -n "${body}" ]] && args+=(-d "${body}")
   curl "${args[@]}"
 }
-status_of(){ awk -F'\t' '{print $NF}' <<<"$1"; }
-jget(){ python3 -c "import sys,json;d=json.loads(sys.stdin.read().rsplit('\t',1)[0]);print($1)" <<<"$2"; }
+status_of() { awk -F'\t' '{print $NF}' <<<"$1"; }
+jget() { python3 -c "import sys,json;d=json.loads(sys.stdin.read().rsplit('\t',1)[0]);print($1)" <<<"$2"; }
 
 step "1/5 one image budget + dashboard served"
-IMG_MB=$(( $(docker image inspect --format '{{.Size}}' "${ONE_IMAGE}") / 1024 / 1024 ))
-(( IMG_MB <= 12 )) || fail "image ${IMG_MB} MB > 12 MB budget"
+IMG_MB=$(($(docker image inspect --format '{{.Size}}' "${ONE_IMAGE}") / 1024 / 1024))
+((IMG_MB <= 12)) || fail "image ${IMG_MB} MB > 12 MB budget"
 docker run -d --name "${ONE_NAME}" -p "${PORT}:8090" -e NANO_ADMIN_KEY="${KEY}" "${ONE_IMAGE}" >/dev/null
 for i in $(seq 1 20); do
   curl -sf "${BASE}/v1/health" >/dev/null 2>&1 && break
@@ -80,7 +84,8 @@ ok "collections/grid/keys/users/realtime wiring present"
 step "3/5 admin API: users + files, scope-gated"
 R=$(req POST /one/v1/auth/register "" '{"email":"mona@local.dev","password":"mona-pass-1234"}')
 [[ "$(status_of "$R")" == "201" ]] || fail "register: $R"
-MUID=$(jget "d['user']['id']" "$R"); REF=$(jget "d['refresh']" "$R")
+MUID=$(jget "d['user']['id']" "$R")
+REF=$(jget "d['refresh']" "$R")
 R=$(req GET /one/v1/admin/users "X-Baas-Api-Key: ${KEY}")
 grep -q "mona@local.dev" <<<"$R" || fail "users list: $R"
 R=$(req GET /one/v1/admin/users "")

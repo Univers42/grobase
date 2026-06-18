@@ -8,12 +8,15 @@ cd "${REPO_ROOT}"
 BAAS_DIR="."
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-fail()  { red "[M9] FAIL: $*"; exit 1; }
-step()  { cyan "[M9] ${*}"; }
-pass()  { green "[M9] PASS: ${*}"; }
+fail() {
+  red "[M9] FAIL: $*"
+  exit 1
+}
+step() { cyan "[M9] ${*}"; }
+pass() { green "[M9] PASS: ${*}"; }
 
 LIVE=0
 for arg in "$@"; do [[ "${arg}" == "--live" ]] && LIVE=1; done
@@ -26,12 +29,12 @@ for file in \
   "${BAAS_DIR}/src/apps/permission-engine/src/decisions/decisions.module.ts"; do
   [[ -f "${file}" ]] || fail "missing ${file}"
 done
-grep -q "Post('decide')" "${BAAS_DIR}/src/apps/permission-engine/src/decisions/decisions.controller.ts" \
-  || fail "DecisionsController does not expose POST /permissions/decide"
-grep -q "public.has_permission" "${BAAS_DIR}/src/apps/permission-engine/src/decisions/decisions.service.ts" \
-  || fail "DecisionsService does not delegate to public.has_permission"
-grep -q "DecisionsModule" "${BAAS_DIR}/src/apps/permission-engine/src/app.module.ts" \
-  || fail "permission-engine AppModule does not import DecisionsModule"
+grep -q "Post('decide')" "${BAAS_DIR}/src/apps/permission-engine/src/decisions/decisions.controller.ts" ||
+  fail "DecisionsController does not expose POST /permissions/decide"
+grep -q "public.has_permission" "${BAAS_DIR}/src/apps/permission-engine/src/decisions/decisions.service.ts" ||
+  fail "DecisionsService does not delegate to public.has_permission"
+grep -q "DecisionsModule" "${BAAS_DIR}/src/apps/permission-engine/src/app.module.ts" ||
+  fail "permission-engine AppModule does not import DecisionsModule"
 pass "permission-engine exposes /permissions/decide backed by has_permission()"
 
 step "checking query-router fail-closed ABAC pre-dispatch"
@@ -46,8 +49,8 @@ pass "query-router calls ABAC before dispatching to any adapter"
 
 step "checking field-level mask support"
 grep -q "applyFieldMask" "${SERVICE}" || fail "QueryService missing applyFieldMask()"
-grep -q "maskFromConditions" "${BAAS_DIR}/src/apps/permission-engine/src/decisions/decisions.service.ts" \
-  || fail "DecisionsService does not resolve field masks from policy conditions"
+grep -q "maskFromConditions" "${BAAS_DIR}/src/apps/permission-engine/src/decisions/decisions.service.ts" ||
+  fail "DecisionsService does not resolve field masks from policy conditions"
 pass "decision masks are returned and applied to read/write results"
 
 if [[ ${LIVE} -eq 1 ]]; then
@@ -58,7 +61,8 @@ if [[ ${LIVE} -eq 1 ]]; then
 DELETE FROM public.user_roles
 WHERE user_id = '00000000-0000-4000-8000-000000000009'::uuid;
 SQL
-  body=$(docker compose -f "${COMPOSE_FILE}" exec -T permission-engine node --input-type=module - <<'NODE'
+  body=$(
+    docker compose -f "${COMPOSE_FILE}" exec -T permission-engine node --input-type=module - <<'NODE'
 const response = await fetch('http://127.0.0.1:3050/permissions/decide', {
   method: 'POST',
   headers: {
@@ -77,8 +81,8 @@ const response = await fetch('http://127.0.0.1:3050/permissions/decide', {
 console.log(await response.text());
 NODE
   ) || fail "permission-engine decision call failed"
-  echo "${body}" | jq -e '.allow == false and (.reason | length > 0)' >/dev/null \
-    || fail "decision endpoint did not default deny"
+  echo "${body}" | jq -e '.allow == false and (.reason | length > 0)' >/dev/null ||
+    fail "decision endpoint did not default deny"
   pass "permission-engine default-denies when no matching allow policy exists"
 fi
 

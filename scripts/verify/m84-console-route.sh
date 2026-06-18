@@ -76,8 +76,8 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 MIGRATION_005="${MIG_DIR}/005_add_tenant_table.sql"
@@ -85,33 +85,36 @@ MIGRATION_032="${MIG_DIR}/032_tenants.sql"
 MIGRATION_040="${MIG_DIR}/040_tenant_usage.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M84] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M84] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M84] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M84] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M84_PG_IMAGE:-postgres:16-alpine}"
 KONG_IMAGE="${M84_KONG_IMAGE:-kong:3.8}"
 TC_IMG="m84-tc-$$:scratch"
 NET="m84net-$$"
 PG="m84-pg-$$"
-TC_ON="m84-tc-on-$$"        # TENANT_SELFSERVE_ENABLED=1   (A · positive / B · reject)
-TC_OFF="m84-tc-off-$$"      # TENANT_SELFSERVE_ENABLED unset (C · parity)
-KONG_ON="m84-kong-on-$$"    # Kong → TC_ON  (alias tenant-control)
-KONG_OFF="m84-kong-off-$$"  # Kong → TC_OFF (alias tenant-control)
+TC_ON="m84-tc-on-$$"       # TENANT_SELFSERVE_ENABLED=1   (A · positive / B · reject)
+TC_OFF="m84-tc-off-$$"     # TENANT_SELFSERVE_ENABLED unset (C · parity)
+KONG_ON="m84-kong-on-$$"   # Kong → TC_ON  (alias tenant-control)
+KONG_OFF="m84-kong-off-$$" # Kong → TC_OFF (alias tenant-control)
 # tenant-control listens on 3022 (matches the canonical kong.yml upstream url).
 TC_PORT=3022
 # Host-published ports: admin (direct, for seeding) + Kong proxy (the surface under test).
-PORT_TC="${M84_PORT_TC:-18994}"        # direct tenant-control admin (seed only)
+PORT_TC="${M84_PORT_TC:-18994}" # direct tenant-control admin (seed only)
 PORT_KONG_ON="${M84_PORT_KONG_ON:-18995}"
 PORT_KONG_OFF="${M84_PORT_KONG_OFF:-18996}"
 PGPW="postgres"
 DB_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 SVC_TOKEN="m84-internal-service-token-$$"
 TENANT_A="m84-a-$$"
-TENANT_B="m84-b-$$"          # the "other" tenant — its id is probed via the admin-leak arm (B-b)
+TENANT_B="m84-b-$$" # the "other" tenant — its id is probed via the admin-leak arm (B-b)
 KEY_A_NAME="m84-a-primary-$$"
 KEY_B_NAME="m84-b-secret-$$"
 BODY_TMP="$(mktemp)"
@@ -125,7 +128,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 
 # Apply one migration file the SAME way `make migrate` does: strip the leading
@@ -180,10 +183,16 @@ wait_tc_ready() { # $1=container $2=port
   local i
   for i in $(seq 1 60); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2/health/live" 2>/dev/null)" == "200" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # Kong readiness through the proxy: probe a path we KNOW is wired so a 200/401
@@ -197,12 +206,18 @@ wait_kong_route() { # $1=kong-container $2=kong-port
   for i in $(seq 1 60); do
     code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2/v1/tenants/me" 2>/dev/null || true)"
     case "${code}" in
-      200|401|403|404) return 0 ;;
+    200 | 401 | 403 | 404) return 0 ;;
     esac
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never routed to the upstream (last code='${code}'):"; docker logs "$1" 2>&1 | tail -25; return 1
+  red "$1 never routed to the upstream (last code='${code}'):"
+  docker logs "$1" 2>&1 | tail -25
+  return 1
 }
 
 # Write the MINIMAL DBLESS declarative config: the ONE new self-serve route, in
@@ -214,7 +229,7 @@ wait_kong_route() { # $1=kong-container $2=kong-port
 # header-forwarding fidelity; the curl assertions here send no preflight, so cors
 # is not load-bearing — it is present only to keep the declarative faithful.
 write_kong_yml() {
-  cat > "${KONG_YML}" <<'YAML'
+  cat >"${KONG_YML}" <<'YAML'
 _format_version: "3.0"
 
 plugins:
@@ -292,8 +307,8 @@ boot_kong() { # $1=kong-name $2=upstream-tc-container(doc) $3=host-proxy-port
 # ── 0) build the scratch tenant-control FROM CURRENT source ────────────────────
 step "0/8 build scratch tenant-control from CURRENT source (the B4a self-service code Kong fronts)"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT="${TC_PORT}" \
-  -t "${TC_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch tenant-control image build failed — gate must front the drafted self-service code (line: docker build TC)"
+  -t "${TC_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch tenant-control image build failed — gate must front the drafted self-service code (line: docker build TC)"
 ok "tenant-control built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated net + postgres + prelude + REAL 005/032/040 ────────────────────
@@ -321,11 +336,15 @@ DO $r$ BEGIN
 END $r$;
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
 apply_migration "${MIGRATION_005}" || fail "real migration 005_add_tenant_table.sql failed to apply (line: apply 005)"
 apply_migration "${MIGRATION_032}" || fail "real migration 032_tenants.sql failed to apply (line: apply 032)"
 apply_migration "${MIGRATION_040}" || fail "real migration 040_tenant_usage.sql failed to apply (line: apply 040)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenants")" == "0" ]]   || fail "tenants should start EMPTY (line: 032 empty check)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenants")" == "0" ]] || fail "tenants should start EMPTY (line: 032 empty check)"
 [[ "$(psql_val "SELECT count(*) FROM public.tenant_api_keys")" == "0" ]] || fail "tenant_api_keys should start EMPTY (line: keys empty check)"
 ok "migrations 005 + 032 + 040 applied — tenants / tenant_api_keys / tenant_usage exist and are empty"
 
@@ -375,17 +394,17 @@ ok "minted A's key (${KEY_A_NAME}) + B's key (${KEY_B_NAME}); both full mbk_ key
 step "4/8 (A · POSITIVE) GET kong/v1/tenants/me (Bearer A's key) → 200, body is A's tenant"
 C="$(kong_me GET "${PORT_KONG_ON}" /v1/tenants/me "${KEY_A}")"
 [[ "${C}" == "200" ]] || fail "(A) GET kong/me expected 200, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A GET kong/me)"
-grep -q "\"id\":\"${TENANT_A}\"" "${BODY_TMP}" \
-  || fail "(A) GET kong/me body is not tenant A (id=${TENANT_A}) — $(head -c 300 "${BODY_TMP}") (line: A kong/me is A)"
-grep -q '"plan":"nano"' "${BODY_TMP}" \
-  || fail "(A) GET kong/me body missing plan=nano — $(head -c 300 "${BODY_TMP}") (line: A kong/me plan)"
+grep -q "\"id\":\"${TENANT_A}\"" "${BODY_TMP}" ||
+  fail "(A) GET kong/me body is not tenant A (id=${TENANT_A}) — $(head -c 300 "${BODY_TMP}") (line: A kong/me is A)"
+grep -q '"plan":"nano"' "${BODY_TMP}" ||
+  fail "(A) GET kong/me body missing plan=nano — $(head -c 300 "${BODY_TMP}") (line: A kong/me plan)"
 ok "(A) GET kong/v1/tenants/me → 200; Kong forwarded the Bearer key, tenant-control resolved A (no path id)"
 
 step "4b/8 (A · POSITIVE) sub-route GET kong/v1/tenants/me/keys (Bearer A's key) → 200, lists A's key"
 C="$(kong_me GET "${PORT_KONG_ON}" /v1/tenants/me/keys "${KEY_A}")"
 [[ "${C}" == "200" ]] || fail "(A) GET kong/me/keys expected 200, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A GET kong/me/keys)"
-grep -q "${KEY_A_NAME}" "${BODY_TMP}" \
-  || fail "(A) GET kong/me/keys missing A's key '${KEY_A_NAME}' — the /me/ sub-path did not reach the upstream verbatim — $(head -c 300 "${BODY_TMP}") (line: A kong/me/keys lists A)"
+grep -q "${KEY_A_NAME}" "${BODY_TMP}" ||
+  fail "(A) GET kong/me/keys missing A's key '${KEY_A_NAME}' — the /me/ sub-path did not reach the upstream verbatim — $(head -c 300 "${BODY_TMP}") (line: A kong/me/keys lists A)"
 ok "(A) GET kong/v1/tenants/me/keys → 200; the /me/ subtree regex matched and strip_path:false forwarded /me/keys verbatim"
 
 # ── 5) (B · REJECT, LOAD-BEARING) no-auth · admin-leak · prefix-overmatch ──────
@@ -401,15 +420,15 @@ step "5b/8 (B · REJECT, LOAD-BEARING) (b) admin surface NOT reachable — GET k
 # tenant-selfserve route at all → 404 at Kong; even if it DID reach the upstream
 # {id} handler, tokenOrSelf 401s a bare API key. Either way it must NOT be 200-B.
 C="$(kong_me GET "${PORT_KONG_ON}" "/v1/tenants/${TENANT_B}" "${KEY_A}")"
-[[ "${C}" != "200" ]] \
-  || fail "(B-b) ADMIN LEAK: GET kong/v1/tenants/${TENANT_B} returned 200 through the PUBLIC route — cross-tenant/admin exposure! body=$(head -c 300 "${BODY_TMP}") (line: B admin-leak status)"
+[[ "${C}" != "200" ]] ||
+  fail "(B-b) ADMIN LEAK: GET kong/v1/tenants/${TENANT_B} returned 200 through the PUBLIC route — cross-tenant/admin exposure! body=$(head -c 300 "${BODY_TMP}") (line: B admin-leak status)"
 # Defense in depth: B's body must never appear regardless of status.
 if grep -q "${TENANT_B}" "${BODY_TMP}"; then
   fail "(B-b) ADMIN LEAK: tenant B's id leaked in the response body (status ${C}) through the public route! body=$(head -c 300 "${BODY_TMP}") (line: B admin-leak body)"
 fi
 case "${C}" in
-  401|404) : ;;
-  *) fail "(B-b) GET kong/v1/tenants/${TENANT_B} returned unexpected ${C} (want 401/404, never 200) — $(head -c 300 "${BODY_TMP}") (line: B admin-leak code)" ;;
+401 | 404) : ;;
+*) fail "(B-b) GET kong/v1/tenants/${TENANT_B} returned unexpected ${C} (want 401/404, never 200) — $(head -c 300 "${BODY_TMP}") (line: B admin-leak code)" ;;
 esac
 ok "(B-b) the admin /v1/tenants/{id} surface is NOT reachable via the public console route (${C}, never 200-with-B)"
 
@@ -420,10 +439,10 @@ step "5c/8 (B · REJECT, LOAD-BEARING) (c) prefix-overmatch — GET kong/v1/tena
 # rejects: even an authenticated caller cannot reach an over-matched path.
 for over in /v1/tenants/members /v1/tenants/mexico; do
   C="$(kong_me GET "${PORT_KONG_ON}" "${over}" "${KEY_A}")"
-  [[ "${C}" != "200" ]] \
-    || fail "(B-c) PREFIX OVERMATCH: GET kong${over} returned 200 — the bare-prefix trap is OPEN, the route is not regex-tight! $(head -c 300 "${BODY_TMP}") (line: B overmatch ${over})"
-  [[ "${C}" == "404" ]] \
-    || fail "(B-c) GET kong${over} expected 404 (no Kong route matches an anchored /me regex), got ${C} — $(head -c 300 "${BODY_TMP}") (line: B overmatch 404 ${over})"
+  [[ "${C}" != "200" ]] ||
+    fail "(B-c) PREFIX OVERMATCH: GET kong${over} returned 200 — the bare-prefix trap is OPEN, the route is not regex-tight! $(head -c 300 "${BODY_TMP}") (line: B overmatch ${over})"
+  [[ "${C}" == "404" ]] ||
+    fail "(B-c) GET kong${over} expected 404 (no Kong route matches an anchored /me regex), got ${C} — $(head -c 300 "${BODY_TMP}") (line: B overmatch 404 ${over})"
 done
 ok "(B-c) /v1/tenants/members + /v1/tenants/mexico → 404 at Kong (anchored regex rejects the prefix overmatch; never reaches the upstream)"
 
@@ -453,8 +472,8 @@ ok "Kong(OFF) up + routing → tenant-control(OFF)"
 
 step "6c/8 (C · PARITY) GET kong/v1/tenants/me (Bearer A's key) on the OFF stack → 401 (handler absent; falls to {id} wildcard, tokenOrSelf rejects a bare key) — the SAME request was 200 on ON (arm 4)"
 C="$(kong_me GET "${PORT_KONG_OFF}" /v1/tenants/me "${KEY_A}")"
-[[ "${C}" == "401" ]] \
-  || fail "(C) PARITY: GET kong/me (A's key) with self-serve OFF expected 401 — the pre-B4a baseline ('me' caught by the {id} wildcard whose tokenOrSelf rejects a bare API key); ON returned 200 — got ${C} — $(head -c 300 "${BODY_TMP}") (line: C kong/me parity)"
+[[ "${C}" == "401" ]] ||
+  fail "(C) PARITY: GET kong/me (A's key) with self-serve OFF expected 401 — the pre-B4a baseline ('me' caught by the {id} wildcard whose tokenOrSelf rejects a bare API key); ON returned 200 — got ${C} — $(head -c 300 "${BODY_TMP}") (line: C kong/me parity)"
 ok "(C) GET kong/v1/tenants/me → 401 OFF vs 200 ON — the flag gates the surface; the Kong route is harmless when the feature is off (byte-parity)"
 
 # ── 7) summarize ──────────────────────────────────────────────────────────────
@@ -466,7 +485,8 @@ green "[M84] (C) PARITY:   self-serve OFF → kong/v1/tenants/me 401 (vs 200 ON)
 # ── 8) emit the gate event via the kernel log helper (best-effort) ─────────────
 step "8/8 log GATE m84=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-b4b-console-route}"

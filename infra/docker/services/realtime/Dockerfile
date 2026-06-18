@@ -5,7 +5,8 @@
 # `realtime` service straight from ./realtime-agnostic (this file is NOT in
 # that path) — keep this wrapper aligned with the locally-built tag, never a
 # stale registry digest. `docker compose build realtime` produces the tag.
-FROM dlesieur/realtime-agnostic:latest
+# Tag pinned to match the locally-built image in compose (data-plane.yml).
+FROM dlesieur/realtime-agnostic:0.2.1
 EXPOSE 4000
 USER nonroot:nonroot
 

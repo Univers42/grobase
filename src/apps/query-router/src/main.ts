@@ -16,7 +16,13 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger as PinoLogger } from 'nestjs-pino';
 import { AppModule } from './app.module';
-import { AllExceptionsFilter, CorrelationIdInterceptor, applySecurityMiddleware, createValidationPipe, startOtel } from '@mini-baas/common';
+import {
+  AllExceptionsFilter,
+  CorrelationIdInterceptor,
+  applySecurityMiddleware,
+  createValidationPipe,
+  startOtel,
+} from '@mini-baas/common';
 
 startOtel('query-router');
 

@@ -50,15 +50,18 @@ ROUTES_DIR="${SCRIPT_DIR}/parity"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 VERDICT_DIR="${PARITY_VERDICT_DIR:-${REPO_ROOT}/apps/baas/mini-baas-infra/.parity}"
 
-cyan()   { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()    { printf '\033[0;31m%s\033[0m\n' "$*"; }
-green()  { printf '\033[0;32m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[1;33m%s\033[0m\n' "$*"; }
-fail()   { red   "[PARITY] FAIL: $*" >&2; exit 1; }
-step()   { cyan  "[PARITY] ${*}"; }
-pass()   { green "[PARITY] PASS: ${*}"; }
+fail() {
+  red "[PARITY] FAIL: $*" >&2
+  exit 1
+}
+step() { cyan "[PARITY] ${*}"; }
+pass() { green "[PARITY] PASS: ${*}"; }
 
-command -v jq   >/dev/null 2>&1 || fail "jq is required"
+command -v jq >/dev/null 2>&1 || fail "jq is required"
 command -v curl >/dev/null 2>&1 || fail "curl is required"
 
 OLD="${OLD:-}"
@@ -85,7 +88,8 @@ GOLDEN_FILE="${GOLDEN_DIR}/${ROUTES_NAME}.golden.json"
 
 # Decide the mode from what the operator supplied.
 if [[ ${RECORD} -eq 1 ]]; then
-  MODE="record";   [[ -n "${NEW}" ]] || fail "--record needs NEW=<base-url>"
+  MODE="record"
+  [[ -n "${NEW}" ]] || fail "--record needs NEW=<base-url>"
 elif [[ -n "${OLD}" && -n "${NEW}" ]]; then
   MODE="diff"
 elif [[ -n "${NEW}" ]]; then
@@ -138,53 +142,59 @@ probe() {
 
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 mkdir -p "${VERDICT_DIR}"
-cases_json="$(mktemp)"; printf '[]' >"${cases_json}"
-matched=0; mismatched=0
+cases_json="$(mktemp)"
+printf '[]' >"${cases_json}"
+matched=0
+mismatched=0
 
 step "route-set '${ROUTES_NAME}' (${REQ_COUNT} requests) — mode=${MODE}"
 [[ "${MODE}" == "diff" ]] && step "OLD=${OLD}  NEW=${NEW}"
 
 # In record mode we collect golden side-by-side; otherwise we compare.
-record_obj="$(mktemp)"; printf '{}' >"${record_obj}"
+record_obj="$(mktemp)"
+printf '{}' >"${record_obj}"
 
-for (( i=0; i<REQ_COUNT; i++ )); do
+for ((i = 0; i < REQ_COUNT; i++)); do
   name="$(jq -r ".requests[${i}].name // \"req-${i}\"" "${ROUTES_FILE}")"
   method="$(jq -r ".requests[${i}].method // \"GET\"" "${ROUTES_FILE}")"
   path="$(jq -r ".requests[${i}].path" "${ROUTES_FILE}")"
 
   new_out="$(probe "${NEW}" "${i}")"
-  new_status="${new_out%%$'\n'*}"; new_body="${new_out#*$'\n'}"
+  new_status="${new_out%%$'\n'*}"
+  new_body="${new_out#*$'\n'}"
 
   case "${MODE}" in
-    record)
-      # Store the normalized body verbatim as a JSON string so capture and
-      # compare stay symmetric regardless of JSON-vs-raw payloads.
-      b="$(printf '%s' "${new_body}" | jq -R -s .)"
-      jq --arg n "${name}" --arg s "${new_status}" --argjson b "${b}" \
-        '.[$n] = {status:$s, body:$b}' "${record_obj}" >"${record_obj}.x" && mv "${record_obj}.x" "${record_obj}"
-      cyan "  • ${name} (${method} ${path}) → ${new_status} [recorded]"
-      ;;
-    diff)
-      old_out="$(probe "${OLD}" "${i}")"
-      old_status="${old_out%%$'\n'*}"; old_body="${old_out#*$'\n'}"
-      sm=$([[ "${old_status}" == "${new_status}" ]] && echo true || echo false)
-      bm=$([[ "${old_body}" == "${new_body}" ]] && echo true || echo false)
-      ;;
-    contract)
-      old_status="$(jq -r --arg n "${name}" '.[$n].status // "000"' "${GOLDEN_FILE}")"
-      # Golden stores the normalized body as a JSON string; new_body is already
-      # normalized text — compare text to text for a symmetric structural check.
-      old_body="$(jq -r --arg n "${name}" '.[$n].body // ""' "${GOLDEN_FILE}")"
-      sm=$([[ "${old_status}" == "${new_status}" ]] && echo true || echo false)
-      bm=$([[ "${old_body}" == "${new_body}" ]] && echo true || echo false)
-      ;;
+  record)
+    # Store the normalized body verbatim as a JSON string so capture and
+    # compare stay symmetric regardless of JSON-vs-raw payloads.
+    b="$(printf '%s' "${new_body}" | jq -R -s .)"
+    jq --arg n "${name}" --arg s "${new_status}" --argjson b "${b}" \
+      '.[$n] = {status:$s, body:$b}' "${record_obj}" >"${record_obj}.x" && mv "${record_obj}.x" "${record_obj}"
+    cyan "  • ${name} (${method} ${path}) → ${new_status} [recorded]"
+    ;;
+  diff)
+    old_out="$(probe "${OLD}" "${i}")"
+    old_status="${old_out%%$'\n'*}"
+    old_body="${old_out#*$'\n'}"
+    sm=$([[ "${old_status}" == "${new_status}" ]] && echo true || echo false)
+    bm=$([[ "${old_body}" == "${new_body}" ]] && echo true || echo false)
+    ;;
+  contract)
+    old_status="$(jq -r --arg n "${name}" '.[$n].status // "000"' "${GOLDEN_FILE}")"
+    # Golden stores the normalized body as a JSON string; new_body is already
+    # normalized text — compare text to text for a symmetric structural check.
+    old_body="$(jq -r --arg n "${name}" '.[$n].body // ""' "${GOLDEN_FILE}")"
+    sm=$([[ "${old_status}" == "${new_status}" ]] && echo true || echo false)
+    bm=$([[ "${old_body}" == "${new_body}" ]] && echo true || echo false)
+    ;;
   esac
 
   if [[ "${MODE}" != "record" ]]; then
     if [[ "${sm}" == "true" && "${bm}" == "true" ]]; then
-      matched=$((matched+1)); green "  ✓ ${name} (${method} ${path}) → ${new_status}"
+      matched=$((matched + 1))
+      green "  ✓ ${name} (${method} ${path}) → ${new_status}"
     else
-      mismatched=$((mismatched+1))
+      mismatched=$((mismatched + 1))
       red "  ✗ ${name} (${method} ${path}): status ${old_status}->${new_status} (match=${sm}), body match=${bm}"
     fi
     jq --arg n "${name}" --arg m "${method}" --arg p "${path}" \
@@ -220,6 +230,6 @@ step "verdict recorded → ${verdict_file}"
 if [[ "${verdict}" == "pass" ]]; then
   pass "${matched}/${REQ_COUNT} requests parity-equal (${MODE} mode)"
 else
-  red  "[PARITY] FAIL: ${mismatched}/${REQ_COUNT} requests diverged (${MODE} mode)"
+  red "[PARITY] FAIL: ${mismatched}/${REQ_COUNT} requests diverged (${MODE} mode)"
   exit 1
 fi

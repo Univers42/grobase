@@ -8,12 +8,15 @@ cd "${REPO_ROOT}"
 BAAS_DIR="."
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-fail()  { red "[M8] FAIL: $*"; exit 1; }
-step()  { cyan "[M8] ${*}"; }
-pass()  { green "[M8] PASS: ${*}"; }
+fail() {
+  red "[M8] FAIL: $*"
+  exit 1
+}
+step() { cyan "[M8] ${*}"; }
+pass() { green "[M8] PASS: ${*}"; }
 
 LIVE=0
 for arg in "$@"; do [[ "${arg}" == "--live" ]] && LIVE=1; done
@@ -48,12 +51,12 @@ pass "outbox-relay dispatches target engines and schedules compensations"
 if [[ ${LIVE} -eq 1 ]]; then
   step "live: migration 022 applied"
   sed '/^#/d' "${MIG}" | docker compose -f "${COMPOSE_FILE}" exec -T postgres \
-    psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" -v ON_ERROR_STOP=1 -f - >/dev/null \
-    || fail "migration 022 failed"
+    psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" -v ON_ERROR_STOP=1 -f - >/dev/null ||
+    fail "migration 022 failed"
   docker compose -f "${COMPOSE_FILE}" exec -T postgres \
     psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" -tAc \
-    "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='outbox_events' AND column_name IN ('target_engine','target_resource','compensation_payload','idempotency_key','saga_state')" \
-    | grep -q '^5$' || fail "outbox saga columns are not present"
+    "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='outbox_events' AND column_name IN ('target_engine','target_resource','compensation_payload','idempotency_key','saga_state')" |
+    grep -q '^5$' || fail "outbox saga columns are not present"
   pass "migration 022 columns exist"
 fi
 

@@ -12,7 +12,11 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Put, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import {
-  AuthGuard, CurrentIdentity, CurrentUser, UserContext, VerifiedRequestIdentity,
+  AuthGuard,
+  CurrentIdentity,
+  CurrentUser,
+  UserContext,
+  VerifiedRequestIdentity,
 } from '@mini-baas/common';
 import { AutomationsService } from './automations.service';
 import { QueryService } from './query.service';

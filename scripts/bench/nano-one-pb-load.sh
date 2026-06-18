@@ -22,8 +22,8 @@
 # Writes artifacts/nano-one-pb-load.json + a human table.
 
 set -euo pipefail
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -38,7 +38,7 @@ PB_PORT=18956
 WORK="$(mktemp -d)"
 OHA_IMG="ghcr.io/hatoo/oha:latest"
 
-cleanup(){
+cleanup() {
   docker rm -fv g-nano g-one g-pb >/dev/null 2>&1 || true
   docker volume rm -f g-nano-data g-one-data >/dev/null 2>&1 || true
   docker run --rm -v "${WORK}:/w" public.ecr.aws/docker/library/alpine:3.20 \
@@ -47,12 +47,18 @@ cleanup(){
 }
 trap cleanup EXIT
 
-docker image inspect binocle-nano >/dev/null 2>&1 || { echo "build first: make nano-build"; exit 1; }
-docker image inspect binocle-one  >/dev/null 2>&1 || { echo "build first: make one-build"; exit 1; }
+docker image inspect binocle-nano >/dev/null 2>&1 || {
+  echo "build first: make nano-build"
+  exit 1
+}
+docker image inspect binocle-one >/dev/null 2>&1 || {
+  echo "build first: make one-build"
+  exit 1
+}
 docker pull -q "${OHA_IMG}" >/dev/null
 
-oha(){ docker run --rm --network host "${OHA_IMG}" --no-tui --output-format json "$@"; }
-parse(){ python3 -c "
+oha() { docker run --rm --network host "${OHA_IMG}" --no-tui --output-format json "$@"; }
+parse() { python3 -c "
 import sys, json
 r = json.load(sys.stdin)
 rps = r['summary']['requestsPerSec']
@@ -79,10 +85,13 @@ docker run -d --name g-pb -p "${PB_PORT}:8090" -v "${WORK}:/pb" \
 PB="http://127.0.0.1:${PB_PORT}"
 
 for i in $(seq 1 30); do
-  curl -sf "${NANO}/v1/health" >/dev/null 2>&1 \
-    && curl -sf "${ONE}/v1/health" >/dev/null 2>&1 \
-    && curl -sf "${PB}/api/health" >/dev/null 2>&1 && break
-  [[ $i -eq 30 ]] && { echo "boot timeout"; exit 1; }
+  curl -sf "${NANO}/v1/health" >/dev/null 2>&1 &&
+    curl -sf "${ONE}/v1/health" >/dev/null 2>&1 &&
+    curl -sf "${PB}/api/health" >/dev/null 2>&1 && break
+  [[ $i -eq 30 ]] && {
+    echo "boot timeout"
+    exit 1
+  }
   sleep 0.5
 done
 
@@ -99,9 +108,12 @@ done
 docker exec g-pb /pb/pocketbase superuser upsert bench@local.dev super-secret-pw-123 --dir /pb/pb_data >/dev/null 2>&1
 PB_TOKEN=$(curl -s -X POST "${PB}/api/collections/_superusers/auth-with-password" \
   -H "Content-Type: application/json" \
-  -d '{"identity":"bench@local.dev","password":"super-secret-pw-123"}' \
-  | python3 -c 'import sys,json;print(json.load(sys.stdin).get("token",""))')
-[[ -n "${PB_TOKEN}" ]] || { echo "PocketBase auth failed"; exit 1; }
+  -d '{"identity":"bench@local.dev","password":"super-secret-pw-123"}' |
+  python3 -c 'import sys,json;print(json.load(sys.stdin).get("token",""))')
+[[ -n "${PB_TOKEN}" ]] || {
+  echo "PocketBase auth failed"
+  exit 1
+}
 curl -s -X POST "${PB}/api/collections" -H "Authorization: ${PB_TOKEN}" -H "Content-Type: application/json" \
   -d '{"name":"bench","type":"base","fields":[{"name":"title","type":"text"}]}' >/dev/null
 
@@ -109,11 +121,11 @@ INS_BODY='{"db_id":"main","operation":{"op":"insert","resource":"bench","data":{
 LIST_BODY='{"db_id":"main","operation":{"op":"list","resource":"bench","limit":30}}'
 PB_INS_BODY='{"title":"load"}'
 
-run_ins(){ # base
+run_ins() { # base
   oha -z "${DUR}" -c "$2" -m POST -H "X-Baas-Api-Key: ${NK}" -H "Content-Type: application/json" \
     -d "${INS_BODY}" "$1/data/v1/query" | parse
 }
-run_list(){ # base c
+run_list() { # base c
   oha -z "${DUR}" -c "$2" -m POST -H "X-Baas-Api-Key: ${NK}" -H "Content-Type: application/json" \
     -d "${LIST_BODY}" "$1/data/v1/query" | parse
 }
@@ -155,7 +167,10 @@ done
 
 # ── RSS under load (sampled mid-flight of a c=64 insert run) ────────────────
 cyan "[G] RSS under c=64 insert load"
-( sleep 3; docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' g-nano g-one g-pb > "${WORK}/rss.txt" ) &
+(
+  sleep 3
+  docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' g-nano g-one g-pb >"${WORK}/rss.txt"
+) &
 SAMPLER=$!
 oha -z 7s -c 64 -m POST -H "X-Baas-Api-Key: ${NK}" -H "Content-Type: application/json" \
   -d "${INS_BODY}" "${NANO}/data/v1/query" >/dev/null &
@@ -184,11 +199,12 @@ ONE_DISK=$(docker run --rm -v g-one-data:/d public.ecr.aws/docker/library/alpine
 PB_DISK=$(docker exec g-pb du -sk /pb/pb_data | awk '{printf "%.1f MB", $1/1024}')
 
 # ── boot-to-first-200 ────────────────────────────────────────────────────────
-boot_ms(){ # container url
+boot_ms() { # container url
   docker restart "$1" >/dev/null
-  local t0; t0=$(date +%s%N)
+  local t0
+  t0=$(date +%s%N)
   while ! curl -sf "$2" >/dev/null 2>&1; do sleep 0.01; done
-  awk -v d=$(( $(date +%s%N) - t0 )) 'BEGIN{printf "%.0f", d/1000000}'
+  awk -v d=$(($(date +%s%N) - t0)) 'BEGIN{printf "%.0f", d/1000000}'
 }
 cyan "[G] boot-to-first-200 × 3"
 NANO_BOOT=$(boot_ms g-nano "${NANO}/v1/health")
@@ -196,8 +212,11 @@ ONE_BOOT=$(boot_ms g-one "${ONE}/v1/health")
 PB_BOOT=$(boot_ms g-pb "${PB}/api/health")
 
 # ── report ───────────────────────────────────────────────────────────────────
-row(){ # label op c
-  local n=(${R[nano,$2,$3]}) o=(${R[one,$2,$3]}) p=(${R[pb,$2,$3]})
+row() { # label op c
+  local n o p
+  read -ra n <<<"${R[nano,$2,$3]}"
+  read -ra o <<<"${R[one,$2,$3]}"
+  read -ra p <<<"${R[pb,$2,$3]}"
   printf '  %-20s %8s %7s   %8s %7s   %8s %7s\n' \
     "$1" "${n[0]}" "${n[3]}" "${o[0]}" "${o[3]}" "${p[0]}" "${p[3]}"
 }
@@ -207,7 +226,9 @@ printf '  %-20s %-16s   %-16s   %-16s\n' "" "── nano ──" "── one ─
 printf '  %-20s %8s %7s   %8s %7s   %8s %7s\n' "op @ c" "RPS" "p99" "RPS" "p99" "RPS" "p99"
 for c in 1 16 64; do row "insert @ c=${c}" ins "$c"; done
 for c in 1 16 64; do row "list 30 @ c=${c}" list "$c"; done
-NB=(${NANO_BIG}); OB=(${ONE_BIG}); PBB=(${PB_BIG})
+read -ra NB <<<"${NANO_BIG}"
+read -ra OB <<<"${ONE_BIG}"
+read -ra PBB <<<"${PB_BIG}"
 printf '  %-20s %8s %7s   %8s %7s   %8s %7s\n' "${BIG_N} rows @ c=64" "${NB[0]}" "${NB[3]}" "${OB[0]}" "${OB[3]}" "${PBB[0]}" "${PBB[3]}"
 printf '  %-20s %16s   %16s   %16s\n' "RSS under load" "${NANO_RSS}" "${ONE_RSS}" "${PB_RSS}"
 printf '  %-20s %16s   %16s   %16s\n' "disk after big run" "${NANO_DISK}" "${ONE_DISK}" "${PB_DISK}"
@@ -215,7 +236,7 @@ printf '  %-20s %13s ms   %13s ms   %13s ms\n' "boot → first 200" "${NANO_BOOT
 echo
 
 mkdir -p artifacts
-python3 - "$PB_VERSION" "$DUR" "$BIG_N" <<EOF > artifacts/nano-one-pb-load.json
+python3 - "$PB_VERSION" "$DUR" "$BIG_N" <<EOF >artifacts/nano-one-pb-load.json
 import json, sys, datetime
 R = {
 $(for c in 1 16 64; do for op in ins list; do for s in nano one pb; do

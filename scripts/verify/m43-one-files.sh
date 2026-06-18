@@ -24,12 +24,16 @@
 #   8. idle RSS ≤ 15 MiB.
 
 set -euo pipefail
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
-step(){ cyan "[M43] $*"; }
-fail(){ red "[M43] FAIL — $*"; cleanup; exit 1; }
-ok(){ green "  ✓ $*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+step() { cyan "[M43] $*"; }
+fail() {
+  red "[M43] FAIL — $*"
+  cleanup
+  exit 1
+}
+ok() { green "  ✓ $*"; }
 
 IMAGE="${ONE_IMAGE:-binocle-one}"
 NAME="m43-one-$$"
@@ -38,23 +42,26 @@ KEY="m43-admin-$(date +%s)-deterministic"
 BASE="http://127.0.0.1:${PORT}"
 TMP="$(mktemp -d)"
 
-cleanup(){ docker rm -fv "${NAME}" >/dev/null 2>&1 || true; rm -rf "${TMP}"; }
+cleanup() {
+  docker rm -fv "${NAME}" >/dev/null 2>&1 || true
+  rm -rf "${TMP}"
+}
 trap cleanup EXIT
 
-req(){ # method path auth body → body<TAB>status
+req() { # method path auth body → body<TAB>status
   local method="$1" path="$2" auth="$3" body="${4:-}"
   local args=(-s -w $'\t%{http_code}' -X "${method}" "${BASE}${path}" -H "Content-Type: application/json")
   [[ -n "${auth}" ]] && args+=(-H "${auth}")
   [[ -n "${body}" ]] && args+=(-d "${body}")
   curl "${args[@]}"
 }
-status_of(){ awk -F'\t' '{print $NF}' <<<"$1"; }
-jget(){ python3 -c "import sys,json;d=json.loads(sys.stdin.read().rsplit('\t',1)[0]);print($1)" <<<"$2"; }
+status_of() { awk -F'\t' '{print $NF}' <<<"$1"; }
+jget() { python3 -c "import sys,json;d=json.loads(sys.stdin.read().rsplit('\t',1)[0]);print($1)" <<<"$2"; }
 
 step "0/8 boot + ≤12 MB budget"
 docker image inspect "${IMAGE}" >/dev/null 2>&1 || fail "image '${IMAGE}' not built (make one-build)"
-IMG_MB=$(( $(docker image inspect --format '{{.Size}}' "${IMAGE}") / 1024 / 1024 ))
-(( IMG_MB <= 12 )) || fail "image ${IMG_MB} MB > 12 MB budget"
+IMG_MB=$(($(docker image inspect --format '{{.Size}}' "${IMAGE}") / 1024 / 1024))
+((IMG_MB <= 12)) || fail "image ${IMG_MB} MB > 12 MB budget"
 docker run -d --name "${NAME}" -p "${PORT}:8090" \
   -e NANO_ADMIN_KEY="${KEY}" -e ONE_MAX_FILE_MB=1 "${IMAGE}" >/dev/null
 for i in $(seq 1 20); do
@@ -99,7 +106,7 @@ ok "201 + exact byte round-trip + image/png"
 
 step "3/8 owner-scoping + admin escape"
 # Binary bodies break the tab-parsing req helper — status-only curls here.
-get_status(){ curl -s -o /dev/null -w '%{http_code}' -H "$2" "${BASE}$1"; }
+get_status() { curl -s -o /dev/null -w '%{http_code}' -H "$2" "${BASE}$1"; }
 [[ "$(get_status "/one/v1/file/${FID}" "Authorization: Bearer ${TOK_I}")" == "404" ]] || fail "stranger must 404"
 [[ "$(get_status "/one/v1/file/${FID}" "X-Baas-Api-Key: ${KEY}")" == "200" ]] || fail "admin key read failed"
 R=$(req GET "/one/v1/files/notes/n1" "Authorization: Bearer ${TOK_H}")
@@ -133,7 +140,7 @@ R=$(req POST "/one/v1/file/${FID}/token" "Authorization: Bearer ${TOK_I}")
 ok "signed link works unauthenticated; garbage rejected; minting owner-only"
 
 step "6/8 caps: oversize 413, html 415, traversal 400"
-head -c 1200000 /dev/zero > "${TMP}/big.bin"
+head -c 1200000 /dev/zero >"${TMP}/big.bin"
 R=$(curl -s -w $'\t%{http_code}' -o /dev/null -X POST "${BASE}/one/v1/files/notes/n1/big" \
   -H "Authorization: Bearer ${TOK_H}" \
   -F "file=@${TMP}/big.bin;type=application/octet-stream")

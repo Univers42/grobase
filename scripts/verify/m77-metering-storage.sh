@@ -65,9 +65,9 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                 # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
-SRC_DIR="${INFRA_DIR}/src"                                      # storage-router build context
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
+SRC_DIR="${INFRA_DIR}/src"                     # storage-router build context
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIGRATION_040="${INFRA_DIR}/scripts/migrations/postgresql/040_tenant_usage.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/../.claude" 2>/dev/null && pwd || true)"
@@ -77,12 +77,15 @@ ART="${ART_DIR}/m77.txt"
 mkdir -p "${ART_DIR}"
 exec > >(tee "${ART}") 2>&1
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M77] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M77] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M77] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M77] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M77_PG_IMAGE:-postgres:16-alpine}"
 REDIS_IMAGE="${M77_REDIS_IMAGE:-redis:7-alpine}"
@@ -93,10 +96,10 @@ NET="m77net-$$"
 PG="m77-pg-$$"
 REDIS="m77-redis-$$"
 MINIO="m77-minio-$$"
-STOR_ON="m77-stor-on-$$"      # (A) POSITIVE producer (STORAGE_METERING=1)
-STOR_OFF="m77-stor-off-$$"    # (B) PARITY producer  (STORAGE_METERING unset)
-ORCH_ON="m77-orch-on-$$"      # (A) ingest consumer  (METERING_INGEST=1)
-ORCH_OFF="m77-orch-off-$$"    # (B) PARITY consumer  (METERING_INGEST unset)
+STOR_ON="m77-stor-on-$$"   # (A) POSITIVE producer (STORAGE_METERING=1)
+STOR_OFF="m77-stor-off-$$" # (B) PARITY producer  (STORAGE_METERING unset)
+ORCH_ON="m77-orch-on-$$"   # (A) ingest consumer  (METERING_INGEST=1)
+ORCH_OFF="m77-orch-off-$$" # (B) PARITY consumer  (METERING_INGEST unset)
 PORT_ON="${M77_PORT_ON:-18991}"
 PORT_OFF="${M77_PORT_OFF:-18992}"
 PGPW="postgres"
@@ -108,8 +111,10 @@ TENANT="m77-tenant-$$"
 FLUSH_MS="${M77_FLUSH_MS:-800}"
 # Three KNOWN object sizes (bytes). Their SUM is the ground truth the stored qty
 # MUST equal — distinct sizes so a partial sum can't accidentally match.
-S1=111; S2=2222; S3=33333
-SUM=$(( S1 + S2 + S3 ))
+S1=111
+S2=2222
+S3=33333
+SUM=$((S1 + S2 + S3))
 DATABASE_URL_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres?sslmode=disable"
 REDIS_INNET="redis://${REDIS}:6379"
 # shared.LoadConfig (Go orchestrator) refuses an empty/placeholder service token.
@@ -127,15 +132,15 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
-redis_cli(){ docker exec -i "${REDIS}" redis-cli "$@"; }
+redis_cli() { docker exec -i "${REDIS}" redis-cli "$@"; }
 
 # Upload a KNOWN-size object as TENANT. $1=key  $2=size-bytes  $3=port → http code
 upload() {
   local key="$1" size="$2" port="$3" file="${TMP}/$1.bin"
   mkdir -p "$(dirname "${file}")"
-  head -c "${size}" /dev/zero > "${file}"
+  head -c "${size}" /dev/zero >"${file}"
   curl -s -o /dev/null -w '%{http_code}' -X PUT \
     "http://127.0.0.1:${port}/storage/v1/object/${BUCKET}/${key}" \
     -H "X-User-Id: ${TENANT}" \
@@ -155,10 +160,16 @@ wait_http() { # $1=container  $2=port  $3=path
   local i
   for i in $(seq 1 80); do
     curl -fsS -o /dev/null "http://127.0.0.1:$2$3" 2>/dev/null && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 wait_log() { # $1=container  $2=needle  $3=tries
@@ -195,12 +206,12 @@ stor_env_args() {
 # ── 0) build scratch storage-router + Go orchestrator FROM CURRENT source ───────
 step "0/8 build scratch storage-router (TS) + Go orchestrator from CURRENT source"
 DOCKER_BUILDKIT=1 docker build -q -f "${SRC_DIR}/Dockerfile" \
-  --build-arg APP=storage-router -t "${STOR_IMG}" "${SRC_DIR}" >/dev/null \
-  || fail "scratch storage-router image build failed — gate must exercise the drafted producer (line: docker build STOR)"
+  --build-arg APP=storage-router -t "${STOR_IMG}" "${SRC_DIR}" >/dev/null ||
+  fail "scratch storage-router image build failed — gate must exercise the drafted producer (line: docker build STOR)"
 DOCKER_BUILDKIT=1 docker build -q \
   --build-arg APP=orchestrator --build-arg PORT=3021 \
-  -t "${ORCH_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch orchestrator image build failed — gate must exercise the B1b consumer (line: docker build ORCH)"
+  -t "${ORCH_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch orchestrator image build failed — gate must exercise the B1b consumer (line: docker build ORCH)"
 ok "both scratch images built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated network + redis + postgres (prelude + REAL migration 040) + minio
@@ -212,7 +223,11 @@ docker run -d --name "${MINIO}" --network "${NET}" \
   -e "MINIO_ROOT_USER=${MINIO_USER}" -e "MINIO_ROOT_PASSWORD=${MINIO_PW}" \
   "${MINIO_IMAGE}" server /data >/dev/null
 
-for i in $(seq 1 60); do redis_cli PING 2>/dev/null | grep -q PONG && break; [[ $i -eq 60 ]] && fail "scratch redis never answered PING (line: redis ready)"; sleep 0.5; done
+for i in $(seq 1 60); do
+  redis_cli PING 2>/dev/null | grep -q PONG && break
+  [[ $i -eq 60 ]] && fail "scratch redis never answered PING (line: redis ready)"
+  sleep 0.5
+done
 for i in $(seq 1 80); do
   [[ "$(docker logs "${PG}" 2>&1 | grep -c 'database system is ready to accept connections')" -ge 2 ]] && break
   [[ $i -eq 80 ]] && fail "scratch postgres never reached steady state (line: PG ready loop)"
@@ -234,9 +249,13 @@ DO $r$ BEGIN
 END $r$;
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
-docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "${MIGRATION_040}" >/dev/null 2>&1 \
-  || fail "real migration 040_tenant_usage.sql failed to apply (line: apply 040)"
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
+docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <"${MIGRATION_040}" >/dev/null 2>&1 ||
+  fail "real migration 040_tenant_usage.sql failed to apply (line: apply 040)"
 APPLIED="$(psql_val "SELECT count(*) FROM public.tenant_usage")"
 [[ "${APPLIED}" == "0" ]] || fail "tenant_usage should start EMPTY after migration, found '${APPLIED}' (line: 040 empty check)"
 ok "migration 040 applied — public.tenant_usage exists and is empty"
@@ -254,8 +273,12 @@ docker run -d --name "${ORCH_ON}" --network "${NET}" \
   -e METERING_INGEST_BLOCK_MS=500 \
   -e LOG_LEVEL=debug \
   "${ORCH_IMG}" >/dev/null
-wait_log "${ORCH_ON}" "metering ingest connected" 60 \
-  || { red "consumer logs:"; docker logs "${ORCH_ON}" 2>&1 | tail -20; fail "ingest consumer never subscribed to usage.events (line: wait_log ORCH_ON connected)"; }
+wait_log "${ORCH_ON}" "metering ingest connected" 60 ||
+  {
+    red "consumer logs:"
+    docker logs "${ORCH_ON}" 2>&1 | tail -20
+    fail "ingest consumer never subscribed to usage.events (line: wait_log ORCH_ON connected)"
+  }
 ok "ingest consumer subscribed to usage.events (group metering-ingest)"
 
 # ── 3) (A) POSITIVE producer: storage-router metering ON ───────────────────────
@@ -271,9 +294,11 @@ bc="$(create_bucket "${PORT_ON}")"
 [[ "${bc}" == "200" || "${bc}" == "201" ]] || fail "createBucket expected 200/201, got ${bc} (line: A create bucket)"
 # Fire all three uploads back-to-back so they land inside one flush window → ONE
 # idempotency_key → the stored qty MUST be the SUM (cumulative), not 1.
-c1="$(upload o1 "${S1}" "${PORT_ON}")"; c2="$(upload o2 "${S2}" "${PORT_ON}")"; c3="$(upload o3 "${S3}" "${PORT_ON}")"
-[[ "${c1}" == "200" && "${c2}" == "200" && "${c3}" == "200" ]] \
-  || fail "POSITIVE uploads expected 200/200/200, got ${c1}/${c2}/${c3} (line: A upload status)"
+c1="$(upload o1 "${S1}" "${PORT_ON}")"
+c2="$(upload o2 "${S2}" "${PORT_ON}")"
+c3="$(upload o3 "${S3}" "${PORT_ON}")"
+[[ "${c1}" == "200" && "${c2}" == "200" && "${c3}" == "200" ]] ||
+  fail "POSITIVE uploads expected 200/200/200, got ${c1}/${c2}/${c3} (line: A upload status)"
 ok "3 objects uploaded (200×3); known total ${SUM} bytes for tenant=${TENANT}"
 
 # ── 4) (A) wait past flush+ingest, then ASSERT tenant_usage qty == SUM ─────────
@@ -284,16 +309,16 @@ for i in $(seq 1 60); do
   [[ "${GOT}" -ge 1 ]] && break
   sleep 0.5
 done
-[[ "${GOT}" -ge 1 ]] \
-  || fail "no tenant_usage row after ingest — stream depth=$(redis_cli XLEN usage.events), consumer tail: $(docker logs "${ORCH_ON}" 2>&1 | tail -5) (line: A no row)"
+[[ "${GOT}" -ge 1 ]] ||
+  fail "no tenant_usage row after ingest — stream depth=$(redis_cli XLEN usage.events), consumer tail: $(docker logs "${ORCH_ON}" 2>&1 | tail -5) (line: A no row)"
 
 # Read the stored qty from the STORE (never self-reported). Sum across any rows
 # for this (tenant, metric) — within one window there is exactly one, and the
 # cumulative qty MUST equal the byte SUM. A per-event emitter would store S1 (the
 # first event) and this assertion would trip.
 STORED_QTY="$(psql_val "SELECT COALESCE(SUM(qty),0) FROM public.tenant_usage WHERE tenant_id='${TENANT}' AND metric='${METRIC}'")"
-[[ "${STORED_QTY}" == "${SUM}" ]] \
-  || fail "(A) storage.bytes qty=${STORED_QTY} != SUM of the ${S1}+${S2}+${S3}=${SUM} known sizes — a per-event (non-cumulative) emitter would store ${S1}, not the sum (line: A qty != SUM)"
+[[ "${STORED_QTY}" == "${SUM}" ]] ||
+  fail "(A) storage.bytes qty=${STORED_QTY} != SUM of the ${S1}+${S2}+${S3}=${SUM} known sizes — a per-event (non-cumulative) emitter would store ${S1}, not the sum (line: A qty != SUM)"
 ROWS_CNT="$(psql_val "SELECT count(*) FROM public.tenant_usage WHERE tenant_id='${TENANT}' AND metric='${METRIC}'")"
 ok "(A) tenant_usage (${TENANT}, ${METRIC}) qty=${STORED_QTY} == SUM(${S1},${S2},${S3})=${SUM} across ${ROWS_CNT} window row(s) — CUMULATIVE, from the store"
 
@@ -318,8 +343,8 @@ docker run -d --name "${ORCH_OFF}" --network "${NET}" \
   -e METERING_ENABLED=1 -e METERING_INGEST=1 -e METERING_INGEST_BLOCK_MS=500 \
   -e LOG_LEVEL=debug \
   "${ORCH_IMG}" >/dev/null
-wait_log "${ORCH_OFF}" "metering ingest connected" 60 \
-  || fail "(B) watchdog consumer never subscribed (line: B consumer connect)"
+wait_log "${ORCH_OFF}" "metering ingest connected" 60 ||
+  fail "(B) watchdog consumer never subscribed (line: B consumer connect)"
 
 # PARITY producer: STORAGE_METERING UNSET (the default).
 mapfile -t OFF_ENV < <(stor_env_args off)
@@ -328,9 +353,11 @@ docker run -d --name "${STOR_OFF}" --network "${NET}" \
 wait_http "${STOR_OFF}" "${PORT_OFF}" "/health/live" || fail "(B) PARITY storage-router not ready (line: B wait_http)"
 bc="$(create_bucket "${PORT_OFF}")"
 [[ "${bc}" == "200" || "${bc}" == "201" ]] || fail "(B) createBucket expected 200/201, got ${bc} (line: B create bucket)"
-c1="$(upload o1 "${S1}" "${PORT_OFF}")"; c2="$(upload o2 "${S2}" "${PORT_OFF}")"; c3="$(upload o3 "${S3}" "${PORT_OFF}")"
-[[ "${c1}" == "200" && "${c2}" == "200" && "${c3}" == "200" ]] \
-  || fail "(B) uploads must STILL succeed with metering OFF, got ${c1}/${c2}/${c3} (line: B upload status)"
+c1="$(upload o1 "${S1}" "${PORT_OFF}")"
+c2="$(upload o2 "${S2}" "${PORT_OFF}")"
+c3="$(upload o3 "${S3}" "${PORT_OFF}")"
+[[ "${c1}" == "200" && "${c2}" == "200" && "${c3}" == "200" ]] ||
+  fail "(B) uploads must STILL succeed with metering OFF, got ${c1}/${c2}/${c3} (line: B upload status)"
 ok "(B) identical 3 uploads succeeded (200×3) with STORAGE_METERING unset"
 
 # Wait several flush windows; a metering-OFF storage-router never constructs the
@@ -338,11 +365,11 @@ ok "(B) identical 3 uploads succeeded (200×3) with STORAGE_METERING unset"
 # and the table MUST stay empty.
 sleep "$(awk "BEGIN{printf \"%.1f\", ${FLUSH_MS}/1000*5 + 2}")"
 SDEPTH_OFF="$(redis_cli XLEN usage.events 2>/dev/null | tr -d '[:space:]')"
-[[ "${SDEPTH_OFF:-0}" == "0" ]] \
-  || fail "(B) PARITY BROKEN — metering-OFF storage-router XADDed ${SDEPTH_OFF} usage.events (expected 0) (line: B XLEN != 0)"
+[[ "${SDEPTH_OFF:-0}" == "0" ]] ||
+  fail "(B) PARITY BROKEN — metering-OFF storage-router XADDed ${SDEPTH_OFF} usage.events (expected 0) (line: B XLEN != 0)"
 PARITY_ROWS="$(psql_val "SELECT count(*) FROM public.tenant_usage")"
-[[ "${PARITY_ROWS}" == "0" ]] \
-  || fail "(B) PARITY BROKEN — ${PARITY_ROWS} tenant_usage row(s) with STORAGE_METERING unset (line: B rows != 0)"
+[[ "${PARITY_ROWS}" == "0" ]] ||
+  fail "(B) PARITY BROKEN — ${PARITY_ROWS} tenant_usage row(s) with STORAGE_METERING unset (line: B rows != 0)"
 ok "(B) STORAGE_METERING unset → XLEN usage.events == 0 AND tenant_usage EMPTY = byte-parity"
 
 # ── 6) cross-check + done ──────────────────────────────────────────────────────
@@ -353,7 +380,8 @@ green "[M77] (B) STORAGE_METERING unset → identical uploads, ZERO usage.events
 # ── 7) emit the gate event via the kernel log helper (best-effort) ─────────────
 step "7/8 log GATE m77=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-b1d-storage}"

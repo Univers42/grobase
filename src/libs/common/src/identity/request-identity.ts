@@ -33,7 +33,10 @@ export function resolveRequestIdentity(
   return undefined;
 }
 
-export function serviceIdentityFromHeaders(req: HeaderRequest, serviceId: string): VerifiedRequestIdentity {
+export function serviceIdentityFromHeaders(
+  req: HeaderRequest,
+  serviceId: string,
+): VerifiedRequestIdentity {
   const tenantId = header(req, 'x-baas-tenant-id') ?? header(req, 'x-tenant-id');
   if (!tenantId) throw new UnauthorizedException('Service token requires tenant scope');
   const projectId = header(req, 'x-baas-project-id') ?? header(req, 'x-project-id') ?? tenantId;
@@ -64,7 +67,12 @@ export function identityToUserContext(identity: VerifiedRequestIdentity, email =
   };
 }
 
-export function canonicalIdentityString(req: HeaderRequest, identity: VerifiedRequestIdentity, iat: string, nonce: string): string {
+export function canonicalIdentityString(
+  req: HeaderRequest,
+  identity: VerifiedRequestIdentity,
+  iat: string,
+  nonce: string,
+): string {
   return [
     `method=${(req.method ?? 'GET').toUpperCase()}`,
     `path=${req.originalUrl ?? req.url ?? '/'}`,
@@ -165,7 +173,10 @@ function readSignedIdentity(req: HeaderRequest): VerifiedRequestIdentity | undef
   const signature = parseSignature(signatureHeader);
   const requestedKid = header(req, 'x-baas-key-id');
   const canonical = canonicalIdentityString(req, identity, iat, nonce);
-  const matchedKey = keys.find((key) => (!requestedKid || key.kid === requestedKid) && verifyHmac(key.secret, canonical, signature));
+  const matchedKey = keys.find(
+    (key) =>
+      (!requestedKid || key.kid === requestedKid) && verifyHmac(key.secret, canonical, signature),
+  );
   if (!matchedKey) {
     throw new UnauthorizedException('Invalid identity envelope signature');
   }
@@ -219,7 +230,10 @@ function identityHeaderMode(): IdentityHeaderMode {
 }
 
 function identityKeys(): IdentityKey[] {
-  const raw = process.env['INTERNAL_IDENTITY_HMAC_KEYS'] ?? process.env['INTERNAL_IDENTITY_HMAC_SECRET'] ?? '';
+  const raw =
+    process.env['INTERNAL_IDENTITY_HMAC_KEYS'] ??
+    process.env['INTERNAL_IDENTITY_HMAC_SECRET'] ??
+    '';
   return raw
     .split(',')
     .map((part, index) => {
@@ -244,7 +258,9 @@ function verifyHmac(secret: string, canonical: string, expectedHex: string): boo
   const actual = createHmac('sha256', secret).update(canonical).digest('hex');
   const actualBuffer = Buffer.from(actual, 'hex');
   const expectedBuffer = Buffer.from(expectedHex, 'hex');
-  return actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer);
+  return (
+    actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer)
+  );
 }
 
 function ensureFreshIssuedAt(iat: string): void {

@@ -19,5 +19,5 @@ set -euo pipefail
 BACKUP_FILE="mongo_backup_$(date +%Y%m%d).archive"
 
 echo "Creating MongoDB backup: ${BACKUP_FILE}"
-docker compose exec mongo mongodump --archive > "${BACKUP_FILE}"
+docker compose exec mongo mongodump --archive >"${BACKUP_FILE}"
 echo "Backup saved to ${BACKUP_FILE}"

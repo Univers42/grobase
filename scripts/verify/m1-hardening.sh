@@ -28,13 +28,16 @@ cd "${REPO_ROOT}"
 BAAS_DIR="."
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
 
-cyan()   { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()    { printf '\033[0;31m%s\033[0m\n' "$*"; }
-green()  { printf '\033[0;32m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 
-fail()   { red   "[M1] FAIL: $*"; exit 1; }
-step()   { cyan  "[M1] ${*}"; }
-pass()   { green "[M1] PASS: ${*}"; }
+fail() {
+  red "[M1] FAIL: $*"
+  exit 1
+}
+step() { cyan "[M1] ${*}"; }
+pass() { green "[M1] PASS: ${*}"; }
 
 # ── 1) Dockerfile HEALTHCHECK coverage ────────────────────────────────────────
 step "checking Dockerfile HEALTHCHECK coverage"
@@ -53,10 +56,10 @@ pass "every Dockerfile has a HEALTHCHECK"
 # evict them at the memory cap, and a disabled AOF rewrite grows the AOF file
 # without bound (a bench day put 250 MB into one untrimmed CDC stream).
 step "checking redis eviction + AOF-rewrite posture"
-grep -A16 '^  redis:' "${COMPOSE_FILE}" | grep -q 'maxmemory-policy volatile-lru' \
-  || fail "redis must use volatile-lru (allkeys-lru can evict outbox.* streams)"
-grep -A16 '^  redis:' "${COMPOSE_FILE}" | grep -q 'auto-aof-rewrite-percentage 100' \
-  || fail "redis AOF rewrite must be enabled (percentage 100; 0 = unbounded AOF growth)"
+grep -A16 '^  redis:' "${COMPOSE_FILE}" | grep -q 'maxmemory-policy volatile-lru' ||
+  fail "redis must use volatile-lru (allkeys-lru can evict outbox.* streams)"
+grep -A16 '^  redis:' "${COMPOSE_FILE}" | grep -q 'auto-aof-rewrite-percentage 100' ||
+  fail "redis AOF rewrite must be enabled (percentage 100; 0 = unbounded AOF growth)"
 pass "redis: volatile-lru + AOF rewrite enabled"
 
 # ── 2) IDatabaseAdapter contract surface ──────────────────────────────────────
@@ -81,17 +84,17 @@ for rust_adapter in \
   "${ROUTER_DIR}/crates/data-plane-pool/src/postgres.rs" \
   "${ROUTER_DIR}/crates/data-plane-pool/src/mongo.rs"; do
   [[ -f "${rust_adapter}" ]] || fail "${rust_adapter} (Rust replacement) missing"
-  grep -q "impl EngineAdapter" "${rust_adapter}" \
-    || fail "${rust_adapter} does not implement EngineAdapter"
+  grep -q "impl EngineAdapter" "${rust_adapter}" ||
+    fail "${rust_adapter} does not implement EngineAdapter"
   for method in "fn engine" "fn capabilities" "fn open_pool"; do
-    grep -q "${method}" "${rust_adapter}" \
-      || fail "${rust_adapter} missing method ${method}"
+    grep -q "${method}" "${rust_adapter}" ||
+      fail "${rust_adapter} missing method ${method}"
   done
 done
 
 # Dispatcher: query.service.ts must use a Map<engine, IDatabaseAdapter>, no if-chain.
-grep -q "Map<string, IDatabaseAdapter>" "${BAAS_DIR}/src/apps/query-router/src/query/query.service.ts" \
-  || fail "query.service.ts does not use Map<string, IDatabaseAdapter> dispatcher"
+grep -q "Map<string, IDatabaseAdapter>" "${BAAS_DIR}/src/apps/query-router/src/query/query.service.ts" ||
+  fail "query.service.ts does not use Map<string, IDatabaseAdapter> dispatcher"
 
 if grep -nE "engine === ['\"](postgresql|mongodb)['\"]" "${BAAS_DIR}/src/apps/query-router/src/query/query.service.ts" >/dev/null; then
   fail "query.service.ts still contains 'engine ===' branches — migrate to Map dispatcher"
@@ -110,8 +113,8 @@ pass "ExecuteQueryDto exposes op enum + legacy action fallback"
 step "checking 013_audit_log migration file"
 MIG="${BAAS_DIR}/scripts/migrations/postgresql/013_audit_log.sql"
 [[ -f "${MIG}" ]] || fail "${MIG} missing"
-grep -q "CREATE TABLE IF NOT EXISTS public.audit_log" "${MIG}" \
-  || fail "${MIG} does not create public.audit_log"
+grep -q "CREATE TABLE IF NOT EXISTS public.audit_log" "${MIG}" ||
+  fail "${MIG} does not create public.audit_log"
 grep -q "request_id" "${MIG}" || fail "${MIG} missing request_id column"
 pass "013_audit_log migration is well-formed"
 
@@ -126,8 +129,8 @@ done
 
 for svc in query-router mongo-api storage-router permission-engine gdpr-service session-service newsletter-service; do
   modf="${BAAS_DIR}/src/apps/${svc}/src/app.module.ts"
-  grep -q "AuditModule" "${modf}" \
-    || fail "${svc} app.module.ts does not import AuditModule"
+  grep -q "AuditModule" "${modf}" ||
+    fail "${svc} app.module.ts does not import AuditModule"
 done
 pass "AuditModule wired into 7 mutating services"
 
@@ -137,8 +140,8 @@ for app_dir in "${BAAS_DIR}"/src/apps/*/; do
   app="$(basename "${app_dir}")"
   main="${app_dir}src/main.ts"
   [[ -f "${main}" ]] || continue
-  grep -q "SwaggerModule.setup(" "${main}" \
-    || fail "${app} main.ts has no SwaggerModule.setup() call"
+  grep -q "SwaggerModule.setup(" "${main}" ||
+    fail "${app} main.ts has no SwaggerModule.setup() call"
 done
 pass "every NestJS app declares SwaggerModule.setup()"
 
@@ -151,10 +154,11 @@ done
 if [[ ${LIVE} -eq 1 ]]; then
   step "live: docker compose health"
   if ! command -v jq >/dev/null 2>&1; then
-    red "jq is required for --live mode"; exit 2
+    red "jq is required for --live mode"
+    exit 2
   fi
-  bad=$(docker compose -f "${COMPOSE_FILE}" ps --format json 2>/dev/null \
-    | jq -r '
+  bad=$(docker compose -f "${COMPOSE_FILE}" ps --format json 2>/dev/null |
+    jq -r '
         def row:
           if type == "array" then .[]
           elif type == "object" then .
@@ -166,27 +170,27 @@ if [[ ${LIVE} -eq 1 ]]; then
       ' || true)
   if [[ -n "${bad}" ]]; then
     red "  unhealthy / still-starting containers:"
-    while IFS= read -r line; do red "    - ${line}"; done <<< "${bad}"
+    while IFS= read -r line; do red "    - ${line}"; done <<<"${bad}"
     fail "at least one service is unhealthy"
   fi
   pass "every service reports healthy or has no healthcheck"
 
   step "live: /docs-json on every NestJS app"
   declare -A APP_PORTS=(
-    [mongo-api]=3010
+    [mongo - api]=3010
     # adapter-registry retired (Go is primary); skip from NestJS app probes
-    [email-service]=3030
-    [storage-router]=3040
-    [permission-engine]=3050
-    [schema-service]=3060
-    [analytics-service]=3070
-    [gdpr-service]=3080
-    [newsletter-service]=3090
-    [ai-service]=3100
-    [log-service]=3110
-    [session-service]=3120
-    [outbox-relay]=3130
-    [query-router]=4001
+    [email - service]=3030
+    [storage - router]=3040
+    [permission - engine]=3050
+    [schema - service]=3060
+    [analytics - service]=3070
+    [gdpr - service]=3080
+    [newsletter - service]=3090
+    [ai - service]=3100
+    [log - service]=3110
+    [session - service]=3120
+    [outbox - relay]=3130
+    [query - router]=4001
   )
   for app in "${!APP_PORTS[@]}"; do
     port="${APP_PORTS[$app]}"
@@ -199,9 +203,9 @@ if [[ ${LIVE} -eq 1 ]]; then
   step "live: audit_log migration applied"
   docker compose -f "${COMPOSE_FILE}" exec -T postgres \
     psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" -tAc \
-    "SELECT 1 FROM public.schema_migrations WHERE version = 13" \
-    | grep -q 1 \
-    || fail "migration 013_audit_log was not applied"
+    "SELECT 1 FROM public.schema_migrations WHERE version = 13" |
+    grep -q 1 ||
+    fail "migration 013_audit_log was not applied"
   pass "013_audit_log present in schema_migrations"
 fi
 

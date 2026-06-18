@@ -57,25 +57,28 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                 # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                      # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 DPR_DIR="${INFRA_DIR}/src/data-plane-router"
 MIGRATIONS="${INFRA_DIR}/scripts/migrations/postgresql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M122] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M122] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M122] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M122] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M122_PG_IMAGE:-postgres:16-alpine}"
 DPR_IMG="m122-dpr-$$:scratch"
 NET="m122net-$$"
 PRIMARY="m122-pg-primary-$$"
 REPLICA="m122-pg-replica-$$"
-DPR="m122-dpr-$$"                  # data-plane-router under test
+DPR="m122-dpr-$$" # data-plane-router under test
 PORT_DPR="${M122_PORT_DPR:-18993}"
 PGPW="postgres"
 PROBE_TABLE="m122_probe"
@@ -98,7 +101,7 @@ cleanup() {
 trap cleanup EXIT
 
 # psql against a named container.
-psql_in()  { docker exec -i "$1" psql -U postgres -d postgres -v ON_ERROR_STOP=1; }
+psql_in() { docker exec -i "$1" psql -U postgres -d postgres -v ON_ERROR_STOP=1; }
 psql_val() { docker exec -i "$1" psql -U postgres -d postgres -tAc "$2" 2>/dev/null | tr -d '[:space:]'; }
 
 # A list envelope for the probe table on the PRIMARY mount that ALSO carries a
@@ -125,10 +128,15 @@ wait_dpr() {
   for _ in $(seq 1 60); do
     curl -fsS -o /dev/null --max-time 3 "http://127.0.0.1:${PORT_DPR}/v1/capabilities" 2>/dev/null && return 0
     docker inspect -f '{{.State.Running}}' "${DPR}" 2>/dev/null | grep -q true || {
-      red "data-plane-router exited:"; docker logs "${DPR}" 2>&1 | tail -20; return 1; }
+      red "data-plane-router exited:"
+      docker logs "${DPR}" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "data-plane-router never became ready:"; docker logs "${DPR}" 2>&1 | tail -20; return 1
+  red "data-plane-router never became ready:"
+  docker logs "${DPR}" 2>&1 | tail -20
+  return 1
 }
 
 # Apply a postgresql migration that may carry a 42-school '#'-banner header. '#'
@@ -141,8 +149,8 @@ apply_mig() { # $1=container  $2=migration-file
 
 # ── 0) build scratch data-plane-router FROM CURRENT source (the S8 code) ───────
 step "0/7 build scratch data-plane-router from CURRENT source (the S8 routing code)"
-DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${DPR_IMG}" "${DPR_DIR}" >/dev/null \
-  || fail "scratch data-plane-router image build failed (line: docker build DPR)"
+DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${DPR_IMG}" "${DPR_DIR}" >/dev/null ||
+  fail "scratch data-plane-router image build failed (line: docker build DPR)"
 ok "scratch image built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated net + TWO independent postgres (primary + replica) ────────────
@@ -175,12 +183,20 @@ INSERT INTO public.${PROBE_TABLE}(id, served_by) VALUES ('sentinel','$2')
   ON CONFLICT (id) DO UPDATE SET served_by = EXCLUDED.served_by;
 SQL
 }
-for i in $(seq 1 20); do seed "${PRIMARY}" "primary" && break; [[ $i -eq 20 ]] && fail "primary seed never committed (line: primary seed loop)"; sleep 0.5; done
-for i in $(seq 1 20); do seed "${REPLICA}" "replica" && break; [[ $i -eq 20 ]] && fail "replica seed never committed (line: replica seed loop)"; sleep 0.5; done
-[[ "$(psql_val "${PRIMARY}" "SELECT served_by FROM public.${PROBE_TABLE} WHERE id='sentinel'")" == "primary" ]] \
-  || fail "primary sentinel not seeded (line: verify primary sentinel)"
-[[ "$(psql_val "${REPLICA}" "SELECT served_by FROM public.${PROBE_TABLE} WHERE id='sentinel'")" == "replica" ]] \
-  || fail "replica sentinel not seeded (line: verify replica sentinel)"
+for i in $(seq 1 20); do
+  seed "${PRIMARY}" "primary" && break
+  [[ $i -eq 20 ]] && fail "primary seed never committed (line: primary seed loop)"
+  sleep 0.5
+done
+for i in $(seq 1 20); do
+  seed "${REPLICA}" "replica" && break
+  [[ $i -eq 20 ]] && fail "replica seed never committed (line: replica seed loop)"
+  sleep 0.5
+done
+[[ "$(psql_val "${PRIMARY}" "SELECT served_by FROM public.${PROBE_TABLE} WHERE id='sentinel'")" == "primary" ]] ||
+  fail "primary sentinel not seeded (line: verify primary sentinel)"
+[[ "$(psql_val "${REPLICA}" "SELECT served_by FROM public.${PROBE_TABLE} WHERE id='sentinel'")" == "replica" ]] ||
+  fail "replica sentinel not seeded (line: verify replica sentinel)"
 ok "probe table seeded in both DBs with differing sentinels (primary≠replica)"
 
 # ── 3) ENFORCE ARM: data-plane-router WITH DATA_PLANE_READ_REPLICA=1 ──────────
@@ -201,33 +217,33 @@ for i in $(seq 1 20); do
   [[ "${R_CODE}" == "200" ]] && break
   sleep 0.5
 done
-[[ "${R_CODE}" == "200" ]] \
-  || fail "(ENFORCE) read expected 200, got ${R_CODE} — $(head -c 400 "${BODY_TMP}") (line: ENFORCE read 200)"
-grep -q '"served_by":"replica"\|"served_by": "replica"' "${BODY_TMP}" \
-  || fail "(ENFORCE) read did NOT hit the replica — body had no served_by=replica: $(head -c 400 "${BODY_TMP}") (line: ENFORCE read replica)"
-grep -q '"served_by":"primary"\|"served_by": "primary"' "${BODY_TMP}" \
-  && fail "(ENFORCE) read returned the PRIMARY sentinel — routing did not select the replica: $(head -c 400 "${BODY_TMP}") (line: ENFORCE read not-primary)"
+[[ "${R_CODE}" == "200" ]] ||
+  fail "(ENFORCE) read expected 200, got ${R_CODE} — $(head -c 400 "${BODY_TMP}") (line: ENFORCE read 200)"
+grep -q '"served_by":"replica"\|"served_by": "replica"' "${BODY_TMP}" ||
+  fail "(ENFORCE) read did NOT hit the replica — body had no served_by=replica: $(head -c 400 "${BODY_TMP}") (line: ENFORCE read replica)"
+grep -q '"served_by":"primary"\|"served_by": "primary"' "${BODY_TMP}" &&
+  fail "(ENFORCE) read returned the PRIMARY sentinel — routing did not select the replica: $(head -c 400 "${BODY_TMP}") (line: ENFORCE read not-primary)"
 ok "(ENFORCE) flag-ON read served from the REPLICA pool (sentinel=replica)"
 
 # ── 5) ENFORCE: WRITE must land on the PRIMARY (not the replica) ─────────────
 step "5/7 (ENFORCE) WRITE (op=insert) with flag ON → new row on PRIMARY, ABSENT on replica"
 WROW="w-$$-1"
 W_CODE="$(post_q "$(payload_insert "${WROW}")")"
-[[ "${W_CODE}" == "200" || "${W_CODE}" == "201" ]] \
-  || fail "(ENFORCE) write expected 2xx, got ${W_CODE} — $(head -c 400 "${BODY_TMP}") (line: ENFORCE write 2xx)"
-[[ "$(psql_val "${PRIMARY}" "SELECT count(*) FROM public.${PROBE_TABLE} WHERE id='${WROW}'")" == "1" ]] \
-  || fail "(ENFORCE) the written row is NOT on the PRIMARY — writes must stay primary (line: ENFORCE write on primary)"
-[[ "$(psql_val "${REPLICA}" "SELECT count(*) FROM public.${PROBE_TABLE} WHERE id='${WROW}'")" == "0" ]] \
-  || fail "(ENFORCE) the written row LEAKED onto the replica — writes must NOT touch the replica (line: ENFORCE write not on replica)"
+[[ "${W_CODE}" == "200" || "${W_CODE}" == "201" ]] ||
+  fail "(ENFORCE) write expected 2xx, got ${W_CODE} — $(head -c 400 "${BODY_TMP}") (line: ENFORCE write 2xx)"
+[[ "$(psql_val "${PRIMARY}" "SELECT count(*) FROM public.${PROBE_TABLE} WHERE id='${WROW}'")" == "1" ]] ||
+  fail "(ENFORCE) the written row is NOT on the PRIMARY — writes must stay primary (line: ENFORCE write on primary)"
+[[ "$(psql_val "${REPLICA}" "SELECT count(*) FROM public.${PROBE_TABLE} WHERE id='${WROW}'")" == "0" ]] ||
+  fail "(ENFORCE) the written row LEAKED onto the replica — writes must NOT touch the replica (line: ENFORCE write not on replica)"
 ok "(ENFORCE) flag-ON write landed on the PRIMARY and is absent on the replica"
 
 # ── 5b) ENFORCE: a READ after the write still hits the REPLICA ───────────────
 step "5b/7 (ENFORCE) READ again after the write → still 200 + sentinel=='replica'"
 R2_CODE="$(post_q "$(payload_list)")"
-[[ "${R2_CODE}" == "200" ]] \
-  || fail "(ENFORCE) second read expected 200, got ${R2_CODE} — $(head -c 400 "${BODY_TMP}") (line: ENFORCE read2 200)"
-grep -q '"served_by":"replica"\|"served_by": "replica"' "${BODY_TMP}" \
-  || fail "(ENFORCE) second read stopped hitting the replica after a write: $(head -c 400 "${BODY_TMP}") (line: ENFORCE read2 replica)"
+[[ "${R2_CODE}" == "200" ]] ||
+  fail "(ENFORCE) second read expected 200, got ${R2_CODE} — $(head -c 400 "${BODY_TMP}") (line: ENFORCE read2 200)"
+grep -q '"served_by":"replica"\|"served_by": "replica"' "${BODY_TMP}" ||
+  fail "(ENFORCE) second read stopped hitting the replica after a write: $(head -c 400 "${BODY_TMP}") (line: ENFORCE read2 replica)"
 ok "(ENFORCE) reads keep hitting the replica after a write (write did not move reads)"
 
 # ── 6) PARITY ARM: restart the router WITHOUT the flag → reads see the PRIMARY ─
@@ -245,12 +261,12 @@ for i in $(seq 1 20); do
   [[ "${P_CODE}" == "200" ]] && break
   sleep 0.5
 done
-[[ "${P_CODE}" == "200" ]] \
-  || fail "(PARITY) read expected 200, got ${P_CODE} — $(head -c 400 "${BODY_TMP}") (line: PARITY read 200)"
-grep -q '"served_by":"primary"\|"served_by": "primary"' "${BODY_TMP}" \
-  || fail "(PARITY) flag-OFF read did NOT see the primary — the replica DSN must be IGNORED: $(head -c 400 "${BODY_TMP}") (line: PARITY read primary)"
-grep -q '"served_by":"replica"\|"served_by": "replica"' "${BODY_TMP}" \
-  && fail "(PARITY) flag-OFF read hit the replica — byte-parity broken: $(head -c 400 "${BODY_TMP}") (line: PARITY read not-replica)"
+[[ "${P_CODE}" == "200" ]] ||
+  fail "(PARITY) read expected 200, got ${P_CODE} — $(head -c 400 "${BODY_TMP}") (line: PARITY read 200)"
+grep -q '"served_by":"primary"\|"served_by": "primary"' "${BODY_TMP}" ||
+  fail "(PARITY) flag-OFF read did NOT see the primary — the replica DSN must be IGNORED: $(head -c 400 "${BODY_TMP}") (line: PARITY read primary)"
+grep -q '"served_by":"replica"\|"served_by": "replica"' "${BODY_TMP}" &&
+  fail "(PARITY) flag-OFF read hit the replica — byte-parity broken: $(head -c 400 "${BODY_TMP}") (line: PARITY read not-replica)"
 ok "(PARITY) flag-OFF read served from the PRIMARY (replica DSN ignored = today's behaviour)"
 
 # ── 7) summary ────────────────────────────────────────────────────────────────
@@ -261,7 +277,8 @@ green "[M122] ALL GATES GREEN — read-replica routing mechanism proven (non-vac
 
 # ── log the gate event via the kernel helper (best-effort, JSONL) ─────────────
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-s8-read-replica-routing}"

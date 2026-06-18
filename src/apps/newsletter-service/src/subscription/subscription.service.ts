@@ -62,10 +62,13 @@ export class SubscriptionService implements OnModuleInit {
 
   /** Subscribe an email. Reactivates if previously unsubscribed. */
   async subscribe(email: string, firstName?: string) {
-    const existing = await this.pg.adminQuery<{ id: string; is_active: boolean; first_name: string }>(
-      `SELECT id, is_active, first_name FROM newsletter.subscriber WHERE email = $1 LIMIT 1`,
-      [email],
-    );
+    const existing = await this.pg.adminQuery<{
+      id: string;
+      is_active: boolean;
+      first_name: string;
+    }>(`SELECT id, is_active, first_name FROM newsletter.subscriber WHERE email = $1 LIMIT 1`, [
+      email,
+    ]);
 
     if (existing.length > 0) {
       const sub = existing[0];
@@ -166,7 +169,7 @@ export class SubscriptionService implements OnModuleInit {
         body: JSON.stringify({
           to: email,
           subject: 'Confirm your newsletter subscription',
-             html: `<p>Hello${greetingName},</p>
+          html: `<p>Hello${greetingName},</p>
                  <p>Please confirm your subscription by clicking the link below:</p>
                  <p><a href="${confirmUrl}">Confirm subscription</a></p>
                  <p>If you did not subscribe, you can safely ignore this email.</p>`,

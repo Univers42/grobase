@@ -21,8 +21,8 @@
 # Writes artifacts/nano-vs-pocketbase.json + a human table.
 
 set -euo pipefail
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -34,7 +34,7 @@ NANO_PORT=18941
 PB_PORT=18942
 WORK="$(mktemp -d)"
 
-cleanup(){
+cleanup() {
   # -v: binocle-nano declares VOLUME /data — drop its anonymous volume too.
   docker rm -fv bench-nano bench-pb >/dev/null 2>&1 || true
   # pb_data is written by root inside the PB container — remove it the same way.
@@ -46,7 +46,10 @@ trap cleanup EXIT
 
 # ── boot binocle-nano ────────────────────────────────────────────────────────
 cyan "[bench] booting binocle-nano (:${NANO_PORT})"
-docker image inspect binocle-nano >/dev/null 2>&1 || { echo "build first: make nano-build"; exit 1; }
+docker image inspect binocle-nano >/dev/null 2>&1 || {
+  echo "build first: make nano-build"
+  exit 1
+}
 NK="bench-admin-$(date +%s)"
 docker run -d --name bench-nano -p "${NANO_PORT}:8090" -e NANO_ADMIN_KEY="${NK}" binocle-nano >/dev/null
 NANO="http://127.0.0.1:${NANO_PORT}"
@@ -66,7 +69,10 @@ PB="http://127.0.0.1:${PB_PORT}"
 
 for i in $(seq 1 30); do
   curl -sf "${NANO}/v1/health" >/dev/null 2>&1 && curl -sf "${PB}/api/health" >/dev/null 2>&1 && break
-  [[ $i -eq 30 ]] && { echo "boot timeout"; exit 1; }
+  [[ $i -eq 30 ]] && {
+    echo "boot timeout"
+    exit 1
+  }
   sleep 0.5
 done
 
@@ -78,30 +84,33 @@ curl -s -X POST "${NANO}/nano/v1/raw" -H "X-Baas-Api-Key: ${NK}" -H "Content-Typ
 docker exec bench-pb /pb/pocketbase superuser upsert bench@local.dev super-secret-pw-123 --dir /pb/pb_data >/dev/null 2>&1
 PB_TOKEN=$(curl -s -X POST "${PB}/api/collections/_superusers/auth-with-password" \
   -H "Content-Type: application/json" \
-  -d '{"identity":"bench@local.dev","password":"super-secret-pw-123"}' \
-  | python3 -c 'import sys,json;print(json.load(sys.stdin).get("token",""))')
-[[ -n "${PB_TOKEN}" ]] || { echo "PocketBase auth failed"; exit 1; }
+  -d '{"identity":"bench@local.dev","password":"super-secret-pw-123"}' |
+  python3 -c 'import sys,json;print(json.load(sys.stdin).get("token",""))')
+[[ -n "${PB_TOKEN}" ]] || {
+  echo "PocketBase auth failed"
+  exit 1
+}
 curl -s -X POST "${PB}/api/collections" -H "Authorization: ${PB_TOKEN}" -H "Content-Type: application/json" \
   -d '{"name":"notes","type":"base","fields":[{"name":"title","type":"text"}]}' >/dev/null
 
 # ── latency: N sequential inserts + N sequential lists ──────────────────────
-ms_per_req(){ # cmd-prefix array via "$@"; echoes ms/req for N runs
+ms_per_req() { # cmd-prefix array via "$@"; echoes ms/req for N runs
   local start end
   start=$(date +%s%N)
   for i in $(seq 1 "${N}"); do "$@" >/dev/null; done
   end=$(date +%s%N)
-  awk -v d=$(( end - start )) -v n="${N}" 'BEGIN{printf "%.1f", d/1000000/n}'
+  awk -v d=$((end - start)) -v n="${N}" 'BEGIN{printf "%.1f", d/1000000/n}'
 }
 
 cyan "[bench] ${N} sequential inserts each"
 NANO_INS=$(ms_per_req curl -s -X POST "${NANO}/data/v1/query" -H "X-Baas-Api-Key: ${NK}" -H "Content-Type: application/json" \
-  --data-raw '{"db_id":"main","operation":{"op":"insert","resource":"notes","data":{"title":"bench"}}}' )
+  --data-raw '{"db_id":"main","operation":{"op":"insert","resource":"notes","data":{"title":"bench"}}}')
 PB_INS=$(ms_per_req curl -s -X POST "${PB}/api/collections/notes/records" -H "Authorization: ${PB_TOKEN}" -H "Content-Type: application/json" \
-  --data-raw '{"title":"bench"}' )
+  --data-raw '{"title":"bench"}')
 
 cyan "[bench] ${N} sequential list reads each (limit 30)"
 NANO_LIST=$(ms_per_req curl -s -X POST "${NANO}/data/v1/query" -H "X-Baas-Api-Key: ${NK}" -H "Content-Type: application/json" \
-  --data-raw '{"db_id":"main","operation":{"op":"list","resource":"notes","limit":30}}' )
+  --data-raw '{"db_id":"main","operation":{"op":"list","resource":"notes","limit":30}}')
 PB_LIST=$(ms_per_req curl -s "${PB}/api/collections/notes/records?perPage=30" -H "Authorization: ${PB_TOKEN}")
 
 # ── footprint ────────────────────────────────────────────────────────────────
@@ -127,5 +136,5 @@ printf '{"generated":"%s","pocketbase_version":"%s","n":%s,"nano":{"image_mb":%s
   "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${PB_VERSION}" "${N}" \
   "${NANO_BIN_MB}" "${NANO_MEM}" "${NANO_INS}" "${NANO_LIST}" \
   "${PB_BIN_MB}" "${PB_MEM}" "${PB_INS}" "${PB_LIST}" \
-  > artifacts/nano-vs-pocketbase.json
+  >artifacts/nano-vs-pocketbase.json
 green "→ artifacts/nano-vs-pocketbase.json"

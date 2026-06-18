@@ -60,8 +60,8 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 MIGRATION_005="${MIG_DIR}/005_add_tenant_table.sql"
@@ -69,19 +69,22 @@ MIGRATION_032="${MIG_DIR}/032_tenants.sql"
 MIGRATION_049="${MIG_DIR}/049_tenant_ip_allowlist.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M106] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M106] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M106] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M106] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M106_PG_IMAGE:-postgres:16-alpine}"
 TC_IMG="m106-tc-$$:scratch"
 NET="m106net-$$"
 PG="m106-pg-$$"
-TC_ON="m106-tc-on-$$"      # TENANT_IP_ALLOWLIST_ENABLED=1   (A · positive / B · reject)
-TC_OFF="m106-tc-off-$$"    # TENANT_IP_ALLOWLIST_ENABLED unset (C · parity)
+TC_ON="m106-tc-on-$$"   # TENANT_IP_ALLOWLIST_ENABLED=1   (A · positive / B · reject)
+TC_OFF="m106-tc-off-$$" # TENANT_IP_ALLOWLIST_ENABLED unset (C · parity)
 PORT_ON="${M106_PORT_ON:-19106}"
 PORT_OFF="${M106_PORT_OFF:-19107}"
 PGPW="postgres"
@@ -90,13 +93,15 @@ SVC_TOKEN="m106-internal-service-token-$$"
 BODY_TMP="$(mktemp)"
 
 # Two tenant slugs: T gets an allowlist, U stays unconfigured (opt-in control).
-T_SLUG="m106-tenant-t-$$"; T_SLUG="$(echo "${T_SLUG}" | tr '[:upper:]' '[:lower:]' | cut -c1-60)"
-U_SLUG="m106-tenant-u-$$"; U_SLUG="$(echo "${U_SLUG}" | tr '[:upper:]' '[:lower:]' | cut -c1-60)"
+T_SLUG="m106-tenant-t-$$"
+T_SLUG="$(echo "${T_SLUG}" | tr '[:upper:]' '[:lower:]' | cut -c1-60)"
+U_SLUG="m106-tenant-u-$$"
+U_SLUG="$(echo "${U_SLUG}" | tr '[:upper:]' '[:lower:]' | cut -c1-60)"
 
 # The IPs under test.
-IP_IN="10.1.2.3"        # inside 10.0.0.0/8
-IP_OUT="203.0.113.9"    # outside 10.0.0.0/8
-IP_IN2="192.168.4.7"    # inside the self-serve-added 192.168.0.0/16
+IP_IN="10.1.2.3"     # inside 10.0.0.0/8
+IP_OUT="203.0.113.9" # outside 10.0.0.0/8
+IP_IN2="192.168.4.7" # inside the self-serve-added 192.168.0.0/16
 
 cleanup() {
   docker rm -fv "${TC_ON}" "${TC_OFF}" "${PG}" >/dev/null 2>&1 || true
@@ -107,7 +112,7 @@ cleanup() {
 trap cleanup EXIT
 
 # shellcheck disable=SC2120  # psql_q is called both with flags and via heredoc (no args)
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 
 # Apply one migration the SAME way `make migrate` does: strip leading 42-header
@@ -155,17 +160,23 @@ wait_ready_http() { # $1=container $2=port $3=path
   local i
   for i in $(seq 1 60); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2$3" 2>/dev/null)" == "200" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # ── 0) build the scratch tenant-control FROM CURRENT source ────────────────────
 step "0/9 build scratch tenant-control from CURRENT source (the D2e ipguard code)"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT=3020 \
-  -t "${TC_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch tenant-control image build failed — gate must exercise the drafted D2e code (line: docker build TC)"
+  -t "${TC_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch tenant-control image build failed — gate must exercise the drafted D2e code (line: docker build TC)"
 ok "tenant-control built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated net + postgres + prelude + REAL 005/032 + NEW 049 ──────────────
@@ -175,9 +186,12 @@ docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD="${PGPW}" "
 # Postgres image init runs a SOCKET-ONLY temp server then restarts — gate on TCP
 # (pg_isready -h 127.0.0.1) + a real SELECT 1, not on the steady-state log alone.
 for i in $(seq 1 90); do
-  docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 \
-    && [[ "$(psql_val 'SELECT 1')" == "1" ]] && break
-  [[ $i -eq 90 ]] && { docker logs "${PG}" 2>&1 | tail -20; fail "scratch postgres never accepted TCP (line: PG TCP ready)"; }
+  docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 &&
+    [[ "$(psql_val 'SELECT 1')" == "1" ]] && break
+  [[ $i -eq 90 ]] && {
+    docker logs "${PG}" 2>&1 | tail -20
+    fail "scratch postgres never accepted TCP (line: PG TCP ready)"
+  }
   sleep 0.5
 done
 ok "postgres up (TCP + SELECT 1)"
@@ -208,19 +222,23 @@ GRANT EXECUTE ON FUNCTION auth.current_user_id()   TO anon, authenticated, servi
 GRANT EXECUTE ON FUNCTION auth.current_tenant_id() TO anon, authenticated, service_role;
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
 
 apply_migration "${MIGRATION_005}" || fail "real migration 005 failed to apply (line: apply 005)"
 apply_migration "${MIGRATION_032}" || fail "real migration 032 failed to apply (line: apply 032)"
 apply_migration "${MIGRATION_049}" || fail "NEW migration 049_tenant_ip_allowlist.sql failed to apply (line: apply 049)"
 
 # Table exists + empty; the unique constraint + index landed; RLS enabled.
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_ip_allowlist")" == "0" ]] \
-  || fail "tenant_ip_allowlist should start EMPTY (line: allowlist empty)"
-[[ "$(psql_val "SELECT count(*) FROM pg_indexes WHERE tablename='tenant_ip_allowlist' AND indexname='tenant_ip_allowlist_tenant_idx'")" == "1" ]] \
-  || fail "tenant-scoped index missing from 049 (line: allowlist idx)"
-[[ "$(psql_val "SELECT relrowsecurity FROM pg_class WHERE relname='tenant_ip_allowlist'")" == "t" ]] \
-  || fail "RLS not enabled on tenant_ip_allowlist by 049 (line: allowlist rls)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_ip_allowlist")" == "0" ]] ||
+  fail "tenant_ip_allowlist should start EMPTY (line: allowlist empty)"
+[[ "$(psql_val "SELECT count(*) FROM pg_indexes WHERE tablename='tenant_ip_allowlist' AND indexname='tenant_ip_allowlist_tenant_idx'")" == "1" ]] ||
+  fail "tenant-scoped index missing from 049 (line: allowlist idx)"
+[[ "$(psql_val "SELECT relrowsecurity FROM pg_class WHERE relname='tenant_ip_allowlist'")" == "t" ]] ||
+  fail "RLS not enabled on tenant_ip_allowlist by 049 (line: allowlist rls)"
 ok "migrations applied — tenant_ip_allowlist empty, tenant index present, RLS on"
 
 # ── 2) boot tenant-control with TENANT_IP_ALLOWLIST_ENABLED=1 + self-serve ─────
@@ -236,8 +254,11 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3020" "${TC_IMG}" >/dev/null
 wait_ready_http "${TC_ON}" "${PORT_ON}" /health/live || fail "IPGUARD-ON tenant-control not ready (line: wait TC_ON)"
-{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "tenant IP allowlist enabled" \
-  || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "ip-allowlist never reported enabled (line: ip enabled log)"; }
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "tenant IP allowlist enabled" ||
+  {
+    docker logs "${TC_ON}" 2>&1 | tail -20
+    fail "ip-allowlist never reported enabled (line: ip enabled log)"
+  }
 ok "IPGUARD-ON tenant-control up (/v1/ipguard* + ip-allowlist routes mounted)"
 
 # Create T and U via the admin API + mint an API key for T (self-serve auth),
@@ -258,8 +279,8 @@ ok "T + U created (both nano); T API key minted (self-serve auth ready)"
 step "3/9 (A · POSITIVE) admin adds 10.0.0.0/8 to T's allowlist; EDGE check for ${IP_IN} → 200 allow=true"
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${T_SLUG}/ip-allowlist" '{"cidr":"10.0.0.0/8","note":"office"}')"
 [[ "${C}" == "201" ]] || fail "(A) add CIDR expected 201, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A add cidr)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_ip_allowlist WHERE tenant_id='${T_SLUG}'")" == "1" ]] \
-  || fail "(A) the allowlist row did not persist for T (line: A row persist)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_ip_allowlist WHERE tenant_id='${T_SLUG}'")" == "1" ]] ||
+  fail "(A) the allowlist row did not persist for T (line: A row persist)"
 C="$(edge_check "${PORT_ON}" "${T_SLUG}" "${IP_IN}")"
 [[ "${C}" == "200" ]] || fail "(A) edge /check expected 200, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A check status)"
 [[ "$(json_field allow)" == "true" ]] || fail "(A) in-range IP ${IP_IN} was NOT allowed — $(head -c 300 "${BODY_TMP}") (line: A in-range allow)"
@@ -274,8 +295,8 @@ C="$(self_req GET "${PORT_ON}" "/v1/tenants/me/ip-allowlist" "${T_KEY}")"
 [[ "${C}" == "200" ]] || fail "(A) self-serve list expected 200, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A self list)"
 [[ "$(json_field count)" == "2" ]] || fail "(A) T should now have 2 rules — $(head -c 300 "${BODY_TMP}") (line: A two rules)"
 C="$(edge_check "${PORT_ON}" "${T_SLUG}" "${IP_IN2}")"
-[[ "${C}" == "200" && "$(json_field allow)" == "true" ]] \
-  || fail "(A) the self-serve-added 192.168.0.0/16 was not enforced for ${IP_IN2} — $(head -c 300 "${BODY_TMP}") (line: A self enforced)"
+[[ "${C}" == "200" && "$(json_field allow)" == "true" ]] ||
+  fail "(A) the self-serve-added 192.168.0.0/16 was not enforced for ${IP_IN2} — $(head -c 300 "${BODY_TMP}") (line: A self enforced)"
 ok "(A) self-serve CRUD works; the new rule is enforced (${IP_IN2} → allow=true)"
 
 # ── 4) (B · LOAD-BEARING REJECT) ───────────────────────────────────────────────
@@ -284,25 +305,25 @@ step "4/9 (B · REJECT) out-of-range 403 · unconfigured tenant open · bad CIDR
 # B(a) — out-of-range IP for the RESTRICTED tenant → allow=false (REALLY blocked).
 C="$(edge_check "${PORT_ON}" "${T_SLUG}" "${IP_OUT}")"
 [[ "${C}" == "200" ]] || fail "(B a) edge /check expected 200 envelope, got ${C} — $(head -c 300 "${BODY_TMP}") (line: B a status)"
-[[ "$(json_field allow)" == "false" ]] \
-  || fail "(B a) OUT-OF-RANGE IP ${IP_OUT} was ALLOWED (allow!=false) — the allowlist is a vacuous always-allow! — $(head -c 300 "${BODY_TMP}") (line: B a out-of-range deny)"
-[[ "$(json_field reason)" == "not_in_allowlist" ]] \
-  || fail "(B a) out-of-range reason != not_in_allowlist — $(head -c 300 "${BODY_TMP}") (line: B a reason)"
+[[ "$(json_field allow)" == "false" ]] ||
+  fail "(B a) OUT-OF-RANGE IP ${IP_OUT} was ALLOWED (allow!=false) — the allowlist is a vacuous always-allow! — $(head -c 300 "${BODY_TMP}") (line: B a out-of-range deny)"
+[[ "$(json_field reason)" == "not_in_allowlist" ]] ||
+  fail "(B a) out-of-range reason != not_in_allowlist — $(head -c 300 "${BODY_TMP}") (line: B a reason)"
 ok "(B a) out-of-range ${IP_OUT} → allow=false reason=not_in_allowlist (the block is REAL, the edge returns 403)"
 
 # B(b) — a tenant with NO allowlist row → ANY IP allowed (opt-in default).
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_ip_allowlist WHERE tenant_id='${U_SLUG}'")" == "0" ]] \
-  || fail "(B b) tenant U should have NO allowlist row (line: B b U empty)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_ip_allowlist WHERE tenant_id='${U_SLUG}'")" == "0" ]] ||
+  fail "(B b) tenant U should have NO allowlist row (line: B b U empty)"
 C="$(edge_check "${PORT_ON}" "${U_SLUG}" "${IP_OUT}")"
-[[ "${C}" == "200" && "$(json_field allow)" == "true" && "$(json_field restricted)" == "false" ]] \
-  || fail "(B b) unconfigured tenant U did NOT default to OPEN for ${IP_OUT} (got allow=$(json_field allow) restricted=$(json_field restricted)) — the feature is not opt-in! — $(head -c 300 "${BODY_TMP}") (line: B b opt-in)"
+[[ "${C}" == "200" && "$(json_field allow)" == "true" && "$(json_field restricted)" == "false" ]] ||
+  fail "(B b) unconfigured tenant U did NOT default to OPEN for ${IP_OUT} (got allow=$(json_field allow) restricted=$(json_field restricted)) — the feature is not opt-in! — $(head -c 300 "${BODY_TMP}") (line: B b opt-in)"
 ok "(B b) unconfigured tenant U → ANY IP allow=true restricted=false (the feature is OPT-IN, an unset tenant is as open as today)"
 
 # B(c) — a malformed CIDR add → 400 (not silently accepted).
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${T_SLUG}/ip-allowlist" '{"cidr":"not-a-cidr"}')"
 [[ "${C}" == "400" ]] || fail "(B c) a malformed CIDR was accepted (got ${C}, want 400) — the validator is OPEN! — $(head -c 300 "${BODY_TMP}") (line: B c bad cidr)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_ip_allowlist WHERE tenant_id='${T_SLUG}'")" == "2" ]] \
-  || fail "(B c) a row appeared despite the 400 — the bad CIDR leaked into the DB (line: B c no leak)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_ip_allowlist WHERE tenant_id='${T_SLUG}'")" == "2" ]] ||
+  fail "(B c) a row appeared despite the 400 — the bad CIDR leaked into the DB (line: B c no leak)"
 ok "(B c) malformed CIDR → 400 and no row created"
 
 # B(d) — cross-tenant DELETE: take one of T's rule ids, try to delete it under U's
@@ -311,13 +332,13 @@ RULE_ID="$(psql_val "SELECT id::text FROM public.tenant_ip_allowlist WHERE tenan
 [[ -n "${RULE_ID}" ]] || fail "(B d) could not read a rule id for T (line: B d rule id)"
 C="$(admin_req DELETE "${PORT_ON}" "/v1/tenants/${U_SLUG}/ip-allowlist/${RULE_ID}")"
 [[ "${C}" == "404" ]] || fail "(B d) cross-tenant DELETE of T's rule under U returned ${C} (want 404) — rules are NOT tenant-bound! (line: B d cross-tenant)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_ip_allowlist WHERE id::text='${RULE_ID}'")" == "1" ]] \
-  || fail "(B d) T's rule was deleted via U's id — cross-tenant DELETE succeeded! (line: B d rule survives)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_ip_allowlist WHERE id::text='${RULE_ID}'")" == "1" ]] ||
+  fail "(B d) T's rule was deleted via U's id — cross-tenant DELETE succeeded! (line: B d rule survives)"
 ok "(B d) cross-tenant DELETE → 404 and T's rule survives (rules are tenant-bound)"
 
 # B(e) — the edge /check WITHOUT the service token → 401 (a tenant cannot self-decide).
 C="$(curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_ON}/v1/ipguard/check" \
-      -H 'Content-Type: application/json' -d "{\"tenant_id\":\"${T_SLUG}\",\"ip\":\"${IP_IN}\"}")"
+  -H 'Content-Type: application/json' -d "{\"tenant_id\":\"${T_SLUG}\",\"ip\":\"${IP_IN}\"}")"
 [[ "${C}" == "401" ]] || fail "(B e) edge /check without a service token returned ${C} (want 401) — the decision endpoint is OPEN! (line: B e no token)"
 ok "(B e) edge /check without the service token → 401 (only the edge/gateway may ask)"
 
@@ -332,16 +353,19 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3020" "${TC_IMG}" >/dev/null
 wait_ready_http "${TC_OFF}" "${PORT_OFF}" /health/live || fail "IPGUARD-OFF tenant-control not ready (line: wait TC_OFF)"
-{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "tenant IP allowlist disabled" \
-  || { docker logs "${TC_OFF}" 2>&1 | tail -20; fail "(C) OFF instance did not report ip-allowlist disabled (flag default not OFF?) (line: C disabled log)"; }
+{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "tenant IP allowlist disabled" ||
+  {
+    docker logs "${TC_OFF}" 2>&1 | tail -20
+    fail "(C) OFF instance did not report ip-allowlist disabled (flag default not OFF?) (line: C disabled log)"
+  }
 ok "IPGUARD-OFF tenant-control up (flag default OFF)"
 
 # C(a) — the edge /check route → 404 (not mounted). With no /check, the live edge
 # has nothing to call, so a tenant WITH an allowlist row is simply NOT enforced —
 # byte-identical to today (the allowlist is inert).
 C="$(curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_OFF}/v1/ipguard/check" \
-      -H "X-Service-Token: ${SVC_TOKEN}" -H 'Content-Type: application/json' \
-      -d "{\"tenant_id\":\"${T_SLUG}\",\"ip\":\"${IP_OUT}\"}")"
+  -H "X-Service-Token: ${SVC_TOKEN}" -H 'Content-Type: application/json' \
+  -d "{\"tenant_id\":\"${T_SLUG}\",\"ip\":\"${IP_OUT}\"}")"
 [[ "${C}" == "404" ]] || fail "(C a) edge /check with flag OFF expected 404 (route not mounted), got ${C} — the guard leaked! (line: C a check 404)"
 # C(b) — the CRUD routes → 404 (not mounted) for admin AND self.
 C="$(admin_req GET "${PORT_OFF}" "/v1/tenants/${T_SLUG}/ip-allowlist")"
@@ -354,8 +378,8 @@ ok "(C a/b) flag OFF → /v1/ipguard/check + ip-allowlist routes all 404 (the gu
 # allowlist row is STILL in the DB (additive table) but inert.
 C="$(admin_req GET "${PORT_OFF}" "/v1/tenants/${T_SLUG}")"
 [[ "${C}" == "200" ]] || fail "(C c) base admin GET /v1/tenants/{id} expected 200 on OFF router, got ${C} — $(head -c 300 "${BODY_TMP}") (line: C c admin 200)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_ip_allowlist WHERE tenant_id='${T_SLUG}'")" == "2" ]] \
-  || fail "(C c) T's allowlist rows vanished — the table must persist (inert), not be torn down (line: C c rows persist)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_ip_allowlist WHERE tenant_id='${T_SLUG}'")" == "2" ]] ||
+  fail "(C c) T's allowlist rows vanished — the table must persist (inert), not be torn down (line: C c rows persist)"
 ok "(C c) base admin /v1/tenants/{id} still 200; T's 2 allowlist rows persist in the DB but are INERT (byte-parity, purely additive + opt-in)"
 
 # ── 6) summary + gate log ──────────────────────────────────────────────────────
@@ -365,7 +389,8 @@ green "[M106] (B) REJECT:   out-of-range ${IP_OUT} → allow=false not_in_allowl
 green "[M106] (C) PARITY:   TENANT_IP_ALLOWLIST_ENABLED unset → /v1/ipguard/check + ip-allowlist routes 404, base admin 200, T's allowlist rows persist but INERT (byte-identical to today)"
 
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-d2e-ip-allowlist}"

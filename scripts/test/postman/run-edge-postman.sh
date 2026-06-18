@@ -54,37 +54,40 @@ BANNER
 
 # ── paths ──────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"          # repo root (script now at scripts/test/postman/)
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)" # repo root (script now at scripts/test/postman/)
 POSTMAN_DIR="${INFRA_DIR}/infra/config/postman"
 CORPUS="${POSTMAN_DIR}/corpus/edge-corpus.json"
 # EDGE_SMOKE=1 runs a representative per-category subset (fast, low stack load).
 RUN_CORPUS_FILE="edge-corpus.json"
 [[ "${EDGE_SMOKE:-0}" == "1" ]] && RUN_CORPUS_FILE="edge-corpus.smoke.json"
 COLLECTION="grobase-edge.postman_collection.json"
-GEN_ENV="grobase-edge.generated.env.json"              # written into POSTMAN_DIR
+GEN_ENV="grobase-edge.generated.env.json" # written into POSTMAN_DIR
 REPORT_DIR="${INFRA_DIR}/artifacts/test"
 NEWMAN_IMAGE="${NEWMAN_IMAGE:-mini-baas-newman:local}"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-yellow(){ printf '\033[0;33m%s\033[0m\n' "$*"; }
-step()  { cyan "[edge] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[edge] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+yellow() { printf '\033[0;33m%s\033[0m\n' "$*"; }
+step() { cyan "[edge] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[edge] FAIL — $*"
+  exit 1
+}
 
 # ── 0) prerequisites ───────────────────────────────────────────────────────
 step "0/5 prerequisites (docker, jq, curl, running stack, corpus, collection)"
 command -v docker >/dev/null 2>&1 || fail "docker is required"
-command -v jq     >/dev/null 2>&1 || fail "jq is required (emit env, count corpus)"
-command -v curl   >/dev/null 2>&1 || fail "curl is required (warm the verify-cache)"
-docker inspect mini-baas-kong           >/dev/null 2>&1 || fail "mini-baas-kong not running — start the stack (make up EDITION=full)"
+command -v jq >/dev/null 2>&1 || fail "jq is required (emit env, count corpus)"
+command -v curl >/dev/null 2>&1 || fail "curl is required (warm the verify-cache)"
+docker inspect mini-baas-kong >/dev/null 2>&1 || fail "mini-baas-kong not running — start the stack (make up EDITION=full)"
 docker inspect mini-baas-tenant-control >/dev/null 2>&1 || fail "mini-baas-tenant-control not running"
-docker inspect mini-baas-postgres       >/dev/null 2>&1 || fail "mini-baas-postgres not running"
+docker inspect mini-baas-postgres >/dev/null 2>&1 || fail "mini-baas-postgres not running"
 [[ -f "${POSTMAN_DIR}/${COLLECTION}" ]] || fail "collection not found: ${POSTMAN_DIR}/${COLLECTION}"
 [[ -f "${CORPUS}" ]] || fail "corpus not found: ${CORPUS} (merge corpus/corpus-*.json first)"
-docker image inspect "${NEWMAN_IMAGE}" >/dev/null 2>&1 \
-  || fail "newman image '${NEWMAN_IMAGE}' not found (build it — it ships htmlextra)"
+docker image inspect "${NEWMAN_IMAGE}" >/dev/null 2>&1 ||
+  fail "newman image '${NEWMAN_IMAGE}' not found (build it — it ships htmlextra)"
 
 CORPUS_COUNT="$(jq 'length' "${CORPUS}")"
 [[ "${CORPUS_COUNT}" -ge 1000 ]] || fail "corpus has only ${CORPUS_COUNT} vectors (<1000)"
@@ -122,8 +125,15 @@ for i in $(seq 1 40); do
     -H "apikey: ${ANON_KEY}" -H "X-Baas-Api-Key: ${API_KEY}" \
     -H 'Content-Type: application/json' -d "${PREWARM_BODY}" 2>/dev/null || echo 000)"
   case "${PW_CODE}" in
-    503|000) yellow "  … prewarm try ${i}/40 → HTTP ${PW_CODE} (verify cold; retry 1s)"; sleep 1 ;;
-    *)       ok "verify up after ${i} try/tries (HTTP ${PW_CODE}) — cache warmed for the DDL"; pwarmed=1; break ;;
+  503 | 000)
+    yellow "  … prewarm try ${i}/40 → HTTP ${PW_CODE} (verify cold; retry 1s)"
+    sleep 1
+    ;;
+  *)
+    ok "verify up after ${i} try/tries (HTTP ${PW_CODE}) — cache warmed for the DDL"
+    pwarmed=1
+    break
+    ;;
   esac
 done
 [[ "${pwarmed}" == "1" ]] || fail "verify never came up in 40 tries (last HTTP ${PW_CODE})"
@@ -156,10 +166,19 @@ for i in $(seq 1 25); do
     -H "apikey: ${ANON_KEY}" -H "X-Baas-Api-Key: ${API_KEY}" \
     -H 'Content-Type: application/json' -d "${DDL_BODY}" 2>/dev/null || echo 000)"
   case "${DDL_CODE}" in
-    200|201) ok "scratch table created (HTTP ${DDL_CODE})"; break ;;
-    409)     ok "scratch table already exists (HTTP 409) — reuse"; break ;;
-    503|000) yellow "  … DDL try ${i}/25 → HTTP ${DDL_CODE} (cold verify under load; retry 1s)"; sleep 1 ;;
-    *)       fail "DDL create_table failed (HTTP ${DDL_CODE}): $(cat /tmp/edge-ddl.json 2>/dev/null | head -c 240)" ;;
+  200 | 201)
+    ok "scratch table created (HTTP ${DDL_CODE})"
+    break
+    ;;
+  409)
+    ok "scratch table already exists (HTTP 409) — reuse"
+    break
+    ;;
+  503 | 000)
+    yellow "  … DDL try ${i}/25 → HTTP ${DDL_CODE} (cold verify under load; retry 1s)"
+    sleep 1
+    ;;
+  *) fail "DDL create_table failed (HTTP ${DDL_CODE}): $(cat /tmp/edge-ddl.json 2>/dev/null | head -c 240)" ;;
   esac
 done
 [[ "${DDL_CODE}" =~ ^(200|201|409)$ ]] || fail "DDL never succeeded in 25 tries (last HTTP ${DDL_CODE})"
@@ -202,13 +221,14 @@ jq -n \
       { key: "crudTable", value: $crudTable, enabled: true }
     ],
     _postman_variable_scope: "environment"
-  }' > "${POSTMAN_DIR}/${GEN_ENV}"
+  }' >"${POSTMAN_DIR}/${GEN_ENV}"
 chmod 600 "${POSTMAN_DIR}/${GEN_ENV}" 2>/dev/null || true
 ok "env written (baseUrl/anonKey/apiKey/dbId/crudTable; mode 600, gitignored)"
 
 # ── 5) run newman in Docker (host network → reach 127.0.0.1 services) ────────
 HTML_REPORT="${REPORT_DIR}/edge-report.html"
 step "5/5 run newman (${NEWMAN_IMAGE}) — one iteration per corpus vector → htmlextra"
+# shellcheck disable=SC2054  # newman wants ONE comma-separated --reporters value, not split array elements
 DOCKER_CMD=(docker run --rm --network host
   -v "${POSTMAN_DIR}:/etc/newman"
   -v "${REPORT_DIR}:/reports"
@@ -229,13 +249,13 @@ printf '    %s\n' "${DOCKER_CMD[*]}"
 # re-verify can 503 and never refresh, cascading. This loop lands a successful
 # verify every few seconds (the verify succeeds intermittently), keeping the cache
 # hot for the whole run so newman's requests stay cache hits — no 503.
-( while true; do
-    curl -s -o /dev/null --max-time 8 -X POST \
-      "${BASE_URL}/query/v1/${DB_ID}/tables/${CRUD_TABLE}" \
-      -H "apikey: ${ANON_KEY}" -H "X-Baas-Api-Key: ${API_KEY}" \
-      -H 'Content-Type: application/json' -d '{"op":"list","limit":1}' 2>/dev/null || true
-    sleep 4
-  done ) &
+(while true; do
+  curl -s -o /dev/null --max-time 8 -X POST \
+    "${BASE_URL}/query/v1/${DB_ID}/tables/${CRUD_TABLE}" \
+    -H "apikey: ${ANON_KEY}" -H "X-Baas-Api-Key: ${API_KEY}" \
+    -H 'Content-Type: application/json' -d '{"op":"list","limit":1}' 2>/dev/null || true
+  sleep 4
+done) &
 WARMER_PID=$!
 trap 'kill "${WARMER_PID}" 2>/dev/null || true; live_tenant_cleanup || true; rm -f "${POSTMAN_DIR}/${GEN_ENV}" 2>/dev/null || true' EXIT
 step "  re-warmer running (pid ${WARMER_PID}, every 4s) to keep the verify-cache hot"

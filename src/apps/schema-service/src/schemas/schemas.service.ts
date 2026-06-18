@@ -102,7 +102,14 @@ export class SchemasService {
         `INSERT INTO schema_registry (database_id, name, engine, columns, enable_rls, created_by)
          VALUES ($1, $2, $3, $4::jsonb, $5, $6)
          ON CONFLICT (database_id, name) DO UPDATE SET columns = $4::jsonb, enable_rls = $5`,
-        [dto.database_id, dto.name, engine, JSON.stringify(dto.columns), dto.enable_rls !== false, userId],
+        [
+          dto.database_id,
+          dto.name,
+          engine,
+          JSON.stringify(dto.columns),
+          dto.enable_rls !== false,
+          userId,
+        ],
       );
       await this.recordMigration(userId, dto, 'create_or_update');
 
@@ -131,11 +138,7 @@ export class SchemasService {
     }
 
     if (engine === 'mysql') {
-      const result = await this.mysqlEngine.createTable(
-        connection_string,
-        dto.name,
-        dto.columns,
-      );
+      const result = await this.mysqlEngine.createTable(connection_string, dto.name, dto.columns);
 
       await this.pg.adminQuery(
         `INSERT INTO schema_registry (database_id, name, engine, columns, enable_rls, created_by)
@@ -196,12 +199,16 @@ export class SchemasService {
       await this.mysqlEngine.dropTable(connection_string, schema.name);
     }
 
-    await this.recordMigration(userId, {
-      database_id: schema.database_id,
-      engine: schema.engine as CreateSchemaDto['engine'],
-      name: schema.name,
-      columns: [],
-    }, 'drop');
+    await this.recordMigration(
+      userId,
+      {
+        database_id: schema.database_id,
+        engine: schema.engine as CreateSchemaDto['engine'],
+        name: schema.name,
+        columns: [],
+      },
+      'drop',
+    );
     await this.pg.adminQuery(`DELETE FROM schema_registry WHERE id = $1`, [schemaId]);
     return { dropped: true };
   }
@@ -213,7 +220,14 @@ export class SchemasService {
   ): Promise<void> {
     const metadata = { action, columns: dto.columns };
     const checksum = createHash('sha256')
-      .update(JSON.stringify({ database_id: dto.database_id, engine: dto.engine, name: dto.name, metadata }))
+      .update(
+        JSON.stringify({
+          database_id: dto.database_id,
+          engine: dto.engine,
+          name: dto.name,
+          metadata,
+        }),
+      )
       .digest('hex');
     await this.pg.adminQuery(
       `WITH next_version AS (

@@ -25,10 +25,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-green(){ printf '\033[0;32m[M38] %s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m[M38] FAIL: %s\033[0m\n' "$*"; }
-cyan(){ printf '\033[0;36m[M38] %s\033[0m\n' "$*"; }
-skip(){ printf '\033[1;33m[M38] SKIP: %s\033[0m\n' "$*"; exit 0; }
+green() { printf '\033[0;32m[M38] %s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m[M38] FAIL: %s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m[M38] %s\033[0m\n' "$*"; }
+skip() {
+  printf '\033[1;33m[M38] SKIP: %s\033[0m\n' "$*"
+  exit 0
+}
 
 PACKAGE="${PACKAGE:-essential}"
 WORKLOAD="${WORKLOAD:-crud}"
@@ -49,16 +52,29 @@ cyan "60s load smoke: ${PACKAGE}/${WORKLOAD} @ ${RATE} rps (bars: p95 ≤ ${P95_
 # One 60s measured run (MODE=short runs 3×; here we just need one for the gate).
 ART="${ROOT}/artifacts/bench/load-${PACKAGE}-${WORKLOAD}.json"
 PACKAGE="${PACKAGE}" WORKLOAD="${WORKLOAD}" MODE=short RATE="${RATE}" \
-	bash "${ROOT}/scripts/bench/load.sh" >/tmp/m38-load.txt 2>&1 || { cat /tmp/m38-load.txt; red "load run failed"; exit 1; }
+  bash "${ROOT}/scripts/bench/load.sh" >/tmp/m38-load.txt 2>&1 || {
+  cat /tmp/m38-load.txt
+  red "load run failed"
+  exit 1
+}
 tail -2 /tmp/m38-load.txt
 
-[[ -f "${ART}" ]] || { red "no artifact at ${ART}"; exit 1; }
+[[ -f "${ART}" ]] || {
+  red "no artifact at ${ART}"
+  exit 1
+}
 P95="$(jq -r '.median.http.p95' "${ART}")"
 ERRP="$(jq -r '.median.err_pct' "${ART}")"
 
 fail=0
-awk -v a="${P95}" -v b="${P95_BAR}" 'BEGIN{exit !(a>b)}' && { red "p95 ${P95}ms > ${P95_BAR}ms"; fail=1; }
-awk -v a="${ERRP}" -v b="${ERR_BAR}" 'BEGIN{exit !(a>b)}' && { red "error rate ${ERRP}% > ${ERR_BAR}%"; fail=1; }
+awk -v a="${P95}" -v b="${P95_BAR}" 'BEGIN{exit !(a>b)}' && {
+  red "p95 ${P95}ms > ${P95_BAR}ms"
+  fail=1
+}
+awk -v a="${ERRP}" -v b="${ERR_BAR}" 'BEGIN{exit !(a>b)}' && {
+  red "error rate ${ERRP}% > ${ERR_BAR}%"
+  fail=1
+}
 [[ "${fail}" == 0 ]] || exit 1
 
 green "PASS — ${PACKAGE} sustains ${RATE} rps: p95 ${P95}ms ≤ ${P95_BAR}, err ${ERRP}% ≤ ${ERR_BAR}% (${ART#${ROOT}/})"

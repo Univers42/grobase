@@ -10,7 +10,16 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { AuthGuard, Roles, RolesGuard } from '@mini-baas/common';
 import { PoliciesService } from './policies.service';

@@ -50,10 +50,7 @@ export class ChatController {
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get a conversation with messages' })
-  async get(
-    @Param('id') id: string,
-    @CurrentUser() user: UserContext,
-  ) {
+  async get(@Param('id') id: string, @CurrentUser() user: UserContext) {
     return this.service.getConversation(id, user.id);
   }
 
@@ -61,10 +58,7 @@ export class ChatController {
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete a conversation' })
-  async remove(
-    @Param('id') id: string,
-    @CurrentUser() user: UserContext,
-  ) {
+  async remove(@Param('id') id: string, @CurrentUser() user: UserContext) {
     return this.service.deleteConversation(id, user.id);
   }
 }

@@ -38,10 +38,7 @@ export class SessionController {
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new session for the current user' })
-  async create(
-    @CurrentUser() user: UserContext,
-    @Body() dto: CreateSessionDto,
-  ) {
+  async create(@CurrentUser() user: UserContext, @Body() dto: CreateSessionDto) {
     return this.service.create(user.id, dto.token, dto.deviceInfo, dto.ipAddress);
   }
 
@@ -49,10 +46,7 @@ export class SessionController {
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List my sessions' })
-  async mySessions(
-    @CurrentUser() user: UserContext,
-    @Headers('authorization') auth?: string,
-  ) {
+  async mySessions(@CurrentUser() user: UserContext, @Headers('authorization') auth?: string) {
     const currentToken = auth?.replace('Bearer ', '');
     return this.service.getUserSessions(user.id, currentToken);
   }
@@ -67,10 +61,7 @@ export class SessionController {
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Extend current session expiry' })
-  async extend(
-    @Headers('authorization') auth: string,
-    @Body() dto: ExtendSessionDto,
-  ) {
+  async extend(@Headers('authorization') auth: string, @Body() dto: ExtendSessionDto) {
     const token = auth?.replace('Bearer ', '');
     return this.service.extend(token, dto.days ? Number.parseInt(dto.days, 10) : undefined);
   }
@@ -79,10 +70,7 @@ export class SessionController {
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Revoke one of my sessions' })
-  async revoke(
-    @Param('id') id: string,
-    @CurrentUser() user: UserContext,
-  ) {
+  async revoke(@Param('id') id: string, @CurrentUser() user: UserContext) {
     return this.service.revoke(id, user.id);
   }
 
@@ -90,10 +78,7 @@ export class SessionController {
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Revoke all my other sessions (keep current)' })
-  async revokeAll(
-    @CurrentUser() user: UserContext,
-    @Headers('authorization') auth?: string,
-  ) {
+  async revokeAll(@CurrentUser() user: UserContext, @Headers('authorization') auth?: string) {
     const currentToken = auth?.replace('Bearer ', '');
     return this.service.revokeAll(user.id, currentToken);
   }

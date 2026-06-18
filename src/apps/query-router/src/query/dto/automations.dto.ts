@@ -10,8 +10,15 @@
 /* ************************************************************************** */
 
 import {
-  IsArray, IsBoolean, IsIn, IsOptional, IsString, IsUrl,
-  MaxLength, ValidateNested, ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUrl,
+  MaxLength,
+  ValidateNested,
+  ArrayMaxSize,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -23,8 +30,13 @@ export const AUTOMATION_ACTIONS = ['set_property', 'notify', 'webhook'] as const
 export type AutomationActionType = (typeof AUTOMATION_ACTIONS)[number];
 
 export const CONDITION_OPERATORS = [
-  'equals', 'not_equals', 'contains', 'greater_than', 'less_than',
-  'is_empty', 'is_not_empty',
+  'equals',
+  'not_equals',
+  'contains',
+  'greater_than',
+  'less_than',
+  'is_empty',
+  'is_not_empty',
 ] as const;
 export type AutomationConditionOperator = (typeof CONDITION_OPERATORS)[number];
 

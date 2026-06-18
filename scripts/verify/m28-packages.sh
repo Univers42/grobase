@@ -33,12 +33,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-fail()  { red "[M28] FAIL: $*"; exit 1; }
-step()  { cyan "[M28] ${*}"; }
-pass()  { green "[M28] PASS: ${*}"; }
+fail() {
+  red "[M28] FAIL: $*"
+  exit 1
+}
+step() { cyan "[M28] ${*}"; }
+pass() { green "[M28] PASS: ${*}"; }
 
 env_of() { docker inspect "$1" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep "^$2=" | head -1 | cut -d= -f2-; }
 
@@ -58,8 +61,8 @@ step "control plane: package manifest engine-allowlist + quota + alias logic"
 if docker image inspect golang:1.25-bookworm >/dev/null 2>&1 || docker pull -q golang:1.25-bookworm >/dev/null 2>&1; then
   docker run --rm -v "${BAAS_DIR}/src/control-plane:/src" -w /src \
     -v mini-baas-go-build-cache:/root/.cache/go-build -v mini-baas-go-mod-cache:/go/pkg/mod \
-    golang:1.25-bookworm go test ./internal/packages/ >/dev/null 2>&1 \
-    || fail "go test ./internal/packages failed (engine gating / aliases / overrides)"
+    golang:1.25-bookworm go test ./internal/packages/ >/dev/null 2>&1 ||
+    fail "go test ./internal/packages failed (engine gating / aliases / overrides)"
   pass "manifest resolves tiers (free→nano, enterprise→max), gates engines + mount quota"
 else
   red "[M28] WARN: golang image unavailable — skipping go-test leg"
@@ -69,9 +72,12 @@ fi
 docker inspect mini-baas-data-plane-router-rust >/dev/null 2>&1 || fail "rust router not running (make up EDITION=query)"
 curl -fsS -o /dev/null "${RUST}/v1/capabilities" || fail "rust router unreachable at ${RUST}"
 
-PW="$(env_of mini-baas-postgres POSTGRES_PASSWORD)"; PW="${PW:-postgres}"
-PGUSER="$(env_of mini-baas-postgres POSTGRES_USER)"; PGUSER="${PGUSER:-postgres}"
-PGDB="$(env_of mini-baas-postgres POSTGRES_DB)"; PGDB="${PGDB:-postgres}"
+PW="$(env_of mini-baas-postgres POSTGRES_PASSWORD)"
+PW="${PW:-postgres}"
+PGUSER="$(env_of mini-baas-postgres POSTGRES_USER)"
+PGUSER="${PGUSER:-postgres}"
+PGDB="$(env_of mini-baas-postgres POSTGRES_DB)"
+PGDB="${PGDB:-postgres}"
 DSN="postgres://${PGUSER}:${PW}@postgres:5432/${PGDB}"
 
 step "data plane: provisioning an owner-scoped probe row"
@@ -110,7 +116,8 @@ pass "Essential read → 200 with owner-scoped row (CRUD unaffected by tiering)"
 
 step "data plane: per-tenant rate limit (rps:1/burst:1) → 429 after burst, refill recovers"
 TIGHT='{"rps":1,"burst":1}'
-seen429=0; first=""
+seen429=0
+first=""
 for i in $(seq 1 6); do
   c="$(code "$(payload list "${TIGHT}" m28-rl-tenant)")"
   [[ -z "${first}" ]] && first="${c}"

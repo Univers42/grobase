@@ -86,7 +86,10 @@ describe('ExecuteQueryDto validation', () => {
 describe('TxnRequestDto validation', () => {
   it('accepts a valid 1-op transaction', async () => {
     expect(
-      await errs(TxnRequestDto, { mount: 'db-1', operations: [{ op: 'insert', resource: 'orders', data: { a: 1 } }] }),
+      await errs(TxnRequestDto, {
+        mount: 'db-1',
+        operations: [{ op: 'insert', resource: 'orders', data: { a: 1 } }],
+      }),
     ).toEqual([]);
   });
 
@@ -118,7 +121,10 @@ describe('TxnRequestDto validation', () => {
   });
 
   it('rejects a txn op missing its required resource', async () => {
-    const dto = plainToInstance(TxnRequestDto, { mount: 'db-1', operations: [{ op: 'insert', data: {} }] });
+    const dto = plainToInstance(TxnRequestDto, {
+      mount: 'db-1',
+      operations: [{ op: 'insert', data: {} }],
+    });
     const results = await validate(dto, { whitelist: false });
     expect(JSON.stringify(results)).toContain('isString');
   });

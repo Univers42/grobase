@@ -27,27 +27,33 @@
 
 set -euo pipefail
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M48] $*"; }
-pass()  { green "[M48] PASS: $*"; }
-fail()  { red "[M48] FAIL: $*"; exit 1; }
-skip()  { printf '\033[1;33m[M48] SKIP: %s\033[0m\n' "$*"; exit 0; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M48] $*"; }
+pass() { green "[M48] PASS: $*"; }
+fail() {
+  red "[M48] FAIL: $*"
+  exit 1
+}
+skip() {
+  printf '\033[1;33m[M48] SKIP: %s\033[0m\n' "$*"
+  exit 0
+}
 
 ORCH=mini-baas-orchestrator
 NODE_NL=mini-baas-newsletter-service
 NET=mini-baas_mini-baas
 CURL_IMG=curlimages/curl:8.10.1
 
-docker inspect -f '{{.State.Running}}' "${ORCH}" 2>/dev/null | grep -q true \
-  || skip "${ORCH} not running (start it with ORCHESTRATOR_SERVICES including newsletter)"
-docker inspect -f '{{.State.Running}}' "${NODE_NL}" 2>/dev/null | grep -q true \
-  || skip "${NODE_NL} not running (need the Node side to diff against)"
+docker inspect -f '{{.State.Running}}' "${ORCH}" 2>/dev/null | grep -q true ||
+  skip "${ORCH} not running (start it with ORCHESTRATOR_SERVICES including newsletter)"
+docker inspect -f '{{.State.Running}}' "${NODE_NL}" 2>/dev/null | grep -q true ||
+  skip "${NODE_NL} not running (need the Node side to diff against)"
 
 # Confirm the orchestrator actually mounted newsletter (else the probe 404s).
-docker logs "${ORCH}" 2>&1 | grep -q '"service":"newsletter"' \
-  || skip "orchestrator is up but newsletter sub-service not mounted (ORCHESTRATOR_SERVICES)"
+docker logs "${ORCH}" 2>&1 | grep -q '"service":"newsletter"' ||
+  skip "orchestrator is up but newsletter sub-service not mounted (ORCHESTRATOR_SERVICES)"
 
 NODE_PORT="$(docker inspect "${NODE_NL}" --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^PORT=//p' | head -1)"
 NODE_PORT="${NODE_PORT:-3090}"

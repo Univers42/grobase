@@ -32,7 +32,7 @@ check_file() {
   fi
 
   local len
-  len=$(wc -c < "$path" | tr -d ' ')
+  len=$(wc -c <"$path" | tr -d ' ')
   if [[ "$len" -lt "$min_len" ]]; then
     echo "FAIL: $file is too short ($len < $min_len bytes)" >&2
     ERRORS=$((ERRORS + 1))

@@ -38,18 +38,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/test-ui.sh"
 
 pass() {
-    local name="$1"
-    echo -e "${GREEN}✓${NC} $name"
-    ((++TESTS_PASSED)) || true
-    return 0
+  local name="$1"
+  echo -e "${GREEN}✓${NC} $name"
+  ((++TESTS_PASSED)) || true
+  return 0
 }
 
 fail() {
-    local name="$1"
-    local details="$2"
-    echo -e "${RED}✗${NC} $name${details:+ ($details)}"
-    ((++TESTS_FAILED)) || true
-    return 0
+  local name="$1"
+  local details="$2"
+  echo -e "${RED}✗${NC} $name${details:+ ($details)}"
+  ((++TESTS_FAILED)) || true
+  return 0
 }
 
 ui_banner "Phase 5 Test Suite" "REST metadata retrieval"
@@ -63,26 +63,26 @@ SELECTED_ENDPOINT="/rest/v1/"
 SELECTED_FILE="$TMPDIR/rest_openapi.json"
 
 REST_HTTP=$(curl -sS -o "$SELECTED_FILE" -w "$CURL_FMT" \
-    -X GET "$BASE_URL$SELECTED_ENDPOINT" \
-    -H "$HDR_APIKEY" \
-    --max-time "$TIMEOUT" 2>/dev/null || echo "000")
+  -X GET "$BASE_URL$SELECTED_ENDPOINT" \
+  -H "$HDR_APIKEY" \
+  --max-time "$TIMEOUT" 2>/dev/null || echo "000")
 
 if [[ "$REST_HTTP" == "200" ]]; then
-    pass "Database info endpoint reachable"
-    echo -e "${GREEN}  └─${NC} Using endpoint: $SELECTED_ENDPOINT"
+  pass "Database info endpoint reachable"
+  echo -e "${GREEN}  └─${NC} Using endpoint: $SELECTED_ENDPOINT"
 else
-    fail "Database info endpoint reachable" "tried /rest/v1/ (HTTP: $REST_HTTP)"
+  fail "Database info endpoint reachable" "tried /rest/v1/ (HTTP: $REST_HTTP)"
 fi
 
 BODY=""
 if [[ -n "$SELECTED_FILE" ]]; then
-    BODY=$(cat "$SELECTED_FILE" 2>/dev/null || echo "")
+  BODY=$(cat "$SELECTED_FILE" 2>/dev/null || echo "")
 fi
 
 if [[ -n "$SELECTED_FILE" ]] && jq -e . "$SELECTED_FILE" >/dev/null 2>&1; then
-    pass "Response is valid JSON"
+  pass "Response is valid JSON"
 else
-    fail "Response is valid JSON" "invalid JSON payload"
+  fail "Response is valid JSON" "invalid JSON payload"
 fi
 
 ui_step "Step 2: Validate database metadata presence"
@@ -94,9 +94,9 @@ if [[ -n "$SELECTED_FILE" ]] && jq -e '
     (.db? != null) or
     (.postgres_version? != null)
 ' "$SELECTED_FILE" >/dev/null 2>&1; then
-    pass "Contains database/version metadata"
+  pass "Contains database/version metadata"
 else
-    fail "Contains database/version metadata" "expected version/database field in response"
+  fail "Contains database/version metadata" "expected version/database field in response"
 fi
 
 if [[ -n "$SELECTED_FILE" ]] && jq -e '
@@ -104,20 +104,20 @@ if [[ -n "$SELECTED_FILE" ]] && jq -e '
     (.schemas? != null) or
     (.tables? != null)
 ' "$SELECTED_FILE" >/dev/null 2>&1; then
-    pass "Contains schema/introspection data"
+  pass "Contains schema/introspection data"
 else
-    fail "Contains schema/introspection data" "expected paths/schemas/tables in response"
+  fail "Contains schema/introspection data" "expected paths/schemas/tables in response"
 fi
 
 # Optional diagnostic summary for operator visibility.
 if [[ -n "$SELECTED_ENDPOINT" ]]; then
-    echo -e "${YELLOW}Info payload preview:${NC} ${BODY:0:200}"
+  echo -e "${YELLOW}Info payload preview:${NC} ${BODY:0:200}"
 fi
 
 ui_summary "$TESTS_PASSED" "$TESTS_FAILED" "REST metadata retrieval test passed!" "Phase 5 has failing tests"
 
 if [[ $TESTS_FAILED -gt 0 ]]; then
-    exit 1
+  exit 1
 else
-    exit 0
+  exit 0
 fi

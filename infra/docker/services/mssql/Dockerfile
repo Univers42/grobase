@@ -26,6 +26,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # 1) bootstrap apt + Microsoft's signed repos (server + prod-for-tools), 2) install
 # SQL Server, the ODBC18 tools (sqlcmd for the healthcheck) and their deps, then
 # 3) strip apt caches.  --no-install-recommends keeps the layer minimal.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN set -eux; \
   apt-get update; \
   apt-get install -y --no-install-recommends \

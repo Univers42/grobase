@@ -50,29 +50,35 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 DPR_DIR="${BAAS_DIR}/src/data-plane-router"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M72] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M72] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M72] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M72] FAIL — $*"
+  exit 1
+}
 # has/nhas: assert a string is / is NOT present in a captured log blob (arg, not
 # a file — the router logs live in `docker logs`, not on disk).
-has()  { grep -q "$1" <<<"$3" || fail "$2"; }
-nhas() { grep -q "$1" <<<"$3" && fail "$2"; return 0; }
+has() { grep -q "$1" <<<"$3" || fail "$2"; }
+nhas() {
+  grep -q "$1" <<<"$3" && fail "$2"
+  return 0
+}
 
 PG_IMAGE="${M72_PG_IMAGE:-postgres:16-alpine}"
 SCRATCH_IMG="m72-dpr-$$:scratch"
 NET="m72net-$$"
 PG="m72-pg-$$"
-DPR_ON="m72-dpr-on-$$"     # (A) POSITIVE arm router (flag ON)
-DPR_OFF="m72-dpr-off-$$"   # (B) PARITY   arm router (flag OFF/unset)
+DPR_ON="m72-dpr-on-$$"   # (A) POSITIVE arm router (flag ON)
+DPR_OFF="m72-dpr-off-$$" # (B) PARITY   arm router (flag OFF/unset)
 PORT_ON="${M72_PORT_ON:-18972}"
 PORT_OFF="${M72_PORT_OFF:-18973}"
 PGPW="postgres"
 TABLE="m72_audit_probe"
 TENANT="m72-tenant-$$"
-ROWS=5                                       # exact seeded row count → returned_rows
+ROWS=5 # exact seeded row count → returned_rows
 DSN_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 BODY_TMP="$(mktemp)"
 
@@ -108,16 +114,22 @@ logs_clean() { docker logs "$1" 2>&1 | strip_ansi; }
 wait_ready() { # $1=container  $2=port
   for i in $(seq 1 60); do
     curl -fsS -o /dev/null "http://127.0.0.1:$2/v1/capabilities" 2>/dev/null && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -15; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -15
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -15; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -15
+  return 1
 }
 
 # ── 0) build the scratch DPR image FROM THE CURRENT (drafted) source ──────────
 step "0/6 build scratch data-plane-router from CURRENT source (contains THE A6 build)"
-DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${DPR_DIR}" >/dev/null \
-  || fail "scratch DPR image build failed — the gate must exercise the drafted code (line: docker build)"
+DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${DPR_DIR}" >/dev/null ||
+  fail "scratch DPR image build failed — the gate must exercise the drafted code (line: docker build)"
 ok "scratch image ${SCRATCH_IMG} built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated network + throwaway postgres with EXACTLY ${ROWS} seeded rows ─
@@ -147,7 +159,11 @@ INSERT INTO public.${TABLE}(id, owner_id, tenant_id, label) VALUES
 ON CONFLICT (id) DO NOTHING;
 SQL
 }
-for i in $(seq 1 20); do seed && break; [[ $i -eq 20 ]] && fail "seed never committed (line: seed loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  seed && break
+  [[ $i -eq 20 ]] && fail "seed never committed (line: seed loop)"
+  sleep 0.5
+done
 SEEDED="$(docker exec -i "${PG}" psql -U postgres -d postgres -tAc "SELECT count(*) FROM public.${TABLE}" 2>/dev/null | tr -d '[:space:]')"
 [[ "${SEEDED}" == "${ROWS}" ]] || fail "expected ${ROWS} seeded rows, found '${SEEDED}' (line: SEEDED count)"
 ok "postgres up; ${TABLE} seeded with EXACTLY ${ROWS} rows"
@@ -175,10 +191,10 @@ step "3/6 ASSERT (A): exactly ONE event=\"read\" line, returned_rows=${ROWS}"
 sleep 0.5
 LOGS_ON="$(logs_clean "${DPR_ON}")"
 N_READ_ON="$(grep -c 'event="read"' <<<"${LOGS_ON}" || true)"
-[[ "${N_READ_ON}" == "1" ]] \
-  || fail "expected EXACTLY 1 event=\"read\" line, found ${N_READ_ON} — $(grep 'event="read"' <<<"${LOGS_ON}" | tail -3) (line: N_READ_ON != 1)"
+[[ "${N_READ_ON}" == "1" ]] ||
+  fail "expected EXACTLY 1 event=\"read\" line, found ${N_READ_ON} — $(grep 'event="read"' <<<"${LOGS_ON}" | tail -3) (line: N_READ_ON != 1)"
 AUDIT_LINE="$(grep 'event="read"' <<<"${LOGS_ON}")"
-has "resource=${TABLE}"  "audit line does not name resource=${TABLE} — line: ${AUDIT_LINE} (line: resource assertion)"  "${AUDIT_LINE}"
+has "resource=${TABLE}" "audit line does not name resource=${TABLE} — line: ${AUDIT_LINE} (line: resource assertion)" "${AUDIT_LINE}"
 has "returned_rows=${ROWS}" "audit returned_rows != actual served row count (${ROWS}) — line: ${AUDIT_LINE} (line: returned_rows assertion)" "${AUDIT_LINE}"
 ok "(A) exactly ONE event=\"read\" with resource=${TABLE} returned_rows=${ROWS} — matches the served count"
 
@@ -203,15 +219,15 @@ step "5/6 ASSERT (B): ZERO event=\"read\" lines (live baseline untouched)"
 sleep 0.5
 LOGS_OFF="$(logs_clean "${DPR_OFF}")"
 N_READ_OFF="$(grep -c 'event="read"' <<<"${LOGS_OFF}" || true)"
-[[ "${N_READ_OFF}" == "0" ]] \
-  || fail "PARITY router emitted ${N_READ_OFF} event=\"read\" line(s) — the default is NOT byte-parity! $(grep 'event="read"' <<<"${LOGS_OFF}" | tail -3) (line: N_READ_OFF != 0)"
+[[ "${N_READ_OFF}" == "0" ]] ||
+  fail "PARITY router emitted ${N_READ_OFF} event=\"read\" line(s) — the default is NOT byte-parity! $(grep 'event="read"' <<<"${LOGS_OFF}" | tail -3) (line: N_READ_OFF != 0)"
 nhas 'event="read"' "PARITY router leaked a read-audit line with the flag OFF (line: nhas event=read)" "${LOGS_OFF}"
 ok "(B) ZERO event=\"read\" lines with the flag OFF — live baseline is byte-parity"
 
 # ── 6) cross-check: the two arms differ ONLY by the audit line ────────────────
 step "6/6 cross-check: ON emitted 1, OFF emitted 0 — the flag is the only difference"
-[[ "${N_READ_ON}" == "1" && "${N_READ_OFF}" == "0" ]] \
-  || fail "arm counts inconsistent (ON=${N_READ_ON}, OFF=${N_READ_OFF}) (line: cross-check)"
+[[ "${N_READ_ON}" == "1" && "${N_READ_OFF}" == "0" ]] ||
+  fail "arm counts inconsistent (ON=${N_READ_ON}, OFF=${N_READ_OFF}) (line: cross-check)"
 ok "DATA_PLANE_AUDIT_READS is the sole gate on the read-audit emission"
 
 green "[M72] ALL GATES GREEN — DATA_PLANE_AUDIT_READS=on emits EXACTLY ONE event=\"read\" audit per served read with returned_rows=${ROWS} (the real count); OFF (default) emits ZERO = byte-parity live baseline"

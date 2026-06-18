@@ -53,12 +53,15 @@ BAAS_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${BAAS_DIR}/../../.." && pwd)"
 cd "${BAAS_DIR}"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[SEED] $*"; }
-pass()  { green "[SEED] PASS: $*"; }
-fail()  { red "[SEED] FAIL: $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[SEED] $*"; }
+pass() { green "[SEED] PASS: $*"; }
+fail() {
+  red "[SEED] FAIL: $*"
+  exit 1
+}
 
 # Container-env / host-port / json helpers (shared with the verify gates).
 # shellcheck source=scripts/lib/lib-live-tenant.sh
@@ -96,12 +99,15 @@ OWNER="api-key:${KEY_ID}"
 pass "app key → tenant '${TENANT}', owner principal '${OWNER}'"
 
 # ── 2) engine credentials + demo databases ──────────────────────────────────
-PG_USER="$(_lt_env mini-baas-postgres POSTGRES_USER)"; PG_USER="${PG_USER:-postgres}"
+PG_USER="$(_lt_env mini-baas-postgres POSTGRES_USER)"
+PG_USER="${PG_USER:-postgres}"
 PG_PASS="$(_lt_env mini-baas-postgres POSTGRES_PASSWORD)"
-MYSQL_USER="$(_lt_env mini-baas-mysql MYSQL_USER)"; MYSQL_USER="${MYSQL_USER:-mini_baas}"
+MYSQL_USER="$(_lt_env mini-baas-mysql MYSQL_USER)"
+MYSQL_USER="${MYSQL_USER:-mini_baas}"
 MYSQL_PASS="$(_lt_env mini-baas-mysql MYSQL_PASSWORD)"
 MYSQL_ROOT_PASS="$(_lt_env mini-baas-mysql MYSQL_ROOT_PASSWORD)"
-MONGO_USER="$(_lt_env mini-baas-mongo MONGO_INITDB_ROOT_USERNAME)"; MONGO_USER="${MONGO_USER:-mongo}"
+MONGO_USER="$(_lt_env mini-baas-mongo MONGO_INITDB_ROOT_USERNAME)"
+MONGO_USER="${MONGO_USER:-mongo}"
 MONGO_PASS="$(_lt_env mini-baas-mongo MONGO_INITDB_ROOT_PASSWORD)"
 [[ -n "${PG_PASS}" && -n "${MYSQL_PASS}" && -n "${MONGO_PASS}" ]] || fail "engine credentials not found on the running containers"
 urlenc() { python3 -c "import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"; }
@@ -119,8 +125,8 @@ fi
 
 step "ensuring the demo databases exist"
 "${DC[@]}" exec -T postgres psql -U "${PG_USER}" -d postgres -tAc \
-  "SELECT 1 FROM pg_database WHERE datname='commerce'" | grep -q 1 \
-  || "${DC[@]}" exec -T postgres psql -U "${PG_USER}" -d postgres -c "CREATE DATABASE commerce" >/dev/null
+  "SELECT 1 FROM pg_database WHERE datname='commerce'" | grep -q 1 ||
+  "${DC[@]}" exec -T postgres psql -U "${PG_USER}" -d postgres -c "CREATE DATABASE commerce" >/dev/null
 "${DC[@]}" exec -T -e MYSQL_PWD="${MYSQL_ROOT_PASS}" mysql mysql -uroot -e \
   "CREATE DATABASE IF NOT EXISTS ops CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
    GRANT ALL PRIVILEGES ON ops.* TO '${MYSQL_USER}'@'%'; FLUSH PRIVILEGES;" >/dev/null
@@ -135,11 +141,11 @@ register_mount() { # $1 name, $2 engine, $3 dsn → echoes mount id
     -H 'Content-Type: application/json' \
     -d "{\"engine\":\"$2\",\"name\":\"$1\",\"connection_string\":\"$3\"}")
   if [[ "${code}" == "201" ]]; then
-    _lt_json_field id < /tmp/seed-mount.json
+    _lt_json_field id </tmp/seed-mount.json
   elif [[ "${code}" == "409" ]]; then
     curl -fsS "${KONG_URL}/admin/v1/databases" \
-      -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT}" \
-      | python3 -c "import json, sys; rows = json.load(sys.stdin); print(next(r['id'] for r in rows if r.get('name') == '$1'))"
+      -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT}" |
+      python3 -c "import json, sys; rows = json.load(sys.stdin); print(next(r['id'] for r in rows if r.get('name') == '$1'))"
   else
     fail "mount $1 registration failed (${code}): $(cat /tmp/seed-mount.json)"
   fi
@@ -167,10 +173,10 @@ count_of() { python3 -c "import json; print(json.load(open('${OUT_DIR}/counts.js
 # ── 5) load (idempotent: re-runs converge on identical counts) ──────────────
 step "loading postgres commerce ($(count_of pg orders) orders / $(count_of pg order_items) items)"
 "${DC[@]}" exec -T postgres psql -U "${PG_USER}" -d commerce -q \
-  < "${OUT_DIR}/pg-commerce.sql" >/dev/null || fail "postgres load failed"
+  <"${OUT_DIR}/pg-commerce.sql" >/dev/null || fail "postgres load failed"
 step "loading mysql ops ($(count_of mysql tasks) tasks / $(count_of mysql tickets) tickets)"
 "${DC[@]}" exec -T -e MYSQL_PWD="${MYSQL_PASS}" mysql mysql -u"${MYSQL_USER}" ops \
-  < "${OUT_DIR}/mysql-ops.sql" || fail "mysql load failed"
+  <"${OUT_DIR}/mysql-ops.sql" || fail "mysql load failed"
 step "loading mongo activity ($(count_of mongo events) events / $(count_of mongo product_reviews) reviews)"
 # Sibling container, NOT `exec` into mini-baas-mongo: mongosh is a Node app
 # and parsing the multi-MB seed script inside mongod's 512MB cgroup OOM-kills
@@ -190,15 +196,18 @@ pg_count() { "${DC[@]}" exec -T postgres psql -U "${PG_USER}" -d commerce -tAc "
 my_count() { "${DC[@]}" exec -T -e MYSQL_PWD="${MYSQL_PASS}" mysql mysql -u"${MYSQL_USER}" ops -N -e "SELECT count(*) FROM $1"; }
 mg_count() { docker run --rm --network "${STACK_NET}" "${MONGO_IMAGE}" mongosh --quiet "mongodb://${MONGO_USER}:$(urlenc "${MONGO_PASS}")@mongo:27017/activity?authSource=admin" --eval "print(db.$1.countDocuments())"; }
 for table in customers products employees inventory orders order_items edges; do
-  actual="$(pg_count "${table}" | tr -d '[:space:]')"; expected="$(count_of pg "${table}")"
+  actual="$(pg_count "${table}" | tr -d '[:space:]')"
+  expected="$(count_of pg "${table}")"
   [[ "${actual}" == "${expected}" ]] || fail "pg ${table}: ${actual} rows, expected ${expected}"
 done
 for table in projects tasks tickets time_entries; do
-  actual="$(my_count "${table}" | tr -d '[:space:]')"; expected="$(count_of mysql "${table}")"
+  actual="$(my_count "${table}" | tr -d '[:space:]')"
+  expected="$(count_of mysql "${table}")"
   [[ "${actual}" == "${expected}" ]] || fail "mysql ${table}: ${actual} rows, expected ${expected}"
 done
 for coll in events product_reviews notes; do
-  actual="$(mg_count "${coll}" | tr -d '[:space:]')"; expected="$(count_of mongo "${coll}")"
+  actual="$(mg_count "${coll}" | tr -d '[:space:]')"
+  expected="$(count_of mongo "${coll}")"
   [[ "${actual}" == "${expected}" ]] || fail "mongo ${coll}: ${actual} docs, expected ${expected}"
 done
 pass "every table matches the manifest (idempotent re-runs converge here)"
@@ -273,16 +282,16 @@ pass "schema descriptors carry enums, FKs and exact (declared) mongo contracts"
 step "gateway: the app's key sees the rows (owner-scoped reads)"
 code=$(gw -X POST "${KONG_URL}/query/v1/${PG_DB_ID}/tables/orders" \
   -H 'Content-Type: application/json' -d '{"op":"list","limit":3}')
-[[ "${code}" == "200" || "${code}" == "201" ]] && grep -q '"rows":\[{' /tmp/seed-gw.json \
-  || fail "pg list orders failed (${code}): $(head -c300 /tmp/seed-gw.json)"
+[[ "${code}" == "200" || "${code}" == "201" ]] && grep -q '"rows":\[{' /tmp/seed-gw.json ||
+  fail "pg list orders failed (${code}): $(head -c300 /tmp/seed-gw.json)"
 code=$(gw -X POST "${KONG_URL}/query/v1/${MY_DB_ID}/tables/tasks" \
   -H 'Content-Type: application/json' -d '{"op":"list","limit":3}')
-[[ "${code}" == "200" || "${code}" == "201" ]] && grep -q '"rows":\[{' /tmp/seed-gw.json \
-  || fail "mysql list tasks failed (${code}): $(head -c300 /tmp/seed-gw.json)"
+[[ "${code}" == "200" || "${code}" == "201" ]] && grep -q '"rows":\[{' /tmp/seed-gw.json ||
+  fail "mysql list tasks failed (${code}): $(head -c300 /tmp/seed-gw.json)"
 code=$(gw -X POST "${KONG_URL}/query/v1/${MG_DB_ID}/tables/events" \
   -H 'Content-Type: application/json' -d '{"op":"list","limit":3}')
-[[ "${code}" == "200" || "${code}" == "201" ]] && grep -q '"id":"evt-' /tmp/seed-gw.json \
-  || fail "mongo list events failed (${code}): $(head -c300 /tmp/seed-gw.json)"
+[[ "${code}" == "200" || "${code}" == "201" ]] && grep -q '"id":"evt-' /tmp/seed-gw.json ||
+  fail "mongo list events failed (${code}): $(head -c300 /tmp/seed-gw.json)"
 pass "owner-scoped list returns rows on pg + mysql + mongo"
 
 step "gateway: aggregate count matches the manifest"
@@ -291,8 +300,8 @@ code=$(gw -X POST "${KONG_URL}/query/v1/${PG_DB_ID}/tables/orders" \
   -d '{"op":"aggregate","aggregate":{"aggregates":[{"func":"count","alias":"n"}]}}')
 [[ "${code}" == "200" || "${code}" == "201" ]] || fail "aggregate failed (${code})"
 expected_orders="$(count_of pg orders)"
-grep -Eq "\"n\":\"?${expected_orders}\"?" /tmp/seed-gw.json \
-  || fail "aggregate count mismatch (want ${expected_orders}): $(head -c300 /tmp/seed-gw.json)"
+grep -Eq "\"n\":\"?${expected_orders}\"?" /tmp/seed-gw.json ||
+  fail "aggregate count mismatch (want ${expected_orders}): $(head -c300 /tmp/seed-gw.json)"
 pass "COUNT(orders) through the gateway = ${expected_orders}"
 
 step "gateway: single-row update stays single-row (the mongo _id fix)"
@@ -311,8 +320,8 @@ grep -q "${PROBE}" /tmp/seed-gw.json || fail "mongo update did not land on note-
 code=$(gw -X POST "${KONG_URL}/query/v1/${PG_DB_ID}/tables/orders" \
   -H 'Content-Type: application/json' \
   -d "{\"op\":\"update\",\"filter\":{\"id\":1},\"data\":{\"notes\":\"${PROBE}\"}}")
-[[ "${code}" == "200" || "${code}" == "201" ]] && grep -q '"rowCount":1' /tmp/seed-gw.json \
-  || fail "pg update order#1 failed (${code}): $(cat /tmp/seed-gw.json)"
+[[ "${code}" == "200" || "${code}" == "201" ]] && grep -q '"rowCount":1' /tmp/seed-gw.json ||
+  fail "pg update order#1 failed (${code}): $(cat /tmp/seed-gw.json)"
 pass "in-place edits land on exactly one row (pg + mongo), realtime publish fired"
 
 # ── 8) osionos workspace pages (optional — needs the root stack postgres) ───
@@ -322,18 +331,18 @@ if [[ "${SEED_PAGES:-1}" == "1" ]]; then
     step "seeding the 'Live Databases' pages into dylan's osionos workspace"
     DYLAN="ff284cf3-ab7d-4756-ade3-369257e36b2a"
     WS="$("${ROOT_DC[@]}" exec -T postgres psql -U postgres -d postgres -tAc \
-      "SELECT workspace_id FROM public.osionos_pages WHERE owner_id='${DYLAN}' GROUP BY 1 ORDER BY count(*) DESC LIMIT 1" \
-      | tr -d '[:space:]')"
+      "SELECT workspace_id FROM public.osionos_pages WHERE owner_id='${DYLAN}' GROUP BY 1 ORDER BY count(*) DESC LIMIT 1" |
+      tr -d '[:space:]')"
     WS="${WS:-0ea96910-277a-49d6-901c-524b147cc009}"
     python3 "${SCRIPT_DIR}/live-demo-pages.py" \
-      "${WS}" "${DYLAN}" "${PG_DB_ID}" "${MY_DB_ID}" "${MG_DB_ID}" \
-      | "${ROOT_DC[@]}" exec -T postgres psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 >/dev/null \
-      || fail "workspace page seed failed"
+      "${WS}" "${DYLAN}" "${PG_DB_ID}" "${MY_DB_ID}" "${MG_DB_ID}" |
+      "${ROOT_DC[@]}" exec -T postgres psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 >/dev/null ||
+      fail "workspace page seed failed"
     step "seeding the 'Analytics' dashboard pages (curated chart/dashboard views)"
     python3 "${SCRIPT_DIR}/analytics-dashboards.py" \
-      "${WS}" "${DYLAN}" "${PG_DB_ID}" "${MY_DB_ID}" "${MG_DB_ID}" \
-      | "${ROOT_DC[@]}" exec -T postgres psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 >/dev/null \
-      || fail "analytics page seed failed"
+      "${WS}" "${DYLAN}" "${PG_DB_ID}" "${MY_DB_ID}" "${MG_DB_ID}" |
+      "${ROOT_DC[@]}" exec -T postgres psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 >/dev/null ||
+      fail "analytics page seed failed"
     # Dylan must also SEE the shared agency wiki (26 pages, visibility=shared,
     # seeded by tools/seeds/seed_agency_wiki.py into the org workspace): grant
     # editor membership so the workspace shows up in his switcher.
@@ -343,8 +352,8 @@ if [[ "${SEED_PAGES:-1}" == "1" ]]; then
       "${ROOT_DC[@]}" exec -T postgres psql -U postgres -d postgres -q -c \
         "INSERT INTO public.osionos_workspace_members (workspace_id, user_id, role, permissions)
          VALUES ('${AGENCY_WS}','${DYLAN}','editor', ARRAY['read','write'])
-         ON CONFLICT (workspace_id, user_id) DO NOTHING" \
-        && pass "dylan is an editor of the agency org workspace (shared wiki visible)"
+         ON CONFLICT (workspace_id, user_id) DO NOTHING" &&
+        pass "dylan is an editor of the agency org workspace (shared wiki visible)"
     fi
     if "${ROOT_DC[@]}" exec -T postgres psql -U postgres -d postgres -tAc \
       "SELECT 1 FROM auth.users WHERE email='dylan@gmail.com'" 2>/dev/null | grep -q 1; then

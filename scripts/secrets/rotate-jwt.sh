@@ -41,7 +41,7 @@ chmod 600 "$SECRETS_DIR/jwt_secret_prev.txt"
 echo "[1/4] Backed up current secret as jwt_secret_prev.txt"
 
 # Step 2: Generate new secret
-openssl rand -base64 32 | tr -d '\n' > "$SECRETS_DIR/jwt_secret.txt"
+openssl rand -base64 32 | tr -d '\n' >"$SECRETS_DIR/jwt_secret.txt"
 chmod 600 "$SECRETS_DIR/jwt_secret.txt"
 echo "[2/4] Generated new jwt_secret.txt"
 
@@ -58,7 +58,7 @@ if [[ -f "$ENV_FILE" ]]; then
   if grep -q "^PREV_JWT_SECRET=" "$ENV_FILE"; then
     sed -i "s|^PREV_JWT_SECRET=.*|PREV_JWT_SECRET=$PREV_SECRET|" "$ENV_FILE"
   else
-    echo "PREV_JWT_SECRET=$PREV_SECRET" >> "$ENV_FILE"
+    echo "PREV_JWT_SECRET=$PREV_SECRET" >>"$ENV_FILE"
   fi
   echo "[3/4] Updated $ENV_FILE with new JWT_SECRET and PREV_JWT_SECRET"
 else

@@ -53,12 +53,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M62] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M62] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M62] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M62] FAIL — $*"
+  exit 1
+}
 
 # BAAS_DIR is mini-baas-infra; the SDKs live one level up under apps/baas/.
 APPS_BAAS_DIR="${BAAS_DIR}"
@@ -74,7 +77,7 @@ API_SURFACES=(AuthAPI QueryAPI StorageAPI FunctionsAPI RestAPI)
 # Unique scratch on the big disk (rule: never / or /tmp); EXIT-trap cleanup.
 WORK_BASE="${BENCH_WORK_BASE:-/mnt/storage/bench}"
 if [[ ! -d "${WORK_BASE}" || ! -w "${WORK_BASE}" ]]; then
-  WORK_BASE="$(mktemp -d)"   # only if the big disk dir is unavailable
+  WORK_BASE="$(mktemp -d)" # only if the big disk dir is unavailable
 fi
 TMP="$(mktemp -d "${WORK_BASE}/m62-swift-XXXXXX")"
 # Cleanup must NEVER decide the gate's exit code. The swift:5.9 container can
@@ -88,10 +91,10 @@ trap cleanup EXIT
 
 # ── 0) inputs present ────────────────────────────────────────────────────────
 step "0/3 inputs present (spec, swift SDK Package + 5 Api files)"
-[[ -f "${SPEC}" ]]                         || fail "spec not found: ${SPEC}"
-[[ -f "${SWIFT_SDK}/Package.swift" ]]      || fail "swift SDK Package.swift missing: ${SWIFT_SDK}"
-[[ -d "${SWIFT_SDK}/APIs" ]]               || fail "swift SDK APIs/ dir missing: ${SWIFT_SDK}/APIs"
-[[ -d "${SWIFT_SDK}/Models" ]]             || fail "swift SDK Models/ dir missing"
+[[ -f "${SPEC}" ]] || fail "spec not found: ${SPEC}"
+[[ -f "${SWIFT_SDK}/Package.swift" ]] || fail "swift SDK Package.swift missing: ${SWIFT_SDK}"
+[[ -d "${SWIFT_SDK}/APIs" ]] || fail "swift SDK APIs/ dir missing: ${SWIFT_SDK}/APIs"
+[[ -d "${SWIFT_SDK}/Models" ]] || fail "swift SDK Models/ dir missing"
 ok "spec + sdk-swift (Grobase) Package.swift + APIs/ + Models/ present"
 
 # ── spec operations (set + count) derived from the spec at run time ──────────
@@ -99,7 +102,7 @@ ok "spec + sdk-swift (Grobase) Package.swift + APIs/ + Models/ present"
 # SET of operationIds (sorted, newline-joined) — the congruence step needs names
 # not just a count.
 SPEC_OPS_FILE="${TMP}/spec_ops.txt"
-python3 - "${SPEC}" > "${SPEC_OPS_FILE}" <<'PY'
+python3 - "${SPEC}" >"${SPEC_OPS_FILE}" <<'PY'
 import json, sys
 d = json.load(open(sys.argv[1]))
 methods = {"get","put","post","delete","patch","options","head","trace"}
@@ -113,15 +116,15 @@ for _, item in (d.get("paths") or {}).items():
 for x in sorted(set(ids)):
     print(x)
 PY
-SPEC_OPS="$(wc -l < "${SPEC_OPS_FILE}" | tr -d ' ')"
+SPEC_OPS="$(wc -l <"${SPEC_OPS_FILE}" | tr -d ' ')"
 [[ "${SPEC_OPS}" =~ ^[0-9]+$ && "${SPEC_OPS}" -gt 0 ]] || fail "could not derive spec operationIds (got '${SPEC_OPS}')"
 step "spec declares ${SPEC_OPS} operationIds"
 
 # ── 1) STRUCTURE — the 5 generated Api classes present ───────────────────────
 step "1/3 structure: 5 Api classes present in sdk-swift/APIs/*.swift"
 for surface in "${API_SURFACES[@]}"; do
-  grep -rqE "^(open |public )?class ${surface} \{" "${SWIFT_SDK}/APIs/" \
-    || fail "swift SDK is missing generated class '${surface}' in APIs/"
+  grep -rqE "^(open |public )?class ${surface} \{" "${SWIFT_SDK}/APIs/" ||
+    fail "swift SDK is missing generated class '${surface}' in APIs/"
 done
 ok "all 5 Api classes present (AuthAPI · QueryAPI · StorageAPI · FunctionsAPI · RestAPI)"
 
@@ -154,21 +157,21 @@ else
   # A non-zero build is ONLY acceptable when (a) SwiftPM actually fetched the
   # SPM dependency and (b) the SOLE compile error is the Apple-only MIME
   # framework import that does not exist on Linux. Any other failure is real.
-  grep -qiE 'Fetch(ing|ed) https://github.com/Flight-School/AnyCodable' "${BUILD_LOG}" \
-    || fail "swift build did not even fetch the SPM dependency (AnyCodable) — env/network broken, not a known limitation — $(tail -8 "${BUILD_LOG}")"
+  grep -qiE 'Fetch(ing|ed) https://github.com/Flight-School/AnyCodable' "${BUILD_LOG}" ||
+    fail "swift build did not even fetch the SPM dependency (AnyCodable) — env/network broken, not a known limitation — $(tail -8 "${BUILD_LOG}")"
   # All errors must be the MobileCoreServices import (plus its rollup lines).
-  OTHER_ERRORS="$(grep -E 'error:' "${BUILD_LOG}" \
-    | grep -vi 'MobileCoreServices' \
-    | grep -vE 'emit-module command failed|fatalError' || true)"
-  [[ -z "${OTHER_ERRORS}" ]] \
-    || fail "swift build failed for reasons BEYOND the known macOS-framework gap — $(printf '%s' "${OTHER_ERRORS}" | head -5)"
-  grep -qi "no such module 'MobileCoreServices'" "${BUILD_LOG}" \
-    || fail "swift build failed but NOT with the expected Linux macOS-framework cause — $(tail -10 "${BUILD_LOG}")"
+  OTHER_ERRORS="$(grep -E 'error:' "${BUILD_LOG}" |
+    grep -vi 'MobileCoreServices' |
+    grep -vE 'emit-module command failed|fatalError' || true)"
+  [[ -z "${OTHER_ERRORS}" ]] ||
+    fail "swift build failed for reasons BEYOND the known macOS-framework gap — $(printf '%s' "${OTHER_ERRORS}" | head -5)"
+  grep -qi "no such module 'MobileCoreServices'" "${BUILD_LOG}" ||
+    fail "swift build failed but NOT with the expected Linux macOS-framework cause — $(tail -10 "${BUILD_LOG}")"
   # Proof the build did real work before the platform import: SPM compiled the
   # generated Grobase sources (one "Compiling Grobase X.swift" line per source).
   COMPILED="$(grep -cE 'Compiling Grobase ' "${BUILD_LOG}" || true)"
-  [[ "${COMPILED}" =~ ^[0-9]+$ && "${COMPILED}" -gt 0 ]] \
-    || fail "swift build reached no Grobase compile step before failing — $(tail -10 "${BUILD_LOG}")"
+  [[ "${COMPILED}" =~ ^[0-9]+$ && "${COMPILED}" -gt 0 ]] ||
+    fail "swift build reached no Grobase compile step before failing — $(tail -10 "${BUILD_LOG}")"
   ok "swift build fetched AnyCodable from SPM + compiled ${COMPILED} Grobase sources before the macOS-only import"
 
   # HONEST FALLBACK (announced, not silent): swiftc -parse over EVERY generated
@@ -199,7 +202,7 @@ step "3/3 congruence: spec operationIds == swift API method names (exact set-equ
 # Base method = each `open class func NAME(` with the WithRequestBuilder twin
 # stripped. Pure text scan over APIs/*.swift — no Swift runtime needed.
 SWIFT_OPS_FILE="${TMP}/swift_ops.txt"
-python3 - "${SWIFT_SDK}" > "${SWIFT_OPS_FILE}" <<'PY'
+python3 - "${SWIFT_SDK}" >"${SWIFT_OPS_FILE}" <<'PY'
 import glob, os, re, sys
 root = sys.argv[1]
 ops = set()
@@ -211,24 +214,24 @@ for f in glob.glob(os.path.join(root, "APIs", "*.swift")):
 for x in sorted(ops):
     print(x)
 PY
-SWIFT_OPS="$(wc -l < "${SWIFT_OPS_FILE}" | tr -d ' ')"
+SWIFT_OPS="$(wc -l <"${SWIFT_OPS_FILE}" | tr -d ' ')"
 [[ "${SWIFT_OPS}" =~ ^[0-9]+$ && "${SWIFT_OPS}" -gt 0 ]] || fail "could not extract swift API method names (got '${SWIFT_OPS}')"
 
 # Exact SET equality: report any name only-in-spec or only-in-swift.
 ONLY_SPEC="$(comm -23 "${SPEC_OPS_FILE}" "${SWIFT_OPS_FILE}" || true)"
 ONLY_SWIFT="$(comm -13 "${SPEC_OPS_FILE}" "${SWIFT_OPS_FILE}" || true)"
-[[ -z "${ONLY_SPEC}" ]]  || fail "operationIds in spec but NOT in swift SDK: $(echo ${ONLY_SPEC})"
+[[ -z "${ONLY_SPEC}" ]] || fail "operationIds in spec but NOT in swift SDK: $(echo ${ONLY_SPEC})"
 [[ -z "${ONLY_SWIFT}" ]] || fail "swift API methods NOT in spec: $(echo ${ONLY_SWIFT})"
-[[ "${SWIFT_OPS}" == "${SPEC_OPS}" ]] \
-  || fail "swift ops (${SWIFT_OPS}) != spec ops (${SPEC_OPS}) — SDK is out of sync with the spec"
+[[ "${SWIFT_OPS}" == "${SPEC_OPS}" ]] ||
+  fail "swift ops (${SWIFT_OPS}) != spec ops (${SPEC_OPS}) — SDK is out of sync with the spec"
 ok "spec(${SPEC_OPS}) == swift(${SWIFT_OPS}) — identical operationId set, SDK matches the public spec"
 
 # ── PASS — record the gate to the JSONL log via the helper (rule 11) ─────────
 PASS_MSG="m62 PASS — swift SDK real & congruent: 5 Api classes · ${BUILD_MODE} · spec==swift == ${SPEC_OPS} ops (exact set)"
 if [[ -f "${APPS_BAAS_DIR}/.claude/lib/log.sh" ]]; then
   AGENT_RUN="${AGENT_RUN:-m62-gate}" AGENT_TASK="${AGENT_TASK:-A4-swift}" \
-  AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_PHASE="${AGENT_PHASE:-PROVE}" \
-  bash -c 'source "'"${APPS_BAAS_DIR}"'/.claude/lib/log.sh"
+    AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_PHASE="${AGENT_PHASE:-PROVE}" \
+    bash -c 'source "'"${APPS_BAAS_DIR}"'/.claude/lib/log.sh"
            log_event GATE --outcome PASS --gate m62=PASS \
              --ref sdk-swift/ \
              --msg "'"${PASS_MSG}"'" \

@@ -231,15 +231,11 @@ export class QueryService implements OnModuleInit {
     );
     this.serviceToken = this.config.get<string>('ADAPTER_REGISTRY_SERVICE_TOKEN', '');
     this.controlPlaneTimeoutMs = this.config.get<number>('CONTROL_PLANE_TIMEOUT_MS', 2_000);
-    this.dsnCacheTtlMs = Number(
-      this.config.get<string>('QUERY_ROUTER_DSN_CACHE_TTL_MS', '30000'),
-    );
+    this.dsnCacheTtlMs = Number(this.config.get<string>('QUERY_ROUTER_DSN_CACHE_TTL_MS', '30000'));
     this.dsnCacheMaxEntries = Number(
       this.config.get<string>('QUERY_ROUTER_DSN_CACHE_MAX_ENTRIES', '500'),
     );
-    this.staticMounts = parseStaticMounts(
-      this.config.get<string>('DATA_PLANE_MOUNTS', '') ?? '',
-    );
+    this.staticMounts = parseStaticMounts(this.config.get<string>('DATA_PLANE_MOUNTS', '') ?? '');
     this.apiKeyAbacEnabled = ['1', 'true', 'yes', 'on'].includes(
       (this.config.get<string>('API_KEY_ABAC_ENABLED', '0') ?? '0').toLowerCase(),
     );
@@ -338,7 +334,10 @@ export class QueryService implements OnModuleInit {
     }
   }
 
-  private async fetchConnectionFromRegistry(dbId: string, userId: string): Promise<AdapterResponse> {
+  private async fetchConnectionFromRegistry(
+    dbId: string,
+    userId: string,
+  ): Promise<AdapterResponse> {
     const path = `/databases/${dbId}/connect`;
     const url = `${this.registryUrl}${path}`;
     try {
@@ -389,9 +388,7 @@ export class QueryService implements OnModuleInit {
     // instance (e.g. a JSON array or primitive): calling resolveOp() on a plain object
     // throws a TypeError -> 500. That's a client error, so reject it cleanly as 400.
     if (typeof (dto as { resolveOp?: unknown })?.resolveOp !== 'function') {
-      throw new BadRequestException(
-        'Invalid request body: expected a single operation object.',
-      );
+      throw new BadRequestException('Invalid request body: expected a single operation object.');
     }
     const op = dto.resolveOp();
     if (!op) {
@@ -480,7 +477,9 @@ export class QueryService implements OnModuleInit {
         idempotencyKey: dto.idempotencyKey,
       })
       .catch((error: Error) => {
-        this.logger.warn(`outbox emission failed for ${engine}.${resource}.${op}: ${error.message}`);
+        this.logger.warn(
+          `outbox emission failed for ${engine}.${resource}.${op}: ${error.message}`,
+        );
       });
 
     // Best-effort realtime fan-out — fire-and-forget so the write response is
@@ -492,15 +491,18 @@ export class QueryService implements OnModuleInit {
         idempotencyKey: dto.idempotencyKey,
         pk,
       });
-      this.fireAutomations({
-        dbId,
-        tenantId,
-        userId,
-        table: resource,
-        op: op as RealtimeWriteOp,
-        row: result.rows[0] ?? { ...dto.filter, ...dto.data },
-        pk,
-      }, context);
+      this.fireAutomations(
+        {
+          dbId,
+          tenantId,
+          userId,
+          table: resource,
+          op: op as RealtimeWriteOp,
+          row: result.rows[0] ?? { ...dto.filter, ...dto.data },
+          pk,
+        },
+        context,
+      );
     }
 
     return this.applyFieldMask(result, decision.mask);
@@ -563,15 +565,18 @@ export class QueryService implements OnModuleInit {
         idempotencyKey: o.idempotencyKey,
         pk,
       });
-      this.fireAutomations({
-        dbId,
-        tenantId,
-        userId,
-        table: o.resource,
-        op: o.op as RealtimeWriteOp,
-        row: { ...o.filter, ...o.data },
-        pk,
-      }, context);
+      this.fireAutomations(
+        {
+          dbId,
+          tenantId,
+          userId,
+          table: o.resource,
+          op: o.op as RealtimeWriteOp,
+          row: { ...o.filter, ...o.data },
+          pk,
+        },
+        context,
+      );
     }
     return { guarantee: 'atomic', mount: dbId, results };
   }
@@ -596,16 +601,20 @@ export class QueryService implements OnModuleInit {
           });
         },
         (rule, message, pk) =>
-          this.realtime.publishAutomationFired(event.dbId, event.table, rule.id, rule.name, message, pk),
+          this.realtime.publishAutomationFired(
+            event.dbId,
+            event.table,
+            rule.id,
+            rule.name,
+            message,
+            pk,
+          ),
       )
       .catch((error: Error) => this.logger.warn(`automation run failed: ${error.message}`));
   }
 
   /** begin → execute each op → commit; rollback (best-effort) on any failure. */
-  private async runTransaction(
-    ctx: RustProxyContext,
-    ops: TxnOpDto[],
-  ): Promise<TxnOpResult[]> {
+  private async runTransaction(ctx: RustProxyContext, ops: TxnOpDto[]): Promise<TxnOpResult[]> {
     const txId = await this.rustProxy.beginTransaction(ctx, ops[0].resource);
     try {
       const results: TxnOpResult[] = [];
@@ -650,7 +659,9 @@ export class QueryService implements OnModuleInit {
           idempotencyKey: o.idempotencyKey,
         })
         .catch((error: Error) =>
-          this.logger.warn(`txn outbox emit for ${engine}.${o.resource}.${o.op} failed: ${error.message}`),
+          this.logger.warn(
+            `txn outbox emit for ${engine}.${o.resource}.${o.op} failed: ${error.message}`,
+          ),
         );
     });
   }
@@ -753,9 +764,19 @@ export class QueryService implements OnModuleInit {
 
     const lop = op.toLowerCase();
     const READ = new Set(['list', 'get', 'select', 'read', 'count', 'aggregate']);
-    const WRITE = new Set(['insert', 'update', 'delete', 'upsert', 'batch', 'create', 'patch', 'remove']);
+    const WRITE = new Set([
+      'insert',
+      'update',
+      'delete',
+      'upsert',
+      'batch',
+      'create',
+      'patch',
+      'remove',
+    ]);
     if (READ.has(lop) && scopes.has('read')) return { allow: true, reason: 'api-key read scope' };
-    if (WRITE.has(lop) && scopes.has('write')) return { allow: true, reason: 'api-key write scope' };
+    if (WRITE.has(lop) && scopes.has('write'))
+      return { allow: true, reason: 'api-key write scope' };
 
     let needed = 'admin';
     if (READ.has(lop)) needed = 'read';
@@ -769,7 +790,8 @@ export class QueryService implements OnModuleInit {
     const id = filter?.['id'];
     if (id === undefined || id === null) return undefined;
     if (typeof id === 'string') return id;
-    if (typeof id === 'number' || typeof id === 'boolean' || typeof id === 'bigint') return String(id);
+    if (typeof id === 'number' || typeof id === 'boolean' || typeof id === 'bigint')
+      return String(id);
     return JSON.stringify(id);
   }
 
@@ -791,7 +813,10 @@ export class QueryService implements OnModuleInit {
   }
 
   async listTables(dbId: string, userId: string, identity?: VerifiedRequestIdentity) {
-    const { engine, connection_string } = await this.fetchConnection(dbId, identity?.tenantId ?? userId);
+    const { engine, connection_string } = await this.fetchConnection(
+      dbId,
+      identity?.tenantId ?? userId,
+    );
     const adapter = this.resolveAdapter(engine);
     const resources = await adapter.listResources(connection_string);
 

@@ -47,13 +47,16 @@ fi
 # Resolve "latest" to the newest base-<stamp>/ under the physical prefix.
 if [ "${BASE_STAMP}" = "latest" ]; then
   if [ -n "${LOCAL_STORE}" ]; then
-    BASE_STAMP="$(ls -1 "${BASE_STORE}" 2>/dev/null \
-      | sed -nE 's#^base-([0-9TZ]+)$#\1#p' | sort | tail -1)"
+    BASE_STAMP="$(ls -1 "${BASE_STORE}" 2>/dev/null |
+      sed -nE 's#^base-([0-9TZ]+)$#\1#p' | sort | tail -1)"
   else
-    BASE_STAMP="$(mc ls "${BASE_STORE}/" 2>/dev/null \
-      | sed -nE 's#.*base-([0-9TZ]+)/?$#\1#p' | sort | tail -1)"
+    BASE_STAMP="$(mc ls "${BASE_STORE}/" 2>/dev/null |
+      sed -nE 's#.*base-([0-9TZ]+)/?$#\1#p' | sort | tail -1)"
   fi
-  [ -n "${BASE_STAMP}" ] || { echo "[pitr] no physical base backup found under ${BASE_STORE}/" >&2; exit 1; }
+  [ -n "${BASE_STAMP}" ] || {
+    echo "[pitr] no physical base backup found under ${BASE_STORE}/" >&2
+    exit 1
+  }
 fi
 BASE_KEY="${BASE_STORE}/base-${BASE_STAMP}"
 
@@ -77,7 +80,10 @@ if [ -n "${LOCAL_STORE}" ]; then
 else
   mc cp --recursive "${BASE_KEY}/" "${TMP_BASE}/" >/dev/null
 fi
-[ -f "${TMP_BASE}/base.tar.gz" ] || { echo "[pitr] base.tar.gz missing from ${BASE_KEY}/" >&2; exit 1; }
+[ -f "${TMP_BASE}/base.tar.gz" ] || {
+  echo "[pitr] base.tar.gz missing from ${BASE_KEY}/" >&2
+  exit 1
+}
 tar -xzf "${TMP_BASE}/base.tar.gz" -C "${PGDATA_DIR}"
 # pg_basebackup --format=tar emits pg_wal.tar.gz for the WAL directory; restore it
 # so the startup WAL needed to reach a consistent point is present.
@@ -101,7 +107,7 @@ fi
 #    requested segment from the local stage; recovery_target_time stops replay at
 #    T; recovery_target_action=promote finishes recovery into a usable server;
 #    recovery_target_inclusive=true replays records AT exactly T.
-cat >> "${PGDATA_DIR}/postgresql.auto.conf" <<CONF
+cat >>"${PGDATA_DIR}/postgresql.auto.conf" <<CONF
 # --- pg-backup PITR (C4b) ---
 restore_command = 'cp ${WAL_STAGE}/%f %p'
 recovery_target_time = '${TARGET_TIME}'

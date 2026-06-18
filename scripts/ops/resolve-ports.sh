@@ -55,13 +55,16 @@ declare -A SERVICE_PORTS=(
   [loki]=LOKI_PORT
   [promtail]=PROMTAIL_PORT
   [tempo]=TEMPO_PORT
-  [otel-collector]=OTEL_COLLECTOR_HEALTH_PORT
+  [otel - collector]=OTEL_COLLECTOR_HEALTH_PORT
 )
 
 if [[ $# -gt 0 ]]; then
   for service in "$@"; do
     var="${SERVICE_PORTS[$service]:-}"
-    [[ -n "$var" ]] || { echo "unknown service: $service" >&2; exit 2; }
+    [[ -n "$var" ]] || {
+      echo "unknown service: $service" >&2
+      exit 2
+    }
     default=""
     for entry in "${PORTS[@]}"; do
       if [[ "${entry%%=*}" == "$var" ]]; then
@@ -75,7 +78,7 @@ if [[ $# -gt 0 ]]; then
 fi
 
 # ── Helpers ─────────────────────────────────────────────────────────
-_used_ports=""  # track ports we've already claimed in this run
+_used_ports="" # track ports we've already claimed in this run
 
 port_in_use() {
   local p=$1

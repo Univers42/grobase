@@ -45,8 +45,13 @@ export class CorrelationIdInterceptor implements NestInterceptor {
   }
 
   private traceparentFromRequestId(requestId: string): string {
-    const traceId = requestId.replace(/[^a-fA-F0-9]/g, '').padEnd(32, '0').slice(0, 32);
-    const spanId = randomUUID().replace(/[^a-fA-F0-9]/g, '').slice(0, 16);
+    const traceId = requestId
+      .replace(/[^a-fA-F0-9]/g, '')
+      .padEnd(32, '0')
+      .slice(0, 32);
+    const spanId = randomUUID()
+      .replace(/[^a-fA-F0-9]/g, '')
+      .slice(0, 16);
     return `00-${traceId}-${spanId}-01`;
   }
 }

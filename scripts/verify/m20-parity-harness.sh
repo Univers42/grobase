@@ -27,20 +27,23 @@ PARITY="${BAAS_DIR}/scripts/verify/parity.sh"
 PARITY_DIR="${BAAS_DIR}/scripts/verify/parity"
 MAKEFILE="${BAAS_DIR}/Makefile"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-fail()  { red "[M20] FAIL: $*"; exit 1; }
-step()  { cyan "[M20] ${*}"; }
-pass()  { green "[M20] PASS: ${*}"; }
+fail() {
+  red "[M20] FAIL: $*"
+  exit 1
+}
+step() { cyan "[M20] ${*}"; }
+pass() { green "[M20] PASS: ${*}"; }
 
 LIVE=0
 for arg in "$@"; do [[ "${arg}" == "--live" ]] && LIVE=1; done
 
 step "structural: parity harness present + sound"
-[[ -f "${PARITY}" ]]   || fail "missing ${PARITY}"
-[[ -x "${PARITY}" ]]   || fail "${PARITY} is not executable"
-bash -n "${PARITY}"    || fail "${PARITY} has a syntax error"
+[[ -f "${PARITY}" ]] || fail "missing ${PARITY}"
+[[ -x "${PARITY}" ]] || fail "${PARITY} is not executable"
+bash -n "${PARITY}" || fail "${PARITY} has a syntax error"
 for mode in '"record"' '"diff"' '"contract"'; do
   grep -q "MODE=${mode}" "${PARITY}" || grep -q "MODE=${mode//\"/}" "${PARITY}" || fail "harness missing mode ${mode}"
 done
@@ -92,8 +95,8 @@ ls "${work}/.parity/"*.json >/dev/null 2>&1 || fail "compare did not emit a verd
 jq -e '.verdict == "pass"' "${work}/.parity/"*.json >/dev/null || fail "verdict json not pass"
 
 step "live: tampered golden should FAIL (exit 1)"
-jq '.capabilities.status = "503"' "${work}/selftest.golden.json" > "${work}/t.json" \
-  && mv "${work}/t.json" "${work}/selftest.golden.json"
+jq '.capabilities.status = "503"' "${work}/selftest.golden.json" >"${work}/t.json" &&
+  mv "${work}/t.json" "${work}/selftest.golden.json"
 if NEW="${RUST_URL}" ROUTES="${rs}" PARITY_VERDICT_DIR="${work}/.parity" bash "${PARITY}" >/dev/null 2>&1; then
   fail "a tampered golden must make the gate fail"
 fi

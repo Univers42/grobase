@@ -35,23 +35,30 @@ PG_CTN="mini-baas-postgres"
 DB="gourmand"
 
 cyan() { printf '\033[0;36m[gourmand-localdb] %s\033[0m\n' "$*" >&2; }
-fail() { printf '\033[0;31m[gourmand-localdb] FAIL: %s\033[0m\n' "$*" >&2; exit 1; }
+fail() {
+  printf '\033[0;31m[gourmand-localdb] FAIL: %s\033[0m\n' "$*" >&2
+  exit 1
+}
 
 [[ -d "${VG_SQL}/schemas" ]] || fail "vite-gourmand SQL not found at ${VG_SQL}"
 docker inspect "${PG_CTN}" >/dev/null 2>&1 || fail "${PG_CTN} not running"
-PG_USER="$(docker inspect "${PG_CTN}" --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^POSTGRES_USER=//p' | head -1)"; PG_USER="${PG_USER:-postgres}"
+PG_USER="$(docker inspect "${PG_CTN}" --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^POSTGRES_USER=//p' | head -1)"
+PG_USER="${PG_USER:-postgres}"
 PG_PASS="$(docker inspect "${PG_CTN}" --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^POSTGRES_PASSWORD=//p' | head -1)"
 
 PSQL() { docker exec -i "${PG_CTN}" psql -U "${PG_USER}" -v ON_ERROR_STOP=1 "$@"; }
 LOAD() { # $1 db, $2 file, $3 label
-  [[ -f "$2" ]] || { cyan "skip ${3} (no $2)"; return 0; }
-  PSQL -q -d "$1" < "$2" >/dev/null 2>/tmp/gourmand-localdb.err \
-    || fail "${3} failed: $(tail -2 /tmp/gourmand-localdb.err)"
+  [[ -f "$2" ]] || {
+    cyan "skip ${3} (no $2)"
+    return 0
+  }
+  PSQL -q -d "$1" <"$2" >/dev/null 2>/tmp/gourmand-localdb.err ||
+    fail "${3} failed: $(tail -2 /tmp/gourmand-localdb.err)"
 }
 
 cyan "ensuring database '${DB}' on ${PG_CTN}"
-PSQL -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='${DB}'" | grep -q 1 \
-  || PSQL -d postgres -c "CREATE DATABASE ${DB}" >/dev/null
+PSQL -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='${DB}'" | grep -q 1 ||
+  PSQL -d postgres -c "CREATE DATABASE ${DB}" >/dev/null
 
 # ── schemas (FK order; reset + RLS deliberately excluded) ────────────────────
 cyan "applying schema (PascalCase tables, their FK order)"
@@ -59,25 +66,25 @@ cyan "applying schema (PascalCase tables, their FK order)"
 # their deploy-supabase.sh lists orgnanization first, which only works because
 # Supabase ships auth.users — on a plain Postgres "User" must exist first).
 for s in auth orgnanization gpdr menu loyalty orders loyalty_post_order reviews \
-         contact employee messaging kanban promotions newsletter optimizing; do
+  contact employee messaging kanban promotions newsletter optimizing; do
   LOAD "${DB}" "${VG_SQL}/schemas/${s}.sql" "schema ${s}"
 done
 
 # ── seeds (FK order; only the files that exist) ──────────────────────────────
 cyan "applying seed data (their FK order)"
 for d in role permission role_permission user user_address user_session user_content \
-         password_token working_hours company company_owner company_working_hours \
-         event diet theme allergen ingredient menu dish menu_dish menu_image \
-         dish_allergen dish_ingredient menu_ingredient discount promotion \
-         user_promotion order_tag order order_order_tag order_status_history \
-         loyalty_account loyalty_transaction publish contact_message \
-         data_deletion_request time_off_request message notification \
-         support_ticket ticket_message kanban_column newsletter_subscriber; do
+  password_token working_hours company company_owner company_working_hours \
+  event diet theme allergen ingredient menu dish menu_dish menu_image \
+  dish_allergen dish_ingredient menu_ingredient discount promotion \
+  user_promotion order_tag order order_order_tag order_status_history \
+  loyalty_account loyalty_transaction publish contact_message \
+  data_deletion_request time_off_request message notification \
+  support_ticket ticket_message kanban_column newsletter_subscriber; do
   # Seeds are best-effort: a missing optional seed or a benign ON CONFLICT is
   # not fatal (the schema is what the mount needs; data just makes it lively).
   if [[ -f "${VG_SQL}/seeds/${d}.sql" ]]; then
     docker exec -i "${PG_CTN}" psql -U "${PG_USER}" -d "${DB}" -q \
-      < "${VG_SQL}/seeds/${d}.sql" >/dev/null 2>>/tmp/gourmand-localdb.seed.err || cyan "seed ${d}: non-fatal issue (continuing)"
+      <"${VG_SQL}/seeds/${d}.sql" >/dev/null 2>>/tmp/gourmand-localdb.seed.err || cyan "seed ${d}: non-fatal issue (continuing)"
   fi
 done
 

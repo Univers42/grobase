@@ -164,7 +164,13 @@ export class GraphService {
       )) as QueryRows;
       const row = res.rows?.[0];
       if (!row) return null;
-      return { id: nodeId, mount: parsed.dbId, resource: parsed.resource, pk: parsed.pk, data: row };
+      return {
+        id: nodeId,
+        mount: parsed.dbId,
+        resource: parsed.resource,
+        pk: parsed.pk,
+        data: row,
+      };
     } catch (error) {
       this.logger.debug(`node ${nodeId} unreadable: ${(error as Error).message}`);
       return null;
@@ -190,9 +196,7 @@ export class GraphService {
         dto,
         ctx,
       )) as QueryRows;
-      return (res.rows ?? [])
-        .map(toEdgeRecord)
-        .filter((edge): edge is EdgeRecord => edge !== null);
+      return (res.rows ?? []).map(toEdgeRecord).filter((edge): edge is EdgeRecord => edge !== null);
     } catch (error) {
       this.logger.debug(`edges for ${nodeId} unreadable: ${(error as Error).message}`);
       return [];
@@ -202,8 +206,7 @@ export class GraphService {
   /** Keep only well-formed `{ dbId, table }` refs (the DTO array is loosely typed). */
   private validResources(resources: ResourceRef[]): ResourceRef[] {
     return (Array.isArray(resources) ? resources : []).filter(
-      (r): r is ResourceRef =>
-        !!r && typeof r.dbId === 'string' && typeof r.table === 'string',
+      (r): r is ResourceRef => !!r && typeof r.dbId === 'string' && typeof r.table === 'string',
     );
   }
 
@@ -230,7 +233,11 @@ export class GraphService {
   }
 
   /** A listed row → a node, keyed by its `id` column (the node PK convention). */
-  private rowToNode(dbId: string, resource: string, row: Record<string, unknown>): GraphNode | null {
+  private rowToNode(
+    dbId: string,
+    resource: string,
+    row: Record<string, unknown>,
+  ): GraphNode | null {
     const rawPk = row.id;
     if (typeof rawPk !== 'string' && typeof rawPk !== 'number') return null;
     const pk = String(rawPk);
@@ -255,11 +262,11 @@ export class GraphService {
         dto,
         ctx,
       )) as QueryRows;
-      return (res.rows ?? [])
-        .map(toEdgeRecord)
-        .filter((edge): edge is EdgeRecord => edge !== null);
+      return (res.rows ?? []).map(toEdgeRecord).filter((edge): edge is EdgeRecord => edge !== null);
     } catch (error) {
-      this.logger.debug(`overview edges ${edgesDbId}:${edgesTable} failed: ${(error as Error).message}`);
+      this.logger.debug(
+        `overview edges ${edgesDbId}:${edgesTable} failed: ${(error as Error).message}`,
+      );
       return [];
     }
   }

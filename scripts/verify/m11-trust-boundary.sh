@@ -11,12 +11,15 @@ DB_DIR="${BAAS_DIR}/src/libs/database/src"
 QUERY_DIR="${BAAS_DIR}/src/apps/query-router/src"
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-fail()  { red "[M11] FAIL: $*"; exit 1; }
-step()  { cyan "[M11] ${*}"; }
-pass()  { green "[M11] PASS: ${*}"; }
+fail() {
+  red "[M11] FAIL: $*"
+  exit 1
+}
+step() { cyan "[M11] ${*}"; }
+pass() { green "[M11] PASS: ${*}"; }
 
 LIVE=0
 for arg in "$@"; do [[ "${arg}" == "--live" ]] && LIVE=1; done
@@ -44,18 +47,18 @@ for token in \
   "body_sha256="; do
   grep -qi "${token}" "${IDENTITY}" || fail "identity canonicalization missing ${token}"
 done
-grep -q "CurrentIdentity" "${COMMON_DIR}/decorators/current-user.decorator.ts" \
-  || fail "CurrentIdentity decorator missing"
+grep -q "CurrentIdentity" "${COMMON_DIR}/decorators/current-user.decorator.ts" ||
+  fail "CurrentIdentity decorator missing"
 pass "request identity exposes tenant/project/app and canonical HMAC fields"
 
 step "checking guards populate req.identity before legacy req.user"
 for guard in auth.guard optional-auth.guard service-token.guard; do
   grep -q "req.identity" "${COMMON_DIR}/guards/${guard}.ts" || fail "${guard}.ts does not populate req.identity"
 done
-grep -q "serviceIdentityFromHeaders" "${COMMON_DIR}/guards/service-token.guard.ts" \
-  || fail "service token guard does not create scoped service identity"
-grep -q "req.identity?.roleNames" "${COMMON_DIR}/guards/roles.guard.ts" \
-  || fail "roles guard is not identity-aware"
+grep -q "serviceIdentityFromHeaders" "${COMMON_DIR}/guards/service-token.guard.ts" ||
+  fail "service token guard does not create scoped service identity"
+grep -q "req.identity?.roleNames" "${COMMON_DIR}/guards/roles.guard.ts" ||
+  fail "roles guard is not identity-aware"
 pass "AuthGuard, OptionalAuthGuard, ServiceTokenGuard and RolesGuard use verified identity"
 
 step "checking tenant-aware RLS settings"
@@ -65,11 +68,11 @@ POSTGRES="${DB_DIR}/postgres/postgres.service.ts"
 PG_ENGINE_RS="${BAAS_DIR}/src/data-plane-router/crates/data-plane-pool/src/postgres.rs"
 RLS_MIGRATION="${BAAS_DIR}/scripts/migrations/postgresql/016_unify_rls.sql"
 grep -q "app.current_tenant_id" "${POSTGRES}" || fail "PostgresService tenantQuery must set app.current_tenant_id"
-grep -q "app.current_tenant_id" "${PG_ENGINE_RS}" \
-  || fail "Rust PostgresPool adapter must set app.current_tenant_id"
+grep -q "app.current_tenant_id" "${PG_ENGINE_RS}" ||
+  fail "Rust PostgresPool adapter must set app.current_tenant_id"
 grep -q "tenant_id" "${POSTGRES}" || fail "PostgresService claims must include tenant_id"
-grep -q "tenant_id" "${PG_ENGINE_RS}" \
-  || fail "Rust PostgresPool adapter must include tenant_id in claims"
+grep -q "tenant_id" "${PG_ENGINE_RS}" ||
+  fail "Rust PostgresPool adapter must include tenant_id in claims"
 grep -q "auth.current_tenant_id" "${RLS_MIGRATION}" || fail "RLS migration must define auth.current_tenant_id"
 pass "Postgres helpers set both tenant and user RLS settings (Rust adapter parity)"
 
@@ -88,7 +91,8 @@ grep -q "pre-function" "${BAAS_DIR}/infra/docker/services/kong/conf/kong.yml" ||
 pass "gateway path remains present while strict upstream verification can be enabled"
 
 step "checking signed envelope positive and forged-header negative paths"
-(cd "${BAAS_DIR}/src" && npx ts-node -r tsconfig-paths/register --transpile-only <<'TS'
+(
+  cd "${BAAS_DIR}/src" && npx ts-node -r tsconfig-paths/register --transpile-only <<'TS'
 import { createHmac } from 'node:crypto';
 import { canonicalIdentityString, resolveRequestIdentity, type VerifiedRequestIdentity } from '@mini-baas/common';
 
@@ -152,8 +156,8 @@ if [[ ${LIVE} -eq 1 ]]; then
   status=$(curl -sS -o /dev/null -w '%{http_code}' \
     -H 'X-User-Id: 00000000-0000-4000-8000-000000000011' \
     "http://127.0.0.1:${QUERY_ROUTER_PORT:-4001}/query/00000000-0000-4000-8000-000000000444/tables" || true)
-  [[ "${status}" == "401" || "${status}" == "403" ]] \
-    || fail "expected strict query-router to reject forged header with 401/403, got ${status:-empty}; start it with IDENTITY_HEADER_MODE=strict"
+  [[ "${status}" == "401" || "${status}" == "403" ]] ||
+    fail "expected strict query-router to reject forged header with 401/403, got ${status:-empty}; start it with IDENTITY_HEADER_MODE=strict"
   pass "strict live query-router rejects raw X-User-Id"
 fi
 

@@ -25,8 +25,8 @@ echo
 
 echo "==> WebSocket connection test: ${WS_URL}"
 if command -v wscat &>/dev/null; then
-  echo '{"action":"subscribe","channel":"test"}' \
-    | wscat -c "${WS_URL}" --wait 3
+  echo '{"action":"subscribe","channel":"test"}' |
+    wscat -c "${WS_URL}" --wait 3
 elif command -v curl &>/dev/null; then
   curl -i -N \
     -H "Connection: Upgrade" \

@@ -39,12 +39,15 @@ MIG="${BAAS_DIR}/scripts/migrations/postgresql/030_tenancy_isolation.sql"
 # Boot DDL lives in schema.go's EnsureSchema function (split out of service.go).
 ADAPTER_REG_SVC="${BAAS_DIR}/src/control-plane/internal/adapterregistry/schema.go"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-fail()  { red "[M12] FAIL: $*"; exit 1; }
-step()  { cyan "[M12] ${*}"; }
-pass()  { green "[M12] PASS: ${*}"; }
+fail() {
+  red "[M12] FAIL: $*"
+  exit 1
+}
+step() { cyan "[M12] ${*}"; }
+pass() { green "[M12] PASS: ${*}"; }
 
 LIVE=0
 for arg in "$@"; do [[ "${arg}" == "--live" ]] && LIVE=1; done
@@ -71,30 +74,30 @@ step "checking Go adapter-registry EnsureSchema policy enforces tenant scope"
 if grep -nE "CREATE POLICY tenant_isolation ON public\\.tenant_databases" "${ADAPTER_REG_SVC}" >/dev/null; then
   fail "Go adapter-registry recreates the broken 'tenant_isolation' policy at boot"
 fi
-grep -q "tenant_databases_tenant_isolation" "${ADAPTER_REG_SVC}" \
-  || fail "Go adapter-registry EnsureSchema missing tenant_databases_tenant_isolation policy"
-grep -q "auth.current_tenant_id()" "${ADAPTER_REG_SVC}" \
-  || fail "Go adapter-registry EnsureSchema does not invoke auth.current_tenant_id()"
+grep -q "tenant_databases_tenant_isolation" "${ADAPTER_REG_SVC}" ||
+  fail "Go adapter-registry EnsureSchema missing tenant_databases_tenant_isolation policy"
+grep -q "auth.current_tenant_id()" "${ADAPTER_REG_SVC}" ||
+  fail "Go adapter-registry EnsureSchema does not invoke auth.current_tenant_id()"
 pass "Go adapter-registry boot DDL creates the tenant-scoped policy"
 
 # ── 3) auth.current_tenant_id() exists and reads from app GUC + JWT ─────────
 step "checking auth.current_tenant_id() helper presence in 016_unify_rls.sql"
 UNIFY="${BAAS_DIR}/scripts/migrations/postgresql/016_unify_rls.sql"
 [[ -f "${UNIFY}" ]] || fail "${UNIFY} missing"
-grep -q "FUNCTION auth.current_tenant_id() RETURNS UUID" "${UNIFY}" \
-  || fail "auth.current_tenant_id() not declared in 016_unify_rls.sql"
-grep -q "app.current_tenant_id" "${UNIFY}" \
-  || fail "016_unify_rls.sql does not read app.current_tenant_id GUC"
+grep -q "FUNCTION auth.current_tenant_id() RETURNS UUID" "${UNIFY}" ||
+  fail "auth.current_tenant_id() not declared in 016_unify_rls.sql"
+grep -q "app.current_tenant_id" "${UNIFY}" ||
+  fail "016_unify_rls.sql does not read app.current_tenant_id GUC"
 pass "auth.current_tenant_id() reads JWT or app.current_tenant_id GUC"
 
 # ── 4) Postgres helper still sets both user + tenant GUCs (M11 contract) ────
 step "checking PostgresService sets app.current_tenant_id alongside app.current_user_id"
 PG_SVC="${BAAS_DIR}/src/libs/database/src/postgres/postgres.service.ts"
 [[ -f "${PG_SVC}" ]] || fail "${PG_SVC} missing"
-grep -q "app.current_tenant_id" "${PG_SVC}" \
-  || fail "${PG_SVC} does not set app.current_tenant_id"
-grep -q "app.current_user_id" "${PG_SVC}" \
-  || fail "${PG_SVC} does not set app.current_user_id"
+grep -q "app.current_tenant_id" "${PG_SVC}" ||
+  fail "${PG_SVC} does not set app.current_tenant_id"
+grep -q "app.current_user_id" "${PG_SVC}" ||
+  fail "${PG_SVC} does not set app.current_user_id"
 pass "PostgresService sets both tenant + user RLS GUCs"
 
 # ── 5) Live two-tenant isolation negative test ───────────────────────────────
@@ -103,8 +106,8 @@ if [[ ${LIVE} -eq 1 ]]; then
   step "live: applying migration 030 (idempotent)"
   sed '/^#/d' "${MIG}" | docker compose -f "${COMPOSE_FILE}" exec -T postgres \
     psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" -v ON_ERROR_STOP=1 \
-    -f - >/dev/null \
-    || fail "migration 030 failed to apply"
+    -f - >/dev/null ||
+    fail "migration 030 failed to apply"
   pass "migration 030 applied"
 
   step "live: two tenants with the same DB name see only their own rows"
@@ -132,8 +135,8 @@ SQL
      SELECT set_config('app.current_tenant_id', '${TENANT_A}', false);
      SELECT set_config('app.current_user_id', '${USER_X}', false);
      SELECT count(*) FROM public.tenant_databases WHERE name = 'm12-isolation-probe';
-     RESET ROLE;" \
-    | grep -xE '[0-9]+' | tail -1)
+     RESET ROLE;" |
+    grep -xE '[0-9]+' | tail -1)
 
   count_b=$(docker compose -f "${COMPOSE_FILE}" exec -T postgres \
     psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" -tAc \
@@ -141,8 +144,8 @@ SQL
      SELECT set_config('app.current_tenant_id', '${TENANT_B}', false);
      SELECT set_config('app.current_user_id', '${USER_X}', false);
      SELECT count(*) FROM public.tenant_databases WHERE name = 'm12-isolation-probe';
-     RESET ROLE;" \
-    | grep -xE '[0-9]+' | tail -1)
+     RESET ROLE;" |
+    grep -xE '[0-9]+' | tail -1)
 
   [[ "${count_a}" == "1" ]] || fail "tenant A should see exactly 1 row, got '${count_a}' (RLS leak or fixture broken)"
   [[ "${count_b}" == "1" ]] || fail "tenant B should see exactly 1 row, got '${count_b}' (RLS leak or fixture broken)"
@@ -157,10 +160,10 @@ SQL
      SELECT set_config('app.current_user_id', '${USER_X}', false);
      SELECT tenant_id::text FROM public.tenant_databases WHERE name = 'm12-isolation-probe';
      RESET ROLE;")
-  echo "${leaked}" | grep -q "${TENANT_A}" \
-    && fail "RLS leak — tenant B can read tenant A's row (tenant_id ${TENANT_A} visible)"
-  echo "${leaked}" | grep -q "${TENANT_B}" \
-    || fail "tenant B sees no row at all — fixture broken"
+  echo "${leaked}" | grep -q "${TENANT_A}" &&
+    fail "RLS leak — tenant B can read tenant A's row (tenant_id ${TENANT_A} visible)"
+  echo "${leaked}" | grep -q "${TENANT_B}" ||
+    fail "tenant B sees no row at all — fixture broken"
   pass "tenant B cannot see tenant A's row"
 
   step "live: cleanup probes"

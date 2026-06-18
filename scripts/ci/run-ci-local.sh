@@ -49,8 +49,8 @@ cleanup() {
   if [[ "$status" -ne 0 ]]; then
     mkdir -p artifacts
     echo "[ci-local] Capturing compose diagnostics to artifacts/..."
-    docker compose ps > artifacts/ci-local-compose-ps.txt 2>/dev/null || true
-    docker compose logs --no-color > artifacts/ci-local-compose-logs.txt 2>/dev/null || true
+    docker compose ps >artifacts/ci-local-compose-ps.txt 2>/dev/null || true
+    docker compose logs --no-color >artifacts/ci-local-compose-logs.txt 2>/dev/null || true
   fi
   echo "[ci-local] Tearing down stack..."
   make compose-down-volumes || true

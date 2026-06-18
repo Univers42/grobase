@@ -56,8 +56,8 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 MIGRATION_005="${MIG_DIR}/005_add_tenant_table.sql"
@@ -65,19 +65,22 @@ MIGRATION_032="${MIG_DIR}/032_tenants.sql"
 MIGRATION_040="${MIG_DIR}/040_tenant_usage.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M83] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M83] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M83] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M83] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M83_PG_IMAGE:-postgres:16-alpine}"
 TC_IMG="m83-tc-$$:scratch"
 NET="m83net-$$"
 PG="m83-pg-$$"
-TC_ON="m83-tc-on-$$"      # TENANT_SELFSERVE_ENABLED=1  (A · positive / B · reject)
-TC_OFF="m83-tc-off-$$"    # TENANT_SELFSERVE_ENABLED unset (C · parity)
+TC_ON="m83-tc-on-$$"   # TENANT_SELFSERVE_ENABLED=1  (A · positive / B · reject)
+TC_OFF="m83-tc-off-$$" # TENANT_SELFSERVE_ENABLED unset (C · parity)
 PORT_ON="${M83_PORT_ON:-18984}"
 PORT_OFF="${M83_PORT_OFF:-18985}"
 PGPW="postgres"
@@ -86,7 +89,7 @@ SVC_TOKEN="m83-internal-service-token-$$"
 TENANT_A="m83-a-$$"
 TENANT_B="m83-b-$$"
 KEY_A_NAME="m83-a-primary-$$"
-KEY_B_NAME="m83-b-secret-$$"      # uniquely-named — its ABSENCE from A's /me proves isolation
+KEY_B_NAME="m83-b-secret-$$" # uniquely-named — its ABSENCE from A's /me proves isolation
 BODY_TMP="$(mktemp)"
 
 cleanup() {
@@ -97,7 +100,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 
 # Apply one migration file the SAME way `make migrate` does: strip the leading
@@ -146,17 +149,23 @@ wait_ready() { # $1=container $2=port
     # /health/live is the shared router liveness route (used by the binary's own
     # --healthcheck); a 200 there means the HTTP server + EnsureSchema are up.
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2/health/live" 2>/dev/null)" == "200" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # ── 0) build the scratch tenant-control FROM CURRENT (drafted) source ──────────
 step "0/8 build scratch tenant-control from CURRENT source (the B4a self-service code)"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT=3020 \
-  -t "${TC_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch tenant-control image build failed — gate must exercise the drafted self-service code (line: docker build TC)"
+  -t "${TC_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch tenant-control image build failed — gate must exercise the drafted self-service code (line: docker build TC)"
 ok "tenant-control built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated net + postgres + prelude + REAL 005/032/040 ────────────────────
@@ -184,11 +193,15 @@ DO $r$ BEGIN
 END $r$;
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
 apply_migration "${MIGRATION_005}" || fail "real migration 005_add_tenant_table.sql failed to apply (line: apply 005)"
 apply_migration "${MIGRATION_032}" || fail "real migration 032_tenants.sql failed to apply (line: apply 032)"
 apply_migration "${MIGRATION_040}" || fail "real migration 040_tenant_usage.sql failed to apply (line: apply 040)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenants")" == "0" ]]   || fail "tenants should start EMPTY (line: 032 empty check)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenants")" == "0" ]] || fail "tenants should start EMPTY (line: 032 empty check)"
 [[ "$(psql_val "SELECT count(*) FROM public.tenant_api_keys")" == "0" ]] || fail "tenant_api_keys should start EMPTY (line: keys empty check)"
 ok "migrations 005 + 032 + 040 applied — tenants / tenant_api_keys / tenant_usage exist and are empty"
 
@@ -231,10 +244,10 @@ ok "minted A's key (${KEY_A_NAME}) + B's key (${KEY_B_NAME}); both full mbk_ key
 step "4/8 (A · POSITIVE) GET /v1/tenants/me with A's key → 200, body is A's tenant + plan"
 C="$(me_req GET "${PORT_ON}" /v1/tenants/me "${KEY_A}")"
 [[ "${C}" == "200" ]] || fail "(A) GET /me expected 200, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A GET /me)"
-grep -q "\"id\":\"${TENANT_A}\"" "${BODY_TMP}" \
-  || fail "(A) GET /me body is not tenant A (id=${TENANT_A}) — $(head -c 300 "${BODY_TMP}") (line: A /me is A)"
-grep -q '"plan":"nano"' "${BODY_TMP}" \
-  || fail "(A) GET /me body missing plan=nano — $(head -c 300 "${BODY_TMP}") (line: A /me plan)"
+grep -q "\"id\":\"${TENANT_A}\"" "${BODY_TMP}" ||
+  fail "(A) GET /me body is not tenant A (id=${TENANT_A}) — $(head -c 300 "${BODY_TMP}") (line: A /me is A)"
+grep -q '"plan":"nano"' "${BODY_TMP}" ||
+  fail "(A) GET /me body missing plan=nano — $(head -c 300 "${BODY_TMP}") (line: A /me plan)"
 ok "(A) GET /me → 200; resolved to A (id=${TENANT_A}, plan=nano) off A's key — no path id"
 
 step "4b/8 (A · POSITIVE) GET /v1/tenants/me/usage with A's key → 200"
@@ -244,8 +257,8 @@ ok "(A) GET /me/usage → 200 (metered usage read-back over public.tenant_usage)
 
 step "4c/8 (A · POSITIVE) POST /v1/tenants/me/keys {name} with A's key → 200/201 + a full mbk_ key"
 C="$(me_req POST "${PORT_ON}" /v1/tenants/me/keys "${KEY_A}" "{\"name\":\"m83-self-minted-$$\"}")"
-[[ "${C}" == "200" || "${C}" == "201" ]] \
-  || fail "(A) POST /me/keys expected 200/201, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A POST /me/keys)"
+[[ "${C}" == "200" || "${C}" == "201" ]] ||
+  fail "(A) POST /me/keys expected 200/201, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A POST /me/keys)"
 NEW_KEY="$(json_str key)"
 [[ "${NEW_KEY}" == mbk_* ]] || fail "(A) POST /me/keys did not return a full mbk_ key — got '${NEW_KEY}' — $(head -c 300 "${BODY_TMP}") (line: A new key shape)"
 NEW_KEY_ID="$(json_str id)"
@@ -255,10 +268,10 @@ ok "(A) POST /me/keys → key minted (id=${NEW_KEY_ID}, full mbk_ key returned o
 step "4d/8 (A · POSITIVE) GET /v1/tenants/me/keys with A's key → 200 and the new key is listed"
 C="$(me_req GET "${PORT_ON}" /v1/tenants/me/keys "${KEY_A}")"
 [[ "${C}" == "200" ]] || fail "(A) GET /me/keys expected 200, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A GET /me/keys)"
-grep -q "\"id\":\"${NEW_KEY_ID}\"" "${BODY_TMP}" \
-  || fail "(A) GET /me/keys does not list the just-minted key ${NEW_KEY_ID} — $(head -c 300 "${BODY_TMP}") (line: A /me/keys lists new)"
-grep -q "m83-self-minted-$$" "${BODY_TMP}" \
-  || fail "(A) GET /me/keys missing the self-minted key by name — $(head -c 300 "${BODY_TMP}") (line: A /me/keys name)"
+grep -q "\"id\":\"${NEW_KEY_ID}\"" "${BODY_TMP}" ||
+  fail "(A) GET /me/keys does not list the just-minted key ${NEW_KEY_ID} — $(head -c 300 "${BODY_TMP}") (line: A /me/keys lists new)"
+grep -q "m83-self-minted-$$" "${BODY_TMP}" ||
+  fail "(A) GET /me/keys missing the self-minted key by name — $(head -c 300 "${BODY_TMP}") (line: A /me/keys name)"
 ok "(A) GET /me/keys → 200; lists A's keys incl. the self-minted one"
 
 step "4e/8 (A · POSITIVE) DELETE /v1/tenants/me/keys/${NEW_KEY_ID} with A's key → 200"
@@ -271,19 +284,19 @@ C="$(me_req PATCH "${PORT_ON}" /v1/tenants/me "${KEY_A}" '{"plan":"pro"}')"
 [[ "${C}" == "200" ]] || fail "(A) PATCH /me {plan:pro} expected 200, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A PATCH /me)"
 C="$(me_req GET "${PORT_ON}" /v1/tenants/me "${KEY_A}")"
 [[ "${C}" == "200" ]] || fail "(A) re-GET /me after PATCH expected 200, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A re-GET /me)"
-grep -q '"plan":"pro"' "${BODY_TMP}" \
-  || fail "(A) PATCH did not persist plan=pro — re-GET shows $(json_str plan) — $(head -c 300 "${BODY_TMP}") (line: A plan persisted)"
+grep -q '"plan":"pro"' "${BODY_TMP}" ||
+  fail "(A) PATCH did not persist plan=pro — re-GET shows $(json_str plan) — $(head -c 300 "${BODY_TMP}") (line: A plan persisted)"
 # Independent ground truth: the DB row really changed (not just the response).
-[[ "$(psql_val "SELECT plan FROM public.tenants WHERE slug='${TENANT_A}'")" == "pro" ]] \
-  || fail "(A) tenants.plan for A is not 'pro' in the DB — PATCH did not persist (line: A plan DB)"
+[[ "$(psql_val "SELECT plan FROM public.tenants WHERE slug='${TENANT_A}'")" == "pro" ]] ||
+  fail "(A) tenants.plan for A is not 'pro' in the DB — PATCH did not persist (line: A plan DB)"
 ok "(A) PATCH /me → 200; plan=pro persisted (response AND DB row)"
 
 # ── 5) (B · REJECT, LOAD-BEARING) cross-tenant isolation + no-auth ─────────────
 step "5/8 (B · REJECT) A's key must see ONLY A — GET /me resolves to A, never B"
 C="$(me_req GET "${PORT_ON}" /v1/tenants/me "${KEY_A}")"
 [[ "${C}" == "200" ]] || fail "(B) GET /me with A's key expected 200, got ${C} (line: B A /me)"
-grep -q "\"id\":\"${TENANT_A}\"" "${BODY_TMP}" \
-  || fail "(B) GET /me with A's key did not resolve to A (line: B A /me is A)"
+grep -q "\"id\":\"${TENANT_A}\"" "${BODY_TMP}" ||
+  fail "(B) GET /me with A's key did not resolve to A (line: B A /me is A)"
 if grep -q "${TENANT_B}" "${BODY_TMP}"; then
   fail "(B) tenant B leaked into A's GET /me response — cross-tenant exposure! (line: B no B in A /me)"
 fi
@@ -292,8 +305,8 @@ ok "(B) A's key resolves to A only; B absent from A's /me"
 step "5b/8 (B · REJECT, LOAD-BEARING) A's /me/keys lists ONLY A's keys — B's '${KEY_B_NAME}' is ABSENT"
 C="$(me_req GET "${PORT_ON}" /v1/tenants/me/keys "${KEY_A}")"
 [[ "${C}" == "200" ]] || fail "(B) GET /me/keys with A's key expected 200, got ${C} (line: B A /me/keys)"
-grep -q "${KEY_A_NAME}" "${BODY_TMP}" \
-  || fail "(B) A's own key '${KEY_A_NAME}' missing from A's /me/keys — listing is wrong (line: B A own key present)"
+grep -q "${KEY_A_NAME}" "${BODY_TMP}" ||
+  fail "(B) A's own key '${KEY_A_NAME}' missing from A's /me/keys — listing is wrong (line: B A own key present)"
 if grep -q "${KEY_B_NAME}" "${BODY_TMP}"; then
   fail "(B) B's key '${KEY_B_NAME}' is VISIBLE in A's /me/keys — cross-tenant key exposure! (line: B no B key)"
 fi
@@ -352,16 +365,16 @@ ok "self-serve-OFF tenant-control up (same DB, same seeded tenants)"
 
 step "6b/8 (C · PARITY) GET /v1/tenants/me on the OFF router with A's key → 401 (self-serve handler absent; the request falls to the pre-existing GET /v1/tenants/{id} gate, which an API key cannot satisfy) — the SAME key returned 200 on the ON router (arm 4)"
 C="$(me_req GET "${PORT_OFF}" /v1/tenants/me "${KEY_A}")"
-[[ "${C}" == "401" ]] \
-  || fail "(C) PARITY: GET /me (A's key) with self-serve OFF expected 401 — the pre-B4a baseline ('me' is caught by the {id} wildcard whose tokenOrSelf rejects a bare API key); ON returned 200 — got ${C} — $(head -c 300 "${BODY_TMP}") (line: C /me parity)"
+[[ "${C}" == "401" ]] ||
+  fail "(C) PARITY: GET /me (A's key) with self-serve OFF expected 401 — the pre-B4a baseline ('me' is caught by the {id} wildcard whose tokenOrSelf rejects a bare API key); ON returned 200 — got ${C} — $(head -c 300 "${BODY_TMP}") (line: C /me parity)"
 ok "(C) GET /v1/tenants/me with A's key → 401 OFF vs 200 ON — the flag gates the self-serve surface; OFF is byte-identical to the pre-B4a {id}-wildcard behavior"
 
 step "6c/8 (C · PARITY) base admin route GET /v1/tenants/{id} (X-Service-Token) STILL 200 on OFF router"
 C="$(admin_req GET "${PORT_OFF}" "/v1/tenants/${TENANT_A}")"
-[[ "${C}" == "200" ]] \
-  || fail "(C) PARITY: base admin GET /v1/tenants/{id} expected 200 on OFF router, got ${C} — $(head -c 300 "${BODY_TMP}") (line: C admin 200)"
-grep -q "\"id\":\"${TENANT_A}\"" "${BODY_TMP}" \
-  || fail "(C) PARITY: base admin GET /v1/tenants/{id} did not return A — $(head -c 300 "${BODY_TMP}") (line: C admin is A)"
+[[ "${C}" == "200" ]] ||
+  fail "(C) PARITY: base admin GET /v1/tenants/{id} expected 200 on OFF router, got ${C} — $(head -c 300 "${BODY_TMP}") (line: C admin 200)"
+grep -q "\"id\":\"${TENANT_A}\"" "${BODY_TMP}" ||
+  fail "(C) PARITY: base admin GET /v1/tenants/{id} did not return A — $(head -c 300 "${BODY_TMP}") (line: C admin is A)"
 ok "(C) base admin GET /v1/tenants/{id} → 200 with self-serve OFF — pre-existing routes untouched = byte-parity"
 
 # ── 7) summarize ──────────────────────────────────────────────────────────────
@@ -373,7 +386,8 @@ green "[M83] (C) PARITY:   self-serve OFF → GET /me (A's key) 401 (vs 200 ON) 
 # ── 8) emit the gate event via the kernel log helper (best-effort) ─────────────
 step "8/8 log GATE m83=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-b4a-selfserve}"

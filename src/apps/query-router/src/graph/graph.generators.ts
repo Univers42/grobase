@@ -24,7 +24,13 @@ function noteEdges(node: GraphNode, field: string): EdgeRecord[] {
   for (const match of body.matchAll(WIKILINK)) {
     const to = match[1].trim();
     if (to) {
-      out.push({ id: `note:${node.id}|${to}`, from: node.id, to, type: 'note_link', directed: true });
+      out.push({
+        id: `note:${node.id}|${to}`,
+        from: node.id,
+        to,
+        type: 'note_link',
+        directed: true,
+      });
     }
   }
   return out;

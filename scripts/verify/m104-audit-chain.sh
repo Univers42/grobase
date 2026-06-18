@@ -43,25 +43,28 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIGRATION_047="${INFRA_DIR}/scripts/migrations/postgresql/047_tenant_audit_log.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M104] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M104] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M104] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M104] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M104_PG_IMAGE:-postgres:16-alpine}"
 TC_IMG="m104-tc-$$:scratch"
 NET="m104net-$$"
 PG="m104-pg-$$"
-TC_ON="m104-tc-on-$$"    # audit ENABLED
-TC_OFF="m104-tc-off-$$"  # parity arm (flag unset)
+TC_ON="m104-tc-on-$$"   # audit ENABLED
+TC_OFF="m104-tc-off-$$" # parity arm (flag unset)
 PORT_ON="${M104_PORT_ON:-19104}"
 PORT_OFF="${M104_PORT_OFF:-19105}"
 PGPW="postgres"
@@ -80,7 +83,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 
 # ── helpers: HTTP as the service token (admin) or as a tenant self-header ──────
@@ -106,17 +109,23 @@ audit_get() {
 wait_ready() { # $1=container  $2=port
   for i in $(seq 1 60); do
     curl -fsS -o /dev/null "http://127.0.0.1:$2/health/live" 2>/dev/null && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # ── 0) build the scratch tenant-control FROM CURRENT (drafted) source ──────────
 step "0/9 build scratch tenant-control from CURRENT source (the D3 audit-chain code)"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT=3060 \
-  -t "${TC_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch tenant-control image build failed — gate must exercise the drafted audit code"
+  -t "${TC_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch tenant-control image build failed — gate must exercise the drafted audit code"
 ok "tenant-control built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated network + postgres (TCP-ready, not just socket) ─────────────────
@@ -126,9 +135,12 @@ docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD="${PGPW}" "
 # The postgres image init runs a SOCKET-ONLY temp server then restarts — gate
 # readiness on TCP (pg_isready -h 127.0.0.1) + a real SELECT 1, not the socket.
 for i in $(seq 1 80); do
-  if docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 \
-     && [[ "$(psql_val 'SELECT 1')" == "1" ]]; then break; fi
-  [[ $i -eq 80 ]] && { docker logs "${PG}" 2>&1 | tail -20; fail "scratch postgres never reached TCP-ready"; }
+  if docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 &&
+    [[ "$(psql_val 'SELECT 1')" == "1" ]]; then break; fi
+  [[ $i -eq 80 ]] && {
+    docker logs "${PG}" 2>&1 | tail -20
+    fail "scratch postgres never reached TCP-ready"
+  }
   sleep 0.5
 done
 ok "postgres up + TCP-ready (SELECT 1 ok)"
@@ -155,9 +167,13 @@ CREATE TABLE IF NOT EXISTS public.tenants (
   created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now());
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed"; sleep 0.5; done
-docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "${MIGRATION_047}" >/dev/null 2>&1 \
-  || fail "real migration 047_tenant_audit_log.sql failed to apply"
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed"
+  sleep 0.5
+done
+docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <"${MIGRATION_047}" >/dev/null 2>&1 ||
+  fail "real migration 047_tenant_audit_log.sql failed to apply"
 [[ "$(psql_val "SELECT count(*) FROM public.tenant_audit_log")" == "0" ]] || fail "tenant_audit_log should start EMPTY"
 # Append-only at the grant layer: authenticated must NOT have UPDATE/DELETE.
 HASUPD="$(psql_val "SELECT count(*) FROM information_schema.role_table_grants WHERE table_name='tenant_audit_log' AND grantee='authenticated' AND privilege_type IN ('UPDATE','DELETE')")" || HASUPD="?"
@@ -174,14 +190,18 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3060" "${TC_IMG}" >/dev/null
 wait_ready "${TC_ON}" "${PORT_ON}" || fail "ENABLED tenant-control not ready"
-{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "tenant audit log enabled" \
-  || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "audit log never reported enabled"; }
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "tenant audit log enabled" ||
+  {
+    docker logs "${TC_ON}" 2>&1 | tail -20
+    fail "audit log never reported enabled"
+  }
 ok "tenant-control up with audit API mounted (/v1/audit*)"
 
 # ── 3) (A) POSITIVE: append N events for tenant A (mix of svc + self auth) ──────
 step "3/9 (A) append ${N_EVENTS} events for ${TENANT_A} → each MUST be 201 with a sealed hash"
 for n in $(seq 1 "${N_EVENTS}"); do
-  AUTH="svc"; [[ $((n % 2)) -eq 0 ]] && AUTH="self"   # exercise both admin + tenant-self append
+  AUTH="svc"
+  [[ $((n % 2)) -eq 0 ]] && AUTH="self" # exercise both admin + tenant-self append
   CODE="$(append "${PORT_ON}" "${TENANT_A}" "${AUTH}" "key.issue" "key-${n}" "{\"n\":${n}}")"
   [[ "${CODE}" == "201" ]] || fail "(A) append #${n} expected 201, got ${CODE} — $(head -c 300 "${BODY_TMP}")"
   grep -q '"hash":"' "${BODY_TMP}" || fail "(A) append #${n} body missing sealed hash — $(head -c 300 "${BODY_TMP}")"
@@ -233,10 +253,10 @@ SQL
 CODE="$(audit_get "${PORT_ON}" "${TENANT_A}" svc verify)"
 [[ "${CODE}" == "200" ]] || fail "(B) verify after tamper expected 200 (a successful report of tampering), got ${CODE}"
 grep -q '"intact":false' "${BODY_TMP}" || fail "(B) VACUOUS VERIFY REJECTED — a tampered chain reported intact:true — $(head -c 400 "${BODY_TMP}")"
-grep -q "\"broken_seq\":${TAMPER_SEQ}" "${BODY_TMP}" \
-  || fail "(B) verify did not pinpoint the tampered link seq=${TAMPER_SEQ} — $(head -c 400 "${BODY_TMP}")"
-grep -q '"reason":"hash_mismatch"' "${BODY_TMP}" \
-  || fail "(B) tamper reason should be hash_mismatch — $(head -c 400 "${BODY_TMP}")"
+grep -q "\"broken_seq\":${TAMPER_SEQ}" "${BODY_TMP}" ||
+  fail "(B) verify did not pinpoint the tampered link seq=${TAMPER_SEQ} — $(head -c 400 "${BODY_TMP}")"
+grep -q '"reason":"hash_mismatch"' "${BODY_TMP}" ||
+  fail "(B) tamper reason should be hash_mismatch — $(head -c 400 "${BODY_TMP}")"
 ok "(B) tamper DETECTED: verify => intact:false, broken_seq=${TAMPER_SEQ}, reason hash_mismatch (vacuous verify impossible)"
 
 # ── 6) (C) LOAD-BEARING REJECT — CROSS-TENANT ──────────────────────────────────
@@ -268,8 +288,11 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3060" "${TC_IMG}" >/dev/null
 wait_ready "${TC_OFF}" "${PORT_OFF}" || fail "PARITY tenant-control not ready"
-{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "tenant audit log disabled" \
-  || { docker logs "${TC_OFF}" 2>&1 | tail -20; fail "OFF tenant-control did not report audit disabled (flag default not OFF?)"; }
+{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "tenant audit log disabled" ||
+  {
+    docker logs "${TC_OFF}" 2>&1 | tail -20
+    fail "OFF tenant-control did not report audit disabled (flag default not OFF?)"
+  }
 ROWS_BEFORE="$(psql_val "SELECT count(*) FROM public.tenant_audit_log")"
 # every /v1/audit* verb → 404 (routes not mounted).
 for SUB in "events" "export" "verify"; do
@@ -279,8 +302,8 @@ done
 CODE="$(append "${PORT_OFF}" "${TENANT_A}" svc "key.issue" "should-404" '{"x":1}')"
 [[ "${CODE}" == "404" ]] || fail "(D) POST .../events expected 404 with flag OFF, got ${CODE} — $(head -c 200 "${BODY_TMP}")"
 ROWS_AFTER="$(psql_val "SELECT count(*) FROM public.tenant_audit_log")"
-[[ "${ROWS_AFTER}" == "${ROWS_BEFORE}" ]] \
-  || fail "(D) flag OFF must write NO audit rows: before=${ROWS_BEFORE} after=${ROWS_AFTER}"
+[[ "${ROWS_AFTER}" == "${ROWS_BEFORE}" ]] ||
+  fail "(D) flag OFF must write NO audit rows: before=${ROWS_BEFORE} after=${ROWS_AFTER}"
 ok "(D) flag OFF: all /v1/audit* → 404 (unmounted), 0 rows written — byte-identical to today"
 
 # ── 8) cross-check + summarize ─────────────────────────────────────────────────
@@ -293,7 +316,8 @@ green "[M104] (D) PARITY: /v1/audit* → 404 (unmounted), 0 rows written — byt
 # ── 9) emit the gate event via the kernel log helper (best-effort) ─────────────
 step "9/9 log GATE m104=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-d3-audit-chain}"

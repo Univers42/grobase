@@ -78,8 +78,8 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                 # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 DPR_DIR="${INFRA_DIR}/src/data-plane-router"
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIGRATION_040="${INFRA_DIR}/scripts/migrations/postgresql/040_tenant_usage.sql"
@@ -90,12 +90,15 @@ ART="${ART_DIR}/m75.txt"
 mkdir -p "${ART_DIR}"
 exec > >(tee "${ART}") 2>&1
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M75] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M75] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M75] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M75] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M75_PG_IMAGE:-postgres:16-alpine}"
 REDIS_IMAGE="${M75_REDIS_IMAGE:-redis:7-alpine}"
@@ -104,10 +107,10 @@ ORCH_IMG="m75-orch-$$:scratch"
 NET="m75net-$$"
 PG="m75-pg-$$"
 REDIS="m75-redis-$$"
-DPR_ON="m75-dpr-on-$$"       # (A) POSITIVE producer (metering ON)
-DPR_OFF="m75-dpr-off-$$"     # (C2) PARITY producer  (metering OFF/unset)
-ORCH_ON="m75-orch-on-$$"     # (A/B) ingest consumer (METERING_INGEST=1)
-ORCH_OFF="m75-orch-off-$$"   # (C1) PARITY consumer  (METERING_INGEST unset)
+DPR_ON="m75-dpr-on-$$"     # (A) POSITIVE producer (metering ON)
+DPR_OFF="m75-dpr-off-$$"   # (C2) PARITY producer  (metering OFF/unset)
+ORCH_ON="m75-orch-on-$$"   # (A/B) ingest consumer (METERING_INGEST=1)
+ORCH_OFF="m75-orch-off-$$" # (C1) PARITY consumer  (METERING_INGEST unset)
 PORT_ON="${M75_PORT_ON:-18981}"
 PORT_OFF="${M75_PORT_OFF:-18982}"
 PGPW="postgres"
@@ -116,8 +119,8 @@ PGPW="postgres"
 TABLE_ON="m75_usage_probe_on"
 TABLE_OFF="m75_usage_probe_off"
 TENANT="m75-tenant-$$"
-ROWS=5                       # exact seeded rows → query.rows qty ground truth
-M=3                          # batch insert items → write.rows qty (affected_rows)
+ROWS=5 # exact seeded rows → query.rows qty ground truth
+M=3    # batch insert items → write.rows qty (affected_rows)
 FLUSH_MS="${M75_FLUSH_MS:-800}"
 DSN_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 REDIS_INNET="redis://${REDIS}:6379"
@@ -137,7 +140,7 @@ cleanup() {
 trap cleanup EXIT
 
 # psql / redis-cli helpers run INSIDE the scratch containers (no host client).
-psql_q()  { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 redis_cli() { docker exec -i "${REDIS}" redis-cli "$@"; }
 
@@ -171,10 +174,16 @@ wait_http() { # $1=container  $2=port  $3=path
   local i
   for i in $(seq 1 60); do
     curl -fsS -o /dev/null "http://127.0.0.1:$2$3" 2>/dev/null && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -15; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -15
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -15; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -15
+  return 1
 }
 
 # Wait for a log line to appear in a container (used to confirm the consumer
@@ -208,12 +217,12 @@ stream_field_for() {
 
 # ── 0) build BOTH scratch images FROM THE CURRENT (drafted) source ─────────────
 step "0/9 build scratch data-plane-router + Go orchestrator from CURRENT source (B1b)"
-DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${DPR_IMG}" "${DPR_DIR}" >/dev/null \
-  || fail "scratch data-plane-router image build failed — gate must exercise the drafted producer (line: docker build DPR)"
+DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${DPR_IMG}" "${DPR_DIR}" >/dev/null ||
+  fail "scratch data-plane-router image build failed — gate must exercise the drafted producer (line: docker build DPR)"
 DOCKER_BUILDKIT=1 docker build -q \
   --build-arg APP=orchestrator --build-arg PORT=3021 \
-  -t "${ORCH_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch orchestrator image build failed — gate must exercise the drafted consumer (line: docker build ORCH)"
+  -t "${ORCH_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch orchestrator image build failed — gate must exercise the drafted consumer (line: docker build ORCH)"
 ok "both scratch images built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated network + redis + postgres (prelude + REAL migration 040) ──────
@@ -223,7 +232,11 @@ docker run -d --name "${REDIS}" --network "${NET}" "${REDIS_IMAGE}" >/dev/null
 docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD="${PGPW}" "${PG_IMAGE}" >/dev/null
 
 # redis readiness
-for i in $(seq 1 60); do redis_cli PING 2>/dev/null | grep -q PONG && break; [[ $i -eq 60 ]] && fail "scratch redis never answered PING (line: redis ready)"; sleep 0.5; done
+for i in $(seq 1 60); do
+  redis_cli PING 2>/dev/null | grep -q PONG && break
+  [[ $i -eq 60 ]] && fail "scratch redis never answered PING (line: redis ready)"
+  sleep 0.5
+done
 # postgres: the alpine entrypoint inits then restarts once — wait for the SECOND
 # "ready" so a query can't land in the shutdown window.
 for i in $(seq 1 80); do
@@ -250,10 +263,14 @@ DO $r$ BEGIN
 END $r$;
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
 # Apply the REAL migration 040 (proves it applies cleanly against the prelude).
-docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "${MIGRATION_040}" >/dev/null 2>&1 \
-  || fail "real migration 040_tenant_usage.sql failed to apply (line: apply 040)"
+docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <"${MIGRATION_040}" >/dev/null 2>&1 ||
+  fail "real migration 040_tenant_usage.sql failed to apply (line: apply 040)"
 APPLIED="$(psql_val "SELECT count(*) FROM public.tenant_usage")"
 [[ "${APPLIED}" == "0" ]] || fail "tenant_usage should start EMPTY after migration, found '${APPLIED}' (line: 040 empty check)"
 MIG="$(psql_val "SELECT version FROM public.schema_migrations WHERE version=40")"
@@ -275,7 +292,11 @@ INSERT INTO public.${TABLE_OFF}(id,owner_id,tenant_id,label) VALUES
   ('r5','${TENANT}','${TENANT}','five') ON CONFLICT (id) DO NOTHING;
 SQL
 }
-for i in $(seq 1 20); do seed && break; [[ $i -eq 20 ]] && fail "seed never committed (line: seed loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  seed && break
+  [[ $i -eq 20 ]] && fail "seed never committed (line: seed loop)"
+  sleep 0.5
+done
 for T in "${TABLE_ON}" "${TABLE_OFF}"; do
   S="$(psql_val "SELECT count(*) FROM public.${T}")"
   [[ "${S}" == "${ROWS}" ]] || fail "expected ${ROWS} seeded rows in ${T}, found '${S}' (line: SEEDED ${T})"
@@ -296,8 +317,12 @@ docker run -d --name "${ORCH_ON}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   "${ORCH_IMG}" >/dev/null
 # The consumer's Init logs "metering ingest connected" only when enabled+subscribed.
-wait_log "${ORCH_ON}" "metering ingest connected" 60 \
-  || { red "consumer logs:"; docker logs "${ORCH_ON}" 2>&1 | tail -20; fail "ingest consumer never subscribed to usage.events (line: wait_log ORCH_ON connected)"; }
+wait_log "${ORCH_ON}" "metering ingest connected" 60 ||
+  {
+    red "consumer logs:"
+    docker logs "${ORCH_ON}" 2>&1 | tail -20
+    fail "ingest consumer never subscribed to usage.events (line: wait_log ORCH_ON connected)"
+  }
 ok "ingest consumer subscribed to usage.events (group metering-ingest)"
 
 # ── 3) (A) POSITIVE producer: data plane with metering ON → real read + write ──
@@ -335,22 +360,22 @@ for i in $(seq 1 40); do
   [[ "${GOT}" -ge 3 ]] && break
   sleep 0.5
 done
-[[ "${GOT}" -ge 3 ]] \
-  || fail "expected ≥3 tenant_usage rows after ingest, found ${GOT} — stream depth=$(redis_cli XLEN usage.events), consumer tail: $(docker logs "${ORCH_ON}" 2>&1 | tail -5) (line: GOT < 3)"
+[[ "${GOT}" -ge 3 ]] ||
+  fail "expected ≥3 tenant_usage rows after ingest, found ${GOT} — stream depth=$(redis_cli XLEN usage.events), consumer tail: $(docker logs "${ORCH_ON}" 2>&1 | tail -5) (line: GOT < 3)"
 
 # Assert each metric's stored qty == the independently-known truth.
 assert_stored() { # $1=metric  $2=want-qty
   local metric="$1" want="$2" got
   got="$(psql_val "SELECT qty FROM public.tenant_usage WHERE tenant_id='${TENANT}' AND metric='${metric}'")"
-  [[ -n "${got}" ]] \
-    || fail "(A) metric=${metric}: NO row in tenant_usage for tenant=${TENANT} (line: assert_stored ${metric} missing)"
-  [[ "${got}" == "${want}" ]] \
-    || fail "(A) metric=${metric}: stored qty=${got} != ground truth ${want} (line: assert_stored ${metric} qty)"
+  [[ -n "${got}" ]] ||
+    fail "(A) metric=${metric}: NO row in tenant_usage for tenant=${TENANT} (line: assert_stored ${metric} missing)"
+  [[ "${got}" == "${want}" ]] ||
+    fail "(A) metric=${metric}: stored qty=${got} != ground truth ${want} (line: assert_stored ${metric} qty)"
   ok "(A) tenant_usage metric=${metric} qty=${want} — UPSERTed from the stream, matches the known truth"
 }
 assert_stored "query.count" 1
-assert_stored "query.rows"  "${ROWS}"
-assert_stored "write.rows"  "${M}"
+assert_stored "query.rows" "${ROWS}"
+assert_stored "write.rows" "${M}"
 ok "(A) POSITIVE: all three metrics flowed data-plane → usage.events → consumer → tenant_usage with exact qty"
 
 # ── 5) (B) DEDUP: replay the EXACT SAME stream entry → exactly ONE row, no double ─
@@ -361,8 +386,8 @@ step "5/9 (B) DEDUP — re-XADD the SAME query.rows window (same idempotency_key
 IDEM_BEFORE="$(psql_val "SELECT idempotency_key FROM public.tenant_usage WHERE tenant_id='${TENANT}' AND metric='query.rows'")"
 QTY_BEFORE="$(psql_val "SELECT qty FROM public.tenant_usage WHERE idempotency_key='${IDEM_BEFORE}'")"
 ROWS_BEFORE="$(psql_val "SELECT count(*) FROM public.tenant_usage WHERE idempotency_key='${IDEM_BEFORE}'")"
-[[ "${ROWS_BEFORE}" == "1" && -n "${IDEM_BEFORE}" ]] \
-  || fail "(B) precondition: expected exactly 1 row for the query.rows idem-key before replay, found ${ROWS_BEFORE} (line: B precondition)"
+[[ "${ROWS_BEFORE}" == "1" && -n "${IDEM_BEFORE}" ]] ||
+  fail "(B) precondition: expected exactly 1 row for the query.rows idem-key before replay, found ${ROWS_BEFORE} (line: B precondition)"
 
 # Recover the entry's ts + window_ms from the stream (the producer stamped them);
 # we need them to re-emit an IDENTICAL envelope. They are pulled from the live
@@ -377,8 +402,8 @@ if [[ -z "${REPLAY_TS}" ]]; then
   WS_MS="$(psql_val "SELECT (extract(epoch FROM window_start)*1000)::bigint FROM public.tenant_usage WHERE idempotency_key='${IDEM_BEFORE}'")"
   REPLAY_TS="${WS_MS}"
 fi
-[[ -n "${REPLAY_TS}" && -n "${REPLAY_WIN}" ]] \
-  || fail "(B) could not recover ts/window_ms to replay the identical window (line: B replay fields)"
+[[ -n "${REPLAY_TS}" && -n "${REPLAY_WIN}" ]] ||
+  fail "(B) could not recover ts/window_ms to replay the identical window (line: B replay fields)"
 
 # Re-XADD the EXACT SAME window: same tenant, metric, qty, ts, window_ms,
 # idempotency_key. A correct consumer ON CONFLICT (idempotency_key) DO NOTHING ⇒
@@ -387,8 +412,8 @@ fi
 # a true "re-delivery", the at-least-once case the contract guards.)
 redis_cli XADD usage.events '*' \
   tenant_id "${TENANT}" metric "query.rows" qty "${QTY_BEFORE}" \
-  ts "${REPLAY_TS}" window_ms "${REPLAY_WIN}" idempotency_key "${IDEM_BEFORE}" >/dev/null \
-  || fail "(B) failed to re-XADD the duplicate window (line: B re-xadd)"
+  ts "${REPLAY_TS}" window_ms "${REPLAY_WIN}" idempotency_key "${IDEM_BEFORE}" >/dev/null ||
+  fail "(B) failed to re-XADD the duplicate window (line: B re-xadd)"
 ok "(B) re-XADDed the identical window (idempotency_key=${IDEM_BEFORE:0:12}…, qty=${QTY_BEFORE})"
 
 step "5b/9 wait for the consumer to drain the replay, then ASSERT no double-count"
@@ -403,10 +428,10 @@ for i in $(seq 1 40); do
 done
 ROWS_AFTER="$(psql_val "SELECT count(*) FROM public.tenant_usage WHERE idempotency_key='${IDEM_BEFORE}'")"
 QTY_AFTER="$(psql_val "SELECT qty FROM public.tenant_usage WHERE idempotency_key='${IDEM_BEFORE}'")"
-[[ "${ROWS_AFTER}" == "1" ]] \
-  || fail "(B) DOUBLE-COUNT — after replay, ${ROWS_AFTER} rows for idempotency_key=${IDEM_BEFORE} (expected exactly 1) (line: B rows_after != 1)"
-[[ "${QTY_AFTER}" == "${QTY_BEFORE}" ]] \
-  || fail "(B) qty drifted on replay — before=${QTY_BEFORE} after=${QTY_AFTER} (ON CONFLICT must DO NOTHING) (line: B qty drift)"
+[[ "${ROWS_AFTER}" == "1" ]] ||
+  fail "(B) DOUBLE-COUNT — after replay, ${ROWS_AFTER} rows for idempotency_key=${IDEM_BEFORE} (expected exactly 1) (line: B rows_after != 1)"
+[[ "${QTY_AFTER}" == "${QTY_BEFORE}" ]] ||
+  fail "(B) qty drifted on replay — before=${QTY_BEFORE} after=${QTY_AFTER} (ON CONFLICT must DO NOTHING) (line: B qty drift)"
 DEDUP_PROOF="idempotency_key=${IDEM_BEFORE}: rows ${ROWS_BEFORE}→${ROWS_AFTER} (==1), qty ${QTY_BEFORE}→${QTY_AFTER} (unchanged) after re-delivering the identical window"
 ok "(B) DEDUP proven: ${DEDUP_PROOF}"
 
@@ -433,10 +458,14 @@ docker run -d --name "${ORCH_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   "${ORCH_IMG}" >/dev/null
 # It must announce it is DISABLED and must NOT announce it connected.
-wait_log "${ORCH_OFF}" "metering ingest disabled" 40 \
-  || { red "C1 consumer logs:"; docker logs "${ORCH_OFF}" 2>&1 | tail -20; fail "(C1) consumer did not report itself disabled with METERING_INGEST unset (line: C1 disabled log)"; }
-docker logs "${ORCH_OFF}" 2>&1 | grep -q "metering ingest connected" \
-  && fail "(C1) consumer SUBSCRIBED with METERING_INGEST unset — NOT parity! (line: C1 connected leak)"
+wait_log "${ORCH_OFF}" "metering ingest disabled" 40 ||
+  {
+    red "C1 consumer logs:"
+    docker logs "${ORCH_OFF}" 2>&1 | tail -20
+    fail "(C1) consumer did not report itself disabled with METERING_INGEST unset (line: C1 disabled log)"
+  }
+docker logs "${ORCH_OFF}" 2>&1 | grep -q "metering ingest connected" &&
+  fail "(C1) consumer SUBSCRIBED with METERING_INGEST unset — NOT parity! (line: C1 connected leak)"
 ok "(C1) consumer reports disabled; never created a consumer group"
 
 # Re-boot the ON producer (metering ON) so REAL usage.events ARE produced — the
@@ -463,13 +492,13 @@ for i in $(seq 1 30); do
   [[ "${SDEPTH:-0}" -ge 2 ]] && break
   sleep 0.5
 done
-[[ "${SDEPTH:-0}" -ge 2 ]] \
-  || fail "(C1) producer did not emit usage.events (depth=${SDEPTH:-0}) — cannot prove the consumer abstained (line: C1 producer silent)"
+[[ "${SDEPTH:-0}" -ge 2 ]] ||
+  fail "(C1) producer did not emit usage.events (depth=${SDEPTH:-0}) — cannot prove the consumer abstained (line: C1 producer silent)"
 # Give a generous window for any (wrongly-subscribed) consumer to ingest.
 sleep "$(awk "BEGIN{printf \"%.1f\", ${FLUSH_MS}/1000*4 + 2}")"
 PARITY_ROWS="$(psql_val "SELECT count(*) FROM public.tenant_usage")"
-[[ "${PARITY_ROWS}" == "0" ]] \
-  || fail "(C1) PARITY BROKEN — ${PARITY_ROWS} tenant_usage row(s) with METERING_INGEST unset (stream had ${SDEPTH} entries) (line: C1 PARITY_ROWS != 0)"
+[[ "${PARITY_ROWS}" == "0" ]] ||
+  fail "(C1) PARITY BROKEN — ${PARITY_ROWS} tenant_usage row(s) with METERING_INGEST unset (stream had ${SDEPTH} entries) (line: C1 PARITY_ROWS != 0)"
 ok "(C1) ${SDEPTH} usage.events on the stream, METERING_INGEST unset → tenant_usage EMPTY = byte-parity"
 
 # ── 7) (C2) PARITY producer: data-plane metering OFF → ZERO usage.events ────────
@@ -492,8 +521,8 @@ code="$(post_q "${PORT_OFF}" "$(payload batch "${TABLE_OFF}" "$(batch_data "${TA
 # it can never XADD. The stream MUST stay at depth 0.
 sleep "$(awk "BEGIN{printf \"%.1f\", ${FLUSH_MS}/1000*4 + 2}")"
 SDEPTH_OFF="$(redis_cli XLEN usage.events 2>/dev/null | tr -d '[:space:]')"
-[[ "${SDEPTH_OFF:-0}" == "0" ]] \
-  || fail "(C2) PARITY BROKEN — metering-OFF producer XADDed ${SDEPTH_OFF} usage.events (expected 0) (line: C2 SDEPTH_OFF != 0)"
+[[ "${SDEPTH_OFF:-0}" == "0" ]] ||
+  fail "(C2) PARITY BROKEN — metering-OFF producer XADDed ${SDEPTH_OFF} usage.events (expected 0) (line: C2 SDEPTH_OFF != 0)"
 ok "(C2) metering OFF → identical read+write produced ZERO usage.events = byte-parity producer"
 
 # ── 8) cross-check + done ──────────────────────────────────────────────────────

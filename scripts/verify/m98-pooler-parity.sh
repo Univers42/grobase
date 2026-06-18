@@ -52,17 +52,20 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 DPR_DIR="${INFRA_DIR}/src/data-plane-router"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M98] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M98] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M98] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M98] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M98_PG_IMAGE:-postgres:16-alpine}"
 PGB_IMAGE="${M98_PGB_IMAGE:-edoburu/pgbouncer:latest}"
@@ -70,12 +73,12 @@ DPR_IMG="m98-dpr-$$:scratch"
 NET="m98net-$$"
 PG="m98-pg-$$"
 PGB="m98-pgbouncer-$$"
-DPR_DIRECT="m98-dpr-direct-$$"   # (PARITY) no pooler URL → direct DSN baseline
-DPR_POOLED="m98-dpr-pooled-$$"   # (POSITIVE/REJECT) pooler URL set → dials pgbouncer
+DPR_DIRECT="m98-dpr-direct-$$" # (PARITY) no pooler URL → direct DSN baseline
+DPR_POOLED="m98-dpr-pooled-$$" # (POSITIVE/REJECT) pooler URL set → dials pgbouncer
 PORT_DIRECT="${M98_PORT_DIRECT:-18982}"
 PORT_POOLED="${M98_PORT_POOLED:-18983}"
 PGPW="postgres"
-APP_USER="app_user"              # NON-superuser → RLS actually bites
+APP_USER="app_user" # NON-superuser → RLS actually bites
 APP_PW="app_pw"
 TENANT="m98-tenant-$$"
 OWNER_A="m98-owner-a-$$"
@@ -96,7 +99,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 
 # Build a /v1/query envelope as a given owner. The identity's user_id IS the RLS
@@ -125,7 +128,7 @@ norm() { # reads BODY_TMP
 try:
     print(json.dumps(json.load(open(sys.argv[1])), sort_keys=True, separators=(",",":")))
 except Exception:
-    print(open(sys.argv[1]).read().replace(chr(10)," "))' "${BODY_TMP}" 2>/dev/null || tr -d "\n" < "${BODY_TMP}"
+    print(open(sys.argv[1]).read().replace(chr(10)," "))' "${BODY_TMP}" 2>/dev/null || tr -d "\n" <"${BODY_TMP}"
 }
 
 # Count how many times an owner id appears in a compact JSON line (the "owner_id"
@@ -141,18 +144,24 @@ count_owner() {
 wait_ready() { # $1=container  $2=port
   for i in $(seq 1 60); do
     curl -fsS -o /dev/null "http://127.0.0.1:$2/v1/capabilities" 2>/dev/null && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -15; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -15
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -15; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -15
+  return 1
 }
 
 command -v python3 >/dev/null 2>&1 || fail "python3 required for the parity diff (line: python3 check)"
 
 # ── 0) build the scratch DPR FROM CURRENT (C1) source ─────────────────────────
 step "0/8 build scratch data-plane-router from CURRENT source (the C1 pooler-consume code)"
-DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${DPR_IMG}" "${DPR_DIR}" >/dev/null \
-  || fail "scratch data-plane-router image build failed — gate must exercise the C1 seam (line: docker build DPR)"
+DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${DPR_IMG}" "${DPR_DIR}" >/dev/null ||
+  fail "scratch data-plane-router image build failed — gate must exercise the C1 seam (line: docker build DPR)"
 ok "scratch image built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated network + postgres (trust so the pooler's trust auth works) ────
@@ -197,11 +206,15 @@ INSERT INTO public.${PROBE_TABLE}(id,label,owner_id) VALUES
   ON CONFLICT (id) DO NOTHING;
 SQL
 }
-for i in $(seq 1 20); do seed && break; [[ $i -eq 20 ]] && fail "seed never committed (line: seed loop)"; sleep 0.5; done
-[[ "$(psql_val "SELECT count(*) FROM public.${PROBE_TABLE} WHERE owner_id='${OWNER_A}'")" == "2" ]] \
-  || fail "owner A should have 2 seeded rows (line: verify A seed)"
-[[ "$(psql_val "SELECT count(*) FROM public.${PROBE_TABLE} WHERE owner_id='${OWNER_B}'")" == "1" ]] \
-  || fail "owner B should have 1 seeded row (line: verify B seed)"
+for i in $(seq 1 20); do
+  seed && break
+  [[ $i -eq 20 ]] && fail "seed never committed (line: seed loop)"
+  sleep 0.5
+done
+[[ "$(psql_val "SELECT count(*) FROM public.${PROBE_TABLE} WHERE owner_id='${OWNER_A}'")" == "2" ]] ||
+  fail "owner A should have 2 seeded rows (line: verify A seed)"
+[[ "$(psql_val "SELECT count(*) FROM public.${PROBE_TABLE} WHERE owner_id='${OWNER_B}'")" == "1" ]] ||
+  fail "owner B should have 1 seeded row (line: verify B seed)"
 ok "seeded: A=2 rows, B=1 row; RLS FORCEd; app_user is non-superuser (NOBYPASSRLS)"
 
 # ── 3) boot pgbouncer in TRANSACTION mode in front of postgres ────────────────
@@ -216,12 +229,23 @@ docker run -d --name "${PGB}" --network "${NET}" \
 PGB_OK=
 for i in $(seq 1 60); do
   if docker run --rm --network "${NET}" -e PGPASSWORD="${APP_PW}" "${PG_IMAGE}" \
-       psql "host=${PGB} port=6432 user=${APP_USER} dbname=postgres sslmode=disable" \
-       -tAc 'SELECT 1' 2>/dev/null | grep -q '^1$'; then PGB_OK=1; break; fi
-  docker inspect "${PGB}" >/dev/null 2>&1 || { red "pgbouncer exited:"; docker logs "${PGB}" 2>&1 | tail -15; break; }
+    psql "host=${PGB} port=6432 user=${APP_USER} dbname=postgres sslmode=disable" \
+    -tAc 'SELECT 1' 2>/dev/null | grep -q '^1$'; then
+    PGB_OK=1
+    break
+  fi
+  docker inspect "${PGB}" >/dev/null 2>&1 || {
+    red "pgbouncer exited:"
+    docker logs "${PGB}" 2>&1 | tail -15
+    break
+  }
   sleep 0.5
 done
-[[ -n "${PGB_OK}" ]] || { red "pgbouncer logs:"; docker logs "${PGB}" 2>&1 | tail -20; fail "pgbouncer never accepted a pooled connection (line: PGB ready)"; }
+[[ -n "${PGB_OK}" ]] || {
+  red "pgbouncer logs:"
+  docker logs "${PGB}" 2>&1 | tail -20
+  fail "pgbouncer never accepted a pooled connection (line: PGB ready)"
+}
 ok "pgbouncer up in transaction mode; a query proxies through it to postgres"
 
 # ── 4) (PARITY) DIRECT router — pooler URL UNSET → direct DSN baseline ─────────
@@ -250,14 +274,27 @@ run_set() { # $1=port  $2=dsn  → appends normalized "label::status::body" line
 }
 
 step "4b/8 capture DIRECT responses (list/get/aggregate as owner A)"
-run_set "${PORT_DIRECT}" "${DB_DIRECT}" > "${DIRECT_OUT}"
+run_set "${PORT_DIRECT}" "${DB_DIRECT}" >"${DIRECT_OUT}"
 D_LIST="$(grep '^list_A::' "${DIRECT_OUT}" || true)"
-[[ "${D_LIST}" == list_A::200::* ]] || { red "direct out:"; cat "${DIRECT_OUT}"; fail "DIRECT list_A not 200 (line: direct list 200)"; }
+[[ "${D_LIST}" == list_A::200::* ]] || {
+  red "direct out:"
+  cat "${DIRECT_OUT}"
+  fail "DIRECT list_A not 200 (line: direct list 200)"
+}
 # Direct list must return EXACTLY A's 2 rows and ZERO of B's (RLS already bites
 # direct — it's the baseline the pooled arm must reproduce).
-D_A="$(count_owner "${D_LIST}" "${OWNER_A}")"; D_B="$(count_owner "${D_LIST}" "${OWNER_B}")"
-[[ "${D_A}" == "2" ]] || { red "direct list:"; printf '%s\n' "${D_LIST}"; fail "DIRECT list_A expected A's 2 rows, saw ${D_A} (line: direct A rows)"; }
-[[ "${D_B}" == "0" ]] || { red "direct list:"; printf '%s\n' "${D_LIST}"; fail "DIRECT list_A leaked ${D_B} of owner B's rows — RLS not biting even direct (line: direct B leak)"; }
+D_A="$(count_owner "${D_LIST}" "${OWNER_A}")"
+D_B="$(count_owner "${D_LIST}" "${OWNER_B}")"
+[[ "${D_A}" == "2" ]] || {
+  red "direct list:"
+  printf '%s\n' "${D_LIST}"
+  fail "DIRECT list_A expected A's 2 rows, saw ${D_A} (line: direct A rows)"
+}
+[[ "${D_B}" == "0" ]] || {
+  red "direct list:"
+  printf '%s\n' "${D_LIST}"
+  fail "DIRECT list_A leaked ${D_B} of owner B's rows — RLS not biting even direct (line: direct B leak)"
+}
 ok "DIRECT captured: list_A=200 with exactly A's 2 rows, 0 of B's (RLS scopes correctly direct)"
 
 # ── 5) swap to the POOLED router. STOP the direct one first (clean handoff) ────
@@ -277,14 +314,19 @@ step "5b/8 capture POOLED responses (SAME CRUD set, SAME owner, SAME data)"
 # open_pool repoints its host:port to the pooler from DATA_PLANE_POOLER_URL. So the
 # request bodies are IDENTICAL to the direct arm; only the router env differs. That
 # is precisely the parity contract: same request, pooled vs direct, identical body.
-run_set "${PORT_POOLED}" "${DB_DIRECT}" > "${POOLED_OUT}"
-grep -q 'list_A::200::' "${POOLED_OUT}" || { red "pooled out:"; cat "${POOLED_OUT}"; fail "POOLED list_A not 200 — the pooler path failed (line: pooled list 200)"; }
+run_set "${PORT_POOLED}" "${DB_DIRECT}" >"${POOLED_OUT}"
+grep -q 'list_A::200::' "${POOLED_OUT}" || {
+  red "pooled out:"
+  cat "${POOLED_OUT}"
+  fail "POOLED list_A not 200 — the pooler path failed (line: pooled list 200)"
+}
 ok "POOLED captured: list_A=200 (CRUD served THROUGH pgbouncer)"
 
 # ── 6) (POSITIVE) row-for-row parity: diff DIRECT vs POOLED responses ─────────
 step "6/8 (POSITIVE) diff DIRECT vs POOLED normalized responses → MUST be empty"
-if ! diff -u "${DIRECT_OUT}" "${POOLED_OUT}" > "${BODY_TMP}" 2>&1; then
-  red "pooled-vs-direct DIVERGENCE:"; cat "${BODY_TMP}"
+if ! diff -u "${DIRECT_OUT}" "${POOLED_OUT}" >"${BODY_TMP}" 2>&1; then
+  red "pooled-vs-direct DIVERGENCE:"
+  cat "${BODY_TMP}"
   fail "POOLED responses are NOT byte-identical to DIRECT — C1 is not a transport-only optimization (line: parity diff)"
 fi
 ok "(POSITIVE) pooled responses are ROW-FOR-ROW identical to direct — C1 is transport-only"
@@ -295,12 +337,24 @@ step "7/8 (REJECT) through the POOLED router, owner B's list must NOT see owner 
 # previous pooled checkout served owner A, B must see ONLY its own 1 row. If the GUC
 # did not survive / leaked across the txn-mode pool, B would see A's rows too.
 B_CODE="$(post_q "${PORT_POOLED}" "$(payload "${DB_DIRECT}" "${OWNER_B}" list null null)")"
-[[ "${B_CODE}" == "200" ]] || { red "B body:"; head -c 300 "${BODY_TMP}"; fail "(REJECT) owner B list expected 200, got ${B_CODE} (line: B list 200)"; }
+[[ "${B_CODE}" == "200" ]] || {
+  red "B body:"
+  head -c 300 "${BODY_TMP}"
+  fail "(REJECT) owner B list expected 200, got ${B_CODE} (line: B list 200)"
+}
 B_NORM="$(norm)"
 B_OWN_ROWS="$(count_owner "${B_NORM}" "${OWNER_B}")"
 B_SEES_A="$(count_owner "${B_NORM}" "${OWNER_A}")"
-[[ "${B_OWN_ROWS}" == "1" ]] || { red "B sees:"; printf '%s\n' "${B_NORM}"; fail "(REJECT) owner B expected its 1 row, saw ${B_OWN_ROWS} (line: B own rows)"; }
-[[ "${B_SEES_A}" == "0" ]] || { red "B sees:"; printf '%s\n' "${B_NORM}"; fail "(REJECT) CROSS-OWNER LEAK through the pooler: owner B saw ${B_SEES_A} of owner A's rows — the RLS GUC did NOT survive the txn-mode pooled checkout (line: B leak A)"; }
+[[ "${B_OWN_ROWS}" == "1" ]] || {
+  red "B sees:"
+  printf '%s\n' "${B_NORM}"
+  fail "(REJECT) owner B expected its 1 row, saw ${B_OWN_ROWS} (line: B own rows)"
+}
+[[ "${B_SEES_A}" == "0" ]] || {
+  red "B sees:"
+  printf '%s\n' "${B_NORM}"
+  fail "(REJECT) CROSS-OWNER LEAK through the pooler: owner B saw ${B_SEES_A} of owner A's rows — the RLS GUC did NOT survive the txn-mode pooled checkout (line: B leak A)"
+}
 ok "(REJECT · LOAD-BEARING) owner B sees ONLY its 1 row through the pooler — RLS GUC survives txn-mode pooling"
 
 # Re-assert as owner A right after B (back-to-back, different principals, same pool)
@@ -309,8 +363,12 @@ A2_CODE="$(post_q "${PORT_POOLED}" "$(payload "${DB_DIRECT}" "${OWNER_A}" list n
 A2_NORM="$(norm)"
 A2_A="$(count_owner "${A2_NORM}" "${OWNER_A}")"
 A2_B="$(count_owner "${A2_NORM}" "${OWNER_B}")"
-[[ "${A2_CODE}" == "200" && "${A2_A}" == "2" && "${A2_B}" == "0" ]] \
-  || { red "A-after-B:"; printf '%s\n' "${A2_NORM}"; fail "(REJECT) A-after-B expected A's 2 rows only (got code=${A2_CODE} A=${A2_A} B=${A2_B}) — GUC pinned across pooled checkouts (line: A after B)"; }
+[[ "${A2_CODE}" == "200" && "${A2_A}" == "2" && "${A2_B}" == "0" ]] ||
+  {
+    red "A-after-B:"
+    printf '%s\n' "${A2_NORM}"
+    fail "(REJECT) A-after-B expected A's 2 rows only (got code=${A2_CODE} A=${A2_A} B=${A2_B}) — GUC pinned across pooled checkouts (line: A after B)"
+  }
 ok "back-to-back A→B→A through one pool: each sees ONLY its own rows (GUC is per-request)"
 
 # ── 8) emit the gate event via the kernel log helper (best-effort) ────────────
@@ -319,7 +377,8 @@ green "[M98] (POSITIVE) pooled == direct, row-for-row (diff empty)"
 green "[M98] (REJECT)   cross-owner RLS GUC survives the txn-mode pooler (B sees only B; A-after-B sees only A)"
 green "[M98] (PARITY)   DATA_PLANE_POOLER_URL unset → direct path = the baseline both arms agree on"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-c1-pooler-consume}"

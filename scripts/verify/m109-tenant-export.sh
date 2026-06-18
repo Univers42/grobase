@@ -66,8 +66,8 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 MIGRATION_005="${MIG_DIR}/005_add_tenant_table.sql"
@@ -77,29 +77,32 @@ MIGRATION_041="${MIG_DIR}/041_tenant_billing.sql"
 MIGRATION_052="${MIG_DIR}/052_tenant_exports.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M109] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M109] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M109] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M109] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M109_PG_IMAGE:-postgres:16-alpine}"
 TC_IMG="m109-tc-$$:scratch"
 NET="m109net-$$"
 PG="m109-pg-$$"
-TC_ON="m109-tc-on-$$"      # TENANT_EXPORT_ENABLED=1   (A · positive / B · reject)
-TC_OFF="m109-tc-off-$$"    # TENANT_EXPORT_ENABLED unset (C · parity)
+TC_ON="m109-tc-on-$$"   # TENANT_EXPORT_ENABLED=1   (A · positive / B · reject)
+TC_OFF="m109-tc-off-$$" # TENANT_EXPORT_ENABLED unset (C · parity)
 PORT_ON="${M109_PORT_ON:-19114}"
 PORT_OFF="${M109_PORT_OFF:-19115}"
 PGPW="postgres"
 DB_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 SVC_TOKEN="m109-internal-service-token-$$"
-TENANT_A="m109-a-$$"             # schema_per_tenant, positive + cross-tenant base
-TENANT_B="m109-b-$$"             # schema_per_tenant, the OTHER tenant (must NOT bleed into A)
-TENANT_SR="m109-sr-$$"           # shared_rls, positive + cross-tenant base
-TENANT_SR2="m109-sr2-$$"         # shared_rls, the OTHER tenant in the SAME shared table
-TENANT_D="m109-d-$$"             # db_per_tenant -> export must 400 (deferred)
+TENANT_A="m109-a-$$"     # schema_per_tenant, positive + cross-tenant base
+TENANT_B="m109-b-$$"     # schema_per_tenant, the OTHER tenant (must NOT bleed into A)
+TENANT_SR="m109-sr-$$"   # shared_rls, positive + cross-tenant base
+TENANT_SR2="m109-sr2-$$" # shared_rls, the OTHER tenant in the SAME shared table
+TENANT_D="m109-d-$$"     # db_per_tenant -> export must 400 (deferred)
 # Prefer the bench mount if present (dev machines); fall back to a portable temp
 # dir so the gate also runs on a CI runner that has no /mnt/storage.
 ARTIFACT_DIR="${M109_ARTIFACT_DIR:-$([ -d /mnt/storage/bench ] && echo /mnt/storage/bench || echo "${TMPDIR:-/tmp}")/m109-exports-$$}"
@@ -132,7 +135,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 
 apply_migration() { # $1=file
@@ -168,17 +171,23 @@ wait_ready() { # $1=container $2=port
   local i
   for i in $(seq 1 60); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2/health/live" 2>/dev/null)" == "200" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # ── 0) build the scratch tenant-control FROM CURRENT (drafted) source ──────────
 step "0/9 build scratch tenant-control from CURRENT source (the D4.3 export code)"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT=3020 \
-  -t "${TC_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch tenant-control image build failed — gate must exercise the drafted export code (line: docker build TC)"
+  -t "${TC_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch tenant-control image build failed — gate must exercise the drafted export code (line: docker build TC)"
 ok "tenant-control built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated net + postgres + prelude + REAL 005/032/040/041/052 ────────────
@@ -191,7 +200,10 @@ for i in $(seq 1 80); do
   if docker exec "${PG}" pg_isready -h 127.0.0.1 -q 2>/dev/null && [[ "$(psql_val 'SELECT 1')" == "1" ]]; then
     break
   fi
-  [[ $i -eq 80 ]] && { docker logs "${PG}" 2>&1 | tail -20; fail "scratch postgres never accepted TCP + SELECT 1 (line: PG ready loop)"; }
+  [[ $i -eq 80 ]] && {
+    docker logs "${PG}" 2>&1 | tail -20
+    fail "scratch postgres never accepted TCP + SELECT 1 (line: PG ready loop)"
+  }
   sleep 0.5
 done
 ok "postgres up (TCP + SELECT 1)"
@@ -237,7 +249,11 @@ CREATE TABLE IF NOT EXISTS public.m109_shared (
 );
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
 apply_migration "${MIGRATION_005}" || fail "real migration 005_add_tenant_table.sql failed to apply (line: apply 005)"
 apply_migration "${MIGRATION_032}" || fail "real migration 032_tenants.sql failed to apply (line: apply 032)"
 apply_migration "${MIGRATION_040}" || fail "real migration 040_tenant_usage.sql failed to apply (line: apply 040)"
@@ -245,16 +261,16 @@ apply_migration "${MIGRATION_041}" || fail "real migration 041_tenant_billing.sq
 [[ -f "${MIGRATION_052}" ]] || fail "migration 052_tenant_exports.sql is MISSING — the D4.3 migration slice must land before m109 can run (line: 052 exists)"
 apply_migration "${MIGRATION_052}" || fail "real migration 052_tenant_exports.sql failed to apply (line: apply 052)"
 [[ "$(psql_val "SELECT count(*) FROM public.tenants")" == "0" ]] || fail "tenants should start EMPTY (line: 032 empty check)"
-[[ "$(psql_val "SELECT to_regclass('public.tenant_exports') IS NOT NULL")" == "t" ]] \
-  || fail "public.tenant_exports not created by migration 052 (line: 052 table check)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_exports")" == "0" ]] \
-  || fail "tenant_exports should start EMPTY (line: 052 empty check)"
+[[ "$(psql_val "SELECT to_regclass('public.tenant_exports') IS NOT NULL")" == "t" ]] ||
+  fail "public.tenant_exports not created by migration 052 (line: 052 table check)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_exports")" == "0" ]] ||
+  fail "tenant_exports should start EMPTY (line: 052 empty check)"
 ok "migrations 005 + 032 + 040 + 041 + 052 applied — tenants / tenant_databases / tenant_exports / m109_shared exist, ledger empty"
 
 # ── 2) boot the EXPORT-ON tenant-control (TENANT_EXPORT_ENABLED=1) ─────────────
 step "2/9 boot tenant-control TENANT_EXPORT_ENABLED=1, EXPORT_DATA_DIR=/exports on 127.0.0.1:${PORT_ON} (A · positive / B · reject)"
-mkdir -p "${ARTIFACT_DIR}" 2>/dev/null \
-  || fail "could not create local artifact dir ${ARTIFACT_DIR} (run once: sudo install -d -o \$USER /mnt/storage/bench) (line: artifact mkdir)"
+mkdir -p "${ARTIFACT_DIR}" 2>/dev/null ||
+  fail "could not create local artifact dir ${ARTIFACT_DIR} (run once: sudo install -d -o \$USER /mnt/storage/bench) (line: artifact mkdir)"
 chmod 777 "${ARTIFACT_DIR}" 2>/dev/null || true
 docker run -d --name "${TC_ON}" --network "${NET}" \
   --user "$(id -u):$(id -g)" \
@@ -310,20 +326,21 @@ GRANT SELECT, INSERT, UPDATE, DELETE
 SQL
 }
 seed_sql || fail "seeding mounts + schemas + shared rows failed — $(tail -c 600 "${BODY_TMP}.seederr" 2>/dev/null) (line: seed_sql)"
-[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m109_marker")" == "${ROWS_A}" ]] \
-  || fail "A schema should hold ${ROWS_A} rows (line: A seed count)"
-[[ "$(psql_val "SELECT count(*) FROM public.m109_shared WHERE tenant_id='${TENANT_SR}'")" == "${ROWS_SR}" ]] \
-  || fail "SR should hold ${ROWS_SR} shared rows (line: SR seed count)"
-[[ "$(psql_val "SELECT count(*) FROM public.m109_shared WHERE tenant_id='${TENANT_SR2}'")" == "${ROWS_SR2}" ]] \
-  || fail "SR2 should hold ${ROWS_SR2} shared rows (line: SR2 seed count)"
+[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m109_marker")" == "${ROWS_A}" ]] ||
+  fail "A schema should hold ${ROWS_A} rows (line: A seed count)"
+[[ "$(psql_val "SELECT count(*) FROM public.m109_shared WHERE tenant_id='${TENANT_SR}'")" == "${ROWS_SR}" ]] ||
+  fail "SR should hold ${ROWS_SR} shared rows (line: SR seed count)"
+[[ "$(psql_val "SELECT count(*) FROM public.m109_shared WHERE tenant_id='${TENANT_SR2}'")" == "${ROWS_SR2}" ]] ||
+  fail "SR2 should hold ${ROWS_SR2} shared rows (line: SR2 seed count)"
 ok "A=${ROWS_A} (schema), B=${ROWS_B} (schema), SR=${ROWS_SR} + SR2=${ROWS_SR2} (shared table m109_shared)"
 
 # ── 4) (A · POSITIVE) export A (schema_per_tenant) → bundle has EXACTLY A's rows ─
 step "4a/9 (A · POSITIVE) POST /v1/tenants/${TENANT_A}/export → export_id; ledger status=completed, table_count/row_count + hex sha256"
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_A}/export" '{"mount":"m109-mount-a"}')"
-[[ "${C}" == "200" || "${C}" == "201" || "${C}" == "202" ]] \
-  || fail "(A) POST /export expected 200/201/202, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A export)"
-EXPORT_A="$(json_str export_id)"; [[ -z "${EXPORT_A}" ]] && EXPORT_A="$(json_str id)"
+[[ "${C}" == "200" || "${C}" == "201" || "${C}" == "202" ]] ||
+  fail "(A) POST /export expected 200/201/202, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A export)"
+EXPORT_A="$(json_str export_id)"
+[[ -z "${EXPORT_A}" ]] && EXPORT_A="$(json_str id)"
 [[ -n "${EXPORT_A}" ]] || fail "(A) POST /export returned no export id — $(head -c 300 "${BODY_TMP}") (line: A export id)"
 A_STATUS=""
 for i in $(seq 1 60); do
@@ -340,8 +357,8 @@ A_SHA="$(psql_val "SELECT sha256 FROM public.tenant_exports WHERE id='${EXPORT_A
 [[ "${A_TC}" == "1" ]] || fail "(A) ledger table_count=${A_TC}, want 1 (line: A table_count)"
 [[ "${A_SHA}" =~ ^[0-9a-f]+$ ]] || fail "(A) ledger sha256 not lower-hex (got '${A_SHA}') (line: A sha hex)"
 # Manifest in the ledger lists the marker table with the right count.
-psql_val "SELECT manifest FROM public.tenant_exports WHERE id='${EXPORT_A}'" | grep -q 'm109_marker' \
-  || fail "(A) ledger manifest does not name m109_marker (line: A manifest table)"
+psql_val "SELECT manifest FROM public.tenant_exports WHERE id='${EXPORT_A}'" | grep -q 'm109_marker' ||
+  fail "(A) ledger manifest does not name m109_marker (line: A manifest table)"
 ok "(A) export ${EXPORT_A} completed; row_count=${A_RC}, table_count=${A_TC}, sha256=${A_SHA:0:16}…, manifest names m109_marker"
 
 step "4b/9 (A · POSITIVE) download the portable bundle → EXACTLY ${ROWS_A} A-rows, manifest{table,count}, sha256 matches the on-disk artifact"
@@ -349,20 +366,20 @@ C="$(admin_dl "${PORT_ON}" "/v1/tenants/${TENANT_A}/export/${EXPORT_A}")"
 [[ "${C}" == "200" ]] || fail "(A) GET /export/{id} expected 200, got ${C} — $(head -c 300 "${BUNDLE_TMP}") (line: A download)"
 # Portable JSON: exactly ROWS_A occurrences of the A payload prefix in the bundle.
 A_IN_BUNDLE="$(grep -o 'A_ROW_PAYLOAD_' "${BUNDLE_TMP}" | wc -l | tr -d '[:space:]')"
-[[ "${A_IN_BUNDLE}" == "${ROWS_A}" ]] \
-  || fail "(A) bundle contains ${A_IN_BUNDLE} A-rows, want EXACTLY ${ROWS_A} (line: A bundle count)"
+[[ "${A_IN_BUNDLE}" == "${ROWS_A}" ]] ||
+  fail "(A) bundle contains ${A_IN_BUNDLE} A-rows, want EXACTLY ${ROWS_A} (line: A bundle count)"
 grep -q '"manifest"' "${BUNDLE_TMP}" || fail "(A) bundle has no manifest section (line: A bundle manifest)"
 grep -q '"m109_marker"' "${BUNDLE_TMP}" || fail "(A) bundle manifest/data does not name m109_marker (line: A bundle table)"
-grep -q "\"row_count\":${ROWS_A}" "${BUNDLE_TMP}" \
-  || fail "(A) bundle manifest row_count != ${ROWS_A} (line: A bundle row_count)"
+grep -q "\"row_count\":${ROWS_A}" "${BUNDLE_TMP}" ||
+  fail "(A) bundle manifest row_count != ${ROWS_A} (line: A bundle row_count)"
 # The downloaded bytes must hash to the ledger sha256 (portability integrity).
 DL_SHA="$(sha256sum "${BUNDLE_TMP}" | cut -d' ' -f1)"
-[[ "${DL_SHA}" == "${A_SHA}" ]] \
-  || fail "(A) downloaded bundle sha256 ${DL_SHA} != ledger sha256 ${A_SHA} (integrity) (line: A download sha)"
+[[ "${DL_SHA}" == "${A_SHA}" ]] ||
+  fail "(A) downloaded bundle sha256 ${DL_SHA} != ledger sha256 ${A_SHA} (integrity) (line: A download sha)"
 # And the artifact really persisted on disk under the tenant dir.
-A_FILES="$( { find "${ARTIFACT_DIR}/${TENANT_A}" -type f 2>/dev/null | wc -l || true; } | tr -d '[:space:]')"
-[[ -n "${A_FILES}" && "${A_FILES}" -ge 1 ]] 2>/dev/null \
-  || fail "(A) no artifact file under ${ARTIFACT_DIR}/${TENANT_A}/ — LocalFileStore did not persist (line: A artifact on disk)"
+A_FILES="$({ find "${ARTIFACT_DIR}/${TENANT_A}" -type f 2>/dev/null | wc -l || true; } | tr -d '[:space:]')"
+[[ -n "${A_FILES}" && "${A_FILES}" -ge 1 ]] 2>/dev/null ||
+  fail "(A) no artifact file under ${ARTIFACT_DIR}/${TENANT_A}/ — LocalFileStore did not persist (line: A artifact on disk)"
 ok "(A) bundle has EXACTLY ${ROWS_A} A-rows, manifest names m109_marker w/ row_count=${ROWS_A}, sha256 matches download, ${A_FILES} file(s) on disk"
 
 step "4c/9 (A · POSITIVE) GET /v1/tenants/${TENANT_A}/exports lists the export status=completed"
@@ -375,9 +392,10 @@ ok "(A) GET /exports → 200; lists ${EXPORT_A} status=completed"
 # ── 5) (SR · POSITIVE) export a shared_rls tenant → EXACTLY SR's rows ──────────
 step "5/9 (SR · POSITIVE) POST /v1/tenants/${TENANT_SR}/export (shared_rls) → bundle has EXACTLY ${ROWS_SR} SR-rows from the shared table"
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_SR}/export" '{"mount":"m109-mount-sr"}')"
-[[ "${C}" == "200" || "${C}" == "201" || "${C}" == "202" ]] \
-  || fail "(SR) POST /export expected 2xx, got ${C} — $(head -c 300 "${BODY_TMP}") (line: SR export)"
-EXPORT_SR="$(json_str export_id)"; [[ -z "${EXPORT_SR}" ]] && EXPORT_SR="$(json_str id)"
+[[ "${C}" == "200" || "${C}" == "201" || "${C}" == "202" ]] ||
+  fail "(SR) POST /export expected 2xx, got ${C} — $(head -c 300 "${BODY_TMP}") (line: SR export)"
+EXPORT_SR="$(json_str export_id)"
+[[ -z "${EXPORT_SR}" ]] && EXPORT_SR="$(json_str id)"
 [[ -n "${EXPORT_SR}" ]] || fail "(SR) no export id (line: SR export id)"
 SR_STATUS=""
 for i in $(seq 1 60); do
@@ -387,13 +405,13 @@ for i in $(seq 1 60); do
   sleep 0.5
 done
 [[ "${SR_STATUS}" == "completed" ]] || fail "(SR) export never completed (last='${SR_STATUS}') (line: SR completed)"
-[[ "$(psql_val "SELECT row_count FROM public.tenant_exports WHERE id='${EXPORT_SR}'")" == "${ROWS_SR}" ]] \
-  || fail "(SR) ledger row_count != ${ROWS_SR} (line: SR row_count)"
+[[ "$(psql_val "SELECT row_count FROM public.tenant_exports WHERE id='${EXPORT_SR}'")" == "${ROWS_SR}" ]] ||
+  fail "(SR) ledger row_count != ${ROWS_SR} (line: SR row_count)"
 C="$(admin_dl "${PORT_ON}" "/v1/tenants/${TENANT_SR}/export/${EXPORT_SR}")"
 [[ "${C}" == "200" ]] || fail "(SR) download expected 200, got ${C} (line: SR download)"
 SR_IN_BUNDLE="$(grep -o 'SR_ROW_PAYLOAD_' "${BUNDLE_TMP}" | wc -l | tr -d '[:space:]')"
-[[ "${SR_IN_BUNDLE}" == "${ROWS_SR}" ]] \
-  || fail "(SR) bundle has ${SR_IN_BUNDLE} SR-rows, want EXACTLY ${ROWS_SR} (line: SR bundle count)"
+[[ "${SR_IN_BUNDLE}" == "${ROWS_SR}" ]] ||
+  fail "(SR) bundle has ${SR_IN_BUNDLE} SR-rows, want EXACTLY ${ROWS_SR} (line: SR bundle count)"
 ok "(SR) shared_rls export bundle has EXACTLY ${ROWS_SR} SR-rows (scoped WHERE tenant_id)"
 
 # ── 6) (B · REJECT, LOAD-BEARING) cross-tenant: ZERO of B/SR2 rows bleed in ────
@@ -401,9 +419,9 @@ step "6a/9 (B · REJECT, LOAD-BEARING) A's bundle contains ZERO of B's rows (no 
 # Re-download A's bundle to be certain we are grepping A.
 C="$(admin_dl "${PORT_ON}" "/v1/tenants/${TENANT_A}/export/${EXPORT_A}")"
 [[ "${C}" == "200" ]] || fail "(B) re-download A bundle expected 200, got ${C} (line: B re-download A)"
-B_BLEED="$( { grep -c 'B_ROW_PAYLOAD_' "${BUNDLE_TMP}" || true; } | tr -d '[:space:]')"
-[[ "${B_BLEED}" == "0" ]] \
-  || fail "(B) A's export bundle contains ${B_BLEED} of B's rows — CROSS-TENANT LEAK! (line: B no bleed into A)"
+B_BLEED="$({ grep -c 'B_ROW_PAYLOAD_' "${BUNDLE_TMP}" || true; } | tr -d '[:space:]')"
+[[ "${B_BLEED}" == "0" ]] ||
+  fail "(B) A's export bundle contains ${B_BLEED} of B's rows — CROSS-TENANT LEAK! (line: B no bleed into A)"
 # And A's exact count is still right (defence: not just absent-B but present-A).
 A_RECHECK="$(grep -o 'A_ROW_PAYLOAD_' "${BUNDLE_TMP}" | wc -l | tr -d '[:space:]')"
 [[ "${A_RECHECK}" == "${ROWS_A}" ]] || fail "(B) A bundle A-row count drifted to ${A_RECHECK} (line: B A recheck)"
@@ -412,21 +430,21 @@ ok "(B) A's bundle: ${ROWS_A} A-rows, ZERO B-rows — schema_per_tenant scoping 
 step "6b/9 (B · REJECT, LOAD-BEARING) SR's bundle contains ZERO of SR2's rows (the shared-table WHERE tenant_id wall)"
 C="$(admin_dl "${PORT_ON}" "/v1/tenants/${TENANT_SR}/export/${EXPORT_SR}")"
 [[ "${C}" == "200" ]] || fail "(B) re-download SR bundle expected 200, got ${C} (line: B re-download SR)"
-SR2_BLEED="$( { grep -c 'SR2_ROW_PAYLOAD_' "${BUNDLE_TMP}" || true; } | tr -d '[:space:]')"
-[[ "${SR2_BLEED}" == "0" ]] \
-  || fail "(B) SR's export bundle contains ${SR2_BLEED} of SR2's rows from the SAME shared table — CROSS-TENANT LEAK! (line: B no bleed into SR)"
+SR2_BLEED="$({ grep -c 'SR2_ROW_PAYLOAD_' "${BUNDLE_TMP}" || true; } | tr -d '[:space:]')"
+[[ "${SR2_BLEED}" == "0" ]] ||
+  fail "(B) SR's export bundle contains ${SR2_BLEED} of SR2's rows from the SAME shared table — CROSS-TENANT LEAK! (line: B no bleed into SR)"
 SR_RECHECK="$(grep -o 'SR_ROW_PAYLOAD_' "${BUNDLE_TMP}" | wc -l | tr -d '[:space:]')"
 [[ "${SR_RECHECK}" == "${ROWS_SR}" ]] || fail "(B) SR bundle SR-row count drifted to ${SR_RECHECK} (line: B SR recheck)"
 ok "(B) SR's bundle: ${ROWS_SR} SR-rows, ZERO SR2-rows — shared_rls WHERE tenant_id is airtight (same table, different tenants)"
 
 step "6c/9 (B · REJECT) db_per_tenant deferred — POST /v1/tenants/${TENANT_D}/export → 400 \"deferred\""
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_D}/export" '{"mount":"m109-mount-d"}')"
-[[ "${C}" == "400" ]] \
-  || fail "(B) db_per_tenant export got ${C} (want 400) — the deferral is not enforced — $(head -c 300 "${BODY_TMP}") (line: D deferred 400)"
-grep -qi 'deferred' "${BODY_TMP}" \
-  || fail "(B) db_per_tenant 400 body missing the 'deferred' message — $(head -c 300 "${BODY_TMP}") (line: D deferred msg)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_exports WHERE tenant_id='${TENANT_D}' AND status='completed'")" == "0" ]] \
-  || fail "(B) a completed export row exists for db_per_tenant tenant D — the deferral leaked a bundle (line: D no completed row)"
+[[ "${C}" == "400" ]] ||
+  fail "(B) db_per_tenant export got ${C} (want 400) — the deferral is not enforced — $(head -c 300 "${BODY_TMP}") (line: D deferred 400)"
+grep -qi 'deferred' "${BODY_TMP}" ||
+  fail "(B) db_per_tenant 400 body missing the 'deferred' message — $(head -c 300 "${BODY_TMP}") (line: D deferred msg)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_exports WHERE tenant_id='${TENANT_D}' AND status='completed'")" == "0" ]] ||
+  fail "(B) a completed export row exists for db_per_tenant tenant D — the deferral leaked a bundle (line: D no completed row)"
 ok "(B) db_per_tenant export → 400 deferred (no completed row) — only schema_per_tenant + shared_rls advertised"
 
 # ── 7) (C · PARITY) flag OFF → export routes 404, base admin route still 200 ───
@@ -443,13 +461,13 @@ ok "export-OFF tenant-control up (same DB, same seeded tenants)"
 
 step "7b/9 (C · PARITY) POST /v1/tenants/${TENANT_A}/export on the OFF router → 404 (route NOT mounted) WHILE base admin GET /v1/tenants/${TENANT_A} → 200"
 C="$(admin_req POST "${PORT_OFF}" "/v1/tenants/${TENANT_A}/export" '{"mount":"m109-mount-a"}')"
-[[ "${C}" == "404" ]] \
-  || fail "(C) PARITY: POST /export with TENANT_EXPORT_ENABLED off expected 404, got ${C} — $(head -c 300 "${BODY_TMP}") (line: C export 404)"
+[[ "${C}" == "404" ]] ||
+  fail "(C) PARITY: POST /export with TENANT_EXPORT_ENABLED off expected 404, got ${C} — $(head -c 300 "${BODY_TMP}") (line: C export 404)"
 C="$(admin_req GET "${PORT_OFF}" "/v1/tenants/${TENANT_A}")"
-[[ "${C}" == "200" ]] \
-  || fail "(C) PARITY: base admin GET /v1/tenants/{id} expected 200 on OFF router, got ${C} — $(head -c 300 "${BODY_TMP}") (line: C admin 200)"
-grep -q "\"id\":\"${TENANT_A}\"" "${BODY_TMP}" \
-  || fail "(C) PARITY: base admin GET /v1/tenants/{id} did not return A — $(head -c 300 "${BODY_TMP}") (line: C admin is A)"
+[[ "${C}" == "200" ]] ||
+  fail "(C) PARITY: base admin GET /v1/tenants/{id} expected 200 on OFF router, got ${C} — $(head -c 300 "${BODY_TMP}") (line: C admin 200)"
+grep -q "\"id\":\"${TENANT_A}\"" "${BODY_TMP}" ||
+  fail "(C) PARITY: base admin GET /v1/tenants/{id} did not return A — $(head -c 300 "${BODY_TMP}") (line: C admin is A)"
 # Defence: with the flag OFF, nothing was produced for A on the OFF router (no new
 # tenant_exports row appeared from the 404'd call).
 ok "(C) export route 404 with flag OFF while base admin /v1/tenants/{id} still 200 — byte-parity to today"
@@ -463,7 +481,8 @@ green "[M109] (C) PARITY:   TENANT_EXPORT_ENABLED off → POST /export 404 (rout
 # ── emit the gate event via the kernel log helper (best-effort) ─────────────────
 step "log GATE m109=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-d43-tenant-export}"

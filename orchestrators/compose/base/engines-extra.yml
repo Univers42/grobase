@@ -1,8 +1,8 @@
 # engines-extra plane — mysql, mariadb, cockroach, mssql
 services:
   mysql:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-mysql:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-mysql:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/mysql
       dockerfile: Dockerfile
@@ -21,7 +21,17 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-mysqlroot}"]
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "127.0.0.1",
+          "-u",
+          "root",
+          "-p${MYSQL_ROOT_PASSWORD:-mysqlroot}",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -34,8 +44,8 @@ services:
   # `mariadb` engine id. Lives in the optional `engines-extra` profile (the
   # `engines` plane / Max package), never in default editions.
   mariadb:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-mariadb:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-mariadb:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/mariadb
       dockerfile: Dockerfile
@@ -67,8 +77,8 @@ services:
   # node; RAM-capped via --cache/--max-sql-memory so it stays inside mem_limit.
   # Optional `engines-extra` profile (the `engines` plane / Max package).
   cockroach:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-cockroach:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-cockroach:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/cockroach
       dockerfile: Dockerfile
@@ -86,7 +96,16 @@ services:
     volumes:
       - cockroach-data:/cockroach/cockroach-data
     healthcheck:
-      test: ["CMD", "cockroach", "sql", "--insecure", "--host=127.0.0.1:26257", "-e", "SELECT 1"]
+      test:
+        [
+          "CMD",
+          "cockroach",
+          "sql",
+          "--insecure",
+          "--host=127.0.0.1:26257",
+          "-e",
+          "SELECT 1",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -99,8 +118,8 @@ services:
   # needs ~2 GB; lives in the optional `engines-extra` profile (the `engines`
   # plane / Max package), NEVER in default editions. Developer edition (free).
   mssql:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-mssql:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-mssql:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/mssql
       dockerfile: Dockerfile
@@ -115,7 +134,11 @@ services:
     volumes:
       - mssql-data:/var/opt/mssql
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -No -Q 'SELECT 1' -b -o /dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -No -Q ''SELECT 1'' -b -o /dev/null',
+        ]
       interval: 10s
       timeout: 5s
       retries: 10

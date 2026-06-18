@@ -90,9 +90,8 @@ export class CampaignService {
 
   /** Get campaign send history */
   async getHistory(limit = 50) {
-    return this.pg.adminQuery(
-      `SELECT * FROM newsletter.send_log ORDER BY sent_at DESC LIMIT $1`,
-      [limit],
-    );
+    return this.pg.adminQuery(`SELECT * FROM newsletter.send_log ORDER BY sent_at DESC LIMIT $1`, [
+      limit,
+    ]);
   }
 }

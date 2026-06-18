@@ -27,11 +27,11 @@
 
 set -euo pipefail
 
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
-step(){ cyan "[M47] $*"; }
-ok(){ green "  ✓ $*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+step() { cyan "[M47] $*"; }
+ok() { green "  ✓ $*"; }
 
 PG="mini-baas-postgres"
 DB="m47_restore_smoke_$$"
@@ -44,11 +44,15 @@ fi
 
 PSQL=(docker exec -e PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" "${PG}" psql -U postgres -v ON_ERROR_STOP=1 -qAt)
 
-cleanup(){
+cleanup() {
   "${PSQL[@]}" -d postgres -c "DROP DATABASE IF EXISTS ${DB};" >/dev/null 2>&1 || true
   docker exec "${PG}" rm -f "${DUMP}" >/dev/null 2>&1 || true
 }
-fail(){ red "[M47] FAIL — $*"; cleanup; exit 1; }
+fail() {
+  red "[M47] FAIL — $*"
+  cleanup
+  exit 1
+}
 trap cleanup EXIT
 
 # ── 1. seed a scratch database with a deterministic marker ───────────────────

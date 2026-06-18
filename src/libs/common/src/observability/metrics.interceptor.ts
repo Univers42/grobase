@@ -17,13 +17,21 @@ import { Observable, catchError, finalize, throwError } from 'rxjs';
 
 type RequestMetricLabels = 'service' | 'method' | 'route' | 'status_code';
 
-function counter(name: string, help: string, labelNames: RequestMetricLabels[]): Counter<RequestMetricLabels> {
+function counter(
+  name: string,
+  help: string,
+  labelNames: RequestMetricLabels[],
+): Counter<RequestMetricLabels> {
   const existing = register.getSingleMetric(name);
   if (existing instanceof Counter) return existing;
   return new Counter<RequestMetricLabels>({ name, help, labelNames });
 }
 
-function histogram(name: string, help: string, labelNames: RequestMetricLabels[]): Histogram<RequestMetricLabels> {
+function histogram(
+  name: string,
+  help: string,
+  labelNames: RequestMetricLabels[],
+): Histogram<RequestMetricLabels> {
   const existing = register.getSingleMetric(name);
   if (existing instanceof Histogram) return existing;
   return new Histogram<RequestMetricLabels>({
@@ -36,7 +44,8 @@ function histogram(name: string, help: string, labelNames: RequestMetricLabels[]
 
 @Injectable()
 export class MetricsInterceptor implements NestInterceptor {
-  private readonly serviceName = process.env['OTEL_SERVICE_NAME'] ?? process.env['APP_NAME'] ?? 'unknown-service';
+  private readonly serviceName =
+    process.env['OTEL_SERVICE_NAME'] ?? process.env['APP_NAME'] ?? 'unknown-service';
   private readonly requestCount = counter(
     'mini_baas_http_requests_total',
     'Total HTTP requests processed by mini-BaaS services.',
@@ -107,7 +116,9 @@ export class MetricsInterceptor implements NestInterceptor {
         duration_ms: Math.round(durationSeconds * 1000),
       },
     };
-    console.log(JSON.stringify({ service: this.serviceName, ...payload.data, request_id: requestId }));
+    process.stdout.write(
+      JSON.stringify({ service: this.serviceName, ...payload.data, request_id: requestId }) + '\n',
+    );
     const logServiceUrl = process.env['LOG_SERVICE_URL'];
     if (!logServiceUrl || this.serviceName === 'log-service') return;
     void fetch(`${logServiceUrl.replace(/\/$/, '')}/logs/ingest`, {

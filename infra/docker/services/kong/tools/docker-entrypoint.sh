@@ -20,7 +20,7 @@ file_env() {
   if [ "${!var:-}" ]; then
     val="${!var}"
   elif [ "${!fileVar:-}" ]; then
-    val="$(< "${!fileVar}")"
+    val="$(<"${!fileVar}")"
   fi
   export "$var"="$val"
   unset "$fileVar"
@@ -33,9 +33,9 @@ if [[ "$1" == "kong" ]]; then
   all_kong_options="/usr/local/share/lua/5.1/kong/templates/kong_defaults.lua"
   set +Eeo pipefail
   while IFS='' read -r LINE || [ -n "${LINE}" ]; do
-      opt=$(echo "$LINE" | grep "=" | sed "s/=.*$//" | sed "s/ //" | tr '[:lower:]' '[:upper:]')
-      file_env "KONG_$opt"
-  done < $all_kong_options
+    opt=$(echo "$LINE" | grep "=" | sed "s/=.*$//" | sed "s/ //" | tr '[:lower:]' '[:upper:]')
+    file_env "KONG_$opt"
+  done <$all_kong_options
   set -Eeo pipefail
 
   file_env KONG_PASSWORD
@@ -48,7 +48,7 @@ if [[ "$1" == "kong" ]]; then
     LOGGED_SOCKET_WARNING=0
     for localfile in "$PREFIX"/* "$PREFIX"/sockets/*; do
       if [ -S "$localfile" ]; then
-        if (( LOGGED_SOCKET_WARNING == 0 )); then
+        if ((LOGGED_SOCKET_WARNING == 0)); then
           printf >&2 'WARN: found dangling unix sockets in the prefix directory '
           printf >&2 '(%q) ' "$PREFIX"
           printf >&2 'while preparing to start Kong. This may be a sign that Kong '

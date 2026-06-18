@@ -29,17 +29,23 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ROUTER_DIR="${BAAS_DIR}/src/data-plane-router"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M51] $*"; }
-pass()  { green "[M51] PASS: $*"; }
-fail()  { red "[M51] FAIL: $*"; exit 1; }
-skip()  { printf '\033[1;33m[M51] SKIP: %s\033[0m\n' "$*"; exit 0; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M51] $*"; }
+pass() { green "[M51] PASS: $*"; }
+fail() {
+  red "[M51] FAIL: $*"
+  exit 1
+}
+skip() {
+  printf '\033[1;33m[M51] SKIP: %s\033[0m\n' "$*"
+  exit 0
+}
 
 NET=mini-baas_mini-baas
-docker inspect -f '{{.State.Running}}' mini-baas-redis 2>/dev/null | grep -q true \
-  || skip "mini-baas-redis not running (start a stack: make up)"
+docker inspect -f '{{.State.Running}}' mini-baas-redis 2>/dev/null | grep -q true ||
+  skip "mini-baas-redis not running (start a stack: make up)"
 docker network inspect "${NET}" >/dev/null 2>&1 || skip "network ${NET} absent"
 
 step "two RedisRateLimiter instances, one live Redis — assert ONE global bucket"
@@ -54,15 +60,21 @@ docker run --rm --network "${NET}" \
   -v mini-baas-dpr-target:/work/target \
   public.ecr.aws/docker/library/rust:1.89-slim-bookworm \
   cargo test -p data-plane-server --features ratelimit-redis \
-    redis_backend_is_one_global_bucket_across_instances -- --nocapture \
+  redis_backend_is_one_global_bucket_across_instances -- --nocapture \
   >"${OUT}" 2>&1
 rc=$?
 set -e
 
 grep -E 'test result|SKIP|panicked|admitted' "${OUT}" | tail -6 || true
-[ ${rc} -eq 0 ] || { tail -15 "${OUT}"; fail "multinode rate-limit test failed"; }
+[ ${rc} -eq 0 ] || {
+  tail -15 "${OUT}"
+  fail "multinode rate-limit test failed"
+}
 grep -q 'SKIP .*REDIS_URL unset' "${OUT}" && fail "test skipped — REDIS_URL not seen inside the container"
-grep -qE 'test result: ok\. 1 passed' "${OUT}" || { tail -15 "${OUT}"; fail "expected 1 passing test"; }
+grep -qE 'test result: ok\. 1 passed' "${OUT}" || {
+  tail -15 "${OUT}"
+  fail "expected 1 passing test"
+}
 pass "shared global bucket proven — replicas cannot multiply a tenant's tier burst"
 
 green "[M51] ALL GATES GREEN — ratelimit-redis enforces one authoritative limit across instances"

@@ -149,8 +149,11 @@ export class UsageMeter {
   static fromConfig(env: NodeJS.ProcessEnv = process.env): UsageMeter | undefined {
     if (!isTruthy(env['STORAGE_METERING'])) return undefined;
     const flushMs = Math.max(1, Number(env['STORAGE_METERING_FLUSH_MS'] ?? 60000) || 60000);
-    const redisUrl =
-      (env['STORAGE_METERING_REDIS_URL'] || env['REDIS_URL'] || 'redis://redis:6379').trim();
+    const redisUrl = (
+      env['STORAGE_METERING_REDIS_URL'] ||
+      env['REDIS_URL'] ||
+      'redis://redis:6379'
+    ).trim();
     const meter = new UsageMeter(STORAGE_METRIC, flushMs, redisUrl);
     meter.start();
     return meter;
@@ -196,12 +199,18 @@ export class UsageMeter {
         await this.redis.xadd(
           USAGE_STREAM_KEY,
           '*',
-          'tenant_id', env.tenant_id,
-          'metric', env.metric,
-          'qty', env.qty,
-          'ts', env.ts,
-          'window_ms', env.window_ms,
-          'idempotency_key', env.idempotency_key,
+          'tenant_id',
+          env.tenant_id,
+          'metric',
+          env.metric,
+          'qty',
+          env.qty,
+          'ts',
+          env.ts,
+          'window_ms',
+          env.window_ms,
+          'idempotency_key',
+          env.idempotency_key,
         );
       } catch (err) {
         this.logger.warn(

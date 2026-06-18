@@ -23,24 +23,28 @@ EDITION="${BINOCLE_EDITION:-one}"
 REPO="Univers42/groot"
 TAG="baas-v${VERSION}"
 
-say()  { printf '%s\n' "$*"; }
-fail() { printf 'install.sh: %s\n' "$*" >&2; exit 1; }
+say() { printf '%s\n' "$*"; }
+fail() {
+  printf 'install.sh: %s\n' "$*" >&2
+  exit 1
+}
 
 # ── Preconditions ────────────────────────────────────────────────────────────
 case "${EDITION}" in
-  one|nano) : ;;
-  *) fail "BINOCLE_EDITION must be 'one' or 'nano' (got '${EDITION}')" ;;
+one | nano) : ;;
+*) fail "BINOCLE_EDITION must be 'one' or 'nano' (got '${EDITION}')" ;;
 esac
 
-OS="$(uname -s)"; ARCH="$(uname -m)"
+OS="$(uname -s)"
+ARCH="$(uname -m)"
 [ "${OS}" = "Linux" ] || fail "binocle v${VERSION} ships Linux binaries only (got ${OS}). Use the Docker image instead: dlesieur/binocle-${EDITION}:${VERSION}"
 case "${ARCH}" in
-  x86_64|amd64) : ;;
-  *) fail "binocle v${VERSION} ships linux-amd64 only (got ${ARCH}). arm64 is planned; meanwhile use the Docker image on an amd64 host." ;;
+x86_64 | amd64) : ;;
+*) fail "binocle v${VERSION} ships linux-amd64 only (got ${ARCH}). arm64 is planned; meanwhile use the Docker image on an amd64 host." ;;
 esac
 
 command -v curl >/dev/null 2>&1 || fail "curl is required"
-command -v tar  >/dev/null 2>&1 || fail "tar is required"
+command -v tar >/dev/null 2>&1 || fail "tar is required"
 command -v sha256sum >/dev/null 2>&1 || fail "sha256sum is required"
 
 # ── Download + verify ────────────────────────────────────────────────────────
@@ -50,11 +54,11 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 
 say "→ Downloading ${ASSET} (${TAG}) ..."
-curl -fsSL -o "${TMP}/${ASSET}"        "${BASE}/${ASSET}"        || fail "download failed: ${BASE}/${ASSET}"
+curl -fsSL -o "${TMP}/${ASSET}" "${BASE}/${ASSET}" || fail "download failed: ${BASE}/${ASSET}"
 curl -fsSL -o "${TMP}/${ASSET}.sha256" "${BASE}/${ASSET}.sha256" || fail "checksum download failed"
 
 say "→ Verifying sha256 ..."
-( cd "${TMP}" && sha256sum -c "${ASSET}.sha256" >/dev/null ) || fail "sha256 verification FAILED — refusing to install"
+(cd "${TMP}" && sha256sum -c "${ASSET}.sha256" >/dev/null) || fail "sha256 verification FAILED — refusing to install"
 
 say "→ Unpacking ..."
 tar -xzf "${TMP}/${ASSET}" -C .

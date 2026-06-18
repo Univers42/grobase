@@ -63,7 +63,7 @@ resolve_digest() {
 
   # Resolve via docker manifest inspect
   local digest
-  digest=$(docker manifest inspect "$image" 2>/dev/null | \
+  digest=$(docker manifest inspect "$image" 2>/dev/null |
     grep -m1 '"digest"' | awk -F'"' '{print $4}') || true
 
   if [[ -n "$digest" ]]; then
@@ -100,7 +100,7 @@ for df in "${DOCKERFILES[@]}"; do
         echo "  Skipped: $image (already pinned or unresolvable)"
       fi
     fi
-  done < "$df"
+  done <"$df"
 
   echo ""
 done

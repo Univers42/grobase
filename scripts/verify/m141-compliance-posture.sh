@@ -31,8 +31,8 @@
 # **************************************************************************** #
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 WIKI_DIR="${BAAS_DIR}/wiki"
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIGRATION_047="${INFRA_DIR}/scripts/migrations/postgresql/047_tenant_audit_log.sql"
@@ -41,12 +41,15 @@ COMPLIANCE_DOC="${WIKI_DIR}/compliance-posture.md"
 ASVS_DOC="${WIKI_DIR}/security-audit-asvs.md"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M141] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M141] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M141] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M141] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M141CP_PG_IMAGE:-postgres:16-alpine}"
 TC_IMG="m141cp-tc-$$:scratch"
@@ -67,7 +70,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 DB_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 
@@ -84,21 +87,27 @@ audit_get() { # $1=sub(events|verify|export)
 wait_ready() {
   for i in $(seq 1 60); do
     curl -fsS -o /dev/null "http://127.0.0.1:${PORT}/health/live" 2>/dev/null && return 0
-    docker inspect "${TC}" >/dev/null 2>&1 || { red "${TC} exited early:"; docker logs "${TC}" 2>&1 | tail -20; return 1; }
+    docker inspect "${TC}" >/dev/null 2>&1 || {
+      red "${TC} exited early:"
+      docker logs "${TC}" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "${TC} never became ready:"; docker logs "${TC}" 2>&1 | tail -20; return 1
+  red "${TC} never became ready:"
+  docker logs "${TC}" 2>&1 | tail -20
+  return 1
 }
 
 # ── 1) CONTROL DOCS + STANDARDS MAPPING exist, are non-empty, map ASVS+SOC2+GDPR ─
 step "1/8 control matrix + standards mapping present, non-empty, mapping ASVS+SOC2+GDPR"
-[[ -s "${COMPLIANCE_DOC}" ]]  || fail "control matrix missing/empty: ${COMPLIANCE_DOC}"
-[[ -s "${ASVS_DOC}" ]]        || fail "ASVS control map missing/empty: ${ASVS_DOC}"
-[[ -s "${POSTURE_JSON}" ]]    || fail "machine-readable posture missing/empty: ${POSTURE_JSON}"
+[[ -s "${COMPLIANCE_DOC}" ]] || fail "control matrix missing/empty: ${COMPLIANCE_DOC}"
+[[ -s "${ASVS_DOC}" ]] || fail "ASVS control map missing/empty: ${ASVS_DOC}"
+[[ -s "${POSTURE_JSON}" ]] || fail "machine-readable posture missing/empty: ${POSTURE_JSON}"
 # The control matrix must actually map all THREE standards families (not a stub).
 for needle in 'ASVS' 'SOC' 'GDPR' 'Art\.' 'CC6' 'tamper'; do
-  grep -qiE "${needle}" "${COMPLIANCE_DOC}" \
-    || fail "control matrix does not reference '${needle}' — not a real standards mapping"
+  grep -qiE "${needle}" "${COMPLIANCE_DOC}" ||
+    fail "control matrix does not reference '${needle}' — not a real standards mapping"
 done
 # A real matrix has many rows, not a placeholder. Count GDPR Article + ASVS V-chapter refs.
 GDPR_REFS="$(grep -oiE 'Art\.?\s*[0-9]+' "${COMPLIANCE_DOC}" | wc -l | tr -d ' ')"
@@ -120,7 +129,8 @@ ok "control matrix maps ASVS+SOC2+GDPR (${GDPR_REFS} GDPR-article refs); posture
 
 # ── 2) DANGLING-EVIDENCE check: every cited gate/doc EXISTS in the repo ──────────
 step "2/8 every 'implemented' control's cited gate/doc EXISTS (no dangling evidence)"
-MISSING="$(python3 - "$POSTURE_JSON" "$SCRIPT_DIR" "$WIKI_DIR" <<'PY'
+MISSING="$(
+  python3 - "$POSTURE_JSON" "$SCRIPT_DIR" "$WIKI_DIR" <<'PY'
 import json, sys, os, glob, re
 posture, verify_dir, wiki_dir = sys.argv[1], sys.argv[2], sys.argv[3]
 d = json.load(open(posture))
@@ -145,8 +155,8 @@ ok "no dangling evidence — every implemented control resolves to an existing g
 # ── 3) build scratch tenant-control FROM CURRENT source ─────────────────────────
 step "3/8 build scratch tenant-control from CURRENT source (the compliance code path)"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT=3060 \
-  -t "${TC_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch tenant-control image build failed — gate must exercise the live code"
+  -t "${TC_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch tenant-control image build failed — gate must exercise the live code"
 ok "tenant-control built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 4) isolated net + postgres (TCP-ready) + REAL migration 047 ─────────────────
@@ -154,9 +164,12 @@ step "4/8 boot isolated net (${NET}): postgres + REAL migration 047"
 docker network create "${NET}" >/dev/null
 docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD="${PGPW}" "${PG_IMAGE}" >/dev/null
 for i in $(seq 1 80); do
-  if docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 \
-     && [[ "$(psql_val 'SELECT 1')" == "1" ]]; then break; fi
-  [[ $i -eq 80 ]] && { docker logs "${PG}" 2>&1 | tail -20; fail "scratch postgres never reached TCP-ready"; }
+  if docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 &&
+    [[ "$(psql_val 'SELECT 1')" == "1" ]]; then break; fi
+  [[ $i -eq 80 ]] && {
+    docker logs "${PG}" 2>&1 | tail -20
+    fail "scratch postgres never reached TCP-ready"
+  }
   sleep 0.5
 done
 prelude() {
@@ -178,9 +191,13 @@ CREATE TABLE IF NOT EXISTS public.tenants (
   created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now());
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed"; sleep 0.5; done
-docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "${MIGRATION_047}" >/dev/null 2>&1 \
-  || fail "real migration 047_tenant_audit_log.sql failed to apply"
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed"
+  sleep 0.5
+done
+docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <"${MIGRATION_047}" >/dev/null 2>&1 ||
+  fail "real migration 047_tenant_audit_log.sql failed to apply"
 [[ "$(psql_val "SELECT count(*) FROM public.tenant_audit_log")" == "0" ]] || fail "tenant_audit_log should start EMPTY"
 # Append-only at the grant layer is a control claim — assert it for real.
 HASUPD="$(psql_val "SELECT count(*) FROM information_schema.role_table_grants WHERE table_name='tenant_audit_log' AND grantee='authenticated' AND privilege_type IN ('UPDATE','DELETE')")" || HASUPD="?"
@@ -200,8 +217,11 @@ docker run -d --name "${TC}" --network "${NET}" \
   -e LOG_LEVEL=info \
   -p "127.0.0.1:${PORT}:3060" "${TC_IMG}" >/dev/null
 wait_ready || fail "tenant-control not ready"
-TC_LOGS="$(docker logs "${TC}" 2>&1)"   # capture once: piping into grep -q trips pipefail via SIGPIPE
-grep -q "tenant audit log enabled" <<<"${TC_LOGS}" || { printf '%s\n' "${TC_LOGS}" | tail -20; fail "audit log never reported enabled"; }
+TC_LOGS="$(docker logs "${TC}" 2>&1)" # capture once: piping into grep -q trips pipefail via SIGPIPE
+grep -q "tenant audit log enabled" <<<"${TC_LOGS}" || {
+  printf '%s\n' "${TC_LOGS}" | tail -20
+  fail "audit log never reported enabled"
+}
 ok "tenant-control up: audit (/v1/audit*) + GDPR rights routes mounted"
 
 # ── 6) LOAD-BEARING: tamper-evident audit actually verifies (append→INTACT→tamper→BROKEN) ─
@@ -223,12 +243,12 @@ UPDATE public.tenant_audit_log SET payload='{"n":999999}'::jsonb
 SQL
 CODE="$(audit_get verify)"
 [[ "${CODE}" == "200" ]] || fail "verify after tamper expected 200 (a report of tampering), got ${CODE}"
-grep -q '"intact":false' "${BODY_TMP}" \
-  || fail "VACUOUS-VERIFY REJECTED — a tampered chain reported intact:true — $(head -c 400 "${BODY_TMP}")"
-grep -q "\"broken_seq\":${TAMPER_SEQ}" "${BODY_TMP}" \
-  || fail "verify did not pinpoint the tampered link seq=${TAMPER_SEQ} — $(head -c 400 "${BODY_TMP}")"
-grep -q '"reason":"hash_mismatch"' "${BODY_TMP}" \
-  || fail "tamper reason should be hash_mismatch — $(head -c 400 "${BODY_TMP}")"
+grep -q '"intact":false' "${BODY_TMP}" ||
+  fail "VACUOUS-VERIFY REJECTED — a tampered chain reported intact:true — $(head -c 400 "${BODY_TMP}")"
+grep -q "\"broken_seq\":${TAMPER_SEQ}" "${BODY_TMP}" ||
+  fail "verify did not pinpoint the tampered link seq=${TAMPER_SEQ} — $(head -c 400 "${BODY_TMP}")"
+grep -q '"reason":"hash_mismatch"' "${BODY_TMP}" ||
+  fail "tamper reason should be hash_mismatch — $(head -c 400 "${BODY_TMP}")"
 ok "tamper DETECTED: verify→intact:false @ broken_seq=${TAMPER_SEQ} reason=hash_mismatch (evidence is REAL, not asserted)"
 
 # ── 7) GDPR data-subject rights paths are REACHABLE (not 404) when enabled ───────
@@ -259,7 +279,8 @@ green "[M141] (2) no dangling evidence — every implemented control resolves to
 green "[M141] (6) tamper-evident audit PROVEN: INTACT→tamper→intact:false @ broken_seq=${TAMPER_SEQ} hash_mismatch"
 green "[M141] (7) GDPR erase (Art.17) + export (Art.20) REACHABLE + auth-enforced"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-compliance-posture}"

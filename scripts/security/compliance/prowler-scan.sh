@@ -64,21 +64,21 @@ CLOUD="${CLOUD:-aws}"
 FRAMEWORK="${FRAMEWORK:-soc2_aws}"
 PROWLER_IMAGE="${PROWLER_IMAGE:-toniblyx/prowler:latest}"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 amber() { printf '\033[0;33m%s\033[0m\n' "$*"; }
-step()  { cyan  "[prowler] ${*}"; }
-fail()  { red   "[prowler] FAIL: $*"; }
-warn()  { amber "[prowler] WARN: $*"; }
-ok()    { green "[prowler] OK:   $*"; }
+step() { cyan "[prowler] ${*}"; }
+fail() { red "[prowler] FAIL: $*"; }
+warn() { amber "[prowler] WARN: $*"; }
+ok() { green "[prowler] OK:   $*"; }
 
 for arg in "$@"; do
   case "${arg}" in
-    --help|-h)
-      sed -n '/^# Usage:/,/^# Exit code:/p' "$0" | sed 's/^# \?//'
-      exit 0
-      ;;
+  --help | -h)
+    sed -n '/^# Usage:/,/^# Exit code:/p' "$0" | sed 's/^# \?//'
+    exit 0
+    ;;
   esac
 done
 
@@ -87,30 +87,30 @@ done
 # present in the environment / well-known files. Anything short of that → guard.
 have_creds() {
   case "${CLOUD}" in
-    aws)
-      [[ -n "${AWS_ACCESS_KEY_ID:-}" && -n "${AWS_SECRET_ACCESS_KEY:-}" ]] && return 0
-      [[ -n "${AWS_PROFILE:-}" ]] && return 0
-      [[ -f "${HOME}/.aws/credentials" ]] && return 0
-      return 1
-      ;;
-    gcp)
-      [[ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" && -f "${GOOGLE_APPLICATION_CREDENTIALS}" ]] && return 0
-      [[ -f "${HOME}/.config/gcloud/application_default_credentials.json" ]] && return 0
-      return 1
-      ;;
-    azure)
-      [[ -n "${AZURE_CLIENT_ID:-}" && -n "${AZURE_CLIENT_SECRET:-}" && -n "${AZURE_TENANT_ID:-}" ]] && return 0
-      [[ -d "${HOME}/.azure" ]] && return 0
-      return 1
-      ;;
-    kubernetes)
-      [[ -n "${KUBECONFIG:-}" && -f "${KUBECONFIG}" ]] && return 0
-      [[ -f "${HOME}/.kube/config" ]] && return 0
-      return 1
-      ;;
-    *)
-      return 1
-      ;;
+  aws)
+    [[ -n "${AWS_ACCESS_KEY_ID:-}" && -n "${AWS_SECRET_ACCESS_KEY:-}" ]] && return 0
+    [[ -n "${AWS_PROFILE:-}" ]] && return 0
+    [[ -f "${HOME}/.aws/credentials" ]] && return 0
+    return 1
+    ;;
+  gcp)
+    [[ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" && -f "${GOOGLE_APPLICATION_CREDENTIALS}" ]] && return 0
+    [[ -f "${HOME}/.config/gcloud/application_default_credentials.json" ]] && return 0
+    return 1
+    ;;
+  azure)
+    [[ -n "${AZURE_CLIENT_ID:-}" && -n "${AZURE_CLIENT_SECRET:-}" && -n "${AZURE_TENANT_ID:-}" ]] && return 0
+    [[ -d "${HOME}/.azure" ]] && return 0
+    return 1
+    ;;
+  kubernetes)
+    [[ -n "${KUBECONFIG:-}" && -f "${KUBECONFIG}" ]] && return 0
+    [[ -f "${HOME}/.kube/config" ]] && return 0
+    return 1
+    ;;
+  *)
+    return 1
+    ;;
   esac
 }
 
@@ -131,55 +131,55 @@ if ! have_creds; then
   amber " NO ${CLOUD^^} CREDENTIALS DETECTED — this is the EXPECTED local state."
   amber "════════════════════════════════════════════════════════════════════════"
   echo
-  cyan  "Prowler audits a LIVE ${CLOUD} account against its built-in compliance"
-  cyan  "frameworks. With no credentials it cannot — and we do NOT pretend a local"
-  cyan  "run audits 'SOC 2'. When you have a real ${CLOUD} account, export creds and"
-  cyan  "re-run this exact script; it will then produce a genuine framework report."
+  cyan "Prowler audits a LIVE ${CLOUD} account against its built-in compliance"
+  cyan "frameworks. With no credentials it cannot — and we do NOT pretend a local"
+  cyan "run audits 'SOC 2'. When you have a real ${CLOUD} account, export creds and"
+  cyan "re-run this exact script; it will then produce a genuine framework report."
   echo
-  cyan  "WHAT IT WOULD AUDIT:"
-  echo  "  cloud      : ${CLOUD}  (its full account: IAM, storage, network, logging, KMS, ...)"
-  echo  "  framework  : ${FRAMEWORK}"
-  echo  "  maps to    : SOC 2 TSC (CC6 access · CC7 ops) / ISO 27001 A.8 / GDPR — LIVE infra half"
-  echo  "  reports to : ${ARTIFACTS_DIR}/  (json-ocsf + html + csv)"
+  cyan "WHAT IT WOULD AUDIT:"
+  echo "  cloud      : ${CLOUD}  (its full account: IAM, storage, network, logging, KMS, ...)"
+  echo "  framework  : ${FRAMEWORK}"
+  echo "  maps to    : SOC 2 TSC (CC6 access · CC7 ops) / ISO 27001 A.8 / GDPR — LIVE infra half"
+  echo "  reports to : ${ARTIFACTS_DIR}/  (json-ocsf + html + csv)"
   echo
-  cyan  "THE COMMAND IT WOULD RUN (mount your creds, then this):"
+  cyan "THE COMMAND IT WOULD RUN (mount your creds, then this):"
   case "${CLOUD}" in
-    aws)
-      echo "  docker run --rm \\"
-      echo "    -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN \\"
-      echo "    -v \"\$HOME/.aws:/home/prowler/.aws:ro\" \\"
-      echo "    -v \"${REPO_ROOT}/${ARTIFACTS_DIR}:/out\" \\"
-      echo "    ${PROWLER_IMAGE} \\"
-      echo "    ${prowler_cmd[*]}"
-      ;;
-    gcp)
-      echo "  docker run --rm \\"
-      echo "    -e GOOGLE_APPLICATION_CREDENTIALS=/creds.json \\"
-      echo "    -v \"\$GOOGLE_APPLICATION_CREDENTIALS:/creds.json:ro\" \\"
-      echo "    -v \"${REPO_ROOT}/${ARTIFACTS_DIR}:/out\" \\"
-      echo "    ${PROWLER_IMAGE} \\"
-      echo "    ${prowler_cmd[*]}"
-      ;;
-    azure)
-      echo "  docker run --rm \\"
-      echo "    -e AZURE_CLIENT_ID -e AZURE_CLIENT_SECRET -e AZURE_TENANT_ID \\"
-      echo "    -v \"${REPO_ROOT}/${ARTIFACTS_DIR}:/out\" \\"
-      echo "    ${PROWLER_IMAGE} \\"
-      echo "    ${prowler_cmd[*]}"
-      ;;
-    kubernetes)
-      echo "  docker run --rm \\"
-      echo "    -v \"\$HOME/.kube:/home/prowler/.kube:ro\" \\"
-      echo "    -v \"${REPO_ROOT}/${ARTIFACTS_DIR}:/out\" \\"
-      echo "    ${PROWLER_IMAGE} \\"
-      echo "    ${prowler_cmd[*]}"
-      ;;
+  aws)
+    echo "  docker run --rm \\"
+    echo "    -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN \\"
+    echo "    -v \"\$HOME/.aws:/home/prowler/.aws:ro\" \\"
+    echo "    -v \"${REPO_ROOT}/${ARTIFACTS_DIR}:/out\" \\"
+    echo "    ${PROWLER_IMAGE} \\"
+    echo "    ${prowler_cmd[*]}"
+    ;;
+  gcp)
+    echo "  docker run --rm \\"
+    echo "    -e GOOGLE_APPLICATION_CREDENTIALS=/creds.json \\"
+    echo "    -v \"\$GOOGLE_APPLICATION_CREDENTIALS:/creds.json:ro\" \\"
+    echo "    -v \"${REPO_ROOT}/${ARTIFACTS_DIR}:/out\" \\"
+    echo "    ${PROWLER_IMAGE} \\"
+    echo "    ${prowler_cmd[*]}"
+    ;;
+  azure)
+    echo "  docker run --rm \\"
+    echo "    -e AZURE_CLIENT_ID -e AZURE_CLIENT_SECRET -e AZURE_TENANT_ID \\"
+    echo "    -v \"${REPO_ROOT}/${ARTIFACTS_DIR}:/out\" \\"
+    echo "    ${PROWLER_IMAGE} \\"
+    echo "    ${prowler_cmd[*]}"
+    ;;
+  kubernetes)
+    echo "  docker run --rm \\"
+    echo "    -v \"\$HOME/.kube:/home/prowler/.kube:ro\" \\"
+    echo "    -v \"${REPO_ROOT}/${ARTIFACTS_DIR}:/out\" \\"
+    echo "    ${PROWLER_IMAGE} \\"
+    echo "    ${prowler_cmd[*]}"
+    ;;
   esac
   echo
-  cyan  "List the frameworks Prowler ships for this cloud:"
-  echo  "  docker run --rm ${PROWLER_IMAGE} prowler ${CLOUD} --list-compliance"
+  cyan "List the frameworks Prowler ships for this cloud:"
+  echo "  docker run --rm ${PROWLER_IMAGE} prowler ${CLOUD} --list-compliance"
   echo
-  ok    "needs live cloud creds — wired and documented, nothing to fail. Exit 0."
+  ok "needs live cloud creds — wired and documented, nothing to fail. Exit 0."
   exit 0
 fi
 
@@ -198,24 +198,24 @@ fi
 # Per-cloud credential mounts.
 docker_creds=()
 case "${CLOUD}" in
-  aws)
-    docker_creds+=(-e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN -e AWS_PROFILE -e AWS_DEFAULT_REGION)
-    [[ -d "${HOME}/.aws" ]] && docker_creds+=(-v "${HOME}/.aws:/home/prowler/.aws:ro")
-    ;;
-  gcp)
-    if [[ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]]; then
-      docker_creds+=(-e GOOGLE_APPLICATION_CREDENTIALS=/creds.json -v "${GOOGLE_APPLICATION_CREDENTIALS}:/creds.json:ro")
-    else
-      docker_creds+=(-v "${HOME}/.config/gcloud:/home/prowler/.config/gcloud:ro")
-    fi
-    ;;
-  azure)
-    docker_creds+=(-e AZURE_CLIENT_ID -e AZURE_CLIENT_SECRET -e AZURE_TENANT_ID -e AZURE_SUBSCRIPTION_ID)
-    [[ -d "${HOME}/.azure" ]] && docker_creds+=(-v "${HOME}/.azure:/home/prowler/.azure:ro")
-    ;;
-  kubernetes)
-    docker_creds+=(-v "${HOME}/.kube:/home/prowler/.kube:ro")
-    ;;
+aws)
+  docker_creds+=(-e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN -e AWS_PROFILE -e AWS_DEFAULT_REGION)
+  [[ -d "${HOME}/.aws" ]] && docker_creds+=(-v "${HOME}/.aws:/home/prowler/.aws:ro")
+  ;;
+gcp)
+  if [[ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]]; then
+    docker_creds+=(-e GOOGLE_APPLICATION_CREDENTIALS=/creds.json -v "${GOOGLE_APPLICATION_CREDENTIALS}:/creds.json:ro")
+  else
+    docker_creds+=(-v "${HOME}/.config/gcloud:/home/prowler/.config/gcloud:ro")
+  fi
+  ;;
+azure)
+  docker_creds+=(-e AZURE_CLIENT_ID -e AZURE_CLIENT_SECRET -e AZURE_TENANT_ID -e AZURE_SUBSCRIPTION_ID)
+  [[ -d "${HOME}/.azure" ]] && docker_creds+=(-v "${HOME}/.azure:/home/prowler/.azure:ro")
+  ;;
+kubernetes)
+  docker_creds+=(-v "${HOME}/.kube:/home/prowler/.kube:ro")
+  ;;
 esac
 
 set +e

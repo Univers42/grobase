@@ -21,6 +21,7 @@ FROM debian:bookworm-slim
 ARG MONGO_MAJOR=7.0
 
 # gpg/curl/ca-certificates are needed only to add the apt repo; remove afterwards.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \

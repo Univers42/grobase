@@ -77,50 +77,50 @@ t0=$(date +%s)
 
 # ── Analytics Service ────────────────────────────────────────────
 echo -e "${BOLD}Analytics Service (/analytics/v1)${NC}"
-smoke "$HEALTH_LIVE"        "$BASE_URL/analytics/v1/health/live"
-smoke "$HEALTH_READY"       "$BASE_URL/analytics/v1/health/ready"
-smoke "Track event (anon)"  "$BASE_URL/analytics/v1/events" "201" "POST" \
+smoke "$HEALTH_LIVE" "$BASE_URL/analytics/v1/health/live"
+smoke "$HEALTH_READY" "$BASE_URL/analytics/v1/health/ready"
+smoke "Track event (anon)" "$BASE_URL/analytics/v1/events" "201" "POST" \
   '{"eventType":"smoke_test","data":{"source":"smoke-test"}}'
 echo ""
 
 # ── GDPR Service ────────────────────────────────────────────────
 echo -e "${BOLD}GDPR Service (/gdpr/v1)${NC}"
-smoke "$HEALTH_LIVE"        "$BASE_URL/gdpr/v1/health/live"
-smoke "$HEALTH_READY"       "$BASE_URL/gdpr/v1/health/ready"
+smoke "$HEALTH_LIVE" "$BASE_URL/gdpr/v1/health/live"
+smoke "$HEALTH_READY" "$BASE_URL/gdpr/v1/health/ready"
 # Consent endpoints require auth — 401 expected
-smoke "Consents (no auth)"  "$BASE_URL/gdpr/v1/consents" "401"
+smoke "Consents (no auth)" "$BASE_URL/gdpr/v1/consents" "401"
 echo ""
 
 # ── Newsletter Service ──────────────────────────────────────────
 echo -e "${BOLD}Newsletter Service (/newsletter/v1)${NC}"
-smoke "$HEALTH_LIVE"        "$BASE_URL/newsletter/v1/health/live"
-smoke "$HEALTH_READY"       "$BASE_URL/newsletter/v1/health/ready"
+smoke "$HEALTH_LIVE" "$BASE_URL/newsletter/v1/health/live"
+smoke "$HEALTH_READY" "$BASE_URL/newsletter/v1/health/ready"
 # Subscribe is public
-smoke "Subscribe"           "$BASE_URL/newsletter/v1/subscribe" "201" "POST" \
+smoke "Subscribe" "$BASE_URL/newsletter/v1/subscribe" "201" "POST" \
   '{"email":"smoke-test@example.com"}'
 echo ""
 
 # ── AI Service ──────────────────────────────────────────────────
 echo -e "${BOLD}AI Service (/ai/v1)${NC}"
-smoke "$HEALTH_LIVE"        "$BASE_URL/ai/v1/health/live"
-smoke "$HEALTH_READY"       "$BASE_URL/ai/v1/health/ready"
+smoke "$HEALTH_LIVE" "$BASE_URL/ai/v1/health/live"
+smoke "$HEALTH_READY" "$BASE_URL/ai/v1/health/ready"
 # Chat is OptionalAuth — should work anonymously
-smoke "Chat (anon)"         "$BASE_URL/ai/v1/chat" "201" "POST" \
+smoke "Chat (anon)" "$BASE_URL/ai/v1/chat" "201" "POST" \
   '{"message":"Hello"}'
 echo ""
 
 # ── Log Service ─────────────────────────────────────────────────
 echo -e "${BOLD}Log Service (/logs/v1)${NC}"
-smoke "$HEALTH_LIVE"        "$BASE_URL/logs/v1/health/live"
-smoke "$HEALTH_READY"       "$BASE_URL/logs/v1/health/ready"
-smoke "Ingest log"          "$BASE_URL/logs/v1/logs/ingest" "201" "POST" \
+smoke "$HEALTH_LIVE" "$BASE_URL/logs/v1/health/live"
+smoke "$HEALTH_READY" "$BASE_URL/logs/v1/health/ready"
+smoke "Ingest log" "$BASE_URL/logs/v1/logs/ingest" "201" "POST" \
   '{"level":"info","source":"smoke-test","message":"Hello from smoke test"}'
 echo ""
 
 # ── Session Service ─────────────────────────────────────────────
 echo -e "${BOLD}Session Service (/sessions/v1)${NC}"
-smoke "$HEALTH_LIVE"        "$BASE_URL/sessions/v1/health/live"
-smoke "$HEALTH_READY"       "$BASE_URL/sessions/v1/health/ready"
+smoke "$HEALTH_LIVE" "$BASE_URL/sessions/v1/health/live"
+smoke "$HEALTH_READY" "$BASE_URL/sessions/v1/health/ready"
 # Session endpoints require auth — 401 expected
 smoke "My sessions (no auth)" "$BASE_URL/sessions/v1/sessions/mine" "401"
 echo ""

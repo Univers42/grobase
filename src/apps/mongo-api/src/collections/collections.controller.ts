@@ -26,11 +26,7 @@ import {
 import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { AuthGuard, CurrentUser, UserContext } from '@mini-baas/common';
 import { CollectionsService } from './collections.service';
-import {
-  CreateDocumentDto,
-  ListDocumentsQueryDto,
-  PatchDocumentDto,
-} from './dto/collection.dto';
+import { CreateDocumentDto, ListDocumentsQueryDto, PatchDocumentDto } from './dto/collection.dto';
 
 @ApiTags('collections')
 @Controller('collections/:name/documents')
@@ -40,7 +36,10 @@ export class CollectionsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiParam({ name: 'name', description: 'Collection name (1-64 chars, alphanumeric/dash/underscore)' })
+  @ApiParam({
+    name: 'name',
+    description: 'Collection name (1-64 chars, alphanumeric/dash/underscore)',
+  })
   @ApiOperation({ summary: 'Create a document (owner_id injected automatically)' })
   async create(
     @CurrentUser() user: UserContext,

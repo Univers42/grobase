@@ -26,12 +26,16 @@
 #   8. idle RSS ≤ 15 MiB.
 
 set -euo pipefail
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
-step(){ cyan "[M40] $*"; }
-fail(){ red "[M40] FAIL — $*"; cleanup; exit 1; }
-ok(){ green "  ✓ $*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+step() { cyan "[M40] $*"; }
+fail() {
+  red "[M40] FAIL — $*"
+  cleanup
+  exit 1
+}
+ok() { green "  ✓ $*"; }
 
 IMAGE="${ONE_IMAGE:-binocle-one}"
 NAME="m40-one-$$"
@@ -39,23 +43,23 @@ PORT="${ONE_PORT:-18938}"
 KEY="m38-admin-$(date +%s)-deterministic"
 BASE="http://127.0.0.1:${PORT}"
 
-cleanup(){ docker rm -fv "${NAME}" >/dev/null 2>&1 || true; }
+cleanup() { docker rm -fv "${NAME}" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
-req(){ # method path auth-header-value body  → body<TAB>status (auth "" = none)
+req() { # method path auth-header-value body  → body<TAB>status (auth "" = none)
   local method="$1" path="$2" auth="$3" body="${4:-}"
   local args=(-s -w $'\t%{http_code}' -X "${method}" "${BASE}${path}" -H "Content-Type: application/json")
   [[ -n "${auth}" ]] && args+=(-H "${auth}")
   [[ -n "${body}" ]] && args+=(-d "${body}")
   curl "${args[@]}"
 }
-status_of(){ awk -F'\t' '{print $NF}' <<<"$1"; }
-field(){ python3 -c "import sys,json;print(json.loads(sys.stdin.read().rsplit('\t',1)[0]).get('$1',''))" <<<"$2"; }
+status_of() { awk -F'\t' '{print $NF}' <<<"$1"; }
+field() { python3 -c "import sys,json;print(json.loads(sys.stdin.read().rsplit('\t',1)[0]).get('$1',''))" <<<"$2"; }
 
 step "1/8 image present + ≤12 MB budget"
 docker image inspect "${IMAGE}" >/dev/null 2>&1 || fail "image '${IMAGE}' not built (make one-build)"
-IMG_MB=$(( $(docker image inspect --format '{{.Size}}' "${IMAGE}") / 1024 / 1024 ))
-(( IMG_MB <= 12 )) || fail "image ${IMG_MB} MB > 12 MB budget"
+IMG_MB=$(($(docker image inspect --format '{{.Size}}' "${IMAGE}") / 1024 / 1024))
+((IMG_MB <= 12)) || fail "image ${IMG_MB} MB > 12 MB budget"
 ok "image ${IMG_MB} MB ≤ 12 MB (PocketBase: 30.1 MB)"
 
 docker run -d --name "${NAME}" -p "${PORT}:8090" -e NANO_ADMIN_KEY="${KEY}" "${IMAGE}" >/dev/null
@@ -68,7 +72,8 @@ done
 step "2/8 register: 201 + JWT + refresh; 409 dup; 400 weak"
 RA=$(req POST /one/v1/auth/register "" '{"email":"alice@local.dev","password":"alice-pass-123"}')
 [[ "$(status_of "$RA")" == "201" ]] || fail "register alice: $RA"
-TOK_A=$(field token "$RA"); REF_A=$(field refresh "$RA")
+TOK_A=$(field token "$RA")
+REF_A=$(field refresh "$RA")
 [[ -n "${TOK_A}" && -n "${REF_A}" ]] || fail "register returned no token/refresh: $RA"
 R=$(req POST /one/v1/auth/register "" '{"email":"alice@local.dev","password":"alice-pass-123"}')
 [[ "$(status_of "$R")" == "409" ]] || fail "duplicate email must 409: $R"
@@ -120,7 +125,7 @@ ok "rotation single-use; logout revokes"
 
 step "7/8 SSE accepts a user JWT (?token=)"
 SSE_OUT="$(mktemp)"
-( timeout 8 curl -sN "${BASE}/nano/v1/realtime?token=${TOK_A}" > "${SSE_OUT}" 2>/dev/null & )
+(timeout 8 curl -sN "${BASE}/nano/v1/realtime?token=${TOK_A}" >"${SSE_OUT}" 2>/dev/null &)
 sleep 1
 req POST /data/v1/query "Authorization: Bearer ${TOK_A}" '{"db_id":"main","operation":{"op":"insert","resource":"todos","data":{"id":"a2","title":"sse"}}}' >/dev/null
 for i in $(seq 1 14); do

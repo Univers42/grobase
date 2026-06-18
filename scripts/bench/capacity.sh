@@ -35,9 +35,9 @@ source "${SCRIPT_DIR}/../lib/lib-live-tenant.sh"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/lib-workload.sh"
 
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 
 PACKAGE="${PACKAGE:-essential}"
 LADDER_MAX="${LADDER_MAX:-3200}"
@@ -53,9 +53,15 @@ STAGE_SECS="30s"
 
 cyan "[bench-capacity] ${PACKAGE} — CRUD mix ladder to the wall (SLO p95 ≤ ${SLO_P95}ms, err ≤ ${ERR_BAR}%)"
 
-live_tenant_provision "bench-cap-$(date +%s)" || { red "provision failed (stack up?)"; exit 1; }
+live_tenant_provision "bench-cap-$(date +%s)" || {
+  red "provision failed (stack up?)"
+  exit 1
+}
 trap 'bw_drop_table "${TABLE}"; live_tenant_cleanup' EXIT
-bw_setup_table "${TABLE}" || { red "working-set setup failed"; exit 1; }
+bw_setup_table "${TABLE}" || {
+  red "working-set setup failed"
+  exit 1
+}
 green "[bench-capacity] working set ready"
 
 # Warmup (METHOD.md rule 3): a fresh bench tenant's first requests are all cold
@@ -63,8 +69,8 @@ green "[bench-capacity] working set ready"
 # Without this the first ladder stage measures cold-start, not plane capacity.
 cyan "[bench-capacity] 20s warmup (cold caches → warm; discarded)"
 bench_k6 "${K6_SCRIPT}" "${BENCH_OUT_DIR}/capacity-warmup.json" \
-	-e BASE="${LIVE_KONG_URL}" -e ANON="${LIVE_ANON_APIKEY}" -e APPK="${LIVE_TENANT_API_KEY}" \
-	-e DBID="${LIVE_TENANT_DB_ID}" -e TABLE="${TABLE}" -e RATE="25" -e DURATION="20s" >/dev/null 2>&1 || true
+  -e BASE="${LIVE_KONG_URL}" -e ANON="${LIVE_ANON_APIKEY}" -e APPK="${LIVE_TENANT_API_KEY}" \
+  -e DBID="${LIVE_TENANT_DB_ID}" -e TABLE="${TABLE}" -e RATE="25" -e DURATION="20s" >/dev/null 2>&1 || true
 rm -f "${BENCH_OUT_DIR}/capacity-warmup.json"
 
 STAGES_JSON="[]"
@@ -72,73 +78,77 @@ LIMIT_HIT="none"
 
 # Run one 30s stage at $1 rps; echoes "ok|latency|errors|tier_rps p95 err rps429"
 stage() {
-	# Separate declarations: a single `local rate=… out=…${rate}…` evaluates
-	# the second RHS before `rate` is bound (bash + set -u → unbound var).
-	local rate="$1"
-	local out="${BENCH_OUT_DIR}/capacity-stage-${rate}.json"
-	bench_k6 "${K6_SCRIPT}" "${out}" \
-		-e BASE="${LIVE_KONG_URL}" -e ANON="${LIVE_ANON_APIKEY}" -e APPK="${LIVE_TENANT_API_KEY}" \
-		-e DBID="${LIVE_TENANT_DB_ID}" -e TABLE="${TABLE}" \
-		-e RATE="${rate}" -e DURATION="${STAGE_SECS}" >/dev/null
-	local p95 err limited
-	p95="$(jq -r '.http.p95 // 99999' "${out}")"
-	err="$(jq -r '.err_pct // 100' "${out}")"
-	limited="$(jq -r '.rate_limited // 0' "${out}")"
-	local verdict="ok"
-	if [[ "${limited}" != "0" ]]; then verdict="tier_rps"
-	elif awk -v a="${err}" -v b="${ERR_BAR}" 'BEGIN{exit !(a>b)}'; then verdict="errors"
-	elif awk -v a="${p95}" -v b="${SLO_P95}" 'BEGIN{exit !(a>b)}'; then verdict="latency"
-	fi
-	# Echo verdict + the per-stage artifact path; the CALLER accumulates
-	# STAGES_JSON (a subshell command-substitution can't mutate it here).
-	echo "${verdict} ${p95} ${err} ${limited} ${out}"
+  # Separate declarations: a single `local rate=… out=…${rate}…` evaluates
+  # the second RHS before `rate` is bound (bash + set -u → unbound var).
+  local rate="$1"
+  local out="${BENCH_OUT_DIR}/capacity-stage-${rate}.json"
+  bench_k6 "${K6_SCRIPT}" "${out}" \
+    -e BASE="${LIVE_KONG_URL}" -e ANON="${LIVE_ANON_APIKEY}" -e APPK="${LIVE_TENANT_API_KEY}" \
+    -e DBID="${LIVE_TENANT_DB_ID}" -e TABLE="${TABLE}" \
+    -e RATE="${rate}" -e DURATION="${STAGE_SECS}" >/dev/null
+  local p95 err limited
+  p95="$(jq -r '.http.p95 // 99999' "${out}")"
+  err="$(jq -r '.err_pct // 100' "${out}")"
+  limited="$(jq -r '.rate_limited // 0' "${out}")"
+  local verdict="ok"
+  if [[ "${limited}" != "0" ]]; then
+    verdict="tier_rps"
+  elif awk -v a="${err}" -v b="${ERR_BAR}" 'BEGIN{exit !(a>b)}'; then
+    verdict="errors"
+  elif awk -v a="${p95}" -v b="${SLO_P95}" 'BEGIN{exit !(a>b)}'; then
+    verdict="latency"
+  fi
+  # Echo verdict + the per-stage artifact path; the CALLER accumulates
+  # STAGES_JSON (a subshell command-substitution can't mutate it here).
+  echo "${verdict} ${p95} ${err} ${limited} ${out}"
 }
 
 accumulate() { # $1 stage artifact, $2 rate
-	[[ -f "$1" ]] || return 0
-	STAGES_JSON="$(jq -c --argjson r "$2" --slurpfile s "$1" '. + [{rate:$r}+$s[0]]' <<<"${STAGES_JSON}")"
+  [[ -f "$1" ]] || return 0
+  STAGES_JSON="$(jq -c --argjson r "$2" --slurpfile s "$1" '. + [{rate:$r}+$s[0]]' <<<"${STAGES_JSON}")"
 }
 
 LAST_GOOD=0
 FIRST_BAD=0
 RATE=25
-while (( RATE <= LADDER_MAX )); do
-	cyan "[bench-capacity] stage ${RATE} rps × ${STAGE_SECS}"
-	read -r VERDICT P95 ERR LIMITED OUT <<<"$(stage "${RATE}")"
-	accumulate "${OUT}" "${RATE}"
-	echo "  → ${VERDICT} (p95=${P95}ms err=${ERR}% 429s=${LIMITED})"
-	if [[ "${VERDICT}" == "ok" ]]; then
-		LAST_GOOD="${RATE}"
-		RATE=$(( RATE * 2 ))
-	else
-		FIRST_BAD="${RATE}"
-		LIMIT_HIT="${VERDICT}"
-		break
-	fi
+while ((RATE <= LADDER_MAX)); do
+  cyan "[bench-capacity] stage ${RATE} rps × ${STAGE_SECS}"
+  read -r VERDICT P95 ERR LIMITED OUT <<<"$(stage "${RATE}")"
+  accumulate "${OUT}" "${RATE}"
+  echo "  → ${VERDICT} (p95=${P95}ms err=${ERR}% 429s=${LIMITED})"
+  if [[ "${VERDICT}" == "ok" ]]; then
+    LAST_GOOD="${RATE}"
+    RATE=$((RATE * 2))
+  else
+    FIRST_BAD="${RATE}"
+    LIMIT_HIT="${VERDICT}"
+    break
+  fi
 done
 
 # Binary-search refinement (2 iterations) between last good and first bad.
-if (( FIRST_BAD > 0 && LAST_GOOD > 0 )); then
-	LO="${LAST_GOOD}"; HI="${FIRST_BAD}"
-	for _ in 1 2; do
-		MID=$(( (LO + HI) / 2 ))
-		(( MID <= LO )) && break
-		cyan "[bench-capacity] refine ${MID} rps"
-		read -r VERDICT P95 ERR LIMITED OUT <<<"$(stage "${MID}")"
-		accumulate "${OUT}" "${MID}"
-		echo "  → ${VERDICT} (p95=${P95}ms err=${ERR}% 429s=${LIMITED})"
-		if [[ "${VERDICT}" == "ok" ]]; then LO="${MID}"; else HI="${MID}"; fi
-	done
-	LAST_GOOD="${LO}"
+if ((FIRST_BAD > 0 && LAST_GOOD > 0)); then
+  LO="${LAST_GOOD}"
+  HI="${FIRST_BAD}"
+  for _ in 1 2; do
+    MID=$(((LO + HI) / 2))
+    ((MID <= LO)) && break
+    cyan "[bench-capacity] refine ${MID} rps"
+    read -r VERDICT P95 ERR LIMITED OUT <<<"$(stage "${MID}")"
+    accumulate "${OUT}" "${MID}"
+    echo "  → ${VERDICT} (p95=${P95}ms err=${ERR}% 429s=${LIMITED})"
+    if [[ "${VERDICT}" == "ok" ]]; then LO="${MID}"; else HI="${MID}"; fi
+  done
+  LAST_GOOD="${LO}"
 fi
 
 FINAL="${BENCH_OUT_DIR}/capacity-${PACKAGE}.json"
 jq -n \
-	--arg package "${PACKAGE}" --arg workload "${WORKLOAD}" --arg limit_hit "${LIMIT_HIT}" \
-	--argjson max_rps "${LAST_GOOD}" --argjson slo "${SLO_P95}" \
-	--argjson stages "${STAGES_JSON}" --argjson env "$(bench_env_json)" \
-	'{package:$package, workload:$workload, max_sustained_rps:$max_rps, slo_p95_ms:$slo,
-	  limit_hit:$limit_hit, stages:$stages, env:$env}' > "${FINAL}"
+  --arg package "${PACKAGE}" --arg workload "${WORKLOAD}" --arg limit_hit "${LIMIT_HIT}" \
+  --argjson max_rps "${LAST_GOOD}" --argjson slo "${SLO_P95}" \
+  --argjson stages "${STAGES_JSON}" --argjson env "$(bench_env_json)" \
+  '{package:$package, workload:$workload, max_sustained_rps:$max_rps, slo_p95_ms:$slo,
+	  limit_hit:$limit_hit, stages:$stages, env:$env}' >"${FINAL}"
 rm -f "${BENCH_OUT_DIR}"/capacity-stage-*.json
 
 green "[bench-capacity] max sustained ≈ ${LAST_GOOD} rps (wall: ${LIMIT_HIT}) → ${FINAL#${BENCH_ROOT}/}"

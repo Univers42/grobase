@@ -188,7 +188,12 @@ describe('SchemaService', () => {
         identity,
       );
       expect(proxy.applySchemaDdl).toHaveBeenCalledTimes(1);
-      expect(result).toEqual({ op: 'drop_column', table: 'orders', status: 'applied', dbId: 'db-1' });
+      expect(result).toEqual({
+        op: 'drop_column',
+        table: 'orders',
+        status: 'applied',
+        dbId: 'db-1',
+      });
     });
 
     it('forwards the proxy call with the resolved mount context and full wire ddl', async () => {
@@ -217,7 +222,13 @@ describe('SchemaService', () => {
           op: 'add_column',
           table: 'orders',
           // optional attributes are defaulted into a FULL wire def
-          column: { name: 'qty', normalized_type: 'integer', nullable: true, default: null, enum_values: null },
+          column: {
+            name: 'qty',
+            normalized_type: 'integer',
+            nullable: true,
+            default: null,
+            enum_values: null,
+          },
           column_name: null,
           columns: null,
           primary_key: null,
@@ -273,7 +284,11 @@ describe('SchemaService', () => {
         service.applyDdl(
           'db-1',
           'user-1',
-          { op: 'alter_column_type', table: 'ghosts', column: { name: 'x', normalized_type: 'text' } } as never,
+          {
+            op: 'alter_column_type',
+            table: 'ghosts',
+            column: { name: 'x', normalized_type: 'text' },
+          } as never,
           identity,
         ),
       ).rejects.toMatchObject({ status: 404 });
@@ -281,7 +296,11 @@ describe('SchemaService', () => {
         service.applyDdl(
           'db-1',
           'user-1',
-          { op: 'alter_column_type', table: 'orders', column: { name: 'ghost', normalized_type: 'text' } } as never,
+          {
+            op: 'alter_column_type',
+            table: 'orders',
+            column: { name: 'ghost', normalized_type: 'text' },
+          } as never,
           identity,
         ),
       ).rejects.toMatchObject({ status: 404 });
@@ -296,7 +315,11 @@ describe('SchemaService', () => {
       await service.applyDdl(
         'db-1',
         'user-1',
-        { op: 'add_column', table: 'orders', column: { name: 'qty', normalized_type: 'integer' } } as never,
+        {
+          op: 'add_column',
+          table: 'orders',
+          column: { name: 'qty', normalized_type: 'integer' },
+        } as never,
         identity,
       );
       await service.describe('db-1', 'user-1', identity);
@@ -315,7 +338,11 @@ describe('SchemaService', () => {
         service.applyDdl(
           'db-1',
           'user-1',
-          { op: 'add_column', table: 'orders', column: { name: 'qty', normalized_type: 'integer' } } as never,
+          {
+            op: 'add_column',
+            table: 'orders',
+            column: { name: 'qty', normalized_type: 'integer' },
+          } as never,
           identity,
         ),
       ).rejects.toThrow('409 conflict');

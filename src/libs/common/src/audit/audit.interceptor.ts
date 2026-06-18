@@ -10,12 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-import {
-  CallHandler,
-  ExecutionContext,
-  Injectable,
-  NestInterceptor,
-} from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import type { Request } from 'express';
 import { Observable, tap } from 'rxjs';
 import { AuditService } from './audit.service';
@@ -46,12 +41,11 @@ export class AuditInterceptor implements NestInterceptor {
     const requestId = req.requestId ?? (req.headers['x-request-id'] as string | undefined);
     if (!requestId) return next.handle();
 
-    const ip = (
+    const ip =
       (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
       req.ip ??
       req.socket?.remoteAddress ??
-      null
-    );
+      null;
 
     return next.handle().pipe(
       tap(() => {

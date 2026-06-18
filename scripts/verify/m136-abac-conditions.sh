@@ -39,27 +39,30 @@ INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 DEC="${INFRA_DIR}/src/apps/permission-engine/src/decisions/decisions.service.ts"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M136] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M136] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M136] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M136] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M136_PG_IMAGE:-postgres:16-alpine}"
 PG="m136-pg-$$"
 cleanup() { docker rm -fv "${PG}" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
-hp()  { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>&1 | tr -d '[:space:]'; }  # keeps errors visible
+hp() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>&1 | tr -d '[:space:]'; } # keeps errors visible
 apply() { sed '/^#/d' "$1" | docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - >/dev/null 2>&1; }
 
 # ── 1) static contract ─────────────────────────────────────────────────────────
 step "1/4 static contract — PDP passes p_conditions_enabled gated by the flag"
 [[ -f "${MIG_DIR}/063_permission_conditions.sql" ]] || fail "migration 063 missing"
 grep -q "auth.eval_conditions" "${MIG_DIR}/063_permission_conditions.sql" || fail "063 missing auth.eval_conditions"
-grep -q "DROP FUNCTION IF EXISTS public.has_permission(UUID, TEXT, TEXT, TEXT)" "${MIG_DIR}/063_permission_conditions.sql" \
-  || fail "063 does not DROP the 4-arg has_permission — 4-arg callers would be AMBIGUOUS (flag-OFF broken, not parity)"
+grep -q "DROP FUNCTION IF EXISTS public.has_permission(UUID, TEXT, TEXT, TEXT)" "${MIG_DIR}/063_permission_conditions.sql" ||
+  fail "063 does not DROP the 4-arg has_permission — 4-arg callers would be AMBIGUOUS (flag-OFF broken, not parity)"
 grep -q "PERMISSION_CONDITIONS_ENABLED" "${DEC}" || fail "DecisionsService never reads PERMISSION_CONDITIONS_ENABLED"
 grep -q "p_conditions_enabled\|conditionsEnabled" "${DEC}" || fail "DecisionsService never passes the conditions flag to has_permission"
 ok "eval_conditions + 4-arg DROP + flag wiring present"
@@ -83,7 +86,7 @@ DO $r$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role; END IF;
 END $r$;
 SQL
-apply "${MIG_DIR}/007_permissions_system.sql"   || fail "migration 007 failed"
+apply "${MIG_DIR}/007_permissions_system.sql" || fail "migration 007 failed"
 apply "${MIG_DIR}/063_permission_conditions.sql" || fail "migration 063 failed"
 ok "007 + 063 applied"
 

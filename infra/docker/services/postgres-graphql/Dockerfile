@@ -25,11 +25,11 @@ RUN apt-get update \
   && curl -fsSL -o /tmp/pg_net.tar.gz \
        "https://github.com/supabase/pg_net/archive/refs/tags/v${PG_NET_VERSION}.tar.gz" \
   && mkdir -p /tmp/pg_net \
-  && tar -xzf /tmp/pg_net.tar.gz -C /tmp/pg_net --strip-components=1 \
-  && cd /tmp/pg_net \
+  && tar -xzf /tmp/pg_net.tar.gz -C /tmp/pg_net --strip-components=1
+WORKDIR /tmp/pg_net
   # Disable libcurl's compile-time typecheck macros (same fix the alpine image
   # applies) so the build is compiler-agnostic; skip LLVM bitcode (no clang).
-  && sed -i '1i#define CURL_DISABLE_TYPECHECK 1' src/core.c src/event.h src/errors.c src/util.c src/worker.c \
+RUN sed -i '1i#define CURL_DISABLE_TYPECHECK 1' src/core.c src/event.h src/errors.c src/util.c src/worker.c \
   && make with_llvm=no \
   && make install with_llvm=no \
   && rm -rf /tmp/pg_net /tmp/pg_net.tar.gz
@@ -47,6 +47,7 @@ COPY --from=pg_net_builder /usr/share/postgresql/16/extension/pg_net* /usr/share
 # pg_graphql: the OFFICIAL prebuilt pg16 .deb, SHA-256 pinned (supply-chain
 # discipline, like the alpine image's FDW manifest).
 ADD https://github.com/supabase/pg_graphql/releases/download/v${PG_GRAPHQL_VERSION}/pg_graphql-v${PG_GRAPHQL_VERSION}-pg16-amd64-linux-gnu.deb /tmp/pg_graphql.deb
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN echo "${PG_GRAPHQL_SHA256}  /tmp/pg_graphql.deb" | sha256sum -c - \
   && dpkg -i /tmp/pg_graphql.deb \
   && rm /tmp/pg_graphql.deb

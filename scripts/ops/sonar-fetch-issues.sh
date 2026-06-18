@@ -25,7 +25,7 @@ PAGE=1
 PER_PAGE=500
 ALL_FILE="$OUT_DIR/issues-all.json"
 
-echo '[]' > "$ALL_FILE"
+echo '[]' >"$ALL_FILE"
 
 echo "Fetching issues from SonarCloud (project: $PROJECT_KEY)…"
 
@@ -42,7 +42,7 @@ while true; do
   fi
 
   # Merge into all-issues file
-  jq -s '.[0] + .[1]' "$ALL_FILE" <(echo "$issues") > "$OUT_DIR/tmp.json"
+  jq -s '.[0] + .[1]' "$ALL_FILE" <(echo "$issues") >"$OUT_DIR/tmp.json"
   mv "$OUT_DIR/tmp.json" "$ALL_FILE"
 
   fetched=$(jq 'length' "$ALL_FILE")
@@ -60,7 +60,7 @@ echo "Total open issues: $TOTAL_ISSUES"
 
 # ── Generate per-severity JSON ──────────────────────────────
 for sev in BLOCKER CRITICAL MAJOR MINOR INFO; do
-  jq --arg s "$sev" '[.[] | select(.severity == $s)]' "$ALL_FILE" > "$OUT_DIR/issues-${sev,,}.json"
+  jq --arg s "$sev" '[.[] | select(.severity == $s)]' "$ALL_FILE" >"$OUT_DIR/issues-${sev,,}.json"
 done
 
 # ── Generate TXT summary ────────────────────────────────────
@@ -88,14 +88,14 @@ SUMMARY="$OUT_DIR/summary.txt"
 
   # Detailed listing
   echo "── Detailed Issues ────────────────────────────────"
-  jq -r '.[] | "[\(.severity)] \(.type) — \(.component | split(":")[1] // .component):\(.line // "?") — \(.message)"' "$ALL_FILE" \
-    | sort -t'[' -k2,2 \
-    | head -500
+  jq -r '.[] | "[\(.severity)] \(.type) — \(.component | split(":")[1] // .component):\(.line // "?") — \(.message)"' "$ALL_FILE" |
+    sort -t'[' -k2,2 |
+    head -500
   echo ""
   echo "$SEP_LINE"
   echo " Total: $TOTAL_ISSUES open issues"
   echo "$SEP_LINE"
-} > "$SUMMARY"
+} >"$SUMMARY"
 
 cat "$SUMMARY"
 

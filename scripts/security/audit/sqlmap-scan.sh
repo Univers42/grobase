@@ -61,8 +61,8 @@ RISK="${SQLMAP_RISK:-1}"
 API_KEY="${BAAS_API_KEY:-}"
 CORPUS="${BAAS_DIR}/postman/corpus/_gen-injection-security.mjs"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 amber() { printf '\033[0;33m%s\033[0m\n' "$*"; }
 
@@ -79,13 +79,13 @@ on_exit() {
 trap on_exit EXIT
 
 cyan "[sqlmap] SQLi probe against ${TARGET} @ $(date -u +%FT%TZ)"
-[[ -f "${CORPUS}" ]] \
-  && cyan "[sqlmap] complements in-repo injection corpus: ${CORPUS}" \
-  || amber "[sqlmap] injection corpus not found at ${CORPUS} (informational)"
+[[ -f "${CORPUS}" ]] &&
+  cyan "[sqlmap] complements in-repo injection corpus: ${CORPUS}" ||
+  amber "[sqlmap] injection corpus not found at ${CORPUS} (informational)"
 
 # ── live-stack guard ─────────────────────────────────────────────────────────
-if ! curl -ksS -o /dev/null -w '%{http_code}' --max-time 5 "${TARGET}" 2>/dev/null \
-     | grep -qE "^[2-5][0-9][0-9]$"; then
+if ! curl -ksS -o /dev/null -w '%{http_code}' --max-time 5 "${TARGET}" 2>/dev/null |
+  grep -qE "^[2-5][0-9][0-9]$"; then
   amber "[sqlmap] target ${TARGET} unreachable — SKIPPING (bring the stack up first)"
   amber "[sqlmap] this scanner needs the live data-plane API; nothing to probe, exiting cleanly"
   exit 2
@@ -102,8 +102,8 @@ QUERY_URL="${TARGET}/query/v1/${DBID}/tables/${TABLE}"
 LIST_BODY='{"op":"list","filter":{"name":"*"},"limit":10}'
 
 HEADER_ARGS=()
-HEADER_ARGS+=( "--header=Content-Type: application/json" )
-[[ -n "${API_KEY}" ]] && HEADER_ARGS+=( "--header=x-api-key: ${API_KEY}" )
+HEADER_ARGS+=("--header=Content-Type: application/json")
+[[ -n "${API_KEY}" ]] && HEADER_ARGS+=("--header=x-api-key: ${API_KEY}")
 [[ -z "${API_KEY}" ]] && amber "[sqlmap] no BAAS_API_KEY set — probing unauthenticated (may 401; set the key for a real test)"
 
 cyan "[sqlmap] probing POST ${QUERY_URL} (filter param, level=${LEVEL} risk=${RISK})"
@@ -113,14 +113,14 @@ docker run --rm \
   --network host \
   -v "${REPO_ROOT}/${OUT_DIR}:/sqlmap/output" \
   "${SQLMAP_IMAGE}" \
-    -u "${QUERY_URL}" \
-    --method=POST \
-    --data="${LIST_BODY}" \
-    "${HEADER_ARGS[@]}" \
-    --level="${LEVEL}" --risk="${RISK}" \
-    --batch --random-agent \
-    --output-dir=/sqlmap/output \
-    -v 1 \
+  -u "${QUERY_URL}" \
+  --method=POST \
+  --data="${LIST_BODY}" \
+  "${HEADER_ARGS[@]}" \
+  --level="${LEVEL}" --risk="${RISK}" \
+  --batch --random-agent \
+  --output-dir=/sqlmap/output \
+  -v 1 \
   2>&1 | tee "${LOG_OUT}" | tail -50 || true
 
 # ── verdict: sqlmap prints "is vulnerable" / "injectable" when it finds SQLi ──

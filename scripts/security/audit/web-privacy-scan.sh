@@ -52,8 +52,8 @@ mkdir -p "${ARTIFACTS_DIR}"
 SITE="${SITE_URL:-http://127.0.0.1:4325}"
 CURL_IMAGE="${CURL_IMAGE:-curlimages/curl:latest}"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 amber() { printf '\033[0;33m%s\033[0m\n' "$*"; }
 
@@ -78,7 +78,8 @@ dcurl() { docker run --rm --network host "${CURL_IMAGE}" "$@"; }
 # curl's -w prints a 3-digit code even on failure (000); on connect-refused it
 # also exits non-zero so the `|| echo` would double it — keep only the last 3.
 code="$(dcurl -ksS -o /dev/null -w '%{http_code}' --max-time 5 "${SITE}" 2>/dev/null || true)"
-code="${code: -3}"; code="${code:-000}"
+code="${code: -3}"
+code="${code:-000}"
 if ! printf '%s' "${code}" | grep -qE "^[2-3][0-9][0-9]$"; then
   amber "[privacy] site ${SITE} unreachable (http ${code}) — SKIPPING (make grobase-up)"
   amber "[privacy] this scanner needs the live site; nothing to check, exiting cleanly"
@@ -87,7 +88,7 @@ fi
 green "[privacy] site responded (${code}) — proceeding"
 
 # ── pass (a): headers ────────────────────────────────────────────────────────
-dcurl -ksSI --max-time 10 "${SITE}" > "${HDR_RAW}" 2>/dev/null || true
+dcurl -ksSI --max-time 10 "${SITE}" >"${HDR_RAW}" 2>/dev/null || true
 # also fetch the body for pass (b)
 BODY="$(dcurl -ksS --max-time 15 "${SITE}" 2>/dev/null || true)"
 
@@ -118,84 +119,102 @@ declare -a OPTIONAL=(
   echo
   echo "| Header | Present | Value |"
   echo "|---|---|---|"
-} > "${REPORT}"
+} >"${REPORT}"
 
 fail=0
-is_tls=0; printf '%s' "${SITE}" | grep -qi '^https' && is_tls=1
+is_tls=0
+printf '%s' "${SITE}" | grep -qi '^https' && is_tls=1
 
 for h in "${REQUIRED[@]}"; do
   if has_header "${h}"; then
     v="$(header_val "${h}")"
     [[ ${#v} -gt 70 ]] && v="${v:0:67}..."
-    echo "| ${h} | yes | \`${v}\` |" >> "${REPORT}"
+    echo "| ${h} | yes | \`${v}\` |" >>"${REPORT}"
     green "[privacy]   ${h}: present"
   else
-    echo "| ${h} | **MISSING** | — |" >> "${REPORT}"
+    echo "| ${h} | **MISSING** | — |" >>"${REPORT}"
     red "[privacy]   ${h}: MISSING"
     fail=$((fail + 1))
   fi
 done
 for h in "${OPTIONAL[@]}"; do
   if has_header "${h}"; then
-    v="$(header_val "${h}")"; [[ ${#v} -gt 70 ]] && v="${v:0:67}..."
-    echo "| ${h} | yes | \`${v}\` |" >> "${REPORT}"
+    v="$(header_val "${h}")"
+    [[ ${#v} -gt 70 ]] && v="${v:0:67}..."
+    echo "| ${h} | yes | \`${v}\` |" >>"${REPORT}"
     green "[privacy]   ${h}: present"
   elif [[ "${h}" == "Strict-Transport-Security" && ${is_tls} -eq 0 ]]; then
-    echo "| ${h} | n/a (http) | — |" >> "${REPORT}"
+    echo "| ${h} | n/a (http) | — |" >>"${REPORT}"
     amber "[privacy]   ${h}: n/a on plain http (expected on the TLS prod origin)"
   else
-    echo "| ${h} | absent (recommended) | — |" >> "${REPORT}"
+    echo "| ${h} | absent (recommended) | — |" >>"${REPORT}"
     amber "[privacy]   ${h}: absent (recommended, not blocking)"
   fi
 done
 
 # ── pass (b): cookies + third-party origins ──────────────────────────────────
-{ echo; echo "## Cookies"; echo; } >> "${REPORT}"
+{
+  echo
+  echo "## Cookies"
+  echo
+} >>"${REPORT}"
 cookies="$(grep -i '^Set-Cookie:' "${HDR_RAW}" | sed 's/\r//' || true)"
 if [[ -n "${cookies}" ]]; then
   red "[privacy]   Set-Cookie present — GDPR consent territory"
-  echo "Non-essential cookies set without consent are a GDPR concern. Found:" >> "${REPORT}"
-  echo '```' >> "${REPORT}"; printf '%s\n' "${cookies}" >> "${REPORT}"; echo '```' >> "${REPORT}"
+  echo "Non-essential cookies set without consent are a GDPR concern. Found:" >>"${REPORT}"
+  echo '```' >>"${REPORT}"
+  printf '%s\n' "${cookies}" >>"${REPORT}"
+  echo '```' >>"${REPORT}"
   fail=$((fail + 1))
 else
   green "[privacy]   no Set-Cookie header (cookieless — ideal for GDPR)"
-  echo "No \`Set-Cookie\` header on the landing response (cookieless)." >> "${REPORT}"
+  echo "No \`Set-Cookie\` header on the landing response (cookieless)." >>"${REPORT}"
 fi
 
-{ echo; echo "## Third-party origins referenced in HTML"; echo; } >> "${REPORT}"
+{
+  echo
+  echo "## Third-party origins referenced in HTML"
+  echo
+} >>"${REPORT}"
 # Extract absolute http(s) URLs from the body, take the host, drop our own host.
 self_host="$(printf '%s' "${SITE}" | sed -E 's#^https?://([^/]+).*#\1#')"
 third=""
 if [[ -n "${BODY}" ]]; then
-  third="$(printf '%s' "${BODY}" \
-    | grep -oE 'https?://[a-zA-Z0-9._-]+' \
-    | sed -E 's#^https?://##' \
-    | sort -u \
-    | grep -viE "^(${self_host}|127\.0\.0\.1|localhost)$" || true)"
+  third="$(printf '%s' "${BODY}" |
+    grep -oE 'https?://[a-zA-Z0-9._-]+' |
+    sed -E 's#^https?://##' |
+    sort -u |
+    grep -viE "^(${self_host}|127\.0\.0\.1|localhost)$" || true)"
 fi
 if [[ -n "${third}" ]]; then
   amber "[privacy]   off-origin reference(s) found — verify each is essential & consented"
-  echo "Off-origin hosts referenced in the served HTML (verify each is" >> "${REPORT}"
-  echo "first-party / self-hosted; trackers/CDNs without consent are a GDPR concern):" >> "${REPORT}"
-  echo '```' >> "${REPORT}"; printf '%s\n' "${third}" >> "${REPORT}"; echo '```' >> "${REPORT}"
+  echo "Off-origin hosts referenced in the served HTML (verify each is" >>"${REPORT}"
+  echo "first-party / self-hosted; trackers/CDNs without consent are a GDPR concern):" >>"${REPORT}"
+  echo '```' >>"${REPORT}"
+  printf '%s\n' "${third}" >>"${REPORT}"
+  echo '```' >>"${REPORT}"
   printf '%s\n' "${third}" | sed 's/^/  - /'
   # Off-origin alone isn't auto-fail (could be a rel=preconnect to own CDN); WARN.
   amber "[privacy]   (reported as WARN — confirm intent; strict-CSP site expects none)"
 else
   green "[privacy]   no third-party origins in HTML (self-contained — ideal)"
-  echo "No off-origin hosts referenced in the served HTML (self-contained)." >> "${REPORT}"
+  echo "No off-origin hosts referenced in the served HTML (self-contained)." >>"${REPORT}"
 fi
 
 # CSP connect-src sanity: strict-CSP site should be connect-src 'self'.
 csp="$(header_val 'Content-Security-Policy')"
 if [[ -n "${csp}" ]]; then
-  { echo; echo "## CSP connect-src note"; echo; } >> "${REPORT}"
+  {
+    echo
+    echo "## CSP connect-src note"
+    echo
+  } >>"${REPORT}"
   if printf '%s' "${csp}" | grep -qiE "connect-src[^;]*'self'"; then
     green "[privacy]   CSP connect-src includes 'self'"
-    echo "\`connect-src 'self'\` present — outbound fetch is same-origin by policy." >> "${REPORT}"
+    echo "\`connect-src 'self'\` present — outbound fetch is same-origin by policy." >>"${REPORT}"
   else
     amber "[privacy]   CSP has no explicit connect-src 'self' (review)"
-    echo "No explicit \`connect-src 'self'\` seen — review the CSP for egress scope." >> "${REPORT}"
+    echo "No explicit \`connect-src 'self'\` seen — review the CSP for egress scope." >>"${REPORT}"
   fi
 fi
 

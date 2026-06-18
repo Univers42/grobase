@@ -46,8 +46,8 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 MIGRATION_005="${MIG_DIR}/005_add_tenant_table.sql"
@@ -55,12 +55,15 @@ MIGRATION_032="${MIG_DIR}/032_tenants.sql"
 MIGRATION_053="${MIG_DIR}/053_sso_connections.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M110] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M110] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M110] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M110] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M110_PG_IMAGE:-postgres:16-alpine}"
 GO_IMAGE="${M110_GO_IMAGE:-golang:1.25-bookworm}"
@@ -69,8 +72,8 @@ IDP_IMG="m110-idp-$$:scratch"
 NET="m110net-$$"
 PG="m110-pg-$$"
 IDP="m110-idp-$$"
-TC_ON="m110-tc-on-$$"      # SSO_ENABLED=1     (A/B)
-TC_OFF="m110-tc-off-$$"    # SSO_ENABLED unset (C · flag-off parity)
+TC_ON="m110-tc-on-$$"   # SSO_ENABLED=1     (A/B)
+TC_OFF="m110-tc-off-$$" # SSO_ENABLED unset (C · flag-off parity)
 # UNIQUE port pair for this gate (assigned by the slice: 19120/19121).
 PORT_ON="${M110_PORT_ON:-19120}"
 PORT_OFF="${M110_PORT_OFF:-19121}"
@@ -82,7 +85,7 @@ SSO_KEY="m110-sso-secret-key-$$-at-least-16"
 # in-net IdP base URL the tenant-control reaches; the gate reaches it on a host port.
 IDP_PORT_INNET=8099
 IDP_URL_INNET="http://${IDP}:${IDP_PORT_INNET}"
-IDP_HOST_PORT="${M110_IDP_PORT:-19126}"   # outside the 19120-19125 gate block (19122 is m111's PORT_ON — avoid a concurrent-run collision)
+IDP_HOST_PORT="${M110_IDP_PORT:-19126}" # outside the 19120-19125 gate block (19122 is m111's PORT_ON — avoid a concurrent-run collision)
 # IdP identity facts
 ISSUER="https://m110-idp.example.com"
 CLIENT_ID="m110-client-id"
@@ -153,10 +156,16 @@ wait_ready() { # $1=container $2=port
   local i
   for i in $(seq 1 60); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2/health/live" 2>/dev/null)" == "200" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # ── 0) write the MOCK OIDC IdP source (built FROM CURRENT module) ──────────────
@@ -171,7 +180,7 @@ wait_ready() { # $1=container $2=port
 # module so it shares go.mod (golang-jwt/jwt/v5 is already resolved).
 step "0/11 write + build the mock OIDC IdP + tenant-control FROM CURRENT source"
 mkdir -p "${WORK}/idp"
-cat > "${WORK}/idp/main.go" <<'GOEOF'
+cat >"${WORK}/idp/main.go" <<'GOEOF'
 package main
 
 import (
@@ -329,24 +338,28 @@ build_idp() {
       go build -o /out/m110-idp ./cmd/m110-idp
     ' >/dev/null 2>"${WORK}/idpbuild.err"
 }
-build_idp || { red "mock IdP build failed:"; tail -30 "${WORK}/idpbuild.err"; fail "mock OIDC IdP must build from CURRENT module (line: build idp)"; }
+build_idp || {
+  red "mock IdP build failed:"
+  tail -30 "${WORK}/idpbuild.err"
+  fail "mock OIDC IdP must build from CURRENT module (line: build idp)"
+}
 [[ -x "${WORK}/m110-idp" ]] || fail "mock IdP binary not produced (line: idp binary)"
 ok "mock OIDC IdP built (authorize/token/jwks, HS256+RS256, fault-injectable)"
 
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT=3070 \
-  -t "${TC_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch tenant-control image build failed — gate must exercise the drafted D2a code (line: docker build TC)"
+  -t "${TC_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch tenant-control image build failed — gate must exercise the drafted D2a code (line: docker build TC)"
 ok "tenant-control built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # The IdP runs from a minimal base; we package the static binary into a scratch
 # image so it has no host dependencies (the binary is a static linux/amd64 ELF).
-cat > "${WORK}/idp.Dockerfile" <<DEOF
+cat >"${WORK}/idp.Dockerfile" <<DEOF
 FROM debian:bookworm-slim
 COPY m110-idp /usr/local/bin/m110-idp
 ENTRYPOINT ["/usr/local/bin/m110-idp"]
 DEOF
-DOCKER_BUILDKIT=1 docker build -q -f "${WORK}/idp.Dockerfile" -t "${IDP_IMG}" "${WORK}" >/dev/null \
-  || fail "mock IdP image build failed (line: docker build IDP)"
+DOCKER_BUILDKIT=1 docker build -q -f "${WORK}/idp.Dockerfile" -t "${IDP_IMG}" "${WORK}" >/dev/null ||
+  fail "mock IdP image build failed (line: docker build IDP)"
 ok "mock IdP image packaged"
 
 # ── 1) isolated net + postgres (TCP-ready, not just socket) ─────────────────────
@@ -355,9 +368,15 @@ docker network create "${NET}" >/dev/null
 docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD="${PGPW}" "${PG_IMAGE}" >/dev/null
 ready=0
 for i in $(seq 1 80); do
-  if docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 \
-     && [[ "$(psql_val 'SELECT 1')" == "1" ]]; then ready=$((ready+1)); [[ ${ready} -ge 2 ]] && break; else ready=0; fi
-  [[ $i -eq 80 ]] && { docker logs "${PG}" 2>&1 | tail -20; fail "scratch postgres never reached TCP-ready"; }
+  if docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 &&
+    [[ "$(psql_val 'SELECT 1')" == "1" ]]; then
+    ready=$((ready + 1))
+    [[ ${ready} -ge 2 ]] && break
+  else ready=0; fi
+  [[ $i -eq 80 ]] && {
+    docker logs "${PG}" 2>&1 | tail -20
+    fail "scratch postgres never reached TCP-ready"
+  }
   sleep 0.5
 done
 ok "postgres up + TCP-ready (SELECT 1 ok twice)"
@@ -378,15 +397,19 @@ DO $r$ BEGIN
 END $r$;
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
 apply_migration "${MIGRATION_005}" || fail "real migration 005_add_tenant_table.sql failed to apply (line: apply 005)"
 apply_migration "${MIGRATION_032}" || fail "real migration 032_tenants.sql failed to apply (line: apply 032)"
 [[ -f "${MIGRATION_053}" ]] || fail "migration 053_sso_connections.sql is MISSING — the D2a migration must land before m110 (line: 053 exists)"
 apply_migration "${MIGRATION_053}" || fail "real migration 053_sso_connections.sql failed to apply (line: apply 053)"
-[[ "$(psql_val "SELECT to_regclass('public.sso_connections') IS NOT NULL")" == "t" ]] \
-  || fail "public.sso_connections not created by migration 053 (line: 053 table check)"
-[[ "$(psql_val "SELECT count(*) FROM public.sso_connections")" == "0" ]] \
-  || fail "sso_connections should start EMPTY (line: 053 empty check)"
+[[ "$(psql_val "SELECT to_regclass('public.sso_connections') IS NOT NULL")" == "t" ]] ||
+  fail "public.sso_connections not created by migration 053 (line: 053 table check)"
+[[ "$(psql_val "SELECT count(*) FROM public.sso_connections")" == "0" ]] ||
+  fail "sso_connections should start EMPTY (line: 053 empty check)"
 HASW="$(psql_val "SELECT count(*) FROM information_schema.role_table_grants WHERE table_name='sso_connections' AND grantee='authenticated' AND privilege_type IN ('INSERT','UPDATE','DELETE')")" || HASW="?"
 [[ "${HASW}" == "0" ]] || fail "authenticated must NOT have INSERT/UPDATE/DELETE on sso_connections, got ${HASW} (line: 053 grants)"
 ok "migration 053 applied — sso_connections exists, empty, authenticated read-only"
@@ -412,7 +435,10 @@ run_positive_login() {
     -p "127.0.0.1:${IDP_HOST_PORT}:${IDP_PORT_INNET}" "${IDP_IMG}" >/dev/null
   for i in $(seq 1 40); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${IDP_HOST_PORT}/healthz" 2>/dev/null)" == "200" ]] && break
-    [[ $i -eq 40 ]] && { docker logs "${IDP}" 2>&1 | tail; return 1; }
+    [[ $i -eq 40 ]] && {
+      docker logs "${IDP}" 2>&1 | tail
+      return 1
+    }
     sleep 0.3
   done
   # register a connection for this alg + issuer.
@@ -421,24 +447,42 @@ run_positive_login() {
     "${iss}" "${CLIENT_ID}" "${CLIENT_SECRET}" "${IDP_URL_INNET}" "${IDP_URL_INNET}" "${jwks}" "${REDIRECT_URI}")"
   local C
   C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_ID}/sso/connections" "${conn_body}")"
-  [[ "${C}" == "201" || "${C}" == "200" ]] || { red "register(${alg}) got ${C}: $(head -c 300 "${BODY_TMP}")"; return 1; }
+  [[ "${C}" == "201" || "${C}" == "200" ]] || {
+    red "register(${alg}) got ${C}: $(head -c 300 "${BODY_TMP}")"
+    return 1
+  }
   local CONN_ID
   CONN_ID="$(json_str id)"
-  [[ -n "${CONN_ID}" ]] || { red "register(${alg}) returned no connection id"; return 1; }
+  [[ -n "${CONN_ID}" ]] || {
+    red "register(${alg}) returned no connection id"
+    return 1
+  }
   # begin -> {authorize_url, state}.
   C="$(pub_req POST "${PORT_ON}" "/v1/auth/sso/begin" "{\"connection_id\":\"${CONN_ID}\"}")"
-  [[ "${C}" == "200" ]] || { red "begin(${alg}) got ${C}: $(head -c 300 "${BODY_TMP}")"; return 1; }
+  [[ "${C}" == "200" ]] || {
+    red "begin(${alg}) got ${C}: $(head -c 300 "${BODY_TMP}")"
+    return 1
+  }
   local AUTH_URL STATE CODE
   AUTH_URL="$(json_str authorize_url)"
   STATE="$(json_str state)"
-  [[ -n "${AUTH_URL}" && -n "${STATE}" ]] || { red "begin(${alg}) missing authorize_url/state"; return 1; }
+  [[ -n "${AUTH_URL}" && -n "${STATE}" ]] || {
+    red "begin(${alg}) missing authorize_url/state"
+    return 1
+  }
   # Act as the user-agent: drive the IdP /authorize ONCE, read the code from the
   # 302 Location (authorize_code unescapes the JSON & + host-swaps the URL).
   CODE="$(authorize_code "${AUTH_URL}")"
-  [[ -n "${CODE}" ]] || { red "IdP /authorize(${alg}) returned no code"; return 1; }
+  [[ -n "${CODE}" ]] || {
+    red "IdP /authorize(${alg}) returned no code"
+    return 1
+  }
   # callback {state, code} -> 200 + session JWT.
   C="$(pub_req POST "${PORT_ON}" "/v1/auth/sso/callback" "{\"state\":\"${STATE}\",\"code\":\"${CODE}\"}")"
-  [[ "${C}" == "200" ]] || { red "callback(${alg}) got ${C}: $(head -c 400 "${BODY_TMP}")"; return 1; }
+  [[ "${C}" == "200" ]] || {
+    red "callback(${alg}) got ${C}: $(head -c 400 "${BODY_TMP}")"
+    return 1
+  }
   json_str access_token
 }
 
@@ -455,8 +499,11 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3070" "${TC_IMG}" >/dev/null
 wait_ready "${TC_ON}" "${PORT_ON}" || fail "SSO-ON tenant-control not ready (line: wait_ready TC_ON)"
-{ docker logs "${TC_ON}" 2>&1 || true; } | grep -qi "sso .*enabled" \
-  || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "SSO never reported enabled (line: TC_ON enabled log)"; }
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -qi "sso .*enabled" ||
+  {
+    docker logs "${TC_ON}" 2>&1 | tail -20
+    fail "SSO never reported enabled (line: TC_ON enabled log)"
+  }
 ok "SSO-ON tenant-control up (/v1/auth/sso/* mounted)"
 
 # ── 3) (A · POSITIVE) HS256 connection: register -> begin -> authorize -> callback
@@ -468,11 +515,15 @@ ok "(A) HS256 login => 200, session JWT issued"
 
 # ── 3b) (A) the session JWT VERIFIES under the GoTrue HS256 secret + sub/email ──
 step "3b/11 (A) the session JWT VERIFIES under the GoTrue HS256 secret + sub==SSO sub, role=authenticated"
-H="${ACCESS%%.*}"; REST="${ACCESS#*.}"; P="${REST%%.*}"; SIG="${ACCESS##*.}"
+H="${ACCESS%%.*}"
+REST="${ACCESS#*.}"
+P="${REST%%.*}"
+SIG="${ACCESS##*.}"
 SIGNED_PART="${H}.${P}"
 EXPECT_SIG="$(printf '%s' "${SIGNED_PART}" | openssl dgst -sha256 -hmac "${JWT_SECRET}" -binary | base64 | tr '+/' '-_' | tr -d '=')"
 [[ "${SIG}" == "${EXPECT_SIG}" ]] || fail "(A) session JWT signature does NOT verify under the GoTrue secret (line: A jwt sig)"
-PAD=$(( (4 - ${#P} % 4) % 4 )); PADP="${P}$(printf '%*s' "${PAD}" '' | tr ' ' '=')"
+PAD=$(((4 - ${#P} % 4) % 4))
+PADP="${P}$(printf '%*s' "${PAD}" '' | tr ' ' '=')"
 CLAIMS="$(printf '%s' "${PADP}" | tr '_-' '/+' | base64 -d 2>/dev/null || true)"
 echo "${CLAIMS}" | grep -q "\"sub\":\"${SSO_SUB}\"" || fail "(A) JWT sub != SSO sub — claims: ${CLAIMS} (line: A jwt sub)"
 echo "${CLAIMS}" | grep -q "\"email\":\"${SSO_EMAIL}\"" || fail "(A) JWT email != SSO email — claims: ${CLAIMS} (line: A jwt email)"
@@ -492,7 +543,10 @@ step "4/11 (A) RS256 full grant: register (jwks_url) -> begin -> authorize -> ca
 ISSUER_RS="${ISSUER}/rs256"
 RS_ACCESS="$(run_positive_login RS256 "${IDP_URL_INNET}/jwks" "${ISSUER_RS}")" || fail "(A) RS256 positive login flow failed (line: A rs256)"
 [[ -n "${RS_ACCESS}" ]] || fail "(A) RS256 callback returned no access_token (line: A rs256 token)"
-RS_H="${RS_ACCESS%%.*}"; RS_REST="${RS_ACCESS#*.}"; RS_P="${RS_REST%%.*}"; RS_SIG="${RS_ACCESS##*.}"
+RS_H="${RS_ACCESS%%.*}"
+RS_REST="${RS_ACCESS#*.}"
+RS_P="${RS_REST%%.*}"
+RS_SIG="${RS_ACCESS##*.}"
 RS_EXPECT="$(printf '%s' "${RS_H}.${RS_P}" | openssl dgst -sha256 -hmac "${JWT_SECRET}" -binary | base64 | tr '+/' '-_' | tr -d '=')"
 [[ "${RS_SIG}" == "${RS_EXPECT}" ]] || fail "(A) RS256-path session JWT does not verify under the GoTrue secret (line: A rs256 sig)"
 ok "(A) RS256 login => 200, id_token verified via the IdP JWKS, session JWT issued + verifies"
@@ -508,7 +562,10 @@ docker run -d --name "${IDP}" --network "${NET}" \
   -e M110_SUB="${SSO_SUB}" -e M110_EMAIL="${SSO_EMAIL}" -e M110_ALG=HS256 -e M110_PORT="${IDP_PORT_INNET}" \
   -e M110_BAD_KEY=1 \
   -p "127.0.0.1:${IDP_HOST_PORT}:${IDP_PORT_INNET}" "${IDP_IMG}" >/dev/null
-for i in $(seq 1 40); do [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${IDP_HOST_PORT}/healthz" 2>/dev/null)" == "200" ]] && break; sleep 0.3; done
+for i in $(seq 1 40); do
+  [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${IDP_HOST_PORT}/healthz" 2>/dev/null)" == "200" ]] && break
+  sleep 0.3
+done
 BAD_BODY="$(printf '{"issuer":"%s","client_id":"%s","client_secret":"%s","authorize_url":"%s/authorize","token_url":"%s/token","redirect_uri":"%s"}' \
   "${ISSUER_BAD}" "${CLIENT_ID}" "${CLIENT_SECRET}" "${IDP_URL_INNET}" "${IDP_URL_INNET}" "${REDIRECT_URI}")"
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_ID}/sso/connections" "${BAD_BODY}")"
@@ -516,7 +573,8 @@ C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_ID}/sso/connections" "${B
 BAD_CONN="$(json_str id)"
 C="$(pub_req POST "${PORT_ON}" "/v1/auth/sso/begin" "{\"connection_id\":\"${BAD_CONN}\"}")"
 [[ "${C}" == "200" ]] || fail "(B) begin got ${C} (line: B begin)"
-BAD_AUTH="$(json_str authorize_url)"; BAD_STATE="$(json_str state)"
+BAD_AUTH="$(json_str authorize_url)"
+BAD_STATE="$(json_str state)"
 BAD_CODE="$(authorize_code "${BAD_AUTH}")"
 [[ -n "${BAD_CODE}" ]] || fail "(B) IdP /authorize returned no code (line: B code)"
 C="$(pub_req POST "${PORT_ON}" "/v1/auth/sso/callback" "{\"state\":\"${BAD_STATE}\",\"code\":\"${BAD_CODE}\"}")"
@@ -534,12 +592,16 @@ docker run -d --name "${IDP}" --network "${NET}" \
   -e M110_ISSUER="${ISSUER_HS}" -e M110_CLIENT_ID="${CLIENT_ID}" -e M110_CLIENT_SECRET="${CLIENT_SECRET}" \
   -e M110_SUB="${SSO_SUB}" -e M110_EMAIL="${SSO_EMAIL}" -e M110_ALG=HS256 -e M110_PORT="${IDP_PORT_INNET}" \
   -p "127.0.0.1:${IDP_HOST_PORT}:${IDP_PORT_INNET}" "${IDP_IMG}" >/dev/null
-for i in $(seq 1 40); do [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${IDP_HOST_PORT}/healthz" 2>/dev/null)" == "200" ]] && break; sleep 0.3; done
+for i in $(seq 1 40); do
+  [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${IDP_HOST_PORT}/healthz" 2>/dev/null)" == "200" ]] && break
+  sleep 0.3
+done
 HS_CONN="$(psql_val "SELECT id FROM public.sso_connections WHERE tenant_id='${TENANT_ID}' AND issuer='${ISSUER_HS}'")"
 [[ -n "${HS_CONN}" ]] || fail "(B) could not find the HS256 connection for the replay test (line: B replay conn)"
 C="$(pub_req POST "${PORT_ON}" "/v1/auth/sso/begin" "{\"connection_id\":\"${HS_CONN}\"}")"
 [[ "${C}" == "200" ]] || fail "(B) replay begin got ${C} (line: B replay begin)"
-RP_AUTH="$(json_str authorize_url)"; RP_STATE="$(json_str state)"
+RP_AUTH="$(json_str authorize_url)"
+RP_STATE="$(json_str state)"
 RP_CODE="$(authorize_code "${RP_AUTH}")"
 [[ -n "${RP_CODE}" && -n "${RP_STATE}" ]] || fail "(B) replay setup missing code/state (line: B replay setup)"
 # first callback: consumes the state, expect 200.
@@ -547,8 +609,8 @@ C="$(pub_req POST "${PORT_ON}" "/v1/auth/sso/callback" "{\"state\":\"${RP_STATE}
 [[ "${C}" == "200" ]] || fail "(B) replay first callback expected 200, got ${C} — $(head -c 300 "${BODY_TMP}") (line: B replay first)"
 # second callback with the SAME state: single-use => 401/400, no session.
 C="$(pub_req POST "${PORT_ON}" "/v1/auth/sso/callback" "{\"state\":\"${RP_STATE}\",\"code\":\"${RP_CODE}\"}")"
-[[ "${C}" == "401" || "${C}" == "400" ]] \
-  || fail "(B) replayed state expected 401/400, got ${C} — $(head -c 300 "${BODY_TMP}") (line: B replay)"
+[[ "${C}" == "401" || "${C}" == "400" ]] ||
+  fail "(B) replayed state expected 401/400, got ${C} — $(head -c 300 "${BODY_TMP}") (line: B replay)"
 grep -q '"access_token"' "${BODY_TMP}" && fail "(B) a REPLAYED state minted a session — single-use broken! (line: B replay no token)"
 ok "(B) replayed/consumed state rejected ${C} (single-use enforced, no session)"
 
@@ -565,8 +627,11 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3070" "${TC_IMG}" >/dev/null
 wait_ready "${TC_OFF}" "${PORT_OFF}" || fail "SSO-OFF tenant-control not ready (line: wait_ready TC_OFF)"
-{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -qi "sso .*disabled" \
-  || { docker logs "${TC_OFF}" 2>&1 | tail -20; fail "OFF tenant-control did not report SSO disabled (flag default not OFF?) (line: TC_OFF disabled log)"; }
+{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -qi "sso .*disabled" ||
+  {
+    docker logs "${TC_OFF}" 2>&1 | tail -20
+    fail "OFF tenant-control did not report SSO disabled (flag default not OFF?) (line: TC_OFF disabled log)"
+  }
 ok "SSO-OFF tenant-control up (SSO_ENABLED unset)"
 
 step "7/11 (C) EVERY /v1/auth/sso/* route 404 with the flag OFF (byte-parity — gotrue has no SSO)"
@@ -574,10 +639,11 @@ for spec in \
   "POST /v1/auth/sso/begin" \
   "POST /v1/auth/sso/callback" \
   "GET /v1/auth/sso/callback"; do
-  m="${spec%% *}"; path="${spec#* }"
-  C="$(pub_req "${m}" "${PORT_OFF}" "${path}" "$( [[ "${m}" == POST ]] && echo '{"connection_id":"x"}' )")"
-  [[ "${C}" == "404" ]] \
-    || fail "(C) PARITY: ${m} ${path} with SSO_ENABLED off expected 404 (route absent), got ${C} — $(head -c 200 "${BODY_TMP}") (line: C 404 ${path})"
+  m="${spec%% *}"
+  path="${spec#* }"
+  C="$(pub_req "${m}" "${PORT_OFF}" "${path}" "$([[ "${m}" == POST ]] && echo '{"connection_id":"x"}')")"
+  [[ "${C}" == "404" ]] ||
+    fail "(C) PARITY: ${m} ${path} with SSO_ENABLED off expected 404 (route absent), got ${C} — $(head -c 200 "${BODY_TMP}") (line: C 404 ${path})"
 done
 # the admin register/list routes are also gated off.
 C="$(admin_req POST "${PORT_OFF}" "/v1/tenants/${TENANT_ID}/sso/connections" '{"issuer":"x"}')"
@@ -586,14 +652,14 @@ ok "(C) all /v1/auth/sso/* + admin sso routes 404 with the flag OFF"
 
 step "8/11 (C) the base admin surface STILL works on the OFF router (proves only SSO is gated)"
 C="$(admin_req GET "${PORT_OFF}" "/v1/tenants")"
-[[ "${C}" == "200" ]] \
-  || fail "(C) PARITY: base admin GET /v1/tenants expected 200 on OFF router, got ${C} — $(head -c 200 "${BODY_TMP}") (line: C admin 200)"
+[[ "${C}" == "200" ]] ||
+  fail "(C) PARITY: base admin GET /v1/tenants expected 200 on OFF router, got ${C} — $(head -c 200 "${BODY_TMP}") (line: C admin 200)"
 ok "(C) base admin GET /v1/tenants => 200 — the baseline is untouched; only SSO is flag-gated"
 
 step "9/11 (C) the OFF router NEVER wrote to sso_connections (count unchanged)"
 CONN_AFTER="$(psql_val "SELECT count(*) FROM public.sso_connections")"
-[[ "${CONN_AFTER}" == "${CONN_BEFORE}" ]] \
-  || fail "(C) PARITY: sso_connections changed under the OFF router (before=${CONN_BEFORE} after=${CONN_AFTER}) (line: C no writes)"
+[[ "${CONN_AFTER}" == "${CONN_BEFORE}" ]] ||
+  fail "(C) PARITY: sso_connections changed under the OFF router (before=${CONN_BEFORE} after=${CONN_AFTER}) (line: C no writes)"
 ok "(C) sso_connections unchanged (${CONN_AFTER}) — the OFF router never touches it"
 
 # ── 10) summary ────────────────────────────────────────────────────────────────
@@ -605,7 +671,8 @@ green "[M110] (C) PARITY:   SSO_ENABLED off => all /v1/auth/sso/* + admin sso ro
 # ── 11) emit the gate event via the kernel log helper (best-effort) ─────────────
 step "11/11 log GATE m110=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-d2a-sso-oidc}"

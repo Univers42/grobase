@@ -1,0 +1,89 @@
+# ShellCheck project config — Grobase
+#
+# Gate bar: ZERO errors AND warnings. This config makes `shellcheck <file>` exit
+# clean across every tracked *.sh. Two kinds of suppression live here, each with a
+# one-line justification and spot-checked against 2-3 real hits:
+#
+#   1. WARNING/ERROR-severity accepted-style codes (SC1128, SC2034, SC2120) — the
+#      noisy 42-header / color-palette / pass-through-helper patterns.
+#   2. NOTE/INFO-severity advisories. ShellCheck's `severity=warning` rc key is NOT
+#      reliably honored when the rc is reached via the parent-dir walk (only `disable=`
+#      propagates that way in 0.9.0), so notes are suppressed by explicit `disable=`
+#      rather than by severity. Each note code below was confirmed accepted-style.
+#
+# GENUINELY-REAL findings were FIXED in source, never disabled here:
+#   SC2164 (cd || exit) · SC2155 (declare+assign masks rc) · SC2206 (read -ra) ·
+#   SC1083 (quote literal brace) · SC2288 (escape $() in commit-message corpus).
+# Three narrow constructs carry inline `# shellcheck disable` at the call site
+# (the flagged form is the intended idiom): SC1007 (`CDPATH= cd`), SC2043
+# (intentional single-element loop), SC2054 (newman's one comma-separated --reporters).
+
+# Helps when shellcheck is invoked from a file's own directory; see header note (2).
+severity=warning
+
+# ── WARNING/ERROR-severity accepted-style ───────────────────────────────────────
+
+# SC1128 — shebang must be first line. Every script carries the 42-school header
+# banner ABOVE the shebang. Scripts run as `bash <file>` (orchestrators/makes/100-test.mk:
+# `bash scripts/verify/$$g.sh`), so the shebang is never an interpreter directive — the
+# banner-before-shebang is inert. Verified: create-user.sh, validate-config.sh, run-gate-battery.sh.
+disable=SC1128
+
+# SC2034 — "<var> appears unused." Hits are (a) complete color/box-drawing palettes
+# defined as a set where only some entries are used (audit.sh INFO/BOX_H/BOX_TL…),
+# (b) config constants (SONAR_ORG), (c) idiomatic counting loop vars (`for i in $(seq…)`).
+# Verified: realtime audit.sh:30-34, go-live.sh:394.
+disable=SC2034
+
+# SC2120 — "<fn> references arguments, but none are ever passed." Pass-through helpers
+# like `psql_q() { … "$@"; }` forward "$@"; gates call them argument-less — the
+# intended-optional contract, not a bug. Verified: m100/m101/m104 psql_q.
+disable=SC2120
+
+# ── NOTE/INFO-severity advisories (below the errors-AND-warnings bar) ────────────
+
+# SC2317 — "Command appears to be unreachable." Bodies of functions invoked only via
+# `trap cleanup EXIT` (indirect call shellcheck can't trace). Verified: go-live.sh:249 cleanup().
+disable=SC2317
+
+# SC2015 — "A && B || C is not if-then-else." All hits use idempotent C (a `dim`/`ok`
+# echo that always succeeds), so the caveat can't bite. Verified: go-live.sh:284,307,310,313.
+disable=SC2015
+
+# SC2086 — "Double quote to prevent globbing." Hits are assignment RHS (no word-split
+# in `x=${y:-z}`), controlled paths (`$PREFIX/logs/...`), and vendored git_push.sh
+# scaffolding. Verified: apply-project-sql.sh:21, kong docker-entrypoint.sh:63-65.
+disable=SC2086
+
+# SC2059 — "Don't use variables in printf format." Hits inject ANSI color CONSTANTS
+# (${GRN}${RST}) into the format, not user data. Verified: realtime audit.sh:67.
+disable=SC2059
+
+# SC1091 — "Not following: <sourced file>." Dynamic `source "${SCRIPT_DIR}/../lib/..."`
+# paths shellcheck declines to follow; the files exist. Verified: seed/agency-tenant.sh:37.
+disable=SC1091
+
+# SC2016 — "Expressions don't expand in single quotes." Intentional: `bash -c '…'`
+# bodies must expand in the SPAWNED shell, not the parent. Verified: run-security-scans.sh:223.
+disable=SC2016
+
+# SC2295 / SC2019 / SC2018 — pattern-quoting and [:upper:]/[:lower:] vs a-z/A-Z style
+# notes in tr/parameter-expansion; all on ASCII-controlled inputs. Accepted-style.
+disable=SC2295
+disable=SC2019
+disable=SC2018
+
+# SC2012 — "Use find instead of ls." `ls` over backup dirs with controlled, dated
+# filenames (pitr-restore.sh); no non-alphanumeric names occur. Accepted-style.
+disable=SC2012
+
+# SC2181 / SC2129 / SC2126 / SC2116 / SC2006 / SC2002 / SC2005 — style preferences
+# ($? check vs direct, >>group, grep|wc vs grep -c, useless echo/cat/`backticks`).
+# All cosmetic notes, no behavior bug. Accepted-style.
+disable=SC2181
+disable=SC2129
+disable=SC2126
+disable=SC2116
+disable=SC2006
+disable=SC2002
+disable=SC2005

@@ -28,10 +28,7 @@ export class DeletionController {
 
   @Post()
   @ApiOperation({ summary: 'Request data deletion (right to be forgotten)' })
-  async create(
-    @Body() dto: CreateDeletionRequestDto,
-    @CurrentUser() user: UserContext,
-  ) {
+  async create(@Body() dto: CreateDeletionRequestDto, @CurrentUser() user: UserContext) {
     return this.service.createRequest(user.id, dto.reason);
   }
 

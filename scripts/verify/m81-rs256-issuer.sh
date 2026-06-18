@@ -54,12 +54,15 @@ BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 CP_DIR="${BAAS_DIR}/src/control-plane"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/../.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M81] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M81] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M81] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M81] FAIL — $*"
+  exit 1
+}
 
 # ── identifiers — all $$-suffixed, all isolated from the live mini-baas-* stack ─
 NODE_IMAGE="${M81_NODE_IMAGE:-node:22-alpine}"
@@ -68,11 +71,11 @@ KONG_IMAGE="${M81_KONG_IMAGE:-kong:3.8}"
 SCRATCH_IMG="m81-tc-$$:scratch"
 NET="m81net-$$"
 PG="m81-pg-$$"
-SIGNER="m81-issuer-$$"     # the REAL RS256 issuer (front-signer)
-TC="m81-tc-$$"             # tenant-control, JWT_ALG=RS256 + JWKS_URL
-KONG="m81-kong-$$"         # kong:3.8 DB-less, RS256 jwt-plugin on a protected route
-PORT_KONG="${M81_PORT_KONG:-18981}"   # Kong proxy (the public protected edge)
-PORT_TC="${M81_PORT_TC:-18982}"       # tenant-control direct (sanity only)
+SIGNER="m81-issuer-$$"              # the REAL RS256 issuer (front-signer)
+TC="m81-tc-$$"                      # tenant-control, JWT_ALG=RS256 + JWKS_URL
+KONG="m81-kong-$$"                  # kong:3.8 DB-less, RS256 jwt-plugin on a protected route
+PORT_KONG="${M81_PORT_KONG:-18981}" # Kong proxy (the public protected edge)
+PORT_TC="${M81_PORT_TC:-18982}"     # tenant-control direct (sanity only)
 PORT_SIGNER="${M81_PORT_SIGNER:-18983}"
 PGPW="postgres"
 SVC_TOKEN="m81-internal-service-token-$$-not-the-placeholder"
@@ -82,7 +85,7 @@ ISSUER="https://m81-issuer.test/auth/v1"
 DSN_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 JWKS_INNET="http://${SIGNER}:8080/.well-known/jwks.json"
 TC_INNET="http://${TC}:3022"
-SCRATCH="/mnt/storage/bench/m81-$$"          # host-side temp on the BIG disk only
+SCRATCH="/mnt/storage/bench/m81-$$" # host-side temp on the BIG disk only
 BODY="${SCRATCH}/body.json"
 HDRS="${SCRATCH}/hdrs.txt"
 KONG_YML="${SCRATCH}/kong.yml"
@@ -110,27 +113,27 @@ step "0/9 build scratch tenant-control from CURRENT source (the A6 RS256 verify 
 BUILD_CTX="${CP_DIR}"
 BUILD_SRC="working-tree"
 if ! DOCKER_BUILDKIT=1 docker build -q \
-     --build-arg APP=tenant-control --build-arg PORT=3022 \
-     -f "${CP_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${CP_DIR}" >"${SCRATCH}/build0.log" 2>&1; then
+  --build-arg APP=tenant-control --build-arg PORT=3022 \
+  -f "${CP_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${CP_DIR}" >"${SCRATCH}/build0.log" 2>&1; then
   red "  working-tree control-plane did not compile (UNRELATED in-flight breakage):"
   grep -E '\.go:[0-9]+:' "${SCRATCH}/build0.log" | head -6 | sed 's/^/    /' || true
   red "  the RS256 seam (jwt.go/jwks.go) is committed + byte-identical at HEAD — falling back to a clean HEAD export."
   ARCH_CTX="${SCRATCH}/cp-head"
   mkdir -p "${ARCH_CTX}"
-  git -C "${BAAS_DIR}" archive HEAD src/control-plane | tar -x -C "${ARCH_CTX}" 2>/dev/null \
-    || fail "git archive HEAD src/control-plane failed — cannot get a buildable source (line: archive HEAD)"
+  git -C "${BAAS_DIR}" archive HEAD src/control-plane | tar -x -C "${ARCH_CTX}" 2>/dev/null ||
+    fail "git archive HEAD src/control-plane failed — cannot get a buildable source (line: archive HEAD)"
   BUILD_CTX="${ARCH_CTX}/src/control-plane"
   # Guard: the fallback MUST carry the exact committed RS256 seam (this is the whole
   # point of the gate). If the seam differs from the working tree, the fallback would
   # be testing something other than current source — refuse.
-  diff -q "${BUILD_CTX}/internal/tenants/jwt.go"  "${CP_DIR}/internal/tenants/jwt.go"  >/dev/null 2>&1 \
-    || fail "HEAD jwt.go differs from working tree — RS256 seam is uncommitted; fix the working-tree build instead (line: seam parity jwt)"
-  diff -q "${BUILD_CTX}/internal/tenants/jwks.go" "${CP_DIR}/internal/tenants/jwks.go" >/dev/null 2>&1 \
-    || fail "HEAD jwks.go differs from working tree — RS256 seam is uncommitted; fix the working-tree build instead (line: seam parity jwks)"
+  diff -q "${BUILD_CTX}/internal/tenants/jwt.go" "${CP_DIR}/internal/tenants/jwt.go" >/dev/null 2>&1 ||
+    fail "HEAD jwt.go differs from working tree — RS256 seam is uncommitted; fix the working-tree build instead (line: seam parity jwt)"
+  diff -q "${BUILD_CTX}/internal/tenants/jwks.go" "${CP_DIR}/internal/tenants/jwks.go" >/dev/null 2>&1 ||
+    fail "HEAD jwks.go differs from working tree — RS256 seam is uncommitted; fix the working-tree build instead (line: seam parity jwks)"
   DOCKER_BUILDKIT=1 docker build -q \
     --build-arg APP=tenant-control --build-arg PORT=3022 \
-    -f "${BUILD_CTX}/Dockerfile" -t "${SCRATCH_IMG}" "${BUILD_CTX}" >/dev/null \
-    || fail "scratch tenant-control image build failed even from a clean HEAD export (line: docker build fallback)"
+    -f "${BUILD_CTX}/Dockerfile" -t "${SCRATCH_IMG}" "${BUILD_CTX}" >/dev/null ||
+    fail "scratch tenant-control image build failed even from a clean HEAD export (line: docker build fallback)"
   BUILD_SRC="HEAD-export (working tree broken by unrelated in-flight work; RS256 seam byte-identical)"
 fi
 ok "scratch image ${SCRATCH_IMG} built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') [${BUILD_SRC}]"
@@ -145,14 +148,21 @@ docker run -d --name "${SIGNER}" --network "${NET}" \
   "${NODE_IMAGE}" node /signer.mjs >/dev/null
 for i in $(seq 1 60); do
   curl -fsS -o /dev/null "http://127.0.0.1:${PORT_SIGNER}/.well-known/jwks.json" 2>/dev/null && break
-  docker inspect "${SIGNER}" >/dev/null 2>&1 || { red "issuer exited early:"; docker logs "${SIGNER}" 2>&1 | tail -15; fail "issuer crashed (line: signer ready)"; }
-  [[ $i -eq 60 ]] && { docker logs "${SIGNER}" 2>&1 | tail -15; fail "issuer never served JWKS (line: signer ready loop)"; }
+  docker inspect "${SIGNER}" >/dev/null 2>&1 || {
+    red "issuer exited early:"
+    docker logs "${SIGNER}" 2>&1 | tail -15
+    fail "issuer crashed (line: signer ready)"
+  }
+  [[ $i -eq 60 ]] && {
+    docker logs "${SIGNER}" 2>&1 | tail -15
+    fail "issuer never served JWKS (line: signer ready loop)"
+  }
   sleep 0.5
 done
 # The served JWKS MUST be a real RSA sig key with the expected kid (verify side).
 JWKS_DOC="$(curl -fsS "http://127.0.0.1:${PORT_SIGNER}/.well-known/jwks.json")"
 grep -q "\"kid\":\"${KID}\"" <<<"${JWKS_DOC}" || fail "JWKS missing kid ${KID} — ${JWKS_DOC} (line: jwks kid)"
-grep -q '"kty":"RSA"'        <<<"${JWKS_DOC}" || fail "JWKS key is not RSA — ${JWKS_DOC} (line: jwks kty)"
+grep -q '"kty":"RSA"' <<<"${JWKS_DOC}" || fail "JWKS key is not RSA — ${JWKS_DOC} (line: jwks kty)"
 # The SPKI PEM (Kong side) MUST be a real public key.
 PUBPEM="$(curl -fsS "http://127.0.0.1:${PORT_SIGNER}/pem")"
 grep -q 'BEGIN PUBLIC KEY' <<<"${PUBPEM}" || fail "issuer /pem not a PUBLIC KEY PEM — ${PUBPEM} (line: pem head)"
@@ -197,7 +207,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS tenant_api_keys_tenant_name_key
   ON public.tenant_api_keys (tenant_id, name) WHERE revoked_at IS NULL;
 SQL
 }
-for i in $(seq 1 20); do seed && break; [[ $i -eq 20 ]] && fail "schema seed never committed (line: seed loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  seed && break
+  [[ $i -eq 20 ]] && fail "schema seed never committed (line: seed loop)"
+  sleep 0.5
+done
 HAS_TENANTS="$(docker exec -i "${PG}" psql -U postgres -d postgres -tAc \
   "SELECT to_regclass('public.tenants') IS NOT NULL" 2>/dev/null | tr -d '[:space:]')"
 [[ "${HAS_TENANTS}" == "t" ]] || fail "public.tenants not created (line: HAS_TENANTS)"
@@ -220,17 +234,27 @@ docker run -d --name "${TC}" --network "${NET}" \
 # not just the port, so we never race ahead of a crash.
 TC_READY=""
 for i in $(seq 1 80); do
-  if docker logs "${TC}" 2>&1 | grep -q '"msg":"listening"'; then TC_READY=1; break; fi
+  if docker logs "${TC}" 2>&1 | grep -q '"msg":"listening"'; then
+    TC_READY=1
+    break
+  fi
   if ! docker ps --format '{{.Names}}' | grep -qx "${TC}"; then
-    red "tenant-control exited early:"; docker logs "${TC}" 2>&1 | tail -20
+    red "tenant-control exited early:"
+    docker logs "${TC}" 2>&1 | tail -20
     fail "tenant-control crashed before listening — see logs above (line: TC ready)"
   fi
-  [[ $i -eq 80 ]] && { docker logs "${TC}" 2>&1 | tail -20; fail "tenant-control never logged 'listening' (line: TC ready loop)"; }
+  [[ $i -eq 80 ]] && {
+    docker logs "${TC}" 2>&1 | tail -20
+    fail "tenant-control never logged 'listening' (line: TC ready loop)"
+  }
   sleep 0.5
 done
 [[ -n "${TC_READY}" ]] || fail "tenant-control readiness not confirmed (line: TC_READY)"
 # It must have come up in RS256 mode — the verifier-enabled line names the issuer.
-docker logs "${TC}" 2>&1 | grep -q '"msg":"jwt verifier enabled"' || { docker logs "${TC}" 2>&1 | tail -20; fail "tenant-control did not enable the jwt verifier (line: TC verifier log)"; }
+docker logs "${TC}" 2>&1 | grep -q '"msg":"jwt verifier enabled"' || {
+  docker logs "${TC}" 2>&1 | tail -20
+  fail "tenant-control did not enable the jwt verifier (line: TC verifier log)"
+}
 ok "tenant-control up (JWT_ALG=RS256, JWKS_URL=${JWKS_INNET})"
 
 # ── 4) generate the Kong DB-less config with the issuer's RS256 public key ──────
@@ -243,7 +267,7 @@ ok "tenant-control up (JWT_ALG=RS256, JWKS_URL=${JWKS_INNET})"
 step "4/9 write Kong DB-less config (authenticated consumer: RS256 rsa_public_key from the issuer)"
 # Indent the PEM 10 spaces so it nests under the YAML scalar (rsa_public_key: |).
 PEM_INDENTED="$(printf '%s\n' "${PUBPEM}" | sed 's/^/          /')"
-cat > "${KONG_YML}" <<KONGEOF
+cat >"${KONG_YML}" <<KONGEOF
 _format_version: "3.0"
 consumers:
   - username: authenticated
@@ -322,16 +346,27 @@ docker run -d --name "${KONG}" --network "${NET}" \
 KONG_READY=""
 for i in $(seq 1 120); do
   code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT_KONG}/edge/bootstrap" 2>/dev/null || echo 000)"
-  [[ "${code}" == "401" ]] && { KONG_READY=1; break; }
-  docker inspect "${KONG}" >/dev/null 2>&1 || { red "kong exited early:"; docker logs "${KONG}" 2>&1 | tail -25; fail "kong crashed — config likely rejected (line: KONG ready)"; }
-  [[ $i -eq 120 ]] && { red "last code from /edge/bootstrap: ${code}"; docker logs "${KONG}" 2>&1 | tail -25; fail "kong never served a protected-route 401 (line: KONG ready loop)"; }
+  [[ "${code}" == "401" ]] && {
+    KONG_READY=1
+    break
+  }
+  docker inspect "${KONG}" >/dev/null 2>&1 || {
+    red "kong exited early:"
+    docker logs "${KONG}" 2>&1 | tail -25
+    fail "kong crashed — config likely rejected (line: KONG ready)"
+  }
+  [[ $i -eq 120 ]] && {
+    red "last code from /edge/bootstrap: ${code}"
+    docker logs "${KONG}" 2>&1 | tail -25
+    fail "kong never served a protected-route 401 (line: KONG ready loop)"
+  }
   sleep 0.5
 done
 [[ -n "${KONG_READY}" ]] || fail "kong readiness not confirmed (line: KONG_READY)"
 ok "kong:3.8 up on 127.0.0.1:${PORT_KONG} (DB-less; jwt-plugin live — no-token GET -> 401)"
 
 # ── helpers ────────────────────────────────────────────────────────────────────
-tok() { curl -fsS "http://127.0.0.1:${PORT_SIGNER}/token/$1"; }    # mint by kind
+tok() { curl -fsS "http://127.0.0.1:${PORT_SIGNER}/token/$1"; } # mint by kind
 # POST through KONG; echo the HTTP status (body->$BODY, headers->$HDRS). Tolerant of
 # Kong's brief worker spin-up window: curl exit 7/52/56 (connect reset / empty reply)
 # is a NOT-READY signal, retried up to ~10s; a real HTTP status is returned at once.
@@ -341,11 +376,15 @@ post_kong() { # $1=token
   for _ in $(seq 1 20); do
     code="$(curl -s -D "${HDRS}" -o "${BODY}" -w '%{http_code}' \
       -X POST "http://127.0.0.1:${PORT_KONG}/edge/bootstrap" \
-      -H "Authorization: Bearer $1" -H 'Content-Length: 0' 2>/dev/null)"; rc=$?
-    if [[ ${rc} -eq 0 && "${code}" != "000" ]]; then printf '%s' "${code}"; return 0; fi
+      -H "Authorization: Bearer $1" -H 'Content-Length: 0' 2>/dev/null)"
+    rc=$?
+    if [[ ${rc} -eq 0 && "${code}" != "000" ]]; then
+      printf '%s' "${code}"
+      return 0
+    fi
     sleep 0.5
   done
-  printf '000'   # never connected — caller's assertion will name the arm that failed
+  printf '000' # never connected — caller's assertion will name the arm that failed
 }
 
 # ── 6) ACCEPT: a REAL-issuer RS256 token -> Kong 200/201 end-to-end ────────────
@@ -357,15 +396,20 @@ VALID_TOK="$(tok valid)"
 # Sanity: assert the token header REALLY is alg=RS256 with the published kid (off the
 # token itself, not self-reported) before trusting the end-to-end result. base64url
 # -> base64 (translate alphabet + restore '=' padding, which GNU base64 -d requires).
-b64url_decode() { local s="${1//-/+}"; s="${s//_//}"; case $(( ${#s} % 4 )) in 2) s+='==';; 3) s+='=';; esac; printf '%s' "$s" | base64 -d 2>/dev/null || true; }
+b64url_decode() {
+  local s="${1//-/+}"
+  s="${s//_//}"
+  case $((${#s} % 4)) in 2) s+='==' ;; 3) s+='=' ;; esac
+  printf '%s' "$s" | base64 -d 2>/dev/null || true
+}
 HDR_JSON="$(b64url_decode "$(printf '%s' "${VALID_TOK}" | cut -d. -f1)")"
 grep -q '"alg":"RS256"' <<<"${HDR_JSON}" || fail "minted token header is not alg=RS256 — ${HDR_JSON} (line: token alg)"
 grep -q "\"kid\":\"${KID}\"" <<<"${HDR_JSON}" || fail "minted token header kid != ${KID} — ${HDR_JSON} (line: token kid)"
 code="$(post_kong "${VALID_TOK}")"
-[[ "${code}" == "201" ]] \
-  || fail "ACCEPT expected 201 through Kong, got ${code} — $(head -c 400 "${BODY}") ; kong: $(docker logs "${KONG}" 2>&1 | tail -5) (line: ACCEPT status)"
-grep -q '"key"' "${BODY}" || grep -q '"api_key"' "${BODY}" \
-  || fail "ACCEPT 201 but no minted key in body — $(head -c 400 "${BODY}") (line: ACCEPT body)"
+[[ "${code}" == "201" ]] ||
+  fail "ACCEPT expected 201 through Kong, got ${code} — $(head -c 400 "${BODY}") ; kong: $(docker logs "${KONG}" 2>&1 | tail -5) (line: ACCEPT status)"
+grep -q '"key"' "${BODY}" || grep -q '"api_key"' "${BODY}" ||
+  fail "ACCEPT 201 but no minted key in body — $(head -c 400 "${BODY}") (line: ACCEPT body)"
 ok "real-issuer RS256 token ACCEPTED end-to-end: Kong(RS256) -> tenant-control(JWKS) -> 201 + minted key"
 
 # ── 7) ACCEPT: Kong forwarded the correct X-User-Id from the verified token ────
@@ -376,8 +420,8 @@ step "7/9 ACCEPT — Kong forwarded a TRUSTED X-User-Id derived from the verifie
 # tenant-control stamps owner_user_id from the verified token sub; read it back from PG.
 OWNER="$(docker exec -i "${PG}" psql -U postgres -d postgres -tAc \
   "SELECT owner_user_id FROM public.tenants ORDER BY created_at DESC LIMIT 1" 2>/dev/null | tr -d '[:space:]')"
-[[ "${OWNER}" == "m81-user-valid" ]] \
-  || fail "bootstrapped tenant owner '${OWNER}' != token sub 'm81-user-valid' — identity not derived from the verified RS256 token (line: owner check)"
+[[ "${OWNER}" == "m81-user-valid" ]] ||
+  fail "bootstrapped tenant owner '${OWNER}' != token sub 'm81-user-valid' — identity not derived from the verified RS256 token (line: owner check)"
 ok "tenant bootstrapped for owner '${OWNER}' = the verified token's sub (X-User-Id is server-derived, not forgeable)"
 
 # ── 8) REJECT (load-bearing, off Kong's wire): forgeries/wrong-key/unknown-kid/none ─
@@ -385,14 +429,15 @@ ok "tenant bootstrapped for owner '${OWNER}' = the verified token's sub (X-User-
 # decorative. The HS->RS confusion (HS256 signed with the RSA modulus) is the marquee.
 step "8/9 REJECT (load-bearing) — every attack token must be 401 at Kong's edge"
 assert_reject() { # $1=kind  $2=human label
-  local c; c="$(post_kong "$(tok "$1")")"
+  local c
+  c="$(post_kong "$(tok "$1")")"
   [[ "${c}" == "401" ]] || fail "REJECT ${2}: expected 401 at Kong, got ${c} — $(head -c 300 "${BODY}") (line: reject ${1} status)"
   ok "${2} REJECTED — 401 (read off Kong's wire)"
 }
-assert_reject hsforge    "RS->HS algorithm-confusion forgery (HS256 signed with the RSA modulus)"
-assert_reject wrongkey   "RS256 token signed by an UNRELATED key (signature mismatch)"
+assert_reject hsforge "RS->HS algorithm-confusion forgery (HS256 signed with the RSA modulus)"
+assert_reject wrongkey "RS256 token signed by an UNRELATED key (signature mismatch)"
 assert_reject unknownkid "RS256 token with a kid absent from the issuer's JWKS"
-assert_reject none       "alg=none downgrade"
+assert_reject none "alg=none downgrade"
 ok "all four attack classes REJECTED 401 at Kong while the valid token got 201 — reject arm is discriminating, not vacuous"
 
 # ── 9) negative control: no bearer -> Kong 401 (the route really IS protected) ──
@@ -406,8 +451,8 @@ green "[M81] ALL GATES GREEN — a REAL RS256 ISSUER (real RSA key + real JWKS +
 
 if [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]]; then
   AGENT_RUN="${AGENT_RUN:-m81-$$}" AGENT_TASK="${AGENT_TASK:-A6-rs256-issuer}" \
-  AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_PHASE="${AGENT_PHASE:-PROVE}" \
-  bash -c 'source "'"${CLAUDE_DIR}"'/lib/log.sh"
+    AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_PHASE="${AGENT_PHASE:-PROVE}" \
+    bash -c 'source "'"${CLAUDE_DIR}"'/lib/log.sh"
     log_event REPORT --outcome PASS --gate m81=PASS \
       --ref scripts/verify/m81-rs256-issuer.sh \
       --msg "G-RS256 ISSUER: real RS256 issuer (RSA key+JWKS+PEM) -> Kong:3.8 RS256 jwt-plugin (200/201, trusted X-User-Id=sub) -> tenant-control JWKS (201+key); HS-forge/wrong-key/unknown-kid/none/no-bearer all 401 off Kong wire. prove-on-scratch, live issuer/Kong/compose not flipped" \

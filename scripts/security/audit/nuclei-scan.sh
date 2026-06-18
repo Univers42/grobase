@@ -47,8 +47,8 @@ NUCLEI_IMAGE="${NUCLEI_IMAGE:-projectdiscovery/nuclei:latest}"
 FAIL_LEVEL="$(printf '%s' "${AUDIT_FAIL_LEVEL:-high}" | tr '[:upper:]' '[:lower:]')"
 RATE="${NUCLEI_RATE:-50}"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 amber() { printf '\033[0;33m%s\033[0m\n' "$*"; }
 
@@ -65,8 +65,8 @@ trap on_exit EXIT
 cyan "[nuclei] template DAST against ${TARGET} @ $(date -u +%FT%TZ)"
 
 # ── live-stack guard: probe the target first, no-op clearly if unreachable ───
-if ! curl -ksS -o /dev/null -w '%{http_code}' --max-time 5 "${TARGET}" 2>/dev/null \
-     | grep -qE "^[2-5][0-9][0-9]$"; then
+if ! curl -ksS -o /dev/null -w '%{http_code}' --max-time 5 "${TARGET}" 2>/dev/null |
+  grep -qE "^[2-5][0-9][0-9]$"; then
   amber "[nuclei] target ${TARGET} unreachable — SKIPPING (bring the stack up: make up EDITION=query)"
   amber "[nuclei] this scanner needs the live Kong gateway; nothing to scan, exiting cleanly"
   exit 2
@@ -75,11 +75,11 @@ green "[nuclei] target responded — proceeding"
 
 # ── severity set at-or-above the fail-level (Nuclei takes a comma list) ──────
 case "${FAIL_LEVEL}" in
-  critical) SEV="critical" ;;
-  high)     SEV="critical,high" ;;
-  medium)   SEV="critical,high,medium" ;;
-  low)      SEV="critical,high,medium,low" ;;
-  *)        SEV="critical,high" ;;
+critical) SEV="critical" ;;
+high) SEV="critical,high" ;;
+medium) SEV="critical,high,medium" ;;
+low) SEV="critical,high,medium,low" ;;
+*) SEV="critical,high" ;;
 esac
 
 # Nuclei caches its template repo in a volume so re-runs don't re-clone.
@@ -94,16 +94,16 @@ docker run --rm \
   -v "${REPO_ROOT}/${ARTIFACTS_DIR}:/out" \
   -v "${REPO_ROOT}/${TPL_CACHE}:/root/nuclei-templates" \
   "${NUCLEI_IMAGE}" \
-    -target "${TARGET}" \
-    -severity "${SEV}" \
-    -rate-limit "${RATE}" \
-    -jsonl -o /out/nuclei.jsonl \
-    -stats -duc -nc \
-    2>&1 | tail -40 || true
+  -target "${TARGET}" \
+  -severity "${SEV}" \
+  -rate-limit "${RATE}" \
+  -jsonl -o /out/nuclei.jsonl \
+  -stats -duc -nc \
+  2>&1 | tail -40 || true
 
 if [[ ! -f "${JSON_OUT}" ]]; then
   # Nuclei writes the file only when there is >=1 finding; absence == clean.
-  : > "${JSON_OUT}"
+  : >"${JSON_OUT}"
 fi
 
 count=$(grep -c '"template-id"' "${JSON_OUT}" 2>/dev/null || echo 0)

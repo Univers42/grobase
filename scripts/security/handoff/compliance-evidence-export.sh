@@ -57,11 +57,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # scripts/security/handoff -> mini-baas-infra
 BAAS_INFRA="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-BAAS_DIR="$(cd "${BAAS_INFRA}/.." && pwd)"            # apps/baas
+BAAS_DIR="$(cd "${BAAS_INFRA}/.." && pwd)" # apps/baas
 cd "${BAAS_INFRA}"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 amber() { printf '\033[0;33m%s\033[0m\n' "$*"; }
 
@@ -118,8 +118,8 @@ GATE_LIST="${OUT_DIR}/gate-scripts.txt"
   echo "# Or the full enterprise battery:"
   echo "#   bash apps/baas/mini-baas-infra/scripts/verify/run-gate-battery.sh --enterprise"
   echo "#"
-  ( cd "${BAAS_INFRA}/scripts/verify" && ls -1 m*.sh 2>/dev/null | sort -V )
-} > "${GATE_LIST}"
+  (cd "${BAAS_INFRA}/scripts/verify" && ls -1 m*.sh 2>/dev/null | sort -V)
+} >"${GATE_LIST}"
 GATE_COUNT="$(grep -cE '^m' "${GATE_LIST}" || echo 0)"
 green "[handoff] enumerated ${GATE_COUNT} verify gate scripts → gate-scripts.txt"
 
@@ -127,23 +127,23 @@ green "[handoff] enumerated ${GATE_COUNT} verify gate scripts → gate-scripts.t
 SRC_BATTERY="${BAAS_INFRA}/artifacts/gate-battery"
 BATTERY_COUNT=0
 mkdir -p "${OUT_DIR}/gate-battery-logs"
-if compgen -G "${SRC_BATTERY}/*.log" > /dev/null 2>&1; then
+if compgen -G "${SRC_BATTERY}/*.log" >/dev/null 2>&1; then
   cp -a "${SRC_BATTERY}"/*.log "${OUT_DIR}/gate-battery-logs/" 2>/dev/null || true
   BATTERY_COUNT="$(find "${OUT_DIR}/gate-battery-logs" -name '*.log' | wc -l | tr -d ' ')"
   green "[handoff] copied ${BATTERY_COUNT} gate-battery log(s)"
 else
   amber "[handoff] no artifacts/gate-battery/*.log yet — run run-gate-battery.sh --enterprise to populate"
   echo "No gate-battery logs were present at export time (${GEN_AT})." \
-    > "${OUT_DIR}/gate-battery-logs/_NONE.txt"
+    >"${OUT_DIR}/gate-battery-logs/_NONE.txt"
   echo "Generate them with: bash scripts/verify/run-gate-battery.sh --enterprise" \
-    >> "${OUT_DIR}/gate-battery-logs/_NONE.txt"
+    >>"${OUT_DIR}/gate-battery-logs/_NONE.txt"
 fi
 
 # ── 6) (optional) live sealed evidence snapshots — only if the flag is ON ───────
 LIVE_DIR="${OUT_DIR}/live-evidence"
 mkdir -p "${LIVE_DIR}"
 LIVE_PULLED="no"
-flag_on() { case "${1:-}" in 1|true|TRUE|yes|on) return 0;; *) return 1;; esac; }
+flag_on() { case "${1:-}" in 1 | true | TRUE | yes | on) return 0 ;; *) return 1 ;; esac }
 
 if flag_on "${SOC2_EVIDENCE_ENABLED:-}"; then
   if curl -fsS -o /dev/null --max-time 4 "${COMPLIANCE_BASE_URL}/v1/compliance/evidence" 2>/dev/null; then
@@ -166,7 +166,7 @@ else
 fi
 
 if [[ "${LIVE_PULLED}" == "no" ]]; then
-  cat > "${LIVE_DIR}/_HOW-TO-COLLECT.md" <<EOF
+  cat >"${LIVE_DIR}/_HOW-TO-COLLECT.md" <<EOF
 # Live sealed evidence — not included in this bundle
 
 The SOC2-lite continuous evidence collector (gate \`m108\`, internal/compliance,
@@ -200,7 +200,7 @@ fi
 # ── 7) the MANIFEST — self-describing index + per-item re-verify recipe ─────────
 COMPLIANCE_FILES="$(find "${OUT_DIR}/wiki-compliance" -type f | wc -l | tr -d ' ')"
 MANIFEST="${OUT_DIR}/MANIFEST.md"
-cat > "${MANIFEST}" <<EOF
+cat >"${MANIFEST}" <<EOF
 # Grobase BaaS — Audit Hand-off Bundle
 
 > **What this is.** The self-describing evidence package handed to a SOC 2
@@ -320,10 +320,10 @@ green "[handoff] wrote MANIFEST.md"
 
 # ── 8) sha256sums over the whole bundle (excluding the sums file itself) ────────
 SUMS="${OUT_DIR}/sha256sums.txt"
-( cd "${OUT_DIR}" && find . -type f ! -name 'sha256sums.txt' -print0 \
-    | sort -z \
-    | xargs -0 sha256sum > sha256sums.txt )
-SUMS_COUNT="$(wc -l < "${SUMS}" | tr -d ' ')"
+(cd "${OUT_DIR}" && find . -type f ! -name 'sha256sums.txt' -print0 |
+  sort -z |
+  xargs -0 sha256sum >sha256sums.txt)
+SUMS_COUNT="$(wc -l <"${SUMS}" | tr -d ' ')"
 green "[handoff] wrote sha256sums.txt over ${SUMS_COUNT} files"
 
 # ── done ───────────────────────────────────────────────────────────────────────

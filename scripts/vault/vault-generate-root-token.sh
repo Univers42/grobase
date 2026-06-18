@@ -85,7 +85,7 @@ fi
 VAULT_TOKEN="$root_token" vault token lookup -format=json >/dev/null
 
 keys_tmp="${VAULT_KEYS_FILE}.tmp"
-jq --arg root_token "$root_token" '.root_token = $root_token' "$VAULT_KEYS_FILE" > "$keys_tmp"
+jq --arg root_token "$root_token" '.root_token = $root_token' "$VAULT_KEYS_FILE" >"$keys_tmp"
 chmod 600 "$keys_tmp"
 chown vault:vault "$keys_tmp" 2>/dev/null || true
 mv "$keys_tmp" "$VAULT_KEYS_FILE"

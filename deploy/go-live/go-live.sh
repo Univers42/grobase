@@ -56,44 +56,47 @@ set -euo pipefail
 
 # ── locate the repo so the script is runnable from anywhere ──────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"          # mini-baas-infra
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
 CHART_DIR="${INFRA_DIR}/deploy/helm/grobase"
 CLOUD_FLAGS="${INFRA_DIR}/config/cloud/flags.env.cloud"
 
 # ── presentation ─────────────────────────────────────────────────────────────
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-yellow(){ printf '\033[0;33m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-dim()   { printf '\033[0;90m%s\033[0m\n' "$*"; }
-step()  { cyan  "[GO-LIVE] $*"; }
-ok()    { green "  ✓ $*"; }
-note()  { dim   "      $*"; }
-die()   { red   "[GO-LIVE] FATAL — $*"; exit 1; }
+yellow() { printf '\033[0;33m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+dim() { printf '\033[0;90m%s\033[0m\n' "$*"; }
+step() { cyan "[GO-LIVE] $*"; }
+ok() { green "  ✓ $*"; }
+note() { dim "      $*"; }
+die() {
+  red "[GO-LIVE] FATAL — $*"
+  exit 1
+}
 
 # ── knobs (all overridable; sane prod defaults) ──────────────────────────────
-APPLY="${GO_LIVE_APPLY:-0}"                       # 0 = DRY-RUN (default), 1 = really apply
+APPLY="${GO_LIVE_APPLY:-0}" # 0 = DRY-RUN (default), 1 = really apply
 RELEASE="${GO_LIVE_RELEASE:-grobase}"
 NAMESPACE="${GO_LIVE_NAMESPACE:-grobase}"
 IMAGE_REGISTRY="${GO_LIVE_IMAGE_REGISTRY:-ghcr.io/les-baas}"
 IMAGE_TAG="${GO_LIVE_IMAGE_TAG:-1.2.0}"
-TLS_SECRET="${GO_LIVE_TLS_SECRET:-grobase-api-tls}"   # name of the K8s TLS secret (cert-manager or pre-created)
-TOKEN_TTL_S="${GO_LIVE_TOKEN_TTL_S:-3600}"            # GOTRUE_JWT_EXP — the HS256 rollback window
+TLS_SECRET="${GO_LIVE_TLS_SECRET:-grobase-api-tls}" # name of the K8s TLS secret (cert-manager or pre-created)
+TOKEN_TTL_S="${GO_LIVE_TOKEN_TTL_S:-3600}"          # GOTRUE_JWT_EXP — the HS256 rollback window
 SMOKE_TIMEOUT_S="${GO_LIVE_SMOKE_TIMEOUT_S:-120}"
 
 # ── REQUIRED env (the 9 human atoms) ─────────────────────────────────────────
 # Each MUST be set or the run fails-fast naming the exact variable. These are the
 # secrets/values a script CANNOT invent — see deploy/go-live/README.md.
 REQUIRED_VARS=(
-  STRIPE_LIVE_KEY          # sk_live_… — Stripe Dashboard → Developers → API keys
-  STRIPE_WEBHOOK_SECRET    # whsec_…   — Stripe Dashboard → Developers → Webhooks
-  GO_LIVE_DOMAIN           # api.yourco.com — the public hostname the Ingress fronts
-  KUBECONFIG               # path to the kubeconfig for the target cluster
-  SMTP_HOST                # transactional email host (e.g. smtp.postmarkapp.com)
-  SMTP_USER                # SMTP username / API token id
-  SMTP_PASS                # SMTP password / API token
-  RS256_PRIVATE_KEY        # the issuer's RSA private key (PEM) OR a JWK set — see README
-  RS256_JWKS_URL           # https://<issuer>/auth/v1/.well-known/jwks.json (public half)
+  STRIPE_LIVE_KEY       # sk_live_… — Stripe Dashboard → Developers → API keys
+  STRIPE_WEBHOOK_SECRET # whsec_…   — Stripe Dashboard → Developers → Webhooks
+  GO_LIVE_DOMAIN        # api.yourco.com — the public hostname the Ingress fronts
+  KUBECONFIG            # path to the kubeconfig for the target cluster
+  SMTP_HOST             # transactional email host (e.g. smtp.postmarkapp.com)
+  SMTP_USER             # SMTP username / API token id
+  SMTP_PASS             # SMTP password / API token
+  RS256_PRIVATE_KEY     # the issuer's RSA private key (PEM) OR a JWK set — see README
+  RS256_JWKS_URL        # https://<issuer>/auth/v1/.well-known/jwks.json (public half)
 )
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -110,27 +113,27 @@ if [[ ${#MISSING[@]} -gt 0 ]]; then
   die "set the variable(s) above (see deploy/go-live/README.md) then re-run. NOTHING was applied."
 fi
 # Honest, cheap shape checks (catch the classic paste-the-wrong-thing mistake).
-[[ "${STRIPE_LIVE_KEY}" == sk_live_* ]] \
-  || die "STRIPE_LIVE_KEY does not look like a LIVE key (expected sk_live_… ; a sk_test_… is the SANDBOX). NOTHING applied."
-[[ "${STRIPE_WEBHOOK_SECRET}" == whsec_* ]] \
-  || die "STRIPE_WEBHOOK_SECRET does not look like a Stripe webhook secret (expected whsec_…). NOTHING applied."
-[[ "${RS256_JWKS_URL}" =~ ^https:// ]] \
-  || die "RS256_JWKS_URL must be an https URL (the public JWKS endpoint). NOTHING applied."
-[[ -f "${KUBECONFIG}" ]] \
-  || die "KUBECONFIG='${KUBECONFIG}' is not a readable file. NOTHING applied."
-[[ -f "${CHART_DIR}/Chart.yaml" ]] \
-  || die "production chart not found at ${CHART_DIR} (expected deploy/helm/grobase/Chart.yaml)."
-[[ -f "${CLOUD_FLAGS}" ]] \
-  || die "cloud flags manifest not found at ${CLOUD_FLAGS} (expected config/cloud/flags.env.cloud)."
+[[ "${STRIPE_LIVE_KEY}" == sk_live_* ]] ||
+  die "STRIPE_LIVE_KEY does not look like a LIVE key (expected sk_live_… ; a sk_test_… is the SANDBOX). NOTHING applied."
+[[ "${STRIPE_WEBHOOK_SECRET}" == whsec_* ]] ||
+  die "STRIPE_WEBHOOK_SECRET does not look like a Stripe webhook secret (expected whsec_…). NOTHING applied."
+[[ "${RS256_JWKS_URL}" =~ ^https:// ]] ||
+  die "RS256_JWKS_URL must be an https URL (the public JWKS endpoint). NOTHING applied."
+[[ -f "${KUBECONFIG}" ]] ||
+  die "KUBECONFIG='${KUBECONFIG}' is not a readable file. NOTHING applied."
+[[ -f "${CHART_DIR}/Chart.yaml" ]] ||
+  die "production chart not found at ${CHART_DIR} (expected deploy/helm/grobase/Chart.yaml)."
+[[ -f "${CLOUD_FLAGS}" ]] ||
+  die "cloud flags manifest not found at ${CLOUD_FLAGS} (expected config/cloud/flags.env.cloud)."
 # RS256_PRIVATE_KEY may be a PEM blob or a path to one — accept either, normalise.
 if [[ -f "${RS256_PRIVATE_KEY}" ]]; then RS256_PRIVATE_KEY="$(cat "${RS256_PRIVATE_KEY}")"; fi
-[[ "${RS256_PRIVATE_KEY}" == *"PRIVATE KEY"* || "${RS256_PRIVATE_KEY}" == *'"kty"'* ]] \
-  || die "RS256_PRIVATE_KEY is neither a PEM '… PRIVATE KEY …' nor a JWK (with \"kty\"). NOTHING applied."
+[[ "${RS256_PRIVATE_KEY}" == *"PRIVATE KEY"* || "${RS256_PRIVATE_KEY}" == *'"kty"'* ]] ||
+  die "RS256_PRIVATE_KEY is neither a PEM '… PRIVATE KEY …' nor a JWK (with \"kty\"). NOTHING applied."
 ok "all 9 required vars present and shape-valid"
 note "Stripe key: LIVE (sk_live_…) · domain: ${GO_LIVE_DOMAIN} · cluster: ${KUBECONFIG}"
 
 # tools
-command -v helm    >/dev/null 2>&1 || die "helm not on PATH (need helm 3.x)."
+command -v helm >/dev/null 2>&1 || die "helm not on PATH (need helm 3.x)."
 command -v kubectl >/dev/null 2>&1 || die "kubectl not on PATH."
 
 # ── mode banner ──────────────────────────────────────────────────────────────
@@ -176,7 +179,7 @@ declare -a SET_FLAGS=(
   "env.configMap.METERING_ENABLED=1"
   "env.configMap.METERING_INGEST=1"
   "env.configMap.DATA_PLANE_METERING=1"
-  "env.configMap.DATA_PLANE_METERING_FLUSH_MS=60000"        # prod default (manifest lowers to 2000 for m94)
+  "env.configMap.DATA_PLANE_METERING_FLUSH_MS=60000" # prod default (manifest lowers to 2000 for m94)
   # B2 quota — staged-safe: go live at WARN, not a surprise 402 (README ladder R4→R5)
   "env.configMap.QUOTA_STAGE=${GO_LIVE_QUOTA_STAGE:-warn}"
   "env.configMap.QUOTA_ENFORCEMENT=${GO_LIVE_QUOTA_ENFORCEMENT:-0}"
@@ -185,7 +188,7 @@ declare -a SET_FLAGS=(
   "env.configMap.DATA_PLANE_QUOTA_REFRESH_MS=15000"
   # B3 billing → LIVE Stripe
   "env.configMap.BILLING_ENABLED=1"
-  "env.configMap.BILLING_REPORT_INTERVAL_MS=3600000"        # prod default (hourly)
+  "env.configMap.BILLING_REPORT_INTERVAL_MS=3600000" # prod default (hourly)
   "env.configMap.STRIPE_API_BASE=${GO_LIVE_STRIPE_API_BASE:-https://api.stripe.com}"
   "env.configMap.BILLING_METER_QUERY_COUNT=grobase_query_count"
   "env.configMap.BILLING_METER_WRITE_ROWS=grobase_write_rows"
@@ -222,14 +225,16 @@ declare -a SET_FLAGS=(
 verify_flag_names_match_manifest() {
   local missing=0 name
   for kv in "${SET_FLAGS[@]}"; do
-    name="${kv#env.configMap.}"; name="${name%%=*}"
+    name="${kv#env.configMap.}"
+    name="${name%%=*}"
     case "${name}" in
-      # RS256 + SMTP + GOTRUE_JWT_EXP + STRIPE_API_BASE + QUOTA_STAGE are deploy-env
-      # / already-present manifest header values, not B-flag boolean entries — skip.
-      JWT_ALG|JWKS_URL|SMTP_HOST|SMTP_USER|GOTRUE_JWT_EXP) continue ;;
+    # RS256 + SMTP + GOTRUE_JWT_EXP + STRIPE_API_BASE + QUOTA_STAGE are deploy-env
+    # / already-present manifest header values, not B-flag boolean entries — skip.
+    JWT_ALG | JWKS_URL | SMTP_HOST | SMTP_USER | GOTRUE_JWT_EXP) continue ;;
     esac
     if ! grep -q "^${name}=" "${CLOUD_FLAGS}"; then
-      red "    flag '${name}' set ON here but ABSENT from ${CLOUD_FLAGS} (source of truth)"; missing=1
+      red "    flag '${name}' set ON here but ABSENT from ${CLOUD_FLAGS} (source of truth)"
+      missing=1
     fi
   done
   [[ ${missing} -eq 0 ]] || die "cloud-flag list drifted from the manifest — fix go-live.sh SET_FLAGS or the manifest."
@@ -244,8 +249,9 @@ ok "cloud-flag names cross-checked against ${CLOUD_FLAGS##*/} (no drift)"
 
 # RS256 private key via --set-file from a 600-mode temp file (multi-line PEM/JWK),
 # removed on exit. The private key is the kingdom — never on a command line.
-RS256_KEY_TMP="$(mktemp)"; chmod 600 "${RS256_KEY_TMP}"
-printf '%s' "${RS256_PRIVATE_KEY}" > "${RS256_KEY_TMP}"
+RS256_KEY_TMP="$(mktemp)"
+chmod 600 "${RS256_KEY_TMP}"
+printf '%s' "${RS256_PRIVATE_KEY}" >"${RS256_KEY_TMP}"
 cleanup() { rm -f "${RS256_KEY_TMP}" 2>/dev/null || true; }
 trap cleanup EXIT
 
@@ -284,38 +290,40 @@ dim "        --set-file env.secret.data.RS256_PRIVATE_KEY=*** (PEM/JWK, masked)"
 [[ "${APPLY}" == "1" ]] && dim "        --atomic --timeout 10m" || dim "        (dry-run: rendered OFFLINE via helm template — no cluster contact)"
 
 # Capture the prior revision NOW (for the rollback hint), before we change anything.
-PRIOR_REV="$(KUBECONFIG="${KUBECONFIG}" helm -n "${NAMESPACE}" history "${RELEASE}" 2>/dev/null \
-  | awk 'END{print $1}' | grep -E '^[0-9]+$' || echo "0")"
+PRIOR_REV="$(KUBECONFIG="${KUBECONFIG}" helm -n "${NAMESPACE}" history "${RELEASE}" 2>/dev/null |
+  awk 'END{print $1}' | grep -E '^[0-9]+$' || echo "0")"
 
 if [[ "${APPLY}" == "1" ]]; then
   # REAL apply against the live cluster (atomic: a failed upgrade rolls back).
   KUBECONFIG="${KUBECONFIG}" helm upgrade --install "${RELEASE}" "${CHART_DIR}" \
-    "${HELM_PUBLIC_ARGS[@]}" "${HELM_SECRET_ARGS[@]}" --atomic --timeout 10m \
-    || die "helm upgrade --install failed — release rolled back atomically (cluster unchanged); check the output above."
+    "${HELM_PUBLIC_ARGS[@]}" "${HELM_SECRET_ARGS[@]}" --atomic --timeout 10m ||
+    die "helm upgrade --install failed — release rolled back atomically (cluster unchanged); check the output above."
   ok "release ${RELEASE} upgraded/installed (B-track flags ON, RS256 verifier wired, LIVE Stripe in the Secret)"
 else
   # DRY-RUN: render OFFLINE with `helm template` (no cluster needed) so the preview
   # always works, validates the chart + every --set, and proves the flags/secret/
   # ingress wiring — WITHOUT touching or even reaching a cluster. Output is summarised
   # (not dumped — kernel rule 10) and stored for the operator to inspect in full.
-  RENDER_OUT="$(mktemp)"; RENDER_ERR="$(mktemp)"
+  RENDER_OUT="$(mktemp)"
+  RENDER_ERR="$(mktemp)"
   if KUBECONFIG="${KUBECONFIG}" helm template "${RELEASE}" "${CHART_DIR}" \
-       "${HELM_PUBLIC_ARGS[@]}" "${HELM_SECRET_ARGS[@]}" >"${RENDER_OUT}" 2>"${RENDER_ERR}"; then
+    "${HELM_PUBLIC_ARGS[@]}" "${HELM_SECRET_ARGS[@]}" >"${RENDER_OUT}" 2>"${RENDER_ERR}"; then
     note "rendered objects: $(grep -cE '^kind:' "${RENDER_OUT}") manifests —"
     grep -E '^kind:' "${RENDER_OUT}" | sort | uniq -c | sed 's/^/        /'
-    grep -q 'JWT_ALG: "RS256"' "${RENDER_OUT}" \
-      && ok "ConfigMap carries the cloud flags + JWT_ALG=RS256 (verified in the render)" \
-      || yellow "  render did not show JWT_ALG=RS256 in a ConfigMap — inspect ${RENDER_OUT}"
-    grep -q 'kind: Secret' "${RENDER_OUT}" \
-      && ok "Secret rendered for STRIPE/SMTP/RS256 (values base64'd, NOT printed here)" \
-      || yellow "  no Secret rendered — env.secret.create may not have applied"
-    grep -q "host: \"${GO_LIVE_DOMAIN}\"" "${RENDER_OUT}" \
-      && ok "Ingress fronts https://${GO_LIVE_DOMAIN} (TLS secret ${TLS_SECRET})" \
-      || yellow "  Ingress host not found in render — check ingress.* overrides"
+    grep -q 'JWT_ALG: "RS256"' "${RENDER_OUT}" &&
+      ok "ConfigMap carries the cloud flags + JWT_ALG=RS256 (verified in the render)" ||
+      yellow "  render did not show JWT_ALG=RS256 in a ConfigMap — inspect ${RENDER_OUT}"
+    grep -q 'kind: Secret' "${RENDER_OUT}" &&
+      ok "Secret rendered for STRIPE/SMTP/RS256 (values base64'd, NOT printed here)" ||
+      yellow "  no Secret rendered — env.secret.create may not have applied"
+    grep -q "host: \"${GO_LIVE_DOMAIN}\"" "${RENDER_OUT}" &&
+      ok "Ingress fronts https://${GO_LIVE_DOMAIN} (TLS secret ${TLS_SECRET})" ||
+      yellow "  Ingress host not found in render — check ingress.* overrides"
     ok "[dry-run] chart rendered + validated OFFLINE (no cluster contact). Full render: ${RENDER_OUT}"
     note "to also dry-run against the LIVE cluster's current state: add --dry-run to a manual helm upgrade, or run with GO_LIVE_APPLY=1."
   else
-    red "  helm template failed:"; sed 's/^/        /' "${RENDER_ERR}" | head -20
+    red "  helm template failed:"
+    sed 's/^/        /' "${RENDER_ERR}" | head -20
     rm -f "${RENDER_OUT}" "${RENDER_ERR}"
     die "chart did not render — fix the chart / --set values above before going live. NOTHING applied."
   fi
@@ -393,20 +401,20 @@ if [[ "${APPLY}" == "1" ]]; then
   HEALTH=000
   for i in $(seq 1 "$((SMOKE_TIMEOUT_S / 3))"); do
     HEALTH="$(smoke_get /health/live)"
-    case "${HEALTH}" in 200|204|401|403|404) break ;; esac
+    case "${HEALTH}" in 200 | 204 | 401 | 403 | 404) break ;; esac
     sleep 3
   done
   case "${HEALTH}" in
-    200|204|401|403|404) ok "edge reachable over TLS (${BASE} → HTTP ${HEALTH})" ;;
-    *) yellow "  edge not yet answering (HTTP ${HEALTH}) — DNS/LB/cert may still be provisioning. Re-run the smoke once https://${GO_LIVE_DOMAIN} resolves." ;;
+  200 | 204 | 401 | 403 | 404) ok "edge reachable over TLS (${BASE} → HTTP ${HEALTH})" ;;
+  *) yellow "  edge not yet answering (HTTP ${HEALTH}) — DNS/LB/cert may still be provisioning. Re-run the smoke once https://${GO_LIVE_DOMAIN} resolves." ;;
   esac
   # The self-serve console route is the buyer-facing surface (m94 B4b). 401 without a
   # key is the CORRECT protected-route answer (proves it's wired, not open).
   ME="$(smoke_get /v1/tenants/me)"
   case "${ME}" in
-    401|403) ok "/v1/tenants/me is wired + protected (HTTP ${ME} without a key — correct)" ;;
-    200)     ok "/v1/tenants/me answered 200 (a credential was present in the call)" ;;
-    *)       yellow "  /v1/tenants/me returned HTTP ${ME} — verify the Kong self-serve route + TENANT_SELFSERVE_ENABLED." ;;
+  401 | 403) ok "/v1/tenants/me is wired + protected (HTTP ${ME} without a key — correct)" ;;
+  200) ok "/v1/tenants/me answered 200 (a credential was present in the call)" ;;
+  *) yellow "  /v1/tenants/me returned HTTP ${ME} — verify the Kong self-serve route + TENANT_SELFSERVE_ENABLED." ;;
   esac
   note "FULL funnel (provision a real tenant → issue an mbk_ key → CRUD via /v1/query → GET /v1/tenants/me/usage):"
   note "  run the live journey with a real X-Service-Token — see README §post-deploy smoke for the exact 4 curls."

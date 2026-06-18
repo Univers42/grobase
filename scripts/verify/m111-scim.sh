@@ -42,8 +42,8 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 MIGRATION_005="${MIG_DIR}/005_add_tenant_table.sql"
@@ -52,19 +52,22 @@ MIGRATION_043="${MIG_DIR}/043_orgs.sql"
 MIGRATION_054="${MIG_DIR}/054_scim_tokens.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M111] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M111] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M111] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M111] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M111_PG_IMAGE:-postgres:16-alpine}"
 TC_IMG="m111-tc-$$:scratch"
 NET="m111net-$$"
 PG="m111-pg-$$"
-TC_ON="m111-tc-on-$$"      # SCIM_ENABLED=1     (A/B)
-TC_OFF="m111-tc-off-$$"    # SCIM_ENABLED unset (C · flag-off parity)
+TC_ON="m111-tc-on-$$"   # SCIM_ENABLED=1     (A/B)
+TC_OFF="m111-tc-off-$$" # SCIM_ENABLED unset (C · flag-off parity)
 # UNIQUE port pair for this gate (m107 uses 19110/19111).
 PORT_ON="${M111_PORT_ON:-19122}"
 PORT_OFF="${M111_PORT_OFF:-19123}"
@@ -88,7 +91,7 @@ cleanup() {
 trap cleanup EXIT
 
 # shellcheck disable=SC2120
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 
 # Apply a migration the SAME way make migrate does: strip the leading `#` banner
@@ -129,17 +132,23 @@ wait_ready() { # $1=container $2=port
   local i
   for i in $(seq 1 60); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2/health/live" 2>/dev/null)" == "200" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # ── 0) build tenant-control FROM CURRENT source ────────────────────────────────
 step "0/12 build tenant-control FROM CURRENT source (the EXACT D2b SCIM code)"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT=3070 \
-  -t "${TC_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch tenant-control image build failed — gate must exercise the drafted D2b code (line: docker build TC)"
+  -t "${TC_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch tenant-control image build failed — gate must exercise the drafted D2b code (line: docker build TC)"
 ok "tenant-control built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated net + postgres (TCP-ready) ─────────────────────────────────────
@@ -147,9 +156,12 @@ step "1/12 boot isolated net (${NET}): postgres"
 docker network create "${NET}" >/dev/null
 docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD="${PGPW}" "${PG_IMAGE}" >/dev/null
 for i in $(seq 1 80); do
-  if docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 \
-     && [[ "$(psql_val 'SELECT 1')" == "1" ]]; then break; fi
-  [[ $i -eq 80 ]] && { docker logs "${PG}" 2>&1 | tail -20; fail "scratch postgres never reached TCP-ready"; }
+  if docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 &&
+    [[ "$(psql_val 'SELECT 1')" == "1" ]]; then break; fi
+  [[ $i -eq 80 ]] && {
+    docker logs "${PG}" 2>&1 | tail -20
+    fail "scratch postgres never reached TCP-ready"
+  }
   sleep 0.5
 done
 ok "postgres up + TCP-ready (SELECT 1 ok)"
@@ -172,7 +184,11 @@ DO $r$ BEGIN
 END $r$;
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
 # tenant-control's boot schema-check requires public.tenants (005 + 032).
 apply_migration "${MIGRATION_005}" || fail "real migration 005_add_tenant_table.sql failed to apply (line: apply 005)"
 apply_migration "${MIGRATION_032}" || fail "real migration 032_tenants.sql failed to apply (line: apply 032)"
@@ -181,15 +197,15 @@ apply_migration "${MIGRATION_032}" || fail "real migration 032_tenants.sql faile
 apply_migration "${MIGRATION_043}" || fail "real migration 043_orgs.sql failed to apply (line: apply 043)"
 [[ -f "${MIGRATION_054}" ]] || fail "migration 054_scim_tokens.sql is MISSING — the D2b migration must land before m111 (line: 054 exists)"
 apply_migration "${MIGRATION_054}" || fail "real migration 054_scim_tokens.sql failed to apply (line: apply 054)"
-[[ "$(psql_val "SELECT to_regclass('public.scim_tokens') IS NOT NULL")" == "t" ]] \
-  || fail "public.scim_tokens not created by migration 054 (line: 054 tokens table)"
-[[ "$(psql_val "SELECT to_regclass('public.scim_users') IS NOT NULL")" == "t" ]] \
-  || fail "public.scim_users not created by migration 054 (line: 054 users table)"
-[[ "$(psql_val "SELECT count(*) FROM public.scim_tokens")" == "0" ]] \
-  || fail "scim_tokens should start EMPTY (line: 054 empty check)"
+[[ "$(psql_val "SELECT to_regclass('public.scim_tokens') IS NOT NULL")" == "t" ]] ||
+  fail "public.scim_tokens not created by migration 054 (line: 054 tokens table)"
+[[ "$(psql_val "SELECT to_regclass('public.scim_users') IS NOT NULL")" == "t" ]] ||
+  fail "public.scim_users not created by migration 054 (line: 054 users table)"
+[[ "$(psql_val "SELECT count(*) FROM public.scim_tokens")" == "0" ]] ||
+  fail "scim_tokens should start EMPTY (line: 054 empty check)"
 # org_members.active column must exist (the soft-deactivate target).
-[[ "$(psql_val "SELECT count(*) FROM information_schema.columns WHERE table_name='org_members' AND column_name='active'")" == "1" ]] \
-  || fail "org_members.active column not added by migration 054 (line: 054 active column)"
+[[ "$(psql_val "SELECT count(*) FROM information_schema.columns WHERE table_name='org_members' AND column_name='active'")" == "1" ]] ||
+  fail "org_members.active column not added by migration 054 (line: 054 active column)"
 # scim_tokens must be write-locked to authenticated (only service_role mints).
 HASW="$(psql_val "SELECT count(*) FROM information_schema.role_table_grants WHERE table_name='scim_tokens' AND grantee='authenticated' AND privilege_type IN ('INSERT','UPDATE','DELETE')")" || HASW="?"
 [[ "${HASW}" == "0" ]] || fail "authenticated must NOT have INSERT/UPDATE/DELETE on scim_tokens, got ${HASW} (line: 054 grants)"
@@ -219,8 +235,11 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3070" "${TC_IMG}" >/dev/null
 wait_ready "${TC_ON}" "${PORT_ON}" || fail "scim-ON tenant-control not ready (line: wait_ready TC_ON)"
-{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "SCIM .* enabled" \
-  || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "SCIM never reported enabled (line: TC_ON enabled log)"; }
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "SCIM .* enabled" ||
+  {
+    docker logs "${TC_ON}" 2>&1 | tail -20
+    fail "SCIM never reported enabled (line: TC_ON enabled log)"
+  }
 ok "scim-ON tenant-control up (/scim/v2/* mounted)"
 
 # ── 3) (A) issue a SCIM bearer token for T1/Org1 (admin/service-token) ──────────
@@ -229,11 +248,11 @@ C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_1}/scim/tokens" "{\"org_i
 [[ "${C}" == "201" ]] || fail "(A) token issue expected 201, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A issue 201)"
 T1_BEARER="$(json_str token)"
 [[ -n "${T1_BEARER}" ]] || fail "(A) token issue did not return a cleartext token (line: A bearer)"
-[[ "$(psql_val "SELECT count(*) FROM public.scim_tokens WHERE tenant_id='${TENANT_1}'")" == "1" ]] \
-  || fail "(A) scim_tokens row for T1 not persisted (line: A token row)"
+[[ "$(psql_val "SELECT count(*) FROM public.scim_tokens WHERE tenant_id='${TENANT_1}'")" == "1" ]] ||
+  fail "(A) scim_tokens row for T1 not persisted (line: A token row)"
 # the token must be stored HASHED, never as the cleartext.
-[[ "$(psql_val "SELECT count(*) FROM public.scim_tokens WHERE token_hash='${T1_BEARER}'")" == "0" ]] \
-  || fail "(A) the cleartext token was stored verbatim — must be sha256-hashed! (line: A token hashed)"
+[[ "$(psql_val "SELECT count(*) FROM public.scim_tokens WHERE token_hash='${T1_BEARER}'")" == "0" ]] ||
+  fail "(A) the cleartext token was stored verbatim — must be sha256-hashed! (line: A token hashed)"
 ok "(A) SCIM bearer issued for T1/Org1; stored hashed (sha256), cleartext returned once"
 
 # ── 4) (A) POST /scim/v2/Users => 201 (provision an org member) ─────────────────
@@ -246,10 +265,10 @@ SCIM_ID="$(json_str id)"
 grep -q '"userName":"alice@example.com"' "${BODY_TMP}" || fail "(A) created user missing userName (line: A username)"
 grep -q '"resourceType":"User"' "${BODY_TMP}" || fail "(A) created user missing meta.resourceType (line: A resourceType)"
 # the org membership was created via the EXISTING orgs membership API.
-[[ "$(psql_val "SELECT count(*) FROM public.org_members WHERE org_id='${ORG_1}' AND user_id='m111-alice'")" == "1" ]] \
-  || fail "(A) SCIM create did not add an org member (the reuse of orgs.AddMember) (line: A member added)"
-[[ "$(psql_val "SELECT active FROM public.org_members WHERE org_id='${ORG_1}' AND user_id='m111-alice'")" == "t" ]] \
-  || fail "(A) newly provisioned member should be active (line: A member active)"
+[[ "$(psql_val "SELECT count(*) FROM public.org_members WHERE org_id='${ORG_1}' AND user_id='m111-alice'")" == "1" ]] ||
+  fail "(A) SCIM create did not add an org member (the reuse of orgs.AddMember) (line: A member added)"
+[[ "$(psql_val "SELECT active FROM public.org_members WHERE org_id='${ORG_1}' AND user_id='m111-alice'")" == "t" ]] ||
+  fail "(A) newly provisioned member should be active (line: A member active)"
 ok "(A) POST /scim/v2/Users => 201; org member 'm111-alice' added to Org1 (active)"
 
 # ── 5) (A) GET by id => 200 ────────────────────────────────────────────────────
@@ -274,8 +293,8 @@ C="$(scim_req PATCH "${PORT_ON}" "/scim/v2/Users/${SCIM_ID}" "${T1_BEARER}" \
 [[ "${C}" == "200" ]] || fail "(A) patch expected 200, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A patch 200)"
 grep -q '"active":false' "${BODY_TMP}" || fail "(A) patched user should report active:false (line: A patch active)"
 # the deactivate must reach the ACTUAL org member row (org_members.active=false).
-[[ "$(psql_val "SELECT active FROM public.org_members WHERE org_id='${ORG_1}' AND user_id='m111-alice'")" == "f" ]] \
-  || fail "(A) PATCH active:false did NOT deactivate the org member (org_members.active still true) (line: A member deactivated)"
+[[ "$(psql_val "SELECT active FROM public.org_members WHERE org_id='${ORG_1}' AND user_id='m111-alice'")" == "f" ]] ||
+  fail "(A) PATCH active:false did NOT deactivate the org member (org_members.active still true) (line: A member deactivated)"
 ok "(A) PATCH active:false => org member m111-alice deactivated (org_members.active=false)"
 
 # ── 8) (B) cross-tenant wall: a T2 bearer cannot touch T1's user ────────────────
@@ -291,13 +310,13 @@ C="$(scim_req GET "${PORT_ON}" "/scim/v2/Users/${SCIM_ID}" "${T2_BEARER}")"
 C="$(scim_req PATCH "${PORT_ON}" "/scim/v2/Users/${SCIM_ID}" "${T2_BEARER}" \
   '{"schemas":["urn:ietf:params:scim:api:messages:2.0:PatchOp"],"Operations":[{"op":"replace","path":"active","value":true}]}')"
 [[ "${C}" == "404" ]] || fail "(B) cross-tenant PATCH expected 404, got ${C} (line: B xtenant patch)"
-[[ "$(psql_val "SELECT active FROM public.org_members WHERE org_id='${ORG_1}' AND user_id='m111-alice'")" == "f" ]] \
-  || fail "(B) a cross-tenant PATCH MUTATED T1's member — the wall leaked! (line: B xtenant unchanged)"
+[[ "$(psql_val "SELECT active FROM public.org_members WHERE org_id='${ORG_1}' AND user_id='m111-alice'")" == "f" ]] ||
+  fail "(B) a cross-tenant PATCH MUTATED T1's member — the wall leaked! (line: B xtenant unchanged)"
 # DELETE T1's user with T2's bearer => 404; the SCIM mapping + member survive.
 C="$(scim_req DELETE "${PORT_ON}" "/scim/v2/Users/${SCIM_ID}" "${T2_BEARER}")"
 [[ "${C}" == "404" ]] || fail "(B) cross-tenant DELETE expected 404, got ${C} (line: B xtenant delete)"
-[[ "$(psql_val "SELECT count(*) FROM public.org_members WHERE org_id='${ORG_1}' AND user_id='m111-alice'")" == "1" ]] \
-  || fail "(B) a cross-tenant DELETE removed T1's member — the wall leaked! (line: B xtenant member survives)"
+[[ "$(psql_val "SELECT count(*) FROM public.org_members WHERE org_id='${ORG_1}' AND user_id='m111-alice'")" == "1" ]] ||
+  fail "(B) a cross-tenant DELETE removed T1's member — the wall leaked! (line: B xtenant member survives)"
 ok "(B) cross-tenant wall holds: T2 bearer => 404 on T1's user; T1 unchanged (the bearer->tenant binding IS the wall)"
 
 # ── 9) (B) no bearer => 401; revoked/unknown bearer => 401 ─────────────────────
@@ -322,10 +341,10 @@ C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_1}/scim/tokens" "{\"org_i
 T1_BEARER2="$(json_str token)"
 C="$(scim_req DELETE "${PORT_ON}" "/scim/v2/Users/${SCIM_ID}" "${T1_BEARER2}")"
 [[ "${C}" == "204" ]] || fail "(A) delete expected 204, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A delete 204)"
-[[ "$(psql_val "SELECT count(*) FROM public.scim_users WHERE scim_id='${SCIM_ID}'")" == "0" ]] \
-  || fail "(A) DELETE left the SCIM mapping behind (line: A mapping gone)"
-[[ "$(psql_val "SELECT count(*) FROM public.org_members WHERE org_id='${ORG_1}' AND user_id='m111-alice'")" == "0" ]] \
-  || fail "(A) DELETE did NOT deprovision the org member (line: A member gone)"
+[[ "$(psql_val "SELECT count(*) FROM public.scim_users WHERE scim_id='${SCIM_ID}'")" == "0" ]] ||
+  fail "(A) DELETE left the SCIM mapping behind (line: A mapping gone)"
+[[ "$(psql_val "SELECT count(*) FROM public.org_members WHERE org_id='${ORG_1}' AND user_id='m111-alice'")" == "0" ]] ||
+  fail "(A) DELETE did NOT deprovision the org member (line: A member gone)"
 C="$(scim_req GET "${PORT_ON}" "/scim/v2/Users/${SCIM_ID}" "${T1_BEARER2}")"
 [[ "${C}" == "404" ]] || fail "(A) GET after delete expected 404, got ${C} (line: A get-after-delete)"
 ok "(A) DELETE => 204; SCIM mapping + org member both removed (deprovision)"
@@ -342,15 +361,18 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3070" "${TC_IMG}" >/dev/null
 wait_ready "${TC_OFF}" "${PORT_OFF}" || fail "scim-OFF tenant-control not ready (line: wait_ready TC_OFF)"
-{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "SCIM .* disabled" \
-  || { docker logs "${TC_OFF}" 2>&1 | tail -20; fail "OFF tenant-control did not report SCIM disabled (flag default not OFF?) (line: TC_OFF disabled log)"; }
+{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "SCIM .* disabled" ||
+  {
+    docker logs "${TC_OFF}" 2>&1 | tail -20
+    fail "OFF tenant-control did not report SCIM disabled (flag default not OFF?) (line: TC_OFF disabled log)"
+  }
 ok "scim-OFF tenant-control up (SCIM_ENABLED unset)"
 
 step "11b/12 (C) EVERY /scim/v2/* route 404 with the flag OFF (byte-parity — gotrue has no SCIM)"
 for path in "/scim/v2/Users" "/scim/v2/Users/${SCIM_ID}"; do
   C="$(scim_req GET "${PORT_OFF}" "${path}" "anything")"
-  [[ "${C}" == "404" ]] \
-    || fail "(C) PARITY: GET ${path} with SCIM_ENABLED off expected 404 (route absent), got ${C} (line: C 404 ${path})"
+  [[ "${C}" == "404" ]] ||
+    fail "(C) PARITY: GET ${path} with SCIM_ENABLED off expected 404 (route absent), got ${C} (line: C 404 ${path})"
 done
 C="$(scim_req POST "${PORT_OFF}" "/scim/v2/Users" "anything" '{"userName":"x"}')"
 [[ "${C}" == "404" ]] || fail "(C) PARITY: POST /scim/v2/Users off expected 404, got ${C} (line: C 404 post)"
@@ -361,14 +383,14 @@ ok "(C) all /scim/v2/* + the admin token route 404 with the flag OFF"
 
 step "11c/12 (C) the base admin surface STILL works on the OFF router (only SCIM is gated)"
 C="$(admin_req GET "${PORT_OFF}" "/v1/tenants")"
-[[ "${C}" == "200" ]] \
-  || fail "(C) PARITY: base admin GET /v1/tenants expected 200 on OFF router, got ${C} — $(head -c 200 "${BODY_TMP}") (line: C admin 200)"
+[[ "${C}" == "200" ]] ||
+  fail "(C) PARITY: base admin GET /v1/tenants expected 200 on OFF router, got ${C} — $(head -c 200 "${BODY_TMP}") (line: C admin 200)"
 ok "(C) base admin GET /v1/tenants => 200 — baseline untouched; only SCIM is flag-gated"
 
 step "11d/12 (C) the OFF router NEVER wrote scim_tokens (count unchanged)"
 TOK_AFTER="$(psql_val "SELECT count(*) FROM public.scim_tokens")"
-[[ "${TOK_BEFORE}" == "${TOK_AFTER}" ]] \
-  || fail "(C) PARITY: scim_tokens changed under the OFF router (before=${TOK_BEFORE} after=${TOK_AFTER}) (line: C no writes)"
+[[ "${TOK_BEFORE}" == "${TOK_AFTER}" ]] ||
+  fail "(C) PARITY: scim_tokens changed under the OFF router (before=${TOK_BEFORE} after=${TOK_AFTER}) (line: C no writes)"
 ok "(C) scim_tokens unchanged (${TOK_AFTER}) — never touched with the flag OFF"
 
 # ── 12) summary ────────────────────────────────────────────────────────────────
@@ -379,7 +401,8 @@ green "[M111] (C) PARITY:    SCIM_ENABLED off => all /scim/v2/* + admin token ro
 
 step "log GATE m111=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-d2b-scim}"

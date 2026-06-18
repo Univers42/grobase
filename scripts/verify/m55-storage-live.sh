@@ -57,12 +57,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M55] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M55] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M55] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M55] FAIL — $*"
+  exit 1
+}
 
 # shellcheck source=scripts/lib/lib-live-tenant.sh
 source "${SCRIPT_DIR}/../lib/lib-live-tenant.sh"
@@ -103,7 +106,8 @@ PY
 # ── 0) prerequisites: tenant + JWTs + storage network ────────────────────────
 step "0/7 prerequisites (tenant, JWTs, stack network)"
 live_tenant_provision "${SLUG}" || fail "tenant provisioning failed"
-KONG="${LIVE_KONG_URL}"; ANON="${LIVE_ANON_APIKEY}"
+KONG="${LIVE_KONG_URL}"
+ANON="${LIVE_ANON_APIKEY}"
 
 JWT_SECRET="$(_lt_env mini-baas-gotrue GOTRUE_JWT_SECRET)"
 [[ -z "${JWT_SECRET}" ]] && JWT_SECRET="$(_lt_env mini-baas-kong JWT_SECRET)"
@@ -121,13 +125,16 @@ ok "tenant '${SLUG}', JWT minted (sub=slug), foe JWT minted, net ${STACK_NET}"
 # curl helpers: body→/tmp/m55.json, echo status. as_user = our JWT; as_foe =
 # foreign JWT; as_anon = apikey only (no bearer JWT).
 as_user() { curl -s -o /tmp/m55.json -w '%{http_code}' -X "$1" "${KONG}$2" -H "apikey: ${ANON}" -H "Authorization: Bearer ${JWT}" "${@:3}"; }
-as_foe()  { curl -s -o /tmp/m55.json -w '%{http_code}' -X "$1" "${KONG}$2" -H "apikey: ${ANON}" -H "Authorization: Bearer ${FOE_JWT}" "${@:3}"; }
-has()  { grep -q "$1" /tmp/m55.json || fail "$2: response missing $1 — $(head -c 300 /tmp/m55.json)"; }
-nhas() { grep -q "$1" /tmp/m55.json && fail "$2: response leaked $1 — $(head -c 300 /tmp/m55.json)"; return 0; }
+as_foe() { curl -s -o /tmp/m55.json -w '%{http_code}' -X "$1" "${KONG}$2" -H "apikey: ${ANON}" -H "Authorization: Bearer ${FOE_JWT}" "${@:3}"; }
+has() { grep -q "$1" /tmp/m55.json || fail "$2: response missing $1 — $(head -c 300 /tmp/m55.json)"; }
+nhas() {
+  grep -q "$1" /tmp/m55.json && fail "$2: response leaked $1 — $(head -c 300 /tmp/m55.json)"
+  return 0
+}
 
 # Known binary payload — NUL + high bytes prove the path is byte-clean, not
 # text-mangled. printf %b emits the escapes literally.
-printf '%b' 'm55-storage-\x00\x01\x02\xfe\xff-payload-roundtrip-tail' > "${TMP}/up.bin"
+printf '%b' 'm55-storage-\x00\x01\x02\xfe\xff-payload-roundtrip-tail' >"${TMP}/up.bin"
 UP_SHA="$(sha256sum "${TMP}/up.bin" | cut -d' ' -f1)"
 OBJ="dir/note.bin"
 
@@ -141,12 +148,12 @@ ok "bucket ${BUCKET} created"
 # ── 2) upload a known byte payload ───────────────────────────────────────────
 step "2/7 upload (known binary payload)"
 [[ "$(as_user PUT "/storage/v1/object/${BUCKET}/${OBJ}" \
-      -H 'Content-Type: application/octet-stream' --data-binary @"${TMP}/up.bin")" == "200" ]] \
-  || fail "upload — $(head -c 300 /tmp/m55.json)"
+  -H 'Content-Type: application/octet-stream' --data-binary @"${TMP}/up.bin")" == "200" ]] ||
+  fail "upload — $(head -c 300 /tmp/m55.json)"
 # Server reports the owner-prefixed key + the exact byte count.
 has "\"key\":\"${SLUG}/${OBJ}\"" "upload owner-prefixed key"
 has '"size":' "upload size"
-ok "uploaded ${OBJ} ($(wc -c < "${TMP}/up.bin") bytes, owner-prefixed to ${SLUG}/)"
+ok "uploaded ${OBJ} ($(wc -c <"${TMP}/up.bin") bytes, owner-prefixed to ${SLUG}/)"
 
 # ── 3) list → the object appears ─────────────────────────────────────────────
 step "3/7 list → object appears (owner prefix stripped)"
@@ -158,18 +165,18 @@ ok "object listed as ${OBJ}"
 # ── 4) download → bytes round-trip byte-identical ────────────────────────────
 step "4/7 download → byte round-trip (the teeth)"
 code="$(curl -s -o "${TMP}/dl.bin" -w '%{http_code}' \
-        "${KONG}/storage/v1/object/${BUCKET}/${OBJ}" \
-        -H "apikey: ${ANON}" -H "Authorization: Bearer ${JWT}")"
+  "${KONG}/storage/v1/object/${BUCKET}/${OBJ}" \
+  -H "apikey: ${ANON}" -H "Authorization: Bearer ${JWT}")"
 [[ "${code}" == "200" ]] || fail "download status ${code}"
-cmp -s "${TMP}/up.bin" "${TMP}/dl.bin" \
-  || fail "download bytes differ from upload — sha up=${UP_SHA} dl=$(sha256sum "${TMP}/dl.bin" | cut -d' ' -f1)"
+cmp -s "${TMP}/up.bin" "${TMP}/dl.bin" ||
+  fail "download bytes differ from upload — sha up=${UP_SHA} dl=$(sha256sum "${TMP}/dl.bin" | cut -d' ' -f1)"
 ok "downloaded bytes IDENTICAL to upload (sha256 ${UP_SHA})"
 
 # ── 5) createSignedUrl → GET the signed URL returns the same bytes ───────────
 step "5/7 createSignedUrl → presigned GET round-trips bytes"
 [[ "$(as_user POST "/storage/v1/sign/${BUCKET}/${OBJ}" \
-      -H 'Content-Type: application/json' -d '{"method":"GET","expiresIn":300}')" == "201" ]] \
-  || fail "createSignedUrl — $(head -c 300 /tmp/m55.json)"
+  -H 'Content-Type: application/json' -d '{"method":"GET","expiresIn":300}')" == "201" ]] ||
+  fail "createSignedUrl — $(head -c 300 /tmp/m55.json)"
 has '"signedUrl":' "sign returns a url"
 has "\"key\":\"${SLUG}/${OBJ}\"" "sign owner-prefixed key"
 SIGNED_URL="$(python3 -c 'import json;print(json.load(open("/tmp/m55.json"))["signedUrl"])')"
@@ -180,10 +187,10 @@ SIGNED_URL="$(python3 -c 'import json;print(json.load(open("/tmp/m55.json"))["si
 # a bind-mounted host dir, and `-f` makes a bad/expired signature a hard fail
 # (proven: tampering the X-Amz-Signature returns 4xx → curl exit 22).
 docker run --rm --network "${STACK_NET}" curlimages/curl:latest \
-  -s -f -o - "${SIGNED_URL}" > "${TMP}/signed.bin" \
-  || fail "presigned GET failed (url targets ${SIGNED_URL%%\?*})"
-cmp -s "${TMP}/up.bin" "${TMP}/signed.bin" \
-  || fail "presigned-GET bytes differ from upload — sha=$(sha256sum "${TMP}/signed.bin" | cut -d' ' -f1)"
+  -s -f -o - "${SIGNED_URL}" >"${TMP}/signed.bin" ||
+  fail "presigned GET failed (url targets ${SIGNED_URL%%\?*})"
+cmp -s "${TMP}/up.bin" "${TMP}/signed.bin" ||
+  fail "presigned-GET bytes differ from upload — sha=$(sha256sum "${TMP}/signed.bin" | cut -d' ' -f1)"
 ok "presigned URL serves the SAME bytes (sha256 ${UP_SHA})"
 
 # ── 6) owner isolation — a different identity sees nothing ───────────────────
@@ -201,20 +208,20 @@ step "7/7 forged-header reject (foe forges our X-User-Id / tenant)"
 # set it, so a forged X-User-Id = our slug must be inert: the foe's sub still
 # scopes the request.
 [[ "$(as_foe GET "/storage/v1/list/${BUCKET}" \
-      -H "X-User-Id: ${SLUG}" -H "X-Baas-Tenant-Id: ${SLUG}" -H "X-Tenant-Id: ${SLUG}")" == "200" ]] \
-  || fail "foe forged-header list call — $(head -c 300 /tmp/m55.json)"
+  -H "X-User-Id: ${SLUG}" -H "X-Baas-Tenant-Id: ${SLUG}" -H "X-Tenant-Id: ${SLUG}")" == "200" ]] ||
+  fail "foe forged-header list call — $(head -c 300 /tmp/m55.json)"
 nhas "\"key\":\"${OBJ}\"" "forged X-User-Id must NOT reveal our object"
 foe_forge_dl="$(as_foe GET "/storage/v1/object/${BUCKET}/${OBJ}" \
-      -H "X-User-Id: ${SLUG}" -H "X-Baas-Tenant-Id: ${SLUG}")"
-[[ "${foe_forge_dl}" == "404" ]] \
-  || fail "foe forging our X-User-Id read our object (got ${foe_forge_dl}) — Kong header-clear regressed"
+  -H "X-User-Id: ${SLUG}" -H "X-Baas-Tenant-Id: ${SLUG}")"
+[[ "${foe_forge_dl}" == "404" ]] ||
+  fail "foe forging our X-User-Id read our object (got ${foe_forge_dl}) — Kong header-clear regressed"
 ok "forged X-User-Id/tenant inert: foe still sees nothing (Kong strips client identity)"
 
 # ── +) anon-only (no JWT) upload is rejected ─────────────────────────────────
 step "+/7 anon-key-only (no JWT) upload is rejected"
 anon_code="$(curl -s -o /tmp/m55.json -w '%{http_code}' -X PUT \
-        "${KONG}/storage/v1/object/${BUCKET}/anon.bin" \
-        -H "apikey: ${ANON}" -H 'Content-Type: application/octet-stream' --data-binary 'nope')"
+  "${KONG}/storage/v1/object/${BUCKET}/anon.bin" \
+  -H "apikey: ${ANON}" -H 'Content-Type: application/octet-stream' --data-binary 'nope')"
 [[ "${anon_code}" == "401" ]] || fail "anon-only upload should be 401, got ${anon_code} — $(head -c 200 /tmp/m55.json)"
 ok "no identity → 401 (storage requires an authenticated user)"
 

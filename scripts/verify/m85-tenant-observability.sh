@@ -66,8 +66,8 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 DPR_DIR="${INFRA_DIR}/src/data-plane-router"
 PROMTAIL_YAML="${INFRA_DIR}/infra/config/promtail/promtail.yaml"
 DATASOURCES_YML="${INFRA_DIR}/infra/config/grafana/provisioning/datasources/datasources.yml"
@@ -76,37 +76,43 @@ MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 MIGRATION_040="${MIG_DIR}/040_tenant_usage.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M85] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M85] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M85] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M85] FAIL — $*"
+  exit 1
+}
 # has/nhas: assert a string is / is NOT present in a captured log blob (arg, not
 # a file — the router logs live in `docker logs`, not on disk).
-has()  { grep -q "$1" <<<"$3" || fail "$2"; }
-nhas() { grep -q "$1" <<<"$3" && fail "$2"; return 0; }
+has() { grep -q "$1" <<<"$3" || fail "$2"; }
+nhas() {
+  grep -q "$1" <<<"$3" && fail "$2"
+  return 0
+}
 
 PG_IMAGE="${M85_PG_IMAGE:-postgres:16-alpine}"
 SCRATCH_IMG="m85-dpr-$$:scratch"
 NET="m85net-$$"
 PG="m85-pg-$$"
-DPR_ON="m85-dpr-on-$$"        # (A) POSITIVE  router (tenant_obs ON)
-DPR_OFF="m85-dpr-off-$$"      # (B) PARITY    router (tenant_obs OFF/unset)
-DPR_CNT="m85-dpr-cnt-$$"      # (D) COUNTER   router (tenant_obs + counter ON)
+DPR_ON="m85-dpr-on-$$"   # (A) POSITIVE  router (tenant_obs ON)
+DPR_OFF="m85-dpr-off-$$" # (B) PARITY    router (tenant_obs OFF/unset)
+DPR_CNT="m85-dpr-cnt-$$" # (D) COUNTER   router (tenant_obs + counter ON)
 PORT_ON="${M85_PORT_ON:-18854}"
 PORT_OFF="${M85_PORT_OFF:-18855}"
 PORT_CNT="${M85_PORT_CNT:-18856}"
 PGPW="postgres"
 # One table per concern in the SHARED postgres so arms never cross-contaminate.
-TABLE_PROBE="m85_obs_probe"        # the read/write probe table (bare, no RLS)
-TENANT_READ="m85-read-$$"          # the read event's tenant_id (ground truth)
-TENANT_WRITE="m85-write-$$"        # the write event's tenant_id (ground truth)
-N_CAP=512                          # the in-process per-service cap (must match the code)
-N_FLOOD=560                        # > N_CAP so the overflow sentinel must appear
+TABLE_PROBE="m85_obs_probe" # the read/write probe table (bare, no RLS)
+TENANT_READ="m85-read-$$"   # the read event's tenant_id (ground truth)
+TENANT_WRITE="m85-write-$$" # the write event's tenant_id (ground truth)
+N_CAP=512                   # the in-process per-service cap (must match the code)
+N_FLOOD=560                 # > N_CAP so the overflow sentinel must appear
 DSN_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 BODY_TMP="$(mktemp)"
-BASELINE_METRICS="$(mktemp)"       # the OFF-router /metrics capture (parity baseline)
+BASELINE_METRICS="$(mktemp)" # the OFF-router /metrics capture (parity baseline)
 
 cleanup() {
   docker rm -fv "${DPR_ON}" "${DPR_OFF}" "${DPR_CNT}" "${PG}" >/dev/null 2>&1 || true
@@ -116,14 +122,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 
 # Apply one migration file the SAME way `make migrate` does: strip the leading
 # `#`/`--`-comment header lines before piping to psql. (040 uses SQL `--` comments
 # and a DO block; we feed it whole — psql handles `--` natively.)  $1 = file.
 apply_migration() { # $1=file
-  docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < "$1" >/dev/null 2>&1
+  docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - <"$1" >/dev/null 2>&1
 }
 
 # Build the /v1/query envelope: identity + mount(inline DSN) + operation. Identical
@@ -154,10 +160,16 @@ logs_clean() { docker logs "$1" 2>&1 | strip_ansi; }
 wait_ready() { # $1=container  $2=port
   for i in $(seq 1 60); do
     curl -fsS -o /dev/null "http://127.0.0.1:$2/v1/capabilities" 2>/dev/null && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -15; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -15
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -15; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -15
+  return 1
 }
 
 # ── 0) STATIC arm (C-static): promtail has tenant_id under expressions, NOT labels ─
@@ -178,39 +190,39 @@ LABEL_HAS_TENANT="$(awk '
   /^      - [a-z]/        {if ($0 !~ /json:|labels:/) {inj=0; inl=0}}
   inl && /^[[:space:]]+tenant_id:[[:space:]]*$/ {print "LABEL"}
 ' "${PROMTAIL_YAML}" | head -1)"
-[[ "${EXPR_HAS_TENANT}" == "EXPR" ]] \
-  || fail "promtail.yaml does NOT extract tenant_id under the json `expressions:` block — Pillar 1 field filter is dead (line: C-static expr)"
-[[ -z "${LABEL_HAS_TENANT}" ]] \
-  || fail "promtail.yaml promotes tenant_id to a LABEL — that creates one Loki stream per tenant = the cardinality bomb B5 forbids (line: C-static label)"
+[[ "${EXPR_HAS_TENANT}" == "EXPR" ]] ||
+  fail "promtail.yaml does NOT extract tenant_id under the json $(expressions:) block — Pillar 1 field filter is dead (line: C-static expr)"
+[[ -z "${LABEL_HAS_TENANT}" ]] ||
+  fail "promtail.yaml promotes tenant_id to a LABEL — that creates one Loki stream per tenant = the cardinality bomb B5 forbids (line: C-static label)"
 ok "(C-static) tenant_id is a promtail FIELD (expressions) and is NOT a Loki label"
 
 step "0b/9 (Pillar 2 config) Postgres-Usage datasource + per-tenant-usage dashboard exist & parse"
 [[ -f "${DATASOURCES_YML}" ]] || fail "datasources.yml missing (line: ds exists)"
-grep -q 'name: Postgres-Usage' "${DATASOURCES_YML}" \
-  || fail "datasources.yml has no Postgres-Usage datasource — Pillar 2 has no Grafana source (line: ds postgres)"
-grep -q 'type: postgres' "${DATASOURCES_YML}" \
-  || fail "datasources.yml Postgres-Usage is not type: postgres (line: ds type)"
+grep -q 'name: Postgres-Usage' "${DATASOURCES_YML}" ||
+  fail "datasources.yml has no Postgres-Usage datasource — Pillar 2 has no Grafana source (line: ds postgres)"
+grep -q 'type: postgres' "${DATASOURCES_YML}" ||
+  fail "datasources.yml Postgres-Usage is not type: postgres (line: ds type)"
 [[ -f "${DASHBOARD_JSON}" ]] || fail "per-tenant-usage.json dashboard missing (line: dash exists)"
 # Validate the dashboard JSON parses (python3 is present on the box; jq is a fallback).
 if command -v python3 >/dev/null 2>&1; then
-  python3 -c "import json,sys; json.load(open('${DASHBOARD_JSON}'))" \
-    || fail "per-tenant-usage.json is not valid JSON (line: dash json parse)"
+  python3 -c "import json,sys; json.load(open('${DASHBOARD_JSON}'))" ||
+    fail "per-tenant-usage.json is not valid JSON (line: dash json parse)"
 elif command -v jq >/dev/null 2>&1; then
-  jq -e . "${DASHBOARD_JSON}" >/dev/null \
-    || fail "per-tenant-usage.json is not valid JSON (line: dash jq parse)"
+  jq -e . "${DASHBOARD_JSON}" >/dev/null ||
+    fail "per-tenant-usage.json is not valid JSON (line: dash jq parse)"
 fi
-grep -q '\$tenant_id' "${DASHBOARD_JSON}" \
-  || fail "per-tenant-usage.json has no \$tenant_id template variable usage (line: dash var)"
-grep -q 'public.tenant_usage' "${DASHBOARD_JSON}" \
-  || fail "per-tenant-usage.json never queries public.tenant_usage — Pillar 2 reads the wrong source (line: dash usage table)"
-grep -q 'FROM public.tenants' "${DASHBOARD_JSON}" \
-  || fail "per-tenant-usage.json \$tenant_id variable must read the DENSE public.tenants, not a DISTINCT usage scan (line: dash var source)"
+grep -q '\$tenant_id' "${DASHBOARD_JSON}" ||
+  fail "per-tenant-usage.json has no \$tenant_id template variable usage (line: dash var)"
+grep -q 'public.tenant_usage' "${DASHBOARD_JSON}" ||
+  fail "per-tenant-usage.json never queries public.tenant_usage — Pillar 2 reads the wrong source (line: dash usage table)"
+grep -q 'FROM public.tenants' "${DASHBOARD_JSON}" ||
+  fail "per-tenant-usage.json \$tenant_id variable must read the DENSE public.tenants, not a DISTINCT usage scan (line: dash var source)"
 ok "(Pillar 2) Postgres-Usage datasource + per-tenant-usage dashboard present & valid; var reads public.tenants, panels read public.tenant_usage"
 
 # ── 1) build the scratch DPR image FROM THE CURRENT (drafted) source ──────────
 step "1/9 build scratch data-plane-router from CURRENT source (contains the B5 Pillar 1/3 code)"
-DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${DPR_DIR}" >/dev/null \
-  || fail "scratch DPR image build failed — the gate must exercise the drafted code (line: docker build)"
+DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${DPR_DIR}" >/dev/null ||
+  fail "scratch DPR image build failed — the gate must exercise the drafted code (line: docker build)"
 ok "scratch image ${SCRATCH_IMG} built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 2) isolated network + throwaway postgres + REAL migration 040 + bare probe ─
@@ -239,7 +251,11 @@ DO $r$ BEGIN
 END $r$;
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
 apply_migration "${MIGRATION_040}" || fail "real migration 040_tenant_usage.sql failed to apply (line: apply 040)"
 # A bare probe table (NO RLS) so the read/write arms run without auth machinery.
 # A minimal public.tenants for the Pillar-2 SMOKE variable query, plus two
@@ -261,9 +277,13 @@ INSERT INTO public.tenant_usage(tenant_id, metric, window_start, qty, idempotenc
   ('${TENANT_READ}','query.rows',  now(), 2, 'm85-k2-$$') ON CONFLICT (idempotency_key) DO NOTHING;
 SQL
 }
-for i in $(seq 1 20); do seed && break; [[ $i -eq 20 ]] && fail "seed never committed (line: seed loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  seed && break
+  [[ $i -eq 20 ]] && fail "seed never committed (line: seed loop)"
+  sleep 0.5
+done
 [[ "$(psql_val "SELECT count(*) FROM public.${TABLE_PROBE}")" == "2" ]] || fail "probe table not seeded with 2 rows (line: probe seeded)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_usage")" == "2" ]]  || fail "tenant_usage not seeded with 2 rows (line: usage seeded)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_usage")" == "2" ]] || fail "tenant_usage not seeded with 2 rows (line: usage seeded)"
 ok "postgres up; migration 040 applied; probe table + public.tenants + 2 tenant_usage rows seeded"
 
 # ── 3) (A · POSITIVE) router with DATA_PLANE_TENANT_OBS=1 — read + write carry tenant_id ─
@@ -319,14 +339,14 @@ step "4c/9 ASSERT (B-1): ZERO log lines carry a tenant_id field with the flag OF
 LOGS_OFF="$(logs_clean "${DPR_OFF}")"
 N_FIELD_OFF="$(grep -c 'tenant_id=' <<<"${LOGS_OFF}" || true)"
 [[ -z "${LOGS_OFF}" ]] && N_FIELD_OFF=0
-[[ "${N_FIELD_OFF}" == "0" ]] \
-  || fail "(B) OFF router emitted ${N_FIELD_OFF} log line(s) with a tenant_id field — the default is NOT byte-parity! $(grep 'tenant_id=' <<<"${LOGS_OFF}" | tail -3) (line: B field leak)"
+[[ "${N_FIELD_OFF}" == "0" ]] ||
+  fail "(B) OFF router emitted ${N_FIELD_OFF} log line(s) with a tenant_id field — the default is NOT byte-parity! $(grep 'tenant_id=' <<<"${LOGS_OFF}" | tail -3) (line: B field leak)"
 nhas "tenant_id=${TENANT_READ}" "(B) OFF router leaked the read tenant_id field (line: B nhas read)" "${LOGS_OFF}"
 nhas "tenant_id=${TENANT_WRITE}" "(B) OFF router leaked the write tenant_id field (line: B nhas write)" "${LOGS_OFF}"
 ok "(B-1) ZERO tenant_id log fields with the flag OFF — log path byte-parity"
 
 step "4d/9 capture the /metrics PARITY BASELINE off the WARM OFF router (pool + buckets present)"
-get_metrics "${PORT_OFF}" > "${BASELINE_METRICS}"
+get_metrics "${PORT_OFF}" >"${BASELINE_METRICS}"
 [[ -s "${BASELINE_METRICS}" ]] || fail "(B) /metrics baseline capture was empty (line: B baseline capture)"
 ok "(B) warm /metrics baseline captured ($(grep -c . "${BASELINE_METRICS}" || true) lines)"
 
@@ -342,11 +362,11 @@ code="$(post_q "${PORT_OFF}" "$(payload "${TENANT_WRITE}-b2" insert "${TABLE_PRO
 sleep 1
 shape() { sed -E 's/[[:space:]]+[0-9.eE+-]+$//' "$1" | sort -u; }
 AFTER_METRICS="$(mktemp)"
-get_metrics "${PORT_OFF}" > "${AFTER_METRICS}"
+get_metrics "${PORT_OFF}" >"${AFTER_METRICS}"
 DELTA="$(comm -3 <(shape "${BASELINE_METRICS}") <(shape "${AFTER_METRICS}") || true)"
 rm -f "${AFTER_METRICS}"
-[[ -z "${DELTA}" ]] \
-  || fail "(B-2) /metrics SHAPE drifted after 2 NEW tenants with the flag OFF — NOT byte-parity:
+[[ -z "${DELTA}" ]] ||
+  fail "(B-2) /metrics SHAPE drifted after 2 NEW tenants with the flag OFF — NOT byte-parity:
 ${DELTA}
 (line: B metrics shape drift)"
 # Belt & braces: no tenant_id label anywhere on the OFF router's /metrics.
@@ -392,16 +412,16 @@ METRICS_CNT="$(get_metrics "${PORT_CNT}")"
 # Count baas_http_requests_total lines that carry a tenant_id label.
 N_SERIES="$(grep -E '^baas_http_requests_total\{[^}]*tenant_id=' <<<"${METRICS_CNT}" | grep -c . || true)"
 [[ -z "${METRICS_CNT}" ]] && N_SERIES=0
-[[ "${N_SERIES}" -ge 1 ]] \
-  || fail "(D) the COUNTER router exposed ZERO baas_http_requests_total{tenant_id=...} series — the bounded counter never emitted (line: D no series)"
-[[ "${N_SERIES}" -le $((N_CAP + 1)) ]] \
-  || fail "(D) baas_http_requests_total carries ${N_SERIES} tenant_id series — exceeds the cap N+1=$((N_CAP + 1)); the in-process cap is NOT enforced = cardinality bomb (line: D cap breach)"
+[[ "${N_SERIES}" -ge 1 ]] ||
+  fail "(D) the COUNTER router exposed ZERO baas_http_requests_total{tenant_id=...} series — the bounded counter never emitted (line: D no series)"
+[[ "${N_SERIES}" -le $((N_CAP + 1)) ]] ||
+  fail "(D) baas_http_requests_total carries ${N_SERIES} tenant_id series — exceeds the cap N+1=$((N_CAP + 1)); the in-process cap is NOT enforced = cardinality bomb (line: D cap breach)"
 # The overflow MUST have folded the > N_CAP excess into the single sentinel series.
 has 'tenant_id="_over_cap"' "(D) flooded ${N_FLOOD} > ${N_CAP} tenants but no tenant_id=\"_over_cap\" sentinel series — overflow was NOT folded (line: D no sentinel)" "${METRICS_CNT}"
 # The tenant_id label appears ONLY on baas_http_requests_total, never elsewhere.
 OTHER_TENANT="$(grep 'tenant_id=' <<<"${METRICS_CNT}" | grep -vE '^baas_http_requests_total\{' | grep -c . || true)"
-[[ "${OTHER_TENANT}" == "0" ]] \
-  || fail "(D) a tenant_id label appears on a metric OTHER than baas_http_requests_total ($(grep 'tenant_id=' <<<"${METRICS_CNT}" | grep -vE '^baas_http_requests_total\{' | head -2)) — B5 caps it to ONE counter (line: D label leak)"
+[[ "${OTHER_TENANT}" == "0" ]] ||
+  fail "(D) a tenant_id label appears on a metric OTHER than baas_http_requests_total ($(grep 'tenant_id=' <<<"${METRICS_CNT}" | grep -vE '^baas_http_requests_total\{' | head -2)) — B5 caps it to ONE counter (line: D label leak)"
 ok "(D) ${N_SERIES} tenant_id series <= N+1=$((N_CAP + 1)); overflow folded to tenant_id=\"_over_cap\"; label only on baas_http_requests_total"
 
 # ── 7) Grafana / Postgres SMOKE: variable + panel queries execute; RLS hides cross-tenant ─
@@ -417,13 +437,13 @@ step "7/9 (SMOKE) the dashboard's \$tenant_id variable query + a panel query bot
 # Variable query: SELECT id FROM public.tenants (dense, bounded). Must return both
 # seeded tenants (proves the variable source is queryable as Grafana would run it).
 VAR_ROWS="$(psql_val "SELECT count(*) FROM (SELECT id FROM public.tenants ORDER BY id) q")"
-[[ "${VAR_ROWS}" == "2" ]] \
-  || fail "(SMOKE) \$tenant_id variable query (SELECT id FROM public.tenants) returned ${VAR_ROWS} rows, expected 2 (line: smoke var)"
+[[ "${VAR_ROWS}" == "2" ]] ||
+  fail "(SMOKE) \$tenant_id variable query (SELECT id FROM public.tenants) returned ${VAR_ROWS} rows, expected 2 (line: smoke var)"
 # Panel query: the per-tenant usage select, filtered to one tenant. Must parse &
 # return the seeded usage rows for TENANT_READ.
 PANEL_ROWS="$(psql_val "SELECT count(*) FROM (SELECT window_start, metric, qty FROM public.tenant_usage WHERE tenant_id = '${TENANT_READ}' ORDER BY window_start) q")"
-[[ "${PANEL_ROWS}" == "2" ]] \
-  || fail "(SMOKE) panel query against public.tenant_usage for ${TENANT_READ} returned ${PANEL_ROWS} rows, expected 2 (line: smoke panel)"
+[[ "${PANEL_ROWS}" == "2" ]] ||
+  fail "(SMOKE) panel query against public.tenant_usage for ${TENANT_READ} returned ${PANEL_ROWS} rows, expected 2 (line: smoke panel)"
 ok "(SMOKE) \$tenant_id variable query + a public.tenant_usage panel query both parse & return the seeded data"
 
 step "7b/9 (SMOKE · RLS) an UNauthenticated read of public.tenant_usage returns ZERO rows (no cross-tenant leak)"
@@ -435,8 +455,8 @@ step "7b/9 (SMOKE · RLS) an UNauthenticated read of public.tenant_usage returns
 # AND the SELECT tuple, so psql_val's whitespace-strip would yield "SET0"; keep only
 # the trailing digits so the assertion compares the actual row count.
 RLS_ROWS="$(docker exec -i "${PG}" psql -U postgres -d postgres -tAc "SET ROLE authenticated; SELECT count(*) FROM public.tenant_usage" 2>/dev/null | tr -dc '0-9')"
-[[ "${RLS_ROWS}" == "0" ]] \
-  || fail "(SMOKE · RLS) an unauthenticated/authenticated read saw '${RLS_ROWS}' tenant_usage rows — RLS is NOT hiding cross-tenant data (line: smoke RLS leak)"
+[[ "${RLS_ROWS}" == "0" ]] ||
+  fail "(SMOKE · RLS) an unauthenticated/authenticated read saw '${RLS_ROWS}' tenant_usage rows — RLS is NOT hiding cross-tenant data (line: smoke RLS leak)"
 ok "(SMOKE · RLS) unauthenticated read of public.tenant_usage = 0 rows — RLS scopes per-tenant, no cross-tenant leak"
 
 # ── 8) summary ────────────────────────────────────────────────────────────────
@@ -450,7 +470,8 @@ green "[M85] (SMOKE):       \$tenant_id var + public.tenant_usage panel queries 
 # ── 9) emit the gate event via the kernel log helper (best-effort) ────────────
 step "9/9 log GATE m85=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-b5-tenant-observability}"

@@ -21,9 +21,9 @@ source "${SCRIPT_DIR}/../lib/lib-live-tenant.sh"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../lib/lib-workload.sh"
 
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 
 PACKAGE="${PACKAGE:-essential}"
 DURATION="${DURATION:-30m}"
@@ -34,29 +34,35 @@ TABLE="bench_items"
 SAMPLE_SECS=5
 
 # Seconds from a Go-style duration (30m, 1800s, 1h).
-dur_secs() { case "$1" in *h) echo $(( ${1%h} * 3600 ));; *m) echo $(( ${1%m} * 60 ));; *s) echo "${1%s}";; *) echo "$1";; esac; }
+dur_secs() { case "$1" in *h) echo $((${1%h} * 3600)) ;; *m) echo $((${1%m} * 60)) ;; *s) echo "${1%s}" ;; *) echo "$1" ;; esac }
 TOTAL="$(dur_secs "${DURATION}")"
 
 cyan "[bench-mem] ${TARGET} RSS under ${RATE} rps for ${DURATION} (sample ${SAMPLE_SECS}s)"
-live_tenant_provision "bench-mem-$(date +%s)" || { red "provision failed"; exit 1; }
+live_tenant_provision "bench-mem-$(date +%s)" || {
+  red "provision failed"
+  exit 1
+}
 trap 'bw_drop_table "${TABLE}"; kill "${K6_PID:-0}" 2>/dev/null || true; live_tenant_cleanup' EXIT
-bw_setup_table "${TABLE}" || { red "working-set setup failed"; exit 1; }
+bw_setup_table "${TABLE}" || {
+  red "working-set setup failed"
+  exit 1
+}
 
 # Background load for the whole window.
 bench_k6 "crud.js" "mem-load-${PACKAGE}.json" \
-	-e BASE="${LIVE_KONG_URL}" -e ANON="${LIVE_ANON_APIKEY}" -e APPK="${LIVE_TENANT_API_KEY}" \
-	-e DBID="${LIVE_TENANT_DB_ID}" -e TABLE="${TABLE}" -e RATE="${RATE}" -e DURATION="${TOTAL}s" \
-	>/dev/null 2>&1 &
+  -e BASE="${LIVE_KONG_URL}" -e ANON="${LIVE_ANON_APIKEY}" -e APPK="${LIVE_TENANT_API_KEY}" \
+  -e DBID="${LIVE_TENANT_DB_ID}" -e TABLE="${TABLE}" -e RATE="${RATE}" -e DURATION="${TOTAL}s" \
+  >/dev/null 2>&1 &
 K6_PID=$!
 
 # Sample RSS until the load finishes.
 SAMPLES="[]"
 t=0
-while kill -0 "${K6_PID}" 2>/dev/null && (( t < TOTAL + 10 )); do
-	rss="$(docker stats --no-stream --format '{{.MemUsage}}' "${TARGET}" 2>/dev/null | awk '{print $1}' | sed 's/MiB//;s/GiB/*1024/' | bc 2>/dev/null | cut -d. -f1)"
-	[[ -n "${rss}" ]] && SAMPLES="$(jq -c --argjson t "${t}" --argjson r "${rss:-0}" '. + [{t:$t, rss_mib:$r}]' <<<"${SAMPLES}")"
-	sleep "${SAMPLE_SECS}"
-	t=$(( t + SAMPLE_SECS ))
+while kill -0 "${K6_PID}" 2>/dev/null && ((t < TOTAL + 10)); do
+  rss="$(docker stats --no-stream --format '{{.MemUsage}}' "${TARGET}" 2>/dev/null | awk '{print $1}' | sed 's/MiB//;s/GiB/*1024/' | bc 2>/dev/null | cut -d. -f1)"
+  [[ -n "${rss}" ]] && SAMPLES="$(jq -c --argjson t "${t}" --argjson r "${rss:-0}" '. + [{t:$t, rss_mib:$r}]' <<<"${SAMPLES}")"
+  sleep "${SAMPLE_SECS}"
+  t=$((t + SAMPLE_SECS))
 done
 wait "${K6_PID}" 2>/dev/null || true
 rm -f "${BENCH_OUT_DIR}/mem-load-${PACKAGE}.json"
@@ -64,7 +70,7 @@ rm -f "${BENCH_OUT_DIR}/mem-load-${PACKAGE}.json"
 # Peak + linear drift slope (MiB/h) via least squares over (t, rss).
 FINAL="${BENCH_OUT_DIR}/mem-${PACKAGE}.json"
 jq -n --arg package "${PACKAGE}" --argjson rate "${RATE}" --arg target "${TARGET}" \
-	--argjson samples "${SAMPLES}" --argjson env "$(bench_env_json)" '
+  --argjson samples "${SAMPLES}" --argjson env "$(bench_env_json)" '
 	($samples | length) as $n |
 	(if $n > 1 then
 		($samples | map(.t) | add / $n) as $mt |
@@ -78,6 +84,6 @@ jq -n --arg package "${PACKAGE}" --argjson rate "${RATE}" --arg target "${TARGET
 	 first_rss_mib: ($samples[0].rss_mib // 0),
 	 last_rss_mib: ($samples[-1].rss_mib // 0),
 	 drift_mib_per_h: ($slope | (. * 10 | round) / 10),
-	 samples:$samples, env:$env}' > "${FINAL}"
+	 samples:$samples, env:$env}' >"${FINAL}"
 
 green "[bench-mem] $(jq -r '"peak \(.peak_rss_mib)MiB  drift \(.drift_mib_per_h)MiB/h  (\(.first_rss_mib)→\(.last_rss_mib))"' "${FINAL}") → ${FINAL#${BENCH_ROOT}/}"

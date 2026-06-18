@@ -12,10 +12,7 @@
 
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import {
-  RustDataPlaneProxy,
-  type RustCapabilitiesResponse,
-} from '../proxy/rust-data-plane.proxy';
+import { RustDataPlaneProxy, type RustCapabilitiesResponse } from '../proxy/rust-data-plane.proxy';
 
 /**
  * Capability introspection surface (gap G6). Proxies the Rust data-plane

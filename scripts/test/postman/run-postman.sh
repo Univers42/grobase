@@ -42,25 +42,28 @@ set -euo pipefail
 
 # ── paths ──────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"          # repo root (script now at scripts/test/postman/)
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)" # repo root (script now at scripts/test/postman/)
 POSTMAN_DIR="${INFRA_DIR}/infra/config/postman"
 REPORT_DIR="${INFRA_DIR}/artifacts/test"
 COLLECTION="grobase-offers.postman_collection.json"
-GEN_ENV="grobase-offers.generated.env.json"            # written into POSTMAN_DIR
+GEN_ENV="grobase-offers.generated.env.json" # written into POSTMAN_DIR
 NEWMAN_IMAGE="${NEWMAN_IMAGE:-postman/newman:6-alpine}"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-yellow(){ printf '\033[0;33m%s\033[0m\n' "$*"; }
-step()  { cyan "[postman] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[postman] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+yellow() { printf '\033[0;33m%s\033[0m\n' "$*"; }
+step() { cyan "[postman] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[postman] FAIL — $*"
+  exit 1
+}
 
 # Read a container env var (works for distroless images — same as lib-live-tenant.sh _lt_env).
 _env() { # $1 container, $2 var
-  docker inspect "$1" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
-    | grep "^$2=" | head -1 | cut -d= -f2-
+  docker inspect "$1" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null |
+    grep "^$2=" | head -1 | cut -d= -f2-
 }
 
 # Host port a container publishes for $2 (e.g. 8000/tcp) — empty if unmapped.
@@ -71,16 +74,19 @@ _host_port() { # $1 container, $2 container-port/proto
 # ── 0) prerequisites ───────────────────────────────────────────────────────
 step "0/4 prerequisites (docker, jq, running stack)"
 command -v docker >/dev/null 2>&1 || fail "docker is required"
-command -v jq     >/dev/null 2>&1 || fail "jq is required (parse/emit the env json)"
-docker inspect mini-baas-kong           >/dev/null 2>&1 || fail "mini-baas-kong not running — start the stack (make up EDITION=full)"
+command -v jq >/dev/null 2>&1 || fail "jq is required (parse/emit the env json)"
+docker inspect mini-baas-kong >/dev/null 2>&1 || fail "mini-baas-kong not running — start the stack (make up EDITION=full)"
 docker inspect mini-baas-tenant-control >/dev/null 2>&1 || fail "mini-baas-tenant-control not running"
-docker inspect mini-baas-postgres       >/dev/null 2>&1 || fail "mini-baas-postgres not running"
+docker inspect mini-baas-postgres >/dev/null 2>&1 || fail "mini-baas-postgres not running"
 [[ -f "${POSTMAN_DIR}/${COLLECTION}" ]] || fail "collection not found: ${POSTMAN_DIR}/${COLLECTION}"
 
 # Resolve host ports (resolve-ports.sh may have moved them off the defaults).
-KONG_PORT="$(_host_port mini-baas-kong 8000/tcp)";            KONG_PORT="${KONG_PORT:-8002}"
-TC_PORT="$(_host_port mini-baas-tenant-control 3022/tcp)";    TC_PORT="${TC_PORT:-3022}"
-DP_PORT="$(_host_port mini-baas-data-plane-router-rust 4011/tcp 2>/dev/null || true)"; DP_PORT="${DP_PORT:-4011}"
+KONG_PORT="$(_host_port mini-baas-kong 8000/tcp)"
+KONG_PORT="${KONG_PORT:-8002}"
+TC_PORT="$(_host_port mini-baas-tenant-control 3022/tcp)"
+TC_PORT="${TC_PORT:-3022}"
+DP_PORT="$(_host_port mini-baas-data-plane-router-rust 4011/tcp 2>/dev/null || true)"
+DP_PORT="${DP_PORT:-4011}"
 BASE_URL="http://127.0.0.1:${KONG_PORT}"
 CONTROL_URL="http://127.0.0.1:${TC_PORT}"
 DATA_PLANE_URL="http://127.0.0.1:${DP_PORT}"
@@ -95,14 +101,17 @@ step "1/4 discover live secrets from running containers (mirrors lib-live-tenant
 SERVICE_TOKEN="$(_env mini-baas-tenant-control INTERNAL_SERVICE_TOKEN)"
 ANON_KEY="$(_env mini-baas-kong KONG_PUBLIC_API_KEY)"
 SERVICE_API_KEY="$(_env mini-baas-kong KONG_SERVICE_API_KEY)"
-[[ -n "${SERVICE_TOKEN}"   ]] || fail "INTERNAL_SERVICE_TOKEN not found on mini-baas-tenant-control"
-[[ -n "${ANON_KEY}"        ]] || fail "KONG_PUBLIC_API_KEY not found on mini-baas-kong"
+[[ -n "${SERVICE_TOKEN}" ]] || fail "INTERNAL_SERVICE_TOKEN not found on mini-baas-tenant-control"
+[[ -n "${ANON_KEY}" ]] || fail "KONG_PUBLIC_API_KEY not found on mini-baas-kong"
 [[ -n "${SERVICE_API_KEY}" ]] || fail "KONG_SERVICE_API_KEY not found on mini-baas-kong"
 
 # postgres DSN via the in-network alias (the data plane dials `postgres:5432`).
-PG_USER="$(_env mini-baas-postgres POSTGRES_USER)";     PG_USER="${PG_USER:-postgres}"
-PG_PASS="$(_env mini-baas-postgres POSTGRES_PASSWORD)"; PG_PASS="${PG_PASS:-postgres}"
-PG_DB="$(_env mini-baas-postgres POSTGRES_DB)";         PG_DB="${PG_DB:-postgres}"
+PG_USER="$(_env mini-baas-postgres POSTGRES_USER)"
+PG_USER="${PG_USER:-postgres}"
+PG_PASS="$(_env mini-baas-postgres POSTGRES_PASSWORD)"
+PG_PASS="${PG_PASS:-postgres}"
+PG_DB="$(_env mini-baas-postgres POSTGRES_DB)"
+PG_DB="${PG_DB:-postgres}"
 PG_DSN="postgres://${PG_USER}:${PG_PASS}@postgres:5432/${PG_DB}"
 
 # JWT secret for the storage/functions folders (m55/m56 discovery order).
@@ -153,7 +162,7 @@ jq -n \
       { key: "fnName",        value: "",             enabled: true }
     ],
     _postman_variable_scope: "environment"
-  }' > "${POSTMAN_DIR}/${GEN_ENV}"
+  }' >"${POSTMAN_DIR}/${GEN_ENV}"
 chmod 600 "${POSTMAN_DIR}/${GEN_ENV}" 2>/dev/null || true
 ok "env written (mode 600 — contains live secrets, gitignored)"
 
@@ -161,6 +170,7 @@ ok "env written (mode 600 — contains live secrets, gitignored)"
 HTML_REPORT="${REPORT_DIR}/postman-offers-report.html"
 JUNIT_REPORT="${REPORT_DIR}/postman-offers.xml"
 step "3/4 run newman (${NEWMAN_IMAGE}) → HTML + JUnit"
+# shellcheck disable=SC2054  # newman wants ONE comma-separated --reporters value, not split array elements
 DOCKER_CMD=(docker run --rm --network host
   -v "${POSTMAN_DIR}:/etc/newman"
   -v "${REPORT_DIR}:/reports"

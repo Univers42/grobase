@@ -27,15 +27,16 @@ describe('generatedEdges', () => {
   });
 
   it('maps a string-array tag field to one edge per non-empty string tag', () => {
-    const edges = generatedEdges(
-      node({ tags: ['x', '', 'y', 7] }),
-      { tags: { field: 'tags', mount: 'm', resource: 'tag' } },
-    );
+    const edges = generatedEdges(node({ tags: ['x', '', 'y', 7] }), {
+      tags: { field: 'tags', mount: 'm', resource: 'tag' },
+    });
     expect(edges.map((e) => e.to)).toEqual(['m:tag:x', 'm:tag:y']);
   });
 
   it('a non-array tag field yields no tag edges', () => {
-    expect(generatedEdges(node({ tags: 'x' }), { tags: { field: 'tags', mount: 'm', resource: 'tag' } })).toEqual([]);
+    expect(
+      generatedEdges(node({ tags: 'x' }), { tags: { field: 'tags', mount: 'm', resource: 'tag' } }),
+    ).toEqual([]);
   });
 
   it('FK-by-declaration: scalar refs become edges; null/object/malformed are skipped', () => {

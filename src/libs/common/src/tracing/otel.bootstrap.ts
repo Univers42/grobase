@@ -10,7 +10,10 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-type NodeSdkConstructor = new (options: Record<string, unknown>) => { start: () => void; shutdown: () => Promise<void> };
+type NodeSdkConstructor = new (options: Record<string, unknown>) => {
+  start: () => void;
+  shutdown: () => Promise<void>;
+};
 
 let started = false;
 
@@ -24,16 +27,18 @@ export function startOtel(serviceName: string): void {
     const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http') as {
       OTLPTraceExporter: new (options: Record<string, unknown>) => unknown;
     };
-    const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node') as {
-      getNodeAutoInstrumentations: () => unknown;
-    };
+    const { getNodeAutoInstrumentations } =
+      require('@opentelemetry/auto-instrumentations-node') as {
+        getNodeAutoInstrumentations: () => unknown;
+      };
 
     // internal/loopback only — not externally exposed
     const scheme = 'http';
     const sdk = new NodeSDK({
       serviceName,
       traceExporter: new OTLPTraceExporter({
-        url: process.env['OTEL_EXPORTER_OTLP_ENDPOINT'] ?? `${scheme}://otel-collector:4318/v1/traces`,
+        url:
+          process.env['OTEL_EXPORTER_OTLP_ENDPOINT'] ?? `${scheme}://otel-collector:4318/v1/traces`,
       }),
       instrumentations: [getNodeAutoInstrumentations()],
     });
@@ -43,6 +48,12 @@ export function startOtel(serviceName: string): void {
       void sdk.shutdown().finally(() => process.exit(0));
     });
   } catch (error) {
-    console.warn(JSON.stringify({ service: serviceName, event: 'otel_disabled', error: (error as Error).message }));
+    console.warn(
+      JSON.stringify({
+        service: serviceName,
+        event: 'otel_disabled',
+        error: (error as Error).message,
+      }),
+    );
   }
 }

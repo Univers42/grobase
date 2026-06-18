@@ -24,7 +24,7 @@ echo "=== Vault Bootstrap ==="
 echo "[*] Waiting for Vault at ${VAULT_ADDR}…"
 while true; do
   if vault status -address="${VAULT_ADDR}" >/dev/null 2>&1; then
-    break  # Vault is ready (unsealed)
+    break # Vault is ready (unsealed)
   fi
   # vault status returns 2 when sealed but reachable — that's enough to proceed
   OUTPUT=$(vault status -address="${VAULT_ADDR}" 2>&1) || true
@@ -55,7 +55,7 @@ if echo "${INIT_OUTPUT2}" | grep -q 'Initialized.*false'; then
     -address="${VAULT_ADDR}" \
     -key-shares=1 \
     -key-threshold=1 \
-    -format=json > "${KEYS_FILE}"
+    -format=json >"${KEYS_FILE}"
   chmod 600 "${KEYS_FILE}"
   echo "[+] Vault initialized — keys written to ${KEYS_FILE}"
 else

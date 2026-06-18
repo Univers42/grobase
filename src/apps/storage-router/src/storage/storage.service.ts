@@ -11,8 +11,13 @@
 /* ************************************************************************** */
 
 import {
-  Injectable, Logger, OnModuleInit, OnApplicationShutdown,
-  BadRequestException, NotFoundException, ForbiddenException,
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnApplicationShutdown,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -111,7 +116,11 @@ export class StorageService implements OnModuleInit, OnApplicationShutdown {
    * never learns whether the object exists (no leak beyond the deny decision).
    * The owner-prefix isolation is independent and always applies on top.
    */
-  private assertBucketAllowed(bucket: string, action: BucketAction, principal?: PolicyPrincipal): void {
+  private assertBucketAllowed(
+    bucket: string,
+    action: BucketAction,
+    principal?: PolicyPrincipal,
+  ): void {
     if (!this.policy || !principal) return;
     if (!this.policy.allows(bucket, action, principal)) {
       throw new ForbiddenException(`bucket policy denies ${action} on ${bucket}`);
@@ -172,7 +181,9 @@ export class StorageService implements OnModuleInit, OnApplicationShutdown {
     principal?: PolicyPrincipal,
   ) {
     if (body.byteLength > this.maxUploadBytes) {
-      throw new BadRequestException(`object exceeds max upload size (${this.maxUploadBytes} bytes)`);
+      throw new BadRequestException(
+        `object exceeds max upload size (${this.maxUploadBytes} bytes)`,
+      );
     }
     this.assertBucketAllowed(bucket, 'write', principal);
     const key = this.ownedKey(userId, objectPath);
@@ -217,7 +228,11 @@ export class StorageService implements OnModuleInit, OnApplicationShutdown {
 
       if (transform && isTransformableType(contentType)) {
         const variant = await applyTransform(original, transform, contentType);
-        return { body: variant.body, contentType: variant.contentType, size: variant.body.byteLength };
+        return {
+          body: variant.body,
+          contentType: variant.contentType,
+          size: variant.body.byteLength,
+        };
       }
       // No transform (or non-image) → original bytes, byte-identical to the
       // pre-transform path.
@@ -227,7 +242,12 @@ export class StorageService implements OnModuleInit, OnApplicationShutdown {
     }
   }
 
-  async deleteObject(bucket: string, objectPath: string, userId: string, principal?: PolicyPrincipal) {
+  async deleteObject(
+    bucket: string,
+    objectPath: string,
+    userId: string,
+    principal?: PolicyPrincipal,
+  ) {
     this.assertBucketAllowed(bucket, 'write', principal);
     const key = this.ownedKey(userId, objectPath);
     await this.s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
@@ -235,13 +255,22 @@ export class StorageService implements OnModuleInit, OnApplicationShutdown {
   }
 
   /** List objects the caller owns under bucket/prefix (owner-prefix stripped). */
-  async listObjects(bucket: string, userId: string, prefix = '', principal?: PolicyPrincipal): Promise<StorageObject[]> {
+  async listObjects(
+    bucket: string,
+    userId: string,
+    prefix = '',
+    principal?: PolicyPrincipal,
+  ): Promise<StorageObject[]> {
     this.assertBucketAllowed(bucket, 'read', principal);
     const ownerPrefix = `${userId}/`;
     const cleanPrefix = prefix.replace(/^\/+/, '');
     try {
       const out = await this.s3.send(
-        new ListObjectsV2Command({ Bucket: bucket, Prefix: `${ownerPrefix}${cleanPrefix}`, MaxKeys: 1000 }),
+        new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: `${ownerPrefix}${cleanPrefix}`,
+          MaxKeys: 1000,
+        }),
       );
       return (out.Contents ?? []).map((o) => ({
         key: (o.Key ?? '').slice(ownerPrefix.length),

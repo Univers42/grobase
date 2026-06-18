@@ -17,9 +17,9 @@ KEY="${1:?artifact key required}"
 
 # Normalize key into a full mc path.
 case "$KEY" in
-  baas/*) FULL="$KEY" ;;
-  logical/*|physical/*) FULL="baas/${PG_BACKUP_BUCKET:-backups}/${PG_BACKUP_PREFIX:-postgres}/${KEY}" ;;
-  *) FULL="baas/${PG_BACKUP_BUCKET:-backups}/${PG_BACKUP_PREFIX:-postgres}/logical/${KEY}" ;;
+baas/*) FULL="$KEY" ;;
+logical/* | physical/*) FULL="baas/${PG_BACKUP_BUCKET:-backups}/${PG_BACKUP_PREFIX:-postgres}/${KEY}" ;;
+*) FULL="baas/${PG_BACKUP_BUCKET:-backups}/${PG_BACKUP_PREFIX:-postgres}/logical/${KEY}" ;;
 esac
 
 mkdir -p /restore
@@ -32,7 +32,7 @@ if [[ "$LOCAL" == *.dump ]]; then
   echo "[pg-restore] applying logical dump to ${RESTORE_DATABASE_URL}"
   # --clean drops objects first; --if-exists avoids errors on first restore.
   pg_restore --no-owner --no-privileges --clean --if-exists \
-             --dbname="$RESTORE_DATABASE_URL" "$LOCAL"
+    --dbname="$RESTORE_DATABASE_URL" "$LOCAL"
   echo "[pg-restore] logical restore complete"
 else
   echo "[pg-restore] physical artifact downloaded to ${LOCAL}"

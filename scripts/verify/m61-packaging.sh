@@ -40,25 +40,28 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"   # apps/baas/mini-baas-infra
-ROOT_DIR="$(cd "${BAAS_DIR}/.." && pwd)"        # apps/baas
+BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # apps/baas/mini-baas-infra
+ROOT_DIR="$(cd "${BAAS_DIR}/.." && pwd)"      # apps/baas
 WIKI="${ROOT_DIR}/wiki"
 SDK="${ROOT_DIR}/sdk"
 MK="${BAAS_DIR}/Makefile"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M61] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M61] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M61] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M61] FAIL — $*"
+  exit 1
+}
 
 TMP="$(mktemp -d)"
 cleanup() { rm -rf "${TMP}"; }
 trap cleanup EXIT
 
 # has/nhas operate on a file: assert a marker is present / absent.
-has()  { grep -q -- "$1" "$2" || fail "$3: '$1' missing — $(head -c 200 "$2")"; }
+has() { grep -q -- "$1" "$2" || fail "$3: '$1' missing — $(head -c 200 "$2")"; }
 ihas() { grep -qi -- "$1" "$2" || fail "$3: '$1' missing — $(head -c 200 "$2")"; }
 
 # ── 1) migration guides are substantive ──────────────────────────────────────
@@ -74,8 +77,8 @@ ihas 'dependency swap' "${SUPA}" "supabase guide"
 ihas 'baas' "${SUPA}" "supabase guide CLI mapping"
 ok "supabase guide: tenant_owned on-ramp + dependency-swap drop-in documented"
 # Firebase guide: the Firestore→Grobase mapping (document DB → Mongo/Postgres).
-grep -qE 'Firestore.*(→|->).*(Mongo|Postgres|Grobase)' "${FIRE}" \
-  || fail "firebase guide: no Firestore→(Mongo/Postgres/Grobase) concept mapping — $(head -c 200 "${FIRE}")"
+grep -qE 'Firestore.*(→|->).*(Mongo|Postgres|Grobase)' "${FIRE}" ||
+  fail "firebase guide: no Firestore→(Mongo/Postgres/Grobase) concept mapping — $(head -c 200 "${FIRE}")"
 ihas 'onSnapshot' "${FIRE}" "firebase guide realtime mapping"
 ok "firebase guide: Firestore→(Mongo/Postgres) mapping + onSnapshot→realtime documented"
 
@@ -112,18 +115,18 @@ docker run --rm -v "${SDK}:/sdk" -w /sdk node:20 sh -c '
   # capture the unknown-command exit WITHOUT letting set -e abort the shell.
   brc=0; node dist/bin/baas.js zzz-not-a-command >/dev/null 2>&1 || brc=$?
   echo "BOGUS_RC=${brc}"
-' > "${TMP}/cli.out" 2>"${TMP}/cli.err" || {
-    grep -q '__NOBIN__' "${TMP}/cli.out" "${TMP}/cli.err" 2>/dev/null \
-      && fail "build produced no dist/bin/baas.js"
-    fail "CLI container run failed — $(tail -c 300 "${TMP}/cli.err")"
-  }
+' >"${TMP}/cli.out" 2>"${TMP}/cli.err" || {
+  grep -q '__NOBIN__' "${TMP}/cli.out" "${TMP}/cli.err" 2>/dev/null &&
+    fail "build produced no dist/bin/baas.js"
+  fail "CLI container run failed — $(tail -c 300 "${TMP}/cli.err")"
+}
 
 # (a) --help lists every real subcommand the SDK actually wires.
 HELP="$(sed -n '/===HELP===/,/===HELP_RC=/p' "${TMP}/cli.out")"
-printf '%s\n' "${HELP}" > "${TMP}/help.txt"
+printf '%s\n' "${HELP}" >"${TMP}/help.txt"
 for sub in login functions secrets triggers; do
-  grep -q -- "${sub}" "${TMP}/help.txt" \
-    || fail "--help did not list subcommand '${sub}' — $(head -c 300 "${TMP}/help.txt")"
+  grep -q -- "${sub}" "${TMP}/help.txt" ||
+    fail "--help did not list subcommand '${sub}' — $(head -c 300 "${TMP}/help.txt")"
 done
 grep -q 'HELP_RC=0' "${TMP}/cli.out" || fail "--help exited non-zero"
 ok "baas --help runs (rc=0) and lists: login · functions · secrets · triggers"
@@ -131,27 +134,27 @@ ok "baas --help runs (rc=0) and lists: login · functions · secrets · triggers
 # (b) dispatcher is real: `functions list` with no URL hits client() and errors
 #     with the configured-URL message — a banner-only fake never reaches this.
 DISP="$(sed -n '/===DISPATCH===/,/===BOGUS===/p' "${TMP}/cli.out")"
-printf '%s\n' "${DISP}" > "${TMP}/disp.txt"
-grep -qi 'No base URL configured' "${TMP}/disp.txt" \
-  || fail "'functions list' did not route through the dispatcher (no client() URL error) — $(head -c 300 "${TMP}/disp.txt")"
+printf '%s\n' "${DISP}" >"${TMP}/disp.txt"
+grep -qi 'No base URL configured' "${TMP}/disp.txt" ||
+  fail "'functions list' did not route through the dispatcher (no client() URL error) — $(head -c 300 "${TMP}/disp.txt")"
 ok "baas functions list routes through the real dispatcher (errors on missing URL, not a banner)"
 
 # (c) an unknown command must exit non-zero (real argv dispatcher).
-grep -q 'BOGUS_RC=0' "${TMP}/cli.out" \
-  && fail "unknown subcommand exited 0 — the CLI is a banner printer, not a dispatcher"
-grep -qE 'BOGUS_RC=[1-9]' "${TMP}/cli.out" \
-  || fail "could not observe unknown-command exit code — $(tail -c 200 "${TMP}/cli.out")"
+grep -q 'BOGUS_RC=0' "${TMP}/cli.out" &&
+  fail "unknown subcommand exited 0 — the CLI is a banner printer, not a dispatcher"
+grep -qE 'BOGUS_RC=[1-9]' "${TMP}/cli.out" ||
+  fail "could not observe unknown-command exit code — $(tail -c 200 "${TMP}/cli.out")"
 ok "unknown subcommand exits non-zero — argv dispatch is real"
 
 # ── 3) one-command bring-up target exists ────────────────────────────────────
 step "3/4 Makefile one-command bring-up (all: / up:)"
-grep -qE '^all:' "${MK}"  || fail "Makefile has no 'all:' target (build+start default edition)"
-grep -qE '^up:' "${MK}"   || fail "Makefile has no 'up:' target (start selected edition)"
+grep -qE '^all:' "${MK}" || fail "Makefile has no 'all:' target (build+start default edition)"
+grep -qE '^up:' "${MK}" || fail "Makefile has no 'up:' target (start selected edition)"
 ok "Makefile bring-up present: 'make all' (build+start) · 'make up' (selected edition)"
 
 # ── 4) the baas CLI is npm-publishable: a HELD publish workflow + a packable tarball ──
 step "4/4 npm publish path: held baas-cli-publish.yml + the package packs the CLI"
-REPO_ROOT="$(cd "${ROOT_DIR}/../.." && pwd)"     # ft_transcendence (repo root)
+REPO_ROOT="$(cd "${ROOT_DIR}/../.." && pwd)" # ft_transcendence (repo root)
 WF="${REPO_ROOT}/.github/workflows/baas-cli-publish.yml"
 [[ -s "${WF}" ]] || fail "baas-cli-publish.yml missing — no npm publish path for the CLI"
 # HELD: publishes only on an explicit baas-cli-v* tag or a manual dry_run=false run,
@@ -166,7 +169,7 @@ docker run --rm -v "${SDK}:/sdk" -w /sdk node:20 sh -c '
   npm ci --ignore-scripts -s >/dev/null 2>&1 || npm i --ignore-scripts -s >/dev/null 2>&1
   npm run build -s >/dev/null 2>&1
   npm pack --dry-run 2>&1
-' > "${TMP}/pack.out" 2>&1 || fail "npm pack dry-run failed — $(tail -c 300 "${TMP}/pack.out")"
+' >"${TMP}/pack.out" 2>&1 || fail "npm pack dry-run failed — $(tail -c 300 "${TMP}/pack.out")"
 grep -q 'dist/bin/baas.js' "${TMP}/pack.out" || fail "the publishable tarball would not include dist/bin/baas.js — $(tail -c 200 "${TMP}/pack.out")"
 ok "CLI publishable: held baas-cli-publish.yml (baas-cli-v* tag / manual dry_run) + tarball includes dist/bin/baas.js"
 

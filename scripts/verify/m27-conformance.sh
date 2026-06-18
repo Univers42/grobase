@@ -36,20 +36,23 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ROUTER_DIR="${BAAS_DIR}/src/data-plane-router"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-yellow(){ printf '\033[0;33m%s\033[0m\n' "$*"; }
-fail()  { red "[M27] FAIL: $*"; exit 1; }
-step()  { cyan "[M27] ${*}"; }
-pass()  { green "[M27] PASS: ${*}"; }
-skip()  { yellow "[M27] SKIP: ${*}"; }
+yellow() { printf '\033[0;33m%s\033[0m\n' "$*"; }
+fail() {
+  red "[M27] FAIL: $*"
+  exit 1
+}
+step() { cyan "[M27] ${*}"; }
+pass() { green "[M27] PASS: ${*}"; }
+skip() { yellow "[M27] SKIP: ${*}"; }
 
 TOOLCHAIN_IMG="mini-baas-rust-toolchain"
 
 env_of() { # $1 container, $2 var
-  docker inspect "$1" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
-    | grep "^$2=" | head -1 | cut -d= -f2-
+  docker inspect "$1" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null |
+    grep "^$2=" | head -1 | cut -d= -f2-
 }
 container_up() {
   # An engine counts as "up" only if it is RUNNING, not restarting, and (when it
@@ -64,52 +67,72 @@ container_up() {
 # Engine → (container, in-network DSN). Echoes DSN, or empty if engine down.
 dsn_for() {
   case "$1" in
-    postgresql)
-      container_up mini-baas-postgres || return 1
-      local u p d
-      u="$(env_of mini-baas-postgres POSTGRES_USER)"; u="${u:-postgres}"
-      p="$(env_of mini-baas-postgres POSTGRES_PASSWORD)"; p="${p:-postgres}"
-      d="$(env_of mini-baas-postgres POSTGRES_DB)"; d="${d:-postgres}"
-      echo "postgres://${u}:${p}@postgres:5432/${d}" ;;
-    mysql)
-      container_up mini-baas-mysql || return 1
-      local u p d
-      u="$(env_of mini-baas-mysql MYSQL_USER)"; u="${u:-mini_baas}"
-      p="$(env_of mini-baas-mysql MYSQL_PASSWORD)"; p="${p:-mini_baas_pw}"
-      d="$(env_of mini-baas-mysql MYSQL_DATABASE)"; d="${d:-mini_baas}"
-      echo "mysql://${u}:${p}@mysql:3306/${d}" ;;
-    mariadb)
-      container_up mini-baas-mariadb || return 1
-      local u p d
-      u="$(env_of mini-baas-mariadb MARIADB_USER)"; u="${u:-mini_baas}"
-      p="$(env_of mini-baas-mariadb MARIADB_PASSWORD)"; p="${p:-mini_baas_pw}"
-      d="$(env_of mini-baas-mariadb MARIADB_DATABASE)"; d="${d:-mini_baas}"
-      echo "mysql://${u}:${p}@mariadb:3306/${d}" ;;
-    mongodb)
-      container_up mini-baas-mongo || return 1
-      local u p
-      u="$(env_of mini-baas-mongo MONGO_INITDB_ROOT_USERNAME)"; u="${u:-mongo}"
-      p="$(env_of mini-baas-mongo MONGO_INITDB_ROOT_PASSWORD)"; p="${p:-mongo}"
-      echo "mongodb://${u}:${p}@mongo:27017/conformance?authSource=admin" ;;
-    redis)
-      container_up mini-baas-redis || return 1
-      echo "redis://redis:6379" ;;
-    cockroachdb)
-      container_up mini-baas-cockroach || return 1
-      # Insecure single-node: root, no password, sslmode=disable. The suite
-      # qualifies its probe table to public.conf_probe (CRDB shares pg's
-      # "$user", public search_path quirk).
-      echo "postgres://root@cockroach:26257/defaultdb?sslmode=disable" ;;
-    sqlite)
-      # Embedded — no container. A fresh file inside the ephemeral conformance
-      # container (bundled SQLite, so no system libsqlite3 needed).
-      echo "sqlite:///tmp/conf-sqlite.db" ;;
-    mssql)
-      container_up mini-baas-mssql || return 1
-      local p
-      p="$(env_of mini-baas-mssql MSSQL_SA_PASSWORD)"; p="${p:-Mssql_Strong!Pass1}"
-      echo "mssql://sa:${p}@mssql:1433/master" ;;
-    *) return 2 ;;
+  postgresql)
+    container_up mini-baas-postgres || return 1
+    local u p d
+    u="$(env_of mini-baas-postgres POSTGRES_USER)"
+    u="${u:-postgres}"
+    p="$(env_of mini-baas-postgres POSTGRES_PASSWORD)"
+    p="${p:-postgres}"
+    d="$(env_of mini-baas-postgres POSTGRES_DB)"
+    d="${d:-postgres}"
+    echo "postgres://${u}:${p}@postgres:5432/${d}"
+    ;;
+  mysql)
+    container_up mini-baas-mysql || return 1
+    local u p d
+    u="$(env_of mini-baas-mysql MYSQL_USER)"
+    u="${u:-mini_baas}"
+    p="$(env_of mini-baas-mysql MYSQL_PASSWORD)"
+    p="${p:-mini_baas_pw}"
+    d="$(env_of mini-baas-mysql MYSQL_DATABASE)"
+    d="${d:-mini_baas}"
+    echo "mysql://${u}:${p}@mysql:3306/${d}"
+    ;;
+  mariadb)
+    container_up mini-baas-mariadb || return 1
+    local u p d
+    u="$(env_of mini-baas-mariadb MARIADB_USER)"
+    u="${u:-mini_baas}"
+    p="$(env_of mini-baas-mariadb MARIADB_PASSWORD)"
+    p="${p:-mini_baas_pw}"
+    d="$(env_of mini-baas-mariadb MARIADB_DATABASE)"
+    d="${d:-mini_baas}"
+    echo "mysql://${u}:${p}@mariadb:3306/${d}"
+    ;;
+  mongodb)
+    container_up mini-baas-mongo || return 1
+    local u p
+    u="$(env_of mini-baas-mongo MONGO_INITDB_ROOT_USERNAME)"
+    u="${u:-mongo}"
+    p="$(env_of mini-baas-mongo MONGO_INITDB_ROOT_PASSWORD)"
+    p="${p:-mongo}"
+    echo "mongodb://${u}:${p}@mongo:27017/conformance?authSource=admin"
+    ;;
+  redis)
+    container_up mini-baas-redis || return 1
+    echo "redis://redis:6379"
+    ;;
+  cockroachdb)
+    container_up mini-baas-cockroach || return 1
+    # Insecure single-node: root, no password, sslmode=disable. The suite
+    # qualifies its probe table to public.conf_probe (CRDB shares pg's
+    # "$user", public search_path quirk).
+    echo "postgres://root@cockroach:26257/defaultdb?sslmode=disable"
+    ;;
+  sqlite)
+    # Embedded — no container. A fresh file inside the ephemeral conformance
+    # container (bundled SQLite, so no system libsqlite3 needed).
+    echo "sqlite:///tmp/conf-sqlite.db"
+    ;;
+  mssql)
+    container_up mini-baas-mssql || return 1
+    local p
+    p="$(env_of mini-baas-mssql MSSQL_SA_PASSWORD)"
+    p="${p:-Mssql_Strong!Pass1}"
+    echo "mssql://sa:${p}@mssql:1433/master"
+    ;;
+  *) return 2 ;;
   esac
 }
 
@@ -120,8 +143,8 @@ NET="$(docker inspect mini-baas-postgres --format '{{range $k,$v := .NetworkSett
 ensure_toolchain() {
   docker image inspect "${TOOLCHAIN_IMG}" >/dev/null 2>&1 && return 0
   step "building the rust toolchain image (one-off, layer-cached)"
-  printf 'FROM public.ecr.aws/docker/library/rust:1.96-slim-bookworm\nRUN rustup component add clippy rustfmt && apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*\n' \
-    | docker build -q -t "${TOOLCHAIN_IMG}" - >/dev/null
+  printf 'FROM public.ecr.aws/docker/library/rust:1.96-slim-bookworm\nRUN rustup component add clippy rustfmt && apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*\n' |
+    docker build -q -t "${TOOLCHAIN_IMG}" - >/dev/null
 }
 
 run_engine() { # $1 engine -> 0 green, 1 fail, 2 skip (engine down)
@@ -171,9 +194,15 @@ for engine in "${ENGINES[@]}"; do
   rc=$?
   set -e
   case "${rc}" in
-    0) pass "${engine} conformance green"; RAN=$((RAN + 1)) ;;
-    2) skip "${engine} not running — start it (make up EDITION=query) to gate it" ;;
-    *) red "[M27] ${engine} conformance FAILED"; FAILED=$((FAILED + 1)) ;;
+  0)
+    pass "${engine} conformance green"
+    RAN=$((RAN + 1))
+    ;;
+  2) skip "${engine} not running — start it (make up EDITION=query) to gate it" ;;
+  *)
+    red "[M27] ${engine} conformance FAILED"
+    FAILED=$((FAILED + 1))
+    ;;
   esac
 done
 

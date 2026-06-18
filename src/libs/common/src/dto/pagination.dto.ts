@@ -61,11 +61,7 @@ export interface PaginationMeta {
 /**
  * Build pagination metadata from total count and current page/limit.
  */
-export function buildPaginationMeta(
-  page: number,
-  limit: number,
-  total: number,
-): PaginationMeta {
+export function buildPaginationMeta(page: number, limit: number, total: number): PaginationMeta {
   const totalPages = Math.ceil(total / limit);
   return {
     page,

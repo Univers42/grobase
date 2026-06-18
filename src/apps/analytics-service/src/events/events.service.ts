@@ -38,19 +38,22 @@ export class EventsService implements OnModuleInit {
 
     // Ensure TTL index for automatic retention
     const retentionDays = this.config.get<number>('ANALYTICS_RETENTION_DAYS', 90);
-    await this.collection.createIndex(
-      { timestamp: 1 },
-      { expireAfterSeconds: retentionDays * 86_400, name: 'ttl_retention' },
-    ).catch((err) => {
-      // Index may already exist with different TTL — log and continue
-      this.logger.warn(`TTL index setup: ${(err as Error).message}`);
-    });
+    await this.collection
+      .createIndex(
+        { timestamp: 1 },
+        { expireAfterSeconds: retentionDays * 86_400, name: 'ttl_retention' },
+      )
+      .catch((err) => {
+        // Index may already exist with different TTL — log and continue
+        this.logger.warn(`TTL index setup: ${(err as Error).message}`);
+      });
 
     // Compound index for type + time queries
-    await this.collection.createIndex(
-      { eventType: 1, timestamp: -1 },
-      { name: 'idx_type_time' },
-    ).catch(() => { /* already exists */ });
+    await this.collection
+      .createIndex({ eventType: 1, timestamp: -1 }, { name: 'idx_type_time' })
+      .catch(() => {
+        /* already exists */
+      });
 
     this.logger.log('Events collection indexes ensured');
   }
@@ -90,10 +93,7 @@ export class EventsService implements OnModuleInit {
    * Aggregate event counts grouped by type over the last N days.
    * Optionally filter to a single event type.
    */
-  async getStats(
-    days = 7,
-    eventType?: string,
-  ): Promise<Record<string, number>> {
+  async getStats(days = 7, eventType?: string): Promise<Record<string, number>> {
     const since = new Date();
     since.setDate(since.getDate() - days);
 
@@ -101,19 +101,13 @@ export class EventsService implements OnModuleInit {
     if (eventType) matchStage['eventType'] = eventType;
 
     const result = await this.collection
-      .aggregate([
-        { $match: matchStage },
-        { $group: { _id: '$eventType', count: { $sum: 1 } } },
-      ])
+      .aggregate([{ $match: matchStage }, { $group: { _id: '$eventType', count: { $sum: 1 } } }])
       .toArray();
 
-    return result.reduce(
-      (acc, r) => {
-        acc[r['_id'] as string] = r['count'] as number;
-        return acc;
-      },
-      {},
-    );
+    return result.reduce((acc, r) => {
+      acc[r['_id'] as string] = r['count'] as number;
+      return acc;
+    }, {});
   }
 
   /**

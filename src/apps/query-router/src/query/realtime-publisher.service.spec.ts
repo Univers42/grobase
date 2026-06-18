@@ -26,7 +26,9 @@ let fetchMock: jest.Spied<typeof globalThis.fetch>;
 beforeEach(() => {
   // spyOn keeps the assignment type-safe (no `as unknown as typeof fetch` cast)
   // and lets jest.restoreAllMocks() put the real fetch back after each test.
-  fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }));
+  fetchMock = jest
+    .spyOn(globalThis, 'fetch')
+    .mockResolvedValue(new Response(null, { status: 200 }));
 });
 
 afterEach(() => {
@@ -43,9 +45,14 @@ const flush = async () => {
   await new Promise((resolve) => setImmediate(resolve));
 };
 
-function publishedBody(call = 0): Record<string, any> {
+type PublishedBody = {
+  payload: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+function publishedBody(call = 0): PublishedBody {
   const init = fetchMock.mock.calls[call][1] as { body: string };
-  return JSON.parse(init.body) as Record<string, any>;
+  return JSON.parse(init.body) as PublishedBody;
 }
 
 function buildPublisher(overrides: Record<string, string> = {}): RealtimePublisherService {
@@ -80,7 +87,7 @@ describe('RealtimePublisherService', () => {
       pk: 7,
     });
     expect(typeof body.payload.ts).toBe('string');
-    expect(Number.isNaN(Date.parse(body.payload.ts))).toBe(false);
+    expect(Number.isNaN(Date.parse(body.payload.ts as string))).toBe(false);
   });
 
   it('omits idempotency_key when none is provided', async () => {
@@ -231,9 +238,15 @@ describe('QueryService realtime wiring', () => {
     const { service, rustProxy } = buildQueryService();
     rustProxy.execute.mockImplementationOnce(() => Promise.reject(new Error('backend down')));
     await expect(
-      service.executeQuery(DB_ID, 'notes', 'api-key:k-1', queryDto({ op: 'insert', data: { a: 1 } }), {
-        identity,
-      }),
+      service.executeQuery(
+        DB_ID,
+        'notes',
+        'api-key:k-1',
+        queryDto({ op: 'insert', data: { a: 1 } }),
+        {
+          identity,
+        },
+      ),
     ).rejects.toThrow('backend down');
     await flush();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -307,13 +320,11 @@ function buildSchemaService() {
     })),
   };
   const proxy = {
-    applySchemaDdl: jest.fn(
-      async (_ctx: unknown, ddl: { op: string; table: string }) => ({
-        op: ddl.op,
-        table: ddl.table,
-        status: 'applied',
-      }),
-    ),
+    applySchemaDdl: jest.fn(async (_ctx: unknown, ddl: { op: string; table: string }) => ({
+      op: ddl.op,
+      table: ddl.table,
+      status: 'applied',
+    })),
   };
   const service = new SchemaService(
     config,
@@ -330,7 +341,11 @@ describe('SchemaService realtime wiring', () => {
     await service.applyDdl(
       DB_ID,
       'user-1',
-      { op: 'add_column', table: 'notes', column: { name: 'extra', normalized_type: 'text' } } as never,
+      {
+        op: 'add_column',
+        table: 'notes',
+        column: { name: 'extra', normalized_type: 'text' },
+      } as never,
       { tenantId: 't-1' } as never,
     );
     await flush();
@@ -348,7 +363,11 @@ describe('SchemaService realtime wiring', () => {
       service.applyDdl(
         DB_ID,
         'user-1',
-        { op: 'add_column', table: 'notes', column: { name: 'x', normalized_type: 'text' } } as never,
+        {
+          op: 'add_column',
+          table: 'notes',
+          column: { name: 'x', normalized_type: 'text' },
+        } as never,
         { tenantId: 't-1' } as never,
       ),
     ).rejects.toThrow('409 conflict');

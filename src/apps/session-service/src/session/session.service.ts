@@ -10,7 +10,13 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-import { Injectable, Logger, ForbiddenException, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ForbiddenException,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PostgresService } from '@mini-baas/database';
 
@@ -65,12 +71,7 @@ export class SessionService implements OnModuleInit {
 
   /* ─────── User-scoped operations ─────── */
 
-  async create(
-    userId: string,
-    token: string,
-    deviceInfo?: string,
-    ipAddress?: string,
-  ) {
+  async create(userId: string, token: string, deviceInfo?: string, ipAddress?: string) {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + this.ttlDays);
 
@@ -111,10 +112,7 @@ export class SessionService implements OnModuleInit {
 
     if (new Date(session['expires_at'] as string) < new Date()) {
       // Auto-delete expired session
-      await this.pg.adminQuery(
-        `DELETE FROM session.user_sessions WHERE id = $1`,
-        [session['id']],
-      );
+      await this.pg.adminQuery(`DELETE FROM session.user_sessions WHERE id = $1`, [session['id']]);
       return { valid: false };
     }
 
@@ -130,10 +128,7 @@ export class SessionService implements OnModuleInit {
     if (!result[0]) throw new NotFoundException('Session not found');
     if (result[0]['user_id'] !== userId) throw new ForbiddenException('Not your session');
 
-    await this.pg.adminQuery(
-      `DELETE FROM session.user_sessions WHERE id = $1`,
-      [sessionId],
-    );
+    await this.pg.adminQuery(`DELETE FROM session.user_sessions WHERE id = $1`, [sessionId]);
     return { revoked: true };
   }
 

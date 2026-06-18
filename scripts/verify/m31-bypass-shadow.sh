@@ -24,12 +24,15 @@
 #
 set -euo pipefail
 
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
-fail(){ red "[M31] FAIL: $*"; exit 1; }
-step(){ cyan "[M31] ${*}"; }
-pass(){ green "[M31] PASS: ${*}"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+fail() {
+  red "[M31] FAIL: $*"
+  exit 1
+}
+step() { cyan "[M31] ${*}"; }
+pass() { green "[M31] PASS: ${*}"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # verify → scripts → mini-baas-infra → baas → apps → <repo root>
@@ -66,7 +69,8 @@ compare_list() { # $1 dbId $2 table $3 limit
     -d "{\"db_id\":\"${db}\",\"operation\":{\"op\":\"list\",\"resource\":\"${table}\",\"limit\":${lim},\"sort\":{\"id\":\"asc\"}}}" | canon)"
   [[ -n "${legacy}" && "${legacy}" != "null" ]] || fail "legacy /query/v1 returned no rows for ${table}"
   [[ "${legacy}" == "${bypass}" ]] || {
-    red "  legacy: ${legacy:0:160}"; red "  bypass: ${bypass:0:160}"
+    red "  legacy: ${legacy:0:160}"
+    red "  bypass: ${bypass:0:160}"
     fail "row divergence between /query/v1 and /data/v1 for ${table}"
   }
 }
@@ -80,7 +84,8 @@ compare_aggregate() { # $1 dbId $2 table
     -H "X-Baas-Api-Key: ${KEY}" -H 'Content-Type: application/json' \
     -d "{\"db_id\":\"${db}\",\"operation\":{\"op\":\"aggregate\",\"resource\":\"${table}\",\"aggregate\":{\"aggregates\":[{\"func\":\"count\",\"alias\":\"n\"}]}}}" | canon)"
   [[ "${legacy}" == "${bypass}" ]] || {
-    red "  legacy: ${legacy}"; red "  bypass: ${bypass}"
+    red "  legacy: ${legacy}"
+    red "  bypass: ${bypass}"
     fail "aggregate divergence between /query/v1 and /data/v1 for ${table}"
   }
 }

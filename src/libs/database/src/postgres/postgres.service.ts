@@ -47,10 +47,7 @@ export class PostgresService implements OnModuleInit, OnModuleDestroy {
       idleTimeoutMillis: 30_000,
     });
 
-    const tenantUser = this.config.get<string>(
-      'ADAPTER_REGISTRY_DB_USER',
-      'adapter_registry_role',
-    );
+    const tenantUser = this.config.get<string>('ADAPTER_REGISTRY_DB_USER', 'adapter_registry_role');
     const tenantPass = this.config.get<string>(
       'ADAPTER_REGISTRY_DB_PASSWORD',
       'adapter_registry_pw',
@@ -140,7 +137,9 @@ export class PostgresService implements OnModuleInit, OnModuleDestroy {
     return this.adminPool.connect();
   }
 
-  private resolveTenantQueryContext(identityOrUserId: TenantQueryContext | string): Required<TenantQueryContext> {
+  private resolveTenantQueryContext(
+    identityOrUserId: TenantQueryContext | string,
+  ): Required<TenantQueryContext> {
     if (typeof identityOrUserId === 'string') {
       return {
         tenantId: identityOrUserId,

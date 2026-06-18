@@ -44,12 +44,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 REPO_ROOT="$(cd "${BAAS_DIR}/.." && pwd)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M23] $*"; }
-pass()  { green "[M23] PASS: $*"; }
-fail()  { red "[M23] FAIL: $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M23] $*"; }
+pass() { green "[M23] PASS: $*"; }
+fail() {
+  red "[M23] FAIL: $*"
+  exit 1
+}
 
 # shellcheck source=scripts/lib/lib-live-tenant.sh
 source "${SCRIPT_DIR}/../lib/lib-live-tenant.sh"
@@ -64,7 +67,9 @@ APP_KEY="${BAAS_API_KEY:-$(sed -n 's/^VITE_BAAS_API_KEY=//p' "${APP_ENV_FILE}" |
 MOUNTS_JSON="$(sed -n 's/^VITE_BAAS_LIVE_MOUNTS=//p' "${APP_ENV_FILE}" | head -1)"
 [[ -n "${MOUNTS_JSON}" ]] || fail "VITE_BAAS_LIVE_MOUNTS missing (run make seed-live-demo first)"
 mount_id() { python3 -c "import json,sys; print(next(m['dbId'] for m in json.loads(sys.argv[1]) if m['name']==sys.argv[2]))" "${MOUNTS_JSON}" "$1"; }
-PG="$(mount_id pg-commerce)"; MY="$(mount_id mysql-ops)"; MG="$(mount_id mongo-activity)"
+PG="$(mount_id pg-commerce)"
+MY="$(mount_id mysql-ops)"
+MG="$(mount_id mongo-activity)"
 
 # gw <expected-status> <url-path> <json-body|-> → body in /tmp/m23.json.
 # Retries on Kong 429 (rate limiting under back-to-back gate runs) and on the
@@ -82,12 +87,15 @@ gw() {
         -H 'Content-Type: application/json' -d "${body}")
     fi
     if [[ "${code}" == "429" ]] || grep -q 'auth_verify_unavailable' /tmp/m23.json 2>/dev/null; then
-      [[ "${attempt}" -lt 4 ]] && { sleep $((attempt * 3)); continue; }
+      [[ "${attempt}" -lt 4 ]] && {
+        sleep $((attempt * 3))
+        continue
+      }
     fi
     break
   done
-  [[ "${code}" == "${expected}" || ( "${expected}" == "2xx" && "${code}" =~ ^2 ) ]] \
-    || fail "${path} expected ${expected}, got ${code}: $(head -c 200 /tmp/m23.json) ← ${body}"
+  [[ "${code}" == "${expected}" || ("${expected}" == "2xx" && "${code}" =~ ^2) ]] ||
+    fail "${path} expected ${expected}, got ${code}: $(head -c 200 /tmp/m23.json) ← ${body}"
 }
 has() { grep -q "$1" /tmp/m23.json || fail "response missing $1: $(head -c 200 /tmp/m23.json)"; }
 # NOT-matched is the GOOD case — `grep && fail` would exit 1 under set -e.

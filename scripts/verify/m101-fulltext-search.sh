@@ -7,24 +7,34 @@
 #    + language-aware + a typed first-class op. Live, through Kong /data/v1.   #
 # **************************************************************************** #
 set -uo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
-fail() { printf '\033[0;31m[M101] FAIL: %s\033[0m\n' "$*" >&2; exit 1; }
-ok()   { printf '\033[0;32m[M101] PASS: %s\033[0m\n' "$*"; }
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+fail() {
+  printf '\033[0;31m[M101] FAIL: %s\033[0m\n' "$*" >&2
+  exit 1
+}
+ok() { printf '\033[0;32m[M101] PASS: %s\033[0m\n' "$*"; }
 step() { printf '\033[0;36m[M101] %s\033[0m\n' "$*"; }
 
 source lib/lib-live-tenant.sh
 SLUG="m101-$(date +%s)"
 live_tenant_provision "$SLUG" || fail "provision failed"
 trap 'live_tenant_cleanup || true' EXIT
-K="$LIVE_KONG_URL"; A="$LIVE_ANON_APIKEY"; T="$LIVE_TENANT_API_KEY"; DB="$LIVE_TENANT_DB_ID"
+K="$LIVE_KONG_URL"
+A="$LIVE_ANON_APIKEY"
+T="$LIVE_TENANT_API_KEY"
+DB="$LIVE_TENANT_DB_ID"
 H=(-H "apikey: $A" -H "X-Baas-Api-Key: $T" -H 'Content-Type: application/json')
 TBL="m101_docs_$(date +%s)"
 
 step "create table ($TBL: id, title, body) via /data/v1/schema/ddl"
 DDL=$(printf '{"op":"create_table","table":"%s","columns":[{"name":"id","normalized_type":"text","nullable":false,"default":null,"enum_values":null},{"name":"title","normalized_type":"text","nullable":true,"default":null,"enum_values":null},{"name":"body","normalized_type":"text","nullable":true,"default":null,"enum_values":null}],"primary_key":["id"]}' "$TBL")
-for i in $(seq 1 15); do c=$(curl -s -o /dev/null -w '%{http_code}' "${H[@]}" -X POST "$K/data/v1/schema/ddl" -d "{\"db_id\":\"$DB\",\"ddl\":$DDL}"); [[ "$c" =~ ^(200|201|409)$ ]] && break; sleep 1; done
+for i in $(seq 1 15); do
+  c=$(curl -s -o /dev/null -w '%{http_code}' "${H[@]}" -X POST "$K/data/v1/schema/ddl" -d "{\"db_id\":\"$DB\",\"ddl\":$DDL}")
+  [[ "$c" =~ ^(200|201|409)$ ]] && break
+  sleep 1
+done
 [[ "$c" =~ ^(200|201|409)$ ]] || fail "create_table ($c)"
-ins(){ curl -s -o /dev/null -w '%{http_code}' "${H[@]}" -X POST "$K/data/v1/query" -d "{\"db_id\":\"$DB\",\"operation\":{\"op\":\"insert\",\"resource\":\"$TBL\",\"data\":$1}}"; }
+ins() { curl -s -o /dev/null -w '%{http_code}' "${H[@]}" -X POST "$K/data/v1/query" -d "{\"db_id\":\"$DB\",\"operation\":{\"op\":\"insert\",\"resource\":\"$TBL\",\"data\":$1}}"; }
 ins '{"id":"d1","title":"Full text search","body":"ranking with ts_rank"}' >/dev/null
 ins '{"id":"d2","title":"Cooking pasta","body":"boil water"}' >/dev/null
 ins '{"id":"d3","title":"Database text search","body":"a gin index speeds search"}' >/dev/null

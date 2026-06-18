@@ -60,8 +60,8 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 MIGRATION_005="${MIG_DIR}/005_add_tenant_table.sql"
@@ -69,27 +69,30 @@ MIGRATION_032="${MIG_DIR}/032_tenants.sql"
 MIGRATION_055="${MIG_DIR}/055_tenant_branches.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M113] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M113] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M113] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M113] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M113_PG_IMAGE:-postgres:16-alpine}"
 TC_IMG="m113-tc-$$:scratch"
 NET="m113net-$$"
 PG="m113-pg-$$"
-TC_ON="m113-tc-on-$$"      # DB_BRANCHING_ENABLED=1     (A · positive / B · reject)
-TC_OFF="m113-tc-off-$$"    # DB_BRANCHING_ENABLED unset (C · parity)
+TC_ON="m113-tc-on-$$"   # DB_BRANCHING_ENABLED=1     (A · positive / B · reject)
+TC_OFF="m113-tc-off-$$" # DB_BRANCHING_ENABLED unset (C · parity)
 PORT_ON="${M113_PORT_ON:-19130}"
 PORT_OFF="${M113_PORT_OFF:-19131}"
 PGPW="postgres"
 DB_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 SVC_TOKEN="m113-internal-service-token-$$"
-TENANT_A="m113-a-$$"             # schema_per_tenant, positive + isolation base
-TENANT_B="m113-b-$$"             # schema_per_tenant, the OTHER tenant (cross-tenant wall)
-TENANT_D="m113-d-$$"             # db_per_tenant -> branch must 400 (deferred)
+TENANT_A="m113-a-$$" # schema_per_tenant, positive + isolation base
+TENANT_B="m113-b-$$" # schema_per_tenant, the OTHER tenant (cross-tenant wall)
+TENANT_D="m113-d-$$" # db_per_tenant -> branch must 400 (deferred)
 ROWS_A=80
 ROWS_B=40
 BODY_TMP="$(mktemp)"
@@ -120,7 +123,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 
 apply_migration() { # $1=file
@@ -150,17 +153,23 @@ wait_ready() { # $1=container $2=port
   local i
   for i in $(seq 1 60); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2/health/live" 2>/dev/null)" == "200" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # ── 0) build the scratch tenant-control FROM CURRENT (drafted) source ──────────
 step "0/8 build scratch tenant-control from CURRENT source (the DB-branching code)"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT=3020 \
-  -t "${TC_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch tenant-control image build failed — gate must exercise the drafted branching code (line: docker build TC)"
+  -t "${TC_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch tenant-control image build failed — gate must exercise the drafted branching code (line: docker build TC)"
 ok "tenant-control built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated net + postgres + prelude + REAL 005/032/055 ────────────────────
@@ -173,7 +182,10 @@ for i in $(seq 1 80); do
   if docker exec "${PG}" pg_isready -h 127.0.0.1 -q 2>/dev/null && [[ "$(psql_val 'SELECT 1')" == "1" ]]; then
     break
   fi
-  [[ $i -eq 80 ]] && { docker logs "${PG}" 2>&1 | tail -20; fail "scratch postgres never accepted TCP + SELECT 1 (line: PG ready loop)"; }
+  [[ $i -eq 80 ]] && {
+    docker logs "${PG}" 2>&1 | tail -20
+    fail "scratch postgres never accepted TCP + SELECT 1 (line: PG ready loop)"
+  }
   sleep 0.5
 done
 ok "postgres up (TCP + SELECT 1)"
@@ -210,16 +222,20 @@ CREATE TABLE IF NOT EXISTS public.tenant_databases (
 );
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
 apply_migration "${MIGRATION_005}" || fail "real migration 005_add_tenant_table.sql failed to apply (line: apply 005)"
 apply_migration "${MIGRATION_032}" || fail "real migration 032_tenants.sql failed to apply (line: apply 032)"
 [[ -f "${MIGRATION_055}" ]] || fail "migration 055_tenant_branches.sql is MISSING — the branching migration must land before m113 can run (line: 055 exists)"
 apply_migration "${MIGRATION_055}" || fail "real migration 055_tenant_branches.sql failed to apply (line: apply 055)"
 [[ "$(psql_val "SELECT count(*) FROM public.tenants")" == "0" ]] || fail "tenants should start EMPTY (line: 032 empty check)"
-[[ "$(psql_val "SELECT to_regclass('public.tenant_branches') IS NOT NULL")" == "t" ]] \
-  || fail "public.tenant_branches not created by migration 055 (line: 055 table check)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_branches")" == "0" ]] \
-  || fail "tenant_branches should start EMPTY (line: 055 empty check)"
+[[ "$(psql_val "SELECT to_regclass('public.tenant_branches') IS NOT NULL")" == "t" ]] ||
+  fail "public.tenant_branches not created by migration 055 (line: 055 table check)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_branches")" == "0" ]] ||
+  fail "tenant_branches should start EMPTY (line: 055 empty check)"
 ok "migrations 005 + 032 + 055 applied — tenants / tenant_databases / tenant_branches exist, ledger empty"
 
 # ── 2) boot the BRANCHING-ON tenant-control (DB_BRANCHING_ENABLED=1) ───────────
@@ -267,17 +283,17 @@ GRANT SELECT, INSERT, UPDATE, DELETE
 SQL
 }
 seed_sql || fail "seeding mounts + schemas failed — $(tail -c 600 "${BODY_TMP}.seederr" 2>/dev/null) (line: seed_sql)"
-[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m113_marker")" == "${ROWS_A}" ]] \
-  || fail "A schema should hold ${ROWS_A} rows (line: A seed count)"
-[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_B}\".m113_marker")" == "${ROWS_B}" ]] \
-  || fail "B schema should hold ${ROWS_B} rows (line: B seed count)"
+[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m113_marker")" == "${ROWS_A}" ]] ||
+  fail "A schema should hold ${ROWS_A} rows (line: A seed count)"
+[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_B}\".m113_marker")" == "${ROWS_B}" ]] ||
+  fail "B schema should hold ${ROWS_B} rows (line: B seed count)"
 ok "A=${ROWS_A} rows (schema ${SCHEMA_A}), B=${ROWS_B} rows (schema ${SCHEMA_B})"
 
 # ── 4) (A · POSITIVE) branch A → branch schema EXISTS with EXACTLY A's rows ─────
 step "4a/8 (A · POSITIVE) POST /v1/tenants/${TENANT_A}/branches name=staging → 201; branch schema exists with EXACTLY ${ROWS_A} rows"
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_A}/branches" '{"name":"staging","mount":"m113-mount-a"}')"
-[[ "${C}" == "201" ]] \
-  || fail "(A) POST /branches expected 201, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A branch)"
+[[ "${C}" == "201" ]] ||
+  fail "(A) POST /branches expected 201, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A branch)"
 BRANCH_A="$(json_str id)"
 [[ -n "${BRANCH_A}" ]] || fail "(A) POST /branches returned no id — $(head -c 300 "${BODY_TMP}") (line: A branch id)"
 BR_SCHEMA_A="$(branch_schema "${SCHEMA_A}" staging)"
@@ -289,10 +305,10 @@ A_LTC="$(psql_val "SELECT table_count FROM public.tenant_branches WHERE id='${BR
 [[ "${A_LRC}" == "${ROWS_A}" ]] || fail "(A) ledger row_count=${A_LRC}, want ${ROWS_A} (line: A row_count)"
 [[ "${A_LTC}" == "1" ]] || fail "(A) ledger table_count=${A_LTC}, want 1 (line: A table_count)"
 # The branch SCHEMA actually exists in Postgres with the cloned table + rows.
-[[ "$(psql_val "SELECT count(*) FROM information_schema.schemata WHERE schema_name='${BR_SCHEMA_A}'")" == "1" ]] \
-  || fail "(A) branch schema ${BR_SCHEMA_A} does not exist (line: A schema exists)"
-[[ "$(psql_val "SELECT count(*) FROM \"${BR_SCHEMA_A}\".m113_marker")" == "${ROWS_A}" ]] \
-  || fail "(A) branch schema has $(psql_val "SELECT count(*) FROM \"${BR_SCHEMA_A}\".m113_marker") rows, want EXACTLY ${ROWS_A} (line: A clone rows)"
+[[ "$(psql_val "SELECT count(*) FROM information_schema.schemata WHERE schema_name='${BR_SCHEMA_A}'")" == "1" ]] ||
+  fail "(A) branch schema ${BR_SCHEMA_A} does not exist (line: A schema exists)"
+[[ "$(psql_val "SELECT count(*) FROM \"${BR_SCHEMA_A}\".m113_marker")" == "${ROWS_A}" ]] ||
+  fail "(A) branch schema has $(psql_val "SELECT count(*) FROM \"${BR_SCHEMA_A}\".m113_marker") rows, want EXACTLY ${ROWS_A} (line: A clone rows)"
 ok "(A) branch ${BRANCH_A} completed; schema ${BR_SCHEMA_A} exists w/ ${ROWS_A} cloned rows, ledger table_count=1 row_count=${ROWS_A}"
 
 step "4b/8 (A · POSITIVE) GET /v1/tenants/${TENANT_A}/branches lists the branch status=completed"
@@ -305,14 +321,14 @@ ok "(A) GET /branches → 200; lists ${BRANCH_A} status=completed"
 # ── 5) (B · REJECT, LOAD-BEARING) branch isolation: write to branch ≠ parent ────
 step "5/8 (B1 · LOAD-BEARING) write to the BRANCH does NOT change the PARENT (true isolation)"
 PARENT_BEFORE="$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m113_marker")"
-psql_q -c "INSERT INTO \"${BR_SCHEMA_A}\".m113_marker (id, payload) VALUES (999999, 'BRANCH_ONLY_ROW')" >/dev/null 2>&1 \
-  || fail "(B1) could not insert into branch schema — branch is not a writable clone (line: B1 branch insert)"
+psql_q -c "INSERT INTO \"${BR_SCHEMA_A}\".m113_marker (id, payload) VALUES (999999, 'BRANCH_ONLY_ROW')" >/dev/null 2>&1 ||
+  fail "(B1) could not insert into branch schema — branch is not a writable clone (line: B1 branch insert)"
 PARENT_AFTER="$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m113_marker")"
-[[ "${PARENT_AFTER}" == "${PARENT_BEFORE}" && "${PARENT_AFTER}" == "${ROWS_A}" ]] \
-  || fail "(B1) parent row count changed ${PARENT_BEFORE}->${PARENT_AFTER} after a BRANCH insert — NOT isolated! (line: B1 parent unchanged)"
+[[ "${PARENT_AFTER}" == "${PARENT_BEFORE}" && "${PARENT_AFTER}" == "${ROWS_A}" ]] ||
+  fail "(B1) parent row count changed ${PARENT_BEFORE}->${PARENT_AFTER} after a BRANCH insert — NOT isolated! (line: B1 parent unchanged)"
 BR_AFTER="$(psql_val "SELECT count(*) FROM \"${BR_SCHEMA_A}\".m113_marker")"
-[[ "${BR_AFTER}" == "$((ROWS_A + 1))" ]] \
-  || fail "(B1) branch row count is ${BR_AFTER}, want $((ROWS_A + 1)) after the branch-only insert (line: B1 branch grew)"
+[[ "${BR_AFTER}" == "$((ROWS_A + 1))" ]] ||
+  fail "(B1) branch row count is ${BR_AFTER}, want $((ROWS_A + 1)) after the branch-only insert (line: B1 branch grew)"
 ok "(B1) branch grew to ${BR_AFTER}, parent stayed ${PARENT_AFTER}=${ROWS_A} — schema-clone is genuinely isolated"
 
 # ── 6) (B · REJECT, LOAD-BEARING) cross-tenant: B branches B, never A ──────────
@@ -322,35 +338,35 @@ C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_B}/branches" '{"name":"st
 BRANCH_B="$(json_str id)"
 [[ -n "${BRANCH_B}" ]] || fail "(B2) B branch returned no id (line: B2 branch id)"
 BR_SCHEMA_B="$(branch_schema "${SCHEMA_B}" staging)"
-[[ "$(psql_val "SELECT count(*) FROM \"${BR_SCHEMA_B}\".m113_marker")" == "${ROWS_B}" ]] \
-  || fail "(B2) B's branch has $(psql_val "SELECT count(*) FROM \"${BR_SCHEMA_B}\".m113_marker") rows, want ${ROWS_B} (line: B2 B clone rows)"
+[[ "$(psql_val "SELECT count(*) FROM \"${BR_SCHEMA_B}\".m113_marker")" == "${ROWS_B}" ]] ||
+  fail "(B2) B's branch has $(psql_val "SELECT count(*) FROM \"${BR_SCHEMA_B}\".m113_marker") rows, want ${ROWS_B} (line: B2 B clone rows)"
 # Load-bearing: B's branch schema contains ZERO of A's payload (no cross-tenant clone).
-B_BLEED="$( { psql_val "SELECT count(*) FROM \"${BR_SCHEMA_B}\".m113_marker WHERE payload LIKE 'A_ROW_PAYLOAD_%'"; } )"
-[[ "${B_BLEED}" == "0" ]] \
-  || fail "(B2) B's branch contains ${B_BLEED} of A's rows — CROSS-TENANT CLONE LEAK! (line: B2 no A bleed)"
+B_BLEED="$({ psql_val "SELECT count(*) FROM \"${BR_SCHEMA_B}\".m113_marker WHERE payload LIKE 'A_ROW_PAYLOAD_%'"; })"
+[[ "${B_BLEED}" == "0" ]] ||
+  fail "(B2) B's branch contains ${B_BLEED} of A's rows — CROSS-TENANT CLONE LEAK! (line: B2 no A bleed)"
 ok "(B2) B's branch schema ${BR_SCHEMA_B} has ${ROWS_B} B-rows, ZERO A-rows — branch clones only the caller's own schema"
 
 step "6b/8 (B2 · LOAD-BEARING) tenant B cannot DROP tenant A's branch (cross-tenant DELETE → 404)"
 C="$(admin_req DELETE "${PORT_ON}" "/v1/tenants/${TENANT_B}/branches/${BRANCH_A}")"
-[[ "${C}" == "404" ]] \
-  || fail "(B2) B dropping A's branch got ${C} (want 404) — cross-tenant DROP not walled! (line: B2 cross drop 404)"
+[[ "${C}" == "404" ]] ||
+  fail "(B2) B dropping A's branch got ${C} (want 404) — cross-tenant DROP not walled! (line: B2 cross drop 404)"
 # Defence: A's branch + its schema still exist after B's failed drop.
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_branches WHERE id='${BRANCH_A}'")" == "1" ]] \
-  || fail "(B2) A's branch ledger row vanished after B's cross-tenant DROP attempt (line: B2 A row survives)"
-[[ "$(psql_val "SELECT count(*) FROM information_schema.schemata WHERE schema_name='${BR_SCHEMA_A}'")" == "1" ]] \
-  || fail "(B2) A's branch schema vanished after B's cross-tenant DROP attempt (line: B2 A schema survives)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_branches WHERE id='${BRANCH_A}'")" == "1" ]] ||
+  fail "(B2) A's branch ledger row vanished after B's cross-tenant DROP attempt (line: B2 A row survives)"
+[[ "$(psql_val "SELECT count(*) FROM information_schema.schemata WHERE schema_name='${BR_SCHEMA_A}'")" == "1" ]] ||
+  fail "(B2) A's branch schema vanished after B's cross-tenant DROP attempt (line: B2 A schema survives)"
 ok "(B2) B's DROP of A's branch → 404; A's branch + schema intact — tenant_id binds every branch query"
 
 # ── 7) (B · REJECT) injection wall + db_per_tenant deferred ────────────────────
 step "7a/8 (B3 · LOAD-BEARING) a branch_name with a SQL-meta char is REJECTED 400 (the identifier sanitizer)"
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_A}/branches" '{"name":"x; drop schema public cascade","mount":"m113-mount-a"}')"
-[[ "${C}" == "400" ]] \
-  || fail "(B3) injection branch name got ${C} (want 400) — the identifier sanitizer did not fire — $(head -c 300 "${BODY_TMP}") (line: B3 injection 400)"
+[[ "${C}" == "400" ]] ||
+  fail "(B3) injection branch name got ${C} (want 400) — the identifier sanitizer did not fire — $(head -c 300 "${BODY_TMP}") (line: B3 injection 400)"
 # Defence: public schema (and A's data) survived the attempted injection.
-[[ "$(psql_val "SELECT count(*) FROM information_schema.schemata WHERE schema_name='public'")" == "1" ]] \
-  || fail "(B3) public schema GONE — injection actually executed! (line: B3 public survives)"
-[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m113_marker")" == "${ROWS_A}" ]] \
-  || fail "(B3) A's data changed after injection attempt (line: B3 A data survives)"
+[[ "$(psql_val "SELECT count(*) FROM information_schema.schemata WHERE schema_name='public'")" == "1" ]] ||
+  fail "(B3) public schema GONE — injection actually executed! (line: B3 public survives)"
+[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m113_marker")" == "${ROWS_A}" ]] ||
+  fail "(B3) A's data changed after injection attempt (line: B3 A data survives)"
 # Also reject a name with a bare space (another meta char).
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_A}/branches" '{"name":"bad name","mount":"m113-mount-a"}')"
 [[ "${C}" == "400" ]] || fail "(B3) space-bearing branch name got ${C} (want 400) (line: B3 space 400)"
@@ -358,24 +374,24 @@ ok "(B3) meta-char branch names → 400; public schema + A's data intact — SQL
 
 step "7b/8 (B3) db_per_tenant deferred — POST /v1/tenants/${TENANT_D}/branches → 400 \"deferred\""
 C="$(admin_req POST "${PORT_ON}" "/v1/tenants/${TENANT_D}/branches" '{"name":"staging","mount":"m113-mount-d"}')"
-[[ "${C}" == "400" ]] \
-  || fail "(B3) db_per_tenant branch got ${C} (want 400) — the deferral is not enforced — $(head -c 300 "${BODY_TMP}") (line: D deferred 400)"
-grep -qi 'deferred' "${BODY_TMP}" \
-  || fail "(B3) db_per_tenant 400 body missing the 'deferred' message — $(head -c 300 "${BODY_TMP}") (line: D deferred msg)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_branches WHERE tenant_id='${TENANT_D}'")" == "0" ]] \
-  || fail "(B3) a branch row exists for db_per_tenant tenant D — the deferral leaked a branch (line: D no row)"
+[[ "${C}" == "400" ]] ||
+  fail "(B3) db_per_tenant branch got ${C} (want 400) — the deferral is not enforced — $(head -c 300 "${BODY_TMP}") (line: D deferred 400)"
+grep -qi 'deferred' "${BODY_TMP}" ||
+  fail "(B3) db_per_tenant 400 body missing the 'deferred' message — $(head -c 300 "${BODY_TMP}") (line: D deferred msg)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_branches WHERE tenant_id='${TENANT_D}'")" == "0" ]] ||
+  fail "(B3) a branch row exists for db_per_tenant tenant D — the deferral leaked a branch (line: D no row)"
 ok "(B3) db_per_tenant branch → 400 deferred (no ledger row) — only schema_per_tenant advertised"
 
 step "7c/8 (A · POSITIVE) DELETE the branch → 204; schema gone + ledger row gone"
 C="$(admin_req DELETE "${PORT_ON}" "/v1/tenants/${TENANT_A}/branches/${BRANCH_A}")"
 [[ "${C}" == "204" ]] || fail "(A) DELETE /branches/{id} expected 204, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A drop 204)"
-[[ "$(psql_val "SELECT count(*) FROM information_schema.schemata WHERE schema_name='${BR_SCHEMA_A}'")" == "0" ]] \
-  || fail "(A) branch schema ${BR_SCHEMA_A} still exists after DELETE (line: A schema dropped)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_branches WHERE id='${BRANCH_A}'")" == "0" ]] \
-  || fail "(A) branch ledger row still exists after DELETE (line: A row dropped)"
+[[ "$(psql_val "SELECT count(*) FROM information_schema.schemata WHERE schema_name='${BR_SCHEMA_A}'")" == "0" ]] ||
+  fail "(A) branch schema ${BR_SCHEMA_A} still exists after DELETE (line: A schema dropped)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_branches WHERE id='${BRANCH_A}'")" == "0" ]] ||
+  fail "(A) branch ledger row still exists after DELETE (line: A row dropped)"
 # Parent schema is untouched by the branch drop.
-[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m113_marker")" == "${ROWS_A}" ]] \
-  || fail "(A) parent schema changed after branch DELETE (line: A parent intact post-drop)"
+[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m113_marker")" == "${ROWS_A}" ]] ||
+  fail "(A) parent schema changed after branch DELETE (line: A parent intact post-drop)"
 ok "(A) DELETE → 204; branch schema + ledger row gone, parent ${SCHEMA_A} intact (${ROWS_A} rows)"
 
 # ── 8) (C · PARITY) flag OFF → branch routes 404, base admin route still 200 ───
@@ -392,17 +408,17 @@ ok "branching-OFF tenant-control up (same DB, same seeded tenants)"
 
 step "8b/8 (C · PARITY) POST /v1/tenants/${TENANT_B}/branches on the OFF router → 404 (route NOT mounted) WHILE base admin GET /v1/tenants → 200, tenant_branches 0 net rows"
 C="$(admin_req POST "${PORT_OFF}" "/v1/tenants/${TENANT_B}/branches" '{"name":"staging2","mount":"m113-mount-b"}')"
-[[ "${C}" == "404" ]] \
-  || fail "(C) PARITY: POST /branches with DB_BRANCHING_ENABLED off expected 404, got ${C} — $(head -c 300 "${BODY_TMP}") (line: C branch 404)"
+[[ "${C}" == "404" ]] ||
+  fail "(C) PARITY: POST /branches with DB_BRANCHING_ENABLED off expected 404, got ${C} — $(head -c 300 "${BODY_TMP}") (line: C branch 404)"
 C="$(admin_req GET "${PORT_OFF}" "/v1/tenants")"
-[[ "${C}" == "200" ]] \
-  || fail "(C) PARITY: base admin GET /v1/tenants expected 200 on OFF router, got ${C} — $(head -c 300 "${BODY_TMP}") (line: C admin 200)"
-grep -q "\"id\":\"${TENANT_A}\"" "${BODY_TMP}" \
-  || fail "(C) PARITY: base admin GET /v1/tenants did not list A — $(head -c 300 "${BODY_TMP}") (line: C admin lists A)"
+[[ "${C}" == "200" ]] ||
+  fail "(C) PARITY: base admin GET /v1/tenants expected 200 on OFF router, got ${C} — $(head -c 300 "${BODY_TMP}") (line: C admin 200)"
+grep -q "\"id\":\"${TENANT_A}\"" "${BODY_TMP}" ||
+  fail "(C) PARITY: base admin GET /v1/tenants did not list A — $(head -c 300 "${BODY_TMP}") (line: C admin lists A)"
 # With the flag OFF, the 404'd call wrote NOTHING new (B's only branch row is the
 # one B2 created above; no staging2 leaked through).
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_branches WHERE branch_name='staging2'")" == "0" ]] \
-  || fail "(C) PARITY: a staging2 branch row leaked from the OFF router (line: C no leak)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_branches WHERE branch_name='staging2'")" == "0" ]] ||
+  fail "(C) PARITY: a staging2 branch row leaked from the OFF router (line: C no leak)"
 ok "(C) branch route 404 with flag OFF while base admin GET /v1/tenants still 200 (lists A); no row leaked — byte-parity to today"
 
 # ── summarize ──────────────────────────────────────────────────────────────────
@@ -414,7 +430,8 @@ green "[M113] (C) PARITY:   DB_BRANCHING_ENABLED off → POST /branches 404 (rou
 # ── emit the gate event via the kernel log helper (best-effort) ─────────────────
 step "log GATE m113=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-e-db-branching}"

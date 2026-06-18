@@ -52,10 +52,22 @@ YELLOW='\033[1;33m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-log()  { echo -e "${GREEN}[+]${NC} $*"; return 0; }
-warn() { echo -e "${YELLOW}[!]${NC} $*"; return 0; }
-err()  { echo -e "${RED}[✗]${NC} $*" >&2; return 0; }
-step() { echo -e "${BOLD}── $* ──${NC}"; return 0; }
+log() {
+  echo -e "${GREEN}[+]${NC} $*"
+  return 0
+}
+warn() {
+  echo -e "${YELLOW}[!]${NC} $*"
+  return 0
+}
+err() {
+  echo -e "${RED}[✗]${NC} $*" >&2
+  return 0
+}
+step() {
+  echo -e "${BOLD}── $* ──${NC}"
+  return 0
+}
 
 # ─── Auth ─────────────────────────────────────────────────────────
 if [[ -z "${VAULT_TOKEN:-}" ]]; then
@@ -74,11 +86,18 @@ if [[ -z "${VAULT_TOKEN:-}" ]]; then
 fi
 
 # ─── Helpers ──────────────────────────────────────────────────────
-gen_secret() { openssl rand -base64 "${1:-32}" | tr -d '\n'; return 0; }
-gen_hex()    { openssl rand -hex "${1:-32}"; return 0; }
+gen_secret() {
+  openssl rand -base64 "${1:-32}" | tr -d '\n'
+  return 0
+}
+gen_hex() {
+  openssl rand -hex "${1:-32}"
+  return 0
+}
 
 vault_put() {
-  local path="$1"; shift
+  local path="$1"
+  shift
   if [[ "$DRY_RUN" == "1" ]]; then
     warn "DRY RUN: vault kv put $path $*"
     return 0
@@ -89,8 +108,8 @@ vault_put() {
 
 vault_get() {
   local path="$1" field="$2"
-  vault kv get -address="$VAULT_ADDR" -format=json "$path" 2>/dev/null \
-    | jq -r ".data.data.${field} // empty"
+  vault kv get -address="$VAULT_ADDR" -format=json "$path" 2>/dev/null |
+    jq -r ".data.data.${field} // empty"
   return 0
 }
 
@@ -114,7 +133,7 @@ update_env_var() {
   if grep -q "^${key}=" "$env_file"; then
     sed -i "s|^${key}=.*|${key}=${value}|" "$env_file"
   else
-    echo "${key}=${value}" >> "$env_file"
+    echo "${key}=${value}" >>"$env_file"
   fi
   return 0
 }
@@ -208,7 +227,7 @@ rotate_minio() {
   step "Rotating MinIO credentials"
 
   local new_access new_secret
-  new_access="minioadmin"  # MinIO access key typically stays the same
+  new_access="minioadmin" # MinIO access key typically stays the same
   new_secret=$(gen_secret 24)
 
   vault_put "secret/mini-baas/minio" \
@@ -316,26 +335,26 @@ echo -e "  Dry run: ${DRY_RUN}"
 echo ""
 
 case "$GROUP" in
-  jwt)       rotate_jwt ;;
-  postgres)  rotate_postgres ;;
-  mongo)     rotate_mongo ;;
-  minio)     rotate_minio ;;
-  kong)      rotate_kong ;;
-  smtp)      rotate_smtp ;;
-  approles)  rotate_approles ;;
-  all)
-    rotate_jwt
-    rotate_postgres
-    rotate_mongo
-    rotate_minio
-    rotate_kong
-    rotate_approles
-    ;;
-  *)
-    err "Unknown group: $GROUP"
-    echo "Available: all jwt postgres mongo minio kong smtp approles"
-    exit 1
-    ;;
+jwt) rotate_jwt ;;
+postgres) rotate_postgres ;;
+mongo) rotate_mongo ;;
+minio) rotate_minio ;;
+kong) rotate_kong ;;
+smtp) rotate_smtp ;;
+approles) rotate_approles ;;
+all)
+  rotate_jwt
+  rotate_postgres
+  rotate_mongo
+  rotate_minio
+  rotate_kong
+  rotate_approles
+  ;;
+*)
+  err "Unknown group: $GROUP"
+  echo "Available: all jwt postgres mongo minio kong smtp approles"
+  exit 1
+  ;;
 esac
 
 echo ""

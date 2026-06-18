@@ -30,12 +30,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M29] $*"; }
-pass()  { green "[M29] PASS: $*"; }
-fail()  { red "[M29] FAIL: $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M29] $*"; }
+pass() { green "[M29] PASS: $*"; }
+fail() {
+  red "[M29] FAIL: $*"
+  exit 1
+}
 
 # shellcheck source=scripts/lib/lib-live-tenant.sh
 source "${SCRIPT_DIR}/../lib/lib-live-tenant.sh"
@@ -56,7 +59,8 @@ m29_cleanup() {
   live_tenant_cleanup
 }
 trap m29_cleanup EXIT
-KONG="${LIVE_KONG_URL}"; DB="${LIVE_TENANT_DB_ID}"
+KONG="${LIVE_KONG_URL}"
+DB="${LIVE_TENANT_DB_ID}"
 
 # gw <expected> <method> <path> <json|-> → body in /tmp/m29.json (429 retried).
 gw() {
@@ -71,12 +75,15 @@ gw() {
         -H 'Content-Type: application/json' -d "${body}")
     fi
     if [[ "${code}" == "429" ]] || grep -q 'auth_verify_unavailable' /tmp/m29.json 2>/dev/null; then
-      [[ "${attempt}" -lt 4 ]] && { sleep $((attempt * 3)); continue; }
+      [[ "${attempt}" -lt 4 ]] && {
+        sleep $((attempt * 3))
+        continue
+      }
     fi
     break
   done
-  [[ "${code}" == "${expected}" || ( "${expected}" == "2xx" && "${code}" =~ ^2 ) ]] \
-    || fail "${method} ${path} expected ${expected}, got ${code}: $(head -c 300 /tmp/m29.json)"
+  [[ "${code}" == "${expected}" || ("${expected}" == "2xx" && "${code}" =~ ^2) ]] ||
+    fail "${method} ${path} expected ${expected}, got ${code}: $(head -c 300 /tmp/m29.json)"
 }
 has() { grep -q "$1" /tmp/m29.json || fail "response missing $1: $(head -c 300 /tmp/m29.json)"; }
 
@@ -120,7 +127,10 @@ gw 2xx POST "/query/v1/${DB}/tables/${TABLE}" '{"op":"update","data":{"status":"
 NOTE=""
 for _ in $(seq 1 20); do
   gw 2xx POST "/query/v1/${DB}/tables/${TABLE}" '{"op":"list","filter":{"id":{"$eq":29001}},"limit":1}'
-  if grep -q '"note":"automated"' /tmp/m29.json; then NOTE="automated"; break; fi
+  if grep -q '"note":"automated"' /tmp/m29.json; then
+    NOTE="automated"
+    break
+  fi
   sleep 0.5
 done
 [[ "${NOTE}" == "automated" ]] || fail "automation follow-up never landed: $(head -c 300 /tmp/m29.json)"
@@ -145,7 +155,7 @@ OUR_SLUG="${LIVE_TENANT_SLUG}" OUR_KEY="${LIVE_TENANT_API_KEY}"
 OUR_KEY_ID="${LIVE_TENANT_KEY_ID}" OUR_DB="${LIVE_TENANT_DB_ID}"
 live_tenant_provision "${FOREIGN_SLUG}" >/dev/null || fail "foreign tenant provisioning failed"
 FOREIGN_KEY="${LIVE_TENANT_API_KEY}"
-live_tenant_cleanup || true   # tear the foreign tenant down right away
+live_tenant_cleanup || true # tear the foreign tenant down right away
 LIVE_TENANT_SLUG="${OUR_SLUG}" LIVE_TENANT_API_KEY="${OUR_KEY}"
 LIVE_TENANT_KEY_ID="${OUR_KEY_ID}" LIVE_TENANT_DB_ID="${OUR_DB}"
 code=$(curl -s -o /tmp/m29.json -w '%{http_code}' "${KONG}/query/v1/${OUR_DB}/automations" \

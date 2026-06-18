@@ -51,19 +51,22 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIGRATION_040="${INFRA_DIR}/scripts/migrations/postgresql/040_tenant_usage.sql"
 MIGRATION_045="${INFRA_DIR}/scripts/migrations/postgresql/045_tenant_safety.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M89] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M89] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M89] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M89] FAIL — $*"
+  exit 1
+}
 
 REDIS_IMAGE="${M89_REDIS_IMAGE:-redis:7-alpine}"
 PG_IMAGE="${M89_PG_IMAGE:-postgres:16-alpine}"
@@ -72,8 +75,8 @@ ORCH_IMG="m89-orch-$$:scratch"
 NET="m89net-$$"
 PG="m89-pg-$$"
 REDIS="m89-redis-$$"
-ORCH_ON="m89-orch-on-$$"     # spend-cap guard (SPEND_CAPS_ENABLED=1)
-ORCH_OFF="m89-orch-off-$$"   # parity arm (flag unset)
+ORCH_ON="m89-orch-on-$$"   # spend-cap guard (SPEND_CAPS_ENABLED=1)
+ORCH_OFF="m89-orch-off-$$" # parity arm (flag unset)
 PGPW="postgres"
 TENANT_OVER="m89-over-$$"
 TENANT_UNDER="m89-under-$$"
@@ -97,7 +100,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 redis_cli() { docker exec -i "${REDIS}" redis-cli "$@"; }
 
@@ -114,15 +117,15 @@ wait_log() { # $1=container  $2=needle  $3=tries
 # ── 0) build the scratch orchestrator FROM CURRENT (drafted) source ────────────
 step "0/8 build scratch Go orchestrator from CURRENT source (the B7.8 spend-cap code)"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=orchestrator --build-arg PORT=3060 \
-  -t "${ORCH_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch orchestrator image build failed — gate must exercise the drafted spend-cap Guard"
+  -t "${ORCH_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch orchestrator image build failed — gate must exercise the drafted spend-cap Guard"
 ok "orchestrator built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 0b) prove the QUOTA_STAGE (B7.2) transition ladder via the unit test ───────
 step "0b/8 (C) assert B7.2 QUOTA_STAGE off→shadow→warn→enforce transition (go test internal/quotastage)"
 docker run --rm -v "${GO_DIR}":/src -w /src -e GOFLAGS=-mod=mod -e GOCACHE=/tmp/gc -e GOMODCACHE=/tmp/gm \
-  "${GO_IMAGE}" sh -c 'go test ./internal/quotastage/... 2>&1' \
-  || fail "QUOTA_STAGE transition unit test failed — staged promotion ladder is not proven"
+  "${GO_IMAGE}" sh -c 'go test ./internal/quotastage/... 2>&1' ||
+  fail "QUOTA_STAGE transition unit test failed — staged promotion ladder is not proven"
 ok "QUOTA_STAGE ladder proven: over-quota → allow(off)→shadowlog(shadow)→header(warn)→block(enforce); under-quota → allow always"
 
 # ── 1) isolated network + redis + postgres (prelude + REAL 040 + 045) ──────────
@@ -130,7 +133,11 @@ step "1/8 boot isolated net (${NET}): redis + postgres"
 docker network create "${NET}" >/dev/null
 docker run -d --name "${REDIS}" --network "${NET}" "${REDIS_IMAGE}" >/dev/null
 docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD="${PGPW}" "${PG_IMAGE}" >/dev/null
-for i in $(seq 1 60); do redis_cli PING 2>/dev/null | grep -q PONG && break; [[ $i -eq 60 ]] && fail "scratch redis never PONGed"; sleep 0.5; done
+for i in $(seq 1 60); do
+  redis_cli PING 2>/dev/null | grep -q PONG && break
+  [[ $i -eq 60 ]] && fail "scratch redis never PONGed"
+  sleep 0.5
+done
 for i in $(seq 1 80); do
   [[ "$(docker logs "${PG}" 2>&1 | grep -c 'database system is ready to accept connections')" -ge 2 ]] && break
   [[ $i -eq 80 ]] && fail "scratch postgres never reached steady state"
@@ -152,13 +159,17 @@ DO $r$ BEGIN
 END $r$;
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed"; sleep 0.5; done
-docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "${MIGRATION_040}" >/dev/null 2>&1 \
-  || fail "real migration 040_tenant_usage.sql failed to apply"
-docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "${MIGRATION_045}" >/dev/null 2>&1 \
-  || fail "real migration 045_tenant_safety.sql failed to apply"
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed"
+  sleep 0.5
+done
+docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <"${MIGRATION_040}" >/dev/null 2>&1 ||
+  fail "real migration 040_tenant_usage.sql failed to apply"
+docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <"${MIGRATION_045}" >/dev/null 2>&1 ||
+  fail "real migration 045_tenant_safety.sql failed to apply"
 [[ "$(psql_val "SELECT count(*) FROM public.tenant_budgets")" == "0" ]] || fail "tenant_budgets should start EMPTY"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_usage")"   == "0" ]] || fail "tenant_usage should start EMPTY"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_usage")" == "0" ]] || fail "tenant_usage should start EMPTY"
 ok "migrations 040 + 045 applied — tenant_usage + tenant_budgets exist and are empty"
 
 # ── 2) seed: budgets (both \$1.00) + usage (OVER>budget, UNDER<80%) ────────────
@@ -176,8 +187,12 @@ INSERT INTO public.tenant_usage(tenant_id, metric, window_start, qty, idempotenc
   ON CONFLICT (idempotency_key) DO NOTHING;
 SQL
 }
-for i in $(seq 1 20); do seed && break; [[ $i -eq 20 ]] && fail "seed never committed"; sleep 0.5; done
-[[ "$(psql_val "SELECT qty FROM public.tenant_usage WHERE tenant_id='${TENANT_OVER}'")"  == "${OVER_QTY}"  ]] || fail "OVER usage not seeded"
+for i in $(seq 1 20); do
+  seed && break
+  [[ $i -eq 20 ]] && fail "seed never committed"
+  sleep 0.5
+done
+[[ "$(psql_val "SELECT qty FROM public.tenant_usage WHERE tenant_id='${TENANT_OVER}'")" == "${OVER_QTY}" ]] || fail "OVER usage not seeded"
 [[ "$(psql_val "SELECT qty FROM public.tenant_usage WHERE tenant_id='${TENANT_UNDER}'")" == "${UNDER_QTY}" ]] || fail "UNDER usage not seeded"
 ok "seeded: OVER 200c (> 100c budget), UNDER 50c (< 80c alert threshold)"
 
@@ -196,20 +211,31 @@ docker run -d --name "${ORCH_ON}" --network "${NET}" \
   -e SPEND_RATE_QUERY_COUNT="${SPEND_RATE}" \
   -e LOG_LEVEL=debug \
   "${ORCH_IMG}" >/dev/null
-wait_log "${ORCH_ON}" "spend caps enabled" 60 \
-  || { red "guard logs:"; docker logs "${ORCH_ON}" 2>&1 | tail -20; fail "spend-cap guard never enabled"; }
+wait_log "${ORCH_ON}" "spend caps enabled" 60 ||
+  {
+    red "guard logs:"
+    docker logs "${ORCH_ON}" 2>&1 | tail -20
+    fail "spend-cap guard never enabled"
+  }
 ok "spend-cap guard enabled — evaluating tenant_usage × rate vs budget"
 
 # ── 4) (A) LOAD-BEARING: OVER tenant lands in spend:over, UNDER absent ─────────
 step "4/8 (A) wait for spend:over to contain EXACTLY the OVER tenant (the hard-cap halt decision)"
 PUBLISHED=
 for i in $(seq 1 60); do
-  if [[ "$(redis_cli SISMEMBER spend:over "${TENANT_OVER}" 2>/dev/null)" == "1" ]]; then PUBLISHED=1; break; fi
+  if [[ "$(redis_cli SISMEMBER spend:over "${TENANT_OVER}" 2>/dev/null)" == "1" ]]; then
+    PUBLISHED=1
+    break
+  fi
   sleep 0.5
 done
-[[ -n "${PUBLISHED}" ]] || { red "spend:over members:"; redis_cli SMEMBERS spend:over 2>&1; fail "OVER tenant never appeared in spend:over (the hard-cap decision)"; }
-[[ "$(redis_cli SISMEMBER spend:over "${TENANT_UNDER}" 2>/dev/null)" == "0" ]] \
-  || fail "UNDER tenant wrongly listed in spend:over — the guard over-halted"
+[[ -n "${PUBLISHED}" ]] || {
+  red "spend:over members:"
+  redis_cli SMEMBERS spend:over 2>&1
+  fail "OVER tenant never appeared in spend:over (the hard-cap decision)"
+}
+[[ "$(redis_cli SISMEMBER spend:over "${TENANT_UNDER}" 2>/dev/null)" == "0" ]] ||
+  fail "UNDER tenant wrongly listed in spend:over — the guard over-halted"
 ok "(A) spend:over = {OVER}; UNDER absent — billable service HALTS for the over-budget tenant before runaway"
 
 # ── 5) (A) the 80% ALERT fired EXACTLY ONCE ────────────────────────────────────
@@ -218,16 +244,20 @@ for i in $(seq 1 40); do
   [[ "$(psql_val "SELECT (alert_fired_period IS NOT NULL) FROM public.tenant_budgets WHERE tenant_id='${TENANT_OVER}'")" == "t" ]] && break
   sleep 0.5
 done
-[[ "$(psql_val "SELECT (alert_fired_period IS NOT NULL) FROM public.tenant_budgets WHERE tenant_id='${TENANT_OVER}'")" == "t" ]] \
-  || fail "OVER tenant alert_fired_period never stamped — the 80% alert did not fire"
+[[ "$(psql_val "SELECT (alert_fired_period IS NOT NULL) FROM public.tenant_budgets WHERE tenant_id='${TENANT_OVER}'")" == "t" ]] ||
+  fail "OVER tenant alert_fired_period never stamped — the 80% alert did not fire"
 # UNDER (50c < 80c threshold) must NOT have alerted — the load-bearing reject for the alert.
-[[ "$(psql_val "SELECT (alert_fired_period IS NULL) FROM public.tenant_budgets WHERE tenant_id='${TENANT_UNDER}'")" == "t" ]] \
-  || fail "UNDER tenant wrongly alerted (its 50c is below the 80c threshold) — false-positive alert"
+[[ "$(psql_val "SELECT (alert_fired_period IS NULL) FROM public.tenant_budgets WHERE tenant_id='${TENANT_UNDER}'")" == "t" ]] ||
+  fail "UNDER tenant wrongly alerted (its 50c is below the 80c threshold) — false-positive alert"
 # Give the guard a few more ticks; the alert must NOT re-fire (count log lines == 1).
 sleep "$(awk "BEGIN{print (${GUARD_MS}*3/1000)+1}")"
 ALERT_LINES="$(docker logs "${ORCH_ON}" 2>&1 | grep -c "spend-cap budget alert" || true)"
-[[ "${ALERT_LINES}" == "1" ]] \
-  || { red "alert log lines: ${ALERT_LINES}"; docker logs "${ORCH_ON}" 2>&1 | grep 'budget alert'; fail "80% alert must fire EXACTLY once per period, saw ${ALERT_LINES}"; }
+[[ "${ALERT_LINES}" == "1" ]] ||
+  {
+    red "alert log lines: ${ALERT_LINES}"
+    docker logs "${ORCH_ON}" 2>&1 | grep 'budget alert'
+    fail "80% alert must fire EXACTLY once per period, saw ${ALERT_LINES}"
+  }
 ok "(A) 80% alert fired exactly once for OVER; UNDER never alerted (50c<80c) — once-per-period honored"
 
 # ── 6) (B) PARITY arm: SPEND_CAPS_ENABLED unset → spend:over NEVER written ─────
@@ -248,14 +278,22 @@ docker run -d --name "${ORCH_OFF}" --network "${NET}" \
   -e INTERNAL_SERVICE_TOKEN="m89-strong-internal-svc-token-not-for-prod-0123456789ab" \
   -e LOG_LEVEL=debug \
   "${ORCH_IMG}" >/dev/null
-wait_log "${ORCH_OFF}" "spend caps disabled" 60 \
-  || { red "off-guard logs:"; docker logs "${ORCH_OFF}" 2>&1 | tail -20; fail "OFF guard did not report disabled (flag default not OFF?)"; }
+wait_log "${ORCH_OFF}" "spend caps disabled" 60 ||
+  {
+    red "off-guard logs:"
+    docker logs "${ORCH_OFF}" 2>&1 | tail -20
+    fail "OFF guard did not report disabled (flag default not OFF?)"
+  }
 # Give it several intervals' worth of wall-time to PROVE it never evaluates.
 sleep "$(awk "BEGIN{print (${GUARD_MS}*4/1000)+2}")"
-[[ "$(redis_cli EXISTS spend:over 2>/dev/null)" == "0" ]] \
-  || { red "spend:over members:"; redis_cli SMEMBERS spend:over 2>&1; fail "(B) spend:over was written with the flag OFF — NOT byte-parity"; }
-[[ "$(psql_val "SELECT (alert_fired_period IS NULL) FROM public.tenant_budgets WHERE tenant_id='${TENANT_OVER}'")" == "t" ]] \
-  || fail "(B) an alert fired with the flag OFF — NOT byte-parity"
+[[ "$(redis_cli EXISTS spend:over 2>/dev/null)" == "0" ]] ||
+  {
+    red "spend:over members:"
+    redis_cli SMEMBERS spend:over 2>&1
+    fail "(B) spend:over was written with the flag OFF — NOT byte-parity"
+  }
+[[ "$(psql_val "SELECT (alert_fired_period IS NULL) FROM public.tenant_budgets WHERE tenant_id='${TENANT_OVER}'")" == "t" ]] ||
+  fail "(B) an alert fired with the flag OFF — NOT byte-parity"
 ALERT_OFF="$(docker logs "${ORCH_OFF}" 2>&1 | grep -c "spend-cap budget alert" || true)"
 [[ "${ALERT_OFF}" == "0" ]] || fail "(B) the OFF guard emitted ${ALERT_OFF} alert log line(s) — NOT byte-parity"
 ok "(B) flag OFF: spend:over never written, no alert fired — byte-identical to today"
@@ -269,7 +307,8 @@ green "[M89] (C) B7.2:    QUOTA_STAGE off→shadow→warn→enforce ⇒ allow→
 # ── 8) emit the gate event via the kernel log helper (best-effort) ─────────────
 step "8/8 log GATE m89=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-b7-spend-caps}"

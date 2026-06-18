@@ -50,19 +50,22 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 DPR_DIR="${INFRA_DIR}/src/data-plane-router"
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIGRATION_040="${INFRA_DIR}/scripts/migrations/postgresql/040_tenant_usage.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M101] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M101] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M101] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M101] FAIL — $*"
+  exit 1
+}
 
 REDIS_IMAGE="${M101_REDIS_IMAGE:-redis:7-alpine}"
 PG_IMAGE="${M101_PG_IMAGE:-postgres:16-alpine}"
@@ -71,9 +74,9 @@ ORCH_IMG="m101-orch-$$:scratch"
 NET="m101net-$$"
 PG="m101-pg-$$"
 REDIS="m101-redis-$$"
-ORCH="m101-orch-on-$$"     # QuotaGuard (enforcement ON)
-DPR_ON="m101-dpr-on-$$"    # (A) ENFORCE arm router
-DPR_OFF="m101-dpr-off-$$"  # (B) PARITY  arm router
+ORCH="m101-orch-on-$$"    # QuotaGuard (enforcement ON)
+DPR_ON="m101-dpr-on-$$"   # (A) ENFORCE arm router
+DPR_OFF="m101-dpr-off-$$" # (B) PARITY  arm router
 PORT_ON="${M101_PORT_ON:-18982}"
 PORT_OFF="${M101_PORT_OFF:-18983}"
 PGPW="postgres"
@@ -84,16 +87,16 @@ SVC_TOKEN="m101-internal-service-token-$$"
 # construction (the whole point of the gate).
 UUID_OVER="550e8400-e29b-41d4-a716-446655440000"
 UUID_UNDER="11111111-2222-3333-4444-555555555555"
-SLUG_OVER="t-550e8400e29b41d4a716446655440000"   # = 't-' || replace(uuid,'-','')
+SLUG_OVER="t-550e8400e29b41d4a716446655440000" # = 't-' || replace(uuid,'-','')
 SLUG_UNDER="t-11111111222233334444555555555555"
 PROBE_TABLE="m101_probe"
 METRIC="query.count"
-NANO_CAP=100000          # nano query.count cap (packages.json source of truth)
-DEFAULT_CAP=2000000      # essential = default_package cap (the broken-join trap)
-OVER_QTY=$((NANO_CAP + 1))   # 100001: over nano (real), under essential (default)
+NANO_CAP=100000            # nano query.count cap (packages.json source of truth)
+DEFAULT_CAP=2000000        # essential = default_package cap (the broken-join trap)
+OVER_QTY=$((NANO_CAP + 1)) # 100001: over nano (real), under essential (default)
 UNDER_QTY=50
-REFRESH_MS="${M101_REFRESH_MS:-700}"     # LOW so the data plane refreshes fast
-GUARD_MS="${M101_GUARD_MS:-700}"         # LOW so the guard re-evaluates fast
+REFRESH_MS="${M101_REFRESH_MS:-700}" # LOW so the data plane refreshes fast
+GUARD_MS="${M101_GUARD_MS:-700}"     # LOW so the guard re-evaluates fast
 REDIS_INNET="redis://${REDIS}:6379"
 DB_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 BODY_TMP="$(mktemp)"
@@ -106,7 +109,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 redis_cli() { docker exec -i "${REDIS}" redis-cli "$@"; }
 
@@ -127,10 +130,16 @@ post_q() { # $1=port  $2=body
 wait_ready() { # $1=container  $2=port
   for i in $(seq 1 60); do
     curl -fsS -o /dev/null "http://127.0.0.1:$2/v1/capabilities" 2>/dev/null && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -15; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -15
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -15; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -15
+  return 1
 }
 
 wait_log() { # $1=container  $2=needle  $3=tries
@@ -145,11 +154,11 @@ wait_log() { # $1=container  $2=needle  $3=tries
 
 # ── 0) build the scratch DPR + orchestrator FROM CURRENT (drafted) source ──────
 step "0/7 build scratch data-plane-router + Go orchestrator from CURRENT source (the B2 code)"
-DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${DPR_IMG}" "${DPR_DIR}" >/dev/null \
-  || fail "scratch data-plane-router image build failed (line: docker build DPR)"
+DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${DPR_IMG}" "${DPR_DIR}" >/dev/null ||
+  fail "scratch data-plane-router image build failed (line: docker build DPR)"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=orchestrator --build-arg PORT=3060 \
-  -t "${ORCH_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch orchestrator image build failed (line: docker build ORCH)"
+  -t "${ORCH_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch orchestrator image build failed (line: docker build ORCH)"
 ok "both scratch images built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated network + redis + postgres (prelude + REAL migration 040) ──────
@@ -157,7 +166,11 @@ step "1/7 boot isolated net (${NET}): redis + postgres"
 docker network create "${NET}" >/dev/null
 docker run -d --name "${REDIS}" --network "${NET}" "${REDIS_IMAGE}" >/dev/null
 docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD="${PGPW}" "${PG_IMAGE}" >/dev/null
-for i in $(seq 1 60); do redis_cli PING 2>/dev/null | grep -q PONG && break; [[ $i -eq 60 ]] && fail "scratch redis never PONGed (line: redis ready)"; sleep 0.5; done
+for i in $(seq 1 60); do
+  redis_cli PING 2>/dev/null | grep -q PONG && break
+  [[ $i -eq 60 ]] && fail "scratch redis never PONGed (line: redis ready)"
+  sleep 0.5
+done
 for i in $(seq 1 80); do
   [[ "$(docker logs "${PG}" 2>&1 | grep -c 'database system is ready to accept connections')" -ge 2 ]] && break
   [[ $i -eq 80 ]] && fail "scratch postgres never reached steady state (line: PG ready loop)"
@@ -179,15 +192,19 @@ DO $r$ BEGIN
 END $r$;
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
-docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "${MIGRATION_040}" >/dev/null 2>&1 \
-  || fail "real migration 040_tenant_usage.sql failed to apply (line: apply 040)"
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
+docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <"${MIGRATION_040}" >/dev/null 2>&1 ||
+  fail "real migration 040_tenant_usage.sql failed to apply (line: apply 040)"
 [[ "$(psql_val "SELECT count(*) FROM public.tenant_usage")" == "0" ]] || fail "tenant_usage should start EMPTY (line: 040 empty check)"
 ok "migration 040 applied — public.tenant_usage exists and is empty"
 
 # ── 2) seed: REALISTIC tenants (uuid id + DISTINCT slug, both nano) + usage ─────
 step "2/7 seed REALISTIC tenants (uuid id ≠ slug, both nano) + tenant_usage(OVER=${OVER_QTY}>${NANO_CAP}, UNDER=${UNDER_QTY}) keyed by SLUG"
-WINDOW_NOW="$(date -u +%Y-%m-01)"   # current month start = the period the guard sums over
+WINDOW_NOW="$(date -u +%Y-%m-01)" # current month start = the period the guard sums over
 seed() {
   psql_q >/dev/null 2>&1 <<SQL
 -- REAL tenants shape (migration 032): id is a UUID, slug is the public identity
@@ -213,16 +230,20 @@ CREATE TABLE IF NOT EXISTS public.${PROBE_TABLE} (id text PRIMARY KEY, label tex
 INSERT INTO public.${PROBE_TABLE}(id, label) VALUES ('p1','ok') ON CONFLICT (id) DO NOTHING;
 SQL
 }
-for i in $(seq 1 20); do seed && break; [[ $i -eq 20 ]] && fail "seed never committed (line: seed loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  seed && break
+  [[ $i -eq 20 ]] && fail "seed never committed (line: seed loop)"
+  sleep 0.5
+done
 
 # Prove the identity split is REAL: the UUID id must differ from the slug, else
 # the gate would be as vacuous as m80.
-[[ "$(psql_val "SELECT (id::text <> slug) FROM public.tenants WHERE slug='${SLUG_OVER}'")" == "t" ]] \
-  || fail "tenants.id (uuid) must DIFFER from slug — the gate is vacuous otherwise (line: id≠slug check)"
-[[ "$(psql_val "SELECT qty FROM public.tenant_usage WHERE tenant_id='${SLUG_OVER}' AND metric='${METRIC}'")" == "${OVER_QTY}" ]] \
-  || fail "OVER tenant_usage qty not seeded to ${OVER_QTY} (line: verify OVER seed)"
-[[ "$(psql_val "SELECT qty FROM public.tenant_usage WHERE tenant_id='${SLUG_UNDER}' AND metric='${METRIC}'")" == "${UNDER_QTY}" ]] \
-  || fail "UNDER tenant_usage qty not seeded to ${UNDER_QTY} (line: verify UNDER seed)"
+[[ "$(psql_val "SELECT (id::text <> slug) FROM public.tenants WHERE slug='${SLUG_OVER}'")" == "t" ]] ||
+  fail "tenants.id (uuid) must DIFFER from slug — the gate is vacuous otherwise (line: id≠slug check)"
+[[ "$(psql_val "SELECT qty FROM public.tenant_usage WHERE tenant_id='${SLUG_OVER}' AND metric='${METRIC}'")" == "${OVER_QTY}" ]] ||
+  fail "OVER tenant_usage qty not seeded to ${OVER_QTY} (line: verify OVER seed)"
+[[ "$(psql_val "SELECT qty FROM public.tenant_usage WHERE tenant_id='${SLUG_UNDER}' AND metric='${METRIC}'")" == "${UNDER_QTY}" ]] ||
+  fail "UNDER tenant_usage qty not seeded to ${UNDER_QTY} (line: verify UNDER seed)"
 ok "seeded realistic tenants: id(uuid) ≠ slug; OVER qty=${OVER_QTY} (> nano cap ${NANO_CAP}, < essential default ${DEFAULT_CAP}), UNDER qty=${UNDER_QTY}"
 
 # ── 3) boot the QuotaGuard (orchestrator, QUOTA_ENFORCEMENT=1) ─────────────────
@@ -238,8 +259,12 @@ docker run -d --name "${ORCH}" --network "${NET}" \
   -e QUOTA_ENFORCEMENT_INTERVAL_MS="${GUARD_MS}" \
   -e LOG_LEVEL=debug \
   "${ORCH_IMG}" >/dev/null
-wait_log "${ORCH}" "quota enforcement enabled" 60 \
-  || { red "guard logs:"; docker logs "${ORCH}" 2>&1 | tail -20; fail "QuotaGuard never enabled (line: wait_log ORCH enabled)"; }
+wait_log "${ORCH}" "quota enforcement enabled" 60 ||
+  {
+    red "guard logs:"
+    docker logs "${ORCH}" 2>&1 | tail -20
+    fail "QuotaGuard never enabled (line: wait_log ORCH enabled)"
+  }
 ok "QuotaGuard enabled — evaluating tenant_usage vs tier quota (joining on slug)"
 
 # The REGRESSION-DISTINGUISHING assertion: with the fixed slug join the OVER
@@ -249,12 +274,19 @@ ok "QuotaGuard enabled — evaluating tenant_usage vs tier quota (joining on slu
 step "3b/7 wait for QuotaGuard to publish quota:over with the OVER slug (FAILS on the broken UUID join)"
 PUBLISHED=
 for i in $(seq 1 60); do
-  if [[ "$(redis_cli SISMEMBER quota:over "${SLUG_OVER}" 2>/dev/null)" == "1" ]]; then PUBLISHED=1; break; fi
+  if [[ "$(redis_cli SISMEMBER quota:over "${SLUG_OVER}" 2>/dev/null)" == "1" ]]; then
+    PUBLISHED=1
+    break
+  fi
   sleep 0.5
 done
-[[ -n "${PUBLISHED}" ]] || { red "quota:over members:"; redis_cli SMEMBERS quota:over 2>&1; fail "OVER slug never appeared in quota:over — the join did not resolve the nano plan (this is exactly the slug-vs-UUID bug) (line: wait quota:over)"; }
-[[ "$(redis_cli SISMEMBER quota:over "${SLUG_UNDER}" 2>/dev/null)" == "0" ]] \
-  || fail "UNDER slug wrongly listed in quota:over — the guard mis-decided (line: UNDER not in set)"
+[[ -n "${PUBLISHED}" ]] || {
+  red "quota:over members:"
+  redis_cli SMEMBERS quota:over 2>&1
+  fail "OVER slug never appeared in quota:over — the join did not resolve the nano plan (this is exactly the slug-vs-UUID bug) (line: wait quota:over)"
+}
+[[ "$(redis_cli SISMEMBER quota:over "${SLUG_UNDER}" 2>/dev/null)" == "0" ]] ||
+  fail "UNDER slug wrongly listed in quota:over — the guard mis-decided (line: UNDER not in set)"
 ok "guard published quota:over = {OVER slug}; UNDER absent — the slug join resolved the REAL nano plan"
 
 # ── 4) (A) ENFORCE arm: data plane with DATA_PLANE_QUOTA_ENFORCEMENT=1 ─────────
@@ -278,16 +310,16 @@ for i in $(seq 1 20); do
   [[ "${CODE_OVER}" == "402" ]] && break
   sleep 0.5
 done
-[[ "${CODE_OVER}" == "402" ]] \
-  || fail "(A) OVER slug expected 402 (quota exceeded), got ${CODE_OVER} — $(head -c 300 "${BODY_TMP}") (line: A OVER 402)"
-grep -q 'quota_exceeded' "${BODY_TMP}" \
-  || fail "(A) 402 body missing the quota_exceeded error — $(head -c 300 "${BODY_TMP}") (line: A OVER body)"
+[[ "${CODE_OVER}" == "402" ]] ||
+  fail "(A) OVER slug expected 402 (quota exceeded), got ${CODE_OVER} — $(head -c 300 "${BODY_TMP}") (line: A OVER 402)"
+grep -q 'quota_exceeded' "${BODY_TMP}" ||
+  fail "(A) 402 body missing the quota_exceeded error — $(head -c 300 "${BODY_TMP}") (line: A OVER body)"
 ok "(A) OVER slug rejected with 402 quota_exceeded — enforcement is REAL for a realistic tenant"
 
 step "4c/7 (A) request as UNDER slug → MUST be 200 (under quota → served)"
 CODE_UNDER="$(post_q "${PORT_ON}" "$(payload_list "${SLUG_UNDER}")")"
-[[ "${CODE_UNDER}" == "200" ]] \
-  || fail "(A) UNDER slug expected 200, got ${CODE_UNDER} — $(head -c 300 "${BODY_TMP}") (line: A UNDER 200)"
+[[ "${CODE_UNDER}" == "200" ]] ||
+  fail "(A) UNDER slug expected 200, got ${CODE_UNDER} — $(head -c 300 "${BODY_TMP}") (line: A UNDER 200)"
 ok "(A) UNDER slug served 200 — enforcement does NOT over-reject"
 
 # ── 5) (B) PARITY arm: data plane with enforcement OFF → BOTH 200 ──────────────
@@ -302,14 +334,14 @@ ok "PARITY router up (enforcement OFF) on 127.0.0.1:${PORT_OFF}"
 
 step "5b/7 (B) OVER slug through the OFF router → MUST be 200 (flag OFF = byte-parity)"
 PCODE_OVER="$(post_q "${PORT_OFF}" "$(payload_list "${SLUG_OVER}")")"
-[[ "${PCODE_OVER}" == "200" ]] \
-  || fail "(B) PARITY OVER expected 200 (enforcement OFF), got ${PCODE_OVER} — $(head -c 300 "${BODY_TMP}") (line: B OVER 200)"
+[[ "${PCODE_OVER}" == "200" ]] ||
+  fail "(B) PARITY OVER expected 200 (enforcement OFF), got ${PCODE_OVER} — $(head -c 300 "${BODY_TMP}") (line: B OVER 200)"
 ok "(B) OVER slug served 200 with enforcement OFF — the over-quota set is NOT consulted"
 
 step "5c/7 (B) UNDER slug through the OFF router → MUST be 200"
 PCODE_UNDER="$(post_q "${PORT_OFF}" "$(payload_list "${SLUG_UNDER}")")"
-[[ "${PCODE_UNDER}" == "200" ]] \
-  || fail "(B) PARITY UNDER expected 200, got ${PCODE_UNDER} — $(head -c 300 "${BODY_TMP}") (line: B UNDER 200)"
+[[ "${PCODE_UNDER}" == "200" ]] ||
+  fail "(B) PARITY UNDER expected 200, got ${PCODE_UNDER} — $(head -c 300 "${BODY_TMP}") (line: B UNDER 200)"
 ok "(B) UNDER slug served 200 with enforcement OFF — both arms identical = byte-parity"
 
 # ── 6) cross-check + summarize ────────────────────────────────────────────────
@@ -321,7 +353,8 @@ green "[M101] regression: a nano tenant at ${OVER_QTY} would be served (200) und
 # ── 7) emit the gate event via the kernel log helper (best-effort) ─────────────
 step "7/7 log GATE m101=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-p0-quota-realtenant}"

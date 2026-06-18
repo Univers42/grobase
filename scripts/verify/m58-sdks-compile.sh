@@ -46,12 +46,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M58] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M58] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M58] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M58] FAIL — $*"
+  exit 1
+}
 
 # BAAS_DIR is the repo root; the SDKs live under sdks/ and the spec under
 # infra/config/openapi/.
@@ -72,16 +75,17 @@ trap cleanup EXIT
 
 # ── 0) inputs present ────────────────────────────────────────────────────────
 step "0/3 inputs present (spec, python SDK, dart SDK)"
-[[ -f "${SPEC}" ]]                     || fail "spec not found: ${SPEC}"
-[[ -f "${PY_SDK}/pyproject.toml" ]]    || fail "python SDK pyproject.toml missing: ${PY_SDK}"
+[[ -f "${SPEC}" ]] || fail "spec not found: ${SPEC}"
+[[ -f "${PY_SDK}/pyproject.toml" ]] || fail "python SDK pyproject.toml missing: ${PY_SDK}"
 [[ -f "${PY_SDK}/grobase/__init__.py" ]] || fail "python package grobase/__init__.py missing"
-[[ -f "${DART_SDK}/pubspec.yaml" ]]    || fail "dart SDK pubspec.yaml missing: ${DART_SDK}"
-[[ -f "${DART_SDK}/lib/api.dart" ]]    || fail "dart lib/api.dart missing"
+[[ -f "${DART_SDK}/pubspec.yaml" ]] || fail "dart SDK pubspec.yaml missing: ${DART_SDK}"
+[[ -f "${DART_SDK}/lib/api.dart" ]] || fail "dart lib/api.dart missing"
 ok "spec + sdk-python (grobase) + sdk-dart present"
 
 # ── spec operation count (derived, not hardcoded) ────────────────────────────
 # One operation = one (path, http-method) pair carrying an operationId/tags.
-SPEC_OPS="$(python3 - "${SPEC}" <<'PY'
+SPEC_OPS="$(
+  python3 - "${SPEC}" <<'PY'
 import json, sys
 d = json.load(open(sys.argv[1]))
 methods = {"get","put","post","delete","patch","options","head","trace"}
@@ -126,7 +130,7 @@ for f in glob.glob(os.path.join(api_dir, "*_api.py")):
         ops.add(base)
 print("M58_PY_OPS=" + str(len(ops)))
 print("M58_PY_OK")'
-printf '%s' "${PY_PROBE}" > "${TMP}/probe.py"
+printf '%s' "${PY_PROBE}" >"${TMP}/probe.py"
 
 PY_LOG="${TMP}/py.log"
 set +e
@@ -146,8 +150,8 @@ step "2/3 Dart: dart pub get && dart analyze --fatal-infos (clean)"
 # analyze (cheap structural proof + bind to real classes), then prove the whole
 # package analyzes clean (--fatal-infos makes any info/warning a non-zero exit).
 for surface in "${API_SURFACES[@]}"; do
-  grep -rqE "^class ${surface} \{" "${DART_SDK}/lib/api/" \
-    || fail "dart SDK is missing generated class '${surface}' in lib/api/"
+  grep -rqE "^class ${surface} \{" "${DART_SDK}/lib/api/" ||
+    fail "dart SDK is missing generated class '${surface}' in lib/api/"
 done
 ok "all 5 Api classes present in sdk-dart/lib/api/*.dart"
 
@@ -163,7 +167,8 @@ ok "dart pub get OK; dart analyze --fatal-infos clean (No issues found)"
 
 # Count Dart operations the same way: one base op per operationId, stripping the
 # generator's WithHttpInfo twin. Pure text scan — no Dart runtime needed.
-DART_OPS="$(python3 - "${DART_SDK}" <<'PY'
+DART_OPS="$(
+  python3 - "${DART_SDK}" <<'PY'
 import glob, os, re, sys
 root = sys.argv[1]
 ops = set()
@@ -184,10 +189,10 @@ step "3/3 congruence: spec(${SPEC_OPS}) == python(${PY_OPS}) == dart(${DART_OPS}
 # both languages, so the operation counts must be exactly equal to the spec's
 # (path × method) count. A divergence means a stale generation, a dropped
 # operation, or a hand-edit drifting from the spec — all of which this catches.
-[[ "${PY_OPS}" == "${SPEC_OPS}" ]] \
-  || fail "python ops (${PY_OPS}) != spec ops (${SPEC_OPS}) — SDK is out of sync with the spec"
-[[ "${DART_OPS}" == "${SPEC_OPS}" ]] \
-  || fail "dart ops (${DART_OPS}) != spec ops (${SPEC_OPS}) — SDK is out of sync with the spec"
+[[ "${PY_OPS}" == "${SPEC_OPS}" ]] ||
+  fail "python ops (${PY_OPS}) != spec ops (${SPEC_OPS}) — SDK is out of sync with the spec"
+[[ "${DART_OPS}" == "${SPEC_OPS}" ]] ||
+  fail "dart ops (${DART_OPS}) != spec ops (${SPEC_OPS}) — SDK is out of sync with the spec"
 ok "all three congruent at ${SPEC_OPS} operations — SDKs match the public spec"
 
 green "[M58] ALL GATES GREEN — generated SDKs real & congruent: python:3.12 pip install + import 5 Api surfaces · dart:stable clean analyze + 5 Api classes · spec==python==dart == ${SPEC_OPS} ops"

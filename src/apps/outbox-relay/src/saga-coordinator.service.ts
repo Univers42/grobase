@@ -92,7 +92,9 @@ export class SagaCoordinatorService implements OnModuleDestroy {
     const payload = this.objectPayload(event.payload);
     if (!payload) return;
     const data = this.objectPayload(payload['data']) ?? payload;
-    const collection = this.mongo.getDb().collection<MongoProjectionDoc>(event.target_resource ?? event.aggregate);
+    const collection = this.mongo
+      .getDb()
+      .collection<MongoProjectionDoc>(event.target_resource ?? event.aggregate);
     if (event.op === 'delete') {
       await collection.deleteOne({ _id: event.aggregate_id });
       return;

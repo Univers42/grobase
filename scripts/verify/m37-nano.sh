@@ -27,12 +27,16 @@
 
 set -euo pipefail
 
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
-step(){ cyan "[M37] $*"; }
-fail(){ red "[M37] FAIL — $*"; cleanup; exit 1; }
-ok(){ green "  ✓ $*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+step() { cyan "[M37] $*"; }
+fail() {
+  red "[M37] FAIL — $*"
+  cleanup
+  exit 1
+}
+ok() { green "  ✓ $*"; }
 
 IMAGE="${NANO_IMAGE:-binocle-nano}"
 NAME="m37-nano-$$"
@@ -42,24 +46,24 @@ BASE="http://127.0.0.1:${PORT}"
 
 # -v: the image declares VOLUME /data, so a plain rm -f would leak one
 # anonymous volume per gate run.
-cleanup(){ docker rm -fv "${NAME}" >/dev/null 2>&1 || true; }
+cleanup() { docker rm -fv "${NAME}" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
-req(){ # method path key [body] → status<TAB>body
+req() { # method path key [body] → status<TAB>body
   local method="$1" path="$2" key="$3" body="${4:-}"
   local args=(-s -w $'\t%{http_code}' -X "${method}" "${BASE}${path}" -H "Content-Type: application/json")
   [[ -n "${key}" ]] && args+=(-H "X-Baas-Api-Key: ${key}")
   [[ -n "${body}" ]] && args+=(-d "${body}")
   curl "${args[@]}"
 }
-status_of(){ awk -F'\t' '{print $NF}' <<<"$1"; }
-body_of(){ awk -F'\t' 'NF{NF--}1' OFS='\t' <<<"$1"; }
+status_of() { awk -F'\t' '{print $NF}' <<<"$1"; }
+body_of() { awk -F'\t' 'NF{NF--}1' OFS='\t' <<<"$1"; }
 
 step "0/7 image present + size budget"
 docker image inspect "${IMAGE}" >/dev/null 2>&1 || fail "image '${IMAGE}' not built (make nano-build)"
 IMG_BYTES=$(docker image inspect --format '{{.Size}}' "${IMAGE}")
-IMG_MB=$(( IMG_BYTES / 1024 / 1024 ))
-(( IMG_MB <= 15 )) || fail "image ${IMG_MB} MB > 15 MB budget"
+IMG_MB=$((IMG_BYTES / 1024 / 1024))
+((IMG_MB <= 15)) || fail "image ${IMG_MB} MB > 15 MB budget"
 ok "image ${IMG_MB} MB ≤ 15 MB (ask was <50 MB)"
 
 step "1/7 boot on a deterministic admin key"
@@ -118,7 +122,7 @@ ok "401 / 401 / 404"
 
 step "5/7 SSE realtime delivers a committed mutation"
 SSE_OUT="$(mktemp)"
-( timeout 8 curl -sN "${BASE}/nano/v1/realtime?key=${KEY}" > "${SSE_OUT}" 2>/dev/null & )
+(timeout 8 curl -sN "${BASE}/nano/v1/realtime?key=${KEY}" >"${SSE_OUT}" 2>/dev/null &)
 sleep 1
 req POST /data/v1/query "${KEY}" '{"db_id":"main","operation":{"op":"insert","resource":"notes","data":{"id":"sse1","title":"event"}}}' >/dev/null
 for i in $(seq 1 14); do

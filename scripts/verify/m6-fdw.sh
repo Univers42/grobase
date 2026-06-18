@@ -8,12 +8,15 @@ cd "${REPO_ROOT}"
 BAAS_DIR="."
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-fail()  { red "[M6] FAIL: $*"; exit 1; }
-step()  { cyan "[M6] ${*}"; }
-pass()  { green "[M6] PASS: ${*}"; }
+fail() {
+  red "[M6] FAIL: $*"
+  exit 1
+}
+step() { cyan "[M6] ${*}"; }
+pass() { green "[M6] PASS: ${*}"; }
 
 LIVE=0
 for arg in "$@"; do [[ "${arg}" == "--live" ]] && LIVE=1; done
@@ -57,8 +60,8 @@ step "checking FDW registration migration is on disk (Go port TBD)"
 # call by hand, but auto-registration on POST /databases is deferred until
 # the Go service grows a `--with-fdw` mode.
 # This check is intentionally narrow: SQL helper exists in the migration.
-grep -q "register_fdw_foreign_table" "${MIG}" \
-  || fail "020 migration missing public.register_fdw_foreign_table helper"
+grep -q "register_fdw_foreign_table" "${MIG}" ||
+  fail "020 migration missing public.register_fdw_foreign_table helper"
 pass "FDW SQL helper available (auto-registration via Go adapter-registry: TBD)"
 
 if [[ ${LIVE} -eq 1 ]]; then
@@ -67,14 +70,14 @@ if [[ ${LIVE} -eq 1 ]]; then
   step "live: applying migration 020"
   docker compose -f "${COMPOSE_FILE}" exec -T postgres \
     psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" -v ON_ERROR_STOP=1 \
-    -f - < "${MIG}" >/dev/null || fail "migration 020 failed"
+    -f - <"${MIG}" >/dev/null || fail "migration 020 failed"
   pass "migration 020 applied"
 
   step "live: built-in file_fdw is installable"
   docker compose -f "${COMPOSE_FILE}" exec -T postgres \
     psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" -tAc \
-    "SELECT public.ensure_fdw_extension('file_fdw')" | grep -q '^t$' \
-    || fail "file_fdw was not installable"
+    "SELECT public.ensure_fdw_extension('file_fdw')" | grep -q '^t$' ||
+    fail "file_fdw was not installable"
   pass "file_fdw CREATE EXTENSION path succeeds"
 
   step "live: FDW alias helper records a tenant-scoped resource"

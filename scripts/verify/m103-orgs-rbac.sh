@@ -56,8 +56,8 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 GO_DIR="${INFRA_DIR}/src/control-plane"
 DPR_DIR="${INFRA_DIR}/src/data-plane-router"
 MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
@@ -68,21 +68,24 @@ MIGRATION_043="${MIG_DIR}/043_orgs.sql"
 MIGRATION_044="${MIG_DIR}/044_org_billing_rollup.sql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M103] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M103] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M103] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M103] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M103_PG_IMAGE:-postgres:16-alpine}"
 TC_IMG="m103-tc-$$:scratch"
 DPR_IMG="m103-dpr-$$:scratch"
 NET="m103net-$$"
 PG="m103-pg-$$"
-TC_ON="m103-tc-on-$$"      # ORG_MODEL_ENABLED=1   (A · positive / B · reject)
-TC_OFF="m103-tc-off-$$"    # ORG_MODEL_ENABLED unset (C · parity)
-DPR="m103-dpr-$$"          # data-plane-router (C2 byte-parity probe + positive CRUD)
+TC_ON="m103-tc-on-$$"   # ORG_MODEL_ENABLED=1   (A · positive / B · reject)
+TC_OFF="m103-tc-off-$$" # ORG_MODEL_ENABLED unset (C · parity)
+DPR="m103-dpr-$$"       # data-plane-router (C2 byte-parity probe + positive CRUD)
 PORT_ON="${M103_PORT_ON:-19103}"
 PORT_OFF="${M103_PORT_OFF:-19104}"
 PORT_DPR="${M103_PORT_DPR:-19105}"
@@ -99,10 +102,10 @@ DP_ON_BODY="$(mktemp)"
 DP_OFF_BODY="$(mktemp)"
 
 # Stable GoTrue-style user uuids for the four humans.
-U1="11111111-1111-1111-1111-111111111111"  # org A owner
-U2="22222222-2222-2222-2222-222222222222"  # invited developer (org A)
-U3="33333333-3333-3333-3333-333333333333"  # invited viewer    (org A)
-U4="44444444-4444-4444-4444-444444444444"  # org B owner (no membership in A)
+U1="11111111-1111-1111-1111-111111111111" # org A owner
+U2="22222222-2222-2222-2222-222222222222" # invited developer (org A)
+U3="33333333-3333-3333-3333-333333333333" # invited viewer    (org A)
+U4="44444444-4444-4444-4444-444444444444" # org B owner (no membership in A)
 
 cleanup() {
   docker rm -fv "${TC_ON}" "${TC_OFF}" "${DPR}" "${PG}" >/dev/null 2>&1 || true
@@ -113,7 +116,7 @@ cleanup() {
 trap cleanup EXIT
 
 # shellcheck disable=SC2120  # psql_q is called both with flags and via heredoc (no args)
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 
 # Apply one migration file the SAME way `make migrate` does: strip leading `#`
@@ -180,19 +183,25 @@ wait_ready_http() { # $1=container $2=port $3=path
   local i
   for i in $(seq 1 60); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2$3" 2>/dev/null)" == "200" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # ── 0) build the scratch tenant-control + data-plane-router FROM CURRENT source ─
 step "0/9 build scratch tenant-control + data-plane-router from CURRENT source (the D1 code)"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT=3020 \
-  -t "${TC_IMG}" "${GO_DIR}" >/dev/null \
-  || fail "scratch tenant-control image build failed — gate must exercise the drafted D1 code (line: docker build TC)"
-DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${DPR_IMG}" "${DPR_DIR}" >/dev/null \
-  || fail "scratch data-plane-router image build failed — needed for the C2 parity probe (line: docker build DPR)"
+  -t "${TC_IMG}" "${GO_DIR}" >/dev/null ||
+  fail "scratch tenant-control image build failed — gate must exercise the drafted D1 code (line: docker build TC)"
+DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${DPR_IMG}" "${DPR_DIR}" >/dev/null ||
+  fail "scratch data-plane-router image build failed — needed for the C2 parity probe (line: docker build DPR)"
 ok "tenant-control + data-plane-router built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated net + postgres + prelude + REAL 005/032/040 + NEW 043/044 ──────
@@ -202,9 +211,12 @@ docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD="${PGPW}" "
 # Postgres image init runs a SOCKET-ONLY temp server then restarts — gate on TCP
 # (pg_isready -h 127.0.0.1) + a real SELECT 1, not on the steady-state log alone.
 for i in $(seq 1 90); do
-  docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 \
-    && [[ "$(psql_val 'SELECT 1')" == "1" ]] && break
-  [[ $i -eq 90 ]] && { docker logs "${PG}" 2>&1 | tail -20; fail "scratch postgres never accepted TCP (line: PG TCP ready)"; }
+  docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 &&
+    [[ "$(psql_val 'SELECT 1')" == "1" ]] && break
+  [[ $i -eq 90 ]] && {
+    docker logs "${PG}" 2>&1 | tail -20
+    fail "scratch postgres never accepted TCP (line: PG TCP ready)"
+  }
   sleep 0.5
 done
 ok "postgres up (TCP + SELECT 1)"
@@ -237,7 +249,11 @@ GRANT EXECUTE ON FUNCTION auth.current_user_id()   TO anon, authenticated, servi
 GRANT EXECUTE ON FUNCTION auth.current_tenant_id() TO anon, authenticated, service_role;
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
 
 # Capture the EXACT body of auth.current_tenant_id() BEFORE 043/044 for the C2 proof.
 TENANT_FN_BEFORE="$(psql_val "SELECT md5(pg_get_functiondef('auth.current_tenant_id'::regproc))")"
@@ -250,11 +266,11 @@ apply_migration "${MIGRATION_043}" || fail "NEW migration 043_orgs.sql failed to
 apply_migration "${MIGRATION_044}" || fail "NEW migration 044_org_billing_rollup.sql failed to apply (line: apply 044)"
 
 # Tables exist + empty; the org_id column was added (nullable, default NULL).
-[[ "$(psql_val "SELECT count(*) FROM public.orgs")"        == "0" ]] || fail "orgs should start EMPTY (line: orgs empty)"
+[[ "$(psql_val "SELECT count(*) FROM public.orgs")" == "0" ]] || fail "orgs should start EMPTY (line: orgs empty)"
 [[ "$(psql_val "SELECT count(*) FROM public.org_members")" == "0" ]] || fail "org_members should start EMPTY (line: members empty)"
 [[ "$(psql_val "SELECT count(*) FROM public.org_invites")" == "0" ]] || fail "org_invites should start EMPTY (line: invites empty)"
-[[ "$(psql_val "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='tenants' AND column_name='org_id'")" == "1" ]] \
-  || fail "tenants.org_id column was not added by 043 (line: org_id col)"
+[[ "$(psql_val "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='tenants' AND column_name='org_id'")" == "1" ]] ||
+  fail "tenants.org_id column was not added by 043 (line: org_id col)"
 ok "migrations applied — orgs/org_members/org_invites empty; tenants.org_id added (nullable)"
 
 # Bare probe table for the data-plane CRUD + the C2 byte-parity probe.
@@ -277,15 +293,22 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3020" "${TC_IMG}" >/dev/null
 wait_ready_http "${TC_ON}" "${PORT_ON}" /health/live || fail "ORG-ON tenant-control not ready (line: wait TC_ON)"
-{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "organizations API enabled" \
-  || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "org API never reported enabled (line: org enabled log)"; }
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "organizations API enabled" ||
+  {
+    docker logs "${TC_ON}" 2>&1 | tail -20
+    fail "org API never reported enabled (line: org enabled log)"
+  }
 ok "ORG-ON tenant-control up (/v1/orgs* mounted, JWT verifier configured)"
 
 # Mint the four human JWTs.
-JWT_U1="$(mint_jwt "${U1}" "u1@m103.test")"; [[ -n "${JWT_U1}" ]] || fail "could not mint U1 JWT (line: jwt U1)"
-JWT_U2="$(mint_jwt "${U2}" "u2@m103.test")"; [[ -n "${JWT_U2}" ]] || fail "could not mint U2 JWT (line: jwt U2)"
-JWT_U3="$(mint_jwt "${U3}" "u3@m103.test")"; [[ -n "${JWT_U3}" ]] || fail "could not mint U3 JWT (line: jwt U3)"
-JWT_U4="$(mint_jwt "${U4}" "u4@m103.test")"; [[ -n "${JWT_U4}" ]] || fail "could not mint U4 JWT (line: jwt U4)"
+JWT_U1="$(mint_jwt "${U1}" "u1@m103.test")"
+[[ -n "${JWT_U1}" ]] || fail "could not mint U1 JWT (line: jwt U1)"
+JWT_U2="$(mint_jwt "${U2}" "u2@m103.test")"
+[[ -n "${JWT_U2}" ]] || fail "could not mint U2 JWT (line: jwt U2)"
+JWT_U3="$(mint_jwt "${U3}" "u3@m103.test")"
+[[ -n "${JWT_U3}" ]] || fail "could not mint U3 JWT (line: jwt U3)"
+JWT_U4="$(mint_jwt "${U4}" "u4@m103.test")"
+[[ -n "${JWT_U4}" ]] || fail "could not mint U4 JWT (line: jwt U4)"
 # Sanity: the verifier actually accepts our minted token (GET /v1/orgs needs JWT).
 C="$(org_req GET "${PORT_ON}" /v1/orgs "${JWT_U1}")"
 [[ "${C}" == "200" ]] || fail "minted JWT not accepted by the verifier (GET /v1/orgs got ${C}) — check JWT signing (line: jwt sanity)"
@@ -293,13 +316,14 @@ ok "minted + verified four human JWTs (U1..U4)"
 
 # ── 3) (A · POSITIVE) U1 creates org A and becomes owner ───────────────────────
 step "3/9 (A · POSITIVE) U1 POST /v1/orgs → 201, U1 is owner"
-ORG_SLUG="m103-org-a-$$"; ORG_SLUG="$(echo "${ORG_SLUG}" | tr '[:upper:]' '[:lower:]' | cut -c1-60)"
+ORG_SLUG="m103-org-a-$$"
+ORG_SLUG="$(echo "${ORG_SLUG}" | tr '[:upper:]' '[:lower:]' | cut -c1-60)"
 C="$(org_req POST "${PORT_ON}" /v1/orgs "${JWT_U1}" "{\"slug\":\"${ORG_SLUG}\",\"name\":\"Org A\"}")"
 [[ "${C}" == "201" ]] || fail "(A) create org expected 201, got ${C} — $(head -c 300 "${BODY_TMP}") (line: create org)"
 ORG_A="$(json_str id)"
 [[ -n "${ORG_A}" ]] || fail "(A) create org returned no id — $(head -c 300 "${BODY_TMP}") (line: org id)"
-[[ "$(psql_val "SELECT role FROM public.org_members WHERE org_id::text='${ORG_A}' AND user_id='${U1}'")" == "owner" ]] \
-  || fail "(A) U1 is not the owner of org A in org_members (line: owner membership)"
+[[ "$(psql_val "SELECT role FROM public.org_members WHERE org_id::text='${ORG_A}' AND user_id='${U1}'")" == "owner" ]] ||
+  fail "(A) U1 is not the owner of org A in org_members (line: owner membership)"
 ok "(A) org A created (${ORG_A}); U1 owner membership row exists"
 
 # ── 4) (A · POSITIVE) U1 invites U2 as developer; sha256(token) is what's stored ─
@@ -310,36 +334,37 @@ TOKEN_U2="$(json_str token)"
 [[ -n "${TOKEN_U2}" ]] || fail "(A) issue invite returned no cleartext token — $(head -c 300 "${BODY_TMP}") (line: invite token)"
 # The DB must store ONLY sha256(token), never the cleartext.
 EXPECT_HASH="$(printf '%s' "${TOKEN_U2}" | sha256sum | cut -d' ' -f1)"
-[[ "$(psql_val "SELECT count(*) FROM public.org_invites WHERE token_hash='${EXPECT_HASH}'")" == "1" ]] \
-  || fail "(A) org_invites does not store sha256(token)=${EXPECT_HASH} — token hashing is wrong (line: invite hash)"
-[[ "$(psql_val "SELECT count(*) FROM public.org_invites WHERE token_hash LIKE '%${TOKEN_U2}%'")" == "0" ]] \
-  || fail "(A) cleartext invite token leaked into the DB — must store ONLY the hash (line: invite cleartext leak)"
+[[ "$(psql_val "SELECT count(*) FROM public.org_invites WHERE token_hash='${EXPECT_HASH}'")" == "1" ]] ||
+  fail "(A) org_invites does not store sha256(token)=${EXPECT_HASH} — token hashing is wrong (line: invite hash)"
+[[ "$(psql_val "SELECT count(*) FROM public.org_invites WHERE token_hash LIKE '%${TOKEN_U2}%'")" == "0" ]] ||
+  fail "(A) cleartext invite token leaked into the DB — must store ONLY the hash (line: invite cleartext leak)"
 ok "(A) invite issued; DB stores ONLY sha256(token)=${EXPECT_HASH:0:12}…, cleartext absent"
 
 # ── 5) (A · POSITIVE) U2 accepts the invite → becomes developer ────────────────
 step "5/9 (A · POSITIVE) U2 POST /v1/orgs/invites/accept {token} → 200, U2 is developer, invite=accepted"
 C="$(org_req POST "${PORT_ON}" /v1/orgs/invites/accept "${JWT_U2}" "{\"token\":\"${TOKEN_U2}\"}")"
 [[ "${C}" == "200" ]] || fail "(A) accept invite expected 200, got ${C} — $(head -c 300 "${BODY_TMP}") (line: accept invite)"
-[[ "$(psql_val "SELECT role FROM public.org_members WHERE org_id::text='${ORG_A}' AND user_id='${U2}'")" == "developer" ]] \
-  || fail "(A) U2 is not a developer member of org A after accept (line: U2 membership)"
-[[ "$(psql_val "SELECT status FROM public.org_invites WHERE token_hash='${EXPECT_HASH}'")" == "accepted" ]] \
-  || fail "(A) invite did not flip to status=accepted (line: invite accepted)"
+[[ "$(psql_val "SELECT role FROM public.org_members WHERE org_id::text='${ORG_A}' AND user_id='${U2}'")" == "developer" ]] ||
+  fail "(A) U2 is not a developer member of org A after accept (line: U2 membership)"
+[[ "$(psql_val "SELECT status FROM public.org_invites WHERE token_hash='${EXPECT_HASH}'")" == "accepted" ]] ||
+  fail "(A) invite did not flip to status=accepted (line: invite accepted)"
 ok "(A) U2 accepted → developer member; invite flipped to accepted"
 
 # ── 6) (A · POSITIVE) U2 (developer) provisions an org-scoped project ───────────
 step "6/9 (A · POSITIVE) U2 POST /v1/orgs/{A}/projects → 2xx, tenants.org_id stamped, mount+key minted"
-PROJ_SLUG="m103-proj-a-$$"; PROJ_SLUG="$(echo "${PROJ_SLUG}" | tr '[:upper:]' '[:lower:]' | cut -c1-60)"
+PROJ_SLUG="m103-proj-a-$$"
+PROJ_SLUG="$(echo "${PROJ_SLUG}" | tr '[:upper:]' '[:lower:]' | cut -c1-60)"
 TENANTS_BEFORE="$(psql_val "SELECT count(*) FROM public.tenants")"
 PROJ_BODY="{\"tenant\":\"${PROJ_SLUG}\",\"name\":\"Proj A\",\"plan\":\"nano\",\"seed_roles\":false,\"mounts\":[{\"engine\":\"postgresql\",\"name\":\"probe\",\"connection_string\":\"${DB_INNET}\",\"isolation\":\"shared_rls\"}]}"
 C="$(org_req POST "${PORT_ON}" "/v1/orgs/${ORG_A}/projects" "${JWT_U2}" "${PROJ_BODY}")"
-[[ "${C}" == "200" || "${C}" == "201" ]] \
-  || fail "(A) org-scoped provision expected 200/201, got ${C} — $(head -c 400 "${BODY_TMP}") (line: provision project)"
+[[ "${C}" == "200" || "${C}" == "201" ]] ||
+  fail "(A) org-scoped provision expected 200/201, got ${C} — $(head -c 400 "${BODY_TMP}") (line: provision project)"
 PROJ_KEY="$(json_str key)"
 [[ "${PROJ_KEY}" == mbk_* ]] || fail "(A) provision did not mint a project API key — got '${PROJ_KEY}' — $(head -c 300 "${BODY_TMP}") (line: project key)"
 TENANTS_AFTER="$(psql_val "SELECT count(*) FROM public.tenants")"
 [[ "${TENANTS_AFTER}" -gt "${TENANTS_BEFORE}" ]] || fail "(A) no new tenant row appeared after provision (line: tenant count up)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenants WHERE slug='${PROJ_SLUG}' AND org_id::text='${ORG_A}'")" == "1" ]] \
-  || fail "(A) tenants.org_id was not stamped to org A for the new project (line: org_id stamp)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenants WHERE slug='${PROJ_SLUG}' AND org_id::text='${ORG_A}'")" == "1" ]] ||
+  fail "(A) tenants.org_id was not stamped to org A for the new project (line: org_id stamp)"
 ok "(A) project provisioned through the reconciler; org_id stamped; API key minted"
 
 # ── 6b) (A · POSITIVE) data CRUD via that key flows through the Rust data plane ─
@@ -352,7 +377,7 @@ docker run -d --name "${DPR}" --network "${NET}" \
   -p "127.0.0.1:${PORT_DPR}:3030" "${DPR_IMG}" >/dev/null
 wait_ready_http "${DPR}" "${PORT_DPR}" /v1/capabilities || fail "data-plane-router not ready (line: wait DPR)"
 C="$(curl -s -o "${DP_ON_BODY}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_DPR}/v1/query" \
-      -H 'Content-Type: application/json' -d "$(payload_list "${PROJ_SLUG}")")"
+  -H 'Content-Type: application/json' -d "$(payload_list "${PROJ_SLUG}")")"
 [[ "${C}" == "200" ]] || fail "(A) data-plane /v1/query for the org-owned project expected 200, got ${C} — $(head -c 400 "${DP_ON_BODY}") (line: dp query project)"
 ok "(A) data CRUD through the Rust data plane works for the org-scoped project (200)"
 
@@ -362,29 +387,32 @@ step "7/9 (B · REJECT) viewer cannot create a project · cross-org isolation ·
 # B1 — invite + accept U3 as VIEWER, then U3 POST /projects → 403, NO new tenant.
 C="$(org_req POST "${PORT_ON}" "/v1/orgs/${ORG_A}/invites" "${JWT_U1}" '{"email":"u3@m103.test","role":"viewer"}')"
 [[ "${C}" == "201" ]] || fail "(B1) issue viewer invite expected 201, got ${C} — $(head -c 300 "${BODY_TMP}") (line: B1 invite)"
-TOKEN_U3="$(json_str token)"; [[ -n "${TOKEN_U3}" ]] || fail "(B1) no viewer invite token (line: B1 token)"
+TOKEN_U3="$(json_str token)"
+[[ -n "${TOKEN_U3}" ]] || fail "(B1) no viewer invite token (line: B1 token)"
 C="$(org_req POST "${PORT_ON}" /v1/orgs/invites/accept "${JWT_U3}" "{\"token\":\"${TOKEN_U3}\"}")"
 [[ "${C}" == "200" ]] || fail "(B1) U3 accept expected 200, got ${C} — $(head -c 300 "${BODY_TMP}") (line: B1 accept)"
 TENANTS_PRE_VIEWER="$(psql_val "SELECT count(*) FROM public.tenants")"
 C="$(org_req POST "${PORT_ON}" "/v1/orgs/${ORG_A}/projects" "${JWT_U3}" \
-      "{\"tenant\":\"m103-viewer-deny-$$\",\"name\":\"x\",\"plan\":\"nano\"}")"
+  "{\"tenant\":\"m103-viewer-deny-$$\",\"name\":\"x\",\"plan\":\"nano\"}")"
 [[ "${C}" == "403" ]] || fail "(B1) a VIEWER created a project (got ${C}, want 403) — RBAC project:create gate is OPEN! — $(head -c 300 "${BODY_TMP}") (line: B1 viewer 403)"
 grep -q 'forbidden' "${BODY_TMP}" || fail "(B1) 403 body missing 'forbidden' — $(head -c 300 "${BODY_TMP}") (line: B1 forbidden body)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenants")" == "${TENANTS_PRE_VIEWER}" ]] \
-  || fail "(B1) a tenant row appeared despite the viewer 403 — the reject is not load-bearing (line: B1 no new tenant)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenants")" == "${TENANTS_PRE_VIEWER}" ]] ||
+  fail "(B1) a tenant row appeared despite the viewer 403 — the reject is not load-bearing (line: B1 no new tenant)"
 ok "(B1) viewer POST /projects → 403 forbidden AND no tenant row created (RBAC gate REAL)"
 
 # B2 — cross-org isolation: U4 owns org B; U2 (a member of A only) cannot touch B.
-ORG_B_SLUG="m103-org-b-$$"; ORG_B_SLUG="$(echo "${ORG_B_SLUG}" | tr '[:upper:]' '[:lower:]' | cut -c1-60)"
+ORG_B_SLUG="m103-org-b-$$"
+ORG_B_SLUG="$(echo "${ORG_B_SLUG}" | tr '[:upper:]' '[:lower:]' | cut -c1-60)"
 C="$(org_req POST "${PORT_ON}" /v1/orgs "${JWT_U4}" "{\"slug\":\"${ORG_B_SLUG}\",\"name\":\"Org B\"}")"
 [[ "${C}" == "201" ]] || fail "(B2) U4 create org B expected 201, got ${C} — $(head -c 300 "${BODY_TMP}") (line: B2 create B)"
-ORG_B="$(json_str id)"; [[ -n "${ORG_B}" ]] || fail "(B2) org B id missing (line: B2 org B id)"
+ORG_B="$(json_str id)"
+[[ -n "${ORG_B}" ]] || fail "(B2) org B id missing (line: B2 org B id)"
 # U2 GET org B → 403/404 (non-member: opaque, by membership lookup not by guessable id).
 C="$(org_req GET "${PORT_ON}" "/v1/orgs/${ORG_B}" "${JWT_U2}")"
 [[ "${C}" == "403" || "${C}" == "404" ]] || fail "(B2) U2 GET org B expected 403/404, got ${C} — cross-org READ is OPEN! (line: B2 read B)"
 # U2 POST a project into org B → 403/404.
 C="$(org_req POST "${PORT_ON}" "/v1/orgs/${ORG_B}/projects" "${JWT_U2}" \
-      "{\"tenant\":\"m103-crossorg-$$\",\"name\":\"x\",\"plan\":\"nano\"}")"
+  "{\"tenant\":\"m103-crossorg-$$\",\"name\":\"x\",\"plan\":\"nano\"}")"
 [[ "${C}" == "403" || "${C}" == "404" ]] || fail "(B2) U2 provisioned into org B (got ${C}) — cross-org WRITE is OPEN! (line: B2 write B)"
 # U2 GET org B members → 403/404.
 C="$(org_req GET "${PORT_ON}" "/v1/orgs/${ORG_B}/members" "${JWT_U2}")"
@@ -397,8 +425,8 @@ ok "(B2) member of A cannot read/touch org B (403/404) while keeping full access
 # B3 — last-owner protection: U1 is the SOLE owner of A; removing U1 → 409.
 C="$(org_req DELETE "${PORT_ON}" "/v1/orgs/${ORG_A}/members/${U1}" "${JWT_U1}")"
 [[ "${C}" == "409" ]] || fail "(B3) removing the sole owner expected 409, got ${C} — last-owner guard is OPEN! — $(head -c 300 "${BODY_TMP}") (line: B3 last owner)"
-[[ "$(psql_val "SELECT role FROM public.org_members WHERE org_id::text='${ORG_A}' AND user_id='${U1}'")" == "owner" ]] \
-  || fail "(B3) the sole owner was removed despite the 409 (line: B3 owner still there)"
+[[ "$(psql_val "SELECT role FROM public.org_members WHERE org_id::text='${ORG_A}' AND user_id='${U1}'")" == "owner" ]] ||
+  fail "(B3) the sole owner was removed despite the 409 (line: B3 owner still there)"
 ok "(B3) the sole owner cannot be removed → 409 (break-glass anchor REAL)"
 
 # B4 — token integrity: wrong token → 401; replayed (already-accepted) → 409.
@@ -422,8 +450,11 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3020" "${TC_IMG}" >/dev/null
 wait_ready_http "${TC_OFF}" "${PORT_OFF}" /health/live || fail "ORG-OFF tenant-control not ready (line: wait TC_OFF)"
-{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "organizations API disabled" \
-  || { docker logs "${TC_OFF}" 2>&1 | tail -20; fail "(C1) OFF instance did not report org API disabled (flag default not OFF?) (line: C1 disabled log)"; }
+{ docker logs "${TC_OFF}" 2>&1 || true; } | grep -q "organizations API disabled" ||
+  {
+    docker logs "${TC_OFF}" 2>&1 | tail -20
+    fail "(C1) OFF instance did not report org API disabled (flag default not OFF?) (line: C1 disabled log)"
+  }
 # Every /v1/orgs* route → 404 (not mounted).
 C="$(org_req GET "${PORT_OFF}" /v1/orgs "${JWT_U1}")"
 [[ "${C}" == "404" ]] || fail "(C1) GET /v1/orgs with flag OFF expected 404 (route not mounted), got ${C} (line: C1 orgs 404)"
@@ -448,12 +479,19 @@ echo "${PAYLOAD}" | grep -q '"org_id"' && fail "(C2) the data-plane request enve
 # envelope, same data plane, after the WHOLE org world (org A/B, members, invites,
 # org-owned project) exists. If orgs touched the data path these would differ.
 C="$(curl -s -o "${DP_OFF_BODY}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_DPR}/v1/query" \
-      -H 'Content-Type: application/json' -d "${PAYLOAD}")"
+  -H 'Content-Type: application/json' -d "${PAYLOAD}")"
 [[ "${C}" == "200" ]] || fail "(C2) repeat /v1/query expected 200, got ${C} — $(head -c 400 "${DP_OFF_BODY}") (line: C2 repeat 200)"
 # The response bodies must be byte-identical (the data plane is org-agnostic).
-diff <(tr -d '\n' < "${DP_ON_BODY}") <(tr -d '\n' < "${DP_OFF_BODY}") >/dev/null 2>&1 \
-  || { red "ON body:"; head -c 400 "${DP_ON_BODY}"; echo; red "OFF body:"; head -c 400 "${DP_OFF_BODY}"; echo; \
-       fail "(C2) /v1/query response differs across the org world — orgs LEAKED into the data path! (line: C2 byte diff)"; }
+diff <(tr -d '\n' <"${DP_ON_BODY}") <(tr -d '\n' <"${DP_OFF_BODY}") >/dev/null 2>&1 ||
+  {
+    red "ON body:"
+    head -c 400 "${DP_ON_BODY}"
+    echo
+    red "OFF body:"
+    head -c 400 "${DP_OFF_BODY}"
+    echo
+    fail "(C2) /v1/query response differs across the org world — orgs LEAKED into the data path! (line: C2 byte diff)"
+  }
 ok "(C2) /v1/query response byte-identical; envelope carries tenant_id only (no org_id) — data path org-agnostic"
 
 # C2 schema proof: auth.current_tenant_id() body is UNCHANGED after 043/044, and
@@ -461,11 +499,11 @@ ok "(C2) /v1/query response byte-identical; envelope carries tenant_id only (no 
 # that one set NULL for the parity-baseline projects). The function body md5 must
 # equal the pre-043 snapshot → the per-request isolation key has NO org input.
 TENANT_FN_AFTER="$(psql_val "SELECT md5(pg_get_functiondef('auth.current_tenant_id'::regproc))")"
-[[ "${TENANT_FN_AFTER}" == "${TENANT_FN_BEFORE}" ]] \
-  || fail "(C2) auth.current_tenant_id() body CHANGED after 043/044 — the RLS isolation function must be byte-unchanged! (line: C2 fn unchanged)"
+[[ "${TENANT_FN_AFTER}" == "${TENANT_FN_BEFORE}" ]] ||
+  fail "(C2) auth.current_tenant_id() body CHANGED after 043/044 — the RLS isolation function must be byte-unchanged! (line: C2 fn unchanged)"
 # Every org-less tenant has org_id NULL; only the explicitly-provisioned project is stamped.
-[[ "$(psql_val "SELECT count(*) FROM public.tenants WHERE org_id IS NOT NULL AND slug<>'${PROJ_SLUG}'")" == "0" ]] \
-  || fail "(C2) a tenant other than the org-owned project has a non-NULL org_id — the column is not inert (line: C2 org_id inert)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenants WHERE org_id IS NOT NULL AND slug<>'${PROJ_SLUG}'")" == "0" ]] ||
+  fail "(C2) a tenant other than the org-owned project has a non-NULL org_id — the column is not inert (line: C2 org_id inert)"
 ok "(C2) auth.current_tenant_id() byte-unchanged; org_id NULL for every non-org tenant — schema addition inert on the request path"
 
 # ── 9) summary + gate log ──────────────────────────────────────────────────────
@@ -475,7 +513,8 @@ green "[M103] (B) REJECT:   viewer 403+no-tenant · cross-org A↛B 403/404 (A i
 green "[M103] (C) PARITY:   flag OFF → /v1/orgs* 404, base admin 200 · /v1/query BYTE-IDENTICAL with orgs present · auth.current_tenant_id() unchanged · org_id inert"
 
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-d1-orgs-rbac}"

@@ -45,15 +45,15 @@ services:
 
   # ── observability + infra: strip ports AND cap the uncapped ────────────────
   prometheus:
-    ports: []          # scraped in-network; expose via Grafana only
+    ports: [] # scraped in-network; expose via Grafana only
     mem_limit: 512m
     cpus: 0.50
   loki:
-    ports: []          # queried by Grafana in-network
+    ports: [] # queried by Grafana in-network
     mem_limit: 384m
     cpus: 0.50
   grafana:
-    mem_limit: 256m    # stays on :3030 — the operator dashboard; firewall it
+    mem_limit: 256m # stays on :3030 — the operator dashboard; firewall it
     cpus: 0.25
   promtail:
     mem_limit: 128m
@@ -66,7 +66,7 @@ services:
     cpus: 0.50
   minio:
     ports:
-      - "9000:9000"    # keep the S3 API (presigned URLs), strip the console
+      - "9000:9000" # keep the S3 API (presigned URLs), strip the console
     mem_limit: 512m
     cpus: 0.50
 

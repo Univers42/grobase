@@ -46,7 +46,10 @@ export class CreatePolicyDto {
   @IsString({ each: true })
   actions!: string[];
 
-  @ApiPropertyOptional({ example: { owner_only: true }, description: 'JSONB conditions (owner_only, ip_range, mfa_required, time_window)' })
+  @ApiPropertyOptional({
+    example: { owner_only: true },
+    description: 'JSONB conditions (owner_only, ip_range, mfa_required, time_window)',
+  })
   @IsOptional()
   @IsObject()
   conditions?: Record<string, unknown>;

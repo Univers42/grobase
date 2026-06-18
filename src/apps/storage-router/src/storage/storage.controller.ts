@@ -11,7 +11,17 @@
 /* ************************************************************************** */
 
 import {
-  Body, Controller, Delete, Get, Param, Post, Put, Query, Req, Res, UseGuards,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Req,
+  Res,
+  UseGuards,
   PayloadTooLargeException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
@@ -66,12 +76,20 @@ export class StorageController {
     // The principal (A1) is consulted by the bucket-policy ONLY when that flag is
     // ON — otherwise it is inert and the call is byte-parity.
     return this.service.putObject(
-      bucket, this.wildcard(req), user.id, body, contentType, user.tenantId, principalOf(user),
+      bucket,
+      this.wildcard(req),
+      user.id,
+      body,
+      contentType,
+      user.tenantId,
+      principalOf(user),
     );
   }
 
   @Get('object/:bucket/*')
-  @ApiOperation({ summary: 'Download an object (owner-scoped; ?width=&height=&format= for image variants)' })
+  @ApiOperation({
+    summary: 'Download an object (owner-scoped; ?width=&height=&format= for image variants)',
+  })
   async download(
     @CurrentUser() user: UserContext,
     @Param('bucket') bucket: string,
@@ -83,7 +101,11 @@ export class StorageController {
     // params. A bounded TransformSpec only when at least one valid param is present.
     const transform = parseTransform(req.query);
     const obj = await this.service.getObject(
-      bucket, this.wildcard(req), user.id, principalOf(user), transform,
+      bucket,
+      this.wildcard(req),
+      user.id,
+      principalOf(user),
+      transform,
     );
     res.setHeader('Content-Type', obj.contentType);
     res.setHeader('Content-Length', String(obj.size));
@@ -107,7 +129,9 @@ export class StorageController {
     @Param('bucket') bucket: string,
     @Query('prefix') prefix?: string,
   ) {
-    return { objects: await this.service.listObjects(bucket, user.id, prefix ?? '', principalOf(user)) };
+    return {
+      objects: await this.service.listObjects(bucket, user.id, prefix ?? '', principalOf(user)),
+    };
   }
 
   // ── bucket management ────────────────────────────────────────────────────
@@ -130,7 +154,10 @@ export class StorageController {
     // come back empty depending on the version), and preserves nested paths.
     const pathOnly = (req.path || req.url || '').split('?')[0];
     const segs = pathOnly.split('/').filter(Boolean); // [storage, v1, op, bucket, ...path]
-    return segs.slice(4).map((s) => safeDecode(s)).join('/');
+    return segs
+      .slice(4)
+      .map((s) => safeDecode(s))
+      .join('/');
   }
 
   private async readRawBody(req: Request): Promise<Buffer> {

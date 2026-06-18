@@ -32,10 +32,10 @@
 
 set -euo pipefail
 
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
-yellow(){ printf '\033[1;33m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
+yellow() { printf '\033[1;33m%s\033[0m\n' "$*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -53,13 +53,13 @@ INIT_SVCS=" db-bootstrap mongo-init mongo-keyfile minio-iceberg-init vault-init 
 # Rough language bucket for the "where's the weight" story.
 lang_of() {
   case "$1" in
-    data-plane-router-rust|realtime) echo rust ;;
-    adapter-registry-go|tenant-control|webhook-dispatcher|gotrue) echo go ;;
-    query-router|permission-engine|outbox-relay|*-service|mongo-api|functions-runtime) echo node ;;
-    postgres|mysql|mariadb|mongo|redis|cockroach|mssql) echo db ;;
-    trino|debezium|iceberg-rest|minio*) echo jvm/store ;;
-    kong|waf|postgrest) echo edge ;;
-    *) echo other ;;
+  data-plane-router-rust | realtime) echo rust ;;
+  adapter-registry-go | tenant-control | webhook-dispatcher | gotrue) echo go ;;
+  query-router | permission-engine | outbox-relay | *-service | mongo-api | functions-runtime) echo node ;;
+  postgres | mysql | mariadb | mongo | redis | cockroach | mssql) echo db ;;
+  trino | debezium | iceberg-rest | minio*) echo jvm/store ;;
+  kong | waf | postgrest) echo edge ;;
+  *) echo other ;;
   esac
 }
 
@@ -80,7 +80,10 @@ to_mib() {
 flags=()
 for p in ${PROFILES}; do flags+=(--profile "$p"); done
 mapfile -t SERVICES < <(docker compose -f "${COMPOSE_FILE}" "${flags[@]}" config --services 2>/dev/null | sort)
-[[ ${#SERVICES[@]} -gt 0 ]] || { red "[footprint] no services resolved for profiles: '${PROFILES}'"; exit 1; }
+[[ ${#SERVICES[@]} -gt 0 ]] || {
+  red "[footprint] no services resolved for profiles: '${PROFILES}'"
+  exit 1
+}
 
 # ── snapshot live stats once (name → "memTok cpu%") ──
 declare -A MEM CPU
@@ -102,8 +105,11 @@ json_rows=""
 for svc in "${SERVICES[@]}"; do
   cname="${PREFIX}-${svc}"
   lang="$(lang_of "${svc}")"
-  state="down"; ram="0"; img="—"
-  is_init=0; [[ "${INIT_SVCS}" == *" ${svc} "* ]] && is_init=1
+  state="down"
+  ram="0"
+  img="—"
+  is_init=0
+  [[ "${INIT_SVCS}" == *" ${svc} "* ]] && is_init=1
 
   if docker inspect "${cname}" >/dev/null 2>&1; then
     # image size (dedup by image id across services)
@@ -117,7 +123,8 @@ for svc in "${SERVICES[@]}"; do
       fi
     fi
     if [[ -n "${MEM[${cname}]:-}" ]]; then
-      state="up"; ram="$(to_mib "${MEM[${cname}]}")"
+      state="up"
+      ram="$(to_mib "${MEM[${cname}]}")"
       [[ "${is_init}" -eq 0 ]] && ram_total="$(awk -v a="${ram_total}" -v b="${ram}" 'BEGIN{printf "%.1f", a+b}')"
       [[ "${is_init}" -eq 1 ]] && state="init"
     else
@@ -132,12 +139,16 @@ done
 printf '  %s\n' "-------------------------------------------------------------------------------"
 printf '  %-26s %-9s %10s %10s\n' "TOTAL (running)" "" "${ram_total}" "${img_total}"
 
-verdict="n/a"; rc=0
+verdict="n/a"
+rc=0
 if [[ -n "${BAR_MB}" ]]; then
   if awk -v r="${ram_total}" -v b="${BAR_MB}" 'BEGIN{exit !(r<=b)}'; then
-    green "  ✓ ${ram_total} MiB ≤ ${BAR_MB} MiB budget"; verdict="pass"
+    green "  ✓ ${ram_total} MiB ≤ ${BAR_MB} MiB budget"
+    verdict="pass"
   else
-    red "  ✗ ${ram_total} MiB > ${BAR_MB} MiB budget"; verdict="fail"; rc=1
+    red "  ✗ ${ram_total} MiB > ${BAR_MB} MiB budget"
+    verdict="fail"
+    rc=1
   fi
 fi
 
@@ -145,6 +156,6 @@ mkdir -p artifacts
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 printf '{"label":"%s","generated":"%s","profiles":"%s","ram_mib_total":%s,"img_mib_total":%s,"bar_mib":%s,"verdict":"%s","services":[%s]}\n' \
   "${LABEL}" "${ts}" "${PROFILES}" "${ram_total:-0}" "${img_total:-0}" "${BAR_MB:-null}" "${verdict}" "${json_rows%,}" \
-  > "artifacts/footprint-${LABEL}.json"
+  >"artifacts/footprint-${LABEL}.json"
 yellow "  → artifacts/footprint-${LABEL}.json"
 exit "${rc}"

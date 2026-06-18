@@ -50,19 +50,22 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                 # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                      # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 CP_DIR="${INFRA_DIR}/src/control-plane"
 DPR_DIR="${INFRA_DIR}/src/data-plane-router"
 MIGRATIONS="${INFRA_DIR}/scripts/migrations/postgresql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M121] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M121] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M121] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M121] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M121_PG_IMAGE:-postgres:16-alpine}"
 VAULT_IMAGE="${M121_VAULT_IMAGE:-hashicorp/vault:latest}"
@@ -71,8 +74,8 @@ DPR_IMG="m121-dpr-$$:scratch"
 NET="m121net-$$"
 PG="m121-pg-$$"
 VAULT="m121-vault-$$"
-AR="m121-ar-$$"           # adapter-registry (PACKAGE_ENFORCEMENT=1)
-DPR="m121-dpr-$$"         # data-plane-router (VaultProvider configured)
+AR="m121-ar-$$"   # adapter-registry (PACKAGE_ENFORCEMENT=1)
+DPR="m121-dpr-$$" # data-plane-router (VaultProvider configured)
 PORT_AR="${M121_PORT_AR:-18991}"
 PORT_DPR="${M121_PORT_DPR:-18992}"
 PGPW="postgres"
@@ -104,7 +107,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 
 # POST /databases as a given tenant identity (X-User-Id header), body $2.
@@ -137,30 +140,40 @@ wait_ar() {
   for _ in $(seq 1 60); do
     [[ "$(health_ar)" == "200" ]] && return 0
     docker inspect -f '{{.State.Running}}' "${AR}" 2>/dev/null | grep -q true || {
-      red "adapter-registry exited:"; docker logs "${AR}" 2>&1 | tail -20; return 1; }
+      red "adapter-registry exited:"
+      docker logs "${AR}" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "adapter-registry never served /health/live:"; docker logs "${AR}" 2>&1 | tail -20; return 1
+  red "adapter-registry never served /health/live:"
+  docker logs "${AR}" 2>&1 | tail -20
+  return 1
 }
 
 wait_dpr() {
   for _ in $(seq 1 60); do
     curl -fsS -o /dev/null --max-time 3 "http://127.0.0.1:${PORT_DPR}/v1/capabilities" 2>/dev/null && return 0
     docker inspect -f '{{.State.Running}}' "${DPR}" 2>/dev/null | grep -q true || {
-      red "data-plane-router exited:"; docker logs "${DPR}" 2>&1 | tail -20; return 1; }
+      red "data-plane-router exited:"
+      docker logs "${DPR}" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "data-plane-router never became ready:"; docker logs "${DPR}" 2>&1 | tail -20; return 1
+  red "data-plane-router never became ready:"
+  docker logs "${DPR}" 2>&1 | tail -20
+  return 1
 }
 
 # ── 0) build scratch adapter-registry + data-plane-router FROM CURRENT source ──
 step "0/8 build scratch adapter-registry + data-plane-router from CURRENT source (the S2 code)"
 DOCKER_BUILDKIT=1 docker build -q \
   --build-arg APP=adapter-registry --build-arg PORT=3021 \
-  -f "${CP_DIR}/Dockerfile" -t "${AR_IMG}" "${CP_DIR}" >/dev/null \
-  || fail "scratch adapter-registry image build failed (line: docker build AR)"
-DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${DPR_IMG}" "${DPR_DIR}" >/dev/null \
-  || fail "scratch data-plane-router image build failed (line: docker build DPR)"
+  -f "${CP_DIR}/Dockerfile" -t "${AR_IMG}" "${CP_DIR}" >/dev/null ||
+  fail "scratch adapter-registry image build failed (line: docker build AR)"
+DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${DPR_IMG}" "${DPR_DIR}" >/dev/null ||
+  fail "scratch data-plane-router image build failed (line: docker build DPR)"
 ok "both scratch images built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated net + postgres + dev Vault ────────────────────────────────────
@@ -178,7 +191,10 @@ for i in $(seq 1 80); do
 done
 for i in $(seq 1 60); do
   docker exec "${VAULT}" sh -c "VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=${VAULT_TOKEN} vault status" >/dev/null 2>&1 && break
-  [[ $i -eq 60 ]] && { docker logs "${VAULT}" 2>&1 | tail -15; fail "dev Vault never became ready (line: vault status loop)"; }
+  [[ $i -eq 60 ]] && {
+    docker logs "${VAULT}" 2>&1 | tail -15
+    fail "dev Vault never became ready (line: vault status loop)"
+  }
   sleep 0.5
 done
 ok "postgres + dev Vault up"
@@ -193,13 +209,13 @@ step "2/8 seed Vault KV v2: secret/data-plane/dsn/${VAULT_REF} {dsn=<postgres DS
 # `secret/` makes the CLI try to resolve a mount literally named "data-plane" → 403.
 docker exec "${VAULT}" sh -c \
   "VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=${VAULT_TOKEN} vault kv put secret/data-plane/dsn/${VAULT_REF} dsn='${DB_INNET}'" \
-  >/dev/null 2>&1 \
-  || fail "failed to write the DSN secret into dev Vault (line: vault kv put)"
+  >/dev/null 2>&1 ||
+  fail "failed to write the DSN secret into dev Vault (line: vault kv put)"
 # Prove it reads back (the path the VaultProvider will hit: secret/data/data-plane/dsn/<ref>).
 docker exec "${VAULT}" sh -c \
   "VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=${VAULT_TOKEN} vault kv get -field=dsn secret/data-plane/dsn/${VAULT_REF}" \
-  2>/dev/null | grep -q "postgres://" \
-  || fail "Vault did not return the seeded DSN at secret/data-plane/dsn/${VAULT_REF} (line: vault kv get)"
+  2>/dev/null | grep -q "postgres://" ||
+  fail "Vault did not return the seeded DSN at secret/data-plane/dsn/${VAULT_REF} (line: vault kv get)"
 ok "Vault holds the real DSN at the reference the credential_ref will name"
 
 # ── 3) apply migration 004 (tenant_databases) + 006 (connection_salt) + 060 (cred-ref) ──
@@ -227,23 +243,27 @@ DO $r$ BEGIN
 END $r$;
 SQL
 }
-for i in $(seq 1 20); do prelude && break; [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"; sleep 0.5; done
-apply_mig "004_add_adapter_registry.sql" \
-  || fail "migration 004 failed to apply (line: apply 004)"
-apply_mig "006_add_connection_salt.sql" \
-  || fail "migration 006 failed to apply (line: apply 006)"
-apply_mig "060_tenant_database_credref.sql" \
-  || fail "migration 060 failed to apply (line: apply 060)"
+for i in $(seq 1 20); do
+  prelude && break
+  [[ $i -eq 20 ]] && fail "migration prelude never committed (line: prelude loop)"
+  sleep 0.5
+done
+apply_mig "004_add_adapter_registry.sql" ||
+  fail "migration 004 failed to apply (line: apply 004)"
+apply_mig "006_add_connection_salt.sql" ||
+  fail "migration 006 failed to apply (line: apply 006)"
+apply_mig "060_tenant_database_credref.sql" ||
+  fail "migration 060 failed to apply (line: apply 060)"
 # Prove 060 actually shaped the table (non-vacuous: the cred-ref columns + the
 # XOR constraint must exist, else the whole S2 storage path is missing).
-[[ "$(psql_val "SELECT count(*) FROM information_schema.columns WHERE table_name='tenant_databases' AND column_name IN ('cred_provider','cred_reference','cred_version')")" == "3" ]] \
-  || fail "migration 060 did not add the cred_* columns (line: 060 columns check)"
-[[ "$(psql_val "SELECT count(*) FROM pg_constraint WHERE conname='tenant_databases_credential_xor_check'")" == "1" ]] \
-  || fail "migration 060 did not add the credential XOR check (line: 060 xor check)"
-[[ "$(psql_val "SELECT is_nullable FROM information_schema.columns WHERE table_name='tenant_databases' AND column_name='connection_enc'")" == "YES" ]] \
-  || fail "migration 060 did not make connection_enc nullable (line: 060 nullable check)"
-[[ "$(psql_val "SELECT count(*) FROM information_schema.columns WHERE table_name='tenant_databases' AND column_name='connection_salt'")" == "1" ]] \
-  || fail "migration 006 did not add connection_salt (line: 006 column check)"
+[[ "$(psql_val "SELECT count(*) FROM information_schema.columns WHERE table_name='tenant_databases' AND column_name IN ('cred_provider','cred_reference','cred_version')")" == "3" ]] ||
+  fail "migration 060 did not add the cred_* columns (line: 060 columns check)"
+[[ "$(psql_val "SELECT count(*) FROM pg_constraint WHERE conname='tenant_databases_credential_xor_check'")" == "1" ]] ||
+  fail "migration 060 did not add the credential XOR check (line: 060 xor check)"
+[[ "$(psql_val "SELECT is_nullable FROM information_schema.columns WHERE table_name='tenant_databases' AND column_name='connection_enc'")" == "YES" ]] ||
+  fail "migration 060 did not make connection_enc nullable (line: 060 nullable check)"
+[[ "$(psql_val "SELECT count(*) FROM information_schema.columns WHERE table_name='tenant_databases' AND column_name='connection_salt'")" == "1" ]] ||
+  fail "migration 006 did not add connection_salt (line: 006 column check)"
 ok "migration 004 + 006 + 060 applied — connection_salt present, cred_* columns + XOR check present, connection_enc nullable"
 
 # ── 4) seed realistic tenants: a MAX tenant + a BASELINE tenant + probe table ──
@@ -263,11 +283,15 @@ CREATE TABLE IF NOT EXISTS public.${PROBE_TABLE} (id text PRIMARY KEY, label tex
 INSERT INTO public.${PROBE_TABLE}(id, label) VALUES ('p1','ok') ON CONFLICT (id) DO NOTHING;
 SQL
 }
-for i in $(seq 1 20); do seed && break; [[ $i -eq 20 ]] && fail "tenant seed never committed (line: seed loop)"; sleep 0.5; done
-[[ "$(psql_val "SELECT plan FROM public.tenants WHERE slug='${UUID_MAX}'")" == "max" ]] \
-  || fail "max tenant plan not seeded (line: verify max plan)"
-[[ "$(psql_val "SELECT plan FROM public.tenants WHERE slug='${UUID_BASE}'")" == "essential" ]] \
-  || fail "baseline tenant plan not seeded (line: verify baseline plan)"
+for i in $(seq 1 20); do
+  seed && break
+  [[ $i -eq 20 ]] && fail "tenant seed never committed (line: seed loop)"
+  sleep 0.5
+done
+[[ "$(psql_val "SELECT plan FROM public.tenants WHERE slug='${UUID_MAX}'")" == "max" ]] ||
+  fail "max tenant plan not seeded (line: verify max plan)"
+[[ "$(psql_val "SELECT plan FROM public.tenants WHERE slug='${UUID_BASE}'")" == "essential" ]] ||
+  fail "baseline tenant plan not seeded (line: verify baseline plan)"
 ok "seeded max + baseline tenants + probe table"
 
 # ── 5) boot adapter-registry (PACKAGE_ENFORCEMENT=1 → security_mode resolved) ──
@@ -286,25 +310,25 @@ ok "adapter-registry serving /health/live=200 (tiering ON → security_mode enfo
 step "6/8 (1) NEGATIVE: max tenant registers an INLINE plaintext DSN → MUST be 403 + 0 rows"
 NEG_CODE="$(post_register "${UUID_MAX}" \
   '{"engine":"postgresql","name":"neg-inline","connection_string":"postgres://attacker:plain@somewhere:5432/db","isolation":"shared_rls"}')"
-[[ "${NEG_CODE}" == "403" ]] \
-  || fail "(1) max + inline plaintext expected 403, got ${NEG_CODE} — $(head -c 300 "${BODY_TMP}") (line: NEG 403)"
-grep -q 'plaintext_dsn_forbidden' "${BODY_TMP}" \
-  || fail "(1) 403 body missing plaintext_dsn_forbidden — $(head -c 300 "${BODY_TMP}") (line: NEG body)"
-[[ "$(psql_val "SELECT count(*) FROM public.tenant_databases WHERE tenant_id='${UUID_MAX}'")" == "0" ]] \
-  || fail "(1) a row was inserted despite the 403 — the rejection must precede the insert (line: NEG zero rows)"
+[[ "${NEG_CODE}" == "403" ]] ||
+  fail "(1) max + inline plaintext expected 403, got ${NEG_CODE} — $(head -c 300 "${BODY_TMP}") (line: NEG 403)"
+grep -q 'plaintext_dsn_forbidden' "${BODY_TMP}" ||
+  fail "(1) 403 body missing plaintext_dsn_forbidden — $(head -c 300 "${BODY_TMP}") (line: NEG body)"
+[[ "$(psql_val "SELECT count(*) FROM public.tenant_databases WHERE tenant_id='${UUID_MAX}'")" == "0" ]] ||
+  fail "(1) a row was inserted despite the 403 — the rejection must precede the insert (line: NEG zero rows)"
 ok "(1) max tenant inline plaintext rejected 403 plaintext_dsn_forbidden; ZERO rows inserted"
 
 # ── 7) ARM (2) POSITIVE: max tenant + credential_ref → 201; Vault-resolved query ─
 step "7/8 (2) POSITIVE: max tenant registers a credential_ref → MUST be 201"
 POS_CODE="$(post_register "${UUID_MAX}" \
   "{\"engine\":\"postgresql\",\"name\":\"pos-credref\",\"isolation\":\"shared_rls\",\"credential_ref\":{\"provider\":\"vault\",\"reference\":\"${VAULT_REF}\",\"version\":\"\"}}")"
-[[ "${POS_CODE}" == "201" ]] \
-  || fail "(2) max + credential_ref expected 201, got ${POS_CODE} — $(head -c 300 "${BODY_TMP}") (line: POS 201)"
+[[ "${POS_CODE}" == "201" ]] ||
+  fail "(2) max + credential_ref expected 201, got ${POS_CODE} — $(head -c 300 "${BODY_TMP}") (line: POS 201)"
 MOUNT_ID="$(grep -o '"id":"[^"]*"' "${BODY_TMP}" | head -1 | cut -d'"' -f4)"
 [[ -n "${MOUNT_ID}" ]] || fail "(2) register returned no mount id — $(head -c 300 "${BODY_TMP}") (line: POS mount id)"
 # The row must be a cred-ref row: cred_provider set, connection_enc NULL.
-[[ "$(psql_val "SELECT (cred_provider='vault' AND cred_reference='${VAULT_REF}' AND connection_enc IS NULL) FROM public.tenant_databases WHERE id='${MOUNT_ID}'")" == "t" ]] \
-  || fail "(2) cred-ref row not stored as expected (cred_provider/reference set, connection_enc NULL) (line: POS row shape)"
+[[ "$(psql_val "SELECT (cred_provider='vault' AND cred_reference='${VAULT_REF}' AND connection_enc IS NULL) FROM public.tenant_databases WHERE id='${MOUNT_ID}'")" == "t" ]] ||
+  fail "(2) cred-ref row not stored as expected (cred_provider/reference set, connection_enc NULL) (line: POS row shape)"
 ok "(2) max tenant credential_ref registered 201 — row stores provider+reference, NO ciphertext"
 
 step "7b/8 boot data-plane-router WITH the VaultProvider configured (DATA_PLANE_VAULT_*)"
@@ -326,22 +350,22 @@ for i in $(seq 1 20); do
   [[ "${Q_CODE}" == "200" ]] && break
   sleep 0.5
 done
-[[ "${Q_CODE}" == "200" ]] \
-  || fail "(2) Vault-backed query expected 200, got ${Q_CODE} — $(head -c 400 "${BODY_TMP}") (line: POS query 200)"
-grep -q '"p1"\|"ok"\|"rows"' "${BODY_TMP}" \
-  || fail "(2) 200 body did not look like a served list result — $(head -c 400 "${BODY_TMP}") (line: POS query body)"
+[[ "${Q_CODE}" == "200" ]] ||
+  fail "(2) Vault-backed query expected 200, got ${Q_CODE} — $(head -c 400 "${BODY_TMP}") (line: POS query 200)"
+grep -q '"p1"\|"ok"\|"rows"' "${BODY_TMP}" ||
+  fail "(2) 200 body did not look like a served list result — $(head -c 400 "${BODY_TMP}") (line: POS query body)"
 ok "(2) data plane resolved the DSN from Vault via the credential_ref and served the read (200)"
 
 # ── 8) ARM (3) PARITY: baseline tenant + inline plaintext DSN → 201 (unchanged) ─
 step "8/8 (3) PARITY: baseline tenant registers an INLINE plaintext DSN → MUST be 201 (today's behaviour)"
 PAR_CODE="$(post_register "${UUID_BASE}" \
   "{\"engine\":\"postgresql\",\"name\":\"par-inline\",\"connection_string\":\"${DB_INNET}\",\"isolation\":\"shared_rls\"}")"
-[[ "${PAR_CODE}" == "201" ]] \
-  || fail "(3) baseline + inline plaintext expected 201 (byte-parity), got ${PAR_CODE} — $(head -c 300 "${BODY_TMP}") (line: PAR 201)"
+[[ "${PAR_CODE}" == "201" ]] ||
+  fail "(3) baseline + inline plaintext expected 201 (byte-parity), got ${PAR_CODE} — $(head -c 300 "${BODY_TMP}") (line: PAR 201)"
 PAR_ID="$(grep -o '"id":"[^"]*"' "${BODY_TMP}" | head -1 | cut -d'"' -f4)"
 # A baseline inline row stores the encrypted DSN (connection_enc NOT NULL), cred_* NULL.
-[[ "$(psql_val "SELECT (connection_enc IS NOT NULL AND cred_provider IS NULL) FROM public.tenant_databases WHERE id='${PAR_ID}'")" == "t" ]] \
-  || fail "(3) baseline inline row not stored as encrypted-at-rest (connection_enc set, cred_* NULL) (line: PAR row shape)"
+[[ "$(psql_val "SELECT (connection_enc IS NOT NULL AND cred_provider IS NULL) FROM public.tenant_databases WHERE id='${PAR_ID}'")" == "t" ]] ||
+  fail "(3) baseline inline row not stored as encrypted-at-rest (connection_enc set, cred_* NULL) (line: PAR row shape)"
 ok "(3) baseline tenant inline plaintext registered 201 + encrypted-at-rest — live baseline byte-parity"
 
 green "[M121] (1) NEGATIVE max+inline → 403 plaintext_dsn_forbidden (0 rows)"
@@ -351,7 +375,8 @@ green "[M121] ALL GATES GREEN — per-request Vault DSN resolution + max-tier pl
 
 # ── log the gate event via the kernel helper (best-effort, JSONL) ─────────────
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-s2-credref-vault}"

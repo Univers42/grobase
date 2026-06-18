@@ -25,8 +25,12 @@ describe('AllExceptionsFilter', () => {
   // masking them as 500. Silence that EXPECTED output so the suite stays quiet,
   // and below we assert it actually fired (server bugs must be logged, not lost).
   const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-  beforeEach(() => { errorSpy.mockClear(); });
-  afterAll(() => { errorSpy.mockRestore(); });
+  beforeEach(() => {
+    errorSpy.mockClear();
+  });
+  afterAll(() => {
+    errorSpy.mockRestore();
+  });
 
   it('HttpException with a string body keeps its status + message + requestId', () => {
     const { host, status, json } = makeHost('req-1');

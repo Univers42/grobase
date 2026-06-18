@@ -30,10 +30,7 @@ export class EventsController {
   @Post()
   @UseGuards(OptionalAuthGuard)
   @ApiOperation({ summary: 'Track an analytics event' })
-  async track(
-    @Body() dto: TrackEventDto,
-    @Req() req: Request,
-  ) {
+  async track(@Body() dto: TrackEventDto, @Req() req: Request) {
     await this.service.track({
       eventType: dto.eventType,
       userId: dto.userId ?? req.user?.id,

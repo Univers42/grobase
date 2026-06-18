@@ -32,7 +32,9 @@ export function createPinoHttpOptions(serviceName: string): Options {
       return requestId;
     },
     customProps: (req: IncomingMessage) => ({
-      request_id: (req as IncomingMessage & { id?: string | number }).id ?? firstHeader(req.headers['x-request-id']),
+      request_id:
+        (req as IncomingMessage & { id?: string | number }).id ??
+        firstHeader(req.headers['x-request-id']),
       traceparent: firstHeader(req.headers.traceparent),
     }),
   };

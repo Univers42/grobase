@@ -10,7 +10,13 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-import { Injectable, InternalServerErrorException, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MongoService } from '@mini-baas/database';
 import { Collection, ObjectId } from 'mongodb';
@@ -31,7 +37,7 @@ interface ConversationDoc {
 }
 
 const DEFAULT_SYSTEM_PROMPT =
-  'You are a helpful assistant. Answer the user\'s questions accurately and concisely.';
+  "You are a helpful assistant. Answer the user's questions accurately and concisely.";
 
 @Injectable()
 export class ChatService implements OnModuleInit {
@@ -52,10 +58,11 @@ export class ChatService implements OnModuleInit {
 
     // TTL index for auto-cleanup
     const ttlHours = this.config.get<number>('AI_CONVERSATION_TTL_HOURS', 24);
-    await this.conversations.createIndex(
-      { updatedAt: 1 },
-      { expireAfterSeconds: ttlHours * 3600, name: 'ttl_cleanup' },
-    ).catch(() => { /* already exists */ });
+    await this.conversations
+      .createIndex({ updatedAt: 1 }, { expireAfterSeconds: ttlHours * 3600, name: 'ttl_cleanup' })
+      .catch(() => {
+        /* already exists */
+      });
 
     await this.conversations.createIndex({ userId: 1, updatedAt: -1 }).catch(() => {});
     this.logger.log('Chat collections indexed');
@@ -107,7 +114,8 @@ export class ChatService implements OnModuleInit {
 
     // Persist
     const conversationObjectId = conv._id;
-    if (!conversationObjectId) throw new InternalServerErrorException('Conversation id was not assigned');
+    if (!conversationObjectId)
+      throw new InternalServerErrorException('Conversation id was not assigned');
     await this.conversations.updateOne(
       { _id: conversationObjectId },
       { $set: { messages: conv.messages, updatedAt: new Date() } },
@@ -176,7 +184,7 @@ export class ChatService implements OnModuleInit {
     context?: Record<string, unknown>,
   ): Promise<string> {
     const template = await this.promptTemplates.findOne({ mode });
-    let prompt = template?.['template'] as string ?? DEFAULT_SYSTEM_PROMPT;
+    let prompt = (template?.['template'] as string) ?? DEFAULT_SYSTEM_PROMPT;
 
     if (context) {
       const contextStr = JSON.stringify(context, null, 2);

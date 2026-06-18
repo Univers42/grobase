@@ -46,17 +46,20 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"                  # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"                       # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
 DPR_DIR="${INFRA_DIR}/src/data-plane-router"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
-step()  { cyan "[M120] $*"; }
-ok()    { green "  ✓ $*"; }
-fail()  { red "[M120] FAIL — $*"; exit 1; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+step() { cyan "[M120] $*"; }
+ok() { green "  ✓ $*"; }
+fail() {
+  red "[M120] FAIL — $*"
+  exit 1
+}
 
 REDIS_IMAGE="${M120_REDIS_IMAGE:-redis:7-alpine}"
 PG_IMAGE="${M120_PG_IMAGE:-postgres:16-alpine}"
@@ -64,18 +67,18 @@ DPR_IMG="m120-dpr-$$:scratch"
 NET="m120net-$$"
 PG="m120-pg-$$"
 REDIS="m120-redis-$$"
-DPR_ON="m120-dpr-on-$$"     # (A) ENFORCE arm router
-DPR_OFF="m120-dpr-off-$$"   # (B) PARITY  arm router
+DPR_ON="m120-dpr-on-$$"   # (A) ENFORCE arm router
+DPR_OFF="m120-dpr-off-$$" # (B) PARITY  arm router
 PORT_ON="${M120_PORT_ON:-18992}"
 PORT_OFF="${M120_PORT_OFF:-18993}"
 PGPW="postgres"
 
 # Three DISTINCT tenant slugs: one for each honor set + one normal control.
-SLUG_SPEND="t-spend-over-$$"        # seeded into spend:over       → expect 402
-SLUG_SUSPENDED="t-suspended-$$"     # seeded into tenant:suspended → expect 403
-SLUG_NORMAL="t-normal-$$"           # in NEITHER set               → expect 200
+SLUG_SPEND="t-spend-over-$$"    # seeded into spend:over       → expect 402
+SLUG_SUSPENDED="t-suspended-$$" # seeded into tenant:suspended → expect 403
+SLUG_NORMAL="t-normal-$$"       # in NEITHER set               → expect 200
 PROBE_TABLE="m120_probe"
-REFRESH_MS="${M120_REFRESH_MS:-700}"     # LOW so the data plane refreshes fast
+REFRESH_MS="${M120_REFRESH_MS:-700}" # LOW so the data plane refreshes fast
 REDIS_INNET="redis://${REDIS}:6379"
 DB_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 BODY_TMP="$(mktemp)"
@@ -88,7 +91,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql_q()   { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+psql_q() { docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
 psql_val() { docker exec -i "${PG}" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 redis_cli() { docker exec -i "${REDIS}" redis-cli "$@"; }
 
@@ -111,16 +114,22 @@ post_q() { # $1=port  $2=body
 wait_ready() { # $1=container  $2=port
   for i in $(seq 1 60); do
     curl -fsS -o /dev/null "http://127.0.0.1:$2/v1/capabilities" 2>/dev/null && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -15; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -15
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -15; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -15
+  return 1
 }
 
 # ── 0) build the scratch DPR FROM CURRENT (drafted) source (the S1 code) ───────
 step "0/6 build scratch data-plane-router from CURRENT source (the spend/suspend honor code)"
-DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${DPR_IMG}" "${DPR_DIR}" >/dev/null \
-  || fail "scratch data-plane-router image build failed (line: docker build DPR)"
+DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${DPR_IMG}" "${DPR_DIR}" >/dev/null ||
+  fail "scratch data-plane-router image build failed (line: docker build DPR)"
 ok "scratch image built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 # ── 1) isolated network + redis + postgres ─────────────────────────────────────
@@ -128,7 +137,11 @@ step "1/6 boot isolated net (${NET}): redis + postgres"
 docker network create "${NET}" >/dev/null
 docker run -d --name "${REDIS}" --network "${NET}" "${REDIS_IMAGE}" >/dev/null
 docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD="${PGPW}" "${PG_IMAGE}" >/dev/null
-for i in $(seq 1 60); do redis_cli PING 2>/dev/null | grep -q PONG && break; [[ $i -eq 60 ]] && fail "scratch redis never PONGed (line: redis ready)"; sleep 0.5; done
+for i in $(seq 1 60); do
+  redis_cli PING 2>/dev/null | grep -q PONG && break
+  [[ $i -eq 60 ]] && fail "scratch redis never PONGed (line: redis ready)"
+  sleep 0.5
+done
 for i in $(seq 1 80); do
   [[ "$(docker logs "${PG}" 2>&1 | grep -c 'database system is ready to accept connections')" -ge 2 ]] && break
   [[ $i -eq 80 ]] && fail "scratch postgres never reached steady state (line: PG ready loop)"
@@ -145,22 +158,26 @@ CREATE TABLE IF NOT EXISTS public.${PROBE_TABLE} (id text PRIMARY KEY, label tex
 INSERT INTO public.${PROBE_TABLE}(id, label) VALUES ('p1','ok') ON CONFLICT (id) DO NOTHING;
 SQL
 }
-for i in $(seq 1 20); do seed_pg && break; [[ $i -eq 20 ]] && fail "probe-table seed never committed (line: seed_pg loop)"; sleep 0.5; done
-[[ "$(psql_val "SELECT count(*) FROM public.${PROBE_TABLE}")" == "1" ]] \
-  || fail "probe table must hold exactly one row for a real 200 control (line: probe row check)"
+for i in $(seq 1 20); do
+  seed_pg && break
+  [[ $i -eq 20 ]] && fail "probe-table seed never committed (line: seed_pg loop)"
+  sleep 0.5
+done
+[[ "$(psql_val "SELECT count(*) FROM public.${PROBE_TABLE}")" == "1" ]] ||
+  fail "probe table must hold exactly one row for a real 200 control (line: probe row check)"
 
 # Seed the two honor sets DIRECTLY — what a real spend-cap / abuse guard publishes.
 # NEITHER is quota:over (the pre-existing B2 path), so a pass here cannot be the
 # quota machinery in disguise.
-redis_cli SADD spend:over "${SLUG_SPEND}" >/dev/null \
-  || fail "SADD spend:over failed (line: seed spend:over)"
-redis_cli SADD tenant:suspended "${SLUG_SUSPENDED}" >/dev/null \
-  || fail "SADD tenant:suspended failed (line: seed tenant:suspended)"
+redis_cli SADD spend:over "${SLUG_SPEND}" >/dev/null ||
+  fail "SADD spend:over failed (line: seed spend:over)"
+redis_cli SADD tenant:suspended "${SLUG_SUSPENDED}" >/dev/null ||
+  fail "SADD tenant:suspended failed (line: seed tenant:suspended)"
 # Prove the sets are EXACTLY as intended and the normal tenant is in NEITHER.
-[[ "$(redis_cli SISMEMBER spend:over "${SLUG_SPEND}")" == "1" ]]        || fail "spend:over missing the spend slug (line: verify spend member)"
+[[ "$(redis_cli SISMEMBER spend:over "${SLUG_SPEND}")" == "1" ]] || fail "spend:over missing the spend slug (line: verify spend member)"
 [[ "$(redis_cli SISMEMBER tenant:suspended "${SLUG_SUSPENDED}")" == "1" ]] || fail "tenant:suspended missing the suspended slug (line: verify suspend member)"
-[[ "$(redis_cli SISMEMBER spend:over "${SLUG_NORMAL}")" == "0" ]]        || fail "normal slug wrongly in spend:over (line: normal not in spend)"
-[[ "$(redis_cli SISMEMBER tenant:suspended "${SLUG_NORMAL}")" == "0" ]]  || fail "normal slug wrongly in tenant:suspended (line: normal not in suspend)"
+[[ "$(redis_cli SISMEMBER spend:over "${SLUG_NORMAL}")" == "0" ]] || fail "normal slug wrongly in spend:over (line: normal not in spend)"
+[[ "$(redis_cli SISMEMBER tenant:suspended "${SLUG_NORMAL}")" == "0" ]] || fail "normal slug wrongly in tenant:suspended (line: normal not in suspend)"
 # quota:over stays EMPTY — this gate exercises ONLY the two new sets.
 [[ "$(redis_cli SCARD quota:over)" == "0" ]] || fail "quota:over should be empty — m120 tests the NEW sets, not B2 quota (line: quota:over empty)"
 ok "seeded: probe row(1); spend:over={${SLUG_SPEND}}; tenant:suspended={${SLUG_SUSPENDED}}; normal in neither; quota:over empty"
@@ -187,10 +204,10 @@ for i in $(seq 1 20); do
   [[ "${CODE_SPEND}" == "402" ]] && break
   sleep 0.5
 done
-[[ "${CODE_SPEND}" == "402" ]] \
-  || fail "(A) spend-over expected 402, got ${CODE_SPEND} — $(head -c 300 "${BODY_TMP}") (line: A spend 402)"
-grep -q 'spend_capped' "${BODY_TMP}" \
-  || fail "(A) 402 body missing spend_capped — $(head -c 300 "${BODY_TMP}") (line: A spend body)"
+[[ "${CODE_SPEND}" == "402" ]] ||
+  fail "(A) spend-over expected 402, got ${CODE_SPEND} — $(head -c 300 "${BODY_TMP}") (line: A spend 402)"
+grep -q 'spend_capped' "${BODY_TMP}" ||
+  fail "(A) 402 body missing spend_capped — $(head -c 300 "${BODY_TMP}") (line: A spend body)"
 ok "(A) spend-over tenant rejected 402 spend_capped — spend-cap enforcement is REAL"
 
 step "3c/6 (A) suspended tenant → MUST be 403 body tenant_suspended (LOAD-BEARING)"
@@ -200,16 +217,16 @@ for i in $(seq 1 20); do
   [[ "${CODE_SUSP}" == "403" ]] && break
   sleep 0.5
 done
-[[ "${CODE_SUSP}" == "403" ]] \
-  || fail "(A) suspended expected 403, got ${CODE_SUSP} — $(head -c 300 "${BODY_TMP}") (line: A suspend 403)"
-grep -q 'tenant_suspended' "${BODY_TMP}" \
-  || fail "(A) 403 body missing tenant_suspended — $(head -c 300 "${BODY_TMP}") (line: A suspend body)"
+[[ "${CODE_SUSP}" == "403" ]] ||
+  fail "(A) suspended expected 403, got ${CODE_SUSP} — $(head -c 300 "${BODY_TMP}") (line: A suspend 403)"
+grep -q 'tenant_suspended' "${BODY_TMP}" ||
+  fail "(A) 403 body missing tenant_suspended — $(head -c 300 "${BODY_TMP}") (line: A suspend body)"
 ok "(A) suspended tenant rejected 403 tenant_suspended — abuse-suspend enforcement is REAL"
 
 step "3d/6 (A) normal tenant (in neither set) → MUST be 200 (real served read = the control)"
 CODE_NORMAL="$(post_q "${PORT_ON}" "$(payload_list "${SLUG_NORMAL}")")"
-[[ "${CODE_NORMAL}" == "200" ]] \
-  || fail "(A) normal tenant expected 200, got ${CODE_NORMAL} — $(head -c 300 "${BODY_TMP}") (line: A normal 200)"
+[[ "${CODE_NORMAL}" == "200" ]] ||
+  fail "(A) normal tenant expected 200, got ${CODE_NORMAL} — $(head -c 300 "${BODY_TMP}") (line: A normal 200)"
 ok "(A) normal tenant served 200 — enforcement does NOT over-reject; the 200 control is REAL"
 
 # ── 4) (B) PARITY arm: both honor flags UNSET → all 200 ────────────────────────
@@ -224,14 +241,14 @@ ok "PARITY router up (both honor flags OFF) on 127.0.0.1:${PORT_OFF}"
 
 step "4b/6 (B) spend-over tenant through the OFF router → MUST be 200 (flag OFF = byte-parity)"
 PCODE_SPEND="$(post_q "${PORT_OFF}" "$(payload_list "${SLUG_SPEND}")")"
-[[ "${PCODE_SPEND}" == "200" ]] \
-  || fail "(B) PARITY spend-over expected 200 (flag OFF), got ${PCODE_SPEND} — $(head -c 300 "${BODY_TMP}") (line: B spend 200)"
+[[ "${PCODE_SPEND}" == "200" ]] ||
+  fail "(B) PARITY spend-over expected 200 (flag OFF), got ${PCODE_SPEND} — $(head -c 300 "${BODY_TMP}") (line: B spend 200)"
 ok "(B) spend-over tenant served 200 with flags OFF — spend:over is NOT consulted"
 
 step "4c/6 (B) suspended tenant through the OFF router → MUST be 200 (flag OFF = byte-parity)"
 PCODE_SUSP="$(post_q "${PORT_OFF}" "$(payload_list "${SLUG_SUSPENDED}")")"
-[[ "${PCODE_SUSP}" == "200" ]] \
-  || fail "(B) PARITY suspended expected 200 (flag OFF), got ${PCODE_SUSP} — $(head -c 300 "${BODY_TMP}") (line: B suspend 200)"
+[[ "${PCODE_SUSP}" == "200" ]] ||
+  fail "(B) PARITY suspended expected 200 (flag OFF), got ${PCODE_SUSP} — $(head -c 300 "${BODY_TMP}") (line: B suspend 200)"
 ok "(B) suspended tenant served 200 with flags OFF — tenant:suspended is NOT consulted = byte-parity"
 
 # ── 5) cross-check + summarize ─────────────────────────────────────────────────
@@ -243,7 +260,8 @@ green "[M120] non-vacuous: on today's HEAD (no spend/suspend reader) arm (A) wou
 # ── 6) emit the gate event via the kernel log helper (best-effort) ─────────────
 step "6/6 log GATE m120=PASS"
 emit_gate_log() {
-  ( set +e
+  (
+    set +e
     [[ -n "${CLAUDE_DIR}" && -f "${CLAUDE_DIR}/lib/log.sh" ]] || exit 0
     export CLAUDE_LOG_DIR="${CLAUDE_LOG_DIR:-${CLAUDE_DIR}/logs}"
     export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-s1-spend-suspend-enforce}"

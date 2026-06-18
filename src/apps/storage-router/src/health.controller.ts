@@ -12,11 +12,7 @@
 
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import {
-  HealthCheckService,
-  HealthCheck,
-  HealthIndicatorResult,
-} from '@nestjs/terminus';
+import { HealthCheckService, HealthCheck, HealthIndicatorResult } from '@nestjs/terminus';
 import { StorageService } from './storage/storage.service';
 
 @ApiTags('health')

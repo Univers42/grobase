@@ -97,7 +97,16 @@ describe('CollectionsService — collection-name allow-listing', () => {
     h = build();
   });
 
-  const validNames = ['notes', 'a', 'A1', 'user_data', 'my-collection', 'x'.repeat(64), '123', 'foo_bar-1'];
+  const validNames = [
+    'notes',
+    'a',
+    'A1',
+    'user_data',
+    'my-collection',
+    'x'.repeat(64),
+    '123',
+    'foo_bar-1',
+  ];
   it.each(validNames)('accepts collection name %p', async (name) => {
     await expect(h.service.findAll(name, 'u-1', { limit: 10, offset: 0 })).resolves.toBeDefined();
   });
@@ -239,7 +248,11 @@ describe('CollectionsService — Mongo operator / NoSQL-injection rejection', ()
   // A client filter must NOT be able to override the owner scope.
   it('a client filter cannot widen access — owner_id is rejected outright', async () => {
     await expect(
-      h.service.findAll('notes', 'victim', { limit: 10, offset: 0, filter: '{"owner_id":"attacker"}' }),
+      h.service.findAll('notes', 'victim', {
+        limit: 10,
+        offset: 0,
+        filter: '{"owner_id":"attacker"}',
+      }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(h.collection.find).not.toHaveBeenCalled();
   });
@@ -283,7 +296,9 @@ describe('CollectionsService — per-request owner-scoping & tenant isolation', 
 
   it('findOne scopes by both _id and the owner (no cross-tenant read)', async () => {
     const id = new ObjectId().toHexString();
-    await expect(h.service.findOne('notes', 'owner-A', id)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(h.service.findOne('notes', 'owner-A', id)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     const filter = h.findOneFilters[0];
     expect(filter.owner_id).toBe('owner-A');
     expect((filter._id as ObjectId).toHexString()).toBe(id);
@@ -300,7 +315,9 @@ describe('CollectionsService — per-request owner-scoping & tenant isolation', 
 
   it('remove scopes the delete by owner', async () => {
     const id = new ObjectId().toHexString();
-    await expect(h.service.remove('notes', 'owner-A', id)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(h.service.remove('notes', 'owner-A', id)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     expect(h.deleteFilters[0]).toEqual({ _id: expect.any(ObjectId), owner_id: 'owner-A' });
   });
 

@@ -37,7 +37,12 @@ interface FakeReq {
 }
 
 function reqWith(headers: Record<string, string | string[] | undefined>): FakeReq {
-  return { headers, method: 'POST', url: '/query/v1/db-1/notes', originalUrl: '/query/v1/db-1/notes' };
+  return {
+    headers,
+    method: 'POST',
+    url: '/query/v1/db-1/notes',
+    originalUrl: '/query/v1/db-1/notes',
+  };
 }
 
 function baseIdentity(): VerifiedRequestIdentity {
@@ -91,7 +96,10 @@ describe('signIdentityEnvelope + resolveRequestIdentity (round-trip)', () => {
     delete process.env.INTERNAL_IDENTITY_HMAC_SECRET;
     expect(() =>
       signIdentityEnvelope(reqWith({}), {
-        tenantId: 't', userId: 'u', role: 'authenticated', appId: 'a',
+        tenantId: 't',
+        userId: 'u',
+        role: 'authenticated',
+        appId: 'a',
       }),
     ).toThrow();
   });
@@ -99,7 +107,10 @@ describe('signIdentityEnvelope + resolveRequestIdentity (round-trip)', () => {
   // signature is bound to method+path: replaying it on a different route fails.
   it('an envelope signed for one path does not verify on another (path binding)', () => {
     const signed = signIdentityEnvelope(reqWith({}), {
-      tenantId: 't-1', userId: 'u', role: 'authenticated', appId: 'a',
+      tenantId: 't-1',
+      userId: 'u',
+      role: 'authenticated',
+      appId: 'a',
     });
     const otherPath: FakeReq = {
       headers: signed,
@@ -241,7 +252,9 @@ describe('signed-envelope freshness & replay protection', () => {
     // first use succeeds
     expect(resolveRequestIdentity(reqWith(headers), true)?.tenantId).toBe('t-1');
     // identical headers again → replay
-    expect(() => resolveRequestIdentity(reqWith({ ...headers }), true)).toThrow(UnauthorizedException);
+    expect(() => resolveRequestIdentity(reqWith({ ...headers }), true)).toThrow(
+      UnauthorizedException,
+    );
   });
 });
 
@@ -270,7 +283,11 @@ describe('raw (unsigned) identity headers — strict vs compat', () => {
 
   it('COMPAT mode accepts raw x-user-id headers (legacy path)', () => {
     process.env.IDENTITY_HEADER_MODE = 'compat';
-    const req = reqWith({ 'x-user-id': 'u-1', 'x-baas-tenant-id': 't-1', 'x-user-role': 'authenticated' });
+    const req = reqWith({
+      'x-user-id': 'u-1',
+      'x-baas-tenant-id': 't-1',
+      'x-user-role': 'authenticated',
+    });
     const id = resolveRequestIdentity(req, true);
     expect(id?.userId).toBe('u-1');
     expect(id?.tenantId).toBe('t-1');

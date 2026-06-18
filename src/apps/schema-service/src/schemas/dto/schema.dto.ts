@@ -34,7 +34,9 @@ export class ColumnDefinition {
   @ApiProperty({ example: 'title' })
   @IsString()
   @IsNotEmpty()
-  @Matches(/^[a-zA-Z_]\w{0,63}$/, { message: String.raw`name must be a bare SQL identifier ([A-Za-z_]\w*)` })
+  @Matches(/^[a-zA-Z_]\w{0,63}$/, {
+    message: String.raw`name must be a bare SQL identifier ([A-Za-z_]\w*)`,
+  })
   name!: string;
 
   @ApiProperty({ example: 'text', description: 'Postgres type or JSON Schema type' })

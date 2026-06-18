@@ -16,7 +16,13 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger as PinoLogger } from 'nestjs-pino';
 import { AppModule } from './app.module';
-import { AllExceptionsFilter, CorrelationIdInterceptor, applySecurityMiddleware, createValidationPipe, startOtel } from '@mini-baas/common';
+import {
+  AllExceptionsFilter,
+  CorrelationIdInterceptor,
+  applySecurityMiddleware,
+  createValidationPipe,
+  startOtel,
+} from '@mini-baas/common';
 
 startOtel('schema-service');
 
@@ -32,7 +38,9 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Schema Service')
-    .setDescription('Engine-agnostic schema CRUD — provision tables/collections from a unified spec')
+    .setDescription(
+      'Engine-agnostic schema CRUD — provision tables/collections from a unified spec',
+    )
     .setVersion('1.0.0')
     .addBearerAuth()
     .build();

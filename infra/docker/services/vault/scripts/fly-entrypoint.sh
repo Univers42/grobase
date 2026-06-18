@@ -76,7 +76,7 @@ wait_for_api
 
 if ! vault_initialized; then
   echo '[vault-fly] initializing Vault'
-  vault operator init -key-shares=1 -key-threshold=1 -format=json > "${VAULT_KEYS_FILE}.tmp"
+  vault operator init -key-shares=1 -key-threshold=1 -format=json >"${VAULT_KEYS_FILE}.tmp"
   chmod 600 "${VAULT_KEYS_FILE}.tmp"
   chown vault:vault "${VAULT_KEYS_FILE}.tmp"
   mv "${VAULT_KEYS_FILE}.tmp" "${VAULT_KEYS_FILE}"
@@ -91,7 +91,8 @@ if vault_sealed; then
   vault operator unseal "$(jq -r '.unseal_keys_b64[0]' "${VAULT_KEYS_FILE}")" >/dev/null
 fi
 
-export VAULT_TOKEN="$(jq -r '.root_token' "${VAULT_KEYS_FILE}")"
+VAULT_TOKEN="$(jq -r '.root_token' "${VAULT_KEYS_FILE}")"
+export VAULT_TOKEN
 
 if ! vault secrets list -format=json | jq -e '."secret/".options.version == "2"' >/dev/null; then
   vault secrets enable -path=secret -version=2 kv >/dev/null 2>&1 || true
@@ -114,21 +115,21 @@ github_org="${VAULT_GITHUB_ORG:-Univers42}"
 github_team="${VAULT_GITHUB_TEAM:-transcendance}"
 
 ensure_auth_mount "${jwt_path}" jwt
-jq -n '{ oidc_discovery_url: "https://token.actions.githubusercontent.com", bound_issuer: "https://token.actions.githubusercontent.com" }' \
-  | vault_api_post "auth/${jwt_path}/config"
+jq -n '{ oidc_discovery_url: "https://token.actions.githubusercontent.com", bound_issuer: "https://token.actions.githubusercontent.com" }' |
+  vault_api_post "auth/${jwt_path}/config"
 
 jq -n \
   --arg audience "${jwt_audience}" \
   --arg repository "${jwt_repository}" \
-  '{ role_type: "jwt", user_claim: "actor", bound_audiences: [$audience], bound_claims: { repository: $repository }, token_policies: ["track-binocle-env-reader"], token_ttl: "1h", token_max_ttl: "1h" }' \
-  | vault_api_post "auth/${jwt_path}/role/${jwt_role}"
+  '{ role_type: "jwt", user_claim: "actor", bound_audiences: [$audience], bound_claims: { repository: $repository }, token_policies: ["track-binocle-env-reader"], token_ttl: "1h", token_max_ttl: "1h" }' |
+  vault_api_post "auth/${jwt_path}/role/${jwt_role}"
 echo "[vault-fly] GitHub Actions role ${jwt_role} synced"
 
 ensure_auth_mount "${github_path}" github
-jq -n --arg organization "${github_org}" '{ organization: $organization }' \
-  | vault_api_post "auth/${github_path}/config"
-jq -n '{ value: "track-binocle-env-reader" }' \
-  | vault_api_post "auth/${github_path}/map/teams/${github_team}"
+jq -n --arg organization "${github_org}" '{ organization: $organization }' |
+  vault_api_post "auth/${github_path}/config"
+jq -n '{ value: "track-binocle-env-reader" }' |
+  vault_api_post "auth/${github_path}/map/teams/${github_team}"
 echo "[vault-fly] GitHub team ${github_org}/${github_team} mapped to track-binocle-env-reader"
 
 wait "${vault_pid}"
