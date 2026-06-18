@@ -1,0 +1,58 @@
+/**
+ * RunAllButton styles
+ * Fly.io-style primary button
+ */
+
+.run-all-button {
+  display: inline-flex;
+}
+
+.run-all-button button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  background: var(--color-primary-600);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  box-shadow: 0 1px 2px var(--color-black-10);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.run-all-button button:hover:not(:disabled) {
+  background: var(--color-primary-500);
+}
+
+.run-all-button button:active:not(:disabled) {
+  background: var(--color-primary-700);
+}
+
+.run-all-button button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .run-all-button button {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-xs);
+  }
+}
+
+/* Small mobile - full width */
+@media (max-width: 480px) {
+  .run-all-button {
+    width: 100%;
+  }
+
+  .run-all-button button {
+    width: 100%;
+    justify-content: center;
+  }
+}

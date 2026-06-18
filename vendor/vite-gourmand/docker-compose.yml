@@ -1,0 +1,144 @@
+services:
+  db:
+    build:
+      context: .
+      dockerfile: infrastructure/services/postgres/Dockerfile
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: vite_gourmand
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      # Remove invalid init.sql mount (no such file or directory)
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Note: deploy.resources only works with Docker Swarm, not docker-compose
+    # Resource limits are handled by the host system
+
+  mongo:
+    build:
+      context: .
+      dockerfile: infrastructure/services/mongo/Dockerfile
+    container_name: vite-gourmand-mongo-1
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: vite_gourmand
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data/mongo:/data/db
+      - ./infrastructure/services/mongo/config/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Note: deploy.resources only works with Docker Swarm, not docker-compose
+    # Resource limits are handled by the host system
+
+  # ── Application (Production build) ──────────
+  app:
+    build:
+      context: .
+      dockerfile: infrastructure/services/app/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    # env_file is NOT listed here to avoid parse errors on fresh clones
+    # (Back/.env may not exist yet). Pass it at runtime instead:
+    #   docker-compose --profile production run --env-file ./Back/.env app
+    profiles:
+      - production
+
+  # ── Bitwarden CLI (Secret Fetcher) ────────
+  secrets:
+    build:
+      context: .
+      dockerfile: infrastructure/services/secrets/Dockerfile
+    environment:
+      - BW_SESSION
+    volumes:
+      - ./Back:/work/Back
+      - bw-data:/root/.config/Bitwarden CLI
+    profiles:
+      - tools
+
+  # ── Development Environment (Containerized Dev) ────────
+  # Use this when you don't have Node.js installed on your host
+  # Run: make docker-dev (or docker-compose --profile dev up)
+  dev:
+    build:
+      context: .
+      dockerfile: infrastructure/services/dev/Dockerfile
+    container_name: vite-gourmand-dev
+    working_dir: /app
+    stdin_open: true     # Keep STDIN open for interactive commands
+    tty: true            # Allocate a pseudo-TTY
+    ports:
+      - "3000:3000"      # Backend
+      - "5173:5173"      # Frontend (Vite)
+      - "5555:5555"      # Prisma Studio (optional)
+    volumes:
+      # Mount source code
+      - ./Back:/app/Back
+      - ./View:/app/View
+      - ./scripts:/app/scripts
+      - ./infrastructure:/app/infrastructure
+      - ./Makefile:/app/Makefile
+      - ./docs:/app/docs:ro
+      # Persist node_modules in named volumes (much faster than bind mounts)
+      - back-node-modules:/app/Back/node_modules
+      - view-node-modules:/app/View/node_modules
+      # Persist npm cache
+      - npm-cache:/app/.npm-cache
+      # Mount Bitwarden data for secrets
+      - bw-data:/root/.config/Bitwarden CLI
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true  # Required for file watching in Docker
+    profiles:
+      - dev
+    # No healthcheck needed for dev container
+
+  # ── Fly.io CLI (Dockerized Deployment Tooling) ────────
+  fly:
+    build:
+      context: .
+      dockerfile: infrastructure/services/fly/Dockerfile
+    working_dir: /workspace
+    environment:
+      - FLY_ACCESS_TOKEN
+      - FLY_API_TOKEN
+      - FLY_APP=vite-gourmand-withered-glitter-7902
+      - FLY_CONFIG=infrastructure/services/fly/config/fly.toml
+      - HOSTS
+      - CREATE_CERTS
+      - PAGES
+      - MIN_CERT_DAYS
+      - PROJECT_ROOT=/workspace
+    volumes:
+      - .:/workspace
+      - fly-data:/root/.fly
+    profiles:
+      - tools
+
+volumes:
+  bw-data:
+  back-node-modules:
+  view-node-modules:
+  npm-cache:
+  fly-data:

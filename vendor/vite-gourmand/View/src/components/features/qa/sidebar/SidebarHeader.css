@@ -1,0 +1,97 @@
+/**
+ * SidebarHeader Styles
+ * Fly.io-inspired light glassmorphism theme
+ */
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-5) var(--space-4);
+  border-bottom: 1px solid var(--color-border-primary);
+  background: var(--color-white-60);
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.sidebar-logo-icon {
+  font-size: var(--font-size-2xl);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500));
+  border-radius: var(--radius-lg);
+  color: white;
+  box-shadow: var(--shadow-primary-sm);
+}
+
+.sidebar-logo-text {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  letter-spacing: -0.02em;
+}
+
+/* Subtle collapse toggle - chevron style */
+.sidebar-collapse-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--color-neutral-400);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  opacity: 0.6;
+}
+
+.sidebar-collapse-toggle svg {
+  width: 16px;
+  height: 16px;
+  transition: transform var(--transition-normal);
+}
+
+.sidebar-collapse-toggle:hover {
+  background: var(--color-neutral-100);
+  color: var(--color-primary-600);
+  opacity: 1;
+}
+
+/* Collapsed state - rotate chevron */
+.sidebar-collapse-toggle--collapsed svg {
+  transform: rotate(180deg);
+}
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .sidebar-header {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  .sidebar-logo-icon {
+    width: 32px;
+    height: 32px;
+    font-size: var(--font-size-xl);
+  }
+
+  .sidebar-logo-text {
+    font-size: var(--font-size-base);
+  }
+}
+
+/* Mobile - Hide header in bottom nav */
+@media (max-width: 768px) {
+  .sidebar-header {
+    display: none;
+  }
+}

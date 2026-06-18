@@ -1,0 +1,18 @@
+/**
+ * SuccessButton Styles
+ * Uses ONLY CSS variables from graphical_chart.css
+ */
+
+.btn-success {
+  background: var(--color-success-600);
+  color: var(--color-text-primary);
+}
+
+.btn-success:hover:not(:disabled) {
+  background: var(--color-success-700);
+  box-shadow: var(--shadow-glow-success);
+}
+
+.btn-success:active:not(:disabled) {
+  background: var(--color-success-700);
+}

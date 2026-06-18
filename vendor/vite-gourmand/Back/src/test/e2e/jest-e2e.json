@@ -1,0 +1,19 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "^\\.\\./\\.\\./generated/prisma/(.*)\\.js$": "<rootDir>/../../../generated/prisma/$1",
+    "^\\.\\./\\.\\./\\.\\./generated/prisma/(.*)\\.js$": "<rootDir>/../../../generated/prisma/$1",
+    "^(\\.{1,2}/.*)\\.js$": "$1"
+  },
+  "testTimeout": 30000,
+  "setupFilesAfterEnv": ["<rootDir>/../setup.ts"],
+  "forceExit": true,
+  "detectOpenHandles": false,
+  "maxWorkers": 1
+}

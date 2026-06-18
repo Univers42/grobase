@@ -1,0 +1,27 @@
+### TEST 1 — Crear reserva (debe dar 201 y generar 3 notificaciones CREATED)
+POST http://localhost:8080/api/reservations
+Content-Type: application/json
+
+{
+  "clientId": 145,
+  "carverId": 98,
+  "serviceId": 3,
+  "reservationDate": "2026-03-10",
+  "startTime": "10:00:00",
+  "notes": "Test notificaciones creación"
+}
+
+### TEST 2 — Actualizar reserva (debe dar 200 y generar 3 notificaciones MODIFIED)
+### Sustituye {id} por el id real del TEST 1
+PUT http://localhost:8080/api/reservations/98
+Content-Type: application/json
+
+{
+  "reservationDate": "2026-03-10",
+  "startTime": "11:00:00",
+  "notes": "Test notificaciones modificación"
+}
+
+### TEST 3 — Cancelar reserva (debe dar 204 y generar 3 notificaciones CANCELLED)
+### Sustituye {id} por el id real del TEST 1
+PATCH http://localhost:8080/api/reservations/98/cancel

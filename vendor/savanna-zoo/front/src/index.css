@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base resets ────────────────────────────────────────────── */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-ivory font-body text-charcoal;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-display;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-ivory;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-sand-dark rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-amber;
+  }
+}
+
+/* ── Utility classes ───────────────────────────────────────── */
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2
+           rounded-full bg-forest px-6 py-3 font-body font-medium text-ivory
+           transition-all duration-300
+           hover:bg-forest-light hover:shadow-lg hover:-translate-y-0.5
+           active:translate-y-0 active:shadow-md;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2
+           rounded-full border-2 border-forest px-6 py-3 font-body font-medium text-forest
+           transition-all duration-300
+           hover:bg-forest hover:text-ivory hover:shadow-lg hover:-translate-y-0.5
+           active:translate-y-0;
+  }
+
+  .btn-amber {
+    @apply inline-flex items-center justify-center gap-2
+           rounded-full bg-amber px-6 py-3 font-body font-medium text-ivory
+           transition-all duration-300
+           hover:bg-amber-dark hover:shadow-lg hover:-translate-y-0.5
+           active:translate-y-0;
+  }
+
+  .section-heading {
+    @apply font-display text-4xl font-bold text-forest md:text-5xl;
+  }
+
+  .section-subtitle {
+    @apply mt-3 max-w-2xl font-body text-lg text-charcoal/70;
+  }
+
+  .card {
+    @apply overflow-hidden rounded-2xl bg-white shadow-md
+           transition-all duration-300
+           hover:shadow-xl hover:-translate-y-1;
+  }
+
+  .glass {
+    @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-lg;
+  }
+
+  .zone-badge {
+    @apply inline-flex items-center gap-1 rounded-full px-3 py-1
+           text-xs font-medium uppercase tracking-wider;
+  }
+}

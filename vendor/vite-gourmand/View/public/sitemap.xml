@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://vite-gourmand.fr/</loc>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://vite-gourmand.fr/menus</loc>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://vite-gourmand.fr/contact</loc>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://vite-gourmand.fr/commande</loc>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://vite-gourmand.fr/mentions-legales</loc>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://vite-gourmand.fr/cgv</loc>
+    <priority>0.3</priority>
+  </url>
+</urlset>

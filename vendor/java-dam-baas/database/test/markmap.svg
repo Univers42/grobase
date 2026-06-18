@@ -1,0 +1,331 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="markmap mm-ejua05-7" style="width: 100%; height: 100%;"><style>.markmap{--markmap-max-width: 9999px;--markmap-a-color: #0097e6;--markmap-a-hover-color: #00a8ff;--markmap-code-bg: #f0f0f0;--markmap-code-color: #555;--markmap-highlight-bg: #ffeaa7;--markmap-table-border: 1px solid currentColor;--markmap-font: 300 16px/20px sans-serif;--markmap-circle-open-bg: #fff;--markmap-text-color: #333;--markmap-highlight-node-bg: #ff02;font:var(--markmap-font);color:var(--markmap-text-color)}.markmap-link{fill:none}.markmap-node&gt;circle{cursor:pointer}.markmap-foreign{display:inline-block}.markmap-foreign p{margin:0}.markmap-foreign a{color:var(--markmap-a-color)}.markmap-foreign a:hover{color:var(--markmap-a-hover-color)}.markmap-foreign code{padding:.25em;font-size:calc(1em - 2px);color:var(--markmap-code-color);background-color:var(--markmap-code-bg);border-radius:2px}.markmap-foreign pre{margin:0}.markmap-foreign pre&gt;code{display:block}.markmap-foreign del{text-decoration:line-through}.markmap-foreign em{font-style:italic}.markmap-foreign strong{font-weight:700}.markmap-foreign mark{background:var(--markmap-highlight-bg)}.markmap-foreign table,.markmap-foreign th,.markmap-foreign td{border-collapse:collapse;border:var(--markmap-table-border)}.markmap-foreign img{display:inline-block}.markmap-foreign svg{fill:currentColor}.markmap-foreign&gt;div{width:var(--markmap-max-width);text-align:left}.markmap-foreign&gt;div&gt;div{display:inline-block}.markmap-highlight rect{fill:var(--markmap-highlight-node-bg)}.markmap-dark .markmap{--markmap-code-bg: #1a1b26;--markmap-code-color: #ddd;--markmap-circle-open-bg: #444;--markmap-text-color: #eee}</style><g transform="translate(20,308.25252525252523) scale(0.3838383838383838)"><path class="markmap-link" data-depth="3" data-path="1.2.3" d="M607,-581.531C647,-581.531,647,-538.719,687,-538.719" stroke-width="1.375" stroke="rgb(214, 39, 40)"/><path class="markmap-link" data-depth="4" data-path="1.4.5.6" d="M900,-507.344C940,-507.344,940,-443.437,980,-443.437" stroke-width="1.1875" stroke="rgb(44, 160, 44)"/><path class="markmap-link" data-depth="4" data-path="1.4.7.8" d="M829,-348.156C869,-348.156,869,-284.25,909,-284.25" stroke-width="1.1875" stroke="rgb(148, 103, 189)"/><path class="markmap-link" data-depth="4" data-path="1.4.9.10" d="M834,-209.969C874,-209.969,874,-167.062,914,-167.062" stroke-width="1.1875" stroke="rgb(227, 119, 194)"/><path class="markmap-link" data-depth="4" data-path="1.4.11.12" d="M947,1.719C987,1.719,987,139.125,1027,139.125" stroke-width="1.1875" stroke="rgb(188, 189, 34)"/><path class="markmap-link" data-depth="4" data-path="1.4.13.14" d="M951,213.406C991,213.406,991,256.313,1031,256.313" stroke-width="1.1875" stroke="rgb(31, 119, 180)"/><path class="markmap-link" data-depth="4" data-path="1.4.15.16" d="M823,309.594C863,309.594,863,331.5,903,331.5" stroke-width="1.1875" stroke="rgb(44, 160, 44)"/><path class="markmap-link" data-depth="4" data-path="1.4.17.18" d="M860,395.281C900,395.281,900,427.688,940,427.688" stroke-width="1.1875" stroke="rgb(148, 103, 189)"/><path class="markmap-link" data-depth="3" data-path="1.4.5" d="M618,-55.844C658,-55.844,658,-507.344,698,-507.344" stroke-width="1.375" stroke="rgb(148, 103, 189)"/><path class="markmap-link" data-depth="3" data-path="1.4.7" d="M618,-55.844C658,-55.844,658,-348.156,698,-348.156" stroke-width="1.375" stroke="rgb(214, 39, 40)"/><path class="markmap-link" data-depth="3" data-path="1.4.9" d="M618,-55.844C658,-55.844,658,-209.969,698,-209.969" stroke-width="1.375" stroke="rgb(140, 86, 75)"/><path class="markmap-link" data-depth="3" data-path="1.4.11" d="M618,-55.844C658,-55.844,658,1.719,698,1.719" stroke-width="1.375" stroke="rgb(127, 127, 127)"/><path class="markmap-link" data-depth="3" data-path="1.4.13" d="M618,-55.844C658,-55.844,658,213.406,698,213.406" stroke-width="1.375" stroke="rgb(23, 190, 207)"/><path class="markmap-link" data-depth="3" data-path="1.4.15" d="M618,-55.844C658,-55.844,658,309.594,698,309.594" stroke-width="1.375" stroke="rgb(255, 127, 14)"/><path class="markmap-link" data-depth="3" data-path="1.4.17" d="M618,-55.844C658,-55.844,658,395.281,698,395.281" stroke-width="1.375" stroke="rgb(214, 39, 40)"/><path class="markmap-link" data-depth="4" data-path="1.19.20.21" d="M734,499.25C774,499.25,774,460.875,814,460.875" stroke-width="1.1875" stroke="rgb(127, 127, 127)"/><path class="markmap-link" data-depth="4" data-path="1.19.20.22" d="M734,499.25C774,499.25,774,487.063,814,487.063" stroke-width="1.1875" stroke="rgb(188, 189, 34)"/><path class="markmap-link" data-depth="4" data-path="1.19.20.23" d="M734,499.25C774,499.25,774,513.25,814,513.25" stroke-width="1.1875" stroke="rgb(23, 190, 207)"/><path class="markmap-link" data-depth="4" data-path="1.19.20.24" d="M734,499.25C774,499.25,774,539.438,814,539.438" stroke-width="1.1875" stroke="rgb(31, 119, 180)"/><path class="markmap-link" data-depth="5" data-path="1.19.25.26.27" d="M1386,572.625C1426,572.625,1426,558.531,1466,558.531" stroke-width="1.09375" stroke="rgb(214, 39, 40)"/><path class="markmap-link" data-depth="5" data-path="1.19.25.26.28" d="M1386,572.625C1426,572.625,1426,584.625,1466,584.625" stroke-width="1.09375" stroke="rgb(148, 103, 189)"/><path class="markmap-link" data-depth="4" data-path="1.19.25.26" d="M779,571.719C819,571.719,819,572.625,859,572.625" stroke-width="1.1875" stroke="rgb(44, 160, 44)"/><path class="markmap-link" data-depth="3" data-path="1.19.20" d="M539,535.672C579,535.672,579,499.25,619,499.25" stroke-width="1.375" stroke="rgb(227, 119, 194)"/><path class="markmap-link" data-depth="3" data-path="1.19.25" d="M539,535.672C579,535.672,579,571.719,619,571.719" stroke-width="1.375" stroke="rgb(255, 127, 14)"/><path class="markmap-link" data-depth="2" data-path="1.2" d="M373,11.25C413,11.25,413,-581.531,453,-581.531" stroke-width="1.75" stroke="rgb(255, 127, 14)"/><path class="markmap-link" data-depth="2" data-path="1.4" d="M373,11.25C413,11.25,413,-55.844,453,-55.844" stroke-width="1.75" stroke="rgb(214, 39, 40)"/><path class="markmap-link" data-depth="2" data-path="1.19" d="M373,11.25C413,11.25,413,535.672,453,535.672" stroke-width="1.75" stroke="rgb(140, 86, 75)"/><path class="markmap-link" data-depth="2" data-path="1.29" d="M373,11.25C413,11.25,413,603.281,453,603.281" stroke-width="1.75" stroke="rgb(140, 86, 75)"/><g class="markmap-highlight"/><g data-depth="3" data-path="1.2.3" class="markmap-node" transform="translate(687, -645.40625)"><line stroke="#d62728" stroke-width="1.375" x1="-1" x2="194" y1="106.6875" y2="106.6875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="176" height="106"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><table data-lines="8,14">
+<thead data-lines="8,9">
+<tr data-lines="8,9">
+<th>Métrica</th>
+<th>Valor</th>
+</tr>
+</thead>
+<tbody data-lines="10,14">
+<tr data-lines="10,11">
+<td>Total Tests</td>
+<td>25</td>
+</tr>
+<tr data-lines="11,12">
+<td>Pass</td>
+<td>20</td>
+</tr>
+<tr data-lines="12,13">
+<td>Fail (esperado)</td>
+<td>5</td>
+</tr>
+<tr data-lines="13,14">
+<td>Success Rate</td>
+<td>100% ✅</td>
+</tr>
+</tbody>
+</table></div></div></foreignObject></g><g data-depth="2" data-path="1.2" class="markmap-node" transform="translate(453, -602.40625)"><line stroke="#ff7f0e" stroke-width="1.75" x1="-1" x2="156" y1="20.875" y2="20.875"/><circle stroke-width="1.5" r="6" stroke="#ff7f0e" fill="var(--markmap-circle-open-bg)" cx="154" cy="20.875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="138" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Resumen Ejecutivo</div></div></foreignObject></g><g data-depth="4" data-path="1.4.5.6" class="markmap-node" transform="translate(980, -592.03125)"><line stroke="#2ca02c" stroke-width="1.1875" x1="-1" x2="367" y1="148.59375" y2="148.59375"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="349" height="148"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><table data-lines="18,26">
+<thead data-lines="18,19">
+<tr data-lines="18,19">
+<th>Test</th>
+<th>Descripción</th>
+<th>Resultado</th>
+<th>Evidencia</th>
+</tr>
+</thead>
+<tbody data-lines="20,26">
+<tr data-lines="20,21">
+<td>1.1</td>
+<td>Insert válido</td>
+<td>✅ PASS</td>
+<td>ID=2 creado</td>
+</tr>
+<tr data-lines="21,22">
+<td>1.2</td>
+<td>DNI duplicado</td>
+<td>✅ PASS</td>
+<td>ERROR 1062</td>
+</tr>
+<tr data-lines="22,23">
+<td>1.3</td>
+<td>Email duplicado</td>
+<td>✅ PASS</td>
+<td>ERROR 1062</td>
+</tr>
+<tr data-lines="23,24">
+<td>1.4</td>
+<td>DNI formato inválido</td>
+<td>✅ PASS</td>
+<td>ERROR 3819</td>
+</tr>
+<tr data-lines="24,25">
+<td>1.5</td>
+<td>DNI corto</td>
+<td>✅ PASS</td>
+<td>ERROR 3819</td>
+</tr>
+<tr data-lines="25,26">
+<td>1.6</td>
+<td>DNI NULL</td>
+<td>✅ PASS</td>
+<td>ERROR 1048</td>
+</tr>
+</tbody>
+</table></div></div></foreignObject></g><g data-depth="3" data-path="1.4.5" class="markmap-node" transform="translate(698, -528.03125)"><line stroke="#9467bd" stroke-width="1.375" x1="-1" x2="204" y1="20.6875" y2="20.6875"/><circle stroke-width="1.5" r="6" stroke="#9467bd" fill="var(--markmap-circle-open-bg)" cx="202" cy="20.6875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="186" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Suite 1: Users Constraints</div></div></foreignObject></g><g data-depth="4" data-path="1.4.7.8" class="markmap-node" transform="translate(909, -432.84375)"><line stroke="#9467bd" stroke-width="1.1875" x1="-1" x2="471" y1="148.59375" y2="148.59375"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="453" height="148"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><table data-lines="28,36">
+<thead data-lines="28,29">
+<tr data-lines="28,29">
+<th>Test</th>
+<th>Descripción</th>
+<th>Resultado</th>
+<th>Evidencia</th>
+</tr>
+</thead>
+<tbody data-lines="30,36">
+<tr data-lines="30,31">
+<td>2.1</td>
+<td>Crear usuario cortador</td>
+<td>✅ PASS</td>
+<td>ID=3</td>
+</tr>
+<tr data-lines="31,32">
+<td>2.2</td>
+<td>Crear cortador válido</td>
+<td>✅ PASS</td>
+<td>ID=1</td>
+</tr>
+<tr data-lines="32,33">
+<td>2.3</td>
+<td>Cortador duplicado</td>
+<td>✅ PASS</td>
+<td>ERROR 1062</td>
+</tr>
+<tr data-lines="33,34">
+<td>2.4</td>
+<td>FK inexistente</td>
+<td>✅ PASS</td>
+<td>ERROR 1452</td>
+</tr>
+<tr data-lines="34,35">
+<td>2.5</td>
+<td>JOIN correcto</td>
+<td>✅ PASS</td>
+<td>Datos consistentes</td>
+</tr>
+<tr data-lines="35,36">
+<td>2.6</td>
+<td>CASCADE delete</td>
+<td>✅ PASS</td>
+<td>Carver eliminado con user</td>
+</tr>
+</tbody>
+</table></div></div></foreignObject></g><g data-depth="3" data-path="1.4.7" class="markmap-node" transform="translate(698, -368.84375)"><line stroke="#d62728" stroke-width="1.375" x1="-1" x2="133" y1="20.6875" y2="20.6875"/><circle stroke-width="1.5" r="6" stroke="#d62728" fill="var(--markmap-circle-open-bg)" cx="131" cy="20.6875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="115" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Suite 2: Carvers</div></div></foreignObject></g><g data-depth="4" data-path="1.4.9.10" class="markmap-node" transform="translate(914, -273.65625)"><line stroke="#e377c2" stroke-width="1.1875" x1="-1" x2="357" y1="106.59375" y2="106.59375"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="339" height="106"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><table data-lines="38,44">
+<thead data-lines="38,39">
+<tr data-lines="38,39">
+<th>Test</th>
+<th>Descripción</th>
+<th>Resultado</th>
+<th>Evidencia</th>
+</tr>
+</thead>
+<tbody data-lines="40,44">
+<tr data-lines="40,41">
+<td>3.1</td>
+<td>Seed data correcta</td>
+<td>✅ PASS</td>
+<td>3 servicios</td>
+</tr>
+<tr data-lines="41,42">
+<td>3.2</td>
+<td>Nombre duplicado</td>
+<td>✅ PASS</td>
+<td>ERROR 1062</td>
+</tr>
+<tr data-lines="42,43">
+<td>3.3</td>
+<td>Duración cero</td>
+<td>✅ PASS</td>
+<td>ERROR 3819</td>
+</tr>
+<tr data-lines="43,44">
+<td>3.4</td>
+<td>Precio negativo</td>
+<td>✅ PASS</td>
+<td>ERROR 3819</td>
+</tr>
+</tbody>
+</table></div></div></foreignObject></g><g data-depth="3" data-path="1.4.9" class="markmap-node" transform="translate(698, -230.65625)"><line stroke="#8c564b" stroke-width="1.375" x1="-1" x2="138" y1="20.6875" y2="20.6875"/><circle stroke-width="1.5" r="6" stroke="#8c564b" fill="var(--markmap-circle-open-bg)" cx="136" cy="20.6875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="120" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Suite 3: Services</div></div></foreignObject></g><g data-depth="4" data-path="1.4.11.12" class="markmap-node" transform="translate(1027, -156.46875)"><line stroke="#bcbd22" stroke-width="1.1875" x1="-1" x2="583" y1="295.59375" y2="295.59375"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="565" height="295"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><table data-lines="46,61">
+<thead data-lines="46,47">
+<tr data-lines="46,47">
+<th>Test</th>
+<th>Descripción</th>
+<th>Resultado</th>
+<th>Evidencia</th>
+</tr>
+</thead>
+<tbody data-lines="48,61">
+<tr data-lines="48,49">
+<td>4.1</td>
+<td>Reserva válida</td>
+<td>✅ PASS</td>
+<td>ID=1</td>
+</tr>
+<tr data-lines="49,50">
+<td>4.2</td>
+<td><strong>Double booking</strong></td>
+<td>✅ PASS</td>
+<td><strong>ERROR 1062 - Constraint crítica funciona</strong></td>
+</tr>
+<tr data-lines="50,51">
+<td>4.3</td>
+<td>Diferente slot</td>
+<td>✅ PASS</td>
+<td>ID=2</td>
+</tr>
+<tr data-lines="51,52">
+<td>4.4</td>
+<td>Diferente cortador</td>
+<td>✅ PASS</td>
+<td>ID=3</td>
+</tr>
+<tr data-lines="52,53">
+<td>4.5</td>
+<td>Hora &lt; 10:00</td>
+<td>✅ PASS</td>
+<td>ERROR 3819</td>
+</tr>
+<tr data-lines="53,54">
+<td>4.6</td>
+<td>Hora &gt; 17:30</td>
+<td>✅ PASS</td>
+<td>ERROR 3819</td>
+</tr>
+<tr data-lines="54,55">
+<td>4.7</td>
+<td>Minutos inválidos</td>
+<td>✅ PASS</td>
+<td>ERROR 3819</td>
+</tr>
+<tr data-lines="55,56">
+<td>4.8</td>
+<td>Sábado</td>
+<td>✅ PASS</td>
+<td>ERROR 3819</td>
+</tr>
+<tr data-lines="56,57">
+<td>4.9</td>
+<td>Domingo</td>
+<td>✅ PASS</td>
+<td>ERROR 3819</td>
+</tr>
+<tr data-lines="57,58">
+<td>4.10</td>
+<td>Lunes válido</td>
+<td>✅ PASS</td>
+<td>ID=4</td>
+</tr>
+<tr data-lines="58,59">
+<td>4.11</td>
+<td>FK cliente inválido</td>
+<td>✅ PASS</td>
+<td>ERROR 1452</td>
+</tr>
+<tr data-lines="59,60">
+<td>4.12</td>
+<td>FK cortador inválido</td>
+<td>✅ PASS</td>
+<td>ERROR 1452</td>
+</tr>
+<tr data-lines="60,61">
+<td>4.13</td>
+<td>FK servicio inválido</td>
+<td>✅ PASS</td>
+<td>ERROR 1452</td>
+</tr>
+</tbody>
+</table></div></div></foreignObject></g><g data-depth="3" data-path="1.4.11" class="markmap-node" transform="translate(698, -18.96875)"><line stroke="#7f7f7f" stroke-width="1.375" x1="-1" x2="251" y1="20.6875" y2="20.6875"/><circle stroke-width="1.5" r="6" stroke="#7f7f7f" fill="var(--markmap-circle-open-bg)" cx="249" cy="20.6875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="233" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Suite 4: Reservations (CRÍTICO)</div></div></foreignObject></g><g data-depth="4" data-path="1.4.13.14" class="markmap-node" transform="translate(1031, 149.71875)"><line stroke="#1f77b4" stroke-width="1.1875" x1="-1" x2="420" y1="106.59375" y2="106.59375"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="402" height="106"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><table data-lines="63,69">
+<thead data-lines="63,64">
+<tr data-lines="63,64">
+<th>Test</th>
+<th>Descripción</th>
+<th>Resultado</th>
+<th>Evidencia</th>
+</tr>
+</thead>
+<tbody data-lines="65,69">
+<tr data-lines="65,66">
+<td>5.1</td>
+<td>Delete user con reservas</td>
+<td>✅ PASS</td>
+<td>ERROR 1451</td>
+</tr>
+<tr data-lines="66,67">
+<td>5.2</td>
+<td>Delete carver con reservas</td>
+<td>✅ PASS</td>
+<td>ERROR 1451</td>
+</tr>
+<tr data-lines="67,68">
+<td>5.3</td>
+<td>Delete service con reservas</td>
+<td>✅ PASS</td>
+<td>ERROR 1451</td>
+</tr>
+<tr data-lines="68,69">
+<td>5.4</td>
+<td>Delete reserva</td>
+<td>✅ PASS</td>
+<td>OK</td>
+</tr>
+</tbody>
+</table></div></div></foreignObject></g><g data-depth="3" data-path="1.4.13" class="markmap-node" transform="translate(698, 192.71875)"><line stroke="#17becf" stroke-width="1.375" x1="-1" x2="255" y1="20.6875" y2="20.6875"/><circle stroke-width="1.5" r="6" stroke="#17becf" fill="var(--markmap-circle-open-bg)" cx="253" cy="20.6875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="237" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Suite 5: ON DELETE Restrictions</div></div></foreignObject></g><g data-depth="4" data-path="1.4.15.16" class="markmap-node" transform="translate(903, 266.90625)"><line stroke="#2ca02c" stroke-width="1.1875" x1="-1" x2="392" y1="64.59375" y2="64.59375"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="374" height="64"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><table data-lines="71,75">
+<thead data-lines="71,72">
+<tr data-lines="71,72">
+<th>Test</th>
+<th>Descripción</th>
+<th>Resultado</th>
+<th>Evidencia</th>
+</tr>
+</thead>
+<tbody data-lines="73,75">
+<tr data-lines="73,74">
+<td>6.1</td>
+<td>Índices existen</td>
+<td>✅ PASS</td>
+<td>SHOW INDEX</td>
+</tr>
+<tr data-lines="74,75">
+<td>6.2</td>
+<td>Explain plan usa índice</td>
+<td>✅ PASS</td>
+<td>type=ref</td>
+</tr>
+</tbody>
+</table></div></div></foreignObject></g><g data-depth="3" data-path="1.4.15" class="markmap-node" transform="translate(698, 288.90625)"><line stroke="#ff7f0e" stroke-width="1.375" x1="-1" x2="127" y1="20.6875" y2="20.6875"/><circle stroke-width="1.5" r="6" stroke="#ff7f0e" fill="var(--markmap-circle-open-bg)" cx="125" cy="20.6875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="109" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Suite 6: Índices</div></div></foreignObject></g><g data-depth="4" data-path="1.4.17.18" class="markmap-node" transform="translate(940, 342.09375)"><line stroke="#9467bd" stroke-width="1.1875" x1="-1" x2="402" y1="85.59375" y2="85.59375"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="384" height="85"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><table data-lines="77,82">
+<thead data-lines="77,78">
+<tr data-lines="77,78">
+<th>Test</th>
+<th>Descripción</th>
+<th>Resultado</th>
+<th>Evidencia</th>
+</tr>
+</thead>
+<tbody data-lines="79,82">
+<tr data-lines="79,80">
+<td>7.1</td>
+<td>Notificación válida</td>
+<td>✅ PASS</td>
+<td>ID=1</td>
+</tr>
+<tr data-lines="80,81">
+<td>7.2</td>
+<td>Notificación sin reserva</td>
+<td>✅ PASS</td>
+<td>NULL permitido</td>
+</tr>
+<tr data-lines="81,82">
+<td>7.3</td>
+<td>JOIN con LEFT</td>
+<td>✅ PASS</td>
+<td>Datos correctos</td>
+</tr>
+</tbody>
+</table></div></div></foreignObject></g><g data-depth="3" data-path="1.4.17" class="markmap-node" transform="translate(698, 374.59375)"><line stroke="#d62728" stroke-width="1.375" x1="-1" x2="164" y1="20.6875" y2="20.6875"/><circle stroke-width="1.5" r="6" stroke="#d62728" fill="var(--markmap-circle-open-bg)" cx="162" cy="20.6875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="146" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Suite 7: Notifications</div></div></foreignObject></g><g data-depth="2" data-path="1.4" class="markmap-node" transform="translate(453, -76.71875)"><line stroke="#d62728" stroke-width="1.75" x1="-1" x2="167" y1="20.875" y2="20.875"/><circle stroke-width="1.5" r="6" stroke="#d62728" fill="var(--markmap-circle-open-bg)" cx="165" cy="20.875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="149" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Resultados por Suite</div></div></foreignObject></g><g data-depth="4" data-path="1.19.20.21" class="markmap-node" transform="translate(814, 438.28125)"><line stroke="#7f7f7f" stroke-width="1.1875" x1="-1" x2="508" y1="22.59375" y2="22.59375"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="490" height="22"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Constraint <code>uk_reservation_slot</code> previene double-booking efectivamente</div></div></foreignObject></g><g data-depth="4" data-path="1.19.20.22" class="markmap-node" transform="translate(814, 466.46875)"><line stroke="#bcbd22" stroke-width="1.1875" x1="-1" x2="373" y1="20.59375" y2="20.59375"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="355" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Todas las FK constraints funcionan correctamente</div></div></foreignObject></g><g data-depth="4" data-path="1.19.20.23" class="markmap-node" transform="translate(814, 492.65625)"><line stroke="#17becf" stroke-width="1.1875" x1="-1" x2="392" y1="20.59375" y2="20.59375"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="374" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">ON DELETE RESTRICT protege integridad de datos</div></div></foreignObject></g><g data-depth="4" data-path="1.19.20.24" class="markmap-node" transform="translate(814, 518.84375)"><line stroke="#1f77b4" stroke-width="1.1875" x1="-1" x2="278" y1="20.59375" y2="20.59375"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="260" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Índices optimizan queries frecuentes</div></div></foreignObject></g><g data-depth="3" data-path="1.19.20" class="markmap-node" transform="translate(619, 478.5625)"><line stroke="#e377c2" stroke-width="1.375" x1="-1" x2="117" y1="20.6875" y2="20.6875"/><circle stroke-width="1.5" r="6" stroke="#e377c2" fill="var(--markmap-circle-open-bg)" cx="115" cy="20.6875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="99" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">✅ Fortalezas</div></div></foreignObject></g><g data-depth="5" data-path="1.19.25.26.27" class="markmap-node" transform="translate(1466, 537.984375)"><line stroke="#d62728" stroke-width="1.09375" x1="-1" x2="502" y1="20.546875" y2="20.546875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="484" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><strong>Justificación:</strong> Validación implementada en capa Java (más flexible)</div></div></foreignObject></g><g data-depth="5" data-path="1.19.25.26.28" class="markmap-node" transform="translate(1466, 564.078125)"><line stroke="#9467bd" stroke-width="1.09375" x1="-1" x2="516" y1="20.546875" y2="20.546875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="498" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><strong>Impacto:</strong> Permite insertar fechas pasadas en DB (controlado por app)</div></div></foreignObject></g><g data-depth="4" data-path="1.19.25.26" class="markmap-node" transform="translate(859, 550.03125)"><line stroke="#2ca02c" stroke-width="1.1875" x1="-1" x2="529" y1="22.59375" y2="22.59375"/><circle stroke-width="1.5" r="6" stroke="#2ca02c" fill="var(--markmap-circle-open-bg)" cx="527" cy="22.59375"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="511" height="22"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Constraint <code>chk_res_future</code> (fecha &gt;= CURDATE) no implementada en DB</div></div></foreignObject></g><g data-depth="3" data-path="1.19.25" class="markmap-node" transform="translate(619, 551.03125)"><line stroke="#ff7f0e" stroke-width="1.375" x1="-1" x2="162" y1="20.6875" y2="20.6875"/><circle stroke-width="1.5" r="6" stroke="#ff7f0e" fill="var(--markmap-circle-open-bg)" cx="160" cy="20.6875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="144" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">⚠️ Consideraciones</div></div></foreignObject></g><g data-depth="2" data-path="1.19" class="markmap-node" transform="translate(453, 514.796875)"><line stroke="#8c564b" stroke-width="1.75" x1="-1" x2="88" y1="20.875" y2="20.875"/><circle stroke-width="1.5" r="6" stroke="#8c564b" fill="var(--markmap-circle-open-bg)" cx="86" cy="20.875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="70" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Hallazgos</div></div></foreignObject></g><g data-depth="2" data-path="1.29" class="markmap-node" transform="translate(453, 582.40625)"><line stroke="#8c564b" stroke-width="1.75" x1="-1" x2="97" y1="20.875" y2="20.875"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="79" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Conclusión</div></div></foreignObject></g><g data-depth="1" data-path="1" class="markmap-node" transform="translate(0, -10)"><line stroke="#1f77b4" stroke-width="2.5" x1="-1" x2="375" y1="21.25" y2="21.25"/><circle stroke-width="1.5" r="6" stroke="#1f77b4" fill="var(--markmap-circle-open-bg)" cx="373" cy="21.25"/><foreignObject class="markmap-foreign" x="8" y="0" style="opacity: 1;" width="357" height="20"><div xmlns="http://www.w3.org/1999/xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Reporte de Pruebas - HamBooking Database v1.3</div></div></foreignObject></g></g></svg>

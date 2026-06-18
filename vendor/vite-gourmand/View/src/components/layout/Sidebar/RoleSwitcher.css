@@ -1,0 +1,181 @@
+/**
+ * RoleSwitcher styles
+ * Dropdown menu for switching between role views in sidebar
+ */
+
+.role-switcher {
+  position: relative;
+  margin: var(--spacing-md);
+  margin-top: auto;
+}
+
+.role-switcher--collapsed {
+  margin: var(--spacing-sm);
+}
+
+.role-switcher-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  color: var(--color-text-secondary);
+  text-align: left;
+}
+
+.role-switcher--collapsed .role-switcher-toggle {
+  padding: var(--spacing-sm);
+  justify-content: center;
+}
+
+.role-switcher-toggle:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--color-primary-light);
+}
+
+.role-switcher-icon {
+  font-size: var(--font-size-xl);
+}
+
+.role-switcher-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.role-switcher-label {
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.role-switcher-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.role-switcher-arrow {
+  font-size: var(--font-size-xs2);
+  transition: transform var(--transition-normal);
+}
+
+.role-switcher-arrow.open {
+  transform: rotate(180deg);
+}
+
+/* Dropdown */
+.role-switcher-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: var(--spacing-xs);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  z-index: var(--z-1)00;
+  animation: slideUp var(--transition-fast);
+}
+
+.role-switcher-dropdown--right {
+  left: 100%;
+  right: auto;
+  bottom: auto;
+  top: 0;
+  margin-left: var(--spacing-xs);
+  margin-bottom: 0;
+  min-width: 150px;
+  animation: slideRight var(--transition-fast);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideRight {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.role-dropdown-header {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+/* Role options */
+.role-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  text-align: left;
+}
+
+.role-option:hover {
+  background: var(--glass-bg-hover);
+}
+
+.role-option.active {
+  background: var(--color-primary-bg);
+}
+
+.role-option-icon {
+  font-size: var(--font-size-xl);
+  width: 2rem;
+  text-align: center;
+}
+
+.role-option-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.role-option-label {
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.role-option-desc {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.role-option-check {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-bold);
+}

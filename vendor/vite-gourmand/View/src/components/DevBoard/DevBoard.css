@@ -1,0 +1,71 @@
+/**
+ * DevBoard styles
+ * Centered responsive layout - Mobile first
+ */
+
+/* Override body background when DevBoard is active so fixed gradient shows through */
+body:has(.devboard) {
+  background: transparent !important;
+}
+
+.devboard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: transparent; /* Let gradient show through */
+  color: var(--color-text-primary);
+  z-index: var(--z-1); /* Above the fixed gradient background */
+}
+
+.devboard-body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Large desktop */
+@media (min-width: 1601px) {
+  .devboard-body {
+    padding: 0 var(--space-6);
+  }
+}
+
+/* Tablet landscape */
+@media (max-width: 1024px) {
+  .devboard-body {
+    padding: 0 var(--space-3);
+  }
+}
+
+/* Tablet portrait */
+@media (max-width: 768px) {
+  .devboard-body {
+    flex-direction: column;
+    padding: 0 var(--space-2);
+  }
+}
+
+/* Small mobile */
+@media (max-width: 480px) {
+  .devboard-body {
+    padding: 0 var(--space-1);
+  }
+}
+
+/* Very small devices (200px+) */
+@media (max-width: 320px) {
+  .devboard-body {
+    padding: 0 4px;
+  }
+}

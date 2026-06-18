@@ -1,0 +1,36 @@
+### TEST 1 — Disponibilidad Embutidos 30min día libre (debe dar 200 con 16 slots)
+### Cortador 98, lunes 09/03/2026, servicio Embutidos
+GET http://localhost:8080/api/availability?carverId=98&date=2026-03-09&serviceId=3
+
+### TEST 2 — Disponibilidad Paleta 60min día libre (debe dar 200 con 15 slots)
+### El último slot válido es 17:00
+GET http://localhost:8080/api/availability?carverId=98&date=2026-03-09&serviceId=2
+
+### TEST 3 — Disponibilidad Jamón 120min día libre (debe dar 200 con 13 slots)
+### El último slot válido es 16:00
+GET http://localhost:8080/api/availability?carverId=98&date=2026-03-09&serviceId=1
+
+### TEST 4 — Crear reserva Embutidos 10:00 para bloquear ese slot
+POST http://localhost:8080/api/reservations
+Content-Type: application/json
+
+{
+  "clientId": 145,
+  "carverId": 98,
+  "serviceId": 3,
+  "reservationDate": "2026-03-09",
+  "startTime": "10:00:00",
+  "notes": "Reserva para bloquear slot"
+}
+
+### TEST 5 — Disponibilidad después de crear reserva (debe dar 15 slots, sin 10:00)
+GET http://localhost:8080/api/availability?carverId=98&date=2026-03-09&serviceId=3
+
+### TEST 6 — Fin de semana (debe dar 422)
+GET http://localhost:8080/api/availability?carverId=98&date=2026-03-14&serviceId=3
+
+### TEST 7 — Cortador inactivo (debe dar 422)
+GET http://localhost:8080/api/availability?carverId=97&date=2026-03-09&serviceId=3
+
+### TEST 8 — Cortador inexistente (debe dar 404)
+GET http://localhost:8080/api/availability?carverId=999&date=2026-03-09&serviceId=3

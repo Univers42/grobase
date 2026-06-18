@@ -1,0 +1,107 @@
+# Docker Compose for running Postman collections via Newman
+# Usage: docker compose -f docker-compose.test.yml run postman-tests
+
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: infrastructure/services/postgres/Dockerfile
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${TEST_POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  mongo:
+    build:
+      context: .
+      dockerfile: infrastructure/services/mongo/Dockerfile
+    environment:
+      MONGO_INITDB_DATABASE: vite_gourmand
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # Main API for testing
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/services/app/Dockerfile
+    environment:
+      - NODE_ENV=test
+      - PORT=3000
+      - DATABASE_URL=${TEST_DATABASE_URL}
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017/vite_gourmand}
+      - JWT_SECRET=${TEST_JWT_SECRET}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # Newman - Postman CLI runner
+  postman-tests:
+    image: postman/newman:6-alpine
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      # Mount local collections
+      - ./Back/postman:/etc/newman
+      # Mount reports output
+      - ./reports:/etc/newman/reports
+    environment:
+      # Postman API Key for cloud sync (set in .env)
+      - POSTMAN_API_KEY=${POSTMAN_API_KEY:-}
+    networks:
+      - test-network
+    # Run all collections
+    command: >
+      run /etc/newman/auth.json
+      --environment /etc/newman/env.docker.json
+      --reporters cli,htmlextra,junit
+      --reporter-htmlextra-export /etc/newman/reports/auth-report.html
+      --reporter-junit-export /etc/newman/reports/auth-report.xml
+      --delay-request 100
+
+  # Run from Postman Cloud (alternative)
+  postman-cloud-tests:
+    image: postman/newman:6-alpine
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      - POSTMAN_API_KEY=${POSTMAN_API_KEY:-}
+    volumes:
+      - ./reports:/etc/newman/reports
+    networks:
+      - test-network
+    # Run using Postman Cloud collection ID
+    command: >
+      run https://api.getpostman.com/collections/${POSTMAN_COLLECTION_ID:-}?apikey=${POSTMAN_API_KEY:-}
+      --environment https://api.getpostman.com/environments/${POSTMAN_ENV_ID:-}?apikey=${POSTMAN_API_KEY:-}
+      --reporters cli,htmlextra,junit
+      --reporter-htmlextra-export /etc/newman/reports/cloud-report.html
+
+networks:
+  test-network:
+    driver: bridge

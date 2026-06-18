@@ -1,0 +1,73 @@
+/**
+ * MetricCard Styles
+ * Uses ONLY CSS variables from graphical_chart.css
+ */
+
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 180px;
+}
+
+.metric-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.metric-card-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.metric-card-icon {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-tertiary);
+}
+
+.metric-card-value-container {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+}
+
+.metric-card-value {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+}
+
+.metric-card-unit {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}
+
+.metric-card-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  width: fit-content;
+}
+
+.metric-card-trend-up {
+  color: var(--color-success-500);
+  background: var(--color-success-50);
+}
+
+.metric-card-trend-down {
+  color: var(--color-danger-500);
+  background: var(--color-danger-50);
+}
+
+.metric-card-trend-stable {
+  color: var(--color-neutral-500);
+  background: var(--color-neutral-100);
+}

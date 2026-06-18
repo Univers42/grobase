@@ -1,0 +1,47 @@
+name: camagru_mobile
+description: Camagru — Flutter companion app for the 42 photo-editing platform.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Networking
+  dio: ^5.4.0
+  web_socket_channel: ^2.4.0
+  # Config & secrets
+  flutter_dotenv: ^5.1.0
+  flutter_secure_storage: ^9.0.0
+  # State management
+  provider: ^6.1.1
+  # Local storage
+  shared_preferences: ^2.2.2
+  # Camera & image
+  camera: ^0.11.0+2
+  image_picker: ^1.0.7
+  image: ^4.1.7
+  # UI
+  flutter_staggered_animations: ^1.1.1
+  shimmer: ^3.0.0
+  # Utilities
+  timeago: ^3.6.1
+  share_plus: ^7.2.2
+  url_launcher: ^6.2.4
+  photo_view: ^0.15.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .env
+    - assets/
+    - assets/overlays/

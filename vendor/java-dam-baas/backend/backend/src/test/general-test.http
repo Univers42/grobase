@@ -1,0 +1,19 @@
+### ─────────────────────────────────────────
+### TEST 1 — Listar servicios activos (debe dar 200 con 3 servicios)
+### ─────────────────────────────────────────
+GET http://localhost:8080/api/services
+
+### ─────────────────────────────────────────
+### TEST 2 — Obtener usuario existente (debe dar 200)
+### ─────────────────────────────────────────
+GET http://localhost:8080/api/users/145
+
+### ─────────────────────────────────────────
+### TEST 3 — Obtener admin (debe dar 200)
+### ─────────────────────────────────────────
+GET http://localhost:8080/api/users/1
+
+### ─────────────────────────────────────────
+### TEST 4 — Usuario inexistente (debe dar 404)
+### ─────────────────────────────────────────
+GET http://localhost:8080/api/users/999

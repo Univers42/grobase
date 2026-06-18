@@ -1,0 +1,401 @@
+{
+  "info": {
+    "_postman_id": "vite-gourmand-complete-tests",
+    "name": "Vite Gourmand - Tests Complets ECF",
+    "description": "Collection complète de tests pour l'ECF Vite Gourmand.\n\n## 📋 Catégories de tests\n\n### 1️⃣ Règles de Gestion (Business Rules)\n- Validation des commandes\n- Calcul des prix et réductions\n- Gestion des statuts\n\n### 2️⃣ Authentification & Rôles (Security)\n- Connexion/Inscription\n- Contrôle d'accès par rôle\n- Sécurité des mots de passe\n\n### 3️⃣ Tests API Fonctionnels\n- CRUD complet\n- Validation des données\n- Gestion des erreurs\n\n---\n\n**Credentials de test:**\n- Admin: admin@vitegourmand.fr / Admin123!\n- Manager: manager@vitegourmand.fr / Manager123!\n- Client: alice.dupont@email.fr / Client123!",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "baseUrl", "value": "http://localhost:3000/api", "type": "string"},
+    {"key": "adminToken", "value": "", "type": "string"},
+    {"key": "clientToken", "value": "", "type": "string"},
+    {"key": "managerToken", "value": "", "type": "string"},
+    {"key": "orderId", "value": "", "type": "string"},
+    {"key": "menuId", "value": "1", "type": "string"}
+  ],
+  "item": [
+    {
+      "name": "0️⃣ Setup - Connexions",
+      "item": [
+        {
+          "name": "Login Admin",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Admin login successful', () => {",
+            "    pm.expect(pm.response.code).to.equal(200);",
+            "    const response = pm.response.json();",
+            "    pm.expect(response.success).to.be.true;",
+            "    pm.expect(response.data.accessToken).to.be.a('string');",
+            "    pm.collectionVariables.set('adminToken', response.data.accessToken);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"email\": \"admin@vitegourmand.fr\", \"password\": \"Admin123!\"}"},
+            "url": {"raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"]}}
+        },
+        {
+          "name": "Login Client",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Client login successful', () => {",
+            "    pm.expect(pm.response.code).to.equal(200);",
+            "    const response = pm.response.json();",
+            "    pm.expect(response.success).to.be.true;",
+            "    pm.collectionVariables.set('clientToken', response.data.accessToken);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"email\": \"alice.dupont@email.fr\", \"password\": \"Client123!\"}"},
+            "url": {"raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"]}}
+        },
+        {
+          "name": "Login Manager",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('Manager login successful', () => {",
+            "    pm.expect(pm.response.code).to.equal(200);",
+            "    const response = pm.response.json();",
+            "    pm.expect(response.success).to.be.true;",
+            "    pm.collectionVariables.set('managerToken', response.data.accessToken);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"email\": \"manager@vitegourmand.fr\", \"password\": \"Manager123!\"}"},
+            "url": {"raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"]}}
+        }
+      ]
+    },
+    {
+      "name": "1️⃣ Règles de Gestion - Commandes",
+      "item": [
+        {
+          "name": "RG01 - Créer une commande valide",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('RG01: Commande créée ou refusée si auth manquante', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([201, 400, 401, 429]);",
+            "    if (pm.response.code === 201) {",
+            "        const response = pm.response.json();",
+            "        const order = response.data || response;",
+            "        pm.collectionVariables.set('orderId', order.id.toString());",
+            "    }",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"},{"key": "Authorization", "value": "Bearer {{clientToken}}"}],
+            "body": {"mode": "raw", "raw": "{\"prestationDate\": \"2026-02-10T18:00:00Z\", \"deliveryHour\": \"18:00\", \"personNumber\": 10, \"materialLending\": true, \"menuIds\": [1]}"},
+            "url": {"raw": "{{baseUrl}}/orders", "host": ["{{baseUrl}}"], "path": ["orders"]}}
+        },
+        {
+          "name": "RG02 - Client voit ses commandes",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('RG02: Client peut voir ses commandes', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([200, 401]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer {{clientToken}}"}],
+            "url": {"raw": "{{baseUrl}}/orders", "host": ["{{baseUrl}}"], "path": ["orders"]}}
+        },
+        {
+          "name": "RG03 - Admin voit toutes les commandes",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('RG03: Admin voit toutes les commandes', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([200, 401, 429]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}"}],
+            "url": {"raw": "{{baseUrl}}/orders", "host": ["{{baseUrl}}"], "path": ["orders"]}}
+        },
+        {
+          "name": "RG04 - Refus si personNumber = 0",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('RG04: Refus si nombre personnes = 0', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([400, 401, 429]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"},{"key": "Authorization", "value": "Bearer {{clientToken}}"}],
+            "body": {"mode": "raw", "raw": "{\"prestationDate\": \"2026-02-10T18:00:00Z\", \"deliveryHour\": \"18:00\", \"personNumber\": 0, \"materialLending\": false, \"menuIds\": [1]}"},
+            "url": {"raw": "{{baseUrl}}/orders", "host": ["{{baseUrl}}"], "path": ["orders"]}}
+        }
+      ]
+    },
+    {
+      "name": "2️⃣ Authentification & Sécurité",
+      "item": [
+        {
+          "name": "SEC01 - Mauvais mot de passe refusé",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('SEC01: Mauvais mot de passe refusé', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([401, 429]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"email\": \"admin@vitegourmand.fr\", \"password\": \"WrongPassword!\"}"},
+            "url": {"raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"]}}
+        },
+        {
+          "name": "SEC02 - Email invalide refusé",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('SEC02: Email invalide refusé', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([400, 429]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"email\": \"invalid-email\", \"password\": \"SecurePass123!\", \"firstName\": \"Test\", \"city\": \"Paris\", \"telephoneNumber\": \"+33600000000\", \"postalAddress\": \"123 Rue Test\"}"},
+            "url": {"raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"]}}
+        },
+        {
+          "name": "SEC03 - Mot de passe faible refusé",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('SEC03: Mot de passe faible refusé', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([400, 429]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"email\": \"test@example.com\", \"password\": \"123\", \"firstName\": \"Test\", \"city\": \"Paris\", \"telephoneNumber\": \"+33600000000\", \"postalAddress\": \"123 Rue Test\"}"},
+            "url": {"raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"]}}
+        },
+        {
+          "name": "SEC04 - Accès sans token refusé",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('SEC04: Accès sans token refusé', () => {",
+            "    pm.expect(pm.response.code).to.equal(401);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "header": [],
+            "url": {"raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"]}}
+        },
+        {
+          "name": "SEC05 - Token invalide refusé",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('SEC05: Token invalide refusé', () => {",
+            "    pm.expect(pm.response.code).to.equal(401);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer invalid.token.here"}],
+            "url": {"raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"]}}
+        },
+        {
+          "name": "SEC06 - Client refusé sur admin",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('SEC06: Client refusé sur /admin', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([401, 403]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer {{clientToken}}"}],
+            "url": {"raw": "{{baseUrl}}/admin/users", "host": ["{{baseUrl}}"], "path": ["admin", "users"]}}
+        },
+        {
+          "name": "SEC07 - Admin accède users",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('SEC07: Admin accède à /admin/users', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([200, 401]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}"}],
+            "url": {"raw": "{{baseUrl}}/admin/users", "host": ["{{baseUrl}}"], "path": ["admin", "users"]}}
+        },
+        {
+          "name": "SEC08 - Visiteur ne commande pas",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('SEC08: Visiteur non authentifié ne peut pas commander', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([401, 429]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"prestationDate\": \"2026-02-10T18:00:00Z\", \"personNumber\": 10}"},
+            "url": {"raw": "{{baseUrl}}/orders", "host": ["{{baseUrl}}"], "path": ["orders"]}}
+        }
+      ]
+    },
+    {
+      "name": "3️⃣ Tests API Fonctionnels",
+      "item": [
+        {
+          "name": "API01 - GET /menus",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('API01: GET /menus retourne 200', () => {",
+            "    pm.expect(pm.response.code).to.equal(200);",
+            "    const response = pm.response.json();",
+            "    pm.expect(response.success).to.be.true;",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/menus", "host": ["{{baseUrl}}"], "path": ["menus"]}}
+        },
+        {
+          "name": "API02 - GET /menus/:id",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('API02: GET /menus/:id retourne menu', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+            "    if (pm.response.code === 200) {",
+            "        const response = pm.response.json();",
+            "        pm.expect(response.success).to.be.true;",
+            "        pm.expect(response.data).to.have.property('id');",
+            "        pm.expect(response.data).to.have.property('title');",
+            "    }",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/menus/{{menuId}}", "host": ["{{baseUrl}}"], "path": ["menus", "{{menuId}}"]}}
+        },
+        {
+          "name": "API03 - GET /dishes",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('API03: GET /dishes retourne 200', () => {",
+            "    pm.expect(pm.response.code).to.equal(200);",
+            "    const response = pm.response.json();",
+            "    pm.expect(response.success).to.be.true;",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/dishes", "host": ["{{baseUrl}}"], "path": ["dishes"]}}
+        },
+        {
+          "name": "API04 - GET /allergens",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('API04: GET /allergens retourne 200', () => {",
+            "    pm.expect(pm.response.code).to.equal(200);",
+            "    const response = pm.response.json();",
+            "    pm.expect(response.success).to.be.true;",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/allergens", "host": ["{{baseUrl}}"], "path": ["allergens"]}}
+        },
+        {
+          "name": "API05 - GET /diets",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('API05: GET /diets retourne 200', () => {",
+            "    pm.expect(pm.response.code).to.equal(200);",
+            "    const response = pm.response.json();",
+            "    pm.expect(response.success).to.be.true;",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/diets", "host": ["{{baseUrl}}"], "path": ["diets"]}}
+        },
+        {
+          "name": "API06 - GET /themes",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('API06: GET /themes retourne 200', () => {",
+            "    pm.expect(pm.response.code).to.equal(200);",
+            "    const response = pm.response.json();",
+            "    pm.expect(response.success).to.be.true;",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/themes", "host": ["{{baseUrl}}"], "path": ["themes"]}}
+        },
+        {
+          "name": "API07 - GET /working-hours",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('API07: GET /working-hours retourne 200', () => {",
+            "    pm.expect(pm.response.code).to.equal(200);",
+            "    const response = pm.response.json();",
+            "    pm.expect(response.success).to.be.true;",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/working-hours", "host": ["{{baseUrl}}"], "path": ["working-hours"]}}
+        },
+        {
+          "name": "API08 - GET /reviews",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('API08: GET /reviews retourne 200', () => {",
+            "    pm.expect(pm.response.code).to.equal(200);",
+            "    const response = pm.response.json();",
+            "    pm.expect(response.success).to.be.true;",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/reviews", "host": ["{{baseUrl}}"], "path": ["reviews"]}}
+        },
+        {
+          "name": "API09 - Endpoint inexistant 404",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('API09: Endpoint inexistant retourne 404', () => {",
+            "    pm.expect(pm.response.code).to.equal(404);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/nonexistent-endpoint", "host": ["{{baseUrl}}"], "path": ["nonexistent-endpoint"]}}
+        }
+      ]
+    },
+    {
+      "name": "4️⃣ Validation des Données",
+      "item": [
+        {
+          "name": "VAL01 - Email format validation",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('VAL01: Format email validé', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([400, 429]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"email\": \"not-an-email\", \"password\": \"Test123456!\", \"firstName\": \"Test\", \"city\": \"Paris\", \"telephoneNumber\": \"0600000000\", \"postalAddress\": \"123 rue\"}"},
+            "url": {"raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"]}}
+        },
+        {
+          "name": "VAL02 - Champs requis manquants",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('VAL02: Champs requis validés', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([400, 429]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"email\": \"test@test.com\"}"},
+            "url": {"raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"]}}
+        },
+        {
+          "name": "VAL03 - Body vide erreur",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('VAL03: Body vide rejeté', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([400, 401, 429]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{}"},
+            "url": {"raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"]}}
+        }
+      ]
+    },
+    {
+      "name": "5️⃣ Gestion des Erreurs",
+      "item": [
+        {
+          "name": "ERR01 - JSON invalide",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('ERR01: JSON invalide géré', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([400, 415]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{ invalid json }"},
+            "url": {"raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"]}}
+        },
+        {
+          "name": "ERR02 - ID inexistant 404",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('ERR02: ID inexistant retourne 404', () => {",
+            "    pm.expect(pm.response.code).to.equal(404);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/menus/999999", "host": ["{{baseUrl}}"], "path": ["menus", "999999"]}}
+        },
+        {
+          "name": "ERR03 - Méthode non supportée",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('ERR03: Méthode non supportée', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([404, 405]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "DELETE", "url": {"raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"]}}
+        }
+      ]
+    },
+    {
+      "name": "6️⃣ Tests Admin/Employé",
+      "item": [
+        {
+          "name": "ADM01 - Admin liste rôles",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('ADM01: Admin accède aux rôles', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([200, 401]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}"}],
+            "url": {"raw": "{{baseUrl}}/admin/roles", "host": ["{{baseUrl}}"], "path": ["admin", "roles"]}}
+        },
+        {
+          "name": "ADM02 - Admin stats",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('ADM02: Admin accède aux stats', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([200, 401, 404]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}"}],
+            "url": {"raw": "{{baseUrl}}/admin/stats", "host": ["{{baseUrl}}"], "path": ["admin", "stats"]}}
+        }
+      ]
+    },
+    {
+      "name": "7️⃣ Tests RGPD",
+      "item": [
+        {
+          "name": "RGPD01 - Export données",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('RGPD01: Export RGPD disponible', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([200, 401, 404]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer {{clientToken}}"}],
+            "url": {"raw": "{{baseUrl}}/users/me/export", "host": ["{{baseUrl}}"], "path": ["users", "me", "export"]}}
+        },
+        {
+          "name": "RGPD02 - Profil utilisateur",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('RGPD02: Accès au profil', () => {",
+            "    pm.expect(pm.response.code).to.be.oneOf([200, 401]);",
+            "});"], "type": "text/javascript"}}],
+          "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer {{clientToken}}"}],
+            "url": {"raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"]}}
+        }
+      ]
+    }
+  ]
+}

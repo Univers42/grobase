@@ -1,0 +1,33 @@
+# MovieVerse plane — the re-platformed demo app: an nginx static frontend on
+# :5173 + the Go TMDB catalog proxy on :3070. Both opt in via the `movieverse`
+# profile; neither is part of any default edition. The proxy keeps the TMDB key
+# server-side (Go's net/http does dual-stack Happy-Eyeballs, so it reaches
+# api.themoviedb.org on the IPv4-only bridge net where the Deno runtime hung).
+services:
+  movieverse:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: nginx:1.27-alpine
+    container_name: mini-baas-movieverse
+    profiles: ["movieverse"]
+    ports:
+      - "${MOVIEVERSE_PORT:-5173}:80"
+    volumes:
+      - ./vendor/MovieVerse/dist:/usr/share/nginx/html:ro
+      - ./vendor/MovieVerse/grobase/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      kong:
+        condition: service_started
+
+  tmdb-proxy:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-tmdb-proxy:latest # pull-fallback (built from ./vendor context below)
+    build:
+      context: ./vendor/MovieVerse/grobase/tmdb-proxy
+      dockerfile: Dockerfile
+    container_name: mini-baas-tmdb-proxy
+    profiles: ["movieverse"]
+    environment:
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
+      TMDB_PROXY_ADDR: ":3070"
+    expose:
+      - "3070"

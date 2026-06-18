@@ -1,0 +1,60 @@
+{
+  "common": {
+    "welcome": "Welcome to Vite Gourmand",
+    "error": "An error occurred",
+    "success": "Operation successful",
+    "notFound": "Resource not found",
+    "unauthorized": "Unauthorized access",
+    "forbidden": "Access forbidden"
+  },
+  "auth": {
+    "loginSuccess": "Login successful",
+    "loginFailed": "Invalid credentials",
+    "registerSuccess": "Registration successful",
+    "emailExists": "Email already registered",
+    "invalidToken": "Invalid or expired token",
+    "passwordReset": "Password reset email sent",
+    "passwordChanged": "Password changed successfully"
+  },
+  "user": {
+    "profileUpdated": "Profile updated successfully",
+    "accountDeleted": "Account deleted successfully",
+    "addressAdded": "Address added successfully",
+    "addressUpdated": "Address updated successfully",
+    "addressDeleted": "Address deleted successfully"
+  },
+  "menu": {
+    "created": "Menu created successfully",
+    "updated": "Menu updated successfully",
+    "deleted": "Menu deleted successfully",
+    "notFound": "Menu not found"
+  },
+  "order": {
+    "created": "Order placed successfully",
+    "cancelled": "Order cancelled successfully",
+    "notFound": "Order not found",
+    "cannotCancel": "Cannot cancel this order",
+    "statusUpdated": "Order status updated"
+  },
+  "dish": {
+    "created": "Dish created successfully",
+    "updated": "Dish updated successfully",
+    "deleted": "Dish deleted successfully",
+    "notFound": "Dish not found",
+    "unavailable": "Dish is not available"
+  },
+  "review": {
+    "created": "Review submitted successfully",
+    "updated": "Review updated successfully",
+    "deleted": "Review deleted successfully",
+    "notFound": "Review not found",
+    "moderated": "Review moderated successfully"
+  },
+  "validation": {
+    "required": "This field is required",
+    "invalidEmail": "Invalid email format",
+    "minLength": "Minimum {{min}} characters required",
+    "maxLength": "Maximum {{max}} characters allowed",
+    "invalidFormat": "Invalid format"
+  }
+}

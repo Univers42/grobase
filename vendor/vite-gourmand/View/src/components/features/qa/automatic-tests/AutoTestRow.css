@@ -1,0 +1,155 @@
+/**
+ * AutoTestRow (atr) - Clean BEM styles (no actions)
+ */
+
+/* === ROW === */
+.atr {
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-gray-200);
+  transition: background 0.15s;
+}
+.atr--alt {
+  background: var(--color-gray-50);
+}
+.atr--clickable {
+  cursor: pointer;
+}
+.atr--clickable:hover {
+  background: var(--color-primary-100);
+}
+.atr--detail {
+  background: var(--color-primary-50);
+}
+
+/* === CELLS === */
+.atr__cell {
+  padding: 12px 16px;
+  vertical-align: middle;
+  font-size: var(--font-size-sm-alt);
+  color: var(--color-gray-700);
+}
+.atr__cell--name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.atr__cell--suite {
+  white-space: nowrap;
+}
+.atr__cell--status {
+  white-space: nowrap;
+}
+.atr__cell--duration {
+  text-align: right;
+  font-family: monospace;
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-500);
+  white-space: nowrap;
+}
+
+/* === STATUS DOT === */
+.atr__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+  background: var(--color-gray-400);
+}
+.atr__dot--passed { background: var(--color-green-500); }
+.atr__dot--failed { background: var(--color-red-500); }
+.atr__dot--running { background: var(--color-violet-500); animation: pulse 1.5s infinite; }
+.atr__dot--idle { background: var(--color-gray-400); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* === CHEVRON === */
+.atr__chevron {
+  font-size: var(--font-size-xs2);
+  color: var(--color-gray-400);
+  flex-shrink: 0;
+  transition: transform var(--transition-normal);
+}
+.atr__chevron--open {
+  transform: rotate(90deg);
+  color: var(--color-violet-500);
+}
+
+/* === NAME === */
+.atr__name {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-gray-800);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+.atr--clickable:hover .atr__name {
+  color: var(--color-primary-700);
+}
+
+/* === BADGE === */
+.atr__badge {
+  display: inline-block;
+  padding: 3px 8px;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-xl);
+  font-size: var(--font-size-xs0);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-gray-600);
+  font-family: monospace;
+  text-transform: uppercase;
+}
+
+/* === DETAIL CELL === */
+.atr__detail-cell {
+  padding: 0 !important;
+  background: var(--color-primary-50);
+}
+.atr__output {
+  padding: 16px 20px;
+  border-top: 1px dashed var(--color-editor-accent);
+}
+.atr__output--error .atr__output-content {
+  border-left: 3px solid var(--color-red-500);
+  background: var(--color-editor-bg);
+}
+.atr__output-label {
+  font-size: var(--font-size-xs0);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-gray-500);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.atr__output-content {
+  margin: 0;
+  padding: 12px 16px;
+  background: var(--color-wine-900);
+  border-radius: var(--radius-md);
+  color: var(--color-gray-300);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-relaxed);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 900px) {
+  .atr__cell--suite { display: none; }
+}
+@media (max-width: 700px) {
+  .atr__cell--duration { display: none; }
+  .atr__cell { padding: 10px 12px; }
+}
+@media (max-width: 500px) {
+  .atr__cell--name { max-width: 200px; }
+}

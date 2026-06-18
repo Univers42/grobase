@@ -1,0 +1,7 @@
+organization=lesdylan
+projectKey=LESdylan_vite-gourmand
+serverUrl=https://sonarcloud.io
+serverVersion=8.0.0.88273
+dashboardUrl=https://sonarcloud.io/dashboard?id=LESdylan_vite-gourmand
+ceTaskId=AZ5k93PSFLWufhf-udFb
+ceTaskUrl=https://sonarcloud.io/api/ce/task?id=AZ5k93PSFLWufhf-udFb
