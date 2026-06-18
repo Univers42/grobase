@@ -9,7 +9,7 @@
 # NOTE: every workspace member's Cargo.toml must be COPY'd below — add new
 # crates here or the stub build cannot resolve the workspace graph.
 # ─────────────────────────────────────────────────────────────────────────────
-FROM public.ecr.aws/docker/library/rust:1.89-slim-bookworm AS deps
+FROM public.ecr.aws/docker/library/rust:1.96-slim-bookworm AS deps
 WORKDIR /build
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
