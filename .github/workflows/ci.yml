@@ -536,7 +536,7 @@ jobs:
           # override gating logic (the single source of truth behind every tier).
           # Self-contained (no live stack); the live data-plane enforcement of the
           # same masks is covered by the cloud-gates (m101 quota, m120 spend).
-          - { offer: tier-gating,      run: "docker run --rm -v $PWD/go/control-plane:/src -w /src golang:1.25-bookworm go test ./internal/packages/" }
+          - { offer: tier-gating,      run: "docker run --rm -v $PWD/src/control-plane:/src -w /src golang:1.25-bookworm go test ./internal/packages/" }
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
