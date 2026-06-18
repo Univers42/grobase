@@ -1,8 +1,8 @@
 # data-engines plane — postgres, db-bootstrap, redis, mongo, mongo-keyfile, mongo-init
 services:
   postgres:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-postgres:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-postgres:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/postgres
       dockerfile: Dockerfile
@@ -29,7 +29,11 @@ services:
         aliases:
           - db
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -44,8 +48,8 @@ services:
 
   # ─── Database Bootstrap ──────────────────────────────────────────
   db-bootstrap:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-db-bootstrap:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-db-bootstrap:latest # pull-fallback (built from ./build context below)
     # Self-built: an init container that only runs psql/pg_isready then exits, so it
     # needs a postgres CLIENT (~13 MB) not the 438 MB pgvector engine image. The
     # `vector` extension lives in the postgres SERVER image (docker/services/postgres).
@@ -77,15 +81,18 @@ services:
 
   # ─── Document Database ───────────────────────────────────────────
   redis:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-redis:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-redis:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/redis
       dockerfile: Dockerfile
     container_name: mini-baas-redis
     env_file: [.env]
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      # Loopback-only publish: protected-mode is off (so docker-network peers —
+      # conformance, ratelimit, outbox-relay — can connect), so do NOT expose an
+      # unauthenticated redis to the LAN. Host tools still reach it on 127.0.0.1.
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     # Rewrite is back ON (100%/64mb floor): it was disabled after OOM loops at
     # 128m, but with maxmemory capping the working set the rewrite is safe —
     # and DISABLED rewrite means unbounded AOF growth on disk (a bench day
@@ -93,7 +100,12 @@ services:
     # volatile-lru, NOT allkeys: the outbox.* streams are relay durability
     # state — better that writes fail loudly at the cap than events silently
     # evaporate; cache users set TTLs and stay evictable.
-    command: redis-server --appendonly yes --auto-aof-rewrite-percentage 100 --auto-aof-rewrite-min-size 64mb --maxmemory 384mb --maxmemory-policy volatile-lru
+    # protected-mode no: default redis (no bind/no password) refuses every
+    # non-loopback peer, which broke cross-container connects (conformance +
+    # any network consumer died with "driver unexpectedly terminated - IoError").
+    # Safe here because the publish above is loopback-only + the network is
+    # internal. ponytail: --requirepass for the prod overlay — see prod compose.
+    command: redis-server --protected-mode no --appendonly yes --auto-aof-rewrite-percentage 100 --auto-aof-rewrite-min-size 64mb --maxmemory 384mb --maxmemory-policy volatile-lru
     volumes:
       - redis-data:/data
     healthcheck:
@@ -113,15 +125,22 @@ services:
 
   # ─── Query Router (adapter plane — normalized data API) ───────────
   mongo:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-mongo:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-mongo:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/mongo
       dockerfile: Dockerfile
     container_name: mini-baas-mongo
     profiles: [data-plane]
     env_file: [.env]
-    command: ["--replSet", "rs0", "--bind_ip_all", "--keyFile", "/etc/mongo/rs-keyfile"]
+    command:
+      [
+        "--replSet",
+        "rs0",
+        "--bind_ip_all",
+        "--keyFile",
+        "/etc/mongo/rs-keyfile",
+      ]
     depends_on:
       mongo-keyfile:
         condition: service_completed_successfully
@@ -134,7 +153,11 @@ services:
       - mongo-data:/data/db
       - mongo-keyfile:/etc/mongo
     healthcheck:
-      test: ["CMD-SHELL", "mongosh --quiet --eval \"try { rs.status().myState === 1 ? quit(0) : quit(1) } catch(e) { db.runCommand({ ping: 1 }).ok ? quit(0) : quit(1) }\""]
+      test:
+        [
+          "CMD-SHELL",
+          'mongosh --quiet --eval "try { rs.status().myState === 1 ? quit(0) : quit(1) } catch(e) { db.runCommand({ ping: 1 }).ok ? quit(0) : quit(1) }"',
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -145,8 +168,8 @@ services:
   # ─── MongoDB keyfile generator (runs once, exits) ────────────────
   # Generates a shared keyfile for replica set internal auth.
   mongo-keyfile:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-mongo-keyfile:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-mongo-keyfile:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/mongo-keyfile
       dockerfile: Dockerfile
@@ -171,8 +194,8 @@ services:
   # Required for Change Streams (used by realtime CDC producer).
   # Runs once and exits with code 0.
   mongo-init:
-    extends: {file: orchestrators/compose/base/_common.yml, service: base}
-    image: ghcr.io/univers42/grobase-mongo-init:latest   # pull-fallback (built from ./build context below)
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-mongo-init:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/mongo-init
       dockerfile: Dockerfile
