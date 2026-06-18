@@ -283,7 +283,12 @@ jobs:
       - name: Generate CI environment
         run: |
           set -euo pipefail
-          FORCE=1 bash scripts/env/generate-env.sh .env
+          # Assemble the FULL .env (config.env + minted .env.secrets + .env.local).
+          # generate-env.sh alone writes only the secrets layer, leaving every
+          # config.env value empty (kong CORS substitutions, service hosts,
+          # UV_THREADPOOL_SIZE…) — kong's declarative config is then invalid and it
+          # never goes healthy, failing the whole stack start.
+          bash scripts/env/assemble-env.sh
           # CI has no SMTP sink (mailpit is not a service in this compose), so GoTrue
           # 500s trying to send a signup confirmation email. Auto-confirm signups so
           # the phase tests can sign up and immediately log in. This is exactly what
