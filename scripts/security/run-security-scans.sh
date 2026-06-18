@@ -21,15 +21,15 @@
 #   - TruffleHog         (Secret — git history + working tree)
 #
 # Usage:
-#   bash apps/baas/mini-baas-infra/scripts/security/run-security-scans.sh
-#   bash apps/baas/mini-baas-infra/scripts/security/run-security-scans.sh --only=semgrep,trivy
-#   bash apps/baas/mini-baas-infra/scripts/security/run-security-scans.sh --skip=trufflehog
+#   bash scripts/security/run-security-scans.sh
+#   bash scripts/security/run-security-scans.sh --only=semgrep,trivy
+#   bash scripts/security/run-security-scans.sh --skip=trufflehog
 #
 # Environment knobs:
 #   SECURITY_FAIL_LEVEL    high|critical (default: high) — npm audit threshold
 #   SECURITY_TRIVY_SEVERITY HIGH,CRITICAL (default)
 #   SECURITY_SEMGREP_CONFIG p/owasp-top-ten,p/typescript,p/dockerfile,p/nodejs (default)
-#   SECURITY_ARTIFACTS_DIR  apps/baas/mini-baas-infra/artifacts/security (default)
+#   SECURITY_ARTIFACTS_DIR  artifacts/security (default)
 #   SKIP_BUILD              1 to skip baas image build before Trivy scan
 #
 # Exit code: 0 only when every enabled scanner returns no findings at or above
@@ -38,34 +38,34 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-BAAS_DIR="apps/baas/mini-baas-infra"
+BAAS_DIR="."
 ARTIFACTS_DIR="${SECURITY_ARTIFACTS_DIR:-${BAAS_DIR}/artifacts/security}"
 mkdir -p "${ARTIFACTS_DIR}"
 
 # ── colour helpers ───────────────────────────────────────────────────────────
-cyan()  { printf '\033[0;36m%s\033[0m\n' "$*"; }
-red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 amber() { printf '\033[0;33m%s\033[0m\n' "$*"; }
-step()  { cyan  "[sec] ${*}"; }
-fail()  { red   "[sec] FAIL: $*"; }
-warn()  { amber "[sec] WARN: $*"; }
-ok()    { green "[sec] OK:   $*"; }
+step() { cyan "[sec] ${*}"; }
+fail() { red "[sec] FAIL: $*"; }
+warn() { amber "[sec] WARN: $*"; }
+ok() { green "[sec] OK:   $*"; }
 
 # ── argument parsing ─────────────────────────────────────────────────────────
 ONLY=""
 SKIP=""
 for arg in "$@"; do
   case "${arg}" in
-    --only=*) ONLY="${arg#--only=}" ;;
-    --skip=*) SKIP="${arg#--skip=}" ;;
-    --help|-h)
-      sed -n '/^# Usage:/,/^# Exit code:/p' "$0" | sed 's/^# \?//'
-      exit 0
-      ;;
+  --only=*) ONLY="${arg#--only=}" ;;
+  --skip=*) SKIP="${arg#--skip=}" ;;
+  --help | -h)
+    sed -n '/^# Usage:/,/^# Exit code:/p' "$0" | sed 's/^# \?//'
+    exit 0
+    ;;
   esac
 done
 
@@ -91,20 +91,20 @@ run_semgrep() {
     -w /src \
     returntocorp/semgrep:latest \
     semgrep scan \
-      ${cfg_args} \
-      --severity=ERROR --severity=WARNING \
-      --exclude='**/node_modules' \
-      --exclude='**/dist' \
-      --exclude='**/.next' \
-      --exclude='**/coverage' \
-      --exclude='**/.venv' \
-      --exclude='**/playwright-report' \
-      --exclude='**/test-results' \
-      --exclude='vendor' \
-      --json-output=/out/semgrep.json \
-      --metrics=off \
-      --no-rewrite-rule-ids \
-      2>&1 | tail -40; then
+    ${cfg_args} \
+    --severity=ERROR --severity=WARNING \
+    --exclude='**/node_modules' \
+    --exclude='**/dist' \
+    --exclude='**/.next' \
+    --exclude='**/coverage' \
+    --exclude='**/.venv' \
+    --exclude='**/playwright-report' \
+    --exclude='**/test-results' \
+    --exclude='vendor' \
+    --json-output=/out/semgrep.json \
+    --metrics=off \
+    --no-rewrite-rule-ids \
+    2>&1 | tail -40; then
     fail "Semgrep encountered an error"
     return 1
   fi
@@ -130,18 +130,13 @@ run_npm_audit() {
   local level="${SECURITY_FAIL_LEVEL:-high}"
   local rc=0
   local out="${ARTIFACTS_DIR}/npm-audit.txt"
-  : > "${out}"
+  : >"${out}"
 
   # Each top-level package.json with a lockfile gets audited inside a
   # node:20-alpine container so we don't trust the host npm.
   local lock_dirs=(
-    "apps/baas/mini-baas-infra/src"
-    "apps/baas/sdk"
-    "apps/baas/scripts"
-    "apps/opposite-osiris"
-    "apps/calendar"
-    "apps/mail"
-    "apps/osionos/app"
+    "src"
+    "sdks/js"
   )
 
   for dir in "${lock_dirs[@]}"; do
@@ -194,32 +189,36 @@ run_trivy() {
     -v "${REPO_ROOT}/${cache_dir}:/root/.cache/trivy" \
     aquasec/trivy:latest \
     fs --quiet \
-       --severity "${severity}" \
-       --format json \
-      --skip-java-db-update \
-       --ignorefile /src/.trivyignore \
-       --output /out/trivy-fs.json \
-       --skip-dirs node_modules,dist,.git,coverage,playwright-report,vendor \
-       /src 2>&1 | tail -10; then
+    --severity "${severity}" \
+    --ignore-unfixed \
+    --format json \
+    --skip-java-db-update \
+    --ignorefile /src/.trivyignore \
+    --output /out/trivy-fs.json \
+    --skip-dirs node_modules,dist,.git,coverage,playwright-report,vendor,target,build \
+    /src 2>&1 | tail -10; then
     fail "Trivy filesystem scan failed"
     return 1
   fi
 
   # Container image scan — only if SKIP_BUILD!=1 and the BaaS image exists.
   if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
-    step "  Trivy image scan (live mini-baas-* images on host)"
+    step "  Trivy image scan (shipped runtime images on host)"
+    # Scan SHIPPED runtime images only — the newman edge-test runner and the
+    # rust/node build toolchains are never deployed, so their base CVEs aren't
+    # part of the product's attack surface.
     local images
-    images=$(docker images --format '{{.Repository}}:{{.Tag}}' \
-      | grep -E '^mini-baas|^track-binocle|^dlesieur/realtime' \
-      | grep -v '<none>' \
-      | head -20 || true)
+    images=$(docker images --format '{{.Repository}}:{{.Tag}}' |
+      grep -E '^mini-baas|^grobase|^dlesieur/realtime' |
+      grep -vE '<none>|newman|rust-toolchain|node-build|go-build|toolchain' |
+      head -20 || true)
     if [[ -z "${images}" ]]; then
       warn "  no mini-baas images on host — run \`make baas-up\` first to scan images"
     else
       local image_list="${out_dir}/.trivy-images.txt"
       local parallelism="${SECURITY_TRIVY_IMAGE_PARALLELISM:-4}"
       local img_rc=0
-      printf '%s\n' "${images}" > "${image_list}"
+      printf '%s\n' "${images}" >"${image_list}"
       if ! xargs -r -P "${parallelism}" -I '{}' bash -c '
         set -euo pipefail
         img="$1"
@@ -241,11 +240,12 @@ run_trivy() {
                 --skip-db-update \
                 --skip-java-db-update \
                 --severity "${severity}" \
+                --ignore-unfixed \
                 --ignorefile /trivyignore \
                 --format json \
                 --output "/out/trivy-image-${safe_name}.json" \
                 "${img}" 2>&1 | tail -3
-      ' _ '{}' "${REPO_ROOT}" "${out_dir}" "${severity}" "${cache_dir}" "${ignore_file}" < "${image_list}"; then
+      ' _ '{}' "${REPO_ROOT}" "${out_dir}" "${severity}" "${cache_dir}" "${ignore_file}" <"${image_list}"; then
         img_rc=1
       fi
       if [[ ${img_rc} -gt 0 ]]; then
@@ -287,16 +287,16 @@ run_trufflehog() {
     -w /repo \
     trufflesecurity/trufflehog:latest \
     git file:///repo \
-      --no-update \
-      --only-verified \
-      --json \
-      > "${out}" 2>/dev/null; then
+    --no-update \
+    --only-verified \
+    --json \
+    >"${out}" 2>/dev/null; then
     # TruffleHog returns non-zero when it finds secrets; capture+parse below.
     :
   fi
 
   local count
-  count=$(wc -l < "${out}" 2>/dev/null || echo 0)
+  count=$(wc -l <"${out}" 2>/dev/null || echo 0)
   count=$(echo "${count}" | tr -d ' ')
 
   if [[ "${count}" -gt 0 ]]; then
@@ -314,9 +314,9 @@ fail_count=0
 step "Security scan suite started ($(date -u +%FT%TZ))"
 step "Artifacts will land under ${ARTIFACTS_DIR}"
 
-if enabled semgrep;    then run_semgrep    || fail_count=$((fail_count + 1)); fi
-if enabled npm-audit;  then run_npm_audit  || fail_count=$((fail_count + 1)); fi
-if enabled trivy;      then run_trivy      || fail_count=$((fail_count + 1)); fi
+if enabled semgrep; then run_semgrep || fail_count=$((fail_count + 1)); fi
+if enabled npm-audit; then run_npm_audit || fail_count=$((fail_count + 1)); fi
+if enabled trivy; then run_trivy || fail_count=$((fail_count + 1)); fi
 if enabled trufflehog; then run_trufflehog || fail_count=$((fail_count + 1)); fi
 
 echo

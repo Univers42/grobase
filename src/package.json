@@ -53,9 +53,9 @@
     "@nestjs/platform-express": "^11.1.24",
     "@nestjs/swagger": "^11.4.4",
     "@nestjs/terminus": "^11.1.1",
-    "@opentelemetry/auto-instrumentations-node": "^0.76.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
-    "@opentelemetry/sdk-node": "^0.218.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.77.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.219.0",
+    "@opentelemetry/sdk-node": "^0.219.0",
     "@willsoto/nestjs-prometheus": "^6.0.1",
     "axios": "^1.7.9",
     "class-transformer": "^0.5.1",
@@ -98,6 +98,9 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3"
+  },
+  "overrides": {
+    "multer": "^2.2.0"
   },
   "jest": {
     "moduleFileExtensions": [

@@ -36,3 +36,9 @@ CVE-2026-5773
 CVE-2026-6276
 CVE-2026-7598
 CVE-2026-6732
+
+# data-plane-router (Cargo.lock): rustls-webpki 0.101 is transitive via tiberius
+# (the mssql rustls-0.21 TLS chain) — no tiberius release bumps it yet, and it is
+# only reachable for external-TLS mssql mounts. Same advisory accepted in
+# scripts/security/audit-deps.sh (cargo-audit RUST_IGNORE). Remediation: bump tiberius.
+GHSA-82j2-j2ch-gfr8

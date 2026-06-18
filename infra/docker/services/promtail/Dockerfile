@@ -41,4 +41,5 @@ COPY --from=build /out-promtail /usr/bin/promtail
 RUN /usr/bin/promtail --version
 
 # Runs as root by design (see header) to read root-owned host container logs.
+# nosemgrep: dockerfile.security.missing-user-entrypoint.missing-user-entrypoint -- root required to read root-owned logs
 ENTRYPOINT ["/usr/bin/promtail"]

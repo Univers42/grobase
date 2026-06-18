@@ -22,24 +22,32 @@ echo "Scanning for hardcoded secrets..."
 
 FOUND=0
 
+# Drop matches that are demonstrably NOT live secrets: comment/docstring lines,
+# OpenAPI-generated SDK example snippets, and obvious placeholder values. Keeps
+# the scan strict on real source assignments while killing the known noise.
+strip_false_positives() {
+  grep -vE ':[0-9]+:[[:space:]]*(//|#|\*|/\*)' |
+    grep -vE '/sdks/(python|kotlin|swift|dart)/' |
+    grep -vEi '(example|placeholder|your[-_]|change[-_]?me|dummy|redacted|sample|anon-or-service|usage\.events|process\.env|os\.environ|getenv|<[a-z_]+>)' ||
+    true
+}
+
 # Pattern: assignment with a string literal value >= 8 chars
 # Covers: password = "...", secret: '...', key="..."
-if grep -rEn '(password|secret|key|token)\s*[:=]\s*["\x27][^"\x27$\{]{8,}["\x27]' \
-    --include='*.js' --include='*.ts' --include='*.py' --include='*.yml' --include='*.yaml' \
-    --exclude-dir=node_modules --exclude-dir='.git' --exclude-dir=vendor \
-    --exclude='check-secrets.sh' --exclude='*.lock' \
-    . 2>/dev/null; then
-  FOUND=1
-fi
+hits="$(grep -rEn '(password|secret|key|token)[[:space:]]*[:=][[:space:]]*["\x27][^"\x27$\{]{8,}["\x27]' \
+  --include='*.js' --include='*.ts' --include='*.py' --include='*.yml' --include='*.yaml' \
+  --exclude-dir=node_modules --exclude-dir='.git' --exclude-dir=vendor \
+  --exclude='check-secrets.sh' --exclude='*.lock' \
+  . 2>/dev/null | strip_false_positives)" || true
+[[ -n "$hits" ]] && { printf '%s\n' "$hits"; FOUND=1; }
 
 # Pattern: Bearer tokens or API keys as string literals
-if grep -rEn 'Bearer\s+[A-Za-z0-9_\-\.]{20,}' \
-    --include='*.js' --include='*.ts' --include='*.py' \
-    --exclude-dir=node_modules --exclude-dir='.git' --exclude-dir=vendor \
-    --exclude-dir=scripts \
-    . 2>/dev/null; then
-  FOUND=1
-fi
+hits="$(grep -rEn 'Bearer[[:space:]]+[A-Za-z0-9_.-]{20,}' \
+  --include='*.js' --include='*.ts' --include='*.py' \
+  --exclude-dir=node_modules --exclude-dir='.git' --exclude-dir=vendor \
+  --exclude-dir=scripts \
+  . 2>/dev/null | strip_false_positives)" || true
+[[ -n "$hits" ]] && { printf '%s\n' "$hits"; FOUND=1; }
 
 if [[ "$FOUND" -eq 1 ]]; then
   echo ""

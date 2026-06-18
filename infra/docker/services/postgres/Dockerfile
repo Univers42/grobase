@@ -30,9 +30,10 @@ RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
     ca-certificates \
     curl-dev \
   && tar -xzf /tmp/pg_net.tar.gz -C /tmp \
-  && mv "/tmp/pg_net-${PG_NET_VERSION}" /tmp/pg_net \
-  && cd /tmp/pg_net \
-  && sed -i \
+  && mv "/tmp/pg_net-${PG_NET_VERSION}" /tmp/pg_net
+WORKDIR /tmp/pg_net
+RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
+    sed -i \
     -e 's/CURLOPT_POST, 1)/CURLOPT_POST, 1L)/' \
     -e 's/CURLOPT_POSTFIELDSIZE, 0)/CURLOPT_POSTFIELDSIZE, 0L)/' \
     -e 's/CURLOPT_TIMEOUT_MS, cdata->timeout_milliseconds)/CURLOPT_TIMEOUT_MS, (long)cdata->timeout_milliseconds)/' \
@@ -51,9 +52,10 @@ ARG PGVECTOR_VERSION=0.8.0
 ADD https://github.com/pgvector/pgvector/archive/refs/tags/v${PGVECTOR_VERSION}.tar.gz /tmp/pgvector.tar.gz
 RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
     apk add --no-cache --virtual .pgvector-build-deps build-base \
-  && tar -xzf /tmp/pgvector.tar.gz -C /tmp \
-  && cd "/tmp/pgvector-${PGVECTOR_VERSION}" \
-  && make with_llvm=no \
+  && tar -xzf /tmp/pgvector.tar.gz -C /tmp
+WORKDIR /tmp/pgvector-${PGVECTOR_VERSION}
+RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
+    make with_llvm=no \
   && make install with_llvm=no \
   && apk del .pgvector-build-deps \
   && rm -rf /tmp/pgvector* /var/cache/apk/*
@@ -106,6 +108,9 @@ EXPOSE 5432
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
   CMD pg_isready -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" -h 127.0.0.1 || exit 1
 
+# nosemgrep: dockerfile.security.missing-user.missing-user -- the official postgres
+# entrypoint starts as root to initialize/chown PGDATA, then drops to the unprivileged
+# `postgres` user via gosu; an explicit USER would break initdb.
 FROM scratch
 
 COPY --from=postgres_runtime / /
@@ -122,7 +127,9 @@ ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
 EXPOSE 5432
 VOLUME ["/var/lib/postgresql/data"]
 
+# nosemgrep: dockerfile.security.missing-user-entrypoint.missing-user-entrypoint -- gosu privilege-drop, see FROM
 ENTRYPOINT ["docker-entrypoint.sh"]
+# nosemgrep: dockerfile.security.missing-user.missing-user -- gosu privilege-drop, see FROM
 CMD ["postgres"]
 
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \

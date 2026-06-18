@@ -23,21 +23,36 @@
 # tiberius when a rustls-0.2x release lands (tracked in wiki/security-audit.md).
 # Ignoring keeps the gate meaningful (a *new* vuln still fails) without a noisy
 # permanent red.
+#
+# Three more transitive WARNINGS (unmaintained/unsound, not active CVEs) are
+# accepted on the same basis — none is in the default-feature tree or reachable
+# on a code path we drive, and none has a fix we control:
+#   RUSTSEC-2025-0134  rustls-pemfile 2.2.0 unmaintained — deprecated upstream
+#       (folded into rustls-pki-types); only on the feature-gated external-TLS
+#       chain. Remediation = drops out when the TLS stack bumps.
+#   RUSTSEC-2026-0002  lru 0.12.5 unsound IterMut — pulled SOLELY by mysql_async
+#       0.34 for its internal stmt cache; we never call IterMut. Remediation =
+#       bump when mysql_async releases against a patched lru.
+#   RUSTSEC-2026-0097  rand 0.7.3 unsound — feature-gated transitive; the unsound
+#       path needs a custom logger calling rand::rng(), which we don't do.
+#       Remediation = parent crate bump to rand 0.8.
 set -uo pipefail
 
-cyan(){ printf '\033[0;36m%s\033[0m\n' "$*"; }
-red(){ printf '\033[0;31m%s\033[0m\n' "$*"; }
-green(){ printf '\033[0;32m%s\033[0m\n' "$*"; }
+cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
+red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
+green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-RUST_WS="${ROOT}/docker/services/data-plane-router"
-GO_DIR="${ROOT}/go/control-plane"
+RUST_WS="${ROOT}/src/data-plane-router"
+GO_DIR="${ROOT}/src/control-plane"
 RUST_IMG="mini-baas-rust-toolchain"
 GO_IMG="golang:1.25-bookworm"
 
 # rustls-webpki x3 (cert name-constraint / CRL) — transitive via tiberius only.
 RUST_IGNORE="--ignore RUSTSEC-2026-0098 --ignore RUSTSEC-2026-0099 --ignore RUSTSEC-2026-0104"
+# rustls-pemfile unmaintained · lru unsound (mysql_async) · rand 0.7 unsound — see header.
+RUST_IGNORE="${RUST_IGNORE} --ignore RUSTSEC-2025-0134 --ignore RUSTSEC-2026-0002 --ignore RUSTSEC-2026-0097"
 
 rc=0
 
@@ -47,15 +62,21 @@ docker run --rm -v "${RUST_WS}":/work -w /work \
   -v mini-baas-cargo-bin:/usr/local/cargo/bin "${RUST_IMG}" sh -c "
     command -v cargo-audit >/dev/null 2>&1 || cargo install cargo-audit --locked -q
     cargo audit ${RUST_IGNORE}
-  " || { red "[deps] cargo audit found a NEW vulnerability"; rc=1; }
+  " || {
+  red "[deps] cargo audit found a NEW vulnerability"
+  rc=1
+}
 
 cyan "[deps] Go — govulncheck (control-plane, reachability-based)"
 docker run --rm -v "${GO_DIR}":/work -w /work \
   -v mini-baas-go-build-cache:/go/pkg/mod -e GOFLAGS=-mod=mod "${GO_IMG}" sh -c '
     go install golang.org/x/vuln/cmd/govulncheck@latest >/dev/null 2>&1
     /go/bin/govulncheck ./...
-  ' || { red "[deps] govulncheck found a vulnerability"; rc=1; }
+  ' || {
+  red "[deps] govulncheck found a vulnerability"
+  rc=1
+}
 
-[[ "${rc}" == "0" ]] && green "[deps] OK — no new vulnerabilities (Go clean; Rust transitive advisories tracked)" \
-  || red "[deps] FAIL — see above"
+[[ "${rc}" == "0" ]] && green "[deps] OK — no new vulnerabilities (Go clean; Rust transitive advisories tracked)" ||
+  red "[deps] FAIL — see above"
 exit "${rc}"

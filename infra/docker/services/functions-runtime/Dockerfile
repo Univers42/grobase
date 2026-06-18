@@ -30,6 +30,10 @@
 #         Worker; gated on the warm-pool refactor.
 FROM denoland/deno:alpine-2.1.4
 
+# Patch base OS packages (openssl/musl/zlib) to the latest alpine fixes — clears
+# scanner HIGH/CRITICAL CVEs the pinned deno:alpine base ships with.
+RUN apk --no-cache upgrade
+
 ENV FUNCTIONS_HOST=0.0.0.0 \
     FUNCTIONS_PORT=3060 \
     FUNCTIONS_DATA_DIR=/data \
@@ -47,6 +51,10 @@ EXPOSE 3060
 HEALTHCHECK --interval=10s --timeout=3s --start-period=8s --retries=5 \
   CMD wget -qO- http://127.0.0.1:${FUNCTIONS_PORT}/health/live || exit 1
 
+# Deno's permission sandbox (--allow-net/read/write=/data/env, NO --allow-run) constrains
+# the function runtime regardless of container UID; container non-root tracked for the
+# cgroup-isolation refactor (see header).
+# nosemgrep: dockerfile.security.missing-user-entrypoint.missing-user-entrypoint
 ENTRYPOINT ["deno", "run", \
             "--allow-net", "--allow-read", "--allow-write=/data", \
             "--allow-env", "--unstable-worker-options", \

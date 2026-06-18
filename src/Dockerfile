@@ -32,6 +32,10 @@ ARG APP
 ENV NODE_ENV=production \
   APP_NAME=${APP}
 
+# Patch base OS packages (openssl/musl/zlib) to the latest alpine fixes — clears
+# scanner HIGH/CRITICAL CVEs the node:alpine base ships with between base bumps.
+RUN apk --no-cache upgrade
+
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 

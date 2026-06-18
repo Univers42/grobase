@@ -17,6 +17,9 @@
 #   docker run pg-backup restore X             -> download artifact X to /restore
 #   docker run pg-backup archive-wal %p %f     -> ship one WAL segment (PITR, PG_BACKUP_PITR=1)
 #   docker run pg-backup pitr-restore B T      -> base+WAL replay to time T (PITR, PG_BACKUP_PITR=1)
+# nosemgrep: dockerfile.security.missing-user.missing-user -- internal-only backup sidecar
+# (not network-facing) needing root for pg_basebackup/PITR fs paths + the backup volume;
+# hardening to a dedicated user tracked in wiki/security-audit.md.
 FROM debian:bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -53,5 +56,7 @@ ENV PG_BACKUP_SCHEDULE="0 3 * * *" \
 HEALTHCHECK --interval=60s --timeout=10s --start-period=15s --retries=3 \
   CMD ["/opt/pg-backup/entrypoint.sh", "liveness"]
 
+# nosemgrep: dockerfile.security.missing-user-entrypoint.missing-user-entrypoint -- backup sidecar, see FROM
 ENTRYPOINT ["/usr/bin/tini", "--", "/opt/pg-backup/entrypoint.sh"]
+# nosemgrep: dockerfile.security.missing-user.missing-user -- backup sidecar, see FROM
 CMD ["loop"]
