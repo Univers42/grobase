@@ -53,6 +53,13 @@ export interface RustProxyContext {
   projectId?: string;
   appId?: string;
   userId: string;
+  /** Verified caller roles (e.g. `admin`) — forwarded so the data plane's F2
+   *  owner-scope bypass (DATA_PLANE_ADMIN_BYPASS) can see an admin caller.
+   *  Absent/empty → no bypass (parity). */
+  roles?: string[];
+  /** Verified caller scopes (e.g. `apikey:admin`) — same F2 admin-bypass input
+   *  as roles, for api-key callers. */
+  scopes?: string[];
   credentialReference: string;
   credentialVersion: string;
   /** Resolved DSN from adapter-registry; passed inline so the Rust router
@@ -401,6 +408,8 @@ export class RustDataPlaneProxy {
       project_id: context.projectId ?? null,
       app_id: context.appId ?? null,
       user_id: context.userId,
+      roles: context.roles ?? [],
+      scopes: context.scopes ?? [],
       // Must match data_plane_core::IdentitySource (snake_case): the TS proxy
       // talks to Rust via the internal HMAC envelope path.
       source: 'signed_envelope',

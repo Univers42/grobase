@@ -13,6 +13,12 @@ services:
       DATA_PLANE_ROUTER_HOST: 0.0.0.0
       DATA_PLANE_ROUTER_PORT: 4011
       DATA_PLANE_ROUTER_PRODUCT_MODE: ${DATA_PLANE_ROUTER_PRODUCT_MODE:-enabled}
+      # F1 per-table isolation + F2 admin owner-scope bypass (MySQL/MariaDB).
+      # OFF by default → every table owner-scoped, admin owner-scoped like any
+      # caller (byte-parity). A mount's shared_resources list + an admin JWT only
+      # take effect when these are truthy.
+      DATA_PLANE_PER_TABLE_ISOLATION: ${DATA_PLANE_PER_TABLE_ISOLATION:-0}
+      DATA_PLANE_ADMIN_BYPASS: ${DATA_PLANE_ADMIN_BYPASS:-0}
       DATA_PLANE_ADAPTER_REGISTRY_URL: ${DATA_PLANE_ADAPTER_REGISTRY_URL:-http://adapter-registry-go:3021}
       DATA_PLANE_PERMISSION_BUNDLE_URL: http://permission-engine:3050/permissions/bundles/latest
       DATA_PLANE_PERMISSION_MODE: ${DATA_PLANE_PERMISSION_MODE:-abac}
