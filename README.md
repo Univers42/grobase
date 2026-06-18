@@ -132,3 +132,16 @@ make conformance / parity     # engine conformance + shadow-parity
 
 > Ethos: a competitive claim without a measured artifact + a reproducing `make` target is not in
 > the plan. Tiers are defined once in `mini-baas-infra/config/packages/packages.json` and must match measured reality.
+
+## License
+
+Grobase is **open-core** — see [`LICENSING.md`](LICENSING.md) for the full map.
+
+- **Core** (server / control / data planes) — **GNU AGPLv3** ([`LICENSE`](LICENSE)). Real open
+  source; running a *modified* hosted version obliges you to publish your source.
+- **SDKs** (`sdks/*`) — **MIT**. Build any client, open or closed.
+- **Enterprise features** (SSO, SCIM, audit, CMEK, …) — **commercial**
+  ([`LICENSE-ENTERPRISE.md`](LICENSE-ENTERPRISE.md)); paid license for production use.
+
+We retain copyright via the [`CLA.md`](CLA.md), which is what lets us dual-license: a commercial
+license can waive the AGPL copyleft for customers who need that.

@@ -3,7 +3,7 @@
 > **Audit-ready cross-walk.** This maps the relevant GDPR articles to the Grobase technical measure
 > (a backticked gate) or organizational/legal measure that addresses them, and to **who owns it** —
 > the **controller** (the customer) or the **processor** (Grobase). It is the GDPR projection of
-> [`../compliance-posture.md`](../compliance-posture.md) and `config/trust/posture.json`; it does not
+> [`../compliance-posture.md`](./compliance-posture.md) and `config/trust/posture.json`; it does not
 > assert compliance for any specific deployment — GDPR compliance is a property of *how a controller
 > uses* Grobase, not of the software alone.
 
@@ -13,7 +13,7 @@
 > customer decides the purposes and means of processing personal data of *their* end-users; Grobase
 > processes that data **on the controller's documented instructions** (Art. 28). Grobase is a
 > **controller only** for its own account/billing/auth data (its direct customers — see the
-> controller view in [`gdpr-ropa.md`](gdpr-ropa.md)).
+> controller view in [`gdpr-ropa.md`](./gdpr-ropa.md)).
 >
 > This split decides ownership of every right below: data-subject *requests* (Art. 12–22) are
 > **fulfilled by the controller**, using Grobase's technical tools (export `m109`, erase `m105`).
@@ -60,11 +60,11 @@
 |---|---|---|---|---|
 | **Art. 25** | **Data protection by design & by default** | Owner-scoped predicates re-stamped per request on every engine (isolation by construction) + fine-grained ABAC PDP (conditions/column-mask/per-instance) | Processor (by design) — gate `m46`, gate `m136` | proven |
 | **Art. 28** | **Processor obligations / DPA** | Data Processing Addendum with SCC references + subprocessor transparency; process-only-on-instruction; assist-with-rights; sub-processor flow-down | Processor — [`../legal/data-processing-addendum.md`](../legal/data-processing-addendum.md), [`../legal/subprocessors.md`](../legal/subprocessors.md) (TEMPLATES, counsel review required) | org/legal |
-| **Art. 30** | **Records of processing activities** | Tamper-evident, hash-chained audit log as the technical processing record + the maintained RoPA | Processor & Controller — gate `m104` (migration `047_tenant_audit_log.sql`), [`gdpr-ropa.md`](gdpr-ropa.md) | proven |
+| **Art. 30** | **Records of processing activities** | Tamper-evident, hash-chained audit log as the technical processing record + the maintained RoPA | Processor & Controller — gate `m104` (migration `047_tenant_audit_log.sql`), [`gdpr-ropa.md`](./gdpr-ropa.md) | proven |
 | **Art. 32** | **Security of processing** | Pseudonymisation/encryption (CMEK envelope, credentials AES-256-GCM, TLS in transit), CIA, restore (backup/PITR), and regular testing (the gate battery) | Processor — gate `m123`, gate `m104`, gate `m87`, gate `m99`, TLS in transit (`../security-audit-asvs.md`) | partial |
-| **Art. 33** | **Breach notification to supervisory authority** | Forensic evidence = tamper-evident audit chain; notification process in the incident runbook | Controller (notifies) / Processor (assists w/o undue delay) — [`security-policies/incident-response-policy.md`](security-policies/incident-response-policy.md), gate `m104` | partial |
-| **Art. 34** | **Breach communication to data subjects** | Controller communicates; Grobase supplies the forensic record & assistance | Controller — [`security-policies/incident-response-policy.md`](security-policies/incident-response-policy.md) | partial |
-| **Art. 35** | **Data protection impact assessment (DPIA)** | DPIA template the controller fills, cross-referencing isolation / `m123` / `m105` / `m104` | Controller (conducts) / Processor (provides template + assistance) — [`dpia-template.md`](dpia-template.md) | org/legal |
+| **Art. 33** | **Breach notification to supervisory authority** | Forensic evidence = tamper-evident audit chain; notification process in the incident runbook | Controller (notifies) / Processor (assists w/o undue delay) — [`security-policies/incident-response-policy.md`](./security-policies/incident-response-policy.md), gate `m104` | partial |
+| **Art. 34** | **Breach communication to data subjects** | Controller communicates; Grobase supplies the forensic record & assistance | Controller — [`security-policies/incident-response-policy.md`](./security-policies/incident-response-policy.md) | partial |
+| **Art. 35** | **Data protection impact assessment (DPIA)** | DPIA template the controller fills, cross-referencing isolation / `m123` / `m105` / `m104` | Controller (conducts) / Processor (provides template + assistance) — [`dpia-template.md`](./dpia-template.md) | org/legal |
 
 ---
 

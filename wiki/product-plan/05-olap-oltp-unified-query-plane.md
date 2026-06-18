@@ -9,7 +9,7 @@
 
 ## Target
 
-1. **One query plane.** `/query/v1` (and the SDK) is the only surface. The [planner](04-honest-capabilities-and-planner.md) decides per operation: serve from the **OLTP engine pool** (Rust) or the **OLAP federation** (Trino) — same [operation contract](02-operation-contract.md), same response shape.
+1. **One query plane.** `/query/v1` (and the SDK) is the only surface. The [planner](./04-honest-capabilities-and-planner.md) decides per operation: serve from the **OLTP engine pool** (Rust) or the **OLAP federation** (Trino) — same [operation contract](./02-operation-contract.md), same response shape.
 2. **OLAP/OLTP as a switchable context.** A first-class `workload_mode` ∈ `oltp | olap | auto`, set per **tenant / project / request**, that biases routing and (optionally) activates/deactivates the analytics plane for that tenant — changing the resource footprint deliberately.
 3. **Cost-driven routing.** Point reads / writes / small filtered lists → engine pool. Aggregations, heterogeneous joins, large scans, federated multi-source queries → Trino. Driven by `cost {latency_class, joins, pattern_search}` + the workload context.
 4. **Lakehouse tiering (optional, later).** OLTP tables projected into Iceberg for cheap analytical scans, so OLAP queries don't hammer the transactional store.
@@ -19,7 +19,7 @@
 ### 1. A Trino engine adapter (fold federation into the plane)
 
 Add a `TrinoEngineAdapter` implementing the **same `EngineAdapter` trait** as the others. It:
-- compiles the [02 operation](02-operation-contract.md) (filter tree, projection, aggregation, joins) to **Trino SQL**,
+- compiles the [02 operation](./02-operation-contract.md) (filter tree, projection, aggregation, joins) to **Trino SQL**,
 - runs it over the Trino REST API against the right **catalog** (`postgresql`/`mongodb`/`mysql`/`iceberg`), and
 - returns the normalised `DataResult`.
 
@@ -83,5 +83,5 @@ The orchestrator (control plane) ties `workload_mode` ⇄ active planes, so choo
 ## Risks
 
 - **Result-shape parity** between in-engine and Trino must be exact (types, nulls, ordering). The parity gate is mandatory before `auto` becomes default.
-- **Trino cold-start / resource cost** — activating OLAP per tenant must be deliberate and rate-limited (ties to [06 quotas](06-saas-multitenancy-quotas-billing.md)); never auto-spin Trino on a stray query.
+- **Trino cold-start / resource cost** — activating OLAP per tenant must be deliberate and rate-limited (ties to [06 quotas](./06-saas-multitenancy-quotas-billing.md)); never auto-spin Trino on a stray query.
 - **Security** — Trino runs cross-catalog; the adapter must apply the **same tenant scoping** (predicate injection / catalog restriction) as the native path. No federation bypass of isolation.

@@ -58,7 +58,7 @@ Cross-reference the Grobase technical controls that mitigate the risks above:
 - **Resilience** — per-tenant backup and point-in-time restore (`m87`/`m99`).
 - **Organizational** — DPA/SCCs ([`../legal/data-processing-addendum.md`](../legal/data-processing-addendum.md)),
   subprocessor transparency, incident-response process
-  ([`security-policies/incident-response-policy.md`](security-policies/incident-response-policy.md)).
+  ([`security-policies/incident-response-policy.md`](./security-policies/incident-response-policy.md)).
 
 ## 5. Residual risk & decision
 
@@ -91,5 +91,5 @@ A filled-in illustrative line, to show the intended shape (replace with your rea
 | Erasure path | End-user "delete my account" → controller calls hard-erase (`m105`); receipt logged in the audit chain (`m104`) |
 | Residual risk | Low — isolation gate-proven; controller accepts |
 
-See also: [`gdpr-article-matrix.md`](gdpr-article-matrix.md) (Art. 35 row),
-[`gdpr-ropa.md`](gdpr-ropa.md) (Art. 30 record).
+See also: [`gdpr-article-matrix.md`](./gdpr-article-matrix.md) (Art. 35 row),
+[`gdpr-ropa.md`](./gdpr-ropa.md) (Art. 30 record).

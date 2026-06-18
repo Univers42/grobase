@@ -3,18 +3,18 @@
 > **TEMPLATE — review by counsel before use; not legal advice.** This is the
 > contract-facing wrapper around the operational SLA. **It invents no numbers.**
 > Every uptime target, support window, and RTO/RPO figure here is **referenced
-> from** [`../status-sla.md`](../status-sla.md), where each value is tagged
+> from** [`../status-sla.md`](../operations/status-sla.md), where each value is tagged
 > `(TARGET)` until a Track-C gate proves it. Do not present any figure as a binding
 > commitment until the source doc marks it measured/enforceable.
 
-This SLA forms part of the [Terms of Service](terms-of-service.md) and applies to
+This SLA forms part of the [Terms of Service](./terms-of-service.md) and applies to
 paid tiers of the Grobase managed Service. The free / nano tier is best-effort with
 **no SLA**.
 
 ## 1. Where the numbers live (single source of truth)
 
 The authoritative, version-controlled SLA values are in
-[`wiki/status-sla.md`](../status-sla.md):
+[`wiki/status-sla.md`](../operations/status-sla.md):
 
 - **§2** — per-tier monthly uptime targets, support-response targets.
 - **§3** — RTO / RPO and their honest shipped/not-shipped status.
@@ -57,7 +57,7 @@ Uptime excludes scheduled maintenance (announced ≥ 72 h ahead) and force majeu
 
 ## 5. Cross-references
 
-- Customer-facing operational SLA + status page → [`../status-sla.md`](../status-sla.md)
-- Measured density/latency evidence → [`../scale-slo.md`](../scale-slo.md)
-- Operator incident response → [`../operations-runbook.md`](../operations-runbook.md)
-- Trust center (evidence-backed controls) → [`../trust-center.md`](../trust-center.md)
+- Customer-facing operational SLA + status page → [`../status-sla.md`](../operations/status-sla.md)
+- Measured density/latency evidence → [`../scale-slo.md`](../operations/scale-slo.md)
+- Operator incident response → [`../operations-runbook.md`](../operations/operations-runbook.md)
+- Trust center (evidence-backed controls) → [`../trust-center.md`](../security/trust-center.md)

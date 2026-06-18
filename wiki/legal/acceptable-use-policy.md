@@ -5,7 +5,7 @@
 > and enforcement to your jurisdiction and risk posture.
 
 This Acceptable Use Policy governs use of the Grobase managed Service and is part of
-the [Terms of Service](terms-of-service.md). It applies to you and anyone using the
+the [Terms of Service](./terms-of-service.md). It applies to you and anyone using the
 Service through your account.
 
 ## 1. Prohibited uses
@@ -27,7 +27,7 @@ You may not use the Service to:
 - Each plan has measured rps/burst limits and usage quotas. Exceeding a quota may
   return HTTP 402 (when quota enforcement is enabled) or be rate-limited.
 - The Service runs abuse-guard and per-tenant IP-allowlist controls (see the
-  [trust center](../trust-center.md), control `network-access-control`, gate m106).
+  [trust center](../security/trust-center.md), control `network-access-control`, gate m106).
 - Sustained abusive load that degrades the Service for others may be throttled or
   suspended.
 

@@ -1,6 +1,6 @@
 # 03 — Engine adapters: full CRUD + rich reads
 
-> Implement the [02 operation contract](02-operation-contract.md) in every adapter. **This is the product.** Until it lands, the platform is partial CRUD on 5 engines and the descriptors lie.
+> Implement the [02 operation contract](./02-operation-contract.md) in every adapter. **This is the product.** Until it lands, the platform is partial CRUD on 5 engines and the descriptors lie.
 
 ## Problem (measured, not assumed)
 
@@ -70,7 +70,7 @@ DataOperationKind::Upsert => run_upsert(client, op, identity).await,
 >    columns** ("error serializing parameter 0"). Pre-existing (affects insert
 >    too). This is the **type-handling** work — make binding column-type-aware
 >    (or send numbers via a coercible representation). Do it as part of the
->    operation-contract value handling ([02](02-operation-contract.md)).
+>    operation-contract value handling ([02](./02-operation-contract.md)).
 > 2. Validation errors (empty filter, no updatable columns) return
 >    `DataPlaneError::Backend` → **HTTP 502** where they should be **400/422**.
 >    Add an `InvalidRequest` error variant + map it; route all request-shape
@@ -102,7 +102,7 @@ DataOperationKind::Upsert => run_upsert(client, op, identity).await,
 >   status-mapping test. `cargo test` 54 (pool) / 10 (server) / 11 (core),
 >   `make verify-m18` PASS.
 >
-> **🐞 Still deferred (recorded in [02](02-operation-contract.md)):** `numeric`/
+> **🐞 Still deferred (recorded in [02](./02-operation-contract.md)):** `numeric`/
 > `decimal`, array, `time`/`interval`/`inet`/`bytea` columns are **honestly
 > rejected** (no corruption) but not yet bindable — needs the shared value-
 > coercion layer. A `string→int4`-style **value** mismatch is still a 502
@@ -137,7 +137,7 @@ Mongo/MySQL/Redis/HTTP already have U/D/upsert; audit them against the **02** co
 > - Live: `$gte`/`$in`/`$or`+`$like`/`$between`/`$not` all filter correctly; sort
 >   asc/desc correct; bad operator → 400. 17 filter/sort tests; `cargo test` 68 (pool).
 >
-> **🐞 Deferred (recorded below + in [02](02-operation-contract.md)):**
+> **🐞 Deferred (recorded below + in [02](./02-operation-contract.md)):**
 > 1. **Architect's #1 — hoist the filter to a typed `Filter` AST in
 >    `data-plane-core`** (doc 02 S1 "one tree, many backends"), so all adapters
 >    *lower* one validated tree instead of each re-parsing raw `Value`. Today the

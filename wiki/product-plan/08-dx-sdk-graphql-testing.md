@@ -4,13 +4,13 @@
 
 ## Problem
 
-- **SDK is incomplete.** `@mini-baas/js` covers auth/rest/query/storage/analytics/realtime, but **not** functions, webhooks, transactions, tenant self-bootstrap, admin/provision, or the rich-read/OLAP surface from [02](02-operation-contract.md)/[05](05-olap-oltp-unified-query-plane.md). "The SDK is the product API" is the stated goal but not yet true.
+- **SDK is incomplete.** `@mini-baas/js` covers auth/rest/query/storage/analytics/realtime, but **not** functions, webhooks, transactions, tenant self-bootstrap, admin/provision, or the rich-read/OLAP surface from [02](./02-operation-contract.md)/[05](./05-olap-oltp-unified-query-plane.md). "The SDK is the product API" is the stated goal but not yet true.
 - **No GraphQL.** Explicitly absent (`docs/projet-back.md §9.2`). A real differentiator vs Hasura/Supabase; natural fit for the relationship/aggregation contract (02).
 - **Thin e2e coverage.** The phase smoke scripts + `mNN` gates check *static code shape* and isolated flows, but no test exercised `engine × operation` **through the gateway** — which is exactly why "Postgres can't delete" and "query route 404s" went unnoticed. The monorepo `tsc` was even red on an orphan.
 
 ## Target
 
-1. **SDK covers the whole surface**, fluent and capability-typed, regenerated from honest capabilities ([04](04-honest-capabilities-and-planner.md)).
+1. **SDK covers the whole surface**, fluent and capability-typed, regenerated from honest capabilities ([04](./04-honest-capabilities-and-planner.md)).
 2. **GraphQL** as an optional plane over the same operation contract + permission engine.
 3. **A real test pyramid** with an **e2e matrix gate** in CI that fails the build if any `engine × operation` (or the gateway path) breaks.
 
@@ -28,14 +28,14 @@ Round out `@mini-baas/js` domain by domain, each with type tests:
 | webhooks | `client.webhooks.subscribe()/list()/delete()` → webhook-dispatcher |
 | tenant | `client.tenant.bootstrap()` → `/v1/tenants/me/bootstrap`; admin `provision()` |
 | admin | `client.admin.migrate()`, schema introspection |
-| usage | `client.usage.get()` ([06](06-saas-multitenancy-quotas-billing.md)) |
+| usage | `client.usage.get()` ([06](./06-saas-multitenancy-quotas-billing.md)) |
 
 - Keep the **codegen discipline**: `sdk/scripts/codegen-engines.mjs` regenerates `generated/engines.ts` from `/v1/capabilities`; `introspectEngines()` fails on drift. Extend drift to features (agg/join/search), not just engine ids.
-- The builder's methods are **present in the type** only when the live capability says so → the compile-time guarantee becomes *true* (depends on [04](04-honest-capabilities-and-planner.md)).
+- The builder's methods are **present in the type** only when the live capability says so → the compile-time guarantee becomes *true* (depends on [04](./04-honest-capabilities-and-planner.md)).
 
 ### 2. GraphQL (optional plane)
 
-- A `graphql` plane/service that maps the GraphQL schema to the **same** [operation contract](02-operation-contract.md): types ← registered schemas (introspected), queries ← list/get/aggregate/join, mutations ← insert/update/delete/upsert, subscriptions ← realtime.
+- A `graphql` plane/service that maps the GraphQL schema to the **same** [operation contract](./02-operation-contract.md): types ← registered schemas (introspected), queries ← list/get/aggregate/join, mutations ← insert/update/delete/upsert, subscriptions ← realtime.
 - Auth + ABAC + quotas reuse the existing guards (it's another front-end over the same plane, like REST/RPC).
 - Schema generated from the engine/schema introspection, not hand-written — agnostic by construction.
 - Ship behind the `graphql` profile; it consumes 02/03/04, so it lands after them.
@@ -55,7 +55,7 @@ A `GET /query/v1/:dbId/schema` (and SDK `client.engine(...).schema()`) returning
 
 - **The e2e matrix** (`scripts/e2e/`): for each engine × each operation (CRUD + rich reads + OLAP route), provision a tenant, run it **through Kong with an api-key**, assert results *and* honest 422s. This is the harness that would have caught every gap found in the assessment.
 - Wire it into `make test-e2e` and **CI** (`docker-compose.ci.yml`); a red cell blocks merge.
-- Add a **contract test**: descriptor ⊆ implemented ops (the [04](04-honest-capabilities-and-planner.md) "no-lying" check) runs in CI.
+- Add a **contract test**: descriptor ⊆ implemented ops (the [04](./04-honest-capabilities-and-planner.md) "no-lying" check) runs in CI.
 - Keep the `mNN` milestone gates; add `m20-operations`, `m21-olap-routing`, `m22-quotas`.
 
 ## Slices
@@ -70,7 +70,7 @@ A `GET /query/v1/:dbId/schema` (and SDK `client.engine(...).schema()`) returning
 ## Verification
 
 - The e2e matrix is itself the verification: every `engine × operation` cell green (or honest-422), through the gateway, in CI.
-- SDK type tests: `.update()` on Postgres is a compile error until [03/A1](03-engine-adapters-full-crud-and-rich-reads.md), then compiles; `.join()` only typed when caps allow.
+- SDK type tests: `.update()` on Postgres is a compile error until [03/A1](./03-engine-adapters-full-crud-and-rich-reads.md), then compiles; `.join()` only typed when caps allow.
 - GraphQL: a query and a mutation resolve through the same permission/quota path as REST.
 
 ## Risks

@@ -1,0 +1,2169 @@
+# File: docker-compose.yml
+name: mini-baas
+
+services:
+  # ─── WAF (Nginx + ModSecurity + OWASP CRS) ──────────────────────
+  waf:
+    image: ghcr.io/univers42/grobase-waf:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/waf
+      dockerfile: Dockerfile
+    container_name: mini-baas-waf
+    ports:
+      - "${WAF_HTTP_PORT:-8880}:80"
+      - "${WAF_HTTPS_PORT:-8443}:443"
+    secrets:
+      - localhost_cert
+      - localhost_key
+    depends_on:
+      kong:
+        condition: service_healthy
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "grep -qi ':0050 .* 0A' /proc/net/tcp || exit 1"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+    mem_limit: 256m
+    cpus: 0.5
+
+  # ─── HashiCorp Vault (control plane: boot/CI secrets) ─────────────
+  vault:
+    image: ghcr.io/univers42/grobase-vault:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/vault
+      dockerfile: Dockerfile
+    profiles: [control-plane]
+    container_name: mini-baas-vault
+    cap_add:
+      - IPC_LOCK
+    command: vault server -config=/vault/config/vault.hcl
+    environment:
+      SKIP_SETCAP: "1"
+      VAULT_ADDR: http://127.0.0.1:8200
+      VAULT_API_ADDR: http://0.0.0.0:8200
+    ports:
+      - "127.0.0.1:${VAULT_PORT:-8200}:8200"
+    volumes:
+      - vault-data:/vault/data
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "vault status -address=http://127.0.0.1:8200 2>/dev/null | grep -q 'Sealed.*false' || exit 1",
+        ]
+      interval: 5s
+      timeout: 3s
+      start_period: 15s
+      retries: 10
+    mem_limit: 256m
+    cpus: 0.5
+
+  # ─── Vault Bootstrap (control plane one-shot) ─────────────────────
+  vault-init:
+    image: ghcr.io/univers42/grobase-vault-init:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/vault
+      dockerfile: Dockerfile
+    profiles: [control-plane]
+    container_name: mini-baas-vault-init
+    env_file: [.env]
+    environment:
+      VAULT_ADDR: http://vault:8200
+    entrypoint: /vault/scripts/init-vault.sh
+    volumes:
+      - vault-data:/vault/data
+    depends_on:
+      vault:
+        condition: service_started
+    networks:
+      - mini-baas
+    restart: "no"
+
+  # ─── API Gateway ─────────────────────────────────────────────────
+  kong:
+    image: ghcr.io/univers42/grobase-kong:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/kong
+      dockerfile: Dockerfile
+    container_name: mini-baas-kong
+    env_file: [.env]
+    ports:
+      # Kong is now internal — WAF is the public entrypoint.
+      # Keep 8000 exposed on localhost for direct dev access.
+      - "127.0.0.1:${KONG_HTTP_PORT:-8000}:8000"
+      - "127.0.0.1:${KONG_ADMIN_PORT:-8001}:8001"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /tmp/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_HEADERS: "off"
+      KONG_NGINX_HTTP_CLIENT_MAX_BODY_SIZE: "1m"
+      KONG_NGINX_HTTP_CLIENT_BODY_TIMEOUT: "1s"
+      KONG_NGINX_WORKER_PROCESSES: "1"
+      KONG_MEM_CACHE_SIZE: "64m"
+      KONG_UNTRUSTED_LUA_SANDBOX_REQUIRES: "cjson.safe"
+      JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_ISS: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}
+      KONG_ANON_UUID: ${KONG_ANON_UUID:-cd4f782c-ac87-5081-b322-b54834d15651}
+    volumes:
+      - ./docker/services/kong/conf/kong.yml:/etc/kong/kong.yml.tmpl:ro
+    command: >
+      sh -ec '
+        sed \
+          -e "s|__KONG_PUBLIC_API_KEY__|$${KONG_PUBLIC_API_KEY}|g" \
+          -e "s|__KONG_SERVICE_API_KEY__|$${KONG_SERVICE_API_KEY}|g" \
+          -e "s|__KONG_CORS_ORIGIN_APP__|$${KONG_CORS_ORIGIN_APP}|g" \
+          -e "s|__KONG_CORS_ORIGIN_PLAYGROUND__|$${KONG_CORS_ORIGIN_PLAYGROUND}|g" \
+          -e "s|__KONG_CORS_ORIGIN_STUDIO__|$${KONG_CORS_ORIGIN_STUDIO}|g" \
+          -e "s|__KONG_CORS_ORIGIN_FRONTEND__|$${KONG_CORS_ORIGIN_FRONTEND}|g" \
+          -e "s|__JWT_SECRET__|$${JWT_SECRET}|g" \
+          -e "s|__GOTRUE_JWT_ISS__|$${GOTRUE_JWT_ISS}|g" \
+          -e "s|__KONG_ANON_UUID__|$${KONG_ANON_UUID}|g" \
+          /etc/kong/kong.yml.tmpl > /tmp/kong.yml;
+        exec /docker-entrypoint.sh kong docker-start
+      '
+    healthcheck:
+      test: ["CMD-SHELL", "kong health"]
+      interval: 5s
+      timeout: 3s
+      start_period: 20s
+      retries: 10
+    depends_on:
+      gotrue:
+        condition: service_healthy
+      postgrest:
+        condition: service_started
+      realtime:
+        condition: service_healthy
+        required: false
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
+
+  # ─── SQL Federation (M2) ─────────────────────────────────────────
+  trino:
+    image: ghcr.io/univers42/grobase-trino:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/trino
+      dockerfile: Dockerfile
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:8080/v1/info >/dev/null || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+    container_name: mini-baas-trino
+    profiles: [analytics, extras]
+    # Trino's jvm.config sizes the heap as 80% of visible RAM
+    # (Initial/MaxRAMPercentage=80): without a limit it reserves against the
+    # whole HOST (~25GB on a 32GB machine, ~900MB RSS idle). The cap makes the
+    # JVM size itself for the local analytics workload instead.
+    mem_limit: 2g
+    cpus: 2.0
+    env_file: [.env]
+    environment:
+      MYSQL_USER: ${MYSQL_USER:-mini_baas}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-mini_baas_pw}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - ./docker/services/trino/conf/config.properties:/etc/trino/config.properties:ro
+      - ./docker/services/trino/conf/catalog/postgresql.properties:/etc/trino/catalog/postgresql.properties:ro
+      - ./docker/services/trino/conf/catalog/mongodb.properties:/etc/trino/catalog/mongodb.properties:ro
+      - ./docker/services/trino/conf/catalog/mysql.properties:/etc/trino/catalog/mysql.properties:ro
+      - ./docker/services/trino/conf/catalog/iceberg.properties:/etc/trino/catalog/iceberg.properties:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      iceberg-rest:
+        condition: service_started
+    networks:
+      - mini-baas
+    restart: unless-stopped
+
+  # ─── MySQL (M2 federation — analytical + tenant CRUD via query-router) ──
+  mysql:
+    image: ghcr.io/univers42/grobase-mysql:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/mysql
+      dockerfile: Dockerfile
+    container_name: mini-baas-mysql
+    profiles: [analytics, data-plane, extras]
+    env_file: [.env]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-mysqlroot}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-mini_baas}
+      MYSQL_USER: ${MYSQL_USER:-mini_baas}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-mini_baas_pw}
+    # MySQL 8.4 removed --default-authentication-plugin; caching_sha2_password
+    # has been the default since 8.0.4, so no command override is needed.
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "127.0.0.1",
+          "-u",
+          "root",
+          "-p${MYSQL_ROOT_PASSWORD:-mysqlroot}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 384m
+    cpus: 0.5
+
+  # ─── MariaDB (engines-extra — proves engine-agnostic onboarding) ──
+  # Wire-compatible with MySQL; served by the SAME Rust adapter under the
+  # `mariadb` engine id. Lives in the optional `engines-extra` profile (the
+  # `engines` plane / Max package), never in default editions.
+  mariadb:
+    image: ghcr.io/univers42/grobase-mariadb:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/mariadb
+      dockerfile: Dockerfile
+    container_name: mini-baas-mariadb
+    profiles: [engines-extra]
+    env_file: [.env]
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-mariaroot}
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-mini_baas}
+      MARIADB_USER: ${MARIADB_USER:-mini_baas}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-mini_baas_pw}
+    ports:
+      - "${MARIADB_PORT:-3307}:3306"
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 384m
+    cpus: 0.5
+
+  # ─── CockroachDB (engines-extra — distributed-SQL agnosticism proof) ──
+  # Speaks the PostgreSQL wire protocol, so it is served by the SAME Rust
+  # Postgres adapter under the `cockroachdb` engine id (PgDialect::Cockroach):
+  # serializable-only isolation, no LISTEN/NOTIFY streaming. Single insecure
+  # node; RAM-capped via --cache/--max-sql-memory so it stays inside mem_limit.
+  # Optional `engines-extra` profile (the `engines` plane / Max package).
+  cockroach:
+    image: ghcr.io/univers42/grobase-cockroach:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/cockroach
+      dockerfile: Dockerfile
+    container_name: mini-baas-cockroach
+    profiles: [engines-extra]
+    # --advertise-addr=cockroach (the in-network alias) lets it listen on all
+    # interfaces by default; an explicit --listen-addr=0.0.0.0 is rejected by
+    # v24's single-node guard. RAM-capped via --cache/--max-sql-memory.
+    command: >
+      start-single-node --insecure --advertise-addr=cockroach
+      --cache=256MiB --max-sql-memory=256MiB --http-addr=0.0.0.0:8080
+    ports:
+      - "${COCKROACH_PORT:-26257}:26257"
+      - "${COCKROACH_HTTP_PORT:-28080}:8080"
+    volumes:
+      - cockroach-data:/cockroach/cockroach-data
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "cockroach",
+          "sql",
+          "--insecure",
+          "--host=127.0.0.1:26257",
+          "-e",
+          "SELECT 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 1g
+    cpus: 1.0
+
+  # ─── Microsoft SQL Server (engines-extra — proves TDS agnosticism) ──
+  # Served by the Rust tiberius adapter under the `mssql` engine id. SQL Server
+  # needs ~2 GB; lives in the optional `engines-extra` profile (the `engines`
+  # plane / Max package), NEVER in default editions. Developer edition (free).
+  mssql:
+    image: ghcr.io/univers42/grobase-mssql:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/mssql
+      dockerfile: Dockerfile
+    container_name: mini-baas-mssql
+    profiles: [engines-extra]
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-Mssql_Strong!Pass1}
+      MSSQL_PID: Developer
+    ports:
+      - "${MSSQL_PORT:-1433}:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -No -Q ''SELECT 1'' -b -o /dev/null',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    mem_limit: 2g
+    cpus: 1.0
+
+  # ─── Iceberg REST Catalog (M2 federation) ────────────────────────
+  iceberg-rest:
+    image: ghcr.io/univers42/grobase-iceberg-rest:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/iceberg-rest
+      dockerfile: Dockerfile
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:8181/v1/config >/dev/null || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    container_name: mini-baas-iceberg-rest
+    profiles: [analytics, extras]
+    env_file: [.env]
+    environment:
+      CATALOG_WAREHOUSE: s3://iceberg/
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: http://minio:9000
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_REGION: us-east-1
+    ports:
+      - "${ICEBERG_REST_PORT:-8181}:8181"
+    depends_on:
+      minio-iceberg-init:
+        condition: service_completed_successfully
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    mem_limit: 384m
+    cpus: 0.5
+
+  # ─── Outbox relay (M3 coherence — PG WAL → Redis Streams → Mongo projection) ──
+  outbox-relay:
+    image: ghcr.io/univers42/grobase-outbox-relay:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+      args:
+        APP: outbox-relay
+    profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
+    container_name: mini-baas-outbox-relay
+    env_file: [.env]
+    environment:
+      PORT: 3130
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      OUTBOX_REDIS_URL: ${OUTBOX_REDIS_URL:-redis://redis:6379}
+      OUTBOX_MONGO_URL: ${OUTBOX_MONGO_URL:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017/mini_baas?authSource=admin}
+      MONGO_URI: ${OUTBOX_MONGO_URL:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017/mini_baas?authSource=admin}
+      MONGO_DB_NAME: ${OUTBOX_MONGO_DB_NAME:-mini_baas}
+      # Mongo is a SOFT dependency of the relay: when no mongo container exists
+      # (lean tiers), it boots degraded and skips projections with a warning.
+      MONGO_OPTIONAL: "1"
+      REALTIME_PUBLISH_URL: ${REALTIME_PUBLISH_URL:-http://realtime:4000/v1/publish}
+      REALTIME_PUBLISH_TIMEOUT_MS: ${REALTIME_PUBLISH_TIMEOUT_MS:-1000}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+        required: false
+      realtime:
+        condition: service_healthy
+        required: false
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3130/health/live || exit 1"]
+      interval: 10s
+      timeout: 3s
+      start_period: 10s
+      retries: 5
+    mem_limit: 256m
+    cpus: 0.5
+
+  # ─── Debezium outbox CDC (M8 coherence — PG outbox → Redis Streams) ──
+  debezium:
+    image: ghcr.io/univers42/grobase-debezium:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/debezium
+      dockerfile: Dockerfile
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:8080/q/health >/dev/null || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    container_name: mini-baas-debezium
+    profiles: [analytics]
+    env_file: [.env]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    volumes:
+      - ./docker/services/debezium/application.properties:/debezium/config/application.properties:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    mem_limit: 384m
+    cpus: 0.5
+
+  # ─── Iceberg warehouse bucket bootstrap (M2 federation) ──────────
+  minio-iceberg-init:
+    image: ghcr.io/univers42/grobase-mc:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/mc
+      dockerfile: Dockerfile
+    container_name: mini-baas-minio-iceberg-init
+    profiles: [analytics, extras, storage]
+    env_file: [.env]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    entrypoint: >
+      sh -c "
+        until mc alias set local http://minio:9000 \"$$MINIO_ROOT_USER\" \"$$MINIO_ROOT_PASSWORD\" >/dev/null 2>&1; do
+          echo 'waiting for minio…'; sleep 1;
+        done;
+        mc mb -p local/iceberg || true;
+        mc anonymous set none local/iceberg || true;
+        echo 'iceberg bucket ready';
+      "
+    depends_on:
+      minio:
+        condition: service_started
+    networks:
+      - mini-baas
+    restart: "no"
+
+  # ─── Relational Database (custom image with pg_net) ───────────────
+  postgres:
+    image: ghcr.io/univers42/grobase-postgres:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/postgres
+      dockerfile: Dockerfile
+    container_name: mini-baas-postgres
+    env_file: [.env]
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    command: >
+      postgres
+        -c shared_preload_libraries=pg_net
+        -c wal_level=logical
+        -c pg_net.database_name=${POSTGRES_DB:-postgres}
+        -c max_connections=${PG_MAX_CONNECTIONS:-300}
+    networks:
+      mini-baas:
+        aliases:
+          - db
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      # Crash-recovery boots (ungraceful stop on a sizable volume) spend 40s+
+      # in fsync + WAL redo before accepting connections — 10s of grace marked
+      # a perfectly healthy recovery "unhealthy" and aborted every dependent.
+      # start_period failures don't count toward retries and the first passing
+      # probe flips healthy immediately, so fast boots lose nothing.
+      start_period: 90s
+    mem_limit: 512m
+    cpus: 1.0
+
+  # ─── Database Bootstrap ──────────────────────────────────────────
+  db-bootstrap:
+    image: ghcr.io/univers42/grobase-db-bootstrap:latest # pull-fallback (built from ./build context below)
+    # Self-built: an init container that only runs psql/pg_isready then exits, so it
+    # needs a postgres CLIENT (~13 MB) not the 438 MB pgvector engine image. The
+    # `vector` extension lives in the postgres SERVER image (docker/services/postgres).
+    build:
+      context: ./docker/services/db-bootstrap
+      dockerfile: Dockerfile
+    container_name: mini-baas-db-bootstrap
+    env_file: [.env]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      REALTIME_DB_NAME: realtime
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Password for the non-superuser PostgREST `authenticator` role created by
+      # db-bootstrap.psql (see migration 065 — safe-by-construction REST isolation).
+      AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD:-}
+    command: >
+      sh -ec '
+        until pg_isready -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"; do sleep 1; done;
+        psql -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" -v ON_ERROR_STOP=1 -v pwd="$${POSTGRES_PASSWORD}" -v realtime_db="$${REALTIME_DB_NAME}" -v authenticator_pwd="$${AUTHENTICATOR_PASSWORD}" -f /bootstrap/db-bootstrap.psql;
+      '
+    volumes:
+      - ./scripts/db/db-bootstrap.psql:/bootstrap/db-bootstrap.psql:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mini-baas
+    restart: "no"
+
+  # ─── Document Database ───────────────────────────────────────────
+  mongo:
+    image: ghcr.io/univers42/grobase-mongo:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/mongo
+      dockerfile: Dockerfile
+    container_name: mini-baas-mongo
+    profiles: [data-plane]
+    env_file: [.env]
+    command:
+      [
+        "--replSet",
+        "rs0",
+        "--bind_ip_all",
+        "--keyFile",
+        "/etc/mongo/rs-keyfile",
+      ]
+    depends_on:
+      mongo-keyfile:
+        condition: service_completed_successfully
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-mongo}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-mongo}
+    volumes:
+      - mongo-data:/data/db
+      - mongo-keyfile:/etc/mongo
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'mongosh --quiet --eval "try { rs.status().myState === 1 ? quit(0) : quit(1) } catch(e) { db.runCommand({ ping: 1 }).ok ? quit(0) : quit(1) }"',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+    mem_limit: 512m
+    cpus: 0.5
+
+  # ─── MongoDB keyfile generator (runs once, exits) ────────────────
+  # Generates a shared keyfile for replica set internal auth.
+  mongo-keyfile:
+    image: ghcr.io/univers42/grobase-mongo-keyfile:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/mongo-keyfile
+      dockerfile: Dockerfile
+    container_name: mini-baas-mongo-keyfile
+    profiles: [data-plane]
+    volumes:
+      - mongo-keyfile:/etc/mongo
+    networks:
+      - mini-baas
+    restart: "no"
+    entrypoint: >
+      bash -c '
+        if [ ! -f /etc/mongo/rs-keyfile ]; then
+          openssl rand -base64 756 > /etc/mongo/rs-keyfile;
+          chmod 400 /etc/mongo/rs-keyfile;
+          chown 999:999 /etc/mongo/rs-keyfile;
+          echo "KeyFile generated";
+        else
+          echo "KeyFile already exists";
+        fi
+      '
+
+  # ─── MongoDB Replica Set Initialisation ──────────────────────────
+  # Required for Change Streams (used by realtime CDC producer).
+  # Runs once and exits with code 0.
+  mongo-init:
+    image: ghcr.io/univers42/grobase-mongo-init:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/mongo-init
+      dockerfile: Dockerfile
+    container_name: mini-baas-mongo-init
+    profiles: [data-plane]
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - mini-baas
+    restart: "no"
+    environment:
+      MONGO_USER: ${MONGO_INITDB_ROOT_USERNAME:-mongo}
+      MONGO_PASS: ${MONGO_INITDB_ROOT_PASSWORD:-mongo}
+    entrypoint:
+      - bash
+      - -c
+      - |
+        mongosh --host mongo \
+          -u "$$MONGO_USER" -p "$$MONGO_PASS" \
+          --authenticationDatabase admin --quiet --eval '
+            try { rs.status(); print("Replica set already initialised"); }
+            catch(e) {
+              rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongo:27017" }] });
+              print("Replica set initiated — waiting for PRIMARY election…");
+            }
+            // Block until this node becomes PRIMARY (max ~30 s)
+            let attempts = 0;
+            while (!db.hello().isWritablePrimary && attempts < 30) {
+              sleep(1000); attempts++;
+            }
+            if (db.hello().isWritablePrimary) print("Node is PRIMARY — ready");
+            else { print("WARN: node not yet PRIMARY after 30 s"); quit(1); }
+          '
+
+  # ─── MongoDB REST API (NestJS) ──────────────────────────────────
+  mongo-api:
+    image: ghcr.io/univers42/grobase-mongo-api:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+      args:
+        APP: mongo-api
+    profiles: [data-plane]
+    container_name: mini-baas-mongo-api
+    env_file: [.env]
+    environment:
+      PORT: 3010
+      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017
+      MONGO_DB_NAME: ${MONGO_DB_NAME:-mini_baas}
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3010/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── Authentication ──────────────────────────────────────────────
+  gotrue:
+    image: ghcr.io/univers42/grobase-gotrue:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/gotrue
+      dockerfile: Dockerfile
+    container_name: mini-baas-gotrue
+    env_file: [.env]
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}
+      GOTRUE_SITE_URL: ${GOTRUE_SITE_URL:-http://localhost:5173}
+      GOTRUE_URI_ALLOW_LIST: ${GOTRUE_URI_ALLOW_LIST:-http://localhost:5173/**,http://localhost:3000,http://localhost:3001,http://localhost:3100}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      # Email
+      GOTRUE_MAILER_AUTOCONFIRM: ${GOTRUE_MAILER_AUTOCONFIRM:-false}
+      GOTRUE_SMTP_HOST: ${SMTP_HOST:-mailpit}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT:-1025}
+      GOTRUE_SMTP_USER: ${SMTP_USER:-}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS:-}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${EMAIL_FROM:-noreply@mini-baas.local}
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/verify
+      # JWT
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_ISSUER: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}
+      # MFA / 2FA (TOTP)
+      GOTRUE_MFA_ENABLED: "true"
+      GOTRUE_SECURITY_MFA_MAX_ENROLLED_FACTORS: 5
+      GOTRUE_SECURITY_MFA_MAX_VERIFIED_FACTORS: 5
+      # Refresh token security
+      GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: "true"
+      GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: 10
+      # Password policy
+      GOTRUE_PASSWORD_MIN_LENGTH: 8
+      # Rate limiting (per-IP) — raised for E2E test suite
+      GOTRUE_RATE_LIMIT_HEADER: X-Real-IP
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: ${GOTRUE_RATE_LIMIT_EMAIL_SENT:-100}
+      # OAuth: Google
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_OAUTH_ENABLED:-false}
+      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}/callback
+      # OAuth: GitHub
+      GOTRUE_EXTERNAL_GITHUB_ENABLED: ${GITHUB_OAUTH_ENABLED:-false}
+      GOTRUE_EXTERNAL_GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_GITHUB_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}/callback
+      # OAuth: 42 School (custom OIDC)
+      GOTRUE_EXTERNAL_FORTYTWO_ENABLED: ${FORTYTWO_OAUTH_ENABLED:-false}
+      GOTRUE_EXTERNAL_FORTYTWO_CLIENT_ID: ${FORTYTWO_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_FORTYTWO_SECRET: ${FORTYTWO_CLIENT_SECRET:-}
+      GOTRUE_EXTERNAL_FORTYTWO_REDIRECT_URI: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}/callback
+      GOTRUE_EXTERNAL_FORTYTWO_URL: https://api.intra.42.fr/oauth/authorize
+      GOTRUE_EXTERNAL_FORTYTWO_API_URL: https://api.intra.42.fr
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9999/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 15s
+      retries: 8
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── PostgreSQL REST API ─────────────────────────────────────────
+  postgrest:
+    image: ghcr.io/univers42/grobase-postgrest:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/postgrest
+      dockerfile: Dockerfile
+    container_name: mini-baas-postgrest
+    # No healthcheck BY DESIGN: the postgrest image is shell-less (no sh/curl/
+    # wget), so an exec probe is impossible. Its health is observed upstream —
+    # Kong's /rest/v1 route + `make health` probe it over HTTP.
+    env_file: [.env]
+    environment:
+      # PostgREST connects as the dedicated non-superuser `authenticator` role
+      # (NOBYPASSRLS), so RLS + FORCE RLS always bind the public REST/GraphQL
+      # surface. The superuser DSN is NEVER used here (a superuser bypasses RLS
+      # unconditionally). The fallback below mirrors the .env that
+      # scripts/env/generate-env.sh writes; it still uses the authenticator role.
+      PGRST_DB_URI: ${PGRST_DB_URI:-postgres://authenticator:${AUTHENTICATOR_PASSWORD:-authenticator}@postgres:5432/postgres}
+      PGRST_DB_SCHEMA: ${PGRST_DB_SCHEMA:-public}
+      PGRST_SERVER_PORT: 3000
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── PostgreSQL Metadata (control plane / extras) ─────────────────
+  pg-meta:
+    image: ghcr.io/univers42/grobase-pg-meta:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/pg-meta
+      dockerfile: Dockerfile
+    healthcheck:
+      # node-based image (no curl/wget) — probe with node fetch, supabase's own pattern
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://localhost:8080/health'').then(r=>{if(r.status!==200)throw 1}).catch(()=>process.exit(1))"',
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+    container_name: mini-baas-pg-meta
+    profiles: [control-plane, extras]
+    env_file: [.env]
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: ${PG_META_DB_HOST:-postgres}
+      PG_META_DB_PORT: ${PG_META_DB_PORT:-5432}
+      PG_META_DB_NAME: ${PG_META_DB_NAME:-postgres}
+      PG_META_DB_USER: ${PG_META_DB_USER:-postgres}
+      PG_META_DB_PASSWORD: ${PG_META_DB_PASSWORD:-postgres}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mini-baas
+    restart: unless-stopped
+
+  # ─── Realtime / WebSocket ────────────────────────────────────────
+  realtime:
+    # Pinned upstream (versioned like kong:3.8 — bump procedure in RELEASE.md).
+    # The build: context below always wins locally; the pin is for pull-only
+    # deployments so they never drift on `latest`.
+    image: dlesieur/realtime-agnostic:0.2.1
+    build:
+      context: ./docker/services/realtime/realtime-agnostic
+      dockerfile: Dockerfile
+      # Run:  docker compose build realtime  to rebuild with source fixes
+    # Opt-in: realtime fan-out is a feature, not a foundation. Single-tenant
+    # CRUD deployments that don't need WebSocket events can skip this
+    # service entirely by leaving the `realtime` profile off.
+    profiles: [realtime, data-plane]
+    container_name: mini-baas-realtime
+    env_file: [.env]
+    environment:
+      REALTIME_HOST: 0.0.0.0
+      REALTIME_PORT: 4000
+      REALTIME_JWT_SECRET: ${JWT_SECRET}
+      REALTIME_JWT_AUDIENCE: ""
+      # Phase 5/6 security mode. `baseline` keeps the one-release PERMISSIVE
+      # namespace fallback (a namespace-less JWT → all-access, logged as
+      # deprecated); `max` denies it AND refuses the NoAuth provider. Override
+      # the fallback directly with REALTIME_NAMESPACE_FALLBACK=permissive|deny.
+      SECURITY_MODE: ${SECURITY_MODE:-baseline}
+      REALTIME_NAMESPACE_FALLBACK: ${REALTIME_NAMESPACE_FALLBACK:-permissive}
+      REALTIME_PG_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      REALTIME_PG_CHANNEL: realtime_events
+      # Mongo change-streams producer (M10.b — close the realtime fan-out gap).
+      # Requires Mongo to run as a replica set, which mongo-init already ensures.
+      REALTIME_MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017/?replicaSet=${MONGO_REPLICA_SET_NAME:-rs0}&authSource=admin
+      REALTIME_MONGO_DB: ${MONGO_DB_NAME:-mini_baas}
+      RUST_LOG: ${RUST_LOG:-info}
+    volumes:
+      - ./docker/services/realtime/realtime-agnostic/realtime.toml:/etc/realtime/realtime.toml:ro
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      mongo-init:
+        condition: service_completed_successfully
+        required: false
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/realtime-server", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── In-Memory Cache ─────────────────────────────────────────────
+  redis:
+    image: ghcr.io/univers42/grobase-redis:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/redis
+      dockerfile: Dockerfile
+    container_name: mini-baas-redis
+    env_file: [.env]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    # Rewrite is back ON (100%/64mb floor): it was disabled after OOM loops at
+    # 128m, but with maxmemory capping the working set the rewrite is safe —
+    # and DISABLED rewrite means unbounded AOF growth on disk (a bench day
+    # proved the stream side: 250 MB in one untrimmed CDC stream). Eviction is
+    # volatile-lru, NOT allkeys: the outbox.* streams are relay durability
+    # state — better that writes fail loudly at the cap than events silently
+    # evaporate; cache users set TTLs and stay evictable.
+    command: redis-server --appendonly yes --auto-aof-rewrite-percentage 100 --auto-aof-rewrite-min-size 64mb --maxmemory 384mb --maxmemory-policy volatile-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      start_period: 5s
+      retries: 5
+    mem_limit: 512m
+    cpus: 0.25
+
+  # ─── Adapter Registry: see `adapter-registry-go` further below. The TS
+  # NestJS adapter-registry was retired after parity-probe.sh proved the Go
+  # implementation byte-compatible (same AES-256-GCM crypto scheme + same
+  # RLS contract + same /databases route surface). Removed: ~700 lines of
+  # TS, ~150 MB RAM in production, an entire build target.
+
+  # ─── Query Router (adapter plane — normalized data API) ───────────
+  query-router:
+    image: ghcr.io/univers42/grobase-query-router:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+      args:
+        APP: query-router
+    profiles: [adapter-plane]
+    container_name: mini-baas-query-router
+    env_file: [.env]
+    environment:
+      PORT: 4001
+      # Adapter-registry cutover: Go is the primary service now. The TS
+      # adapter-registry was retired after parity-probe.sh proved the Go
+      # implementation byte-compatible (same AES-GCM scheme, same RLS).
+      # Override `ADAPTER_REGISTRY_URL` if you need to point at the legacy
+      # TS service (only useful during the deprecation window).
+      ADAPTER_REGISTRY_URL: ${ADAPTER_REGISTRY_URL:-http://adapter-registry-go:3021}
+      PERMISSION_ENGINE_URL: http://permission-engine:3050
+      LOG_SERVICE_URL: http://log-service:3110
+      # Tenant-control: API-key auth exchange. The ApiKeyMiddleware in
+      # @mini-baas/common calls /v1/keys/verify on this URL with
+      # INTERNAL_SERVICE_TOKEN to translate X-Baas-Api-Key -> tenant headers.
+      TENANT_CONTROL_URL: ${TENANT_CONTROL_URL:-http://tenant-control:3022}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
+      API_KEY_VERIFY_TIMEOUT_MS: ${API_KEY_VERIFY_TIMEOUT_MS:-8000}
+      API_KEY_VERIFY_CACHE_TTL_MS: ${API_KEY_VERIFY_CACHE_TTL_MS:-30000}
+      CONTROL_PLANE_TIMEOUT_MS: ${CONTROL_PLANE_TIMEOUT_MS:-2000}
+      CONTROL_PLANE_RETRY_ATTEMPTS: ${CONTROL_PLANE_RETRY_ATTEMPTS:-2}
+      QUERY_ROUTER_ADAPTER_CACHE_TTL_MS: ${QUERY_ROUTER_ADAPTER_CACHE_TTL_MS:-30000}
+      QUERY_ROUTER_PERMISSION_CACHE_TTL_MS: ${QUERY_ROUTER_PERMISSION_CACHE_TTL_MS:-5000}
+      QUERY_ROUTER_READ_CACHE_TTL_MS: ${QUERY_ROUTER_READ_CACHE_TTL_MS:-3000}
+      QUERY_ROUTER_CACHE_MAX_ENTRIES: ${QUERY_ROUTER_CACHE_MAX_ENTRIES:-2000}
+      # DSN lookup cache — avoids hitting adapter-registry's decrypt on the
+      # hot path. Set to `0` to disable (credentials change must propagate
+      # immediately). The default 30s window matches the credential rotation
+      # SLO; bump it for read-heavy steady-state, lower for security-critical.
+      QUERY_ROUTER_DSN_CACHE_TTL_MS: ${QUERY_ROUTER_DSN_CACHE_TTL_MS:-30000}
+      QUERY_ROUTER_DSN_CACHE_MAX_ENTRIES: ${QUERY_ROUTER_DSN_CACHE_MAX_ENTRIES:-500}
+      QUERY_ROUTER_REDIS_CACHE_ENABLED: ${QUERY_ROUTER_REDIS_CACHE_ENABLED:-true}
+      QUERY_ROUTER_REDIS_URL: ${QUERY_ROUTER_REDIS_URL:-redis://redis:6379}
+      QUERY_ROUTER_REDIS_KEY_PREFIX: ${QUERY_ROUTER_REDIS_KEY_PREFIX:-query-router:}
+      QUERY_ROUTER_REDIS_CONNECT_TIMEOUT_MS: ${QUERY_ROUTER_REDIS_CONNECT_TIMEOUT_MS:-1000}
+      QUERY_ROUTER_REDIS_COMMAND_TIMEOUT_MS: ${QUERY_ROUTER_REDIS_COMMAND_TIMEOUT_MS:-500}
+      QUERY_ROUTER_CIRCUIT_BREAKER_ENABLED: ${QUERY_ROUTER_CIRCUIT_BREAKER_ENABLED:-true}
+      QUERY_ROUTER_CIRCUIT_BREAKER_FAILURE_THRESHOLD: ${QUERY_ROUTER_CIRCUIT_BREAKER_FAILURE_THRESHOLD:-5}
+      QUERY_ROUTER_CIRCUIT_BREAKER_SUCCESS_THRESHOLD: ${QUERY_ROUTER_CIRCUIT_BREAKER_SUCCESS_THRESHOLD:-2}
+      QUERY_ROUTER_CIRCUIT_BREAKER_OPEN_MS: ${QUERY_ROUTER_CIRCUIT_BREAKER_OPEN_MS:-10000}
+      QUERY_ROUTER_ASYNC_EVENTS_ENABLED: ${QUERY_ROUTER_ASYNC_EVENTS_ENABLED:-true}
+      QUERY_ROUTER_ASYNC_EVENT_FLUSH_MS: ${QUERY_ROUTER_ASYNC_EVENT_FLUSH_MS:-1000}
+      QUERY_ROUTER_ASYNC_EVENT_BATCH_SIZE: ${QUERY_ROUTER_ASYNC_EVENT_BATCH_SIZE:-25}
+      QUERY_ROUTER_ASYNC_EVENT_MAX_ENTRIES: ${QUERY_ROUTER_ASYNC_EVENT_MAX_ENTRIES:-1000}
+      # Realtime fan-out (Phase 6): successful writes publish best-effort
+      # `row_changed` (and DDL publishes `schema_changed`) events on
+      # `table:<dbId>:<table>` via the realtime service's internal ingest.
+      # Same contract + switch semantics as outbox-relay (empty URL disables).
+      REALTIME_PUBLISH_URL: ${REALTIME_PUBLISH_URL:-http://realtime:4000/v1/publish}
+      REALTIME_PUBLISH_TIMEOUT_MS: ${QUERY_ROUTER_REALTIME_PUBLISH_TIMEOUT_MS:-1500}
+      JWT_SECRET: ${JWT_SECRET}
+      ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # ── Rust data-plane cutover (parity proven via parity-probe.sh) ──
+      # All five R2/R3/R7/R8 engines now forward to the Rust pool registry
+      # by default. The proxy is the only path for these engines; the
+      # corresponding TypeScript engines have been removed.
+      RUST_DATA_PLANE_URL: ${RUST_DATA_PLANE_URL:-http://data-plane-router-rust:4011}
+      RUST_DATA_PLANE_FORWARD: ${RUST_DATA_PLANE_FORWARD:-1}
+      RUST_DATA_PLANE_FORWARD_ENGINES: ${RUST_DATA_PLANE_FORWARD_ENGINES:-postgresql,cockroachdb,mongodb,mysql,mariadb,redis,sqlite,mssql,http}
+      RUST_DATA_PLANE_TIMEOUT_MS: ${RUST_DATA_PLANE_TIMEOUT_MS:-5000}
+    depends_on:
+      adapter-registry-go:
+        condition: service_healthy
+      permission-engine:
+        condition: service_healthy
+      log-service:
+        condition: service_started
+        required: false
+      redis:
+        condition: service_started
+      data-plane-router-rust:
+        condition: service_healthy
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:4001/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── Rust Data Plane Router (live cutover — see parity-probe.sh) ──
+  data-plane-router-rust:
+    image: ghcr.io/univers42/grobase-data-plane-router:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/data-plane-router
+      dockerfile: Dockerfile
+    profiles: [adapter-plane, rust-data-plane]
+    container_name: mini-baas-data-plane-router-rust
+    env_file: [.env]
+    environment:
+      DATA_PLANE_ROUTER_HOST: 0.0.0.0
+      DATA_PLANE_ROUTER_PORT: 4011
+      DATA_PLANE_ROUTER_PRODUCT_MODE: ${DATA_PLANE_ROUTER_PRODUCT_MODE:-enabled}
+      DATA_PLANE_ADAPTER_REGISTRY_URL: ${DATA_PLANE_ADAPTER_REGISTRY_URL:-http://adapter-registry-go:3021}
+      DATA_PLANE_PERMISSION_BUNDLE_URL: http://permission-engine:3050/permissions/bundles/latest
+      DATA_PLANE_PERMISSION_MODE: ${DATA_PLANE_PERMISSION_MODE:-abac}
+      DATA_PLANE_MOUNTS: ${DATA_PLANE_MOUNTS:-}
+      # Phase 5/6 security mode (baseline|max). `max` enables strict TLS for
+      # external engine mounts (verify-ca/verify-full enforced) + Vault-backed
+      # credentials; baseline keeps libpq `require` semantics. See config.rs.
+      SECURITY_MODE: ${SECURITY_MODE:-baseline}
+      DATA_PLANE_TLS_CA_FILE: ${DATA_PLANE_TLS_CA_FILE:-}
+      # The bundled mssql container self-signs its cert, and since the Phase B
+      # hardening tiberius VERIFIES chains by default — without this escape the
+      # in-box mssql engine is unreachable (bb8 surfaces it as checkout
+      # timeouts). Default 1 so the stock stack works; the escape is dev-only
+      # by construction: SECURITY_MODE=max (the prod checklist) ignores it and
+      # always verifies. Pin DATA_PLANE_TLS_CA_FILE for remote mssql mounts.
+      DATA_PLANE_TLS_INSECURE: ${DATA_PLANE_TLS_INSECURE:-1}
+      # Phase 7 / D6 direct front door (Kong→Rust /data/v1). Default ON: the Kong
+      # /data/v1 route is live and proven row-identical to /query/v1 on the app's
+      # real mount (m36-cutover-parity). The app still calls /query/v1 until it
+      # flips its base path — query-router stays the fallback (NO deletion). Rust
+      # verifies the API key via tenant-control (Go stays the identity authority)
+      # + resolves mounts via adapter-registry, both HMAC-signed (SERVICE_TOKEN_MODE).
+      DATA_PLANE_BYPASS_ENABLED: ${DATA_PLANE_BYPASS_ENABLED:-1}
+      TENANT_CONTROL_URL: ${TENANT_CONTROL_URL:-http://tenant-control:3022}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
+      # Phase 7d: system Postgres holding public.outbox_events. On the bypass
+      # write path the data plane emits the row-change event itself (the
+      # query-router is out of the path), so realtime/webhooks keep firing.
+      DATA_PLANE_OUTBOX_DSN: ${DATA_PLANE_OUTBOX_DSN:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}}
+      # Automation `notify` actions publish here (same contract as outbox-relay;
+      # empty/absent disables — notify is a no-op in realtime-less tiers).
+      REALTIME_PUBLISH_URL: ${REALTIME_PUBLISH_URL:-http://realtime:4000/v1/publish}
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "127.0.0.1:${DATA_PLANE_RUST_PORT:-4011}:4011"
+    networks:
+      - mini-baas
+    # host-gateway: lets external-client mounts (gourmand-tenant.sh dev
+    # fallback) dial a Postgres published on the HOST (vite-gourmand's own
+    # compose) via host.docker.internal — Linux needs the explicit mapping.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/data-plane-router", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 96m
+    cpus: 0.25
+
+  # ─── Go Control Plane: adapter-registry (shadow migration path) ───
+  adapter-registry-go:
+    image: ghcr.io/univers42/grobase-adapter-registry-go:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./go/control-plane
+      dockerfile: Dockerfile
+      args:
+        APP: adapter-registry
+        PORT: 3021
+    profiles: [control-plane, go-control-plane]
+    container_name: mini-baas-adapter-registry-go
+    env_file: [.env]
+    environment:
+      ADAPTER_REGISTRY_HOST: 0.0.0.0
+      ADAPTER_REGISTRY_PORT: 3021
+      # enabled: adapter-registry-go is the live mount-resolution path (the
+      # scrypt-convoy fix m39, isolation m46, enforcement m53 all run against
+      # it). ProductMode is an informational label; this just makes status honest.
+      ADAPTER_REGISTRY_PRODUCT_MODE: ${ADAPTER_REGISTRY_GO_PRODUCT_MODE:-enabled}
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      VAULT_ENC_KEY: ${VAULT_ENC_KEY:-0123456789abcdef0123456789abcdef}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
+      # Phase 4 tiering kill switch. Default 0 (OFF) so enabling tiering never
+      # retroactively gates existing `free` tenants — flip to 1 once tenant
+      # plans are assigned to enforce engine allowlist + mount quota + the
+      # capability/rate mask the data plane reads off /connect.
+      PACKAGE_ENFORCEMENT: ${PACKAGE_ENFORCEMENT:-0}
+      # scrypt concurrency bound (crypto.go scryptSlots). Each DSN encryption
+      # derives a key at ~16 MiB; the mem_limit below budgets baseline + slots
+      # × 16 MiB. Before this bound a 16-way bulk mount registration OOM-crash-
+      # looped this service (measured 2026-06-11, 17 restarts).
+      SCRYPT_MAX_CONCURRENT: ${SCRYPT_MAX_CONCURRENT:-2}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "127.0.0.1:${ADAPTER_REGISTRY_GO_PORT:-3021}:3021"
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/app", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    # baseline (~12 MiB) + SCRYPT_MAX_CONCURRENT × 16 MiB + headroom. The CPU
+    # budget is sized for the RESOLVE role, not just registration: /connect
+    # cold misses each cost one scrypt (~80ms of a full core), and a fan-out
+    # across N fresh mounts needs slots × cores ≈ 25 scrypts/s to keep the
+    # tail under the data plane's 10s resolve timeout (m39). Steady state is
+    # cache-hits (decrypted-DSN cache keyed by ciphertext tag + singleflight).
+    mem_limit: 192m
+    cpus: 2.0
+
+  # ─── Go Control Plane: tenant-control ─────────────────────────────
+  # Owns the top-level tenants registry + tenant_api_keys CRUD. Exposes
+  # /v1/tenants and /v1/keys/verify. Bootstrap endpoint wires a new tenant
+  # up with a default ABAC role + first API key in one call.
+  #
+  # JWT_SECRET (shared with GoTrue) enables POST /v1/tenants/me/bootstrap —
+  # the JWT-authenticated path the just-signed-up user calls to provision
+  # their tenant + receive their first API key.
+  tenant-control:
+    image: ghcr.io/univers42/grobase-tenant-control:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./go/control-plane
+      dockerfile: Dockerfile
+      args:
+        APP: tenant-control
+        PORT: 3022
+    profiles: [control-plane, go-control-plane]
+    container_name: mini-baas-tenant-control
+    env_file: [.env]
+    environment:
+      TENANT_CONTROL_HOST: 0.0.0.0
+      TENANT_CONTROL_PORT: 3022
+      # enabled: tenant-control is the ONLY auth/key/tenant path — not shadow,
+      # the production control plane (m12, m28, the B3/m50 revoke drill).
+      TENANT_CONTROL_PRODUCT_MODE: ${TENANT_CONTROL_PRODUCT_MODE:-enabled}
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
+      # User-JWT verification (audit O2). Default HS256 with JWT_SECRET. Set
+      # JWT_ALG=RS256 + JWKS_URL (e.g. GoTrue's .well-known/jwks.json once it
+      # issues RS256) to verify asymmetric tokens against rotating public keys —
+      # verify-only, pinned to one alg (no algorithm-confusion). Unit: jwks_test.go.
+      JWT_ALG: ${JWT_ALG:-HS256}
+      JWKS_URL: ${JWKS_URL:-}
+      # Enables POST /v1/provision to register a tenant's data mounts in one call,
+      # and to create the per-tenant schema for schema_per_tenant mounts.
+      ADAPTER_REGISTRY_URL: ${ADAPTER_REGISTRY_URL:-http://adapter-registry-go:3021}
+      RUST_DATA_PLANE_URL: ${RUST_DATA_PLANE_URL:-http://data-plane-router-rust:4011}
+      # ABAC seam: the provisioning reconciler self-verifies seeded roles/policies
+      # via permission-engine's POST /permissions/decide (service-token gated).
+      # Role/policy SEEDING works without this (direct SQL); only Decide() needs it.
+      PERMISSION_ENGINE_URL: ${PERMISSION_ENGINE_URL:-http://permission-engine:3050}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Argon2id concurrency bound (keys.go argon2Slots). Each hash allocates
+      # 32 MiB; the mem_limit below budgets baseline + slots × 32 MiB. Before
+      # this bound, a 16-way bulk provision OOM-crashlooped this container
+      # (measured 2026-06-11, 8 restarts) and every in-flight verify died.
+      ARGON2_MAX_CONCURRENT: ${ARGON2_MAX_CONCURRENT:-2}
+      # B4-verify: Argon2-only-on-first-seen fast path. The measured 1K-tenant
+      # ceiling was ~40 verify/s (cold keys × Argon2 @ 2-concurrent). This cache
+      # makes a repeat verify of an already-seen key a hash-map lookup, so the
+      # Argon2 cost is a one-time warmup, not a per-request tax. TTL bounds
+      # revocation/expiry staleness (revoke also flushes); 0 disables (parity).
+      TENANT_CONTROL_VERIFY_CACHE_TTL_MS: ${TENANT_CONTROL_VERIFY_CACHE_TTL_MS:-60000}
+      TENANT_CONTROL_VERIFY_CACHE_MAX: ${TENANT_CONTROL_VERIFY_CACHE_MAX:-16384}
+      # Track-B B4b: tenant self-service console surface (/v1/tenants/me*). The Go
+      # source defaults this OFF (main.go envBool → MountSelfServe skipped = no /me
+      # routes = byte-parity with the pre-B4a {id}-wildcard baseline). We default it
+      # ON here (:-1) so the osionos BaaS Console is wired LIVE out-of-the-box, with a
+      # one-token kill switch: set TENANT_SELFSERVE_ENABLED=0 in .env to revert to the
+      # exact pre-B4a behavior (the public Kong route then 404/401s at the upstream =
+      # harmless). Gate: scripts/verify/m84-selfserve-kong.sh (ON + OFF parity arms).
+      TENANT_SELFSERVE_ENABLED: ${TENANT_SELFSERVE_ENABLED:-1}
+    ports:
+      - "127.0.0.1:${TENANT_CONTROL_PORT:-3022}:3022"
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/app", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    # baseline (~20 MiB) + ARGON2_MAX_CONCURRENT × 32 MiB + headroom.
+    mem_limit: 160m
+    cpus: 0.5
+
+  # ─── Go Control Plane: webhook-dispatcher ─────────────────────────
+  # Owns webhook_subscriptions CRUD + consumes outbox.<aggregate> Redis
+  # streams + HMAC-signed POSTs to subscribers with retry + DLQ.
+  webhook-dispatcher:
+    image: ghcr.io/univers42/grobase-webhook-dispatcher:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./go/control-plane
+      dockerfile: Dockerfile
+      args:
+        APP: webhook-dispatcher
+        PORT: 3025
+    profiles: [control-plane, background, go-control-plane]
+    container_name: mini-baas-webhook-dispatcher
+    env_file: [.env]
+    environment:
+      WEBHOOK_DISPATCHER_HOST: 0.0.0.0
+      WEBHOOK_DISPATCHER_PORT: 3025
+      # enabled: the dispatcher delivers webhooks live (m29 automations, the F2
+      # jitter + baas_webhook_deliveries_total metrics). The orchestrator below
+      # stays `shadow` — the six Node services still serve Kong (A not cut over).
+      WEBHOOK_DISPATCHER_PRODUCT_MODE: ${WEBHOOK_DISPATCHER_PRODUCT_MODE:-enabled}
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      WEBHOOK_REDIS_URL: ${WEBHOOK_REDIS_URL:-${OUTBOX_REDIS_URL:-redis://redis:6379}}
+      WEBHOOK_GROUP: ${WEBHOOK_GROUP:-webhook-dispatcher}
+      WEBHOOK_CONSUMER: ${WEBHOOK_CONSUMER:-webhook-dispatcher-0}
+      # A2: function-trigger dispatcher (DB-event -> function invoke) + secrets.
+      FUNCTION_TRIGGER_GROUP: ${FUNCTION_TRIGGER_GROUP:-function-dispatcher}
+      FUNCTION_TRIGGER_CONSUMER: ${FUNCTION_TRIGGER_CONSUMER:-function-dispatcher-0}
+      FUNCTIONS_RUNTIME_URL: ${FUNCTIONS_RUNTIME_URL:-http://functions-runtime:3060}
+      VAULT_ENC_KEY: ${VAULT_ENC_KEY:-}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "127.0.0.1:${WEBHOOK_DISPATCHER_PORT:-3025}:3025"
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/app", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 96m
+    cpus: 0.25
+
+  # ─── Orchestrator (R2 — consolidated Go orchestrators) ─────────────
+  # Folds the small Node orchestrators into ONE Go binary (one runtime, not
+  # six). Runs in SHADOW alongside the Node services it ports (today: log) so
+  # parity is checked before any Node container is retired. ~32 MiB mem_limit
+  # vs ~55 MiB PER Node service is the −359 MiB / essential $13→$6.5 win.
+  orchestrator:
+    image: ghcr.io/univers42/grobase-orchestrator:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./go/control-plane
+      dockerfile: Dockerfile
+      args:
+        APP: orchestrator
+        PORT: 3026
+    profiles: [control-plane, background, go-control-plane]
+    container_name: mini-baas-orchestrator
+    env_file: [.env]
+    environment:
+      ORCHESTRATOR_HOST: 0.0.0.0
+      ORCHESTRATOR_PORT: 3026
+      # A4 cutover (2026-06-13): the orchestrator is now the LIVE path — Kong
+      # routes /logs /sessions /newsletter /gdpr /email here (kong.yml), and the
+      # six Node orchestrators are quarantined to the `legacy-node` profile (not
+      # started by default). enabled, not shadow. Rollback: re-point kong.yml +
+      # start the legacy-node profile. Gates: m48 (parity), m49 (through-Kong).
+      ORCHESTRATOR_PRODUCT_MODE: ${ORCHESTRATOR_PRODUCT_MODE:-enabled}
+      # Comma list of ported sub-services (empty = all). Start with log only.
+      # Empty = ALL ported sub-services (selectServices default). The cutover
+      # runs the full six; override to a subset only for shadow experiments.
+      ORCHESTRATOR_SERVICES: ${ORCHESTRATOR_SERVICES:-}
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      LOG_SERVICE_LOKI_URL: ${LOG_SERVICE_LOKI_URL:-http://loki:3100/loki/api/v1/push}
+      # email sub-service SMTP (parity with email-service defaults → Mailpit)
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@mini-baas.local}
+      # session sub-service TTL
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-7}
+      # newsletter sub-service (outbound mail + confirm links)
+      EMAIL_SERVICE_URL: ${EMAIL_SERVICE_URL:-http://email-service:3030}
+      NEWSLETTER_BASE_URL: ${NEWSLETTER_BASE_URL:-http://localhost:8000/newsletter/v1}
+      NEWSLETTER_BATCH_SIZE: ${NEWSLETTER_BATCH_SIZE:-5}
+      # gdpr sub-service (schema-agnostic export/erasure webhooks)
+      GDPR_EXPORT_WEBHOOK_URL: ${GDPR_EXPORT_WEBHOOK_URL:-}
+      GDPR_DELETION_WEBHOOK_URL: ${GDPR_DELETION_WEBHOOK_URL:-}
+      # outbox-relay sub-service (pg outbox → redis streams + realtime fan-out).
+      # Mongo projection is a soft dependency (A3): the driver-backed
+      # mongoProjector activates when OUTBOX_MONGO_URL resolves + connects, else
+      # degrades to the no-op (a pg write is never failed for a missing sink).
+      OUTBOX_REDIS_URL: ${OUTBOX_REDIS_URL:-redis://redis:6379}
+      OUTBOX_MONGO_URL: ${OUTBOX_MONGO_URL:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017/mini_baas?authSource=admin}
+      MONGO_DB_NAME: ${OUTBOX_MONGO_DB_NAME:-mini_baas}
+      OUTBOX_RELAY_POLL_MS: ${OUTBOX_RELAY_POLL_MS:-500}
+      OUTBOX_RELAY_BATCH_SIZE: ${OUTBOX_RELAY_BATCH_SIZE:-25}
+      OUTBOX_RELAY_MAX_ATTEMPTS: ${OUTBOX_RELAY_MAX_ATTEMPTS:-5}
+      OUTBOX_RELAY_DEDUPE_TTL_SECONDS: ${OUTBOX_RELAY_DEDUPE_TTL_SECONDS:-86400}
+      REALTIME_PUBLISH_URL: ${REALTIME_PUBLISH_URL:-http://realtime:4000/v1/publish}
+      REALTIME_PUBLISH_TIMEOUT_MS: ${REALTIME_PUBLISH_TIMEOUT_MS:-1000}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "127.0.0.1:${ORCHESTRATOR_PORT:-3026}:3026"
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/app", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 32m
+    cpus: 0.25
+
+  # ─── Go Control Plane: function-scheduler (A2 Functions DX) ────────
+  # Polls function_schedules for due rows and invokes the target function on
+  # the functions-runtime, advancing next_run by the schedule's interval.
+  # Zero-dep interval grammar (@every / @hourly / @daily / bare duration).
+  # NOTE: own port 3027 — the orchestrator owns 3026 on this (scale-program) base.
+  function-scheduler:
+    image: ghcr.io/univers42/grobase-function-scheduler:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./go/control-plane
+      dockerfile: Dockerfile
+      args:
+        APP: function-scheduler
+        PORT: 3027
+    profiles: [functions, background, go-control-plane]
+    container_name: mini-baas-function-scheduler
+    env_file: [.env]
+    environment:
+      FUNCTION_SCHEDULER_HOST: 0.0.0.0
+      FUNCTION_SCHEDULER_PORT: 3027
+      FUNCTION_SCHEDULER_PRODUCT_MODE: ${FUNCTION_SCHEDULER_PRODUCT_MODE:-shadow}
+      FUNCTION_SCHEDULER_TICK_SECONDS: ${FUNCTION_SCHEDULER_TICK_SECONDS:-10}
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      FUNCTIONS_RUNTIME_URL: ${FUNCTIONS_RUNTIME_URL:-http://functions-runtime:3060}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "127.0.0.1:${FUNCTION_SCHEDULER_PORT:-3027}:3027"
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/app", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 96m
+    cpus: 0.25
+
+  # ─── Email Service (background plane) ─────────────────────────────
+  email-service:
+    image: ghcr.io/univers42/grobase-email-service:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+      args:
+        APP: email-service
+    profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
+    container_name: mini-baas-email-service
+    env_file: [.env]
+    environment:
+      PORT: 3030
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@mini-baas.local}
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3030/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── Storage Router (NestJS — presigned URLs) ───────────────────
+  storage-router:
+    image: ghcr.io/univers42/grobase-storage-router:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+      args:
+        APP: storage-router
+    profiles: [storage, extras]
+    container_name: mini-baas-storage-router
+    env_file: [.env]
+    environment:
+      PORT: 3040
+      JWT_SECRET: ${JWT_SECRET}
+      # storage-router authenticates END-USERS via the Kong-verified JWT
+      # (Kong's pre-function clears then sets X-User-Id from claims.sub), so it
+      # trusts those raw identity headers on the private network (compat mode).
+      # It has no api-key->signed-identity middleware like query-router.
+      IDENTITY_HEADER_MODE: ${STORAGE_IDENTITY_HEADER_MODE:-compat}
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      PRESIGN_EXPIRES_SECONDS: ${PRESIGN_EXPIRES_SECONDS:-3600}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      minio:
+        condition: service_started
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3040/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── Permission Engine (control plane — ABAC) ─────────────────────
+  permission-engine:
+    image: ghcr.io/univers42/grobase-permission-engine:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+      args:
+        APP: permission-engine
+    profiles: [adapter-plane, control-plane]
+    container_name: mini-baas-permission-engine
+    env_file: [.env]
+    environment:
+      PORT: 3050
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      JWT_SECRET: ${JWT_SECRET}
+      # `abac` (default): role match + JSONB conditions + field masks.
+      # `rbac`         : role match only, no masks. Cheaper, simpler — pick
+      # this when the product does not need attribute-level decisions.
+      # The two modes are mutually exclusive; set once at deploy time.
+      PERMISSION_MODE: ${PERMISSION_MODE:-abac}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3050/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── Schema Service (control plane — DDL management) ──────────────
+  schema-service:
+    image: ghcr.io/univers42/grobase-schema-service:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+      args:
+        APP: schema-service
+    profiles: [control-plane]
+    container_name: mini-baas-schema-service
+    env_file: [.env]
+    environment:
+      PORT: 3060
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      # Adapter-registry cutover: Go is the primary service now. The TS
+      # adapter-registry was retired after parity-probe.sh proved the Go
+      # implementation byte-compatible (same AES-GCM scheme, same RLS).
+      # Override `ADAPTER_REGISTRY_URL` if you need to point at the legacy
+      # TS service (only useful during the deprecation window).
+      ADAPTER_REGISTRY_URL: ${ADAPTER_REGISTRY_URL:-http://adapter-registry-go:3021}
+      ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      adapter-registry-go:
+        condition: service_healthy
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3060/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── Analytics Service (analytics/background plane) ───────────────
+  analytics-service:
+    image: ghcr.io/univers42/grobase-analytics-service:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+      args:
+        APP: analytics-service
+    # analytics add-on (max tier) — NOT `background`: it hard-requires mongo,
+    # and `background` is part of the lean essential set.
+    profiles: [analytics]
+    container_name: mini-baas-analytics-service
+    env_file: [.env]
+    environment:
+      PORT: 3070
+      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017
+      MONGO_DB_NAME: ${ANALYTICS_MONGO_DB:-mini_baas_analytics}
+      ANALYTICS_RETENTION_DAYS: ${ANALYTICS_RETENTION_DAYS:-90}
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3070/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── GDPR Service (background/control plane) ─────────────────────
+  gdpr-service:
+    image: ghcr.io/univers42/grobase-gdpr-service:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+      args:
+        APP: gdpr-service
+    profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
+    container_name: mini-baas-gdpr-service
+    env_file: [.env]
+    environment:
+      PORT: 3080
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      GDPR_DELETION_WEBHOOK_URL: ${GDPR_DELETION_WEBHOOK_URL:-}
+      GDPR_EXPORT_WEBHOOK_URL: ${GDPR_EXPORT_WEBHOOK_URL:-}
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3080/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── Newsletter Service (background plane) ────────────────────────
+  newsletter-service:
+    image: ghcr.io/univers42/grobase-newsletter-service:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+      args:
+        APP: newsletter-service
+    profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
+    container_name: mini-baas-newsletter-service
+    env_file: [.env]
+    environment:
+      PORT: 3090
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      EMAIL_SERVICE_URL: http://email-service:3030
+      NEWSLETTER_BASE_URL: ${NEWSLETTER_BASE_URL:-http://localhost:8000/newsletter/v1}
+      NEWSLETTER_BATCH_SIZE: ${NEWSLETTER_BATCH_SIZE:-5}
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      email-service:
+        condition: service_started
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3090/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── AI Service (background/data plane) ──────────────────────────
+  ai-service:
+    image: ghcr.io/univers42/grobase-ai-service:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+      args:
+        APP: ai-service
+    # AI add-on rides the analytics profile (max tier) — NOT `background`: it
+    # hard-requires mongo, and `background` is part of the lean essential set.
+    profiles: [analytics]
+    container_name: mini-baas-ai-service
+    env_file: [.env]
+    environment:
+      PORT: 3100
+      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017
+      MONGO_DB_NAME: ${AI_MONGO_DB:-mini_baas_ai}
+      LLM_API_URL: ${LLM_API_URL:-https://api.groq.com/openai/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-llama-3.3-70b-versatile}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-2048}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
+      AI_CONVERSATION_TTL_HOURS: ${AI_CONVERSATION_TTL_HOURS:-24}
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3100/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 256m
+    cpus: 0.5
+
+  # ─── Log Service (observability/background plane) ────────────────
+  log-service:
+    image: ghcr.io/univers42/grobase-log-service:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+      args:
+        APP: log-service
+    profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
+    container_name: mini-baas-log-service
+    env_file: [.env]
+    environment:
+      PORT: 3110
+      LOG_BUFFER_SIZE: ${LOG_BUFFER_SIZE:-1000}
+      LOG_STREAM_TOKEN: ${LOG_STREAM_TOKEN:-}
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3110/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── Session Service (background plane) ──────────────────────────
+  session-service:
+    image: ghcr.io/univers42/grobase-session-service:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+      args:
+        APP: session-service
+    profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
+    container_name: mini-baas-session-service
+    env_file: [.env]
+    environment:
+      PORT: 3120
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-7}
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:3120/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── Object Storage (extras) ─────────────────────────────────────
+  minio:
+    image: ghcr.io/univers42/grobase-minio:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/minio
+      dockerfile: Dockerfile
+    container_name: mini-baas-minio
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+    profiles: [storage, extras]
+    env_file: [.env]
+    command: server /data --console-address ":9001"
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio-data:/data
+    networks:
+      - mini-baas
+    restart: unless-stopped
+
+  # ─── Edge Functions Runtime (Deno worker-per-invocation MVP) ──────
+  # Tenants POST TS/JS code to /v1/functions and invoke them at
+  # /v1/functions/:name/invoke. Each invocation spawns a Deno Worker with a
+  # minimal permission set. Read wiki/back/08_edge_functions.md for the
+  # security trade-offs.
+  functions-runtime:
+    image: ghcr.io/univers42/grobase-functions-runtime:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/functions-runtime
+      dockerfile: Dockerfile
+    profiles: [functions, extras]
+    container_name: mini-baas-functions
+    env_file: [.env]
+    healthcheck:
+      # deno-based image (no curl/wget) — probe the /health/live route with deno itself
+      test:
+        [
+          "CMD",
+          "deno",
+          "eval",
+          "try{const r=await fetch('http://localhost:3060/health/live');Deno.exit(r.ok?0:1)}catch{Deno.exit(1)}",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    environment:
+      FUNCTIONS_HOST: 0.0.0.0
+      FUNCTIONS_PORT: 3060
+      FUNCTIONS_DATA_DIR: /data
+      FUNCTIONS_INVOKE_TIMEOUT_MS: ${FUNCTIONS_INVOKE_TIMEOUT_MS:-5000}
+      # A2: resolve per-function secrets from the Go secret store at invoke time
+      # (set on the webhook-dispatcher's /internal route). Empty => no secrets.
+      FUNCTION_SECRETS_URL: ${FUNCTION_SECRETS_URL:-http://webhook-dispatcher:3025/internal/v1/function-secrets/resolve}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+    ports:
+      - "127.0.0.1:${FUNCTIONS_PORT:-3060}:3060"
+    volumes:
+      - functions-data:/data
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+
+  # ─── Postgres Backup (nightly logical dumps -> MinIO) ─────────────
+  # Profile `backups` keeps it out of the lean dev loop. Add `--profile backups`
+  # or include it in BAAS_LEAN_PROFILES_EXTRA for production deployments.
+  pg-backup:
+    image: ghcr.io/univers42/grobase-pg-backup:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/pg-backup
+      dockerfile: Dockerfile
+    profiles: [backups, ops]
+    container_name: mini-baas-pg-backup
+    env_file: [.env]
+    environment:
+      DATABASE_URL: ${PG_BACKUP_DATABASE_URL:-${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}}
+      MINIO_ENDPOINT: ${PG_BACKUP_MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      PG_BACKUP_SCHEDULE: ${PG_BACKUP_SCHEDULE:-0 3 * * *}
+      PG_BACKUP_BUCKET: ${PG_BACKUP_BUCKET:-backups}
+      PG_BACKUP_PREFIX: ${PG_BACKUP_PREFIX:-postgres}
+      PG_BACKUP_RETAIN_DAYS: ${PG_BACKUP_RETAIN_DAYS:-14}
+      PG_BACKUP_PHYSICAL: ${PG_BACKUP_PHYSICAL:-0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+        required: false
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/opt/pg-backup/entrypoint.sh", "liveness"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    mem_limit: 128m
+    cpus: 0.25
+
+  # ─── Connection Pooler (control plane / close to Postgres) ────────
+  supavisor:
+    image: ghcr.io/univers42/grobase-supavisor:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/supavisor
+      dockerfile: Dockerfile
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sSfL --head -o /dev/null http://127.0.0.1:4000/api/health || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    container_name: mini-baas-supavisor
+    profiles: [control-plane, extras]
+    env_file: [.env]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-super-secret-key-base}
+      VAULT_ENC_KEY: ${VAULT_ENC_KEY:-0123456789abcdef0123456789abcdef}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mini-baas
+    restart: unless-stopped
+
+  # ─── Admin Dashboard (extras) ────────────────────────────────────
+  # Studio talks to pg-meta for schema inspection and proxies postgres for
+  # the table editor. Open http://localhost:${STUDIO_PORT:-3000} once the
+  # container reports healthy. The DEFAULT_* env vars skip the first-run
+  # wizard so the dashboard loads straight into the dev project.
+  studio:
+    image: ghcr.io/univers42/grobase-studio:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/studio
+      dockerfile: Dockerfile
+    container_name: mini-baas-studio
+    profiles: [control-plane, extras, studio]
+    env_file: [.env]
+    environment:
+      HOSTNAME: 0.0.0.0
+      STUDIO_PG_META_URL: http://pg-meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DEFAULT_ORGANIZATION_NAME: ${STUDIO_DEFAULT_ORG_NAME:-Mini BaaS Dev}
+      DEFAULT_PROJECT_NAME: ${STUDIO_DEFAULT_PROJECT_NAME:-mini-baas}
+      SUPABASE_URL: ${SUPABASE_URL:-http://kong:8000}
+      SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL:-http://localhost:8000}
+      SUPABASE_ANON_KEY: ${ANON_KEY:-anon-key-placeholder}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY:-service-key-placeholder}
+      LOGFLARE_API_KEY: ${STUDIO_LOGFLARE_API_KEY:-}
+      LOGFLARE_URL: ${STUDIO_LOGFLARE_URL:-}
+      NEXT_PUBLIC_ENABLE_LOGS: "false"
+      NEXT_ANALYTICS_BACKEND_PROVIDER: postgres
+    ports:
+      - "127.0.0.1:${STUDIO_PORT:-3000}:3000"
+    depends_on:
+      pg-meta:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:3000/api/profile'').then(r => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    mem_limit: 384m
+    cpus: 0.5
+
+  # ─── Observability: Prometheus ───────────────────────────────────
+  prometheus:
+    image: ghcr.io/univers42/grobase-prometheus:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/prometheus
+      dockerfile: Dockerfile
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:9090/-/healthy >/dev/null || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+    container_name: mini-baas-prometheus
+    profiles: ["observability"]
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - mini-baas
+    restart: unless-stopped
+
+  # ─── Observability: Grafana ──────────────────────────────────────
+  grafana:
+    image: ghcr.io/univers42/grobase-grafana:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/grafana
+      dockerfile: Dockerfile
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:3000/api/health >/dev/null || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    container_name: mini-baas-grafana
+    profiles: ["observability"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3030:3000"
+    networks:
+      - mini-baas
+    restart: unless-stopped
+
+  # ─── Observability: Loki ─────────────────────────────────────────
+  loki:
+    image: ghcr.io/univers42/grobase-loki:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./docker/services/loki
+      dockerfile: Dockerfile
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:3100/ready >/dev/null || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    container_name: mini-baas-loki
+    profiles: ["observability"]
+    volumes:
+      - ./config/loki/loki.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+    command: ["-config.file=/etc/loki/config.yaml"]
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    networks:
+      - mini-baas
+    restart: unless-stopped
+    # The one long-running service that had no base cap: a heavy log day blew
+    # it to 750+ MiB of chunk/index cache (uncapped = host-RAM-bounded). Under
+    # a cap loki evicts caches and keeps working; prod overlay tightens to 384m.
+    mem_limit: 512m
+    cpus: 0.50
+
+  # ─── Observability: Promtail ─────────────────────────────────────
+  promtail:
+    image: ghcr.io/univers42/grobase-promtail:latest # pull-fallback (built from ./build context below)
+    # No healthcheck BY DESIGN: the promtail image ships neither curl nor wget.
+    # It is a push-only agent — failure is visible as missing log streams, and
+    # Loki's own /ready healthcheck covers the receiving end of the pipeline.
+    build:
+      context: ./docker/services/promtail
+      dockerfile: Dockerfile
+    container_name: mini-baas-promtail
+    profiles: ["observability"]
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/promtail/promtail.yaml:/etc/promtail/config.yaml:ro
+    command: ["-config.file=/etc/promtail/config.yaml"]
+    networks:
+      - mini-baas
+    restart: unless-stopped
+
+  # ─── Playground Frontend ─────────────────────────────────────────
+  playground:
+    # No healthcheck BY DESIGN: dev-only static playground whose content is
+    # optional (./playground assets) — a content probe would flap on a bare
+    # checkout. Never part of a production edition.
+    image: nginx:1.27-alpine
+    container_name: mini-baas-playground
+    profiles: ["playground"]
+    ports:
+      - "3100:80"
+    volumes:
+      - ./playground:/usr/share/nginx/html
+      - ./playground/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      kong:
+        condition: service_started
+    networks:
+      - mini-baas
+    restart: unless-stopped
+
+networks:
+  mini-baas:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  mongo-data:
+  mysql-data:
+  cockroach-data:
+  mssql-data:
+  mariadb-data:
+  mongo-keyfile:
+  redis-data:
+  minio-data:
+  vault-data:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  functions-data:
+
+# TLS material for the waf (public HTTPS entrypoint) delivered as Docker secrets,
+# not bind mounts. The source pems are generated once at fresh start by `make certs`
+# (idempotent; skips if present + unexpired) and live in the gitignored certs/ dir.
+secrets:
+  localhost_cert:
+    file: ../certs/localhost.pem
+  localhost_key:
+    file: ../certs/localhost-key.pem

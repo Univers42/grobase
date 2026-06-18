@@ -1,0 +1,105 @@
+# observability plane — prometheus, grafana, loki, promtail
+services:
+  prometheus:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-prometheus:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/prometheus
+      dockerfile: Dockerfile
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:9090/-/healthy >/dev/null || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+    container_name: mini-baas-prometheus
+    profiles: ["observability"]
+    volumes:
+      - ./infra/config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/config/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+
+  # ─── Observability: Grafana ──────────────────────────────────────
+  grafana:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-grafana:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/grafana
+      dockerfile: Dockerfile
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:3000/api/health >/dev/null || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    container_name: mini-baas-grafana
+    profiles: ["observability"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+    volumes:
+      - ./infra/config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3030:3000"
+
+  # ─── Observability: Loki ─────────────────────────────────────────
+  loki:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-loki:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/loki
+      dockerfile: Dockerfile
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:3100/ready >/dev/null || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    container_name: mini-baas-loki
+    profiles: ["observability"]
+    volumes:
+      - ./infra/config/loki/loki.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+    command: ["-config.file=/etc/loki/config.yaml"]
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    # The one long-running service that had no base cap: a heavy log day blew
+    # it to 750+ MiB of chunk/index cache (uncapped = host-RAM-bounded). Under
+    # a cap loki evicts caches and keeps working; prod overlay tightens to 384m.
+    mem_limit: 512m
+    cpus: 0.50
+
+  # ─── Observability: Promtail ─────────────────────────────────────
+  promtail:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-promtail:latest # pull-fallback (built from ./build context below)
+    # No healthcheck BY DESIGN: the promtail image ships neither curl nor wget.
+    # It is a push-only agent — failure is visible as missing log streams, and
+    # Loki's own /ready healthcheck covers the receiving end of the pipeline.
+    build:
+      context: ./infra/docker/services/promtail
+      dockerfile: Dockerfile
+    container_name: mini-baas-promtail
+    profiles: ["observability"]
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infra/config/promtail/promtail.yaml:/etc/promtail/config.yaml:ro
+    command: ["-config.file=/etc/promtail/config.yaml"]
+
+  # ─── Playground Frontend ─────────────────────────────────────────

@@ -74,7 +74,7 @@ jobs:
           df -h / | tail -1
 
       - name: Generate env (compose interpolation)
-        run: FORCE=1 bash scripts/generate-env.sh .env
+        run: FORCE=1 bash scripts/env/generate-env.sh .env
 
       - name: Build nano + one images
         run: |
@@ -139,7 +139,7 @@ jobs:
           df -h / | tail -1
 
       - name: Generate env
-        run: FORCE=1 bash scripts/generate-env.sh .env
+        run: FORCE=1 bash scripts/env/generate-env.sh .env
 
       - name: Boot query edition
         run: |
@@ -222,7 +222,7 @@ jobs:
           df -h / | tail -1
 
       - name: Generate env
-        run: FORCE=1 bash scripts/generate-env.sh .env
+        run: FORCE=1 bash scripts/env/generate-env.sh .env
 
       - name: Boot query edition (+ mysql/mongo for the cross-engine probe)
         run: |

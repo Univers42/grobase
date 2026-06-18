@@ -21,8 +21,8 @@ and evidence. (ISO/IEC 27001 clause 4 — context & scope; Annex A A.5.1.)
 ## Roles & responsibilities (A.5.2)
 Management owns the ISMS and resourcing; engineering owns control implementation and the gate
 battery; operations owns monitoring, incident response, and backups. Specific role assignments and
-the security event-reporting channel are recorded in [`access-control-policy.md`](access-control-policy.md)
-and [`incident-response-policy.md`](incident-response-policy.md).
+the security event-reporting channel are recorded in [`access-control-policy.md`](./access-control-policy.md)
+and [`incident-response-policy.md`](./incident-response-policy.md).
 
 ## How this policy is enforced
 The control set is **gate-proven and continuously evaluated**: the enterprise gate battery
@@ -32,4 +32,4 @@ drives treatment; the SoA ([`../iso27001-soa.md`](../iso27001-soa.md)) records a
 
 ## Review
 At least annually and on material change; nonconformities flow to the risk register and the
-residuals runbook ([`../../security-residuals-runbook.md`](../../security-residuals-runbook.md)).
+residuals runbook ([`../../security-residuals-runbook.md`](../../security/security-residuals-runbook.md)).

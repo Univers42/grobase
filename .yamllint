@@ -1,0 +1,45 @@
+---
+# Grobase YAML lint policy.
+# extends: default, then relax purely-cosmetic rules that are noise for
+# hand-maintained Docker-compose plane files and generated/templated configs
+# (Prometheus rules, Grafana/Loki/Tempo). Each relaxation is justified below;
+# genuinely-real issues (syntax, duplicate keys, meaning-changing indentation,
+# stray blank lines) are still hard errors and are FIXED in source, not muted.
+extends: default
+
+rules:
+  # Compose plane files and Prometheus alert exprs routinely exceed 80 cols
+  # (image refs, long depends_on/healthcheck cmds, PromQL). Wrapping them
+  # hurts readability and risks breaking quoted shell/PromQL strings. Cosmetic.
+  line-length: disable
+
+  # Multi-doc start marker (---) is meaningless for single-document compose and
+  # config files; docker compose / Prometheus never emit or require it. Cosmetic.
+  document-start: disable
+
+  # Flow-style mappings with inner spacing — `{ plane: "control" }`,
+  # `{ severity: critical }` — are valid YAML and the established style in the
+  # Prometheus scrape/alert configs. Spot-checked prometheus.yml:29 and
+  # rules/platform.yml:16: both are intentional inline label maps, not bugs.
+  braces:
+    forbid: false
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  # Section-divider comments (e.g. "# ─── API Gateway ───") are deliberately
+  # kept at the parent indent so they head a block rather than align with the
+  # nested key under them. Spot-checked secrets.yml:51 and scale.yml:52:
+  # intentional dividers, not stray comments. Cosmetic.
+  comments-indentation: disable
+
+  # truthy: compose/Prometheus use bare on/off/yes/no for flags in places where
+  # they read naturally; treating them as non-boolean is noise, not a bug.
+  truthy:
+    check-keys: false
+
+  # Prettier (the canonical YAML formatter run by `make prettiers`) emits exactly
+  # ONE space between content and an inline comment (`value # note`); the default
+  # rule wants two. Align the linter to the formatter so prettier output is
+  # lint-clean — a single, consistent space before inline comments is intentional.
+  comments:
+    min-spaces-from-content: 1

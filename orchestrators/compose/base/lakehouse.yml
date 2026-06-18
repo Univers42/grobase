@@ -1,0 +1,146 @@
+# lakehouse plane — trino, iceberg-rest, debezium, minio-iceberg-init
+services:
+  trino:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-trino:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/trino
+      dockerfile: Dockerfile
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:8080/v1/info >/dev/null || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+    container_name: mini-baas-trino
+    profiles: [analytics, extras]
+    # Trino's jvm.config sizes the heap as 80% of visible RAM
+    # (Initial/MaxRAMPercentage=80): without a limit it reserves against the
+    # whole HOST (~25GB on a 32GB machine, ~900MB RSS idle). The cap makes the
+    # JVM size itself for the local analytics workload instead.
+    mem_limit: 2g
+    cpus: 2.0
+    env_file: [.env]
+    environment:
+      MYSQL_USER: ${MYSQL_USER:-mini_baas}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-mini_baas_pw}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - ./infra/docker/services/trino/conf/config.properties:/etc/trino/config.properties:ro
+      - ./infra/docker/services/trino/conf/catalog/postgresql.properties:/etc/trino/catalog/postgresql.properties:ro
+      - ./infra/docker/services/trino/conf/catalog/mongodb.properties:/etc/trino/catalog/mongodb.properties:ro
+      - ./infra/docker/services/trino/conf/catalog/mysql.properties:/etc/trino/catalog/mysql.properties:ro
+      - ./infra/docker/services/trino/conf/catalog/iceberg.properties:/etc/trino/catalog/iceberg.properties:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      iceberg-rest:
+        condition: service_started
+
+  # ─── MySQL (M2 federation — analytical + tenant CRUD via query-router) ──
+  iceberg-rest:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-iceberg-rest:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/iceberg-rest
+      dockerfile: Dockerfile
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:8181/v1/config >/dev/null || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    container_name: mini-baas-iceberg-rest
+    profiles: [analytics, extras]
+    env_file: [.env]
+    environment:
+      CATALOG_WAREHOUSE: s3://iceberg/
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: http://minio:9000
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_REGION: us-east-1
+    ports:
+      - "${ICEBERG_REST_PORT:-8181}:8181"
+    depends_on:
+      minio-iceberg-init:
+        condition: service_completed_successfully
+    mem_limit: 384m
+    cpus: 0.5
+
+  # ─── Outbox relay (M3 coherence — PG WAL → Redis Streams → Mongo projection) ──
+  debezium:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-debezium:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/debezium
+      dockerfile: Dockerfile
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:8080/q/health >/dev/null || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    container_name: mini-baas-debezium
+    profiles: [analytics]
+    env_file: [.env]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    volumes:
+      - ./infra/docker/services/debezium/application.properties:/debezium/config/application.properties:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    mem_limit: 384m
+    cpus: 0.5
+
+  # ─── Iceberg warehouse bucket bootstrap (M2 federation) ──────────
+  minio-iceberg-init:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-mc:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/mc
+      dockerfile: Dockerfile
+    container_name: mini-baas-minio-iceberg-init
+    profiles: [analytics, extras, storage]
+    env_file: [.env]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    entrypoint: >
+      sh -c "
+        until mc alias set local http://minio:9000 \"$$MINIO_ROOT_USER\" \"$$MINIO_ROOT_PASSWORD\" >/dev/null 2>&1; do
+          echo 'waiting for minio…'; sleep 1;
+        done;
+        mc mb -p local/iceberg || true;
+        mc anonymous set none local/iceberg || true;
+        echo 'iceberg bucket ready';
+      "
+    depends_on:
+      minio:
+        condition: service_started
+    restart: "no"
+
+  # ─── Relational Database (custom image with pg_net) ───────────────

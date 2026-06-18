@@ -1,0 +1,72 @@
+[package]
+name = "data-plane-pool"
+version = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+
+# Engine drivers are FEATURE-GATED so lean builds (nano edition) compile only
+# what they mount. Default = every engine — the full router image and the
+# entire test/conformance battery build exactly as before. A lean build picks
+# a subset: `--no-default-features --features sqlite`.
+[features]
+default = ["postgres", "mongodb", "mysql", "redis", "sqlite", "mssql", "http"]
+postgres = [
+    "dep:tokio-postgres",
+    "dep:deadpool-postgres",
+    "dep:tokio-postgres-rustls",
+    "dep:rustls",
+    "dep:webpki-roots",
+    "dep:rustls-pemfile",
+    "dep:bytes",
+]
+mongodb = ["dep:mongodb", "dep:bson"]
+mysql = ["dep:mysql_async"]
+redis = ["dep:redis"]
+sqlite = ["dep:rusqlite", "dep:deadpool-sqlite"]
+mssql = ["dep:tiberius", "dep:bb8", "dep:bb8-tiberius", "dep:tokio-util"]
+http = ["dep:percent-encoding"]
+# 8th engine (OFF by default — NOT in `default`, so the default build never
+# fetches or compiles the AWS SDK → byte-parity): DynamoDB-compatible adapter
+# (AWS DynamoDB / DynamoDB-Local / ScyllaDB Alternator). Deps are optional.
+dynamodb = ["dep:aws-sdk-dynamodb", "dep:aws-config"]
+
+[dependencies]
+data-plane-core = { path = "../data-plane-core" }
+async-trait = { workspace = true }
+bytes = { version = "1", optional = true }
+chrono = { workspace = true }
+bson = { workspace = true, optional = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
+deadpool-postgres = { workspace = true, optional = true }
+deadpool-sqlite = { workspace = true, optional = true }
+rusqlite = { workspace = true, optional = true }
+tiberius = { workspace = true, optional = true }
+bb8 = { workspace = true, optional = true }
+bb8-tiberius = { workspace = true, optional = true }
+tokio-util = { workspace = true, optional = true }
+futures = { workspace = true }
+uuid = { workspace = true }
+mongodb = { workspace = true, optional = true }
+mysql_async = { workspace = true, optional = true }
+# 8th engine (OFF by default): DynamoDB-compatible adapter. Optional → only
+# fetched/compiled under `--features dynamodb`. rustls TLS posture matches the
+# rest of the workspace; behavior_version pulled from aws-config.
+aws-sdk-dynamodb = { workspace = true, optional = true }
+aws-config = { workspace = true, optional = true }
+percent-encoding = { workspace = true, optional = true }
+redis = { workspace = true, optional = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tokio-postgres = { workspace = true, optional = true }
+tokio-postgres-rustls = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
+webpki-roots = { workspace = true, optional = true }
+rustls-pemfile = { workspace = true, optional = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+# Property-based edge-case testing for the shared SQL filter lowerer.
+proptest = { workspace = true }
