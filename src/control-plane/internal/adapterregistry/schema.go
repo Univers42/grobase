@@ -86,6 +86,11 @@ ALTER TABLE public.tenant_databases ADD CONSTRAINT tenant_databases_credential_m
      AND cmek_wrapped_dek IS NOT NULL AND cmek_kms_key_id IS NOT NULL
      AND cred_provider IS NULL AND cred_reference IS NULL AND cred_version IS NULL)
 );
+-- Per-mount shared resources (migration 068, mirrored here so a FRESH
+-- EnsureSchema install converges with a migrated one): a JSONB array of table
+-- names the data plane reads as the mount's NON-owner-scoped catalog. NULL on
+-- every existing/inline/cred-ref/cmek row ⇒ no opt-in ⇒ byte-parity.
+ALTER TABLE public.tenant_databases ADD COLUMN IF NOT EXISTS shared_resources JSONB;
 ALTER TABLE public.tenant_databases ENABLE ROW LEVEL SECURITY;
 -- Retire the pre-M12 broken policy on upgrade.
 DROP POLICY IF EXISTS tenant_isolation ON public.tenant_databases;
