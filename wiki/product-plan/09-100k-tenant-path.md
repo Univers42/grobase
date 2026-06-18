@@ -1,6 +1,6 @@
 # 09 — The path to 10,000 and 100,000 tenants
 
-> Companion to [`../grobase-master-plan.md`](../grobase-master-plan.md). Every limit below is
+> Companion to [`../grobase-master-plan.md`](../go-to-market/grobase-master-plan.md). Every limit below is
 > traced to code or a benchmark artifact. The question this answers: **how many tenants can one
 > Grobase deployment hold, and what has to change to hold more?**
 

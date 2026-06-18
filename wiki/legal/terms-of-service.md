@@ -24,14 +24,14 @@ and is **not** governed by these Terms.
 - You are responsible for your account, your API keys, and all activity under them.
 - You must keep API keys confidential. Keys can be rotated/revoked from the tenant
   self-service console.
-- Use of the Service is subject to the [Acceptable Use Policy](acceptable-use-policy.md).
+- Use of the Service is subject to the [Acceptable Use Policy](./acceptable-use-policy.md).
 
 ## 3. Plans, usage, and billing
 
 - Paid plans (basic, essential, pro, max) are billed per the published pricing and
   measured usage. Usage metering (requests, rows, storage, realtime, functions) is
-  recorded per tenant. See the [Privacy Policy](privacy-policy.md) for what we
-  collect and the [Data Processing Addendum](data-processing-addendum.md) for how
+  recorded per tenant. See the [Privacy Policy](./privacy-policy.md) for what we
+  collect and the [Data Processing Addendum](./data-processing-addendum.md) for how
   we process Customer Data.
 - Billing is processed by `[Stripe, when billing is enabled]`. We do not store full
   card details.
@@ -39,7 +39,7 @@ and is **not** governed by these Terms.
 
 ## 4. Service levels
 
-Service-level commitments for paid tiers are stated in the [SLA](sla.md), which
+Service-level commitments for paid tiers are stated in the [SLA](./sla.md), which
 references measured availability. **No uptime number is invented in this document;**
 the SLA is enforceable only once the operational uptime probe is live (see SLA ยง1).
 
@@ -47,14 +47,14 @@ the SLA is enforceable only once the operational uptime probe is live (see SLA ย
 
 - You retain all rights to data you submit to the Service ("Customer Data").
 - You can export your data at any time (GDPR Art. 20 portability is supported; see
-  the [trust center](../trust-center.md), control `data-portability-export`).
-- We act as a processor of Customer Data; the [DPA](data-processing-addendum.md)
+  the [trust center](../security/trust-center.md), control `data-portability-export`).
+- We act as a processor of Customer Data; the [DPA](./data-processing-addendum.md)
   governs that relationship.
 
 ## 6. Security
 
 We maintain technical and organizational measures described in the
-[trust center](../trust-center.md). Each control there is tagged with the evidence
+[trust center](../security/trust-center.md). Each control there is tagged with the evidence
 that proves it (a gate id or a wiki doc). No security claim in our materials is made
 without such evidence.
 

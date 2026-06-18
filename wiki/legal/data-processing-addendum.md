@@ -3,10 +3,10 @@
 > **TEMPLATE — review by counsel before use; not legal advice.** Scaffold for GDPR
 > Art. 28 processor terms. Not lawyer-reviewed. The SCC module selection, liability,
 > and audit clauses MUST be set by counsel. The subprocessor list MUST match
-> [subprocessors.md](subprocessors.md).
+> [subprocessors.md](./subprocessors.md).
 
 This Data Processing Addendum ("DPA") forms part of the
-[Terms of Service](terms-of-service.md) between `[CUSTOMER]` ("Controller") and
+[Terms of Service](./terms-of-service.md) between `[CUSTOMER]` ("Controller") and
 `[GROBASE LEGAL ENTITY]` ("Processor") and applies where the Processor processes
 Personal Data on behalf of the Controller (GDPR Art. 28).
 
@@ -26,7 +26,7 @@ Controller (these terms + the Controller's use of the Service).
 
 - **Subject matter:** provision of the Grobase managed Backend-as-a-Service.
 - **Duration:** the term of the Agreement plus the retention window in the
-  [Privacy Policy](privacy-policy.md).
+  [Privacy Policy](./privacy-policy.md).
 - **Nature & purpose:** storage, querying, realtime delivery, functions execution,
   and backup of Customer Data, as directed by the Controller.
 - **Categories of data subjects / data:** as determined by the Controller's use.
@@ -36,7 +36,7 @@ Controller (these terms + the Controller's use of the Service).
 1. Process Personal Data only on documented instructions.
 2. Ensure persons authorized to process are bound by confidentiality.
 3. Implement appropriate technical and organizational measures (Art. 32) — see the
-   [trust center](../trust-center.md); each measure is evidence-backed.
+   [trust center](../security/trust-center.md); each measure is evidence-backed.
 4. Engage subprocessors only per §6 below.
 5. Assist the Controller with data-subject requests insofar as possible — the Service
    provides export (Art. 20, gate m109) and erasure (Art. 17, gate m105) tooling.
@@ -47,7 +47,7 @@ Controller (these terms + the Controller's use of the Service).
 
 ## 5. Security measures (Art. 32)
 
-The Processor maintains the controls in the [trust center](../trust-center.md),
+The Processor maintains the controls in the [trust center](../security/trust-center.md),
 including tamper-evident audit logging (m104), per-tenant isolation (m46),
 encryption in transit `[partial — see trust center control encryption-in-transit]`,
 and access controls. Per-tenant **encryption at rest** is `[planned — see trust
@@ -56,7 +56,7 @@ the trust center marks it so.
 
 ## 6. Subprocessors
 
-The Controller authorizes the subprocessors in [subprocessors.md](subprocessors.md).
+The Controller authorizes the subprocessors in [subprocessors.md](./subprocessors.md).
 The Processor will give `[N]` days' notice of new subprocessors and a right to object.
 
 ## 7. International transfers

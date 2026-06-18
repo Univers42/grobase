@@ -9,7 +9,7 @@ GDPR Art. 33–34.)
 
 ## Process
 1. **Preparation.** Roles, on-call, and the event-reporting channel are defined; the operational
-   procedures live in [`../../operations-runbook.md`](../../operations-runbook.md).
+   procedures live in [`../../operations-runbook.md`](../../operations/operations-runbook.md).
 2. **Detection & triage.** Observability (Prometheus/Grafana/Loki/Tempo) plus the tamper-evident
    audit log surface anomalies; severity is assigned on triage. Forensic evidence is the
    hash-chained audit chain — enforced: gate `m104`.
@@ -22,7 +22,7 @@ GDPR Art. 33–34.)
    [`../gdpr-article-matrix.md`](../gdpr-article-matrix.md).
 5. **Post-incident learning.** Root-cause and corrective actions feed the risk register
    ([`../risk-register.md`](../risk-register.md)) and the residuals runbook
-   ([`../../security-residuals-runbook.md`](../../security-residuals-runbook.md)).
+   ([`../../security-residuals-runbook.md`](../../security/security-residuals-runbook.md)).
 
 ## Pending infra (stated honestly)
 Public vulnerability disclosure intake (`security.txt`) and SIEM shipping with cross-tenant-404

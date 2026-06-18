@@ -17,7 +17,7 @@ Manage information-security risk arising from suppliers, subprocessors, and the 
 - **ICT supply-chain hardening (the enforced part).** Dependencies are locked and scanned: frozen
   lockfiles everywhere, `npm ci --ignore-scripts`, pnpm `minimum-release-age` + `onlyBuiltDependencies`
   allowlist, digest pinning, and **blocking** cargo-audit / govulncheck / npm-audit / Trivy / Semgrep
-  / secret scans in CI. See [`../../security-audit.md`](../../security-audit.md) (supply-chain) and
+  / secret scans in CI. See [`../../security-audit.md`](../../security/security-audit.md) (supply-chain) and
   [`../iso27001-soa.md`](../iso27001-soa.md) A.5.21.
 - **Monitoring & review.** Subprocessor changes trigger a RoPA update ([`../gdpr-ropa.md`](../gdpr-ropa.md));
   accepted dependency residuals (e.g. the tiberius-only advisories) are tracked in `audit-deps.sh` /

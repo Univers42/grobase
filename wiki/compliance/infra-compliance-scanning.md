@@ -1,8 +1,8 @@
 # Infrastructure Compliance Scanning (SOC 2 / ISO 27001 / GDPR — as code)
 
 > **What this is.** The *runnable* layer under the compliance cross-walk pack. The matrices in this
-> directory ([`soc2-tsc-matrix.md`](soc2-tsc-matrix.md), [`iso27001-soa.md`](iso27001-soa.md),
-> [`gdpr-article-matrix.md`](gdpr-article-matrix.md)) say **what** each control satisfies; this page
+> directory ([`soc2-tsc-matrix.md`](./soc2-tsc-matrix.md), [`iso27001-soa.md`](./iso27001-soa.md),
+> [`gdpr-article-matrix.md`](./gdpr-article-matrix.md)) say **what** each control satisfies; this page
 > wires the **scanners that produce evidence for them** and is brutally honest about which of those
 > scanners can run today and which need a live cloud account.
 
@@ -32,8 +32,8 @@ infra-config half
 > a real account against the built-in SOC 2 / ISO 27001 / GDPR frameworks — and **they cannot run
 > without live cloud credentials we do not have locally**, so they are *wired and documented*, not
 > "passing." None of these tools issues a certificate; a certificate needs an external party over a
-> calendar-bound window (see [`README.md`](README.md) honesty bar and
-> [`auditor-handoff.md`](auditor-handoff.md)).
+> calendar-bound window (see [`README.md`](./README.md) honesty bar and
+> [`auditor-handoff.md`](./auditor-handoff.md)).
 
 ---
 
@@ -138,17 +138,17 @@ The two halves feed the cross-walk matrices differently:
 
 | Scanner | Evidence it produces | Cross-walk home |
 |---|---|---|
-| `infra-compliance-scan.sh` (Checkov) | IaC misconfig findings on our charts | ISO **A.8.9** Configuration management · **A.8.20** Networks security · **A.8.22** Segregation of networks · **A.8.24** Use of cryptography — [`iso27001-soa.md`](iso27001-soa.md). SOC 2 **CC6.1** logical access · **CC6.6** boundary protection · **CC7.1** misconfiguration detection — [`soc2-tsc-matrix.md`](soc2-tsc-matrix.md) |
-| `prowler-scan.sh` (live cloud) | live-account findings vs the *named* framework | the framework it is run with maps 1:1 — `soc2_aws` → [`soc2-tsc-matrix.md`](soc2-tsc-matrix.md), `iso27001_2013_aws` → [`iso27001-soa.md`](iso27001-soa.md), `gdpr_aws` → [`gdpr-article-matrix.md`](gdpr-article-matrix.md) |
+| `infra-compliance-scan.sh` (Checkov) | IaC misconfig findings on our charts | ISO **A.8.9** Configuration management · **A.8.20** Networks security · **A.8.22** Segregation of networks · **A.8.24** Use of cryptography — [`iso27001-soa.md`](./iso27001-soa.md). SOC 2 **CC6.1** logical access · **CC6.6** boundary protection · **CC7.1** misconfiguration detection — [`soc2-tsc-matrix.md`](./soc2-tsc-matrix.md) |
+| `prowler-scan.sh` (live cloud) | live-account findings vs the *named* framework | the framework it is run with maps 1:1 — `soc2_aws` → [`soc2-tsc-matrix.md`](./soc2-tsc-matrix.md), `iso27001_2013_aws` → [`iso27001-soa.md`](./iso27001-soa.md), `gdpr_aws` → [`gdpr-article-matrix.md`](./gdpr-article-matrix.md) |
 | `steampipe-compliance.sh` (live cloud) | benchmark pass/fail vs the *named* benchmark | as above, per `BENCHMARK` |
 
 The **app-controls half** (already wired) maps to the same rows from the other side — `run-security-scans.sh`
 and `zap-baseline.sh` are the evidence behind SOC 2 **CC6.8** (malicious software / supply chain),
 **CC7.1** (vulnerability detection), and ISO **A.8.8** (technical vulnerabilities), **A.8.28** (secure
-coding) — see [`../security-audit.md`](../security-audit.md) and
-[`../security-residuals-runbook.md`](../security-residuals-runbook.md).
+coding) — see [`../security-audit.md`](../security/security-audit.md) and
+[`../security-residuals-runbook.md`](../security/security-residuals-runbook.md).
 
-> Per the pack's source-of-truth hierarchy ([`README.md`](README.md)), these scanners *produce
+> Per the pack's source-of-truth hierarchy ([`README.md`](./README.md)), these scanners *produce
 > findings*; they do **not** set a control's status. A control is `proven` only when its gate `mNN`
 > passes — a Checkov pass is supporting evidence for the config-management controls, not a status of
 > its own. Status lives in `config/trust/posture.json`.
@@ -194,7 +194,7 @@ target — they are run by hand against a live cloud when one exists, with `CLOU
 
 1. **These are not a certificate.** Audit-ready ≠ certified. A SOC 2 Type 2 report / ISO 27001
    certificate needs an external auditor over a window — enumerated in
-   [`auditor-handoff.md`](auditor-handoff.md).
+   [`auditor-handoff.md`](./auditor-handoff.md).
 2. **Prowler/Steampipe need a live cloud account.** Until Grobase runs in a real AWS/GCP/Azure/K8s
    account, those two scripts only *document* what they would audit — by design, they exit 0 and
    never claim a pass.
@@ -205,7 +205,7 @@ target — they are run by hand against a live cloud when one exists, with `CLOU
 
 ## See also
 
-- [`README.md`](README.md) — the compliance pack map + honesty bar
-- [`soc2-tsc-matrix.md`](soc2-tsc-matrix.md) · [`iso27001-soa.md`](iso27001-soa.md) · [`gdpr-article-matrix.md`](gdpr-article-matrix.md) — the cross-walk matrices these findings feed
-- [`auditor-handoff.md`](auditor-handoff.md) — the human/$$ atoms a real certification still needs
-- [`../security-audit.md`](../security-audit.md) · [`../security-residuals-runbook.md`](../security-residuals-runbook.md) — the app-controls-half findings
+- [`README.md`](./README.md) — the compliance pack map + honesty bar
+- [`soc2-tsc-matrix.md`](./soc2-tsc-matrix.md) · [`iso27001-soa.md`](./iso27001-soa.md) · [`gdpr-article-matrix.md`](./gdpr-article-matrix.md) — the cross-walk matrices these findings feed
+- [`auditor-handoff.md`](./auditor-handoff.md) — the human/$$ atoms a real certification still needs
+- [`../security-audit.md`](../security/security-audit.md) · [`../security-residuals-runbook.md`](../security/security-residuals-runbook.md) — the app-controls-half findings

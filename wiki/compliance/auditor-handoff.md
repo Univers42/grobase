@@ -13,17 +13,17 @@
 - **Canonical, machine-readable:** `config/trust/posture.json` — served at `GET /v1/trust` (and
   `GET /v1/trust/controls`) when `TRUST_CENTER_ENABLED=1`. Every control carries `id · name ·
   category · status · evidence`. **If any doc disagrees with this file, the file wins.**
-- **Human posture matrix:** [`../compliance-posture.md`](../compliance-posture.md) (ASVS × SOC 2 ×
+- **Human posture matrix:** [`../compliance-posture.md`](./compliance-posture.md) (ASVS × SOC 2 ×
   GDPR), gate-kept by `m141`.
-- **Public posture page:** [`../trust-center.md`](../trust-center.md).
+- **Public posture page:** [`../trust-center.md`](../security/trust-center.md).
 
 ## 2. The framework cross-walks
 
 | Framework | Document | Coverage |
 |---|---|---|
-| SOC 2 (TSC) | [`soc2-tsc-matrix.md`](soc2-tsc-matrix.md) | CC1–CC9 + Availability / Confidentiality / Processing Integrity / Privacy |
-| GDPR | [`gdpr-article-matrix.md`](gdpr-article-matrix.md) | Art. 5–50, controller/processor split |
-| ISO/IEC 27001:2022 | [`iso27001-soa.md`](iso27001-soa.md) | Statement of Applicability — all 93 Annex A controls + ISMS clause 4–10 gap |
+| SOC 2 (TSC) | [`soc2-tsc-matrix.md`](./soc2-tsc-matrix.md) | CC1–CC9 + Availability / Confidentiality / Processing Integrity / Privacy |
+| GDPR | [`gdpr-article-matrix.md`](./gdpr-article-matrix.md) | Art. 5–50, controller/processor split |
+| ISO/IEC 27001:2022 | [`iso27001-soa.md`](./iso27001-soa.md) | Statement of Applicability — all 93 Annex A controls + ISMS clause 4–10 gap |
 
 ## 3. Re-runnable evidence (the differentiator)
 
@@ -78,8 +78,8 @@ Compliance-automation platforms run a catalog of automated tests. Wire each to t
 | "Backups configured / recovery tested" | gate `m87` + `m99` + `m47` |
 | "Vulnerability scanning in CI" | `../security-audit.md` (SCA/SAST/secret/container CI jobs) |
 | "Change management / code review" | gate `m143` + change-management policy |
-| "Risk assessment maintained" | [`risk-register.md`](risk-register.md) |
-| "Policies adopted" | [`security-policies/00-index.md`](security-policies/00-index.md) |
+| "Risk assessment maintained" | [`risk-register.md`](./risk-register.md) |
+| "Policies adopted" | [`security-policies/00-index.md`](./security-policies/00-index.md) |
 | "Continuous control monitoring" | gate `m108` snapshots |
 
 For a custom check that has no automated mapping, point the platform's evidence-upload at the
@@ -87,11 +87,11 @@ relevant gate's output or the `m108` snapshot.
 
 ## 6. Policies, risk, records, templates
 
-- **Policies (ISMS):** [`security-policies/00-index.md`](security-policies/00-index.md) — infosec,
+- **Policies (ISMS):** [`security-policies/00-index.md`](./security-policies/00-index.md) — infosec,
   access-control, incident-response, change-management, vendor/supplier, BCP/DR, data-retention.
-- **Risk register:** [`risk-register.md`](risk-register.md) (ISO clause 6 / SOC 2 CC3).
-- **Records of Processing (GDPR Art. 30):** [`gdpr-ropa.md`](gdpr-ropa.md).
-- **DPIA template (GDPR Art. 35):** [`dpia-template.md`](dpia-template.md).
+- **Risk register:** [`risk-register.md`](./risk-register.md) (ISO clause 6 / SOC 2 CC3).
+- **Records of Processing (GDPR Art. 30):** [`gdpr-ropa.md`](./gdpr-ropa.md).
+- **DPIA template (GDPR Art. 35):** [`dpia-template.md`](./dpia-template.md).
 - **Legal templates (counsel review required):** [`../legal/data-processing-addendum.md`](../legal/data-processing-addendum.md)
   (DPA/Art. 28), [`../legal/subprocessors.md`](../legal/subprocessors.md), [`../legal/privacy-policy.md`](../legal/privacy-policy.md),
   [`../legal/terms-of-service.md`](../legal/terms-of-service.md), [`../legal/sla.md`](../legal/sla.md),
@@ -126,8 +126,8 @@ These are **not code gaps** — they need a person, a contract, or a business mi
 
 **ISO/IEC 27001:**
 1. Stand up the ISMS management system (clauses 4–10): scope, policies (adopt the set in
-   [`security-policies/`](security-policies/00-index.md)), risk treatment ([`risk-register.md`](risk-register.md)),
-   the SoA ([`iso27001-soa.md`](iso27001-soa.md)).
+   [`security-policies/`](./security-policies/00-index.md)), risk treatment ([`risk-register.md`](./risk-register.md)),
+   the SoA ([`iso27001-soa.md`](./iso27001-soa.md)).
 2. Operate it over a cycle: internal audits, management reviews, corrective actions
    (clauses 9–10) — the gap noted in the SoA's "ISMS management-system gap" section.
 3. **Stage-1** (documentation review — the SoA is the centerpiece) → **Stage-2** (operating

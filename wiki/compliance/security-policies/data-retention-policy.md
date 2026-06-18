@@ -21,7 +21,7 @@ and erasure Art. 17.)
   [`../gdpr-ropa.md`](../gdpr-ropa.md)).
 - **Test data.** Tests use synthetic/seeded data; production personal data is not used in test
   environments (A.8.33).
-- **Backups.** Backup retention follows the BCP/DR policy ([`bcp-dr-policy.md`](bcp-dr-policy.md));
+- **Backups.** Backup retention follows the BCP/DR policy ([`bcp-dr-policy.md`](./bcp-dr-policy.md));
   erasure obligations extend to backups per the controller's documented process.
 
 ## Review
