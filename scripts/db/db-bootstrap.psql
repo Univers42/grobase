@@ -36,6 +36,22 @@ GRANT USAGE ON SCHEMA public TO service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
 
+-- PostgREST connects as this non-superuser LOGIN role, then SET ROLEs per request.
+-- 065_least_privilege_rls re-affirms its NOBYPASSRLS/NOSUPERUSER safety attrs and
+-- grants it anon/authenticated/service_role; the LOGIN + generated password belong
+-- HERE (065 deliberately leaves them to bootstrap, see its step 2). Without this a
+-- fresh stack has authenticator NOLOGIN/no-password → PostgREST restart-loops on
+-- "password authentication failed for user authenticator". psql vars don't expand
+-- inside DO $$ blocks, so use the \if meta-pattern (as service_role above).
+SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticator') AS authenticator_exists
+\gset
+
+\if :authenticator_exists
+ALTER ROLE authenticator WITH LOGIN PASSWORD :'authenticator_pwd';
+\else
+CREATE ROLE authenticator NOINHERIT LOGIN PASSWORD :'authenticator_pwd';
+\endif
+
 SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_admin') AS role_exists
 \gset
 
