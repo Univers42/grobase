@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Hyperlink?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Pane?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<HBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.hambooking.frontend.controllers.RegisterController"
+      stylesheets="@../css/hambooking.css"
+      styleClass="login-root"
+      prefWidth="900" prefHeight="620">
+
+    <!-- ══════════════════════════
+         PANEL IZQUIERDO: Brand
+    ══════════════════════════ -->
+    <VBox styleClass="login-left-panel" prefWidth="360"
+          alignment="TOP_LEFT" spacing="0">
+        <padding><Insets top="48" right="44" bottom="48" left="44"/></padding>
+
+        <VBox spacing="12">
+            <Label text="Primer acceso" styleClass="label-section-header"/>
+            <Label text="HamBooking" styleClass="login-brand-title"/>
+            <Pane styleClass="separator-gold"/>
+            <Label text="Crea tu cuenta para empezar a reservar los mejores maestros cortadores."
+                   styleClass="login-brand-subtitle" wrapText="true"/>
+        </VBox>
+
+        <Region VBox.vgrow="ALWAYS"/>
+        <Label text="HamBooking v1.0 · DAM 1S2526"
+               style="-fx-font-size:10px; -fx-text-fill:rgba(212,168,83,0.4);"/>
+    </VBox>
+
+    <!-- ══════════════════════════
+         PANEL DERECHO: Formulario
+    ══════════════════════════ -->
+    <VBox styleClass="login-right-panel" HBox.hgrow="ALWAYS"
+          alignment="TOP_LEFT" spacing="0">
+        <padding><Insets top="36" right="52" bottom="36" left="52"/></padding>
+
+        <Label text="Registro de cliente" styleClass="label-section-header"/>
+        <Label text="Crear cuenta nueva" styleClass="login-form-title"/>
+        <Label text="Completa todos los campos para registrarte"
+               styleClass="label-subtitle"/>
+
+        <Region prefHeight="24"/>
+
+        <!-- Fila: Nombre + Apellidos -->
+        <HBox spacing="14">
+            <VBox spacing="5" HBox.hgrow="ALWAYS">
+                <Label text="NOMBRE" styleClass="field-label"/>
+                <TextField fx:id="firstNameField" styleClass="text-field"
+                           promptText="Juan"/>
+            </VBox>
+            <VBox spacing="5" HBox.hgrow="ALWAYS">
+                <Label text="APELLIDOS" styleClass="field-label"/>
+                <TextField fx:id="lastNameField" styleClass="text-field"
+                           promptText="Garcia Lopez"/>
+            </VBox>
+        </HBox>
+
+        <Region prefHeight="14"/>
+
+        <!-- Fila: DNI + Telefono -->
+        <HBox spacing="14">
+            <VBox spacing="5" HBox.hgrow="ALWAYS">
+                <Label text="DNI" styleClass="field-label"/>
+                <TextField fx:id="dniField" styleClass="text-field"
+                           promptText="12345678A"/>
+            </VBox>
+            <VBox spacing="5" HBox.hgrow="ALWAYS">
+                <Label text="TELEFONO" styleClass="field-label"/>
+                <TextField fx:id="phoneField" styleClass="text-field"
+                           promptText="612345678"/>
+            </VBox>
+        </HBox>
+
+        <Region prefHeight="14"/>
+
+        <!-- Email -->
+        <VBox spacing="5">
+            <Label text="CORREO ELECTRONICO" styleClass="field-label"/>
+            <TextField fx:id="emailField" styleClass="text-field"
+                       promptText="juan@example.com"/>
+        </VBox>
+
+        <Region prefHeight="14"/>
+
+        <!-- Fila: Contrasena + Confirmar -->
+        <HBox spacing="14">
+            <VBox spacing="5" HBox.hgrow="ALWAYS">
+                <Label text="CONTRASENA" styleClass="field-label"/>
+                <PasswordField fx:id="passwordField" styleClass="password-field"
+                               promptText="Minimo 8 caracteres"/>
+            </VBox>
+            <VBox spacing="5" HBox.hgrow="ALWAYS">
+                <Label text="CONFIRMAR CONTRASENA" styleClass="field-label"/>
+                <PasswordField fx:id="confirmPasswordField" styleClass="password-field"
+                               promptText="Repite la contrasena"/>
+            </VBox>
+        </HBox>
+
+        <Region prefHeight="6"/>
+
+        <!-- Error label -->
+        <Label fx:id="errorLabel" styleClass="label-error"
+               text="" visible="false" managed="false"/>
+
+        <Region prefHeight="14"/>
+
+        <!-- Boton registrar -->
+        <Button fx:id="registerBtn" text="Crear cuenta"
+                styleClass="button-primary" maxWidth="Infinity"
+                onAction="#handleRegister"/>
+
+        <Region prefHeight="16"/>
+
+        <!-- Link login -->
+        <HBox alignment="CENTER" spacing="4">
+            <Label text="Ya tienes cuenta?" styleClass="label"/>
+            <Hyperlink text="Inicia sesion" styleClass="login-link"
+                       onAction="#goToLogin"/>
+        </HBox>
+
+    </VBox>
+</HBox>

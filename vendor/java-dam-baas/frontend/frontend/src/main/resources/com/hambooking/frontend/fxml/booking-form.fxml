@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Pane?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<!--
+    booking-form.fxml
+    Formulario de confirmacion de reserva.
+    Se carga como pantalla completa tras seleccionar un slot en el calendario.
+    Los datos del slot seleccionado se inyectan desde CalendarController
+    mediante BookingController.initData(...) antes de mostrar la vista.
+-->
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.hambooking.frontend.controllers.BookingController"
+      stylesheets="@../css/hambooking.css"
+      styleClass="main-pane"
+      prefWidth="600" prefHeight="580"
+      alignment="CENTER">
+
+    <!-- Cabecera oscura -->
+    <VBox styleClass="login-left-panel" prefHeight="80" maxHeight="80"
+          alignment="CENTER_LEFT">
+        <padding><Insets top="20" right="32" bottom="20" left="32"/></padding>
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <VBox HBox.hgrow="ALWAYS" spacing="2">
+                <Label text="Confirmar reserva" styleClass="sidebar-logo"/>
+                <Label text="Revisa los datos antes de confirmar"
+                       styleClass="sidebar-tagline"/>
+            </VBox>
+            <Button text="X" styleClass="nav-button"
+                    onAction="#handleCancelar"
+                    style="-fx-font-size:14px; -fx-font-weight:bold;"/>
+        </HBox>
+    </VBox>
+
+    <!-- Cuerpo del formulario -->
+    <VBox VBox.vgrow="ALWAYS" spacing="0">
+        <padding><Insets top="28" right="40" bottom="0" left="40"/></padding>
+
+        <!-- Resumen: Servicio -->
+        <HBox spacing="16" alignment="CENTER_LEFT">
+            <Label text="Servicio" style="-fx-font-size:20px;"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <Label text="SERVICIO" styleClass="field-label"/>
+                <Label fx:id="lblServicio" text="-" styleClass="page-title"
+                       style="-fx-font-size:15px;"/>
+                <Label fx:id="lblPrecio" text=""
+                       style="-fx-font-size:12px; -fx-text-fill:#8B4513; -fx-font-weight:bold;
+                              -fx-background-color:#F0E8D8; -fx-padding:2px 8px;
+                              -fx-background-radius:4px;"/>
+            </VBox>
+        </HBox>
+
+        <Pane styleClass="separator-gold" style="-fx-max-width:Infinity; -fx-max-height:1px;
+              -fx-min-height:1px; -fx-background-color:#D6C8B4; -fx-margin:12px 0px;">
+            <VBox.margin><Insets top="16" bottom="16"/></VBox.margin>
+        </Pane>
+
+        <!-- Resumen: Cortador -->
+        <HBox spacing="16" alignment="CENTER_LEFT">
+            <Label text="Cortador" style="-fx-font-size:20px;"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <Label text="CORTADOR" styleClass="field-label"/>
+                <Label fx:id="lblCortador" text="-" styleClass="page-title"
+                       style="-fx-font-size:15px;"/>
+                <Label fx:id="lblEspecialidad" text=""
+                       style="-fx-font-size:11px; -fx-text-fill:#9A7B6A;"/>
+            </VBox>
+        </HBox>
+
+        <Pane style="-fx-background-color:#D6C8B4; -fx-max-height:1px; -fx-min-height:1px;">
+            <VBox.margin><Insets top="16" bottom="16"/></VBox.margin>
+        </Pane>
+
+        <!-- Resumen: Fecha y hora -->
+        <HBox spacing="16" alignment="CENTER_LEFT">
+            <Label text="Fecha" style="-fx-font-size:20px;"/>
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <Label text="FECHA Y HORA" styleClass="field-label"/>
+                <Label fx:id="lblFecha" text="-" styleClass="page-title"
+                       style="-fx-font-size:15px;"/>
+                <Label fx:id="lblHora" text=""
+                       style="-fx-font-size:11px; -fx-text-fill:#9A7B6A;"/>
+            </VBox>
+        </HBox>
+
+        <Pane style="-fx-background-color:#D6C8B4; -fx-max-height:1px; -fx-min-height:1px;">
+            <VBox.margin><Insets top="16" bottom="16"/></VBox.margin>
+        </Pane>
+
+        <!-- Notas opcionales -->
+        <VBox spacing="6">
+            <Label text="NOTAS OPCIONALES" styleClass="field-label"/>
+            <TextArea fx:id="notasField"
+                      styleClass="text-area"
+                      promptText="Alergias, preferencias de corte, instrucciones especiales..."
+                      prefHeight="80"
+                      wrapText="true"/>
+        </VBox>
+
+        <!-- Error label -->
+        <Label fx:id="errorLabel" styleClass="label-error"
+               text="" visible="false" managed="false">
+            <VBox.margin><Insets top="8"/></VBox.margin>
+        </Label>
+
+        <Region VBox.vgrow="ALWAYS"/>
+
+    </VBox>
+
+    <!-- Footer con botones -->
+    <HBox styleClass="legend" alignment="CENTER_RIGHT" spacing="12">
+        <padding><Insets top="16" right="40" bottom="16" left="40"/></padding>
+        <Button text="Volver al calendario"
+                styleClass="button-secondary"
+                onAction="#handleCancelar"/>
+        <Button fx:id="btnConfirmar"
+                text="Confirmar reserva"
+                styleClass="button-primary"
+                onAction="#handleConfirmar"/>
+    </HBox>
+
+</VBox>

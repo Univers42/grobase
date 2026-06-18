@@ -1,0 +1,115 @@
+/**
+ * Sidebar Styles
+ * Transparent sidebar with category groups separated by lines
+ */
+
+.layout-sidebar {
+  width: var(--sidebar-width);
+  min-width: 180px;
+  max-width: 220px;
+  height: 100%;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.25s ease;
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  padding: var(--space-3) 0;
+  border-right: 1px solid var(--color-border-primary);
+}
+
+.layout-sidebar-collapsed {
+  width: var(--sidebar-width-collapsed);
+  min-width: auto;
+  max-width: auto;
+}
+
+/* Tablet landscape */
+@media (max-width: 1024px) {
+  .layout-sidebar {
+    width: 180px;
+    min-width: 140px;
+  }
+  
+  .layout-sidebar-collapsed {
+    width: 56px;
+  }
+}
+
+/* Tablet portrait - Smaller sidebar */
+@media (max-width: 768px) {
+  .layout-sidebar {
+    display: none;
+  }
+}
+
+/* Mobile navigation (bottom sheet style) */
+.mobile-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--color-bg-secondary);
+    border-top: 1px solid var(--color-border-primary);
+    padding: var(--space-2);
+    gap: var(--space-1);
+    justify-content: space-around;
+    z-index: var(--z-1)00;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-xs2);
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    white-space: nowrap;
+    min-width: 44px;
+    transition: all var(--transition-fast);
+  }
+
+  .mobile-nav-item:hover,
+  .mobile-nav-item.active {
+    background: var(--color-primary-100);
+    color: var(--color-primary-600);
+  }
+
+  .mobile-nav-item-icon {
+    font-size: var(--font-size-xl);
+  }
+}
+
+/* Very small screens */
+@media (max-width: 320px) {
+  .mobile-nav {
+    padding: 4px;
+  }
+
+  .mobile-nav-item {
+    padding: 4px 6px;
+    font-size: var(--font-size-xs0);
+    min-width: 36px;
+  }
+
+  .mobile-nav-item-icon {
+    font-size: var(--font-size-base);
+  }
+}

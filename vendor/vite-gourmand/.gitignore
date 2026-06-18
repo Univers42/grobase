@@ -1,0 +1,42 @@
+vite-gourmand/docs/Enoncé TP Développeur Web et Web Mobile-5.pdf
+server\vite-gourmand-api\node_modules
+.env
+.env.production
+.env.local
+.env.*.local
+server\vite-gourmand-api\dist
+.vscode/
+.idea/
+*code-workspace
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+node_modules/
+dist/
+.DS_Store
+Thumbs.db
+server/vite-gourmand-api/package-lock.json
+server/vite-gourmand-api/dist/
+server/vite-gourmand-api/node_modules/
+server/vite-gourmand-api/test/*.ts
+server/vite-gourmand-api/.env
+setting.json
+vendor/scripts
+backend/node_modules
+backend/dist
+backend/.env
+node_modules/
+data/postgres
+data/mongo
+frontend/node_modules
+vitegourmand/
+vendor/vitegourmand/
+
+# Dev server PID files
+.backend.pid
+.frontend.pid
+/tmp/vg-*.log
+
+# Local SonarQube Cloud exports
+infrastructure/sonarcloud/results/*.json

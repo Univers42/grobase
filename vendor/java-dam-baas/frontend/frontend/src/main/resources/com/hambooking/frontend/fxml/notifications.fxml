@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.hambooking.frontend.controllers.NotificationsController"
+            stylesheets="@../css/hambooking.css"
+            styleClass="main-pane"
+            prefWidth="1100" prefHeight="680">
+
+    <!-- SIDEBAR -->
+    <left>
+        <VBox styleClass="sidebar" prefWidth="220" minWidth="220" maxWidth="220">
+
+            <VBox styleClass="sidebar-top">
+                <Label text="HamBooking" styleClass="sidebar-logo"/>
+                <Label text="Sistema de reservas" styleClass="sidebar-tagline"/>
+            </VBox>
+
+            <HBox styleClass="sidebar-user" alignment="CENTER_LEFT" spacing="10">
+                <padding><Insets top="16" right="18" bottom="12" left="18"/></padding>
+                <VBox spacing="2">
+                    <Label fx:id="sidebarUserName" text="Usuario" styleClass="user-info-name"/>
+                    <Label text="Cliente" styleClass="user-info-role"/>
+                </VBox>
+            </HBox>
+
+            <Label text="RESERVAS" styleClass="nav-section-label">
+                <padding><Insets top="16" right="18" bottom="6" left="18"/></padding>
+            </Label>
+            <Button text="Mi panel"      styleClass="nav-button" maxWidth="Infinity" onAction="#goToDashboard"/>
+            <Button text="Nueva reserva" styleClass="nav-button" maxWidth="Infinity" onAction="#goToCalendar"/>
+
+            <Label text="CUENTA" styleClass="nav-section-label">
+                <padding><Insets top="16" right="18" bottom="6" left="18"/></padding>
+            </Label>
+            <Button text="Mi perfil"      styleClass="nav-button" maxWidth="Infinity" onAction="#goToProfile"/>
+            <Button text="Notificaciones" styleClass="nav-button-active" maxWidth="Infinity"/>
+
+            <Region VBox.vgrow="ALWAYS"/>
+
+            <VBox styleClass="sidebar-footer">
+                <padding><Insets top="14" right="18" bottom="14" left="18"/></padding>
+                <Button text="Cerrar sesion" styleClass="nav-button" maxWidth="Infinity" onAction="#handleLogout"/>
+            </VBox>
+
+        </VBox>
+    </left>
+
+    <!-- CONTENIDO -->
+    <center>
+        <VBox>
+
+            <!-- Cabecera -->
+            <HBox styleClass="content-header" alignment="CENTER_LEFT">
+                <padding><Insets top="16" right="28" bottom="16" left="28"/></padding>
+                <VBox HBox.hgrow="ALWAYS" spacing="2">
+                    <Label text="Mis Notificaciones" styleClass="page-title"/>
+                    <Label text="Inicio &gt; Mi cuenta &gt; Notificaciones" styleClass="page-breadcrumb"/>
+                </VBox>
+            </HBox>
+
+            <ScrollPane VBox.vgrow="ALWAYS" fitToWidth="true" styleClass="scroll-pane">
+                <content>
+                    <VBox spacing="16">
+                        <padding><Insets top="24" right="28" bottom="24" left="28"/></padding>
+
+                        <VBox styleClass="card" spacing="12">
+                            <padding><Insets top="16" right="16" bottom="16" left="16"/></padding>
+
+                            <!-- La tabla con fx:id para las columnas -->
+                            <TableView fx:id="notifTable" prefHeight="540" style="-fx-row-height:56;">
+                                <columns>
+                                    <TableColumn fx:id="nColFecha"   text="Fecha"   prefWidth="145"/>
+                                    <TableColumn fx:id="nColTipo"    text="Tipo"    prefWidth="110"/>
+                                    <TableColumn fx:id="nColAsunto"  text="Asunto"  prefWidth="280"/>
+                                    <TableColumn fx:id="nColMensaje" text="Mensaje" prefWidth="290"/>
+                                </columns>
+                                <placeholder>
+                                    <Label text="No tienes notificaciones." styleClass="label-subtitle"/>
+                                </placeholder>
+                            </TableView>
+
+                        </VBox>
+                    </VBox>
+                </content>
+            </ScrollPane>
+
+        </VBox>
+    </center>
+
+</BorderPane>

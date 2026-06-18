@@ -1,0 +1,133 @@
+/**
+ * DevBoard Design System - Typography & Spacing
+ * Continuation of foundation variables
+ */
+
+:root {
+  /* ══════════════════════════════════════════════════════════════════════════
+     TYPOGRAPHY
+     ══════════════════════════════════════════════════════════════════════════ */
+  
+  /* Font Families */
+  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+  /* Font Sizes */
+  --font-size-2xs: 0.5rem;     /* 8px */
+  --font-size-xs2: 0.625rem;   /* 10px */
+  --font-size-xs1: 0.65rem;    /* ~10.4px */
+  --font-size-xs0: 0.7rem;     /* ~11.2px */
+  --font-size-xs: 0.75rem;     /* 12px */
+  --font-size-xs-plus: 0.8rem; /* ~12.8px */
+  --font-size-sm-minus: 0.82rem;  /* ~13.1px */
+  --font-size-sm-alt: 0.8125rem;  /* 13px */
+  --font-size-sm-near: 0.85rem;   /* ~13.6px */
+  --font-size-sm: 0.875rem;    /* 14px */
+  --font-size-sm-plus: 0.9rem; /* ~14.4px */
+  --font-size-base-sm: 0.95rem;/* ~15.2px */
+  --font-size-base: 1rem;      /* 16px */
+  --font-size-base-lg: 1.1rem; /* ~17.6px */
+  --font-size-lg: 1.125rem;    /* 18px */
+  --font-size-xl: 1.25rem;     /* 20px */
+  --font-size-2xl: 1.5rem;     /* 24px */
+  --font-size-2xl-lg: 1.75rem; /* 28px */
+  --font-size-3xl: 1.875rem;   /* 30px */
+  --font-size-4xl: 2.25rem;    /* 36px */
+  --font-size-5xl: 2.5rem;     /* 40px */
+  --font-size-6xl: 3rem;       /* 48px */
+
+  /* Font Weights */
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  /* Line Heights */
+  --line-height-tight: 1.25;
+  --line-height-snug: 1.35;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.625;
+  --line-height-loose: 2;
+  --line-height-1-1: 1.1;
+  --line-height-1-15: 1.15;
+  --line-height-1-2: 1.2;
+  --line-height-1-3: 1.3;
+  --line-height-1-4: 1.4;
+  --line-height-1-7: 1.7;
+  --line-height-1-75: 1.75;
+
+  /* Letter Spacing */
+  --letter-spacing-tight: -0.025em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.025em;
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     SPACING SCALE
+     ══════════════════════════════════════════════════════════════════════════ */
+  
+  --space-0: 0;
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-12: 3rem;     /* 48px */
+  --space-16: 4rem;     /* 64px */
+  --space-20: 5rem;     /* 80px */
+  --space-24: 6rem;     /* 96px */
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     BORDER RADIUS
+     ══════════════════════════════════════════════════════════════════════════ */
+  
+  --radius-none: 0;
+  --radius-xs: 0.1875rem;  /* 3px */
+  --radius-sm: 0.25rem;    /* 4px */
+  --radius-md: 0.375rem;   /* 6px */
+  --radius-lg: 0.5rem;     /* 8px */
+  --radius-10: 0.625rem;   /* 10px */
+  --radius-xl: 0.75rem;    /* 12px */
+  --radius-2xl: 1rem;      /* 16px */
+  --radius-3xl: 1.25rem;   /* 20px */
+  --radius-full: 9999px;
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     SHADOWS
+     ══════════════════════════════════════════════════════════════════════════ */
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-glow-primary: 0 0 20px rgba(59, 130, 246, 0.3);
+  --shadow-glow-success: 0 0 20px rgba(16, 185, 129, 0.3);
+  --shadow-glow-danger: 0 0 20px rgba(239, 68, 68, 0.3);
+  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+  --shadow-focus-ring: 0 0 0 3px rgba(168, 85, 247, 0.2);
+  --shadow-focus-danger: 0 0 0 3px rgba(239, 68, 68, 0.2);
+  --shadow-focus-primary-alt: 0 0 0 3px rgba(126, 58, 242, 0.1);
+  --shadow-dark-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-dark-xl: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-glow-orange: 0 0 20px rgba(234, 88, 12, 0.3);
+  --shadow-orange-md: 0 4px 12px rgba(234, 88, 12, 0.4);
+  --shadow-wine: 0 4px 20px rgba(139, 69, 87, 0.25);
+  --shadow-red-sm: 0 2px 4px rgba(239, 68, 68, 0.4);
+  --shadow-primary-sm: 0 2px 8px rgba(124, 58, 237, 0.25);
+  --shadow-primary-md: 0 2px 4px rgba(126, 58, 242, 0.25);
+  --shadow-primary-lg: 0 4px 8px rgba(126, 58, 242, 0.35);
+  --shadow-card-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-dark-md: 0 6px 20px rgba(0, 0, 0, 0.35);
+  --shadow-violet-sm: 0 4px 12px rgba(139, 92, 246, 0.3);
+  --shadow-violet-md: 0 4px 12px rgba(139, 92, 246, 0.4);
+  --shadow-wine-sm: 0 10px 40px -5px rgba(139, 69, 87, 0.12);
+  --shadow-wine-lg: 0 6px 25px rgba(139, 69, 87, 0.35);
+  --shadow-terminal: 0 25px 80px rgba(0, 0, 0, 0.6);
+
+  /* Line height - none (badge / single-line use) */
+  --line-height-none: 1;
+}

@@ -1,0 +1,106 @@
+/* app.css — minimal custom CSS atop Tailwind (CDN). Lifts the palette and the
+   animation/utility classes from public/assets/css/app.css that the SPA still
+   relies on: like-heart, spinner, fade-in, webcam mirror, overlay selection. */
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body {
+  overflow-x: hidden;
+}
+
+/* ── Like heart ── */
+.like-btn {
+  transition: transform 0.2s ease;
+  cursor: pointer;
+}
+
+.like-btn:active {
+  transform: scale(1.3);
+}
+
+.like-btn[data-liked='1'] svg,
+.like-btn.liked svg {
+  fill: #ed4956;
+  color: #ed4956;
+}
+
+/* ── Loading spinner ── */
+.spinner {
+  border: 3px solid #dbdbdb;
+  border-top-color: #0095f6;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Gallery card fade-in ── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.4s ease-out both;
+}
+
+/* ── Webcam mirror ── */
+.webcam-mirror {
+  transform: scaleX(-1);
+}
+
+/* ── Overlay thumbnail selection ── */
+.overlay-thumb {
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 0.5rem;
+}
+
+.overlay-thumb:hover {
+  border-color: rgba(0, 149, 246, 0.4);
+  transform: scale(1.05);
+}
+
+.overlay-thumb.selected {
+  border-color: #0095f6;
+  box-shadow: 0 0 0 2px rgba(0, 149, 246, 0.2);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c7c7c7;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}

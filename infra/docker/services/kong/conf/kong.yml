@@ -193,6 +193,29 @@ services:
               minute: 180
               hour: 5000
 
+  # MovieVerse TMDB catalog proxy (Go). Public browsing → key-auth ONLY (anon
+  # apikey); deliberately NO jwt plugin, so anonymous visitors fetch the catalog
+  # with just the anon key (this is what sidesteps the per-user JWT requirement
+  # of edge functions). strip_path:false — the Go mux serves the full /tmdb/v1/…
+  # paths itself. The TMDB secret never leaves the proxy's env. Global cors applies.
+  - name: tmdb-proxy
+    url: http://tmdb-proxy:3070
+    routes:
+      - name: tmdb-routes
+        paths: [/tmdb/v1]
+        strip_path: false
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 300
+              hour: 5000
+
   # GraphQL — PostgREST's native GraphQL endpoint (powered by the pg_graphql
   # Postgres extension). /graphql/v1 → upstream /graphql (strip_path). Same
   # auth/rate-limit posture as the REST route since it executes over the same

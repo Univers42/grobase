@@ -1,0 +1,40 @@
+# Vite Gourmand — Fly.io configuration
+# App: vite-gourmand-withered-glitter-7902 (Paris/cdg)
+# Serves React SPA + NestJS API from a single container on port 8080.
+
+app = "vite-gourmand-withered-glitter-7902"
+primary_region = "cdg"
+
+[build]
+  # Uses the Dockerfile at the repo root
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  FRONTEND_URL = "https://vite-gourmand-withered-glitter-7902.fly.dev"
+  PUBLIC_SITE_URL = "https://vite-gourmand-withered-glitter-7902.fly.dev"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Keep machine running — cold-start race + slow Nest boot (~8s) made
+  # auto-start unreliable, and the boot includes MongoDB DNS retries.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 200
+    soft_limit = 150
+
+  # No HTTP check — the app's enforceHttps middleware 308-redirects internal
+  # HTTP probes, which Fly treats as unhealthy. Fly falls back to a TCP listen
+  # check on internal_port, which is sufficient.
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1024mb"
+  cpu_kind = "shared"
+  cpus = 1

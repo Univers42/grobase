@@ -1,0 +1,58 @@
+/**
+ * TestInstructions styles
+ * Step list styling
+ */
+
+.test-instructions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.test-instructions-step {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+}
+
+.test-instructions-number {
+  flex-shrink: 0;
+  width: var(--space-8);
+  height: var(--space-8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary-default);
+  color: var(--text-inverse);
+  font-size: var(--text-sm);
+  font-weight: var(--font-bold);
+  border-radius: var(--radius-full);
+}
+
+.test-instructions-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.test-instructions-action {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  margin: 0 0 var(--space-1);
+  line-height: var(--leading-relaxed);
+}
+
+.test-instructions-expected {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: var(--leading-relaxed);
+}
+
+.test-instructions-expected strong {
+  color: var(--text-muted);
+}

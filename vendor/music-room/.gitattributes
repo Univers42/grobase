@@ -1,0 +1,48 @@
+# Auto detect text files and perform LF normalization
+* text=auto eol=lf
+
+# Source code
+*.ts text
+*.tsx text
+*.js text
+*.jsx text
+*.json text
+*.css text
+*.html text
+*.md text
+*.yml text
+*.yaml text
+*.sh text eol=lf
+
+# Docker
+Dockerfile text
+docker-compose.yml text
+*.dockerignore text
+
+# Config files
+.env* text
+.gitignore text
+.editorconfig text
+.prettierrc text
+.eslintrc* text
+Makefile text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+
+# Archives
+*.zip binary
+*.tar.gz binary
+
+# Lock files - do not diff
+yarn.lock -diff
+package-lock.json -diff

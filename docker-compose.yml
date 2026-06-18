@@ -31,6 +31,8 @@ include:
     project_directory: .
   - path: orchestrators/compose/base/playground.yml
     project_directory: .
+  - path: orchestrators/compose/base/movieverse.yml
+    project_directory: .
 
 networks:
   mini-baas:

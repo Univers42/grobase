@@ -1,0 +1,175 @@
+### ─────────────────────────────────────────
+### TEST 1 — Crear reserva válida (debe dar 201)
+### Cliente 145, Cortador 98, Servicio Embutidos 30min
+### Lunes 09/03/2026 a las 10:00 → termina 10:30
+### ─────────────────────────────────────────
+POST http://localhost:8080/api/reservations
+Content-Type: application/json
+
+{
+  "clientId": 145,
+  "carverId": 98,
+  "serviceId": 3,
+  "reservationDate": "2026-03-09",
+  "startTime": "10:00:00",
+  "notes": "Primera reserva de prueba"
+}
+
+### ─────────────────────────────────────────
+### TEST 2 — Crear segunda reserva válida mismo día (debe dar 201)
+### Mismo cliente, mismo cortador, distinta hora
+### 11:00 → termina 11:30
+### ─────────────────────────────────────────
+POST http://localhost:8080/api/reservations
+Content-Type: application/json
+
+{
+  "clientId": 145,
+  "carverId": 98,
+  "serviceId": 3,
+  "reservationDate": "2026-03-09",
+  "startTime": "11:00:00",
+  "notes": "Segunda reserva de prueba"
+}
+
+### ─────────────────────────────────────────
+### TEST 3 — Límite diario cliente excedido (debe dar 422)
+### El cliente 145 ya tiene 2 reservas ese día
+### ─────────────────────────────────────────
+POST http://localhost:8080/api/reservations
+Content-Type: application/json
+
+{
+  "clientId": 145,
+  "carverId": 98,
+  "serviceId": 3,
+  "reservationDate": "2026-03-09",
+  "startTime": "12:00:00",
+  "notes": "Esta debe fallar"
+}
+
+### ─────────────────────────────────────────
+### TEST 4 — Solapamiento de horario (debe dar 409)
+### Cortador 98 ya tiene reserva 10:00-10:30
+### Intentamos 10:15 → se solapa
+### ─────────────────────────────────────────
+POST http://localhost:8080/api/reservations
+Content-Type: application/json
+
+{
+  "clientId": 145,
+  "carverId": 98,
+  "serviceId": 3,
+  "reservationDate": "2026-03-09",
+  "startTime": "10:15:00",
+  "notes": "Esta debe fallar por solapamiento"
+}
+
+### ─────────────────────────────────────────
+### TEST 5 — Día no laborable (debe dar 422)
+### 14/03/2026 es sábado
+### ─────────────────────────────────────────
+POST http://localhost:8080/api/reservations
+Content-Type: application/json
+
+{
+  "clientId": 145,
+  "carverId": 98,
+  "serviceId": 3,
+  "reservationDate": "2026-03-14",
+  "startTime": "10:00:00",
+  "notes": "Esta debe fallar por ser sábado"
+}
+
+### ─────────────────────────────────────────
+### TEST 6 — Fuera de horario laboral (debe dar 422)
+### Servicio Jamón dura 120min, 17:00 → termina 19:00
+### Supera el cierre de las 18:00
+### ─────────────────────────────────────────
+POST http://localhost:8080/api/reservations
+Content-Type: application/json
+
+{
+  "clientId": 145,
+  "carverId": 98,
+  "serviceId": 1,
+  "reservationDate": "2026-03-10",
+  "startTime": "17:00:00",
+  "notes": "Esta debe fallar por fuera de horario"
+}
+
+### ─────────────────────────────────────────
+### TEST 7 — Cortador no activo (debe dar 422)
+### Cortador 97 está desactivado
+### ─────────────────────────────────────────
+POST http://localhost:8080/api/reservations
+Content-Type: application/json
+
+{
+  "clientId": 145,
+  "carverId": 97,
+  "serviceId": 3,
+  "reservationDate": "2026-03-10",
+  "startTime": "10:00:00",
+  "notes": "Esta debe fallar por cortador inactivo"
+}
+
+### ─────────────────────────────────────────
+### TEST 8 — Listar reservas del cliente 145 (debe dar 200 con lista)
+### ─────────────────────────────────────────
+GET http://localhost:8080/api/reservations/client/145
+
+### ─────────────────────────────────────────
+### TEST 9 — Actualizar reserva (debe dar 200)
+### Cambia la hora de la reserva creada en TEST 1
+### Sustituye {id} por el ID real devuelto en TEST 1
+### ─────────────────────────────────────────
+PUT http://localhost:8080/api/reservations/95
+Content-Type: application/json
+
+{
+  "reservationDate": "2026-03-09",
+  "startTime": "10:00:00",
+  "notes": "Reserva actualizada"
+}
+
+### ─────────────────────────────────────────
+### TEST 10 — Cancelar reserva (debe dar 204)
+### Sustituye {id} por el ID real devuelto en TEST 1
+### ─────────────────────────────────────────
+PATCH http://localhost:8080/api/reservations/95/cancel
+
+### TEST 11 — Crear reserva válida (debe dar 201)
+POST http://localhost:8080/api/reservations
+Content-Type: application/json
+
+{
+  "clientId": 145,
+  "carverId": 98,
+  "serviceId": 3,
+  "reservationDate": "2026-03-09",
+  "startTime": "10:00:00",
+  "notes": "Reserva test limpio"
+}
+
+### TEST 12 — Listar reservas del cliente (debe dar 200 con lista)
+GET http://localhost:8080/api/reservations/client/145
+
+### TEST 13 — Actualizar la reserva creada en TEST 1 a las 11:00 (debe dar 200)
+### Sustituye {id} por el id real del TEST 1
+PUT http://localhost:8080/api/reservations/96
+Content-Type: application/json
+
+{
+  "reservationDate": "2026-03-09",
+  "startTime": "11:00:00",
+  "notes": "Reserva movida a las 11:00"
+}
+
+### TEST 14 — Cancelar la reserva (debe dar 204)
+### Sustituye {id} por el id real del TEST 1
+PATCH http://localhost:8080/api/reservations/96/cancel
+
+### TEST 15 — Intentar cancelar reserva ya cancelada (debe dar 422)
+### Sustituye {id} por el id real del TEST 1
+PATCH http://localhost:8080/api/reservations/96/cancel
