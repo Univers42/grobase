@@ -42,11 +42,14 @@ export function useQueryTable({ db, table, pageSize = 20, searchColumn }: QueryT
     let cancelled = false;
     setLoading(true);
     setError(null);
-    db.list(table, { filter, limit: pageSize, offset: (page - 1) * pageSize, sort })
-      .then((r) => {
+    Promise.all([
+      db.list(table, { filter, limit: pageSize, offset: (page - 1) * pageSize, sort }),
+      db.count(table, { filter }),
+    ])
+      .then(([r, count]) => {
         if (cancelled) return;
         setRows(r.rows);
-        setTotal(r.rowCount);
+        setTotal(count);
       })
       .catch((e: unknown) => !cancelled && setError(e instanceof Error ? e.message : 'query failed'))
       .finally(() => !cancelled && setLoading(false));

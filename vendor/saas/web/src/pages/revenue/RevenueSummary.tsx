@@ -5,20 +5,16 @@
 import { GlassCard } from '../../ds/GlassCard';
 import { Icon } from '../../ds/Icon';
 import type { IconName } from '../../ds/Icon';
-import type { Account, Txn } from './money';
+import type { Account } from './money';
 import { formatCents } from './money';
 
-/** RevenueSummaryProps supplies the typed accounts + transactions to aggregate. */
-export type RevenueSummaryProps = { accounts: Account[]; txns: Txn[] };
+/** RevenueSummaryProps supplies the accounts to aggregate plus the true posted
+ *  revenue total (a full aggregate, not the capped recent-txns sample). */
+export type RevenueSummaryProps = { accounts: Account[]; postedRevenueCents: number };
 
 /** sumBalances totals the balance of accounts matching a kind. */
 function sumBalances(accounts: Account[], kind: Account['kind']): number {
   return accounts.filter((a) => a.kind === kind).reduce((acc, a) => acc + a.balanceCents, 0);
-}
-
-/** postedRevenue sums amount of posted payment-kind transactions. */
-function postedRevenue(txns: Txn[]): number {
-  return txns.filter((t) => t.status === 'posted' && t.kind === 'payment').reduce((acc, t) => acc + t.amountCents, 0);
 }
 
 /** tile renders one labeled, icon-led money figure. */
@@ -34,10 +30,10 @@ function tile(label: string, icon: IconName, cents: number) {
 }
 
 /** RevenueSummary renders the three headline money figures. */
-export function RevenueSummary({ accounts, txns }: RevenueSummaryProps) {
+export function RevenueSummary({ accounts, postedRevenueCents }: RevenueSummaryProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-3">
-      {tile('Posted revenue', 'trend', postedRevenue(txns))}
+      {tile('Posted revenue', 'trend', postedRevenueCents)}
       {tile('Revenue balance', 'zap', sumBalances(accounts, 'revenue'))}
       {tile('Customer balances', 'users', sumBalances(accounts, 'customer'))}
     </div>

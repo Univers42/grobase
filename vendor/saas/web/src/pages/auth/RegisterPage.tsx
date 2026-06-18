@@ -1,34 +1,27 @@
-// RegisterPage.tsx — functional GoTrue sign-up. Creates the account and, when the
-// tenant returns a session, routes straight into the console; otherwise it points
-// the user at sign-in (e.g. email-confirmation tenants).
+// RegisterPage.tsx — functional GoTrue sign-up. Creates the account (and its
+// app_users row + customer account, via useAuth/provision); when the tenant returns
+// a session it routes into the console, otherwise it points at sign-in. A
+// shared-GoTrue email collision is recovered, not dead-ended (see useRegister).
 
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { AuthCard } from './AuthCard';
 import { useAuthForm } from './useAuthForm';
-import { useAuth } from '../../providers/useAuth';
-import { useToast } from '../../providers/useToast';
+import { useRegister } from './useRegister';
 import { Field } from '../../ds/Field';
 import { Input } from '../../ds/Input';
 import { Button } from '../../ds/Button';
 
 /** RegisterPage renders the account-creation form. */
 export function RegisterPage() {
-  const { signUp, isAuthed } = useAuth();
+  const register = useRegister();
   const { error, loading, submit } = useAuthForm();
-  const toast = useToast();
-  const navigate = useNavigate();
   const [form, setForm] = useState({ username: '', email: '', password: '' });
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    void submit(async () => {
-      await signUp(form.email, form.password, form.username);
-      if (isAuthed) return navigate('/app', { replace: true });
-      toast.success('Account created', 'Check your inbox, then sign in.');
-      navigate('/login');
-    });
+    void submit(() => register(form));
   };
 
   return (

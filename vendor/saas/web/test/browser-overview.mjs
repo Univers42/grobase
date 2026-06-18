@@ -12,10 +12,20 @@ await login(page);
 await page.getByRole('heading', { name: /Welcome back/ }).waitFor({ timeout: 12000 }).catch(() => {});
 ok('overview heading rendered');
 
-at('KPI cards');
-await page.locator('p.text-3xl.font-semibold').first().waitFor({ timeout: 12000 }).catch(() => {});
-const kpis = await page.locator('p.text-3xl.font-semibold').count();
-kpis >= 1 ? ok(`${kpis} KPI value tile(s) rendered`) : await die('no KPI cards rendered', logs);
+at('KPI cards reflect real totals — record the numbers the UI displays');
+const values = page.locator('p.text-3xl.font-semibold');
+await values.first().waitFor({ timeout: 12000 }).catch(() => {});
+const valueN = await values.count();
+const kpiReadout = [];
+for (let i = 0; i < valueN; i++) {
+  const value = ((await values.nth(i).textContent().catch(() => '')) || '').trim();
+  const card = values.nth(i).locator('xpath=ancestor::div[.//span[contains(@class,"text-muted")]][1]');
+  const label = ((await card.locator('span.text-muted').first().textContent().catch(() => '')) || '').trim();
+  if (label && value) kpiReadout.push(`${label} = ${value}`);
+}
+kpiReadout.length >= 4
+  ? ok(`real KPIs — ${kpiReadout.join('  ·  ')}`)
+  : await die(`expected 4 real KPI tiles, got ${kpiReadout.length}: ${kpiReadout.join(', ')}`, logs);
 
 at('revenue chart (accessible)');
 const chart = page.locator('svg[role="img"][aria-label*="revenue" i]');
@@ -45,4 +55,4 @@ const real = realErrors(errors);
 real.length === 0 ? ok('no console.error / pageerror') : await die(`browser errors:\n   ${real.join('\n   ')}`, logs);
 
 await browser.close();
-console.log('\nOVERVIEW PASS — KPI cards · accessible revenue chart · populated activity feed');
+console.log(`\nOVERVIEW PASS — real KPIs [${kpiReadout.join(' · ')}] · accessible revenue chart · populated activity feed`);
