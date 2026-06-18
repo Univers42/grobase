@@ -23,6 +23,7 @@
 import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response, NextFunction } from 'express';
+import * as http from 'node:http';
 import { signIdentityEnvelope } from '../identity/request-identity';
 import { serviceAuthHeaders } from '../security/service-auth';
 
@@ -46,15 +47,25 @@ export class ApiKeyMiddleware implements NestMiddleware {
   // to a longer cache to absorb sustained read bursts).
   private readonly cache = new Map<string, { exp: number; res: VerifyResponse }>();
   private readonly cacheTtlMs: number;
+  // Dedicated non-pooling agent for the verify call. Global `fetch` (undici)
+  // reuses keep-alive sockets to tenant-control; a fresh connection per call
+  // cannot reuse a half-open/stale socket. Verify is cached, so the extra
+  // handshake is amortized away. (Hardening against stale-keepalive wedges; not
+  // a cure for the separate sparse-verify event-loop stall under heavy edge load.)
+  private readonly agent: http.Agent;
 
   constructor(config: ConfigService) {
     // internal/loopback only — not externally exposed
     const scheme = 'http';
-    const tenantControlUrl = config.get<string>('TENANT_CONTROL_URL', `${scheme}://tenant-control:3022`);
+    const tenantControlUrl = config.get<string>(
+      'TENANT_CONTROL_URL',
+      `${scheme}://tenant-control:3022`,
+    );
     this.verifyUrl = tenantControlUrl + '/v1/keys/verify';
     this.serviceToken = config.get<string>('INTERNAL_SERVICE_TOKEN', '');
     this.timeoutMs = Number(config.get('API_KEY_VERIFY_TIMEOUT_MS', '2000'));
     this.cacheTtlMs = Number(config.get('API_KEY_VERIFY_CACHE_TTL_MS', '30000'));
+    this.agent = new http.Agent({ keepAlive: false });
   }
 
   async use(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -70,7 +81,9 @@ export class ApiKeyMiddleware implements NestMiddleware {
       verify = await this.verify(apiKey);
     } catch (err) {
       this.logger.warn(`api-key verify failed: ${(err as Error).message}`);
-      res.status(503).json({ error: 'auth_verify_unavailable', message: 'tenant-control unreachable' });
+      res
+        .status(503)
+        .json({ error: 'auth_verify_unavailable', message: 'tenant-control unreachable' });
       return;
     }
 
@@ -95,42 +108,72 @@ export class ApiKeyMiddleware implements NestMiddleware {
       }
     } catch (err) {
       this.logger.error(`identity envelope signing failed: ${(err as Error).message}`);
-      res.status(500).json({ error: 'identity_unavailable', message: 'identity signing key not configured' });
+      res
+        .status(500)
+        .json({ error: 'identity_unavailable', message: 'identity signing key not configured' });
       return;
     }
     next();
   }
 
+  /**
+   * Resolve a cleartext api-key to its verification result, caching for
+   * cacheTtlMs. hmac mode signs the exact payload string sent (audit O1). Both
+   * 200 (valid) and 401 (invalid-but-well-formed) carry a JSON body; any other
+   * status throws (caller maps to 503).
+   */
   private async verify(key: string): Promise<VerifyResponse> {
     const cached = this.cache.get(key);
     const now = Date.now();
     if (cached && cached.exp > now) return cached.res;
 
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), this.timeoutMs);
-    try {
-      const payload = JSON.stringify({ key });
-      const resp = await fetch(this.verifyUrl, {
-        method: 'POST',
-        signal: ctrl.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          // hmac mode signs the exact payload string sent below (audit O1).
-          ...serviceAuthHeaders(this.serviceToken, 'POST', '/v1/keys/verify', payload),
-        },
-        body: payload,
-      });
-      // Both 200 (valid) and 401 (invalid but well-formed) return JSON.
-      if (resp.status !== 200 && resp.status !== 401) {
-        throw new Error(`unexpected status ${resp.status}`);
-      }
-      const body = (await resp.json()) as VerifyResponse;
-      this.cache.set(key, { exp: now + this.cacheTtlMs, res: body });
-      this.pruneCache(now);
-      return body;
-    } finally {
-      clearTimeout(t);
+    const payload = JSON.stringify({ key });
+    const headers = {
+      'Content-Type': 'application/json',
+      ...serviceAuthHeaders(this.serviceToken, 'POST', '/v1/keys/verify', payload),
+    };
+    const { status, raw } = await this.postVerify(payload, headers);
+    if (status !== 200 && status !== 401) {
+      throw new Error(`unexpected status ${status}`);
     }
+    const body = JSON.parse(raw) as VerifyResponse;
+    this.cache.set(key, { exp: now + this.cacheTtlMs, res: body });
+    this.pruneCache(now);
+    return body;
+  }
+
+  /**
+   * POST the verify payload over the dedicated non-pooling agent, resolving
+   * {status, raw-body}. timeoutMs caps the socket; a timeout/error rejects so
+   * the caller returns 503. Fresh connection each call — no stale keep-alive.
+   */
+  private postVerify(
+    payload: string,
+    headers: Record<string, string>,
+  ): Promise<{ status: number; raw: string }> {
+    const url = new URL(this.verifyUrl);
+    return new Promise((resolve, reject) => {
+      const req = http.request(
+        {
+          hostname: url.hostname,
+          port: url.port,
+          path: url.pathname,
+          method: 'POST',
+          agent: this.agent,
+          timeout: this.timeoutMs,
+          headers: { ...headers, 'Content-Length': Buffer.byteLength(payload) },
+        },
+        (res) => {
+          let raw = '';
+          res.setEncoding('utf8');
+          res.on('data', (c) => (raw += c));
+          res.on('end', () => resolve({ status: res.statusCode ?? 0, raw }));
+        },
+      );
+      req.on('timeout', () => req.destroy(new Error('This operation was aborted')));
+      req.on('error', reject);
+      req.end(payload);
+    });
   }
 
   private pruneCache(now: number): void {
