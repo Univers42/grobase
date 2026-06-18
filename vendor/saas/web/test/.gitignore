@@ -1,0 +1,3 @@
+# Test artifacts — regenerable via run-all.sh, never committed.
+node_modules/
+screenshots/
