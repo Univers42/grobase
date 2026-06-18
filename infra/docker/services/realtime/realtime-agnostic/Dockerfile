@@ -53,6 +53,8 @@ RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharin
     done && \
     mkdir -p crates/realtime-server/src && \
     echo "fn main() {}" > crates/realtime-server/src/main.rs && \
+    mkdir -p crates/realtime-engine/benches && \
+    echo "fn main() {}" > crates/realtime-engine/benches/engine_bench.rs && \
     cargo build --release --bin realtime-server 2>&1 | tail -5
 
 # ─────────────────────────────────────────────────────────────────────────────
