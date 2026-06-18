@@ -59,6 +59,19 @@ impl Isolation {
     /// any unrecognised value degrades to [`Isolation::SharedRls`] so an
     /// existing or mistyped mount behaves exactly as it does today. The set of
     /// *accepted* values is enforced upstream in Go provisioning, not here.
+    ///
+    /// ```
+    /// use data_plane_core::Isolation;
+    ///
+    /// // Known values parse to their typed variant (whitespace-tolerant).
+    /// assert_eq!(Isolation::from_mount(Some("schema_per_tenant")), Isolation::SchemaPerTenant);
+    /// assert_eq!(Isolation::from_mount(Some(" tenant_owned ")), Isolation::TenantOwned);
+    ///
+    /// // The parity invariant: absent / empty / unknown all degrade to the
+    /// // historical default rather than erroring — a typo can never 500.
+    /// assert_eq!(Isolation::from_mount(None), Isolation::SharedRls);
+    /// assert_eq!(Isolation::from_mount(Some("typo")), Isolation::SharedRls);
+    /// ```
     #[must_use]
     pub fn from_mount(isolation: Option<&str>) -> Self {
         match isolation.map(str::trim) {
@@ -74,6 +87,19 @@ impl Isolation {
     /// `owner_id`; update/delete filter on it; DDL synthesizes the column).
     /// Everything except [`Isolation::TenantOwned`] — pools gate every
     /// owner-touching site on this single predicate.
+    ///
+    /// ```
+    /// use data_plane_core::Isolation;
+    ///
+    /// // Every platform-managed strategy owner-scopes every read and write.
+    /// assert!(Isolation::SharedRls.owner_scoped());
+    /// assert!(Isolation::SchemaPerTenant.owner_scoped());
+    /// assert!(Isolation::DbPerTenant.owner_scoped());
+    ///
+    /// // A tenant-owned external DB is the sole exception: the tables predate
+    /// // the platform, so no per-row owner_id is injected or filtered.
+    /// assert!(!Isolation::TenantOwned.owner_scoped());
+    /// ```
     #[must_use]
     pub fn owner_scoped(&self) -> bool {
         !matches!(self, Self::TenantOwned)
@@ -193,6 +219,27 @@ impl EngineClass {
 ///
 /// This is the single source of truth shared by the PG `search_path` lowering,
 /// the Mongo/Redis namespace selection, and provisioning DDL.
+///
+/// ```
+/// use data_plane_core::safe_schema;
+///
+/// // `tenant_<fragment>_<hash8>`: a fixed, injection-safe identifier.
+/// let s = safe_schema("acme").unwrap();
+/// assert!(s.starts_with("tenant_acme_"));
+/// assert!(s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'));
+///
+/// // Hostile input is neutralised to `[a-z0-9_]` — safe to interpolate into a
+/// // `SET search_path` (which cannot bind parameters).
+/// let s = safe_schema("a; DROP SCHEMA public; --").unwrap();
+/// assert!(s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'));
+///
+/// // The hash suffix keeps distinct raw ids distinct even when they sanitize
+/// // to the same fragment — no cross-tenant schema collision.
+/// assert_ne!(safe_schema("t-acme"), safe_schema("t.acme"));
+///
+/// // An id that sanitizes to empty yields None (stay on the default schema).
+/// assert_eq!(safe_schema("---"), None);
+/// ```
 #[must_use]
 pub fn safe_schema(tenant_id: &str) -> Option<String> {
     let mapped: String = tenant_id

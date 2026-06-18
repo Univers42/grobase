@@ -99,6 +99,27 @@ impl EngineCapabilities {
     /// adapter's `dispatch_op` must implement exactly the set for which this
     /// returns `true` — pinned by the capability-honesty test in
     /// `data-plane-pool`.
+    ///
+    /// ```
+    /// use data_plane_core::{DataOperationKind, EngineCapabilities};
+    ///
+    /// // Postgres serves the full CRUD + aggregate surface.
+    /// let pg = EngineCapabilities::postgresql();
+    /// assert!(pg.supports_op(&DataOperationKind::Get));
+    /// assert!(pg.supports_op(&DataOperationKind::Aggregate));
+    ///
+    /// // Redis is a KV engine: CRUD yes, but no server-side grouped aggregate —
+    /// // and the descriptor must say so honestly.
+    /// let redis = EngineCapabilities::redis();
+    /// assert!(redis.supports_op(&DataOperationKind::Insert));
+    /// assert!(!redis.supports_op(&DataOperationKind::Aggregate));
+    ///
+    /// // `introspect` is a route capability, not an operation kind: flipping it
+    /// // never changes a supports_op answer.
+    /// let mut probe = EngineCapabilities::redis();
+    /// probe.introspect = true;
+    /// assert!(!probe.supports_op(&DataOperationKind::Aggregate));
+    /// ```
     #[must_use]
     pub fn supports_op(&self, kind: &DataOperationKind) -> bool {
         match kind {

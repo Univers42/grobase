@@ -155,6 +155,36 @@ impl DatabaseMount {
     /// fixed, safe identifier callers may interpolate into `SET search_path`
     /// (which cannot bind parameters) without injection risk. `None` when the
     /// strategy isn't `schema_per_tenant` or the id sanitizes to empty.
+    ///
+    /// ```
+    /// use data_plane_core::{CredentialRef, DatabaseMount, PoolPolicy};
+    ///
+    /// let mut mount = DatabaseMount {
+    ///     id: "db1".into(),
+    ///     tenant_id: "acme".into(),
+    ///     project_id: None,
+    ///     engine: "postgresql".into(),
+    ///     name: "n".into(),
+    ///     credential_ref: CredentialRef {
+    ///         provider: "adapter-registry".into(),
+    ///         reference: "r".into(),
+    ///         version: "1".into(),
+    ///     },
+    ///     pool_policy: PoolPolicy::default(),
+    ///     capability_overrides: None,
+    ///     inline_dsn: None,
+    ///     isolation: Some("schema_per_tenant".into()),
+    ///     replica_inline_dsn: None,
+    ///     read_replica_route: false,
+    /// };
+    ///
+    /// // schema_per_tenant → a sanitized `tenant_<id>_<hash>` schema.
+    /// assert!(mount.tenant_schema().unwrap().starts_with("tenant_acme_"));
+    ///
+    /// // The shared default needs no search_path change → None.
+    /// mount.isolation = Some("shared_rls".into());
+    /// assert_eq!(mount.tenant_schema(), None);
+    /// ```
     #[must_use]
     pub fn tenant_schema(&self) -> Option<String> {
         match self.isolation() {

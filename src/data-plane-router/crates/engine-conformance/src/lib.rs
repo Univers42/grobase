@@ -726,3 +726,142 @@ fn scratch_drop_sql(engine: &str) -> Option<&'static str> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── SuiteReport: the pass/fail aggregation that backs the gate ────────────
+
+    #[test]
+    fn empty_report_is_green() {
+        assert!(SuiteReport::default().is_green());
+    }
+
+    #[test]
+    fn is_green_tracks_only_failures() {
+        let mut r = SuiteReport::default();
+        r.record("crud", Ok(()));
+        r.skip("transactions", "descriptor: transactions=false");
+        assert!(r.is_green(), "passes + skips alone must stay green");
+        r.record("honesty", Err("served an unsupported op".into()));
+        assert!(!r.is_green(), "a single failure must turn the gate red");
+    }
+
+    #[test]
+    fn record_routes_ok_and_err_to_distinct_buckets() {
+        let mut r = SuiteReport::default();
+        r.record("crud", Ok(()));
+        r.record("upsert", Err("upsert-update: boom".into()));
+        assert_eq!(r.passed, vec!["crud".to_string()]);
+        assert_eq!(
+            r.failed,
+            vec![("upsert".to_string(), "upsert-update: boom".to_string())]
+        );
+        assert!(r.skipped.is_empty());
+    }
+
+    #[test]
+    fn skip_formats_name_with_reason() {
+        let mut r = SuiteReport::default();
+        r.skip("batch", "descriptor: batch=false");
+        assert_eq!(r.skipped, vec!["batch (descriptor: batch=false)".to_string()]);
+    }
+
+    #[test]
+    fn display_renders_counts_and_each_outcome_line() {
+        let mut r = SuiteReport {
+            engine: "redis".to_string(),
+            ..Default::default()
+        };
+        r.record("crud", Ok(()));
+        r.skip("aggregate", "descriptor: aggregate=false");
+        r.record("honesty", Err("leaked an op".into()));
+        let out = r.to_string();
+        assert!(out.contains("── conformance: redis ──"));
+        assert!(out.contains("  PASS  crud"));
+        assert!(out.contains("  SKIP  aggregate (descriptor: aggregate=false)"));
+        assert!(out.contains("  FAIL  honesty: leaked an op"));
+        assert!(out.contains("→ 1 passed, 1 skipped, 1 failed"));
+    }
+
+    // ── scratch DDL selection: the per-engine onboarding seam ─────────────────
+
+    #[test]
+    fn relational_engines_get_an_explicit_scratch_table() {
+        // Every engine the descriptor marks `ddl`/relational must bootstrap an
+        // explicit table carrying the composite UNIQUE(owner_id, id) the
+        // owner-scoped upsert arbitrates on.
+        for engine in ["postgresql", "cockroachdb", "mysql", "mariadb", "sqlite", "mssql"] {
+            let ddl = scratch_create_sql(engine)
+                .unwrap_or_else(|| panic!("{engine} must have scratch DDL"));
+            assert!(ddl.contains("conf_probe"), "{engine}: targets the probe table");
+            assert!(
+                ddl.to_ascii_lowercase().contains("owner_id"),
+                "{engine}: scratch table carries the owner_id column"
+            );
+        }
+    }
+
+    #[test]
+    fn document_and_kv_engines_have_no_scratch_ddl() {
+        // mongo (collection) / redis (keyspace) / http create on write → None.
+        for engine in ["mongodb", "redis", "http", "dynamodb", "unknown"] {
+            assert_eq!(
+                scratch_create_sql(engine),
+                None,
+                "{engine}: implicit resource, no scratch DDL"
+            );
+        }
+    }
+
+    #[test]
+    fn predrop_is_postgres_only() {
+        // The unqualified `$user`-schema shadow only exists for postgres-family
+        // search_path engines; every other engine needs no pre-drop.
+        assert!(scratch_predrop_sql("postgresql").is_some());
+        assert!(scratch_predrop_sql("cockroachdb").is_some());
+        for engine in ["mysql", "sqlite", "mssql", "mongodb", "redis"] {
+            assert_eq!(scratch_predrop_sql(engine), None, "{engine}");
+        }
+    }
+
+    #[test]
+    fn drop_sql_pairs_with_create_for_every_relational_engine() {
+        // An engine that bootstraps an explicit table must also tear one down,
+        // and the drop must target the same `conf_probe` resource.
+        for engine in ["postgresql", "cockroachdb", "mysql", "mariadb", "sqlite", "mssql"] {
+            let drop = scratch_drop_sql(engine)
+                .unwrap_or_else(|| panic!("{engine} creates a table, so it must drop one"));
+            assert!(drop.contains("conf_probe"), "{engine}: drops the probe table");
+        }
+        // Postgres qualifies to `public` on both create and drop so they land in
+        // the same schema (the predrop handles the unqualified shadow).
+        assert!(scratch_drop_sql("postgresql").unwrap().contains("public.conf_probe"));
+        // Implicit-resource engines drop nothing.
+        for engine in ["mongodb", "redis", "http"] {
+            assert_eq!(scratch_drop_sql(engine), None, "{engine}");
+        }
+    }
+
+    // ── pure identity / mount builders ────────────────────────────────────────
+
+    #[test]
+    fn mount_for_sets_inline_dsn_so_the_resolver_skips_the_env_map() {
+        let m = mount_for("postgresql", "acme", "postgres://x/y");
+        assert_eq!(m.engine, "postgresql");
+        assert_eq!(m.tenant_id, "acme");
+        assert_eq!(m.inline_dsn.as_deref(), Some("postgres://x/y"));
+        assert_eq!(m.credential_ref.provider, "inline");
+    }
+
+    #[test]
+    fn id_owner_prefers_user_id_then_falls_back_to_tenant() {
+        // The conformance identity stamps a user_id, so the owner is per-user.
+        assert_eq!(id_owner(&identity("acme")), "conf-user-acme");
+        // With no user_id the tenant id is the owner (the documented fallback).
+        let mut bare = identity("acme");
+        bare.user_id = None;
+        assert_eq!(id_owner(&bare), "acme");
+    }
+}
