@@ -31,14 +31,14 @@
 # **************************************************************************** #
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # repo root (lean: was mini-baas-infra)
+BAAS_DIR="${INFRA_DIR}"                        # standalone grobase repo root IS apps/baas
 WIKI_DIR="${BAAS_DIR}/wiki"
 GO_DIR="${INFRA_DIR}/src/control-plane"
 MIGRATION_047="${INFRA_DIR}/scripts/migrations/postgresql/047_tenant_audit_log.sql"
 POSTURE_JSON="${INFRA_DIR}/infra/config/trust/posture.json"
-COMPLIANCE_DOC="${WIKI_DIR}/compliance-posture.md"
-ASVS_DOC="${WIKI_DIR}/security-audit-asvs.md"
+COMPLIANCE_DOC="${WIKI_DIR}/compliance/compliance-posture.md"
+ASVS_DOC="${WIKI_DIR}/security/security-audit-asvs.md"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }

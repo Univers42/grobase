@@ -26,10 +26,10 @@
 # **************************************************************************** #
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
-BAAS_DIR="$(cd "${INFRA_DIR}/.." && pwd)"      # apps/baas
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # repo root (lean: was mini-baas-infra)
+BAAS_DIR="${INFRA_DIR}"                        # standalone grobase repo root IS apps/baas
 PACK="${BAAS_DIR}/wiki/compliance"
-POSTURE_JSON="${INFRA_DIR}/config/trust/posture.json"
+POSTURE_JSON="${INFRA_DIR}/infra/config/trust/posture.json"
 MIGR_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 CLAUDE_DIR="$(cd "${BAAS_DIR}/.claude" 2>/dev/null && pwd || true)"
 

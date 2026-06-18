@@ -41,7 +41,7 @@
       "name": "Formal SOC 2 Type II report",
       "category": "compliance",
       "status": "planned",
-      "evidence": "wiki/trust-center.md",
+      "evidence": "wiki/security/trust-center.md",
       "detail": "Requires an independent external auditor over a multi-month observation window. Not yet engaged. The m108 evidence collector is the input that shortens that audit; it is not a substitute for it."
     },
     {
@@ -57,7 +57,7 @@
       "name": "Encryption in transit (TLS to engines + edge)",
       "category": "encryption",
       "status": "partial",
-      "evidence": "wiki/security-audit-asvs.md",
+      "evidence": "wiki/security/security-audit-asvs.md",
       "detail": "Under SECURITY_MODE=max, MSSQL verifies TLS by default and refuses insecure DSNs; mongo/redis insecure DSN params are rejected; CA-pin via DATA_PLANE_TLS_CA_FILE. PARTIAL: Postgres sslmode=require is accept-any OUTSIDE max (audit O4) — run max for multi-tenant. Edge TLS is operator-provided."
     },
     {
@@ -66,14 +66,14 @@
       "category": "encryption",
       "status": "planned",
       "detail": "Disk/volume encryption is an operator/host responsibility today. Per-tenant encrypted-at-rest backups are a roadmap follow-up (B6 / audit solution #11). Not yet a Grobase-enforced control.",
-      "evidence": "wiki/security-audit-asvs.md"
+      "evidence": "wiki/security/security-audit-asvs.md"
     },
     {
       "id": "secrets-management",
       "name": "Secrets management (Vault, dynamic DB creds)",
       "category": "encryption",
       "status": "partial",
-      "evidence": "wiki/security-audit.md",
+      "evidence": "wiki/security/security-audit.md",
       "detail": "Vault-backed secrets with credential_ref{provider:vault}; dynamic short-lived DB credentials reduce blast radius. PARTIAL: plaintext DATA_PLANE_MOUNTS are not yet forbidden outside max (audit O5) — enforce Vault refs in prod."
     },
     {
@@ -97,7 +97,7 @@
       "name": "Web Application Firewall (L7)",
       "category": "network",
       "status": "planned",
-      "evidence": "wiki/operations-runbook.md",
+      "evidence": "wiki/operations/operations-runbook.md",
       "detail": "A managed L7 WAF (rule sets, rate-based rules, bot mitigation) is provided by the hosting edge in the managed-cloud offering; it is operator-supplied for self-host. Not yet a Grobase-enforced, gate-proven control."
     },
     {
@@ -121,7 +121,7 @@
       "name": "Vulnerability disclosure (security.txt)",
       "category": "compliance",
       "status": "partial",
-      "evidence": "wiki/status-sla.md",
+      "evidence": "wiki/operations/status-sla.md",
       "detail": "A security.txt + disclosure contact is part of the trust-center / status-page scaffold (D4.6). PARTIAL: the public status page + disclosure endpoint are on-demand infra not yet stood up; the policy and contact are defined."
     },
     {
@@ -129,7 +129,7 @@
       "name": "Uptime SLA + status page",
       "category": "operations",
       "status": "planned",
-      "evidence": "wiki/status-sla.md",
+      "evidence": "wiki/operations/status-sla.md",
       "detail": "Per-tier uptime targets (basic 99.5%, essential/pro 99.9%, max 99.95%) are TARGETS pending the C7 uptime probe. Until a probe writes durable availability samples, the SLA is not enforceable — stated honestly, not advertised as live."
     },
     {
@@ -137,7 +137,7 @@
       "name": "Supply-chain hardening (frozen lockfiles, SCA)",
       "category": "compliance",
       "status": "implemented",
-      "evidence": "wiki/security-audit.md",
+      "evidence": "wiki/security/security-audit.md",
       "detail": "Frozen lockfiles everywhere; npm ci --ignore-scripts; pnpm minimum-release-age + onlyBuiltDependencies allowlist; cargo-audit on both Rust workspaces; SEMGREP + npm audit via make baas-security-scan."
     },
     {
