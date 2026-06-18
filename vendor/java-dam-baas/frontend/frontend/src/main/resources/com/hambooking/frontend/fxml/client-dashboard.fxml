@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.hambooking.frontend.controllers.ClientDashboard"
+            stylesheets="@../css/hambooking.css"
+            styleClass="main-pane"
+            prefWidth="1100" prefHeight="680">
+
+    <!-- ══════════════════════════
+         SIDEBAR IZQUIERDO
+    ══════════════════════════ -->
+    <left>
+        <VBox styleClass="sidebar" prefWidth="220" minWidth="220" maxWidth="220">
+
+            <VBox styleClass="sidebar-top">
+                <Label text="HamBooking" styleClass="sidebar-logo"/>
+                <Label text="Sistema de reservas" styleClass="sidebar-tagline"/>
+            </VBox>
+
+            <HBox styleClass="sidebar-user" alignment="CENTER_LEFT" spacing="10">
+                <padding><Insets top="16" right="18" bottom="12" left="18"/></padding>
+                <VBox spacing="2">
+                    <Label fx:id="sidebarUserName" text="Usuario" styleClass="user-info-name"/>
+                    <Label fx:id="sidebarUserRole" text="Cliente" styleClass="user-info-role"/>
+                </VBox>
+            </HBox>
+
+            <Label text="RESERVAS" styleClass="nav-section-label">
+                <padding><Insets top="16" right="18" bottom="6" left="18"/></padding>
+            </Label>
+            <Button text="Mi panel"      styleClass="nav-button-active" maxWidth="Infinity"/>
+            <Button text="Nueva reserva" styleClass="nav-button" maxWidth="Infinity" onAction="#goToCalendar"/>
+            <Button text="Mis reservas"  styleClass="nav-button" maxWidth="Infinity" onAction="#goToReservations"/>
+
+            <Label text="CUENTA" styleClass="nav-section-label">
+                <padding><Insets top="16" right="18" bottom="6" left="18"/></padding>
+            </Label>
+            <Button text="Mi perfil"      styleClass="nav-button" maxWidth="Infinity" onAction="#goToProfile"/>
+            <Button text="Notificaciones" styleClass="nav-button" maxWidth="Infinity" onAction="#goToNotifications"/>
+
+            <Region VBox.vgrow="ALWAYS"/>
+
+            <VBox styleClass="sidebar-footer">
+                <padding><Insets top="14" right="18" bottom="14" left="18"/></padding>
+                <Button text="Cerrar sesion" styleClass="nav-button" maxWidth="Infinity" onAction="#handleLogout"/>
+            </VBox>
+
+        </VBox>
+    </left>
+
+    <!-- ══════════════════════════
+         CONTENIDO CENTRAL
+    ══════════════════════════ -->
+    <center>
+        <VBox>
+
+            <!-- Cabecera -->
+            <HBox styleClass="content-header" alignment="CENTER_LEFT">
+                <padding><Insets top="16" right="28" bottom="16" left="28"/></padding>
+                <VBox HBox.hgrow="ALWAYS" spacing="2">
+                    <Label text="Mi Panel" styleClass="page-title"/>
+                    <Label fx:id="fechaHoyLabel" text="" styleClass="page-breadcrumb"/>
+                </VBox>
+                <Button text="+ Nueva reserva"
+                        styleClass="button-primary"
+                        onAction="#goToCalendar"/>
+            </HBox>
+
+            <ScrollPane VBox.vgrow="ALWAYS" fitToWidth="true" styleClass="scroll-pane">
+                <content>
+                    <VBox spacing="20">
+                        <padding><Insets top="24" right="28" bottom="24" left="28"/></padding>
+
+                        <!-- ── KPIs ── -->
+                        <HBox spacing="16">
+
+                            <VBox styleClass="kpi-card" HBox.hgrow="ALWAYS" spacing="4">
+                                <Label text="Reservas esta semana" styleClass="kpi-label"/>
+                                <Label fx:id="kpiSemana" text="0" styleClass="kpi-value"/>
+                            </VBox>
+
+                            <VBox styleClass="kpi-card" HBox.hgrow="ALWAYS" spacing="4">
+                                <Label text="Cupo hoy" styleClass="kpi-label"/>
+                                <Label fx:id="kpiCupoHoy" text="0 / 2" styleClass="kpi-value"/>
+                            </VBox>
+
+                            <VBox styleClass="kpi-card" HBox.hgrow="ALWAYS" spacing="4">
+                                <Label text="Reservas realizadas" styleClass="kpi-label"/>
+                                <Label fx:id="kpiRealizadas" text="0" styleClass="kpi-value"/>
+                            </VBox>
+
+                        </HBox>
+
+                        <!-- ── Proximas reservas ── -->
+                        <VBox styleClass="card" spacing="12">
+
+                            <HBox alignment="CENTER_LEFT">
+                                <Label text="Mis proximas reservas" styleClass="page-title"
+                                       style="-fx-font-size:15px;"/>
+                                <Region HBox.hgrow="ALWAYS"/>
+                                <Button text="Ver historial completo"
+                                        styleClass="button-secondary"
+                                        onAction="#goToReservations"/>
+                            </HBox>
+
+                            <!-- Tabla de proximas reservas -->
+                            <TableView fx:id="proximasTable" prefHeight="200">
+                                <columns>
+                                    <TableColumn fx:id="colFecha"    text="Fecha"    prefWidth="110"/>
+                                    <TableColumn fx:id="colServicio" text="Servicio" prefWidth="180"/>
+                                    <TableColumn fx:id="colCortador" text="Cortador" prefWidth="160"/>
+                                    <TableColumn fx:id="colHora"     text="Hora"     prefWidth="110"/>
+                                    <TableColumn fx:id="colEstado"   text="Estado"   prefWidth="110"/>
+                                    <TableColumn fx:id="colAcciones" text="Acciones" prefWidth="160"/>
+                                </columns>
+                                <placeholder>
+                                    <Label text="No tienes reservas proximas."
+                                           styleClass="label-subtitle"/>
+                                </placeholder>
+                            </TableView>
+
+                        </VBox>
+
+                        <!-- ── Historial reciente ── -->
+                        <VBox styleClass="card" spacing="12">
+
+                            <Label text="Historial reciente" styleClass="page-title"
+                                   style="-fx-font-size:15px;"/>
+
+                            <TableView fx:id="historialTable" prefHeight="180">
+                                <columns>
+                                    <TableColumn fx:id="hColFecha"    text="Fecha"    prefWidth="110"/>
+                                    <TableColumn fx:id="hColServicio" text="Servicio" prefWidth="180"/>
+                                    <TableColumn fx:id="hColCortador" text="Cortador" prefWidth="160"/>
+                                    <TableColumn fx:id="hColHora"     text="Hora"     prefWidth="110"/>
+                                    <TableColumn fx:id="hColEstado"   text="Estado"   prefWidth="110"/>
+                                </columns>
+                                <placeholder>
+                                    <Label text="No hay reservas en el historial."
+                                           styleClass="label-subtitle"/>
+                                </placeholder>
+                            </TableView>
+
+                        </VBox>
+
+                    </VBox>
+                </content>
+            </ScrollPane>
+
+        </VBox>
+    </center>
+
+</BorderPane>

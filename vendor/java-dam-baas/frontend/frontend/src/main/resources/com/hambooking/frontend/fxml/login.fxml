@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+
+<HBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.hambooking.frontend.controllers.LoginController"
+      stylesheets="@../css/hambooking.css"
+      styleClass="login-root"
+      prefWidth="900" prefHeight="560">
+
+    <!-- Panel izquierdo: Brand -->
+    <VBox styleClass="login-left-panel" prefWidth="380"
+          alignment="TOP_LEFT" spacing="0">
+        <padding><Insets top="48" right="44" bottom="48" left="44"/></padding>
+
+        <VBox spacing="4">
+            <Label text="Sistema de gestión" styleClass="label-section-header"/>
+            <Label text="HamBooking" styleClass="login-brand-title"/>
+            <!-- Separador decorativo -->
+            <Pane styleClass="separator-gold"/>
+            <Label text="Gestión profesional de reservas para maestros cortadores."
+                   styleClass="login-brand-subtitle" wrapText="true"/>
+        </VBox>
+
+        <Region VBox.vgrow="ALWAYS"/>
+        <Label text="HamBooking v1.0 · DAM 2S2526"
+               style="-fx-font-size:10px;-fx-text-fill:rgba(212,168,83,0.4);"/>
+    </VBox>
+
+    <!-- Panel derecho: Formulario -->
+    <VBox styleClass="login-right-panel" HBox.hgrow="ALWAYS"
+          alignment="CENTER_LEFT" spacing="0">
+
+        <Label text="Bienvenido de nuevo" styleClass="label-section-header"/>
+        <Label text="Acceder al sistema" styleClass="login-form-title"/>
+        <Label text="Introduce tus credenciales para continuar"
+               styleClass="label-subtitle"/>
+        <!-- spacer -->
+        <Region prefHeight="28"/>
+
+        <!-- Campo Email -->
+        <VBox spacing="6">
+            <Label text="CORREO ELECTRÓNICO" styleClass="field-label"/>
+            <TextField fx:id="emailField" styleClass="text-field"
+                       promptText="admin@hambooking.com"/>
+        </VBox>
+        <Region prefHeight="16"/>
+
+        <!-- Campo Password -->
+        <VBox spacing="6">
+            <Label text="CONTRASEÑA" styleClass="field-label"/>
+            <PasswordField fx:id="passwordField" styleClass="password-field"
+                           promptText="••••••••"/>
+        </VBox>
+        <Region prefHeight="4"/>
+
+        <!-- Error inline -->
+        <Label fx:id="errorLabel" styleClass="label-error"
+               text="" managed="false" visible="false"/>
+        <Region prefHeight="12"/>
+
+        <!-- Botón login -->
+        <Button fx:id="loginBtn" text="Iniciar sesión"
+                styleClass="button-primary" maxWidth="Infinity"
+                onAction="#handleLogin"/>
+        <Region prefHeight="16"/>
+
+        <!-- Link registro -->
+        <HBox alignment="CENTER" spacing="4">
+            <Label text="¿No tienes cuenta?" styleClass="label"/>
+            <Hyperlink text="Regístrate aquí" styleClass="login-link"
+                       onAction="#goToRegister"/>
+        </HBox>
+    </VBox>
+</HBox>

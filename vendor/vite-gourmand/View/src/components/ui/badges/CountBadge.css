@@ -1,0 +1,38 @@
+/**
+ * CountBadge Styles
+ * Uses ONLY CSS variables from graphical_chart.css
+ */
+
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 var(--space-2);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  border-radius: var(--radius-full);
+}
+
+/* Variants */
+.count-badge-default {
+  background: var(--color-neutral-600);
+  color: var(--color-text-primary);
+}
+
+.count-badge-success {
+  background: var(--color-success-600);
+  color: var(--color-text-primary);
+}
+
+.count-badge-danger {
+  background: var(--color-danger-600);
+  color: var(--color-text-primary);
+}
+
+.count-badge-warning {
+  background: var(--color-warning-500);
+  color: var(--color-text-inverse);
+}

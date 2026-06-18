@@ -1,0 +1,80 @@
+/* Order Timeline Styles */
+
+.order-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+}
+
+.timeline-step {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  border-radius: var(--radius-md);
+  position: relative;
+  opacity: 0.5;
+  transition: all var(--transition-slow);
+}
+
+.timeline-step.active {
+  opacity: 1;
+}
+
+.timeline-step.current {
+  background: rgba(var(--color-primary-rgb, 126, 58, 242), 0.1);
+  transform: scale(1.02);
+}
+
+.timeline-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--color-surface, var(--color-bg-secondary));
+  border: 2px solid currentColor;
+  flex-shrink: 0;
+}
+
+.timeline-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.timeline-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text, var(--color-wine-900));
+}
+
+.timeline-connector {
+  position: absolute;
+  left: 1.5rem;
+  top: 100%;
+  width: 2px;
+  height: 0.5rem;
+  background: var(--color-border, var(--color-gray-200));
+}
+
+.timeline-step.active .timeline-connector {
+  background: var(--color-primary, var(--color-primary-700));
+}
+
+.timeline-cancelled {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  margin-top: 1rem;
+  background: var(--color-red-overlay-10);
+  border-radius: var(--radius-md);
+  color: var(--color-red-500);
+}
+
+.timeline-cancelled svg {
+  width: 24px;
+  height: 24px;
+}

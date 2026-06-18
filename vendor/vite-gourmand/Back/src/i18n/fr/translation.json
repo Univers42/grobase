@@ -1,0 +1,60 @@
+{
+  "common": {
+    "welcome": "Bienvenue chez Vite Gourmand",
+    "error": "Une erreur est survenue",
+    "success": "Opération réussie",
+    "notFound": "Ressource non trouvée",
+    "unauthorized": "Accès non autorisé",
+    "forbidden": "Accès interdit"
+  },
+  "auth": {
+    "loginSuccess": "Connexion réussie",
+    "loginFailed": "Identifiants invalides",
+    "registerSuccess": "Inscription réussie",
+    "emailExists": "Email déjà enregistré",
+    "invalidToken": "Jeton invalide ou expiré",
+    "passwordReset": "Email de réinitialisation envoyé",
+    "passwordChanged": "Mot de passe modifié avec succès"
+  },
+  "user": {
+    "profileUpdated": "Profil mis à jour avec succès",
+    "accountDeleted": "Compte supprimé avec succès",
+    "addressAdded": "Adresse ajoutée avec succès",
+    "addressUpdated": "Adresse mise à jour avec succès",
+    "addressDeleted": "Adresse supprimée avec succès"
+  },
+  "menu": {
+    "created": "Menu créé avec succès",
+    "updated": "Menu mis à jour avec succès",
+    "deleted": "Menu supprimé avec succès",
+    "notFound": "Menu non trouvé"
+  },
+  "order": {
+    "created": "Commande passée avec succès",
+    "cancelled": "Commande annulée avec succès",
+    "notFound": "Commande non trouvée",
+    "cannotCancel": "Impossible d'annuler cette commande",
+    "statusUpdated": "Statut de la commande mis à jour"
+  },
+  "dish": {
+    "created": "Plat créé avec succès",
+    "updated": "Plat mis à jour avec succès",
+    "deleted": "Plat supprimé avec succès",
+    "notFound": "Plat non trouvé",
+    "unavailable": "Plat non disponible"
+  },
+  "review": {
+    "created": "Avis soumis avec succès",
+    "updated": "Avis mis à jour avec succès",
+    "deleted": "Avis supprimé avec succès",
+    "notFound": "Avis non trouvé",
+    "moderated": "Avis modéré avec succès"
+  },
+  "validation": {
+    "required": "Ce champ est requis",
+    "invalidEmail": "Format d'email invalide",
+    "minLength": "Minimum {{min}} caractères requis",
+    "maxLength": "Maximum {{max}} caractères autorisés",
+    "invalidFormat": "Format invalide"
+  }
+}

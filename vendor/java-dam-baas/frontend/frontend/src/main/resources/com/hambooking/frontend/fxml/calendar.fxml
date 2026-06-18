@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.DatePicker?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.hambooking.frontend.controllers.CalendarController"
+            stylesheets="@../css/hambooking.css"
+            styleClass="main-pane"
+            prefWidth="1100" prefHeight="680">
+
+    <!-- ══════════════════════════
+         SIDEBAR IZQUIERDO
+    ══════════════════════════ -->
+    <left>
+        <VBox styleClass="sidebar" prefWidth="220" minWidth="220" maxWidth="220">
+
+            <VBox styleClass="sidebar-top">
+                <Label text="HamBooking" styleClass="sidebar-logo"/>
+                <Label text="Sistema de reservas" styleClass="sidebar-tagline"/>
+            </VBox>
+
+            <HBox styleClass="sidebar-user" alignment="CENTER_LEFT" spacing="10">
+                <padding><Insets top="16" right="18" bottom="12" left="18"/></padding>
+                <VBox spacing="2">
+                    <Label fx:id="sidebarUserName" text="Usuario" styleClass="user-info-name"/>
+                    <Label fx:id="sidebarUserRole" text="Cliente" styleClass="user-info-role"/>
+                </VBox>
+            </HBox>
+
+            <Label text="RESERVAS" styleClass="nav-section-label">
+                <padding><Insets top="16" right="18" bottom="6" left="18"/></padding>
+            </Label>
+            <Button text="Mi panel"       styleClass="nav-button" maxWidth="Infinity" onAction="#goToDashboard"/>
+            <Button text="Nueva reserva"  styleClass="nav-button-active" maxWidth="Infinity"/>
+            <Button text="Mis reservas"   styleClass="nav-button" maxWidth="Infinity" onAction="#goToReservations"/>
+
+            <Label text="CUENTA" styleClass="nav-section-label">
+                <padding><Insets top="16" right="18" bottom="6" left="18"/></padding>
+            </Label>
+            <Button text="Mi perfil"      styleClass="nav-button" maxWidth="Infinity" onAction="#goToProfile"/>
+            <Button text="Notificaciones" styleClass="nav-button" maxWidth="Infinity" onAction="#goToNotifications"/>
+
+            <Region VBox.vgrow="ALWAYS"/>
+
+            <VBox styleClass="sidebar-footer">
+                <padding><Insets top="14" right="18" bottom="14" left="18"/></padding>
+                <Button text="Cerrar sesion" styleClass="nav-button" maxWidth="Infinity" onAction="#handleLogout"/>
+            </VBox>
+
+        </VBox>
+    </left>
+
+    <!-- ══════════════════════════
+         CONTENIDO CENTRAL
+    ══════════════════════════ -->
+    <center>
+        <VBox>
+
+            <!-- Cabecera -->
+            <HBox styleClass="content-header" alignment="CENTER_LEFT">
+                <padding><Insets top="16" right="28" bottom="16" left="28"/></padding>
+                <VBox HBox.hgrow="ALWAYS" spacing="2">
+                    <Label text="Nueva Reserva" styleClass="page-title"/>
+                    <Label text="Selecciona servicio, fecha y horario disponible"
+                           styleClass="page-breadcrumb"/>
+                </VBox>
+            </HBox>
+
+            <!-- Controles: servicio + fecha + boton -->
+            <HBox styleClass="calendar-controls" alignment="BOTTOM_LEFT" spacing="16">
+                <padding><Insets top="16" right="28" bottom="16" left="28"/></padding>
+
+                <VBox spacing="4">
+                    <Label text="TIPO DE SERVICIO" styleClass="field-label"/>
+                    <ComboBox fx:id="servicioCombo"
+                              promptText="Selecciona un servicio"
+                              prefWidth="220"/>
+                </VBox>
+
+                <VBox spacing="4">
+                    <Label text="FECHA" styleClass="field-label"/>
+                    <DatePicker fx:id="fechaPicker" prefWidth="180"/>
+                </VBox>
+
+                <Button text="Ver disponibilidad"
+                        styleClass="button-primary"
+                        onAction="#handleBuscarDisponibilidad"
+                        style="-fx-padding: 10px 20px;"/>
+
+                <Region HBox.hgrow="ALWAYS"/>
+                <Label fx:id="servicioInfoLabel" text="" styleClass="label-subtitle"/>
+            </HBox>
+
+            <!-- Grid de slots generado dinamicamente -->
+            <ScrollPane VBox.vgrow="ALWAYS" fitToWidth="true" styleClass="scroll-pane">
+                <padding><Insets top="16" right="28" bottom="16" left="28"/></padding>
+                <content>
+                    <GridPane fx:id="calendarGrid" hgap="4" vgap="4"/>
+                </content>
+            </ScrollPane>
+
+            <!-- Leyenda -->
+            <HBox alignment="CENTER_LEFT" spacing="20">
+                <padding><Insets top="12" right="28" bottom="12" left="28"/></padding>
+                <Label text="Disponible (clic para reservar)"
+                       style="-fx-text-fill:#27AE60; -fx-font-size:11px;"/>
+                <Label text="Ocupado"
+                       style="-fx-text-fill:#C0392B; -fx-font-size:11px;"/>
+                <Label text="Tiempo insuficiente"
+                       style="-fx-text-fill:#AAB7B8; -fx-font-size:11px;"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Label fx:id="legendInfoLabel" text="" styleClass="label-subtitle"/>
+            </HBox>
+
+        </VBox>
+    </center>
+
+</BorderPane>

@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Tab?>
+<?import javafx.scene.control.TabPane?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.hambooking.frontend.controllers.AdminDashboardController"
+            stylesheets="@../css/hambooking.css"
+            styleClass="main-pane"
+            prefWidth="1100" prefHeight="720">
+
+    <!-- ══════════════════════════
+         SIDEBAR IZQUIERDO
+    ══════════════════════════ -->
+    <left>
+        <VBox styleClass="sidebar" prefWidth="220" minWidth="220" maxWidth="220">
+
+            <VBox styleClass="sidebar-top">
+                <Label text="HamBooking" styleClass="sidebar-logo"/>
+                <Label text="Panel de administracion" styleClass="sidebar-tagline"/>
+            </VBox>
+
+            <HBox styleClass="sidebar-user" alignment="CENTER_LEFT" spacing="10">
+                <padding><Insets top="16" right="18" bottom="12" left="18"/></padding>
+                <VBox spacing="2">
+                    <Label fx:id="sidebarUserName" text="System Admin" styleClass="user-info-name"/>
+                    <Label text="Administrador" styleClass="user-info-role"/>
+                </VBox>
+            </HBox>
+
+            <Label text="GESTION" styleClass="nav-section-label">
+                <padding><Insets top="16" right="18" bottom="6" left="18"/></padding>
+            </Label>
+            <Button text="Cortadores"    styleClass="nav-button-active" maxWidth="Infinity"
+                    onAction="#showTabCortadores"/>
+            <Button text="Usuarios"      styleClass="nav-button" maxWidth="Infinity"
+                    onAction="#showTabUsuarios"/>
+            <Button text="Reservas"      styleClass="nav-button" maxWidth="Infinity"
+                    onAction="#showTabReservas"/>
+            <Button text="Notificaciones" styleClass="nav-button" maxWidth="Infinity"
+                    onAction="#showTabNotificaciones"/>
+
+            <Label text="SISTEMA" styleClass="nav-section-label">
+                <padding><Insets top="16" right="18" bottom="6" left="18"/></padding>
+            </Label>
+            <Button text="Estadisticas" styleClass="nav-button" maxWidth="Infinity"
+                    onAction="#showTabEstadisticas"/>
+
+            <Region VBox.vgrow="ALWAYS"/>
+
+            <VBox styleClass="sidebar-footer">
+                <padding><Insets top="14" right="18" bottom="14" left="18"/></padding>
+                <Button text="Cerrar sesion" styleClass="nav-button" maxWidth="Infinity"
+                        onAction="#handleLogout"/>
+            </VBox>
+
+        </VBox>
+    </left>
+
+    <!-- ══════════════════════════
+         CONTENIDO CENTRAL
+    ══════════════════════════ -->
+    <center>
+        <VBox>
+
+            <!-- Cabecera -->
+            <HBox styleClass="content-header" alignment="CENTER_LEFT">
+                <padding><Insets top="16" right="28" bottom="16" left="28"/></padding>
+                <VBox HBox.hgrow="ALWAYS" spacing="2">
+                    <Label fx:id="pageTitle" text="Gestion de Cortadores" styleClass="page-title"/>
+                    <Label fx:id="pageBreadcrumb" text="Inicio · Cortadores" styleClass="page-breadcrumb"/>
+                </VBox>
+                <HBox spacing="10" alignment="CENTER_RIGHT">
+                    <TextField fx:id="searchField"
+                               promptText="Buscar..."
+                               prefWidth="200"/>
+                    <Button fx:id="btnNuevo" text="+ Nuevo"
+                            styleClass="button-primary"
+                            onAction="#handleNuevo"/>
+                </HBox>
+            </HBox>
+
+            <!-- KPIs -->
+            <HBox spacing="16">
+                <padding><Insets top="20" right="28" bottom="4" left="28"/></padding>
+
+                <VBox styleClass="kpi-card" HBox.hgrow="ALWAYS" spacing="4">
+                    <Label text="Cortadores activos" styleClass="kpi-label"/>
+                    <Label fx:id="kpiCortadores" text="0" styleClass="kpi-value"/>
+                </VBox>
+
+                <VBox styleClass="kpi-card" HBox.hgrow="ALWAYS" spacing="4">
+                    <Label text="Reservas hoy" styleClass="kpi-label"/>
+                    <Label fx:id="kpiReservasHoy" text="0" styleClass="kpi-value"/>
+                </VBox>
+
+                <VBox styleClass="kpi-card" HBox.hgrow="ALWAYS" spacing="4">
+                    <Label text="Clientes registrados" styleClass="kpi-label"/>
+                    <Label fx:id="kpiClientes" text="0" styleClass="kpi-value"/>
+                </VBox>
+
+                <VBox styleClass="kpi-card" HBox.hgrow="ALWAYS" spacing="4">
+                    <Label text="Pendientes confirmar" styleClass="kpi-label"/>
+                    <Label fx:id="kpiPendientes" text="0" styleClass="kpi-value"/>
+                </VBox>
+
+            </HBox>
+
+            <!-- TabPane con las secciones -->
+            <ScrollPane VBox.vgrow="ALWAYS" fitToWidth="true" styleClass="scroll-pane">
+                <content>
+                    <VBox>
+                        <padding><Insets top="16" right="28" bottom="24" left="28"/></padding>
+
+                        <TabPane fx:id="mainTabPane" styleClass="tab-pane" tabClosingPolicy="UNAVAILABLE">
+
+                            <!-- ── TAB: CORTADORES ── -->
+                            <Tab fx:id="tabCortadores" text="Cortadores">
+                                <content>
+                                    <VBox spacing="12">
+                                        <padding><Insets top="16" bottom="8"/></padding>
+
+                                        <TableView fx:id="cortadoresTable" prefHeight="380">
+                                            <columns>
+                                                <TableColumn fx:id="cColNombre"      text="Nombre"        prefWidth="160"/>
+                                                <TableColumn fx:id="cColDni"         text="DNI"           prefWidth="100"/>
+                                                <TableColumn fx:id="cColEmail"       text="Email"         prefWidth="190"/>
+                                                <TableColumn fx:id="cColEspecialidad" text="Especialidad" prefWidth="120"/>
+                                                <TableColumn fx:id="cColExperiencia" text="Experiencia"   prefWidth="100"/>
+                                                <TableColumn fx:id="cColEstado"      text="Estado"        prefWidth="90"/>
+                                                <TableColumn fx:id="cColAcciones"    text="Acciones"      prefWidth="160"/>
+                                            </columns>
+                                            <placeholder>
+                                                <Label text="No hay cortadores registrados."
+                                                       styleClass="label-subtitle"/>
+                                            </placeholder>
+                                        </TableView>
+
+                                    </VBox>
+                                </content>
+                            </Tab>
+
+                            <!-- ── TAB: USUARIOS ── -->
+                            <Tab fx:id="tabUsuarios" text="Usuarios">
+                                <content>
+                                    <VBox spacing="12">
+                                        <padding><Insets top="16" bottom="8"/></padding>
+
+                                        <TableView fx:id="usuariosTable" prefHeight="380">
+                                            <columns>
+                                                <TableColumn fx:id="uColNombre"  text="Nombre"    prefWidth="180"/>
+                                                <TableColumn fx:id="uColDni"     text="DNI"       prefWidth="100"/>
+                                                <TableColumn fx:id="uColEmail"   text="Email"     prefWidth="200"/>
+                                                <TableColumn fx:id="uColTelefono" text="Telefono" prefWidth="110"/>
+                                                <TableColumn fx:id="uColEstado"  text="Estado"    prefWidth="90"/>
+                                                <TableColumn fx:id="uColAcciones" text="Acciones" prefWidth="130"/>
+                                            </columns>
+                                            <placeholder>
+                                                <Label text="No hay usuarios registrados."
+                                                       styleClass="label-subtitle"/>
+                                            </placeholder>
+                                        </TableView>
+
+                                    </VBox>
+                                </content>
+                            </Tab>
+
+                            <!-- ── TAB: RESERVAS ── -->
+                            <Tab fx:id="tabReservas" text="Reservas">
+                                <content>
+                                    <VBox spacing="12">
+                                        <padding><Insets top="16" bottom="8"/></padding>
+
+                                        <TableView fx:id="reservasTable" prefHeight="380">
+                                            <columns>
+                                                <TableColumn fx:id="rColFecha"     text="Fecha"     prefWidth="110"/>
+                                                <TableColumn fx:id="rColCliente"   text="Cliente"   prefWidth="150"/>
+                                                <TableColumn fx:id="rColCortador"  text="Cortador"  prefWidth="150"/>
+                                                <TableColumn fx:id="rColServicio"  text="Servicio"  prefWidth="150"/>
+                                                <TableColumn fx:id="rColHora"      text="Hora"      prefWidth="110"/>
+                                                <TableColumn fx:id="rColEstado"    text="Estado"    prefWidth="100"/>
+                                                <TableColumn fx:id="rColAcciones"  text="Acciones"  prefWidth="130"/>
+                                            </columns>
+                                            <placeholder>
+                                                <Label text="No hay reservas registradas."
+                                                       styleClass="label-subtitle"/>
+                                            </placeholder>
+                                        </TableView>
+
+                                    </VBox>
+                                </content>
+                            </Tab>
+
+                            <!-- ── TAB: NOTIFICACIONES ── -->
+                            <Tab fx:id="tabNotificaciones" text="Notificaciones">
+                                <content>
+                                    <VBox spacing="12">
+                                        <padding><Insets top="16" bottom="8"/></padding>
+
+                                        <TableView fx:id="notificacionesTable" prefHeight="380">
+                                            <columns>
+                                                <TableColumn fx:id="nColFecha"        text="Fecha"       prefWidth="140"/>
+                                                <TableColumn fx:id="nColDestinatario" text="Destinatario" prefWidth="200"/>
+                                                <TableColumn fx:id="nColTipo"         text="Tipo"        prefWidth="120"/>
+                                                <TableColumn fx:id="nColAsunto"       text="Asunto"      prefWidth="300"/>
+                                            </columns>
+                                            <placeholder>
+                                                <Label text="No hay notificaciones registradas."
+                                                       styleClass="label-subtitle"/>
+                                            </placeholder>
+                                        </TableView>
+
+                                    </VBox>
+                                </content>
+                            </Tab>
+
+                            <!-- ── TAB: ESTADISTICAS ── -->
+                            <Tab fx:id="tabEstadisticas" text="Estadisticas">
+                                <content>
+                                    <VBox spacing="16" alignment="CENTER">
+                                        <padding><Insets top="40"/></padding>
+                                        <Label text="Estadisticas disponibles en proxima version."
+                                               styleClass="label-subtitle"/>
+                                    </VBox>
+                                </content>
+                            </Tab>
+
+                        </TabPane>
+                    </VBox>
+                </content>
+            </ScrollPane>
+
+        </VBox>
+    </center>
+
+</BorderPane>

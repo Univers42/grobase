@@ -1,0 +1,58 @@
+{
+  "name": "Vite Gourmand Dev",
+  "dockerComposeFile": ["../docker-compose.yml"],
+  "service": "dev",
+  "workspaceFolder": "/app",
+  
+  // Run docker-compose with the dev profile
+  "runServices": ["dev"],
+  "shutdownAction": "stopCompose",
+  
+  // VS Code settings inside the container
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "typescript.tsdk": "/app/Back/node_modules/typescript/lib",
+        "eslint.workingDirectories": [
+          { "directory": "/app/Back", "changeProcessCWD": true },
+          { "directory": "/app/View", "changeProcessCWD": true }
+        ]
+      },
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "Prisma.prisma",
+        "bradlc.vscode-tailwindcss",
+        "ms-azuretools.vscode-docker",
+        "formulahendry.auto-rename-tag",
+        "christian-kohler.path-intellisense",
+        "usernamehw.errorlens"
+      ]
+    }
+  },
+
+  // Commands to run after the container is created
+  "postCreateCommand": "cd /app/Back && npm install && cd /app/View && npm install && cd /app/Back && npx prisma generate",
+  
+  // Port forwarding
+  "forwardPorts": [3000, 5173, 5555],
+  "portsAttributes": {
+    "3000": { "label": "Backend API", "onAutoForward": "notify" },
+    "5173": { "label": "Frontend (Vite)", "onAutoForward": "openBrowser" },
+    "5555": { "label": "Prisma Studio", "onAutoForward": "silent" }
+  },
+
+  // Environment variables
+  "remoteEnv": {
+    "NODE_ENV": "development",
+    "CHOKIDAR_USEPOLLING": "true"
+  },
+
+  // Features to add to the container
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  }
+}

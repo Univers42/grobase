@@ -1,0 +1,171 @@
+/**
+ * DevBoard Design System - Components & Layout
+ * Continuation of foundation variables
+ */
+
+:root {
+  /* ══════════════════════════════════════════════════════════════════════════
+     Z-INDEX LAYERS
+     ══════════════════════════════════════════════════════════════════════════ */
+  
+  --z-base: 0;
+  --z-1: 1;
+  --z-2: 2;
+  --z-10: 10;
+  --z-50: 50;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-fixed: 300;
+  --z-modal-backdrop: 400;
+  --z-modal: 500;
+  --z-popover: 600;
+  --z-tooltip: 700;
+  --z-toast: 800;
+  --z-above: 1000;
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     TRANSITIONS
+     ══════════════════════════════════════════════════════════════════════════ */
+  
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+  --transition-slow: 300ms ease;
+  --transition-bounce: 300ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     COMPONENT SIZES - BUTTONS
+     ══════════════════════════════════════════════════════════════════════════ */
+  
+  --btn-height-sm: 2rem;       /* 32px */
+  --btn-height-md: 2.5rem;     /* 40px */
+  --btn-height-lg: 3rem;       /* 48px */
+  --btn-padding-x-sm: var(--space-3);
+  --btn-padding-x-md: var(--space-4);
+  --btn-padding-x-lg: var(--space-6);
+  --btn-font-size-sm: var(--font-size-xs);
+  --btn-font-size-md: var(--font-size-sm);
+  --btn-font-size-lg: var(--font-size-base);
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     COMPONENT SIZES - INPUTS
+     ══════════════════════════════════════════════════════════════════════════ */
+  
+  --input-height-sm: 2rem;
+  --input-height-md: 2.5rem;
+  --input-height-lg: 3rem;
+  --input-padding-x: var(--space-3);
+  --input-font-size: var(--font-size-sm);
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     COMPONENT SIZES - CARDS
+     ══════════════════════════════════════════════════════════════════════════ */
+  
+  --card-padding-sm: var(--space-3);
+  --card-padding-md: var(--space-4);
+  --card-padding-lg: var(--space-6);
+  --card-border-width: 1px;
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     COMPONENT SIZES - BADGES
+     ══════════════════════════════════════════════════════════════════════════ */
+  
+  --badge-height-sm: 1.25rem;
+  --badge-height-md: 1.5rem;
+  --badge-padding-x: var(--space-2);
+  --badge-font-size: var(--font-size-xs);
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     LAYOUT
+     ══════════════════════════════════════════════════════════════════════════ */
+  
+  --sidebar-width: 260px;
+  --sidebar-width-collapsed: 64px;
+  --header-height: 64px;
+  --content-max-width: 1440px;
+  --grid-gap: var(--space-4);
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     GRID
+     ══════════════════════════════════════════════════════════════════════════ */
+  
+  --grid-columns-2: repeat(2, 1fr);
+  --grid-columns-3: repeat(3, 1fr);
+  --grid-columns-4: repeat(4, 1fr);
+  --grid-columns-auto: repeat(auto-fill, minmax(280px, 1fr));
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     SHORTHAND ALIASES (for component convenience)
+     ══════════════════════════════════════════════════════════════════════════ */
+  
+  /* Colors - primary */
+  --primary-default: var(--color-primary-500);
+  --primary-hover: var(--color-primary-600);
+  --primary-active: var(--color-primary-700);
+
+  /* Colors - secondary */
+  --secondary-default: var(--color-secondary-500);
+  --secondary-hover: var(--color-secondary-600);
+
+  /* Colors - success */
+  --success-default: var(--color-success-500);
+  --success-hover: var(--color-success-600);
+
+  /* Colors - warning */
+  --warning-default: var(--color-warning-500);
+  --warning-hover: var(--color-warning-600);
+
+  /* Colors - danger */
+  --danger-default: var(--color-danger-500);
+  --danger-hover: var(--color-danger-600);
+
+  /* Backgrounds */
+  --bg-primary: var(--color-bg-primary);
+  --bg-secondary: var(--color-bg-secondary);
+  --bg-tertiary: var(--color-bg-tertiary);
+
+  /* Text */
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-tertiary);
+  --text-inverse: var(--color-text-inverse);
+  --text-link: var(--color-primary-400);
+  --text-link-hover: var(--color-primary-300);
+
+  /* Borders */
+  --border-default: var(--color-border-primary);
+  --border-subtle: var(--color-border-secondary);
+  --border-focus: var(--color-border-focus);
+
+  /* Typography */
+  --font-sans: var(--font-family-sans);
+  --font-mono: var(--font-family-mono);
+  --font-normal: var(--font-weight-normal);
+  --font-medium: var(--font-weight-medium);
+  --font-semibold: var(--font-weight-semibold);
+  --font-bold: var(--font-weight-bold);
+
+  /* Font sizes */
+  --text-2xs: var(--font-size-2xs);
+  --text-xs: var(--font-size-xs);
+  --text-sm: var(--font-size-sm);
+  --text-md: var(--font-size-base);
+  --text-base: var(--font-size-base);
+  --text-lg: var(--font-size-lg);
+  --text-xl: var(--font-size-xl);
+  --text-2xl: var(--font-size-2xl);
+  --text-3xl: var(--font-size-3xl);
+  --text-4xl: var(--font-size-4xl);
+
+  /* Line heights */
+  --leading-tight: var(--line-height-tight);
+  --leading-normal: var(--line-height-normal);
+  --leading-relaxed: var(--line-height-relaxed);
+
+  /* Card sizes */
+  --card-width-sm: 240px;
+  --card-width-md: 320px;
+  --card-width-lg: 400px;
+
+  /* Layout */
+  --layout-content-max-width: var(--content-max-width);
+}

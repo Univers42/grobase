@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Canagrou — Capture, Create, Share</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              ig: {
+                blue: '#0095f6',
+                dkblue: '#00376b',
+                red: '#ed4956',
+                bg: '#fafafa',
+                border: '#dbdbdb',
+                text: '#262626',
+                muted: '#8e8e8e',
+                card: '#ffffff',
+              },
+            },
+            fontFamily: {
+              sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+            },
+          },
+        },
+      };
+    </script>
+
+    <link rel="stylesheet" href="/src/styles/app.css" />
+
+    <!-- Generated BaaS config (window.__BAAS__) — MUST load before the app module -->
+    <script src="/baas-config.js"></script>
+  </head>
+  <body class="min-h-screen bg-ig-bg text-ig-text flex flex-col font-sans">
+    <div id="app" class="flex flex-col min-h-screen"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,758 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../../../generated/prisma"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Allergen {
+  id           Int            @id @default(autoincrement())
+  name         String         @unique @db.VarChar(100)
+  icon_url     String?        @db.VarChar(255)
+  DishAllergen DishAllergen[]
+  Dish         Dish[]         @relation("DishAllergens")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Company {
+  id                  Int                   @id @default(autoincrement())
+  name                String                @db.VarChar(255)
+  slogan              String?               @db.VarChar(255)
+  description         String?
+  first_opening_date  DateTime              @db.Date
+  address             String
+  city                String                @db.VarChar(100)
+  postal_code         String                @db.VarChar(10)
+  country             String?               @default("France") @db.VarChar(100)
+  phone               String                @db.VarChar(20)
+  email               String                @db.VarChar(255)
+  website             String?               @db.VarChar(255)
+  siret               String?               @unique @db.VarChar(14)
+  logo_url            String?               @db.VarChar(255)
+  is_active           Boolean?              @default(true)
+  created_at          DateTime?             @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime?             @default(now()) @db.Timestamptz(6)
+  CompanyOwner        CompanyOwner[]
+  CompanyWorkingHours CompanyWorkingHours[]
+  Event               Event[]
+
+  @@index([is_active], map: "idx_company_active")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model CompanyOwner {
+  company_id Int
+  user_id    Int
+  role       String?   @default("owner") @db.VarChar(50)
+  joined_at  DateTime? @default(now()) @db.Timestamptz(6)
+  is_primary Boolean?  @default(false)
+  Company    Company   @relation(fields: [company_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  User       User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([company_id, user_id])
+  @@index([user_id], map: "idx_company_owner_user")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model CompanyWorkingHours {
+  company_id       Int
+  working_hours_id Int
+  Company          Company      @relation(fields: [company_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  WorkingHours     WorkingHours @relation(fields: [working_hours_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([company_id, working_hours_id])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model ContactMessage {
+  id          Int       @id @default(autoincrement())
+  title       String    @db.VarChar(255)
+  description String
+  email       String    @db.VarChar(255)
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([created_at(sort: Desc)], map: "idx_contact_date")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model DataDeletionRequest {
+  id                                          Int       @id @default(autoincrement())
+  user_id                                     Int?
+  reason                                      String?
+  status                                      String?   @default("pending") @db.VarChar(20)
+  requested_at                                DateTime? @default(now()) @db.Timestamptz(6)
+  processed_at                                DateTime? @db.Timestamptz(6)
+  processed_by                                Int?
+  User_DataDeletionRequest_processed_byToUser User?     @relation("DataDeletionRequest_processed_byToUser", fields: [processed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  User_DataDeletionRequest_user_idToUser      User?     @relation("DataDeletionRequest_user_idToUser", fields: [user_id], references: [id], onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model DeliveryAssignment {
+  id                 Int       @id @default(autoincrement())
+  order_id           Int
+  delivery_person_id Int?
+  vehicle_type       String?   @db.VarChar(50)
+  status             String?   @default("assigned") @db.VarChar(20)
+  assigned_at        DateTime? @default(now()) @db.Timestamptz(6)
+  picked_up_at       DateTime? @db.Timestamptz(6)
+  delivered_at       DateTime? @db.Timestamptz(6)
+  delivery_notes     String?
+  proof_photo_url    String?   @db.VarChar(500)
+  client_rating      Int?
+  User               User?     @relation(fields: [delivery_person_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Order              Order     @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Diet {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique @db.VarChar(100)
+  description String?
+  icon_url    String? @db.VarChar(255)
+  Menu        Menu[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Discount {
+  id               Int         @id @default(autoincrement())
+  code             String      @unique @db.VarChar(50)
+  description      String?
+  type             String      @db.VarChar(20)
+  value            Decimal     @db.Decimal(10, 2)
+  min_order_amount Decimal?    @db.Decimal(10, 2)
+  max_uses         Int?
+  current_uses     Int?        @default(0)
+  valid_from       DateTime?   @db.Date
+  valid_until      DateTime?   @db.Date
+  is_active        Boolean?    @default(true)
+  created_by       Int?
+  User             User?       @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Order            Order[]
+  Promotion        Promotion[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Dish {
+  id             Int              @id @default(autoincrement())
+  title          String           @db.VarChar(255)
+  description    String?
+  photo_url      String?          @db.VarChar(500)
+  course_type    String?          @default("plat") @db.VarChar(20)
+  created_at     DateTime?        @default(now()) @db.Timestamptz(6)
+  DishAllergen   DishAllergen[]
+  DishIngredient DishIngredient[]
+  Allergen       Allergen[]       @relation("DishAllergens")
+  Menu           Menu[]           @relation("MenuDishes")
+
+  @@index([course_type], map: "idx_dish_course")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model DishAllergen {
+  dish_id     Int
+  allergen_id Int
+  Allergen    Allergen @relation(fields: [allergen_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  Dish        Dish     @relation(fields: [dish_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([dish_id, allergen_id])
+  @@index([allergen_id], map: "idx_dish_allergen_allergen")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model DishIngredient {
+  dish_id       Int
+  ingredient_id Int
+  quantity      Decimal    @db.Decimal(10, 3)
+  Dish          Dish       @relation(fields: [dish_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  Ingredient    Ingredient @relation(fields: [ingredient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([dish_id, ingredient_id])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Event {
+  id          Int       @id @default(autoincrement())
+  company_id  Int
+  name        String    @db.VarChar(255)
+  description String?
+  event_type  String?   @db.VarChar(50)
+  guest_count Int?
+  event_date  DateTime  @db.Date
+  location    String?   @db.VarChar(255)
+  is_public   Boolean?  @default(true)
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  Company     Company   @relation(fields: [company_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([company_id], map: "idx_event_company")
+  @@index([event_date(sort: Desc)], map: "idx_event_date")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Ingredient {
+  id                Int              @id @default(autoincrement())
+  name              String           @unique @db.VarChar(255)
+  unit              String?          @default("kg") @db.VarChar(20)
+  current_stock     Decimal?         @default(0) @db.Decimal(10, 2)
+  min_stock_level   Decimal?         @default(0) @db.Decimal(10, 2)
+  cost_per_unit     Decimal?         @db.Decimal(10, 2)
+  last_restocked_at DateTime?        @db.Timestamptz(6)
+  created_at        DateTime?        @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?        @default(now()) @db.Timestamptz(6)
+  DishIngredient    DishIngredient[]
+  MenuIngredient    MenuIngredient[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model KanbanColumn {
+  id            Int       @id @default(autoincrement())
+  name          String    @db.VarChar(100)
+  mapped_status String?   @db.VarChar(30)
+  color         String?   @db.VarChar(7)
+  position      Int?      @default(0)
+  is_active     Boolean?  @default(true)
+  created_by    Int?
+  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+  User          User?     @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model LoyaltyAccount {
+  id                 Int                  @id @default(autoincrement())
+  user_id            Int                  @unique
+  total_earned       Int?                 @default(0)
+  total_spent        Int?                 @default(0)
+  balance            Int?                 @default(0)
+  last_activity_at   DateTime?            @db.Timestamptz(6)
+  User               User                 @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  LoyaltyTransaction LoyaltyTransaction[]
+
+  @@index([user_id], map: "idx_loyalty_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model LoyaltyTransaction {
+  id                 Int            @id @default(autoincrement())
+  loyalty_account_id Int
+  order_id           Int?
+  points             Int
+  type               String         @db.VarChar(20)
+  description        String?
+  created_at         DateTime?      @default(now()) @db.Timestamptz(6)
+  LoyaltyAccount     LoyaltyAccount @relation(fields: [loyalty_account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  Order              Order?         @relation(fields: [order_id], references: [id], onUpdate: NoAction)
+
+  @@index([loyalty_account_id], map: "idx_loyalty_txn_account")
+  @@index([order_id], map: "idx_loyalty_txn_order")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Menu {
+  id               Int              @id @default(autoincrement())
+  title            String           @db.VarChar(255)
+  description      String?
+  conditions       String?
+  person_min       Int
+  price_per_person Decimal          @db.Decimal(10, 2)
+  remaining_qty    Int              @default(0)
+  status           String?          @default("published") @db.VarChar(20)
+  diet_id          Int?
+  theme_id         Int?
+  created_by       Int?
+  is_seasonal      Boolean?         @default(false)
+  available_from   DateTime?        @db.Date
+  available_until  DateTime?        @db.Date
+  created_at       DateTime?        @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime?        @default(now()) @db.Timestamptz(6)
+  published_at     DateTime?        @db.Timestamptz(6)
+  User             User?            @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Diet             Diet?            @relation(fields: [diet_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Theme            Theme?           @relation(fields: [theme_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  MenuImage        MenuImage[]
+  MenuIngredient   MenuIngredient[]
+  OrderMenu        OrderMenu[]
+  Dish             Dish[]           @relation("MenuDishes")
+
+  @@index([status], map: "idx_menu_status")
+  @@index([title], map: "idx_menu_title")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model MenuImage {
+  id            Int       @id @default(autoincrement())
+  menu_id       Int
+  image_url     String    @db.VarChar(500)
+  alt_text      String?   @db.VarChar(255)
+  display_order Int?      @default(0)
+  is_primary    Boolean?  @default(false)
+  uploaded_at   DateTime? @default(now()) @db.Timestamptz(6)
+  Menu          Menu      @relation(fields: [menu_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model MenuIngredient {
+  menu_id             Int
+  ingredient_id       Int
+  quantity_per_person Decimal    @db.Decimal(10, 3)
+  Ingredient          Ingredient @relation(fields: [ingredient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  Menu                Menu       @relation(fields: [menu_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([menu_id, ingredient_id])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Message {
+  id                              Int       @id @default(autoincrement())
+  sender_id                       Int?
+  recipient_id                    Int?
+  subject                         String?   @db.VarChar(255)
+  body                            String
+  priority                        String?   @default("normal") @db.VarChar(20)
+  is_read                         Boolean?  @default(false)
+  sent_at                         DateTime? @default(now()) @db.Timestamptz(6)
+  read_at                         DateTime? @db.Timestamptz(6)
+  parent_id                       Int?
+  Message                         Message?  @relation("MessageToMessage", fields: [parent_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_Message                   Message[] @relation("MessageToMessage")
+  User_Message_recipient_idToUser User?     @relation("Message_recipient_idToUser", fields: [recipient_id], references: [id], onUpdate: NoAction)
+  User_Message_sender_idToUser    User?     @relation("Message_sender_idToUser", fields: [sender_id], references: [id], onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model NewsletterSendLog {
+  id               Int       @id @default(autoincrement())
+  promotion_id     Int
+  recipients_count Int       @default(0)
+  sent_at          DateTime? @default(now()) @db.Timestamptz(6)
+  sent_by          Int?
+  status           String?   @default("sent") @db.VarChar(20)
+
+  @@index([promotion_id], map: "idx_newsletter_log_promo")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model NewsletterSubscriber {
+  id              Int       @id @default(autoincrement())
+  email           String    @unique @db.VarChar(255)
+  user_id         Int?
+  first_name      String?   @db.VarChar(100)
+  is_active       Boolean?  @default(true)
+  token           String    @unique @db.VarChar(255)
+  confirmed_at    DateTime? @db.Timestamptz(6)
+  unsubscribed_at DateTime? @db.Timestamptz(6)
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([is_active], map: "idx_newsletter_active", where: raw("(is_active = true)"))
+  @@index([email], map: "idx_newsletter_email")
+  @@index([user_id], map: "idx_newsletter_user")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Notification {
+  id         Int       @id @default(autoincrement())
+  user_id    Int
+  type       String    @db.VarChar(50)
+  title      String?   @db.VarChar(255)
+  body       String?
+  link_url   String?   @db.VarChar(500)
+  is_read    Boolean?  @default(false)
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  read_at    DateTime? @db.Timestamptz(6)
+  User       User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Order {
+  id                        Int                  @id @default(autoincrement())
+  order_number              String               @unique @db.VarChar(50)
+  user_id                   Int
+  order_date                DateTime?            @default(now()) @db.Timestamptz(6)
+  delivery_date             DateTime             @db.Date
+  delivery_hour             String?              @db.VarChar(10)
+  delivery_address          String?
+  delivery_city             String?              @default("Bordeaux") @db.VarChar(100)
+  delivery_distance_km      Decimal?             @default(0) @db.Decimal(10, 2)
+  person_number             Int
+  menu_price                Decimal              @db.Decimal(10, 2)
+  delivery_price            Decimal?             @default(0) @db.Decimal(10, 2)
+  discount_id               Int?
+  discount_percent          Decimal?             @default(0) @db.Decimal(5, 2)
+  discount_amount           Decimal?             @default(0) @db.Decimal(10, 2)
+  total_price               Decimal              @db.Decimal(10, 2)
+  status                    String?              @default("pending") @db.VarChar(30)
+  material_lending          Boolean?             @default(false)
+  material_returned         Boolean?             @default(false)
+  material_return_deadline  DateTime?            @db.Timestamptz(6)
+  cancellation_reason       String?
+  cancellation_contact_mode String?              @db.VarChar(20)
+  special_instructions      String?
+  confirmed_at              DateTime?            @db.Timestamptz(6)
+  delivered_at              DateTime?            @db.Timestamptz(6)
+  cancelled_at              DateTime?            @db.Timestamptz(6)
+  created_at                DateTime?            @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime?            @default(now()) @db.Timestamptz(6)
+  DeliveryAssignment        DeliveryAssignment[]
+  LoyaltyTransaction        LoyaltyTransaction[]
+  Discount                  Discount?            @relation(fields: [discount_id], references: [id], onUpdate: NoAction)
+  User                      User                 @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  OrderMenu                 OrderMenu[]
+  OrderOrderTag             OrderOrderTag[]
+  OrderStatusHistory        OrderStatusHistory[]
+  Publish                   Publish[]
+
+  @@index([delivery_date], map: "idx_order_delivery")
+  @@index([order_number], map: "idx_order_number")
+  @@index([status], map: "idx_order_status")
+  @@index([user_id, order_date(sort: Desc)], map: "idx_order_user_date")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model OrderMenu {
+  order_id Int
+  menu_id  Int
+  quantity Int?  @default(1)
+  Menu     Menu  @relation(fields: [menu_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  Order    Order @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([order_id, menu_id])
+  @@index([menu_id], map: "idx_order_menu_menu")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model OrderOrderTag {
+  order_id Int
+  tag_id   Int
+  Order    Order    @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  OrderTag OrderTag @relation(fields: [tag_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([order_id, tag_id])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model OrderStatusHistory {
+  id         Int       @id @default(autoincrement())
+  order_id   Int
+  old_status String?   @db.VarChar(30)
+  new_status String    @db.VarChar(30)
+  notes      String?
+  changed_at DateTime? @default(now()) @db.Timestamptz(6)
+  Order      Order     @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([order_id], map: "idx_osh_order")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model OrderTag {
+  id            Int             @id @default(autoincrement())
+  label         String          @unique @db.VarChar(50)
+  color         String?         @db.VarChar(7)
+  created_by    Int?
+  OrderOrderTag OrderOrderTag[]
+  User          User?           @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model PasswordResetToken {
+  id         Int       @id @default(autoincrement())
+  token      String    @unique @db.VarChar(255)
+  user_id    Int
+  expires_at DateTime  @db.Timestamptz(6)
+  used       Boolean?  @default(false)
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  User       User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([token], map: "idx_prt_token")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Permission {
+  id             Int              @id @default(autoincrement())
+  name           String           @unique @db.VarChar(100)
+  resource       String           @db.VarChar(50)
+  action         String           @db.VarChar(20)
+  RolePermission RolePermission[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Promotion {
+  id            Int             @id @default(autoincrement())
+  title         String          @db.VarChar(150)
+  description   String?
+  short_text    String?         @db.VarChar(255)
+  type          String          @default("banner") @db.VarChar(30)
+  image_url     String?
+  link_url      String?
+  link_label    String?         @db.VarChar(80)
+  badge_text    String?         @db.VarChar(40)
+  bg_color      String?         @default("#722F37") @db.VarChar(20)
+  text_color    String?         @default("#FFFFFF") @db.VarChar(20)
+  discount_id   Int?
+  priority      Int?            @default(0)
+  is_active     Boolean?        @default(true)
+  is_public     Boolean?        @default(true)
+  start_date    DateTime        @default(now()) @db.Timestamp(6)
+  end_date      DateTime?       @db.Timestamp(6)
+  created_by    Int?
+  created_at    DateTime?       @default(now()) @db.Timestamp(6)
+  updated_at    DateTime?       @default(now()) @db.Timestamp(6)
+  User          User?           @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  Discount      Discount?       @relation(fields: [discount_id], references: [id], onUpdate: NoAction)
+  UserPromotion UserPromotion[]
+
+  @@index([is_active, start_date, end_date], map: "idx_promotion_active_dates", where: raw("(is_active = true)"))
+  @@index([is_public, is_active, priority(sort: Desc)], map: "idx_promotion_public", where: raw("((is_public = true) AND (is_active = true))"))
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Publish {
+  id                              Int           @id @default(autoincrement())
+  user_id                         Int
+  order_id                        Int?
+  note                            Int           @db.SmallInt
+  description                     String
+  status                          String?       @default("pending") @db.VarChar(20)
+  moderated_by                    Int?
+  moderated_at                    DateTime?     @db.Timestamptz(6)
+  created_at                      DateTime?     @default(now()) @db.Timestamptz(6)
+  updated_at                      DateTime?     @default(now()) @db.Timestamptz(6)
+  User_Publish_moderated_byToUser User?         @relation("Publish_moderated_byToUser", fields: [moderated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Order                           Order?        @relation(fields: [order_id], references: [id], onUpdate: NoAction)
+  User_Publish_user_idToUser      User          @relation("Publish_user_idToUser", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  ReviewImage                     ReviewImage[]
+
+  @@index([status], map: "idx_publish_status")
+  @@index([user_id], map: "idx_publish_user")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model ReviewImage {
+  id          Int      @id @default(autoincrement())
+  review_id   Int
+  image_url   String   @db.VarChar(500)
+  uploaded_at DateTime @default(now()) @db.Timestamp(6)
+  Publish     Publish  @relation(fields: [review_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Role {
+  id             Int              @id @default(autoincrement())
+  name           String           @unique @db.VarChar(50)
+  description    String?
+  created_at     DateTime?        @default(now()) @db.Timestamptz(6)
+  RolePermission RolePermission[]
+  User           User[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model RolePermission {
+  role_id       Int
+  permission_id Int
+  Permission    Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  Role          Role       @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([role_id, permission_id])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model SupportTicket {
+  id                                   Int             @id @default(autoincrement())
+  ticket_number                        String          @unique @db.VarChar(50)
+  created_by                           Int?
+  assigned_to                          Int?
+  category                             String          @db.VarChar(50)
+  priority                             String?         @default("normal") @db.VarChar(20)
+  status                               String?         @default("open") @db.VarChar(20)
+  subject                              String          @db.VarChar(255)
+  description                          String?
+  created_at                           DateTime?       @default(now()) @db.Timestamptz(6)
+  resolved_at                          DateTime?       @db.Timestamptz(6)
+  closed_at                            DateTime?       @db.Timestamptz(6)
+  User_SupportTicket_assigned_toToUser User?           @relation("SupportTicket_assigned_toToUser", fields: [assigned_to], references: [id], onUpdate: NoAction)
+  User_SupportTicket_created_byToUser  User?           @relation("SupportTicket_created_byToUser", fields: [created_by], references: [id], onUpdate: NoAction)
+  TicketMessage                        TicketMessage[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Theme {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique @db.VarChar(100)
+  description String?
+  icon_url    String? @db.VarChar(255)
+  Menu        Menu[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model TicketMessage {
+  id            Int           @id @default(autoincrement())
+  ticket_id     Int
+  user_id       Int?
+  body          String
+  is_internal   Boolean?      @default(false)
+  created_at    DateTime?     @default(now()) @db.Timestamptz(6)
+  SupportTicket SupportTicket @relation(fields: [ticket_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  User          User?         @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model TimeOffRequest {
+  id                                   Int       @id @default(autoincrement())
+  user_id                              Int
+  start_date                           DateTime  @db.Date
+  end_date                             DateTime  @db.Date
+  type                                 String    @db.VarChar(20)
+  status                               String?   @default("pending") @db.VarChar(20)
+  reason                               String?
+  decided_by                           Int?
+  requested_at                         DateTime? @default(now()) @db.Timestamptz(6)
+  decided_at                           DateTime? @db.Timestamptz(6)
+  User_TimeOffRequest_decided_byToUser User?     @relation("TimeOffRequest_decided_byToUser", fields: [decided_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  User_TimeOffRequest_user_idToUser    User      @relation("TimeOffRequest_user_idToUser", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model User {
+  id                                                         Int                   @id @default(autoincrement())
+  email                                                      String                @unique @db.VarChar(255)
+  password                                                   String                @db.VarChar(255)
+  first_name                                                 String                @db.VarChar(100)
+  last_name                                                  String?               @db.VarChar(100)
+  phone_number                                               String?               @db.VarChar(20)
+  city                                                       String?               @db.VarChar(100)
+  country                                                    String?               @default("France") @db.VarChar(100)
+  postal_code                                                String?               @db.VarChar(10)
+  role_id                                                    Int?
+  is_active                                                  Boolean?              @default(true)
+  is_email_verified                                          Boolean?              @default(false)
+  is_deleted                                                 Boolean?              @default(false)
+  deleted_at                                                 DateTime?             @db.Timestamptz(6)
+  preferred_language                                         String?               @default("fr") @db.VarChar(5)
+  gdpr_consent                                               Boolean?              @default(false)
+  gdpr_consent_date                                          DateTime?             @db.Timestamptz(6)
+  marketing_consent                                          Boolean?              @default(false)
+  created_at                                                 DateTime?             @default(now()) @db.Timestamptz(6)
+  updated_at                                                 DateTime?             @default(now()) @db.Timestamptz(6)
+  last_login_at                                              DateTime?             @db.Timestamptz(6)
+  newsletter_consent                                         Boolean?              @default(false)
+  newsletter_consent_date                                    DateTime?             @db.Timestamptz(6)
+  CompanyOwner                                               CompanyOwner[]
+  DataDeletionRequest_DataDeletionRequest_processed_byToUser DataDeletionRequest[] @relation("DataDeletionRequest_processed_byToUser")
+  DataDeletionRequest_DataDeletionRequest_user_idToUser      DataDeletionRequest[] @relation("DataDeletionRequest_user_idToUser")
+  DeliveryAssignment                                         DeliveryAssignment[]
+  Discount                                                   Discount[]
+  KanbanColumn                                               KanbanColumn[]
+  LoyaltyAccount                                             LoyaltyAccount?
+  Menu                                                       Menu[]
+  Message_Message_recipient_idToUser                         Message[]             @relation("Message_recipient_idToUser")
+  Message_Message_sender_idToUser                            Message[]             @relation("Message_sender_idToUser")
+  Notification                                               Notification[]
+  Order                                                      Order[]
+  OrderTag                                                   OrderTag[]
+  PasswordResetToken                                         PasswordResetToken[]
+  Promotion                                                  Promotion[]
+  Publish_Publish_moderated_byToUser                         Publish[]             @relation("Publish_moderated_byToUser")
+  Publish_Publish_user_idToUser                              Publish[]             @relation("Publish_user_idToUser")
+  SupportTicket_SupportTicket_assigned_toToUser              SupportTicket[]       @relation("SupportTicket_assigned_toToUser")
+  SupportTicket_SupportTicket_created_byToUser               SupportTicket[]       @relation("SupportTicket_created_byToUser")
+  TicketMessage                                              TicketMessage[]
+  TimeOffRequest_TimeOffRequest_decided_byToUser             TimeOffRequest[]      @relation("TimeOffRequest_decided_byToUser")
+  TimeOffRequest_TimeOffRequest_user_idToUser                TimeOffRequest[]      @relation("TimeOffRequest_user_idToUser")
+  Role                                                       Role?                 @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  UserAddress                                                UserAddress[]
+  UserConsent                                                UserConsent[]
+  UserPromotion                                              UserPromotion[]
+  UserSession                                                UserSession[]
+
+  @@index([email], map: "idx_user_email")
+  @@index([role_id], map: "idx_user_role")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model UserAddress {
+  id             Int       @id @default(autoincrement())
+  user_id        Int
+  label          String?   @db.VarChar(50)
+  street_address String
+  city           String    @db.VarChar(100)
+  postal_code    String    @db.VarChar(10)
+  country        String?   @default("France") @db.VarChar(100)
+  latitude       Decimal?  @db.Decimal(10, 8)
+  longitude      Decimal?  @db.Decimal(11, 8)
+  is_default     Boolean?  @default(false)
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  User           User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "idx_user_address_user")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model UserConsent {
+  id           Int       @id @default(autoincrement())
+  user_id      Int
+  consent_type String    @db.VarChar(50)
+  is_granted   Boolean
+  granted_at   DateTime? @db.Timestamptz(6)
+  revoked_at   DateTime? @db.Timestamptz(6)
+  ip_address   String?   @db.VarChar(45)
+  User         User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "idx_consent_user")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model UserPromotion {
+  id           Int       @id @default(autoincrement())
+  user_id      Int
+  promotion_id Int
+  is_seen      Boolean?  @default(false)
+  is_used      Boolean?  @default(false)
+  used_at      DateTime? @db.Timestamp(6)
+  assigned_at  DateTime? @default(now()) @db.Timestamp(6)
+  Promotion    Promotion @relation(fields: [promotion_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  User         User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, promotion_id])
+  @@index([promotion_id], map: "idx_user_promotion_promo")
+  @@index([user_id, is_used], map: "idx_user_promotion_user")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model UserSession {
+  id            Int       @id @default(autoincrement())
+  user_id       Int
+  session_token String    @unique @db.VarChar(500)
+  ip_address    String?   @db.VarChar(45)
+  user_agent    String?
+  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+  expires_at    DateTime  @db.Timestamptz(6)
+  is_active     Boolean?  @default(true)
+  User          User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([session_token], map: "idx_session_token")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model WorkingHours {
+  id                  Int                   @id @default(autoincrement())
+  day                 String                @unique @db.VarChar(15)
+  opening             String                @db.VarChar(5)
+  closing             String                @db.VarChar(5)
+  CompanyWorkingHours CompanyWorkingHours[]
+}

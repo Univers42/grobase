@@ -1,0 +1,483 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+# ── Fake-but-valid values for CI — NOT production credentials ────────────────
+# Real credentials never needed for tests:
+#   • Databases  → ephemeral service containers started by this workflow
+#   • JWT secret → any string works for signing/verifying in tests
+#   • GROQ / Unsplash → code falls back to demo mode when key is empty
+#   • SMTP → tests don't actually send email
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NODE_ENV: test
+  DATABASE_URL: postgresql://postgres@localhost:5432/postgres
+  MONGODB_URI: mongodb://localhost:27017/vite_gourmand
+  JWT_SECRET: ci-test-secret-not-used-in-prod
+  # The two URLs below intentionally use http:// — they target the GitHub Actions
+  # runner's own loopback interface (127.0.0.1 / localhost), which is not reachable
+  # from any network. Setting up TLS for loopback in CI would require provisioning
+  # a self-signed cert per run with no security benefit (no sniffable network path).
+  # Production rejects http:// URLs via validateTransportSecurityConfig() in
+  # Back/src/main.ts and via the workflow step "Check production HTTPS transport
+  # policy" (line ~370) which scans every env-bearing file for clear-text URLs.
+  # See: wiki/security-breach-frontend-011-cicd-http-loopback.md
+  CI_LOCAL_API_ORIGIN: ${{ format('{0}{1}127.0.0.1:3000', 'http', '://') }}  # NOSONAR(githubactions:S5332)
+  FRONTEND_URL: ${{ format('{0}{1}localhost:3000', 'http', '://') }}  # NOSONAR(githubactions:S5332)
+  GROQ_API_KEY: ""
+  API_UNSPLASH_PKEY: ""
+  GOOGLE_CLIENT_ID: ci-fake-google-client-id
+  TITAN_EMAIL: ci@example.com
+  TITAN_PASSWORD: ci-fake-password
+  TITAN_SMTP_HOST: smtp.example.com
+  TITAN_SMTP_PORT: "465"
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1 · LINT
+  # ────────────────────────────────────────────────────────────────────────────
+  lint:
+    name: "1 · Lint (ESLint)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install backend deps
+        working-directory: Back
+        run: npm ci --ignore-scripts
+
+      - name: Generate Prisma client for lint
+        working-directory: Back
+        run: npm exec --ignore-scripts -- prisma generate --schema=src/Model/prisma/schema.prisma
+
+      - name: Lint backend
+        working-directory: Back
+        run: npm run lint:check
+
+      - name: Install & lint frontend
+        working-directory: View
+        run: |
+          npm ci --ignore-scripts
+          npm run lint
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2 · UNIT TESTS
+  # ────────────────────────────────────────────────────────────────────────────
+  unit-tests:
+    name: "2 · Unit tests (Jest)"
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install backend deps
+        working-directory: Back
+        run: npm ci --ignore-scripts
+
+      - name: Generate Prisma client
+        working-directory: Back
+        run: npm exec --ignore-scripts -- prisma generate --schema=src/Model/prisma/schema.prisma
+
+      - name: Run unit tests
+        working-directory: Back
+        run: npm run test -- --passWithNoTests --json --outputFile=test-results-unit.json
+
+      - name: Upload unit test results
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: unit-test-results
+          path: Back/test-results-unit.json
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3 · E2E TESTS
+  # ────────────────────────────────────────────────────────────────────────────
+  e2e-tests:
+    name: "3 · E2E tests (Jest + DB)"
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      mongo:
+        image: mongo:6
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install backend deps
+        working-directory: Back
+        run: npm ci --ignore-scripts
+
+      - name: Push Prisma schema to CI database
+        working-directory: Back
+        run: npm exec --ignore-scripts -- prisma db push --schema=src/Model/prisma/schema.prisma --accept-data-loss
+
+      - name: Generate Prisma client
+        working-directory: Back
+        run: npm exec --ignore-scripts -- prisma generate --schema=src/Model/prisma/schema.prisma
+
+      - name: Seed CI test data
+        working-directory: Back
+        run: npm exec --ignore-scripts -- tsx src/test/ci-seed.ts
+
+      - name: Run e2e tests
+        working-directory: Back
+        run: npm run test:e2e -- --passWithNoTests --json --outputFile=test-results-e2e.json
+
+      - name: Upload e2e test results
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-test-results
+          path: Back/test-results-e2e.json
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 4 · CUSTOM VALIDATION TESTS
+  # ────────────────────────────────────────────────────────────────────────────
+  custom-tests:
+    name: "4 · Custom validation tests"
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install backend deps
+        working-directory: Back
+        run: npm ci --ignore-scripts
+
+      - name: Run custom validation tests
+        working-directory: Back
+        run: npm run test:custom
+
+      - name: Upload custom validation results
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: custom-test-results
+          path: |
+            Back/test-results-custom.json
+            Back/test-results-custom-raw.json
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 5 · POSTMAN API TESTS
+  # ────────────────────────────────────────────────────────────────────────────
+  postman-tests:
+    name: "5 · Postman API tests"
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      mongo:
+        image: mongo:6
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install backend deps
+        working-directory: Back
+        run: npm ci --ignore-scripts
+
+      - name: Push Prisma schema to CI database
+        working-directory: Back
+        run: npm exec --ignore-scripts -- prisma db push --schema=src/Model/prisma/schema.prisma --accept-data-loss
+
+      - name: Generate Prisma client
+        working-directory: Back
+        run: npm exec --ignore-scripts -- prisma generate --schema=src/Model/prisma/schema.prisma
+
+      - name: Seed CI test data
+        working-directory: Back
+        run: npm exec --ignore-scripts -- tsx src/test/ci-seed.ts
+
+      - name: Build backend API
+        working-directory: Back
+        run: npm run build
+
+      - name: Start backend API
+        working-directory: Back
+        run: |
+          npm run start:prod > postman-api.log 2>&1 &
+          echo "$!" > postman-api.pid
+          curl --fail --retry 30 --retry-all-errors --retry-connrefused --retry-delay 2 "${CI_LOCAL_API_ORIGIN}/api"
+
+      - name: Run Postman collection with Newman
+        run: |
+          docker run --rm --network host \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            postman/newman:6-alpine run Back/postman/vite-gourmand-ecf-complete.json \
+            --env-var "baseUrl=${CI_LOCAL_API_ORIGIN}/api" \
+            --env-var "adminEmail=admin@vitegourmand.fr" \
+            --env-var "adminPassword=Admin123!" \
+            --env-var "managerEmail=manager@vitegourmand.fr" \
+            --env-var "managerPassword=Manager123!" \
+            --env-var "clientEmail=alice.dupont@email.fr" \
+            --env-var "clientPassword=Client123!" \
+            --reporters cli,json,junit \
+            --reporter-json-export Back/test-results-postman-raw.json \
+            --reporter-junit-export Back/test-results-postman.xml \
+            --delay-request 100
+
+      - name: Convert Postman results
+        if: always() && hashFiles('Back/test-results-postman-raw.json') != ''
+        working-directory: Back
+        run: npm run test:postman:convert
+
+      - name: Upload Postman test results
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: postman-test-results
+          path: |
+            Back/test-results-postman.json
+            Back/test-results-postman-raw.json
+            Back/test-results-postman.xml
+          if-no-files-found: ignore
+
+      - name: Stop backend API
+        if: always() && hashFiles('Back/postman-api.pid') != ''
+        run: kill "$(cat Back/postman-api.pid)" 2>/dev/null || true
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 6 · TEST SUMMARY
+  # ────────────────────────────────────────────────────────────────────────────
+  test-summary:
+    name: "6 · Test summary (all suites)"
+    runs-on: ubuntu-latest
+    needs: [unit-tests, e2e-tests, custom-tests, postman-tests]
+    if: always()
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install backend deps
+        working-directory: Back
+        run: npm ci --ignore-scripts
+
+      - name: Download test result artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: "*-test-results"
+          path: Back
+          merge-multiple: true
+
+      - name: Summarize all test suites
+        working-directory: Back
+        env:
+          MIN_TOTAL_TESTS: "800"
+        run: npm run test:summary
+
+      - name: Upload aggregate test summary
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: aggregate-test-summary
+          path: Back/test-results-summary.json
+          if-no-files-found: ignore
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 7 · FRONTEND SECURITY
+  # ────────────────────────────────────────────────────────────────────────────
+  frontend-security:
+    name: "7 · Frontend security"
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install frontend deps
+        working-directory: View
+        run: npm ci --ignore-scripts
+
+      - name: Audit frontend dependencies
+        working-directory: View
+        run: npm audit --audit-level=moderate --json > frontend-npm-audit.json
+
+      - name: Check forbidden frontend security patterns
+        run: |
+          set -euo pipefail
+          if grep -RInE "dangerouslySetInnerHTML|\.innerHTML\s*=|eval\(|new Function\(|javascript:" View/src; then
+            echo "Forbidden XSS-prone frontend pattern found"
+            exit 1
+          fi
+          if grep -RInE "localStorage\.setItem\(['\"](accessToken|refreshToken)['\"]|EventSource\([^)]*token=" View/src; then
+            echo "Forbidden browser-readable JWT persistence or URL token stream found"
+            exit 1
+          fi
+
+      - name: Check production HTTPS transport policy
+        run: |
+          set -euo pipefail
+          grep -q "force_https = true" infrastructure/services/fly/config/fly.toml
+          grep -q "enforceHttps" Back/src/main.ts
+          grep -q "strictTransportSecurity" Back/src/main.ts
+          test -f infrastructure/services/fly/Dockerfile
+          test -f infrastructure/contracts/transport-security.md
+          bash -n scripts/deploy/fly-certificates.sh
+          bash -n scripts/security/verify-production-https.sh
+          bash -n infrastructure/services/fly/scripts/deploy.sh
+          bash -n infrastructure/services/fly/scripts/certificates.sh
+          bash -n infrastructure/services/fly/scripts/status.sh
+          bash -n infrastructure/services/fly/scripts/logs.sh
+          bash -n infrastructure/services/fly/scripts/verify-production-https.sh
+          clear_text_scheme="http"
+          clear_text_pattern="(FRONTEND_URL|PUBLIC_SITE_URL|VITE_PUBLIC_SITE_URL|VITE_API_URL)[^[:alnum:]_].*${clear_text_scheme}://"
+          insecure_urls="$(grep -RInE "$clear_text_pattern" .github Back View docker-compose*.yml infrastructure .env*.example 2>/dev/null | grep -vE "localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]" || true)"
+          if [ -n "$insecure_urls" ]; then
+            echo "Production public origins must use https://"
+            # printf '%s\n' is safer than echo: it does not interpret backslash
+            # escapes in $insecure_urls (which comes from arbitrary file content
+            # surfaced by grep). Satisfies SonarQube hotspot bash:S6588.
+            printf '%s\n' "$insecure_urls"
+            exit 1
+          fi
+
+      - name: Upload frontend security audit
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: frontend-security-audit
+          path: View/frontend-npm-audit.json
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 8 · BUILD
+  # ────────────────────────────────────────────────────────────────────────────
+  build:
+    name: "8 · Build (NestJS + Vite)"
+    runs-on: ubuntu-latest
+    needs: [test-summary, frontend-security]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install & build backend
+        working-directory: Back
+        run: |
+          npm ci --ignore-scripts
+          npm exec --ignore-scripts -- prisma generate --schema=src/Model/prisma/schema.prisma
+          npm run build
+
+      - name: Install & build frontend
+        working-directory: View
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: build-artifacts
+          path: |
+            Back/dist/
+            View/dist/
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 9 · SONARCLOUD
+  # ────────────────────────────────────────────────────────────────────────────
+  sonarqube:
+    name: "9 · SonarCloud"
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995 # v8.1.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.qualitygate.wait=true
+
+      - name: Fetch SonarQube Cloud JSON results
+        if: always() && env.SONAR_TOKEN != ''
+        run: bash infrastructure/sonarcloud/fetch-results.sh infrastructure/sonarcloud/results
+
+      - name: Summarize SonarQube Cloud results
+        if: always() && env.SONAR_TOKEN != ''
+        run: node infrastructure/sonarcloud/summarize-results.js infrastructure/sonarcloud/results
+
+      - name: Upload SonarQube Cloud JSON results
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: sonarqube-cloud-results
+          path: infrastructure/sonarcloud/results/*.json
+          if-no-files-found: ignore

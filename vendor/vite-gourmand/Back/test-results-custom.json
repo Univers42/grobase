@@ -1,0 +1,60 @@
+[
+  {
+    "name": "custom-unit-tests",
+    "type": "custom",
+    "tests": [
+      {
+        "id": "custom-0",
+        "name": "email_validation",
+        "status": "passed",
+        "duration": 1,
+        "output": "All 20 email validations passed"
+      },
+      {
+        "id": "custom-1",
+        "name": "verif_credit_card",
+        "status": "passed",
+        "duration": 1,
+        "output": "All 19 credit card validations passed (Luhn algorithm verified)"
+      },
+      {
+        "id": "custom-2",
+        "name": "password_strength",
+        "status": "passed",
+        "duration": 2,
+        "output": "All 35 password strength tests passed"
+      },
+      {
+        "id": "custom-3",
+        "name": "first_time_registration",
+        "status": "passed",
+        "duration": 1,
+        "output": "All 14 registration validation tests passed"
+      },
+      {
+        "id": "custom-4",
+        "name": "reset_password",
+        "status": "passed",
+        "duration": 1,
+        "output": "All 16 password reset validation tests passed"
+      },
+      {
+        "id": "custom-5",
+        "name": "quick_connection",
+        "status": "passed",
+        "duration": 1,
+        "output": "All 28 OAuth validation tests passed"
+      },
+      {
+        "id": "custom-6",
+        "name": "db_mail_connection",
+        "status": "passed",
+        "duration": 458,
+        "output": "All 21 connection tests passed"
+      }
+    ],
+    "totalPassed": 7,
+    "totalFailed": 0,
+    "totalDuration": 465
+  }
+]

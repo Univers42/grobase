@@ -1,0 +1,94 @@
+# Dev container config — not needed in Docker build context
+.devcontainer/
+
+# flyctl launch added from .gitignore
+**/vite-gourmand/docs/Enoncé TP Développeur Web et Web Mobile-5.pdf
+**/server\vite-gourmand-api\node_modules
+**/.env
+**/server\vite-gourmand-api\dist
+**/.vscode
+**/.idea
+**/*code-workspace
+**/*.log
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+**/node_modules
+**/dist
+**/.DS_Store
+**/Thumbs.db
+**/server/vite-gourmand-api/package-lock.json
+**/server/vite-gourmand-api/dist
+**/server/vite-gourmand-api/node_modules
+**/server/vite-gourmand-api/test/*.ts
+**/server/vite-gourmand-api/.env
+**/setting.json
+**/vendor/scripts
+**/backend/node_modules
+**/backend/dist
+**/backend/.env
+**/node_modules
+**/data/postgres
+**/data/mongo
+**/frontend/node_modules
+
+# flyctl launch added from backend/.gitignore
+# compiled output
+backend/dist
+backend/node_modules
+backend/build
+
+# Logs
+backend/**/logs
+backend/**/*.log
+backend/**/npm-debug.log*
+backend/**/pnpm-debug.log*
+backend/**/yarn-debug.log*
+backend/**/yarn-error.log*
+backend/**/lerna-debug.log*
+
+# OS
+backend/**/.DS_Store
+
+# Tests
+backend/coverage
+backend/.nyc_output
+
+# IDEs and editors
+backend/.idea
+backend/**/.project
+backend/**/.classpath
+backend/**/.c9
+backend/**/*.launch
+backend/**/.settings
+backend/**/*.sublime-workspace
+
+# IDE - VSCode
+backend/**/.vscode/*
+!backend/**/.vscode/settings.json
+!backend/**/.vscode/tasks.json
+!backend/**/.vscode/launch.json
+!backend/**/.vscode/extensions.json
+
+# dotenv environment variable files
+backend/**/.env
+backend/**/.env.development.local
+backend/**/.env.test.local
+backend/**/.env.production.local
+backend/**/.env.local
+
+# temp directory
+backend/**/.temp
+backend/**/.tmp
+
+# Runtime data
+backend/**/pids
+backend/**/*.pid
+backend/**/*.seed
+backend/**/*.pid.lock
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+backend/**/report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+backend/generated/prisma
+fly.toml

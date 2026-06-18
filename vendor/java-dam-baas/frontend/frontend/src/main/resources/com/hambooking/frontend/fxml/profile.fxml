@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.hambooking.frontend.controllers.ProfileController"
+            stylesheets="@../css/hambooking.css"
+            styleClass="main-pane"
+            prefWidth="1100" prefHeight="680">
+
+    <!-- SIDEBAR -->
+    <left>
+        <VBox styleClass="sidebar" prefWidth="220" minWidth="220" maxWidth="220">
+
+            <VBox styleClass="sidebar-top">
+                <Label text="HamBooking" styleClass="sidebar-logo"/>
+                <Label text="Sistema de reservas" styleClass="sidebar-tagline"/>
+            </VBox>
+
+            <HBox styleClass="sidebar-user" alignment="CENTER_LEFT" spacing="10">
+                <padding><Insets top="16" right="18" bottom="12" left="18"/></padding>
+                <VBox spacing="2">
+                    <Label fx:id="sidebarUserName" text="Usuario" styleClass="user-info-name"/>
+                    <Label text="Cliente" styleClass="user-info-role"/>
+                </VBox>
+            </HBox>
+
+            <Label text="RESERVAS" styleClass="nav-section-label">
+                <padding><Insets top="16" right="18" bottom="6" left="18"/></padding>
+            </Label>
+            <Button text="Mi panel"      styleClass="nav-button" maxWidth="Infinity" onAction="#goToDashboard"/>
+            <Button text="Nueva reserva" styleClass="nav-button" maxWidth="Infinity" onAction="#goToCalendar"/>
+
+            <Label text="CUENTA" styleClass="nav-section-label">
+                <padding><Insets top="16" right="18" bottom="6" left="18"/></padding>
+            </Label>
+            <Button text="Mi perfil"      styleClass="nav-button-active" maxWidth="Infinity"/>
+            <Button text="Notificaciones" styleClass="nav-button" maxWidth="Infinity" onAction="#goToNotifications"/>
+
+            <Region VBox.vgrow="ALWAYS"/>
+
+            <VBox styleClass="sidebar-footer">
+                <padding><Insets top="14" right="18" bottom="14" left="18"/></padding>
+                <Button text="Cerrar sesion" styleClass="nav-button" maxWidth="Infinity" onAction="#handleLogout"/>
+            </VBox>
+
+        </VBox>
+    </left>
+
+    <!-- CONTENIDO -->
+    <center>
+        <VBox>
+
+            <!-- Cabecera -->
+            <HBox styleClass="content-header" alignment="CENTER_LEFT">
+                <padding><Insets top="16" right="28" bottom="16" left="28"/></padding>
+                <VBox HBox.hgrow="ALWAYS" spacing="2">
+                    <Label text="Mi Perfil" styleClass="page-title"/>
+                    <Label text="Inicio &gt; Mi cuenta &gt; Perfil" styleClass="page-breadcrumb"/>
+                </VBox>
+            </HBox>
+
+            <ScrollPane VBox.vgrow="ALWAYS" fitToWidth="true" styleClass="scroll-pane">
+                <content>
+                    <VBox spacing="20">
+                        <padding><Insets top="24" right="28" bottom="24" left="28"/></padding>
+
+                        <!-- Datos personales -->
+                        <VBox styleClass="card" spacing="16">
+                            <padding><Insets top="20" right="24" bottom="20" left="24"/></padding>
+                            <Label text="Datos personales" styleClass="page-title"
+                                   style="-fx-font-size:15px;"/>
+                            <Separator/>
+                            <GridPane hgap="32" vgap="14">
+                                <Label text="Nombre:"    GridPane.columnIndex="0" GridPane.rowIndex="0" styleClass="kpi-label"/>
+                                <Label fx:id="lblNombre" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+
+                                <Label text="Apellidos:"    GridPane.columnIndex="0" GridPane.rowIndex="1" styleClass="kpi-label"/>
+                                <Label fx:id="lblApellidos" GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+
+                                <Label text="DNI:"    GridPane.columnIndex="0" GridPane.rowIndex="2" styleClass="kpi-label"/>
+                                <Label fx:id="lblDni" GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+
+                                <Label text="Email:"    GridPane.columnIndex="0" GridPane.rowIndex="3" styleClass="kpi-label"/>
+                                <Label fx:id="lblEmail" GridPane.columnIndex="1" GridPane.rowIndex="3"/>
+
+                                <Label text="Telefono:"    GridPane.columnIndex="0" GridPane.rowIndex="4" styleClass="kpi-label"/>
+                                <Label fx:id="lblTelefono" GridPane.columnIndex="1" GridPane.rowIndex="4"/>
+                            </GridPane>
+                        </VBox>
+
+                        <!-- Cambiar contrasena -->
+                        <VBox styleClass="card" spacing="14">
+                            <padding><Insets top="20" right="24" bottom="20" left="24"/></padding>
+                            <Label text="Cambiar contrasena" styleClass="page-title"
+                                   style="-fx-font-size:15px;"/>
+                            <Separator/>
+                            <VBox spacing="10">
+                                <PasswordField fx:id="pfActual"    promptText="Contrasena actual"    prefWidth="320"/>
+                                <PasswordField fx:id="pfNueva"     promptText="Nueva contrasena"     prefWidth="320"/>
+                                <PasswordField fx:id="pfConfirmar" promptText="Confirmar contrasena" prefWidth="320"/>
+                                <Label fx:id="lblError" styleClass="error-label" visible="false" managed="false"/>
+                                <Button text="Guardar contrasena" styleClass="button-primary"
+                                        onAction="#handleCambiarPassword"/>
+                            </VBox>
+                        </VBox>
+
+                    </VBox>
+                </content>
+            </ScrollPane>
+
+        </VBox>
+    </center>
+
+</BorderPane>

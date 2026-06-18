@@ -1,0 +1,186 @@
+/**
+ * HealthStatus banner styles
+ */
+
+.health-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-primary);
+}
+
+.health-status--healthy {
+  background: linear-gradient(135deg, var(--color-success-50) 0%, var(--color-bg-secondary) 100%);
+  border-color: var(--color-success-200);
+}
+
+.health-status--warning {
+  background: linear-gradient(135deg, var(--color-warning-50) 0%, var(--color-bg-secondary) 100%);
+  border-color: var(--color-warning-200);
+}
+
+.health-status--critical {
+  background: linear-gradient(135deg, var(--color-danger-50) 0%, var(--color-bg-secondary) 100%);
+  border-color: var(--color-danger-200);
+}
+
+.health-status-indicator {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.health-status--healthy .health-status-indicator {
+  background: var(--color-success-100);
+}
+
+.health-status--warning .health-status-indicator {
+  background: var(--color-warning-100);
+}
+
+.health-status--critical .health-status-indicator {
+  background: var(--color-danger-100);
+}
+
+.health-status-icon {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+}
+
+.health-status--healthy .health-status-icon {
+  color: var(--color-success-600);
+}
+
+.health-status--warning .health-status-icon {
+  color: var(--color-warning-600);
+}
+
+.health-status--critical .health-status-icon {
+  color: var(--color-danger-600);
+}
+
+.health-status-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-full);
+  border: 2px solid currentColor;
+  animation: healthPulse 2s ease-in-out infinite;
+}
+
+@keyframes healthPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0; }
+}
+
+.health-status-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.health-status-title {
+  margin: 0 0 var(--space-1) 0;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.health-status-description {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.health-status-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.health-status-value {
+  font-size: var(--font-size-2xl-lg);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-none);
+}
+
+.health-status--healthy .health-status-value {
+  color: var(--color-success-600);
+}
+
+.health-status--warning .health-status-value {
+  color: var(--color-warning-600);
+}
+
+.health-status--critical .health-status-value {
+  color: var(--color-danger-600);
+}
+
+.health-status-label {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .health-status {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .health-status-indicator {
+    width: 40px;
+    height: 40px;
+  }
+
+  .health-status-icon {
+    font-size: var(--font-size-xl);
+  }
+
+  .health-status-metric {
+    align-items: flex-start;
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border-primary);
+  }
+
+  .health-status-value {
+    font-size: var(--font-size-2xl);
+  }
+}
+
+@media (max-width: 320px) {
+  .health-status {
+    padding: var(--space-2);
+    gap: var(--space-2);
+  }
+
+  .health-status-indicator {
+    width: 32px;
+    height: 32px;
+  }
+
+  .health-status-icon {
+    font-size: var(--font-size-base);
+  }
+
+  .health-status-title {
+    font-size: var(--font-size-sm);
+  }
+
+  .health-status-value {
+    font-size: var(--font-size-xl);
+  }
+}
