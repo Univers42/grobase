@@ -16,7 +16,7 @@ DATADIR=/var/lib/mysql
 # trigger datadir initialization — just run the binary and exit.
 for _arg in "$@"; do
   case "$_arg" in
-    --version|-V|--help|-?|--print-defaults) exec "$@" ;;
+  --version | -V | --help | -? | --print-defaults) exec "$@" ;;
   esac
 done
 
@@ -59,10 +59,10 @@ if [ ! -d "$DATADIR/mysql" ]; then
       fi
     fi
     echo "FLUSH PRIVILEGES;"
-  } > "$BOOTSTRAP"
+  } >"$BOOTSTRAP"
 
   # Apply the bootstrap SQL offline via --bootstrap (no network, no socket).
-  mariadbd --user=mysql --datadir="$DATADIR" --bootstrap --skip-networking=0 < "$BOOTSTRAP"
+  mariadbd --user=mysql --datadir="$DATADIR" --bootstrap --skip-networking=0 <"$BOOTSTRAP"
   rm -f "$BOOTSTRAP"
   echo "[entrypoint] initialization complete"
 fi
@@ -72,6 +72,6 @@ if [ "$#" -eq 0 ]; then
   set -- mariadbd
 fi
 case "$1" in
-  mariadbd|mysqld) exec "$@" --user=mysql --datadir="$DATADIR" ;;
-  *) exec "$@" ;;
+mariadbd | mysqld) exec "$@" --user=mysql --datadir="$DATADIR" --skip-networking=0 --bind-address=0.0.0.0 ;;
+*) exec "$@" ;;
 esac
