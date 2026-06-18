@@ -401,3 +401,19 @@ certs/*
 # NOTE: .understand-anything/knowledge-graph.json IS commit-safe if you want to
 # share the graph with teammates (see the tool README; use git-lfs above ~10 MB).
 .understand-anything/
+
+# ── Generated outputs — NEVER commit (a stray trivy.db hit GitHub's 100 MB wall) ──
+# Security scans (trivy fs/image + its 1 GB vuln-DB cache, semgrep, trufflehog,
+# npm-audit), test reports (edge/postman HTML+JSON, JUnit XML), and bench/footprint
+# JSON are all reproducible by `make tests` / `make bench-*`. Force-add a single
+# bench artifact as evidence with `git add -f artifacts/bench/<file>` if needed.
+/artifacts/
+
+# ── Compiled Go control-plane binaries — build outputs of cmd/* (~98 MB total). ──
+# The toolchain builds these in Docker (`make go-control-plane-build`); never track.
+/src/control-plane/adapter-registry
+/src/control-plane/function-scheduler
+/src/control-plane/orchestrator
+/src/control-plane/scale-seed
+/src/control-plane/tenant-control
+/src/control-plane/webhook-dispatcher
