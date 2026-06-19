@@ -430,3 +430,10 @@ certs/*
 # Emitted by scripts/seed/*-tenant.sh; sourced by re-runs + the verify gates.
 .hambooking-tenant.env
 .canagrou-tenant.env
+.nimbus-tenant.env
+.gourmand-tenant.env
+.gourmand-baas.env
+
+# Emitted frontend config carries the app API key — never track.
+vendor/saas/web/public/baas-config.js
+vendor/vite-gourmand/View/public/baas-config.js

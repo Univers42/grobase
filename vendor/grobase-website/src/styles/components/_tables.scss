@@ -1,0 +1,101 @@
+// ── TABLES — maximalist frame, thick clashing border, hard shadow, zebra. ────
+// Readable first: white body text, accent decoration only. CSP-safe (no inline
+// style=); per-status colour via .is-yes/.is-no/.is-warn classes.
+.gb-table-wrap {
+	position: relative;
+	overflow-x: auto;
+	border: 4px solid var(--gb-a5); // purple frame clashes with the dark fill
+	border-radius: var(--gb-radius-lg);
+	background: rgb(13 13 26 / 84%);
+	box-shadow:
+		0 0 20px rgb(123 47 255 / 22%),
+		8px 8px 0 var(--gb-a1),
+		16px 16px 0 var(--gb-a2);
+}
+
+.gb-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--gb-text-sm);
+	min-width: 40rem;
+}
+
+.gb-table caption {
+	text-align: left;
+	padding: var(--gb-space-4) var(--gb-space-6);
+	color: var(--gb-text-faint);
+	font-size: var(--gb-text-xs);
+	border-bottom: 2px dashed var(--gb-line-strong);
+}
+
+.gb-table caption strong {
+	color: var(--gb-a3);
+}
+
+.gb-table caption code {
+	color: var(--gb-a2);
+}
+
+.gb-table th,
+.gb-table td {
+	padding: 0.8rem var(--gb-space-4);
+	text-align: left;
+	border-bottom: 1px solid var(--gb-line);
+}
+
+// Header row — bold UPPERCASE display, accent-tinted band, shadowed, fat border.
+.gb-table thead th {
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	font-size: var(--gb-text-sm);
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--gb-text);
+	text-shadow: 2px 2px 0 rgb(13 13 26 / 70%);
+	background: linear-gradient(180deg, rgb(123 47 255 / 30%), rgb(18 27 48 / 75%));
+	border-bottom: 4px solid var(--gb-a1);
+}
+
+.gb-table tbody th {
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: -0.01em;
+	color: var(--gb-text);
+}
+
+.gb-table td {
+	color: var(--gb-text-muted);
+}
+
+// zebra via surface tints.
+.gb-table tbody tr:nth-of-type(even) td,
+.gb-table tbody tr:nth-of-type(even) th {
+	background: rgb(255 255 255 / 4%);
+}
+
+.gb-table tbody tr:last-child th,
+.gb-table tbody tr:last-child td {
+	border-bottom: 0;
+}
+
+.gb-table .is-num {
+	font-family: var(--gb-font-mono);
+	font-size: 0.85rem;
+	white-space: nowrap;
+}
+
+.gb-table .is-yes {
+	color: var(--gb-a2);
+	font-weight: 700;
+	text-shadow: 0 0 8px rgb(0 245 212 / 45%);
+}
+
+.gb-table .is-no {
+	color: var(--gb-text-faint);
+}
+
+.gb-table .is-warn {
+	color: var(--gb-a3);
+	font-weight: 600;
+}

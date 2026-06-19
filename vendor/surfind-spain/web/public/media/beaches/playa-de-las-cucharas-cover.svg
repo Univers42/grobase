@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Las Cucharas, Las Palmas">
+  <defs>
+    <linearGradient id="g5542sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c1e33"/><stop offset="1" stop-color="#caa6d6"/>
+    </linearGradient>
+    <radialGradient id="g5542sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffd9ec" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffd9ec" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g5542sky)"/>
+  <circle cx="260" cy="182" r="160" fill="url(#g5542sun)"/>
+  <circle cx="260" cy="182" r="54" fill="#ffd9ec" opacity="0.9"/>
+  <rect y="305" width="1280" height="415" fill="#1d4f6c" opacity="0.55"/>
+  <path d="M0 345 C 96 361 224 329 320 345 C 416 329 544 361 640 345 C 736 361 864 329 960 345 C 1056 329 1184 361 1280 345 L 1280 720 L 0 720 Z" fill="#1d4f6c" opacity="0.85"/><path d="M0 415 C 96 393 224 437 320 415 C 416 437 544 393 640 415 C 736 393 864 437 960 415 C 1056 437 1184 393 1280 415 L 1280 720 L 0 720 Z" fill="#368fad" opacity="0.8"/><path d="M0 505 C 96 535 224 475 320 505 C 416 475 544 535 640 505 C 736 535 864 475 960 505 C 1056 475 1184 535 1280 505 L 1280 720 L 0 720 Z" fill="#368fad" opacity="0.6"/><path d="M0 605 C 96 565 224 645 320 605 C 416 645 544 565 640 605 C 736 565 864 645 960 605 C 1056 645 1184 565 1280 605 L 1280 720 L 0 720 Z" fill="#f4fbfe" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">LAS PALMAS</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Las Cucharas</text>
+</svg>

@@ -183,7 +183,9 @@ CREATE TABLE IF NOT EXISTS visitor_stats (
 );
 
 -- ── Audit Log ─────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS audit_log (
+-- Renamed audit_log → zoo_audit_log: the shared Grobase `public` schema
+-- already owns an `audit_log` table; zoo_-prefixing avoids clobbering it.
+CREATE TABLE IF NOT EXISTS zoo_audit_log (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     actor_id    UUID REFERENCES staff(id),
     action      TEXT NOT NULL,
@@ -193,7 +195,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log (entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_zoo_audit_entity ON zoo_audit_log (entity_type, entity_id);
 
 -- ── Explicit Grants ───────────────────────────────────────────
 -- Ensure anon + authenticated roles can access all zoo tables
@@ -204,7 +206,7 @@ BEGIN
     FOR _tbl IN VALUES
         ('staff'), ('animals'), ('events'), ('feeding_logs'),
         ('health_records'), ('visitor_messages'), ('ticket_types'),
-        ('tickets'), ('visitor_stats'), ('audit_log')
+        ('tickets'), ('visitor_stats'), ('zoo_audit_log')
     LOOP
         EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON %I TO anon, authenticated', _tbl);
     END LOOP;

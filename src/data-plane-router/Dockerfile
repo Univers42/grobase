@@ -7,6 +7,9 @@
 #    and a source change only recompiles the crates that actually changed.
 FROM public.ecr.aws/docker/library/rust:1.96-slim-bookworm AS deps
 WORKDIR /build
+# Opt-in extra cargo features for THIS deployment (e.g. "--features dynamodb").
+# Default empty → byte-parity with the shipped 7-engine build.
+ARG DATA_PLANE_FEATURES=""
 
 COPY Cargo.toml ./
 COPY crates/data-plane-core/Cargo.toml crates/data-plane-core/Cargo.toml
@@ -25,15 +28,16 @@ RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharin
       echo "pub fn placeholder() {}" > "$dir/src/lib.rs"; \
     done && \
     echo "fn main() {}" > crates/data-plane-server/src/main.rs && \
-    cargo build --release --bin data-plane-router
+    cargo build --release ${DATA_PLANE_FEATURES} --bin data-plane-router
 
 FROM deps AS builder
+ARG DATA_PLANE_FEATURES=""
 COPY crates/ crates/
 RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=dpr-target,target=/build/target,sharing=locked \
     touch crates/data-plane-core/src/*.rs crates/data-plane-pool/src/*.rs crates/data-plane-server/src/*.rs && \
-    cargo build --release --bin data-plane-router && \
+    cargo build --release ${DATA_PLANE_FEATURES} --bin data-plane-router && \
     cp /build/target/release/data-plane-router /data-plane-router
 
 FROM gcr.io/distroless/cc-debian12:nonroot AS runtime

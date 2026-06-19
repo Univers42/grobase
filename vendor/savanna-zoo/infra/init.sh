@@ -113,7 +113,7 @@ maybe_reset() {
     log "FORCE=1 → dropping zoo tables …"
     psql_exec <<'SQL'
 SET search_path TO public;
-DROP TABLE IF EXISTS audit_log CASCADE;
+DROP TABLE IF EXISTS zoo_audit_log CASCADE;
 DROP TABLE IF EXISTS visitor_stats CASCADE;
 DROP TABLE IF EXISTS tickets CASCADE;
 DROP TABLE IF EXISTS ticket_types CASCADE;
@@ -171,13 +171,15 @@ SET search_path TO public;
 --     -> 'user_metadata' -> 'role'
 -- ────────────────────────────────────────────────────────────
 
--- Helper: extract the zoo staff role from the JWT (NULL for anon)
+-- Helper: extract the zoo staff role from the JWT (NULL for anon/visitor).
+-- SECURITY: read it from app_metadata (server-controlled via the GoTrue admin
+-- API), NEVER user_metadata — a self-signup visitor fully controls their
+-- user_metadata via the signup `data` field, so trusting it would let anyone
+-- claim role=admin. 005_secure_roles.sql promotes the real staff into
+-- app_metadata.role; visitors have none → no privilege.
 CREATE OR REPLACE FUNCTION public.zoo_jwt_role() RETURNS TEXT AS $$
-  SELECT coalesce(
-    current_setting('request.jwt.claims', true)::jsonb
-      -> 'user_metadata' ->> 'role',
-    NULL
-  );
+  SELECT current_setting('request.jwt.claims', true)::jsonb
+    -> 'app_metadata' ->> 'role';
 $$ LANGUAGE SQL STABLE;
 
 -- ── Animals: everyone reads, authenticated staff writes ──────
@@ -256,19 +258,11 @@ CREATE POLICY ticket_types_write ON ticket_types FOR ALL
   USING  (zoo_jwt_role() = 'admin')
   WITH CHECK (zoo_jwt_role() = 'admin');
 
--- ── Tickets: anyone buys (insert), reception + admin manage ──
-ALTER TABLE tickets ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tickets_insert ON tickets;
-DROP POLICY IF EXISTS tickets_read   ON tickets;
-DROP POLICY IF EXISTS tickets_write  ON tickets;
-CREATE POLICY tickets_insert ON tickets FOR INSERT
-  WITH CHECK (true);
-CREATE POLICY tickets_read ON tickets FOR SELECT
-  TO authenticated
-  USING (zoo_jwt_role() IN ('admin','reception'));
-CREATE POLICY tickets_write ON tickets FOR UPDATE
-  TO authenticated
-  USING (zoo_jwt_role() IN ('admin','reception'));
+-- ── Tickets: per-user ownership lives in 004_visitor_accounts.sql ──
+-- (applied by init_visitor_accounts after this block, so a visitor
+-- books + reads only their own ticket and staff see all). Do NOT
+-- re-add an admin-only tickets policy here — it would regress the
+-- public booking flow back to the 42501 read-back failure.
 
 -- ── Visitor stats: everyone reads, auto-updated by trigger ───
 ALTER TABLE visitor_stats ENABLE ROW LEVEL SECURITY;
@@ -281,17 +275,26 @@ CREATE POLICY visitor_stats_write ON visitor_stats FOR ALL
   WITH CHECK (zoo_jwt_role() = 'admin');
 
 -- ── Audit log: any authenticated user inserts, admin reads ───
-ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS audit_insert ON audit_log;
-DROP POLICY IF EXISTS audit_read   ON audit_log;
-CREATE POLICY audit_insert ON audit_log FOR INSERT
+ALTER TABLE zoo_audit_log ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS audit_insert ON zoo_audit_log;
+DROP POLICY IF EXISTS audit_read   ON zoo_audit_log;
+CREATE POLICY audit_insert ON zoo_audit_log FOR INSERT
   TO authenticated WITH CHECK (true);
-CREATE POLICY audit_read   ON audit_log FOR SELECT
+CREATE POLICY audit_read   ON zoo_audit_log FOR SELECT
   TO authenticated
   USING (zoo_jwt_role() = 'admin');
 
 SQL
   log "✓ RLS policies applied (role-based via JWT user_metadata)."
+}
+
+# ─── 2b. Per-user ticket ownership (owner-scoped RLS) ────────
+# Runs AFTER init_rls so zoo_jwt_role() exists; 004 owns the tickets
+# policies + the SECURITY DEFINER triggers + the user_id column.
+init_visitor_accounts() {
+  log "Applying per-user ticket ownership (004_visitor_accounts.sql) …"
+  psql_file "$INFRA_DIR/004_visitor_accounts.sql"
+  log "✓ tickets are owner-scoped (visitor books + reads own; staff see all)."
 }
 
 # ─── 3. PostgREST schema reload ──────────────────────────────
@@ -340,7 +343,30 @@ init_auth() {
   register_user "yuki.tanaka@savanna-zoo.com"     "$ZOO_PASS" "Dr. Yuki Tanaka"  "vet"
   register_user "lucas.petit@savanna-zoo.com"     "$ZOO_PASS" "Lucas Petit"      "reception"
 
+  # Demo visitor (role=visitor): books + sees only their own tickets.
+  register_user "visitor@savanna-zoo.com"         "$ZOO_PASS" "Demo Visitor"     "visitor"
+
   log "✓ Auth users registered (password: $ZOO_PASS)"
+}
+
+# ─── 4b. Secure staff roles (app_metadata, post-signup) ──────
+# Must run AFTER init_auth created the staff users: 005 promotes the known
+# staff into the trusted app_metadata.role (server-controlled) so zoo_jwt_role()
+# can't be fooled by a self-signup visitor forging user_metadata.role=admin.
+init_secure_roles() {
+  log "Securing staff roles into app_metadata (005_secure_roles.sql) …"
+  psql_file "$INFRA_DIR/005_secure_roles.sql"
+  log "✓ staff role trusted from app_metadata; forged user_metadata.role is inert."
+}
+
+# ─── 4c. Realtime privacy (drop broadcast on non-public tables) ─
+# The realtime gateway fans out row-changes owner-blind, so a visitor could
+# SUBSCRIBE pg/tickets/inserted and harvest other visitors' booking PII. 006
+# drops the publish trigger on every non-public table; public tables stay live.
+init_realtime_privacy() {
+  log "Closing realtime PII broadcast on non-public tables (006_realtime_privacy.sql) …"
+  psql_file "$INFRA_DIR/006_realtime_privacy.sql"
+  log "✓ tickets/messages/health/feeding/audit no longer broadcast; animals/events/etc stay live."
 }
 
 # ─── 5. Smoke test — verify data is reachable via BaaS ───────
@@ -413,12 +439,15 @@ main() {
 
   init_postgres
   init_rls
+  init_visitor_accounts
   reload_postgrest
 
   wait_for_kong
   wait_for_postgrest
 
   init_auth
+  init_secure_roles
+  init_realtime_privacy
   smoke_test
   update_frontend_env
 

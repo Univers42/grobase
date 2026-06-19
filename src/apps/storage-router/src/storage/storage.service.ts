@@ -63,6 +63,12 @@ export class StorageService implements OnModuleInit, OnApplicationShutdown {
   // OFF (the default) — see BucketPolicy.fromConfig — so no rule is ever consulted
   // and the read/write paths are byte-parity (owner-scope governs alone).
   private policy?: BucketPolicy;
+  // Bucket-admin scoping (cross-tenant bucket-name disclosure fix). OFF by
+  // default (byte-parity). When ON, listing ALL buckets and creating a bucket
+  // are restricted to a privileged role (service_role) — an ordinary caller
+  // gets an empty bucket list (no other tenant's names) and a 403 on create.
+  private bucketScope = false;
+  private bucketAdminRoles = new Set<string>(['service_role', 'admin']);
 
   constructor(private readonly config: ConfigService) {}
 
@@ -71,6 +77,12 @@ export class StorageService implements OnModuleInit, OnApplicationShutdown {
     // policy, no interval, no Redis client created. Parity is preserved before I/O.
     this.meter = UsageMeter.fromConfig(process.env);
     this.policy = BucketPolicy.fromConfig(process.env);
+    this.bucketScope = /^(1|true)$/i.test(process.env.STORAGE_BUCKET_SCOPE_ENABLED ?? '');
+    const roles = (process.env.STORAGE_BUCKET_ADMIN_ROLES ?? '')
+      .split(',')
+      .map((r) => r.trim())
+      .filter(Boolean);
+    if (roles.length) this.bucketAdminRoles = new Set(roles);
     this.s3 = new S3Client({
       endpoint: this.config.getOrThrow<string>('S3_ENDPOINT'),
       region: this.config.get<string>('S3_REGION', 'us-east-1'),
@@ -283,7 +295,18 @@ export class StorageService implements OnModuleInit, OnApplicationShutdown {
     }
   }
 
-  async listBuckets(): Promise<BucketInfo[]> {
+  /** True when bucket-admin ops (list-all / create) are allowed for this caller:
+   *  always when scoping is OFF (byte-parity), else only a privileged role. */
+  private bucketAdminAllowed(principal?: PolicyPrincipal): boolean {
+    if (!this.bucketScope) return true;
+    return Boolean(principal && this.bucketAdminRoles.has(principal.role));
+  }
+
+  async listBuckets(principal?: PolicyPrincipal): Promise<BucketInfo[]> {
+    // When scoping is ON, a non-privileged caller must not learn other tenants'
+    // bucket names — return an empty list (still HTTP 200), not the global S3
+    // inventory. A service_role caller still sees everything.
+    if (!this.bucketAdminAllowed(principal)) return [];
     const out = await this.s3.send(new ListBucketsCommand({}));
     return (out.Buckets ?? []).map((b) => ({
       name: b.Name ?? '',
@@ -291,7 +314,15 @@ export class StorageService implements OnModuleInit, OnApplicationShutdown {
     }));
   }
 
-  async createBucket(name: string): Promise<{ name: string; created: boolean }> {
+  async createBucket(
+    name: string,
+    principal?: PolicyPrincipal,
+  ): Promise<{ name: string; created: boolean }> {
+    // When scoping is ON, only a privileged role may mint buckets (an ordinary
+    // visitor minting buckets is namespace-pollution / quota-fill DoS).
+    if (!this.bucketAdminAllowed(principal)) {
+      throw new ForbiddenException('bucket creation requires a privileged role');
+    }
     this.assertBucketName(name);
     try {
       await this.s3.send(new HeadBucketCommand({ Bucket: name }));

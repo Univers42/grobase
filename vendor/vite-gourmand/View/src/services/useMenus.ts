@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as menuService from './menus';
+import { useLiveRefresh } from './useLiveRefresh';
 import type { Menu, MenuFilters, PaginationMeta, Theme, Diet } from './menus';
 
 export interface UseMenusState {
@@ -108,11 +109,27 @@ export function useMenus(initialFilters: MenuFilters = {}, initialDelayMs = 0): 
     }
   }, []);
 
+  // Silent reload for realtime — no isLoading flip, so live updates apply
+  // in place without a spinner/flash.
+  const liveRefresh = useCallback(async () => {
+    try {
+      const result = await menuService.getMenus(filtersRef.current);
+      setMenus(result.menus);
+      setMeta(result.meta);
+    } catch (e) {
+      logMenuWarning('Error during live refresh:', e);
+    }
+  }, []);
+
   // Initial fetch — stable refetch reference, no re-runs
   useEffect(() => {
     const timer = globalThis.setTimeout(refetch, initialDelayMs);
     return () => globalThis.clearTimeout(timer);
   }, [initialDelayMs, refetch]);
+
+  // Live updates via Grobase realtime: any change to the menu graph (menus,
+  // images, dishes, diets, themes) silently refreshes this view.
+  useLiveRefresh(['Menu', 'MenuImage', 'Dish', 'Diet', 'Theme'], liveRefresh);
 
   return {
     menus,

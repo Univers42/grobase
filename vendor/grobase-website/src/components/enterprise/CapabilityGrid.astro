@@ -1,0 +1,120 @@
+---
+// ── CAPABILITY GRID — the honest enterprise capability set, built from real
+// product features. Each card carries an <Icon>, an honest status (shipped vs.
+// roadmap — nothing is claimed that isn't gate-proven), and concrete detail
+// bullets. Status drives a small badge via a class (CSP-safe — no inline style).
+import Icon from '../ui/Icon.astro';
+
+type Status = 'shipped' | 'roadmap';
+type Cap = {
+	icon: string;
+	accent: 1 | 2 | 3 | 4 | 5;
+	title: string;
+	status: Status;
+	body: string;
+	points: string[];
+};
+
+const STATUS_LABEL: Record<Status, string> = {
+	shipped: 'Shipped',
+	roadmap: 'On the roadmap',
+};
+
+const CAPS: Cap[] = [
+	{
+		icon: 'users',
+		accent: 1,
+		title: 'Organizations, teams & members',
+		status: 'shipped',
+		body: 'Group projects under an organization with teams, members, and email invites — the unit a company actually buys and administers.',
+		points: ['Org → teams → members hierarchy', 'Email invites with scoped roles', 'Org-scoped in the control plane'],
+	},
+	{
+		icon: 'shield',
+		accent: 2,
+		title: 'Role-based access control',
+		status: 'shipped',
+		body: 'Roles and fine-grained ABAC decide who can read, write, and administer — evaluated per request, never inferred from pool state.',
+		points: ['Roles per org and per project', 'ABAC policy decision point', 'Owner-scoping / RLS enforced per request'],
+	},
+	{
+		icon: 'lock',
+		accent: 3,
+		title: 'Enterprise sign-on',
+		status: 'roadmap',
+		body: 'Bring your identity provider: SAML 2.0 single sign-on, SCIM user provisioning, OIDC, and passkeys — wired in the control plane.',
+		points: ['SAML 2.0 SSO + SCIM provisioning', 'OIDC and WebAuthn passkeys', 'Provider verification before go-live'],
+	},
+	{
+		icon: 'file-text',
+		accent: 4,
+		title: 'Tamper-evident audit log',
+		status: 'shipped',
+		body: 'Every administrative action is recorded in a hash-chained, exportable audit trail your compliance team can take offline.',
+		points: ['Hash-chained, tamper-evident entries', 'Exportable for review and retention', 'Tenant-facing — no support ticket needed'],
+	},
+	{
+		icon: 'layers',
+		accent: 5,
+		title: 'Isolation you choose',
+		status: 'shipped',
+		body: 'Four isolation models per mount — from a shared pool with per-request scoping to a dedicated database — without rewriting your app.',
+		points: ['4 isolation models per mount', 'Dense multi-tenancy on shared pools', 'Schema- or database-per-tenant options'],
+	},
+	{
+		icon: 'database',
+		accent: 2,
+		title: 'Per-tenant backup & restore',
+		status: 'shipped',
+		body: 'Take a logical backup of one tenant and restore it on its own — self-service, scoped to a single tenant, with point-in-time recovery on the roadmap.',
+		points: ['Logical per-tenant backup', 'Restore one tenant in isolation', 'Point-in-time recovery in flight'],
+	},
+	{
+		icon: 'gauge',
+		accent: 1,
+		title: 'Per-tenant observability',
+		status: 'shipped',
+		body: 'Cardinality-safe per-tenant logs and bounded counters — the tenant id is a log field, never a high-cardinality metric label that melts your dashboards.',
+		points: ['Tenant id as a log field, not a label', 'Bounded per-tenant counters', 'A per-tenant operational view'],
+	},
+	{
+		icon: 'server',
+		accent: 3,
+		title: 'Self-host or managed cloud',
+		status: 'shipped',
+		body: 'Run it on your own machine with your own keys, or let us host it. Same code, same API — the managed-cloud controls stay flag-gated until you turn them on.',
+		points: ['Bring-your-own infrastructure', 'Managed cloud, same codebase', 'No lock-in — the source is open'],
+	},
+	{
+		icon: 'git-branch',
+		accent: 5,
+		title: 'High availability & scale path',
+		status: 'roadmap',
+		body: 'A connection pooler and a 10K-tenant dense path are measured today; horizontal scale-out, multi-region, and an SLA are honestly still ahead.',
+		points: ['Connection pooler + dense multi-tenancy', 'Horizontal scale-out & multi-region planned', 'No invented uptime numbers'],
+	},
+];
+---
+
+<ul class="gb-ent-caps" role="list">
+	{CAPS.map((c) => (
+		<li class={`gb-ent-cap accent-${c.accent}`} data-rise>
+			<div class="gb-ent-cap__top">
+				<span class="gb-ent-cap__icon" aria-hidden="true">
+					<Icon name={c.icon} size={26} />
+				</span>
+				<span class={`gb-ent-cap__badge gb-ent-cap__badge--${c.status}`}>{STATUS_LABEL[c.status]}</span>
+			</div>
+			<h3 class="gb-ent-cap__title">{c.title}</h3>
+			<p class="gb-ent-cap__body">{c.body}</p>
+			<ul class="gb-ent-cap__points" role="list">
+				{c.points.map((p) => (
+					<li>
+						<Icon name="check" size={16} class="gb-ent-cap__tick" />
+						<span>{p}</span>
+					</li>
+				))}
+			</ul>
+		</li>
+	))}
+</ul>

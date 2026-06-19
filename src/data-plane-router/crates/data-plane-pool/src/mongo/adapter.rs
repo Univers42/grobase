@@ -95,6 +95,11 @@ impl EngineAdapter for MongoEngineAdapter {
         // the DSN-default db, byte-identical to before G5.
         let db_name = resolve_namespace(&mount).unwrap_or_else(|| parse_db_name(&dsn));
         let shared_pool = crate::pools_shared(&mount);
+        let shared_resources: std::sync::Arc<[String]> = if per_table_isolation_enabled() {
+            mount.shared_resources().into()
+        } else {
+            Vec::<String>::new().into()
+        };
 
         Ok(Box::new(MongoPool {
             mount_id: mount.id.clone(),
@@ -102,6 +107,7 @@ impl EngineAdapter for MongoEngineAdapter {
             shared_pool,
             client,
             db_name,
+            shared_resources,
         }))
     }
 
@@ -116,6 +122,16 @@ impl EngineAdapter for MongoEngineAdapter {
 // inline + delete in a follow-up.
 fn resolve_namespace(mount: &DatabaseMount) -> Option<String> {
     mount.resolve_namespace()
+}
+
+/// F1 per-table isolation master flag (`DATA_PLANE_PER_TABLE_ISOLATION`). OFF by
+/// default → `shared_resources` is forced empty so every read stays owner-scoped
+/// (byte-parity). Mirrors the Postgres/MySQL adapters' identical gate.
+fn per_table_isolation_enabled() -> bool {
+    matches!(
+        std::env::var("DATA_PLANE_PER_TABLE_ISOLATION").as_deref(),
+        Ok("1" | "true" | "TRUE" | "on" | "ON" | "yes")
+    )
 }
 
 fn parse_db_name(dsn: &str) -> String {

@@ -1,0 +1,34 @@
+---
+// CONTROL SECTION — a titled group of security controls rendered as a card grid,
+// each card carrying a StatusPill (Implemented / Partial / Roadmap). The heading
+// is a real <h3> (semantic outline for pa11y), addressable via `id` for in-page
+// links. Accent (1–5) tints the heading + card top-border via the .accent-N
+// class — never an inline colour (strict hashed CSP).
+import StatusPill from './StatusPill.astro';
+import type { SecurityControl } from '../../data/security';
+
+type Props = {
+	title: string;
+	id: string;
+	controls: SecurityControl[];
+	accent?: 1 | 2 | 3 | 4 | 5;
+};
+const { title, id, controls, accent = 2 } = Astro.props;
+---
+
+<div class={`gb-sec-controls accent-${accent}`}>
+	<h3 id={id} class="gb-sec-controls__title">{title}</h3>
+	<ul class="gb-sec-grid rotate-accents" role="list">
+		{
+			controls.map((c) => (
+				<li class="gb-sec-card gb-sec-card--control" data-rise>
+					<div class="gb-sec-card__top">
+						<h4 class="gb-sec-card__title">{c.name}</h4>
+						<StatusPill status={c.status} />
+					</div>
+					<p class="gb-sec-card__body">{c.blurb}</p>
+				</li>
+			))
+		}
+	</ul>
+</div>

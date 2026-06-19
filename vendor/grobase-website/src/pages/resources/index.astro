@@ -1,0 +1,64 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/layout/Header.astro';
+import Footer from '../../components/layout/Footer.astro';
+import ResourceHero from '../../components/resources/ResourceHero.astro';
+import ResourceGrid from '../../components/resources/ResourceGrid.astro';
+import { SITE } from '../../data/site';
+import { RESOURCES } from '../../data/nav';
+
+const title = `Resources — ${SITE.name}`;
+const description =
+	'Everything that takes Grobase further: the blog, partners, starter templates, task-first guides, the eight engine connectors, and the full docs — one hub, every honest resource.';
+
+// The hub cards ARE the RESOURCES mega-menu, one source of truth (nav.ts).
+const items = RESOURCES.map((r) => ({
+	icon: r.icon,
+	title: r.label,
+	body: r.blurb,
+	href: r.href,
+}));
+
+const jsonLd = [
+	{
+		'@type': 'CollectionPage',
+		name: title,
+		description,
+		hasPart: RESOURCES.map((r) => ({
+			'@type': 'WebPage',
+			name: r.label,
+			description: r.blurb,
+		})),
+	},
+];
+---
+
+<Layout title={title} description={description} jsonLd={jsonLd}>
+	<div class="gb-shell">
+		<Header />
+		<main id="main-content">
+			<ResourceHero
+				kicker="Resources"
+				titleLead="Everything to take it"
+				titleAccent="further"
+				lede="Grobase is open-source and self-hostable, so going further means learning, extending and shipping — not buying add-ons. Start anywhere below."
+				icon="layers"
+			/>
+
+			<section class="gb-section gb-section--dim gb-rsection" aria-labelledby="resources-hub-title">
+				<div class="gb-container">
+					<div class="gb-section__head accent-2" data-rise>
+						<p class="gb-kicker"><span aria-hidden="true">→</span> The hub</p>
+						<h2 id="resources-hub-title" class="tshadow-mega">Pick a path</h2>
+						<p class="gb-lede">
+							Six ways to go deeper — read the story behind the build, find a starter, follow a guide, or wire one of the
+							eight engines through the one uniform API.
+						</p>
+					</div>
+					<ResourceGrid items={items} />
+				</div>
+			</section>
+		</main>
+		<Footer />
+	</div>
+</Layout>

@@ -1,0 +1,68 @@
+---
+// ── ResourceCard — one icon card in a resources grid.
+//
+// Renders a single resource item (icon · title · body · optional link) as a
+// .gb-card. The whole card is the click target when `href` is set (a stretched
+// link via .gb-rcard__link::after in _resources.scss), otherwise it is a static
+// info card. Colour rotates across the five accents by position via the parent's
+// :nth-child rules — NEVER an inline style attribute (strict CSP).
+//
+// Icon names come from the data files (nav.ts / resources.ts) and are resolved
+// through Icon.astro against the fixed registry. A couple of data files use icon
+// names that are not in the registry (book/bolt/image/code/pen); ICON_ALIAS maps
+// them to the closest safe registry name so nothing ever renders blank.
+import Icon from '../ui/Icon.astro';
+
+type Props = {
+	icon: string;
+	title: string;
+	body: string;
+	href?: string;
+	/** accent 1–5 — drives the card border/glow via a class (no inline style). */
+	accent?: 1 | 2 | 3 | 4 | 5;
+};
+
+// Map data-file icon names that are not registry keys → closest existing icon.
+const ICON_ALIAS: Record<string, string> = {
+	book: 'book-open',
+	bolt: 'zap',
+	image: 'storage',
+	code: 'functions',
+	pen: 'file-text',
+};
+
+const { icon, title, body, href, accent = 1 } = Astro.props;
+const safeIcon = ICON_ALIAS[icon] ?? icon;
+const external = typeof href === 'string' && /^https?:\/\//.test(href);
+const accClass = `accent-${accent}`;
+---
+
+<li class:list={['gb-rcard', accClass, { 'gb-rcard--link': !!href }]} data-rise>
+	<span class="gb-rcard__icon" aria-hidden="true">
+		<Icon name={safeIcon} size={26} />
+	</span>
+	<h3 class="gb-rcard__title">
+		{
+			href ? (
+				<a
+					class="gb-rcard__link"
+					href={href}
+					rel={external ? 'noopener noreferrer' : undefined}
+				>
+					{title}
+				</a>
+			) : (
+				title
+			)
+		}
+	</h3>
+	<p class="gb-rcard__body">{body}</p>
+	{
+		href && (
+			<span class="gb-rcard__more" aria-hidden="true">
+				<span>{external ? 'Open' : 'Explore'}</span>
+				<Icon name={external ? 'arrow-up-right' : 'arrow-right'} size={16} />
+			</span>
+		)
+	}
+</li>

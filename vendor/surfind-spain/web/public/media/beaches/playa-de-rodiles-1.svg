@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Rodiles, Asturias">
+  <defs>
+    <linearGradient id="g3182sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#073043"/><stop offset="1" stop-color="#ffd27a"/>
+    </linearGradient>
+    <radialGradient id="g3182sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff1c2" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#fff1c2" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g3182sky)"/>
+  <circle cx="433" cy="250" r="160" fill="url(#g3182sun)"/>
+  <circle cx="433" cy="250" r="54" fill="#fff1c2" opacity="0.9"/>
+  <rect y="321" width="1280" height="399" fill="#0d6178" opacity="0.55"/>
+  <path d="M0 361 C 96 377 224 345 320 361 C 416 345 544 377 640 361 C 736 377 864 345 960 361 C 1056 345 1184 377 1280 361 L 1280 720 L 0 720 Z" fill="#0d6178" opacity="0.85"/><path d="M0 431 C 96 409 224 453 320 431 C 416 453 544 409 640 431 C 736 409 864 453 960 431 C 1056 453 1184 409 1280 431 L 1280 720 L 0 720 Z" fill="#28a7c0" opacity="0.8"/><path d="M0 521 C 96 551 224 491 320 521 C 416 491 544 551 640 521 C 736 551 864 491 960 521 C 1056 491 1184 551 1280 521 L 1280 720 L 0 720 Z" fill="#28a7c0" opacity="0.6"/><path d="M0 621 C 96 581 224 661 320 621 C 416 661 544 581 640 621 C 736 581 864 661 960 621 C 1056 661 1184 581 1280 621 L 1280 720 L 0 720 Z" fill="#ffffff" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">ASTURIAS</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Rodiles · 1</text>
+</svg>

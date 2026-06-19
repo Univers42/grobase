@@ -1,0 +1,37 @@
+---
+// ── MANIFESTO — the premium scroll-reveal statement. NOT a fabricated customer
+// quote: it is the product's own honest position, revealed word-by-word as it
+// scrolls into view. The reveal is driven by a CSP-safe script (sets a per-word
+// --p via element.style.setProperty only) and is fully gated by reduced-motion;
+// with no JS the words render at full white (the .reveal-words__w default).
+//
+// One serif-italic accent word ("honest") is the single premium signal, per the
+// design rule of at most one italic-serif accent per major heading.
+
+// The statement, split into words so the reveal can drive each one. The single
+// italicised word opts into the serif accent via the .italic class.
+const WORDS: { t: string; italic?: boolean }[] = [
+	{ t: 'We' }, { t: 'sell' }, { t: 'the' }, { t: 'enterprise' }, { t: 'controls' },
+	{ t: 'a' }, { t: 'security' }, { t: 'team' }, { t: 'asks' }, { t: 'for' }, { t: '—' },
+	{ t: 'and' }, { t: 'we' }, { t: 'stay' }, { t: 'honest', italic: true }, { t: 'about' },
+	{ t: 'what' }, { t: 'is' }, { t: 'shipped' }, { t: 'versus' }, { t: 'still' }, { t: 'ahead.' },
+];
+---
+
+<figure class="gb-ent-manifesto" data-rise>
+	<blockquote class="gb-ent-manifesto__quote">
+		<p class="reveal-words" data-reveal-target>
+			{WORDS.map((w) => (
+				<span class={`reveal-words__w${w.italic ? ' italic' : ''}`}>{w.t}</span>
+			))}
+		</p>
+	</blockquote>
+	<figcaption class="gb-ent-manifesto__cap">
+		The Grobase product principle — no fabricated logos, no invented numbers, no vapourware.
+	</figcaption>
+</figure>
+
+<script>
+	import { initReveal } from '../../scripts/enterprise/reveal';
+	initReveal();
+</script>

@@ -1,0 +1,54 @@
+---
+// ── ISOLATION LADDER — the four isolation models, weakest-shared to fully-
+// dedicated. Per-request scoping is what lets thousands of tenants collapse onto
+// one pool, so denser models are not "less secure" — they trade dedicated
+// resources for density. Honest framing, no invented tenant counts.
+import Icon from '../ui/Icon.astro';
+
+type Model = { icon: string; accent: 1 | 2 | 3 | 4 | 5; name: string; body: string; trait: string };
+
+const MODELS: Model[] = [
+	{
+		icon: 'layers',
+		accent: 1,
+		name: 'Shared pool, per-request scope',
+		body: 'Many tenants share one connection pool; every read and write is owner-scoped per request. The densest, most cost-efficient model.',
+		trait: 'Maximum density',
+	},
+	{
+		icon: 'shield',
+		accent: 2,
+		name: 'Row-level security',
+		body: 'The engine enforces row-level isolation in addition to per-request scoping — a defence-in-depth layer at the database.',
+		trait: 'Defence in depth',
+	},
+	{
+		icon: 'database',
+		accent: 3,
+		name: 'Schema per tenant',
+		body: 'Each tenant gets its own schema inside a shared database — stronger separation while still sharing the server.',
+		trait: 'Stronger separation',
+	},
+	{
+		icon: 'server',
+		accent: 5,
+		name: 'Database per tenant',
+		body: 'A dedicated database per tenant for the strictest isolation and independent backup, restore, and lifecycle.',
+		trait: 'Full dedication',
+	},
+];
+---
+
+<ol class="gb-ent-iso" role="list">
+	{MODELS.map((m, i) => (
+		<li class={`gb-ent-iso__step accent-${m.accent}`} data-rise>
+			<span class="gb-ent-iso__rung" aria-hidden="true">{i + 1}</span>
+			<span class="gb-ent-iso__icon" aria-hidden="true">
+				<Icon name={m.icon} size={24} />
+			</span>
+			<h3 class="gb-ent-iso__name">{m.name}</h3>
+			<p class="gb-ent-iso__body">{m.body}</p>
+			<span class="gb-ent-iso__trait">{m.trait}</span>
+		</li>
+	))}
+</ol>

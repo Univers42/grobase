@@ -1,0 +1,278 @@
+@import 'tailwindcss';
+@import '../../vendor/livewire/flux/dist/flux.css';
+@import './satoshi.css';
+
+@source '../views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../vendor/livewire/flux-pro/stubs/**/*.blade.php';
+@source '../../vendor/livewire/flux/stubs/**/*.blade.php';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+    --font-sans: 'Satoshi', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+    --color-zinc-50: #fafafa;
+    --color-zinc-100: #f5f5f5;
+    --color-zinc-200: #e5e5e5;
+    --color-zinc-300: #d4d4d4;
+    --color-zinc-400: #a3a3a3;
+    --color-zinc-500: #737373;
+    --color-zinc-600: #525252;
+    --color-zinc-700: #404040;
+    --color-zinc-800: #262626;
+    --color-zinc-900: #171717;
+    --color-zinc-950: #0a0a0a;
+
+    --color-accent: var(--color-neutral-800);
+    --color-accent-content: var(--color-neutral-800);
+    --color-accent-foreground: var(--color-white);
+}
+
+@layer theme {
+    .dark {
+        --color-accent: var(--color-white);
+        --color-accent-content: var(--color-white);
+        --color-accent-foreground: var(--color-neutral-800);
+    }
+}
+
+@layer base {
+
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: var(--color-gray-200, currentColor);
+    }
+}
+
+[data-flux-field]:not(ui-radio, ui-checkbox) {
+    @apply grid gap-2;
+}
+
+[data-flux-label] {
+    @apply  !mb-0 !leading-tight;
+}
+
+input:focus[data-flux-control],
+textarea:focus[data-flux-control],
+select:focus[data-flux-control] {
+    @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-accent-foreground;
+}
+
+body {
+    font-family: var(--font-sans);
+}
+
+.surfind-map .leaflet-control-zoom {
+    border: 0;
+    border-radius: 9999px;
+    box-shadow: 0 18px 45px rgb(17 72 87 / 0.18);
+    overflow: hidden;
+}
+
+.surfind-map .leaflet-control-zoom a {
+    border: 0;
+    color: #002833;
+    font-family: var(--font-sans);
+    font-weight: 900;
+}
+
+.surfind-map-marker {
+    background: transparent;
+    border: 0;
+}
+
+.surfind-map-marker span {
+    display: block;
+    width: 28px;
+    height: 28px;
+    background: #002833;
+    border: 3px solid #ffffff;
+    border-radius: 9999px 9999px 9999px 0;
+    box-shadow: 0 14px 26px rgb(0 40 51 / 0.30);
+    transform: rotate(-45deg);
+    transition: transform 160ms ease, background-color 160ms ease;
+}
+
+.surfind-map-marker:hover span {
+    background: #114857;
+    transform: rotate(-45deg) translateY(-2px) scale(1.08);
+}
+
+.surfind-map-popup-shell .leaflet-popup-content-wrapper {
+    border-radius: 24px;
+    box-shadow: 0 22px 50px rgb(0 40 51 / 0.18);
+    overflow: hidden;
+}
+
+.surfind-map-popup-shell .leaflet-popup-content {
+    margin: 0;
+    width: 260px !important;
+}
+
+.surfind-map-popup-shell .leaflet-popup-tip {
+    background: #ffffff;
+}
+
+.surfind-map-popup__image {
+    display: block;
+    width: 100%;
+    height: 118px;
+    object-fit: cover;
+}
+
+.surfind-map-popup__body {
+    padding: 16px;
+}
+
+.surfind-map-popup__eyebrow {
+    color: #5097AB;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    margin: 0 0 6px;
+    text-transform: uppercase;
+}
+
+.surfind-map-popup h3 {
+    color: #002833;
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: 900;
+    line-height: 1.15;
+    margin: 0;
+}
+
+.surfind-map-popup__description {
+    color: #266C80;
+    font-size: 13px;
+    line-height: 1.55;
+    margin: 10px 0 0;
+}
+
+.surfind-map-popup a {
+    align-items: center;
+    background: #DCEFF4;
+    border-radius: 9999px;
+    color: #002833;
+    display: inline-flex;
+    font-size: 13px;
+    font-weight: 900;
+    margin-top: 14px;
+    padding: 9px 13px;
+    text-decoration: none;
+    transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.surfind-map-popup a:hover {
+    background: #85C3D4;
+    transform: translateY(-1px);
+}
+
+.surfind-home-hero {
+    background: #002833;
+}
+
+.surfind-home-video-slot {
+    background: linear-gradient(rgb(0 40 51 / 0.22), rgb(0 40 51 / 0.46));
+    inset: 0;
+    pointer-events: none;
+    position: absolute;
+}
+
+.surfind-home-video {
+    height: 100%;
+    inset: 0;
+    object-fit: cover;
+    position: absolute;
+    width: 100%;
+}
+
+.surfind-wave-title span {
+    animation: surfind-title-wave 3.4s ease-in-out infinite;
+    animation-delay: var(--surfind-wave-delay);
+    display: inline-block;
+    text-shadow: 0 1.5rem 4rem rgb(0 40 51 / 0.32);
+    will-change: transform;
+}
+
+.surfind-home-cta {
+    background: linear-gradient(135deg, rgb(241 227 194 / 0.82) 0%, rgb(217 191 141 / 0.76) 100%);
+    box-shadow: 0 1.5rem 3rem rgb(0 40 51 / 0.24), inset 0 1px 0 rgb(255 255 255 / 0.36);
+    color: #002833;
+    overflow: hidden;
+    position: relative;
+}
+
+.surfind-home-cta::before,
+.surfind-home-cta::after {
+    border-radius: inherit;
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    transition: transform 960ms cubic-bezier(0.22, 1, 0.36, 1), opacity 420ms ease;
+}
+
+.surfind-home-cta::before {
+    background: linear-gradient(110deg, #114857 0%, #266C80 55%, #5097AB 100%);
+    inset: -1px;
+    transform: translateX(-108%) skewX(-13deg);
+    transform-origin: left center;
+}
+
+.surfind-home-cta::after {
+    background:
+        radial-gradient(ellipse at 18% 50%, rgb(255 255 255 / 0.95) 0 14%, transparent 15%),
+        radial-gradient(ellipse at 43% 46%, rgb(255 255 255 / 0.78) 0 10%, transparent 11%),
+        radial-gradient(ellipse at 70% 54%, rgb(255 255 255 / 0.86) 0 12%, transparent 13%),
+        linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0.92) 28%, rgb(255 255 255 / 0.58) 52%, transparent 82%);
+    height: 52%;
+    left: -38%;
+    opacity: 0;
+    top: 24%;
+    transform: translateX(-40%) rotate(-2deg);
+    width: 84%;
+}
+
+.surfind-home-cta:hover {
+    color: #ffffff;
+    box-shadow: 0 1.75rem 3.75rem rgb(0 40 51 / 0.34), inset 0 1px 0 rgb(255 255 255 / 0.24);
+}
+
+.surfind-home-cta:hover::before {
+    transform: translateX(0) skewX(-13deg) scaleX(1.22);
+}
+
+.surfind-home-cta:hover::after {
+    opacity: 1;
+    transform: translateX(168%) rotate(-2deg);
+}
+
+.surfind-home-cta > * {
+    position: relative;
+    z-index: 1;
+}
+
+@keyframes surfind-title-wave {
+    0%,
+    100% {
+        transform: translateY(0) rotate(0deg);
+    }
+
+    45% {
+        transform: translateY(-0.28em) rotate(-0.7deg);
+    }
+
+    70% {
+        transform: translateY(0.08em) rotate(0.4deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .surfind-wave-title span {
+        animation: none;
+    }
+}

@@ -1,0 +1,51 @@
+---
+// ── ResourceHero — a lean, premium, restrained page hero for /resources/* pages.
+//
+// Deliberately minimal: a liquid-glass kicker pill, one bold heading with a
+// single optional Instrument-Serif italic accent word, a short lede, and lots of
+// negative space. No floaters storm, no giant bg word — the dopamine energy lives
+// in the body sections; the hero stays cinematic and quiet. All CSP-safe: accents
+// via classes, the serif accent via .serif-italic, motion behind reduced-motion.
+import Icon from '../ui/Icon.astro';
+
+type Props = {
+	kicker: string;
+	/** plain part of the heading shown before the serif accent word */
+	titleLead: string;
+	/** single italic-serif accent word (the premium signal) */
+	titleAccent?: string;
+	/** plain part shown after the accent word */
+	titleTail?: string;
+	lede: string;
+	/** registry icon name for the kicker chip */
+	icon?: string;
+	id?: string;
+};
+
+const {
+	kicker,
+	titleLead,
+	titleAccent,
+	titleTail,
+	lede,
+	icon = 'sparkle',
+	id = 'resource-title',
+} = Astro.props;
+---
+
+<section class="gb-section gb-rhero" aria-labelledby={id}>
+	{/* two restrained floaters only — premium, not noisy */}
+	<span class="floater floater--lg floater--ring accent-5 floater--tr animate-float" aria-hidden="true"></span>
+	<span class="floater floater--sm floater--diamond accent-2 floater--bl animate-float-reverse" aria-hidden="true"></span>
+
+	<div class="gb-container gb-rhero__inner">
+		<p class="gb-rhero__kicker liquid-glass" data-rise>
+			<Icon name={icon} size={16} class="accent-1" />
+			<span>{kicker}</span>
+		</p>
+		<h1 id={id} class="gb-rhero__title tshadow-2" data-rise>
+			{titleLead}{titleAccent && <> <em class="serif-italic accent-3">{titleAccent}</em></>}{titleTail && <> {titleTail}</>}
+		</h1>
+		<p class="gb-rhero__lede" data-rise>{lede}</p>
+	</div>
+</section>

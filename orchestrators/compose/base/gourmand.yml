@@ -1,0 +1,25 @@
+# Gourmand plane — vite-gourmand re-platformed onto Grobase, served as a static
+# SPA with a same-origin reverse proxy to Kong (grobase/serve.mjs), so the app's
+# strict CSP (connect-src 'self') needs no CORS. Opt in via the `gourmand`
+# profile; not part of any default edition. Requires a prior `cd
+# vendor/vite-gourmand/View && npm run build` (produces View/dist) and a run of
+# scripts/seed/gourmand-baas.sh (produces View/public/baas-config.js). The data
+# plane must run with DATA_PLANE_PER_TABLE_ISOLATION=1 + DATA_PLANE_ADMIN_BYPASS=1.
+services:
+  gourmand:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: node:20-alpine
+    container_name: mini-baas-gourmand
+    profiles: ["gourmand"]
+    working_dir: /app/grobase
+    command: ["node", "serve.mjs"]
+    environment:
+      PORT: "80"
+      KONG_URL: "http://kong:8000"
+    ports:
+      - "${GOURMAND_PORT:-5174}:80"
+    volumes:
+      - ./vendor/vite-gourmand:/app:ro
+    depends_on:
+      kong:
+        condition: service_started

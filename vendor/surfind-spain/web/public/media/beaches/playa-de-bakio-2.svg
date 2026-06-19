@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Bakio, Bizkaia">
+  <defs>
+    <linearGradient id="g9310sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c1e33"/><stop offset="1" stop-color="#caa6d6"/>
+    </linearGradient>
+    <radialGradient id="g9310sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffd9ec" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffd9ec" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g9310sky)"/>
+  <circle cx="218" cy="164" r="160" fill="url(#g9310sun)"/>
+  <circle cx="218" cy="164" r="54" fill="#ffd9ec" opacity="0.9"/>
+  <rect y="329" width="1280" height="391" fill="#1d4f6c" opacity="0.55"/>
+  <path d="M0 369 C 96 353 224 385 320 369 C 416 385 544 353 640 369 C 736 353 864 385 960 369 C 1056 385 1184 353 1280 369 L 1280 720 L 0 720 Z" fill="#1d4f6c" opacity="0.85"/><path d="M0 439 C 96 461 224 417 320 439 C 416 417 544 461 640 439 C 736 461 864 417 960 439 C 1056 417 1184 461 1280 439 L 1280 720 L 0 720 Z" fill="#368fad" opacity="0.8"/><path d="M0 529 C 96 499 224 559 320 529 C 416 559 544 499 640 529 C 736 499 864 559 960 529 C 1056 559 1184 499 1280 529 L 1280 720 L 0 720 Z" fill="#368fad" opacity="0.6"/><path d="M0 629 C 96 669 224 589 320 629 C 416 589 544 669 640 629 C 736 669 864 589 960 629 C 1056 589 1184 669 1280 629 L 1280 720 L 0 720 Z" fill="#f4fbfe" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">BIZKAIA</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Bakio · 2</text>
+</svg>

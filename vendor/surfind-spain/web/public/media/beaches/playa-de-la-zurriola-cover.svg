@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="La Zurriola, Gipuzkoa">
+  <defs>
+    <linearGradient id="g5160sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a2c4a"/><stop offset="1" stop-color="#f3a05a"/>
+    </linearGradient>
+    <radialGradient id="g5160sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffe1a3" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffe1a3" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g5160sky)"/>
+  <circle cx="889" cy="236" r="160" fill="url(#g5160sun)"/>
+  <circle cx="889" cy="236" r="54" fill="#ffe1a3" opacity="0.9"/>
+  <rect y="353" width="1280" height="367" fill="#234e6e" opacity="0.55"/>
+  <path d="M0 393 C 96 409 224 377 320 393 C 416 377 544 409 640 393 C 736 409 864 377 960 393 C 1056 377 1184 409 1280 393 L 1280 720 L 0 720 Z" fill="#234e6e" opacity="0.85"/><path d="M0 463 C 96 441 224 485 320 463 C 416 485 544 441 640 463 C 736 441 864 485 960 463 C 1056 485 1184 441 1280 463 L 1280 720 L 0 720 Z" fill="#3f97b8" opacity="0.8"/><path d="M0 553 C 96 583 224 523 320 553 C 416 523 544 583 640 553 C 736 583 864 523 960 553 C 1056 523 1184 583 1280 553 L 1280 720 L 0 720 Z" fill="#3f97b8" opacity="0.6"/><path d="M0 653 C 96 613 224 693 320 653 C 416 693 544 613 640 653 C 736 613 864 693 960 653 C 1056 693 1184 613 1280 653 L 1280 720 L 0 720 Z" fill="#eef9fd" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">GIPUZKOA</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">La Zurriola</text>
+</svg>

@@ -41,6 +41,31 @@ if [[ "${WHAT}" == "all" || "${WHAT}" == "gate" ]]; then
   bash "${REPO_ROOT}/scripts/verify/m146-canagrou-roundtrip.sh" || rc=1
 fi
 
+if [[ "${WHAT}" == "all" || "${WHAT}" == "browser" ]]; then
+  run "browser (Playwright e2e over HTTPS — every flow + edge case)"
+  PW_IMAGE="mcr.microsoft.com/playwright:v1.49.1-jammy"
+  if docker image inspect "${PW_IMAGE}" >/dev/null 2>&1; then
+    [ -f "${HERE}/web/certs/cert.pem" ] || { mkdir -p "${HERE}/web/certs"; openssl req -x509 -newkey rsa:2048 -nodes \
+      -keyout "${HERE}/web/certs/key.pem" -out "${HERE}/web/certs/cert.pem" -days 365 -subj "/CN=localhost" \
+      -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" >/dev/null 2>&1 || true; }
+    docker rm -f canagrou-web >/dev/null 2>&1
+    docker run -d --name canagrou-web --network host -e PORT=8123 -v "${HERE}":/canagrou -w /canagrou/web "${NODE_IMAGE}" node serve.mjs >/dev/null 2>&1
+    docker run --rm -v "${HERE}/web":/web -w /web "${NODE_IMAGE}" sh -c '[ -d node_modules/playwright ] || npm i playwright@1.49.1 --silent' >/dev/null 2>&1
+    curl -sk -o /dev/null --retry 15 --retry-delay 1 --retry-connrefused https://localhost:8123/ 2>/dev/null || true
+    # Clean test-created data before each suite so the feed stays light: the
+    # feed loads counts per card (N+1), and accumulated posts across suites would
+    # blow Kong's per-IP rate limits (429). Keeps any human account.
+    clean_re='^(full_|feed_|noprof|bro_|tag_|tagtest|feeduser|dup|seq|exec|smoke_|m146|in_|cors|diag|tester_|intest|rt|p)'
+    for spec in browser-full.mjs browser-feed.mjs browser-profileless.mjs browser-e2e.mjs; do
+      docker exec mini-baas-postgres psql -U postgres -d canagrou -c "DELETE FROM profiles WHERE username ~* '${clean_re}';" >/dev/null 2>&1 || true
+      docker run --rm --network host -v "${HERE}/web":/web -w /web -e SPA_URL=https://localhost:8123 "${PW_IMAGE}" sh -c "node test/${spec}" || rc=1
+    done
+    docker rm -f canagrou-web >/dev/null 2>&1
+  else
+    note "skipped: pull ${PW_IMAGE} to enable the real-browser suite"
+  fi
+fi
+
 if [[ "${WHAT}" == "all" || "${WHAT}" == "flutter" ]]; then
   run "flutter (offline unit/widget)"
   if docker image inspect ghcr.io/cirruslabs/flutter:stable >/dev/null 2>&1; then

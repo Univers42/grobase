@@ -193,10 +193,16 @@ pub(super) fn build_mongo_aggregate_expr(agg: &Aggregate) -> DataPlaneResult<Bso
     Ok(Bson::Document(expr))
 }
 
+/// Intersect the client filter with the server-trusted scope so an attacker
+/// cannot drop the predicate. `shared` marks a `shared_resources` collection
+/// (F1 per-table isolation): its reads scope by `tenant_id` ONLY — the
+/// `owner_id` predicate is omitted, so the catalog is readable across owners.
+/// Only reads pass `shared=true`; mutations stay owner-scoped.
 pub(super) fn build_tenant_filter(
     filter: Option<&Value>,
     identity: &RequestIdentity,
     tenant_id: &str,
+    shared: bool,
 ) -> DataPlaneResult<Document> {
     let mut doc = match filter {
         Some(v @ Value::Object(_)) => {
@@ -233,7 +239,9 @@ pub(super) fn build_tenant_filter(
     if let Some(id) = doc.remove("_id") {
         doc.insert("_id", coerce_id_filter(id));
     }
-    doc.insert("owner_id", MongoPool::owner(identity));
+    if !shared {
+        doc.insert("owner_id", MongoPool::owner(identity));
+    }
     doc.insert("tenant_id", tenant_id.to_string());
     Ok(doc)
 }
@@ -294,10 +302,29 @@ mod tests {
         // by-pk update/delete to every owned document. Client attempts to spoof
         // owner_id/tenant_id are still overridden by the verified identity.
         let client = json!({ "_id": "evt-000001", "owner_id": "spoof", "tenant_id": "spoof" });
-        let doc = build_tenant_filter(Some(&client), &probe_identity(), "t1").unwrap();
+        let doc = build_tenant_filter(Some(&client), &probe_identity(), "t1", false).unwrap();
         assert_eq!(doc.get_str("_id").unwrap(), "evt-000001");
         assert_eq!(doc.get_str("owner_id").unwrap(), "api-key:k1");
         assert_eq!(doc.get_str("tenant_id").unwrap(), "t1");
+    }
+
+    #[test]
+    fn shared_resource_read_omits_owner_but_keeps_tenant() {
+        // F1: a shared collection's reads scope by tenant ONLY — the owner_id
+        // predicate is omitted so the catalog is readable across owners. A
+        // non-shared read still injects owner_id (byte-parity).
+        let shared =
+            build_tenant_filter(Some(&json!({ "kind": "x" })), &probe_identity(), "t1", true)
+                .unwrap();
+        assert!(
+            !shared.contains_key("owner_id"),
+            "shared read must not owner-scope: {shared:?}"
+        );
+        assert_eq!(shared.get_str("tenant_id").unwrap(), "t1");
+        let scoped =
+            build_tenant_filter(Some(&json!({ "kind": "x" })), &probe_identity(), "t1", false)
+                .unwrap();
+        assert_eq!(scoped.get_str("owner_id").unwrap(), "api-key:k1");
     }
 
     #[test]
@@ -330,10 +357,10 @@ mod tests {
 
         // Reads: each request filters by its own owner + tenant — so tenant-a
         // can never select tenant-b's documents through the shared pool.
-        let filt_a = build_tenant_filter(Some(&json!({})), &id_a, &id_a.tenant_id).unwrap();
+        let filt_a = build_tenant_filter(Some(&json!({})), &id_a, &id_a.tenant_id, false).unwrap();
         assert_eq!(filt_a.get_str("tenant_id").unwrap(), "tenant-a");
         assert_eq!(filt_a.get_str("owner_id").unwrap(), "api-key:a");
-        let filt_b = build_tenant_filter(Some(&json!({})), &id_b, &id_b.tenant_id).unwrap();
+        let filt_b = build_tenant_filter(Some(&json!({})), &id_b, &id_b.tenant_id, false).unwrap();
         assert_eq!(filt_b.get_str("tenant_id").unwrap(), "tenant-b");
         assert_eq!(filt_b.get_str("owner_id").unwrap(), "api-key:b");
     }
@@ -397,14 +424,14 @@ mod tests {
         // `$not` is operator-position-only in Mongo; at the top level the
         // driver errors out (opaque 502) — fail closed as a 400 instead.
         let bad = json!({ "$not": { "kind": { "$in": ["login"] } } });
-        let err = build_tenant_filter(Some(&bad), &probe_identity(), "t1").unwrap_err();
+        let err = build_tenant_filter(Some(&bad), &probe_identity(), "t1", false).unwrap_err();
         assert!(
             matches!(err, DataPlaneError::InvalidRequest { .. }),
             "{err:?}"
         );
         // The real top-level combinators still pass.
         let ok = json!({ "$or": [{ "kind": "login" }, { "kind": "search" }] });
-        assert!(build_tenant_filter(Some(&ok), &probe_identity(), "t1").is_ok());
+        assert!(build_tenant_filter(Some(&ok), &probe_identity(), "t1", false).is_ok());
     }
 
     #[test]
@@ -413,7 +440,7 @@ mod tests {
         // 24-hex value must match both the ObjectId and the literal string.
         let hex = "665f1e2a9b3c4d5e6f708192";
         let client = json!({ "_id": hex });
-        let doc = build_tenant_filter(Some(&client), &probe_identity(), "t1").unwrap();
+        let doc = build_tenant_filter(Some(&client), &probe_identity(), "t1", false).unwrap();
         let id = doc.get_document("_id").unwrap();
         let candidates = id.get_array("$in").unwrap();
         let oid = bson::oid::ObjectId::parse_str(hex).unwrap();
@@ -421,7 +448,8 @@ mod tests {
         assert!(candidates.contains(&Bson::String(hex.to_string())));
         // Non-hex pk strings stay literal (seeded ids like `evt-000001`).
         let plain =
-            build_tenant_filter(Some(&json!({ "_id": "evt-1" })), &probe_identity(), "t1").unwrap();
+            build_tenant_filter(Some(&json!({ "_id": "evt-1" })), &probe_identity(), "t1", false)
+                .unwrap();
         assert_eq!(plain.get_str("_id").unwrap(), "evt-1");
     }
 

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Mundaka, Bizkaia">
+  <defs>
+    <linearGradient id="g5984sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#062436"/><stop offset="1" stop-color="#7fb7c9"/>
+    </linearGradient>
+    <radialGradient id="g5984sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#dff3f8" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#dff3f8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g5984sky)"/>
+  <circle cx="758" cy="65" r="160" fill="url(#g5984sun)"/>
+  <circle cx="758" cy="65" r="54" fill="#dff3f8" opacity="0.9"/>
+  <rect y="250" width="1280" height="470" fill="#0f5a73" opacity="0.55"/>
+  <path d="M0 290 C 96 306 224 274 320 290 C 416 274 544 306 640 290 C 736 306 864 274 960 290 C 1056 274 1184 306 1280 290 L 1280 720 L 0 720 Z" fill="#0f5a73" opacity="0.85"/><path d="M0 360 C 96 338 224 382 320 360 C 416 382 544 338 640 360 C 736 338 864 382 960 360 C 1056 382 1184 338 1280 360 L 1280 720 L 0 720 Z" fill="#3aa0bb" opacity="0.8"/><path d="M0 450 C 96 480 224 420 320 450 C 416 420 544 480 640 450 C 736 480 864 420 960 450 C 1056 420 1184 480 1280 450 L 1280 720 L 0 720 Z" fill="#3aa0bb" opacity="0.6"/><path d="M0 550 C 96 510 224 590 320 550 C 416 590 544 510 640 550 C 736 510 864 590 960 550 C 1056 590 1184 510 1280 550 L 1280 720 L 0 720 Z" fill="#ffffff" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">BIZKAIA</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Mundaka · 1</text>
+</svg>

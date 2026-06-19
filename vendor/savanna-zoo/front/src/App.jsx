@@ -11,6 +11,9 @@ const Animal   = lazy(() => import('@/pages/AnimalDetail'));
 const Events   = lazy(() => import('@/pages/Events'));
 const Tickets  = lazy(() => import('@/pages/Tickets'));
 const Contact  = lazy(() => import('@/pages/Contact'));
+const Account   = lazy(() => import('@/pages/Account'));
+const MyTickets = lazy(() => import('@/pages/MyTickets'));
+const Journal   = lazy(() => import('@/pages/Journal'));
 
 // ── Admin pages (lazy-loaded) ─────────────────────────────────
 const Login      = lazy(() => import('@/pages/admin/Login'));
@@ -35,6 +38,9 @@ export default function App() {
           <Route path="events" element={<Events />} />
           <Route path="tickets" element={<Tickets />} />
           <Route path="contact" element={<Contact />} />
+          <Route path="account" element={<Account />} />
+          <Route path="my-tickets" element={<MyTickets />} />
+          <Route path="journal" element={<Journal />} />
         </Route>
 
         {/* Dashboard shortcut */}

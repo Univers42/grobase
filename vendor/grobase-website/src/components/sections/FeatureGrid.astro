@@ -1,0 +1,34 @@
+---
+import SectionHeading from '../ui/SectionHeading.astro';
+
+const features = [
+	{ title: 'Auth that just works', body: 'GoTrue under the hood: JWT sessions, MFA, OAuth providers, API keys with scopes — plus HMAC-signed service identities between planes.' },
+	{ title: 'Realtime CDC', body: 'Postgres logical replication and Mongo change streams fan out over WebSocket. O(1) bitmap subscription matching: 3–6 µs per event, regardless of subscriber count.' },
+	{ title: 'Object storage', body: 'S3-compatible MinIO with presigned upload/download URLs — your files never transit the API.' },
+	{ title: 'Graph queries', body: 'An Obsidian-style relationship endpoint: traverse records, notes and tags across databases as one subgraph.' },
+	{ title: 'Atomic transactions', body: 'POST /query/v1/txn — atomic multi-statement batches within a mount, with integrity violations mapped to honest 409s.' },
+	{ title: 'ABAC + field masks', body: 'Attribute-based access control with per-column hide/redact — run in-process in the 3.3 MiB Rust plane, not bolted on.' },
+	{ title: 'Webhooks', body: 'HMAC-signed event delivery from the outbox, dispatched by a 6.8 MiB Go daemon.' },
+	{ title: 'Edge functions', body: 'Deno worker-per-invocation functions for the logic that belongs server-side.' },
+	{ title: 'Email & GDPR', body: 'Transactional email, double-opt-in newsletters, consent + export + deletion services included.' },
+];
+---
+
+<section class="gb-section gb-section--dim" data-galaxy-state="engines" aria-labelledby="features-title">
+	<div class="gb-container">
+		<SectionHeading
+			kicker="A complete backend surface"
+			title="Everything your server code was doing."
+			lede="No per-project server code — any frontend or service treats Grobase as its whole backend over plain HTTP."
+			id="features-title"
+		/>
+		<div class="gb-grid gb-grid--3">
+			{features.map((f) => (
+				<article class="gb-card" data-rise>
+					<h3>{f.title}</h3>
+					<p>{f.body}</p>
+				</article>
+			))}
+		</div>
+	</div>
+</section>

@@ -1,0 +1,327 @@
+---
+// CostSimulator — an interactive "what does this offer cost us, and why" calculator.
+//
+// Inputs: tier (nano…max) · hoster (Hetzner/Fly.io/AWS) · dedicated-vs-amortized
+// model · storage-GB + egress-GB usage sliders. Outputs (recomputed LIVE by
+// src/scripts/cost/index.ts): the COMPONENT BREAKDOWN table (every plane's
+// measured RAM, summed in front of the user), the per-tenant RAM math (at-rest
+// moat AND under-load working set), the monthly infra cost broken down by
+// dimension (node / storage / egress), cost-per-tenant, suggested price + margin.
+//
+// PROGRESSIVE ENHANCEMENT + STRICT CSP: the default selection (Pro on Fly.io,
+// amortized) is fully rendered server-side, so the page is a complete, auditable
+// cost sheet with NO JS. The script only recomputes on input. ALL colour/variety
+// comes from classes (no inline style=); the only inline element is the JSON data
+// island, which Astro hashes under the strict CSP. NO 'certified'-style overclaim.
+import {
+	TIERS,
+	HOSTERS,
+	FACTORS,
+	DENSITY,
+	AS_OF,
+	componentsFor,
+	itemisedSumMib,
+	computeCost,
+	tenantsPerNode,
+	nodeRamNeededAtRest,
+	nodeRamNeededUnderLoad,
+	tierById,
+	hosterById,
+	type Tier,
+	type Hoster,
+	type TierId,
+	type CostModel,
+} from '../../data/cost-model';
+
+// Server-side default selection (must match the script's first paint). Typed to
+// the public unions (not the narrowed literals) so the radio `checked` guards
+// for the non-default options stay valid comparisons.
+const DEFAULT_TIER: TierId = 'pro';
+const DEFAULT_HOSTER: Hoster['id'] = 'Fly.io';
+const DEFAULT_MODEL: CostModel = 'amortized';
+
+const defTier = tierById.get(DEFAULT_TIER) as Tier;
+const defHoster = hosterById.get(DEFAULT_HOSTER) as Hoster;
+const defStorage = FACTORS.storageGbPerTenantDefault[DEFAULT_TIER];
+const defEgress = FACTORS.egressGbPerTenantDefault[DEFAULT_TIER];
+
+const def = computeCost({
+	tier: defTier,
+	hoster: defHoster,
+	model: DEFAULT_MODEL,
+	nodeRamGb: defTier.tenantsPerNode.nodeRamGb,
+	vcpu: Math.max(1, defHoster.vcpu),
+	storageGbPerTenant: defStorage,
+	egressGbPerTenant: defEgress,
+});
+const defTpn = tenantsPerNode(defTier, defHoster, defTier.tenantsPerNode.nodeRamGb);
+// `isAmortized`/`isDedicated` are computed once (widened to string so TS does not
+// flag the literal `DEFAULT_MODEL` comparisons as always-true/false).
+const modelValue: string = DEFAULT_MODEL;
+const isAmortized = modelValue === 'amortized';
+const isDedicated = modelValue === 'dedicated';
+const tenantsForMath = isAmortized ? defTpn : 1;
+const atRest = nodeRamNeededAtRest(defTier.componentRamSumMib, tenantsForMath);
+const underLoad = nodeRamNeededUnderLoad(defTier.componentRamSumMib, tenantsForMath);
+
+// ── Formatters (mirror the script) ────────────────────────────────────────────
+const usd = (v: number) => (v === 0 ? '$0' : v < 0.01 ? `$${v.toFixed(4)}` : v < 1 ? `$${v.toFixed(3)}` : `$${v.toFixed(2)}`);
+const mib = (v: number) => (v >= 1024 ? `${(v / 1024).toFixed(2)} GiB` : `${v.toFixed(v < 10 ? 3 : 1)} MiB`);
+const intc = (v: number) => v.toLocaleString('en-US');
+
+// ── The JSON island the client script consumes (small, derived from cost-model.ts). ──
+const island = {
+	asOf: AS_OF,
+	density: { perTenantMarginalMib: DENSITY.perTenantMarginalMib, perTenantUnderloadMib: DENSITY.perTenantUnderloadMib },
+	factors: {
+		headroomPct: FACTORS.headroomPct,
+		defaultMarginPct: FACTORS.defaultMarginPct,
+		concurrencyPeakFraction: FACTORS.concurrencyPeakFraction,
+		rpsSinglePoolCeiling: FACTORS.rpsSinglePoolCeiling,
+	},
+	tiers: TIERS.map((t) => ({
+		id: t.id,
+		name: t.name,
+		rps: t.rps,
+		editionRamIdleMib: t.editionRamIdleMib,
+		componentRamSumMib: t.componentRamSumMib,
+		itemisedSumMib: itemisedSumMib(t),
+		comps: componentsFor(t).map((c) => ({ name: c.name, plane: c.plane, mib: c.memBasisMib, kind: c.basisKind })),
+		tpnValue: t.tenantsPerNode.value,
+		tpnNodeRamGb: t.tenantsPerNode.nodeRamGb,
+		tpnBinding: t.tenantsPerNode.bindingConstraint,
+		// Canonical per-hoster node cost (gate-guarded) — keyed by hoster id.
+		nodeCost: t.infraCostUsdMonth,
+		storageDefault: FACTORS.storageGbPerTenantDefault[t.id],
+		egressDefault: FACTORS.egressGbPerTenantDefault[t.id],
+	})),
+	hosters: HOSTERS.map((h) => ({
+		id: h.id,
+		name: h.name,
+		isFly: h.id === 'Fly.io',
+		ramGb: h.ramGb,
+		vcpu: h.vcpu,
+		flatMonthlyUsd: h.flatMonthlyUsd,
+		usdPerGbRam: h.usdPerGbRamMonth,
+		usdPerVcpu: h.usdPerVcpuMonth,
+		usdPerGbStorage: h.usdPerGbStorageMonth,
+		usdPerGbEgress: h.usdPerGbEgress,
+	})),
+};
+// Escape </script> so the island can't break out of its tag.
+const islandJson = JSON.stringify(island).replace(/</g, '\\u003c');
+---
+
+<div class="gb-sim" data-cost-simulator data-active-tier={DEFAULT_TIER}>
+	<script type="application/json" data-cost-island is:inline set:html={islandJson} />
+
+	<!-- ── Controls ──────────────────────────────────────────────────────────── -->
+	<!-- A group, NOT a <form>: there is nothing to submit (live recompute on input);
+	     a submit-less <form> trips WCAG2AA H32.2. -->
+	<div class="gb-sim__controls" role="group" aria-label="Cost simulator inputs">
+		<fieldset class="gb-sim__field">
+			<legend>Tier</legend>
+			<div class="gb-sim__chips" role="radiogroup" aria-label="Tier">
+				{TIERS.map((t) => (
+					<label class={`gb-sim__chip tier--${t.id}`}>
+						<input type="radio" name="sim-tier" value={t.id} checked={t.id === DEFAULT_TIER} />
+						<span>{t.name}</span>
+					</label>
+				))}
+			</div>
+		</fieldset>
+
+		<fieldset class="gb-sim__field">
+			<legend>Hoster</legend>
+			<div class="gb-sim__chips" role="radiogroup" aria-label="Hoster">
+				{HOSTERS.map((h) => (
+					<label class="gb-sim__chip gb-sim__chip--host">
+						<input type="radio" name="sim-hoster" value={h.id} checked={h.id === DEFAULT_HOSTER} />
+						<span>{h.id}</span>
+					</label>
+				))}
+			</div>
+			<p class="gb-sim__hint">Cheapest (Hetzner, egress bundled) · metered (Fly.io) · expensive (AWS, $0.09/GB egress).</p>
+		</fieldset>
+
+		<fieldset class="gb-sim__field">
+			<legend>Model</legend>
+			<div class="gb-sim__chips" role="radiogroup" aria-label="Deployment model">
+				<label class="gb-sim__chip">
+					<input type="radio" name="sim-model" value="dedicated" checked={isDedicated} />
+					<span>Dedicated</span>
+				</label>
+				<label class="gb-sim__chip">
+					<input type="radio" name="sim-model" value="amortized" checked={isAmortized} />
+					<span>Multi-tenant</span>
+				</label>
+			</div>
+			<p class="gb-sim__hint">Dedicated = the whole node is one app. Multi-tenant = the node ÷ packed tenants (the moat).</p>
+		</fieldset>
+
+		<fieldset class="gb-sim__field gb-sim__field--slider">
+			<legend>Usage per tenant <span class="gb-sim__est">estimated defaults</span></legend>
+			<div class="gb-sim__slider">
+				<span class="gb-sim__slider-label">Storage <output data-out="storage-val">{defStorage} GB</output></span>
+				<input type="range" name="storage" data-input="storage" min="0" max="200" step="0.1" value={defStorage} aria-label="Storage GB per tenant" />
+			</div>
+			<div class="gb-sim__slider">
+				<span class="gb-sim__slider-label">Egress <output data-out="egress-val">{defEgress} GB</output></span>
+				<input type="range" name="egress" data-input="egress" min="0" max="500" step="0.5" value={defEgress} aria-label="Egress GB per tenant" />
+			</div>
+		</fieldset>
+	</div>
+
+	<!-- ── Output: headline cost / price / margin ────────────────────────────── -->
+	<div class="gb-sim__headline" data-rise>
+		<div class="gb-sim__metric gb-sim__metric--cost">
+			<span class="gb-sim__metric-k">Infra cost / tenant / mo</span>
+			<span class="gb-sim__metric-v" data-out="infra-cost">{usd(def.infraCost)}</span>
+		</div>
+		<div class="gb-sim__metric gb-sim__metric--price">
+			<span class="gb-sim__metric-k">Suggested price</span>
+			<span class="gb-sim__metric-v" data-out="price">{def.suggestedPrice === 0 ? '$0 (free tier)' : usd(def.suggestedPrice)}</span>
+		</div>
+		<div class="gb-sim__metric gb-sim__metric--margin">
+			<span class="gb-sim__metric-k">Margin</span>
+			<span class="gb-sim__metric-v" data-out="margin">{Math.round(def.marginPct * 100)}%</span>
+		</div>
+		<div class="gb-sim__metric gb-sim__metric--tpn">
+			<span class="gb-sim__metric-k">Tenants / node</span>
+			<span class="gb-sim__metric-v" data-out="tpn" data-binding={defTier.tenantsPerNode.bindingConstraint}>{intc(defTpn)}</span>
+			<span class="gb-sim__metric-sub">bound by <em data-out="tpn-binding">{defTier.tenantsPerNode.bindingConstraint}</em></span>
+		</div>
+	</div>
+
+	<div class="gb-sim__legend">
+		<span class="gb-sim__legend-i gb-sim__legend-i--cost">COST = infra a node consumes</span>
+		<span class="gb-sim__legend-i gb-sim__legend-i--price">PRICE = what we charge</span>
+		<span class="gb-sim__legend-i gb-sim__legend-i--margin">MARGIN = price − cost</span>
+	</div>
+
+	<div class="gb-sim__grid">
+		<!-- ── Component breakdown — the RAM counted in front of the user ──────── -->
+		<section class="gb-sim__panel gb-sim__panel--comps" aria-labelledby="sim-comps-h">
+			<h3 id="sim-comps-h" class="gb-sim__panel-h">Component breakdown — counted live</h3>
+			<p class="gb-sim__panel-sub">
+				Every plane this tier runs, with its <strong>measured RAM</strong> (RSS) or its
+				<strong>ceiling budget</strong> (mem_limit). They sum to the edition floor — so the RAM number is
+				auditable, not asserted.
+			</p>
+			{TIERS.map((t) => {
+				const comps = componentsFor(t);
+				const itemised = itemisedSumMib(t);
+				return (
+					<div class="gb-sim__comps" data-tier-block={t.id} hidden={t.id !== DEFAULT_TIER}>
+						{comps.length === 0 ? (
+							<p class="gb-sim__nano-note">
+								{t.name} is a single static musl binary (no compose edition) — one process holding the
+								whole {mib(t.componentRamSumMib)} floor. There are no separate planes to itemise.
+							</p>
+						) : (
+							<div class="gb-table-wrap">
+								<table class="gb-table gb-sim__comp-table">
+									<thead>
+										<tr>
+											<th scope="col">Component</th>
+											<th scope="col">Plane</th>
+											<th scope="col">RAM</th>
+											<th scope="col">Basis</th>
+										</tr>
+									</thead>
+									<tbody>
+										{comps.map((c) => (
+											<tr>
+												<th scope="row">{c.name}</th>
+												<td class="is-num">{c.plane}</td>
+												<td class="is-num">{mib(c.memBasisMib)}</td>
+												<td class={`is-num gb-sim__basis gb-sim__basis--${c.basisKind === 'measured' ? 'measured' : 'limit'}`}>
+													{c.basisKind === 'measured' ? 'measured' : 'mem_limit'}
+												</td>
+											</tr>
+										))}
+										<tr class="gb-sim__comp-total">
+											<th scope="row">Sum of itemised planes</th>
+											<td class="is-num">{comps.length} services</td>
+											<td class="is-num" data-out={t.id === DEFAULT_TIER ? 'comp-sum' : undefined}>{mib(itemised)}</td>
+											<td class="is-num">summed</td>
+										</tr>
+										<tr class="gb-sim__comp-floor">
+											<th scope="row">Measured edition floor</th>
+											<td class="is-num">footprint-{t.id}.json</td>
+											<td class="is-num">{mib(t.componentRamSumMib)}</td>
+											<td class="is-num">measured</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+						)}
+						<p class="gb-sim__comp-note">
+							The itemised planes are sampled across editions/loads; the <strong>measured edition floor</strong>
+							(<code>footprint-{t.id}.json</code>, reproduce with <code>make bench-footprint PACKAGE={t.id}</code>) is the
+							live total and also carries JVM engines, DB caches and headroom not broken out above — so the floor sits
+							above the row-sum. Both numbers are real; neither is the other.
+						</p>
+					</div>
+				);
+			})}
+		</section>
+
+		<!-- ── Per-tenant RAM math — both regimes ─────────────────────────────── -->
+		<section class="gb-sim__panel gb-sim__panel--ram" aria-labelledby="sim-ram-h">
+			<h3 id="sim-ram-h" class="gb-sim__panel-h">Per-tenant RAM math</h3>
+			<div class="gb-math gb-sim__math">
+				<table>
+					<tbody>
+						<tr><td>edition floor</td><td data-out="edition-floor">{mib(defTier.editionRamIdleMib)}</td></tr>
+						<tr><td>node size</td><td data-out="node-ram">{defTier.tenantsPerNode.nodeRamGb} GB</td></tr>
+						<tr><td>tenants on node</td><td data-out="tenants-for-math">{intc(tenantsForMath)}</td></tr>
+						<tr class="gb-sim__math-regime"><td>at-rest holding cost</td><td data-out="ram-atrest">{mib(atRest)}</td></tr>
+						<tr class="gb-sim__math-regime"><td>concurrent working set</td><td data-out="ram-underload">{mib(underLoad)}</td></tr>
+					</tbody>
+				</table>
+				<p class="gb-sim__math-note">
+					<strong>At rest</strong> a tenant adds ~{DENSITY.perTenantMarginalMib} MiB (the moat — pools_open=0).
+					<strong>Under load</strong> the working set is ~{DENSITY.perTenantUnderloadMib} MiB × the peak fraction.
+					The honest packing limit is the under-load + rps regime, not the at-rest moat.
+				</p>
+			</div>
+		</section>
+
+		<!-- ── Infra cost by dimension ────────────────────────────────────────── -->
+		<section class="gb-sim__panel gb-sim__panel--money" aria-labelledby="sim-money-h">
+			<h3 id="sim-money-h" class="gb-sim__panel-h">Monthly infra cost, by dimension</h3>
+			<div class="gb-math gb-sim__math">
+				<table>
+					<tbody>
+						<tr><td>node / mo</td><td data-out="f-node">{defTier.tenantsPerNode.nodeRamGb} GB × {usd(defHoster.usdPerGbRamMonth)} + {Math.max(1, defHoster.vcpu)} vCPU × {usd(defHoster.usdPerVcpuMonth)} = {usd(def.nodeMonthly)}</td></tr>
+						<tr><td>node share</td><td data-out="f-share">{usd(def.nodeShare)} / tenant</td></tr>
+						<tr><td>storage</td><td data-out="f-storage">{usd(def.storageMonthly)}</td></tr>
+						<tr><td>egress</td><td data-out="f-egress">{usd(def.egressMonthly)}</td></tr>
+						<tr class="is-total"><td>infra cost / tenant</td><td data-out="infra-cost">{usd(def.infraCost)}</td></tr>
+						<tr><td>suggested price</td><td data-out="f-price">{usd(def.infraCost)} ÷ (1 − {FACTORS.defaultMarginPct}) = {usd(def.suggestedPrice)}</td></tr>
+					</tbody>
+				</table>
+			</div>
+			<!-- NON-INFRA line — clearly separate, never summed into infra cost. -->
+			<p class="gb-sim__noninfra">
+				<span class="gb-sim__noninfra-tag">NON-INFRA</span>
+				Human / support / on-call / SRE is a <strong>separate</strong> operational line (a business input, no
+				artifact) — it is never folded into the infra cost or the per-tenant RAM math above.
+			</p>
+		</section>
+
+		<!-- ── "What this offer costs us, and why" — per-tier explainer ───────── -->
+		<section class="gb-sim__panel gb-sim__panel--why" aria-labelledby="sim-why-h">
+			<h3 id="sim-why-h" class="gb-sim__panel-h">What this offer costs us, and why</h3>
+			{TIERS.map((t) => (
+				<p class={`gb-sim__why tier--${t.id}`} data-tier-block={t.id} hidden={t.id !== DEFAULT_TIER}>
+					<span class="gb-sim__why-tier">{t.name}</span>
+					{t.explainer}
+				</p>
+			))}
+		</section>
+	</div>
+</div>
+
+<script src="../../scripts/cost/index.ts"></script>

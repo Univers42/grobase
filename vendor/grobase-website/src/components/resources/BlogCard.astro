@@ -1,0 +1,50 @@
+---
+// ── BlogCard — one post in the blog index grid.
+//
+// A premium, restrained card: tag chips, title link, an excerpt, and a date·author
+// meta row. The whole card is clickable via a stretched link (.gb-bcard__link::after
+// in _blog.scss). Accent tint rotates by position through the accent prop (an
+// .accent-N class) — never an inline style attribute (strict CSP).
+import Icon from '../ui/Icon.astro';
+
+type Props = {
+	href: string;
+	title: string;
+	excerpt: string;
+	/** ISO date string for <time datetime> */
+	isoDate: string;
+	/** human-readable date */
+	dateLabel: string;
+	author: string;
+	tags?: string[];
+	accent?: 1 | 2 | 3 | 4 | 5;
+};
+
+const { href, title, excerpt, isoDate, dateLabel, author, tags = [], accent = 1 } = Astro.props;
+const accClass = `accent-${accent}`;
+---
+
+<li class:list={['gb-bcard', accClass]} data-rise>
+	{
+		tags.length > 0 && (
+			<ul class="gb-bcard__tags" role="list">
+				{tags.slice(0, 3).map((t) => (
+					<li class="gb-bcard__tag">{t}</li>
+				))}
+			</ul>
+		)
+	}
+	<h2 class="gb-bcard__title">
+		<a class="gb-bcard__link" href={href}>{title}</a>
+	</h2>
+	<p class="gb-bcard__excerpt">{excerpt}</p>
+	<p class="gb-bcard__meta">
+		<time datetime={isoDate}>{dateLabel}</time>
+		<span class="gb-bcard__dot" aria-hidden="true">·</span>
+		<span class="gb-bcard__author">{author}</span>
+	</p>
+	<span class="gb-bcard__more" aria-hidden="true">
+		<span>Read</span>
+		<Icon name="arrow-right" size={16} />
+	</span>
+</li>

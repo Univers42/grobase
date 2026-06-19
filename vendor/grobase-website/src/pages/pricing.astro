@@ -1,0 +1,166 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/layout/Header.astro';
+import Footer from '../components/layout/Footer.astro';
+import SectionHeading from '../components/ui/SectionHeading.astro';
+import PlanCard from '../components/pricing/PlanCard.astro';
+import PlanMatrix from '../components/pricing/PlanMatrix.astro';
+import PlanTradeoffs from '../components/pricing/PlanTradeoffs.astro';
+import TransparencyTable from '../components/pricing/TransparencyTable.astro';
+import MathBreakdown from '../components/pricing/MathBreakdown.astro';
+import CostSimulator from '../components/pricing/CostSimulator.astro';
+import AmortizationStory from '../components/pricing/AmortizationStory.astro';
+import Faq from '../components/pricing/Faq.astro';
+import { SITE } from '../data/site';
+import { TIERS } from '../data/tiers';
+import { AS_OF } from '../data/cost-model';
+import { PRICING_FAQ } from '../data/faq';
+
+const title = `Pricing — ${SITE.name}`;
+const description =
+	'Grobase pricing with the math shown: selectable plan cards, a full capability matrix, and an honest advantages/trade-offs breakdown for every tier — from a free single binary to a multi-tenant cloud.';
+
+const jsonLd = [
+	{
+		'@type': 'Product',
+		name: SITE.name,
+		description,
+		brand: { '@type': 'Brand', name: SITE.name },
+		offers: TIERS.map((t) => ({
+			'@type': 'Offer',
+			name: `${SITE.name} ${t.name}`,
+			price: t.id === 'nano' || t.id === 'basic' ? '0' : t.retail.replace(/[^0-9–-].*$/, '').split('–')[0]?.replace('$', '') || '0',
+			priceCurrency: 'USD',
+			description: t.audience,
+		})),
+	},
+	{
+		'@type': 'FAQPage',
+		mainEntity: PRICING_FAQ.map((f) => ({
+			'@type': 'Question',
+			name: f.q,
+			acceptedAnswer: { '@type': 'Answer', text: f.a },
+		})),
+	},
+];
+---
+
+<Layout title={title} description={description} image="/og/pricing.png" jsonLd={jsonLd}>
+	<div class="gb-shell">
+		<Header />
+		<main id="main-content">
+			<section class="gb-section gb-section--mesh gb-pricing-hero has-pat-dots has-pat-stripes" aria-labelledby="pricing-title">
+				<p class="bgword bgword--top accent-1" aria-hidden="true">PRICE</p>
+				<span class="floater floater--lg floater--tl accent-1 animate-float" aria-hidden="true"></span>
+				<span class="floater floater--diamond floater--tr accent-3 animate-float-reverse" aria-hidden="true"></span>
+				<span class="floater floater--sm floater--ml accent-2" aria-hidden="true"></span>
+				<span class="floater floater--ring floater--mr accent-5 animate-spin-slow" aria-hidden="true"></span>
+				<span class="floater floater--square floater--bl accent-4 animate-float" aria-hidden="true"></span>
+				<span class="floater floater--br accent-2 animate-float-reverse" aria-hidden="true"></span>
+				<div class="gb-container">
+					<SectionHeading
+						kicker="Choose your plan"
+						title="Pick a size. Grow into the next. Never rewrite."
+						lede="Every tier is a capability mask, not a marketing label — measured RAM, the public Fly.io rate card, honest limits. Select a plan to highlight it across the comparison matrix, then dig into the trade-offs."
+						id="pricing-title"
+					/>
+					<div class="gb-plan-suite">
+						<fieldset class="gb-plans stagger">
+							<legend class="visually-hidden">Select a plan to compare</legend>
+							{TIERS.map((tier) => <PlanCard tier={tier} recommended={tier.id === 'pro'} />)}
+						</fieldset>
+
+						<div>
+							<h3 class="gb-plan-suite__h">The full comparison</h3>
+							<PlanMatrix />
+						</div>
+
+						<div>
+							<h3 class="gb-plan-suite__h">Advantages &amp; trade-offs, tier by tier</h3>
+							<p class="gb-plan-suite__sub">No tier is "best" — each is honest about what it gives you and what you give up. Expand any card to see when to choose it and when you'll outgrow it.</p>
+							<PlanTradeoffs />
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section class="gb-section gb-section--dim has-pat-checker" aria-labelledby="transparency-title">
+				<p class="bgword bgword--right accent-2" aria-hidden="true">COST</p>
+				<span class="floater floater--lg floater--tr accent-2 animate-float" aria-hidden="true"></span>
+				<span class="floater floater--diamond floater--bl accent-5 animate-float-reverse" aria-hidden="true"></span>
+				<span class="floater floater--sm floater--ml accent-3" aria-hidden="true"></span>
+				<div class="gb-container">
+					<SectionHeading
+						kicker="The full matrix"
+						title="What it costs us, line by line."
+						id="transparency-title"
+					/>
+					<TransparencyTable />
+				</div>
+			</section>
+
+			<section class="gb-section has-pat-dots" aria-labelledby="math-title">
+				<p class="bgword bgword--left accent-3" aria-hidden="true">MATH</p>
+				<span class="floater floater--lg floater--tl accent-3 animate-float-reverse" aria-hidden="true"></span>
+				<span class="floater floater--ring floater--mr accent-1 animate-spin-slow" aria-hidden="true"></span>
+				<span class="floater floater--square floater--br accent-2 animate-float" aria-hidden="true"></span>
+				<div class="gb-container">
+					<SectionHeading
+						kicker="Here's the math"
+						title="Rate card × measured RAM. That's it."
+						lede="No 'contact sales to find out'. Compute ≈ ($0.77 × vCPUs) + ($5.00 × GB of RAM) — verified across every Fly shared-CPU preset."
+						id="math-title"
+					/>
+					<MathBreakdown />
+				</div>
+			</section>
+
+			<section class="gb-section gb-section--mesh has-pat-checker" aria-labelledby="simulator-title">
+				<p class="bgword bgword--left accent-4" aria-hidden="true">SIM</p>
+				<span class="floater floater--lg floater--tr accent-4 animate-float" aria-hidden="true"></span>
+				<span class="floater floater--diamond floater--bl accent-2 animate-float-reverse" aria-hidden="true"></span>
+				<span class="floater floater--ring floater--mr accent-3 animate-spin-slow" aria-hidden="true"></span>
+				<div class="gb-container">
+					<SectionHeading
+						kicker="Run the numbers yourself"
+						title="A live cost simulator — see the components counted."
+						lede="Pick a tier, a hoster and a deployment model. The component RAM is summed in front of you, the per-tenant math recomputes live, and you see exactly what an offer costs us, what we'd charge, and the margin between them."
+						id="simulator-title"
+					/>
+					<p class="gb-sim__caveat">
+						A live <strong>simulation</strong> from measured RAM × dated hoster prices (read {AS_OF}) — not a quote.
+						Cost ≠ price ≠ margin; human/support is a separate line. Prices drift — re-fetch before relying on them.
+					</p>
+					<CostSimulator />
+				</div>
+			</section>
+
+			<section class="gb-section gb-section--mesh has-pat-stripes" aria-labelledby="amortization-title">
+				<p class="bgword bgword--right accent-5" aria-hidden="true">SCALE</p>
+				<span class="floater floater--lg floater--tr accent-5 animate-float" aria-hidden="true"></span>
+				<span class="floater floater--diamond floater--bl accent-4 animate-float-reverse" aria-hidden="true"></span>
+				<span class="floater floater--sm floater--c1 accent-1" aria-hidden="true"></span>
+				<div class="gb-container">
+					<SectionHeading
+						kicker="Where the margin lives"
+						title="Multi-tenant changes everything."
+						id="amortization-title"
+					/>
+					<AmortizationStory />
+				</div>
+			</section>
+
+			<section class="gb-section gb-section--dim has-pat-dots has-pat-checker" aria-labelledby="faq-title">
+				<p class="bgword bgword--bottom accent-4" aria-hidden="true">ASK</p>
+				<span class="floater floater--lg floater--tl accent-4 animate-float" aria-hidden="true"></span>
+				<span class="floater floater--ring floater--tr accent-3 animate-spin-slow" aria-hidden="true"></span>
+				<span class="floater floater--sm floater--br accent-1 animate-float-reverse" aria-hidden="true"></span>
+				<div class="gb-container">
+					<SectionHeading kicker="Questions" title="Pricing FAQ" id="faq-title" />
+					<Faq items={PRICING_FAQ} />
+				</div>
+			</section>
+		</main>
+		<Footer />
+	</div>
+</Layout>

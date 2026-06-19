@@ -1,0 +1,12 @@
+{
+	"extends": ["html-validate:recommended"],
+	"rules": {
+		"prefer-native-element": ["error", { "exclude": ["list"] }],
+		"void-style": "off",
+		"no-trailing-whitespace": "off",
+		"attr-quotes": "off",
+		"long-title": "off",
+		"no-redundant-for": "off",
+		"no-redundant-role": "off"
+	}
+}

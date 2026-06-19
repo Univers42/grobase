@@ -1,0 +1,39 @@
+---
+// ── PixelSprite — renders a pixel-art grid (array of equal-length strings) as a
+// crisp <g> of <rect>s. CSP-safe (no external image, no inline style), LH-light,
+// and animatable by transforming the <g> (the hero animator moves these). Each
+// character in a row maps to a palette colour; space / '.' = transparent.
+import type { Palette } from '../../data/pixel-sprites';
+
+type Props = { grid: string[]; palette: Palette; cell?: number; class?: string; id?: string };
+const { grid, palette, cell = 3, class: className = '', id } = Astro.props;
+
+type Px = { x: number; y: number; w: number; c: string };
+// Run-length merge consecutive same-colour cells in a row into one <rect> — far
+// fewer nodes (keeps the DOM + LH budget light) with identical pixels.
+const px: Px[] = [];
+grid.forEach((row, y) => {
+	let run = 0;
+	let runChar = '';
+	const flush = (endX: number) => {
+		const c = palette[runChar];
+		if (run > 0 && c) px.push({ x: (endX - run) * cell, y: y * cell, w: run * cell, c });
+		run = 0;
+		runChar = '';
+	};
+	[...row].forEach((ch, x) => {
+		if (ch === runChar) {
+			run += 1;
+		} else {
+			flush(x);
+			runChar = ch;
+			run = 1;
+		}
+	});
+	flush(row.length);
+});
+---
+
+<g class={className} id={id} shape-rendering="crispEdges">
+	{px.map((p) => <rect x={p.x} y={p.y} width={p.w} height={cell} fill={p.c} />)}
+</g>

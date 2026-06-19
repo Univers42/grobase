@@ -1,0 +1,27 @@
+# Savanna plane — the savanna-zoo app (vendor/savanna-zoo) re-platformed onto
+# Grobase: a React/Vite SPA served as a static bundle behind a same-origin
+# reverse proxy to Kong (grobase/serve.mjs), so the app needs no CORS and no
+# per-port CSP. Opt in via the `savanna` profile; not part of any default
+# edition. Requires a prior `cd vendor/savanna-zoo/front && npm run build`
+# (produces front/dist) and a run of vendor/savanna-zoo/infra/init.sh (seeds the
+# public schema + GoTrue staff users). The realtime PG producer must be alive
+# (mini-baas-realtime); restart it if it logged a "connection closed" error.
+services:
+  savanna:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: node:20-alpine
+    container_name: mini-baas-savanna
+    profiles: ["savanna"]
+    working_dir: /app/grobase
+    command: ["node", "serve.mjs"]
+    environment:
+      PORT: "80"
+      KONG_URL: "http://kong:8000"
+    ports:
+      # 5181 is taken by mini-baas-hypertube → default to 5182
+      - "${SAVANNA_PORT:-5182}:80"
+    volumes:
+      - ./vendor/savanna-zoo:/app:ro
+    depends_on:
+      kong:
+        condition: service_started

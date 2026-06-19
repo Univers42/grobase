@@ -154,7 +154,12 @@ impl MongoPool {
             }
         }
 
-        let match_doc = build_tenant_filter(op.filter.as_ref(), identity, &identity.tenant_id)?;
+        let match_doc = build_tenant_filter(
+            op.filter.as_ref(),
+            identity,
+            &identity.tenant_id,
+            self.is_shared(&op.resource),
+        )?;
 
         // `_id` carries the group key (null = single global group).
         let mut group = Document::new();
@@ -205,7 +210,12 @@ impl MongoPool {
         op: &DataOperation,
         identity: &RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
-        let filter = build_tenant_filter(op.filter.as_ref(), identity, &identity.tenant_id)?;
+        let filter = build_tenant_filter(
+            op.filter.as_ref(),
+            identity,
+            &identity.tenant_id,
+            self.is_shared(&op.resource),
+        )?;
         let limit = op.limit.unwrap_or(100).min(1_000) as i64;
         let skip = op.offset.unwrap_or(0) as u64;
         let find_opts = FindOptions::builder()
@@ -231,7 +241,12 @@ impl MongoPool {
         op: &DataOperation,
         identity: &RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
-        let filter = build_tenant_filter(op.filter.as_ref(), identity, &identity.tenant_id)?;
+        let filter = build_tenant_filter(
+            op.filter.as_ref(),
+            identity,
+            &identity.tenant_id,
+            self.is_shared(&op.resource),
+        )?;
         let doc = col.find_one(filter).await.map_err(mongo_err)?;
         match doc {
             Some(d) => Ok(DataResult::new(vec![normalize_doc(d)], 1)),
@@ -265,7 +280,7 @@ impl MongoPool {
         identity: &RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
         require_row_filter(op.filter.as_ref(), "update")?;
-        let filter = build_tenant_filter(op.filter.as_ref(), identity, &identity.tenant_id)?;
+        let filter = build_tenant_filter(op.filter.as_ref(), identity, &identity.tenant_id, false)?;
         let data = op
             .data
             .as_ref()
@@ -291,7 +306,7 @@ impl MongoPool {
         identity: &RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
         require_row_filter(op.filter.as_ref(), "delete")?;
-        let filter = build_tenant_filter(op.filter.as_ref(), identity, &identity.tenant_id)?;
+        let filter = build_tenant_filter(op.filter.as_ref(), identity, &identity.tenant_id, false)?;
         let result = col.delete_many(filter).await.map_err(mongo_err)?;
         Ok(DataResult::new(vec![], result.deleted_count))
     }

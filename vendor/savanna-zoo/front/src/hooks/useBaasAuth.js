@@ -10,6 +10,7 @@ export default function useBaasAuth() {
   const loading    = useAuthStore((s) => s.loading);
   const error      = useAuthStore((s) => s.error);
   const signIn     = useAuthStore((s) => s.signIn);
+  const signUp     = useAuthStore((s) => s.signUp);
   const signOut    = useAuthStore((s) => s.signOut);
   const restore    = useAuthStore((s) => s.restore);
 
@@ -17,5 +18,6 @@ export default function useBaasAuth() {
     restore();
   }, [restore]);
 
-  return { user, loading, error, signIn, signOut };
+  const role = user?.user_metadata?.role || user?.app_metadata?.role || null;
+  return { user, loading, error, role, signIn, signUp, signOut };
 }

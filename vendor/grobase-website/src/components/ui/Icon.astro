@@ -1,0 +1,55 @@
+---
+// ── Icon — the ONLY way to render an icon on the Grobase site.
+//
+// Pulls safe geometry from the fixed local registry (src/icons/registry.ts) and
+// wraps it in a stroke <svg> that inherits the current text colour via
+// `stroke="currentColor"`. Drive colour with .accent-N (or any colour utility)
+// on the element — NEVER an inline style attribute (strict CSP forbids it).
+//
+//   <Icon name="rocket" size={24} class="accent-1" />     decorative (aria-hidden)
+//   <Icon name="github" title="GitHub" />                 meaningful (role=img + <title>)
+//
+// A missing name renders NOTHING (no throw) so a typo never breaks the build.
+import { ICONS } from '../../icons/registry';
+
+type Props = {
+	name: string;
+	size?: number;
+	class?: string;
+	title?: string;
+};
+
+const { name, size = 20, class: className = '', title } = Astro.props;
+// Registry values are the inner SVG geometry as a plain string (24×24 icons).
+const body = ICONS[name];
+const cls = `gb-icon${className ? ` ${className}` : ''}`;
+const labelled = typeof title === 'string' && title.length > 0;
+
+// Astro drops raw markup injected via a child <Fragment set:html> inside an
+// <svg> (SVG-namespace children are not parsed) — so the geometry must be
+// injected ON the <svg> via set:html. The optional <title> is folded into the
+// injected string (escaped; title is author-supplied, never user input). The
+// registry body is validated injection-free by scripts/audit/icon-safety.mjs.
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const inner = (labelled ? `<title>${esc(title!)}</title>` : '') + (body ?? '');
+---
+
+{
+	body && (
+		<svg
+			viewBox="0 0 24 24"
+			width={size}
+			height={size}
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			class={cls}
+			role={labelled ? 'img' : undefined}
+			aria-hidden={labelled ? undefined : 'true'}
+			aria-label={labelled ? title : undefined}
+			set:html={inner}
+		/>
+	)
+}
