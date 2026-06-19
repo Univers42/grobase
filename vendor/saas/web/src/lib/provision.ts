@@ -1,8 +1,9 @@
 // provision.ts — turns a GoTrue auth identity into REAL console data. After a
 // signup (or a self-heal on login), the app must create the app_users row the
 // console reads (the console queries app_users, not GoTrue), plus a zero-balance
-// customer account for a customer. Writes go through the APP-KEY db client so
-// owner_id is stamped to the api-key principal the console reads.
+// customer account for a customer. Writes ride the caller's JWT, so a customer's
+// self-provisioned rows are owner-scoped to `user:<sub>` (only they and an admin
+// JWT's F2 bypass can read them) — a customer can never see another's rows.
 //
 // Idempotency is read-then-insert by primary key (the owner-scoped mount has no
 // composite UNIQUE for a SQL upsert), so a retried signup never duplicates.

@@ -164,6 +164,22 @@ impl DatabaseMount {
             .unwrap_or_default()
     }
 
+    /// Whether THIS mount opts into predicate-based read owner-scoping,
+    /// carried as a reserved `read_scoped` boolean inside `capability_overrides`
+    /// (the same path as [`shared_resources`](Self::shared_resources)). The
+    /// postgres adapter ORs this with the global `DATA_PLANE_PG_READ_PREDICATE`
+    /// flag, so a mount can turn read-scoping on for itself without the env flag.
+    /// Absent / non-`true` ⇒ `false` ⇒ reads follow the global flag alone =
+    /// byte-parity.
+    #[must_use]
+    pub fn read_scoped(&self) -> bool {
+        self.capability_overrides
+            .as_ref()
+            .and_then(|v| v.get("read_scoped"))
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+    }
+
     /// The per-tenant schema name for a `schema_per_tenant` mount, or `None`
     /// for any other isolation strategy (shared / db-per-tenant need no
     /// `search_path` change).
@@ -299,6 +315,25 @@ mod tests {
             shared.shared_resources(),
             vec!["catalog".to_string(), "regions".to_string()]
         );
+    }
+
+    #[test]
+    fn read_scoped_false_without_override_and_true_when_opted_in() {
+        // Absent capability_overrides → no opt-in → byte-parity (reads follow the
+        // global flag alone).
+        assert!(!mount("acme", None).read_scoped());
+        // An override object WITHOUT the reserved key stays false.
+        let mut other = mount("acme", None);
+        other.capability_overrides = Some(serde_json::json!({ "aggregate": false }));
+        assert!(!other.read_scoped());
+        // A non-bool value (defensive) stays false.
+        let mut wrong = mount("acme", None);
+        wrong.capability_overrides = Some(serde_json::json!({ "read_scoped": "true" }));
+        assert!(!wrong.read_scoped());
+        // The reserved boolean true → opted in.
+        let mut on = mount("acme", None);
+        on.capability_overrides = Some(serde_json::json!({ "read_scoped": true }));
+        assert!(on.read_scoped());
     }
 
     #[test]

@@ -45,14 +45,15 @@ fail() {
   exit 1
 }
 
-# mint_jwt SECRET SUB — HS256 JWT (iss=supabase, role=authenticated, 30 days)
-# signed in a throwaway node container so no host node is required.
+# mint_jwt SECRET SUB [ROLE] — HS256 JWT (iss=supabase, role=ROLE|authenticated, 30 days)
+# signed in a throwaway node container so no host node is required. ROLE defaults to
+# authenticated; pass service_role for privileged storage ops (F3 bucket creation).
 mint_jwt() {
-  docker run --rm --network none -e JWT_SECRET="$1" -e JWT_SUB="$2" "${NODE_IMAGE}" node -e '
+  docker run --rm --network none -e JWT_SECRET="$1" -e JWT_SUB="$2" -e JWT_ROLE="${3:-authenticated}" "${NODE_IMAGE}" node -e '
 const { createHmac } = require("node:crypto");
 const b64u = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const head = b64u({ alg: "HS256", typ: "JWT" });
-const body = b64u({ iss: "supabase", sub: process.env.JWT_SUB, role: "authenticated",
+const body = b64u({ iss: "supabase", sub: process.env.JWT_SUB, role: process.env.JWT_ROLE,
   exp: Math.floor(Date.now() / 1000) + 30 * 86400 });
 const sig = createHmac("sha256", process.env.JWT_SECRET).update(`${head}.${body}`).digest("base64url");
 console.log(`${head}.${body}.${sig}`);'
@@ -154,10 +155,11 @@ docker exec -i "${PG_CTN}" psql -U "${PG_USER}" -d "${CANAGROU_DB}" -v ON_ERROR_
 cyan "minting shared storage token (sub=canagrou-app)"
 STORAGE_TOKEN="$(mint_jwt "${STORAGE_JWT_SECRET}" canagrou-app)"
 [[ -n "${STORAGE_TOKEN}" ]] || fail "storage token mint failed"
-cyan "ensuring storage bucket '${BUCKET}' (shared identity)"
+cyan "ensuring storage bucket '${BUCKET}' (privileged role — F3 bucket-scope)"
+BUCKET_ADMIN_TOKEN="$(mint_jwt "${STORAGE_JWT_SECRET}" canagrou-app service_role)"
 code=$(curl -s -o /tmp/canagrou-bucket.json -w '%{http_code}' -X POST \
   "${KONG_URL}/storage/v1/bucket/${BUCKET}" \
-  -H "apikey: ${ANON_KEY}" -H "Authorization: Bearer ${STORAGE_TOKEN}" \
+  -H "apikey: ${ANON_KEY}" -H "Authorization: Bearer ${BUCKET_ADMIN_TOKEN}" \
   -H 'Content-Type: application/json' -d '{"public":true}')
 [[ "${code}" == "200" || "${code}" == "201" || "${code}" == "409" ]] \
   || fail "bucket create (${code}): $(cat /tmp/canagrou-bucket.json)"

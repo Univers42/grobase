@@ -30,7 +30,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-VG_SQL="${REPO_ROOT}/vendor/vite-gourmand/Back/src/Model/sql"
+VG_SQL="${REPO_ROOT}/vendor/vite-gourmand/sql"
 PG_CTN="mini-baas-postgres"
 DB="gourmand"
 

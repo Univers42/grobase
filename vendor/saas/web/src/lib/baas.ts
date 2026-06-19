@@ -25,15 +25,17 @@ export type Baas = {
 
 /** createBaas builds the client bound to a config. db.pg targets the Postgres
  * mount (pgDbId), db.mongo the Mongo mount (mongoDbId). The session store backs
- * auth (the GoTrue JWT); the data plane is keyed by the app key (the tenant
- * identity that owns the rows), so the JWT does not ride db/tx calls. */
+ * auth (the GoTrue JWT) AND supplies that JWT to every db/tx call (read at call
+ * time via `token`), so the data plane owner-scopes each request off the caller's
+ * identity — never off the public app key alone. */
 export function createBaas(config: BaasConfig): Baas {
   const store = createSessionStore();
+  const token = () => store.load()?.accessToken ?? '';
   return {
     config,
     auth: createAuth(config, store),
-    db: { pg: createDb(config, config.pgDbId), mongo: createDb(config, config.mongoDbId) },
-    tx: createTx(config, config.pgDbId),
+    db: { pg: createDb(config, config.pgDbId, token), mongo: createDb(config, config.mongoDbId, token) },
+    tx: createTx(config, config.pgDbId, token),
     realtime: createRealtime(config),
   };
 }

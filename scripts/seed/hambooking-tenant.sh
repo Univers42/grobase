@@ -5,9 +5,10 @@
 #  Backs the java-dam-baas "HamBooking" app with a Grobase (tenant, custom     #
 #  entitlement, mariadb mount, API key, GoTrue admin) bundle and KEEPS it      #
 #  (idempotent re-runs reuse the key + mount). The mount declares              #
-#  shared_resources=[services,carvers,users] so those catalog tables skip      #
-#  owner-scoping (F1 per-table isolation); reservations/notifications stay      #
-#  owner-scoped, and an `admin` JWT reads across owners (F2 admin bypass).      #
+#  shared_resources=[services,carvers] so those catalog tables skip            #
+#  owner-scoping (F1 per-table isolation); users/reservations/notifications    #
+#  stay owner-scoped (a CLIENT reads only their own profile row — no PII       #
+#  firehose), and an `admin` JWT reads across owners (F2 admin bypass).        #
 #                                                                              #
 #  Targets the RECOVERED MariaDB container (mini-baas-mysql) — it CREATES a    #
 #  NEW database `hambooking` inside it and NEVER touches mini_baas / ops.       #
@@ -138,8 +139,8 @@ else
   KEY_ID="$(_lt_json_field id </tmp/hb-key.json)"
   [[ "${API_KEY}" == mbk_* ]] || fail "minted key has unexpected shape"
 
-  cyan "registering mariadb mount '${MOUNT_NAME}' → ${HB_DB} (shared_resources=services,carvers,users)"
-  mbody="{\"engine\":\"mariadb\",\"name\":\"${MOUNT_NAME}\",\"connection_string\":\"mysql://${MY_APP_USER}:${MY_APP_PW}@${MYSQL_NET_HOST}:3306/${HB_DB}\",\"shared_resources\":[\"services\",\"carvers\",\"users\"]}"
+  cyan "registering mariadb mount '${MOUNT_NAME}' → ${HB_DB} (shared_resources=services,carvers)"
+  mbody="{\"engine\":\"mariadb\",\"name\":\"${MOUNT_NAME}\",\"connection_string\":\"mysql://${MY_APP_USER}:${MY_APP_PW}@${MYSQL_NET_HOST}:3306/${HB_DB}\",\"shared_resources\":[\"services\",\"carvers\"]}"
   code=$(curl -s -o /tmp/hb-mount.json -w '%{http_code}' -X POST \
     "${KONG_URL}/admin/v1/databases" \
     -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT_SLUG}" \
@@ -163,25 +164,34 @@ code=$(curl -s -o /tmp/hb-admin.json -w '%{http_code}' -X POST "${KONG_URL}/auth
 if [[ "${code}" == "200" || "${code}" == "201" ]]; then
   ADMIN_SUB="$(_lt_json_field id </tmp/hb-admin.json)"
 else
-  # Already exists → look it up by email through the admin list.
-  curl -s -o /tmp/hb-admin-list.json "${KONG_URL}/auth/v1/admin/users" \
-    -H "apikey: ${ANON_KEY}" -H "Authorization: Bearer ${SERVICE_KEY}" || true
-  ADMIN_SUB="$(python3 -c '
-import json,sys
+  # Already exists (422) → page through the GoTrue admin list to find it by email.
+  # GoTrue paginates and the instance is shared across every app, so the admin is
+  # rarely on page 1 — walk pages until found or a page comes back empty.
+  page=1
+  while [[ -z "${ADMIN_SUB}" && "${page}" -le 100 ]]; do
+    curl -s -o /tmp/hb-admin-list.json \
+      "${KONG_URL}/auth/v1/admin/users?page=${page}&per_page=200" \
+      -H "apikey: ${ANON_KEY}" -H "Authorization: Bearer ${SERVICE_KEY}" || true
+    _res="$(ADMIN_EMAIL="${ADMIN_EMAIL}" python3 -c '
+import json,os
 try:
-  d=json.load(open("/tmp/hb-admin-list.json"))
-  for u in d.get("users",[]):
-    if u.get("email")=="'"${ADMIN_EMAIL}"'": print(u.get("id","")); break
-except Exception: pass' 2>/dev/null)"
+  us=json.load(open("/tmp/hb-admin-list.json")).get("users",[])
+  sub=next((u.get("id","") for u in us if u.get("email")==os.environ["ADMIN_EMAIL"]),"")
+  print(sub, len(us))
+except Exception: print("",0)' 2>/dev/null)"
+    ADMIN_SUB="${_res%% *}"
+    [[ "${_res##* }" == "0" ]] && break
+    page=$((page+1))
+  done
 fi
 [[ -n "${ADMIN_SUB}" ]] || fail "could not create/find GoTrue admin (${code}): $(head -c 200 /tmp/hb-admin.json)"
 cyan "admin sub=${ADMIN_SUB:0:8}…"
 
-cyan "inserting users profile row for the admin (auth_id=sub, role=ADMIN)"
+cyan "inserting users profile row for the admin (owner_id=user:sub, auth_id=sub, role=ADMIN)"
 docker exec "${MYSQL_CTN}" mariadb -uroot -p"${MY_ROOT_PW}" "${HB_DB}" 2>/dev/null -e "
-INSERT INTO users (auth_id,dni,first_name,last_name,email,phone,role,is_active)
-VALUES ('${ADMIN_SUB}','12345678A','System','Administrator','${ADMIN_EMAIL}','600000000','ADMIN',1)
-ON DUPLICATE KEY UPDATE auth_id=VALUES(auth_id), role='ADMIN', is_active=1;" \
+INSERT INTO users (owner_id,auth_id,dni,first_name,last_name,email,phone,role,is_active)
+VALUES ('user:${ADMIN_SUB}','${ADMIN_SUB}','12345678A','System','Administrator','${ADMIN_EMAIL}','600000000','ADMIN',1)
+ON DUPLICATE KEY UPDATE owner_id=VALUES(owner_id), auth_id=VALUES(auth_id), is_active=1;" \
   || cyan "WARN: admin profile insert returned non-zero (may already exist)"
 
 # ── 6) realtime WS token + frontend config + state ───────────────────────────

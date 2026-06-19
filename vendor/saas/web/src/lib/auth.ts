@@ -31,6 +31,8 @@ export type Auth = {
   currentUser: () => SessionUser | null;
   accessToken: () => string;
   isAuthed: () => boolean;
+  role: () => string;
+  isAdmin: () => boolean;
 };
 
 /** EMAIL_TAKEN_CODES are the GoTrue error_codes meaning the email is already
@@ -52,6 +54,20 @@ function decodeUser(token: string): SessionUser | null {
     return { id: asString(claims.sub), email: asString(claims.email), username: asString(meta.username) };
   } catch {
     return null;
+  }
+}
+
+/** tokenRole reads the SERVER-TRUSTED top-level `role` claim from a JWT — the
+ *  exact claim the api-key middleware verifies and the data plane's owner-scope
+ *  bypass honours. It deliberately ignores user_metadata.role (client-controlled
+ *  at signup), so this gate matches server enforcement and cannot be spoofed. */
+function tokenRole(token: string): string {
+  try {
+    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const claims: unknown = JSON.parse(atob(part));
+    return isRecord(claims) ? asString(claims.role) : '';
+  } catch {
+    return '';
   }
 }
 
@@ -123,5 +139,7 @@ export function createAuth(config: BaasConfig, store: SessionStore): Auth {
     currentUser: () => store.load()?.user ?? null,
     accessToken: () => store.load()?.accessToken ?? '',
     isAuthed: () => Boolean(store.load()?.accessToken),
+    role: () => tokenRole(store.load()?.accessToken ?? ''),
+    isAdmin: () => tokenRole(store.load()?.accessToken ?? '') === 'admin',
   };
 }

@@ -12,7 +12,7 @@ not-covered capabilities).
 | Canagrou feature | Grobase surface | Notes |
 |---|---|---|
 | register / login / logout / verify / reset | GoTrue `/auth/v1` (JWT) | autoconfirm ON in dev → register logs you straight in; recovery mail → Mailpit |
-| users / posts / likes / comments | `/query/v1/<dbId>/tables/<t>` | dedicated `canagrou` Postgres DB; per-request owner-scoping |
+| users / posts / likes / comments | `/query/v1/<dbId>/tables/<t>` | dedicated `canagrou` Postgres DB; **writes carry the per-user GoTrue JWT** (owner `user:<sub>`, owner-scoped per request); **reads stay anonymous** so the wall is public |
 | image files | storage `/storage/v1` | one shared `canagrou-app` identity (public wall); browser blob-fetches |
 | overlay + animated GIF | **`services/composition`** (client-side canvas / `package:image`) | replaces GD + `GifEncoder.php` |
 | comment-notify email | `services/notifier` (best-effort, no-op without an edge fn) | GoTrue handles verify/reset mail natively |
@@ -21,6 +21,19 @@ not-covered capabilities).
 Data model: GoTrue `auth.users` owns identity; an app `profiles` row owns
 `username` + `notify_comments`, keyed by the GoTrue user id. Posts store a
 storage **object key**, not bytes.
+
+**Authorship is server-bound (anti-impersonation).** Every `/query` write now
+sends `Authorization: Bearer <jwt>` when the user is signed in, so the data plane
+stamps `owner_id = user:<sub>` from the *verified* identity and owner-scopes the
+write — `update`/`delete` of another user's row affect 0 rows by construction. The
+social author column (`posts/likes/comments.user_id`, `profiles.id`) is
+client-supplied, so a `BEFORE INSERT` trigger (`bind_author_from_owner` /
+`bind_profile_id_from_owner`, in `sql/grobase-schema.sql`) overwrites it from
+`owner_id` whenever that carries the `user:` prefix: a forged `user_id` is coerced
+to the real `sub`. Anonymous app-key writes (owner `api-key:<id>`, no `user:`
+prefix) pass through unchanged, so the public wall and the seed path are
+unaffected. Storage/realtime keep the single shared `canagrou-app` identity (only
+the `/query` write path is per-user). Proven by the `m146` anti-impersonation step.
 
 ## Run it
 
@@ -47,7 +60,9 @@ bash scripts/verify/m146-canagrou-roundtrip.sh   # the gate directly
 
 `m146` proves the data chain live (signup→JWT, profile, post insert→read-back,
 like, comment, storage byte-roundtrip, realtime EVENT to a non-writer, cross-user
-read). The **Playwright** suite (`web/test/browser-full.mjs` + `browser-e2e.mjs`)
+read) **and the anti-impersonation gate**: with U1's JWT a forged `user_id` is
+read back coerced to U1 (never U2), U1's `delete`/`update` of U2's post affect 0
+rows, and U2's post still reads unaltered (public wall intact). The **Playwright** suite (`web/test/browser-full.mjs` + `browser-e2e.mjs`)
 drives the actual UI in Chromium over HTTPS: register (+validation), webcam &
 upload capture→post, like±, comment, settings, logout, login (wrong+right), and
 **realtime reflection across two browser contexts** — all green, clean console.

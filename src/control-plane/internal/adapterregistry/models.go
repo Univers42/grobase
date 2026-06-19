@@ -94,6 +94,13 @@ type RegisterDatabaseRequest struct {
 	// (DatabaseMount::shared_resources). Absent/empty = no shared tables = every
 	// table owner-scoped (parity). Entries must be plain table-name strings.
 	SharedResources []string `json:"shared_resources"`
+	// ReadScoped opts THIS mount into predicate-based READ owner-scoping,
+	// independent of the global DATA_PLANE_PG_READ_PREDICATE env flag. It is
+	// carried into the mount's capability_overrides under the reserved key
+	// `read_scoped`, which the Rust data plane reads (DatabaseMount::read_scoped)
+	// and ORs with the env flag. Absent/false = no opt-in = reads follow the
+	// global flag alone (parity).
+	ReadScoped bool `json:"read_scoped"`
 }
 
 // Validate enforces the same constraints as the Node DTO + DB check, plus the

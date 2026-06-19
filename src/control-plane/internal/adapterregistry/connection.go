@@ -30,7 +30,7 @@ func (s *Service) GetConnection(ctx context.Context, userID, id string) (Connect
 			Isolation:     row.isolation,
 			CredentialRef: row.credentialRef(),
 		}
-		return mergeSharedResources(s.stampPackage(ctx, userID, result), row.sharedResources), nil
+		return s.stampMountOverrides(ctx, userID, result, row), nil
 	}
 	if len(row.cmekWrap) > 0 && (!s.cmekEnabled || s.kms == nil) {
 		return ConnectionResult{}, errors.New("cmek mount stored but CMEK is disabled/unconfigured — cannot decrypt")
@@ -40,7 +40,17 @@ func (s *Service) GetConnection(ctx context.Context, userID, id string) (Connect
 		return ConnectionResult{}, err
 	}
 	result := ConnectionResult{Engine: row.engine, ConnectionString: conn, Isolation: row.isolation}
-	return mergeSharedResources(s.stampPackage(ctx, userID, result), row.sharedResources), nil
+	return s.stampMountOverrides(ctx, userID, result, row), nil
+}
+
+// stampMountOverrides applies the tier mask then the per-mount overrides
+// (shared_resources, read_scoped) in the one fixed order both GetConnection
+// branches share — stampPackage REPLACES CapabilityOverrides, so the per-mount
+// merges must run AFTER it. A mount that opted into neither leaves
+// CapabilityOverrides exactly as stampPackage left it ⇒ byte-parity.
+func (s *Service) stampMountOverrides(ctx context.Context, userID string, result ConnectionResult, row mountRow) ConnectionResult {
+	result = mergeSharedResources(s.stampPackage(ctx, userID, result), row.sharedResources)
+	return mergeReadScoped(result, row.readScoped)
 }
 
 // mergeSharedResources stamps the mount's non-owner-scoped table list onto the
@@ -56,6 +66,22 @@ func mergeSharedResources(result ConnectionResult, shared []string) ConnectionRe
 		result.CapabilityOverrides = map[string]any{}
 	}
 	result.CapabilityOverrides["shared_resources"] = shared
+	return result
+}
+
+// mergeReadScoped stamps the mount's read_scoped opt-in onto the result's
+// CapabilityOverrides under the reserved key the data plane reads
+// (DatabaseMount::read_scoped). false (the column default = no opt-in) is left
+// untouched ⇒ byte-parity with a mount that reads under the global flag alone;
+// true allocates the map when the tier mask is nil, so the opt-in survives.
+func mergeReadScoped(result ConnectionResult, readScoped bool) ConnectionResult {
+	if !readScoped {
+		return result
+	}
+	if result.CapabilityOverrides == nil {
+		result.CapabilityOverrides = map[string]any{}
+	}
+	result.CapabilityOverrides["read_scoped"] = true
 	return result
 }
 
@@ -82,6 +108,7 @@ type mountRow struct {
 	cmekWrap        []byte
 	cmekKeyPtr      *string
 	sharedResources []string
+	readScoped      bool
 }
 
 // loadMountRow reads the mount under EXPLICIT tenant scope (not just RLS): the
@@ -96,11 +123,11 @@ func (s *Service) loadMountRow(ctx context.Context, userID, id string) (mountRow
 		row := tx.QueryRow(ctx,
 			`SELECT engine, isolation, connection_enc, connection_iv, connection_tag, connection_salt,
 			        cred_provider, cred_reference, cred_version,
-			        cmek_wrapped_dek, cmek_kms_key_id, shared_resources
+			        cmek_wrapped_dek, cmek_kms_key_id, shared_resources, read_scoped
 			   FROM public.tenant_databases WHERE id = $1 AND tenant_id = $2`, id, userID)
 		err := row.Scan(&m.engine, &m.isolation, &m.payload.Encrypted, &m.payload.IV, &m.payload.Tag, &m.payload.Salt,
 			&m.provider, &m.reference, &m.version,
-			&m.cmekWrap, &m.cmekKeyPtr, &sharedRaw)
+			&m.cmekWrap, &m.cmekKeyPtr, &sharedRaw, &m.readScoped)
 		if err != nil {
 			return mapMountLookupErr(err)
 		}

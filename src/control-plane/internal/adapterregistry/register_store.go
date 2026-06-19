@@ -62,11 +62,11 @@ func insertCredRef(ctx context.Context, m mountInsert) error {
 	row := m.tx.QueryRow(
 		ctx,
 		`INSERT INTO public.tenant_databases
-		   (tenant_id, engine, name, cred_provider, cred_reference, cred_version, isolation, shared_resources)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+		   (tenant_id, engine, name, cred_provider, cred_reference, cred_version, isolation, shared_resources, read_scoped)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 		 RETURNING id, engine, name, created_at::text`,
 		m.userID, m.req.Engine, m.req.Name,
-		m.req.CredentialRef.Provider, m.req.CredentialRef.Reference, version, m.isolation, shared,
+		m.req.CredentialRef.Provider, m.req.CredentialRef.Reference, version, m.isolation, shared, m.req.ReadScoped,
 	)
 	return row.Scan(&m.out.ID, &m.out.Engine, &m.out.Name, &m.out.CreatedAt)
 }
@@ -83,11 +83,11 @@ func insertCMEK(ctx context.Context, m mountInsert) error {
 		ctx,
 		`INSERT INTO public.tenant_databases
 		   (tenant_id, engine, name, connection_enc, connection_iv, connection_tag,
-		    cmek_wrapped_dek, cmek_kms_key_id, isolation, shared_resources)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		    cmek_wrapped_dek, cmek_kms_key_id, isolation, shared_resources, read_scoped)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
 		 RETURNING id, engine, name, created_at::text`,
 		m.userID, m.req.Engine, m.req.Name,
-		m.p.payload.Encrypted, m.p.payload.IV, m.p.payload.Tag, m.p.cmekWrap, m.p.cmekKeyID, m.isolation, shared,
+		m.p.payload.Encrypted, m.p.payload.IV, m.p.payload.Tag, m.p.cmekWrap, m.p.cmekKeyID, m.isolation, shared, m.req.ReadScoped,
 	)
 	return row.Scan(&m.out.ID, &m.out.Engine, &m.out.Name, &m.out.CreatedAt)
 }
@@ -101,11 +101,11 @@ func insertInline(ctx context.Context, m mountInsert) error {
 	row := m.tx.QueryRow(
 		ctx,
 		`INSERT INTO public.tenant_databases
-		   (tenant_id, engine, name, connection_enc, connection_iv, connection_tag, connection_salt, isolation, shared_resources)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		   (tenant_id, engine, name, connection_enc, connection_iv, connection_tag, connection_salt, isolation, shared_resources, read_scoped)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		 RETURNING id, engine, name, created_at::text`,
 		m.userID, m.req.Engine, m.req.Name,
-		m.p.payload.Encrypted, m.p.payload.IV, m.p.payload.Tag, m.p.payload.Salt, m.isolation, shared,
+		m.p.payload.Encrypted, m.p.payload.IV, m.p.payload.Tag, m.p.payload.Salt, m.isolation, shared, m.req.ReadScoped,
 	)
 	return row.Scan(&m.out.ID, &m.out.Engine, &m.out.Name, &m.out.CreatedAt)
 }

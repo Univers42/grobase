@@ -91,6 +91,14 @@ fn read_predicate_enabled() -> bool {
     )
 }
 
+/// Whether this pool appends an `owner_id` READ predicate: the global env flag OR
+/// the mount's own `read_scoped` opt-in. Both OFF (the default) ⇒ false ⇒
+/// byte-parity (no read predicate). Pure (no env read) so the OR contract is
+/// unit-tested without touching process-global env.
+fn derive_read_predicate(env_enabled: bool, mount: &DatabaseMount) -> bool {
+    env_enabled || mount.read_scoped()
+}
+
 /// Admin owner-scope bypass master flag (`DATA_PLANE_ADMIN_BYPASS`, F2). OFF by
 /// default → an admin identity is owner-scoped exactly like any caller
 /// (byte-parity). ON → an [`RequestIdentity::is_admin`] caller's reads and
@@ -207,7 +215,12 @@ impl EngineAdapter for PostgresEngineAdapter {
             Vec::new().into()
         };
         let admin_bypass = admin_bypass_enabled();
-        let read_predicate = read_predicate_enabled();
+        // Read owner-scoping is ON for this pool when the global env flag is set OR
+        // this specific mount opted in (capability_overrides.read_scoped, carried by
+        // the control plane). Both OFF (the default) → byte-parity (no read
+        // predicate). The per-mount flag lets one mount scope reads without forcing
+        // it platform-wide.
+        let read_predicate = derive_read_predicate(read_predicate_enabled(), &mount);
         Ok(Box::new(PostgresPool {
             mount_id: mount.id.clone(),
             tenant_id: mount.tenant_id.clone(),
@@ -300,5 +313,57 @@ impl PostgresPool {
             });
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod read_predicate_tests {
+    use super::derive_read_predicate;
+    use data_plane_core::{CredentialRef, DatabaseMount, PoolPolicy};
+    use serde_json::Value;
+
+    /// A minimal postgres mount; `overrides` becomes capability_overrides so a test
+    /// can set the reserved `read_scoped` boolean.
+    fn mount(overrides: Option<Value>) -> DatabaseMount {
+        DatabaseMount {
+            id: "db1".into(),
+            tenant_id: "acme".into(),
+            project_id: None,
+            engine: "postgresql".into(),
+            name: "n".into(),
+            credential_ref: CredentialRef {
+                provider: "adapter-registry".into(),
+                reference: "r".into(),
+                version: "1".into(),
+            },
+            pool_policy: PoolPolicy::default(),
+            capability_overrides: overrides,
+            inline_dsn: None,
+            isolation: None,
+            replica_inline_dsn: None,
+            read_replica_route: false,
+        }
+    }
+
+    #[test]
+    fn without_field_follows_global_flag() {
+        let m = mount(None);
+        assert!(
+            !derive_read_predicate(false, &m),
+            "global off + no opt-in → off (parity)"
+        );
+        assert!(
+            derive_read_predicate(true, &m),
+            "global on → on regardless of mount"
+        );
+    }
+
+    #[test]
+    fn read_scoped_true_forces_on_even_when_global_off() {
+        let m = mount(Some(serde_json::json!({ "read_scoped": true })));
+        assert!(
+            derive_read_predicate(false, &m),
+            "per-mount read_scoped must turn the predicate on with the env flag off"
+        );
     }
 }

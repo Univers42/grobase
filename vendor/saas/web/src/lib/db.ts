@@ -1,10 +1,12 @@
 // db.ts — engine-agnostic CRUD against a Grobase mount through the gateway:
 // POST /query/v1/<dbId>/tables/<table> with {op,filter,data,sort,limit}. Headers:
-// apikey=Kong anon (clears key-auth) + X-Baas-Api-Key=mbk_ (resolves the tenant).
-// Data ownership is the APP KEY (the tenant identity that owns every seeded row);
-// the user JWT is NOT sent to the data plane — riding a per-user JWT alongside the
-// key would owner-scope writes to user:<sub> and silently no-op against the
-// api-key-owned rows. The JWT stays an auth/session concern (see auth.ts).
+// apikey=Kong anon (clears key-auth) + X-Baas-Api-Key=mbk_ (resolves the tenant)
+// + Authorization=Bearer <user JWT> when signed in. The data plane owner-scopes
+// PER REQUEST off the JWT: an `admin` JWT triggers the F2 owner-scope bypass and
+// reads/writes across the (api-key-owned) seeded rows; a customer JWT scopes to
+// `user:<sub>` and sees only its own. WITHOUT the JWT the app key is a public
+// shared identity, so omitting it would expose every tenant's data to anyone
+// holding the (browser-shipped) key — the JWT is the server-enforced authority.
 
 import type { BaasConfig } from './config';
 import type { Filter } from './filters';
@@ -62,9 +64,11 @@ function errorMessage(body: unknown, table: string, status: number): string {
   return `query ${table} failed (${status})`;
 }
 
-/** createDb returns CRUD bound to (config, dbId). Owner identity is the app key
- * (the tenant); no per-user JWT rides the data-plane calls (see the header note). */
-export function createDb(config: BaasConfig, dbId: string): Db {
+/** createDb returns CRUD bound to (config, dbId). `token` supplies the current
+ * user JWT so every call is owner-scoped per request (admin → F2 bypass over the
+ * seeded rows; customer → own rows only). It is read at call time so a sign-in
+ * after construction takes effect (see the header note). */
+export function createDb(config: BaasConfig, dbId: string, token: () => string): Db {
   const baseUrl = `${config.url}/query/v1/${dbId}/tables`;
 
   async function call(table: string, payload: Record<string, unknown>): Promise<QueryResult> {
@@ -73,6 +77,8 @@ export function createDb(config: BaasConfig, dbId: string): Db {
       'X-Baas-Api-Key': config.apiKey,
       'Content-Type': 'application/json',
     };
+    const jwt = token();
+    if (jwt) headers.Authorization = `Bearer ${jwt}`;
     const res = await fetch(`${baseUrl}/${table}`, { method: 'POST', headers, body: JSON.stringify(payload) });
     const body: unknown = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(errorMessage(body, table, res.status));
