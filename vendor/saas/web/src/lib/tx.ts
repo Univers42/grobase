@@ -56,20 +56,26 @@ function paymentOps(input: PaymentInput, customerBalance: number, revenueBalance
   ];
 }
 
-/** createTx returns run/recordPayment bound to (config, pgDbId). Data ownership is
- *  the app key (the tenant), so no per-user JWT rides the batch — owner-scoping the
- *  balance UPDATEs to user:<sub> would silently match 0 rows (see db.ts). */
-export function createTx(config: BaasConfig, pgDbId: string): Tx {
+/** createTx returns run/recordPayment bound to (config, pgDbId). `token` supplies
+ *  the current user JWT so the batch owner-scopes per request: the logged-in admin
+ *  JWT triggers the data plane's F2 bypass, so the balance UPDATEs reach the
+ *  (api-key-owned) seeded accounts; a non-admin's batch matches 0 rows and no-ops
+ *  (safe — money writes are admin-only by construction). See db.ts. */
+export function createTx(config: BaasConfig, pgDbId: string, token: () => string): Tx {
   const txnUrl = `${config.url}/query/v1/txn`;
   const accountsUrl = `${config.url}/query/v1/${pgDbId}/tables/accounts`;
 
-  /** headers carries the Kong anon key and the app key (the tenant identity). */
+  /** headers carries the Kong anon key, the app key (tenant identity), and the
+   *  user JWT (read at call time) that drives per-request owner-scoping. */
   function headers(): Record<string, string> {
-    return {
+    const h: Record<string, string> = {
       apikey: config.anonKey,
       'X-Baas-Api-Key': config.apiKey,
       'Content-Type': 'application/json',
     };
+    const jwt = token();
+    if (jwt) h.Authorization = `Bearer ${jwt}`;
+    return h;
   }
 
   /** readBalanceCents fetches an account's current balance so the payment batch can

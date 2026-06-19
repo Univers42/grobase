@@ -6,6 +6,9 @@
 #  end to end through Kong against the RUNNING stack (MariaDB engine):         #
 #    F1  per-table isolation — the `services` catalog (a mount shared_resource) #
 #        is readable by two DIFFERENT user JWTs (shared, not owner-scoped).     #
+#    USR `users` is OWNER-SCOPED (NOT shared) — user B lists `users` and sees   #
+#        exactly its own row (no PII firehose), cannot mutate A's row, and a    #
+#        self-escalation `role=ADMIN` write is rejected by the role-lock trigger.#
 #    F2a owner-scoping — a `reservations` row inserted under user A's JWT is    #
 #        NOT visible to user B (each user owns their rows).                     #
 #    F2b admin bypass — the SAME row IS visible to the admin JWT (role=admin).  #
@@ -13,7 +16,8 @@
 #                                                                              #
 #  Requires DATA_PLANE_PER_TABLE_ISOLATION=1 + DATA_PLANE_ADMIN_BYPASS=1 on the #
 #  data plane and the hambooking mount registered with                         #
-#  shared_resources=[services,carvers,users]. Provisioning is idempotent.       #
+#  shared_resources=[services,carvers] (users is owner-scoped). Provisioning is #
+#  idempotent.                                                                  #
 # **************************************************************************** #
 set -euo pipefail
 
@@ -89,6 +93,33 @@ USER_IDS+=("${UA}" "${UB}")
 [[ "$(jrows "${TMP}/q.json")" -ge 3 ]] || fail "B sees <3 services"
 ok "services (shared_resource) readable across two owners"
 
+# ── 2b) users is OWNER-SCOPED: B reads only its own profile; no self-escalation ─
+step "2b/5 owner-scoped users: B reads only its own row, cannot escalate role"
+# B registers its own profile via /query → data plane owner-stamps user:UB.
+breg="{\"op\":\"insert\",\"data\":{\"auth_id\":\"${UB}\",\"dni\":\"22222222B\",\"first_name\":\"M147\",\"last_name\":\"ClientB\",\"email\":\"m147bp_$$@hb.com\",\"phone\":\"622\",\"role\":\"CLIENT\"}}"
+[[ "$(q users "${breg}" "${JB}")" == "201" ]] || fail "B cannot register own users profile: $(head -c 200 "${TMP}/q.json")"
+grep -q "\"owner_id\":\"user:${UB}\"" "${TMP}/q.json" || fail "B's users row not owner-stamped to user B"
+# Seed A's profile too (owner user:UA) so the DB holds >1 user row.
+myq "INSERT IGNORE INTO users (owner_id,auth_id,dni,first_name,last_name,email,phone,role)
+     VALUES ('user:${UA}','${UA}','11111111A','M147','ClientA','m147ap_$$@hb.com','611','CLIENT');" >/dev/null || true
+# B lists users → exactly its OWN row (count==1, auth_id==UB) — NOT a PII firehose.
+q users '{"op":"list"}' "${JB}" >/dev/null
+[[ "$(jrows "${TMP}/q.json")" == "1" ]] || fail "B sees $(jrows "${TMP}/q.json") user rows — users not owner-scoped (PII leak)"
+seen_auth="$(python3 -c 'import json,sys; r=json.load(open(sys.argv[1])).get("rows",[]); print(r[0].get("auth_id","") if r else "")' "${TMP}/q.json" 2>/dev/null)"
+[[ "${seen_auth}" == "${UB}" ]] || fail "B's single users row is not B's own (auth_id=${seen_auth})"
+ok "users owner-scoped: B sees exactly its own row"
+# B attempts to escalate its OWN row to ADMIN → must be rejected (role-lock trigger).
+esc="$(q users "{\"op\":\"update\",\"filter\":{\"auth_id\":\"${UB}\"},\"data\":{\"role\":\"ADMIN\"}}" "${JB}")"
+[[ "${esc}" != "201" && "${esc}" != "200" ]] || fail "B escalated own role to ADMIN (status ${esc}) — role-lock broken"
+db_role="$(myq "SELECT role FROM users WHERE auth_id='${UB}'")"
+[[ "${db_role}" == "CLIENT" ]] || fail "B's role is now ${db_role} in the DB — self-escalation succeeded"
+ok "self-escalation rejected (status ${esc}); B stays CLIENT"
+# B cannot reach A's row at all (owner-scoped update touches 0 rows).
+q users "{\"op\":\"update\",\"filter\":{\"auth_id\":\"${UA}\"},\"data\":{\"phone\":\"999\"}}" "${JB}" >/dev/null 2>&1 || true
+a_phone="$(myq "SELECT phone FROM users WHERE auth_id='${UA}'")"
+[[ "${a_phone}" != "999" ]] || fail "B mutated A's users row — owner-scoping broken"
+ok "B cannot touch A's row (cross-user write owner-scoped)"
+
 # ── 3) admin sign-in + FK seed rows ──────────────────────────────────────────
 step "3/5 admin sign-in + FK seed rows"
 ADMIN_JWT="$(curl -s -X POST "${KONG}/auth/v1/token?grant_type=password" \
@@ -97,11 +128,12 @@ ADMIN_JWT="$(curl -s -X POST "${KONG}/auth/v1/token?grant_type=password" \
   -o "${TMP}/adm.json" >/dev/null 2>&1; jval "${TMP}/adm.json" access_token)"
 [[ -n "${ADMIN_JWT}" ]] || fail "admin login failed: $(head -c 200 "${TMP}/adm.json")"
 [[ "$(jsub "${ADMIN_JWT}")" == "${HB_ADMIN_SUB}" ]] || fail "admin sub mismatch"
-# client + carver profile rows (shared tables, FK targets) via root.
-myq "INSERT IGNORE INTO users (auth_id,dni,first_name,last_name,email,phone,role)
-     VALUES ('${UA}','77777777G','M147','ClientA','m147a_$$@hb.com','677','CLIENT');
-     INSERT IGNORE INTO users (auth_id,dni,first_name,last_name,email,phone,role)
-     VALUES ('m147carv-$$','88888888H','M147','Carver','m147c_$$@hb.com','688','CLIENT');
+# client + carver profile rows (FK targets) via root; users is owner-scoped now,
+# so the FK profile rows are owner-stamped to user A / the carver (user:<sub>).
+myq "INSERT IGNORE INTO users (owner_id,auth_id,dni,first_name,last_name,email,phone,role)
+     VALUES ('user:${UA}','${UA}','77777777G','M147','ClientA','m147a_$$@hb.com','677','CLIENT');
+     INSERT IGNORE INTO users (owner_id,auth_id,dni,first_name,last_name,email,phone,role)
+     VALUES ('user:m147carv-$$','m147carv-$$','88888888H','M147','Carver','m147c_$$@hb.com','688','CLIENT');
      INSERT IGNORE INTO carvers (user_id,specialty)
      SELECT id,'jamon' FROM users WHERE email='m147c_$$@hb.com';" >/dev/null || true
 CID="$(myq "SELECT id FROM users WHERE auth_id='${UA}'")"
@@ -144,4 +176,9 @@ myq "DELETE FROM reservations WHERE owner_id='user:${UA}';
      DELETE FROM carvers WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'm147%@hb.com');
      DELETE FROM users WHERE email LIKE 'm147%@hb.com';" >/dev/null 2>&1 || true
 
-printf '\033[0;32m[M147] ALL GATES GREEN — HamBooking isolation: F1 shared services · F2a owner-scope · F2b admin bypass · caps trigger\033[0m\n'
+# re-confirm services stays shared after all the users-table changes.
+[[ "$(q services '{"op":"list"}' "${JB}")" == "201" && "$(jrows "${TMP}/q.json")" -ge 3 ]] \
+  || fail "services no longer shared after the run — F1 regressed"
+ok "services still shared (F1 intact)"
+
+printf '\033[0;32m[M147] ALL GATES GREEN — HamBooking isolation: F1 shared services · users owner-scope + role-lock · F2a owner-scope · F2b admin bypass · caps trigger\033[0m\n'

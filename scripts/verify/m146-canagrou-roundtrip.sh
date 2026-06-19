@@ -18,9 +18,14 @@
 #                     after a /query insert on the posts topic.                #
 #    9. reflection  — a SECOND user (different JWT) lists posts and SEES the   #
 #                     first user's post (the public-wall read-after-write).    #
+#   10. anti-spoof   — U1 (with U1's JWT) cannot impersonate U2: a forged       #
+#                     user_id is coerced server-side to U1's sub; U1 cannot     #
+#                     delete/update U2's row (0 affected); U2's row still reads.#
 #                                                                              #
 #  The realtime EVENT (step 8) and the cross-user read (step 9) are the        #
-#  "data reflects in the frontend" proof. Requires the stack up with auth +    #
+#  "data reflects in the frontend" proof. Step 10 is the anti-impersonation    #
+#  NEGATIVE gate (the write path now carries the per-user JWT + a BEFORE        #
+#  INSERT trigger binds authorship). Requires the stack up with auth +         #
 #  query + storage + realtime planes.                                          #
 # **************************************************************************** #
 set -euo pipefail
@@ -72,6 +77,13 @@ q() {
   curl -s -o /tmp/m146-q.json -w '%{http_code}' -X POST "${KONG}/query/v1/${DB}/tables/$1" \
     -H "apikey: ${ANON}" -H "X-Baas-Api-Key: ${AK}" -H 'Content-Type: application/json' -d "$2"
 }
+# qj TABLE BODY JWT — /query CRUD carrying a user Bearer JWT, so the data plane
+# owner-scopes the write to `user:<sub>` and the bind-author trigger fires.
+qj() {
+  curl -s -o /tmp/m146-q.json -w '%{http_code}' -X POST "${KONG}/query/v1/${DB}/tables/$1" \
+    -H "apikey: ${ANON}" -H "X-Baas-Api-Key: ${AK}" -H "Authorization: Bearer $3" \
+    -H 'Content-Type: application/json' -d "$2"
+}
 # GoTrue helper.
 gotrue() {
   curl -s -o /tmp/m146-a.json -w '%{http_code}' -X POST "${KONG}/auth/v1/$1" \
@@ -103,14 +115,14 @@ ok "wrong password rejected (${bad})"
 
 # ── 3) profile ────────────────────────────────────────────────────────────────
 step "3/9 profile insert (keyed by GoTrue sub)"
-[[ "$(q profiles "{\"op\":\"insert\",\"data\":{\"id\":\"${U1}\",\"username\":\"m146_u1_$$\"}}")" == "201" ]] \
+[[ "$(qj profiles "{\"op\":\"insert\",\"data\":{\"id\":\"${U1}\",\"username\":\"m146_u1_$$\"}}" "${J1}")" == "201" ]] \
   || fail "profile insert: $(head -c 200 /tmp/m146-q.json)"
 ok "profile row created"
 
 # ── 4) post insert → read-back ────────────────────────────────────────────────
 step "4/9 post insert → read-back"
 IMG_KEY="${U1}.png"
-[[ "$(q posts "{\"op\":\"insert\",\"data\":{\"user_id\":\"${U1}\",\"image_key\":\"${IMG_KEY}\"}}")" == "201" ]] \
+[[ "$(qj posts "{\"op\":\"insert\",\"data\":{\"user_id\":\"${U1}\",\"image_key\":\"${IMG_KEY}\"}}" "${J1}")" == "201" ]] \
   || fail "post insert: $(head -c 200 /tmp/m146-q.json)"
 PID="$(python3 -c 'import json;print(json.load(open("/tmp/m146-q.json"))["rows"][0]["id"])')"
 q posts "{\"op\":\"list\",\"filter\":{\"user_id\":{\"\$eq\":\"${U1}\"}}}" >/dev/null
@@ -121,11 +133,11 @@ ok "post ${PID} reads back; bogus filter returns nothing"
 
 # ── 5) like toggle → count ────────────────────────────────────────────────────
 step "5/9 like toggle → count"
-q likes "{\"op\":\"insert\",\"data\":{\"user_id\":\"${U1}\",\"post_id\":${PID}}}" >/dev/null
+qj likes "{\"op\":\"insert\",\"data\":{\"user_id\":\"${U1}\",\"post_id\":${PID}}}" "${J1}" >/dev/null
 q likes "{\"op\":\"list\",\"filter\":{\"post_id\":{\"\$eq\":${PID}}}}" >/dev/null
 c1="$(python3 -c 'import json;print(len(json.load(open("/tmp/m146-q.json"))["rows"]))')"
 [[ "${c1}" == "1" ]] || fail "expected 1 like, got ${c1}"
-q likes "{\"op\":\"delete\",\"filter\":{\"post_id\":{\"\$eq\":${PID}}}}" >/dev/null
+qj likes "{\"op\":\"delete\",\"filter\":{\"post_id\":{\"\$eq\":${PID}}}}" "${J1}" >/dev/null
 q likes "{\"op\":\"list\",\"filter\":{\"post_id\":{\"\$eq\":${PID}}}}" >/dev/null
 c0="$(python3 -c 'import json;print(len(json.load(open("/tmp/m146-q.json"))["rows"]))')"
 [[ "${c0}" == "0" ]] || fail "expected 0 likes after delete, got ${c0}"
@@ -133,7 +145,7 @@ ok "like → 1, unlike → 0"
 
 # ── 6) comment add → list ─────────────────────────────────────────────────────
 step "6/9 comment add → list"
-q comments "{\"op\":\"insert\",\"data\":{\"user_id\":\"${U1}\",\"post_id\":${PID},\"content\":\"m146 hello\"}}" >/dev/null
+qj comments "{\"op\":\"insert\",\"data\":{\"user_id\":\"${U1}\",\"post_id\":${PID},\"content\":\"m146 hello\"}}" "${J1}" >/dev/null
 q comments "{\"op\":\"list\",\"filter\":{\"post_id\":{\"\$eq\":${PID}}}}" >/dev/null
 grep -q '"content":"m146 hello"' /tmp/m146-q.json || fail "comment not listed"
 ok "comment added + listed"
@@ -154,7 +166,7 @@ ok "upload + byte-identical download"
 # ── 8) realtime: a subscriber that did NOT write observes the EVENT ───────────
 step "8/9 realtime: subscribe → insert → observe EVENT"
 RT_OUT=$(docker run --rm --network host -e KONG="${KONG}" -e RT="${RT}" -e ANON="${ANON}" \
-  -e DB="${DB}" -e AK="${AK}" "${NODE_IMAGE}" node -e '
+  -e DB="${DB}" -e AK="${AK}" -e J1="${J1}" "${NODE_IMAGE}" node -e '
 const topic = `table:${process.env.DB}:posts`;
 const u = new URL("/realtime/v1/ws", process.env.KONG);
 u.protocol = "ws:"; u.searchParams.set("apikey", process.env.ANON); u.searchParams.set("access_token", process.env.RT);
@@ -169,7 +181,7 @@ ws.addEventListener("message", async (f) => {
     ws.send(JSON.stringify({ type: "SUBSCRIBE", sub_id: "m146", topic }));
     setTimeout(() => fetch(`${process.env.KONG}/query/v1/${process.env.DB}/tables/posts`, {
       method: "POST",
-      headers: { apikey: process.env.ANON, "X-Baas-Api-Key": process.env.AK, "Content-Type": "application/json" },
+      headers: { apikey: process.env.ANON, "X-Baas-Api-Key": process.env.AK, Authorization: "Bearer " + process.env.J1, "Content-Type": "application/json" },
       body: JSON.stringify({ op: "insert", data: { user_id: "'"${U1}"'", image_key: "'"${U1}"'-rt.png" } }),
     }).catch(() => {}), 1200);
   } else if (m.type === "EVENT" || m.type === "ROW_CHANGED") {
@@ -191,7 +203,68 @@ q posts "{\"op\":\"list\",\"filter\":{\"image_key\":{\"\$eq\":\"${IMG_KEY}\"}}}"
 grep -q "\"image_key\":\"${IMG_KEY}\"" /tmp/m146-q.json || fail "second user cannot see the first user's post"
 ok "second user sees the post (public-wall reflection)"
 
+# ── 10) anti-impersonation: per-user JWT + server-side authorship binding ─────
+step "10/10 anti-impersonation: forged user_id coerced; cross-user write denied"
+# U1's profile already exists (step 3, anonymous). U2 needs one, created under
+# U2's OWN JWT but FORGING U1's id — the trigger must bind profiles.id from
+# owner_id `user:U2`, so the forged id is overwritten with U2.
+[[ "$(qj profiles "{\"op\":\"insert\",\"data\":{\"id\":\"${U1}\",\"username\":\"m146_imp_u2_$$\"}}" "${J2}")" == "201" ]] \
+  || fail "U2 profile (authed, forged id) insert: $(head -c 200 /tmp/m146-q.json)"
+PROF_ID="$(python3 -c 'import json;print(json.load(open("/tmp/m146-q.json"))["rows"][0]["id"])')"
+[[ "${PROF_ID}" == "${U2}" ]] || fail "impersonation HOLE: profile id landed as '${PROF_ID}' (want U2 ${U2:0:8}, NOT U1 ${U1:0:8})"
+ok "forged profile id coerced to the authenticated writer (U2)"
+
+# U2 (authed) creates a post owned by U2.
+V2_KEY="${U2}-victim.png"
+[[ "$(qj posts "{\"op\":\"insert\",\"data\":{\"user_id\":\"${U2}\",\"image_key\":\"${V2_KEY}\"}}" "${J2}")" == "201" ]] \
+  || fail "U2 victim post insert: $(head -c 200 /tmp/m146-q.json)"
+V2_PID="$(python3 -c 'import json;print(json.load(open("/tmp/m146-q.json"))["rows"][0]["id"])')"
+
+# (a) U1, with U1's JWT, FORGES U2's user_id on insert → must be coerced to U1.
+FORGE_KEY="${U1}-forge.png"
+[[ "$(qj posts "{\"op\":\"insert\",\"data\":{\"user_id\":\"${U2}\",\"image_key\":\"${FORGE_KEY}\"}}" "${J1}")" == "201" ]] \
+  || fail "U1 forged-author insert rejected unexpectedly: $(head -c 200 /tmp/m146-q.json)"
+COERCED="$(python3 -c 'import json;print(json.load(open("/tmp/m146-q.json"))["rows"][0]["user_id"])')"
+[[ "${COERCED}" == "${U1}" ]] || fail "impersonation HOLE: forged user_id landed as '${COERCED}' (want U1 ${U1:0:8}, NOT U2 ${U2:0:8})"
+[[ "${COERCED}" != "${U2}" ]] || fail "impersonation HOLE: author bound to victim U2"
+ok "forged user_id coerced to the authenticated writer (U1)"
+
+# (a') the public app key ALONE (no JWT) cannot author: an app-key-only insert
+# forging a victim user_id must be REJECTED (no `user:` owner ⇒ the bind-author
+# trigger raises — authorship requires authentication, closing the crafted-request
+# impersonation vector the public key would otherwise allow).
+ANON_CODE="$(q posts "{\"op\":\"insert\",\"data\":{\"user_id\":\"${U2}\",\"image_key\":\"${U1}-anon-forge.png\"}}")"
+[[ "${ANON_CODE}" != "201" ]] \
+  || fail "impersonation HOLE: app-key-only (no JWT) write authored a post as U2 (HTTP ${ANON_CODE})"
+ok "app-key-only write rejected — authorship requires a JWT"
+
+# (b) U1, with U1's JWT, tries to DELETE U2's post → owner-scoped to 0 rows.
+# affected N from the mutation envelope: rowCount (canonical), else rows length.
+affected() { python3 -c 'import json;d=json.load(open("/tmp/m146-q.json"));print(d.get("rowCount", d.get("count", len(d.get("rows",[])))))' 2>/dev/null || echo 0; }
+qj posts "{\"op\":\"delete\",\"filter\":{\"id\":{\"\$eq\":${V2_PID}}}}" "${J1}" >/dev/null
+DEL_N="$(affected)"
+[[ "${DEL_N}" == "0" ]] || fail "impersonation HOLE: U1 deleted ${DEL_N} of U2's rows (want 0)"
+
+# (c) U1, with U1's JWT, tries to UPDATE U2's post → owner-scoped to 0 rows.
+qj posts "{\"op\":\"update\",\"data\":{\"image_key\":\"hijacked.png\"},\"filter\":{\"id\":{\"\$eq\":${V2_PID}}}}" "${J1}" >/dev/null
+UPD_N="$(affected)"
+[[ "${UPD_N}" == "0" ]] || fail "impersonation HOLE: U1 updated ${UPD_N} of U2's rows (want 0)"
+ok "U1 cannot delete or update U2's post (0 affected)"
+
+# (d) public wall preserved: U2's victim post is still readable (unscoped read).
+q posts "{\"op\":\"list\",\"filter\":{\"image_key\":{\"\$eq\":\"${V2_KEY}\"}}}" >/dev/null
+grep -q "\"image_key\":\"${V2_KEY}\"" /tmp/m146-q.json || fail "public-wall regression: U2's post no longer reads after the write-deny checks"
+grep -q '"image_key":"hijacked.png"' /tmp/m146-q.json && fail "impersonation HOLE: U2's post WAS hijacked"
+ok "public wall intact: U2's post still reads, unaltered"
+
 # ── cleanup test data (leave the permanent tenant) ───────────────────────────
+# Authed rows (owner `user:<sub>`) only delete under their own JWT (owner-scoped);
+# the anonymous sweep below clears the app-key-owned rows from steps 3–9.
+for pair in "${U1} ${J1}" "${U2} ${J2}"; do
+  read -r uid jwt <<<"${pair}"
+  qj posts "{\"op\":\"delete\",\"filter\":{\"user_id\":{\"\$eq\":\"${uid}\"}}}" "${jwt}" >/dev/null 2>&1 || true
+  qj profiles "{\"op\":\"delete\",\"filter\":{\"id\":{\"\$eq\":\"${uid}\"}}}" "${jwt}" >/dev/null 2>&1 || true
+done
 for uid in "${USER_IDS[@]}"; do
   q posts "{\"op\":\"delete\",\"filter\":{\"user_id\":{\"\$eq\":\"${uid}\"}}}" >/dev/null 2>&1 || true
   q profiles "{\"op\":\"delete\",\"filter\":{\"id\":{\"\$eq\":\"${uid}\"}}}" >/dev/null 2>&1 || true
@@ -199,4 +272,4 @@ done
 curl -s -o /dev/null -X DELETE "${KONG}/storage/v1/object/${BUCKET}/${IMG_KEY}" \
   -H "apikey: ${ANON}" -H "Authorization: Bearer ${ST}" 2>/dev/null || true
 
-printf '\033[0;32m[M146] ALL GATES GREEN — Canagrou fully backed by Grobase: auth · profile · post · like · comment · storage byte-roundtrip · realtime EVENT · cross-user reflection\033[0m\n'
+printf '\033[0;32m[M146] ALL GATES GREEN — Canagrou fully backed by Grobase: auth · profile · post · like · comment · storage byte-roundtrip · realtime EVENT · cross-user reflection · anti-impersonation (server-bound authorship)\033[0m\n'

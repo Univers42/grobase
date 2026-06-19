@@ -10,6 +10,7 @@ import { useBaas } from './useBaas';
 export type AuthState = {
   user: SessionUser | null;
   isAuthed: boolean;
+  isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, username?: string) => Promise<void>;
   recover: (email: string) => Promise<void>;
@@ -46,5 +47,5 @@ export function useAuth(): AuthState {
     setUser(null);
   }, [auth]);
 
-  return { user, isAuthed: Boolean(user) || auth.isAuthed(), signIn, signUp, recover, signOut };
+  return { user, isAuthed: Boolean(user) || auth.isAuthed(), isAdmin: auth.isAdmin(), signIn, signUp, recover, signOut };
 }
