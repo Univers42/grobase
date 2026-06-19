@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Famara, Las Palmas">
+  <defs>
+    <linearGradient id="g9898sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#10243b"/><stop offset="1" stop-color="#e98a6b"/>
+    </linearGradient>
+    <radialGradient id="g9898sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffc07a" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffc07a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g9898sky)"/>
+  <circle cx="297" cy="91" r="160" fill="url(#g9898sun)"/>
+  <circle cx="297" cy="91" r="54" fill="#ffc07a" opacity="0.9"/>
+  <rect y="242" width="1280" height="478" fill="#15506a" opacity="0.55"/>
+  <path d="M0 282 C 96 266 224 298 320 282 C 416 298 544 266 640 282 C 736 266 864 298 960 282 C 1056 298 1184 266 1280 282 L 1280 720 L 0 720 Z" fill="#15506a" opacity="0.85"/><path d="M0 352 C 96 374 224 330 320 352 C 416 330 544 374 640 352 C 736 374 864 330 960 352 C 1056 330 1184 374 1280 352 L 1280 720 L 0 720 Z" fill="#2f8aa6" opacity="0.8"/><path d="M0 442 C 96 412 224 472 320 442 C 416 472 544 412 640 442 C 736 412 864 472 960 442 C 1056 472 1184 412 1280 442 L 1280 720 L 0 720 Z" fill="#2f8aa6" opacity="0.6"/><path d="M0 542 C 96 582 224 502 320 542 C 416 502 544 582 640 542 C 736 582 864 502 960 542 C 1056 502 1184 582 1280 542 L 1280 720 L 0 720 Z" fill="#f0fbff" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">LAS PALMAS</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Famara · 1</text>
+</svg>

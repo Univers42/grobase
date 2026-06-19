@@ -5,7 +5,13 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { DatabaseService } from './DatabaseService';
-import type { FilterConfig, DatabaseState } from './types';
+import { subscribeTable } from '../../services/baas';
+import { dbIdForTable, fetchRowByTable } from '../../services/baas-crud';
+import type { FilterConfig, DatabaseState, TableRecord } from './types';
+
+/** Match a record against an event primary key (PG numeric `id`, Mongo `_id`). */
+const matchesPk = (row: TableRecord, pk: string | number): boolean =>
+  String(row.id ?? row._id ?? '') === String(pk);
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -146,6 +152,50 @@ export function useDatabase() {
     }
   }, [state.activeTable, searchTerm, state.pagination, loadRecords]);
 
+  // Patch one already-loaded record in place (no refetch → no flash).
+  const applyRecord = useCallback((pk: string | number, partial: Record<string, unknown>) => {
+    setState((s) => {
+      const idx = s.records.findIndex((r) => matchesPk(r, pk));
+      if (idx === -1) return s;
+      const records = [...s.records];
+      records[idx] = { ...records[idx], ...partial };
+      return { ...s, records };
+    });
+  }, []);
+
+  // Drop one record from the current page (delete).
+  const removeRecord = useCallback((pk: string | number) => {
+    setState((s) => ({ ...s, records: s.records.filter((r) => !matchesPk(r, pk)) }));
+  }, []);
+
+  // Live updates: subscribe to the active table's Grobase realtime change stream.
+  // Events are change NOTIFICATIONS ({op,pk}), not rows — so re-fetch the single
+  // changed row on update (in-place patch, no flash), remove on delete, refresh
+  // on insert (need the new row + total).
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  useEffect(() => {
+    const table = state.activeTable;
+    if (!table) return;
+    return subscribeTable(dbIdForTable(table), table, (change) => {
+      if (change.pk == null) {
+        refreshRef.current();
+        return;
+      }
+      if (change.event === 'delete') {
+        removeRecord(change.pk);
+        return;
+      }
+      if (change.event === 'insert') {
+        refreshRef.current();
+        return;
+      }
+      fetchRowByTable(table, change.pk).then((row) => {
+        if (row) applyRecord(change.pk as string | number, row);
+      });
+    });
+  }, [state.activeTable, applyRecord, removeRecord]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -163,5 +213,7 @@ export function useDatabase() {
     handleSearch,
     clearSearch,
     refresh,
+    applyRecord,
+    removeRecord,
   };
 }

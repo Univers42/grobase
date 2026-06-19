@@ -1,0 +1,129 @@
+# Hypertube plane — the 42 "Hypertube" BitTorrent video app re-platformed onto
+# Grobase. Backend = Grobase (GoTrue + Mongo + DynamoDB mounts + realtime) plus
+# three custom Go services (media/search/api). Opt in via the `hypertube`
+# profile; not part of any default edition. Requires the data plane built
+# `--features dynamodb` (DATA_PLANE_FEATURES in .env) + DYNAMODB_ENGINE_ENABLED=1,
+# and a run of scripts/seed/hypertube-tenant.sh. The SPA is served same-origin
+# via grobase/serve.mjs (no CORS); build it with `cd vendor/hypertube/View &&
+# npm ci && npm run build` first.
+services:
+  # In-container DynamoDB (no AWS account). The data plane dials it as
+  # `dynamodb-local:8000` (the seed mount DSN). In-memory: the seeder re-creates
+  # tables + rows idempotently on each run.
+  dynamodb-local:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: amazon/dynamodb-local:latest
+    container_name: mini-baas-dynamodb-local
+    profiles: ["hypertube"]
+    command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
+    ports:
+      - "${DYNAMODB_LOCAL_PORT:-8500}:8000"
+
+  hypertube:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: node:20-alpine
+    container_name: mini-baas-hypertube
+    profiles: ["hypertube"]
+    working_dir: /app/grobase
+    command: ["node", "serve.mjs"]
+    environment:
+      PORT: "80"
+      KONG_URL: "http://kong:8000"
+    ports:
+      - "${HYPERTUBE_PORT:-5176}:80"
+    volumes:
+      - ./vendor/hypertube:/app:ro
+    depends_on:
+      kong:
+        condition: service_started
+
+  # Custom Go services. env_file required:false so a `docker compose config`
+  # never breaks before the seed has emitted .services.env. Movies/comments/
+  # media_jobs use the Mongo mount (MEDIA_DB_ID / API_MONGO_DB_ID); watch_state
+  # is the Dynamo mount (written by the SPA via /query/v1).
+  hypertube-media:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-hypertube-media:latest # pull-fallback
+    build:
+      context: ./vendor/hypertube/grobase/hypertube-media
+      dockerfile: Dockerfile
+    container_name: mini-baas-hypertube-media
+    profiles: ["hypertube"]
+    env_file:
+      - path: vendor/hypertube/.env
+        required: false
+      - path: vendor/hypertube/.services.env
+        required: false
+    environment:
+      MEDIA_ADDR: ":3080"
+      MEDIA_CACHE_ROOT: "/cache"
+      HYPERTUBE_MEDIA_ENABLED: ${HYPERTUBE_MEDIA_ENABLED:-1}
+      HYPERTUBE_CACHE_EVICTION: ${HYPERTUBE_CACHE_EVICTION:-0}
+      MEDIA_DATAPLANE_URL: "http://kong:8000"
+    volumes:
+      - hypertube-cache:/cache
+    expose: ["3080"]
+    # Root so the torrent client can write the piece-completion db into the
+    # root-owned named cache volume (the image's nobody user cannot).
+    user: "0:0"
+    depends_on:
+      kong: { condition: service_started }
+    mem_limit: 2g
+
+  hypertube-search:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-hypertube-search:latest # pull-fallback
+    build:
+      context: ./vendor/hypertube/grobase/hypertube-search
+      dockerfile: Dockerfile
+    container_name: mini-baas-hypertube-search
+    profiles: ["hypertube"]
+    env_file:
+      - path: vendor/hypertube/.env
+        required: false
+    environment:
+      SEARCH_ADDR: ":3081"
+    expose: ["3081"]
+    depends_on:
+      kong: { condition: service_started }
+
+  hypertube-api:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-hypertube-api:latest # pull-fallback
+    build:
+      context: ./vendor/hypertube/grobase/hypertube-api
+      dockerfile: Dockerfile
+    container_name: mini-baas-hypertube-api
+    profiles: ["hypertube"]
+    env_file:
+      - path: vendor/hypertube/.services.env
+        required: false
+    environment:
+      API_ADDR: ":3082"
+      API_DATAPLANE_URL: "http://kong:8000"
+      GOTRUE_URL: "http://kong:8000/auth/v1"
+    expose: ["3082"]
+    depends_on:
+      kong: { condition: service_started }
+
+  hypertube-stream:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-hypertube-stream:latest # pull-fallback
+    build:
+      context: ./vendor/hypertube/grobase/hypertube-stream
+      dockerfile: Dockerfile
+    container_name: mini-baas-hypertube-stream
+    profiles: ["hypertube"]
+    env_file:
+      - path: vendor/hypertube/.services.env
+        required: false
+    environment:
+      STREAM_ADDR: "0.0.0.0:3083"
+      STREAM_DATAPLANE_URL: "http://kong:8000"
+    expose: ["3083"]
+    depends_on:
+      kong: { condition: service_started }
+    mem_limit: 512m
+
+volumes:
+  hypertube-cache:

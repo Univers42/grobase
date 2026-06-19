@@ -9,8 +9,13 @@
 //   - RPC:       Kong → PostgREST  (stored functions)
 // ============================================================
 
-const ENDPOINT = import.meta.env.VITE_BAAS_ENDPOINT || 'http://localhost:8000';
+const ENDPOINT = import.meta.env.VITE_BAAS_ENDPOINT ?? '';
 const API_KEY  = import.meta.env.VITE_BAAS_API_KEY  || 'public-anon-key';
+
+// When ENDPOINT is empty the app is served behind a same-origin reverse proxy
+// (grobase/serve.mjs) that forwards /rest /auth /realtime /storage to Kong —
+// so the browser only ever talks to its own origin (no CORS, CSP 'self' ok).
+const BASE = ENDPOINT || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
 
 // ── PostgREST resource-embedding map ──────────────────────────
 // Maps logical join names to PostgREST `select` clauses
@@ -62,7 +67,7 @@ class QueryBuilder {
 
   /* ── Internal HTTP caller ─────────────────────────────────── */
   async #request(method, body) {
-    const url = new URL(`/rest/v1/${this.#table}`, ENDPOINT);
+    const url = new URL(`/rest/v1/${this.#table}`, BASE);
 
     // PostgREST filters: ?field=op.value
     for (const { field, op, value } of this.#filters) {
@@ -138,8 +143,29 @@ class QueryBuilder {
 
 // ── Auth helper (GoTrue via Kong /auth/v1) ────────────────────
 const auth = {
+  /** Visitor self-signup — role lands in user_metadata.role (drives RLS). */
+  async signUp({ email, password, fullName }) {
+    const res = await fetch(`${BASE}/auth/v1/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: API_KEY },
+      body: JSON.stringify({
+        email,
+        password,
+        data: { full_name: fullName || email.split('@')[0], role: 'visitor' },
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.msg || data.error_description || 'Sign-up failed');
+    // Autoconfirm is on → signup returns a session immediately.
+    if (data.access_token) {
+      localStorage.setItem('baas_token', data.access_token);
+      localStorage.setItem('baas_refresh', data.refresh_token);
+    }
+    return data;
+  },
+
   async signIn({ email, password }) {
-    const res = await fetch(`${ENDPOINT}/auth/v1/token?grant_type=password`, {
+    const res = await fetch(`${BASE}/auth/v1/token?grant_type=password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: API_KEY },
       body: JSON.stringify({ email, password }),
@@ -154,7 +180,7 @@ const auth = {
   async signOut() {
     const token = localStorage.getItem('baas_token');
     if (token) {
-      await fetch(`${ENDPOINT}/auth/v1/logout`, {
+      await fetch(`${BASE}/auth/v1/logout`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, apikey: API_KEY },
       }).catch(() => {});
@@ -166,7 +192,7 @@ const auth = {
   async getUser() {
     const token = localStorage.getItem('baas_token');
     if (!token) return null;
-    const res = await fetch(`${ENDPOINT}/auth/v1/user`, {
+    const res = await fetch(`${BASE}/auth/v1/user`, {
       headers: { Authorization: `Bearer ${token}`, apikey: API_KEY },
     });
     if (!res.ok) return null;
@@ -178,41 +204,51 @@ const auth = {
   },
 };
 
-// ── Realtime subscription (via Kong /realtime/v1) ─────────────
-// Graceful fallback: if the realtime service is down (503), stop retrying
-// after a few failures to avoid flooding the console and hogging connections.
-function subscribe(collection, event, callback) {
-  const token = localStorage.getItem('baas_token');
-  const params = new URLSearchParams({ event, apikey: API_KEY });
-  if (token) params.set('token', token);
-  const url = `${ENDPOINT}/realtime/v1/${collection}?${params}`;
+// ── Realtime subscription (Grobase agnostic-realtime, WebSocket) ──────────────
+// Grobase's realtime plane is a WebSocket gateway at /realtime/v1/ws, fed by a
+// PostgreSQL LISTEN/NOTIFY producer: a trigger on every public table publishes
+// each change on topic `pg/<table>/<operation>` (inserted|updated|deleted) with
+// the FULL ROW in event.payload.data — so a PostgREST write fires a live event
+// with no polling. Protocol: AUTH → AUTH_OK → SUBSCRIBE{sub_id,topic} → EVENT.
+const OP_TOPIC = { insert: ['inserted'], update: ['updated'], delete: ['deleted'] };
 
-  let errorCount = 0;
-  const MAX_ERRORS = 2;  // give up after 2 consecutive failures
-  let es = null;
+function subscribe(collection, event, callback) {
+  const token = localStorage.getItem('baas_token') || API_KEY;
+  const ops = OP_TOPIC[event] || ['inserted', 'updated', 'deleted']; // '*' or unknown → all
+  const topics = ops.map((op) => `pg/${collection}/${op}`);
+  const wsUrl =
+    `${BASE.replace(/^http/, 'ws')}/realtime/v1/ws` +
+    `?apikey=${encodeURIComponent(API_KEY)}&access_token=${encodeURIComponent(token)}`;
+
+  let ws = null;
   let closed = false;
+  let retry = 0;
 
   function connect() {
     if (closed) return;
-    es = new EventSource(url);
-    es.onmessage = (e) => {
-      errorCount = 0;  // reset on successful message
-      try { callback(JSON.parse(e.data)); } catch { /* ignore parse errors */ }
-    };
-    es.onerror = () => {
-      errorCount++;
-      if (errorCount >= MAX_ERRORS) {
-        // Realtime service is unavailable — stop retrying silently
-        es.close();
-        if (import.meta.env.DEV) {
-          console.warn(`[baas] Realtime unavailable for "${collection}" — polling fallback active`);
-        }
+    ws = new WebSocket(wsUrl);
+    ws.onopen = () => { retry = 0; ws.send(JSON.stringify({ type: 'AUTH', token })); };
+    ws.onmessage = (e) => {
+      let msg;
+      try { msg = JSON.parse(e.data); } catch { return; }
+      if (msg.type === 'AUTH_OK') {
+        topics.forEach((topic, i) =>
+          ws.send(JSON.stringify({ type: 'SUBSCRIBE', sub_id: `${collection}-${i}`, topic })));
+      } else if (msg.type === 'EVENT' || msg.type === 'ROW_CHANGED') {
+        const row = msg.event?.payload?.data ?? msg.event?.payload ?? msg.payload ?? {};
+        try { callback(row); } catch { /* ignore callback errors */ }
       }
+    };
+    ws.onerror = () => { try { ws.close(); } catch { /* noop */ } };
+    ws.onclose = () => {
+      if (closed) return;
+      retry = Math.min(retry + 1, 6);
+      setTimeout(connect, 500 * retry); // backoff up to 3s
     };
   }
 
   connect();
-  return () => { closed = true; if (es) es.close(); };
+  return () => { closed = true; if (ws) try { ws.close(); } catch { /* noop */ } };
 }
 
 // ── Storage helper (via Kong /storage/v1) ─────────────────────
@@ -220,7 +256,7 @@ const storage = {
   getUrl(path) {
     if (!path) return null;
     if (path.startsWith('http')) return path;
-    return `${ENDPOINT}/storage/v1${path.startsWith('/') ? '' : '/'}${path}`;
+    return `${BASE}/storage/v1${path.startsWith('/') ? '' : '/'}${path}`;
   },
 
   async upload(bucket, file) {
@@ -229,7 +265,7 @@ const storage = {
     const token = localStorage.getItem('baas_token');
     const headers = { apikey: API_KEY };
     if (token) headers.Authorization = `Bearer ${token}`;
-    const res = await fetch(`${ENDPOINT}/storage/v1/${bucket}`, {
+    const res = await fetch(`${BASE}/storage/v1/${bucket}`, {
       method: 'POST',
       headers,
       body: form,
@@ -247,7 +283,7 @@ async function rpc(fnName, params = {}) {
     apikey: API_KEY,
   };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${ENDPOINT}/rest/v1/rpc/${fnName}`, {
+  const res = await fetch(`${BASE}/rest/v1/rpc/${fnName}`, {
     method: 'POST',
     headers,
     body: JSON.stringify(params),

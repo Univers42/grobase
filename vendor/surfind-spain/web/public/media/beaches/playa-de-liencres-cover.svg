@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Liencres, Cantabria">
+  <defs>
+    <linearGradient id="g7567sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c1e33"/><stop offset="1" stop-color="#caa6d6"/>
+    </linearGradient>
+    <radialGradient id="g7567sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffd9ec" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffd9ec" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g7567sky)"/>
+  <circle cx="858" cy="262" r="160" fill="url(#g7567sun)"/>
+  <circle cx="858" cy="262" r="54" fill="#ffd9ec" opacity="0.9"/>
+  <rect y="344" width="1280" height="376" fill="#1d4f6c" opacity="0.55"/>
+  <path d="M0 384 C 96 400 224 368 320 384 C 416 368 544 400 640 384 C 736 400 864 368 960 384 C 1056 368 1184 400 1280 384 L 1280 720 L 0 720 Z" fill="#1d4f6c" opacity="0.85"/><path d="M0 454 C 96 432 224 476 320 454 C 416 476 544 432 640 454 C 736 432 864 476 960 454 C 1056 476 1184 432 1280 454 L 1280 720 L 0 720 Z" fill="#368fad" opacity="0.8"/><path d="M0 544 C 96 574 224 514 320 544 C 416 514 544 574 640 544 C 736 574 864 514 960 544 C 1056 514 1184 574 1280 544 L 1280 720 L 0 720 Z" fill="#368fad" opacity="0.6"/><path d="M0 644 C 96 604 224 684 320 644 C 416 684 544 604 640 644 C 736 604 864 684 960 644 C 1056 684 1184 604 1280 644 L 1280 720 L 0 720 Z" fill="#f4fbfe" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">CANTABRIA</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Liencres</text>
+</svg>

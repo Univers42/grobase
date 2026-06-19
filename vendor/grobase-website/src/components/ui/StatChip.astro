@@ -1,0 +1,18 @@
+---
+// A bold maximalist stat card. Accent (1..5) drives border + value colour +
+// hard-shadow tint via the .accent-N class (CSP-safe — no inline style=).
+// `tilt` gives an asymmetric, slightly-rotated/offset rhythm across a row.
+type Props = {
+	value: string;
+	label: string;
+	accent?: 1 | 2 | 3 | 4 | 5;
+	tilt?: 'a' | 'b' | 'c' | 'd';
+};
+const { value, label, accent = 1, tilt } = Astro.props;
+const tiltClass = tilt ? ` gb-stat--tilt-${tilt}` : '';
+---
+
+<div class={`gb-stat accent-${accent}${tiltClass}`}>
+	<span class="gb-stat__value">{value}</span>
+	<span class="gb-stat__label">{label}</span>
+</div>

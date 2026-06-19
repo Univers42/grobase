@@ -9,23 +9,29 @@ import type { TableRecord, TableMeta, FilterConfig, PaginationState } from './ty
 
 const BASE = '/api/crud';
 
-/** Map model names to CRUD API endpoints */
+/** Map model names to CRUD API endpoints (mirror of services/baas-crud.ts CRUD). */
 const MODEL_TO_ENDPOINT: Record<string, string> = {
   User: 'users',
   Role: 'roles',
   Order: 'orders',
   Menu: 'menus',
   MenuImage: 'menu-images',
-  MenuDish: 'menu-dishes',
   Ingredient: 'ingredients',
-  MenuIngredient: 'menu-ingredients',
-  DishIngredient: 'dish-ingredients',
-  DishAllergen: 'dish-allergens',
   Diet: 'diets',
   Theme: 'themes',
   Dish: 'dishes',
   Allergen: 'allergens',
   WorkingHours: 'working-hours',
+  Promotion: 'promotions',
+  Discount: 'discounts',
+  Publish: 'reviews',
+  Company: 'companies',
+  Event: 'events',
+  LoyaltyAccount: 'loyalty-accounts',
+  Notification: 'notifications',
+  // MongoDB collections (analytics mount)
+  events: 'mongo-events',
+  menu_views: 'mongo-menu-views',
 };
 
 /** Fields that contain sensitive data — shown masked in the table */

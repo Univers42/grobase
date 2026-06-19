@@ -1,0 +1,202 @@
+// ── FX — the maximalist effect layer. ───────────────────────────────────────
+// Shadows are NEVER single: GLOW (soft coloured) + HARD STACKED (8/16/24 offset,
+// each layer a DIFFERENT accent). A systematic colour-rotation system cycles the
+// five accents through any grid WITHOUT inline styles (CSP forbids style="").
+
+// ── Colour-rotation system ──────────────────────────────────────────────────
+// Every component reads a single local --acc var. Set it explicitly with
+// .accent-1..5, OR let a grid auto-cycle via the :nth-child rotation classes.
+// --acc may drive BOTH decoration (borders/glow) AND text (e.g. stat values),
+// so accent-5 uses the AA-safe purple. Deep --gb-a5 stays for pure-decoration
+// utilities (.shadow-*, .glow, floaters) that reference it directly.
+.accent-1 { --acc: var(--gb-a1); }
+.accent-2 { --acc: var(--gb-a2); }
+.accent-3 { --acc: var(--gb-a3); }
+.accent-4 { --acc: var(--gb-a4); }
+.accent-5 { --acc: var(--gb-a5-text); }
+
+// Fallback so anything reading --acc before a class lands still has a colour.
+:root {
+	--acc: var(--gb-a1);
+}
+
+// Auto-rotate the five accents across a grid's direct children (index % 5).
+// Put .rotate-accents on the grid; children inherit --acc by position. This is
+// the CSP-safe replacement for per-item inline colour.
+.rotate-accents > * { --acc: var(--gb-a1); }
+.rotate-accents > :nth-child(5n + 1) { --acc: var(--gb-a1); }
+.rotate-accents > :nth-child(5n + 2) { --acc: var(--gb-a2); }
+.rotate-accents > :nth-child(5n + 3) { --acc: var(--gb-a3); }
+.rotate-accents > :nth-child(5n + 4) { --acc: var(--gb-a4); }
+.rotate-accents > :nth-child(5n + 5) { --acc: var(--gb-a5-text); }
+
+// ── GLOW utilities (soft, multi-accent — never a single colour) ──────────────
+.glow {
+	box-shadow:
+		0 0 20px color-mix(in srgb, var(--acc) 55%, transparent),
+		0 0 40px color-mix(in srgb, var(--gb-a5) 30%, transparent);
+}
+
+.glow-lg {
+	box-shadow:
+		0 0 28px color-mix(in srgb, var(--acc) 60%, transparent),
+		0 0 56px color-mix(in srgb, var(--gb-a2) 35%, transparent),
+		0 0 90px color-mix(in srgb, var(--gb-a5) 25%, transparent);
+}
+
+// ── HARD STACKED multishadow (offset blocks, rotating accents) ───────────────
+.shadow-multi {
+	box-shadow:
+		6px 6px 0 var(--gb-a5),
+		12px 12px 0 var(--gb-a1);
+}
+
+.shadow-multi-lg {
+	box-shadow:
+		8px 8px 0 var(--gb-a5),
+		16px 16px 0 var(--gb-a1),
+		24px 24px 0 var(--gb-a2);
+}
+
+// Combined glow + hard (hero / CTA signature). Uses --acc for the glow tint.
+.shadow-hero {
+	box-shadow:
+		0 0 26px color-mix(in srgb, var(--acc) 55%, transparent),
+		8px 8px 0 var(--gb-a5),
+		16px 16px 0 var(--gb-a1);
+}
+
+// ── FLOATER — small decorative absolutely-positioned shapes (aria-hidden). ───
+// 5–10 per section, animated, pointer-events:none. Colour from --acc.
+.floater {
+	position: absolute;
+	width: 3rem;
+	height: 3rem;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--acc) 22%, transparent);
+	border: 3px solid var(--acc);
+	box-shadow: 0 0 18px color-mix(in srgb, var(--acc) 45%, transparent);
+	pointer-events: none;
+	z-index: 0;
+}
+
+.floater--sm {
+	width: 1.6rem;
+	height: 1.6rem;
+	border-width: 2px;
+}
+
+.floater--lg {
+	width: 5rem;
+	height: 5rem;
+}
+
+.floater--square {
+	border-radius: 4px;
+}
+
+.floater--ring {
+	background: transparent;
+}
+
+// the diamond rotates 45deg as a static base; animation classes add motion.
+.floater--diamond {
+	border-radius: 4px;
+	transform: rotate(45deg);
+}
+
+// asymmetric placement helpers (no inline style= for positions)
+.floater--tl {
+	top: 6%;
+	left: 5%;
+}
+
+.floater--tr {
+	top: 9%;
+	right: 7%;
+}
+
+.floater--ml {
+	top: 44%;
+	left: 8%;
+}
+
+.floater--mr {
+	top: 52%;
+	right: 6%;
+}
+
+.floater--bl {
+	bottom: 10%;
+	left: 12%;
+}
+
+.floater--br {
+	bottom: 8%;
+	right: 10%;
+}
+
+.floater--c1 {
+	top: 22%;
+	left: 38%;
+}
+
+.floater--c2 {
+	top: 70%;
+	right: 34%;
+}
+
+// ── BGWORD — one massive background word bleeding off-edge (aria-hidden). ─────
+.bgword {
+	position: absolute;
+	inset-inline: 0;
+	top: 50%;
+	transform: translateY(-50%);
+	margin: 0;
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	font-size: clamp(7rem, 26vw, 22rem);
+	line-height: 0.8;
+	letter-spacing: -0.04em;
+	text-transform: uppercase;
+	text-align: center;
+	white-space: nowrap;
+	color: var(--gb-text);
+	opacity: 0.07;
+	pointer-events: none;
+	user-select: none;
+	z-index: 0;
+}
+
+.bgword--left {
+	text-align: left;
+	transform: translate(-6%, -50%);
+}
+
+.bgword--right {
+	text-align: right;
+	transform: translate(6%, -50%);
+}
+
+.bgword--top {
+	top: 8%;
+	transform: none;
+}
+
+.bgword--bottom {
+	top: auto;
+	bottom: -4%;
+	transform: none;
+}
+
+// ── Asymmetry helpers — alternate tilt/offset without inline styles. ─────────
+.tilt-1 { transform: rotate(1deg); }
+.tilt-2 { transform: rotate(2deg); }
+.tilt-n1 { transform: rotate(-1deg); }
+.tilt-n2 { transform: rotate(-2deg); }
+.nudge-up { transform: translateY(-0.75rem); }
+.nudge-down { transform: translateY(0.75rem); }
+
+// Alternate every other child up/down for an asymmetric grid rhythm.
+.stagger > :nth-child(even) { transform: translateY(1rem); }
+.stagger > :nth-child(odd) { transform: translateY(-0.5rem); }

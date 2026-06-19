@@ -67,6 +67,42 @@ impl PostgresEngineAdapter {
     }
 }
 
+/// Per-table isolation master flag (`DATA_PLANE_PER_TABLE_ISOLATION`, F1). OFF by
+/// default → `shared_resources` is forced empty, so every WRITE owner-stamps
+/// (byte-parity). ON → a NAMED catalog table skips owner-stamping (so it stays
+/// editable without an `owner_id` column) while non-shared tables keep stamping.
+fn per_table_isolation_enabled() -> bool {
+    matches!(
+        std::env::var("DATA_PLANE_PER_TABLE_ISOLATION").as_deref(),
+        Ok("1" | "true" | "TRUE" | "on" | "ON" | "yes")
+    )
+}
+
+/// Predicate-based READ owner-scoping master (`DATA_PLANE_PG_READ_PREDICATE`). OFF
+/// by default → reads append NO `owner_id` predicate (byte-identical; Postgres
+/// reads were RLS-GUC-scoped only). Kept SEPARATE from F1 so a deployment can
+/// enable shared-catalog writes + admin-bypass (for an admin DB browser) WITHOUT
+/// owner-scoping every public read — the PG read path never carried SQL
+/// owner-scoping, so turning it on is a behavior change, not parity.
+fn read_predicate_enabled() -> bool {
+    matches!(
+        std::env::var("DATA_PLANE_PG_READ_PREDICATE").as_deref(),
+        Ok("1" | "true" | "TRUE" | "on" | "ON" | "yes")
+    )
+}
+
+/// Admin owner-scope bypass master flag (`DATA_PLANE_ADMIN_BYPASS`, F2). OFF by
+/// default → an admin identity is owner-scoped exactly like any caller
+/// (byte-parity). ON → an [`RequestIdentity::is_admin`] caller's reads and
+/// filter-based mutations (update/delete) skip the `owner_id` predicate so an
+/// admin sees/operates across owners; admin INSERT/UPSERT still stamp `owner_id`.
+fn admin_bypass_enabled() -> bool {
+    matches!(
+        std::env::var("DATA_PLANE_ADMIN_BYPASS").as_deref(),
+        Ok("1" | "true" | "TRUE" | "on" | "ON" | "yes")
+    )
+}
+
 #[async_trait]
 impl EngineAdapter for PostgresEngineAdapter {
     fn engine(&self) -> &str {
@@ -158,6 +194,20 @@ impl EngineAdapter for PostgresEngineAdapter {
         // request identity). `crate::pools_shared` is the one place the env +
         // isolation predicate live, shared with every other engine adapter.
         let shared_pool = crate::pools_shared(&mount);
+        // F1/F2 (flag-gated OFF → byte-parity): cache the per-table-isolation
+        // master + the NAMED shared set + the admin-bypass master ONCE at
+        // open_pool (mysql re-reads admin_bypass per dispatch; caching here keeps
+        // the env read off the hot path). OFF → shared set empty + read predicate
+        // off → every request runs exactly as before.
+        // perf: flags hoisted to open_pool; the hot path reads cached fields only.
+        let per_table_isolation = per_table_isolation_enabled();
+        let shared_resources: std::sync::Arc<[String]> = if per_table_isolation {
+            mount.shared_resources().into()
+        } else {
+            Vec::new().into()
+        };
+        let admin_bypass = admin_bypass_enabled();
+        let read_predicate = read_predicate_enabled();
         Ok(Box::new(PostgresPool {
             mount_id: mount.id.clone(),
             tenant_id: mount.tenant_id.clone(),
@@ -166,6 +216,9 @@ impl EngineAdapter for PostgresEngineAdapter {
             isolation,
             search_path_schema,
             dialect: self.dialect,
+            shared_resources,
+            admin_bypass,
+            read_predicate,
             mount,
         }))
     }
@@ -202,6 +255,17 @@ pub(super) struct PostgresPool {
     /// `Cockroach` only changes transaction-isolation lowering in `begin`
     /// (CRDB is serializable-only). Captured once at `open_pool`.
     pub(super) dialect: PgDialect,
+    /// F1 per-table isolation: NAMED tables that skip owner-scoping (a shared
+    /// catalog readable across owners). Empty unless `DATA_PLANE_PER_TABLE_ISOLATION`
+    /// is ON and the mount opted in → byte-parity (every table owner-scoped).
+    pub(super) shared_resources: std::sync::Arc<[String]>,
+    /// F2 master (`DATA_PLANE_ADMIN_BYPASS`), cached once at `open_pool`. OFF →
+    /// an admin is owner-scoped like any caller (byte-parity).
+    pub(super) admin_bypass: bool,
+    /// Read-predicate master (`DATA_PLANE_PG_READ_PREDICATE`), cached once. Gates
+    /// predicate-based read owner-scoping on Postgres — OFF → reads carry no
+    /// appended `owner_id` predicate (RLS-GUC-only, byte-identical SQL).
+    pub(super) read_predicate: bool,
     /// Retained mount for migration-time schema derivation
     /// ([`DatabaseMount::tenant_schema`] in `apply_migration`). Cheap: opened
     /// once per pool, not per request.

@@ -55,12 +55,15 @@ export function DatabaseViewer({ initialTable }: Readonly<DatabaseViewerProps>) 
     if (!db.activeTable) return;
     try {
       if (modal?.type === 'record' && modal.record) {
-        await DatabaseService.update(db.activeTable, getRecordKey(modal.record, columns), data);
+        const key = getRecordKey(modal.record, columns);
+        await DatabaseService.update(db.activeTable, key, data);
+        setModal(null);
+        db.applyRecord(decodeURIComponent(key), data); // instant in-place — no refetch flash; realtime reconciles trigger-computed cols
       } else {
         await DatabaseService.create(db.activeTable, data);
+        setModal(null);
+        db.refresh(); // new row → need a refetch for it + the total
       }
-      setModal(null);
-      db.refresh();
     } catch (e) {
       alert(`Erreur: ${e instanceof Error ? e.message : "Échec de l'opération"}`);
     }
@@ -68,9 +71,10 @@ export function DatabaseViewer({ initialTable }: Readonly<DatabaseViewerProps>) 
 
   const handleDelete = async (record: TableRecord) => {
     if (!db.activeTable || !confirm('Supprimer cet enregistrement ?')) return;
+    const key = getRecordKey(record, columns);
     try {
-      await DatabaseService.delete(db.activeTable, getRecordKey(record, columns));
-      db.refresh();
+      await DatabaseService.delete(db.activeTable, key);
+      db.removeRecord(decodeURIComponent(key)); // instant; realtime confirms for other clients
     } catch (e) {
       alert(`Erreur: ${e instanceof Error ? e.message : 'Échec de la suppression'}`);
     }

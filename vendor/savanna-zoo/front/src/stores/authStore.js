@@ -17,6 +17,20 @@ export const useAuthStore = create((set) => ({
     }
   },
 
+  /** Visitor self-signup (role=visitor) — returns a session immediately */
+  signUp: async (email, password, fullName) => {
+    set({ loading: true, error: null });
+    try {
+      await baas.auth.signUp({ email, password, fullName });
+      const user = await baas.auth.getUser();
+      set({ user, loading: false });
+      return user;
+    } catch (err) {
+      set({ error: err.message, loading: false });
+      throw err;
+    }
+  },
+
   /** Email + password sign-in */
   signIn: async (email, password) => {
     set({ loading: true, error: null });

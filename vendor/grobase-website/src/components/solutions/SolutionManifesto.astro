@@ -1,0 +1,38 @@
+---
+// ── SolutionManifesto — the premium scroll-reveal statement.
+// HONESTY (project ethos): NOT a fabricated customer testimonial — there are no
+// fake names, logos or numbers here. It is an honest PRODUCT MANIFESTO: the one
+// promise the whole product is built around, revealed word-by-word as it scrolls
+// into view (.reveal-words, driven CSP-safely by src/scripts/solutions/reveal.ts
+// via element.style.setProperty only). With no JS / reduced-motion the words
+// render fully white (the helper never drives --p), so the statement is always
+// readable. One serif-italic accent word carries the premium signal.
+import Icon from '../ui/Icon.astro';
+
+type Props = {
+	/** the manifesto words, in order */
+	words: string[];
+	/** index of the single word rendered serif-italic (the premium accent) */
+	accentIndex?: number;
+	id: string;
+};
+
+const { words, accentIndex = -1, id } = Astro.props;
+---
+
+<section class="gb-section gb-sol-manifesto" aria-labelledby={id}>
+	<h2 id={id} class="visually-hidden">Our promise</h2>
+	<div class="gb-container">
+		<p class="gb-kicker accent-3"><span aria-hidden="true"><Icon name="star" size={14} /></span> The promise</p>
+		<blockquote class="gb-sol-manifesto__quote">
+			<span class="reveal-words" data-reveal-words>
+				{words.map((w, i) => (
+					<span class={`reveal-words__w${i === accentIndex ? ' italic' : ''}`}>{w}</span>
+				))}
+			</span>
+		</blockquote>
+		<p class="gb-sol-manifesto__attr">— the Grobase product principle, true on every tier</p>
+	</div>
+</section>
+
+<script src="../../scripts/solutions/reveal.ts"></script>

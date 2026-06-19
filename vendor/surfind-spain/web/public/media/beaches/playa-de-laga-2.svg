@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Laga, Bizkaia">
+  <defs>
+    <linearGradient id="g7243sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#10243b"/><stop offset="1" stop-color="#e98a6b"/>
+    </linearGradient>
+    <radialGradient id="g7243sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffc07a" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffc07a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g7243sky)"/>
+  <circle cx="689" cy="110" r="160" fill="url(#g7243sun)"/>
+  <circle cx="689" cy="110" r="54" fill="#ffc07a" opacity="0.9"/>
+  <rect y="281" width="1280" height="439" fill="#15506a" opacity="0.55"/>
+  <path d="M0 321 C 96 305 224 337 320 321 C 416 337 544 305 640 321 C 736 305 864 337 960 321 C 1056 337 1184 305 1280 321 L 1280 720 L 0 720 Z" fill="#15506a" opacity="0.85"/><path d="M0 391 C 96 413 224 369 320 391 C 416 369 544 413 640 391 C 736 413 864 369 960 391 C 1056 369 1184 413 1280 391 L 1280 720 L 0 720 Z" fill="#2f8aa6" opacity="0.8"/><path d="M0 481 C 96 451 224 511 320 481 C 416 511 544 451 640 481 C 736 451 864 511 960 481 C 1056 511 1184 451 1280 481 L 1280 720 L 0 720 Z" fill="#2f8aa6" opacity="0.6"/><path d="M0 581 C 96 621 224 541 320 581 C 416 541 544 621 640 581 C 736 621 864 541 960 581 C 1056 541 1184 621 1280 581 L 1280 720 L 0 720 Z" fill="#f0fbff" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">BIZKAIA</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Laga · 2</text>
+</svg>

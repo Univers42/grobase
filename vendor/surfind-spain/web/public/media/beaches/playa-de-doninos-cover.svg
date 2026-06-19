@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Doninos, A Coruna">
+  <defs>
+    <linearGradient id="g2600sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#073043"/><stop offset="1" stop-color="#ffd27a"/>
+    </linearGradient>
+    <radialGradient id="g2600sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff1c2" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#fff1c2" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g2600sky)"/>
+  <circle cx="249" cy="83" r="160" fill="url(#g2600sun)"/>
+  <circle cx="249" cy="83" r="54" fill="#fff1c2" opacity="0.9"/>
+  <rect y="286" width="1280" height="434" fill="#0d6178" opacity="0.55"/>
+  <path d="M0 326 C 96 310 224 342 320 326 C 416 342 544 310 640 326 C 736 310 864 342 960 326 C 1056 342 1184 310 1280 326 L 1280 720 L 0 720 Z" fill="#0d6178" opacity="0.85"/><path d="M0 396 C 96 418 224 374 320 396 C 416 374 544 418 640 396 C 736 418 864 374 960 396 C 1056 374 1184 418 1280 396 L 1280 720 L 0 720 Z" fill="#28a7c0" opacity="0.8"/><path d="M0 486 C 96 456 224 516 320 486 C 416 516 544 456 640 486 C 736 456 864 516 960 486 C 1056 516 1184 456 1280 486 L 1280 720 L 0 720 Z" fill="#28a7c0" opacity="0.6"/><path d="M0 586 C 96 626 224 546 320 586 C 416 546 544 626 640 586 C 736 626 864 546 960 586 C 1056 546 1184 626 1280 586 L 1280 720 L 0 720 Z" fill="#ffffff" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">A CORUNA</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Doninos</text>
+</svg>

@@ -28,13 +28,15 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     updated_at      timestamptz  NOT NULL DEFAULT now()
 );
 
--- ── posts (composed images live in object storage; row holds the key) ──
+-- ── posts: a LinkedIn-style feed entry — text (≤500), optional media, reposts ──
 CREATE TABLE IF NOT EXISTS public.posts (
-    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id     text         NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    image_key   text         NOT NULL,                   -- storage object key (was image_path)
-    owner_id    text,
-    created_at  timestamptz  NOT NULL DEFAULT now()
+    id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id        text         NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    content        text         CONSTRAINT posts_content_len CHECK (content IS NULL OR char_length(content) <= 500),
+    image_key      text,                                 -- storage object key; NULL for text-only posts
+    shared_post_id bigint       REFERENCES public.posts(id) ON DELETE SET NULL,  -- repost/share of another post
+    owner_id       text,
+    created_at     timestamptz  NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_posts_user ON public.posts (user_id);
 CREATE INDEX IF NOT EXISTS idx_posts_date ON public.posts (created_at DESC);

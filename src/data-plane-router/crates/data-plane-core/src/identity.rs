@@ -41,13 +41,15 @@ impl RequestIdentity {
     /// Whether this caller is an administrator — a role/scope that an
     /// owner-scope bypass (F2, `DATA_PLANE_ADMIN_BYPASS`) honours so an admin
     /// reads/updates/deletes across owners. True when `roles` contains `admin`
-    /// or `scopes` carries `admin` / `apikey:admin` (the projected API-key admin
-    /// scope). Pure over the already-verified identity — the bypass that
-    /// consults it is itself flag-gated OFF by default, so this never widens
-    /// access on its own.
+    /// / `superadmin` / `service_role`, or `scopes` carries `admin` /
+    /// `apikey:admin` (the projected API-key admin scope). Pure over the
+    /// already-verified identity — the bypass that consults it is itself
+    /// flag-gated OFF by default, so this never widens access on its own.
     #[must_use]
     pub fn is_admin(&self) -> bool {
-        self.roles.iter().any(|r| r == "admin")
+        self.roles
+            .iter()
+            .any(|r| r == "admin" || r == "superadmin" || r == "service_role")
             || self.scopes.iter().any(|s| s == "admin" || s == "apikey:admin")
     }
 }

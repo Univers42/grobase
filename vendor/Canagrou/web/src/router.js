@@ -22,6 +22,26 @@ const ROUTES = {
   '/settings': () => import('./pages/settings.js'),
 };
 
+const PARAM_ROUTES = [
+  { prefix: '/profile/', loader: () => import('./pages/profile.js'), key: 'userId' },
+  { prefix: '/tag/', loader: () => import('./pages/tag.js'), key: 'tag' },
+];
+
+/**
+ * matchParamRoute resolves a parameterized path (/profile/:userId, /tag/:tag) to
+ * its loader and a decoded {key:value} param, or null when none match.
+ * @param pathname the current pathname
+ */
+function matchParamRoute(pathname) {
+  for (const route of PARAM_ROUTES) {
+    if (!pathname.startsWith(route.prefix)) continue;
+    const raw = pathname.slice(route.prefix.length).split('/')[0];
+    if (!raw) continue;
+    return { loader: route.loader, params: { [route.key]: decodeURIComponent(raw) } };
+  }
+  return null;
+}
+
 /**
  * navigate pushes a new path (unless replacing/same) and renders it. Exposed as
  * window.canagrouNavigate so non-router modules (layout, pages) can redirect.
@@ -55,16 +75,18 @@ async function render() {
   renderNav(pathname);
   const slot = contentSlot();
   if (!slot) return;
-  const loader = ROUTES[pathname] || ROUTES['/'];
-  await mountPage(loader, slot);
+  const param = matchParamRoute(pathname);
+  const loader = param ? param.loader : ROUTES[pathname] || ROUTES['/'];
+  await mountPage(loader, slot, param ? param.params : null);
 }
 
 /**
  * mountPage tears down the previous page (calling its returned cleanup), clears
- * the slot, lazy-imports the next page module, and runs its default(slot)
+ * the slot, lazy-imports the next page module, and runs its default(slot,params)
  * renderer — storing any cleanup function it returns for the next navigation.
+ * @param params decoded route params for parameterized routes, else null
  */
-async function mountPage(loader, slot) {
+async function mountPage(loader, slot, params) {
   if (typeof lifecycle.cleanup === 'function') {
     try {
       lifecycle.cleanup();
@@ -74,9 +96,12 @@ async function mountPage(loader, slot) {
   }
   lifecycle.cleanup = null;
   clear(slot);
+  slot.classList.remove('route-enter');
+  void slot.offsetWidth;
+  slot.classList.add('route-enter');
   try {
     const mod = await loader();
-    lifecycle.cleanup = (await mod.default(slot)) || null;
+    lifecycle.cleanup = (await mod.default(slot, params)) || null;
   } catch (err) {
     console.error('[router] page render failed', err);
     toast(err && err.message ? err.message : 'Page failed to load', 'error');

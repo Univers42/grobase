@@ -61,7 +61,31 @@ isolation (m4/m46 cross-tenant, cross-engine), auth fail-closed (m37: bogus key
 (m28), footprint budgets (m32). CI additionally runs Semgrep SAST, dependency
 audit (npm/pnpm), and Trivy filesystem scans on every PR.
 
-## 5. Reporting a vulnerability
+## 5. Multi-tenant isolation hardening (penetration-tested)
+
+An adversarial sweep of the live stack (one attacker + one independent verifier
+per surface) surfaced four cross-tenant / enumeration weaknesses; each is now
+fixed and pinned by a verify gate. The gateway/infra fixes are always-on; the
+storage one is flag-gated **OFF** (byte-parity) and turned **ON** by `make cloud-up`.
+
+| # | Weakness | Fix | Gate |
+|---|---|---|---|
+| F1 | Kong **Admin API** published to a host port → `GET /key-auths` dumps the cleartext anon + `service_role` keys | Admin API is internal-only (no host publish); stays on the Docker network for Prometheus | `m157` |
+| F2 | `GET /admin/v1/databases` + the public anon key + a forged `X-Baas-Tenant-Id` → **enumerate any tenant's DB mounts** | Kong **ACL** restricts the adapter-registry admin route to the `baas-admin` group (the `service_role` consumer only); the anon key → 403 | `m158` |
+| F3 | `GET /storage/v1/bucket` lists **every tenant's bucket names**; any user can create buckets | `STORAGE_BUCKET_SCOPE_ENABLED` (default OFF): non-privileged callers get an empty list + 403 on create; only a `service_role` principal manages buckets | `m159` |
+| F4 | GoTrue `/recover` returns **500 for a known email, 200 for an unknown one** → user enumeration | bundled **mailpit** SMTP sink so recovery mail sends and `/recover` returns 200 uniformly | `m156` |
+
+Run them: `for g in m156 m157 m158 m159; do bash scripts/verify/$g-*.sh; done`. The
+companion app gate `m155-savanna-security.sh` exercises per-request owner-scoping
+(RLS tickets, Mongo journal, realtime PII non-broadcast) end-to-end. Note: with F3 ON,
+bucket-provisioning must use a `service_role` token (the older storage gates m55/m77/m95
+create buckets as a plain user and expect the default-OFF posture).
+
+**Authz rule (learned here):** a role/privilege must be read from GoTrue **`app_metadata`**
+(server-controlled), never **`user_metadata`** (set by the client via signup `data`) — the
+latter is a self-signup privilege-escalation vector.
+
+## 6. Reporting a vulnerability
 
 Open a **private GitHub Security Advisory** on the repository (Security →
 Advisories → Report a vulnerability). Please do not file public issues for

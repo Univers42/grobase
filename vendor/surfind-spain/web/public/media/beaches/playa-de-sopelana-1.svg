@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Sopelana, Bizkaia">
+  <defs>
+    <linearGradient id="g9497sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#062436"/><stop offset="1" stop-color="#7fb7c9"/>
+    </linearGradient>
+    <radialGradient id="g9497sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#dff3f8" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#dff3f8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g9497sky)"/>
+  <circle cx="408" cy="266" r="160" fill="url(#g9497sun)"/>
+  <circle cx="408" cy="266" r="54" fill="#dff3f8" opacity="0.9"/>
+  <rect y="353" width="1280" height="367" fill="#0f5a73" opacity="0.55"/>
+  <path d="M0 393 C 96 377 224 409 320 393 C 416 409 544 377 640 393 C 736 377 864 409 960 393 C 1056 409 1184 377 1280 393 L 1280 720 L 0 720 Z" fill="#0f5a73" opacity="0.85"/><path d="M0 463 C 96 485 224 441 320 463 C 416 441 544 485 640 463 C 736 485 864 441 960 463 C 1056 441 1184 485 1280 463 L 1280 720 L 0 720 Z" fill="#3aa0bb" opacity="0.8"/><path d="M0 553 C 96 523 224 583 320 553 C 416 583 544 523 640 553 C 736 523 864 583 960 553 C 1056 583 1184 523 1280 553 L 1280 720 L 0 720 Z" fill="#3aa0bb" opacity="0.6"/><path d="M0 653 C 96 693 224 613 320 653 C 416 613 544 693 640 653 C 736 693 864 613 960 653 C 1056 613 1184 693 1280 653 L 1280 720 L 0 720 Z" fill="#ffffff" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">BIZKAIA</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Sopelana · 1</text>
+</svg>

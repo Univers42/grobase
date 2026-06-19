@@ -1,0 +1,26 @@
+---
+// ── HERO — minimal · dreamy · cyberpunk.
+// The least information possible: a short title (one Instrument-Serif italic
+// accent word) + one primary CTA, over a looping cyberpunk night scene
+// (HeroScene — pure SVG/CSS, CSP-safe, LH-friendly). No pill, no description,
+// no stat chips — the scene carries the mood; the words stay out of the way.
+import Icon from '../ui/Icon.astro';
+import HeroScene from './HeroScene.astro';
+---
+
+<section class="gb-section gb-hero" aria-labelledby="hero-title" data-hero>
+	<HeroScene />
+
+	<div class="gb-container gb-hero__inner">
+		<h1 id="hero-title" class="gb-hero__title gb-hero__rise gb-hero__rise--1">
+			One backend, <em class="serif-italic gb-hero__accent">any frontend</em>.
+		</h1>
+
+		<div class="gb-hero__ctas gb-hero__rise gb-hero__rise--2">
+			<a class="gb-btn gb-btn--primary" href="/pricing/">
+				Start free
+				<Icon name="arrow-right" size={18} />
+			</a>
+		</div>
+	</div>
+</section>

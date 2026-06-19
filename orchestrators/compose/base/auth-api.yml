@@ -65,6 +65,8 @@ services:
     depends_on:
       db-bootstrap:
         condition: service_completed_successfully
+      mailpit:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9999/health || exit 1"]
       interval: 5s
@@ -73,6 +75,31 @@ services:
       retries: 8
     mem_limit: 128m
     cpus: 0.25
+
+  # ─── Mailpit — local SMTP sink ───────────────────────────────
+  # GoTrue (+ email-service) target SMTP_HOST=mailpit:1025; without a sink,
+  # /auth/v1/recover 500s for real users (mail send fails) but 200s for unknown
+  # ones — a user-enumeration differential. A bundled sink makes recovery mail
+  # "send" so /recover returns 200 uniformly, and the dev inbox is at :8025.
+  mailpit:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: axllent/mailpit:latest
+    container_name: mini-baas-mailpit
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    ports:
+      # 8025 is often taken (e.g. a monorepo mailpit); 8026 avoids the clash.
+      # SMTP (1025) stays internal to the mini-baas network — no host publish.
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8026}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    mem_limit: 64m
+    cpus: 0.10
 
   # ─── PostgreSQL REST API ─────────────────────────────────────────
   postgrest:
