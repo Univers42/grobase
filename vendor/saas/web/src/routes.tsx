@@ -11,6 +11,7 @@ import { ForgotPage } from './pages/auth/ForgotPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AppShell } from './layout/AppShell';
 import { RequireAuth } from './layout/RequireAuth';
+import { RequireRole } from './layout/RequireRole';
 
 const OverviewPage = lazy(() => import('./pages/overview/OverviewPage').then((m) => ({ default: m.OverviewPage })));
 const UsersPage = lazy(() => import('./pages/users/UsersPage').then((m) => ({ default: m.UsersPage })));
@@ -33,7 +34,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <OverviewPage /> },
-      { path: 'users', element: <UsersPage /> },
+      { path: 'users', element: <RequireRole><UsersPage /></RequireRole> },
       { path: 'inbox', element: <InboxPage /> },
       { path: 'revenue', element: <RevenuePage /> },
       { path: 'content', element: <ContentPage /> },

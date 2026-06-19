@@ -118,14 +118,22 @@ if [[ -n "${API_KEY}" && -n "${PG_DB_ID}" && -n "${MONGO_DB_ID}" ]]; then
   [[ "${p1}" == "200" && "${p2}" == "200" ]] && key_ok=1
 fi
 
-# register_mount NAME ENGINE DSN — POST /admin/v1/databases; echoes mount id
+# register_mount NAME ENGINE DSN [READ_SCOPED] — POST /admin/v1/databases; echoes
+# mount id. READ_SCOPED (4th arg, "true"/"false", default false) rides the SAME
+# registration-body contract as shared_resources (snake_case `read_scoped`): when
+# true the data plane owner-scopes reads on this mount, so an app-key-only read
+# returns 0 unless the caller is an admin JWT (F2 bypass). The data plane reads
+# read_scoped from the mount's capability_overrides exactly like shared_resources.
+# A re-register (409) does NOT update an existing row, so the UPDATE convergence
+# in step 4b is the authority that flips the flag on every run.
 register_mount() {
-  local code
+  local code read_scoped
+  read_scoped="${4:-false}"
   code=$(curl -s -o /tmp/nimbus-mount.json -w '%{http_code}' -X POST \
     "${KONG_URL}/admin/v1/databases" \
     -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT_SLUG}" \
     -H 'Content-Type: application/json' \
-    -d "{\"engine\":\"$2\",\"name\":\"$1\",\"connection_string\":\"$3\"}")
+    -d "{\"engine\":\"$2\",\"name\":\"$1\",\"connection_string\":\"$3\",\"read_scoped\":${read_scoped}}")
   if [[ "${code}" == "201" ]]; then
     _lt_json_field id </tmp/nimbus-mount.json
   elif [[ "${code}" == "409" ]]; then
@@ -151,15 +159,49 @@ else
   KEY_ID="$(_lt_json_field id </tmp/nimbus-key.json)"
   [[ "${API_KEY}" == mbk_* ]] || fail "minted key has unexpected shape"
 
-  cyan "registering PostgreSQL mount '${PG_MOUNT_NAME}' → ${NIMBUS_DB}"
+  cyan "registering PostgreSQL mount '${PG_MOUNT_NAME}' → ${NIMBUS_DB} (read_scoped=true)"
   PG_DB_ID="$(register_mount "${PG_MOUNT_NAME}" postgresql \
-    "postgres://$(urlenc "${PG_USER}"):$(urlenc "${PG_PASS}")@postgres:5432/${NIMBUS_DB}")"
+    "postgres://$(urlenc "${PG_USER}"):$(urlenc "${PG_PASS}")@postgres:5432/${NIMBUS_DB}" true)"
   cyan "registering MongoDB mount '${MONGO_MOUNT_NAME}' → ${NIMBUS_DB}"
   MONGO_DB_ID="$(register_mount "${MONGO_MOUNT_NAME}" mongodb \
     "mongodb://$(urlenc "${MONGO_USER}"):$(urlenc "${MONGO_PASS}")@mongo:27017/${NIMBUS_DB}?authSource=admin")"
   [[ -n "${PG_DB_ID}" && -n "${MONGO_DB_ID}" ]] || fail "mount registration returned empty ids"
 fi
 cyan "mounts: pg=${PG_DB_ID} mongo=${MONGO_DB_ID}"
+
+# ── 4b) flip read_scoped=true on the live PG mount (authoritative convergence) ─
+# The registration body carries read_scoped, but a re-register (409) never updates
+# an existing row and the inline-INSERT may not yet thread the column on every
+# build, so this UPDATE is the source of truth that converges the live row to the
+# secure state on EVERY run. The column is added by migration 068's sibling
+# (read_scoped boolean NOT NULL DEFAULT false); guarded with to_regclass +
+# information_schema so an un-migrated stack degrades to a clear hint instead of a
+# psql error. The data plane caches read_scoped at open_pool, so the orchestrator
+# restarts data-plane-router after this flips (see the runbook).
+cyan "flipping read_scoped=true on the nimbus PG mount (id=${PG_DB_ID})"
+RS_OUT="$(docker exec "${PG_CTN}" psql -U "${PG_USER}" -d postgres -tA -v ON_ERROR_STOP=1 <<SQL 2>&1 || true
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='tenant_databases'
+                   AND column_name='read_scoped') THEN
+    RAISE NOTICE 'NO_READ_SCOPED_COLUMN';
+    RETURN;
+  END IF;
+  UPDATE public.tenant_databases SET read_scoped = true
+   WHERE id = '${PG_DB_ID}'::uuid AND tenant_id = '${TENANT_SLUG}';
+  RAISE NOTICE 'READ_SCOPED_SET';
+END \$\$;
+SQL
+)"
+case "${RS_OUT}" in
+  *NO_READ_SCOPED_COLUMN*)
+    cyan "WARN: tenant_databases.read_scoped column absent — run migrations first (068 sibling), then re-run. App-key isolation will NOT be enforced until then." ;;
+  *READ_SCOPED_SET*)
+    cyan "read_scoped=true on nimbus PG mount — restart data-plane-router for it to take effect" ;;
+  *)
+    cyan "WARN: read_scoped UPDATE produced: ${RS_OUT}" ;;
+esac
 
 # ── 5) apply the PostgreSQL schema (idempotent) ──────────────────────────────
 cyan "applying schema from $(basename "${SCHEMA_FILE}")"
@@ -173,18 +215,38 @@ ADMIN_SUB=""
 code=$(curl -s -o /tmp/nimbus-admin.json -w '%{http_code}' -X POST "${KONG_URL}/auth/v1/admin/users" \
   -H "apikey: ${ANON_KEY}" -H "Authorization: Bearer ${GOTRUE_SERVICE_ROLE}" -H 'Content-Type: application/json' \
   -d "{\"email\":\"${ADMIN_EMAIL}\",\"password\":\"${ADMIN_PASSWORD}\",\"role\":\"admin\",\"email_confirm\":true}")
+# find_admin_sub_by_email — PAGE through GET /auth/v1/admin/users (per_page=200)
+# to find the admin by email. The shared GoTrue holds many users from sibling
+# seeds, so a page-1-only lookup misses an admin that landed on a later page
+# (the hambooking idempotency bug); stop at the first page with <200 users.
+find_admin_sub_by_email() {
+  local page sub
+  page=1
+  while [[ "${page}" -le 50 ]]; do
+    curl -s -o /tmp/nimbus-admin-list.json \
+      "${KONG_URL}/auth/v1/admin/users?page=${page}&per_page=200" \
+      -H "apikey: ${ANON_KEY}" -H "Authorization: Bearer ${GOTRUE_SERVICE_ROLE}" || break
+    sub="$(python3 -c '
+import json,sys
+try:
+  users=json.load(open("/tmp/nimbus-admin-list.json")).get("users",[])
+except Exception:
+  print("|0"); sys.exit()
+hit=next((u.get("id","") for u in users if u.get("email")==sys.argv[1]), "")
+print(f"{hit}|{len(users)}")' "${ADMIN_EMAIL}" 2>/dev/null)"
+    [[ "${sub%%|*}" != "" ]] && { printf '%s' "${sub%%|*}"; return 0; }
+    [[ "${sub##*|}" -lt 200 ]] && break
+    page=$((page + 1))
+  done
+  return 0
+}
+
+# When the admin already exists, the create returns 422 (email_exists); page the
+# admin list to recover the sub. A fresh create returns the sub directly.
 if [[ "${code}" == "200" || "${code}" == "201" ]]; then
   ADMIN_SUB="$(_lt_json_field id </tmp/nimbus-admin.json)"
 else
-  curl -s -o /tmp/nimbus-admin-list.json "${KONG_URL}/auth/v1/admin/users" \
-    -H "apikey: ${ANON_KEY}" -H "Authorization: Bearer ${GOTRUE_SERVICE_ROLE}" || true
-  ADMIN_SUB="$(python3 -c '
-import json
-try:
-  d=json.load(open("/tmp/nimbus-admin-list.json"))
-  for u in d.get("users",[]):
-    if u.get("email")=="'"${ADMIN_EMAIL}"'": print(u.get("id","")); break
-except Exception: pass' 2>/dev/null)"
+  ADMIN_SUB="$(find_admin_sub_by_email)"
 fi
 [[ -n "${ADMIN_SUB}" ]] || fail "could not create/find GoTrue admin (${code}): $(head -c 200 /tmp/nimbus-admin.json)"
 cyan "admin sub=${ADMIN_SUB:0:8}…"
@@ -225,6 +287,27 @@ docker exec -i "${PG_CTN}" psql -U "${PG_USER}" -d "${NIMBUS_DB}" -q -v ON_ERROR
 gw_q "${PG_DB_ID}" app_users '{"op":"delete","filter":{"id":{"$eq":"'"${ADMIN_SUB}"'"}}}' >/dev/null 2>&1 || true
 gw_q "${PG_DB_ID}" app_users \
   "{\"op\":\"insert\",\"data\":{\"id\":\"${ADMIN_SUB}\",\"email\":\"${ADMIN_EMAIL}\",\"name\":\"Nimbus Admin\",\"role\":\"admin\",\"status\":\"active\"}}" >/dev/null
+
+# ── 7b) re-own seeded business to system:nimbus (close the app-key read hole) ──
+# The bulk load + the admin re-stamp both went through the gateway, so every row
+# is owner-stamped `api-key:<key uuid>` — readable by anyone holding the public
+# mbk_ key. Re-own them to `system:nimbus`, a principal NO login resolves to, so
+# with read_scoped ON an app-key-only read returns 0. The admin JWT (role=admin)
+# still reads them via the F2 owner-scope bypass; a customer JWT (owner user:<sub>)
+# never matches them. Idempotent: re-runs converge (the WHERE re-matches api-key:%
+# fresh-loaded rows; already-system rows are untouched). Done in-DB (the seed
+# already has psql to ${NIMBUS_DB}); the data plane never blocks an owner rewrite
+# it doesn't see (the rows belong to the platform, not a tenant user).
+cyan "re-owning seeded business rows → system:nimbus (api-key:% → system:nimbus)"
+docker exec -i "${PG_CTN}" psql -U "${PG_USER}" -d "${NIMBUS_DB}" -q -v ON_ERROR_STOP=1 <<'SQL' >/dev/null \
+  || fail "re-own to system:nimbus failed"
+UPDATE public.app_users      SET owner_id = 'system:nimbus' WHERE owner_id LIKE 'api-key:%';
+UPDATE public.accounts       SET owner_id = 'system:nimbus' WHERE owner_id LIKE 'api-key:%';
+UPDATE public.txns           SET owner_id = 'system:nimbus' WHERE owner_id LIKE 'api-key:%';
+UPDATE public.ledger_entries SET owner_id = 'system:nimbus' WHERE owner_id LIKE 'api-key:%';
+UPDATE public.subscriptions  SET owner_id = 'system:nimbus' WHERE owner_id LIKE 'api-key:%';
+UPDATE public.invoices       SET owner_id = 'system:nimbus' WHERE owner_id LIKE 'api-key:%';
+SQL
 
 cyan "loading MongoDB collections (drop + insert, owner-stamped)"
 STACK_NET="$(docker inspect "${MONGO_CTN}" \
@@ -277,5 +360,6 @@ NIMBUS_SERVICE_APIKEY=${SERVICE_KEY}
 NIMBUS_ADMIN_EMAIL=${ADMIN_EMAIL}
 NIMBUS_ADMIN_PASSWORD=${ADMIN_PASSWORD}
 NIMBUS_ADMIN_SUB=${ADMIN_SUB}
+NIMBUS_SECURE_OWNER=system:nimbus
 EOF
 cyan "DONE: tenant=${TENANT_SLUG} pg=${PG_DB_ID} mongo=${MONGO_DB_ID} (state → ${STATE_ENV})"

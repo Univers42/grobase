@@ -29,9 +29,11 @@ no `mini-baas-infra/` prefix to re-map. (Sanity check: `ls mini-baas-infra` → 
 SDK-codegen chain and CI (`.github/workflows/ci.yml`) were repointed to lean paths in the same
 restructure and are on `main` too.
 
-The active branch is **`feature/grobase-hambooking-baas`** = `origin/main` + the vendor re-platform
-commits (Canagrou · HamBooking · Nimbus · MovieVerse · vite-gourmand; see the `vendor/` section
-below). It carries heavy uncommitted/untracked working-tree changes — most under `vendor/Canagrou/`.
+The active branch is **`main`** (HEAD `4461d51`); the vendor re-platform commits (Canagrou · HamBooking ·
+Nimbus · MovieVerse · vite-gourmand) plus the per-table-isolation + query-router-JWT data-plane work and
+the websites playground have all **landed on `main`** (they were previously staged on
+`feature/grobase-hambooking-baas`). The working tree carries untracked vendor clones (`vendor/AppFlowy/`,
+`vendor/twenty/`) and heavy uncommitted changes — most under `vendor/Canagrou/` (and this `CLAUDE.md`).
 
 ## Code generation
 
@@ -185,8 +187,8 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **131 scripts, highest m149**; the m-numbers are a _range_,
-not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146` scripts exist). There
+`scripts/verify/m<NN>-*.sh` (currently **144 scripts, highest m161**; the m-numbers are a _range_,
+not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
 
@@ -210,9 +212,13 @@ has its own gate (e.g. `m103-orgs-rbac.sh`, `m110-sso-oidc.sh`, `m123-cmek-envel
 band **m140–m145** is _not_ feature-flagged (hence absent from the flag tables): `m140`
 network-controls + WAF, `m141` compliance-posture, `m142` edge-error-mapping, `m143`
 compliance-matrices, `m144` trust-page-parity, `m145` cost-model integrity. Beyond that, the
-**m146–m149** band is the **vendor re-platform proof set** (`m146-canagrou-roundtrip`,
-`m146-movieverse`, `m147-hambooking-isolation`, `m148-nimbus-roundtrip`, `m149-gourmand-baas`) — see
-the `vendor/` section; these need the stack up + each app's seed script run first.
+**m146–m154 + m160–m161** band is the **vendor re-platform proof set** (`m146-canagrou-roundtrip`,
+`m146-movieverse`, `m147-hambooking-isolation`, `m148-nimbus-roundtrip`, `m149-gourmand-baas`,
+`m150`…`m154` hypertube, `m154-savanna-zoo` + `m155-savanna-security`, `m160-surfind-spain` +
+`m161-surfind-deep`) — see the `vendor/` section; these need the stack up + each app's seed script run
+first. The **m156–m159** band is a separate **core platform-hardening** set (security fixes to the OSS
+core, not vendor): `m156` recover-no-enumeration, `m157` kong-admin-not-exposed, `m158`
+admin-tenant-scope, `m159` storage-bucket-scope (the last flag-gated via `STORAGE_BUCKET_SCOPE_ENABLED`).
 
 ### Build, lint & test (per plane) — including how to run ONE test
 
@@ -251,10 +257,11 @@ scanner; token from `SONAR_TOKEN`/`TOK_SONARCLOUD`). Pull the live issue list wi
 ## Editions, planes, and compose overlays
 
 An **edition** = a named set of planes. The **root `docker-compose.yml` is now a thin orchestrator** —
-it `include:`s **16** base files under **`orchestrators/compose/base/*.yml`** (gateway, secrets,
+it `include:`s **19** base files under **`orchestrators/compose/base/*.yml`** (gateway, secrets,
 data-engines, auth-api, engines-extra, lakehouse, control-plane, data-plane, app-services, storage,
-observability, ops, studio, playground, plus the vendor-app profiles **movieverse** + **gourmand**,
-which are profile-gated, not default planes); a 17th file `_common.yml` holds shared YAML anchors. The
+observability, ops, studio, playground, plus the vendor-app profiles **movieverse** + **gourmand** +
+**hypertube** + **savanna** + **surfind**, which are profile-gated, not default planes); a 20th file
+`_common.yml` holds shared YAML anchors. The
 old single-file monolith was split into these. Beyond that base, additive overlays under
 **`orchestrators/compose/`** opt into capabilities — never defaults:
 
@@ -270,7 +277,7 @@ old single-file monolith was split into these. Beyond that base, additive overla
 | `docker-compose.track-binocle.yml` | Carried-over monorepo-integration overlay                           |
 | `docker-compose.monolith.yml`      | Preserved pre-split single-file compose (all services inline; uses stale `./docker/services/` paths) |
 
-**Gotcha — GHCR pull-fallback.** **49** services across the `orchestrators/compose/base/*.yml` plane
+**Gotcha — GHCR pull-fallback.** **54** services across the `orchestrators/compose/base/*.yml` plane
 files (included by the thin root `docker-compose.yml`) carry an
 `image: ghcr.io/univers42/grobase-<svc>:latest` line above their `build:` block (annotated
 `# pull-fallback`), so a plain `docker compose up` **pulls the prebuilt `:latest` image instead of
@@ -291,11 +298,11 @@ planes, e.g. metering = `METERING_ENABLED` (Go control) AND `DATA_PLANE_METERING
 `PERMISSION_CONDITIONS_ENABLED` / `API_KEY_ABAC_ENABLED` (m135–m139, ABAC) are _not_ Go `envBool`
 route-mount gates — they gate at the **TS / data-plane PDP**, so grep them in
 `src/apps/permission-engine` & `src/apps/query-router`, not the Go control plane. SQL migrations live
-in **`scripts/migrations/postgresql/`**; the full numeric set is **001–068** (55 distinct numbers
-across 57 files — `035` is reused; sequence is non-contiguous, gaps include **057–059**: `056` jumps
-to `060`; highest is `068_mount_shared_resources.sql`). The cloud/enterprise/parity flag slice runs
-**040–065**; **066–068** are vendor/infra, not flag-gated (`066`/`067` MovieVerse schema + like-counts,
-`068` per-mount shared_resources). Mongo/MySQL migrations are separate and tiny
+in **`scripts/migrations/postgresql/`**; the full numeric set is **001–069** (56 distinct numbers
+across 58 files — `035` is reused; sequence is non-contiguous, gaps include **057–059**: `056` jumps
+to `060`; highest is `069_add_dynamodb_engine_check.sql`). The cloud/enterprise/parity flag slice runs
+**040–065**; **066–069** are vendor/infra, not flag-gated (`066`/`067` MovieVerse schema + like-counts,
+`068` per-mount shared_resources, `069` DynamoDB engine CHECK). Mongo/MySQL migrations are separate and tiny
 (`scripts/migrations/{mongodb,mysql}/`, via `make migrate-mongo` / `migrate-mysql`, which need the
 `data-plane` profile up).
 
@@ -455,6 +462,8 @@ the default build/CI (the exceptions are opt-in `movieverse` + `gourmand` compos
 | **music-room**                    | React-Native/NestJS/Mongo music collab       | ⬜ untouched playground — zero BaaS wiring                                                          | —                               |
 | **surfind-spain**                 | Laravel 12/Livewire/MySQL Spanish surf directory | ✅ re-platformed — **server-rendered (no SPA), so the frontend was REBUILT from scratch** as a React/Vite/Leaflet SPA (`web/`) on PostgREST+GoTrue; role RLS via `app_metadata`, owner-scoped favorites/comments, 16 beaches seeded; Laravel/MySQL backend removed; serve `:5183` | `m160-surfind-spain.sh`         |
 | **hypertube**                     | 42 BitTorrent video search+stream subject    | ✅ re-platformed — backend **entirely Grobase** (GoTrue auth + **MongoDB** catalog/comments/profiles + **DynamoDB** watch_state + realtime) plus **4 custom services** under `vendor/hypertube/grobase/`: a **new Rust `hypertube-stream` engine** (axum/reqwest range-proxy → archive.org HTTP `206` partial-content, YouTube-style fast buffer, H.264+AAC audio, `X-Accel-Buffering:no`), `hypertube-media` (torrent→Range/206 + ffmpeg transcode), `hypertube-search` (archive.org + TMDb), `hypertube-api` (RESTful OAuth2) + a YouTube-style React/Vite SPA (`View/`, same-origin via `grobase/serve.mjs`). **~1848 real archive.org films** bulk-seeded (`hypertube-catalog-bulk`, throttled), **8 user profiles + comments** (`hypertube-users`). **Forced real Grobase fixes: the 8th engine DynamoDB end-to-end (build-arg `--features dynamodb` + `DYNAMODB_ENGINE_ENABLED` + migration `069` + registry `ensureSchemaDDL` engine-CHECK + `RUST_DATA_PLANE_FORWARD_ENGINES` + `dynamodb-local`), Mongo `shared_resources` cross-owner reads, and seed idempotency (control-plane key-reuse, GoTrue pagination, persisted secrets).** Known data-plane limits: pool loses `shared_resources` after a provision (restart `data-plane-router`); mongo `upsert` not idempotent. | `m150`–`m154` |
+| **AppFlowy**                      | OSS Notion-alternative — Flutter UI + Rust `flowy-*` core (AGPL-3.0) | ⬜ untouched upstream clone — own nested `.git` (`AppFlowy-IO/AppFlowy.git`, branch `main`), **zero BaaS wiring** (like music-room); its own backend (AppFlowy-Cloud = PG + GoTrue + storage + collab) mirrors Grobase → a prime future re-platform target. See the **AppFlowy** note below the table | —                               |
+| **twenty**                        | TypeScript CRM — twentyhq/twenty (NestJS + GraphQL + TypeORM/Postgres backend, React/Apollo front, nx/yarn monorepo) | ⬜ untouched upstream clone — own nested `.git` (`twentyhq/twenty.git`, branch `main`, HEAD `705caab2`), **untracked** (`?? vendor/twenty/`), **zero BaaS wiring** (like music-room/AppFlowy); its NestJS + Postgres + GraphQL backend mirrors Grobase → a future re-platform candidate | —                               |
 | **claude-deal-with-the-devil**    | _(not an app)_                               | n/a — a Claude Code framework (rules/agents/skills/tools), **misfiled** here; not a migration target | —                               |
 
 **Gotchas:** Canagrou carries heavy uncommitted/untracked changes on the current branch
@@ -468,6 +477,47 @@ actually-rewired desktop client is the **external** `~/Documents/java-dam-baas` 
 data-plane work that backs it is flag-gated (`DATA_PLANE_PER_TABLE_ISOLATION`, `DATA_PLANE_ADMIN_BYPASS`,
 default OFF). `scripts/seed/agency-tenant.sh` provisions a permanent "agency" demo tenant (not tied to
 one `vendor/` app).
+
+### AppFlowy (`vendor/AppFlowy`) — untouched upstream, un-integrated
+
+A fresh checkout of **AppFlowy-IO/AppFlowy** (the AGPL-3.0 OSS Notion alternative) with its own nested
+`.git` (remote `AppFlowy-IO/AppFlowy.git`, branch `main`, HEAD `4af02cdc`), **untracked** in the parent
+(`?? vendor/AppFlowy/`) and with **zero grobase references on disk**. It is **not** wired to the BaaS and
+**not** in grobase's build/CI — an untouched playground, same state as `music-room`. Documented here only
+so a future re-platform starts from facts instead of a re-scan; unlike the other apps it builds **on the
+host** (Flutter + cargo-make), not through grobase's Docker stack.
+
+**Architecture (one codebase, two languages — under `frontend/`):** a **Flutter** UI (`appflowy_flutter`,
+app `appflowy` v0.11.4, Flutter ≥3.27.4 / Dart ≥3.3.0; `flutter_bloc` + `get_it` + `go_router`, plugin
+system under `lib/plugins/`) embeds a **Rust** core (`rust-lib`, a **31-member** cargo workspace, Rust
+1.85) over `dart:ffi`. The `dart-ffi` crate compiles to `libdart_ffi` and bridges Dart↔Rust across the
+`lib-dispatch` protobuf **event bus** (FFI symbols `init_sdk` / `async_event` / `sync_event` /
+`set_stream_port`); `flowy-core::AppFlowyCore` is the composition root wiring the feature managers
+(`flowy-folder` / `-document` / `-database2` / `-user` / `-ai` / `-search` / `-storage`). Each feature
+crate is paired with a thin **`*-pub` port crate** that declares its cloud-service trait, and the
+**backend is chosen at runtime by `AuthType`** (`Local`=0 offline vs `AppFlowyCloud`=2, see
+`flowy-core/src/server_layer.rs`) — `flowy-server` ships both `local_server` and `af_cloud` impls.
+Offline-first sync is the external **AppFlowy-Collab** CRDT crates (rev `4dfccef`, **yrs 0.21** = the Rust
+Yjs port) glued in via `collab-integrate` (+ RocksDB local persistence). The hosted backend is the
+**separate `AppFlowy-IO/AppFlowy-Cloud`** project (client-api git deps at rev `592f644` in
+`rust-lib/Cargo.toml`) — **Postgres + GoTrue + object storage + a collab/realtime server**, i.e. the same
+shape Grobase provides, which is exactly why AppFlowy is a strong (but large) future re-platform candidate.
+
+**Build (cargo-make is the entry point):** the driver is `frontend/Makefile.toml` (it `extend`s **10**
+`scripts/makefile/*.toml` fragments). Protobuf + `dart_event` bindings are generated **FROM the Rust** at
+build time (`dart-ffi`'s `build.rs` → `flowy_codegen`); Dart-side `freezed`/`json`/`envied` via
+`build_runner`. Key invocations (run in `frontend/`): bootstrap `bash scripts/install_dev_env/install_linux.sh`;
+full dev build `cargo make --profile development-linux-x86_64 appflowy-dev`; codegen
+`cargo make code_generation`; tests `cargo make rust_lib_unit_test` / `dart_unit_test`; one Flutter case
+`cargo make flutter_test '<path>' --name '<case>'`. The in-repo `docker-compose` builds only the
+X11-forwarded **desktop client**, not a backend.
+
+> **One on-disk `vendor/` dir is absent from the table above** (it now lists 12 of 13 dirs):
+> **`grobase-website`** — *not* an external app but a nested checkout whose remote is
+> `Univers42/grobase.git` itself (HEAD `4461d51`, an Astro site in its tree); the canonical
+> marketing/login portal is the **separate** `Univers42/grobase-website` repo (cloned at
+> `~/Documents/grobase-website`, wired to binocle-one), so it is deliberately not given a re-platform row.
+> (**AppFlowy** *is* in the table now — its deep-dive note is the section directly above this line.)
 
 ## Appendix — historical note (pre-flatten layout)
 

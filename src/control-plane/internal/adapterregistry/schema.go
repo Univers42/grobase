@@ -92,6 +92,12 @@ ALTER TABLE public.tenant_databases ADD CONSTRAINT tenant_databases_credential_m
 -- names the data plane reads as the mount's NON-owner-scoped catalog. NULL on
 -- every existing/inline/cred-ref/cmek row ⇒ no opt-in ⇒ byte-parity.
 ALTER TABLE public.tenant_databases ADD COLUMN IF NOT EXISTS shared_resources JSONB;
+-- Per-mount read_scoped (migration 070, mirrored here so a FRESH EnsureSchema
+-- install converges with a migrated one): a boolean opting THIS mount into
+-- predicate-based read owner-scoping independent of DATA_PLANE_PG_READ_PREDICATE.
+-- false on every existing/inline/cred-ref/cmek row ⇒ no opt-in ⇒ reads follow the
+-- global flag alone ⇒ byte-parity.
+ALTER TABLE public.tenant_databases ADD COLUMN IF NOT EXISTS read_scoped boolean NOT NULL DEFAULT false;
 ALTER TABLE public.tenant_databases ENABLE ROW LEVEL SECURITY;
 -- Retire the pre-M12 broken policy on upgrade.
 DROP POLICY IF EXISTS tenant_isolation ON public.tenant_databases;

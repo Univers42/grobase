@@ -7,6 +7,7 @@ import { Dialog } from '../../ds/Dialog';
 import { Field } from '../../ds/Field';
 import { Button } from '../../ds/Button';
 import { useBaas } from '../../providers/useBaas';
+import { useAuth } from '../../providers/useAuth';
 import { useToast } from '../../providers/useToast';
 import type { AppUser, UserRole, UserStatus } from './user-model';
 import { ROLES, STATUSES } from './user-model';
@@ -20,13 +21,14 @@ const select = 'w-full h-11 rounded-2xl bg-surface-2/70 border border-line px-4 
 /** UserEditDialog renders the role/status editor and persists changes on save. */
 export function UserEditDialog({ user, onOpenChange, onSaved }: UserEditDialogProps) {
   const baas = useBaas();
+  const { isAdmin } = useAuth();
   const toast = useToast();
   const [role, setRole] = useState<UserRole>(user?.role ?? 'customer');
   const [status, setStatus] = useState<UserStatus>(user?.status ?? 'active');
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
-    if (!user) return;
+    if (!user || !isAdmin) return;
     setSaving(true);
     try {
       await baas.db.pg.update('app_users', { role, status }, { id: user.id });
@@ -45,7 +47,7 @@ export function UserEditDialog({ user, onOpenChange, onSaved }: UserEditDialogPr
       <div className="space-y-4">
         <Field label="Role">
           {({ id }) => (
-            <select id={id} className={select} value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
+            <select id={id} className={select} value={role} disabled={!isAdmin} onChange={(e) => setRole(e.target.value as UserRole)}>
               {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           )}
@@ -59,7 +61,7 @@ export function UserEditDialog({ user, onOpenChange, onSaved }: UserEditDialogPr
         </Field>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={save} loading={saving}>Save changes</Button>
+          <Button onClick={save} loading={saving} disabled={!isAdmin}>Save changes</Button>
         </div>
       </div>
     </Dialog>
