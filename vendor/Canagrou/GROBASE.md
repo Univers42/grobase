@@ -28,8 +28,9 @@ storage **object key**, not bytes.
 # from the repo root — the stack must be up (auth+query+storage+realtime planes)
 bash scripts/seed/canagrou-tenant.sh        # provision tenant+key+mount+schema+bucket+tokens, emit env (idempotent)
 
-# web SPA (zero-build static; calls Kong cross-origin, CORS is open)
-PORT=5173 sh vendor/Canagrou/web/serve.sh   # → http://127.0.0.1:5173
+# web SPA — served over HTTPS (self-signed localhost cert auto-generated);
+# it talks ONLY to its own origin (same-origin reverse proxy → Kong), so no CORS.
+sh vendor/Canagrou/web/serve.sh             # → https://localhost:8123  (NO_TLS=1 for http)
 
 # Flutter (Android emulator host = 10.0.2.2; mobile/.env is generated)
 cd vendor/Canagrou/mobile && flutter pub get && flutter run
@@ -38,21 +39,33 @@ cd vendor/Canagrou/mobile && flutter pub get && flutter run
 ## Test it
 
 ```bash
-bash vendor/Canagrou/test.sh            # web wiring (offline) + web smoke (live) + m146 gate + flutter (offline)
+bash vendor/Canagrou/test.sh            # web wiring (offline) + web smoke (live) + browser (Playwright) + m146 gate + flutter
+bash vendor/Canagrou/test.sh browser    # the real-browser Playwright suite (HTTPS, fake webcam, 2 contexts)
 bash vendor/Canagrou/test.sh gate       # just the live e2e gate
 bash scripts/verify/m146-canagrou-roundtrip.sh   # the gate directly
 ```
 
-`m146` proves the whole chain live: signup→JWT, profile, post insert→read-back,
-like toggle, comment, storage byte-roundtrip, a realtime EVENT delivered to a
-non-writer subscriber, and a second user seeing the first user's post.
+`m146` proves the data chain live (signup→JWT, profile, post insert→read-back,
+like, comment, storage byte-roundtrip, realtime EVENT to a non-writer, cross-user
+read). The **Playwright** suite (`web/test/browser-full.mjs` + `browser-e2e.mjs`)
+drives the actual UI in Chromium over HTTPS: register (+validation), webcam &
+upload capture→post, like±, comment, settings, logout, login (wrong+right), and
+**realtime reflection across two browser contexts** — all green, clean console.
 
-## Storage gotcha (why images aren't plain `<img src>`)
+## Notes / gotchas
 
-This stack has no public bucket / anon object GET and no browser-reachable
-signed URL (`S3_PUBLIC_ENDPOINT` unset). So every image lives under one shared
-storage identity and the client fetches bytes through Kong with the storage
-token, then renders from memory (web: `objectUrl` blob; Flutter: `Image.memory`).
+- **Connection is HTTPS.** `serve.mjs` is a static server + same-origin reverse
+  proxy to Kong (HTTP + WebSocket), so the browser only ever talks to
+  `https://localhost:8123` — no CORS, and login/portal traffic is TLS-encrypted.
+- **Storage** has no public/anon GET and no browser-reachable signed URL
+  (`S3_PUBLIC_ENDPOINT` unset), so every image lives under one shared storage
+  identity; the client fetches bytes through the proxy with the storage token and
+  renders from memory (web: `objectUrl` blob; Flutter: `Image.memory`).
+- **BaaS fix applied:** Kong's `storage-sign` route (which catches the
+  `/storage/v1/object` upload path) was capped at 16KB — uploads 413'd. Aligned to
+  10MB (the sibling storage route's limit) in `infra/docker/services/kong/conf/kong.yml`.
+- **Realtime is posts-only in the gallery** (new photos appear live); likes/comments
+  update in-card, so the feed doesn't rebuild and lose in-progress UI.
 
 The old PHP backend (`app/`, `php/`, `nginx/`, `sql/init.sql`, `docker-compose.yml`)
 is superseded and can be retired once you're satisfied with the Grobase build.

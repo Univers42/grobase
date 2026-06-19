@@ -197,6 +197,12 @@ services:
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       PRESIGN_EXPIRES_SECONDS: ${PRESIGN_EXPIRES_SECONDS:-3600}
+      # SECURITY (cross-tenant bucket disclosure fix). OFF = byte-parity. When ON,
+      # listing all buckets / creating a bucket needs a privileged role
+      # (STORAGE_BUCKET_ADMIN_ROLES, default service_role,admin) — an ordinary
+      # caller gets an empty bucket list and a 403 on create. cloud-up turns it ON.
+      STORAGE_BUCKET_SCOPE_ENABLED: ${STORAGE_BUCKET_SCOPE_ENABLED:-}
+      STORAGE_BUCKET_ADMIN_ROLES: ${STORAGE_BUCKET_ADMIN_ROLES:-service_role,admin}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       minio:

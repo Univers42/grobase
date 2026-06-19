@@ -1,6 +1,9 @@
 package adapterregistry
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 // isAllowedEngine reports whether the control plane will ACCEPT a mount for the
 // engine. Honesty rule (Phase 3): this is exactly the engines the Rust data
@@ -14,6 +17,21 @@ func isAllowedEngine(engine string) bool {
 	switch engine {
 	case "postgresql", "cockroachdb", "mysql", "mariadb", "mongodb",
 		"redis", "sqlite", "mssql", "http":
+		return true
+	case "dynamodb":
+		return dynamodbEngineEnabled()
+	}
+	return false
+}
+
+// dynamodbEngineEnabled reports whether the 8th engine is turned on for this
+// deployment (`DYNAMODB_ENGINE_ENABLED`). The control plane accepts a dynamodb
+// mount ONLY when this is set — it pairs with the data plane's compile-time
+// `--features dynamodb` build, so a mount is never registered that the data
+// plane would 501 on (the honesty rule). Both off = byte-parity OSS edition.
+func dynamodbEngineEnabled() bool {
+	switch os.Getenv("DYNAMODB_ENGINE_ENABLED") {
+	case "1", "true", "TRUE", "on", "ON", "yes":
 		return true
 	}
 	return false

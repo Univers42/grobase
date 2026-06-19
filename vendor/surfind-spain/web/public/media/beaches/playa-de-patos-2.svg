@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Patos, Pontevedra">
+  <defs>
+    <linearGradient id="g9774sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a2c4a"/><stop offset="1" stop-color="#f3a05a"/>
+    </linearGradient>
+    <radialGradient id="g9774sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffe1a3" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffe1a3" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g9774sky)"/>
+  <circle cx="1043" cy="213" r="160" fill="url(#g9774sun)"/>
+  <circle cx="1043" cy="213" r="54" fill="#ffe1a3" opacity="0.9"/>
+  <rect y="307" width="1280" height="413" fill="#234e6e" opacity="0.55"/>
+  <path d="M0 347 C 96 331 224 363 320 347 C 416 363 544 331 640 347 C 736 331 864 363 960 347 C 1056 363 1184 331 1280 347 L 1280 720 L 0 720 Z" fill="#234e6e" opacity="0.85"/><path d="M0 417 C 96 439 224 395 320 417 C 416 395 544 439 640 417 C 736 439 864 395 960 417 C 1056 395 1184 439 1280 417 L 1280 720 L 0 720 Z" fill="#3f97b8" opacity="0.8"/><path d="M0 507 C 96 477 224 537 320 507 C 416 537 544 477 640 507 C 736 477 864 537 960 507 C 1056 537 1184 477 1280 507 L 1280 720 L 0 720 Z" fill="#3f97b8" opacity="0.6"/><path d="M0 607 C 96 647 224 567 320 607 C 416 567 544 647 640 607 C 736 647 864 567 960 607 C 1056 567 1184 647 1280 607 L 1280 720 L 0 720 Z" fill="#eef9fd" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">PONTEVEDRA</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Patos · 2</text>
+</svg>

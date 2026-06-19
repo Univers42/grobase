@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Xago, Asturias">
+  <defs>
+    <linearGradient id="g6119sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#073043"/><stop offset="1" stop-color="#ffd27a"/>
+    </linearGradient>
+    <radialGradient id="g6119sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff1c2" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#fff1c2" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g6119sky)"/>
+  <circle cx="511" cy="44" r="160" fill="url(#g6119sun)"/>
+  <circle cx="511" cy="44" r="54" fill="#fff1c2" opacity="0.9"/>
+  <rect y="269" width="1280" height="451" fill="#0d6178" opacity="0.55"/>
+  <path d="M0 309 C 96 293 224 325 320 309 C 416 325 544 293 640 309 C 736 293 864 325 960 309 C 1056 325 1184 293 1280 309 L 1280 720 L 0 720 Z" fill="#0d6178" opacity="0.85"/><path d="M0 379 C 96 401 224 357 320 379 C 416 357 544 401 640 379 C 736 401 864 357 960 379 C 1056 357 1184 401 1280 379 L 1280 720 L 0 720 Z" fill="#28a7c0" opacity="0.8"/><path d="M0 469 C 96 439 224 499 320 469 C 416 499 544 439 640 469 C 736 439 864 499 960 469 C 1056 499 1184 439 1280 469 L 1280 720 L 0 720 Z" fill="#28a7c0" opacity="0.6"/><path d="M0 569 C 96 609 224 529 320 569 C 416 529 544 609 640 569 C 736 609 864 529 960 569 C 1056 529 1184 609 1280 569 L 1280 720 L 0 720 Z" fill="#ffffff" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">ASTURIAS</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Xago · 2</text>
+</svg>

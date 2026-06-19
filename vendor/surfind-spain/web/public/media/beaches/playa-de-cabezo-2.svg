@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Cabezo, S.C. Tenerife">
+  <defs>
+    <linearGradient id="g7794sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a2a45"/><stop offset="1" stop-color="#f6b35c"/>
+    </linearGradient>
+    <radialGradient id="g7794sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffd98a" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffd98a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g7794sky)"/>
+  <circle cx="372" cy="131" r="160" fill="url(#g7794sun)"/>
+  <circle cx="372" cy="131" r="54" fill="#ffd98a" opacity="0.9"/>
+  <rect y="262" width="1280" height="458" fill="#1f6f8f" opacity="0.55"/>
+  <path d="M0 302 C 96 318 224 286 320 302 C 416 286 544 318 640 302 C 736 318 864 286 960 302 C 1056 286 1184 318 1280 302 L 1280 720 L 0 720 Z" fill="#1f6f8f" opacity="0.85"/><path d="M0 372 C 96 350 224 394 320 372 C 416 394 544 350 640 372 C 736 350 864 394 960 372 C 1056 394 1184 350 1280 372 L 1280 720 L 0 720 Z" fill="#2b9bb5" opacity="0.8"/><path d="M0 462 C 96 492 224 432 320 462 C 416 432 544 492 640 462 C 736 492 864 432 960 462 C 1056 432 1184 492 1280 462 L 1280 720 L 0 720 Z" fill="#2b9bb5" opacity="0.6"/><path d="M0 562 C 96 522 224 602 320 562 C 416 602 544 522 640 562 C 736 522 864 602 960 562 C 1056 602 1184 522 1280 562 L 1280 720 L 0 720 Z" fill="#eaf7fb" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">S.C. TENERIFE</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Cabezo · 2</text>
+</svg>

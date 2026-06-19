@@ -6,6 +6,13 @@ interface ImportMetaEnv {
   readonly SSR: boolean;
   readonly VITE_API_URL?: string;
   readonly VITE_PUBLIC_SITE_URL?: string;
+  readonly VITE_BAAS_URL?: string;
+  readonly VITE_BAAS_KONG_KEY?: string;
+  readonly VITE_BAAS_API_KEY?: string;
+  readonly VITE_BAAS_TENANT_ID?: string;
+  readonly VITE_BAAS_PG_DB_ID?: string;
+  readonly VITE_BAAS_MONGO_DB_ID?: string;
+  readonly VITE_BAAS_REALTIME_TOKEN?: string;
 }
 
 interface ImportMeta {

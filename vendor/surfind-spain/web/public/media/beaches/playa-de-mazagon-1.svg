@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Mazagon, Huelva">
+  <defs>
+    <linearGradient id="g6496sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c1e33"/><stop offset="1" stop-color="#caa6d6"/>
+    </linearGradient>
+    <radialGradient id="g6496sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffd9ec" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffd9ec" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g6496sky)"/>
+  <circle cx="584" cy="126" r="160" fill="url(#g6496sun)"/>
+  <circle cx="584" cy="126" r="54" fill="#ffd9ec" opacity="0.9"/>
+  <rect y="253" width="1280" height="467" fill="#1d4f6c" opacity="0.55"/>
+  <path d="M0 293 C 96 309 224 277 320 293 C 416 277 544 309 640 293 C 736 309 864 277 960 293 C 1056 277 1184 309 1280 293 L 1280 720 L 0 720 Z" fill="#1d4f6c" opacity="0.85"/><path d="M0 363 C 96 341 224 385 320 363 C 416 385 544 341 640 363 C 736 341 864 385 960 363 C 1056 385 1184 341 1280 363 L 1280 720 L 0 720 Z" fill="#368fad" opacity="0.8"/><path d="M0 453 C 96 483 224 423 320 453 C 416 423 544 483 640 453 C 736 483 864 423 960 453 C 1056 423 1184 483 1280 453 L 1280 720 L 0 720 Z" fill="#368fad" opacity="0.6"/><path d="M0 553 C 96 513 224 593 320 553 C 416 593 544 513 640 553 C 736 513 864 593 960 553 C 1056 593 1184 513 1280 553 L 1280 720 L 0 720 Z" fill="#f4fbfe" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">HUELVA</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Mazagon · 1</text>
+</svg>

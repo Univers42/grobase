@@ -40,6 +40,11 @@ pub struct MongoPool {
     pub(super) shared_pool: bool,
     pub(super) client: Client,
     pub(super) db_name: String,
+    /// Collections on this mount whose READS skip owner-scoping (a shared
+    /// catalog readable across owners) — the F1 `shared_resources` opt-in.
+    /// Empty unless `DATA_PLANE_PER_TABLE_ISOLATION` is on AND the mount opted
+    /// in → byte-parity (every read owner-scoped). Consulted by `is_shared`.
+    pub(super) shared_resources: std::sync::Arc<[String]>,
 }
 
 impl MongoPool {
@@ -53,6 +58,12 @@ impl MongoPool {
 
     pub(super) fn owner(identity: &RequestIdentity) -> String {
         identity.owner_principal().to_string()
+    }
+
+    /// Reports whether `resource` is a shared collection whose reads skip
+    /// owner-scoping (F1). Linear scan over the tiny opt-in list.
+    pub(super) fn is_shared(&self, resource: &str) -> bool {
+        self.shared_resources.iter().any(|t| t.as_str() == resource)
     }
 
     /// Defense-in-depth tenant cross-check, skipped for a SHARE_POOLS shared_rls

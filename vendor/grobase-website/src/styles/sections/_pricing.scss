@@ -1,0 +1,635 @@
+// ── PRICING — full MAXIMALIST / DOPAMINE treatment. ──────────────────────────
+// Plan cards each own one of the five accents (via tier--{id}), clashing borders,
+// hard-stacked multishadows, glow on the recommended plan, broken-grid offsets,
+// huge shadowed display price, glowing CTA. Supporting sections: bold shadowed
+// headings, patterned backgrounds, accent cards, floaters + a giant bg word.
+// CSP-safe: ALL colour/rotation variety from classes, never inline style=.
+
+// Decorated pricing sections: keep real content above the absolute floaters /
+// bgwords (which sit at z-index 0). The container is lifted to z-index 1 so the
+// decoration reads as a backdrop only. Sections already establish a positioning
+// context via gb-section--mesh / has-pat-* (position:relative; isolation).
+.gb-pricing-hero .gb-container,
+.gb-section--mesh .gb-container,
+.gb-section--dim .gb-container,
+.has-pat-dots > .gb-container,
+.has-pat-checker > .gb-container,
+.has-pat-stripes > .gb-container {
+	position: relative;
+	z-index: 1;
+}
+
+// Per-tier accent driver. tier--{id} (components/_tables.scss) sets --tier-color;
+// here we also map each tier onto a local --acc so the shared FX utilities
+// (.glow, hard shadows, gradient tints) read the right colour per card.
+.gb-plan-suite {
+	position: relative;
+	isolation: isolate;
+	display: grid;
+	gap: var(--gb-space-12);
+}
+
+// ── The plan grid — broken / alternating rhythm, generous gaps. ──────────────
+.gb-plans {
+	min-inline-size: 0;
+	margin: var(--gb-space-6) 0 0;
+	padding: var(--gb-space-6) 0 var(--gb-space-8);
+	border: 0;
+	display: grid;
+	gap: var(--gb-space-8) var(--gb-space-6);
+	grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+	align-items: stretch;
+}
+
+// ── A single plan card — the FULL card treatment. ────────────────────────────
+.gb-plan {
+	--acc: var(--tier-color, var(--gb-a1));
+
+	position: relative;
+	display: grid;
+	grid-template-rows: 1fr auto;
+	gap: var(--gb-space-4);
+	padding: var(--gb-space-8) var(--gb-space-6) var(--gb-space-6);
+	border: 4px solid var(--acc); // border CLASHES with the dark surface
+	border-radius: var(--gb-radius-lg);
+	background: linear-gradient(160deg, rgb(58 37 102 / 78%), rgb(26 19 48 / 90%));
+	backdrop-filter: blur(8px);
+
+	// hard-stacked multishadow — two offset blocks in clashing accents.
+	box-shadow:
+		8px 8px 0 var(--gb-a5),
+		16px 16px 0 color-mix(in srgb, var(--acc) 72%, transparent);
+	transition:
+		border-color var(--gb-dur-fast) var(--gb-ease-out),
+		box-shadow var(--gb-dur-fast) var(--gb-ease-out),
+		transform var(--gb-dur-fast) var(--gb-ease-bounce);
+}
+
+// per-card border-style variety (mix solid + dashed + dotted across the row).
+.gb-plan.tier--basic { border-style: dashed; }
+.gb-plan.tier--pro { border-style: dashed; }
+.gb-plan.tier--max { border-style: dotted; }
+
+// broken-grid: alternate the cards up/down + tiny tilt for asymmetric rhythm.
+.gb-plan:nth-child(odd) { transform: translateY(-0.5rem) rotate(-1deg); }
+.gb-plan:nth-child(even) { transform: translateY(0.75rem) rotate(1deg); }
+
+@media (prefers-reduced-motion: no-preference) {
+	.gb-plan:hover {
+		transform: scale(1.04) rotate(0deg);
+	}
+}
+
+.gb-plan:hover {
+	transform: rotate(0deg);
+	box-shadow:
+		0 0 30px color-mix(in srgb, var(--acc) 55%, transparent),
+		10px 10px 0 var(--gb-a5),
+		20px 20px 0 color-mix(in srgb, var(--acc) 75%, transparent);
+}
+
+// the recommended plan ships with a permanent GLOW on top of the hard stack.
+.gb-plan--rec {
+	border-width: 8px;
+	box-shadow:
+		0 0 32px color-mix(in srgb, var(--acc) 60%, transparent),
+		0 0 64px rgb(123 47 255 / 35%),
+		8px 8px 0 var(--gb-a5),
+		16px 16px 0 color-mix(in srgb, var(--acc) 75%, transparent);
+}
+
+.gb-plan__radio {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.gb-plan__hit {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	border-radius: var(--gb-radius-lg);
+	cursor: pointer;
+}
+
+// ── Ribbon — pill, clashing border, mono uppercase, hard shadow. ─────────────
+.gb-plan__ribbon {
+	position: absolute;
+	top: 0;
+	left: 50%;
+	z-index: 2;
+	transform: translate(-50%, -55%) rotate(-3deg);
+	padding: 0.32rem 1rem;
+	border-radius: var(--gb-radius-pill);
+	border: 2px solid var(--gb-ink-dark);
+	background: var(--acc);
+	color: var(--gb-ink-dark);
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	font-weight: 700;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	white-space: nowrap;
+	box-shadow: 3px 3px 0 var(--gb-a5);
+}
+
+.gb-plan__check {
+	position: absolute;
+	top: var(--gb-space-4);
+	right: var(--gb-space-4);
+	z-index: 2;
+	display: grid;
+	place-items: center;
+	width: 1.7rem;
+	height: 1.7rem;
+	border-radius: 50%;
+	border: 2px solid var(--gb-ink-dark);
+	background: var(--acc);
+	color: var(--gb-ink-dark);
+	font-size: 0.85rem;
+	font-weight: 700;
+	opacity: 0;
+	transform: scale(0.5);
+	box-shadow: 0 0 14px color-mix(in srgb, var(--acc) 70%, transparent);
+	transition:
+		opacity var(--gb-dur-fast) var(--gb-ease-out),
+		transform var(--gb-dur-fast) var(--gb-ease-bounce);
+}
+
+.gb-plan__check::before {
+	content: '✓';
+}
+
+.gb-plan__body {
+	position: relative;
+	z-index: 0;
+	display: grid;
+	gap: var(--gb-space-3);
+	align-content: start;
+}
+
+// ── Plan name — display, UPPERCASE, single stacked shadow, accent-tinted. ─────
+.gb-plan__name {
+	font-family: var(--gb-font-display);
+	font-size: var(--gb-text-xl);
+	font-weight: 700;
+	line-height: 0.95;
+	letter-spacing: -0.02em;
+	text-transform: uppercase;
+	color: var(--acc);
+	text-shadow:
+		2px 2px 0 var(--gb-a5),
+		4px 4px 0 rgb(13 13 26 / 70%);
+}
+
+// ── Price — HUGE shadowed display type. ──────────────────────────────────────
+.gb-plan__price {
+	margin: 0;
+	font-family: var(--gb-font-display);
+	font-size: clamp(2rem, 1.4rem + 3vw, 3.2rem);
+	font-weight: 700;
+	line-height: 0.92;
+	letter-spacing: -0.03em;
+	color: var(--gb-text);
+	text-shadow:
+		2px 2px 0 var(--gb-a5),
+		4px 4px 0 color-mix(in srgb, var(--acc) 80%, transparent);
+}
+
+.gb-plan__price small {
+	display: block;
+	margin-top: 0.45rem;
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	font-weight: 400;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--gb-text-faint);
+	text-shadow: none;
+}
+
+.gb-plan__tagline {
+	min-height: 2.6em;
+	font-size: var(--gb-text-sm);
+	color: var(--gb-text-muted);
+}
+
+.gb-plan__features {
+	margin: 0;
+	padding-top: var(--gb-space-4);
+	border-top: 2px dashed color-mix(in srgb, var(--acc) 55%, transparent);
+	list-style: none;
+	display: grid;
+	gap: 0.55rem;
+	font-size: var(--gb-text-sm);
+	color: var(--gb-text-muted);
+}
+
+.gb-plan__features li {
+	position: relative;
+	padding-left: 1.5rem;
+}
+
+.gb-plan__features li::before {
+	content: '✦';
+	position: absolute;
+	left: 0;
+	color: var(--acc);
+	font-weight: 700;
+	text-shadow: 0 0 8px color-mix(in srgb, var(--acc) 60%, transparent);
+}
+
+// ── Per-card CTA — glowing "pick", fills with the card's own accent on hover. ─
+.gb-plan__cta {
+	--btn-acc: var(--acc);
+
+	position: relative;
+	z-index: 2;
+	width: 100%;
+	justify-content: center;
+	border-style: solid;
+	border-color: var(--acc);
+	color: var(--gb-text);
+	background: rgb(13 13 26 / 55%);
+	box-shadow:
+		0 0 16px color-mix(in srgb, var(--acc) 35%, transparent),
+		5px 5px 0 var(--gb-a5);
+}
+
+.gb-plan__cta:hover {
+	background: var(--acc);
+	color: var(--gb-ink-dark);
+	border-color: var(--gb-text);
+	box-shadow:
+		0 0 28px color-mix(in srgb, var(--acc) 65%, transparent),
+		7px 7px 0 var(--gb-a5);
+}
+
+// ── Selected state — strong ring + brighter glow + revealed check. ───────────
+.gb-plan:has(.gb-plan__radio:checked) {
+	border-style: solid;
+	transform: rotate(0deg) scale(1.02);
+	box-shadow:
+		0 0 36px color-mix(in srgb, var(--acc) 70%, transparent),
+		0 0 0 3px var(--acc),
+		8px 8px 0 var(--gb-a5),
+		16px 16px 0 color-mix(in srgb, var(--acc) 80%, transparent);
+}
+
+.gb-plan:has(.gb-plan__radio:checked) .gb-plan__check {
+	opacity: 1;
+	transform: none;
+}
+
+.gb-plan:has(.gb-plan__radio:checked) .gb-plan__cta {
+	background: var(--acc);
+	border-color: var(--gb-text);
+	color: var(--gb-ink-dark);
+}
+
+// DOUBLE focus ring — contrasting accents, outline change (a11y).
+.gb-plan:has(.gb-plan__radio:focus-visible) {
+	outline: 3px solid var(--gb-a3);
+	outline-offset: 4px;
+	box-shadow:
+		0 0 0 4px var(--gb-bg),
+		0 0 0 8px var(--acc);
+}
+
+// ── Section sub-heads for the matrix + trade-offs blocks. ─────────────────────
+.gb-plan-suite__h {
+	margin-bottom: var(--gb-space-3);
+	font-family: var(--gb-font-display);
+	font-size: var(--gb-text-xl);
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: -0.02em;
+	text-shadow:
+		2px 2px 0 var(--gb-a5),
+		4px 4px 0 var(--gb-a1);
+}
+
+.gb-plan-suite__sub {
+	margin-bottom: var(--gb-space-6);
+	max-width: 60ch;
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-sm);
+}
+
+// ── PLAN MATRIX — maximalist but readable. ───────────────────────────────────
+.gb-plan-matrix {
+	border-width: 4px;
+	border-color: var(--gb-a2); // cyan frame clashes with the dark fill
+	box-shadow:
+		0 0 22px rgb(0 245 212 / 22%),
+		8px 8px 0 var(--gb-a5);
+}
+
+.gb-plan-matrix .gb-table th,
+.gb-plan-matrix .gb-table td {
+	padding-block: 0.95rem;
+}
+
+.gb-plan-matrix td,
+.gb-plan-matrix thead th:not(:first-child) {
+	text-align: center;
+}
+
+// Header row — bold UPPERCASE display per tier, accent-tinted, shadowed, with a
+// fat clashing under-border in each tier's own colour.
+.gb-plan-matrix__th {
+	color: var(--tier-color, var(--gb-text));
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	font-size: var(--gb-text-base);
+	letter-spacing: 0;
+	text-transform: uppercase;
+	text-shadow: 2px 2px 0 rgb(13 13 26 / 70%);
+	background: color-mix(in srgb, var(--tier-color, var(--gb-a1)) 12%, rgb(18 27 48 / 70%));
+	border-bottom: 4px solid var(--tier-color, var(--gb-line));
+}
+
+// Group rows — plain td colspan (KEEP for pa11y H43); style as a bold band.
+.gb-plan-matrix__group td {
+	background: linear-gradient(90deg, rgb(123 47 255 / 28%), rgb(18 27 48 / 80%));
+	color: var(--gb-text);
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	font-size: var(--gb-text-sm);
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	text-shadow: 1px 1px 0 rgb(13 13 26 / 60%);
+	border-bottom: 2px dashed var(--gb-line-strong);
+}
+
+// zebra via surface tints for legibility under the heavy chrome.
+.gb-plan-matrix tbody tr:nth-of-type(even):not(.gb-plan-matrix__group) td,
+.gb-plan-matrix tbody tr:nth-of-type(even):not(.gb-plan-matrix__group) th {
+	background: rgb(255 255 255 / 4%);
+}
+
+.gb-plan-matrix .is-yes {
+	color: var(--tier-color, var(--gb-primary));
+	font-weight: 700;
+	text-shadow: 0 0 8px color-mix(in srgb, var(--tier-color, var(--gb-a1)) 55%, transparent);
+}
+
+.gb-plan-matrix .is-num {
+	color: var(--gb-text);
+	font-weight: 600;
+}
+
+// Selected-plan column highlight — bright accent wash down the whole column.
+.gb-plan-suite:has(#plan-nano:checked) [data-col='nano'],
+.gb-plan-suite:has(#plan-basic:checked) [data-col='basic'],
+.gb-plan-suite:has(#plan-essential:checked) [data-col='essential'],
+.gb-plan-suite:has(#plan-pro:checked) [data-col='pro'],
+.gb-plan-suite:has(#plan-max:checked) [data-col='max'] {
+	background: color-mix(in srgb, var(--tier-color, var(--gb-a1)) 16%, transparent);
+}
+
+// ── TRADE-OFFS — accent-bordered cards, pros/cons split, broken-grid tilt. ────
+.gb-tradeoffs {
+	display: grid;
+	gap: var(--gb-space-6);
+	grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+}
+
+.gb-tradeoff {
+	--acc: var(--tier-color, var(--gb-a1));
+
+	position: relative;
+	display: grid;
+	gap: var(--gb-space-4);
+	padding: var(--gb-space-6);
+	border: 4px solid var(--acc);
+	border-radius: var(--gb-radius-lg);
+	background: linear-gradient(160deg, rgb(45 27 78 / 70%), rgb(26 19 48 / 88%));
+	box-shadow:
+		6px 6px 0 var(--gb-a5),
+		12px 12px 0 color-mix(in srgb, var(--acc) 65%, transparent);
+	transition:
+		transform var(--gb-dur-fast) var(--gb-ease-bounce),
+		box-shadow var(--gb-dur-fast) var(--gb-ease-out);
+}
+
+.gb-tradeoff:nth-child(even) { border-style: dashed; }
+.gb-tradeoff:nth-child(3n) { border-style: dotted; }
+
+@media (prefers-reduced-motion: no-preference) {
+	.gb-tradeoff:hover {
+		transform: scale(1.02) rotate(-1deg);
+	}
+}
+
+.gb-tradeoff:hover {
+	box-shadow:
+		0 0 24px color-mix(in srgb, var(--acc) 45%, transparent),
+		8px 8px 0 var(--gb-a5),
+		16px 16px 0 color-mix(in srgb, var(--acc) 70%, transparent);
+}
+
+.gb-tradeoff__name {
+	margin: 0;
+	font-family: var(--gb-font-display);
+	font-size: var(--gb-text-lg);
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: -0.01em;
+	color: var(--acc);
+	text-shadow: 2px 2px 0 rgb(13 13 26 / 70%);
+}
+
+.gb-tradeoff__cols {
+	display: grid;
+	gap: var(--gb-space-4);
+}
+
+@media (width >= 560px) {
+	.gb-tradeoff__cols {
+		grid-template-columns: 1fr 1fr;
+	}
+}
+
+.gb-tradeoff__label {
+	margin: 0 0 var(--gb-space-2);
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.gb-tradeoff__pros .gb-tradeoff__label { color: var(--gb-a2); }
+.gb-tradeoff__cons .gb-tradeoff__label { color: var(--gb-a4); }
+
+.gb-tradeoff ul {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	display: grid;
+	gap: 0.5rem;
+	font-size: var(--gb-text-sm);
+	color: var(--gb-text-muted);
+}
+
+.gb-tradeoff li {
+	position: relative;
+	padding-left: 1.4rem;
+}
+
+.gb-tradeoff__pros li::before {
+	content: '✓';
+	position: absolute;
+	left: 0;
+	color: var(--gb-a2);
+	font-weight: 700;
+}
+
+.gb-tradeoff__cons li::before {
+	content: '✕';
+	position: absolute;
+	left: 0;
+	color: var(--gb-a4);
+	font-weight: 700;
+}
+
+.gb-tradeoff__more {
+	margin-top: var(--gb-space-2);
+	padding-top: var(--gb-space-4);
+	border-top: 2px dashed color-mix(in srgb, var(--acc) 55%, transparent);
+}
+
+.gb-tradeoff__more summary {
+	cursor: pointer;
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--acc);
+}
+
+.gb-tradeoff__more p {
+	margin-top: var(--gb-space-3);
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-sm);
+}
+
+.gb-tradeoff__more strong {
+	color: var(--gb-text);
+}
+
+// selected-plan trade-off card lights up too.
+.gb-plan-suite:has(#plan-nano:checked) .gb-tradeoff[data-col='nano'],
+.gb-plan-suite:has(#plan-basic:checked) .gb-tradeoff[data-col='basic'],
+.gb-plan-suite:has(#plan-essential:checked) .gb-tradeoff[data-col='essential'],
+.gb-plan-suite:has(#plan-pro:checked) .gb-tradeoff[data-col='pro'],
+.gb-plan-suite:has(#plan-max:checked) .gb-tradeoff[data-col='max'] {
+	transform: scale(1.02);
+	box-shadow:
+		0 0 28px color-mix(in srgb, var(--acc) 55%, transparent),
+		8px 8px 0 var(--gb-a5),
+		16px 16px 0 color-mix(in srgb, var(--acc) 75%, transparent);
+}
+
+// ── MATH — fat dashed mono panel, accent-tinted total. ───────────────────────
+.gb-math {
+	--acc: var(--gb-a3);
+
+	position: relative;
+	border: 4px dashed var(--acc);
+	border-radius: var(--gb-radius-lg);
+	background: rgb(13 13 26 / 78%);
+	padding: var(--gb-space-6);
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-sm);
+	box-shadow:
+		0 0 18px color-mix(in srgb, var(--acc) 25%, transparent),
+		6px 6px 0 var(--gb-a5);
+	overflow-x: auto;
+}
+
+.gb-math:nth-child(even) {
+	--acc: var(--gb-a2);
+
+	border-style: dotted;
+}
+
+.gb-math .gb-kicker {
+	margin-bottom: var(--gb-space-3);
+	color: var(--acc);
+}
+
+.gb-math table {
+	border-collapse: collapse;
+	width: 100%;
+}
+
+.gb-math td,
+.gb-math th {
+	text-align: left;
+	padding: 0.35rem 1.2rem 0.35rem 0;
+	color: var(--gb-text-muted);
+	font-weight: 400;
+	white-space: nowrap;
+}
+
+.gb-math .is-total td {
+	border-top: 2px solid var(--acc);
+	color: var(--gb-text);
+	font-weight: 700;
+	text-shadow: 1px 1px 0 rgb(13 13 26 / 70%);
+}
+
+// ── FAQ — accent-bordered disclosures, rotating accents, clashing styles. ─────
+.gb-faq {
+	display: grid;
+	gap: var(--gb-space-4);
+	max-width: 48rem;
+}
+
+.gb-faq details {
+	--acc: var(--gb-a1);
+
+	border: 3px solid var(--acc);
+	border-radius: var(--gb-radius);
+	background: rgb(26 19 48 / 82%);
+	padding: var(--gb-space-4) var(--gb-space-6);
+	box-shadow: 5px 5px 0 var(--gb-a5);
+	transition: box-shadow var(--gb-dur-fast) var(--gb-ease-out);
+}
+
+// rotate the five accents + mix border styles down the FAQ list.
+.gb-faq details:nth-child(5n + 1) { --acc: var(--gb-a1); }
+.gb-faq details:nth-child(5n + 2) { --acc: var(--gb-a2); border-style: dashed; }
+.gb-faq details:nth-child(5n + 3) { --acc: var(--gb-a3); }
+.gb-faq details:nth-child(5n + 4) { --acc: var(--gb-a4); border-style: dotted; }
+.gb-faq details:nth-child(5n + 5) { --acc: var(--gb-a5-text); border-style: dashed; }
+
+.gb-faq details[open] {
+	box-shadow:
+		0 0 20px color-mix(in srgb, var(--acc) 40%, transparent),
+		5px 5px 0 var(--gb-a5);
+}
+
+.gb-faq summary {
+	cursor: pointer;
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: -0.01em;
+	color: var(--gb-text);
+}
+
+.gb-faq summary::marker {
+	color: var(--acc);
+}
+
+.gb-faq details p {
+	margin-top: var(--gb-space-3);
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-sm);
+}

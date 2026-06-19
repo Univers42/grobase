@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Zarautz, Gipuzkoa">
+  <defs>
+    <linearGradient id="g3971sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#062436"/><stop offset="1" stop-color="#7fb7c9"/>
+    </linearGradient>
+    <radialGradient id="g3971sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#dff3f8" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#dff3f8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g3971sky)"/>
+  <circle cx="232" cy="245" r="160" fill="url(#g3971sun)"/>
+  <circle cx="232" cy="245" r="54" fill="#dff3f8" opacity="0.9"/>
+  <rect y="311" width="1280" height="409" fill="#0f5a73" opacity="0.55"/>
+  <path d="M0 351 C 96 335 224 367 320 351 C 416 367 544 335 640 351 C 736 335 864 367 960 351 C 1056 367 1184 335 1280 351 L 1280 720 L 0 720 Z" fill="#0f5a73" opacity="0.85"/><path d="M0 421 C 96 443 224 399 320 421 C 416 399 544 443 640 421 C 736 443 864 399 960 421 C 1056 399 1184 443 1280 421 L 1280 720 L 0 720 Z" fill="#3aa0bb" opacity="0.8"/><path d="M0 511 C 96 481 224 541 320 511 C 416 541 544 481 640 511 C 736 481 864 541 960 511 C 1056 541 1184 481 1280 511 L 1280 720 L 0 720 Z" fill="#3aa0bb" opacity="0.6"/><path d="M0 611 C 96 651 224 571 320 611 C 416 571 544 651 640 611 C 736 651 864 571 960 611 C 1056 571 1184 651 1280 611 L 1280 720 L 0 720 Z" fill="#ffffff" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">GIPUZKOA</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Zarautz · 1</text>
+</svg>

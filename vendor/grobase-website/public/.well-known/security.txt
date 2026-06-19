@@ -1,0 +1,10 @@
+# Grobase — vulnerability disclosure policy (RFC 9116).
+# NOTE: security@grobase.dev is a PLACEHOLDER. Before go-live, this Contact (and
+# every grobase.dev URL below) MUST be updated to the real, monitored security
+# inbox and the real public domain, and Expires refreshed (keep < ~1 year out).
+# No Encryption line: no PGP key is published yet — add one when a key exists.
+Contact: mailto:security@grobase.dev
+Expires: 2027-04-15T00:00:00.000Z
+Policy: https://grobase.dev/security/#disclosure
+Preferred-Languages: en
+Canonical: https://grobase.dev/.well-known/security.txt

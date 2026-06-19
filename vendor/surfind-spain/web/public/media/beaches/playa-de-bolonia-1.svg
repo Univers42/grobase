@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Bolonia, Cadiz">
+  <defs>
+    <linearGradient id="g7588sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#10243b"/><stop offset="1" stop-color="#e98a6b"/>
+    </linearGradient>
+    <radialGradient id="g7588sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffc07a" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffc07a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g7588sky)"/>
+  <circle cx="623" cy="31" r="160" fill="url(#g7588sun)"/>
+  <circle cx="623" cy="31" r="54" fill="#ffc07a" opacity="0.9"/>
+  <rect y="243" width="1280" height="477" fill="#15506a" opacity="0.55"/>
+  <path d="M0 283 C 96 267 224 299 320 283 C 416 299 544 267 640 283 C 736 267 864 299 960 283 C 1056 299 1184 267 1280 283 L 1280 720 L 0 720 Z" fill="#15506a" opacity="0.85"/><path d="M0 353 C 96 375 224 331 320 353 C 416 331 544 375 640 353 C 736 375 864 331 960 353 C 1056 331 1184 375 1280 353 L 1280 720 L 0 720 Z" fill="#2f8aa6" opacity="0.8"/><path d="M0 443 C 96 413 224 473 320 443 C 416 473 544 413 640 443 C 736 413 864 473 960 443 C 1056 473 1184 413 1280 443 L 1280 720 L 0 720 Z" fill="#2f8aa6" opacity="0.6"/><path d="M0 543 C 96 583 224 503 320 543 C 416 503 544 583 640 543 C 736 583 864 503 960 543 C 1056 503 1184 583 1280 543 L 1280 720 L 0 720 Z" fill="#f0fbff" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">CADIZ</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Bolonia · 1</text>
+</svg>

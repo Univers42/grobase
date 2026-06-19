@@ -1,0 +1,72 @@
+---
+import Icon from '../ui/Icon.astro';
+
+// MANIFESTO — a premium, scroll-driven word-by-word reveal carrying an HONEST
+// product statement about Grobase. No fabricated customer, name, role, avatar
+// or company: this is the team's own manifesto, attributed as such.
+//
+// The statement is authored as plain sentences, then tokenised into per-word
+// <span class="reveal-words__w"> at build time. One word is marked .italic so
+// it renders in the premium Instrument Serif italic accent face — the single
+// allowed serif accent for this heading. The word-reveal script (CSP-safe,
+// CSSOM only) drives each word's --p as the block scrolls; with no JS or under
+// reduced-motion every word stays fully lit and readable.
+
+// The lines of the manifesto. Kept as honest, measurable claims that match the
+// rest of the site — no invented numbers, no comparisons, no marketing fluff.
+const LINES: string[] = [
+	'One uniform API over any engine.',
+	'Per-tenant isolation that scales from a 5 MB binary',
+	'to thousands of tenants — on one codebase.',
+	'Every number on this site is live-measured,',
+	'never invented.',
+	'You never rewrite to grow.',
+];
+
+// The single serif-italic accent word (the key premium signal — used once).
+const ACCENT_WORD = 'live-measured,';
+
+// Tokenise into [line][word] so the template can emit one span per word with a
+// real space between lines (the script reads each .reveal-words__w in order).
+const TOKENISED: string[][] = LINES.map((line) => line.split(' '));
+---
+
+<section class="gb-section gb-section--dim gb-manifesto" aria-labelledby="manifesto-title">
+	{/* ── decorative layer: two subtle floaters only — restrained, premium ── */}
+	<span class="floater floater--lg floater--ring accent-5 floater--tr animate-float" aria-hidden="true"></span>
+	<span class="floater floater--sm floater--diamond accent-2 floater--bl animate-float-reverse" aria-hidden="true"></span>
+
+	{/* bottom fade melts the block back into the page void (decorative) */}
+	<span class="premium-fade-bottom" aria-hidden="true"></span>
+
+	<div class="gb-container gb-manifesto__inner">
+		<p class="gb-kicker gb-manifesto__kicker"><span aria-hidden="true"><Icon name="star" size={14} /></span> The Grobase manifesto</p>
+
+		<figure class="gb-manifesto__figure">
+			<span class="gb-manifesto__mark liquid-glass" aria-hidden="true">
+				<Icon name="quote" size={34} class="accent-1" />
+			</span>
+
+			<blockquote
+				id="manifesto-title"
+				class="reveal-words gb-manifesto__quote tshadow-2"
+			>
+				{TOKENISED.map((line, li) => (
+					<>
+						{line.map((word) => (
+							<span class:list={['reveal-words__w', { italic: word === ACCENT_WORD }]}>{word}</span>
+						))}
+						{li < TOKENISED.length - 1 && <span class="reveal-words__br" aria-hidden="true"> </span>}
+					</>
+				))}
+			</blockquote>
+
+			<figcaption class="gb-manifesto__by">
+				<span class="gb-manifesto__rule" aria-hidden="true"></span>
+				<span class="gb-manifesto__byname">Grobase — the team that builds it</span>
+			</figcaption>
+		</figure>
+	</div>
+</section>
+
+<script src="../../scripts/reveal/word-reveal.ts"></script>

@@ -1,0 +1,459 @@
+{
+  "info": {
+    "_postman_id": "b7d4e1c0-1a2b-4c3d-9e8f-hypertubeapi01",
+    "name": "Hypertube API — OAuth2 RESTful contract",
+    "description": "Exercises the subject-mandated Hypertube API against http://localhost:3082 (set {{baseUrl}}). It first obtains a bearer {{token}} via the client_credentials grant, then proves every route's EXACT status code plus the two privacy/ownership invariants: email is exposed ONLY to a profile's own owner, and comment mutation is owner-only with 403 (exists, not yours) distinguished from 404 (absent). Set {{clientId}}/{{clientSecret}} to the API_OAUTH_CLIENT_ID/SECRET the service was started with, and {{selfId}} to the token subject (== clientId) so the email-privacy asserts can compare. {{otherCommentId}} should be a comment NOT authored by {{token}} for the 403 case; {{absentId}} any id that does not exist for the 404 case.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3082" },
+    { "key": "clientId", "value": "hypertube" },
+    { "key": "clientSecret", "value": "change-me" },
+    { "key": "token", "value": "" },
+    { "key": "selfId", "value": "hypertube" },
+    { "key": "movieId", "value": "" },
+    { "key": "commentId", "value": "" },
+    { "key": "otherCommentId", "value": "" },
+    { "key": "absentId", "value": "00000000-0000-0000-0000-000000000000" }
+  ],
+  "item": [
+    {
+      "name": "00 OAuth",
+      "item": [
+        {
+          "name": "token — wrong content type -> 415",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('415 on wrong content type', () => pm.expect(pm.response.code).to.eql(415));"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"grant_type\":\"client_credentials\"}" },
+            "url": { "raw": "{{baseUrl}}/oauth/token", "host": ["{{baseUrl}}"], "path": ["oauth", "token"] }
+          }
+        },
+        {
+          "name": "token — bad grant_type -> 400",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('400 on bad grant_type', () => pm.expect(pm.response.code).to.eql(400));"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": { "mode": "urlencoded", "urlencoded": [
+              { "key": "grant_type", "value": "password" },
+              { "key": "client_id", "value": "{{clientId}}" },
+              { "key": "client_secret", "value": "{{clientSecret}}" }
+            ] },
+            "url": { "raw": "{{baseUrl}}/oauth/token", "host": ["{{baseUrl}}"], "path": ["oauth", "token"] }
+          }
+        },
+        {
+          "name": "token — bad client -> 401",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('401 on bad client', () => pm.expect(pm.response.code).to.eql(401));"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": { "mode": "urlencoded", "urlencoded": [
+              { "key": "grant_type", "value": "client_credentials" },
+              { "key": "client_id", "value": "{{clientId}}" },
+              { "key": "client_secret", "value": "definitely-wrong" }
+            ] },
+            "url": { "raw": "{{baseUrl}}/oauth/token", "host": ["{{baseUrl}}"], "path": ["oauth", "token"] }
+          }
+        },
+        {
+          "name": "token — client_credentials -> 200 (captures {{token}})",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('200 on valid grant', () => pm.expect(pm.response.code).to.eql(200));",
+              "const j = pm.response.json();",
+              "pm.test('token_type bearer', () => pm.expect(j.token_type).to.eql('bearer'));",
+              "pm.test('has access_token + expires_in', () => { pm.expect(j.access_token).to.be.a('string'); pm.expect(j.expires_in).to.be.a('number'); });",
+              "pm.collectionVariables.set('token', j.access_token);"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": { "mode": "urlencoded", "urlencoded": [
+              { "key": "grant_type", "value": "client_credentials" },
+              { "key": "client_id", "value": "{{clientId}}" },
+              { "key": "client_secret", "value": "{{clientSecret}}" }
+            ] },
+            "url": { "raw": "{{baseUrl}}/oauth/token", "host": ["{{baseUrl}}"], "path": ["oauth", "token"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 Auth guard",
+      "item": [
+        {
+          "name": "users — no bearer -> 401",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('401 without a bearer token', () => pm.expect(pm.response.code).to.eql(401));"
+            ] } }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/users", "host": ["{{baseUrl}}"], "path": ["users"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "20 Users",
+      "item": [
+        {
+          "name": "GET /users -> 200 list",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('200', () => pm.expect(pm.response.code).to.eql(200));",
+              "const j = pm.response.json();",
+              "pm.test('array of {id,username}', () => { pm.expect(j).to.be.an('array'); if (j.length) { pm.expect(j[0]).to.have.property('id'); pm.expect(j[0]).to.have.property('username'); } });"
+            ] } }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/users", "host": ["{{baseUrl}}"], "path": ["users"] }
+          }
+        },
+        {
+          "name": "GET /users/{{selfId}} -> 200 + email (owner)",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('200', () => pm.expect(pm.response.code).to.eql(200));",
+              "const j = pm.response.json();",
+              "pm.test('OWN profile exposes email', () => pm.expect(j, 'email present for owner').to.have.property('email'));"
+            ] } }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/users/{{selfId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{selfId}}"] }
+          }
+        },
+        {
+          "name": "GET /users/{{absentId}} -> 404",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('404 unknown user', () => pm.expect(pm.response.code).to.eql(404));"
+            ] } }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/users/{{absentId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{absentId}}"] }
+          }
+        },
+        {
+          "name": "PATCH /users/{{absentId}} -> 403 (not self)",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('403 editing another user', () => pm.expect(pm.response.code).to.eql(403));"
+            ] } }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\"username\":\"hacker\"}" },
+            "url": { "raw": "{{baseUrl}}/users/{{absentId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{absentId}}"] }
+          }
+        },
+        {
+          "name": "PATCH /users/{{selfId}} -> 200 (own profile)",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('200 updating own profile', () => pm.expect(pm.response.code).to.eql(200));"
+            ] } }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\"preferred_language\":\"en\"}" },
+            "url": { "raw": "{{baseUrl}}/users/{{selfId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{selfId}}"] }
+          }
+        },
+        {
+          "name": "PATCH /users/{{selfId}} empty -> 400",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('400 on no editable fields', () => pm.expect(pm.response.code).to.eql(400));"
+            ] } }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\"id\":\"x\"}" },
+            "url": { "raw": "{{baseUrl}}/users/{{selfId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{selfId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "30 Movies",
+      "item": [
+        {
+          "name": "GET /movies -> 200 (captures {{movieId}})",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('200', () => pm.expect(pm.response.code).to.eql(200));",
+              "const j = pm.response.json();",
+              "pm.test('array of {id,name}', () => pm.expect(j).to.be.an('array'));",
+              "if (j.length) pm.collectionVariables.set('movieId', j[0].id);"
+            ] } }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/movies", "host": ["{{baseUrl}}"], "path": ["movies"] }
+          }
+        },
+        {
+          "name": "GET /movies/{{movieId}} -> 200 detail",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('200', () => pm.expect(pm.response.code).to.eql(200));",
+              "const j = pm.response.json();",
+              "pm.test('detail has comment_count', () => pm.expect(j).to.have.property('comment_count'));"
+            ] } }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/movies/{{movieId}}", "host": ["{{baseUrl}}"], "path": ["movies", "{{movieId}}"] }
+          }
+        },
+        {
+          "name": "GET /movies/{{absentId}} -> 404",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('404 unknown movie', () => pm.expect(pm.response.code).to.eql(404));"
+            ] } }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/movies/{{absentId}}", "host": ["{{baseUrl}}"], "path": ["movies", "{{absentId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "40 Comments",
+      "item": [
+        {
+          "name": "POST /comments -> 201 (captures {{commentId}})",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('201 created', () => pm.expect(pm.response.code).to.eql(201));",
+              "const j = pm.response.json();",
+              "pm.test('server filled author + date', () => { pm.expect(j).to.have.property('author_username'); pm.expect(j).to.have.property('date'); });",
+              "if (j.id) pm.collectionVariables.set('commentId', j.id);"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\"content\":\"great public-domain film\",\"movie_id\":\"{{movieId}}\"}" },
+            "url": { "raw": "{{baseUrl}}/comments", "host": ["{{baseUrl}}"], "path": ["comments"] }
+          }
+        },
+        {
+          "name": "POST /movies/{{movieId}}/comments -> 201",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('201 created (nested)', () => pm.expect(pm.response.code).to.eql(201));"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\"content\":\"nested comment\"}" },
+            "url": { "raw": "{{baseUrl}}/movies/{{movieId}}/comments", "host": ["{{baseUrl}}"], "path": ["movies", "{{movieId}}", "comments"] }
+          }
+        },
+        {
+          "name": "POST /comments empty -> 400",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('400 on empty content', () => pm.expect(pm.response.code).to.eql(400));"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\"content\":\"\"}" },
+            "url": { "raw": "{{baseUrl}}/comments", "host": ["{{baseUrl}}"], "path": ["comments"] }
+          }
+        },
+        {
+          "name": "GET /comments -> 200 latest",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('200', () => pm.expect(pm.response.code).to.eql(200));",
+              "const j = pm.response.json();",
+              "pm.test('latest array', () => { pm.expect(j).to.be.an('array'); if (j.length) { pm.expect(j[0]).to.have.property('content'); pm.expect(j[0]).to.not.have.property('author_id'); } });"
+            ] } }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/comments", "host": ["{{baseUrl}}"], "path": ["comments"] }
+          }
+        },
+        {
+          "name": "GET /comments/{{commentId}} -> 200",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('200', () => pm.expect(pm.response.code).to.eql(200));"
+            ] } }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/comments/{{commentId}}", "host": ["{{baseUrl}}"], "path": ["comments", "{{commentId}}"] }
+          }
+        },
+        {
+          "name": "GET /comments/{{absentId}} -> 404",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('404 unknown comment', () => pm.expect(pm.response.code).to.eql(404));"
+            ] } }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/comments/{{absentId}}", "host": ["{{baseUrl}}"], "path": ["comments", "{{absentId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "50 Ownership (403 vs 404)",
+      "item": [
+        {
+          "name": "PATCH /comments/{{otherCommentId}} -> 403 (exists, not mine)",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('403 — exists but not the author', () => pm.expect(pm.response.code).to.eql(403));"
+            ] } }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\"content\":\"hijack\"}" },
+            "url": { "raw": "{{baseUrl}}/comments/{{otherCommentId}}", "host": ["{{baseUrl}}"], "path": ["comments", "{{otherCommentId}}"] }
+          }
+        },
+        {
+          "name": "DELETE /comments/{{absentId}} -> 404 (absent)",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('404 — absent, distinct from 403', () => pm.expect(pm.response.code).to.eql(404));"
+            ] } }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/comments/{{absentId}}", "host": ["{{baseUrl}}"], "path": ["comments", "{{absentId}}"] }
+          }
+        },
+        {
+          "name": "PATCH /comments/{{commentId}} -> 200 (mine)",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('200 editing my own comment', () => pm.expect(pm.response.code).to.eql(200));"
+            ] } }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\"content\":\"edited by author\"}" },
+            "url": { "raw": "{{baseUrl}}/comments/{{commentId}}", "host": ["{{baseUrl}}"], "path": ["comments", "{{commentId}}"] }
+          }
+        },
+        {
+          "name": "DELETE /comments/{{commentId}} -> 204 (mine)",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('204 deleting my own comment', () => pm.expect(pm.response.code).to.eql(204));"
+            ] } }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/comments/{{commentId}}", "host": ["{{baseUrl}}"], "path": ["comments", "{{commentId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "60 Negative routing",
+      "item": [
+        {
+          "name": "GET /nonexistent -> 404",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('404 unknown path', () => pm.expect(pm.response.code).to.eql(404));"
+            ] } }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/nonexistent", "host": ["{{baseUrl}}"], "path": ["nonexistent"] }
+          }
+        },
+        {
+          "name": "DELETE /users/{{selfId}} -> 405 (method not allowed)",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('405 unsupported method on a known path', () => pm.expect(pm.response.code).to.eql(405));"
+            ] } }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/users/{{selfId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{selfId}}"] }
+          }
+        }
+      ]
+    }
+  ]
+}

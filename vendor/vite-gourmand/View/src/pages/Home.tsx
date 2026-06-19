@@ -414,7 +414,9 @@ function TestimonialsSection({
 }>) {
   const [isVisible, setIsVisible] = useState(false);
   const isPausedRef = useRef(false);
-  const carouselVisibleRef = useRef(false);
+  // Default to visible so the auto-scroll runs even if the IntersectionObserver
+  // is slow/flaky to fire; the observer still PAUSES it when scrolled offscreen.
+  const carouselVisibleRef = useRef(true);
   const pageHiddenRef = useRef(false);
   const sectionRef = useRef<HTMLElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);

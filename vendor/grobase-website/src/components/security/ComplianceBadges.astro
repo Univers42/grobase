@@ -1,0 +1,27 @@
+---
+// COMPLIANCE BADGES — three honest framework stances (SOC 2 · ISO 27001 · GDPR).
+// These are deliberately NOT hard attestation badges: each card states a soft, true
+// posture ("Supports SOC 2 · audit-ready", "ISO 27001 aligned", "GDPR-compliant
+// posture") with the honest fine print underneath. Accents rotate across the row
+// via .rotate-accents (CSP-safe — never an inline colour).
+import Icon from '../ui/Icon.astro';
+import type { ComplianceBadge } from '../../data/security';
+
+type Props = { badges: ComplianceBadge[] };
+const { badges } = Astro.props;
+---
+
+<ul class="gb-sec-badges rotate-accents" role="list">
+	{
+		badges.map((b) => (
+			<li class="gb-sec-badge" data-rise>
+				<span class="gb-sec-badge__icon" aria-hidden="true">
+					<Icon name={b.icon} size={24} />
+				</span>
+				<span class="gb-sec-badge__framework">{b.framework}</span>
+				<span class="gb-sec-badge__stance">{b.stance}</span>
+				<span class="gb-sec-badge__note">{b.note}</span>
+			</li>
+		))
+	}
+</ul>

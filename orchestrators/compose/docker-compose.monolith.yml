@@ -98,7 +98,8 @@ services:
       # Kong is now internal — WAF is the public entrypoint.
       # Keep 8000 exposed on localhost for direct dev access.
       - "127.0.0.1:${KONG_HTTP_PORT:-8000}:8000"
-      - "127.0.0.1:${KONG_ADMIN_PORT:-8001}:8001"
+      # SECURITY: Kong Admin API NOT published to the host (leaks keys via
+      # /key-auths in db-less mode). Internal-only; see gateway.yml.
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /tmp/kong.yml

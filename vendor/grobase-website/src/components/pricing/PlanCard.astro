@@ -1,0 +1,29 @@
+---
+// Decluttered selectable pricing card: name, price, who-it's-for, three crisp
+// highlights, CTA. The cost-accounting detail lives in the transparency section,
+// not here. Selection is a hidden radio toggled by a full-card label overlay
+// (valid HTML, no JS, CSP-clean); the spotlight + matrix react via CSS :has().
+import type { Tier } from '../../data/tiers';
+import { SITE } from '../../data/site';
+
+type Props = { tier: Tier; recommended?: boolean };
+const { tier, recommended = false } = Astro.props;
+const id = `plan-${tier.id}`;
+const highlights = tier.features.slice(0, 3);
+---
+
+<div class={`gb-plan tier--${tier.id}${recommended ? ' gb-plan--rec' : ''}`}>
+	<input type="radio" id={id} name="plan" value={tier.id} class="gb-plan__radio" checked={recommended} />
+	<label for={id} class="gb-plan__hit"><span class="visually-hidden">Select the {tier.name} plan</span></label>
+	{recommended && <span class="gb-plan__ribbon" aria-hidden="true">Most popular</span>}
+	<span class="gb-plan__check" aria-hidden="true"></span>
+	<div class="gb-plan__body">
+		<span class="gb-plan__name">{tier.name}</span>
+		<p class="gb-plan__price">{tier.retail}<small>{tier.retailNote}</small></p>
+		<p class="gb-plan__tagline">{tier.audience}</p>
+		<ul class="gb-plan__features" role="list">
+			{highlights.map((f) => <li>{f}</li>)}
+		</ul>
+	</div>
+	<a class="gb-btn gb-btn--ghost gb-plan__cta" href={SITE.repoUrl} rel="noopener">Choose {tier.name}</a>
+</div>

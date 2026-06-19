@@ -1,0 +1,27 @@
+# Surfind plane — the surfind-spain app (vendor/surfind-spain) re-platformed onto
+# Grobase: a React/Vite SPA served as a static bundle behind a same-origin
+# reverse proxy to Kong (grobase/serve.mjs), so the app needs no CORS and no
+# per-port CSP. Opt in via the `surfind` profile; not part of any default
+# edition. Requires a prior `cd vendor/surfind-spain/web && npm run build`
+# (produces web/dist) and a run of vendor/surfind-spain/infra/init.sh (applies
+# the public schema + GoTrue users). The realtime PG producer must be alive
+# (mini-baas-realtime); restart it if it logged a "connection closed" error.
+services:
+  surfind:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: node:20-alpine
+    container_name: mini-baas-surfind
+    profiles: ["surfind"]
+    working_dir: /app/grobase
+    command: ["node", "serve.mjs"]
+    environment:
+      PORT: "80"
+      KONG_URL: "http://kong:8000"
+    ports:
+      # 5180/5181/5182 are taken (gourmand/hypertube/savanna) → default to 5183
+      - "${SURFIND_PORT:-5183}:80"
+    volumes:
+      - ./vendor/surfind-spain:/app:ro
+    depends_on:
+      kong:
+        condition: service_started

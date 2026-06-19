@@ -883,7 +883,7 @@ function CategoryNav({
    Main Menus Page
    ══════════════════════════════════════════════════════════ */
 export default function MenusPage({ setCurrentPage, onOrderMenu }: Readonly<MenusPageProps>) {
-  const { menus, themes, diets, isLoading, error, refetch } = useMenus({ limit: 6 });
+  const { menus, themes, diets, isLoading, error, refetch } = useMenus({ limit: 48 });
   const { addToast } = useToast();
   const showMenuImages = useDesktopMenuImages();
 
