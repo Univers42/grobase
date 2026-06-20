@@ -60,6 +60,7 @@ func (b *bootCtx) mountAll(ctx context.Context) {
 	b.mountAudit()
 	b.mountErase()
 	b.mountOrgs()
+	b.mountRBACHierarchy()
 	b.mountIPGuard()
 	b.mountCompliance(ctx)
 	b.mountExport()
