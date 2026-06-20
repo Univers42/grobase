@@ -38,6 +38,14 @@ const (
 	CapProjectKeys   = "project:keys"    // issue/revoke project API keys
 	CapBillingRead   = "billing:read"    // usage rollup, invoices
 	CapBillingManage = "billing:manage"  // change org plan, payment method
+
+	// RBAC-hierarchy capabilities (RBAC_HIERARCHY_ENABLED, internal/teams).
+	CapTeamCreate = "team:create" // create a team in the org
+	CapTeamUpdate = "team:update" // rename / re-tag a team
+	CapTeamDelete = "team:delete" // delete a team
+	CapTeamMember = "team:member" // add/remove a team member (or a team manager)
+	CapProjGrant  = "project:grant" // grant/revoke a project role (user or team)
+	CapTokenIssue = "token:issue"   // mint/revoke a scoped, non-escalating RBAC token
 )
 
 // Can reports whether role holds the named capability. Unknown role or unknown
@@ -49,9 +57,10 @@ func Can(role Role, cap string) bool {
 	case CapOrgRead, CapProjectRead:
 		return role == RoleOwner || role == RoleAdmin || role == RoleDeveloper ||
 			role == RoleBilling || role == RoleViewer
-	case CapOrgUpdate, CapMemberInvite, CapMemberRemove, CapMemberRoleSet, CapProjectDelete:
+	case CapOrgUpdate, CapMemberInvite, CapMemberRemove, CapMemberRoleSet, CapProjectDelete,
+		CapTeamCreate, CapTeamUpdate, CapTeamDelete, CapTeamMember, CapProjGrant:
 		return role == RoleOwner || role == RoleAdmin
-	case CapProjectCreate, CapProjectKeys:
+	case CapProjectCreate, CapProjectKeys, CapTokenIssue:
 		return role == RoleOwner || role == RoleAdmin || role == RoleDeveloper
 	case CapOrgDelete:
 		return role == RoleOwner
