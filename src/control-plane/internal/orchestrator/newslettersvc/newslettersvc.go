@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   newslettersvc.go                                   :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:49:22 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:49:23 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package newslettersvc is the Go port of the Node newsletter-service (R2).
 //
 // It owns the `newsletter.subscriber` + `newsletter.send_log` tables and ports

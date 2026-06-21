@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   models.go                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:57:22 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:57:24 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package teams implements the Track-D RBAC hierarchy that sits inside an org:
 // teams, team membership, project-role grants (User→Project and Team→Project), the
 // effective-permission resolver, and short-lived non-escalating scoped tokens.

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   loginotp.go                                        :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:46:31 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:46:32 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package loginotp implements an email login OTP — a 6-digit code mailed to an
 // account's registered address and entered back in the terminal (a Bitwarden-style
 // second factor before login). The code is stored only as a peppered sha256 hash;

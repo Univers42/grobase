@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   adapter.rs                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:29:51 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:29:52 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The [`SqliteEngineAdapter`] (GoF Adapter): opens a `deadpool-sqlite` pool
 //! for the mount's file, sets the WAL pragmas once, and spawns the dedicated
 //! GROUP-COMMIT writer thread ([`super::writer::writer_loop`]).

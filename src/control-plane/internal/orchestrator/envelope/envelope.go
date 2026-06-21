@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   envelope.go                                        :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:48:18 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:48:20 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package envelope mirrors the Node services' global TransformInterceptor
 // (src/libs/common/src/interceptors/transform.interceptor.ts) for the Go
 // orchestrator, so a client cannot tell whether the legacy Node container or

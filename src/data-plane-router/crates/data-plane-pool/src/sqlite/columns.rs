@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   columns.rs                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:29:54 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:29:55 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! SQL-building primitives shared by the plan builders: identifier quoting, the
 //! owner-scoped `WHERE` intersection, column-set extraction/rendering, and
 //! `ORDER BY` lowering. Pure — no DB access.

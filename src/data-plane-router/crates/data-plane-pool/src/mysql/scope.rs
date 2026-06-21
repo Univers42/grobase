@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   scope.rs                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:28:49 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:28:51 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Owner-scoping + parameter binding — the security core shared by every CRUD
 //! builder in [`super::query`]. Every read intersects `owner_id = ?`; every
 //! write re-stamps `owner_id` from the verified identity. The engine-neutral

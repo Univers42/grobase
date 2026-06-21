@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   search.rs                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:29:26 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:29:28 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Full-text + pgvector search-clause builders the list path layers on. Pure
 //! (params-in/SQL-out) — `quote_ident`-safe identifiers, bound query/embedding
 //! params, allowlisted language `regconfig` and metric operators.

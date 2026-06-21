@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   query.rs                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:32 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:33 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The query hot path: the internal `/v1/query` handler and the shared
 //! `run_query` / `run_query_inner` core that both doors (internal + bypass)
 //! funnel through — owner-scoping, tier rate-limit, metering, planner, dispatch.

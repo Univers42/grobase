@@ -404,6 +404,11 @@ certs/*
 /vendor/MovieVerse/
 /vendor/claude-deal-with-the-devil/
 
+# vault42 — a SEPARATE product repo (own .git → git@github.com:Univers42/vault42.git),
+# developed in-tree here for convenience but committed/pushed only from its own remote
+# (gitflow). Ignored so grobase never embeds it as an orphan gitlink. See vault42/DECISIONS.md.
+/vendor/vault42/
+
 # Knowledge-graph output produced by the tool. Ignored to keep the repo clean —
 # it is fully reproducible from vendor/Understand-Anything (the .ua-*.mjs scripts).
 # NOTE: .understand-anything/knowledge-graph.json IS commit-safe if you want to

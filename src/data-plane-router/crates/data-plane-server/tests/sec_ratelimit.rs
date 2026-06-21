@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   sec_ratelimit.rs                                   :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:33:52 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:33:53 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Security: per-tenant token-bucket rate limiting blocks brute-force / key
 //! spam. We exercise: burst-then-deny across many burst sizes; lazy refill
 //! timing; `rps == 0` unlimited (parity); per-tenant bucket ISOLATION across

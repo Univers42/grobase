@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   ratelimit.rs                                       :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:33:41 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:33:42 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Per-tenant token-bucket rate limiting (Phase 4 tiering).
 //!
 //! The tenant's package tier sets `rps` (sustained refill rate) + `burst`

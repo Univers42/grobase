@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   permissions.rs                                     :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:25 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:26 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! In-Rust ABAC/RBAC decision endpoint (`/v1/permissions/decide`) mirroring the
 //! NestJS DecisionsService shape, with a 503 fallback when no bundle is loaded.
 use crate::abac::Decision;

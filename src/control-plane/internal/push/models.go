@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   models.go                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:54:12 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:54:13 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package push implements the tenant-scoped PUSH / MESSAGING registry (Track-E,
 // Firebase FCM-parity). A tenant registers delivery SUBSCRIPTIONS (channel
 // 'webhook' or 'fcm' — both are an outbound HTTP POST to a configured target_url,

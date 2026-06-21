@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   service.go                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:46:15 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:46:17 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package ipguard (Track-D D2e) is the control-plane TENANT-CONFIGURABLE IP
 // ALLOWLIST for the API edge. A tenant restricts which source IPs/CIDRs may call
 // its API; a request whose client IP (taken from X-Forwarded-For at the edge, or

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   pool.rs                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:29:43 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:29:44 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The per-mount Redis pool: holds the auto-reconnecting `ConnectionManager`,
 //! derives owner-scoped key prefixes, and dispatches single + batch operations.
 

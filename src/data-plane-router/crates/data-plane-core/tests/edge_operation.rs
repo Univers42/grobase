@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   edge_operation.rs                                  :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:35:02 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:35:03 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Edge-case suite for operation.rs (`DataOperation` / `DataResult` /
 //! `DataOperationKind` / batch / projection / aggregate / search / vector) and
 //! ports.rs (`EngineHealth::unknown`).

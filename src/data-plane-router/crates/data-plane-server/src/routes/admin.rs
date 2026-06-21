@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   admin.rs                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:05 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:07 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Privileged in-network surfaces (`/v1/admin/*`): raw statement, migration,
 //! credential rotation, and verify-cache eviction — all `service_role`/`admin`
 //! gated via `require_admin`.

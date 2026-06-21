@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   mod.rs                                             :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:27:33 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:27:34 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Microsoft SQL Server engine adapter (R-mssql, Phase 3d).
 //!
 //! Pure-Rust TDS via `tiberius` + a `bb8` pool (async, no spawn_blocking). The

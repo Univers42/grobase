@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   outbox.rs                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:33:35 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:33:37 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Phase 7d — outbox emission for the direct `/data/v1` front door.
 //!
 //! The outbox-relay → Redis Streams → realtime / webhooks / projections pipeline

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   sql_scope.rs                                       :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:31:55 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:31:57 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Shared SQL filter-lowering for the relational adapters (sqlite, mysql, mssql).
 //!
 //! The three engines lowered a validated [`Filter`] to a `WHERE` fragment with

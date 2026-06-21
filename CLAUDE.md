@@ -29,11 +29,13 @@ no `mini-baas-infra/` prefix to re-map. (Sanity check: `ls mini-baas-infra` → 
 SDK-codegen chain and CI (`.github/workflows/ci.yml`) were repointed to lean paths in the same
 restructure and are on `main` too.
 
-The active branch is **`main`** (HEAD `4461d51`); the vendor re-platform commits (Canagrou · HamBooking ·
-Nimbus · MovieVerse · vite-gourmand) plus the per-table-isolation + query-router-JWT data-plane work and
-the websites playground have all **landed on `main`** (they were previously staged on
-`feature/grobase-hambooking-baas`). The working tree carries untracked vendor clones (`vendor/AppFlowy/`,
-`vendor/twenty/`) and heavy uncommitted changes — most under `vendor/Canagrou/` (and this `CLAUDE.md`).
+The active branch is **`main`** (HEAD `a0bfc38`); the vendor re-platform commits (Canagrou · HamBooking ·
+Nimbus · MovieVerse · vite-gourmand) plus the per-table-isolation + query-router-JWT data-plane work, the
+websites playground, and the per-mount `read_scoped` data-plane feature (migration `070`) have all
+**landed on `main`** (some were previously staged on `feature/grobase-hambooking-baas`). The working tree
+is now **clean**: the AppFlowy clone was committed as **plain tracked files** (nested `.git` removed,
+~2880 files), `vendor/twenty/` is a tracked **orphan gitlink** (mode 160000, `.gitmodules` is gone), and
+the old in-repo `vendor/java-dam-baas/` stale snapshot was **removed** in `a0bfc38`.
 
 ## Code generation
 
@@ -104,7 +106,7 @@ bake groups `apps`/`infra`).
 | Plane           | Language            | Path                                                                                        | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | --------------- | ------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Application** | TypeScript (NestJS) | `src/apps/*` + `src/libs/*`                                                                 | query-router, storage-router, schema/session/permission/analytics/ai/email/gdpr/newsletter services, outbox-relay, mongo-api                                                                                                                                                                                                                                                                                                                                                                                          |
-| **Control**     | Go                  | `src/control-plane/` (module `github.com/dlesieur/mini-baas/control-plane`, `go 1.25.0`)    | **30** `internal/` pkgs — **core:** `tenants provision packages orchestrator adapterregistry shared`; **cloud:** `metering quotastage spendcap abuseguard entitlements backup`; **functions:** `funcsecrets functriggers scheduler`; **enterprise (D):** `orgs sso scim passkeys audit compliance cmek trust ipguard erase export telemetryexport`; **parity (E):** `branching push webhooks`. **6** `cmd/` binaries: `tenant-control adapter-registry orchestrator function-scheduler webhook-dispatcher scale-seed` |
+| **Control**     | Go                  | `src/control-plane/` (module `github.com/dlesieur/mini-baas/control-plane`, `go 1.25.0`)    | **36** `internal/` pkgs — **core:** `tenants provision packages orchestrator adapterregistry`; **infra/cross-cutting:** `config httpx identity jsoncanon observability pg serviceauth` (these replaced the former `shared` junk-drawer, per the no-`shared` rule); **cloud:** `metering quotastage spendcap abuseguard entitlements backup`; **functions:** `funcsecrets functriggers scheduler`; **enterprise (D):** `orgs sso scim passkeys audit compliance cmek trust ipguard erase export telemetryexport`; **parity (E):** `branching push webhooks`. **6** `cmd/` binaries: `tenant-control adapter-registry orchestrator function-scheduler webhook-dispatcher scale-seed` |
 | **Data**        | Rust                | `src/data-plane-router/` (cargo workspace)                                                  | crates: `data-plane-core`, `data-plane-pool`, `data-plane-server`, `engine-conformance`                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | **Realtime**    | Rust (vendored)     | `infra/docker/services/realtime/realtime-agnostic/`                                         | 10-crate event-bus router + IRC bridge (separate workspace)                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
@@ -298,11 +300,11 @@ planes, e.g. metering = `METERING_ENABLED` (Go control) AND `DATA_PLANE_METERING
 `PERMISSION_CONDITIONS_ENABLED` / `API_KEY_ABAC_ENABLED` (m135–m139, ABAC) are _not_ Go `envBool`
 route-mount gates — they gate at the **TS / data-plane PDP**, so grep them in
 `src/apps/permission-engine` & `src/apps/query-router`, not the Go control plane. SQL migrations live
-in **`scripts/migrations/postgresql/`**; the full numeric set is **001–069** (56 distinct numbers
-across 58 files — `035` is reused; sequence is non-contiguous, gaps include **057–059**: `056` jumps
-to `060`; highest is `069_add_dynamodb_engine_check.sql`). The cloud/enterprise/parity flag slice runs
-**040–065**; **066–069** are vendor/infra, not flag-gated (`066`/`067` MovieVerse schema + like-counts,
-`068` per-mount shared_resources, `069` DynamoDB engine CHECK). Mongo/MySQL migrations are separate and tiny
+in **`scripts/migrations/postgresql/`**; the full numeric set is **001–070** (57 distinct numbers
+across 59 files — `035` appears 3×; sequence is non-contiguous, gaps include **057–059**: `056` jumps
+to `060`; highest is `070_mount_read_scoped.sql`). The cloud/enterprise/parity flag slice runs
+**040–065**; **066–070** are vendor/infra, not flag-gated (`066`/`067` MovieVerse schema + like-counts,
+`068` per-mount shared_resources, `069` DynamoDB engine CHECK, `070` per-mount `read_scoped` read-owner-scoping). Mongo/MySQL migrations are separate and tiny
 (`scripts/migrations/{mongodb,mysql}/`, via `make migrate-mongo` / `migrate-mysql`, which need the
 `data-plane` profile up).
 
@@ -457,13 +459,13 @@ the default build/CI (the exceptions are opt-in `movieverse` + `gourmand` compos
 | **MovieVerse**                    | Java/Spring/Thymeleaf/MySQL movie community  | ✅ re-platformed → static `dist/` + `@grobase/js` + Go TMDB proxy; PostgREST + RLS, zero app server | `m146-movieverse.sh`            |
 | **saas** (Nimbus)                 | React/Vite SaaS admin console (no backend)   | ✅ built native — dual-engine PG **+** Mongo, ACID `/query/v1/txn` money model, realtime           | `m148-nimbus-roundtrip.sh`      |
 | **savanna-zoo**                   | React/Vite zoo-management (no backend)       | ✅ built native — PostgREST + GoTrue RBAC + SSE realtime + storage                                 | _(none)_                        |
-| **java-dam-baas** (HamBooking)    | Java/Spring/JavaFX ham-carver booking        | ✅ re-platformed — **but the migrated client lives in an external clone `~/Documents/java-dam-baas` (branch `feature/grobase-baas-migration`)**, not here; the in-repo `vendor/java-dam-baas/` is a **stale pre-migration snapshot** (its `ApiClient` still hits `:8080`). What IS in-repo: the MariaDB mount + `owner_id` schema + per-table-isolation flags + green gate | `m147-hambooking-isolation.sh` |
+| **java-dam-baas** (HamBooking)    | Java/Spring/JavaFX ham-carver booking        | ✅ re-platformed — **but the migrated client lives in an external clone `~/Documents/java-dam-baas` (branch `feature/grobase-baas-migration`)**, not here; the old in-repo `vendor/java-dam-baas/` stale snapshot was **removed** in `a0bfc38` (no longer on disk). What IS in-repo: the MariaDB mount + `owner_id` schema + per-table-isolation flags + green gate | `m147-hambooking-isolation.sh` |
 | **vite-gourmand**                 | React/NestJS/Prisma/Supabase restaurant ordering | ✅ **re-platformed** — static React SPA on a **local owner-scoped Postgres mount** (GoTrue auth, business logic re-homed to PG triggers); needed the **F1/F2 authz model ported from MySQL to the Postgres adapter**. The older `m24` `tenant_owned` osionos-observability mount still coexists (separate dbId) | `m149-gourmand-baas.sh` (+ `m24-gourmand*`) |
 | **music-room**                    | React-Native/NestJS/Mongo music collab       | ⬜ untouched playground — zero BaaS wiring                                                          | —                               |
 | **surfind-spain**                 | Laravel 12/Livewire/MySQL Spanish surf directory | ✅ re-platformed — **server-rendered (no SPA), so the frontend was REBUILT from scratch** as a React/Vite/Leaflet SPA (`web/`) on PostgREST+GoTrue; role RLS via `app_metadata`, owner-scoped favorites/comments, 16 beaches seeded; Laravel/MySQL backend removed; serve `:5183` | `m160-surfind-spain.sh`         |
 | **hypertube**                     | 42 BitTorrent video search+stream subject    | ✅ re-platformed — backend **entirely Grobase** (GoTrue auth + **MongoDB** catalog/comments/profiles + **DynamoDB** watch_state + realtime) plus **4 custom services** under `vendor/hypertube/grobase/`: a **new Rust `hypertube-stream` engine** (axum/reqwest range-proxy → archive.org HTTP `206` partial-content, YouTube-style fast buffer, H.264+AAC audio, `X-Accel-Buffering:no`), `hypertube-media` (torrent→Range/206 + ffmpeg transcode), `hypertube-search` (archive.org + TMDb), `hypertube-api` (RESTful OAuth2) + a YouTube-style React/Vite SPA (`View/`, same-origin via `grobase/serve.mjs`). **~1848 real archive.org films** bulk-seeded (`hypertube-catalog-bulk`, throttled), **8 user profiles + comments** (`hypertube-users`). **Forced real Grobase fixes: the 8th engine DynamoDB end-to-end (build-arg `--features dynamodb` + `DYNAMODB_ENGINE_ENABLED` + migration `069` + registry `ensureSchemaDDL` engine-CHECK + `RUST_DATA_PLANE_FORWARD_ENGINES` + `dynamodb-local`), Mongo `shared_resources` cross-owner reads, and seed idempotency (control-plane key-reuse, GoTrue pagination, persisted secrets).** Known data-plane limits: pool loses `shared_resources` after a provision (restart `data-plane-router`); mongo `upsert` not idempotent. | `m150`–`m154` |
-| **AppFlowy**                      | OSS Notion-alternative — Flutter UI + Rust `flowy-*` core (AGPL-3.0) | ⬜ untouched upstream clone — own nested `.git` (`AppFlowy-IO/AppFlowy.git`, branch `main`), **zero BaaS wiring** (like music-room); its own backend (AppFlowy-Cloud = PG + GoTrue + storage + collab) mirrors Grobase → a prime future re-platform target. See the **AppFlowy** note below the table | —                               |
-| **twenty**                        | TypeScript CRM — twentyhq/twenty (NestJS + GraphQL + TypeORM/Postgres backend, React/Apollo front, nx/yarn monorepo) | ⬜ untouched upstream clone — own nested `.git` (`twentyhq/twenty.git`, branch `main`, HEAD `705caab2`), **untracked** (`?? vendor/twenty/`), **zero BaaS wiring** (like music-room/AppFlowy); its NestJS + Postgres + GraphQL backend mirrors Grobase → a future re-platform candidate | —                               |
+| **AppFlowy**                      | OSS Notion-alternative — Flutter UI + Rust `flowy-*` core (AGPL-3.0) | ⬜ now committed in-repo as **plain tracked files** (nested `.git` removed in `a0bfc38`, ~2880 files; upstream was `AppFlowy-IO/AppFlowy.git` HEAD `4af02cdc`), still **zero BaaS wiring**; its own backend (AppFlowy-Cloud = PG + GoTrue + storage + collab) mirrors Grobase → a prime future re-platform target. See the **AppFlowy** note below the table | —                               |
+| **twenty**                        | TypeScript CRM — twentyhq/twenty (NestJS + GraphQL + TypeORM/Postgres backend, React/Apollo front, nx/yarn monorepo) | ⬜ untouched upstream clone — own nested `.git` (`twentyhq/twenty.git`, branch `main`, HEAD `705caab2`), tracked as an **orphan gitlink** (mode 160000, no `.gitmodules` entry), **zero BaaS wiring** (like music-room); its NestJS + Postgres + GraphQL backend mirrors Grobase → a future re-platform candidate | —                               |
 | **claude-deal-with-the-devil**    | _(not an app)_                               | n/a — a Claude Code framework (rules/agents/skills/tools), **misfiled** here; not a migration target | —                               |
 
 **Gotchas:** Canagrou carries heavy uncommitted/untracked changes on the current branch
@@ -472,18 +474,19 @@ the default build/CI (the exceptions are opt-in `movieverse` + `gourmand` compos
 `make up`, then run their `scripts/seed/<app>-tenant.sh` + gate by hand. The HamBooking gate proves
 isolation over **REST** (F1 shared-catalog read, F2a owner-scope, F2b admin bypass, caps trigger)
 against the MariaDB mount — it exercises the Grobase side, independent of any JavaFX client; the
-actually-rewired desktop client is the **external** `~/Documents/java-dam-baas` clone, so don't read
-`vendor/java-dam-baas/`'s old `ApiClient` as the migration state. The per-table-isolation + admin-bypass
+actually-rewired desktop client is the **external** `~/Documents/java-dam-baas` clone; the in-repo
+`vendor/java-dam-baas/` snapshot has since been **removed** (no stale `ApiClient` left here to mislead). The per-table-isolation + admin-bypass
 data-plane work that backs it is flag-gated (`DATA_PLANE_PER_TABLE_ISOLATION`, `DATA_PLANE_ADMIN_BYPASS`,
 default OFF). `scripts/seed/agency-tenant.sh` provisions a permanent "agency" demo tenant (not tied to
 one `vendor/` app).
 
 ### AppFlowy (`vendor/AppFlowy`) — untouched upstream, un-integrated
 
-A fresh checkout of **AppFlowy-IO/AppFlowy** (the AGPL-3.0 OSS Notion alternative) with its own nested
-`.git` (remote `AppFlowy-IO/AppFlowy.git`, branch `main`, HEAD `4af02cdc`), **untracked** in the parent
-(`?? vendor/AppFlowy/`) and with **zero grobase references on disk**. It is **not** wired to the BaaS and
-**not** in grobase's build/CI — an untouched playground, same state as `music-room`. Documented here only
+A checkout of **AppFlowy-IO/AppFlowy** (the AGPL-3.0 OSS Notion alternative), originally upstream HEAD
+`4af02cdc`, **now committed in-repo as plain tracked files** (its nested `.git` was removed in `a0bfc38`,
+~2880 files — the same vendoring shape as the realtime workspace) and with **zero grobase references on
+disk**. It is **not** wired to the BaaS and **not** in grobase's build/CI — an unintegrated playground
+(it shares `music-room`'s zero-wiring state, though `music-room` stays untracked). Documented here only
 so a future re-platform starts from facts instead of a re-scan; unlike the other apps it builds **on the
 host** (Flutter + cargo-make), not through grobase's Docker stack.
 
@@ -512,9 +515,11 @@ full dev build `cargo make --profile development-linux-x86_64 appflowy-dev`; cod
 `cargo make flutter_test '<path>' --name '<case>'`. The in-repo `docker-compose` builds only the
 X11-forwarded **desktop client**, not a backend.
 
-> **One on-disk `vendor/` dir is absent from the table above** (it now lists 12 of 13 dirs):
+> **One on-disk `vendor/` dir is absent from the table above** (there are now **12** on-disk dirs; the
+> table covers 11 of them and additionally keeps a **`java-dam-baas`** row whose in-repo snapshot was
+> removed in `a0bfc38`): the uncovered on-disk dir is
 > **`grobase-website`** — *not* an external app but a nested checkout whose remote is
-> `Univers42/grobase.git` itself (HEAD `4461d51`, an Astro site in its tree); the canonical
+> `Univers42/grobase.git` itself (HEAD `a0bfc38`, an Astro site in its tree); the canonical
 > marketing/login portal is the **separate** `Univers42/grobase-website` repo (cloned at
 > `~/Documents/grobase-website`, wired to binocle-one), so it is deliberately not given a re-platform row.
 > (**AppFlowy** *is* in the table now — its deep-dive note is the section directly above this line.)

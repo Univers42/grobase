@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   edge_error.rs                                      :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:34:54 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:34:56 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Edge-case suite for `DataPlaneError` (error.rs): variant construction,
 //! Display text, and `prefix_message` preserving the variant (and therefore the
 //! mapped HTTP status) while prefixing free-text payloads.

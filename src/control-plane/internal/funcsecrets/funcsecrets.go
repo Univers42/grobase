@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   funcsecrets.go                                     :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:43:54 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:43:56 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package funcsecrets implements the per-function secret store (A2 Functions
 // DX). Values are sealed with AES-256-GCM (scrypt-derived key) reusing the
 // adapter-registry Encryptor so the same VAULT_ENC_KEY decrypts both.
