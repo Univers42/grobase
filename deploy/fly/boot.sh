@@ -41,7 +41,9 @@ sync_repo() {
 }
 
 write_local_overrides() {
-	[ -f "$LOCAL_SAVE" ] && { cp "$LOCAL_SAVE" .env.local; return 0; }
+	local pepper
+	if [ -f "$DATA/.pepper" ]; then pepper="$(cat "$DATA/.pepper")"
+	else pepper="$(openssl rand -hex 32)"; printf '%s' "$pepper" >"$DATA/.pepper"; fi
 	cat >.env.local <<-EOF
 		API_EXTERNAL_URL=https://$PUBLIC_HOST/auth/v1
 		GOTRUE_SITE_URL=https://$PUBLIC_HOST
@@ -56,10 +58,27 @@ write_local_overrides() {
 		IDENTITY_HEADER_MODE=strict
 		GOTRUE_MAILER_AUTOCONFIRM=false
 		EMAIL_OTP_ENABLED=1
-		KEY_HASH_PEPPER=$(openssl rand -hex 32)
+		KEY_HASH_PEPPER=$pepper
 		EMAIL_OTP_TTL_SECS=300
 		EMAIL_OTP_MAX_ATTEMPTS=5
 	EOF
+	# Real SMTP from fly secrets (set SMTP_PASS on the app) routes OTP/mail to a real
+	# inbox; absent it, the stack keeps the internal mailpit sink (dev default).
+	if [ -n "${SMTP_PASS:-}" ]; then
+		cat >>.env.local <<-EOF
+			SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+			SMTP_PORT=${SMTP_PORT:-587}
+			SMTP_SECURE=${SMTP_SECURE:-false}
+			SMTP_USER=${SMTP_USER:-dev.pro.photo@gmail.com}
+			SMTP_PASS=$SMTP_PASS
+			EMAIL_FROM=${EMAIL_FROM:-dev.pro.photo@gmail.com}
+			GOTRUE_SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+			GOTRUE_SMTP_PORT=${SMTP_PORT:-587}
+			GOTRUE_SMTP_USER=${SMTP_USER:-dev.pro.photo@gmail.com}
+			GOTRUE_SMTP_PASS=$SMTP_PASS
+			GOTRUE_SMTP_ADMIN_EMAIL=${EMAIL_FROM:-dev.pro.photo@gmail.com}
+		EOF
+	fi
 }
 
 assemble_env() {
