@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   models.go                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:51:13 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:51:15 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package orgs implements the Track-D D1 organizations / teams / members /
 // invites / RBAC layer — the keystone control-plane layer BETWEEN a human and a
 // project(=tenant).

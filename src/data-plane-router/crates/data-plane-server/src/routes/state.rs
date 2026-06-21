@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   state.rs                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:42 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:43 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Shared application state: the engine registry, caches, rate limiter, metering
 //! sets, and the in-process transaction registry. The `AppState` struct + its
 //! constructor live here; the construction helpers are in `state_build`, the

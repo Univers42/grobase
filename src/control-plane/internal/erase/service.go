@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   service.go                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:43:09 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:43:10 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package erase (Track-D D4.4) is the control-plane HARD-ERASE / tenant teardown.
 // Today a teardown is SOFT-DELETE only (tenants.status='deleted'; the rows stay,
 // recoverable). This package adds a PROVABLE destruction of one tenant's data,

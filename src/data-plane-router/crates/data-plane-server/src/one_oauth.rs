@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   one_oauth.rs                                       :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:33:23 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:33:24 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! binocle-one OAuth2/OIDC — the full provider matrix on ONE flow.
 //!
 //! PocketBase ships "30+ OAuth2 providers"; nearly all of them are presets

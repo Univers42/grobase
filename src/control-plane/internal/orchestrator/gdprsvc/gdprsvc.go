@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   gdprsvc.go                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:48:38 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:48:40 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package gdprsvc is the Go port of the Node gdpr-service (R2 consolidation).
 //
 // It ports all three NestJS modules: consent (CRUD over gdpr.user_consent),

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   query_emit.rs                                      :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:27 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:28 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Post-execution success handling for the query hot path, split out of
 //! `run_query_inner`. Given the committed `DataResult`, it runs (in order) the
 //! audit emit, Track-B metering, the bypass outbox/automation/nano fan-out, the

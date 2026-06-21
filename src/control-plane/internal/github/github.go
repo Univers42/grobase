@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   github.go                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:45:07 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:45:09 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package github implements Track-E GitHub App connect / device-flow login / org
 // sync — the fly token-exchange side of the Vercel-relay topology. It holds the App
 // private key (a runtime secret), mints short-lived installation tokens JUST IN TIME

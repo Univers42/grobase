@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   pool.rs                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:27:52 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:27:53 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The mount-scoped [`MongoPool`] and its [`EnginePool`] surface: per-request
 //! tenant cross-check, operation dispatch (delegated to [`super::query`]), and
 //! the M22 schema introspection / DDL endpoints over `$jsonSchema`.

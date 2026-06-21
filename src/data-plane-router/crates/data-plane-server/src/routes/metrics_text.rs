@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   metrics_text.rs                                    :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:20 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:21 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Prometheus exposition text builders for `/metrics`, one append-helper per
 //! metric family. Split out of `health::metrics_handler` so each writer stays
 //! small; concatenated in order, the wire output is byte-for-byte what the

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   store.go                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:42:50 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:42:52 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package entitlements is the control-plane DYNAMIC BUILDER core (BUILDER_ENABLED).
 //
 // It lets a tenant COMPOSE its own effective package — fewer mounts, narrowed

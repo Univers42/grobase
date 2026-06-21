@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   capability_honesty.rs                              :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:31:25 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:31:27 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Capability-honesty gate (product-plan 04/S1 — "descriptors must not lie").
 //!
 //! Each engine advertises an [`EngineCapabilities`] descriptor (served at

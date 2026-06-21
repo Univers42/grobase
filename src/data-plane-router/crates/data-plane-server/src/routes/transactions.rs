@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   transactions.rs                                    :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:44 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:45 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Multi-statement transaction lifecycle: begin/execute/commit/rollback over the
 //! in-`AppState` registry, with pool pinning and cross-tenant guards.
 use axum::extract::{Path, State};

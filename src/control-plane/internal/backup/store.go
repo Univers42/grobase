@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   store.go                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:40:46 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:40:48 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package backup implements per-tenant logical backup + restore (Track-B B6).
 //
 // The data path is Go-native logical export over the EXISTING pgx pool: COPY ...

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   schema.rs                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:28:47 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:28:48 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Schema introspection type-mapping + the pure DDL SQL builders (M22 step 2).
 //!
 //! All pure (testable without a DB). Identifiers via `quote_mysql_ident`; enum

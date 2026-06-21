@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   crud_build.rs                                      :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:29:02 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:29:03 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Pure mutating-op SQL builders — the testable-without-a-DB half of [`super::crud`].
 //!
 //! Each assembles the SQL + bound params for a mutating op. Invariants enforced

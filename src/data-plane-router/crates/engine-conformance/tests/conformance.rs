@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   conformance.rs                                     :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:34:08 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:34:12 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Driver for the engine-conformance battery.
 //!
 //! Reads `CONFORMANCE_ENGINE` + `CONFORMANCE_DSN` from the environment, builds

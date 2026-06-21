@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   schedule.go                                        :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:54:58 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:54:59 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package scheduler implements scheduled (cron) function invocation (A2
 // Functions DX). No external cron library is available in go.mod offline, so
 // the schedule grammar is a deliberately small, zero-dep interval dialect with

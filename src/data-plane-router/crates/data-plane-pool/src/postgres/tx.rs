@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   tx.rs                                              :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:29:29 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:29:30 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The pinned `PgTxHandle`, per-request RLS/search-path application, and the
 //! operation dispatcher shared by the auto-commit and interactive-tx paths.
 

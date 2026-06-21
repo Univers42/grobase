@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   chain.go                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:39:26 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:39:28 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package audit (Track-D D3) is the control-plane TAMPER-EVIDENT, tenant-facing
 // audit trail. It maintains a per-tenant HASH CHAIN over append-only audit
 // events and exposes a tenant-facing query / export / verify API.

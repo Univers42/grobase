@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   cmek.go                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:41:18 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:41:20 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package cmek implements CMEK / BYOK (customer-managed encryption keys) for the
 // Grobase control plane (Track-D D4.8). It envelope-encrypts a secret (the
 // per-mount external DB connection string) so that the platform stores ONLY a
