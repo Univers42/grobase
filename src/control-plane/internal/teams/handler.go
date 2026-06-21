@@ -101,7 +101,7 @@ func mapErr(w http.ResponseWriter, err error) {
 		httpx.WriteError(w, http.StatusConflict, "conflict", err.Error())
 	case errors.Is(err, ErrEscalation), errors.Is(err, ErrForbidden):
 		httpx.WriteError(w, http.StatusForbidden, "forbidden", err.Error())
-	case errors.Is(err, ErrBadRole), errors.Is(err, ErrBadScope):
+	case errors.Is(err, ErrBadRole), errors.Is(err, ErrBadScope), errors.Is(err, ErrBadEnv):
 		httpx.WriteError(w, http.StatusBadRequest, "validation_error", err.Error())
 	default:
 		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())

@@ -46,6 +46,8 @@ const (
 	ErrConflict teamsErr = "already exists"
 	// ErrBadRole — an unknown project role on a grant/token (400).
 	ErrBadRole teamsErr = "project_role must be one of owner|admin|writer|reader"
+	// ErrBadEnv — a grant's env_id does not belong to the project (400).
+	ErrBadEnv teamsErr = "env_id does not belong to the project"
 )
 
 // ProjectRole is a project-level role, ordered owner > admin > writer > reader.
@@ -107,6 +109,7 @@ type ProjectGrant struct {
 	ID          string      `json:"id"`
 	ProjectID   string      `json:"project_id"`
 	OrgID       string      `json:"org_id"`
+	EnvID       *string     `json:"env_id,omitempty"`
 	GranteeKind string      `json:"grantee_kind"`
 	GranteeID   string      `json:"grantee_id"`
 	ProjectRole ProjectRole `json:"project_role"`
@@ -161,9 +164,10 @@ type AddTeamMemberRequest struct {
 
 // GrantRequest is the POST /v1/orgs/{orgId}/projects/{projectId}/grants body.
 type GrantRequest struct {
-	GranteeKind string      `json:"grantee_kind"` // user | team
+	GranteeKind string      `json:"grantee_kind"` // user | team | group
 	GranteeID   string      `json:"grantee_id"`
 	ProjectRole ProjectRole `json:"project_role"`
+	EnvID       string      `json:"env_id"`     // optional; "" = project-wide (all environments)
 	ExpiresAt   string      `json:"expires_at"` // optional RFC3339; "" = never
 }
 
