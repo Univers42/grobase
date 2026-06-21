@@ -46,3 +46,14 @@ func (s *Service) teamInOrg(ctx context.Context, orgID, teamID string) bool {
 		`SELECT '1' FROM public.teams WHERE id::text=$1 AND org_id::text=$2`, teamID, orgID)
 	return row.Scan(&x) == nil
 }
+
+// projectOwner resolves a project's owner_user_id (""=none) and whether the project exists —
+// the ownership check for a standalone (org-less) project's direct invites.
+func (s *Service) projectOwner(ctx context.Context, projectID string) (owner string, exists bool) {
+	row := s.db.AdminQueryRow(ctx,
+		`SELECT COALESCE(owner_user_id,'') FROM public.tenants WHERE id::text=$1`, projectID)
+	if err := row.Scan(&owner); err != nil {
+		return "", false
+	}
+	return owner, true
+}

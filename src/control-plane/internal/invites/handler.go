@@ -43,6 +43,8 @@ func Mount(mux *http.ServeMux, d Deps) {
 	mux.HandleFunc("GET /v1/orgs/{orgId}/teams/{teamId}/invites", rt.listTeamInvites)
 	mux.HandleFunc("POST /v1/groups/{groupId}/invites", rt.issueGroupInvite)
 	mux.HandleFunc("GET /v1/groups/{groupId}/invites", rt.listGroupInvites)
+	mux.HandleFunc("POST /v1/projects/{projectId}/invites", rt.issueProjectInvite)
+	mux.HandleFunc("GET /v1/projects/{projectId}/invites", rt.listProjectInvites)
 	mux.HandleFunc("POST /v1/invites/accept", rt.accept)
 	mux.HandleFunc("GET /v1/invites/{inviteId}", rt.getInvite)
 }
