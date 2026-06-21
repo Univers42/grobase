@@ -1,0 +1,11 @@
+{
+  "name": "grobase-github-relay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vercel relay for the Grobase GitHub App connect flow. Holds ONLY an HMAC relay secret (never the App private key); HMAC-signs the install callback and forwards it to the grobase (fly) control plane.",
+  "type": "module",
+  "devDependencies": {
+    "@vercel/node": "^3.2.0",
+    "typescript": "^5.4.0"
+  }
+}
