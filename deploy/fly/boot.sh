@@ -136,6 +136,20 @@ bring_up() {
 	log "restart control plane so ensureSchema/schema-checks see the migrated DB"
 	$DC restart adapter-registry-go tenant-control || true
 	wait_for_registry
+	ensure_gateway
+}
+
+ensure_gateway() {
+	# mongo's healthcheck can exceed its 3s timeout under load on a cold reboot,
+	# which strands the realtime→kong depends_on chain ("kong Created", public door
+	# down). mongo still serves fine; force the chain up with --no-deps so the public
+	# gateway recovers without manual intervention.
+	log "ensuring gateway chain (mongo-init → realtime → kong) is up"
+	$DC up -d --no-deps mongo-init || true
+	sleep 4
+	$DC up -d --no-deps realtime || true
+	sleep 3
+	$DC up -d --no-deps kong || true
 }
 
 wait_for_registry() {
