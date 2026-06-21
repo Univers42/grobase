@@ -14,13 +14,13 @@
 > - le préfixe historique `apps/baas/mini-baas-infra/…` n'existe plus : les chemins sont désormais à la racine du dépôt — `src/…` (planes applicatif/contrôle/données), `infra/…` (Docker, config, OpenAPI, Postman), `orchestrators/…` (compose, makes), `scripts/…` et `wiki/…` ;
 > - les liens vers `apps/osionos/…` et `apps/opposite-osiris/…` désignent les **front-ends du monorepo** (l'app Osionos et le site Prismatica) — ils ne font **pas** partie de ce dépôt back-end, ils sont conservés pour illustrer comment un client réel consomme le BaaS.
 
-> Osionos a été pensé à l'image d'une fourmilière : organisée, structurée, et animée par une volonté collective d'atteindre un objectif commun. Lorsqu'on regarde en accéléré une vidéo d'une galerie souterraine, on voit les fourmis se déplacer rapidement, transporter des matériaux, communiquer entre elles. L'architecture de ces galeries est complexe, avec des tunnels et des chambres interconnectés qui permettent un déplacement fluide et un stockage efficace des ressources. Un constat s'impose : les fourmis exploitent les ressources de leur environnement pour construire leur habitat. La fourmilière est un écosystème vivant qui s'adapte en permanence à ses conditions. Avec les collègues, on a fait un constat simple : une application moderne accumule vite des données et des services à maintenir. Osionos cherche à rendre cette complexité lisible — un seul back-end mutualisé que plusieurs front-ends peuvent consommer, plutôt qu'un serveur réécrit pour chaque projet.
+> Osionos a été pensé à l'image d'une fourmilière : un écosystème organisé qui exploite les ressources de son environnement et s'adapte en permanence. Les fourmis transportent, communiquent, construisent des galeries interconnectées où circulation et stockage restent fluides. Avec les collègues, on a fait le même constat : une application moderne accumule vite des données et des services à maintenir. Osionos cherche à rendre cette complexité lisible — un seul back-end mutualisé que plusieurs front-ends peuvent consommer, plutôt qu'un serveur réécrit pour chaque projet.
 
-> Linus Torvalds, créateur de Linux, avait besoin d'un outil de gestion de version pour piloter son propre projet — c'est ainsi que Git est né. De la même manière, nous avons voulu créer un side project suffisamment puissant pour accompagner nos futurs projets.
+> Linus Torvalds, créateur de Linux, avait besoin d'un outil de gestion de version pour piloter son propre projet — c'est ainsi que Git est né. De la même manière, nous avons voulu créer un side project capable d'accompagner nos futurs projets.
 
 ## Vue d'ensemble
 
-Le projet Osionos est né d'une frustration : on cherchait un outil de dashboarding vraiment complet, rapide et agréable à utiliser — un truc genre Notion, mais mieux adapté à nos besoins. Outil après outil, nous nous heurtions aux mêmes limitations : manque de personnalisation, performances insuffisantes, intégrations trop rigides. On a décidé de créer notre propre solution. Nous sommes pleinement conscients que c'est un projet long terme.
+Le projet Osionos est né d'une frustration : on cherchait un outil de dashboarding complet, rapide et agréable à utiliser — un truc genre Notion, mais mieux adapté à nos besoins. Outil après outil, nous nous heurtions aux mêmes limitations : manque de personnalisation, performances insuffisantes, intégrations trop rigides. On a décidé de créer notre propre solution. Nous sommes pleinement conscients que c'est un projet long terme.
 
 ## Usage de l'IA
 
@@ -46,7 +46,7 @@ Comme nous n'avions aucune idée de ce que nous faisions au départ — et que c
 
 L'un des pièges dans lequel sont tombés des millions de développeurs juniors est ce que j'appellerais le "vibe coding non intentionnel". La communauté développeur le voit d'un mauvais œil, et à raison : c'est genre posséder une Tesla, activer le pilote auto et regarder passivement. Jusqu'au moment où quelque chose se passe mal — et là, le temps de réaction est trop lent.
 
-Notre équipe de cinq s'est prêtée à l'expérience pour vraiment comprendre ses limites. Voici ce que nous avons constaté :
+Notre équipe de cinq s'est prêtée à l'expérience pour en comprendre les limites. Voici ce que nous avons constaté :
 
 1. **Rapidité sans direction.** Le vibe coding génère du code vite, mais sans cap réel. L'output est souvent de mauvaise qualité, le refactoring est inévitable, et la dette technique s'accumule rapidement. Un projet de cette envergure ne peut pas tenir sur cette base.
 2. **Des cas d'usage valables malgré tout.** Pour esquisser des idées d'architecture ou amorcer une réflexion, ça peut être utile. Nous l'avons utilisé pour explorer plusieurs pistes de conception — les résultats n'étaient pas convaincants, mais ça a permis de déblayer le terrain rapidement.
@@ -56,7 +56,7 @@ Le vibe coding est un outil, pas un état d'esprit permanent. Bien utilisé — 
 
 #### Prompt engineering
 
-Nous avons également testé le prompt engineering pour générer du code de meilleure qualité. Nous avons suivi les recommandations de la communauté : few-shot learning, chaînes de raisonnement, structuration précise des consignes. Résultat : c'est un outil puissant, mais qui demande du temps pour être maîtrisé. La qualité de l'output est directement corrélée à la qualité du prompt.
+Nous avons également testé le prompt engineering pour générer du code de meilleure qualité. Nous avons suivi les recommandations de la communauté : few-shot learning, chaînes de raisonnement, structuration précise des consignes. Résultat : c'est un outil efficace, mais qui demande du temps pour être maîtrisé. La qualité de l'output est directement corrélée à la qualité du prompt.
 
 Quelques ressources qui nous ont été utiles :
 - https://www.ibm.com/fr-fr/think/prompt-engineering
@@ -67,7 +67,7 @@ Quelques ressources qui nous ont été utiles :
 
 GitHub Copilot est l'exemple emblématique de l'assistance à la programmation : suggestions en temps réel, intégration dans l'éditeur, utile pour les tâches répétitives. Mais il ne remplace pas la compréhension du code — chaque suggestion doit être lue et validée.
 
-On a exploré différents modèles selon les contextes. Le site [Artificial Analysis](https://artificialanalysis.ai/models) publie des benchmarks quotidiens sur les principaux modèles — une référence utile pour choisir le bon outil selon les besoins du moment. Nous avons notamment constaté des différences significatives entre les modèles en termes de vitesse, de coût et de qualité du code produit. Y a pas de modèle parfait — c'est contexte par contexte.
+On a exploré différents modèles selon les contextes. Le site [Artificial Analysis](https://artificialanalysis.ai/models) publie des benchmarks quotidiens sur les principaux modèles — une référence utile pour choisir le bon outil selon les besoins du moment. Les modèles diffèrent en vitesse, en coût et en qualité du code produit : y a pas de modèle parfait — c'est contexte par contexte.
 
 #### Developer agentic
 
@@ -77,15 +77,15 @@ C'est un profil exigeant, mais on a dû nous en approcher lorsque l'équipe s'es
 
 Andrej Karpathy décrit bien ce changement de paradigme : *"on n'écrit plus du code directement 99% du temps. On orchestre des agents IA pour faire le travail, et on se concentre sur la supervision et l'optimisation de ces pipelines."*
 
-Limite principale : le coût en crédits IA est très élevé, ce qui a rapidement freiné notre utilisation à grande échelle.
+Limite principale : le coût en crédits IA est élevé, ce qui a rapidement freiné notre utilisation à grande échelle.
 
 #### No-code / AI-native builder
 
-Des outils comme Lovable, Replit Agent ou Figma AI permettent de construire des applications entièrement en langage naturel, sans code traditionnel. Nous les avons testés pendant plusieurs semaines. Ils sont puissants pour prototyper rapidement, mais leurs limites sont bien réelles :
+Des outils comme Lovable, Replit Agent ou Figma AI permettent de construire des applications entièrement en langage naturel, sans code traditionnel. Nous les avons testés pendant plusieurs semaines. Ils prototypent vite, mais leurs limites sont bien réelles :
 
 - Peu flexibles sur les projets complexes
 - Code généré souvent non maintenable
-- Dette technique très élevée à long terme
+- Dette technique élevée à long terme
 - Lents sur les projets de grande envergure
 - Coûteux en crédits IA
 
@@ -121,7 +121,7 @@ Merci à l'école 42, qui nous a appris que l'autonomie et la débrouillardise s
 
 Merci aux communautés open source, aux auteurs de documentation, aux développeurs qui partagent leurs retours d'expérience en ligne — vous êtes une ressource invisible mais indispensable.
 
-Et enfin, merci à ceux qui liront ce document avec l'œil ouvert et la curiosité de comprendre ce qu'on a vraiment cherché à faire ici.
+Et enfin, merci à ceux qui liront ce document avec l'œil ouvert et la curiosité de comprendre ce qu'on a cherché à faire ici.
 
 
 ## CHAPITRE 1 : synthèse des compétences mobilisées
@@ -149,7 +149,7 @@ Côté front, l'enjeu n'était pas d'écrire le plus de lignes de React possible
 | **Maquetter une interface** | Penser desktop d'abord (Osionos est un outil de travail dense, pas un feed mobile), traiter l'accessibilité comme une contrainte de design et pas un audit final | Wireframes Figma, design tokens SCSS [`_brand-tokens.scss`](../../apps/opposite-osiris/src/styles/abstracts/_brand-tokens.scss), `<dialog>` natif avec focus trap, régions `aria-live`, contraste vérifié |
 | **Intégrer des interfaces statiques** | Deux frontends, deux outils choisis pour leur job réel : Astro pour le marketing (HTML statique, SEO), React pour l'app (interactivité dense) | [`apps/opposite-osiris/`](../../apps/opposite-osiris) en Astro 6 + SCSS modulaire ; [`apps/osionos/`](../../apps/osionos) en React 19 + Vite + organisation Feature-Sliced Design |
 | **Développer la partie dynamique** | Stores granulaires sans cérémonie Redux, formulaires validés avant tout aller-retour réseau, virtualisation des longues listes | Zustand 5 (`usePageStore`, `useDatabaseStore`), `@tanstack/react-virtual`, SDK `@grobase/js`, flux GoTrue (email/mot de passe + magic link, un lien de connexion à usage unique reçu par mail + WebAuthn, la connexion sans mot de passe par empreinte/clé physique, via `@simplewebauthn/browser`) |
-| **Sécuriser le front** | Les surfaces HTML sont traitées selon leur contexte : `sanitize-html` côté site marketing, échappement HTML + `sanitizeUrl()` dans le moteur Markdown de l'app, scripts dédiés pour SVG, médias et CSP | `sanitize-html`, [`svg-security.mjs`](../../apps/opposite-osiris/src/lib/svg-security.mjs), [`media-security.mjs`](../../apps/opposite-osiris/src/lib/media-security.mjs), [`verify-csp.mjs`](../../apps/opposite-osiris/scripts/verify-csp.mjs), `markengine` |
+| **Sécuriser le front** | Chaque surface HTML est traitée selon son contexte : `sanitize-html` côté marketing, échappement HTML + `sanitizeUrl()` dans le moteur Markdown de l'app, scripts dédiés pour SVG, médias et CSP (détail du modèle de sécurité au **chapitre 5**) | `sanitize-html`, [`svg-security.mjs`](../../apps/opposite-osiris/src/lib/svg-security.mjs), [`media-security.mjs`](../../apps/opposite-osiris/src/lib/media-security.mjs), [`verify-csp.mjs`](../../apps/opposite-osiris/scripts/verify-csp.mjs), `markengine` |
 
 Le fil rouge : chaque comportement non trivial (validation des formulaires, virtualisation des longues listes, appels au SDK) est isolé dans un fichier identifiable et couvert par les tests, plutôt que dilué dans les composants.
 
@@ -159,13 +159,13 @@ Côté back, le pari assumé est de **ne pas réécrire ce qui existe déjà** :
 
 | Compétence CDA | Ce que ça veut dire chez nous | Outils / preuves dans le repo |
 |---|---|---|
-| **Modéliser et gérer la base de données** | Schéma PostgreSQL avec contraintes + index + RLS (*Row-Level Security* : la base filtre elle-même chaque ligne selon l'utilisateur connecté) pour rendre la sécurité inviolable depuis l'app ; MongoDB pour le semi-structuré, où chaque document est automatiquement marqué d'un `owner_id` (l'identifiant de son propriétaire) pour cloisonner les données | [`001_initial_schema.sql`](../../scripts/migrations/postgresql/001_initial_schema.sql), [`016_unify_rls.sql`](../../scripts/migrations/postgresql/016_unify_rls.sql), [`065_least_privilege_rls.sql`](../../scripts/migrations/postgresql/065_least_privilege_rls.sql), service `mongo-api` |
-| **Développer les composants d'accès aux données** | Pas d'ORM (*Object-Relational Mapping* : la couche logicielle qui traduit objets ↔ tables SQL) : PostgREST génère l'API REST directement depuis le schéma → zéro code de liaison à maintenir, zéro injection SQL ; pour Mongo, façade NestJS dédiée | `postgrest` 12.2.3, `mongo-api` (NestJS), `adapter-registry` qui chiffre les identifiants de connexion externes avec AES-256-GCM (un algorithme de chiffrement symétrique standard), la clé étant dérivée par scrypt |
+| **Modéliser et gérer la base de données** | Schéma PostgreSQL avec contraintes, index et RLS (*Row-Level Security*) ; MongoDB pour le semi-structuré, chaque document marqué d'un `owner_id` pour cloisonner les données. Mécanisme détaillé au **chapitre 4**, propriété de sécurité au **chapitre 5** | [`001_initial_schema.sql`](../../scripts/migrations/postgresql/001_initial_schema.sql), [`016_unify_rls.sql`](../../scripts/migrations/postgresql/016_unify_rls.sql), [`065_least_privilege_rls.sql`](../../scripts/migrations/postgresql/065_least_privilege_rls.sql), service `mongo-api` |
+| **Développer les composants d'accès aux données** | Pas d'ORM (*Object-Relational Mapping*) : PostgREST génère l'API REST directement depuis le schéma → zéro code de liaison à maintenir, zéro injection SQL ; pour Mongo, façade NestJS dédiée. L'`adapter-registry` chiffre les identifiants de connexion externes (AES-256-GCM + clé dérivée par scrypt) — détail au **chapitre 4** | `postgrest` 12.2.3, `mongo-api` (NestJS), `adapter-registry` |
 | **Développer les composants métier** | La logique vit là où c'est le plus sûr : autorisation/propriété dans la base (RLS + PL/pgSQL), coordination événementielle dans des services dédiés | Politiques RLS PG, `email-service` (relais SMTP NestJS générique via nodemailer ; les mails d'inscription/réinitialisation sont gérés par GoTrue), `realtime-agnostic` (WebSocket Rust), `storage-router` (URLs présignées MinIO : un lien temporaire et signé qui autorise un seul upload/download sans exposer les identifiants du stockage) |
-| **Sécuriser la stack** | Défense en profondeur : WAF en amont, secrets jamais dans Git, certificats locaux proches prod, audit en cours d'extension | WAF nginx + ModSecurity + OWASP CRS (un pare-feu applicatif appliquant le jeu de règles anti-attaques de référence de l'OWASP), [HashiCorp Vault](https://www.vaultproject.io/) + [`vault-env.mjs`](../../scripts/vault/vault-env.mjs), `generate-localhost-cert.sh`, `trust-localhost-cert.sh` |
+| **Sécuriser la stack** | Défense en profondeur : WAF en amont de Kong, secrets jamais dans Git (Vault), certificats locaux proches prod, audit en cours d'extension — modèle complet au **chapitre 5** | WAF nginx + ModSecurity + OWASP CRS, [HashiCorp Vault](https://www.vaultproject.io/) + [`vault-env.mjs`](../../scripts/vault/vault-env.mjs), `generate-localhost-cert.sh`, `trust-localhost-cert.sh` |
 | **Déployer et documenter** | Une commande `make` doit suffire à tout monter, qu'on soit un nouvel arrivant ou la CI ; chaque décision a une note écrite | Docker Compose + profils (`control-plane`, `data-plane`, `observability`, `extras`), `docker-bake.hcl`, [`orchestrators/makes/`](../../orchestrators/makes), images sur GHCR + Docker Hub, [`wiki/architecture/`](../architecture/), [`wiki/security/`](../security/) |
 
-Le fil rouge ici : **le principe du moindre privilège — ne donner à chacun que les droits strictement nécessaires — est encodé au plus bas niveau possible**. Quand PostgreSQL peut refuser une lecture grâce à RLS, on ne fait pas de `if (user.id === resource.owner)` en TypeScript — on laisse la base décider. Concrètement : la règle d'autorisation existe une seule fois, dans la base, et on ne peut pas la contourner en appelant l'API autrement — alors qu'un `if` en TypeScript se réplique et se rate.
+Le fil rouge ici : **le principe du moindre privilège est encodé au plus bas niveau possible**. Quand PostgreSQL peut refuser une lecture grâce à RLS, on ne fait pas de `if (user.id === resource.owner)` en TypeScript — la règle d'autorisation existe une seule fois, dans la base, et ne se contourne pas en appelant l'API autrement (mécanisme RLS au **chapitre 4**, propriété de sécurité au **chapitre 5**).
 
 ### Compétences transverses
 
@@ -174,7 +174,7 @@ Au-delà des deux activités-types, le projet a mobilisé des compétences peu v
 | Domaine | Ce qu'on a mis en place | Pourquoi c'était nécessaire |
 |---|---|---|
 | **Observabilité** | Prometheus (métriques), Grafana (dashboards), Loki + Promtail (logs) | Rendre la stack auditable plutôt qu'opaque — un service muet est un service qu'on ne peut pas exploiter en confiance |
-| **Tests** | Playwright (E2E osionos), Newman/Postman (contrats API), scripts CTF maison ([`scripts/security/ctf/`](../../apps/opposite-osiris/scripts/security/ctf)), suite BaaS en 16 phases (15 scripts shell + 1 phase Python) | Un filet de sécurité avant chaque merge ; sans cela, refactorer une stack à 50 services devient suicidaire |
+| **Tests** | Playwright (E2E osionos), Newman/Postman (contrats API), scripts CTF maison ([`scripts/security/ctf/`](../../apps/opposite-osiris/scripts/security/ctf)), suite BaaS en 16 phases (15 scripts shell + 1 phase Python) | Un filet de sécurité avant chaque merge ; sans lui, refactorer une stack à 50 services devient ingérable |
 | **Gestion de version et release** | Monorepo, conventions de branche, versionnage des images (`docker.io/dlesieur/mini-baas-*` et `ghcr.io/univers42/grobase-*`, tag `latest` par défaut ; tag de version pour `dlesieur/realtime-agnostic:0.2.1`), tags Git alignés sur les releases d'images | Pouvoir revenir en arrière proprement, et tracer ce qui tourne en prod à chaque instant |
 | **Posture vis-à-vis de l'IA** | Usage assumé et tracé de l'assistance IA, lecture critique du code produit comme règle | Apprendre vite sans déléguer la compréhension — voir la section *Usage de l'IA* en début de dossier |
 
@@ -192,7 +192,7 @@ Le projet Osionos a été initié pour pallier les lourdeurs d'un processsus de 
 voici quelques examples de fonctionnalités que nous avons imaginé pour Osionos:
 - **Pages et blocs** : les utilisateurs peuvent créer des pages et les remplir avec des blocs de contenu (texte, images, tableaux, etc.) pour construire leur dashboard.
 - **dashboarding** : à l'aide de `/dashboard` ou `/layout` ou bien encore directemetn depuis le `/database`, les utilisateurs peuvent créer des vues personnalisées de leurs données, avec des filtres, des tris, et des options de visualisation avancées. L'idée ici est que l'on veut pouvoir dans le temps proposer aux gens des formes préétablis mais s'ils veulent pourront ajouter les leurs à travers le code ou même au travers de plugins
-- **home**: c'est le dashboard d'accueil, entièrement personnalisable, où les utilisateurs peuvent épingler leurs pages et bases de données préférées pour un accès rapide. L'idée est que ce dashboard d'accueil puisse être partagé entre les membres d'un même workspace, pour créer une sorte de point de ralliement commun. On va aussi s'inspirer de ce qu'Obsidian a fait avec son "graph view" pour proposer une visualisation de l'ensemble des pages et de leurs interconnexions. Pour faire les nodes et les edges on ce basera sur la librairie d3.js, qui est très puissante pour ce genre de visualisation. Comme dans linux tout est une archive... Dans notre système tout est une donnée. Chaque donnée peut prendre des formes distintes (page, bloc, base de données, etc.) et être reliée à d'autres données. L'idée est que le graph view puisse représenter visuellement ces connexions, pour aider les utilisateurs à naviguer dans leur espace de travail et à découvrir des relations entre leurs données.
+- **home**: c'est le dashboard d'accueil, entièrement personnalisable, où les utilisateurs peuvent épingler leurs pages et bases de données préférées pour un accès rapide. L'idée est que ce dashboard d'accueil puisse être partagé entre les membres d'un même workspace, pour créer une sorte de point de ralliement commun. On va aussi s'inspirer de ce qu'Obsidian a fait avec son "graph view" pour proposer une visualisation de l'ensemble des pages et de leurs interconnexions. Pour faire les nodes et les edges on se basera sur la librairie d3.js, taillée pour ce genre de visualisation. Comme dans linux tout est une archive... Dans notre système tout est une donnée. Chaque donnée peut prendre des formes distintes (page, bloc, base de données, etc.) et être reliée à d'autres données. L'idée est que le graph view puisse représenter visuellement ces connexions, pour aider les utilisateurs à naviguer dans leur espace de travail et à découvrir des relations entre leurs données.
 - **bases de données** : les utilisateurs devraient pouvoir connecter leurs bases de données (PostgreSQL, MongoDB, etc.) à Osionos pour visualiser et interagir avec leurs données en temps réel. L'idée est que les utilisateurs puissent créer des vues personnalisées de leurs données, avec des filtres, des tris, et des options de visualisation avancées. On veut aussi permettre aux utilisateurs de créer des dashboards à partir de ces données, pour suivre les indicateurs clés de performance (KPI) et prendre des décisions éclairées.
 - **note**: bien sure ce système est plus ou moins facile de reproduire ce que font notion. La difficulté réside plus dans l'infrastructure que dans la fonctionnalité en elle même.
 - **wiki**: ici le constat et que notion est beaucoup trop lent. Ne peut pas charger de longue page. Obsidian est plus rapide mais n'est pensé que pour faire des notes. L'aspect général d'Obsidian reste très austère, très bon outil pour un usage professionnelle mais trop spécifique. Donc on a eu l'idée de gérer en infrastructure une manière que l'on peut avoir une database statique et une database dynamique. Vscode est sruremnt l'un des outils graphiques les plus rapides et les plus polyvalent mais pas adapté pour tous. L'avantage que j'y vois c'est que l'on peut casiment tout faire avec le clavier et réduire les frictions liés à l'usage de la souris. Donc le wiki sera basé sur toutes ces frictions. Le but c'est que ca soit beacuoup plus rapide que Notion, plus agréable à utiliser qu'Obsidian, et plus accessible que Vscode. Tout en utilisant de vrai donné et en laissant les users faire le choix d'écrire en brut ou convertir directemetn les valeurs dans notre propre markdown en bloc ou en inline.
@@ -205,13 +205,13 @@ Le projet Osionos poursuivait trois objectifs majeurs et distincts, chacun ratta
 
 2. **Pour l'administrateur de workspace — disposer d'un contrôle fin et auditable sur l'espace partagé.** Le Planificateur d'un workspace devait pouvoir définir qui voit quoi (public / privé / partagé), gérer les rôles, brancher *ses propres* bases de données externes (PostgreSQL, MongoDB, plus tard MySQL et HTTP), et retrouver dans un journal d'audit toute opération critique. Aucun secret en clair, aucune action sans trace.
 
-3. **Pour l'équipe projet — consolider la fiabilité générale en centralisant l'authentification, les permissions, l'audit et l'observabilité de toute la plateforme.** Plutôt que ré-écrire dix couches de sécurité, on s'est appuyé sur des briques éprouvées (GoTrue, un service d'authentification qui émet des JWT — des jetons de connexion signés ; PostgREST, qui expose PostgreSQL en API REST avec la RLS, *Row-Level Security*, où la base filtre elle-même les lignes selon l'utilisateur connecté ; Vault pour les secrets ; Kong en *ingress*, c'est-à-dire la passerelle unique par où entre tout le trafic) assemblées et durcies. Les services applicatifs que nous construisons tournent avec un utilisateur non-root, et le flux public passe par une passerelle unique.
+3. **Pour l'équipe projet — consolider la fiabilité générale en centralisant l'authentification, les permissions, l'audit et l'observabilité de toute la plateforme.** Plutôt que ré-écrire dix couches de sécurité, on s'est appuyé sur des briques éprouvées (GoTrue, PostgREST, Vault, Kong) assemblées et durcies. Les services applicatifs que nous construisons tournent avec un utilisateur non-root, et le flux public passe par une passerelle unique.
 
 Chaque choix technique de la section suivante répond aux trois objectifs ci-dessus, mais aussi à deux contraintes concrètes : qu'un service puisse tomber sans entraîner les autres (chaque service a son container, redémarrable seul), et que la sécurité soit posée dans la base via RLS plutôt que dans des vérifications applicatives dispersées.
 
 ##### Architecture de la solution et choix techniques
 
-Avant d'expliquer ce que nous avons construit, il faut dire d'où on est partis. Au début du projet, on avait une feuille blanche et une intuition : "on veut faire un Notion, mais qui sait parler à n'importe quelle base de données, sans rien casser quand on change d'avis sur l'infrastructure". C'est cette intuition qui a piloté chaque décision technique. À chaque carrefour, on a choisi l'option qui gardait deux portes ouvertes : celle de l'expérimentation rapide pour l'équipe, et celle d'une éventuelle mise en production sérieuse.
+Au début du projet, on avait une feuille blanche et une intuition : "on veut faire un Notion, mais qui sait parler à n'importe quelle base de données, sans rien casser quand on change d'avis sur l'infrastructure". C'est elle qui a piloté chaque décision technique. À chaque carrefour, on a choisi l'option qui gardait deux portes ouvertes : celle de l'expérimentation rapide pour l'équipe, et celle d'une éventuelle mise en production sérieuse.
 
 Le reste de cette section décrit, dimension par dimension, *ce que nous avons choisi* et surtout *pourquoi nous en sommes arrivés là* — y compris les chemins que nous avons abandonnés en cours de route.
 
@@ -231,7 +231,7 @@ La vraie ambition d'Osionos, c'est de laisser un utilisateur connecter *sa* base
 
 On s'est rendu compte qu'on était en train de réinventer un problème connu : c'est exactement ce que résolvent les **moteurs de fédération SQL**. On a évalué Presto, Trino, Apache Drill, et même quelques options propriétaires. On a retenu **Trino** pour deux raisons : il est open source, et il sait lire PostgreSQL et MongoDB *avec la même syntaxe SQL*, ce qui permet une requête joignant les deux bases — sinon il aurait fallu écrire à la main le code de liaison entre les deux.
 
-Mais Trino, c'est un moteur **analytique**, pas transactionnel. Pour les opérations métier classiques (créer un bloc, modifier une page), on avait besoin d'un chemin court et sécurisé. On a donc construit un service maison, le **query-router**, qui prend une description abstraite de requête (`list`, `insert`, `update`, etc.) et la traduit vers le bon engine via des adapters spécialisés (un *adapter* = un petit module de traduction propre à chaque type de base). La beauté de l'approche, c'est qu'**ajouter un nouvel engine ne demande qu'un nouvel adapter** — pas de refonte du reste. Ce dispatcher a depuis été **réécrit en Rust** (`data-plane-router`), un langage plus rapide et plus sûr pour la mémoire. La bascule se choisit requête par requête : le code la laisse désactivée par défaut, mais notre `docker-compose` déployé l'active (`RUST_DATA_PLANE_FORWARD=1`). Concrètement, le `query-router` NestJS reste le point d'entrée mais transmet l'exécution au moteur Rust. « Désactivé par défaut » ne décrit donc que le code source : sur le serveur réellement en ligne, c'est le Rust qui exécute les requêtes.
+Mais Trino, c'est un moteur **analytique**, pas transactionnel. Pour les opérations métier classiques (créer un bloc, modifier une page), on avait besoin d'un chemin court et sécurisé. On a donc construit un service maison, le **query-router**, qui prend une description abstraite de requête (`list`, `insert`, `update`, etc.) et la traduit vers le bon engine via des adapters spécialisés (un *adapter* = un petit module de traduction propre à chaque type de base). La beauté de l'approche, c'est qu'**ajouter un nouvel engine ne demande qu'un nouvel adapter** — pas de refonte du reste. Ce dispatcher a depuis été **réécrit en Rust** (`data-plane-router`), le `query-router` NestJS restant le point d'entrée qui transmet l'exécution au moteur Rust (détail de la bascule TS→Rust au **chapitre 4**).
 
 **c. Cohérence multi-engine**
 
@@ -251,7 +251,7 @@ Côté gateway, on a choisi **Kong en mode déclaratif YAML**, sans base de donn
 
 **e. Sécurité et observabilité intégrées**
 
-Deux principes directeurs ont émergé. Sur la sécurité, le **moindre privilège est posé au plus bas niveau possible** : elle ne vit pas dans des `if` dispersés dans le code, elle vit dans la base via les politiques RLS de PostgreSQL. Même si toute la couche applicative était contournée, PostgreSQL refuserait la lecture. Sur les secrets, on a très vite quitté les `.env` versionnés au profit de **HashiCorp Vault** dès qu'on a commencé à manipuler des credentials de bases externes — un `.env` en git était un risque inacceptable.
+Deux principes directeurs ont émergé. Sur la sécurité, on a posé le **moindre privilège au plus bas niveau possible** — dans la base via la RLS PostgreSQL, pas dans des `if` dispersés (voir **chapitre 5 — Sécurité**). Sur les secrets, on a quitté les `.env` versionnés au profit de **HashiCorp Vault** dès qu'on a commencé à manipuler des credentials de bases externes — un `.env` en git était un risque inacceptable.
 
 Sur l'observabilité, l'équipe a passé suffisamment de nuits à débugger en aveugle pour en faire une priorité. **Prometheus + Grafana + Loki + Promtail** sont en place aujourd'hui ; les traces distribuées (OpenTelemetry + Tempo) sont planifiées en M4 — l'architecture est déjà câblée pour les accueillir.
 
@@ -307,21 +307,17 @@ Deux choses qu'on a traitées dès le départ et pas en fin de projet : l'access
 
 ---
 
-En résumé, l'architecture d'Osionos n'a pas été conçue d'un seul jet sur un tableau blanc. Elle s'est construite par accumulation de décisions, chacune prise en réaction à un mur réel qu'on a rencontré. C'est probablement ce qui en fait sa cohérence : il n'y a quasiment aucune couche qu'on n'aurait pas pu justifier par un problème concret qu'on a vécu.
+L'architecture d'Osionos ne sort pas d'un seul jet de tableau blanc : elle s'est construite par accumulation de décisions, chacune prise en réaction à un mur réel. C'est ce qui en fait la cohérence — chaque couche se justifie par un problème qu'on a vécu.
 
 ###### Synthèse des choix de stack
 
-Plutôt que de dérouler un catalogue, le plus simple est de raconter la stack par grandes familles, parce que chaque famille répond à une question précise qu'on s'est posée au démarrage.
+Côté **interfaces utilisateur**, on a séparé le site qui présente Osionos et l'application qu'on utilise. Le site marketing est en **Astro**, parce qu'il doit charger vite et bien se référencer ; l'application est en **React 19 + Vite**, parce que c'est ce qui nous permet de tenir un éditeur dense sans devenir lent. Entre les deux, on partage le **SDK interne `@grobase/js`** — le contrat front ↔ back décrit plus haut (*Le SDK comme contrat*). L'état côté navigateur passe par **Zustand**, l'organisation du code par **Feature-Sliced Design**, et l'authentification sans mot de passe par **WebAuthn** (le standard du navigateur qui permet de se connecter via une *passkey* : empreinte, code de l'appareil ou clé physique, au lieu d'un mot de passe).
 
-Côté **interfaces utilisateur**, on a séparé le site qui présente Osionos et l'application qu'on utilise. Le site marketing est en **Astro**, parce qu'il doit charger vite et bien se référencer ; l'application est en **React 19 + Vite**, parce que c'est ce qui nous permet de tenir un éditeur dense sans devenir lent. Entre les deux, on partage un **SDK interne `@grobase/js`** : c'est lui qui parle au back, et c'est lui qui garantit qu'on peut changer une brique côté serveur sans casser le front. L'état côté navigateur passe par **Zustand**, l'organisation du code par **Feature-Sliced Design**, et l'authentification sans mot de passe par **WebAuthn** (le standard du navigateur qui permet de se connecter via une *passkey* : empreinte, code de l'appareil ou clé physique, au lieu d'un mot de passe).
-
-Côté **cœur du BaaS**, on a assumé de ne pas réécrire ce qui existe déjà : un **WAF** (Nginx + ModSecurity + OWASP CRS) comme seul point d'entrée public, **Kong** comme passerelle interne derrière lui, **GoTrue** pour l'authentification, **PostgREST** pour exposer PostgreSQL en REST avec la RLS comme garde-fou final, et **PostgreSQL** comme source de vérité. À côté, **MongoDB** sert pour les blocs semi-structurés, avec une façade maison `mongo-api` qui injecte automatiquement le propriétaire depuis le JWT. **Redis** sert de cache et de futur bus d'événements. **MinIO** stocke les fichiers, et notre `storage-router` génère des URLs présignées pour que les uploads ne traversent jamais nos services.
+Côté **cœur du BaaS**, on a assumé de ne pas réécrire ce qui existe déjà : un **WAF** comme seul point d'entrée public, **Kong** comme passerelle interne derrière lui, **GoTrue** pour l'authentification, **PostgREST** pour exposer PostgreSQL en REST, et **PostgreSQL** comme source de vérité (l'enchaînement complet des barrières est détaillé au **chapitre 5 — Sécurité**). À côté, **MongoDB** sert pour les blocs semi-structurés, avec une façade maison `mongo-api` qui injecte automatiquement le propriétaire depuis le JWT. **Redis** sert de cache et de futur bus d'événements. **MinIO** stocke les fichiers, et notre `storage-router` génère des URLs présignées pour que les uploads ne traversent jamais nos services.
 
 Autour, on a écrit une **poignée de services NestJS** qui portent la logique qui nous appartient : `query-router` pour dispatcher les requêtes vers le bon moteur, `permission-engine` pour centraliser les règles, `session-service` pour le cycle de vie des sessions, `schema-service` pour l'introspection multi-moteur, `gdpr-service` pour l'export et l'anonymisation, plus quelques services utilitaires (logs, mail, newsletter, IA, analytique). **Trino** vient se brancher en lecture sur PostgreSQL et MongoDB pour permettre des requêtes analytiques cross-moteur sans casser le chemin transactionnel.
 
-Enfin, la **sécurité et l'exploitation** s'appuient sur un **WAF nginx + ModSecurity** en amont de Kong, **HashiCorp Vault** pour récupérer ou générer les secrets hors Git, le **chiffrement AES-256-GCM** pour les credentials de bases externes, et **Prometheus, Grafana, Loki, Promtail** pour l'observabilité. Tout est **orchestré en Docker Compose**, buildé via `docker-bake.hcl`, publié sur GHCR et Docker Hub avec des tags de version, et couvert par une suite de tests système organisée par phases 1 à 16 avant les merges importants.
-
-Les tableaux ci-dessous servent surtout de référence rapide ; ils ne sont pas censés se lire en entier d'un coup.
+Enfin, la **sécurité et l'exploitation** combinent un WAF en amont de Kong, **HashiCorp Vault** pour les secrets hors Git, le chiffrement AES-256-GCM des credentials externes par le registre d'adapters (modèle de sécurité au **chapitre 5** ; chiffrement détaillé au **chapitre 4**) et la pile d'observabilité **Prometheus, Grafana, Loki, Promtail**. Tout est **orchestré en Docker Compose**, buildé via `docker-bake.hcl`, publié sur GHCR et Docker Hub avec des tags de version, et couvert par une suite de tests système organisée par phases 1 à 16 avant les merges importants.
 
 *Front-ends et SDK*
 
@@ -570,13 +566,13 @@ flowchart LR
 2. **Périmètre réseau** — toute requête traverse `waf` (filtrage OWASP CRS) puis `kong` (routage, JWT, rate-limit, CORS). Seul point d'entrée public.
 3. **`control-plane`** — gouvernance : `gotrue`, `vault`, `session-service`, `permission-engine`, `schema-service`, `pg-meta`, `studio`, plus un **plan de contrôle Go** (`adapter-registry-go`, `tenant-control`, `webhook-dispatcher`, `orchestrator`) désormais *live* (`PRODUCT_MODE=enabled` par défaut dans le compose ; seul `function-scheduler` reste en *shadow*), ayant repris la main sur les services NestJS correspondants.
 4. **`data-plane`** — engines et leurs façades : `postgres` derrière `postgrest`, `mongo` derrière `mongo-api`, `realtime` qui écoute WAL + change streams, `supavisor` qui pool PG.
-5. **`adapter-plane`** — le `query-router` (NestJS) consulte l'`adapter-registry` pour résoudre le montage, puis **forwarde** l'exécution au **`data-plane-router-rust`** (Rust) qui dispatche le CRUD vers le bon engine. La bascule est **par requête** : le code la laisse désactivée par défaut (`RUST_DATA_PLANE_FORWARD=0`), mais le `docker-compose` déployé l'active (`RUST_DATA_PLANE_FORWARD=1`, `DATA_PLANE_ROUTER_PRODUCT_MODE=enabled`) — dans le stack réellement servi, le plan Rust exécute donc le CRUD live.
+5. **`adapter-plane`** — le `query-router` (NestJS) consulte l'`adapter-registry` pour résoudre le montage, puis **forwarde** l'exécution au **`data-plane-router-rust`** (Rust) qui dispatche le CRUD vers le bon engine (bascule par requête, détaillée au **chapitre 4**).
 6. **`storage`** — `storage-router` parle à `minio` avec des credentials S3 injectés par environnement ; le chiffrement des credentials de bases externes est porté par `adapter-registry`.
 7. **`background`** — services à durée de vie longue : `email-service`, `newsletter-service`, `gdpr-service`, `ai-service`, `analytics-service`, `log-service`.
 8. **`analytics`** — `trino` avec catalogs PG + Mongo, pour requêtes analytiques cross-engine.
 9. **`observability`** — `prometheus`, `grafana`, `loki`, `promtail`. **Les traces distribuées (Tempo/OTel) ne sont pas encore en place**, voir la cible 10/10 ci-dessous.
 
-La règle de circulation reste la même : **les flèches descendent toujours du moins privilégié vers le plus privilégié**. Le client ne connaît que Kong, Kong ne connaît que les services applicatifs, les services applicatifs ne connaissent que leur engine. Une compromission d'un étage ne propage pas au suivant sans franchir une nouvelle barrière (JWT, RLS, ACL MinIO, secret injecté depuis Vault ou variable d'environnement dédiée).
+La règle de circulation se lit dans le sens des flèches : **du moins privilégié vers le plus privilégié**. Le client ne connaît que Kong, Kong que les services applicatifs, les services que leur engine — une compromission d'un étage ne se propage pas sans franchir une nouvelle barrière. C'est la défense en profondeur (voir **chapitre 5 — Sécurité**).
 
 ###### Cible 10/10 — à quoi ressemblera l'infrastructure une fois les milestones M1-M5 livrées
 
@@ -770,29 +766,25 @@ La qualité statique passe par **ESLint** et **SonarQube/SonarCloud** selon les 
 
 ##### Stratégie de sécurisation
 
-La sécurité d'Osionos n'a pas été ajoutée à la fin comme un vernis ; elle est posée par couches successives, avec une règle constante : si l'une cède, la suivante doit encore tenir. C'est ce qu'on appelle la défense en profondeur, et concrètement ça donne quatre paliers.
+La sécurité d'Osionos n'a pas été ajoutée à la fin comme un vernis : elle est posée par couches successives — WAF, Kong, GoTrue, RLS PostgreSQL, `owner_id` côté Mongo, Vault — selon une règle constante, si l'une cède la suivante doit encore tenir. C'est la **défense en profondeur**, détaillée au **chapitre 5 — Sécurité** ; je ne rappelle ici que les paliers qui ont pesé comme contraintes de conception.
 
-Le premier palier est **en périphérie**. Un WAF nginx équipé de ModSecurity et des règles OWASP CRS examine chaque requête avant même qu'elle n'atteigne nos services : injections SQL, XSS connues, scanners agressifs et anomalies de protocole sont filtrés en amont. Juste derrière, Kong porte le rate-limit, le CORS, la validation des JWT et la propagation d'un `X-Request-ID` qu'on retrouve jusque dans les logs de la base.
+Concrètement, ces paliers descendent du réseau vers la donnée — WAF, Kong, GoTrue, chiffrement AES-256-GCM des credentials externes (**voir chapitre 4**), puis le dernier mot à la base via RLS PostgreSQL et `owner_id` Mongo. Le détail de chaque barrière (terminaison TLS, claims Kong, hachage bcrypt) est **détaillé au chapitre 5 — Sécurité** ; ce qui pesait ici, c'est qu'aucun de ces paliers n'était optionnel dès la conception.
 
-Le deuxième palier concerne **l'identité**. C'est GoTrue qui émet les JWT, avec une clé de signature fournie par l'environnement runtime et récupérée ou générée par le workflow Vault/Makefile — jamais par un `.env` versionné. Les mots de passe sont hachés côté GoTrue, et nous avons aussi câblé la WebAuthn (passkeys) sur le site marketing pour offrir une voie sans mot de passe. Quand un utilisateur connecte sa propre base de données externe, ses credentials sont chiffrés au repos en AES-256-GCM avec dérivation scrypt, parce qu'on considère qu'une fuite locale ne doit jamais suffire à compromettre des accès tiers.
+Le dernier palier est **côté front** (entrées jamais rendues brutes, tokens stockés selon leur usage — détail au **chapitre 5 — Sécurité**). Deux points relèvent toutefois de la conception, pas du seul durcissement. L'accessibilité (RGAA — le *Référentiel Général d'Amélioration de l'Accessibilité*, la norme française qui rend un site utilisable par les personnes en situation de handicap) est traitée dès le design : sémantique HTML, contraste, focus visible, navigation clavier complète. Et la conformité RGPD est portée par le `gdpr-service`, dont les endpoints d'export, de consentement et de suppression sont **détaillés au chapitre 5 — Sécurité**.
 
-Le troisième palier vit **dans les données elles-mêmes**. Côté PostgreSQL, ce sont les politiques RLS qui ont le dernier mot : tant que `auth.uid() = owner_id` n'est pas satisfait, la base refuse de servir une ligne, même si toute la couche applicative était contournée. Côté MongoDB, c'est le service `mongo-api` qui injecte automatiquement `owner_id` à chaque écriture depuis le JWT. Et toutes les requêtes SQL passent soit par PostgREST, soit par des requêtes paramétrées, ce qui rend l'injection SQL structurellement impossible plutôt que simplement « non observée ».
-
-Le dernier palier est **côté front**. Les entrées utilisateur ne sont pas rendues brutes : le site marketing utilise `sanitize-html` là où il accepte du HTML, et l'application Osionos échappe le HTML dans `markengine` avec un filtrage des URLs (`sanitizeUrl`). L'access token vit en mémoire pour les appels `Authorization: Bearer`, tandis que le refresh token est stocké dans un cookie `HttpOnly; Secure; SameSite=Lax` côté auth-gateway. L'accessibilité (RGAA — le *Référentiel Général d'Amélioration de l'Accessibilité*, la norme française qui rend un site utilisable par les personnes en situation de handicap) est traitée dès le design — sémantique HTML, contraste, focus visible, navigation clavier complète — et la conformité RGPD est portée par le `gdpr-service`, qui expose réellement les endpoints d'export, de gestion du consentement et de suppression, plutôt que d'être un simple sticker dans le pied de page.
-
-Le tout est complété, sans bruit, par les revues de code obligatoires sur GitHub, le suivi des dépendances via les outils intégrés à GitHub (Dependabot/Renovate, configurés au niveau de l'organisation), et la portion isolation/auth de la suite de tests système qui rejoue régulièrement les scénarios d'attaque les plus courants.
+S'y ajoutent les revues de code obligatoires sur GitHub, le suivi des dépendances (Dependabot/Renovate au niveau de l'organisation) et la portion isolation/auth de la suite de tests système qui rejoue les scénarios d'attaque courants.
 
 ##### Performance et qualité du code
 
-La performance d'Osionos n'est pas un sujet abstrait : un workspace réel peut contenir des milliers de blocs, et il faut que la page reste fluide même dans ce cas. La règle qu'on s'est donnée est qu'aucune page ne doit ramer parce qu'elle est devenue sérieuse.
+Un workspace réel peut contenir des milliers de blocs, et la page doit rester fluide dans ce cas. La règle qu'on s'est donnée : aucune page ne ralentit parce qu'elle est devenue sérieuse.
 
-Le premier levier, c'est la **virtualisation**. Les longues listes — blocs d'une page, lignes d'une vue base de données — passent par `@tanstack/react-virtual`, qui ne rend dans le DOM que ce qui est réellement visible. On peut ainsi faire défiler des milliers d'éléments sans perte de fluidité. Côté serveur, PostgREST porte la pagination via les en-têtes `Range`, ce qui évite de tout télécharger pour n'afficher qu'une fenêtre.
+Premier levier : la **virtualisation**. Les longues listes — blocs d'une page, lignes d'une vue base de données — passent par `@tanstack/react-virtual`, qui ne rend dans le DOM que ce qui est réellement visible. On peut ainsi faire défiler des milliers d'éléments sans perte de fluidité. Côté serveur, PostgREST porte la pagination via les en-têtes `Range`, ce qui évite de tout télécharger pour n'afficher qu'une fenêtre.
 
 Le deuxième levier, c'est le **cache et la latence**. Redis sert au cache du `query-router` et prépare le futur bus d'événements ; les sessions applicatives qui passent par `session-service` sont persistées en PostgreSQL. Les uploads de fichiers ne traversent jamais nos services applicatifs : MinIO génère des URLs présignées et le client uploade directement, ce qui retire un goulot d'étranglement potentiel.
 
 Le troisième levier, c'est le **chargement différé**. Vite découpe le bundle par route, React 19 et Suspense reportent les sections non critiques, et le site marketing en Astro charge zéro JavaScript par défaut. Un visiteur qui arrive sur une page produit n'a pas à payer le coût de toute l'application avant de pouvoir lire.
 
-Côté qualité de code, on s'est appuyé sur des **conventions explicites** plutôt que sur la discipline individuelle. Le front suit Feature-Sliced Design avec des règles d'import strictes entre couches, le BaaS est découpé en micro-services NestJS par domaine, et tout passe par le SDK `@grobase/js` qui sert de contrat stable entre les deux mondes. La documentation reste vivante — ce wiki, les `README.md` par service, les diagrammes Mermaid — et les commentaires sont concentrés là où le « pourquoi » n'est pas lisible dans le code : RLS, chiffrement, dispatch du `query-router`. Le reste est censé se lire seul.
+Côté qualité de code, on s'est appuyé sur des **conventions explicites** plutôt que sur la discipline individuelle. Le front suit Feature-Sliced Design avec des règles d'import strictes entre couches, le BaaS est découpé en micro-services NestJS par domaine, et tout passe par le SDK `@grobase/js`, le contrat front ↔ back (voir **chapitre 2**, *Le SDK comme contrat*). La documentation reste vivante — ce wiki, les `README.md` par service, les diagrammes Mermaid — et les commentaires sont concentrés là où le « pourquoi » n'est pas lisible dans le code : RLS, chiffrement, dispatch du `query-router`. Le reste est censé se lire seul.
 
 Enfin, la veille n'est pas laissée au hasard : Dependabot et Renovate rendent les mises à jour visibles et reviewables, la CI rejoue les contrôles critiques, et les images Docker sont progressivement stabilisées par tags de version puis par digest lorsque le pipeline de release le permet. Le tag flottant restant sur `realtime-agnostic` est explicitement traité comme une dette de hardening.
 
@@ -822,8 +814,6 @@ Les fonctionnalités attendues ont été formulées sous forme de cas d'usage, p
 
 **L'équipe technique et le responsable conformité**, enfin, attendent que la plateforme soit défendable. Toutes les requêtes doivent passer par une gateway unique, qui sert de point de contrôle clair pour l'authentification, les logs, le CORS et le rate-limit. Les logs, les métriques et les traces d'erreur doivent être consultables, parce qu'une stack composée de nombreux services devient impossible à maintenir si elle reste opaque. Et le responsable conformité doit pouvoir exporter, anonymiser ou supprimer les données d'un utilisateur — parce que le respect du RGPD doit être prévu dans le produit, pas traité comme une tâche manuelle après coup.
 
-Ces attentes peuvent paraître larges, mais elles suivent toutes la même logique : **réduire la distance entre une donnée brute et une décision utile**. Osionos ne cherche pas seulement à stocker des informations ; il cherche à les rendre consultables, reliables, sécurisées et actionnables.
-
 
 #### d. Minimum Viable Product (MVP)
 
@@ -844,9 +834,9 @@ Dans l'idéal, le MVP d'Osionos serait donc une version volontairement réduite,
 | **Observabilité minimale** | Logs applicatifs, métriques Prometheus, dashboard Grafana simple, erreurs visibles | L'équipe peut comprendre pourquoi quelque chose casse sans deviner à l'aveugle |
 | **Déploiement reproductible** | Docker Compose, Makefile, migrations idempotentes, seed de démonstration | N'importe quel membre de l'équipe peut lancer le MVP localement et retrouver le même état de départ |
 
-Le MVP idéal ne chercherait donc pas à concurrencer immédiatement Notion, Obsidian, Retool et Supabase en même temps. Il chercherait à prouver une seule chose, mais vraiment : **on peut créer un espace de travail rapide, collaboratif et sécurisé, capable de transformer des données réelles en pages, vues et dashboards utilisables**.
+Le MVP idéal ne chercherait donc pas à concurrencer immédiatement Notion, Obsidian, Retool et Supabase en même temps. Il chercherait à prouver une seule chose : **on peut créer un espace de travail rapide, collaboratif et sécurisé, capable de transformer des données réelles en pages, vues et dashboards utilisables**.
 
-Ce qui doit rester **hors MVP** pour ne pas perdre le projet : marketplace de plugins, moteur d'automatisation complet, IA avancée, support de tous les moteurs de bases de données, graph view très poussé, édition collaborative temps réel façon Google Docs, mobile app native, et architecture 10/10 complète (outbox, Debezium, OTel/Tempo, OPA, SAST/DAST). Ces éléments sont importants, mais ils appartiennent aux perspectives d'évolution, pas à la première version prouvable.
+Ce qui doit rester **hors MVP** pour ne pas perdre le projet : marketplace de plugins, moteur d'automatisation complet, IA avancée, support de tous les moteurs de bases de données, graph view avancé, édition collaborative temps réel façon Google Docs, mobile app native, et architecture 10/10 complète (outbox, Debezium, OTel/Tempo, OPA, SAST/DAST). Ces éléments sont importants, mais ils appartiennent aux perspectives d'évolution, pas à la première version prouvable.
 
 La bonne définition du MVP est donc : **le plus petit Osionos capable d'être utilisé par une vraie petite équipe pendant une semaine sans devoir retourner sur cinq outils différents**.
 
@@ -860,7 +850,7 @@ Une fois le MVP stabilisé, les perspectives d'évolution d'Osionos se divisent 
 | **Moteur d'automatisation complet** | Créer des règles du type "quand une ligne change, envoyer un email", "quand une page est publiée, notifier un channel", etc. | L'automatisation nécessite un moteur d'événements fiable, des retries, de l'idempotence et une interface de configuration claire |
 | **IA avancée** | Résumer une page, générer une vue, suggérer un dashboard, interroger les données en langage naturel | L'IA n'a de valeur que si les données, les permissions et l'audit sont déjà propres ; sinon elle amplifie le désordre |
 | **Support multi-engine étendu** | Ajouter MySQL, Redis, HTTP APIs, puis d'autres moteurs via `query-router` et `adapter-registry` | Le MVP doit prouver PostgreSQL + MongoDB avant d'étendre la promesse à "n'importe quelle base" |
-| **Graph view avancé** | Visualiser les relations entre pages, blocs, bases, tags, membres et sources de données comme une carte vivante du workspace | La version simple peut attendre ; un graphe vraiment utile demande un modèle de liens propre et une UX très travaillée |
+| **Graph view avancé** | Visualiser les relations entre pages, blocs, bases, tags, membres et sources de données comme une carte vivante du workspace | La version simple peut attendre ; un graphe utile demande un modèle de liens propre et une UX soignée |
 | **Édition collaborative temps réel** | Éditer une même page à plusieurs, façon Google Docs, avec curseurs, présence et résolution de conflits | C'est un sujet complexe : CRDT/OT, conflits réseau, historique, performance. À ne pas mélanger avec la première preuve produit |
 | **Application mobile native** | Accès plus confortable sur téléphone, notifications push, consultation hors bureau | Osionos est d'abord un outil dense et desktop-first ; le mobile viendra quand le cœur produit sera stable |
 | **Architecture 10/10** | Outbox, Debezium, OpenTelemetry/Tempo, OPA, SAST/DAST, rotation JWT, hardening complet | Ce sont des chantiers de robustesse indispensables pour une vraie production, mais ils doivent venir après le MVP démontrable |
@@ -870,7 +860,7 @@ Une fois le MVP stabilisé, les perspectives d'évolution d'Osionos se divisent 
 La suite logique serait de faire évoluer Osionos par paliers, en évitant le piège du "tout en même temps".
 
 1. **Palier 1 — stabiliser le produit de base.** Finaliser le cycle workspace → page → base → dashboard → partage. À ce stade, le produit doit être utilisable par une petite équipe sans accompagnement direct des développeurs.
-2. **Palier 2 — ouvrir les données.** Étendre les connecteurs au-delà de PostgreSQL et MongoDB (MySQL, Redis, API HTTP), générer le SDK depuis une spec OpenAPI, et rendre le `query-router` vraiment extensible par adapters.
+2. **Palier 2 — ouvrir les données.** Étendre les connecteurs au-delà de PostgreSQL et MongoDB (MySQL, Redis, API HTTP), générer le SDK depuis une spec OpenAPI, et rendre le `query-router` extensible par adapters.
 3. **Palier 3 — rendre les événements fiables.** Ajouter le pattern outbox (on écrit la donnée et l'événement à publier dans la même base, dans la même transaction), Debezium (un outil qui lit le journal des modifications de la base et les rediffuse comme un flux d'événements) et Redis Streams pour synchroniser les écritures entre moteurs sans transaction distribuée. C'est le socle du futur moteur d'automatisation.
 4. **Palier 4 — rendre la plateforme observable.** Ajouter OpenTelemetry, Tempo, Alertmanager et des runbooks. L'objectif : suivre une requête de bout en bout et être alerté avant que l'utilisateur ne découvre la panne.
 5. **Palier 5 — durcir la sécurité.** Ajouter OPA/OIDC côté Kong, rotation automatique des JWT, SAST/DAST en CI, CSP stricte et contrôles de dépendances renforcés. À ce stade, la plateforme commence à ressembler à un produit exploitable sérieusement.
@@ -880,7 +870,7 @@ La suite logique serait de faire évoluer Osionos par paliers, en évitant le pi
 
 À long terme, Osionos pourrait devenir une sorte de **poste de travail universel pour les données d'une équipe** : un endroit où l'on écrit, où l'on connecte des bases, où l'on visualise, où l'on automatise, et où l'on peut demander de l'aide à une IA sans quitter son contexte de travail.
 
-La vision n'est pas seulement de refaire Notion. Notion gère très bien la page. Obsidian gère très bien la note locale. Retool gère très bien l'interface métier. Supabase gère très bien le backend applicatif. L'ambition d'Osionos est de chercher l'intersection : **une interface de travail lisible pour l'humain, branchée sur de vraies données, avec une infrastructure que l'équipe peut comprendre et posséder**.
+La vision n'est pas seulement de refaire Notion. Notion gère la page, Obsidian la note locale, Retool l'interface métier, Supabase le backend applicatif. L'ambition d'Osionos est de chercher l'intersection : **une interface de travail lisible pour l'humain, branchée sur de vraies données, avec une infrastructure que l'équipe peut comprendre et posséder**.
 
 Le risque principal de cette évolution est évident : vouloir tout faire et finir par ne rien finir. C'est pour cela que la roadmap doit rester stricte : chaque nouvelle capacité doit soit améliorer l'usage réel d'une équipe, soit renforcer la fiabilité de la plateforme. Si elle ne fait ni l'un ni l'autre, elle doit attendre.
 
@@ -900,11 +890,11 @@ Cette contrainte nous a forcés à automatiser beaucoup de choses : génération
 
 #### b. Contraintes de sécurité : données sensibles, secrets, RGPD
 
-Même si Osionos n'est pas une application de planning terrain comme l'exemple GeoTask, elle manipule quand même des données sensibles : comptes utilisateurs, sessions, workspaces privés, rôles, bases de données externes branchées par l'utilisateur, chaînes de connexion, fichiers, logs et traces d'activité. La contrainte n'était donc pas seulement de protéger un formulaire de login, mais de protéger un **écosystème de données**.
+Osionos manipule des données sensibles : comptes, sessions, workspaces privés, rôles, bases externes branchées par l'utilisateur, chaînes de connexion, fichiers, logs et traces d'activité. La contrainte n'était donc pas de protéger un formulaire de login, mais un **écosystème de données**.
 
-Concrètement, plusieurs obligations se sont imposées. L'**authentification** devait être solide : GoTrue prend en charge l'inscription, la connexion, le hachage des mots de passe et l'émission de JWT, avec une séparation claire entre les rôles `anon`, `authenticated` et `service_role`. L'**isolation des données** ne pouvait pas reposer sur la bonne volonté du code applicatif : c'est PostgreSQL qui décide, via la RLS (`auth.uid() = owner_id`), et c'est MongoDB qui reçoit systématiquement un `owner_id` injecté par `mongo-api` depuis le JWT. Les **secrets** n'ont jamais leur place dans Git : ils sont générés ou récupérés via HashiCorp Vault, puis injectés aux services par l'environnement runtime ; les credentials de bases externes que les utilisateurs branchent sont chiffrés au repos en AES-256-GCM avec dérivation scrypt. Enfin, la **protection en entrée** combine WAF nginx, ModSecurity et OWASP CRS en amont de Kong, avec CORS strict, rate-limit et contrôle des en-têtes, pendant que le **front** applique `sanitize-html` sur les surfaces concernées du site marketing et un échappement HTML/URL dans le moteur Markdown de l'app. Le **RGPD** n'est pas traité comme une tâche administrative post-projet : le `gdpr-service` expose réellement les endpoints d'export, de gestion du consentement et de suppression, avec une logique de minimisation et de traçabilité.
+Ces obligations recouvrent l'authentification (GoTrue, rôles `anon`/`authenticated`/`service_role`), l'isolation par RLS et `owner_id`, les secrets hors Git via Vault, le filtrage en entrée (WAF, Kong) et la conformité RGPD via le `gdpr-service` — toutes décrites au **chapitre 5 — Sécurité**. La contrainte propre à *ce* chapitre était ailleurs : comment partager ces secrets dans une équipe sans jamais les exposer.
 
-Une contrainte spécifique concernait la **récupération partagée des secrets**. Au début, chaque machine génère ses propres `.env` locaux, et c'est suffisant pour travailler seul. Mais dès qu'on a voulu démarrer la stack sur la machine d'un coéquipier ou dans une VM fraîche, on a réalisé le problème : on n'avait pas le droit d'envoyer les vraies clés JWT, les credentials OAuth ou les secrets SMTP par message, et on ne pouvait pas non plus les versionner. Il fallait un moyen de partager les mêmes valeurs sensibles sans jamais les exposer en clair.
+La **récupération partagée des secrets** est cette contrainte. Au début, chaque machine génère ses propres `.env` locaux — suffisant pour travailler seul. Mais démarrer la stack sur la machine d'un coéquipier ou dans une VM fraîche a posé le problème : on n'avait pas le droit d'envoyer les vraies clés JWT, credentials OAuth ou secrets SMTP par message, ni de les versionner. Il fallait partager les mêmes valeurs sensibles sans jamais les exposer en clair.
 
 La solution repose sur deux usages de **HashiCorp Vault**. En local, Vault tourne dans le `docker-compose.yml` racine via le profil `secrets` et reste accessible derrière le proxy HTTPS local `https://localhost:18200` ; les scripts et certains containers de bootstrap lui parlent sur le réseau Docker interne (`http://vault:8200`). Pour le partage équipe, on a déployé une instance partagée sur **Fly.io**, exposée à l'adresse HTTPS `https://track-binocle-vault.fly.dev` via `make vault-fly`. Cette instance ne sert pas à héberger l'application — elle sert uniquement de **point d'accès aux secrets partagés**.
 
@@ -931,38 +921,13 @@ flowchart LR
     CI --> OIDC --> FLY
 ```
 
-La philosophie d'ensemble reste la même : un secret peut être récupéré, mais seulement avec un token valide, privé, limité par une policy, éventuellement expirant, et jamais versionné. C'est dans cette logique que s'inscrit la règle plus large : ne jamais faire reposer la sécurité sur une seule couche. Si le front se trompe, le gateway doit encore filtrer. Si un service applicatif se trompe, PostgreSQL doit encore refuser. Si un fichier local fuit, il ne doit pas contenir de secret en clair.
+La règle tient en une ligne : un secret se récupère seulement avec un token valide, privé, limité par une policy, éventuellement expirant, et jamais versionné — et même alors, un fichier local qui fuiterait ne contient pas de secret en clair.
 
-```mermaid
-flowchart LR
-    USER(("Utilisateur"))
-    FRONT["Front-end<br/>validation + sanitize-html"]
-    WAF["WAF<br/>ModSecurity + OWASP CRS"]
-    KONG["Kong Gateway<br/>CORS · JWT · rate-limit"]
-    AUTH["GoTrue<br/>JWT · rôles"]
-    API["Services applicatifs<br/>PostgREST · mongo-api · storage-router"]
-    DATA[("Données<br/>PostgreSQL RLS · Mongo owner_id · MinIO ACL")]
-    VAULT[("Vault<br/>secrets hors Git")]
-    LOG["Logs / audit<br/>X-Request-ID"]
-
-    USER --> FRONT --> WAF --> KONG --> AUTH --> API --> DATA
-    VAULT -.->|.env générés / récupérés| AUTH
-    VAULT -.->|clés runtime hors Git| API
-    KONG -.-> LOG
-    API -.-> LOG
-    DATA -.-> LOG
-
-    FRONT -.->|Si le front laisse passer une entrée dangereuse| WAF
-    WAF -.->|Si une requête atteint l'app| KONG
-    KONG -.->|Si un service applicatif se trompe| DATA
-    VAULT -.->|Si un fichier local fuit| API
-```
-
-Ce schéma montre la logique de **défense en profondeur** : aucune couche n'est considérée comme suffisante seule. Le front réduit le risque, le WAF filtre, Kong contrôle l'entrée, GoTrue porte l'identité, les services appliquent les règles métier, et la base garde le dernier mot sur l'accès réel aux données.
+Cette logique de récupération de secrets s'inscrit dans la **défense en profondeur** — aucune couche suffisante seule, la base gardant le dernier mot sur l'accès réel aux données. Le schéma complet de cette défense, du WAF jusqu'à la base, est **détaillé au chapitre 5 — Sécurité**.
 
 #### c. Contraintes d'architecture : pas une API Express classique
 
-Une autre contrainte structurante était de ne pas réduire Osionos à une stack `React / Node.js / PostgreSQL`. Le projet utilise bien React et PostgreSQL, mais derrière le front il y a un assemblage : Kong, GoTrue, PostgREST, PostgreSQL, MongoDB, Redis, MinIO, Vault, Trino, plus plusieurs micro-services NestJS qui portent la logique métier. Cet assemblage impose une discipline assez stricte.
+Osionos ne devait pas se réduire à une stack `React / Node.js / PostgreSQL`. Le projet utilise bien React et PostgreSQL, mais derrière le front il y a un assemblage — Kong, GoTrue, PostgREST, PostgreSQL, MongoDB, Redis, MinIO, Vault, Trino, plus les micro-services NestJS — qui impose une discipline stricte.
 
 La première règle, c'est que **tout trafic public passe par WAF puis Kong**. Aucun front ne parle directement à une base ; chaque moteur de données a sa façade contrôlée (PostgREST, `mongo-api`, `storage-router`), et c'est cette façade qui porte l'authentification et l'isolation. La deuxième règle, c'est que **chaque service doit pouvoir vivre séparément** : isolé dans son container, configurable par variables d'environnement, et redémarrable sans interrompre le reste de la plateforme. La troisième règle, c'est que **la configuration du gateway doit être lisible dans Git** : Kong tourne en mode DB-less avec sa configuration en YAML versionné, donc toute modification de routes ou de plugins passe par une revue de code, pas par une UI cliquable. Enfin, la stack doit pouvoir **démarrer localement sans dépendre d'un cloud externe** : un développeur sur sa VM doit avoir exactement la même plateforme qu'en CI.
 
@@ -970,11 +935,11 @@ Cette contrainte a complexifié le projet — il aurait été plus rapide de tou
 
 #### d. Contraintes qualité côté front-end
 
-Côté front, la contrainte était double : produire une interface réellement riche, mais sans sacrifier la maintenabilité. Osionos est un outil dense, avec des pages, des blocs, du drag and drop, des menus contextuels, des dashboards et beaucoup d'interactions clavier. Le moindre détail UX cassé peut rendre l'outil pénible à utiliser, et il devient vite impossible à réparer si on n'a pas mis en place de garde-fous dès le départ.
+Côté front, la contrainte était double : produire une interface riche sans sacrifier la maintenabilité. Osionos est un outil dense, avec des pages, des blocs, du drag and drop, des menus contextuels, des dashboards et beaucoup d'interactions clavier. Le moindre détail UX cassé peut rendre l'outil pénible à utiliser, et il devient vite impossible à réparer si on n'a pas mis en place de garde-fous dès le départ.
 
-Notre garde-fou est donc une chaîne de contrôles qui tourne avant chaque merge, et qui passe entièrement dans Docker via [apps/osionos/app/scripts/docker-run.sh](../../apps/osionos/app/scripts/docker-run.sh). TypeScript bloque les erreurs de type avec `tsc --noEmit`. ESLint est configuré avec `--max-warnings=0`, donc on ne tolère aucun warning. Playwright joue les scénarios end-to-end utilisateur, des tests canvas vérifient les comportements de blocs et le parsing du markdown, des tests bridge valident la liaison entre Osionos et le BaaS, et un ensemble de tests UX/browser couvre le focus management, le drag and drop, l'inline toolbar, les menus, l'indentation, le paste, les assets et le context menu. Enfin, un doctor vérifie que l'environnement de test est correct avant de faire confiance aux résultats — parce qu'un test qui passe dans un environnement cassé ne prouve rien.
+Le garde-fou est une chaîne de contrôles qui tourne avant chaque merge, entièrement dans Docker via [apps/osionos/app/scripts/docker-run.sh](../../apps/osionos/app/scripts/docker-run.sh) : `tsc --noEmit` pour les types, ESLint en `--max-warnings=0`, Playwright pour le end-to-end, plus des tests canvas (blocs, parsing markdown), bridge (liaison Osionos ↔ BaaS) et UX/browser (focus, drag and drop, inline toolbar, menus, indentation, paste, assets, context menu). Un doctor vérifie d'abord que l'environnement de test est sain — un test qui passe dans un environnement cassé ne prouve rien.
 
-La règle qui ressort de tout ça est constante : **la qualité front ne dépend pas de la machine du développeur**. Si le pipeline ne tourne pas pareil chez moi, chez un coéquipier et en CI, on considère que le pipeline n'est pas finalisé.
+La règle est constante : **la qualité front ne dépend pas de la machine du développeur**. Un pipeline qui ne tourne pas pareil chez moi, chez un coéquipier et en CI n'est pas finalisé.
 
 #### e. Contraintes qualité côté back-end et infrastructure
 
@@ -1000,7 +965,7 @@ Le vrai risque n'était pas seulement technique : c'était de vouloir faire Noti
 
 #### g. Contrainte de centralisation : un monorepo devenu studio multi-apps
 
-Une contrainte qu'on n'avait pas anticipée au démarrage est apparue très vite : à effectif réduit, on n'avait tout simplement pas les moyens de maintenir cinq dépôts Git indépendants, cinq pipelines CI distincts, cinq systèmes de versions, cinq backlogs séparés. À chaque fois qu'on essayait de découper proprement (un dépôt pour le BaaS, un pour `osionos`, un pour `opposite-osiris`, un pour le SDK, un pour les outils internes), on perdait plus de temps à synchroniser les versions et à rejouer les contrats inter-services qu'à avancer sur le produit.
+Une contrainte qu'on n'avait pas anticipée au démarrage est apparue vite : à effectif réduit, on n'avait pas les moyens de maintenir cinq dépôts Git indépendants, cinq pipelines CI distincts, cinq systèmes de versions, cinq backlogs séparés. À chaque fois qu'on essayait de découper proprement (un dépôt pour le BaaS, un pour `osionos`, un pour `opposite-osiris`, un pour le SDK, un pour les outils internes), on perdait plus de temps à synchroniser les versions et à rejouer les contrats inter-services qu'à avancer sur le produit.
 
 On a donc pris une décision pragmatique : **transformer ce dépôt en studio de travail unique**. Tout vit ici — le BaaS, les deux frontends, le SDK, la documentation, les outils, les scripts d'infrastructure — et chaque application sort progressivement du monorepo quand elle devient assez stable pour vivre seule. Concrètement, le studio nous donne un `make` unique qui sait builder, tester et publier chaque app, un seul `pnpm-workspace.yaml` qui partage les dépendances, et un seul historique Git où l'on peut suivre une refonte de bout en bout. Le coût, c'est un dépôt qui paraît énorme au premier coup d'œil ; le bénéfice, c'est qu'à deux personnes on tient encore une plateforme à plusieurs services sans s'épuiser sur la plomberie.
 
@@ -1061,8 +1026,6 @@ Le tableau ci-dessous sert de résumé visuel, pas de catalogue.
 | **Versionnement** | Git + GitHub, modèle Git Flow, PR + revue, hooks `commit-msg` / `pre-commit` | Historique lisible, branches stables protégées |
 | **Qualité** | ESLint, TypeScript, Playwright, tests canvas/bridge, smoke tests BaaS, ShellCheck, SonarCloud, QA registry | Pas de merge fiable sans pipeline vérifiable |
 
-Le point le plus important est que l'environnement n'est pas pensé pour le confort individuel du développeur, mais pour la **reproductibilité collective**. Si une commande fonctionne uniquement sur ma machine, elle ne compte pas comme une vraie solution.
-
 #### c. Environnements de déploiement
 
 Contrairement à un projet client classique — par exemple un projet livré à un grand compte avec trois environnements canoniques (développement local, recette interne, production client) — Osionos n'a pas de client final qui héberge l'application sur ses propres serveurs. Le projet est avant tout un **dossier RNCP/CDA + une plateforme auto-hébergée** ; la « production » au sens strict n'existe pas encore. Cela ne nous a pas dispensés d'organiser nos environnements proprement, mais en les adaptant à notre réalité.
@@ -1096,26 +1059,26 @@ Les objectifs qualité ont été définis à partir des contraintes ci-dessus. I
 | **Conformité** | RGPD, `gdpr-service`, data map, export/anonymisation/suppression | Les données personnelles ont un cycle de vie maîtrisé |
 | **Performance** | Virtualisation front, cache Redis, pagination PostgREST, Playwright/perf notes | Les longues pages et les vues de données restent utilisables |
 
-L'objectif global peut se résumer ainsi : **faire une application ambitieuse, mais vérifiable**. Chaque choix devait laisser une trace : un test, un script, une règle de lint, une documentation, ou un diagramme. C'est cette discipline qui permet de défendre le projet techniquement, mais aussi de le reprendre plus tard sans repartir de zéro.
+L'objectif global : **une application ambitieuse, mais vérifiable**. Chaque choix devait laisser une trace — un test, un script, une règle de lint, une doc, un diagramme — pour défendre le projet et pouvoir le reprendre plus tard sans repartir de zéro.
 
 ## CHAPITRE 3: Les ŕealisations personnelles, front-end
 ### Maquette de l'application et schémas
 #### a. Conception "desktop first"
-Avant de débuter à coder, Sergio était le spécialist en front-end de l'équipe. Je travaillais en étroite collaboration avec lui pour définir les DoD(Definition of Done) de chaque composant, et pour m'assurer que les choix d'implémentation respectaient les exigences de qualité. Nous avons adopté une approche "desktop first", non pas parce qu'on voulait aller à contre-courant des tendances actuelles, mais parce que notre cible principale était des utilisateurs professionnels qui utiliseraient Osionos sur des postes de travail. Cette approche nous a permis de nous concentrer sur une expérience riche et fonctionnelle, sans être limités par les contraintes d'un design mobile dès le départ. Nous avons cependant veillé à ce que le design soit responsive, pour que l'application reste accessible sur différents types d'appareils.
+Sergio était le spécialiste front-end de l'équipe. J'ai travaillé en étroite collaboration avec lui pour définir les DoD (Definition of Done) de chaque composant et vérifier que les choix d'implémentation tenaient les exigences de qualité. On a adopté une approche "desktop first". Pas pour aller à contre-courant des tendances : notre cible était des utilisateurs professionnels qui ouvriraient Osionos sur un poste de travail. Cette approche nous a permis de nous concentrer sur une expérience riche et fonctionnelle, sans être limités par les contraintes d'un design mobile dès le départ. Nous avons cependant veillé à ce que le design soit responsive, pour que l'application reste accessible sur différents types d'appareils.
 
 
 Avec vadim, nous avons créer les maquettes pour les écrans suivants (voir fig.5 à fig.8)
-Les maquettes, bien que compliqué au départ à apprendre, nous permet de sauver du temps au long terme si l'on se rend compte que les choix d'implémentation ne respectent pas les exigences de qualité.
+Les maquettes sont compliquées à prendre en main au départ, mais elles font gagner du temps ensuite : on repère un choix d'implémentation qui dérape avant de l'avoir codé.
 ![fig.5](../assets/figma_component.png)
 ![fig.6](../assets/figma_layout2.png)
 ![fig.7](../assets/figma_layout3.png)
 ![fig.8](../assets/figma_layouts1.png)
 
 #### Charte graphique
-afin d'assurer une identité visuelle cohérente et consistante avec les standards de l'application, nous avons défini une charte graphique claire. Le choix des couleurs et de la typographie a été guidé par deux impératifs. Le respect de l'accessibilité et la nécessité d'une bonne lisibilité pour les users qui liront à la fois webpage et l'interface utilisateur de l'application.
+Pour une identité visuelle cohérente, on a défini une charte graphique. Le choix des couleurs et de la typographie répond à deux impératifs : l'accessibilité et une bonne lisibilité, sur la page web comme dans l'interface de l'application.
 
 ![fig.1](../assets/chart_graphic.png)
-Comme l'on peut le voir, sur lightouse, on a des très bon résultats avec un contraste de 7.5:1 pour les textes normaux et 4.5:1 pour les titres, ce qui dépasse largement les recommandations WCAG 2.1 pour l'accessibilité.
+Sur Lighthouse, le contraste atteint 7.5:1 pour le texte courant et 4.5:1 pour les titres — au-dessus du seuil WCAG 2.1.
 avec un score de 100/100 en accessibilité.
 ![fig.11](../assets/lightouse_desktop_webiste.png)
 
@@ -1139,7 +1102,7 @@ avec un score de 100/100 en accessibilité.
 **Espace mail** — module de messagerie intégré à l'espace de travail, accessible directement depuis la sidebar. Permet de gérer les communications sans quitter l'app.
 ![Espace mail intégré](../assets/mail_space.png)
 
-**Portail de connexion** — page d'authentification avec login 42 OAuth2. L'accès est sécurisé, les tokens sont gérés côté BaaS via GoTrue, et les secrets nécessaires au runtime sont générés ou récupérés via Vault plutôt que versionnés.
+**Portail de connexion** — page d'authentification avec login 42 OAuth2 ; les jetons sont émis par GoTrue côté BaaS, et les secrets de runtime ne sont jamais versionnés (détaillé au **chapitre 5 — Sécurité**).
 ![Portail de connexion — authentification OAuth2 42](assets/portal of connexion.png)
 
 **Second Brain** — vue "note libre" inspirée du concept de second cerveau numérique. Un espace sans structure imposée où l'utilisateur peut penser et organiser librement avec les blocs Osionos.
@@ -1204,7 +1167,7 @@ function renderCachedInlineMarkdown(content: string): React.ReactNode {
 }
 ```
 
-Le composant final est aussi protégé par `React.memo`, avec une comparaison ciblée sur le bloc, son index et sa profondeur. L'objectif n'est pas de mettre `memo` partout, mais de protéger les nœuds très nombreux.
+Le composant final est aussi protégé par `React.memo`, avec une comparaison ciblée sur le bloc, son index et sa profondeur. L'objectif n'est pas de mettre `memo` partout, mais de protéger les nœuds les plus nombreux — ceux qui se comptent par centaines sur une page longue.
 
 ```tsx
 // apps/osionos/app/src/entities/block/ui/ReadOnlyBlock.tsx
@@ -1359,8 +1322,6 @@ La capture Lighthouse disponible dans le dossier a été réalisée sur `https:/
 
 ![Lighthouse desktop du site marketing Prismatica](../assets/lightouse_desktop_webiste.png)
 
-Ces résultats confirment le partage des rôles : le site marketing est sur Astro (HTML statique, donc rapide à charger et indexable par Google), alors que l'application privée React/Vite n'a pas besoin d'être indexée — elle privilégie la réactivité de l'éditeur et la sauvegarde locale.
-
 ### Extraits de code, interfaces utilisateur statiques (React / SCSS)
 
 #### a. Organisation minimale du projet front-end
@@ -1377,7 +1338,7 @@ Le front d'Osionos n'est pas organisé comme une simple collection de composants
 | [apps/osionos/app/src/store](../../apps/osionos/app/src/store) | Stores Zustand et persistance | pages, database, settings |
 | [apps/osionos/app/src/services](../../apps/osionos/app/src/services) | Actions applicatives hors composant | page actions, realtime messages |
 
-Le point d'entrée est volontairement très fin. Il monte React 19, active le `StrictMode`, branche le `Profiler`, puis laisse `App.tsx` assembler le shell.
+Le point d'entrée est volontairement minimal. Il monte React 19, active le `StrictMode`, branche le `Profiler`, puis laisse `App.tsx` assembler le shell.
 
 ```tsx
 // apps/osionos/app/src/app/main.tsx
@@ -1544,7 +1505,7 @@ Enfin, le responsive design repose sur des tokens CSS et des valeurs fluides plu
 
 #### a. Authentification : session Prismatica, bridge sécurisé et fallback offline
 
-L'authentification côté Osionos ne se résume pas à un formulaire React. Le flux réel est en deux temps : le site Astro (`opposite-osiris`) authentifie l'utilisateur, puis l'application `osionos` consomme une session de bridge signée (*un jeton à usage unique remis par le site Astro, qui permet à l'app de récupérer la session de l'utilisateur sans redemander ses identifiants*). Si aucun bridge n'est disponible et que le mode offline est autorisé, l'application démarre avec des données seedées pour permettre le développement local.
+L'authentification côté Osionos tient en deux temps : le site Astro (`opposite-osiris`) authentifie l'utilisateur, puis l'application `osionos` consomme une session de bridge signée (*un jeton à usage unique remis par le site Astro, qui permet à l'app de récupérer la session de l'utilisateur sans redemander ses identifiants*). Si aucun bridge n'est disponible et que le mode offline est autorisé, l'application démarre avec des données seedées pour permettre le développement local.
 
 Dans [apps/osionos/app/src/features/auth/model/userStore.helpers.ts](../../apps/osionos/app/src/features/auth/model/userStore.helpers.ts), le token de bridge est lu depuis l'URL, envoyé à l'API, puis retiré immédiatement de la barre d'adresse pour éviter qu'il reste dans l'historique visible.
 
@@ -1623,9 +1584,9 @@ async function request<T>(method: string, path: string, body?: unknown, jwt?: st
 
 #### b. Récupération des données : workspaces, pages et contenu complet
 
-Côté produit, la récupération dynamique porte sur les **workspaces**, les **pages** et le **contenu complet d'une page**. C'est le flux central d'Osionos : l'utilisateur ouvre un espace, choisit une page, puis l'application charge seulement ce qui est nécessaire pour afficher ou éditer cette page.
+La récupération dynamique porte sur les **workspaces**, les **pages** et le **contenu complet d'une page** — le flux central d'Osionos. L'utilisateur ouvre un espace, choisit une page, et l'application ne charge que ce qu'il faut pour l'afficher ou l'éditer.
 
-Dans [apps/osionos/app/src/store/pageStore.actions.ts](../../apps/osionos/app/src/store/pageStore.actions.ts), `fetchPages` vérifie d'abord le JWT utilisable par l'API pages, puis le contexte d'accès courant. Si l'utilisateur n'appartient pas au workspace demandé, la requête ne part même pas. Cette vérification front n'est pas la sécurité finale (elle reste côté BaaS/RLS), mais elle évite une mauvaise UX et réduit les appels inutiles.
+Dans [apps/osionos/app/src/store/pageStore.actions.ts](../../apps/osionos/app/src/store/pageStore.actions.ts), `fetchPages` vérifie d'abord le JWT utilisable par l'API pages, puis le contexte d'accès courant. Si l'utilisateur n'appartient pas au workspace demandé, la requête ne part même pas. Cette vérification front ne remplace pas la sécurité côté BaaS, mais elle évite une mauvaise UX et coupe les appels inutiles.
 
 ```ts
 // apps/osionos/app/src/store/pageStore.actions.ts
@@ -1704,9 +1665,9 @@ export function createFetchPageContent(set: SetFn, get: GetFn) {
 
 #### c. Actions métier critiques : archiver, supprimer, verrouiller, traduire, restaurer
 
-Dans Osionos, les actions métier critiques sont : **archiver une page**, **supprimer une page**, **dupliquer une page**, **changer ses permissions implicites**, **verrouiller l'édition**, **traduire son contenu**, ou **restaurer une version**. Ce sont des actions visibles par l'utilisateur, mais elles modifient aussi l'état local, la persistance et parfois les descendants d'une page.
+Les actions métier critiques d'Osionos : **archiver**, **supprimer**, **dupliquer** une page, **changer ses permissions implicites**, **verrouiller l'édition**, **traduire son contenu** ou **restaurer une version**. Visibles côté utilisateur, elles touchent aussi l'état local, la persistance et parfois les descendants de la page.
 
-Avant d'exécuter une action dangereuse, [apps/osionos/app/src/features/page-management/ui/PageOptionsMenu.tsx](../../apps/osionos/app/src/features/page-management/ui/PageOptionsMenu.tsx) vérifie le contexte d'accès local via `canDeletePage` ou `canDuplicatePage`, puis appelle le store. Cette vérification ne remplace pas le backend ; elle protège l'interface et évite de proposer des actions incohérentes.
+Avant une action dangereuse, [apps/osionos/app/src/features/page-management/ui/PageOptionsMenu.tsx](../../apps/osionos/app/src/features/page-management/ui/PageOptionsMenu.tsx) vérifie le contexte d'accès local via `canDeletePage` ou `canDuplicatePage`, puis appelle le store. Là encore, ce garde-fou ne remplace pas le backend : il protège l'interface et évite de proposer des actions incohérentes.
 
 ```tsx
 // apps/osionos/app/src/features/page-management/ui/PageOptionsMenu.tsx
@@ -1871,27 +1832,7 @@ L'accessibilité est visible à plusieurs niveaux du code : un lien d'évitement
 
 #### Sécurité côté rendu et navigation
 
-Le front ne doit jamais être présenté comme la couche finale de sécurité : la vraie barrière reste côté BaaS (Kong, JWT, PostgREST, RLS, `owner_id`). En revanche, le front réduit le risque dès le rendu. Le moteur Markdown échappe le texte HTML, filtre les schémas d'URL dangereux et ajoute `rel="noopener noreferrer"` sur les liens externes.
-
-```ts
-// apps/osionos/app/src/shared/lib/markengine/renderCore.ts
-export function escapeHtml(value: string): string {
-  return value.replaceAll(HTML_ESCAPE_PATTERN, (char) => HTML_ESCAPE_MAP[char]);
-}
-
-export function sanitizeUrl(value: string): string {
-  const normalized = stripUrlControlAndSpaceChars(value.trim());
-  const schemeMatch = /^([a-z][a-z\d+.-]*):/i.exec(normalized);
-  if (!schemeMatch) return value.trim();
-
-  const scheme = schemeMatch[1].toLowerCase();
-  if (scheme === "http" || scheme === "https" || scheme === "mailto" || scheme === "tel") {
-    return value.trim();
-  }
-
-  return "";
-}
-```
+Le front n'est jamais la couche finale de sécurité : la vraie barrière reste côté BaaS. Le moteur Markdown `markengine` échappe le texte HTML et filtre les schémas d'URL dangereux (le détail de `escapeHtml`/`sanitizeUrl` et son test anti-XSS sont au **chapitre 5 — Sécurité**) ; côté rendu, la valeur ajoutée propre au front est d'ajouter `rel="noopener noreferrer"` sur les liens externes via le rendu des liens.
 
 ```ts
 // apps/osionos/app/src/shared/lib/markengine/markdown/renderers/inlineHtml.ts
@@ -1936,9 +1877,9 @@ Enfin, le site public Astro applique une CSP stricte en production via `security
 // scriptDirective : 'self' + https://challenges.cloudflare.com (scripts auto-hashés par Astro)
 ```
 
-#### Résumé de ce que montre le front
+#### Trois choix qui structurent le front
 
-Ce chapitre front montre, à travers du code précis, trois choix que j'ai mis en œuvre. D'abord, deux frontends séparés selon leur rôle : un site Astro statique (référençable, accessible) pour l'entrée publique, et une application React/Vite riche pour l'espace de travail privé. Ensuite, une authentification en deux temps : le site authentifie, puis remet à l'app un jeton de bridge à usage unique, l'app pouvant retomber sur des données locales en mode hors-ligne. Enfin, un éditeur qui ne perd pas le travail de l'utilisateur : chaque modification est mise en file (outbox) puis renvoyée au serveur avec relance jusqu'à confirmation, même après une coupure réseau.
+Trois décisions résument ce chapitre. D'abord, deux frontends séparés par rôle : un site Astro statique (référençable, accessible) pour l'entrée publique, une application React/Vite riche pour l'espace de travail privé. Ensuite, une authentification en deux temps — le site authentifie, puis remet à l'app un jeton de bridge à usage unique, avec repli sur des données locales hors-ligne. Enfin, un éditeur qui ne perd jamais le travail : chaque modification passe par une file (outbox) renvoyée au serveur avec relance jusqu'à confirmation, même après une coupure réseau.
 
 ## CHAPITRE 4. Les réalisations personnelles, back-end
 Ce chapitre présente la partie serveur que j'ai réellement construite ou intégrée. Le back-end n'est pas un seul serveur monolithique : c'est une plateforme composée de briques spécialisées. **Kong** joue le rôle de passerelle, **GoTrue** gère l'authentification, **PostgREST** expose PostgreSQL en REST, **MongoDB** sert les données documentaires, **MinIO** stocke les fichiers, **realtime-agnostic** diffuse les changements, et les services **NestJS** portent la logique que nous maîtrisons directement : `mongo-api`, `query-router`, `schema-service`, `permission-engine`, `storage-router`, `session-service`, `gdpr-service`, `log-service`, `email-service`, `newsletter-service`, `analytics-service` et `ai-service`. Au-delà de ces services NestJS, le back-end s'est doté d'un **plan de données Rust** (`data-plane-router`) qui exécute le CRUD multi-moteur, et d'un **plan de contrôle Go** (6 binaires : `adapter-registry`, `tenant-control`, `orchestrator`, `webhook-dispatcher`, `function-scheduler`, `scale-seed`). La bascule TypeScript→Rust suit la discipline *shadow → parité → cutover* (on fait tourner l'ancien et le nouveau en parallèle, on vérifie qu'ils donnent le même résultat, puis on bascule). Par prudence, le code laisse cette bascule désactivée par défaut ; le `docker-compose` réellement déployé, lui, l'active. Le chemin réellement servi est `/query/v1` (le `query-router` NestJS résout le montage via l'`adapter-registry` puis **forwarde l'exécution** au plan de données Rust, effectif sur le stack servi) ; la porte directe `/data/v1` existe en parallèle et est elle aussi active dans le compose. À noter : `adapter-registry` est passé en **Go** pour de bon, son équivalent TypeScript ayant été retiré après preuve de parité.
@@ -2021,7 +1962,7 @@ Kong est aussi le point où l'identité devient exploitable par les services int
             hour: 5000
 ```
 
-> Cet extrait est **représentatif** : le `kong.yml` réel fait aujourd'hui ~1200 lignes et déclare **40 services routés**. Au-delà de `/rest/v1`, il route le plan de données Rust (`/data/v1` → `data-plane-router-rust`, porte directe **active** dans le compose — `DATA_PLANE_BYPASS_ENABLED=1` —, `shadow` uniquement par défaut côté code), le plan de contrôle Go (`/admin/v1/{provision,tenants,keys,webhooks,migrate,rotate}`), `/functions/v1`, `/sql` (Trino) et `/studio`.
+> Cet extrait est **représentatif** : le `kong.yml` réel fait aujourd'hui ~1200 lignes et déclare **40 services routés**. Au-delà de `/rest/v1`, il route le plan de données Rust (`/data/v1` → `data-plane-router-rust`, ouvert par `DATA_PLANE_BYPASS_ENABLED=1` selon la discipline *shadow → cutover* décrite en tête de chapitre), le plan de contrôle Go (`/admin/v1/{provision,tenants,keys,webhooks,migrate,rotate}`), `/functions/v1`, `/sql` (Trino) et `/studio`.
 
 #### b. Schéma conceptuel de données
 
@@ -2208,7 +2149,7 @@ erDiagram
     }
 ```
 
-Le troisième schéma décrit la partie Osionos. Le navigateur manipule des pages et des workspaces ; le backend conserve la correspondance durable entre l'identité Prismatica, le workspace privé, les pages, les configurations par utilisateur et les évènements d'action. Cette partie est définie dans [models/osionos-bridge-migration.sql](../../models/osionos-bridge-migration.sql). *(schéma applicatif osionos — défini dans le monorepo Track-Binocle, hors du dépôt grobase autonome)*
+Le troisième schéma décrit la partie Osionos. Le navigateur manipule des pages et des workspaces ; le backend conserve la correspondance durable entre l'identité Prismatica, le workspace privé, les pages, les configurations par utilisateur et les évènements d'action. Cette partie est définie dans [models/osionos-bridge-migration.sql](../../models/osionos-bridge-migration.sql) (schéma applicatif osionos du monorepo Track-Binocle).
 
 ```mermaid
 erDiagram
@@ -2330,7 +2271,7 @@ CREATE POLICY posts_select ON public.posts
   FOR SELECT USING (is_public OR auth.uid()::text = user_id::text);
 ```
 
-Le registre des bases externes est un point sensible : il contient les chaînes de connexion vers des bases utilisateur. Le stockage physique ne garde pas la chaîne en clair ; il conserve le ciphertext (le texte chiffré), l'IV (vecteur d'initialisation, un aléa qui rend deux chiffrements identiques différents), le tag GCM (preuve que le contenu n'a pas été altéré) et le sel (aléa qui durcit la dérivation de la clé).
+Le registre des bases externes est un point sensible : il contient les chaînes de connexion vers des bases utilisateur. Jamais en clair. Le stockage physique conserve le ciphertext (le texte chiffré), l'IV (vecteur d'initialisation, un aléa qui rend deux chiffrements identiques différents), le tag GCM (preuve que le contenu n'a pas été altéré) et le sel (aléa qui durcit la dérivation de la clé).
 
 ```sql
 -- scripts/migrations/postgresql/004_add_adapter_registry.sql
@@ -2400,7 +2341,7 @@ END;
 $fn$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 ```
 
-La deuxième famille de scripts est spécifique aux applications : [models/user.sql](../../models/user.sql) pour le modèle utilisateur relationnel, [models/auth-security-migration.sql](../../models/auth-security-migration.sql) pour l'audit d'authentification, [models/gdpr-migration.sql](../../models/gdpr-migration.sql) pour les consentements et demandes RGPD, et [models/osionos-bridge-migration.sql](../../models/osionos-bridge-migration.sql) pour les workspaces/pages Osionos. *(schéma applicatif osionos — défini dans le monorepo Track-Binocle, hors du dépôt grobase autonome)*
+La deuxième famille de scripts est spécifique aux applications : [models/user.sql](../../models/user.sql) pour le modèle utilisateur relationnel, [models/auth-security-migration.sql](../../models/auth-security-migration.sql) pour l'audit d'authentification, [models/gdpr-migration.sql](../../models/gdpr-migration.sql) pour les consentements et demandes RGPD, et [models/osionos-bridge-migration.sql](../../models/osionos-bridge-migration.sql) pour les workspaces/pages Osionos (modèle applicatif du monorepo Track-Binocle).
 
 ```sql
 -- models/osionos-bridge-migration.sql
@@ -2503,7 +2444,7 @@ async function bootstrap() {
 }
 ```
 
-La validation est volontairement stricte. Un champ non attendu dans un DTO déclenche une erreur `400` au lieu d'être silencieusement accepté.
+La validation est stricte : un champ non attendu dans un DTO déclenche une erreur `400` au lieu d'être silencieusement accepté.
 
 ```ts
 // src/libs/common/src/pipes/validation.pipe.ts
@@ -2549,7 +2490,7 @@ if (serviceToken && expectedToken && timingSafeStringEqual(serviceToken, expecte
 
 #### b. Extrait 1 : contrôle d'ownership et règle d'habilitation critique
 
-Le contrôle d'ownership est volontairement doublé : **PostgreSQL le fait avec la RLS**, et **MongoDB le fait avec un filtre `owner_id` injecté dans les requêtes**. Ce double modèle est nécessaire parce que PostgreSQL sait appliquer une politique au niveau ligne, alors que MongoDB demande de le faire dans la couche applicative.
+Le contrôle d'ownership est doublé à dessein : **PostgreSQL le fait avec la RLS**, et **MongoDB le fait avec un filtre `owner_id` injecté dans les requêtes**. Ce double modèle est nécessaire parce que PostgreSQL sait appliquer une politique au niveau ligne, alors que MongoDB demande de le faire dans la couche applicative.
 
 Côté PostgreSQL, les requêtes tenant passent par `tenantQuery()`. La méthode ouvre une transaction, pose la variable locale `app.current_user_id`, exécute la requête, puis commit ou rollback. Les politiques SQL peuvent alors comparer `owner_id` ou `tenant_id` à cette valeur.
 
@@ -2812,7 +2753,7 @@ Dans ce projet, je n'ai pas créé une couche de repositories figés comme dans 
 
 Ce choix explique aussi pourquoi nous n'avons pas retenu Prisma comme ORM principal. Prisma est excellent quand le modèle relationnel est stable, connu à l'avance et majoritairement PostgreSQL/MySQL. Ici, une partie du produit repose sur des **schémas créés par l'utilisateur**, des **bases externes enregistrées au runtime**, une exécution **PostgreSQL + MongoDB**, et une dépendance forte à la **RLS** et aux variables de session SQL (`SET LOCAL app.current_user_id`). Un client généré statiquement aurait été moins adapté. Le coût de ce choix, c'est qu'on perd une partie du confort type-safe d'un ORM ; on compense par des DTO stricts, des regex de noms d'identifiants, des requêtes paramétrées, des policies SQL et des tests ciblés.
 
-Il faut aussi être précis : les engines **TypeScript** historiques du `query-router` couvrent PostgreSQL et MongoDB. Mais l'exécution multi-moteur réelle est désormais portée par le **plan de données Rust** (`data-plane-router-rust`), vers lequel le `query-router` forwarde par défaut : il route aujourd'hui `postgresql`, `cockroachdb`, `mongodb`, `mysql`, `mariadb`, `redis`, `sqlite`, `mssql` et `http` (cutover live, parité prouvée via `parity-probe.sh`). Ce qui reste honnêtement partiel : la couverture de fonctionnalités varie selon le moteur.
+Il faut aussi être honnête sur la couverture : le plan de données Rust route aujourd'hui `postgresql`, `cockroachdb`, `mongodb`, `mysql`, `mariadb`, `redis`, `sqlite`, `mssql` et `http` (cutover live, parité prouvée via `parity-probe.sh`), mais l'étendue des fonctionnalités varie selon le moteur.
 
 #### b. Extrait 1 : récupération de données owner-scoped
 
@@ -3004,7 +2945,7 @@ mongo:
 
 Si un serveur applicatif tombe, Compose peut le redémarrer grâce aux healthchecks et aux politiques `restart`. Si `mongo-api` tombe, les documents ne disparaissent pas : ils sont dans le volume `mongo-data`. Si `query-router` tombe, il perd ses caches mémoire, mais les données restent dans PostgreSQL, MongoDB ou la base externe. Si `postgres` redémarre, le volume `postgres-data` conserve les données. Si `realtime-agnostic` redémarre, les prochains changements repartent depuis la base ; la base reste la source de vérité.
 
-Il faut néanmoins être honnête : cette configuration Compose est robuste pour un environnement local, de démonstration ou un petit déploiement, mais ce n'est pas encore une haute disponibilité multi-noeud. Il n'y a pas de failover automatique PostgreSQL multi-réplicas dans ce fichier. Pour une production critique, il faudrait ajouter une stratégie de backup planifiée, un stockage externe, des replicas, une supervision d'alerting et des procédures de restauration testées.
+Cette configuration Compose tient pour un environnement local, de démonstration ou un petit déploiement, mais ce n'est pas encore une haute disponibilité multi-noeud. Il n'y a pas de failover automatique PostgreSQL multi-réplicas dans ce fichier. Pour une production critique, il faudrait ajouter une stratégie de backup planifiée, un stockage externe, des replicas, une supervision d'alerting et des procédures de restauration testées.
 
 Les scripts de backup/restore existent déjà pour PostgreSQL et MongoDB. Ils montrent la direction opérationnelle : `pg_dump` en format custom pour PostgreSQL, `mongodump` en archive pour MongoDB, puis restauration explicite.
 
@@ -3023,13 +2964,11 @@ docker compose exec mongo mongodump --archive > "${BACKUP_FILE}"
 
 Les secrets ne sont pas intégrés aux images. Le profil `control-plane` contient Vault, et les scripts d'environnement récupèrent ou génèrent les valeurs nécessaires sans les écrire en clair dans le code source. Le script [ensure-osionos-runtime-secrets.mjs](../../scripts/env/ensure-osionos-runtime-secrets.mjs) génère par exemple les secrets du bridge Osionos en local, tandis que [vault-env.mjs](../../scripts/vault/vault-env.mjs) centralise les familles de variables attendues pour les services.
 
-En résumé, le back-end n'est pas un serveur unique mais plusieurs services derrière Kong, chacun avec une responsabilité claire. Les données sont persistées dans des volumes, le contrôle d'accès (RLS, vérification du propriétaire) est appliqué au plus près de la base, et les secrets de connexion sont chiffrés avant stockage. La configuration Docker Compose redémarre un service qui tombe, mais elle ne gère pas encore le basculement automatique d'un serveur de base de données en panne — cette limite est assumée et documentée.
-
 #### e. Le BaaS comme produit : architecture trois plans, coûts mesurés, viabilité
 
 ##### L'idée derrière l'architecture
 
-Le BaaS a fini par dépasser son rôle de « back-end d'Osionos » pour devenir un produit en soi, et l'idée structurante est simple : **mettre chaque responsabilité dans le langage qui lui coûte le moins cher**. Le chemin chaud (exécuter une requête) est en **Rust** ; le plan de contrôle (tenants, clés, provisioning, webhooks) est en **Go** ; l'orchestration applicative historique est en **TypeScript/NestJS** — et elle est progressivement retirée. Ce n'est pas un dogme esthétique, c'est un constat **mesuré** ([cost-analysis.md](../../wiki/cost-and-tiers/cost-analysis.md), artifacts `footprint-*.json`) :
+Le BaaS a dépassé son rôle de « back-end d'Osionos » : l'idée structurante est de **mettre chaque responsabilité dans le langage qui lui coûte le moins cher** — la répartition en trois plans (Rust pour le chemin chaud, Go pour le contrôle, TypeScript pour l'orchestration historique en retrait) est rappelée en tête de chapitre. Ce qui compte ici, c'est que ce choix est **mesuré**, pas esthétique ([cost-analysis.md](../../wiki/cost-and-tiers/cost-analysis.md), artifacts `footprint-*.json`) :
 
 | Plan | Langage | RAM mesurée par processus |
 |---|---|---|
@@ -3038,16 +2977,16 @@ Le BaaS a fini par dépasser son rôle de « back-end d'Osionos » pour devenir 
 | Plan de contrôle (gotrue, adapter-registry, tenant-control…) | Go | 7–59 MiB |
 | Orchestration (query-router, permission-engine, log-service…) | Node | **46–84 MiB chacun** |
 
-Le chemin de données qui tournait dans 127 MiB de Node tourne aujourd'hui dans **11,5 MiB de Rust — ~11× plus léger et 5× plus rapide** (requête chaude ~2 ms). Et comme un hébergeur facture la RAM (~5 $/Go/mois chez Fly.io), **chaque MiB économisé est littéralement de l'argent**.
+Le chemin de données qui tournait dans 127 MiB de Node tourne aujourd'hui dans **11,5 MiB de Rust — ~11× plus léger et 5× plus rapide** (requête chaude ~2 ms). Et comme un hébergeur facture la RAM (~5 $/Go/mois chez Fly.io), **chaque MiB économisé est de l'argent**.
 
 ##### La stratégie : mesurer, shadower, ne jamais supprimer sans preuve
 
-Quatre mouvements délibérés, chacun mesuré avant/après — jamais de chiffre sans artifact, jamais de réécriture big-bang :
+Quatre mouvements, chacun mesuré avant/après — jamais de chiffre sans artifact, jamais de réécriture big-bang :
 
-1. **Réécrire le chemin chaud en Rust, en shadow→parity→cutover.** Le routeur Rust a tourné *à côté* du `query-router` Node, requêtes identiques comparées octet par octet ; la bascule n'a eu lieu qu'après le gate de parité (m36). Gain : −127 MiB par déploiement, latence ÷5, zéro risque de régression pris.
+1. **Réécrire le chemin chaud en Rust, en *shadow → parité → cutover*** (discipline décrite en tête de chapitre) : la bascule n'a eu lieu qu'après le gate de parité (m36). Gain : −127 MiB par déploiement, latence ÷5, zéro risque de régression pris.
 2. **Consolider l'orchestration Node en Go (R2).** Six services Node consolidés dans **un seul binaire Go**, pour réduire l'empreinte mémoire et le coût d'hébergement. Après sa phase *shadow* (fidèle à la discipline), il a été **basculé live** (cutover A4 du 2026-06-13, `ORCHESTRATOR_PRODUCT_MODE=enabled`) : Kong route désormais `/logs`, `/sessions`, `/newsletter`, `/gdpr`, `/email` vers ce binaire Go, les six orchestrateurs Node étant mis en quarantaine dans le profil `legacy-node`.
 3. **Construire des éditions plancher.** Le même plan Rust, compilé en statique avec features gatées, donne **`binocle-nano` : un binaire de 5,16 Mo, 2,1 MiB de RAM**, SQLite in-process — CRUD, graph, clés scopées, SSE. Mesuré tête-à-tête contre PocketBase sur la même machine : **inserts 3,8× plus rapides à 1/26ᵉ de la RAM** (et une défaite assumée, documentée : PocketBase garde 1,27× sur le débit de lecture en liste). Coût d'hébergement : **~2 $/mois, < 1 $ à l'arrêt** (scale-to-zero : *la machine s'éteint quand personne ne l'utilise et ne facture plus que le stockage*).
-4. **Prouver la densité multi-tenant** (*plusieurs clients — « tenants » — isolés sur la même instance partagée, sans que l'un voie les données de l'autre*)**.** Un run réel à **10 000 tenants** a invalidé notre propre hypothèse (les pools allaient bien ; le vrai mur était la vérification de clés Argon2id (*un algorithme de hachage volontairement lent et gourmand en mémoire, conçu pour les mots de passe — trop coûteux ici pour des clés API*) qui saturait un service plafonné en mémoire). Deux correctifs mesurés : un hash adapté aux clés à haute entropie (chemin froid 263 → 45 ms) et le partage de pools pour les tenants `shared_rls` — l'isolation étant portée par la requête (RLS, owner-scoping), pas par le pool, ce qui a été **prouvé neutre en live sur tous les moteurs** (gate m46 : deux tenants sur un pool partagé, zéro fuite). Résultat : Résultat : **10 000 tenants → 1 pool, zéro 5xx** (`server_errors:0`, relevé dans le bench `multitenant-10000-sharepools.json` — non committé dans ce dépôt autonome, reproductible via `scripts/verify/m46-share-pools-isolation.sh`). Le nombre de pools est désormais indépendant du nombre de tenants — la propriété qui permet d'amortir un nœud à **moins de 1 $/tenant/mois**.
+4. **Prouver la densité multi-tenant** (*plusieurs clients — « tenants » — isolés sur la même instance partagée, sans que l'un voie les données de l'autre*)**.** Un run réel à **10 000 tenants** a invalidé notre propre hypothèse (les pools allaient bien ; le vrai mur était la vérification de clés Argon2id (*un algorithme de hachage volontairement lent et gourmand en mémoire, conçu pour les mots de passe — trop coûteux ici pour des clés API*) qui saturait un service plafonné en mémoire). Deux correctifs mesurés : un hash adapté aux clés à haute entropie (chemin froid 263 → 45 ms) et le partage de pools pour les tenants `shared_rls` — l'isolation étant portée par la requête (RLS, owner-scoping), pas par le pool, ce qui a été **prouvé neutre en live sur tous les moteurs** (gate m46 : deux tenants sur un pool partagé, zéro fuite). Résultat : **10 000 tenants → 1 pool, zéro 5xx** (`server_errors:0`, relevé dans le bench `multitenant-10000-sharepools.json` — non committé dans ce dépôt autonome, reproductible via `scripts/verify/m46-share-pools-isolation.sh`). Le nombre de pools est désormais indépendant du nombre de tenants — la propriété qui permet d'amortir un nœud à **moins de 1 $/tenant/mois**.
 
 ##### Ce que ça coûte, par forme de déploiement
 
@@ -3067,21 +3006,21 @@ Les offres elles-mêmes ont été **critiquées puis reconstruites** ([offer-she
 
 La réponse honnête est : **oui, par formes — et pas encore pour tout.**
 
-**Viable aujourd'hui** : l'app privée mono-utilisateur ou mono-équipe (`nano`/`basic`, la classe PocketBase — et PocketBase fait tourner de vraies productions avec moins que ça) ; le produit unique mono-tenant (`essential`, ~1 Go, backups + RLS + secrets Vault) ; et la densité multi-tenant est **prouvée à 10 000 tenants réels** sur une machine, zéro 5xx. Le chemin de données Rust sert déjà le trafic réel en cutover, parité démontrée. La sécurité repose sur plusieurs couches superposées : un pare-feu applicatif (WAF) en entrée, des jetons JWT pour l'authentification, le filtrage RLS au niveau de la base, le chiffrement AES-256-GCM des chaînes de connexion, et des secrets gardés hors du dépôt Git. Chaque chiffre cité plus haut est rattaché à un gate ou un fichier de mesure reproductible.
+**Viable aujourd'hui** : l'app privée mono-utilisateur ou mono-équipe (`nano`/`basic`, la classe PocketBase — et PocketBase fait tourner de vraies productions avec moins que ça) ; le produit unique mono-tenant (`essential`, ~1 Go, backups + RLS + secrets Vault) ; et la densité multi-tenant est **prouvée à 10 000 tenants réels** sur une machine, zéro 5xx. Le chemin de données Rust sert déjà le trafic réel en cutover, parité démontrée. La sécurité tient sur plusieurs couches superposées (WAF, JWT, RLS, secrets hors dépôt) détaillées au **chapitre 5 — Sécurité**, le chiffrement AES-256-GCM des credentials externes l'étant au **chapitre 4**. Chaque chiffre cité plus haut est rattaché à un gate ou un fichier de mesure reproductible.
 
 **Pas encore, et c'est documenté** : la haute disponibilité multi-nœud (pas de failover PostgreSQL automatique — un déploiement critique exige des réplicas et des restaurations testées), les traces distribuées (M4), le pinning d'images par digest (plusieurs images de service restent en `:latest` comme repli GHCR ; `realtime-agnostic` est déjà épinglé à `0.2.1`), et `function-scheduler` (le seul composant Go) tourne encore en *shadow* — par choix : on ne coupe jamais avant la preuve de parité.
 
-C'est exactement la différence entre « ça tourne » et « c'est un produit » : on sait *ce qui* est prêt, *pour quel usage*, *à quel coût mesuré* — et on sait dire ce qui ne l'est pas encore. Un BaaS auto-hébergé de cette forme est viable en production dès aujourd'hui pour les déploiements mono-tenant et les plateformes multi-tenant de taille moyenne ; la marche restante vers la production critique est identifiée, chiffrée, et sur la roadmap plutôt que sous le tapis.
+La marche restante vers la production critique est identifiée, chiffrée, et sur la roadmap plutôt que sous le tapis.
 
 ## CHAPITRE 5. Eléments de sécurité de l'application
 
-La sécurité, c'est probablement la partie du projet où j'ai le plus appris à dire "je sais pas, on va vérifier". Du code qui marche c'est facile — du code sécurisé, ça se vérifie.
+La sécurité, c'est la partie du projet où j'ai le plus appris à dire "je sais pas, on va vérifier". Du code qui marche, c'est facile — du code sécurisé, ça se vérifie.
 
-L'architecture de sécurité repose sur deux services centraux : **GoTrue** (authentification, hashage bcrypt, émission des JWT — *JSON Web Token* : un jeton signé par le serveur qui prouve l'identité de l'utilisateur sans qu'il ait à renvoyer son mot de passe) et **Kong** (API gateway, vérification des JWT, contrôle CORS, injection des claims — les informations contenues dans le jeton : identité, e-mail, rôle — en headers internes). Le flux public passe par le WAF puis Kong. En développement, certains ports locaux restent exposés pour le debug ; l'overlay de production les ferme et coupe tout accès direct aux bases. Ce chapitre détaille comment ces deux services s'assemblent avec les couches applicatives. Mais avant de parler d'identité, il faut sécuriser le **transport** lui-même — c'est par là que je commence.
+L'architecture de sécurité repose sur deux services centraux : **GoTrue** (authentification, hashage bcrypt, émission des JWT — *JSON Web Token* : un jeton signé par le serveur qui prouve l'identité de l'utilisateur sans qu'il ait à renvoyer son mot de passe) et **Kong** (API gateway, vérification des JWT, contrôle CORS, injection des claims — les informations contenues dans le jeton : identité, e-mail, rôle — en headers internes). Le reste du chapitre détaille comment ces deux services s'assemblent avec les couches applicatives. Mais avant de parler d'identité, il faut sécuriser le **transport** lui-même — c'est par là que je commence.
 
 ### Sécurisation du transport : HTTPS / TLS (la liaison navigateur ↔ back-end)
 
-Avant même de parler d'authentification, il y a une question plus basique : **est-ce que les données circulent en clair sur le réseau ?** Chez nous, non — jamais. Tout le trafic public est en **HTTPS**, donc chiffré par **TLS**. Concrètement, ça m'apporte trois garanties que j'explique toujours simplement :
+Avant même l'authentification, une question plus basique : **est-ce que les données circulent en clair sur le réseau ?** Non — jamais. Tout le trafic public est en **HTTPS**, donc chiffré par **TLS**, ce qui m'apporte trois garanties :
 
 - **Confidentialité** — personne sur le réseau (un wifi public, un FAI, un proxy d'entreprise) ne peut lire le contenu : ni le mot de passe, ni le JWT, ni les données métier.
 - **Intégrité** — si un seul octet est modifié en route, la connexion casse. On ne peut pas injecter de contenu en douce.
@@ -3334,7 +3273,7 @@ Ce qui veut dire qu'on ne peut pas injecter un champ `isAdmin: true` en espéran
 
 **Protection contre les injections SQL/NoSQL**
 
-On utilise majoritairement **MongoDB** (via Mongoose et le driver natif), donc pas de SQL string concat à craindre. Mais NoSQL injection existe aussi. Le service `mongo-api` valide les noms de collection et **rejette** (il lève une `400`, il ne supprime pas en silence) tout opérateur dangereux — clé préfixée `$` (`$where`, `$expr`…) ou contenant un point — récursivement jusque dans les objets imbriqués, avant d'exécuter ([collections.service.ts:97-122](../../src/apps/mongo-api/src/collections/collections.service.ts#L97-L122)). Côté plan de données Rust, la même protection est une allowlist *default-deny* (`SAFE_MONGO_OPERATORS`) dans [mongo/filter.rs](../../src/data-plane-router/crates/data-plane-pool/src/mongo/filter.rs) :
+On utilise majoritairement **MongoDB** (via Mongoose et le driver natif) : pas de concaténation de chaînes SQL à craindre. Mais la NoSQL injection existe aussi. Le service `mongo-api` valide les noms de collection et **rejette** (il lève une `400`, il ne supprime pas en silence) tout opérateur dangereux — clé préfixée `$` (`$where`, `$expr`…) ou contenant un point — récursivement jusque dans les objets imbriqués, avant d'exécuter ([collections.service.ts:97-122](../../src/apps/mongo-api/src/collections/collections.service.ts#L97-L122)). Côté plan de données Rust, la même protection est une allowlist *default-deny* (`SAFE_MONGO_OPERATORS`) dans [mongo/filter.rs](../../src/data-plane-router/crates/data-plane-pool/src/mongo/filter.rs) :
 
 ```ts
 if (!/^[\w-]{1,64}$/.test(collectionName)) throw new BadRequestException('Invalid collection name');
@@ -3387,7 +3326,7 @@ Sur le stockage des tokens, c'est pas parfait :
 - Le **refresh token** est en **cookie HttpOnly + Secure + SameSite=Lax** ([auth-gateway.mjs:158-160](../../apps/opposite-osiris/scripts/auth-gateway.mjs#L158-L160)). Ça, c'est bien : un script XSS ne peut pas le lire, et il n'est envoyé qu'au domaine d'origine.
 - L'**access token**, lui, est manipulé côté client pour signer les requêtes API en `Authorization: Bearer <jwt>` ([client.ts:68](../../apps/osionos/app/src/shared/api/client.ts#L68)). Dans la pratique, on le garde en mémoire dans le store Zustand. Ce qui est **stocké en localStorage**, ce sont des métadonnées de contexte (workspaces, comptes actifs) — pas le JWT lui-même : voir [useUserStore.ts:39-41](../../apps/osionos/app/src/features/auth/model/useUserStore.ts#L39-L41).
 
-Le compromis : un access token court (1h) limite la fenêtre de risque, et le refresh token en HttpOnly bloque le vol par XSS de la partie qui vraiment compte (la capacité à renouveler la session). C'est un trade-off classique dans l'écosystème SPA — il existe des architectures plus strictes (BFF avec cookie de session), mais c'est raisonnable pour le scope du projet.
+Le compromis : un access token court (1h) limite la fenêtre de risque, et le refresh token en HttpOnly bloque le vol par XSS de ce qui compte vraiment — la capacité à renouveler la session. C'est un trade-off classique dans l'écosystème SPA : il existe des architectures plus strictes (BFF avec cookie de session), mais c'est raisonnable pour le scope du projet.
 
 ### Protections contre XSS et CSRF
 
@@ -3438,7 +3377,7 @@ On n'a pas implémenté de **CSRF tokens** explicites (style synchroniser-token 
 
 ### Conformité RGPD
 
-Beaucoup de projets disent "on est RGPD-compliant" sans pouvoir le démontrer. Voici ce qui est **vraiment** implémenté.
+Beaucoup de projets disent "on est RGPD-compliant" sans pouvoir le démontrer. Voici ce qui est réellement implémenté.
 
 **Un service GDPR dédié** dans la BaaS : [`src/apps/gdpr-service/`](../../src/apps/gdpr-service). Il expose trois familles d'endpoints qui correspondent aux droits RGPD principaux.
 
@@ -3465,8 +3404,6 @@ Beaucoup de projets disent "on est RGPD-compliant" sans pouvoir le démontrer. V
 - On n'a **pas** de cookie banner intrusif au premier chargement. Les préférences se changent dans les Settings. Pour une mise en prod réelle, il faudrait probablement un bandeau de consentement explicite au premier visit (selon la juridiction).
 - On n'a pas formalisé de "Privacy Policy" ni de "Cookie Notice" textuels — on a les mécanismes, pas encore les documents légaux qui les accompagnent.
 
-
-
 ### Déploiement de production et sécurité de bout en bout (fly.io · Vercel · 42ctl/vault42)
 
 La sécurité ne s'arrête pas au code : elle dépend de *où* tournent l'état et les secrets. L'architecture de déploiement applique une **règle de frontière de service** unique ([service-boundaries.md](../../wiki/architecture/service-boundaries.md), [`.claude/rules/service-boundaries.md`](../../.claude/rules/service-boundaries.md)) : *tout ce qui touche à l'état, à l'auth, aux fichiers ou aux connexions au-delà d'une requête → grobase ; tout le reste → Vercel.*
@@ -3475,7 +3412,7 @@ La sécurité ne s'arrête pas au code : elle dépend de *où* tournent l'état 
 
 - **grobase sur fly.io** (`https://grobase-stack.fly.dev`) — le **seul détenteur de l'état**. Postgres (et donc les bases applicatives), l'auth GoTrue, l'OTP, le realtime et le stockage vivent ici. Il est déployé sur **une seule Machine fly** qui exécute la stack `docker compose` via Docker-in-Docker (une Machine fly est une VM Firecracker, donc un `dockerd` interne fonctionne) ; **Kong est l'unique porte publique** (port 8000 → 443 au edge), tous les autres services restent sur le réseau docker interne. Tout est reproductible et versionné : [`deploy/fly/`](../../deploy/fly) (`boot.sh` clone le dépôt, assemble le `.env`, migre puis provisionne automatiquement les contrats ; `fly.toml`, `compose.override.yml`, `README.md`).
 - **Vercel** (`https://work-dun-sigma.vercel.app`) — **frontends statiques uniquement**, plus un *rewrite same-origin* vers grobase (une réécriture d'URL qui fait suivre les appels `/auth` et `/query` à grobase tout en gardant l'adresse du frontend — pour le navigateur, tout vient donc de la même origine ; `vercel.json` du dépôt frontend `grobase-website` : `/auth/:path*` et `/query/:path*` → `grobase-stack.fly.dev`). Le frontend est un **client pur** : coupé de grobase il affiche des pages mais ne possède aucune donnée. Conséquence sécurité directe : grâce au rewrite, le navigateur ne parle **qu'à sa propre origine** → **pas de CORS** ni de préflight, et grobase n'est jamais exposé directement au navigateur.
-- **42ctl + vault42** — la gestion des secrets **zero-knowledge** (*à connaissance nulle* : tout est chiffré sur le poste avant l'envoi, si bien que le serveur stocke les secrets sans jamais pouvoir les lire). `vault42` (le *moteur*, `https://vault42.fly.dev`) tourne en **mode GrobaseStore** : il stocke ses enveloppes chiffrées dans la base grobase via `/query/v1`, owner-scopées (chaque ligne est filtrée par son propriétaire : un utilisateur ne voit que ses propres lignes), **sans jamais réinventer un backend** ([USERDOC.md §9](../../vendor/vault42/USERDOC.md)). `42ctl` (la CLI, `42ctl --help` donne le mode d'emploi complet) amorce une identité locale et synchronise l'arbre `*.env` d'un projet (`push`/`pull`).
+- **42ctl + vault42** — la gestion des secrets **zero-knowledge** (*à connaissance nulle* : tout est chiffré sur le poste avant l'envoi, si bien que le serveur stocke les secrets sans jamais pouvoir les lire). `vault42` (le *moteur*, `https://vault42.fly.dev`) tourne en **mode GrobaseStore** : il stocke ses enveloppes chiffrées dans la base grobase via `/query/v1`, owner-scopées, **sans jamais réinventer un backend** ([USERDOC.md §9](../../vendor/vault42/USERDOC.md)). `42ctl` (la CLI, `42ctl --help` donne le mode d'emploi complet) amorce une identité locale et synchronise l'arbre `*.env` d'un projet (`push`/`pull`).
 
 **Propriétés de sécurité vérifiées en production (faits mesurés cette itération, pas des intentions) :**
 
@@ -3487,7 +3424,7 @@ La sécurité ne s'arrête pas au code : elle dépend de *où* tournent l'état 
 | **Secrets zero-knowledge** | Chiffrement **local** (XChaCha20-Poly1305 + DEK — *Data Encryption Key*, la clé qui chiffre la donnée elle-même — enveloppée X25519 + signature Ed25519) ; grobase ne stocke que des blobs base64 opaques (`vault42_secrets`, colonne TEXT) | **Prouvé** : `push` puis `pull` d'un secret → restitution **byte-exact** (sha256 identique) ; la ligne stockée est une enveloppe opaque |
 | **Connexion d'une seconde machine sans copie de fichier** | `42ctl keys escrow` / `keys recover` via OTP e-mail | login e-mail OTP émis par grobase (`loginotp`, SMTP configurable — `smtp.gmail.com` par défaut, surchargé par le secret fly `SMTP_HOST`), preuve vérifiée par vault42-contract (HMAC sur `GOTRUE_JWT_SECRET` partagé) |
 
-**Pourquoi cette solution (la conclusion) :** grobase détient les bases parce que sur fly elles sont *gérées* (ACID — les transactions sont fiables et tout-ou-rien ; WAL — un journal d'écritures qui permet de tout rejouer après une panne ; snapshots planifiés) — on évite la corruption d'une app qui toucherait au stockage brut ; Vercel ne fait que servir des frontends (gratuit, sans état) ; vault42 est le *moteur* de la logique de secrets, pas un datastore — il se branche sur grobase comme magasin. Une seule base de code, chaque comportement cloud *flag-gated OFF par défaut* (désactivé tant qu'un drapeau de configuration ne l'active pas, ce qui rend l'installation strictement identique — au bit près — à l'édition open-source), aucune fusion de données entre deux apps par construction.
+**Pourquoi cette répartition :** grobase détient les bases parce que sur fly elles sont *gérées* (ACID — les transactions sont fiables et tout-ou-rien ; WAL — un journal d'écritures qui permet de tout rejouer après une panne ; snapshots planifiés) — on évite la corruption d'une app qui toucherait au stockage brut ; Vercel ne fait que servir des frontends (gratuit, sans état) ; vault42 est le *moteur* de la logique de secrets, pas un datastore — il se branche sur grobase comme magasin.
 
 ---
 
@@ -3505,17 +3442,17 @@ Ce qui reste honnêtement à faire : centraliser la CSP au niveau de Kong et ajo
 
 ## CHAPITRE 6. Veille technologique et sécurité
 
-La sécurité web c'est pas un état figé — c'est un flux. Des nouvelles failles sortent chaque semaine. Certaines touchent des bibliothèques qu'on utilise directement. D'autres donnent des patterns qu'on reproduirait sans le savoir si on ne les lisait pas. Ce chapitre documente comment on s'est tenu informé et ce qu'on en a tiré concrètement pour le projet.
+La sécurité web n'est pas un état figé : de nouvelles failles sortent chaque semaine. Certaines touchent des bibliothèques qu'on utilise. D'autres exposent des patterns qu'on reproduirait sans le savoir. Ce chapitre documente comment on s'est tenu informé, et ce qu'on en a tiré pour le projet.
 
 ### Sources de veille utilisées
 
 **Newsletters et blogs spécialisés**
 
-Les sources qui font vraiment le travail de fond :
+Les sources de fond :
 
 - **[PortSwigger Web Security Research](https://portswigger.net/research)** — l'équipe derrière Burp Suite publie des analyses de vulnérabilités web. C'est là que j'ai compris les JWT algorithm confusion attacks (HS256 vs RS256), les prototype pollution, les SSRF. Le contenu est technique, vérifié, avec des PoC.
-- **[Scott Helme](https://scotthelme.co.uk)** — spécialiste CSP, HSTS, security headers. Son site `securityheaders.com` permet de tester n'importe quel domaine. C'est lui qui m'a le plus poussé à comprendre pourquoi l'absence de CSP est un vrai problème et pas juste une case à cocher.
-- **[Troy Hunt](https://www.troyhunt.com)** et [Have I Been Pwned](https://haveibeenpwned.com) — veille sur les leaks de credentials, les pratiques de hashage. Très utile pour comprendre pourquoi bcrypt (et pas SHA1, pas MD5) est non-négociable.
+- **[Scott Helme](https://scotthelme.co.uk)** — spécialiste CSP, HSTS, security headers. Son site `securityheaders.com` permet de tester n'importe quel domaine. C'est lui qui m'a le plus poussé à comprendre pourquoi l'absence de CSP est un problème, et pas juste une case à cocher.
+- **[Troy Hunt](https://www.troyhunt.com)** et [Have I Been Pwned](https://haveibeenpwned.com) — veille sur les leaks de credentials, les pratiques de hashage. Utile pour comprendre pourquoi bcrypt (et pas SHA1, pas MD5) est non-négociable.
 - **[Hacker News](https://news.ycombinator.com)** — pas uniquement sécurité, mais les incidents majeurs y remontent en quelques heures. C'est souvent là que j'ai vu les premières discussions sur les supply chain attacks npm/pnpm, les GitHub Actions compromises, etc.
 
 **Réseaux sociaux et communautés**
@@ -3538,11 +3475,11 @@ Quelques épisodes écoutés pendant les commutes ou le debug :
 
 ### Vulnérabilités identifiées dans l'écosystème
 
-Ces incidents ont été lus en temps réel via les sources ci-dessus et ont directement influencé des décisions techniques sur le projet.
+J'ai suivi ces incidents en temps réel via les sources ci-dessus ; chacun a influencé une décision technique du projet.
 
 **Supply chain npm (*attaque de la chaîne d'approvisionnement* : compromettre une dépendance pour atteindre tous ceux qui l'installent) — Shai-Hulud et l'attaque TanStack**
 
-Les attaques récentes de supply chain npm rappellent que le risque ne vient pas seulement du code que l'on écrit, mais aussi des packages et scripts de build que l'on exécute. Ce projet utilise notamment `@tanstack/react-virtual`, `vite`, `astro`, `playwright` et plusieurs dépendances front lourdes : un lockfile figé, des installs sans scripts quand c'est possible, et des PR de mise à jour reviewables sont donc des protections concrètes, pas du confort.
+Le risque ne vient pas seulement du code qu'on écrit, mais aussi des packages et des scripts de build qu'on exécute. Ce projet utilise `@tanstack/react-virtual`, `vite`, `astro`, `playwright` et plusieurs dépendances front lourdes : un lockfile figé, des installs sans scripts quand c'est possible, et des PR de mise à jour relisables sont donc des protections concrètes, pas du confort.
 
 **GitHub Actions — vol de secrets via `pull_request_target`**
 
@@ -3556,7 +3493,7 @@ Ce n'était pas un leak de tokens — aucune donnée sensible d'utilisateur n'é
 
 **JWT algorithm confusion**
 
-La famille d'attaques où on change l'algorithme d'un JWT de `RS256` à `HS256` et on signe avec la clé publique comme clé HMAC. Documenté en détail par PortSwigger ([algorithm-confusion](https://portswigger.net/web-security/jwt/algorithm-confusion)). On n'est pas exposés puisqu'on utilise HS256 avec un secret symétrique uniquement (*la même clé secrète sert à signer et à vérifier le jeton*), mais comprendre ce vecteur a confirmé qu'il ne faut pas laisser le choix de l'algorithme côté client. Dans la config Kong (la *passerelle d'API* qui reçoit tout le trafic avant les services internes), l'algorithme est **forcé à HS256** ([kong.yml:26](../../infra/docker/services/kong/conf/kong.yml#L26)) — pas de négociation.
+La famille d'attaques où on change l'algorithme d'un JWT de `RS256` à `HS256` et on signe avec la clé publique comme clé HMAC. Documenté en détail par PortSwigger ([algorithm-confusion](https://portswigger.net/web-security/jwt/algorithm-confusion)). On n'est pas exposés puisqu'on utilise HS256 avec un secret symétrique uniquement, mais comprendre ce vecteur a confirmé qu'il ne faut pas laisser le choix de l'algorithme côté client. Dans la config Kong, l'algorithme est **forcé à HS256** ([kong.yml:26](../../infra/docker/services/kong/conf/kong.yml#L26)) — pas de négociation.
 
 **ReDoS via regex dans les validateurs** (*Regular expression Denial of Service* : une expression régulière qu'une saisie piégée fait tourner extrêmement longtemps, jusqu'à bloquer le serveur)
 
@@ -3568,11 +3505,11 @@ Ce qui a été identifié sur le projet comme dette de sécurité, par ordre de 
 
 **Critique**
 
-- **Rate limiting Kong** (*limitation du débit* : Kong refuse les requêtes au-delà d'un certain nombre par minute) — configuré sur les routes publiques critiques via le plugin `rate-limiting` ([kong.yml:169-174](../../infra/docker/services/kong/conf/kong.yml#L169-L174) pour `/auth/v1`, `:194` pour `/rest/v1`, `:372` pour le realtime) : 300 req/min sur `/auth/v1`, 180 sur `/rest/v1`, 120 req/min sur la route HTTP realtime `/realtime/v1` (la route d'upgrade WebSocket `/realtime/v1/ws` n'est délibérément pas throttlée par Kong : l'auth y est faite *in-band*). C'est du rate limiting par IP, ce qui couvre le brute-force. Ce qui n'est pas couvert : les attaques distribuées multi-IP (pas de rate limiting par compte utilisateur, pas de blocage progressif type CAPTCHA après N échecs).
+- **Rate limiting Kong** — le plugin `rate-limiting` couvre les routes publiques critiques par IP (voir **chapitre 5 — Sécurité** pour les seuils ; refs `kong.yml` [:169-174](../../infra/docker/services/kong/conf/kong.yml#L169-L174) `/auth/v1`, `:194` `/rest/v1`, `:372` realtime — la route d'upgrade WebSocket `/realtime/v1/ws` n'est pas throttlée, l'auth y étant faite *in-band*). La limite, c'est la dette qui reste : par IP seulement, donc rien contre les attaques distribuées multi-IP, pas de rate limiting par compte utilisateur, ni de blocage progressif type CAPTCHA après N échecs.
 
 **Important**
 
-- **Content-Security-Policy absente côté Kong/BaaS** (*CSP : un en-tête HTTP qui dit au navigateur quelles sources de scripts/styles il a le droit d'exécuter, pour limiter les XSS*) — le site Astro définit une CSP, mais la gateway BaaS ne pose pas encore de header CSP global. Un XSS qui passerait sur une surface applicative non couverte pourrait donc profiter d'une défense en profondeur insuffisante. Correction : définir une CSP stricte via Kong (`response-transformer` plugin) après audit des origines de scripts/fonts.
+- **Content-Security-Policy absente côté Kong/BaaS** (*CSP : un en-tête HTTP qui dit au navigateur quelles sources de scripts/styles il a le droit d'exécuter, pour limiter les XSS*) — le site Astro définit une CSP, mais la gateway BaaS ne pose pas encore de header CSP global. Un XSS sur une surface applicative non couverte affaiblirait donc la défense en profondeur (détaillée au **chapitre 5 — Sécurité**). Correction : définir une CSP stricte via Kong (`response-transformer` plugin) après audit des origines de scripts/fonts.
 - **Pas de cookie banner explicite** — les préférences de consentement existent dans les Settings mais il n'y a pas de mécanisme d'opt-in au premier chargement. Requis dans certaines juridictions RGPD.
 
 **À surveiller**
@@ -3583,20 +3520,18 @@ Ce qui a été identifié sur le projet comme dette de sécurité, par ordre de 
 
 ### Conclusion
 
-Faire de la veille sécurité, c'est surtout accepter qu'on code dans un environnement qui change vite. Les outils qu'on utilise (npm, GoTrue, Kong, GitHub Actions) ont tous eu des incidents documentés. Lire ces incidents régulièrement aide à anticiper plutôt qu'à réagir.
-
-Sur ce projet, la veille a eu un impact concret : le choix de Vault pour les secrets, le forçage de l'algorithme JWT côté Kong, et le rejet des opérateurs `$` (dont `$where`) dans le plan de données Mongo sont tous des décisions qui viennent de patterns lus dans des rapports de vulnérabilités réels — pas juste de bonnes pratiques génériques.
+Sur ce projet, la veille a eu un impact concret : Vault pour les secrets et le forçage de l'algorithme JWT côté Kong (voir **chapitre 5 — Sécurité**), comme le rejet des opérateurs `$` dont `$where` dans le plan de données Mongo (voir **chapitre 4**), viennent tous de patterns lus dans des rapports de vulnérabilités réels — pas de bonnes pratiques génériques.
 ## CHAPITRE 7. Conclusion
 
-Avant de refermer ce dossier, je veux prendre un moment pour remercier les gens qui ont compté dans ce projet, et plus largement dans cette année à 42. Ce projet, ce n'est pas que du code. C'est des heures de debug tard le soir, des choix d'architecture remis en question plusieurs fois, et des moments de doute sur la direction. On a quand même avancé.
+Avant de refermer ce dossier, je veux remercier les gens qui ont compté dans ce projet, et plus largement dans cette année à 42. Ce projet n'est pas que du code : c'est des heures de debug tard le soir, des choix d'architecture remis en question, des moments de doute. Et on a avancé malgré ça.
 
 Ce que ce projet m'a appris personnellement, au-delà des technos :
 
-- la **conception d'architectures distribuées** (*une application découpée en plusieurs services séparés qui communiquent par le réseau, au lieu d'un seul gros programme*) : assembler des services spécialisés (Kong, GoTrue, PostgREST, NestJS, `realtime-agnostic`, Trino) les faire dialoguer derrière une seule passerelle, sans qu'un service compromis n'expose les autres — c'est une façon de penser que je n'avais pas avant ce projet ;
+- la **conception d'architectures distribuées** (*une application découpée en plusieurs services séparés qui communiquent par le réseau, au lieu d'un seul gros programme*) : assembler des services spécialisés derrière une seule passerelle, sans qu'un service compromis n'expose les autres (voir **chapitre 4**) — c'est une façon de penser que je n'avais pas avant ce projet ;
 - le **leadership** : manager quatre personnes, coordonner les rôles, arbitrer les priorités quand tout le monde n'est pas dispo au même moment — c'est beaucoup plus compliqué que d'écrire du code, et c'est sans doute ce qui m'a le plus formé ;
 - la **qualité logicielle** : modéliser les données, appliquer concrètement les bonnes pratiques de sécurité web, et écrire du code qu'on peut reprendre dans six mois — pas seulement du code qui marche le jour de la démo.
 
-Un merci tout particulier à Vadim, qui n'a jamais lâché. Ce projet est dur. Il y a des semaines où on ne voit pas où on va. Vadim a été là avec une constance et une rigueur qui ont vraiment compté, et je suis sincèrement fier de ce qu'on a construit ensemble.
+Un merci tout particulier à Vadim, qui n'a jamais lâché. Ce projet est dur. Il y a des semaines où on ne voit pas où on va. Vadim a été là avec une constance et une rigueur qui ont compté, et je suis sincèrement fier de ce qu'on a construit ensemble.
 
 Dernière chose, et je veux être honnête là-dessus : le jour de l'examen, le projet sera peut-être encore en chantier. On ne sait pas si on aura sorti la MVP qu'on s'était imaginée au départ. Mais ce que je sais, c'est que ce chemin-là en valait la peine. Peu importe ce que la démo montre ce jour-là.
 
@@ -3699,7 +3634,7 @@ Dernière chose, et je veux être honnête là-dessus : le jour de l'examen, le 
 # CHAPITRE 8 — Questions / Réponses : le back-end expliqué
 
 > **Pourquoi ce chapitre ?** Ce chapitre rassemble les questions qu'un développeur se pose
-> vraiment sur ce back-end — celles qu'on retrouve sur les forums ou en entretien technique — et
+> sur ce back-end — celles qu'on retrouve sur les forums ou en entretien technique — et
 > y répond **avec le vrai code du projet**, en disant **où le trouver**. Chaque réponse suit le
 > même format : une explication en langage clair, puis l'extrait de code réel et son chemin de
 > fichier.
@@ -3763,18 +3698,15 @@ tâche**. L'image la plus parlante :
   vite. Il ne stocke jamais les clés : il demande à Go « qui est-ce ? » puis exécute.
   (`src/data-plane-router/`)
 
-Ce n'est donc pas du « polyglotte » gratuit : c'est une séparation volontaire entre un **chemin
-rapide** (Rust) et un **chemin sécurisé/lent** (Go), avec une **réception agréable** (TypeScript)
-par-dessus.
+Ce n'est donc pas du « polyglotte » gratuit : c'est la séparation chemin rapide / chemin sécurisé-lent / réception décrite au **chapitre 4**.
 
 ### Q. C'est quoi exactement la « couture » entre Go et Rust dont tout le monde parle ?
 
-C'est la pièce maîtresse de l'architecture, et la meilleure histoire à raconter à l'oral. En une
-phrase : **Go dit qui tu es, Rust exécute ta requête.** Le handshake (*la poignée de main* : le court échange de vérification entre les deux services) fait deux pas :
+**Go dit qui tu es, Rust exécute ta requête.** C'est la pièce maîtresse de l'architecture. Le handshake (*la poignée de main* : le court échange de vérification entre les deux services) fait deux pas :
 
 1. Rust reçoit une requête avec l'en-tête `X-Baas-Api-Key`. Il ne sait pas vérifier la clé — il
    appelle Go en interne : `POST /v1/keys/verify`.
-2. Go retrouve la clé, vérifie le hash, et répond « clé valide → tenant X (le *client*/projet propriétaire des données), identifiant Y, droits Z ».
+2. Go retrouve la clé, vérifie le hash, et répond « clé valide → tenant X, identifiant Y, droits Z ».
    Rust fabrique alors un *principal* (l'identité vérifiée du demandeur, ici `api-key:<id>`) et **tague/filtre chaque ligne** avec lui.
 
 Le commentaire en tête du fichier Rust dit exactement ça :
@@ -3851,8 +3783,7 @@ autres n'est pas considérée comme finie.
 
 Pour l'**expérience développeur** : routes lisibles, validation déclarative, doc Swagger
 auto-générée — c'est la couche que le navigateur et le SDK consomment. Important : le query-router
-**n'exécute plus lui-même** les requêtes, il les **transfère à Rust** (le commentaire du code le dit
-noir sur blanc) :
+**n'exécute plus lui-même** les requêtes, il les **transfère à Rust** (le commentaire du code l'indique) :
 
 ```ts
 // src/apps/query-router/src/query/query.service.ts:259
@@ -3866,8 +3797,8 @@ noir sur blanc) :
 Une image « grasse » est une image vendor toute prête (ex. `mongo:7`) qui embarque tout un système
 plus un moteur complet — des centaines de Mo dont on n'utilise presque rien. À la place, **on part
 d'une base minuscule et de confiance** (`alpine`, `scratch`, `distroless`) et on n'y met **que notre
-binaire**. Deux gains : on **télécharge beaucoup moins**, et surtout **il y a beaucoup moins de
-logiciels = beaucoup moins de failles possibles**. La règle du projet est explicite :
+binaire**. Deux gains : on **télécharge bien moins**, et surtout **moins de
+logiciels = moins de failles possibles**. La règle du projet est explicite :
 *autorisé* = `alpine`/`scratch`/`distroless` ; *interdit* = `FROM <vendor>/<app>:<tag>`
 (`wiki/guides/docker-slim-footprint.md`).
 
@@ -3950,9 +3881,7 @@ networks:
 
 ### Q. Qui est exposé à internet ?
 
-**Un seul conteneur ouvre un port public : le WAF** (Nginx + ModSecurity + règles OWASP CRS), qui
-inspecte chaque requête (injections SQL/XSS) et bloque les mauvaises. **Kong est derrière**, lié à
-`127.0.0.1` uniquement (accès dev local). Le commentaire du compose le dit :
+Un seul conteneur ouvre un port public — le WAF, devant Kong (le périmètre WAF → Kong est détaillé au **chapitre 5 — Sécurité**). Côté Docker, ça se voit dans le compose : Kong est lié à `127.0.0.1` (accès dev local) et son Admin API n'est pas publié.
 
 ```yaml
 # orchestrators/compose/base/gateway.yml:37-42
@@ -4109,7 +4038,7 @@ et au repos, une flotte de **24 887 clients** tient dans un plan de données de 
 dans ce dépôt autonome ; les chiffres ci-dessus sont ceux relevés dans `wiki/operations/scale-slo.md`,
 reproductibles via `bash scripts/verify/m46-share-pools-isolation.sh`.)*
 
-Ce qui rend ce partage **sûr**, c'est que le pool partagé ne mémorise jamais à quel client appartient une connexion : à chaque requête, on ré-applique l'identité du demandeur juste avant d'exécuter (au début de **chaque** transaction). Deux clients sur le même pool ne peuvent donc pas voir les lignes l'un de l'autre. Une seule
+Ce partage reste **sûr** parce que l'isolation est portée par la requête, pas par le pool : on ré-applique l'identité du demandeur au début de **chaque** transaction (l'owner-scoping est détaillé au **chapitre 4**), donc deux clients sur le même pool ne voient jamais les lignes l'un de l'autre. Une seule
 petite fonction décide du partage — uniquement pour le modèle « shared RLS », jamais pour les clients
 qui ont choisi une isolation plus forte :
 
@@ -4152,9 +4081,9 @@ EDITION_full      := $(filter-out playground,$(PLANES))
 Côté densité, la preuve mesurée la plus forte (gate `m46`, `wiki/operations/scale-slo.md`) : à
 **10 000 clients `shared_rls`**, `SHARE_POOLS` **ON** tient la charge avec **1 seul pool, 30 Mio de
 plan de données et 0 × 5xx** (`server_errors = 0`). Sans ce partage, un design naïf ouvre un pool par
-client et finit par renvoyer des 5xx sous le *thrash de pools* (l'épuisement par ouverture/fermeture incessante de connexions) — c'est précisément ce que `SHARE_POOLS`
-élimine. Le bon message à l'oral n'est donc pas « on accélère » mais **« on supprime les erreurs
-serveur sous forte densité »**. L'overlay `docker-compose.scale.yml` active ce mode et relève
+client et finit par renvoyer des 5xx sous le *thrash de pools* (l'épuisement par ouverture/fermeture incessante de connexions) — c'est ce que `SHARE_POOLS`
+élimine. Le bon message à l'oral n'est donc pas « on accélère » mais « on supprime les erreurs
+serveur sous forte densité ». L'overlay `docker-compose.scale.yml` active ce mode et relève
 `max_connections` (jamais par défaut, car chaque slot coûte de la RAM à Postgres).
 
 ## 8.8 — Brancher un nouveau frontend demain : c'est facile ? rapide ?
@@ -4177,11 +4106,10 @@ fois), pas ce qu'un dev front fait à chaque appel.
 
 ### Q. Le navigateur parle-t-il directement à la base ? (le fameux « gap » DB↔frontend)
 
-**Jamais.** La chaîne est : navigateur → SDK (fetch) → **Kong (port 8000)** → query-router (ou plan
-Rust) → adaptateur moteur → base, le tout **owner-scopé par requête**. Le navigateur ne connaît
-**qu'une seule adresse** ; le mot de passe de la base vit dans un service interne qu'il ne peut pas
-atteindre — c'est la passerelle qui exécute la requête à sa place. Le dossier le résume bien : *« Le
-front ne parle jamais directement à PostgreSQL ou à Mongo. »*
+**Jamais.** Le navigateur ne connaît qu'une seule adresse (Kong) ; le mot de passe de la base vit
+dans un service interne qu'il ne peut pas atteindre — c'est la passerelle qui exécute la requête à sa
+place, owner-scopée (la chaîne navigateur → SDK → Kong → query-router/Rust → base est détaillée au
+**chapitre 4**, et le « SDK comme contrat » au **chapitre 2**).
 
 Côté authentification, **le SDK pose les en-têtes tout seul** — le dev n'écrit pas de code d'en-tête :
 
@@ -4254,10 +4182,10 @@ gen kotlin sdks/kotlin "packageName=grobase,groupId=com.grobase,..."
 
 ### Q. Comment est organisé le SDK TypeScript à l'intérieur ?
 
-En deux couches : `core/` = le **moteur de transport** (le `HttpClient` qui fait les requêtes avec
-réessais, en-têtes d'auth, sessions) ; `domains/` = les **enveloppes par fonctionnalité** (`auth`,
-`query`, `rest`, `storage`, `analytics`…) que le dev appelle. Le client principal construit **un**
-`HttpClient` et l'**injecte** dans chaque domaine :
+En deux couches : `core/` = le moteur de transport (`HttpClient` : requêtes, réessais, en-têtes
+d'auth, sessions) et `domains/` = les enveloppes par fonctionnalité (`auth`, `query`, `rest`,
+`storage`, `analytics`…) que le dev appelle. Le client construit un `HttpClient` et l'injecte dans
+chaque domaine :
 
 ```ts
 // sdks/js/src/index.ts:259-272
@@ -4274,16 +4202,15 @@ reconstruit avec `npm run codegen:all`, on ne l'édite pas.)
 
 ## 8.10 — Comment l'app garantit des transactions de données sécurisées (TOUTES les mesures)
 
-> C'est la partie « vraiment importante ». La sécurité ici est en **défense en profondeur** : si une
-> couche est contournée, la suivante tient. On les déroule du bord vers la base.
+> Le modèle de sécurité complet — défense en profondeur, du WAF jusqu'à la base — est détaillé au
+> **chapitre 5 — Sécurité**. Ici je ne montre que les mesures qui protègent une **transaction de
+> données** côté plan d'exécution, avec le vrai code. On les déroule du bord vers la base.
 
 ### (a) Le périmètre — WAF, puis Kong
 
-Le trafic public frappe d'abord le **WAF** (Nginx + ModSecurity + OWASP CRS), qui bloque les
-injections/XSS connues. Derrière, **Kong** applique le **rate-limiting** (300 req/min sur `/auth/v1`,
-180 sur `/rest/v1`, 120 sur le realtime), le **CORS** (origines explicites, jamais `*` en prod) et
-**force l'algorithme JWT en HS256** — ce qui neutralise l'attaque classique de substitution
-d'algorithme :
+Le périmètre (WAF Nginx/ModSecurity, rate-limiting Kong, CORS, terminaison TLS) est décrit au
+**chapitre 5 — Sécurité**. Le point qui touche une transaction : Kong **force l'algorithme JWT en
+HS256**, ce qui neutralise l'attaque classique de substitution d'algorithme :
 
 ```yaml
 # infra/docker/services/kong/conf/kong.yml:22-26
@@ -4335,46 +4262,11 @@ rows, err := s.db.AdminQuery(ctx, verifyKeySQL, prefix)
 
 ### (c) L'isolation multi-tenant — par requête, pas par pool
 
-C'est **la** mesure qui rend `SHARE_POOLS` sûr. Sur **chaque** requête, dans **sa** transaction, le
-plan Rust commence par dire à Postgres « j'agis en tant que tel utilisateur / tel tenant » (variables
-RLS posées via `set_config(..., true)`, donc liées à la transaction), puis chaque lecture/écriture
-reçoit automatiquement un `AND owner_id = $n`. Le pool ne porte aucune identité ; la requête, oui.
-
-```rust
-// src/data-plane-router/crates/data-plane-pool/src/postgres/tx.rs:110-118
-client.execute(
-    "SELECT set_config('app.current_user_id', $1, true), \
-            set_config('app.current_tenant_id', $2, true), \
-            set_config('request.jwt.claims', $3, true)",
-    &[&principal, &tenant, &claims],
-).await
-```
-
-```rust
-// src/data-plane-router/crates/data-plane-pool/src/postgres/crud_build.rs:49-61 — le filtre propriétaire ajouté à chaque opération owner-scopée
-fn owner_predicate(owner: Option<&str>, params: &mut Vec<BoxedParam>) -> DataPlaneResult<String> {
-    match owner {
-        Some(principal) => { params.push(Box::new(principal.to_string()));
-            Ok(format!(" AND {} = ${}", quote_ident("owner_id")?, params.len())) }
-        None => Ok(String::new()),
-    }
-}
-```
-
-Et au niveau de la base elle-même, la migration **065** **force** la RLS (un simple `ENABLE` laisse
-passer le propriétaire et un superuser) et retire les droits des rôles publics sur les tables
-sensibles (ciphertext des connexions, hash des clés) ; PostgREST passe d'un superuser à un rôle
-`NOBYPASSRLS` :
-
-```sql
--- scripts/migrations/postgresql/065_least_privilege_rls.sql:108-116
-FOR r IN
-    SELECT n.nspname, c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-    WHERE c.relkind = 'r' AND c.relrowsecurity        -- RLS activée
-      AND NOT c.relforcerowsecurity                   -- mais pas encore FORCÉE
-      AND n.nspname IN ('public','auth','gdpr','session')
-  LOOP  -- … FORCE ROW LEVEL SECURITY
-```
+C'est **la** mesure qui rend `SHARE_POOLS` sûr : le pool ne porte aucune identité, c'est la requête
+qui la réaffirme. Le mécanisme exact — `set_config(..., true)` dans la transaction puis `AND owner_id
+= $n` à chaque opération, et la migration **065** qui *force* la RLS (`FORCE ROW LEVEL SECURITY`,
+PostgREST en rôle `NOBYPASSRLS`) — est détaillé avec son code au **chapitre 4** (owner-scoping Rust)
+et au **chapitre 5** (RLS forcée).
 
 ### (d) ABAC — décisions fines au-dessus des rôles
 
@@ -4385,47 +4277,18 @@ Les conditions JSONB (`owner_only`, `time_window`, `ip_cidr`, `aal`) ne s'évalu
 
 ### (e) Les injections — structurellement impossibles côté données
 
-Les **valeurs** de l'utilisateur ne sont **jamais collées dans le texte SQL** : elles partent dans
-une liste de paramètres, et la base les substitue elle-même aux marqueurs `$1`/`?`. Une valeur comme
-`' OR 1=1--` est donc traitée comme du **texte**, jamais comme du code. Les **identifiants**
-(noms de table/colonne, qu'on ne peut pas paramétrer) passent par une **allowlist** stricte :
-
-```rust
-// src/data-plane-router/crates/data-plane-pool/src/postgres/filter.rs:125-129 — valeur -> param, jamais concaténée
-Filter::Cmp { field, op, value } => {
-    let ident = quote_ident(field)?;          // identifiant validé
-    params.push(json_param(value));            // valeur en paramètre
-    Pred::Sql(format!("{ident} {} ${}", cmp_sql(*op), params.len()))  // seul $n entre dans le SQL
-}
-```
-
-```rust
-// src/data-plane-router/crates/data-plane-pool/src/ident.rs:52-59 — tout ce qui n'est pas [A-Za-z_][A-Za-z0-9_]{0,62} est refusé
-fn is_valid_segment(seg: &str) -> bool {
-    let mut chars = seg.chars();
-    match chars.next() { Some(c) if c.is_ascii_alphabetic() || c == '_' => {}, _ => return false, }
-    seg.len() <= 63 && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
-}
-```
-
-Côté **NoSQL**, on **rejette** (pas « on supprime ») tout opérateur Mongo dangereux. Et côté
-**entrées HTTP**, un *pipe* de validation **global** strict (whitelist + rejet des champs inconnus)
-est branché dans 13 services — impossible de glisser un `isAdmin:true` :
-
-```ts
-// src/libs/common/src/pipes/validation.pipe.ts:21-25
-return new NestValidationPipe({
-  whitelist: true,            // retire les champs non déclarés
-  forbidNonWhitelisted: true, // 400 si un champ en trop est envoyé
-  transform: true,
-  transformOptions: { enableImplicitConversion: true },
-```
+Les **valeurs** ne sont jamais collées dans le texte SQL — elles partent en paramètres (`$1`/`?`), si
+bien que `' OR 1=1--` reste du **texte** ; les **identifiants** passent par une allowlist stricte
+(`quote_ident`), côté **NoSQL** tout opérateur Mongo dangereux est **rejeté**, et un *pipe* de
+validation global (whitelist + rejet des champs inconnus) couvre 13 services. Le code de chacune de
+ces protections — paramétrage Rust, allowlist d'identifiants, rejet Mongo, `validation.pipe.ts` — est
+détaillé au **chapitre 4** et au **chapitre 5**.
 
 ### (f) Le chiffrement au repos — credentials & CMEK
 
 Les chaînes de connexion externes ne sont jamais stockées en clair : le plan de contrôle Go les
-chiffre en **AES-256-GCM**, avec une clé dérivée par **scrypt** (sel + IV aléatoires par
-enregistrement) :
+chiffre en AES-256-GCM, avec une clé dérivée par scrypt (sel
++ IV aléatoires par enregistrement) :
 
 ```go
 // src/control-plane/internal/adapterregistry/crypto.go:24-33
@@ -4467,17 +4330,15 @@ func ComputeHash(e Event) string {
 
 ### (h) Transport, secrets & en-têtes
 
-TLS en façade ; **secrets dans Vault**, jamais de `.env`/token commités ; et au niveau applicatif,
-**chaque service NestJS** pose une **CSP** stricte + **HSTS** + `X-Frame-Options: DENY` + `nosniff`
-via `helmet` (`src/libs/common/src/security/security.middleware.ts`).
+TLS en façade, secrets dans Vault, en-têtes durcis (CSP/HSTS/`X-Frame-Options`/`nosniff` via
+`helmet` dans chaque service NestJS) : tout cela est détaillé au **chapitre 5 — Sécurité**.
 
 ### (i) RGPD — consentement, effacement, portabilité
 
-- **Consentement opt-in** : la colonne `is_granted` vaut `false` par défaut ; un endpoint « retirer
-  tous les consentements non essentiels » bascule tout sauf l'essentiel.
-- **Effacement prouvable** : `DROP SCHEMA … CASCADE` (schema-per-tenant) ou
-  `DELETE … WHERE tenant_id` (shared-RLS) — **jamais `TRUNCATE`** — en une transaction, avec reçu
-  d'audit. La route n'est même **pas montée** si `HARD_ERASE_ENABLED` est OFF :
+Les mécanismes RGPD — consentement opt-in (`is_granted` false par défaut), effacement prouvable
+(`DROP SCHEMA … CASCADE` ou `DELETE … WHERE tenant_id`, jamais `TRUNCATE`, avec reçu d'audit) et
+portabilité — sont détaillés au **chapitre 5**. Le point propre au plan d'exécution ici : la route
+d'effacement n'est même **pas montée** tant que `HARD_ERASE_ENABLED` est OFF :
 
 ```go
 // src/control-plane/cmd/tenant-control/mount_cloud.go:55-64
@@ -4492,10 +4353,9 @@ func (b *bootCtx) mountErase() {
 }
 ```
 
-> **« flag-gated OFF = byte-parité », en clair :** la fonctionnalité existe dans le code mais ses
-> routes ne sont **littéralement pas branchées** tant qu'on n'allume pas la variable d'environnement.
-> Par défaut, le produit se comporte donc **exactement** comme la version open-source. C'est en Go
-> structurel : `if envBool("FLAG")` (défaut false) → une variable absente = parité par construction.
+> **« flag-gated OFF = byte-parité » :** les routes d'une fonctionnalité ne sont pas branchées tant
+> qu'on n'allume pas sa variable d'environnement (`if envBool("FLAG")`, défaut false) — une variable
+> absente vaut donc parité par construction avec la version open-source.
 
 ### (j) Sauvegarde / restauration
 
@@ -4515,15 +4375,12 @@ docker compose exec -T postgres pg_restore -U postgres -d postgres < "${BACKUP_F
 
 ---
 
-### En une phrase (le résumé sécurité)
+### En une phrase
 
-> *Une clé en clair n'est jamais stockée — on garde son préfixe pour retrouver la ligne et un hash
-> rapide pour la vérifier ; une fois vérifiée, **chaque** requête réaffirme l'identité de l'appelant
-> et se filtre sur `owner_id` dans **sa propre** transaction — donc les clients restent isolés même
-> lorsqu'ils partagent un pool de connexions. Autour, le WAF filtre, Kong limite et force HS256, les
-> valeurs SQL sont toujours paramétrées, les secrets sont chiffrés (jusqu'au crypto-shred CMEK), et
-> l'audit est une chaîne de hash inviolable.* Le tout sur **une seule base de code**, du binaire de
-> 5 Mo à la plateforme 10 000 clients.
+> *Une clé en clair n'est jamais stockée (préfixe + hash rapide) ; une fois vérifiée, chaque requête
+> réaffirme l'identité de l'appelant et se filtre sur `owner_id` dans sa propre transaction — les
+> clients restent donc isolés même lorsqu'ils partagent un pool. Le reste de la défense en profondeur
+> est au chapitre 5.*
 
 ---
 
@@ -4531,12 +4388,11 @@ docker compose exec -T postgres pg_restore -U postgres -d postgres < "${BACKUP_F
 
 ### Q. Comment prouve-t-on que ça marche, concrètement ?
 
-Le principe du projet est simple : **mesuré, jamais affirmé**. Une fonctionnalité n'est « finie »
-que lorsqu'un test l'exerce vraiment. Il n'y a pas un seul type de test mais **neuf familles**,
-chacune répondant à une question différente — de « cette fonction calcule-t-elle juste ? » à
-« est-ce que les 8 moteurs se comportent pareil ? » jusqu'à « combien de requêtes par seconde
-tient le plan de données ? ». Tout tourne en conteneur (règle Docker-first), et tout est rejoué
-automatiquement par la CI à chaque push.
+Le principe du projet : **mesuré, jamais affirmé**. Une fonctionnalité n'est « finie » que lorsqu'un
+test l'exerce. Il y a **neuf familles** de tests, chacune répondant à une question différente — de
+« cette fonction calcule-t-elle juste ? » à « les 8 moteurs se comportent-ils pareil ? » jusqu'à
+« combien de requêtes par seconde tient le plan de données ? ». Tout tourne en conteneur (règle
+Docker-first), et la CI rejoue l'ensemble à chaque push.
 
 | # | Famille | Ce que ça prouve | Commande (depuis la racine du dépôt) | Où |
 |---|---|---|---|---|
@@ -4609,7 +4465,7 @@ ok  github.com/dlesieur/mini-baas/control-plane/internal/tenants        0.104s
 
 #### TypeScript / NestJS — `jest`
 
-Seize suites (`*.spec.ts`) couvrent les points délicats du plan applicatif (résolution de schéma, publication temps réel, validation des entrées, identité de requête…). Les dépendances réseau sont remplacées par des *mocks* (objets de remplacement, ici `jest.fn()`) : le test ne touche ni base ni réseau et donne donc toujours le même résultat.
+Seize suites (`*.spec.ts`) couvrent les points délicats du plan applicatif : résolution de schéma, publication temps réel, validation des entrées, identité de requête. Des *mocks* (objets de remplacement, ici `jest.fn()`) remplacent les dépendances réseau, si bien que le test ne touche ni base ni réseau et reste déterministe.
 
 ```ts
 // src/apps/query-router/src/query/schema.service.spec.ts
@@ -4674,7 +4530,7 @@ test result: ok. <N> passed; 0 failed; … finished in …s
 
 #### SDK TypeScript — `node:test`
 
-Le SDK de référence (`sdks/js/`) a dix suites `*.test.mjs` lancées par le **lanceur natif de Node**
+Le SDK de référence (`sdks/js/`) a dix suites `*.test.mjs` lancées par le lanceur natif de Node
 (`node --test`, pas Jest). Le transport `fetch` est *mocké*, donc aucune requête réseau. La suite
 de durcissement HTTP prouve par exemple : le *retry* (réessai) avec *back-off* (délai croissant entre deux tentatives) sur les requêtes idempotentes (rejouables sans effet de bord),
 l'**absence** de retry sur un POST de création, des erreurs **typées** (`MiniBaasConflictError`,
@@ -4897,61 +4753,28 @@ qui rend le « ça marche » vérifiable plutôt que déclaratif.
 
 ### En une phrase
 
-> *Chaque couche a son filet : la logique pure (Go/Rust/TS/SDK) en tests unitaires, le vrai HTTP en
-> tests d'intégration, l'égalité des 8 moteurs en conformité, l'ancien vs le nouveau chemin en
-> parité, chaque feature derrière un gate qui prouve aussi « OFF = parité », la perf en chiffres
-> reproductibles, et la sécurité en scanners — le tout rejoué par la CI à chaque push.*
+> *Chaque couche a son filet : logique pure en unitaire, vrai HTTP en intégration, égalité des 8
+> moteurs en conformité, ancien vs nouveau chemin en parité, chaque feature derrière un gate
+> « OFF = parité », la perf en chiffres et la sécurité en scanners — le tout rejoué par la CI.*
 
 ---
 
 ## 8.12 — HTTPS / TLS : comment la liaison navigateur ↔ back-end est-elle réellement chiffrée ?
 
-> C'est une question quasi systématique en soutenance, et elle mérite mieux qu'un « on est en
-> HTTPS ». Voici la réponse complète, avec le vrai code de génération et de terminaison TLS.
+> Une question quasi systématique en soutenance — et elle mérite mieux qu'un « on est en HTTPS ».
+> Voici la réponse complète, avec le vrai code de génération et de terminaison TLS.
 
 ### Q. Concrètement, qu'est-ce que le HTTPS apporte, et où est-il en place ?
 
 Le HTTPS, c'est du HTTP transporté **sur TLS** : tout ce qui circule entre le navigateur et mon
-back-end est chiffré. Sans lui, un mot de passe ou un jeton de session transiterait en clair —
-lisible par quiconque sur le réseau (un wifi public, un FAI). Il m'apporte trois choses :
-**confidentialité** (un tiers ne lit rien), **intégrité** (toute modification en transit casse la
-connexion) et **authenticité** (le client est certain de parler à mon serveur, pas à un imposteur).
-Dans le projet, **le seul port public est le WAF nginx, en TLS 1.2/1.3**
+back-end est chiffré, ce qui apporte confidentialité, intégrité et authenticité (détaillé au
+**chapitre 5 — Sécurité**). Dans le projet, **le seul port public est le WAF nginx, en TLS 1.2/1.3**
 ([`infra/docker/services/waf/conf/nginx.conf`](../../infra/docker/services/waf/conf/nginx.conf)) ;
 tout le reste vit sur un réseau Docker privé.
 
-### Q. C'est quoi un « certificat » et une « autorité de certification » ?
+### Q. Certificat, autorité de certification, terminaison TLS, production : où est tout ça ?
 
-Un **certificat**, c'est la carte d'identité du serveur : il atteste « je suis bien ce domaine » et
-porte la clé publique qui sert à établir le chiffrement. Mais une carte d'identité ne vaut que si
-quelqu'un de confiance la signe : c'est le rôle de l'**autorité de certification (CA)**, le
-« notaire ». Mon script [`generate-localhost-cert.sh`](../../scripts/certs/generate-localhost-cert.sh)
-reproduit cette hiérarchie en local : une **CA** (clé RSA 4096 bits, `CA:TRUE`) signe un
-**certificat serveur** (RSA 2048 bits, usage `serverAuth`, 397 jours, SAN `localhost`/`host.docker.internal`/`local-https-proxy`/`127.0.0.1`/`::1`).
-Le navigateur fait confiance au serveur **parce qu'il fait confiance à la CA** qui l'a signé — d'où
-le script [`trust-localhost-cert.sh`](../../scripts/certs/trust-localhost-cert.sh) qui importe
-ma CA dans le magasin de confiance du système et du navigateur.
-
-### Q. Le HTTPS s'arrête où ? Et le trafic interne, alors ?
-
-Le TLS **se termine au WAF** (on parle de *terminaison TLS*) : c'est lui qui déchiffre, applique les
-règles ModSecurity/OWASP CRS, puis relaie la requête à Kong **sur le réseau Docker interne**. Ce saut
-interne n'est pas exposé à Internet — il vit dans un réseau privé entre containers. C'est un choix
-classique et assumé : on centralise la terminaison TLS et le filtrage en **un seul point d'entrée**,
-plutôt que de redistribuer des certificats à chaque micro-service. Derrière, Kong rajoute les
-en-têtes de sécurité du transport — dont **HSTS** (`max-age=31536000; includeSubDomains`), qui
-interdit au navigateur de retomber en HTTP pendant un an
-([`kong.track-binocle.yml`](../../infra/docker/services/kong/conf/kong.track-binocle.yml)).
-
-### Q. Et en production, avec de vrais certificats ?
-
-Deux choses changent, **sans toucher au code**. (1) La CA locale est remplacée par une **autorité
-publique** (Let's Encrypt) : le certificat serveur est alors reconnu par tous les navigateurs sans
-import manuel. (2) Le chiffrement s'étend **jusqu'aux bases** : `SECURITY_MODE=max` relève
-`sslmode=require` en **`verify-full`** ([SECURITY.md](../../SECURITY.md)), donc le
-back-end vérifie réellement le certificat de chaque base externe avant de s'y connecter (une CA
-d'entreprise peut être fournie via `DATA_PLANE_TLS_CA_FILE`). Le trajet d'une donnée est ainsi
-chiffré de bout en bout : navigateur → WAF, puis back-end → base.
+La chaîne complète — CA locale RSA 4096 qui signe un certificat serveur RSA 2048 (SAN `localhost`/`127.0.0.1`/…), scripts `generate-localhost-cert.sh` et `trust-localhost-cert.sh`, **terminaison TLS au WAF** puis relais vers Kong sur réseau privé, **HSTS**, et en production le remplacement de la CA locale par **Let's Encrypt** + le chiffrement jusqu'aux bases via `SECURITY_MODE=max` → `verify-full` — est détaillée à son chapitre d'origine (voir **chapitre 5 — Sécurité**). Le seul fait propre à cette question : le trajet est chiffré de bout en bout, navigateur → WAF puis back-end → base.
 
 ## 8.13 — Authentification vs autorisation : quelle différence, et où vivent-elles ?
 
@@ -4965,15 +4788,12 @@ Ce sont deux questions distinctes, que je traite à deux endroits différents :
   injecte l'identité en en-têtes internes (`X-User-Id`, `X-User-Role`…). Pour les appels
   machine-à-machine, c'est une **clé d'API**, vérifiée par empreinte et jamais stockée en clair.
 - **L'autorisation, c'est « as-tu le droit de faire _ça_ sur _cette_ ressource ? »** Elle se règle
-  **plus en profondeur**, en plusieurs couches : le `RolesGuard` NestJS (RBAC : ton rôle suffit-il ?),
-  puis l'**ABAC** (`has_permission()` en SQL, en *deny-first*, qui regarde la ressource précise et des
-  attributs comme `owner_only`), et enfin **la base elle-même** avec la **RLS forcée**
-  (`owner_id = auth.uid()`), qui a le dernier mot.
+  **plus en profondeur**, en plusieurs couches : `RolesGuard` NestJS (RBAC), puis l'**ABAC** SQL en
+  *deny-first*, et enfin la base elle-même avec la **RLS forcée** qui a le dernier mot — le détail de
+  chaque couche est au **chapitre 5 — Sécurité**.
 
-> En une phrase de soutenance : *« L'authentification prouve **qui** appelle (JWT validé par Kong) ;
-> l'autorisation décide **ce qu'il peut toucher** (RBAC dans les guards, ABAC en SQL, et la RLS
-> PostgreSQL comme garde-fou ultime). »* Même si une couche applicative se trompe, la base refuse de
-> renvoyer une ligne qui n'appartient pas à l'appelant.
+> En une phrase de soutenance : *« L'authentification prouve **qui** appelle ; l'autorisation décide
+> **ce qu'il peut toucher**. »*
 
 ## 8.14 — Pourquoi NestJS plutôt qu'Express ?
 
@@ -4982,7 +4802,7 @@ Ce sont deux questions distinctes, que je traite à deux endroits différents :
 Express, c'est un routeur minimaliste : rapide à démarrer, mais on réécrit vite la même tuyauterie
 (validation, authentification, gestion d'erreurs) **à la main, route par route**. **NestJS** ajoute une
 **structure** par-dessus Express — modules, injection de dépendances, *guards*, *pipes*, *filters* — et
-c'est exactement cette structure qui porte ma sécurité **de façon transversale**, pas dupliquée :
+c'est cette structure qui porte ma sécurité **de façon transversale**, pas dupliquée :
 
 - un **`AuthGuard`** ([auth.guard.ts](../../src/libs/common/src/guards/auth.guard.ts)) posé en
   décorateur `@UseGuards()`, au lieu d'un `if (!req.user)` recopié dans chaque contrôleur ;
@@ -4995,23 +4815,17 @@ c'est exactement cette structure qui porte ma sécurité **de façon transversal
   jamais sa stack au client).
 
 Autrement dit : avec Express, j'aurais une sécurité « à la main, en espérant ne rien oublier » ; avec
-NestJS, elle est **centralisée, déclarative et testable**. C'est aussi ce qui rend le code lisible pour
-un correcteur — chaque protection est au même endroit, réutilisée par tous les contrôleurs.
+NestJS, elle est **centralisée, déclarative et testable** — chaque protection au même endroit, réutilisée par tous les contrôleurs (le détail de ces guards/pipes/filters est au **chapitre 5 — Sécurité**).
 
 ## 8.15 — Que se passe-t-il si une couche — ou un service — tombe ?
 
 ### Q. Et la résilience ? Si le WAF, Kong, ou un service interne lâche ?
 
-C'est tout l'intérêt de la **défense en profondeur** : aucune couche n'est censée suffire seule, donc
-la chute de l'une **n'ouvre pas** la porte.
+C'est tout l'intérêt de la **défense en profondeur** (détaillée au **chapitre 5 — Sécurité**) :
+aucune couche n'est censée suffire seule, donc la chute de l'une **n'ouvre pas** la porte.
 
-- **Si le WAF est contourné**, Kong tient encore (clé d'API, JWT, rate-limit). **Si Kong laissait
-  passer** une requête mal authentifiée, la **RLS PostgreSQL forcée** (`owner_id = auth.uid()`,
-  migration [065](../../scripts/migrations/postgresql/065_least_privilege_rls.sql)) refuse
-  quand même de rendre une ligne qui n'appartient pas à l'appelant. **La base a toujours le dernier mot.**
-- **Auth en échec → fermé, pas ouvert** (*fail-closed*) : une clé invalide ou absente renvoie 401,
-  jamais un accès par défaut — c'est exactement ce que vérifie le gate m37.
-- **Si une dépendance non critique tombe, le service dégrade au lieu de planter.** Concrètement : si le
+- **Le superposement des couches est canonique au chapitre 5** : WAF contourné → Kong tient (clé d'API, JWT, rate-limit) → et si Kong laissait passer, la **RLS PostgreSQL forcée** (migration 065) a le dernier mot. Auth en échec → **fail-closed** (401, jamais d'accès par défaut ; gate m37).
+- **Ce que cette question ajoute, c'est la dégradation : une dépendance non critique qui tombe dégrade le service au lieu de le faire planter.** Concrètement : si le
   plan temps réel est injoignable, **l'écriture réussit quand même** et seule la notification est sautée
   ([realtime-publisher.service.ts:151-159](../../src/apps/query-router/src/query/realtime-publisher.service.ts#L151-L159)) ;
   si le service de capabilities ne répond pas, **le schéma est tout de même servi** (les capabilities
@@ -5021,8 +4835,6 @@ la chute de l'une **n'ouvre pas** la porte.
 - **Au niveau infra**, l'overlay de production
   ([docker-compose.prod.yml](../../orchestrators/compose/docker-compose.prod.yml)) ajoute des *restart policies* et
   retire les ports directs des bases ; un container qui meurt redémarre tout seul.
-
-> En une phrase : *une panne **dégrade** le service, elle ne le rend jamais **dangereux**.*
 
 ## 8.16 — Comment gères-tu l'évolution du schéma de base de données ?
 
@@ -5040,15 +4852,15 @@ make migrate-status  # montre les versions déjà appliquées
 make migrate-all     # PG + Mongo + MySQL d'un coup
 ```
 
-L'intérêt, pour un correcteur : l'état de la base n'est jamais « bricolé à la main » sur un serveur ; il
-se **reconstruit depuis zéro** à partir des fichiers versionnés — ce qui garantit que développement, CI
-et production partagent **exactement le même schéma**. Les bases Mongo et MySQL suivent la même logique
+L'intérêt, pour un correcteur : l'état de la base n'est jamais « bricolé à la main » sur un serveur. Il
+se **reconstruit depuis zéro** à partir des fichiers versionnés, donc développement, CI et production
+partagent le **même schéma**. Les bases Mongo et MySQL suivent la même logique
 (`make migrate-mongo` / `make migrate-mysql`).
 
 ## 8.17 — Comment les trois plans (TypeScript, Go, Rust) communiquent-ils ?
 
-> C'est la question d'architecture la plus importante du back-end. La 8.1 disait *qui fait quoi* ;
-> voici *comment ils se parlent* — les endpoints, le format d'échange, l'identité, et l'asynchrone.
+> La 8.1 disait *qui fait quoi* ; voici *comment les trois plans se parlent* — les endpoints, le
+> format d'échange, l'identité, et l'asynchrone.
 
 ### Q. Concrètement, par quoi passent les données entre les trois langages ?
 
@@ -5085,10 +4897,10 @@ Un **endpoint**, c'est une route HTTP qu'un service expose. On en a de deux sort
   `/v1/schema`, `/v1/transactions`, `/v1/capabilities` ; le **control plane Go** expose
   `/v1/keys/verify`, `/v1/tenants/…`.
 
-Le chemin porteur d'une requête de données est : le query-router (TS) demande d'abord au **Go**
-« cette clé d'API correspond à quelle identité ? » (`POST /v1/keys/verify`), puis transmet la requête
-au **Rust** (`POST /v1/query`) qui l'exécute et la *owner-scope*. Chaque langage fait donc le métier
-pour lequel il est le meilleur, et ils se passent le relais par HTTP.
+Le chemin porteur d'une requête de données : le query-router (TS) demande d'abord au **Go** « cette
+clé d'API correspond à quelle identité ? » (`POST /v1/keys/verify`), puis transmet la requête au
+**Rust** (`POST /v1/query`), qui l'exécute et l'owner-scope (voir **chapitre 4**). Chaque langage fait
+le métier pour lequel il est le meilleur, et se passe le relais par HTTP.
 
 ### Q. Et l'identité / la confiance dans ces appels internes ?
 
@@ -5099,13 +4911,13 @@ service-à-service est **signée en HMAC** ([service-auth.ts](../../src/libs/com
 X-Service-Auth: v1.<ts>.<hmac-sha256(token, "<ts>\n<METHOD>\n<PATH>\n<sha256hex(body)>")>
 ```
 
-Le point fort, et c'est ce qui rend la communication entre les trois fiable : **les trois langages
-signent à l'octet près**. Les mêmes vecteurs de test (« golden vectors ») valident la signature en
-Go ([serviceauth/token.go](../../src/control-plane/internal/serviceauth/token.go) + `token_test.go` — l'ancien paquet `shared` a été supprimé),
+Le point fort : **les trois langages signent à l'octet près**. Les mêmes vecteurs de test
+(« golden vectors ») valident la signature en Go
+([serviceauth/token.go](../../src/control-plane/internal/serviceauth/token.go) + `token_test.go`),
 en Rust ([service_auth.rs](../../src/data-plane-router/crates/data-plane-pool/src/service_auth.rs))
-et en TypeScript. Donc qu'un appel parte de TS vers Go, ou de TS vers Rust, l'authentification est
-**identique**. À cela s'ajoute l'**enveloppe d'identité signée** (`source: 'signed_envelope'`) qui
-transporte tenant/user/rôle de façon infalsifiable (voir chapitre 5).
+et en TypeScript. Qu'un appel parte de TS vers Go ou de TS vers Rust, l'authentification est
+**identique**. À cela s'ajoute l'**enveloppe d'identité signée** (`source: 'signed_envelope'`), qui
+transporte tenant/user/rôle de façon infalsifiable.
 
 ### Q. Et l'asynchrone (les « promises ») dans tout ça ?
 
@@ -5128,10 +4940,6 @@ le disque, on **ne bloque pas** le thread — on libère la main pour traiter d'
   [auth.rs](../../src/data-plane-router/crates/data-plane-server/src/auth.rs)).
   C'est aussi là que vit l'optimisation majeure : le plan Rust garde des **pools de connexions longue
   durée** par mount, alors que l'ancienne version TS ouvrait un client par appel.
-
-> En une phrase : *trois services réseau qui s'échangent du JSON par HTTP signé en HMAC ; chacun
-> asynchrone à sa manière (Promise/await en TS, goroutines en Go, tokio en Rust) pour ne jamais
-> bloquer pendant une attente.*
 
 ## 8.18 — Les « injectables » NestJS : c'est quoi, et comment ça marche ?
 
@@ -5166,7 +4974,7 @@ export class QueryModule {}
 
 ### Q. Pourquoi c'est utile, concrètement ?
 
-Trois bénéfices très concrets, que j'utilise vraiment :
+Trois bénéfices concrets, que j'utilise au quotidien :
 
 - **Testabilité** — en test, j'injecte un **faux** `ConfigService` et un **faux** `HttpService` au lieu
   des vrais : c'est exactement ce que font mes specs (`rust-data-plane.proxy.spec.ts`). Pas besoin de
@@ -5178,13 +4986,7 @@ Trois bénéfices très concrets, que j'utilise vraiment :
   au code qui l'utilise.
 
 Et surtout : c'est **le même mécanisme** qui fait fonctionner les `Guards`, `Pipes` et `Filters` de
-sécurité du chapitre 5 (`AuthGuard`, `RolesGuard`, `ValidationPipe`, `AllExceptionsFilter`). Ils sont
-des injectables appliqués de façon **transversale** par décorateur — c'est ce qui rend la sécurité
-centralisée plutôt que recopiée dans chaque contrôleur (voir 8.14).
-
-> En une phrase : *`@Injectable()` + le constructeur, c'est NestJS qui « câble » les dépendances à ma
-> place — d'où un code découplé, testable avec des doublures, et une sécurité appliquée une fois pour
-> toutes au lieu d'être recopiée partout.*
+sécurité (voir **chapitre 5** et 8.14) — des injectables appliqués de façon **transversale** par décorateur, d'où une sécurité centralisée plutôt que recopiée dans chaque contrôleur.
 
 ## 8.19 — Les « guardrails » de chaque langage : qu'est-ce qui me protège en TS, Go, Rust ?
 
@@ -5203,7 +5005,7 @@ la mémoire sous charge), plus le langage doit être strict.
   pas). Le vrai garde-fou face à une entrée hostile, c'est donc la **validation au runtime** —
   class-validator / Zod avec `whitelist` (chapitre 5) — *en plus* des types.
 
-**Go — le plan de contrôle (tenants, clés, facturation).** Ses garde-fous : un compilateur strict, une concurrence sûre et un binaire sans dépendances système, détaillés ci-dessous :
+**Go — le plan de contrôle (tenants, clés, facturation).** Ses garde-fous : un compilateur strict, une concurrence sûre et un binaire sans dépendances système :
 
 - Typage statique + **ramasse-miettes (GC)** : pas de gestion mémoire manuelle, donc pas de
   *use-after-free* à la main.
@@ -5214,32 +5016,24 @@ la mémoire sous charge), plus le langage doit être strict.
 - Garde-fou métier : le plan Go **refuse de démarrer** sur un token de service vide ou faible
   (*fail-fast* au boot).
 
-**Rust — le plan de données (exécution des requêtes, pools, owner-scoping).** Les garde-fous **les plus
-stricts, prouvés à la compilation** :
+**Rust — le plan de données (exécution des requêtes, pools, owner-scoping — voir chapitre 4).** Les
+garde-fous **les plus stricts, prouvés à la compilation** :
 
-- **Ownership / borrow checker** : la sécurité mémoire est **garantie par le compilateur**, *sans* GC.
-  Pas de pointeur nul, pas de *use-after-free*, pas de *data race* — le code qui pourrait les provoquer
-  ne compile tout simplement pas.
-- **Pas de `null`** : on utilise `Option<T>` (présent/absent) et `Result<T, E>` (succès/erreur) — l'erreur
-  et l'absence sont **dans le type**, impossible de les oublier (≈ 85 occurrences rien que dans
-  `data-plane-core`). Le `match` exhaustif force à traiter **tous** les cas.
+- **Ownership / borrow checker** : sécurité mémoire **garantie par le compilateur**, *sans* GC — pas de pointeur nul, de *use-after-free* ni de *data race* (le code fautif ne compile pas).
+- **Pas de `null`** : `Option<T>` et `Result<T, E>` mettent l'absence et l'erreur **dans le type** (≈ 85 occurrences rien que dans `data-plane-core`), et le `match` exhaustif force à traiter **tous** les cas.
 - Scan CVE : **cargo-audit** via `make audit-deps`.
 
 C'est précisément pour ça que **le plan de données est en Rust** : c'est lui qui manipule les bases et
 isole les clients à chaque requête — le risque y est maximal, donc on y met le langage aux garde-fous
 les plus forts.
 
-> En une phrase : *TS attrape les erreurs de forme à la compilation et les entrées hostiles au runtime ;
-> Go offre une concurrence sûre et un binaire robuste ; Rust prouve au compilateur l'absence de bug
-> mémoire et de data race — chaque langage est placé là où ses garde-fous comptent le plus.*
-
 ## 8.20 — Comment un binaire (Go, Rust) « fait du web » ? Et WebAssembly là-dedans ?
 
 ### Q. Un programme compilé, ça sert des requêtes HTTP comment ?
 
-Contrairement à Node/TypeScript — qui est **interprété/JIT** et a besoin du **runtime Node** pour
-tourner — Go et Rust **compilent en exécutable natif qui embarque lui-même un serveur HTTP**. Pas
-d'interpréteur, pas de machine virtuelle : le binaire *est* le serveur.
+Node/TypeScript est **interprété/JIT** et a besoin du **runtime Node** pour tourner. Go et Rust, eux,
+**compilent en exécutable natif qui embarque lui-même un serveur HTTP** : pas d'interpréteur, pas de
+machine virtuelle, le binaire *est* le serveur.
 
 - **Go** : le serveur `net/http` est inclus dans le binaire ; chaque requête est servie dans une
   goroutine. On compile en **statique** et on livre dans une image **distroless nonroot** (sans shell ni
@@ -5283,11 +5077,6 @@ du worker comme un **processus enfant `deno run` séparé sous son propre cgroup
 voir [functions-runtime/Dockerfile](../../infra/docker/services/functions-runtime/Dockerfile)). Dans les
 deux cas, ce n'est pas nécessaire aujourd'hui.
 
-> En une phrase : *Go et Rust n'ont pas besoin de WebAssembly — ce sont des binaires natifs qui
-> embarquent leur propre serveur HTTP et tournent dans des images minuscules (distroless / scratch).
-> WASM viserait surtout le navigateur ou un bac à sable serveur ; or notre bac à sable, c'est Deno
-> (isolat V8 + permissions), pas WASM.*
-
 ## 8.21 — Docker : comment chaque langage est conteneurisé, et par quel protocole les services se parlent
 
 ### Q. Chaque service (TS, Go, Rust) tourne comment, et comment se trouvent-ils ?
@@ -5295,11 +5084,7 @@ deux cas, ce n'est pas nécessaire aujourd'hui.
 Chaque plan est **sa propre image, son propre container**, démarré par docker-compose. Ils ne se
 cherchent pas par une IP codée en dur : Docker fournit un **DNS interne** où le **nom du service** est
 l'hôte. Le query-router NestJS appelle donc ses dépendances internes — `data-plane-router-rust:4011`,
-`adapter-registry-go:3021`, `permission-engine:3050` — par leur **nom**. Docker me donne aussi : des **réseaux** isolés (le
-public ne voit que le WAF), des **healthchecks** (44 services en déclarent un dans le compose), des
-**volumes** (les données survivent au redémarrage), `depends_on` (ordre de démarrage), et des
-**overlays/profils** (les éditions). Chaque langage profite donc des mêmes briques Docker, sans rien de
-spécifique au langage.
+`adapter-registry-go:3021`, `permission-engine:3050` — par leur **nom**. S'y ajoutent les **réseaux** isolés (le public ne voit que le WAF, voir **chapitre 5**), les **healthchecks** (44 services), les **volumes**, `depends_on` et les **overlays/profils** (les éditions) — déjà décrits aux 8.3 et 8.4 ; chaque langage profite des mêmes briques, sans rien de spécifique.
 
 ### Q. Ils communiquent en HTTP, ou par d'autres protocoles ?
 
@@ -5358,15 +5143,13 @@ Plusieurs mécanismes qui se **cumulent** :
   `health_check() -> EngineHealth`
   ([ports.rs](../../src/data-plane-router/crates/data-plane-core/src/ports.rs)) —
   une base qui ne répond plus est **détectée**, pas découverte au pire moment.
-- **TLS vérifié** en production (`SECURITY_MODE=max` → `verify-full`, cf. ch. 5) : on ne se connecte pas
-  à une base dont le certificat ne se valide pas.
+- **TLS vérifié** en production (`SECURITY_MODE=max` → `verify-full`, voir **chapitre 5**) : on ne se
+  connecte pas à une base dont le certificat ne se valide pas.
 - **Timeouts + dégradation** : un appel au data plane a un timeout (`RUST_DATA_PLANE_TIMEOUT_MS`) ; s'il
   échoue, l'erreur est mappée proprement (502) plutôt que de « pendre », et les dépendances non
   critiques dégradent au lieu de planter (cf. 8.15).
 - **Montée en charge** : pour 10 000 tenants, un **pooler** (Supavisor,
-  [docker-compose.pooler.yml](../../orchestrators/compose/docker-compose.pooler.yml)) peut s'intercaler ;
-  `SHARE_POOLS` fait déjà tenir des milliers de tenants sur un même pool, parce que l'isolation est **par
-  requête**, pas par connexion (cf. 8.10c).
+  [docker-compose.pooler.yml](../../orchestrators/compose/docker-compose.pooler.yml)) peut s'intercaler ; `SHARE_POOLS` fait déjà tenir des milliers de tenants sur un même pool (isolation **par requête**, pas par connexion — cf. 8.10c et **chapitre 4**).
 - **Preuve** : la conformité (`make conformance`, m27) et m25/m26 exercent les **8 moteurs** de la même
   façon — la fiabilité est **testée**, pas supposée.
 
