@@ -1,0 +1,32 @@
+app = "grobase-stack"
+primary_region = "cdg"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PUBLIC_HOST = "grobase-stack.fly.dev"
+  DOCKER_TLS_CERTDIR = ""
+  # One-shot DB reset: runs down -v once per distinct token value (see boot.sh maybe_reset).
+  RESET = "5"
+
+[[mounts]]
+  source = "grobase_data"
+  destination = "/data"
+
+# Kong is the only public door; every other service stays on the inner docker network.
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 400
+    soft_limit = 300
+
+[[vm]]
+  size = "shared-cpu-4x"
+  memory = "8gb"
