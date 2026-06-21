@@ -23,8 +23,10 @@ BEGIN
     path          text        NOT NULL,
     secret_id     text        NOT NULL,
     version       integer     NOT NULL,
-    envelope      bytea       NOT NULL,
-    author_pubkey bytea       NOT NULL,
+    -- base64 TEXT (not bytea): the data-plane cannot bind a JSON string to bytea;
+    -- vault42-server sends base64. Still an opaque ZK envelope, just stored as text.
+    envelope      text        NOT NULL,
+    author_pubkey text        NOT NULL,
     updated_at    bigint      NOT NULL,
     PRIMARY KEY (owner_id, path, version)
   );
