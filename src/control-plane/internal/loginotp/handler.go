@@ -19,6 +19,8 @@ func Mount(mux *http.ServeMux, svc *Service) {
 	rt := &routes{svc: svc}
 	mux.HandleFunc("POST /v1/auth/otp/request", rt.request)
 	mux.HandleFunc("POST /v1/auth/otp/verify", rt.verify)
+	mux.HandleFunc("PUT /v1/auth/escrow", rt.escrowPut)
+	mux.HandleFunc("POST /v1/auth/escrow/fetch", rt.escrowFetch)
 }
 
 // request mails a code. It ALWAYS answers 200 (no email enumeration): the response is
