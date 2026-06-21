@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Grobase · GitHub connect</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 34rem; margin: 4rem auto; padding: 0 1rem; line-height: 1.6; color: #1a1a1a; }
+      code { background: #f2f2f2; padding: 0.1em 0.35em; border-radius: 4px; }
+      h1 { font-size: 1.6rem; }
+      .muted { color: #666; font-size: 0.95rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Grobase &middot; GitHub connect relay</h1>
+    <p>
+      This page is the public relay for connecting a GitHub organization to a Grobase org.
+      It holds only an HMAC relay secret &mdash; never the GitHub App private key, and never
+      a GitHub token.
+    </p>
+    <p>Start a connect from your terminal:</p>
+    <p><code>42ctl org github connect &lt;org&gt;</code></p>
+    <p class="muted">
+      That command prints an install URL pointing here; installing the App returns you via
+      <code>/api/callback</code>, which signs and forwards the installation to the Grobase
+      control plane. Your terminal finishes the connection by polling for the result.
+    </p>
+  </body>
+</html>
