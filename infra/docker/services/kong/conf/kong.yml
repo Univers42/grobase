@@ -573,6 +573,26 @@ services:
           - name: rate-limiting
             config: { policy: local, limit_by: ip, minute: 120, hour: 3000 }
 
+  # Public email-OTP login + multi-device keystore escrow (loginotp on tenant-control,
+  # gated by EMAIL_OTP_ENABLED). Unauthenticated by design (email-based; the verify step
+  # returns a short-lived signed proof). Rate-limited hard — it sends mail + checks codes.
+  # OFF (EMAIL_OTP_ENABLED unset) → upstream 404 = byte-parity. Enables the 42ctl
+  # `auth login --email` / `keys escrow|recover` flow through the public edge.
+  - name: auth-otp
+    url: http://tenant-control:3022
+    routes:
+      - name: auth-otp
+        paths:
+          - ~/v1/auth/otp/.*
+          - ~/v1/auth/escrow$
+          - ~/v1/auth/escrow/.*
+        strip_path: false
+        plugins:
+          - name: request-size-limiting
+            config: { allowed_payload_size: 64, size_unit: kilobytes }
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 30, hour: 200 }
+
   - name: admin-keys
     url: http://tenant-control:3022/v1/keys
     routes:
