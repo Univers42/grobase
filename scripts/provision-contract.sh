@@ -199,9 +199,25 @@ apply_schema() {
 # re-runs stay idempotent); else mint a scoped key from the contract's api_keys
 # scopes (read/write — NOT the provision default admin key, which a browser must
 # never hold). The provision default key stays the tenant's admin key, unexposed.
+# key_valid verifies a cleartext mbk_ key still resolves to an identity
+# (POST /v1/keys/verify → 200). Guards against reusing a stale emitted key after
+# a DB reset, where build/<app>.env persists but the key is gone from the DB.
+key_valid() {
+  local vbody code
+  vbody="$(jq -nc --arg k "$1" '{key:$k}')"
+  svc_auth POST /v1/keys/verify "${vbody}"
+  code="$(curl -s -o /dev/null -w '%{http_code}' -X POST "${TC_URL}/v1/keys/verify" \
+    "${SVC_AUTH[@]}" -H 'Content-Type: application/json' -d "${vbody}")"
+  [ "${code}" = "200" ]
+}
+
 resolve_api_key() {
   API_KEY="$(read_emitted_key)"
-  [ -n "${API_KEY}" ] && { note "api key: reused from emitted config"; return 0; }
+  if [ -n "${API_KEY}" ] && key_valid "${API_KEY}"; then
+    note "api key: reused from emitted config (verified)"
+    return 0
+  fi
+  [ -n "${API_KEY}" ] && note "emitted api key stale (verify failed) — minting fresh"
   local scopes body code
   scopes="$(jq -c '.api_keys[0].scopes // ["read","write"]' "${CONTRACT}")"
   body="$(jq -nc --argjson s "${scopes}" '{name:"frontend",scopes:$s}')"

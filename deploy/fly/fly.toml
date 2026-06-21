@@ -8,7 +8,7 @@ primary_region = "cdg"
   PUBLIC_HOST = "grobase-stack.fly.dev"
   DOCKER_TLS_CERTDIR = ""
   # One-shot DB reset: runs down -v once per distinct token value (see boot.sh maybe_reset).
-  RESET = "5"
+  RESET = "6"
 
 [[mounts]]
   source = "grobase_data"
