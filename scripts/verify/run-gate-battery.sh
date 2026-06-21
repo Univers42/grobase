@@ -89,6 +89,9 @@ ENTERPRISE_BATTERY=(
   m139                  # fine-grained ABAC: api-key callers under the PDP (same mask as JWT; flag-OFF byte-parity)
   m141                  # compliance posture honest+provable (audit-chain spine + GDPR routes + no dangling evidence)
   m143                  # framework cross-walks complete+honest (SOC2 CC1-9 + GDPR articles + all 93 ISO Annex A controls)
+  m162-rbac-hierarchy   # org -> team/project-grants RBAC hierarchy (effective=MAX, non-escalating tokens)
+  m166-groups-environments # per-project environments + project-scoped groups + per-env grant isolation
+  m168-invites          # generalized team/group invitations (single-use, expiry, flag-OFF parity)
   # m144 (trust-page parity) and m145 (cost-model artifact lockstep) are intentionally
   # NOT in the CI battery: they validate the marketing site (site/ — gitignored in this
   # repo) and the measured bench artifacts (mini-baas-infra/artifacts/ — produced by
