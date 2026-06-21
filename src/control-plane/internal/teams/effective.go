@@ -28,11 +28,15 @@ const granteeMatch = `
 	     OR (g.grantee_kind = 'team'  AND g.grantee_id IN (
 	            SELECT tm.team_id::text FROM public.team_members tm
 	              JOIN public.teams t ON t.id = tm.team_id
-	             WHERE tm.user_id = $3 AND t.org_id = $2::uuid))
+	             WHERE tm.user_id = $3 AND t.org_id = NULLIF($2,'')::uuid))
 	     OR (g.grantee_kind = 'group' AND g.grantee_id IN (
 	            SELECT gm.group_id::text FROM public.group_members gm
 	              JOIN public.groups gr ON gr.id = gm.group_id
 	             WHERE gm.user_id = $3 AND gr.project_id = $1::uuid))`
+
+// orgBound matches an org-scoped grant (orgID non-empty) OR a standalone grant (orgID="" ⇒
+// org_id IS NULL), so one resolver serves both org projects and standalone projects.
+const orgBound = `(g.org_id = NULLIF($2,'')::uuid OR ($2 = '' AND g.org_id IS NULL))`
 
 // EffectiveRole returns the user's strongest live PROJECT-WIDE role within (orgID,
 // projectID): the MAX over direct user grants, team grants, and group grants across ALL
@@ -40,17 +44,18 @@ const granteeMatch = `
 func (s *Service) EffectiveRole(ctx context.Context, orgID, projectID, userID string) (ProjectRole, bool) {
 	return s.maxRole(ctx, `
 		SELECT g.project_role FROM public.project_grants g
-		 WHERE g.project_id = $1::uuid AND g.org_id = $2::uuid
+		 WHERE g.project_id = $1::uuid AND `+orgBound+`
 		   AND g.revoked_at IS NULL AND (g.expires_at IS NULL OR g.expires_at > now())
 		   AND (`+granteeMatch+`)`, projectID, orgID, userID)
 }
 
 // EffectiveRoleInEnv returns the user's strongest live role for ONE environment: grants
 // scoped to that env PLUS project-wide grants (env_id IS NULL). envID "" ⇒ project-wide only.
+// orgID "" resolves a standalone project (org_id IS NULL grants).
 func (s *Service) EffectiveRoleInEnv(ctx context.Context, orgID, projectID, userID, envID string) (ProjectRole, bool) {
 	return s.maxRole(ctx, `
 		SELECT g.project_role FROM public.project_grants g
-		 WHERE g.project_id = $1::uuid AND g.org_id = $2::uuid
+		 WHERE g.project_id = $1::uuid AND `+orgBound+`
 		   AND g.revoked_at IS NULL AND (g.expires_at IS NULL OR g.expires_at > now())
 		   AND (g.env_id IS NULL OR g.env_id = NULLIF($4,'')::uuid)
 		   AND (`+granteeMatch+`)`, projectID, orgID, userID, envID)

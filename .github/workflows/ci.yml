@@ -457,10 +457,10 @@ jobs:
   # via an EXIT trap. Green proves per-env grant isolation, group/team grant
   # propagation, single-use invites, and flag-OFF byte-parity — not just smoke.
   rbac-gates:
-    name: RBAC gates (m162 m166 m168)
+    name: RBAC gates (m162 m166 m168 m170)
     runs-on: ubuntu-latest
     needs: [shellcheck]
-    timeout-minutes: 45
+    timeout-minutes: 50
     defaults:
       run:
         working-directory: .
@@ -471,7 +471,7 @@ jobs:
         run: |
           set -uo pipefail
           rc_all=0
-          for gate in m162-rbac-hierarchy m166-groups-environments m168-invites; do
+          for gate in m162-rbac-hierarchy m166-groups-environments m168-invites m170-standalone-invites; do
             script="scripts/verify/${gate}.sh"
             [ -f "$script" ] || { echo "missing $script — skipping"; continue; }
             echo "=== Running: $script ==="
