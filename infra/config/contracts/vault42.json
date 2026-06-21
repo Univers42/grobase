@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "tenant": { "id": "vault42", "name": "vault42 secret store", "plan": "enterprise", "owner_user_id": "system:vault42" },
+  "mounts": [
+    {
+      "name": "vault42-pg",
+      "engine": "postgresql",
+      "database": "vault42",
+      "isolation": "shared_rls",
+      "read_scoped": true,
+      "credentials": { "source": "docker_service", "host": "postgres", "port": 5432 }
+    }
+  ],
+  "roles": [
+    {
+      "name": "user",
+      "policies": [
+        {
+          "resource_type": "*", "resource_name": "*",
+          "actions": ["select", "insert", "update", "delete"],
+          "effect": "allow", "priority": 0, "conditions": { "owner_only": true }
+        }
+      ]
+    }
+  ],
+  "api_keys": [ { "name": "vault42-app", "scopes": ["read", "write"] } ],
+  "schema": { "postgresql": "infra/config/contracts/vault42.schema.sql" },
+  "frontend_config": {
+    "path": "build/vault42-grobase-store.env",
+    "vars": {
+      "GROBASE_QUERY_URL": "${KONG_URL}",
+      "GROBASE_ANON_KEY": "${ANON_KEY}",
+      "GROBASE_APP_KEY": "${API_KEY}",
+      "GROBASE_DB_ID": "${MOUNT_ID:vault42-pg}"
+    }
+  }
+}
