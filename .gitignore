@@ -205,6 +205,11 @@ lib/
 # sdks/dart/lib is committed generated code, like the python/swift/kotlin siblings)
 !sdks/dart/lib/
 !sdks/dart/lib/**
+# and track scripts/lib (shared sourced helpers: service-auth.sh, lib-*.sh/.mjs);
+# the broad `lib/` rule was swallowing the provisioner's service-auth dependency,
+# breaking provision-contract.sh + bench/live-tenant scripts in every fresh clone.
+!scripts/lib/
+!scripts/lib/**
 lib64/
 parts/
 sdist/
