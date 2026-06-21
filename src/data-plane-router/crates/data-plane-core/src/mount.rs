@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   mount.rs                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:34:31 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:34:33 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 use crate::identity::{IdentitySource, RequestIdentity};
 use crate::isolation::{safe_schema, Isolation, ScopeDirective};
 use serde::{Deserialize, Serialize};

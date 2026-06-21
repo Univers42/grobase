@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   store.go                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:55:41 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:55:43 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package scim implements the Track-D D2b SCIM 2.0 provisioning surface
 // (RFC 7644 — System for Cross-domain Identity Management). An enterprise IdP
 // (Okta / Entra / OneLogin) drives user lifecycle into Grobase over a bearer

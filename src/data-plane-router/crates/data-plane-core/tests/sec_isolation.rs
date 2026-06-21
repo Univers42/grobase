@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   sec_isolation.rs                                   :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:35:10 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:35:11 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Security: per-request tenant isolation. `Isolation::from_mount` must default
 //! to the SAFE SharedRls for unknown/empty/None; `safe_schema` must neutralize
 //! every injection / unicode / over-long / control-byte identifier (it is

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   adapter.rs                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:27:49 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:27:50 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The [`MongoEngineAdapter`] (GoF Adapter): builds a mount-scoped
 //! [`super::pool::MongoPool`] from a [`DatabaseMount`], caching one
 //! `mongodb::Client` (itself a connection pool) per mount.

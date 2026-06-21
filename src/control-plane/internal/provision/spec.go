@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   spec.go                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:53:52 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:53:53 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package provision is the declarative provisioning brain for the control
 // plane. It turns a typed StackSpec (the SINGLE source of truth for a tenant's
 // desired shape) into a DesiredState of identity-keyed resources, then a

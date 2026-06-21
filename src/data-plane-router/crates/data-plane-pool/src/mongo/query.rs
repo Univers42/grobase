@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   query.rs                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:27:57 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:27:58 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! CRUD/aggregate executors on [`super::pool::MongoPool`] — the single-document
 //! dispatch targets and the ordered batch runner. The tenant-scoped filter and
 //! document builders they call live in [`super::filter`]; the JSON↔BSON

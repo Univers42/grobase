@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   query.rs                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:27:38 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:27:40 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! SQL plan model (`SqlPlan`/`P`/`Binder`) + the pure per-operation plan
 //! builders and owner-scoping helpers. All pure (no DB) and testable.
 //

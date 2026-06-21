@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   ident.rs                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:31:33 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:31:35 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 use data_plane_core::{DataPlaneError, DataPlaneResult};
 
 /// Validates a SQL identifier (table or column name) to prevent injection.

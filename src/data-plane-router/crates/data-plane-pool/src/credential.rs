@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   credential.rs                                      :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:31:28 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:31:30 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Pluggable credential providers for the Rust data plane — gap G8.
 //!
 //! Background: the resolver ([`crate::resolver::EnvMountResolver`]) turns a

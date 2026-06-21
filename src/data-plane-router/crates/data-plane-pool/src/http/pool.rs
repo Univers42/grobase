@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   pool.rs                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:28:22 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:28:23 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The per-mount HTTP pool: owns a SSRF-pinned `reqwest::Client`, maps CRUD
 //! operations onto HTTP verbs + paths, and dispatches the request upstream.
 

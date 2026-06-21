@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   state_ops.rs                                       :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:39 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:41 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! `AppState` runtime operations: credential rotation, cache eviction, the reaper
 //! tick, and the flag/accessor surface `server::run` reads. Split out of
 //! `state.rs` so the state module stays focused on the struct + its constructor;

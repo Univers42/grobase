@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   service_auth.rs                                    :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:31:53 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:31:54 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! v1 HMAC service-to-service auth (audit O1) — the Rust caller half of the Go
 //! `shared.VerifyServiceRequest`. Under `SERVICE_TOKEN_MODE=hmac` the shared
 //! token never transits the wire: each request carries

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   seal.go                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:42:01 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:42:03 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package compliance (Track-D D4.1) is the control-plane SOC2-LITE EVIDENCE
 // COLLECTOR. It snapshots compliance evidence — the CI/gate posture, a platform
 // access review, and the git change-management trail — into a durable,

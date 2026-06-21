@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   graph.rs                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:33:00 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:33:01 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Phase D — node-graph assembly in Rust (the `/data/v1/graph` bypass).
 //!
 //! A faithful port of the query-router's `GraphService`: a node-link subgraph

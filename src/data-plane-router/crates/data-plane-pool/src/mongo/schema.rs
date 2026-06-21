@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   schema.rs                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:28:00 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:28:02 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! M22 step 2: engine-agnostic schema DDL over a collection's `$jsonSchema`
 //! validator — pure transforms ([`columns_to_jsonschema`] +
 //! `jsonschema_with_*`), the exact inverse of the describe-side mappers in

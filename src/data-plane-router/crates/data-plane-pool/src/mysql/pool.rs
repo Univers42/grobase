@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   pool.rs                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:28:42 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:28:43 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The pooled MySQL connection set ([`MysqlPool`]) and the pinned interactive
 //! transaction handle ([`MysqlTxHandle`]) — the `EnginePool`/`TxHandle` surface.
 //

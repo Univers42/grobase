@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   quotastage.go                                      :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:54:37 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:54:38 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package quotastage (Track-B B7.2) is the STAGED metering→quota promotion knob.
 // It lets an operator promote quota enforcement GRADUALLY rather than flipping a
 // public free tier from "never blocked" to "402 on the next request" in one step:

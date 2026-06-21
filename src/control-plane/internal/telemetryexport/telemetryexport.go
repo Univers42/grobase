@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   telemetryexport.go                                 :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:58:02 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:58:04 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package telemetryexport (Track-C C9) is the control-plane PER-TENANT TELEMETRY
 // EXPORTER. It ships a SINGLE tenant's own telemetry — its usage metrics (the B1
 // public.tenant_usage rollups) wrapped as structured log records — OUT to THAT
