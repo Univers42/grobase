@@ -218,9 +218,12 @@ resolve_api_key() {
 # (so re-runs stay idempotent without re-minting).
 read_emitted_key() {
   local path
+  local f
   path="$(jq -r '.frontend_config.path // empty' "${CONTRACT}")"
-  [ -n "${path}" ] && [ -f "${REPO}/${path}" ] || return 0
-  grep -hoE '(PUBLIC_API_KEY|VITE_BAAS_API_KEY)=mbk_[A-Za-z0-9_-]+' "${REPO}/${path}" 2>/dev/null \
+  [ -n "${path}" ] || return 0
+  case "${path}" in /*) f="${path}" ;; *) f="${REPO}/${path}" ;; esac
+  [ -f "${f}" ] || return 0
+  grep -hoE '(PUBLIC_API_KEY|VITE_BAAS_API_KEY|GROBASE_APP_KEY)=mbk_[A-Za-z0-9_-]+' "${f}" 2>/dev/null \
     | head -1 | cut -d= -f2-
 }
 
@@ -231,7 +234,8 @@ emit_frontend_config() {
   local path out k v line
   path="$(jq -r '.frontend_config.path // empty' "${CONTRACT}")"
   [ -n "${path}" ] || { note "no frontend_config — skipped"; return 0; }
-  out="${REPO}/${path}"; mkdir -p "$(dirname "${out}")"; : >"${out}"
+  case "${path}" in /*) out="${path}" ;; *) out="${REPO}/${path}" ;; esac
+  mkdir -p "$(dirname "${out}")"; : >"${out}"
   while IFS=$'\t' read -r k v; do
     line="$(subst_tokens "${v}")"
     printf '%s=%s\n' "${k}" "${line}" >>"${out}"
