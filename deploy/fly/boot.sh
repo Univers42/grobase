@@ -84,7 +84,7 @@ maybe_reset() {
 wait_for_auth() {
 	log "waiting for gotrue to create auth.users…"
 	for _ in $(seq 1 80); do
-		$DC exec -T postgres psql -U postgres -d postgres \
+		docker exec -i mini-baas-postgres psql -U postgres -d postgres \
 			-c "select 1 from auth.users limit 0" >/dev/null 2>&1 &&
 			{ log "auth.users present"; return 0; }
 		sleep 3
@@ -95,7 +95,7 @@ wait_for_auth() {
 apply_migrations() {
 	for f in $(ls -1 scripts/migrations/postgresql/*.sql 2>/dev/null | sort); do
 		printf '  migrate: %s\n' "$f"
-		sed '/^#/d' "$f" | $DC exec -T postgres psql -U postgres -d postgres \
+		sed '/^#/d' "$f" | docker exec -i mini-baas-postgres psql -U postgres -d postgres \
 			-v ON_ERROR_STOP=1 -f - >/dev/null || { log "FAILED: $f"; return 1; }
 	done
 }
