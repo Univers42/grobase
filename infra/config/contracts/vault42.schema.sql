@@ -13,8 +13,11 @@ CREATE TABLE IF NOT EXISTS public.vault42_secrets (
   path          text    NOT NULL,
   secret_id     text    NOT NULL,
   version       integer NOT NULL,
-  envelope      bytea   NOT NULL,
-  author_pubkey bytea   NOT NULL,
+  -- base64 (TEXT, not bytea): vault42-server sends base64 strings over /query/v1
+  -- JSON; the data-plane cannot bind a JSON string to a bytea column. Still an
+  -- opaque ZK envelope the server can never decrypt — just stored as base64 text.
+  envelope      text    NOT NULL,
+  author_pubkey text    NOT NULL,
   updated_at    bigint  NOT NULL,
   PRIMARY KEY (owner_id, path, version)
 );
