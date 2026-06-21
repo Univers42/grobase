@@ -76,6 +76,7 @@ func (b *bootCtx) mountAll(ctx context.Context) {
 	b.mountEnvironments()
 	b.mountGroups()
 	b.mountInvites()
+	b.mountPubkeys()
 	b.mountGitHub()
 	b.mountLoginOTP()
 	b.mountIPGuard()

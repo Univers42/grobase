@@ -93,6 +93,7 @@ ENTERPRISE_BATTERY=(
   m166-groups-environments # per-project environments + project-scoped groups + per-env grant isolation
   m168-invites          # generalized team/group invitations (single-use, expiry, flag-OFF parity)
   m170-standalone-invites # standalone-project direct invites + org-guard (409 invite-via-a-team)
+  m172-pubkeys          # member pubkey registry + grant-fulfilment seam (vault42 crypto bridge)
   # m144 (trust-page parity) and m145 (cost-model artifact lockstep) are intentionally
   # NOT in the CI battery: they validate the marketing site (site/ — gitignored in this
   # repo) and the measured bench artifacts (mini-baas-infra/artifacts/ — produced by
