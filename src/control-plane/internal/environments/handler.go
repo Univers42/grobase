@@ -46,15 +46,18 @@ func Mount(mux *http.ServeMux, d Deps) {
 	mux.HandleFunc("DELETE /v1/projects/{projectId}/environments/{envId}", rt.deleteEnv)
 }
 
-// requireProjectManage resolves the project's org and gates on CapProjGrant in it. A missing
-// or standalone (org-less) project → 404 (standalone management lands in a later phase).
-func (rt *routes) requireProjectManage(w http.ResponseWriter, r *http.Request, projectID string) (string, bool) {
+// requireProjectCap resolves the project's org and gates on cap in it. A missing or
+// standalone (org-less) project → 404 (standalone management lands in a later phase).
+// Mutations pass CapProjGrant; listing env metadata passes the read cap CapProjectRead —
+// env names + PUBLIC scope keys leak nothing (the seal gates decryption), so any granted
+// member (always an org member) must resolve an env to read or write its secrets.
+func (rt *routes) requireProjectCap(w http.ResponseWriter, r *http.Request, projectID, cap string) (string, bool) {
 	orgID, exists := rt.svc.projectMeta(r.Context(), projectID)
 	if !exists || orgID == "" {
 		httpx.WriteError(w, http.StatusNotFound, "not_found", "project not found")
 		return "", false
 	}
-	userID, _, ok := rt.auth.RequireCapability(w, r, orgID, orgs.CapProjGrant)
+	userID, _, ok := rt.auth.RequireCapability(w, r, orgID, cap)
 	if !ok {
 		return "", false
 	}
