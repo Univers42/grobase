@@ -86,7 +86,7 @@ quickstart-vault42: ## One command: bring up grobase deps (EDITION=query) + vaul
 
 ctl: ## Run 42ctl from its image — make ctl ARGS="org create --slug x --name X" (state in ./.42ctl)
 	@mkdir -p .42ctl
-	@docker run --rm -it --network mini-baas \
+	@docker run --rm -it --network mini-baas_mini-baas \
 		--user "$$(id -u):$$(id -g)" \
 		-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 \
 		-v "$(CURDIR)/.42ctl:/cfg" $(CTL_IMAGE) $(ARGS)
