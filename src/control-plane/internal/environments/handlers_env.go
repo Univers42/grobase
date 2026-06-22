@@ -55,6 +55,27 @@ func (rt *routes) listEnvs(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, list)
 }
 
+func (rt *routes) setScopeKey(w http.ResponseWriter, r *http.Request) {
+	projectID := r.PathValue("projectId")
+	if _, ok := rt.requireProjectManage(w, r, projectID); !ok {
+		return
+	}
+	var req SetScopeKeyRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	if req.ScopePubkey == "" {
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "scope_pubkey is required")
+		return
+	}
+	e, err := rt.svc.SetScopeKey(r.Context(), projectID, r.PathValue("envId"), req.ScopePubkey, req.ScopeEpoch)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, e)
+}
+
 func (rt *routes) deleteEnv(w http.ResponseWriter, r *http.Request) {
 	projectID := r.PathValue("projectId")
 	if _, ok := rt.requireProjectManage(w, r, projectID); !ok {

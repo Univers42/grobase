@@ -43,5 +43,6 @@ func (s *Service) projectMeta(ctx context.Context, projectID string) (orgID stri
 
 // scanEnv reads an environments row in the canonical column order.
 func scanEnv(row rowScanner, e *Environment) error {
-	return row.Scan(&e.ID, &e.ProjectID, &e.Name, &e.CreatedBy, &e.CreatedAt)
+	return row.Scan(&e.ID, &e.ProjectID, &e.Name, &e.CreatedBy, &e.CreatedAt,
+		&e.ScopePubkey, &e.ScopeEpoch)
 }

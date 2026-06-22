@@ -175,7 +175,7 @@ for i in $(seq 1 20); do
   [[ $i -eq 20 ]] && fail "migration prelude never committed"
   sleep 0.5
 done
-for m in 005_add_tenant_table 032_tenants 040_tenant_usage 043_orgs 044_org_billing_rollup 047_tenant_audit_log 072_teams 073_project_grants 077_environments 078_groups 079_project_grants_ext; do
+for m in 005_add_tenant_table 032_tenants 040_tenant_usage 043_orgs 044_org_billing_rollup 047_tenant_audit_log 072_teams 073_project_grants 077_environments 078_groups 079_project_grants_ext 083_env_scope_pubkey; do
   apply_migration "${MIG_DIR}/${m}.sql" || fail "migration ${m} failed to apply"
 done
 for t in environments groups group_members; do
@@ -232,6 +232,9 @@ C="$(org_req POST "${PORT_ON}" "/v1/projects/${PROJ_X}/environments" "${JWT_U1}"
 ENV_PROD="$(json_str id)"; [[ -n "${ENV_PROD}" ]] || fail "env prod id missing"
 [[ "$(org_req POST "${PORT_ON}" "/v1/projects/${PROJ_X}/environments" "${JWT_U1}" '{"name":"dev"}')" == "201" ]] || fail "create env dev"
 ENV_DEV="$(json_str id)"; [[ -n "${ENV_DEV}" ]] || fail "env dev id missing"
+# publish the prod env's vault42 scope PUBLIC key (the bootstrap step clients seal to).
+[[ "$(org_req PUT "${PORT_ON}" "/v1/projects/${PROJ_X}/environments/${ENV_PROD}/scopekey" "${JWT_U1}" '{"scope_pubkey":"X25519SCOPEPROD","scope_epoch":1}')" == "200" ]] || fail "publish env scope pubkey"
+[[ "$(json_str scope_pubkey)" == "X25519SCOPEPROD" ]] || fail "scope_pubkey not returned after publish"
 [[ "$(org_req GET "${PORT_ON}" "/v1/projects/${PROJ_X}/environments" "${JWT_U1}")" == "200" ]] || fail "list envs"
 C="$(org_req POST "${PORT_ON}" "/v1/projects/${PROJ_X}/groups" "${JWT_U1}")"
 [[ "${C}" == "201" ]] || fail "create group expected 201, got ${C} — $(head -c 300 "${BODY_TMP}")"
