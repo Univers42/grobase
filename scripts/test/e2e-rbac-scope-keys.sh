@@ -74,8 +74,8 @@ run ctl "${ADMIN}" team grant-project --org "${ORG}" --team "${TEAM}" --project 
 ok "prod scope key bootstrapped; team core granted writer on prod"
 
 step "3/9 admin: seal a prod secret + a dev secret"
-echo -n "postgres://prod-db" | run ctl "${ADMIN}" vault set "${PROJECT}/prod/DATABASE_URL"
-echo -n "postgres://dev-db"  | run ctl "${ADMIN}" vault set "${PROJECT}/dev/DATABASE_URL"
+echo -n "postgres://prod-db" | run ctl "${ADMIN}" vault set-env --org "${ORG}" --project "${PROJECT}" --env prod DATABASE_URL
+echo -n "postgres://dev-db"  | run ctl "${ADMIN}" vault set-env --org "${ORG}" --project "${PROJECT}" --env dev DATABASE_URL
 ok "prod + dev secrets sealed to their env scope keys"
 
 step "4/9 invite sergio to the team; sergio accepts + enrolls his pubkey"
@@ -91,18 +91,18 @@ ctl "${ADMIN}" vault scope-status --org "${ORG}" --project "${PROJECT}" --env pr
 ok "sync-keys wrapped the prod scope key to sergio"
 
 step "6/9 (POSITIVE) sergio reads the prod secret"
-GOT="$(ctl "${SERGIO}" vault get "${PROJECT}/prod/DATABASE_URL" 2>/dev/null || true)"
+GOT="$(ctl "${SERGIO}" vault get-env --org "${ORG}" --project "${PROJECT}" --env prod DATABASE_URL 2>/dev/null || true)"
 [ "${GOT}" = "postgres://prod-db" ] || fail "sergio could not read prod secret (got '${GOT}')"
 ok "sergio decrypts prod/DATABASE_URL — per-env grant + provisioning works"
 
 step "7/9 (REJECT) sergio canNOT read the dev secret (granted only on prod)"
-if ctl "${SERGIO}" vault get "${PROJECT}/dev/DATABASE_URL" >/dev/null 2>&1; then
+if ctl "${SERGIO}" vault get-env --org "${ORG}" --project "${PROJECT}" --env dev DATABASE_URL >/dev/null 2>&1; then
   fail "PER-ENV ISOLATION BROKEN — sergio (prod-only) read a dev secret"
 fi
 ok "sergio is denied dev — per-environment isolation holds"
 
 step "8/9 (REJECT) vadim (never granted/provisioned) canNOT read prod"
-if ctl "${VADIM}" vault get "${PROJECT}/prod/DATABASE_URL" >/dev/null 2>&1; then
+if ctl "${VADIM}" vault get-env --org "${ORG}" --project "${PROJECT}" --env prod DATABASE_URL >/dev/null 2>&1; then
   fail "DENY-BY-DEFAULT BROKEN — an unprovisioned identity read prod"
 fi
 ok "vadim is denied prod — deny-by-default + provisioning gate hold"
@@ -111,8 +111,8 @@ step "9/9 (REVOKE+ROTATE) drop sergio from the team, rotate prod, sergio blocked
 # remove sergio's team membership in grobase, then rotate the prod scope key.
 ctl "${ADMIN}" team remove-member --org "${ORG}" --team "${TEAM}" --user "$(ctl "${SERGIO}" auth whoami --json 2>/dev/null | jq -r .user_id)" 2>/dev/null || true
 run ctl "${ADMIN}" vault rotate-scope --org "${ORG}" --project "${PROJECT}" --env prod
-echo -n "postgres://prod-db-rotated" | run ctl "${ADMIN}" vault set "${PROJECT}/prod/DATABASE_URL"
-if ctl "${SERGIO}" vault get "${PROJECT}/prod/DATABASE_URL" 2>/dev/null | grep -q rotated; then
+echo -n "postgres://prod-db-rotated" | run ctl "${ADMIN}" vault set-env --org "${ORG}" --project "${PROJECT}" --env prod DATABASE_URL
+if ctl "${SERGIO}" vault get-env --org "${ORG}" --project "${PROJECT}" --env prod DATABASE_URL 2>/dev/null | grep -q rotated; then
   fail "FORWARD SECRECY BROKEN — removed sergio read a post-rotation revision"
 fi
 ok "after revoke+rotate, removed sergio cannot read the new prod revision (forward-secure)"
