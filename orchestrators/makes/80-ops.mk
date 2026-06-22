@@ -62,6 +62,49 @@ docker-gc: ## Reclaim build cache >1wk + named build-cache volumes (daemon GC ca
 		|xargs -r docker volume rm 2>/dev/null
 	@docker system df
 
+# ── project-scoped clean + automatic rebuild ─────────────────────────────────
+# clean-project erases ONLY this project (compose project `mini-baas`): its containers,
+# networks, images (ghcr.io/univers42/grobase-* · mini-baas-* · binocle-*), dangling
+# layers, this suite's build-CACHE volumes (cargo/target/node_modules) and its build
+# cache. It NEVER removes *-data/_data volumes (Postgres/Mongo/MySQL/… pure data) and
+# NEVER touches another project's images or volumes (e.g. track-binocle_*). Unlike
+# `fclean` there is NO global `docker system prune --volumes`. KEEP_CACHES=1 keeps the
+# build caches for a faster rebuild (default removes them — "all the caches").
+DATA_VOL_RE := (\-|_)data($$|[-_])|pgdata|keyfile
+clean-project: _require-compose ## Erase THIS project's images/containers/networks/build-caches ONLY — keeps all data volumes + other projects
+	@echo -e "$(_Y)$(_W)▶ project clean (mini-baas) — data volumes + other projects PRESERVED$(_0)"
+	@echo "  • containers (compose project=mini-baas)…"
+	@docker ps -aq --filter label=com.docker.compose.project=mini-baas | xargs -r docker rm -f >/dev/null 2>&1 || true
+	@echo "  • networks (compose project=mini-baas)…"
+	@docker network ls -q --filter label=com.docker.compose.project=mini-baas | xargs -r docker network rm >/dev/null 2>&1 || true
+	@echo "  • images (grobase-*/mini-baas-*/binocle-*) — other projects' images untouched…"
+	@docker images --format '{{.Repository}}:{{.Tag}}' \
+	  | grep -E '^(ghcr\.io/univers42/grobase-|mini-baas[-_]|binocle[-_])' \
+	  | xargs -r docker rmi -f >/dev/null 2>&1 || true
+	@docker image prune -f >/dev/null 2>&1 || true
+	@if [ -z "$(KEEP_CACHES)" ]; then \
+	  echo "  • this suite's BUILD-CACHE volumes (cargo/target/node_modules) — never *-data…"; \
+	  docker volume ls -q \
+	    | grep -E 'cargo|target|node_modules|gocache|go-?mod|go-build|modcache|npm-cache|deno-cache|-m2$$|-nm$$|hypertube-cache|vault42-bin' \
+	    | grep -vE 'track-binocle|$(DATA_VOL_RE)' \
+	    | xargs -r docker volume rm >/dev/null 2>&1 || true; \
+	  echo "  • build cache (buildkit — daemon-wide cache, no image/data loss)…"; \
+	  docker buildx prune -f >/dev/null 2>&1 || true; \
+	else echo "  • KEEP_CACHES=1 → build caches kept (faster rebuild)"; fi
+	@echo -e "$(_G)✓ clean done — PRESERVED data volumes:$(_0)"; docker volume ls -q | grep -E '$(DATA_VOL_RE)' | sed 's/^/      /'
+	@docker system df
+
+fclean-project: ## DANGER: clean-project + WIPE this project's OWN data volumes (mini-baas_*). Needs CONFIRM=1. Never touches other projects, no global prune.
+	@vols=$$(docker volume ls -q | grep -E '^mini-baas_' || true); \
+	echo -e "$(_Y)$(_W)⚠ fclean = clean-project + PERMANENT DELETE of this project's data volumes (mini-baas_* only):$(_0)"; \
+	if [ -n "$$vols" ]; then echo "$$vols" | sed 's/^/    /'; else echo "    (no mini-baas_ data volumes present)"; fi; \
+	echo "  (other projects e.g. track-binocle_* + non-prefixed app volumes are NOT touched)"; \
+	if [ "$(CONFIRM)" != "1" ]; then \
+	  echo -e "$(_Y)Refusing without confirmation — nothing removed. Re-run: make fclean CONFIRM=1$(_0)"; exit 1; fi
+	@$(MAKE) --no-print-directory clean-project
+	@docker volume ls -q | grep -E '^mini-baas_' | xargs -r docker volume rm >/dev/null 2>&1 || true
+	@echo -e "$(_G)✓ this project's data volumes wiped (irreversible) — other projects intact$(_0)"
+
 # ── vault42 + 42ctl as published images (no clone) ───────────────────────────
 # vault42-server (the ZK motor) runs from its Docker Hub image, wired to grobase as its
 # store via the vault42 contract; 42ctl is its CLI, also run from an image. Override the
