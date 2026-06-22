@@ -60,9 +60,9 @@ invite via a **team** (a direct project invite returns `409 "invite via a team"`
 | `GROUPS_ENABLED` | project-scoped groups (078) | RBAC_HIERARCHY_ENABLED |
 | `INVITES_ENABLED` | generalized team/group/project invites (080) | RBAC_HIERARCHY_ENABLED |
 | `USER_PUBKEYS_ENABLED` | member pubkey registry + grant-fulfilment seam (081) | RBAC_HIERARCHY_ENABLED |
-| `VAULT42_SCOPE_KEYS_ENABLED` (vault42) | scope-key wrap/get/rotate RPCs (082) | — |
+| `VAULT42_SCOPE_KEYS_ENABLED` (vault42) | scope-key wrap/get/rotate + env-secret RPCs (082, 084) | — |
 
-Migrations **077–083**. OFF ⇒ the routes are not mounted (404) and no rows are written — byte-identical to today.
+Migrations **077–084**. OFF ⇒ the routes are not mounted (404) and no rows are written — byte-identical to today.
 
 ---
 
@@ -113,9 +113,10 @@ Control plane (isolated, per-PR CI `rbac-gates` + nightly battery): **m162** (RB
 **m166** (environments + groups + per-env grant isolation + scope-pubkey publish), **m168**
 (team/group invites), **m170** (standalone direct invites + 409 org-guard), **m172** (pubkey
 registry + grant-fulfilment). Crypto plane (vault42): **40** core tests (round-trip + rejects, AAD
-golden vector intact), **19** server tests (wrap/get/list, cross-member-read denied, forged-grant
+golden vector intact), **27** server tests (wrap/get/list, cross-member-read denied, forged-grant
 rejected), plus the scope-key **v14** decryption round-trip + **v15** rotation forward-secrecy
-integration tests. Each gate proves the positive path + load-bearing rejects + **flag-OFF parity**.
+integration tests, and the self-contained live cross-repo demo `scripts/test/e2e-rbac-scope-keys-live.sh`.
+Each gate proves the positive path + load-bearing rejects + **flag-OFF parity**.
 
 ---
 
@@ -134,3 +135,94 @@ integration tests. Each gate proves the positive path + load-bearing rejects + *
   partial rotation is detectable and re-runnable.
 - **R17 — recovery interaction.** Scope keys are recovery-wrapped only under the same explicit opt-in
   as secrets, and audited.
+
+---
+
+## Control-plane operator API (intentionally NOT in the public SDK spec)
+
+Every route above is served by **tenant-control** (the Go control plane). They are
+**operator/admin APIs** driven by **42ctl** — a hand-rolled REST client, not a generated SDK. They
+are **not** public data-plane surfaces and a frontend never calls them.
+
+### Why they are absent from the OpenAPI spec
+
+`infra/config/openapi/grobase-public.json` is scoped to the **five Kong-public surfaces** the
+`@grobase/js` SDK consumes — `/auth/v1`, `/rest/v1`, `/storage/v1`, `/query/v1`, `/functions/v1`.
+Control-plane routes have **no precedent** in that spec: SSO and the `/v1/tenants/me*` self-serve
+routes are likewise absent. These RBAC routes follow the same line, so the SDKs are **not**
+regenerated for them — 42ctl owns the client, and the spec stays the SDK contract only.
+
+### Route groups (all flag-gated; 404 when the gate is OFF)
+
+```
+# teams — internal/teams
+POST   /v1/orgs/{orgId}/teams
+GET    /v1/orgs/{orgId}/teams
+POST   /v1/orgs/{orgId}/teams/{teamId}/members
+DELETE /v1/orgs/{orgId}/teams/{teamId}/members/{userId}
+
+# project grants + effective resolver — internal/teams + internal/pubkeys
+POST   /v1/orgs/{orgId}/projects/{projectId}/grants
+GET    /v1/orgs/{orgId}/projects/{projectId}/grants
+DELETE /v1/orgs/{orgId}/projects/{projectId}/grants/{grantId}
+GET    /v1/orgs/{orgId}/projects/{projectId}/effective
+GET    /v1/orgs/{orgId}/projects/{projectId}/grants/{grantId}/fulfilled
+POST   /v1/orgs/{orgId}/projects/{projectId}/grants/{grantId}/wraps
+
+# environments — internal/environments
+POST   /v1/projects/{projectId}/environments
+GET    /v1/projects/{projectId}/environments
+PUT    /v1/projects/{projectId}/environments/{envId}/scopekey
+DELETE /v1/projects/{projectId}/environments/{envId}
+
+# groups — internal/groups
+POST   /v1/projects/{projectId}/groups
+GET    /v1/projects/{projectId}/groups
+POST   /v1/groups/{groupId}/members
+GET    /v1/groups/{groupId}/members
+
+# invites — internal/invites
+POST   /v1/orgs/{orgId}/teams/{teamId}/invites
+GET    /v1/orgs/{orgId}/teams/{teamId}/invites
+POST   /v1/projects/{projectId}/invites
+GET    /v1/projects/{projectId}/invites
+POST   /v1/invites/accept
+GET    /v1/invites/{inviteId}
+
+# pubkey registry — internal/pubkeys
+PUT    /v1/orgs/{orgId}/pubkey
+GET    /v1/orgs/{orgId}/users/{userId}/pubkey
+```
+
+### Authz granularity (environments)
+
+Env **reads** gate on `CapProjectRead`: any granted org member resolves an env's **name + PUBLIC
+scope key**. Env **mutations** gate on `CapProjGrant`. Env metadata leaks nothing — the seal gates
+decryption, so read access to an env row is not read access to its secrets (guarded by gate
+**m166**).
+
+---
+
+## Storage backend: SQLite vs GrobaseStore (the live-e2e caveat)
+
+vault42-server selects its `SecretStore` at boot: `VAULT42_STORE=sqlite` → the embedded SQLite store
+(offline `nano`); otherwise → **GrobaseStore** (the connected production backend). The scope-key
+crypto and the orchestration are **identical behind the trait** — only the persistence layer differs.
+
+- **`scripts/test/e2e-rbac-scope-keys-live.sh` runs the SQLite store.** This faithfully exercises the
+  new surface end-to-end: env secrets are sealed to the scope public key, stored by
+  `(scope_id, epoch, path)`, and `GetEnvSecret` returns the opaque envelope to **any** authenticated
+  caller (the seal is the access control). What it does *not* exercise is the data-plane persistence.
+- **GrobaseStore is the production path.** vault42-server `POST`s to grobase `/query/v1`, storing
+  env-secret rows in the shared `vault42_env_secrets` table (migration **084**) under the stable owner
+  `vault42:env-secrets`; the mount's per-request `read_scoped` owner-scoping surfaces the same shared
+  rows to every member's minted JWT. The per-user `read_scoped` isolation of vault42 blobs is proven
+  independently (the vault42 user-secret store, gates m162–m165).
+
+**To run the live e2e against GrobaseStore** (proven by composition — not run in the SQLite harness):
+bring up `EDITION=query` (Postgres + Kong + `data-plane-router` + `tenant-control` + `adapter-registry`),
+provision the `vault42-pg` mount with `read_scoped: true` (`infra/config/contracts/vault42.json` +
+migration 084), then start vault42-server with the five GrobaseStore vars instead of
+`VAULT42_STORE=sqlite`: `GROBASE_QUERY_URL` (Kong), `GROBASE_ANON_KEY`, `GROBASE_APP_KEY`,
+`GROBASE_DB_ID` (the mount id), and `JWT_SECRET` (= the shared `GOTRUE_JWT_SECRET`). The same
+assertions hold — the store swap changes persistence, not the crypto or the choreography.

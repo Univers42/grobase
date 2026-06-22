@@ -193,7 +193,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **148 scripts, highest m165**; the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **152 scripts, highest m172**; the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -225,9 +225,14 @@ compliance-matrices, `m144` trust-page-parity, `m145` cost-model integrity. Beyo
 first. The **m156–m159** band is a separate **core platform-hardening** set (security fixes to the OSS
 core, not vendor): `m156` recover-no-enumeration, `m157` kong-admin-not-exposed, `m158`
 admin-tenant-scope, `m159` storage-bucket-scope (the last flag-gated via `STORAGE_BUCKET_SCOPE_ENABLED`).
-The newest band **m162–m165** is the **vault42/42ctl Increment-3 + deploy** set: `m162` rbac-hierarchy
+The band **m162–m165** is the **vault42/42ctl Increment-3 + deploy** set: `m162` rbac-hierarchy
 (teams/project-grants), `m163` github-connect (`GITHUB_CONNECT_ENABLED`), `m164` email-OTP login, `m165`
-contract-provision (the generic contract-driven provisioner — see "Going to production").
+contract-provision (the generic contract-driven provisioner — see "Going to production"). The newest band
+**m166–m172** is the **org/team/group/environment RBAC + ZK per-environment scope-key secret** set: `m166`
+environments + groups + per-env grant isolation + scope-pubkey publish, `m168` generalized team/group
+invites, `m170` standalone-project direct invites + the 409 org-guard, `m172` member pubkey registry +
+grant-fulfilment seam (all control-plane-only, flag-gated OFF). Its cross-repo crypto half is proven by
+vault42 `v14`/`v15` + the self-contained live harness `scripts/test/e2e-rbac-scope-keys-live.sh`.
 
 ### Build, lint & test (per plane) — including how to run ONE test
 
@@ -307,15 +312,21 @@ planes, e.g. metering = `METERING_ENABLED` (Go control) AND `DATA_PLANE_METERING
 `PERMISSION_CONDITIONS_ENABLED` / `API_KEY_ABAC_ENABLED` (m135–m139, ABAC) are _not_ Go `envBool`
 route-mount gates — they gate at the **TS / data-plane PDP**, so grep them in
 `src/apps/permission-engine` & `src/apps/query-router`, not the Go control plane. SQL migrations live
-in **`scripts/migrations/postgresql/`**; the numeric set now runs **001–076** (65 files; sequence is
-non-contiguous, gaps include **057–059**: `056` jumps to `060`; highest is `076_login_escrow.sql`). The
+in **`scripts/migrations/postgresql/`**; the numeric set now runs **001–084** (73 files; sequence is
+non-contiguous, gaps include **057–059**: `056` jumps to `060`; highest is `084_vault42_env_secrets.sql`). The
 cloud/enterprise/parity flag slice runs **040–065**; **066–070** are vendor/infra, not flag-gated
 (`066`/`067` MovieVerse schema + like-counts, `068` per-mount shared_resources, `069` DynamoDB engine
 CHECK, `070` per-mount `read_scoped` read-owner-scoping). The newest band **071–076** backs the
 vault42/Increment-3 + deploy work: `071` vault42 zero-knowledge blob substrate, `072` teams, `073`
 project-grants (both Track-D RBAC hierarchy, control-plane-only — never enter the RLS GUCs), `074`
 GitHub-connect linkage (`GITHUB_CONNECT_ENABLED`, zero-token columns), `075` email login-OTP, `076`
-multi-device keystore escrow. Mongo/MySQL migrations are separate and tiny
+multi-device keystore escrow. The band **077–084** adds the org/team/group/environment RBAC +
+zero-knowledge per-environment scope-key secret feature: `077` environments, `078` groups, `079`
+project-grants-ext (`env_id` + `group` grantee), `080` invites, `081` user-pubkeys (wrap-target
+registry + grant-fulfilment seam), `082` vault42_scope_keys, `083` env scope-pubkey columns, `084`
+vault42_env_secrets (shared env-secret store) — all control-plane-only, flag-gated OFF (gates
+m166/m168/m170/m172; live cross-repo proof `scripts/test/e2e-rbac-scope-keys-live.sh`).
+Mongo/MySQL migrations are separate and tiny
 (`scripts/migrations/{mongodb,mysql}/`, via `make migrate-mongo` / `migrate-mysql`, which need the
 `data-plane` profile up).
 
@@ -345,6 +356,22 @@ multi-device keystore escrow. Mongo/MySQL migrations are separate and tiny
 | CMEK / BYOK envelope (m123)                                    | `CMEK_ENABLED`                                                      | `061` (+ `060` Vault credref)                                                           |
 | dynamic builder (m130–m134)                                    | `BUILDER_ENABLED`                                                   | `062` (filename `062_tenant_entitlements.sql` — trust the in-file header, not the name) |
 | fine-grained ABAC (m135–m139)                                  | `PERMISSION_CONDITIONS_ENABLED`, `API_KEY_ABAC_ENABLED`             | `063`                                                                                   |
+
+**Org / team / group / environment RBAC + ZK per-environment scope-key secrets (m162 · m166–m172):**
+
+| Feature (gate)                                                  | Flag(s)                                       | Migration    |
+| --------------------------------------------------------------- | --------------------------------------------- | ------------ |
+| environments + per-env grants + scope-pubkey publish (m166)     | `ENVIRONMENTS_ENABLED`                        | `077`, `083` |
+| project-scoped groups (`<project>'s group`) (m166)              | `GROUPS_ENABLED`                              | `078`        |
+| generalized team/group/project invites + accept (m168 · m170)   | `INVITES_ENABLED`                             | `080`, `079` |
+| member pubkey registry + grant-fulfilment seam (m172)           | `USER_PUBKEYS_ENABLED`                        | `081`        |
+| vault42 scope-key wrap/get/rotate + env-secret store (v14·v15)  | `VAULT42_SCOPE_KEYS_ENABLED` (vault42-server) | `082`, `084` |
+
+All depend on `RBAC_HIERARCHY_ENABLED` (teams `072` + project-grants `073`) + `ORG_MODEL_ENABLED`
+(`043`); all default OFF = byte-parity, control-plane-only (never enter the data-plane RLS GUCs).
+Env READS gate on `CapProjectRead` (any granted org member resolves an env), MUTATIONS on
+`CapProjGrant`. Design: [`wiki/architecture/org-team-group-rbac.md`](wiki/architecture/org-team-group-rbac.md);
+operator guide: [`USERDOC.md`](USERDOC.md); live proof: `scripts/test/e2e-rbac-scope-keys-live.sh`.
 
 Other slices, also OFF by default: `QUOTA_STAGE` · `SPEND_CAPS_ENABLED` · `ABUSE_GUARD_ENABLED`
 (m89–m91); `FUNCTIONS_CRON_ENABLED` (m96); `TENANT_TELEMETRY_EXPORT_ENABLED` (m100);
