@@ -35,13 +35,24 @@ const (
 // namePattern mirrors the DB CHECK on environments.name.
 const namePattern = `^[a-z0-9][a-z0-9_-]{0,62}$`
 
-// Environment is the public projection of public.environments.
+// Environment is the public projection of public.environments. scope_pubkey is the env's
+// vault42 X25519 scope PUBLIC key (PUBLIC material — clients seal secrets to it); scope_epoch
+// is the forward-secrecy generation (0 = not yet bootstrapped, bumped on rotation).
 type Environment struct {
-	ID        string  `json:"id"`
-	ProjectID string  `json:"project_id"`
-	Name      string  `json:"name"`
-	CreatedBy *string `json:"created_by,omitempty"`
-	CreatedAt string  `json:"created_at"`
+	ID          string  `json:"id"`
+	ProjectID   string  `json:"project_id"`
+	Name        string  `json:"name"`
+	CreatedBy   *string `json:"created_by,omitempty"`
+	CreatedAt   string  `json:"created_at"`
+	ScopePubkey *string `json:"scope_pubkey,omitempty"`
+	ScopeEpoch  int     `json:"scope_epoch"`
+}
+
+// SetScopeKeyRequest is the PUT /v1/projects/{id}/environments/{id}/scopekey body — an admin
+// publishes (or rotates) the env's vault42 scope public key after generating the keyset.
+type SetScopeKeyRequest struct {
+	ScopePubkey string `json:"scope_pubkey"`
+	ScopeEpoch  int    `json:"scope_epoch"`
 }
 
 // CreateEnvironmentRequest is the POST /v1/projects/{id}/environments body.
