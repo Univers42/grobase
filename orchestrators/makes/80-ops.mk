@@ -61,3 +61,32 @@ docker-gc: ## Reclaim build cache >1wk + named build-cache volumes (daemon GC ca
 		| grep -E 'cargo|target|node_modules|gocache|gomod|go-build|go-mod|modcache|npm-cache|deno-cache|-m2$$|-nm$$|hypertube-cache|vault42-bin' \
 		|xargs -r docker volume rm 2>/dev/null
 	@docker system df
+
+# ── vault42 + 42ctl as published images (no clone) ───────────────────────────
+# vault42-server (the ZK motor) runs from its Docker Hub image, wired to grobase as its
+# store via the vault42 contract; 42ctl is its CLI, also run from an image. Override the
+# tags with VAULT42_IMAGE / CTL_IMAGE.
+VAULT42_IMAGE ?= docker.io/dlesieur/vault42-server:latest
+CTL_IMAGE     ?= docker.io/dlesieur/42ctl:latest
+
+vault42-up: _require-compose ## Provision the vault42 contract + run vault42-server (image) wired to grobase as its store
+	@bash scripts/provision-contract.sh infra/config/contracts/vault42.json 2>&1 | tail -6
+	@VAULT42_IMAGE=$(VAULT42_IMAGE) docker compose --profile vault42 up -d vault42
+	@echo -e "  $(_G)✓$(_0) vault42-server up on :$${VAULT42_PORT:-8443} (GrobaseStore → kong). CLI: $(_B)make ctl ARGS=\"org create --slug x --name X\"$(_0)"
+
+vault42-down: ## Stop vault42-server (the vault42 profile)
+	@docker compose --profile vault42 down
+
+vault42-logs: ## Follow vault42-server logs
+	@docker compose --profile vault42 logs -f vault42
+
+quickstart-vault42: ## One command: bring up grobase deps (EDITION=query) + vault42-server (image)
+	@$(MAKE) up EDITION=query
+	@$(MAKE) vault42-up
+
+ctl: ## Run 42ctl from its image — make ctl ARGS="org create --slug x --name X" (state in ./.42ctl)
+	@mkdir -p .42ctl
+	@docker run --rm -it --network mini-baas \
+		--user "$$(id -u):$$(id -g)" \
+		-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 \
+		-v "$(CURDIR)/.42ctl:/cfg" $(CTL_IMAGE) $(ARGS)
