@@ -64,23 +64,28 @@ docker-gc: ## Reclaim build cache >1wk + named build-cache volumes (daemon GC ca
 
 # ── project-scoped clean + automatic rebuild ─────────────────────────────────
 # clean-project erases ONLY this project (compose project `mini-baas`): its containers,
-# networks, images (ghcr.io/univers42/grobase-* · mini-baas-* · binocle-*), dangling
-# layers, this suite's build-CACHE volumes (cargo/target/node_modules) and its build
-# cache. It NEVER removes *-data/_data volumes (Postgres/Mongo/MySQL/… pure data) and
-# NEVER touches another project's images or volumes (e.g. track-binocle_*). Unlike
-# `fclean` there is NO global `docker system prune --volumes`. KEEP_CACHES=1 keeps the
-# build caches for a faster rebuild (default removes them — "all the caches").
+# networks, project images (the grobase planes + the suite motor/CLI/realtime — see
+# PROJ_IMG_RE), dangling layers, this suite's build-CACHE volumes (cargo/target/
+# node_modules) and the DEFAULT builder's build cache. It NEVER removes *-data/_data
+# volumes (Postgres/Mongo/MySQL/… pure data), NEVER touches another project's images,
+# volumes, or its OWN buildx builder (e.g. track-binocle-builder keeps its cache), and
+# never runs a global `docker system prune`. KEEP_CACHES=1 keeps the build caches for a
+# faster rebuild (default removes them — "all the caches").
 DATA_VOL_RE := (\-|_)data($$|[-_])|pgdata|keyfile
+# This project's images = the grobase planes + the suite's own motor (vault42-server),
+# CLI (42ctl) and realtime image — NOT base images (postgres/rust/alpine/mailpit) and
+# NOT other apps (pomodoro/hellish), which are kept.
+PROJ_IMG_RE := ^(ghcr\.io/univers42/grobase-|mini-baas[-_]|binocle[-_]|dlesieur/(vault42-server|realtime-agnostic|42ctl)(:|$$)|(vault42-server|42ctl|realtime-agnostic):)
 clean-project: _require-compose ## Erase THIS project's images/containers/networks/build-caches ONLY — keeps all data volumes + other projects
 	@echo -e "$(_Y)$(_W)▶ project clean (mini-baas) — data volumes + other projects PRESERVED$(_0)"
 	@echo "  • containers (compose project=mini-baas)…"
 	@docker ps -aq --filter label=com.docker.compose.project=mini-baas | xargs -r docker rm -f >/dev/null 2>&1 || true
 	@echo "  • networks (compose project=mini-baas)…"
 	@docker network ls -q --filter label=com.docker.compose.project=mini-baas | xargs -r docker network rm >/dev/null 2>&1 || true
-	@echo "  • images (grobase-*/mini-baas-*/binocle-*) — other projects' images untouched…"
-	@docker images --format '{{.Repository}}:{{.Tag}}' \
-	  | grep -E '^(ghcr\.io/univers42/grobase-|mini-baas[-_]|binocle[-_])' \
-	  | xargs -r docker rmi -f >/dev/null 2>&1 || true
+	@imgs=$$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E '$(PROJ_IMG_RE)' || true); \
+	  n=$$(printf '%s' "$$imgs" | grep -c . || true); \
+	  echo "  • images: $$n project image(s) (grobase-* · vault42-server · realtime-agnostic · 42ctl) — base/other-app images kept…"; \
+	  [ -z "$$imgs" ] || echo "$$imgs" | xargs -r docker rmi -f >/dev/null 2>&1 || true
 	@docker image prune -f >/dev/null 2>&1 || true
 	@if [ -z "$(KEEP_CACHES)" ]; then \
 	  echo "  • this suite's BUILD-CACHE volumes (cargo/target/node_modules) — never *-data…"; \
@@ -88,8 +93,8 @@ clean-project: _require-compose ## Erase THIS project's images/containers/networ
 	    | grep -E 'cargo|target|node_modules|gocache|go-?mod|go-build|modcache|npm-cache|deno-cache|-m2$$|-nm$$|hypertube-cache|vault42-bin' \
 	    | grep -vE 'track-binocle|$(DATA_VOL_RE)' \
 	    | xargs -r docker volume rm >/dev/null 2>&1 || true; \
-	  echo "  • build cache (buildkit — daemon-wide cache, no image/data loss)…"; \
-	  docker buildx prune -f >/dev/null 2>&1 || true; \
+	  echo "  • build cache: the DEFAULT builder (where this project builds) — dedicated builders (track-binocle/prismatica) keep theirs…"; \
+	  docker buildx prune -af >/dev/null 2>&1 || true; docker builder prune -af >/dev/null 2>&1 || true; \
 	else echo "  • KEEP_CACHES=1 → build caches kept (faster rebuild)"; fi
 	@echo -e "$(_G)✓ clean done — PRESERVED data volumes:$(_0)"; docker volume ls -q | grep -E '$(DATA_VOL_RE)' | sed 's/^/      /'
 	@docker system df
