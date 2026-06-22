@@ -447,3 +447,6 @@ certs/*
 # Emitted frontend config carries the app API key — never track.
 vendor/saas/web/public/baas-config.js
 vendor/vite-gourmand/View/public/baas-config.js
+
+# local 42ctl CLI state (config + keystore) for the `make ctl` image wrapper
+.42ctl/
