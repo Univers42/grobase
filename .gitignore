@@ -436,17 +436,22 @@ certs/*
 /src/control-plane/tenant-control
 /src/control-plane/webhook-dispatcher
 
-# ── Per-tenant provisioning state (secrets: api keys, ids) — never track. ──
-# Emitted by scripts/seed/*-tenant.sh; sourced by re-runs + the verify gates.
-.hambooking-tenant.env
-.canagrou-tenant.env
-.nimbus-tenant.env
-.gourmand-tenant.env
-.gourmand-baas.env
+# ── Per-tenant / per-app provisioning state (secrets: api keys, JWT, DSNs) — NEVER track. ──
+# Emitted by scripts/seed/*-tenant.sh; sourced by re-runs + the verify gates. Use GLOBS so
+# new apps are covered automatically (the old explicit list missed agency/savanna/surfind/…).
+*-tenant.env
+*-baas.env
+*.services.env
+.services.env
+# cloud overlay carries a real STRIPE_API_KEY — never track (flags.env.example is the template).
+infra/config/cloud/flags.env.cloud
 
-# Emitted frontend config carries the app API key — never track.
-vendor/saas/web/public/baas-config.js
-vendor/vite-gourmand/View/public/baas-config.js
+# Emitted frontend config carries the app API key — never track (glob covers every app).
+**/public/baas-config.js
+**/baas-config.js
+# Generated audit reports embed live keys/JWTs from the run — never track.
+wiki/reports/edge-report.html
+wiki/reports/postman-offers-report.html
 
 # local 42ctl CLI state (config + keystore) for the `make ctl` image wrapper
 .42ctl/
