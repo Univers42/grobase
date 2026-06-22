@@ -22,19 +22,15 @@ all:
 all-full:
 	@$(MAKE) --no-print-directory EDITION=full all
 
-clean: down
+clean: clean-project ## Project clean: THIS project's images/containers/networks/build-caches — KEEPS all data volumes + other projects (was a global nuke; now scoped)
 
-fclean: _require-compose
-	@echo -e "$(_Y)$(_W)Running destructive Docker cleanup…$(_0)"
-	@$(DC) $(call flags_of,$(PLANES)) down --volumes --remove-orphans 2>/dev/null || true
-	@ids=$$(docker ps -aq); [ -z "$$ids" ] || docker rm -f $$ids >/dev/null 2>&1 || true
-	@docker system prune -af --volumes >/dev/null 2>&1 || true
-	@docker builder prune -af >/dev/null 2>&1 || true
-	@echo -e "$(_G)✓ Full Docker clean complete$(_0)"
+fclean: fclean-project ## DANGER: clean + WIPE this project's OWN data volumes (mini-baas_*). Needs CONFIRM=1. Other projects untouched, NO global prune.
 
-re:
-	@$(MAKE) --no-print-directory fclean
+re: ## Rebuild this project: clean (KEEP data) → build → up
+	@$(MAKE) --no-print-directory clean
 	@$(MAKE) --no-print-directory all
+
+rebuild: re ## Alias of re — automatic clean + build + up (data preserved)
 
 # Full test matrix — every kind of test in the project, in one go. Order:
 # unit (no stack) → quality/supply-chain → live integration → sonar → bench
