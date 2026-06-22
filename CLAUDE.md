@@ -158,7 +158,11 @@ make up PACKAGE=pro ADDONS="analytics engines"   # tier-shaped instead of editio
 make planes                   # 15 planes: data control go rust adapter background analytics storage
                               #   realtime functions observability ops studio playground engines
 make doctor / make health / make ps / make logs
-make re | fclean | clean      # full reset (honours EDITION) | destructive prune | = down
+make clean | fclean | re      # PROJECT-SCOPED, data-safe: clean = this project's images/containers/
+                              #   networks/build-caches (KEEPS all data volumes + other projects);
+                              #   fclean = clean + WIPE this project's OWN data volumes (mini-baas_*,
+                              #   needs CONFIRM=1, never other projects, NO global prune); re/rebuild =
+                              #   clean → build → up (rebuild, data preserved). NOT a global docker prune.
 make build                    # build all edition images   (build-svc-<svc> = one image)
 make migrate / migrate-status / migrate-all / migrate-mongo / migrate-mysql
 make bench-load|bench-capacity|bench-footprint|bench-mem|bench-startup
