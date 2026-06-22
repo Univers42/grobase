@@ -21,8 +21,9 @@ services:
     environment:
       # Internal network — overrides the emitted localhost value so the container reaches Kong.
       GROBASE_QUERY_URL: "http://kong:8000"
-      # = grobase's shared GoTrue secret (from .env); the 5th GrobaseStore var.
-      JWT_SECRET: "${GOTRUE_JWT_SECRET:-}"
+      # = grobase's shared GoTrue secret. The .env key is JWT_SECRET (gotrue maps it to
+      # GOTRUE_JWT_SECRET internally); fall back to GOTRUE_JWT_SECRET for older envs.
+      JWT_SECRET: "${JWT_SECRET:-${GOTRUE_JWT_SECRET:-}}"
       # OFF by default = byte-parity; flip to 1 for the org/team/group + per-env scope-key RPCs.
       VAULT42_SCOPE_KEYS_ENABLED: "${VAULT42_SCOPE_KEYS_ENABLED:-0}"
       VAULT42_HOST: "0.0.0.0"
