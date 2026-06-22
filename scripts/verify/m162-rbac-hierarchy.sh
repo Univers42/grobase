@@ -191,7 +191,7 @@ for i in $(seq 1 20); do
   [[ $i -eq 20 ]] && fail "migration prelude never committed"
   sleep 0.5
 done
-for m in 005_add_tenant_table 032_tenants 040_tenant_usage 043_orgs 044_org_billing_rollup 047_tenant_audit_log 072_teams 073_project_grants; do
+for m in 005_add_tenant_table 032_tenants 040_tenant_usage 043_orgs 044_org_billing_rollup 047_tenant_audit_log 072_teams 073_project_grants 077_environments 078_groups 079_project_grants_ext; do
   apply_migration "${MIG_DIR}/${m}.sql" || fail "migration ${m} failed to apply"
 done
 for t in teams team_members project_grants rbac_tokens; do

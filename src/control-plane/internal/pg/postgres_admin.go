@@ -30,6 +30,13 @@ func (p *Postgres) AdminQuery(ctx context.Context, sql string, args ...any) (pgx
 	return p.pool.Query(ctx, sql, args...)
 }
 
+// AdminQueryRow runs a privileged single-row query; the returned Row yields
+// pgx.ErrNoRows from Scan when nothing matched, and surfaces a unique-violation
+// (from an INSERT ... RETURNING) through Scan's error — bypassing tenant scoping.
+func (p *Postgres) AdminQueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	return p.pool.QueryRow(ctx, sql, args...)
+}
+
 // Begin starts a transaction on a pooled connection. The returned pgx.Tx owns
 // its connection until Commit/Rollback — used where a read-then-write must be
 // atomic under a lock (e.g. the audit chain's read-tip / append-link, which
