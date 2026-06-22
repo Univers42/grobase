@@ -6,7 +6,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/17 22:59:35 by dlesieur          #+#    #+#              #
-#    Updated: 2026/06/17 22:59:37 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/06/22 12:42:25 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -53,3 +53,11 @@ cloud-up: _require-compose _rm-stale ## Boot the FULL managed-cloud stack locall
 cloud-down: _require-compose ## Stop the cloud edition (overlay + cloud profile)
 	@docker compose $(CLOUD_FILES) $(CLOUD_PROFILES) down
 	@echo -e "$(_G)✓ Cloud edition down$(_0)"
+
+docker-gc: ## Reclaim build cache >1wk + named build-cache volumes (daemon GC can't reach volumes); never touches *-data
+	-docker buildx prune -f --filter until=168h
+	-docker image prune -f
+	-@docker volume ls -q \
+		| grep -E 'cargo|target|node_modules|gocache|gomod|go-build|go-mod|modcache|npm-cache|deno-cache|-m2$$|-nm$$|hypertube-cache|vault42-bin' \
+		|xargs -r docker volume rm 2>/dev/null
+	@docker system df
