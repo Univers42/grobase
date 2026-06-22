@@ -42,6 +42,7 @@ func Mount(mux *http.ServeMux, d Deps) {
 	rt := &routes{svc: d.Svc, auth: d.Auth}
 	mux.HandleFunc("POST /v1/projects/{projectId}/environments", rt.createEnv)
 	mux.HandleFunc("GET /v1/projects/{projectId}/environments", rt.listEnvs)
+	mux.HandleFunc("PUT /v1/projects/{projectId}/environments/{envId}/scopekey", rt.setScopeKey)
 	mux.HandleFunc("DELETE /v1/projects/{projectId}/environments/{envId}", rt.deleteEnv)
 }
 

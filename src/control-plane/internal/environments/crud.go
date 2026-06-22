@@ -22,7 +22,8 @@ import (
 
 // crud.go — environment lifecycle, all project-bounded (every query filters project_id).
 
-const selectEnv = `SELECT id::text, project_id::text, name, created_by, created_at::text FROM public.environments`
+const selectEnv = `SELECT id::text, project_id::text, name, created_by, created_at::text,
+       scope_pubkey, scope_epoch FROM public.environments`
 
 // CreateEnvironment inserts a (project, name) environment; a duplicate → ErrConflict.
 func (s *Service) CreateEnvironment(ctx context.Context, projectID, name, actor string) (Environment, error) {
@@ -30,7 +31,7 @@ func (s *Service) CreateEnvironment(ctx context.Context, projectID, name, actor 
 	row := s.db.AdminQueryRow(ctx, `
 		INSERT INTO public.environments (project_id, name, created_by)
 		VALUES ($1::uuid, $2, NULLIF($3,''))
-		RETURNING id::text, project_id::text, name, created_by, created_at::text`,
+		RETURNING id::text, project_id::text, name, created_by, created_at::text, scope_pubkey, scope_epoch`,
 		projectID, name, actor)
 	if err := scanEnv(row, &e); err != nil {
 		if pg.IsUniqueViolation(err) {
@@ -86,4 +87,22 @@ func (s *Service) DeleteEnvironment(ctx context.Context, projectID, envID string
 		return err
 	}
 	return nil
+}
+
+// SetScopeKey publishes (or rotates) the env's vault42 scope PUBLIC key + epoch (ErrNotFound
+// when the env is absent in projectID).
+func (s *Service) SetScopeKey(ctx context.Context, projectID, envID, pubkey string, epoch int) (Environment, error) {
+	var e Environment
+	row := s.db.AdminQueryRow(ctx, `
+		UPDATE public.environments SET scope_pubkey=$3, scope_epoch=$4
+		 WHERE id::text=$1 AND project_id::text=$2
+		RETURNING id::text, project_id::text, name, created_by, created_at::text, scope_pubkey, scope_epoch`,
+		envID, projectID, pubkey, epoch)
+	if err := scanEnv(row, &e); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Environment{}, ErrNotFound
+		}
+		return Environment{}, err
+	}
+	return e, nil
 }
