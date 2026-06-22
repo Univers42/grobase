@@ -12,35 +12,55 @@
 
 package teams
 
-import "context"
+import (
+	"context"
+	"errors"
 
-// grants.go — project-role grants (User→Project and Team→Project), all org-bounded.
-// A re-grant of the same (project, grantee) UPDATEs the role (idempotent, via the
-// partial unique index on revoked_at IS NULL). The GitHub-sync path never overwrites
-// a `manual` grant ("manual wins"), keeping vault42 the final RBAC authority.
+	"github.com/jackc/pgx/v5"
+)
+
+// grants.go — project-role grants (User|Team|Group → Project, optionally env-scoped), all
+// org-bounded. A re-grant of the same (project, grantee, env) UPDATEs the role (idempotent,
+// via the env-aware partial unique index on revoked_at IS NULL). The GitHub-sync path never
+// overwrites a `manual` grant ("manual wins"), keeping vault42 the final RBAC authority.
 
 const selectGrant = `
-  SELECT id::text, project_id::text, org_id::text, grantee_kind, grantee_id,
-         project_role, granted_by, granted_at::text, expires_at::text, source
+  SELECT id::text, project_id::text, COALESCE(org_id::text,''), grantee_kind, grantee_id,
+         project_role, granted_by, granted_at::text, expires_at::text, source, env_id::text
     FROM public.project_grants`
 
-// Grant upserts a manual (project, grantee)→role within orgID and audits.
+// onConflictGrant is the env-aware conflict target (NULL env collapses to a fixed sentinel so
+// two project-wide grants to the same grantee can't both be live) — must match index 079.
+const onConflictGrant = `
+	ON CONFLICT (project_id, grantee_kind, grantee_id,
+	             COALESCE(env_id, '00000000-0000-0000-0000-000000000000'::uuid)) WHERE revoked_at IS NULL`
+
+// grantUpsert inserts only when env_id is empty OR the env belongs to the project (so a bad
+// env yields 0 rows → ErrBadScope), then idempotently upserts the (project,grantee,env) role.
+const grantUpsert = `
+	INSERT INTO public.project_grants
+	  (project_id, org_id, grantee_kind, grantee_id, project_role, granted_by, expires_at, env_id, source)
+	SELECT $1::uuid, NULLIF($2,'')::uuid, $3, $4, $5, $6, NULLIF($7,'')::timestamptz, NULLIF($8,'')::uuid, 'manual'
+	 WHERE $8 = '' OR EXISTS (SELECT 1 FROM public.environments e
+	                            WHERE e.id = NULLIF($8,'')::uuid AND e.project_id = $1::uuid)` +
+	onConflictGrant + `
+	DO UPDATE SET project_role = EXCLUDED.project_role, expires_at = EXCLUDED.expires_at,
+	             granted_by = EXCLUDED.granted_by, source = 'manual', granted_at = now()
+	RETURNING id::text, project_id::text, COALESCE(org_id::text,''), grantee_kind, grantee_id,
+	          project_role, granted_by, granted_at::text, expires_at::text, source, env_id::text`
+
+// Grant upserts a manual (project, grantee, env)→role within orgID and audits.
 func (s *Service) Grant(ctx context.Context, orgID, projectID string, req GrantRequest, actor string) (ProjectGrant, error) {
 	if !validProjectRole(req.ProjectRole) {
 		return ProjectGrant{}, ErrBadRole
 	}
 	var g ProjectGrant
-	row := s.queryRow(ctx, `
-		INSERT INTO public.project_grants
-		  (project_id, org_id, grantee_kind, grantee_id, project_role, granted_by, expires_at, source)
-		VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, NULLIF($7,'')::timestamptz, 'manual')
-		ON CONFLICT (project_id, grantee_kind, grantee_id) WHERE revoked_at IS NULL
-		DO UPDATE SET project_role = EXCLUDED.project_role, expires_at = EXCLUDED.expires_at,
-		             granted_by = EXCLUDED.granted_by, source = 'manual', granted_at = now()
-		RETURNING id::text, project_id::text, org_id::text, grantee_kind, grantee_id,
-		          project_role, granted_by, granted_at::text, expires_at::text, source`,
-		projectID, orgID, req.GranteeKind, req.GranteeID, string(req.ProjectRole), actor, req.ExpiresAt)
+	row := s.queryRow(ctx, grantUpsert,
+		projectID, orgID, req.GranteeKind, req.GranteeID, string(req.ProjectRole), actor, req.ExpiresAt, req.EnvID)
 	if err := scanGrant(row, &g); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ProjectGrant{}, ErrBadEnv
+		}
 		return ProjectGrant{}, err
 	}
 	s.emitAudit(ctx, orgID, actor, "project.grant", projectID+"/"+req.GranteeKind+":"+req.GranteeID)
@@ -100,8 +120,8 @@ func (s *Service) UpsertSyncGrant(ctx context.Context, in SyncGrantInput) error 
 	return s.db.AdminExec(ctx, `
 		INSERT INTO public.project_grants
 		  (project_id, org_id, grantee_kind, grantee_id, project_role, granted_by, source)
-		VALUES ($1::uuid, $2::uuid, $3, $4, $5, 'github_sync', 'github_sync')
-		ON CONFLICT (project_id, grantee_kind, grantee_id) WHERE revoked_at IS NULL
+		VALUES ($1::uuid, NULLIF($2,'')::uuid, $3, $4, $5, 'github_sync', 'github_sync')`+
+		onConflictGrant+`
 		DO UPDATE SET project_role = EXCLUDED.project_role, granted_at = now()
 		 WHERE public.project_grants.source <> 'manual'`,
 		in.ProjectID, in.OrgID, in.GranteeKind, in.GranteeID, string(in.ProjectRole))
@@ -110,12 +130,13 @@ func (s *Service) UpsertSyncGrant(ctx context.Context, in SyncGrantInput) error 
 // scanGrant reads a project_grants row in the selectGrant column order.
 func scanGrant(row rowScanner, g *ProjectGrant) error {
 	var role string
-	var expires *string
+	var expires, envID *string
 	if err := row.Scan(&g.ID, &g.ProjectID, &g.OrgID, &g.GranteeKind, &g.GranteeID,
-		&role, &g.GrantedBy, &g.GrantedAt, &expires, &g.Source); err != nil {
+		&role, &g.GrantedBy, &g.GrantedAt, &expires, &g.Source, &envID); err != nil {
 		return err
 	}
 	g.ProjectRole = ProjectRole(role)
 	g.ExpiresAt = expires
+	g.EnvID = envID
 	return nil
 }

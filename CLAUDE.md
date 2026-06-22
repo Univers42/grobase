@@ -29,13 +29,17 @@ no `mini-baas-infra/` prefix to re-map. (Sanity check: `ls mini-baas-infra` → 
 SDK-codegen chain and CI (`.github/workflows/ci.yml`) were repointed to lean paths in the same
 restructure and are on `main` too.
 
-The active branch is **`main`** (HEAD `a0bfc38`); the vendor re-platform commits (Canagrou · HamBooking ·
-Nimbus · MovieVerse · vite-gourmand) plus the per-table-isolation + query-router-JWT data-plane work, the
-websites playground, and the per-mount `read_scoped` data-plane feature (migration `070`) have all
-**landed on `main`** (some were previously staged on `feature/grobase-hambooking-baas`). The working tree
-is now **clean**: the AppFlowy clone was committed as **plain tracked files** (nested `.git` removed,
-~2880 files), `vendor/twenty/` is a tracked **orphan gitlink** (mode 160000, `.gitmodules` is gone), and
-the old in-repo `vendor/java-dam-baas/` stale snapshot was **removed** in `a0bfc38`.
+The active branch is **`main`** (HEAD `9cefdcf`); the vendor re-platform commits (Canagrou · HamBooking ·
+Nimbus · MovieVerse · vite-gourmand · surfind-spain · hypertube) plus the per-table-isolation +
+query-router-JWT data-plane work, the websites playground, and the per-mount `read_scoped` data-plane
+feature (migration `070`) all **landed on `main`** earlier. Since then `main` has advanced through the
+**vault42/42ctl Increment-3** work (RBAC hierarchy `m162` · GitHub-connect `m163` · email-OTP login `m164`
+· multi-device escrow) and the **contract-factory + fly.io production deploy** (`m165`, see "Going to
+production" below). The working tree is largely **clean**: the AppFlowy clone is committed as **plain
+tracked files** (nested `.git` removed, ~2880 files), `vendor/twenty/` is a tracked **orphan gitlink**
+(mode 160000, `.gitmodules` is gone), the old in-repo `vendor/java-dam-baas/` stale snapshot was
+**removed** in `a0bfc38`, and **`vendor/vault42/`** is now a tracked nested checkout of its own repo
+(`Univers42/vault42`).
 
 ## Code generation
 
@@ -189,7 +193,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **144 scripts, highest m161**; the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **152 scripts, highest m172**; the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -221,6 +225,14 @@ compliance-matrices, `m144` trust-page-parity, `m145` cost-model integrity. Beyo
 first. The **m156–m159** band is a separate **core platform-hardening** set (security fixes to the OSS
 core, not vendor): `m156` recover-no-enumeration, `m157` kong-admin-not-exposed, `m158`
 admin-tenant-scope, `m159` storage-bucket-scope (the last flag-gated via `STORAGE_BUCKET_SCOPE_ENABLED`).
+The band **m162–m165** is the **vault42/42ctl Increment-3 + deploy** set: `m162` rbac-hierarchy
+(teams/project-grants), `m163` github-connect (`GITHUB_CONNECT_ENABLED`), `m164` email-OTP login, `m165`
+contract-provision (the generic contract-driven provisioner — see "Going to production"). The newest band
+**m166–m172** is the **org/team/group/environment RBAC + ZK per-environment scope-key secret** set: `m166`
+environments + groups + per-env grant isolation + scope-pubkey publish, `m168` generalized team/group
+invites, `m170` standalone-project direct invites + the 409 org-guard, `m172` member pubkey registry +
+grant-fulfilment seam (all control-plane-only, flag-gated OFF). Its cross-repo crypto half is proven by
+vault42 `v14`/`v15` + the self-contained live harness `scripts/test/e2e-rbac-scope-keys-live.sh`.
 
 ### Build, lint & test (per plane) — including how to run ONE test
 
@@ -300,11 +312,21 @@ planes, e.g. metering = `METERING_ENABLED` (Go control) AND `DATA_PLANE_METERING
 `PERMISSION_CONDITIONS_ENABLED` / `API_KEY_ABAC_ENABLED` (m135–m139, ABAC) are _not_ Go `envBool`
 route-mount gates — they gate at the **TS / data-plane PDP**, so grep them in
 `src/apps/permission-engine` & `src/apps/query-router`, not the Go control plane. SQL migrations live
-in **`scripts/migrations/postgresql/`**; the full numeric set is **001–070** (57 distinct numbers
-across 59 files — `035` appears 3×; sequence is non-contiguous, gaps include **057–059**: `056` jumps
-to `060`; highest is `070_mount_read_scoped.sql`). The cloud/enterprise/parity flag slice runs
-**040–065**; **066–070** are vendor/infra, not flag-gated (`066`/`067` MovieVerse schema + like-counts,
-`068` per-mount shared_resources, `069` DynamoDB engine CHECK, `070` per-mount `read_scoped` read-owner-scoping). Mongo/MySQL migrations are separate and tiny
+in **`scripts/migrations/postgresql/`**; the numeric set now runs **001–084** (73 files; sequence is
+non-contiguous, gaps include **057–059**: `056` jumps to `060`; highest is `084_vault42_env_secrets.sql`). The
+cloud/enterprise/parity flag slice runs **040–065**; **066–070** are vendor/infra, not flag-gated
+(`066`/`067` MovieVerse schema + like-counts, `068` per-mount shared_resources, `069` DynamoDB engine
+CHECK, `070` per-mount `read_scoped` read-owner-scoping). The newest band **071–076** backs the
+vault42/Increment-3 + deploy work: `071` vault42 zero-knowledge blob substrate, `072` teams, `073`
+project-grants (both Track-D RBAC hierarchy, control-plane-only — never enter the RLS GUCs), `074`
+GitHub-connect linkage (`GITHUB_CONNECT_ENABLED`, zero-token columns), `075` email login-OTP, `076`
+multi-device keystore escrow. The band **077–084** adds the org/team/group/environment RBAC +
+zero-knowledge per-environment scope-key secret feature: `077` environments, `078` groups, `079`
+project-grants-ext (`env_id` + `group` grantee), `080` invites, `081` user-pubkeys (wrap-target
+registry + grant-fulfilment seam), `082` vault42_scope_keys, `083` env scope-pubkey columns, `084`
+vault42_env_secrets (shared env-secret store) — all control-plane-only, flag-gated OFF (gates
+m166/m168/m170/m172; live cross-repo proof `scripts/test/e2e-rbac-scope-keys-live.sh`).
+Mongo/MySQL migrations are separate and tiny
 (`scripts/migrations/{mongodb,mysql}/`, via `make migrate-mongo` / `migrate-mysql`, which need the
 `data-plane` profile up).
 
@@ -335,9 +357,25 @@ to `060`; highest is `070_mount_read_scoped.sql`). The cloud/enterprise/parity f
 | dynamic builder (m130–m134)                                    | `BUILDER_ENABLED`                                                   | `062` (filename `062_tenant_entitlements.sql` — trust the in-file header, not the name) |
 | fine-grained ABAC (m135–m139)                                  | `PERMISSION_CONDITIONS_ENABLED`, `API_KEY_ABAC_ENABLED`             | `063`                                                                                   |
 
+**Org / team / group / environment RBAC + ZK per-environment scope-key secrets (m162 · m166–m172):**
+
+| Feature (gate)                                                  | Flag(s)                                       | Migration    |
+| --------------------------------------------------------------- | --------------------------------------------- | ------------ |
+| environments + per-env grants + scope-pubkey publish (m166)     | `ENVIRONMENTS_ENABLED`                        | `077`, `083` |
+| project-scoped groups (`<project>'s group`) (m166)              | `GROUPS_ENABLED`                              | `078`        |
+| generalized team/group/project invites + accept (m168 · m170)   | `INVITES_ENABLED`                             | `080`, `079` |
+| member pubkey registry + grant-fulfilment seam (m172)           | `USER_PUBKEYS_ENABLED`                        | `081`        |
+| vault42 scope-key wrap/get/rotate + env-secret store (v14·v15)  | `VAULT42_SCOPE_KEYS_ENABLED` (vault42-server) | `082`, `084` |
+
+All depend on `RBAC_HIERARCHY_ENABLED` (teams `072` + project-grants `073`) + `ORG_MODEL_ENABLED`
+(`043`); all default OFF = byte-parity, control-plane-only (never enter the data-plane RLS GUCs).
+Env READS gate on `CapProjectRead` (any granted org member resolves an env), MUTATIONS on
+`CapProjGrant`. Design: [`wiki/architecture/org-team-group-rbac.md`](wiki/architecture/org-team-group-rbac.md);
+operator guide: [`USERDOC.md`](USERDOC.md); live proof: `scripts/test/e2e-rbac-scope-keys-live.sh`.
+
 Other slices, also OFF by default: `QUOTA_STAGE` · `SPEND_CAPS_ENABLED` · `ABUSE_GUARD_ENABLED`
 (m89–m91); `FUNCTIONS_CRON_ENABLED` (m96); `TENANT_TELEMETRY_EXPORT_ENABLED` (m100);
-`DATA_PLANE_READ_REPLICA` (m122).
+`DATA_PLANE_READ_REPLICA` (m122); `GITHUB_CONNECT_ENABLED` (m163, Track-E GitHub-App connect/sync).
 
 ## SDKs
 
@@ -366,7 +404,23 @@ codegen now resolves against the lean tree.
   required env vars** (collects a `MISSING=()` list, names the exact missing one, and exits; it never
   pushes, deploys, or flips a flag). It only acts when `GO_LIVE_APPLY=1` is set (then it runs
   `helm upgrade --install --atomic`, projects the cloud flags ON, and does the RS256 cutover) —
-  otherwise it renders offline via `helm template`.
+  otherwise it renders offline via `helm template`. `deploy/` also holds `helm/` (`grobase` +
+  `mini-baas` charts), `kustomize/`, `ha/`, and `github-relay/` (the P5 Vercel relay for GitHub-App
+  connect).
+- **The full backend is LIVE on fly.io** as the single Machine app **`grobase-stack`** (`deploy/fly/`).
+  It is a **Docker-in-Docker compose** deploy: `deploy/fly/Dockerfile` + `compose.override.yml` bring
+  the stack up inside one Machine, with Kong exposed publicly; `deploy/fly/boot.sh` is the turnkey
+  entrypoint that **auto-migrates and auto-provisions** the registered contracts on boot (`ensure_gateway`
+  force-starts mongo-init→realtime→kong so a reboot doesn't strand Kong). Backup rotation:
+  `deploy/fly/BACKUP-ROTATION.md`. Two non-merging Postgres DBs (website + vault42) prove per-user
+  `read_scoped` isolation over public HTTPS.
+- **grobase is a generic contract-driven factory, not an app host.** It contains **zero app-specific
+  code**; each app is a declarative **provisioning contract** at `infra/config/contracts/<app>.json`
+  (+ a `<app>.schema.sql`) that the generic provisioner consumes to create an isolated DB, seed it,
+  mint keys, and emit the frontend's `PUBLIC_*` config (gate `m165`). Stateless frontends live on
+  Vercel; **grobase (fly) owns all state** (DB/auth/OTP/realtime/files). This boundary is **binding** —
+  see [`.claude/rules/service-boundaries.md`](.claude/rules/service-boundaries.md). Live contracts today:
+  `website.json` and `vault42.json`.
 
 ## Licensing (open-core)
 
@@ -410,8 +464,10 @@ Unlike the monorepo's `apps/baas/.claude/` (a three-layer agent-OS *kernel*), th
 is deliberately **lean and kernel-less** — see [`.claude/AGENTS.md`](.claude/AGENTS.md): fan out
 subagents per task, converge, discard the scaffolding; don't rebuild half a kernel. It holds
 `settings.json` + `settings.local.json` (the latter disables the `osionos` MCP server); `rules/` (the
-binding code-gen rules — `minimalism-ladder`, `minimalism-markers`, per-language
-`refactor-{c,go,rust,typescript,shell,common}`, `api-convention`); `agents/` (8 single-purpose
+binding code-gen rules — `minimalism-ladder`, `minimalism-markers`, `comments`, `no-globals`,
+`go-package-design`, per-language `refactor-{c,go,rust,typescript,shell,common}`, `api-convention`,
+and the binding **`service-boundaries`** rule — grobase owns all state, Vercel hosts only stateless
+frontends, apps are contracts not code); `agents/` (8 single-purpose
 specialists: architect · benchmarker · compat-tester · devil · documenter · norminette · reviewer ·
 security); `skills/` (api-endpoint · debug · doc · incident · new-module · pr-review · release ·
 write-test); `commands/`; `workflows/`; and `plugins/`. There is **no** kernel
@@ -466,6 +522,7 @@ the default build/CI (the exceptions are opt-in `movieverse` + `gourmand` compos
 | **hypertube**                     | 42 BitTorrent video search+stream subject    | ✅ re-platformed — backend **entirely Grobase** (GoTrue auth + **MongoDB** catalog/comments/profiles + **DynamoDB** watch_state + realtime) plus **4 custom services** under `vendor/hypertube/grobase/`: a **new Rust `hypertube-stream` engine** (axum/reqwest range-proxy → archive.org HTTP `206` partial-content, YouTube-style fast buffer, H.264+AAC audio, `X-Accel-Buffering:no`), `hypertube-media` (torrent→Range/206 + ffmpeg transcode), `hypertube-search` (archive.org + TMDb), `hypertube-api` (RESTful OAuth2) + a YouTube-style React/Vite SPA (`View/`, same-origin via `grobase/serve.mjs`). **~1848 real archive.org films** bulk-seeded (`hypertube-catalog-bulk`, throttled), **8 user profiles + comments** (`hypertube-users`). **Forced real Grobase fixes: the 8th engine DynamoDB end-to-end (build-arg `--features dynamodb` + `DYNAMODB_ENGINE_ENABLED` + migration `069` + registry `ensureSchemaDDL` engine-CHECK + `RUST_DATA_PLANE_FORWARD_ENGINES` + `dynamodb-local`), Mongo `shared_resources` cross-owner reads, and seed idempotency (control-plane key-reuse, GoTrue pagination, persisted secrets).** Known data-plane limits: pool loses `shared_resources` after a provision (restart `data-plane-router`); mongo `upsert` not idempotent. | `m150`–`m154` |
 | **AppFlowy**                      | OSS Notion-alternative — Flutter UI + Rust `flowy-*` core (AGPL-3.0) | ⬜ now committed in-repo as **plain tracked files** (nested `.git` removed in `a0bfc38`, ~2880 files; upstream was `AppFlowy-IO/AppFlowy.git` HEAD `4af02cdc`), still **zero BaaS wiring**; its own backend (AppFlowy-Cloud = PG + GoTrue + storage + collab) mirrors Grobase → a prime future re-platform target. See the **AppFlowy** note below the table | —                               |
 | **twenty**                        | TypeScript CRM — twentyhq/twenty (NestJS + GraphQL + TypeORM/Postgres backend, React/Apollo front, nx/yarn monorepo) | ⬜ untouched upstream clone — own nested `.git` (`twentyhq/twenty.git`, branch `main`, HEAD `705caab2`), tracked as an **orphan gitlink** (mode 160000, no `.gitmodules` entry), **zero BaaS wiring** (like music-room); its NestJS + Postgres + GraphQL backend mirrors Grobase → a future re-platform candidate | —                               |
+| **vault42**                       | _(new product, own repo)_ — zero-knowledge secrets vault (Rust) | ✅ built **native on Grobase** — tracked nested checkout of `Univers42/vault42`, uses grobase as its store (**GrobaseStore**): per-user ZK envelope blobs in a dedicated `vault42` DB via `/query/v1` with per-user JWT-minting → `read_scoped` owner-scoping (proven: user B sees 0 rows of A). Driven by the **42ctl** umbrella CLI (separate repo `Univers42/42ctl`). Substrate migration `071`; OTP-login `075` + escrow `076` | `m162`–`m165` (rbac/github/otp/contract) |
 | **claude-deal-with-the-devil**    | _(not an app)_                               | n/a — a Claude Code framework (rules/agents/skills/tools), **misfiled** here; not a migration target | —                               |
 
 **Gotchas:** Canagrou carries heavy uncommitted/untracked changes on the current branch
@@ -515,8 +572,8 @@ full dev build `cargo make --profile development-linux-x86_64 appflowy-dev`; cod
 `cargo make flutter_test '<path>' --name '<case>'`. The in-repo `docker-compose` builds only the
 X11-forwarded **desktop client**, not a backend.
 
-> **One on-disk `vendor/` dir is absent from the table above** (there are now **12** on-disk dirs; the
-> table covers 11 of them and additionally keeps a **`java-dam-baas`** row whose in-repo snapshot was
+> **One on-disk `vendor/` dir is absent from the table above** (there are now **13** on-disk dirs; the
+> table covers 12 of them and additionally keeps a **`java-dam-baas`** row whose in-repo snapshot was
 > removed in `a0bfc38`): the uncovered on-disk dir is
 > **`grobase-website`** — *not* an external app but a nested checkout whose remote is
 > `Univers42/grobase.git` itself (HEAD `a0bfc38`, an Astro site in its tree); the canonical

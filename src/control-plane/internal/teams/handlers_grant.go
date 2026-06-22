@@ -31,8 +31,8 @@ func (rt *routes) grantRole(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &req) {
 		return
 	}
-	if req.GranteeKind != "user" && req.GranteeKind != "team" {
-		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "grantee_kind must be user|team")
+	if req.GranteeKind != "user" && req.GranteeKind != "team" && req.GranteeKind != "group" {
+		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "grantee_kind must be user|team|group")
 		return
 	}
 	g, err := rt.svc.Grant(r.Context(), orgID, projectID, req, userID)
@@ -79,6 +79,10 @@ func (rt *routes) effectiveRole(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "validation_error", "?user= is required")
 		return
 	}
+	env := r.URL.Query().Get("env")
 	role, has := rt.svc.EffectiveRole(r.Context(), orgID, projectID, target)
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"user": target, "role": role, "has_access": has})
+	if env != "" {
+		role, has = rt.svc.EffectiveRoleInEnv(r.Context(), orgID, projectID, target, env)
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"user": target, "env": env, "role": role, "has_access": has})
 }
