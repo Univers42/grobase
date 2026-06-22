@@ -29,7 +29,8 @@ services:
       VAULT42_PORT: "8443"
       RUST_LOG: "info"
     ports:
-      - "${VAULT42_PORT:-8443}:8443"
+      # host default 18443 — the network-controls/WAF plane already binds host :8443.
+      - "${VAULT42_PORT:-18443}:8443"
     depends_on:
       kong:
         condition: service_started

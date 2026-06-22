@@ -211,6 +211,20 @@ key_valid() {
   [ "${code}" = "200" ]
 }
 
+# mint_key NAME SCOPES — POST a scoped key for the tenant; sets KEY_CODE (HTTP status)
+# and writes the reply to /tmp/prov-key.json. svc_auth output is not captured.
+mint_key() {
+  local body
+  body="$(jq -nc --argjson s "${2}" --arg n "${1}" '{name:$n,scopes:$s}')"
+  svc_auth POST "/v1/tenants/${TENANT}/keys" "${body}"
+  KEY_CODE="$(curl -s -o /tmp/prov-key.json -w '%{http_code}' -X POST \
+    "${TC_URL}/v1/tenants/${TENANT}/keys" "${SVC_AUTH[@]}" \
+    -H 'Content-Type: application/json' -d "${body}")"
+}
+
+# resolve_api_key — reuse a verified emitted key, else mint a scoped 'frontend' key.
+# Idempotent on re-run: if the emitted file was lost but the named key still exists,
+# the first mint 409s ("already exists"); fall back to a unique name instead of dying.
 resolve_api_key() {
   API_KEY="$(read_emitted_key)"
   if [ -n "${API_KEY}" ] && key_valid "${API_KEY}"; then
@@ -218,14 +232,14 @@ resolve_api_key() {
     return 0
   fi
   [ -n "${API_KEY}" ] && note "emitted api key stale (verify failed) — minting fresh"
-  local scopes body code
+  local scopes
   scopes="$(jq -c '.api_keys[0].scopes // ["read","write"]' "${CONTRACT}")"
-  body="$(jq -nc --argjson s "${scopes}" '{name:"frontend",scopes:$s}')"
-  svc_auth POST "/v1/tenants/${TENANT}/keys" "${body}"
-  code="$(curl -s -o /tmp/prov-key.json -w '%{http_code}' -X POST \
-    "${TC_URL}/v1/tenants/${TENANT}/keys" "${SVC_AUTH[@]}" \
-    -H 'Content-Type: application/json' -d "${body}")"
-  [ "${code}" = "201" ] || die "key mint failed (${code}): $(cat /tmp/prov-key.json)"
+  mint_key "frontend" "${scopes}"
+  if [ "${KEY_CODE}" != "201" ] && grep -q 'already exists' /tmp/prov-key.json 2>/dev/null; then
+    note "key 'frontend' exists from a prior run (emit lost) — minting a unique name"
+    mint_key "frontend-$(date +%s)" "${scopes}"
+  fi
+  [ "${KEY_CODE}" = "201" ] || die "key mint failed (${KEY_CODE}): $(cat /tmp/prov-key.json)"
   API_KEY="$(jq -r '.key' /tmp/prov-key.json)"
   note "api key: minted scoped (${scopes})"
 }
