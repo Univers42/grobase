@@ -16,13 +16,14 @@ import (
 	"net/http"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/orgs"
 )
 
 // handlers_env.go — environment HTTP handlers (create / list / delete).
 
 func (rt *routes) createEnv(w http.ResponseWriter, r *http.Request) {
 	projectID := r.PathValue("projectId")
-	userID, ok := rt.requireProjectManage(w, r, projectID)
+	userID, ok := rt.requireProjectCap(w, r, projectID, orgs.CapProjGrant)
 	if !ok {
 		return
 	}
@@ -44,7 +45,7 @@ func (rt *routes) createEnv(w http.ResponseWriter, r *http.Request) {
 
 func (rt *routes) listEnvs(w http.ResponseWriter, r *http.Request) {
 	projectID := r.PathValue("projectId")
-	if _, ok := rt.requireProjectManage(w, r, projectID); !ok {
+	if _, ok := rt.requireProjectCap(w, r, projectID, orgs.CapProjectRead); !ok {
 		return
 	}
 	list, err := rt.svc.ListEnvironments(r.Context(), projectID)
@@ -57,7 +58,7 @@ func (rt *routes) listEnvs(w http.ResponseWriter, r *http.Request) {
 
 func (rt *routes) setScopeKey(w http.ResponseWriter, r *http.Request) {
 	projectID := r.PathValue("projectId")
-	if _, ok := rt.requireProjectManage(w, r, projectID); !ok {
+	if _, ok := rt.requireProjectCap(w, r, projectID, orgs.CapProjGrant); !ok {
 		return
 	}
 	var req SetScopeKeyRequest
@@ -78,7 +79,7 @@ func (rt *routes) setScopeKey(w http.ResponseWriter, r *http.Request) {
 
 func (rt *routes) deleteEnv(w http.ResponseWriter, r *http.Request) {
 	projectID := r.PathValue("projectId")
-	if _, ok := rt.requireProjectManage(w, r, projectID); !ok {
+	if _, ok := rt.requireProjectCap(w, r, projectID, orgs.CapProjGrant); !ok {
 		return
 	}
 	if err := rt.svc.DeleteEnvironment(r.Context(), projectID, r.PathValue("envId")); err != nil {

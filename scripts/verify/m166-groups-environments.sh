@@ -256,6 +256,13 @@ C="$(org_req POST "${PORT_ON}" "/v1/orgs/${ORG_A}/projects/${PROJ_X}/grants" "${
 [[ "$(effEnv "${PORT_ON}" "${JWT_U1}" "${ORG_A}" "${PROJ_X}" "${U3}" "${ENV_PROD}")" == "reader" ]] || fail "(A) project-wide grant missing on prod"
 [[ "$(effEnv "${PORT_ON}" "${JWT_U1}" "${ORG_A}" "${PROJ_X}" "${U3}" "${ENV_DEV}")" == "reader" ]] || fail "(A) project-wide grant missing on dev"
 ok "(A) group→writer on prod propagates to U2; project-wide reader (U3) spans prod AND dev"
+# env-resolve authz: a granted NON-owner member (U2, org developer) can LIST envs — get-env/
+# set-env need this resolve step; env names + PUBLIC scope keys leak nothing (the seal gates
+# decryption). A user with no org membership nor grant must NOT (deny-by-default).
+[[ "$(org_req GET "${PORT_ON}" "/v1/projects/${PROJ_X}/environments" "${JWT_U2}")" == "200" ]] || fail "(A) granted member U2 cannot list envs — env-resolve gate too strict"
+NONMEMBER_JWT="$(mint_jwt "44444444-4444-4444-4444-444444444444" u4@m166.test)"
+[[ "$(org_req GET "${PORT_ON}" "/v1/projects/${PROJ_X}/environments" "${NONMEMBER_JWT}")" != "200" ]] || fail "(A) a non-member listed envs — env-read deny-by-default broken"
+ok "(A) granted member resolves envs (200); non-member denied — env-read authz is read-gated, not manage-gated"
 
 # ── 6) (B · REJECTS) per-env isolation · deny-default · bad env · one group ────
 step "6/8 (B) PER-ENV isolation · deny-by-default · bad-env 400 · one-group-per-project 409"
