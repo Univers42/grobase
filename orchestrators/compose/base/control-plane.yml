@@ -236,8 +236,11 @@ services:
       EMAIL_FROM: ${EMAIL_FROM:-noreply@mini-baas.local}
       # session sub-service TTL
       SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-7}
-      # newsletter sub-service (outbound mail + confirm links)
-      EMAIL_SERVICE_URL: ${EMAIL_SERVICE_URL:-http://email-service:3030}
+      # newsletter sub-service (outbound mail + confirm links). The A4 cutover
+      # folded email INTO this orchestrator (emailsvc serves POST /send on :3026),
+      # so point the newsletter sender at the orchestrator's own endpoint — the
+      # standalone email-service:3030 is retired and not running by default.
+      EMAIL_SERVICE_URL: ${EMAIL_SERVICE_URL:-http://localhost:3026}
       NEWSLETTER_BASE_URL: ${NEWSLETTER_BASE_URL:-http://localhost:8000/newsletter/v1}
       NEWSLETTER_BATCH_SIZE: ${NEWSLETTER_BATCH_SIZE:-5}
       # gdpr sub-service (schema-agnostic export/erasure webhooks)
