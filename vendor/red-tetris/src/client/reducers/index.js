@@ -100,8 +100,21 @@ export const boardReducer = (state = initialBoardState, action) => {
         opponents: {
           ...state.opponents,
           [action.payload.socketId]: {
+            ...state.opponents[action.payload.socketId],
             playerName: action.payload.playerName,
             spectrum: action.payload.spectrum,
+          },
+        },
+      };
+    case ACTIONS.UPDATE_OPPONENT_BOARD:
+      return {
+        ...state,
+        opponents: {
+          ...state.opponents,
+          [action.payload.socketId]: {
+            ...state.opponents[action.payload.socketId],
+            playerName: action.payload.playerName,
+            board: action.payload.board,
           },
         },
       };
