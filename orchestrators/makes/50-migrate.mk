@@ -93,3 +93,24 @@ red-tetris-play: _require-compose ## red-tetris: FAST reconnect — ensure plane
 	@[ -f vendor/red-tetris/dist/index.html ] || { echo -e "$(_B)building SPA (first run)…$(_0)"; docker run --rm -v "$(CURDIR)/vendor/red-tetris":/app -w /app node:20-alpine sh -c 'npm ci --silent && npm run build'; }
 	@RED_TETRIS_PORT=$(RED_TETRIS_PORT) $(DC) --profile red-tetris up -d --no-deps red-tetris
 	@echo -e "$(_G)✓ red-tetris ready → http://localhost:$(RED_TETRIS_PORT)$(_0)  (demo: $(_C)alice@tetris.local$(_0) … heidi@tetris.local / $(_W)Tetris#2026$(_0))"
+
+MOVIEVERSE_PORT ?= 5173
+
+# movieverse: the Java/Spring/MySQL movie community re-platformed onto Grobase —
+# GoTrue auth + PostgREST/RLS data + the Go TMDB proxy, ZERO app server. Brings up
+# the stack, seeds fixed-credential demo accounts (with likes + reviews) against
+# OUR backend, serves the same-origin SPA, and prints the logins. Idempotent.
+movieverse: _require-compose ## movieverse: end-to-end — up + seed demo users on Grobase + serve the SPA (http://localhost:5173)
+	@$(MAKE) --no-print-directory up
+	@$(MAKE) --no-print-directory migrate >/dev/null 2>&1 || true
+	@bash scripts/seed/movieverse-tenant.sh
+	@MOVIEVERSE_PORT=$(MOVIEVERSE_PORT) $(DC) --profile movieverse up -d --build --no-deps movieverse tmdb-proxy
+	@echo -e "$(_G)✓ MovieVerse live → http://localhost:$(MOVIEVERSE_PORT)$(_0)"
+	@$(MAKE) --no-print-directory movieverse-creds
+
+movieverse-creds: ## Print the seeded MovieVerse logins (.movieverse-baas.env)
+	@[ -f .movieverse-baas.env ] || { echo -e "$(_Y)no .movieverse-baas.env yet — run 'make movieverse' first$(_0)"; exit 0; }
+	@pw="$$(sed -n 's/^MV_PASSWORD=//p' .movieverse-baas.env)"; \
+		echo -e "$(_W)MovieVerse logins$(_0)  (password: $(_G)$$pw$(_0))"; \
+		echo -e "  URL        $(_C)http://localhost:$(MOVIEVERSE_PORT)$(_0)"; \
+		sed -n 's/^MV_USER=/  · /p' .movieverse-baas.env | while read -r l; do echo -e "  $(_G)$$l$(_0)"; done
