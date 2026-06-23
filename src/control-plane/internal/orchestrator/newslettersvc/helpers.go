@@ -46,8 +46,8 @@ func (s *Service) fail(w http.ResponseWriter, err error) bool {
 // error (counts as a campaign failure), matching the Node `r.value.ok` check.
 func httpEmailSender(client *http.Client, url string) emailSender {
 	endpoint := strings.TrimRight(url, "/") + "/send"
-	return func(ctx context.Context, to, subject, html, text string) error {
-		body, _ := json.Marshal(map[string]string{"to": to, "subject": subject, "html": html, "text": text})
+	return func(ctx context.Context, to, subject, html, text, unsubURL string) error {
+		body, _ := json.Marshal(map[string]string{"to": to, "subject": subject, "html": html, "text": text, "listUnsubscribe": unsubURL})
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 		if err != nil {
 			return err
