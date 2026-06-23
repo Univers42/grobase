@@ -10,18 +10,35 @@ plus `git`, `openssl`, and the `42ctl` binary.
 git clone https://github.com/Univers42/grobase && cd grobase
 ```
 
-## 1. Fetch ALL secrets from vault42  (any depth, one command)
-Every `*.env`/`*.secrets` (root **and** nested: `build/website.env`, `vendor/vite-gourmand/View/.env`,
-`.gourmand-baas.env`, …) is stored path-aware in vault42. A fresh machine restores them all:
-```bash
-42ctl keys recover                       # email-OTP + your passphrase → your keystore on this PC
-42ctl pull --project grobase --apply     # restores the WHOLE env tree, byte-exact, at its paths
-```
-> To (re)populate vault42 from a working tree, push the whole tree from the **repo root** (not a
-> staging dir): `42ctl push --project grobase` — it scans `*.env*`/`*.secrets` recursively.
-> Verified: 14 files pushed → pulled back **byte-exact**.
+## 1. Fetch ALL secrets from vault42 (remote, any depth)
+Every `*.env`/`*.secrets` (root **and** nested: `build/website.env`, every `vendor/*/.env`,
+`.gourmand-baas.env`, …) is stored path-aware in **vault42.fly.dev** under your keypair. Three commands
+restore the whole tree byte-exact on any machine — proven: **24 files pushed → wiped → pulled back
+identical** at every depth.
 
-If you have no keystore yet (truly first machine), `make env` generates a fresh local set instead.
+One-time, point 42ctl at the live hosts — write `~/.config/42ctl/config.json`:
+```json
+{ "current": "default", "profiles": { "default": {
+  "server":    "https://vault42.fly.dev",
+  "authority": "https://grobase-nano.fly.dev",
+  "grobase":   "https://grobase-stack.fly.dev"
+} } }
+```
+`server` = the gRPC vault; `authority` = the contract authority (`/v1/register`); `grobase` = the
+email-OTP + escrow routes. (A current `42ctl` ships this as the default; older builds wrongly point
+`grobase` at grobase-nano, which 404s the OTP routes.)
+
+```bash
+42ctl keys recover --email <you@example.com>                                       # OTP + passphrase → your keypair
+42ctl auth login  --email <you@example.com> --tenant grobase-secrets --token <TOKEN>  # OTP → contract
+42ctl pull --project grobase --apply                                               # restores the WHOLE env tree byte-exact
+```
+- The **passphrase** unlocks your escrowed keystore; the **register token** is the vault42 invite gate
+  (both shared out-of-band — never committed). `FT_PASSPHRASE=…` supplies the passphrase non-interactively.
+- To (re)populate vault42, push from the **repo root**: `42ctl push --project grobase` (scans
+  `*.env*`/`*.secrets` recursively from cwd).
+
+If you have no vault42 account yet, `make env` generates a fresh local secret set instead.
 
 ## 2. Build & run — `make`
 ```bash
