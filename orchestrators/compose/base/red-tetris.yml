@@ -1,0 +1,26 @@
+# Red Tetris plane — the 42 red-tetris game re-platformed onto Grobase, served as a
+# static SPA with a same-origin reverse proxy to Kong (grobase/serve.mjs), so the
+# app talks only to its own origin (no CORS). Opt in via the `red-tetris` profile;
+# not part of any default edition. Requires a prior `npm run build` (produces
+# vendor/red-tetris/dist) and a run of scripts/provision-contract.sh +
+# scripts/seed/red-tetris-tenant.sh (produces vendor/red-tetris/public/baas-config.js).
+# The backend (auth + data + the multiplayer realtime bus) is ENTIRELY Grobase —
+# the original Socket.IO server is gone; this container only serves files + proxies.
+services:
+  red-tetris:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: node:20-alpine
+    container_name: mini-baas-red-tetris
+    profiles: ["red-tetris"]
+    working_dir: /app/grobase
+    command: ["node", "serve.mjs"]
+    environment:
+      PORT: "80"
+      KONG_URL: "http://kong:8000"
+    ports:
+      - "${RED_TETRIS_PORT:-5178}:80"
+    volumes:
+      - ./vendor/red-tetris:/app:ro
+    depends_on:
+      kong:
+        condition: service_started

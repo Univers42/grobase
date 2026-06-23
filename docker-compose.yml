@@ -41,6 +41,8 @@ include:
     project_directory: .
   - path: orchestrators/compose/base/vault42.yml
     project_directory: .
+  - path: orchestrators/compose/base/red-tetris.yml
+    project_directory: .
 
 networks:
   mini-baas:
