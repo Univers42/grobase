@@ -1,11 +1,11 @@
 # Fresh-Start — Grobase from a clean machine (fetch + make)
 
 Clean PC → working backend + apps, with **all secrets fetched from vault42** (none in the repo).
-The contract: **`42ctl pull` then `make`** — secrets come from vault42, code from git.
+The contract: **`make ctl-remote ARGS="pull …"` then `make up`** — secrets from vault42, code from git.
 
 ## 0. Prereqs
-Docker + Docker Compose v2 only (no host Node/cargo/Go — `make` builds everything in containers),
-plus `git`, `openssl`, and the `42ctl` binary.
+**Docker + Docker Compose v2, `git`, `openssl`** — nothing else. No host Node/cargo/Go, and **no 42ctl
+install**: it runs from its published image (`dlesieur/42ctl`, 33 MB scratch+musl) through `make ctl-remote`.
 ```bash
 git clone https://github.com/Univers42/grobase && cd grobase
 ```
@@ -16,27 +16,21 @@ Every `*.env`/`*.secrets` (root **and** nested: `build/website.env`, every `vend
 restore the whole tree byte-exact on any machine — proven: **24 files pushed → wiped → pulled back
 identical** at every depth.
 
-One-time, point 42ctl at the live hosts — write `~/.config/42ctl/config.json`:
-```json
-{ "current": "default", "profiles": { "default": {
-  "server":    "https://vault42.fly.dev",
-  "authority": "https://grobase-nano.fly.dev",
-  "grobase":   "https://grobase-stack.fly.dev"
-} } }
-```
-`server` = the gRPC vault; `authority` = the contract authority (`/v1/register`); `grobase` = the
-email-OTP + escrow routes. (A current `42ctl` ships this as the default; older builds wrongly point
-`grobase` at grobase-nano, which 404s the OTP routes.)
+`make ctl-remote` runs the published 42ctl image against the live fly stack (no clone, no cargo). On
+first use it writes the `~/.config/42ctl/config.json` profile for you and mounts this repo so `pull`
+lands the tree here:
 
 ```bash
-42ctl keys recover --email <you@example.com>                                       # OTP + passphrase → your keypair
-42ctl auth login  --email <you@example.com> --tenant grobase-secrets --token <TOKEN>  # OTP → contract
-42ctl pull --project grobase --apply                                               # restores the WHOLE env tree byte-exact
+FT_PASSPHRASE='<passphrase>' make ctl-remote ARGS="keys recover --email <you@example.com>"            # OTP → your keypair
+make ctl-remote ARGS="auth login --email <you@example.com> --tenant grobase-secrets --token <TOKEN>"  # OTP → contract
+make ctl-remote ARGS="pull --project grobase --apply"                                                 # restores the WHOLE env tree byte-exact
 ```
 - The **passphrase** unlocks your escrowed keystore; the **register token** is the vault42 invite gate
-  (both shared out-of-band — never committed). `FT_PASSPHRASE=…` supplies the passphrase non-interactively.
-- To (re)populate vault42, push from the **repo root**: `42ctl push --project grobase` (scans
-  `*.env*`/`*.secrets` recursively from cwd).
+  (both shared out-of-band — never committed). Identity persists in `~/.config/42ctl`.
+- The profile it writes: `server=vault42.fly.dev` (vault) · `authority=grobase-nano.fly.dev`
+  (`/v1/register`) · `grobase=grobase-stack.fly.dev` (email-OTP + escrow).
+- To (re)populate vault42, push from the repo root: `make ctl-remote ARGS="push --project grobase"`
+  (scans `*.env*`/`*.secrets` recursively).
 
 If you have no vault42 account yet, `make env` generates a fresh local secret set instead.
 
