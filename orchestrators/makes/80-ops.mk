@@ -117,8 +117,9 @@ fclean-project: ## DANGER: clean-project + WIPE this project's OWN data volumes 
 # vault42-server (the ZK motor) runs from its Docker Hub image, wired to grobase as its
 # store via the vault42 contract; 42ctl is its CLI, also run from an image. Override the
 # tags with VAULT42_IMAGE / CTL_IMAGE.
-VAULT42_IMAGE ?= docker.io/dlesieur/vault42-server:latest
-CTL_IMAGE     ?= docker.io/dlesieur/42ctl:latest
+VAULT42_IMAGE     ?= docker.io/dlesieur/vault42-server:latest
+CTL_IMAGE         ?= docker.io/dlesieur/42ctl:latest
+VAULT_ENV_PROJECT ?= grobase
 
 vault42-up: _require-compose ## Provision the vault42 contract + run vault42-server (image) wired to grobase as its store
 	@bash scripts/provision-contract.sh infra/config/contracts/vault42.json 2>&1 | tail -6
@@ -158,3 +159,15 @@ ctl-remote: ## 42ctl from its image vs the REMOTE fly stack — make ctl-remote 
 		-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 -e FT_PASSPHRASE \
 		-v "$(CTL_CFG_DIR):/cfg" -v "$(CURDIR):/work" -w /work \
 		$(CTL_IMAGE) $(ARGS)
+
+# ── one-shot *.env tree sync to/from vault42 (passphrase read HIDDEN, no prompt-hang) ─
+# These wrap the recover→login→push/pull flow so you never fight the interactive
+# `passphrase:` prompt: scripts/vault/ctl-env.sh reads it with echo OFF into the env,
+# so the 42ctl image runs non-interactively. Override the project with VAULT_ENV_PROJECT.
+vault-push-env: ## vault42: push every *.env*/*.secrets (any depth) to the REMOTE ZK vault — passphrase read hidden
+	@REPO_DIR="$(CURDIR)" CTL_IMAGE="$(CTL_IMAGE)" CTL_CFG_DIR="$(CTL_CFG_DIR)" VAULT_ENV_PROJECT="$(VAULT_ENV_PROJECT)" \
+		sh scripts/vault/ctl-env.sh push
+
+vault-pull-env: ## vault42: restore the *.env* tree from the REMOTE ZK vault — DRY-RUN unless APPLY=1 — passphrase read hidden
+	@REPO_DIR="$(CURDIR)" CTL_IMAGE="$(CTL_IMAGE)" CTL_CFG_DIR="$(CTL_CFG_DIR)" VAULT_ENV_PROJECT="$(VAULT_ENV_PROJECT)" \
+		sh scripts/vault/ctl-env.sh pull $(if $(filter 1,$(APPLY)),--apply,)
