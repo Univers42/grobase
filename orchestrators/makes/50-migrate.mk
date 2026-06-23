@@ -114,3 +114,30 @@ movieverse-creds: ## Print the seeded MovieVerse logins (.movieverse-baas.env)
 		echo -e "$(_W)MovieVerse logins$(_0)  (password: $(_G)$$pw$(_0))"; \
 		echo -e "  URL        $(_C)http://localhost:$(MOVIEVERSE_PORT)$(_0)"; \
 		sed -n 's/^MV_USER=/  · /p' .movieverse-baas.env | while read -r l; do echo -e "  $(_G)$$l$(_0)"; done
+
+HYPERTUBE_PORT     ?= 5176
+HT_CATALOG_TARGET  ?= 400
+
+# hypertube: the 42 BitTorrent video app re-platformed ENTIRELY onto Grobase —
+# GoTrue auth + MongoDB catalog/comments/profiles + DynamoDB watch_state + realtime
+# + 4 custom Grobase services (stream/media/search/api). Brings up the profile,
+# provisions the tenant + Mongo/Dynamo mounts, bulk-seeds real archive.org films
+# + demo users, restarts the data plane (mount freshness), serves the SPA.
+hypertube: _require-compose ## hypertube: end-to-end — up + provision + seed catalog/users on Grobase + serve (http://localhost:5176)
+	@$(MAKE) --no-print-directory up
+	@HYPERTUBE_PORT=$(HYPERTUBE_PORT) $(DC) --profile hypertube up -d --build
+	@bash scripts/seed/hypertube-tenant.sh
+	@docker restart mini-baas-data-plane-router-rust >/dev/null 2>&1 || true
+	@sleep 4
+	@HT_CATALOG_TARGET=$(HT_CATALOG_TARGET) bash scripts/seed/hypertube-catalog-bulk.sh
+	@bash scripts/seed/hypertube-users.sh
+	@docker run --rm -v "$(CURDIR)/vendor/hypertube/View":/app -w /app -v hypertube-view-nm:/app/node_modules node:20-alpine sh -c 'npm install --no-audit --no-fund --silent && npx vite build'
+	@docker restart mini-baas-data-plane-router-rust >/dev/null 2>&1 || true
+	@docker restart mini-baas-hypertube >/dev/null 2>&1 || true
+	@echo -e "$(_G)✓ Hypertube live → http://localhost:$(HYPERTUBE_PORT)$(_0)"
+	@$(MAKE) --no-print-directory hypertube-creds
+
+hypertube-creds: ## Print the seeded Hypertube logins
+	@echo -e "$(_W)Hypertube logins$(_0)  (password: $(_G)Hypertube#2026$(_0))"
+	@echo -e "  URL    $(_C)http://localhost:$(HYPERTUBE_PORT)$(_0)"
+	@echo -e "  users  $(_G)ava@hypertube.local$(_0) · liam · mia · noah · zoe · ezra · iris · omar @hypertube.local"
