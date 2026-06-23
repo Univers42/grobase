@@ -26,6 +26,9 @@ backup-now: ## Take a one-off Postgres backup right now (pg-backup `once` → Mi
 restore-verify: ## Prove a backup restores (dump→drop→restore→checksum, scratch DB; tenant data untouched)
 	@bash scripts/verify/m47-backup-restore.sh
 
+newsletter-broadcast: _require-compose ## Send a newsletter to all CONFIRMED subscribers — server-side ops (SUBJECT= HTML= [TEXT=])
+	@SUBJECT="$(SUBJECT)" HTML="$(HTML)" TEXT="$(TEXT)" bash scripts/ops/newsletter-broadcast.sh
+
 cloud-flags-print: ## Print the managed-cloud flag manifest (B7.1 single flip point — OPT-IN, no behaviour)
 	@cat infra/config/cloud/flags.env.example
 	@echo ""
