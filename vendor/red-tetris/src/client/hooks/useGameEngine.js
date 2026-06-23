@@ -8,6 +8,7 @@ import {
   setScore,
   setLines,
   sendSpectrum,
+  sendBoardState,
   sendLinesCleared,
   sendGameOver,
 } from '../actions';
@@ -22,12 +23,29 @@ import {
   movePiece,
   rotatePiece,
   getSpawnPosition,
+  getPieceCells,
   isGameOver,
   computeSpectrum,
   calculateScore,
   applyGravityMode,
 } from '../../common/gameLogic';
-import { TICK_SPEED_MS, GAME_MODES } from '../../common/constants';
+import { TICK_SPEED_MS, GAME_MODES, PIECES, BOARD_WIDTH, BOARD_HEIGHT } from '../../common/constants';
+
+/**
+ * mergePieceIntoBoard returns a copy of the locked board with the live falling
+ * piece painted in its colour — the exact picture an opponent should watch, so
+ * they see your pieces move and land in real time (not just a height silhouette).
+ */
+function mergePieceIntoBoard(board, piece) {
+  const grid = board.map((row) => [...row]);
+  if (piece) {
+    const color = (PIECES[piece.type] || {}).color || 1;
+    getPieceCells(piece.type, piece.rotation, piece.x, piece.y).forEach(([cx, cy]) => {
+      if (cy >= 0 && cy < BOARD_HEIGHT && cx >= 0 && cx < BOARD_WIDTH) grid[cy][cx] = color;
+    });
+  }
+  return grid;
+}
 
 /**
  * Custom hook: core Tetris game loop.
@@ -303,9 +321,15 @@ const useGameEngine = () => {
       // Keyboard listener
       window.addEventListener('keydown', handleKeyDown);
 
+      // Stream the live board (with the falling piece) so opponents watch you play.
+      const boardStream = setInterval(() => {
+        if (!gameOverRef.current) dispatch(sendBoardState(mergePieceIntoBoard(boardRef.current, pieceRef.current)));
+      }, 90);
+
       return () => {
         clearTimeout(startTimeout);
         clearTimeout(tickRef.current);
+        clearInterval(boardStream);
         window.removeEventListener('keydown', handleKeyDown);
       };
     }

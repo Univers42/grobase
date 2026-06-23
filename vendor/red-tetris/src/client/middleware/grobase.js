@@ -10,8 +10,8 @@ import { postGame } from '../baas/game';
 import { generate } from '../../common/pieceBag';
 import {
   setSocket, setConnected, setRoom, setPlayerName, setGameState, setGameMode,
-  gameStarted, gameEnded, gameReset, updateOpponentSpectrum, addPenaltyLines,
-  setRoomsList,
+  gameStarted, gameEnded, gameReset, updateOpponentSpectrum, updateOpponentBoard,
+  addPenaltyLines, setRoomsList,
 } from '../actions';
 
 const LOBBY = 'tetris/lobby';
@@ -95,6 +95,11 @@ class GameNet {
     this.client.broadcast(roomTopic(this.room), 'spectrum', { from: this._id(), name: this.name, spectrum });
   }
 
+  sendBoard(board) {
+    if (!this.room || !this.started) return;
+    this.client.broadcast(roomTopic(this.room), 'board', { from: this._id(), name: this.name, board });
+  }
+
   sendLines(linesCleared, score) {
     if (!this.room || !this.started) return;
     this.client.broadcast(roomTopic(this.room), 'lines', { from: this._id(), name: this.name, linesCleared, score });
@@ -123,6 +128,7 @@ class GameNet {
     if (m.event === 'mode') { this.mode = p.mode; this.store.dispatch(setGameMode(p.mode)); this._pushState(); return; }
     if (m.event === 'reset') return this._onReset();
     if (m.event === 'spectrum') { if (p.from !== this._id()) this.store.dispatch(updateOpponentSpectrum({ socketId: p.from, playerName: p.name, spectrum: p.spectrum })); return; }
+    if (m.event === 'board') { if (p.from !== this._id()) this.store.dispatch(updateOpponentBoard({ socketId: p.from, playerName: p.name, board: p.board })); return; }
     if (m.event === 'lines') return this._onLines(p);
     if (m.event === 'over') return this._onOver(p);
   }

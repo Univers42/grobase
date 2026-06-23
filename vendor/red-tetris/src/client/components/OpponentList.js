@@ -1,65 +1,59 @@
 import { useSelector } from 'react-redux';
-import { BOARD_HEIGHT, BOARD_WIDTH } from '../../common/constants';
+import { BOARD_HEIGHT, BOARD_WIDTH, COLORS } from '../../common/constants';
 
 /**
- * OpponentList: shows opponents' spectrum views.
- * A spectrum shows column heights as colored blocks.
- * Pure functional component - no `this`.
+ * OpponentList: a live mini-view of every opponent's board. When an opponent is
+ * streaming their board (the normal case during play) you watch their pieces
+ * fall and land in real time; before the first frame arrives it falls back to
+ * the lightweight height spectrum. Pure functional component - no `this`.
  */
 const OpponentList = () => {
-  const opponents = useSelector(state => state.board.opponents);
-  const gameState = useSelector(state => state.game.gameState);
-  const playerName = useSelector(state => state.game.playerName);
+  const opponents = useSelector((state) => state.board.opponents);
+  const gameState = useSelector((state) => state.game.gameState);
+  const playerName = useSelector((state) => state.game.playerName);
 
-  const opponentEntries = Object.entries(opponents).filter(
-    ([, data]) => data.playerName !== playerName
+  const others = (gameState?.players || []).filter((p) => p.name !== playerName);
+
+  const cell = (value, key) => (
+    <div
+      key={key}
+      className="spectrum-cell"
+      style={{ background: value ? (COLORS[value] || '#888') : 'rgba(255,255,255,0.04)' }}
+    />
   );
 
-  // Also show players from game state who haven't sent spectrum yet
-  const gameStatePlayers = gameState?.players?.filter(
-    p => p.name !== playerName
-  ) || [];
+  const renderLiveBoard = (board, name, isEliminated) => (
+    <div className="opponent-card" key={name} style={isEliminated ? { opacity: 0.4 } : {}}>
+      <div className="name">{name} {isEliminated ? '(OUT)' : ''}</div>
+      <div className="spectrum-grid">
+        {board.map((row, y) => row.map((v, x) => cell(v, `${y}-${x}`)))}
+      </div>
+    </div>
+  );
 
   const renderSpectrum = (spectrum, name, isEliminated) => {
-    // Build a 20x10 grid from spectrum heights
-    const grid = [];
-    for (let row = 0; row < BOARD_HEIGHT; row++) {
-      for (let col = 0; col < BOARD_WIDTH; col++) {
-        const height = spectrum[col] || 0;
-        const filled = (BOARD_HEIGHT - row) <= height;
-        grid.push(filled);
+    const cells = [];
+    for (let row = 0; row < BOARD_HEIGHT; row += 1) {
+      for (let col = 0; col < BOARD_WIDTH; col += 1) {
+        const filled = (BOARD_HEIGHT - row) <= (spectrum[col] || 0);
+        cells.push(cell(filled ? 8 : 0, `${row}-${col}`));
       }
     }
-
     return (
       <div className="opponent-card" key={name} style={isEliminated ? { opacity: 0.4 } : {}}>
-        <div className="name">
-          {name} {isEliminated ? '(OUT)' : ''}
-        </div>
-        <div className="spectrum-grid">
-          {grid.map((filled, i) => (
-            <div
-              key={i}
-              className={`spectrum-cell ${filled ? 'spectrum-cell-filled' : 'spectrum-cell-empty'}`}
-            />
-          ))}
-        </div>
+        <div className="name">{name} {isEliminated ? '(OUT)' : ''}</div>
+        <div className="spectrum-grid">{cells}</div>
       </div>
     );
   };
 
   return (
     <div className="opponents-panel">
-      {gameStatePlayers.map(player => {
-        const opponentData = opponents[player.socketId];
-        const spectrum = opponentData?.spectrum || player.spectrum || Array(BOARD_WIDTH).fill(0);
-        return renderSpectrum(spectrum, player.name, player.isEliminated);
+      {others.map((player) => {
+        const data = opponents[player.socketId] || {};
+        if (Array.isArray(data.board)) return renderLiveBoard(data.board, player.name, player.isEliminated);
+        return renderSpectrum(data.spectrum || Array(BOARD_WIDTH).fill(0), player.name, player.isEliminated);
       })}
-      {opponentEntries
-        .filter(([socketId]) => !gameStatePlayers.some(p => p.socketId === socketId))
-        .map(([socketId, data]) =>
-          renderSpectrum(data.spectrum, data.playerName, false)
-        )}
     </div>
   );
 };
