@@ -138,7 +138,7 @@ else
   [[ "${API_KEY}" == mbk_* ]] || fail "minted key has unexpected shape"
 
   cyan "registering owner-scoped postgres mount '${MOUNT_NAME}' (shared_resources=${SHARED_RESOURCES:0:40}…)"
-  mbody="{\"engine\":\"postgresql\",\"name\":\"${MOUNT_NAME}\",\"connection_string\":\"${DSN}\",\"shared_resources\":${SHARED_RESOURCES}}"
+  mbody="{\"engine\":\"postgresql\",\"name\":\"${MOUNT_NAME}\",\"connection_string\":\"${DSN}\",\"shared_resources\":${SHARED_RESOURCES},\"read_scoped\":true}"
   code=$(curl -s -o /tmp/vg-mount.json -w '%{http_code}' -X POST \
     "${KONG_URL}/admin/v1/databases" \
     -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT_SLUG}" \
