@@ -34,8 +34,9 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
-// emailSender abstracts the outbound /send call (fakeable in tests).
-type emailSender func(ctx context.Context, to, subject, html, text string) error
+// emailSender abstracts the outbound /send call (fakeable in tests). unsubURL is
+// the per-subscriber unsubscribe link, emitted as a List-Unsubscribe header.
+type emailSender func(ctx context.Context, to, subject, html, text, unsubURL string) error
 
 // repo is the newsletter persistence seam (satisfied by *store; faked in tests).
 type repo interface {
