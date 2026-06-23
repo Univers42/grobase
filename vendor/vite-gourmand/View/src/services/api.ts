@@ -11,7 +11,7 @@
  * degrade to a safe empty shape so the SPA never 400s or crashes.
  */
 
-import { auth, db, isAuthed, clearSession, BaasError, type Row, type Where } from './baas';
+import { auth, db, isAuthed, clearSession, BaasError, config, accessToken, type Row, type Where } from './baas';
 import {
   composeMenus, composeMenuById, composeSiteInfo, composeReviews, reviewStats, activePromotions,
 } from './baas-compose';
@@ -130,10 +130,52 @@ async function crudDispatch(segs: string[], method: string, data: Row, q: URLSea
   return ok(await crudList(ep, q));
 }
 
+/** Forward to grobase's real newsletter service (orchestrator), returning its envelope. */
+async function newsletterGateway(path: string, method: string, payload?: unknown): Promise<Record<string, unknown>> {
+  const headers: Record<string, string> = { apikey: config.anonKey, 'Content-Type': 'application/json' };
+  const token = accessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${config.url}/newsletter/v1${path}`, {
+    method, headers, body: payload !== undefined ? JSON.stringify(payload) : undefined,
+  });
+  const text = await res.text();
+  let env: Record<string, unknown> = {};
+  try { env = text ? (JSON.parse(text) as Record<string, unknown>) : {}; }
+  catch { throw new ApiError(res.status || 502, `newsletter: gateway returned a non-JSON response (${res.status})`); }
+  if (!res.ok) throw new ApiError(res.status, (env.message as string) ?? `newsletter ${res.status}`);
+  return env;
+}
+
+/** /api/newsletter/* → grobase /newsletter/v1/* — subscribe triggers a real confirmation email. */
+async function newsletterDispatch(segs: string[], data: Row): Promise<unknown> {
+  const sub = segs.join('/');
+  if (sub === 'subscribe') {
+    const env = await newsletterGateway('/subscribe', 'POST', data);
+    return ok({ message: (env.message as string) ?? 'Vérifiez votre email pour confirmer votre inscription.' });
+  }
+  if (segs[0] === 'confirm' && segs[1]) {
+    const env = await newsletterGateway(`/confirm/${segs[1]}`, 'GET');
+    return ok({ message: (env.message as string) ?? 'Inscription confirmée.' });
+  }
+  if (segs[0] === 'unsubscribe' && segs[1]) {
+    const env = await newsletterGateway(`/unsubscribe/${segs[1]}`, 'GET');
+    return ok({ message: (env.message as string) ?? 'Vous êtes désabonné.' });
+  }
+  if (sub === 'stats' || sub === 'stats/admin') {
+    return ok(await newsletterGateway('/admin/stats', 'GET').then((e) => e.data ?? { total: 0, active: 0, confirmed: 0 }));
+  }
+  if (sub === 'admin/campaigns/send' || sub === 'send') {
+    const env = await newsletterGateway('/admin/campaigns/send', 'POST', data);
+    return ok(env.data ?? { message: (env.message as string) ?? 'Campagne envoyée.' });
+  }
+  return ok({});
+}
+
 /** The explicit endpoint map — composed public data + authed flows + safe stubs. */
 async function routeKnown(key: string, segs: string[], method: string, body: unknown, q: URLSearchParams): Promise<unknown | undefined> {
   const data = (body ?? {}) as Row;
   const idNum = Number(segs[1]);
+  if (segs[0] === 'newsletter') return newsletterDispatch(segs.slice(1), data);
   switch (key) {
     // ── public composed ──
     case 'site-info': return ok(await composeSiteInfo());
@@ -158,9 +200,7 @@ async function routeKnown(key: string, segs: string[], method: string, body: unk
     // ── users / profile ──
     case 'users/me': return ok(await appUser());
     case 'users/me/addresses': return ok((await db.list('UserAddress', { limit: 50 })).rows);
-    // ── newsletter / consent / gdpr (writes) ──
-    case 'newsletter/subscribe': return ok(await db.insert('NewsletterSubscriber', data).catch(() => ({})));
-    case 'newsletter/stats': return ok({ total: 0, active: 0 });
+    // ── consent / gdpr (writes); newsletter/* is handled by newsletterDispatch above ──
     case 'consent/anonymous': case 'gdpr/consent': return ok({ recorded: true });
     // ── support (authed) ──
     case 'support': return method === 'POST' ? ok(await db.insert('SupportTicket', data)) : pagedList('SupportTicket', q);
@@ -169,7 +209,6 @@ async function routeKnown(key: string, segs: string[], method: string, body: unk
     // ── dev-only / external → safe stubs (never 400) ──
     case 'ai-agent/status': return ok({ enabled: false });
     case 'ai-agent/chat': return ok({ reply: '' });
-    case 'newsletter/stats/admin': return ok({ total: 0 });
   }
   // prefix-based handlers
   if (segs[0] === 'menus' && segs[1] && method === 'GET') return ok(await composeMenuById(idNum)); // /menus/:id (decorated)
