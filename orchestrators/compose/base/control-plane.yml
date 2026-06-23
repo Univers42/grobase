@@ -34,6 +34,12 @@ services:
       # looped this service (measured 2026-06-11, 17 restarts).
       SCRYPT_MAX_CONCURRENT: ${SCRYPT_MAX_CONCURRENT:-2}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+    # Wait for migrations: EnsureSchema's RLS DDL references auth.current_tenant_id()
+    # (migration 016). Without this the service crash-looped on a fresh DB until a
+    # manual `make migrate`. pg-migrate (un-profiled, always-on) gates startup.
+    depends_on:
+      pg-migrate:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:${ADAPTER_REGISTRY_GO_PORT:-3021}:3021"
     healthcheck:
@@ -125,7 +131,7 @@ services:
     ports:
       - "127.0.0.1:${TENANT_CONTROL_PORT:-3022}:3022"
     depends_on:
-      db-bootstrap:
+      pg-migrate:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
@@ -175,7 +181,7 @@ services:
     ports:
       - "127.0.0.1:${WEBHOOK_DISPATCHER_PORT:-3025}:3025"
     depends_on:
-      db-bootstrap:
+      pg-migrate:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
@@ -254,7 +260,7 @@ services:
     ports:
       - "127.0.0.1:${ORCHESTRATOR_PORT:-3026}:3026"
     depends_on:
-      db-bootstrap:
+      pg-migrate:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "/app/app", "--healthcheck"]
@@ -294,7 +300,7 @@ services:
     ports:
       - "127.0.0.1:${FUNCTION_SCHEDULER_PORT:-3027}:3027"
     depends_on:
-      db-bootstrap:
+      pg-migrate:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "/app/app", "--healthcheck"]
