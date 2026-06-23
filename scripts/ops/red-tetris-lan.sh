@@ -62,33 +62,45 @@ report() {
 	printf '\033[1;36m│\033[0m  Wi-Fi/iface : %s   router %s   subnet %s\n' "${IFACE}" "${GATEWAY}" "${SUBNET}"
 	printf '\033[1;36m│\033[0m  config saved: %s\n' "${ARCHIVE}"
 	printf '\033[1;36m│\033[0m\n'
-	printf '\033[1;36m│\033[0m  \033[1mThis computer (host):\033[0m serve the game — already up.\n'
-	printf '\033[1;36m│\033[0m      open  \033[1;32mhttp://localhost:%s\033[0m\n' "${PORT}"
-	printf '\033[1;36m│\033[0m  \033[1mOther computer (same Wi-Fi):\033[0m open in its browser —\n'
+	printf '\033[1;36m│\033[0m  \033[1mOnly THIS computer runs the server.\033[0m The other computer runs\n'
+	printf '\033[1;36m│\033[0m  NOTHING — no make, no docker — it just opens the link below.\n'
+	printf '\033[1;36m│\033[0m\n'
+	printf '\033[1;36m│\033[0m  \033[1mOpen this SAME url on BOTH computers\033[0m (yes, this one too —\n'
+	printf '\033[1;36m│\033[0m  do NOT use localhost, or the other PC can'\''t reach you):\n'
 	printf '\033[1;36m│\033[0m      \033[1;32mhttp://%s:%s\033[0m\n' "${LAN_IP}" "${PORT}"
-	printf '\033[1;36m│\033[0m  Both log in (e.g. alice / bob), join the SAME room name,\n'
-	printf '\033[1;36m│\033[0m  host clicks Start — you see both boards live, side by side.\n'
+	printf '\033[1;36m│\033[0m\n'
+	printf '\033[1;36m│\033[0m  Then: log in as DIFFERENT users (e.g. alice / bob), both type\n'
+	printf '\033[1;36m│\033[0m  the SAME room name, host clicks Start. The room screen shows\n'
+	printf '\033[1;36m│\033[0m  “● N players online” — if it stays 1, you are not on the same\n'
+	printf '\033[1;36m│\033[0m  address (see the firewall / Wi-Fi notes below).\n'
 	printf '\033[1;36m└──────────────────────────────────────────────────────────────\033[0m\n'
 }
 
 # check_reachable confirms the served port answers on the LAN address itself
-# (not just localhost), which is what the guest computer will hit.
+# (this proves the SERVER is up and bound to the LAN — it does NOT prove a remote
+# PC can get through the host firewall or the router, hence the notes below).
 check_reachable() {
 	if curl -fsS -o /dev/null --max-time 4 "http://${LAN_IP}:${PORT}/baas-config.js" 2>/dev/null; then
-		printf '\033[0;32m✓ reachable on the LAN at http://%s:%s\033[0m\n' "${LAN_IP}" "${PORT}"
+		printf '\033[0;32m✓ server is up and bound to %s:%s\033[0m\n' "${LAN_IP}" "${PORT}"
 	else
-		printf '\033[0;33m! http://%s:%s did not answer — is `make red-tetris` up? then re-run.\033[0m\n' "${LAN_IP}" "${PORT}"
+		printf '\033[0;33m! http://%s:%s did not answer — start it first: make red-tetris\033[0m\n' "${LAN_IP}" "${PORT}"
 	fi
 }
 
-# check_firewall hints at the one-liner to open the port if a host firewall is
-# active. It never edits the firewall — that needs sudo and is the operator's call.
+# check_firewall prints the one-liner to OPEN the port if a host firewall is
+# active (the #1 reason a remote PC sees nothing), plus the Wi-Fi caveat. It never
+# edits the firewall — that needs sudo and is the operator's call.
 check_firewall() {
 	if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -qi active; then
-		printf '\033[0;33m  firewall: ufw is active — allow with:  sudo ufw allow %s/tcp\033[0m\n' "${PORT}"
-	elif command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
-		printf '\033[0;33m  firewall: firewalld active — allow with:  sudo firewall-cmd --add-port=%s/tcp\033[0m\n' "${PORT}"
+		printf '\033[0;33m  ⚠ ufw firewall is ACTIVE — the other PC is blocked until you run:\n      \033[1msudo ufw allow %s/tcp\033[0m\n' "${PORT}"
+	elif command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state 2>/dev/null | grep -qi running; then
+		printf '\033[0;33m  ⚠ firewalld is RUNNING — open the port:  \033[1msudo firewall-cmd --add-port=%s/tcp\033[0m\n' "${PORT}"
+	elif command -v iptables >/dev/null 2>&1 && iptables -L INPUT 2>/dev/null | grep -qiE '\b(DROP|REJECT)\b'; then
+		printf '\033[0;33m  ⚠ iptables has DROP/REJECT rules — make sure tcp/%s is allowed from %s\033[0m\n' "${PORT}" "${SUBNET}"
 	fi
+	printf '\033[0;33m  Still stuck at “1 online”? Your Wi-Fi may use AP/client isolation\n'
+	printf '    (devices can'\''t see each other). Test from the other PC:  ping %s\n' "${LAN_IP}"
+	printf '    — no reply ⇒ disable “AP isolation / client isolation” on the router.\033[0m\n'
 }
 
 fail() { printf '\033[0;31m[red-tetris-lan] FAIL: %s\033[0m\n' "$*" >&2; exit 1; }
