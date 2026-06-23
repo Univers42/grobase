@@ -108,6 +108,34 @@ review   "$M_MATRIX" MOVIE 'The Matrix'   "$P_MATRIX" 10 'Free your mind.'
 # cypher — fresh standard account
 seed_user cypher cypher@movieverse.local ''
 
+# ── a whole community: ~16 users with DIVERSE opinions on shared movies ───────
+# Real TMDB ids/posters; each user touches an overlapping movie subset and rates
+# it differently, so every film accrues a spread of likes + opinions.
+CAT_ID=(603 27205 157336 155 680 13 550 278 238 122 769 424)
+CAT_TI=('The Matrix' 'Inception' 'Interstellar' 'The Dark Knight' 'Pulp Fiction' 'Forrest Gump' 'Fight Club' 'The Shawshank Redemption' 'The Godfather' 'The Return of the King' 'Goodfellas' "Schindler's List")
+CAT_PO=('/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg' '/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg' '/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg' '/qJ2tW6WMUDux911r6m7haRef0WH.jpg' '/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg' '/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg' '/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg' '/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg' '/3bhkrj58Vtu7enYsRolD1fZdja1.jpg' '/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg' '/aKuFiU82s5ISJpGZp7YkIr3kCUd.jpg' '/sF1U4EUQS8YHUYjNl3pMGNIQyr0.jpg')
+POSC=('Obra maestra.' 'De las mejores que he visto.' 'Perfecta de principio a fin.' 'Inolvidable, un clásico.')
+MIDC=('Muy buena, la recomiendo.' 'Me gustó bastante.' 'Sólida y entretenida.' 'Gran película.')
+NEGC=('Esperaba más.' 'Está bien, sin más.' 'Sobrevalorada para mi gusto.' 'No es para mí.')
+BULK=(ava liam mia noah emma lucas sofia leo nora hugo iris theo lola max cleo enzo)
+ncat=${#CAT_ID[@]}
+ui=0
+for u in "${BULK[@]}"; do
+  read -r TOK USERID <<<"$(signup_or_login "$u" "$u@movieverse.local")"
+  EMAILS+=("$u@movieverse.local")
+  for k in 0 1 2 3 4; do
+    j=$(( (ui * 3 + k * 5 + 1) % ncat ))
+    r=$(( (ui * 7 + j * 5) % 10 + 1 ))
+    like "${CAT_ID[$j]}" MOVIE "${CAT_TI[$j]}" "${CAT_PO[$j]}" 7.5
+    if [ "$k" -lt 3 ]; then
+      if [ "$r" -ge 8 ]; then c="${POSC[$((ui % 4))]}"; elif [ "$r" -ge 5 ]; then c="${MIDC[$((ui % 4))]}"; else c="${NEGC[$((ui % 4))]}"; fi
+      review "${CAT_ID[$j]}" MOVIE "${CAT_TI[$j]}" "${CAT_PO[$j]}" "$r" "$c"
+    fi
+  done
+  ui=$((ui + 1))
+done
+info "community seeded: ${#BULK[@]} users with diverse opinions across ${ncat} films"
+
 # ── emit frontend config (same-origin: url="" → nginx proxies /auth /rest /tmdb) ──
 mkdir -p vendor/MovieVerse/dist/js
 cat > vendor/MovieVerse/dist/js/config.js <<EOF

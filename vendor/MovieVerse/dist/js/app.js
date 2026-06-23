@@ -46,9 +46,10 @@ const tmdb = (path) => jfetch(`${CFG.tmdbBase}${path}`, { headers: headers(false
 
 // ── data (proxy returns flat arrays, camelCase, full poster URLs) ─────────────
 const arr = (x) => (Array.isArray(x) ? x : []);
-const normCatalog = (m) => ({ id: m.id, title: m.title || m.name, poster: m.posterPath, vote: m.voteAverage || 0 });
+const normCatalog = (m) => ({ id: m.id, title: m.title || m.name, poster: m.posterPath, backdrop: m.backdropPath, vote: m.voteAverage || 0, overview: m.overview });
 const normLike = (l) => ({ id: l.media_id, title: l.title, poster: l.poster_path, vote: l.vote_average || 0 });
 const discover = (page = 1) => tmdb(`/discover/movie?page=${page}`).then((d) => arr(d).map(normCatalog));
+const discoverTv = (page = 1) => tmdb(`/discover/tv?page=${page}`).then((d) => arr(d).map(normCatalog));
 const search = (q) => tmdb(`/search?query=${encodeURIComponent(q)}`).then((d) => arr(d).filter((m) => m.mediaType !== 'PERSON').map(normCatalog));
 const detail = (id) => tmdb(`/movie/${id}`);
 const likeCount = (id) => rest.rpc('like_count', { p_media_id: id, p_media_type: 'MOVIE' }).catch(() => 0);
@@ -66,6 +67,17 @@ const cardHTML = (c) => `
     <div class="meta"><div class="t">${esc(c.title || '—')}</div><div class="r">★ ${(+c.vote || 0).toFixed(1)}</div></div>
   </div>`;
 const grid = (list) => (list.length ? `<div class="grid">${list.map(cardHTML).join('')}</div>` : `<div class="empty">Sin resultados. (¿TMDB_API_KEY configurada en .env?)</div>`);
+const row = (title, list) => (list.length ? `<div class="row"><h3>${esc(title)}</h3><div class="row-scroll">${list.map(cardHTML).join('')}</div></div>` : '');
+const heroHTML = (m) => `
+  <div class="hero" data-id="${m.id}">
+    <img class="bg" src="${posterURL(m.backdrop || m.poster, 780)}" alt="" />
+    <div class="shade"></div>
+    <div class="info">
+      <h1>${esc(m.title)}</h1>
+      <p class="ov">${esc(m.overview || '')}</p>
+      <div class="actions"><button class="btn" data-id="${m.id}">▶ Ver tráiler</button><span class="pill">★ ${(+m.vote).toFixed(1)}</span></div>
+    </div>
+  </div>`;
 
 function renderNav() {
   const s = session();
@@ -75,9 +87,12 @@ function renderNav() {
 }
 
 async function viewHome() {
-  el('app').innerHTML = `<h1>Películas populares</h1><div class="empty">Cargando catálogo…</div>`;
-  try { el('app').innerHTML = `<h1>Películas populares</h1>${grid(await discover(1))}`; }
-  catch { el('app').innerHTML = `<h1>Películas populares</h1><div class="empty">El catálogo no respondió.</div>`; }
+  el('app').innerHTML = '<div class="empty">Cargando catálogo…</div>';
+  try {
+    const [pop, pop2, tv] = await Promise.all([discover(1), discover(2), discoverTv(1)]);
+    const hero = pop.find((m) => m.backdrop) || pop[0];
+    el('app').innerHTML = (hero ? heroHTML(hero) : '') + row('Películas populares', pop) + row('Series', tv) + row('Más películas', pop2);
+  } catch { el('app').innerHTML = '<div class="empty">El catálogo no respondió. (¿TMDB_API_KEY en .env?)</div>'; }
 }
 async function viewSearch(q) {
   el('app').innerHTML = `<h1>Resultados: “${esc(q)}”</h1><div class="empty">Buscando…</div>`;
@@ -138,9 +153,13 @@ async function openMovie(id) {
         <h2>${esc(d.title || d.name)}</h2>
         <p class="row" style="gap:8px"><span class="pill">★ ${(d.voteAverage || 0).toFixed(1)}</span><span class="pill" id="lc">♥ ${count}</span><span class="muted">${esc((d.releaseDate || '').slice(0, 4))}</span></p>
         <p class="ov">${esc(d.overview || 'Sin sinopsis.')}</p>
-        <button class="btn ${liked ? 'ghost' : ''}" id="likeBtn" ${me() ? '' : 'disabled title="Entra para dar me gusta"'}>${liked ? '♥ Te gusta' : '♡ Me gusta'}</button>
+        <div class="row" style="gap:8px">
+          <button class="btn ${liked ? 'ghost' : ''}" id="likeBtn" ${me() ? '' : 'disabled title="Entra para dar me gusta"'}>${liked ? '♥ Te gusta' : '♡ Me gusta'}</button>
+          ${d.trailerKey ? '<button class="btn" id="trailerBtn">▶ Ver tráiler</button>' : ''}
+        </div>
       </div>
     </div>
+    ${d.trailerKey ? '<div class="trailer-wrap" id="trailerBox"></div>' : ''}
     <div class="sect">
       <h3>Reseñas (${reviews.length})</h3>
       ${me() ? `<div class="row" style="margin:8px 0"><select id="rv-rating">${[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((n) => `<option value="${n}">${n}/10</option>`).join('')}</select></div>
@@ -149,6 +168,11 @@ async function openMovie(id) {
       <div id="rv-list">${reviews.map((r) => `<div class="rev"><div class="who">${esc(PROFILES[r.user_id] || 'usuario')} <span class="stars">${stars(r.rating)}</span></div><div class="cm">${esc(r.comment || '')}</div></div>`).join('') || '<p class="muted">Sé el primero en reseñar.</p>'}</div>
     </div>`;
   $('#mx').onclick = closeModal;
+  const tb = $('#trailerBtn');
+  if (tb && d.trailerKey) tb.onclick = () => {
+    el('sheet').querySelector('#trailerBox').innerHTML = `<iframe class="trailer" src="https://www.youtube.com/embed/${encodeURIComponent(d.trailerKey)}?autoplay=1&rel=0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+    tb.style.display = 'none';
+  };
   const lb = $('#likeBtn');
   if (lb && me()) lb.onclick = async () => {
     try {
@@ -175,8 +199,8 @@ function route() {
   return viewHome();
 }
 document.addEventListener('click', (e) => {
-  const card = e.target.closest('.card'); if (card) return openMovie(card.dataset.id);
   const go = e.target.closest('[data-go]'); if (go) { location.hash = go.dataset.go; return; }
+  const idEl = e.target.closest('[data-id]'); if (idEl) return openMovie(idEl.dataset.id);
   if (e.target.id === 'logout') { setSession(null); renderNav(); location.hash = '#/'; route(); }
 });
 el('modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
