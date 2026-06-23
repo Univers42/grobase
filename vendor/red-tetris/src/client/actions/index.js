@@ -83,6 +83,11 @@ export const updateOpponentSpectrum = ({ socketId, playerName, spectrum }) => ({
   payload: { socketId, playerName, spectrum },
 });
 
+export const updateOpponentBoard = ({ socketId, playerName, board }) => ({
+  type: ACTIONS.UPDATE_OPPONENT_BOARD,
+  payload: { socketId, playerName, board },
+});
+
 export const addPenaltyLines = (lines) => ({
   type: ACTIONS.ADD_PENALTY_LINES,
   payload: lines,
@@ -135,6 +140,11 @@ export const changeGameMode = (mode) => (dispatch, getState) => {
 export const sendSpectrum = (spectrum) => (dispatch, getState) => {
   const { socket } = getState().connection;
   if (socket) socket.sendSpectrum(spectrum);
+};
+
+export const sendBoardState = (board) => (dispatch, getState) => {
+  const { socket } = getState().connection;
+  if (socket) socket.sendBoard(board);
 };
 
 export const sendLinesCleared = (linesCleared, score) => (dispatch, getState) => {
