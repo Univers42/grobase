@@ -82,3 +82,14 @@ red-tetris: red-tetris-provision ## red-tetris: full end-to-end — provision, b
 
 red-tetris-lan: ## red-tetris: discover this host's LAN address so a 2nd computer on the same Wi-Fi can join (writes build/red-tetris-lan.env)
 	@RED_TETRIS_PORT=$(RED_TETRIS_PORT) sh scripts/ops/red-tetris-lan.sh
+
+# red-tetris-play: the FAST "just let me play" path. Unlike `make red-tetris` it does NOT
+# re-provision the contract or re-run `npm ci` every time — it only ensures the tetris
+# planes are up, builds the SPA once (if vendor/red-tetris/dist is missing), and serves.
+# Use `make red-tetris` for the first run (provision + seed + build); `red-tetris-play`
+# for every reconnect after that.
+red-tetris-play: _require-compose ## red-tetris: FAST reconnect — ensure planes + serve the built SPA (no re-provision/rebuild) → play now
+	@$(MAKE) --no-print-directory up EDITION=tetris
+	@[ -f vendor/red-tetris/dist/index.html ] || { echo -e "$(_B)building SPA (first run)…$(_0)"; docker run --rm -v "$(CURDIR)/vendor/red-tetris":/app -w /app node:20-alpine sh -c 'npm ci --silent && npm run build'; }
+	@RED_TETRIS_PORT=$(RED_TETRIS_PORT) $(DC) --profile red-tetris up -d --no-deps red-tetris
+	@echo -e "$(_G)✓ red-tetris ready → http://localhost:$(RED_TETRIS_PORT)$(_0)  (demo: $(_C)alice@tetris.local$(_0) … heidi@tetris.local / $(_W)Tetris#2026$(_0))"
