@@ -57,6 +57,21 @@ const reviewsFor = (id) => rest.get(`reviews?media_id=eq.${id}&media_type=eq.MOV
 const myLikes = () => (me() ? rest.get('likes?select=*&order=created_at.desc').catch(() => []) : Promise.resolve([]));
 const myReviews = () => (me() ? rest.get(`reviews?user_id=eq.${me()}&select=*&order=created_at.desc`).catch(() => []) : Promise.resolve([]));
 
+// Classic films that reliably HAVE trailers (current popular releases often don't
+// yet), so the trailer button always plays something recognizable.
+const CLASSICS = [
+  { id: 27205, title: 'Inception', poster: '/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg', vote: 8.4 },
+  { id: 603, title: 'The Matrix', poster: '/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg', vote: 8.2 },
+  { id: 157336, title: 'Interstellar', poster: '/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg', vote: 8.4 },
+  { id: 155, title: 'The Dark Knight', poster: '/qJ2tW6WMUDux911r6m7haRef0WH.jpg', vote: 8.5 },
+  { id: 680, title: 'Pulp Fiction', poster: '/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg', vote: 8.5 },
+  { id: 13, title: 'Forrest Gump', poster: '/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg', vote: 8.5 },
+  { id: 550, title: 'Fight Club', poster: '/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg', vote: 8.4 },
+  { id: 278, title: 'The Shawshank Redemption', poster: '/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg', vote: 8.7 },
+  { id: 238, title: 'The Godfather', poster: '/3bhkrj58Vtu7enYsRolD1fZdja1.jpg', vote: 8.7 },
+  { id: 122, title: 'The Return of the King', poster: '/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg', vote: 8.5 },
+];
+
 let PROFILES = {};
 async function loadProfiles() { try { (await rest.get('movieverse_profiles?select=id,username')).forEach((p) => { PROFILES[p.id] = p.username; }); } catch { /* anon may be limited */ } }
 
@@ -64,6 +79,7 @@ async function loadProfiles() { try { (await rest.get('movieverse_profiles?selec
 const cardHTML = (c) => `
   <div class="card" data-id="${c.id}">
     <img loading="lazy" src="${posterURL(c.poster)}" alt="" />
+    <button class="card-trailer" data-trailer="${c.id}" title="Ver tráiler">▶ Tráiler</button>
     <div class="meta"><div class="t">${esc(c.title || '—')}</div><div class="r">★ ${(+c.vote || 0).toFixed(1)}</div></div>
   </div>`;
 const grid = (list) => (list.length ? `<div class="grid">${list.map(cardHTML).join('')}</div>` : `<div class="empty">Sin resultados. (¿TMDB_API_KEY configurada en .env?)</div>`);
@@ -75,7 +91,7 @@ const heroHTML = (m) => `
     <div class="info">
       <h1>${esc(m.title)}</h1>
       <p class="ov">${esc(m.overview || '')}</p>
-      <div class="actions"><button class="btn" data-id="${m.id}">▶ Ver tráiler</button><span class="pill">★ ${(+m.vote).toFixed(1)}</span></div>
+      <div class="actions"><button class="btn" data-trailer="${m.id}">▶ Ver tráiler</button><button class="btn ghost" data-id="${m.id}">Info</button><span class="pill">★ ${(+m.vote).toFixed(1)}</span></div>
     </div>
   </div>`;
 
@@ -89,9 +105,12 @@ function renderNav() {
 async function viewHome() {
   el('app').innerHTML = '<div class="empty">Cargando catálogo…</div>';
   try {
-    const [pop, pop2, tv] = await Promise.all([discover(1), discover(2), discoverTv(1)]);
-    const hero = pop.find((m) => m.backdrop) || pop[0];
-    el('app').innerHTML = (hero ? heroHTML(hero) : '') + row('Películas populares', pop) + row('Series', tv) + row('Más películas', pop2);
+    const [pop, tv] = await Promise.all([discover(1), discoverTv(1)]);
+    const hc = CLASSICS[Math.floor(Math.random() * 4)];
+    let hero;
+    try { const hd = await detail(hc.id); hero = { id: hc.id, title: hd.title || hc.title, backdrop: hd.backdropPath, poster: hc.poster, vote: hd.voteAverage || hc.vote, overview: hd.overview }; }
+    catch { hero = pop.find((m) => m.backdrop) || pop[0]; }
+    el('app').innerHTML = (hero ? heroHTML(hero) : '') + row('Clásicos imprescindibles (con tráiler)', CLASSICS) + row('Populares ahora', pop) + row('Series', tv);
   } catch { el('app').innerHTML = '<div class="empty">El catálogo no respondió. (¿TMDB_API_KEY en .env?)</div>'; }
 }
 async function viewSearch(q) {
@@ -189,7 +208,23 @@ async function openMovie(id) {
     } catch (e) { alert(e.message); }
   };
 }
-const closeModal = () => el('modal').classList.remove('open');
+const closeModal = () => { el('modal').classList.remove('open'); el('sheet').innerHTML = ''; };
+
+/** openTrailer pops a big centered video lightbox and autoplays the YouTube
+ *  trailer — one click from a card/hero, Netflix-style. Friendly message if the
+ *  title has no trailer. */
+async function openTrailer(id) {
+  el('modal').classList.add('open');
+  el('sheet').innerHTML = '<span class="x" id="mx">×</span><div class="trailer-wrap"><p class="muted">Cargando tráiler…</p></div>';
+  $('#mx').onclick = closeModal;
+  let d; try { d = await detail(id); } catch { d = {}; }
+  if (!d.trailerKey) {
+    el('sheet').innerHTML = `<span class="x" id="mx">×</span><div class="sect"><h3>${esc(d.title || 'Tráiler')}</h3><p class="muted">No hay tráiler disponible para este título.</p></div>`;
+  } else {
+    el('sheet').innerHTML = `<span class="x" id="mx">×</span><div class="trailer-wrap"><h3 style="margin:4px 0 10px">${esc(d.title || '')} — Tráiler</h3><iframe class="trailer" src="https://www.youtube.com/embed/${encodeURIComponent(d.trailerKey)}?autoplay=1&rel=0" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe></div>`;
+  }
+  $('#mx').onclick = closeModal;
+}
 
 // ── router + wiring ────────────────────────────────────────────────────────────
 function route() {
@@ -200,6 +235,7 @@ function route() {
 }
 document.addEventListener('click', (e) => {
   const go = e.target.closest('[data-go]'); if (go) { location.hash = go.dataset.go; return; }
+  const tr = e.target.closest('[data-trailer]'); if (tr) { e.stopPropagation(); return openTrailer(tr.dataset.trailer); }
   const idEl = e.target.closest('[data-id]'); if (idEl) return openMovie(idEl.dataset.id);
   if (e.target.id === 'logout') { setSession(null); renderNav(); location.hash = '#/'; route(); }
 });
