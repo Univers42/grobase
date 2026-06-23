@@ -168,6 +168,6 @@ vault-push-env: ## vault42: push every *.env*/*.secrets (any depth) to the REMOT
 	@REPO_DIR="$(CURDIR)" CTL_IMAGE="$(CTL_IMAGE)" CTL_CFG_DIR="$(CTL_CFG_DIR)" VAULT_ENV_PROJECT="$(VAULT_ENV_PROJECT)" \
 		sh scripts/vault/ctl-env.sh push
 
-vault-pull-env: ## vault42: restore the *.env* tree from the REMOTE ZK vault — DRY-RUN unless APPLY=1 — passphrase read hidden
+vault-pull-env: ## vault42: restore the *.env* tree from the REMOTE ZK vault — DRY-RUN unless APPLY=1 (FORCE=1 overwrites existing files) — passphrase read hidden
 	@REPO_DIR="$(CURDIR)" CTL_IMAGE="$(CTL_IMAGE)" CTL_CFG_DIR="$(CTL_CFG_DIR)" VAULT_ENV_PROJECT="$(VAULT_ENV_PROJECT)" \
-		sh scripts/vault/ctl-env.sh pull $(if $(filter 1,$(APPLY)),--apply,)
+		sh scripts/vault/ctl-env.sh pull $(if $(filter 1,$(APPLY)),--apply,) $(if $(filter 1,$(FORCE)),--force,)

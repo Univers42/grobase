@@ -45,7 +45,7 @@ ensure_profile
 }
 read_passphrase
 
-exec docker run --rm \
+exec docker run --rm --user "$(id -u):$(id -g)" \
 	-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 -e FT_PASSPHRASE \
 	-e RUST_LOG="${RUST_LOG:-info}" \
 	-v "$CTL_CFG_DIR:/cfg" -v "$REPO_DIR:/work" -w /work \
