@@ -61,3 +61,24 @@ gourmand-creds: ## Print the seeded vite-gourmand logins (persisted in .gourmand
 		echo -e "  URL       $(_C)http://localhost:$(GOURMAND_PORT)$(_0)"; \
 		echo -e "  admin     $(_G)$$ae$(_0) / $(_G)$$ap$(_0)"; \
 		echo -e "  customer  $$ce / $$cp"
+
+RED_TETRIS_PORT ?= 5178
+
+# red-tetris: the 42 Tetris re-platformed ENTIRELY onto Grobase (auth + data +
+# the multiplayer realtime bus). Brings up the maximal `tetris` edition, provisions
+# the contract (DB + mounts + seed), builds the SPA, and serves it same-origin.
+red-tetris-provision: _require-compose ## red-tetris: bring up EDITION=tetris + provision the contract (DB/mounts/seed)
+	@FUNCTIONS_CRON_ENABLED=1 $(MAKE) --no-print-directory up EDITION=tetris
+	@bash scripts/provision-contract.sh infra/config/contracts/red-tetris.json
+	@docker restart mini-baas-data-plane-router-rust >/dev/null 2>&1 || true
+	@echo -e "$(_G)✓ red-tetris contract provisioned$(_0)"
+
+red-tetris: red-tetris-provision ## red-tetris: full end-to-end — provision, build the SPA, serve it (http://localhost:5178)
+	@docker run --rm -v "$(CURDIR)/vendor/red-tetris":/app -w /app node:20-alpine sh -c 'npm ci --silent && npm run build'
+	@RED_TETRIS_PORT=$(RED_TETRIS_PORT) $(DC) --profile red-tetris up -d --no-deps red-tetris
+	@echo -e "$(_G)✓ red-tetris live → http://localhost:$(RED_TETRIS_PORT)$(_0)"
+	@echo -e "  demo logins: $(_C)alice@tetris.local$(_0) … heidi@tetris.local  /  $(_W)Tetris#2026$(_0)"
+	@RED_TETRIS_PORT=$(RED_TETRIS_PORT) sh scripts/ops/red-tetris-lan.sh || true
+
+red-tetris-lan: ## red-tetris: discover this host's LAN address so a 2nd computer on the same Wi-Fi can join (writes build/red-tetris-lan.env)
+	@RED_TETRIS_PORT=$(RED_TETRIS_PORT) sh scripts/ops/red-tetris-lan.sh

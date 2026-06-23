@@ -63,7 +63,7 @@ PROFILES_playground    := playground
 # engines" add-on / Max package. Optional; never in default editions.
 PROFILES_engines       := engines-extra
 
-EDITIONS := lean query realtime analytics prod full
+EDITIONS := lean query realtime analytics prod full tetris
 
 # edition -> plane list  (core, profile-less, is always included)
 EDITION_lean      :=
@@ -75,6 +75,12 @@ EDITION_prod      := data go rust adapter background storage realtime observabil
 # bind-mount (./playground) has nothing to serve. Excluded from `full` so `make up
 # EDITION=full` comes up clean; restore the playground/ assets + drop the filter to re-enable.
 EDITION_full      := $(filter-out playground,$(PLANES))
+# `tetris` — the maximal red-tetris game edition: relational data + control + rust
+# data plane + adapter + background, plus realtime (the multiplayer game bus + live
+# leaderboard CDC), storage (avatars), functions (scheduled league recompute),
+# analytics (game stats) and observability. The `red-tetris` SPA-serving compose
+# profile is opted into separately by `make red-tetris` (like gourmand/hypertube).
+EDITION_tetris    := data go rust adapter background realtime storage functions analytics observability
 
 # Which edition `make up` / `make down` operate on by default.
 EDITION ?= query
