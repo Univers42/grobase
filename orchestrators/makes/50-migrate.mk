@@ -35,3 +35,29 @@ seed-mongo: _require-compose ## Seed MongoDB demo data
 
 seed-live-demo: _require-compose ## Seed the live-database demo across pg+mysql+mongo (owned by the osionos app key; RESEED=1 wipes first)
 	@bash scripts/seed/seed-live-demo.sh
+
+GOURMAND_PORT ?= 5180
+
+# The data plane caches a mount's shared_resources/owner-scoping at registration;
+# a fresh provision needs a data-plane-router restart before the scoping is live.
+gourmand-verify: _require-compose ## vite-gourmand: provision + prove the BaaS end-to-end (DB/auth/owner-scope/triggers) via the m149 gate
+	@DATA_PLANE_PER_TABLE_ISOLATION=1 DATA_PLANE_ADMIN_BYPASS=1 $(MAKE) --no-print-directory up
+	@bash scripts/seed/gourmand-baas.sh
+	@docker restart mini-baas-data-plane-router-rust >/dev/null 2>&1 || true
+	@bash scripts/verify/m149-gourmand-baas.sh
+	@echo -e "$(_G)✓ vite-gourmand BaaS verified (seed + m149 gate)$(_0)"
+
+gourmand: gourmand-verify ## vite-gourmand: full end-to-end — verify, then build the SPA + serve it (http://localhost:5180)
+	@docker run --rm -v "$(CURDIR)/vendor/vite-gourmand/View":/app -w /app node:20-alpine sh -c 'npm ci && npm run build'
+	@GOURMAND_PORT=$(GOURMAND_PORT) $(DC) --profile gourmand up -d --no-deps gourmand
+	@echo -e "$(_G)✓ vite-gourmand live → http://localhost:$(GOURMAND_PORT)$(_0)"
+	@$(MAKE) --no-print-directory gourmand-creds
+
+gourmand-creds: ## Print the seeded vite-gourmand logins (persisted in .gourmand-baas.env)
+	@[ -f .gourmand-baas.env ] || { echo -e "$(_Y)no .gourmand-baas.env yet — run 'make gourmand-verify' first$(_0)"; exit 0; }
+	@ae="$$(sed -n 's/^VG_ADMIN_EMAIL=//p' .gourmand-baas.env)"; ap="$$(sed -n 's/^VG_ADMIN_PASSWORD=//p' .gourmand-baas.env)"; \
+		ce="$$(sed -n 's/^VG_CLIENT_EMAIL=//p' .gourmand-baas.env)"; cp="$$(sed -n 's/^VG_CLIENT_PASSWORD=//p' .gourmand-baas.env)"; \
+		echo -e "$(_W)vite-gourmand logins$(_0)  (saved in .gourmand-baas.env)"; \
+		echo -e "  URL       $(_C)http://localhost:$(GOURMAND_PORT)$(_0)"; \
+		echo -e "  admin     $(_G)$$ae$(_0) / $(_G)$$ap$(_0)"; \
+		echo -e "  customer  $$ce / $$cp"
