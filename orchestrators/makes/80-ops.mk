@@ -138,3 +138,20 @@ ctl: ## Run 42ctl from its image — make ctl ARGS="org create --slug x --name X
 		--user "$$(id -u):$$(id -g)" \
 		-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 \
 		-v "$(CURDIR)/.42ctl:/cfg" $(CTL_IMAGE) $(ARGS)
+
+# ── 42ctl against the REMOTE fly stack — no clone, no cargo, no local stack ───
+# Runs the published image on the DEFAULT bridge (so it reaches vault42.fly.dev),
+# auto-writes the profile if absent, persists identity in ~/.config/42ctl, and mounts
+# THIS repo as the workdir so `pull` materializes the *.env tree here. Pass the keystore
+# passphrase via the FT_PASSPHRASE env (forwarded into the container). E.g. a fresh PC:
+#   FT_PASSPHRASE=… make ctl-remote ARGS="keys recover --email you@example.com"
+#   FT_PASSPHRASE=… make ctl-remote ARGS="auth login --email you@example.com --tenant grobase-secrets --token <TOKEN>"
+#   make ctl-remote ARGS="pull --project grobase --apply"
+CTL_CFG_DIR := $(HOME)/.config/42ctl
+ctl-remote: ## 42ctl from its image vs the REMOTE fly stack — make ctl-remote ARGS="pull --project grobase --apply"
+	@mkdir -p $(CTL_CFG_DIR)
+	@[ -f $(CTL_CFG_DIR)/config.json ] || printf '%s\n' '{"current":"default","profiles":{"default":{"server":"https://vault42.fly.dev","authority":"https://grobase-nano.fly.dev","grobase":"https://grobase-stack.fly.dev"}}}' > $(CTL_CFG_DIR)/config.json
+	@docker run --rm -it --user "$$(id -u):$$(id -g)" \
+		-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 -e FT_PASSPHRASE \
+		-v "$(CTL_CFG_DIR):/cfg" -v "$(CURDIR):/work" -w /work \
+		$(CTL_IMAGE) $(ARGS)
