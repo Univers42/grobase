@@ -35,6 +35,9 @@ go.work
 ### Node ###
 # Logs
 logs
+# never ignore source-tree logs modules (e.g. vite-gourmand DevBoard features/logs)
+!**/src/**/logs/
+!**/src/**/logs/**
 !src/apps/log-service/src/logs/
 !src/apps/log-service/src/logs/**
 *.log
