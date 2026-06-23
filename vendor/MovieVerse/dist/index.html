@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MovieVerse</title>
+  <style>
+    :root { --bg:#0b0b12; --panel:#15151f; --line:#23233a; --txt:#e7e7f2; --mut:#8a8aa6; --red:#e50914; --gold:#ffd45e; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:radial-gradient(1200px 600px at 50% -10%, #18182c, var(--bg)); color:var(--txt);
+           font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; min-height:100vh; }
+    a { color:inherit; text-decoration:none; }
+    header { position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:16px; padding:12px 22px;
+             background:rgba(11,11,18,.86); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
+    .logo { font-weight:900; letter-spacing:1px; font-size:22px; }
+    .logo b { color:var(--red); }
+    header input { flex:1; max-width:420px; background:#0e0e18; border:1px solid var(--line); color:var(--txt);
+                   border-radius:10px; padding:9px 13px; font-size:14px; }
+    .nav-spacer { flex:1; }
+    .btn { background:var(--red); color:#fff; border:none; border-radius:9px; padding:9px 16px; font-weight:700; cursor:pointer; font-size:14px; }
+    .btn.ghost { background:transparent; border:1px solid var(--line); color:var(--txt); }
+    .navlink { color:var(--mut); font-weight:600; font-size:14px; cursor:pointer; }
+    .navlink:hover { color:var(--txt); }
+    main { max-width:1180px; margin:0 auto; padding:24px 22px 60px; }
+    h1 { font-size:22px; margin:6px 0 18px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:16px; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; cursor:pointer;
+            transition:transform .12s, border-color .12s; }
+    .card:hover { transform:translateY(-4px); border-color:#3a3a5c; }
+    .card img { width:100%; aspect-ratio:2/3; object-fit:cover; background:#0e0e18; display:block; }
+    .card .meta { padding:9px 11px; }
+    .card .t { font-size:13px; font-weight:700; line-height:1.25; max-height:2.5em; overflow:hidden; }
+    .card .r { font-size:12px; color:var(--gold); margin-top:4px; }
+    .empty { color:var(--mut); padding:40px 0; text-align:center; }
+    /* modal */
+    #modal { position:fixed; inset:0; z-index:40; display:none; align-items:center; justify-content:center;
+             background:rgba(0,0,0,.72); padding:20px; }
+    #modal.open { display:flex; }
+    .sheet { background:var(--panel); border:1px solid var(--line); border-radius:16px; max-width:760px; width:100%;
+             max-height:88vh; overflow:auto; }
+    .sheet .hero { display:flex; gap:18px; padding:20px; }
+    .sheet .hero img { width:160px; border-radius:10px; aspect-ratio:2/3; object-fit:cover; background:#0e0e18; }
+    .sheet h2 { margin:0 0 6px; }
+    .ov { color:#c9c9e0; font-size:14px; line-height:1.5; }
+    .pill { display:inline-block; background:#0e0e18; border:1px solid var(--line); border-radius:20px; padding:4px 11px; font-size:12px; color:var(--gold); }
+    .sect { padding:0 20px 20px; }
+    .rev { border-top:1px solid var(--line); padding:11px 0; }
+    .rev .who { font-weight:700; font-size:13px; }
+    .rev .cm { color:#c9c9e0; font-size:14px; margin-top:3px; }
+    .stars { color:var(--gold); }
+    textarea, select { width:100%; background:#0e0e18; border:1px solid var(--line); color:var(--txt); border-radius:8px; padding:8px; font:inherit; }
+    .row { display:flex; gap:10px; align-items:center; }
+    .x { float:right; color:var(--mut); font-size:26px; cursor:pointer; line-height:1; padding:14px 18px 0 0; }
+    .form { max-width:380px; margin:40px auto; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:24px; }
+    .form input { width:100%; margin:8px 0; background:#0e0e18; border:1px solid var(--line); color:var(--txt); border-radius:9px; padding:11px; font-size:14px; }
+    .form .btn { width:100%; margin-top:10px; }
+    .err { color:#ff7a7a; font-size:13px; min-height:18px; }
+    .muted { color:var(--mut); font-size:13px; }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="logo" href="#/"><b>MOVIE</b>VERSE</a>
+    <input id="search" placeholder="Buscar películas…" />
+    <div class="nav-spacer"></div>
+    <nav id="nav" class="row"></nav>
+  </header>
+  <main id="app"><div class="empty">Cargando…</div></main>
+  <div id="modal"><div class="sheet" id="sheet"></div></div>
+
+  <script src="/js/config.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
