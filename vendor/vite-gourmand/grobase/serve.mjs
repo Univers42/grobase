@@ -22,7 +22,7 @@ const DIST = join(VIEW, 'dist');
 const PUBLIC = join(VIEW, 'public');
 const PORT = Number(process.env.PORT || 5174);
 const SELF_ORIGIN = `http://localhost:${PORT}`;
-const API_PREFIXES = ['/auth/', '/query/', '/storage/', '/realtime/', '/rest/', '/functions/'];
+const API_PREFIXES = ['/auth/', '/query/', '/storage/', '/realtime/', '/rest/', '/functions/', '/newsletter/', '/email/'];
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
