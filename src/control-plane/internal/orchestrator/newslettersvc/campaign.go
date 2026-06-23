@@ -48,7 +48,8 @@ func (s *Service) fanOut(ctx context.Context, recipients []Recipient,
 			end = len(recipients)
 		}
 		for _, rcpt := range recipients[i:end] {
-			if err := s.send(ctx, rcpt.Email, subject, html, text); err != nil {
+			unsubURL := strings.TrimRight(s.baseURL, "/") + "/unsubscribe/" + rcpt.Token
+			if err := s.send(ctx, rcpt.Email, subject, html, text, unsubURL); err != nil {
 				failed++
 			} else {
 				sent++
@@ -66,11 +67,12 @@ func (s *Service) notifyConfirmation(ctx context.Context, email, firstName, toke
 		greeting = " " + firstName
 	}
 	confirmURL := strings.TrimRight(s.baseURL, "/") + "/confirm/" + token
+	unsubURL := strings.TrimRight(s.baseURL, "/") + "/unsubscribe/" + token
 	html := "<p>Hello" + greeting + ",</p>\n" +
 		"<p>Please confirm your subscription by clicking the link below:</p>\n" +
 		`<p><a href="` + confirmURL + `">Confirm subscription</a></p>` + "\n" +
 		"<p>If you did not subscribe, you can safely ignore this email.</p>"
-	if err := s.send(ctx, email, "Confirm your newsletter subscription", html, ""); err != nil {
+	if err := s.send(ctx, email, "Confirm your newsletter subscription", html, "", unsubURL); err != nil {
 		s.log.Error("failed to send confirmation email", "err", err)
 	}
 }

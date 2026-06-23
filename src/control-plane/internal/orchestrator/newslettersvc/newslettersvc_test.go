@@ -77,7 +77,7 @@ type recordingSender struct {
 	failFor map[string]bool
 }
 
-func (s *recordingSender) send(_ context.Context, to, _, _, _ string) error {
+func (s *recordingSender) send(_ context.Context, to, _, _, _, _ string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sent = append(s.sent, to)
