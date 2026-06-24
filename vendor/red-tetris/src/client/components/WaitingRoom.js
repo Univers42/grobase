@@ -67,26 +67,21 @@ const WaitingRoom = () => {
         </div>
       )}
 
-      {isHost && (
-        <>
-          <div className="mode-selector">
-            {Object.entries(GAME_MODES).map(([key, value]) => (
-              <button
-                key={key}
-                className={`mode-btn ${gameState.gameMode === value ? 'active' : ''}`}
-                onClick={() => handleModeChange(value)}
-              >
-                {key.toLowerCase()}
-              </button>
-            ))}
-          </div>
-          <button className="btn btn-primary" onClick={handleStart}>
-            {alone ? 'Start (solo until someone joins)' : 'Start Game'}
+      <div className="mode-selector">
+        {Object.entries(GAME_MODES).map(([key, value]) => (
+          <button
+            key={key}
+            className={`mode-btn ${gameState.gameMode === value ? 'active' : ''}`}
+            onClick={() => handleModeChange(value)}
+          >
+            {key.toLowerCase()}
           </button>
-        </>
-      )}
-
-      {!isHost && <p style={{ color: '#888' }}>Waiting for host to start...</p>}
+        ))}
+      </div>
+      <button className="btn btn-primary" onClick={handleStart}>
+        {alone ? 'Start (solo until someone joins)' : 'Start Game'}
+      </button>
+      {!isHost && <p style={{ color: '#666', fontSize: '0.8rem', marginTop: 6 }}>{currentPlayer ? 'Any player can start.' : ''}</p>}
     </div>
   );
 };
