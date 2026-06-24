@@ -458,3 +458,7 @@ wiki/reports/postman-offers-report.html
 
 # local 42ctl CLI state (config + keystore) for the `make ctl` image wrapper
 .42ctl/
+
+# Accidental gitlinks (no .gitmodules); local vendored content only.
+vendor/scripts/
+vendor/twenty/
