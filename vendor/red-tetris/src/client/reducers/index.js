@@ -115,6 +115,8 @@ export const boardReducer = (state = initialBoardState, action) => {
             ...state.opponents[action.payload.socketId],
             playerName: action.payload.playerName,
             board: action.payload.board,
+            score: action.payload.score ?? state.opponents[action.payload.socketId]?.score ?? 0,
+            lines: action.payload.lines ?? state.opponents[action.payload.socketId]?.lines ?? 0,
           },
         },
       };

@@ -4,6 +4,7 @@ import Board from './Board';
 import NextPiece from './NextPiece';
 import ScorePanel from './ScorePanel';
 import OpponentList from './OpponentList';
+import Scoreboard from './Scoreboard';
 import Leaderboard from './Leaderboard';
 import ControlsInfo from './ControlsInfo';
 import { resetGame, startGame } from '../actions';
@@ -44,6 +45,7 @@ const GameView = () => {
       </div>
 
       <div className="vs-center">
+        <Scoreboard />
         <NextPiece />
         <ScorePanel />
         <ControlsInfo />

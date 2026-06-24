@@ -443,7 +443,10 @@
 }
 .vs-opp-list {
   display: flex;
+  flex-wrap: wrap;
   gap: 18px;
+  max-width: 480px;
+  justify-content: center;
 }
 .vs-card {
   display: flex;
@@ -467,13 +470,51 @@
   width: 220px;
   height: 440px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 4px;
+  padding: 16px;
   color: #6a6a86;
   text-align: center;
+  line-height: 1.4;
   border: 2px dashed #2a2a40;
   border-radius: 4px;
 }
+
+/* ---------- LIVE SCOREBOARD (all players: score · lines · status) ---------- */
+.scoreboard {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 12px 14px;
+  min-width: 220px;
+}
+.scoreboard h4 {
+  margin: 0 0 10px;
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+  color: #8a8aa6;
+  text-transform: uppercase;
+}
+.sb-row {
+  display: grid;
+  grid-template-columns: 16px 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.85rem;
+}
+.sb-row .sb-rank { color: #6a6a86; font-weight: 700; }
+.sb-row .sb-name { color: #e7e7f2; font-weight: 600; display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-row .sb-score { color: #fff; font-weight: 800; text-align: right; }
+.sb-row .sb-lines { color: #9a9ab6; font-size: 0.75rem; text-align: right; }
+.sb-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.sb-dot.on { background: #39d98a; }
+.sb-dot.out { background: #ff6a6a; }
+.sb-you { font-size: 0.55rem; background: #ff3b6b; color: #fff; padding: 1px 5px; border-radius: 5px; }
+.sb-host { font-size: 0.55rem; background: #5fd0e0; color: #06121a; padding: 1px 5px; border-radius: 5px; font-weight: 800; }
 
 /* ---------- LEADERBOARD ---------- */
 .leaderboard {
