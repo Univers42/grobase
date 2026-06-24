@@ -80,7 +80,7 @@ pub(crate) fn sha256_hex(input: &str) -> String {
     hex
 }
 
-fn ct_eq(a: &str, b: &str) -> bool {
+pub(crate) fn ct_eq(a: &str, b: &str) -> bool {
     if a.len() != b.len() {
         return false;
     }
@@ -154,6 +154,30 @@ impl FileMeta {
             created_at: r.get(9)?,
         })
     }
+}
+
+/// Run a memory-hard KDF (argon2id hash/verify) off the async runtime, bounded
+/// by a semaphore so a login storm can't exhaust the blocking pool. Returns
+/// `None` if the permit/join failed (the caller treats that as a verify miss).
+/// Concurrency from `ONE_KDF_CONCURRENCY` (default = available_parallelism,
+/// clamped 2..=16). Ported from binocle-one for the pbcompat facade.
+#[cfg(feature = "pbcompat")]
+pub(crate) async fn kdf_blocking<T: Send + 'static>(
+    f: impl FnOnce() -> T + Send + 'static,
+) -> Option<T> {
+    static GATE: std::sync::OnceLock<tokio::sync::Semaphore> = std::sync::OnceLock::new();
+    let gate = GATE.get_or_init(|| {
+        let n = std::env::var("ONE_KDF_CONCURRENCY")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .filter(|n| *n > 0)
+            .unwrap_or_else(|| {
+                std::thread::available_parallelism().map_or(4, |n| n.get()).clamp(2, 16)
+            });
+        tokio::sync::Semaphore::new(n)
+    });
+    let _permit = gate.acquire().await.ok()?;
+    tokio::task::spawn_blocking(f).await.ok()
 }
 
 /// SQLite-backed account store, sharing the nano meta DB file. All calls are
@@ -348,6 +372,23 @@ impl UserStore {
     pub(crate) fn revoke_user_refresh(&self, user_id: &str) {
         let conn = self.conn.lock().expect("user store poisoned");
         let _ = conn.execute("DELETE FROM one_refresh WHERE user_id = ?1", [user_id]);
+    }
+
+    /// Periodic GC: drop expired one_codes / one_refresh rows, then PRAGMA
+    /// optimize. Returns `(codes_purged, refresh_purged)`. Driven by the pb
+    /// facade's cron loop. Ported from binocle-one for `pbcompat`.
+    #[cfg(feature = "pbcompat")]
+    pub(crate) fn maintain(&self) -> (usize, usize) {
+        let conn = self.conn.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let now = chrono::Utc::now().timestamp();
+        let codes = conn
+            .execute("DELETE FROM one_codes WHERE expires_at < ?1", [now])
+            .unwrap_or(0);
+        let refresh = conn
+            .execute("DELETE FROM one_refresh WHERE expires_at < ?1", [now])
+            .unwrap_or(0);
+        let _ = conn.execute_batch("PRAGMA optimize;");
+        (codes, refresh)
     }
 
     // ── short-lived email codes (verification / reset / OTP) ────────────────
@@ -871,7 +912,34 @@ impl OneState {
         .map_err(|e| e.to_string())
     }
 
-    fn mint_jwt(&self, user_id: &str, email: &str) -> Result<(String, u64), String> {
+    /// Short-lived (30 min) typed flow token (pb facade: email-verify, reset,
+    /// OTP, file-token). Ported from binocle-one for `pbcompat`.
+    pub(crate) fn mint_flow_jwt(&self, sub: &str, email: &str, typ: &str) -> Result<String, String> {
+        self.mint_typed(sub, email, typ, 1800)
+    }
+
+    /// Verify a flow JWT of the expected type → its `sub`. Ported for `pbcompat`.
+    pub(crate) fn verify_flow_jwt(&self, token: &str, expected_typ: &str) -> Result<String, ()> {
+        let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS256);
+        validation.validate_exp = true;
+        let data = jsonwebtoken::decode::<Claims>(
+            token,
+            &jsonwebtoken::DecodingKey::from_secret(&self.jwt_secret),
+            &validation,
+        )
+        .map_err(|_| ())?;
+        if data.claims.typ != expected_typ {
+            return Err(());
+        }
+        Ok(data.claims.sub)
+    }
+
+    /// Custom-TTL auth token (facade impersonation). Ported for `pbcompat`.
+    pub(crate) fn mint_jwt_ttl(&self, user_id: &str, email: &str, ttl: u64) -> Result<String, String> {
+        self.mint_typed(user_id, email, "auth", ttl)
+    }
+
+    pub(crate) fn mint_jwt(&self, user_id: &str, email: &str) -> Result<(String, u64), String> {
         self.mint_typed(user_id, email, "auth", self.jwt_ttl)
             .map(|t| (t, self.jwt_ttl))
     }
@@ -1170,8 +1238,82 @@ pub fn router(state: AppState) -> Router {
         .merge(crate::one_totp::routes())
         .merge(crate::one_files::routes())
         .merge(crate::one_admin::routes())
+        .merge(pb_routes_logged(state.clone()))
+        .fallback(hooks_fallback)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+#[cfg(feature = "pbcompat")]
+fn pb_routes() -> Router<AppState> {
+    crate::pb::routes()
+}
+
+/// Request-log capture + rate-limit for /api traffic only (the native doors
+/// never pay for it). Applied at merge time so it wraps exactly the pb router.
+#[cfg(feature = "pbcompat")]
+fn pb_routes_logged(state: AppState) -> Router<AppState> {
+    pb_routes()
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            crate::pb::logs::capture,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            state,
+            crate::pb::ratelimit::enforce,
+        ))
+}
+#[cfg(not(feature = "pbcompat"))]
+fn pb_routes_logged(_state: AppState) -> Router<AppState> {
+    Router::new()
+}
+
+/// routerAdd fallback: a JS-registered route serves anything the built-in
+/// routers don't; everything else stays the standard 404.
+#[cfg(feature = "hooks")]
+async fn hooks_fallback(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    request: axum::extract::Request,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let method = request.method().to_string();
+    let path = request.uri().path().to_string();
+    let query = request.uri().query().unwrap_or_default().to_string();
+    if let Some(hooks) = state.hooks.clone() {
+        if hooks.has_route(&method, &path) {
+            let body_bytes = axum::body::to_bytes(request.into_body(), 1024 * 1024)
+                .await
+                .unwrap_or_default();
+            let body: serde_json::Value =
+                serde_json::from_slice(&body_bytes).unwrap_or(serde_json::Value::Null);
+            return match hooks.serve_route(&method, &path, &query, &body).await {
+                Ok((status, body)) => (
+                    axum::http::StatusCode::from_u16(status)
+                        .unwrap_or(axum::http::StatusCode::OK),
+                    axum::Json(body),
+                )
+                    .into_response(),
+                Err(m) => crate::routes::api_err(
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    "hook_failed",
+                    &m,
+                ),
+            };
+        }
+    }
+    crate::routes::api_err(
+        axum::http::StatusCode::NOT_FOUND,
+        "not_found",
+        "route not found",
+    )
+}
+#[cfg(not(feature = "hooks"))]
+async fn hooks_fallback() -> axum::response::Response {
+    crate::routes::api_err(
+        axum::http::StatusCode::NOT_FOUND,
+        "not_found",
+        "route not found",
+    )
 }
 
 /// Boot binocle-one: nano state + the account store, same reaper, same door.
@@ -1185,6 +1327,18 @@ pub async fn run(config: ServerConfig) -> anyhow::Result<()> {
     let mut state = AppState::new(config);
     state.nano = Some(Arc::new(NanoState::open(&data_dir)?));
     state.one = Some(Arc::new(OneState::open(&data_dir)?));
+
+    #[cfg(feature = "pbcompat")]
+    {
+        state.pb = Some(Arc::new(crate::pb::PbState::open(&data_dir)?));
+    }
+    #[cfg(feature = "hooks")]
+    {
+        let hooks_dir = std::env::var("ONE_HOOKS_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| data_dir.join("pb_hooks"));
+        state.hooks = crate::pb::hooks::start(state.clone(), hooks_dir);
+    }
 
     let reaper_state = state.clone();
     tokio::spawn(async move {
