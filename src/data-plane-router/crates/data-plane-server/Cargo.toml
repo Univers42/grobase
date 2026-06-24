@@ -53,7 +53,18 @@ nano = ["sqlite", "dep:rusqlite", "dep:futures", "uuid/v4"]
 # the OAuth2/OIDC provider matrix, SMTP mail codes (verification/reset/OTP)
 # and RFC 6238 TOTP MFA (hmac+sha1 — authenticator apps mandate SHA1).
 # File storage rides the same feature: multipart upload + jpeg/png thumbnails.
-one = ["nano", "dep:argon2", "dep:jsonwebtoken", "dep:lettre", "dep:hmac", "dep:sha1", "dep:image", "axum/multipart"]
+one = ["nano", "pbcompat", "hooks", "dep:argon2", "dep:jsonwebtoken", "dep:lettre", "dep:hmac", "dep:sha1", "dep:image", "axum/multipart"]
+# PocketBase-compatible facade (`/api/...`). OFF by default; activated via the
+# `one` feature. Ported from main's binocle-one — a translation layer over the
+# native engine, isolated on its own `pb` nano mount (tenant_owned). The only
+# extra dependency is `zip` (backup/restore + file archives).
+pbcompat = ["dep:zip"]
+# PB JS hooks (routerAdd / onRecord*) via an embedded QuickJS runtime. OFF by
+# default; rides the `one` feature. Adds ~8 MiB (rquickjs) to the binary.
+hooks = ["pbcompat", "dep:rquickjs"]
+# Recognise the `s3` cfg used by pb's optional S3 file-storage branches (compiled
+# out — local-disk path is active). Declared (no dep) so the cfg isn't "unexpected".
+s3 = []
 
 [dependencies]
 data-plane-core = { path = "../data-plane-core" }
@@ -84,6 +95,10 @@ hmac = { workspace = true, optional = true }
 sha1 = { workspace = true, optional = true }
 image = { workspace = true, optional = true }
 sha2 = { workspace = true }
+# pbcompat facade: backup/restore archives + PB file storage zips.
+zip = { workspace = true, optional = true }
+# hooks: embedded QuickJS runtime for PB JS hooks.
+rquickjs = { workspace = true, optional = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 serde = { workspace = true }

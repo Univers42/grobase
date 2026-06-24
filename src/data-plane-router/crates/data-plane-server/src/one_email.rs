@@ -87,7 +87,7 @@ impl Mailer {
         })
     }
 
-    async fn send(&self, to: &str, subject: &str, body: String) -> Result<(), String> {
+    pub(crate) async fn send(&self, to: &str, subject: &str, body: String) -> Result<(), String> {
         let msg = lettre::Message::builder()
             .from(self.from.clone())
             .to(to
