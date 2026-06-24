@@ -1,0 +1,139 @@
+// ── TESTIMONIAL — premium scroll-reveal product MANIFESTO (honest, no fake quotes).
+//
+// Section-specific styling only. The reveal MECHANICS live in _premium.scss
+// (.reveal-words / .reveal-words__w consume the per-word --p the script sets via
+// CSSOM); here we set the cinematic dark layout, the generous max-measure, the
+// large statement scale, the opening quote mark, and the honest attribution.
+// AAA-readable white ink; every animated/decorative bit is reduced-motion-gated
+// or absolutely positioned (zero CLS). No inline styles — colour/offset come
+// from utility classes (.accent-N) and :nth-child rules.
+
+.gb-manifesto {
+	position: relative;
+	overflow: hidden;
+	// a touch more breathing room than a normal dim section — cinematic calm
+	padding-block: max(7rem, var(--gb-section-gap));
+}
+
+// A faint centred radial glow behind the statement so the white ink sits in a
+// pool of light — premium, not flat. Decorative, absolute → no layout shift.
+.gb-manifesto::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	background:
+		radial-gradient(
+			60% 55% at 50% 42%,
+			color-mix(in srgb, var(--gb-a5) 12%, transparent),
+			transparent 70%
+		);
+	pointer-events: none;
+}
+
+.gb-manifesto__inner {
+	position: relative;
+	z-index: 2; // above the radial glow and the bottom fade
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+}
+
+.gb-manifesto__kicker {
+	margin-bottom: var(--gb-space-8);
+}
+
+// The figure stack: opening mark · statement · attribution, centred and held to
+// a generous reading measure so the big type breaks into a few strong lines.
+.gb-manifesto__figure {
+	margin: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	max-width: 56rem;
+}
+
+// ── Opening quote mark ────────────────────────────────────────────────────
+// A small liquid-glass tile holding the registry quote icon — the premium
+// opening signal. Sits just above the statement, decorative (aria-hidden).
+.gb-manifesto__mark {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 4.25rem;
+	height: 4.25rem;
+	margin-bottom: var(--gb-space-6);
+	border-radius: var(--gb-radius-lg);
+}
+
+// ── The statement ─────────────────────────────────────────────────────────
+// Large, medium-weight, tight-leading — the text-4xl/5xl scale.
+.gb-manifesto__quote {
+	margin: 0;
+	font-family: var(--gb-font-display);
+	font-weight: 500;
+	font-size: clamp(1.75rem, 1rem + 3.4vw, var(--gb-text-hero, 3.25rem));
+	line-height: 1.16;
+	letter-spacing: -0.015em;
+	text-wrap: balance;
+	// generous measure; the script lights words L→R within this block
+	max-width: 22ch;
+}
+
+// A real line break between manifesto sentences without forcing word spans onto
+// one run. It's a full-width inline-block so the next line starts fresh, while
+// still rendering a space for no-CSS/serialized fallbacks.
+.reveal-words__br {
+	display: block;
+	width: 100%;
+	height: 0;
+	overflow: hidden;
+}
+
+// The serif-italic accent word inherits .italic from _premium.scss; nudge its
+// optical size up a hair so the serif face matches the display x-height.
+.gb-manifesto__quote .reveal-words__w.italic {
+	font-size: 1.06em;
+	// a warm tint that reads premium against the white ink (decoration tint
+	// via the text-safe purple accent token, AAA-legible at this size/weight)
+	color: color-mix(
+		in srgb,
+		var(--gb-a5-text) calc(var(--p) * 100%),
+		var(--gb-text-faint)
+	);
+}
+
+// ── Attribution (honest: the team, no invented person) ────────────────────
+.gb-manifesto__by {
+	display: flex;
+	align-items: center;
+	gap: var(--gb-space-3);
+	margin-top: var(--gb-space-8);
+}
+
+.gb-manifesto__rule {
+	display: block;
+	width: 2.5rem;
+	height: 2px;
+	border-radius: 2px;
+	background: linear-gradient(90deg, var(--gb-a1), var(--gb-a2));
+}
+
+.gb-manifesto__byname {
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-sm);
+	font-weight: 600;
+	letter-spacing: 0.02em;
+}
+
+// ── Reduced motion / no-JS ─────────────────────────────────────────────────
+// _premium.scss already keeps --p at 1 (full white) without the script; nothing
+// extra needed here. Decorative floaters are reduced-motion-gated by their own
+// animate-* utilities. This block is intentionally a no-op affirmation.
+@media (prefers-reduced-motion: reduce) {
+	.gb-manifesto__quote .reveal-words__w {
+		// be explicit: under reduced motion the statement is fully, evenly lit
+		opacity: 1;
+	}
+}

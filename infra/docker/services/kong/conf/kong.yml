@@ -12,6 +12,11 @@ consumers:
   - username: service_role
     keyauth_credentials:
       - key: __KONG_SERVICE_API_KEY__
+    # SECURITY: only the service_role key is in the baas-admin group; the
+    # adapter-registry admin route ACLs on it so the public anon key can no
+    # longer enumerate other tenants' DB mounts via a forged X-Baas-Tenant-Id.
+    acls:
+      - group: baas-admin
   # JWT consumer — matches GoTrue-issued tokens via the "iss" claim.
   # GoTrue sets iss = API_EXTERNAL_URL (default: http://localhost:8000/auth/v1)
   - username: authenticated
@@ -191,6 +196,115 @@ services:
               policy: local
               limit_by: ip
               minute: 180
+              hour: 5000
+
+  # MovieVerse TMDB catalog proxy (Go). Public browsing → key-auth ONLY (anon
+  # apikey); deliberately NO jwt plugin, so anonymous visitors fetch the catalog
+  # with just the anon key (this is what sidesteps the per-user JWT requirement
+  # of edge functions). strip_path:false — the Go mux serves the full /tmdb/v1/…
+  # paths itself. The TMDB secret never leaves the proxy's env. Global cors applies.
+  - name: tmdb-proxy
+    url: http://tmdb-proxy:3070
+    routes:
+      - name: tmdb-routes
+        paths: [/tmdb/v1]
+        strip_path: false
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 300
+              hour: 5000
+
+  # Hypertube media service (Go): torrent download + HTTP Range/206 streaming +
+  # ffmpeg transcode + subtitles. strip_path:false — the Go mux serves the full
+  # /media/v1/… paths. The service sets `X-Accel-Buffering: no` so Kong does not
+  # buffer the (long) streaming response. Higher rate limit for range streams.
+  - name: hypertube-media
+    url: http://hypertube-media:3080
+    routes:
+      - name: hypertube-media-routes
+        paths: [/media/v1]
+        strip_path: false
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 600
+              hour: 15000
+
+  # Hypertube stream engine (Rust/axum): resolves a movie to a direct HTTP video
+  # source and range-proxies it back as 206 Partial-Content (YouTube-style fast
+  # seek/buffer). strip_path:false — the axum router serves /stream/v1/movies/:id.
+  # Sets `X-Accel-Buffering: no` so Kong streams the (long) response unbuffered.
+  - name: hypertube-stream
+    url: http://hypertube-stream:3083
+    routes:
+      - name: hypertube-stream-routes
+        paths: [/stream/v1]
+        strip_path: false
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 600
+              hour: 15000
+
+  # Hypertube search aggregator (Go): archive.org + Public Domain Torrents +
+  # TMDb enrichment. strip_path:false; key-auth only (catalog browse).
+  - name: hypertube-search
+    url: http://hypertube-search:3081
+    routes:
+      - name: hypertube-search-routes
+        paths: [/search/v1]
+        strip_path: false
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 300
+              hour: 5000
+
+  # Hypertube RESTful OAuth2 API (Go): the subject's /users,/movies,/comments +
+  # POST /oauth/token. strip_path:true — Kong strips /api so the Go mux serves
+  # the bare paths. The service does its OWN OAuth2 bearer check; Kong adds the
+  # anon key-auth + a per-IP rate limit on top.
+  - name: hypertube-api
+    url: http://hypertube-api:3082
+    routes:
+      - name: hypertube-api-routes
+        paths: [/api]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 300
               hour: 5000
 
   # GraphQL — PostgREST's native GraphQL endpoint (powered by the pg_graphql
@@ -459,6 +573,26 @@ services:
           - name: rate-limiting
             config: { policy: local, limit_by: ip, minute: 120, hour: 3000 }
 
+  # Public email-OTP login + multi-device keystore escrow (loginotp on tenant-control,
+  # gated by EMAIL_OTP_ENABLED). Unauthenticated by design (email-based; the verify step
+  # returns a short-lived signed proof). Rate-limited hard — it sends mail + checks codes.
+  # OFF (EMAIL_OTP_ENABLED unset) → upstream 404 = byte-parity. Enables the 42ctl
+  # `auth login --email` / `keys escrow|recover` flow through the public edge.
+  - name: auth-otp
+    url: http://tenant-control:3022
+    routes:
+      - name: auth-otp
+        paths:
+          - ~/v1/auth/otp/.*
+          - ~/v1/auth/escrow$
+          - ~/v1/auth/escrow/.*
+        strip_path: false
+        plugins:
+          - name: request-size-limiting
+            config: { allowed_payload_size: 64, size_unit: kilobytes }
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 30, hour: 200 }
+
   - name: admin-keys
     url: http://tenant-control:3022/v1/keys
     routes:
@@ -599,6 +733,15 @@ services:
               claims_to_verify: [exp]
               run_on_preflight: false
               anonymous: __KONG_ANON_UUID__
+          # SECURITY (cross-tenant enumeration fix): restrict the adapter-registry
+          # admin surface (/admin/v1/databases…) to the baas-admin group, i.e. the
+          # service_role key only. The anon key resolves to the `anon` consumer,
+          # which is NOT in baas-admin → 403, so a forged X-Baas-Tenant-Id can no
+          # longer list another tenant's mounts. Seed scripts use the service key.
+          - name: acl
+            config:
+              allow: [baas-admin]
+              hide_groups_header: true
           - name: ip-restriction
             config:
               allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1]
@@ -788,16 +931,25 @@ services:
               claims_to_verify: [exp]
               run_on_preflight: false
               anonymous: __KONG_ANON_UUID__
+          # This route is MORE SPECIFIC than the minio /storage/v1 route, so it
+          # wins for /storage/v1/object — the file UPLOAD path. A 16KB cap here
+          # (fine for sign/list/bucket JSON) rejected real uploads with 413; the
+          # sibling `storage-routes` already allows 10MB, so match it. The
+          # storage-router still enforces STORAGE_MAX_UPLOAD_BYTES (50MB) itself.
           - name: request-size-limiting
             config:
-              allowed_payload_size: 16
-              size_unit: kilobytes
+              allowed_payload_size: 10
+              size_unit: megabytes
+          # Storage object GETs serve gallery images: a single image feed can
+          # fetch dozens at once, so a 60/min/IP cap is far too low (429s on a
+          # normal scroll). Raised for read-heavy media; the 10MB upload size
+          # cap above is the real abuse guard.
           - name: rate-limiting
             config:
               policy: local
               limit_by: ip
-              minute: 60
-              hour: 1500
+              minute: 600
+              hour: 15000
 
   - name: permission-engine
     url: http://permission-engine:3050

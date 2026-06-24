@@ -1,0 +1,203 @@
+/**
+ * AddTaskModal Styles
+ * Bordeaux wine theme
+ */
+
+.add-task-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-black-75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-above);
+  padding: 1rem;
+}
+
+.add-task-modal {
+  width: 100%;
+  max-width: 500px;
+  background: linear-gradient(145deg, var(--color-charcoal-800), var(--color-charcoal-900));
+  border: 1px solid var(--color-wine-overlay-40);
+  border-radius: var(--radius-2xl);
+  padding: 1.5rem;
+  box-shadow: 0 25px 50px var(--color-black-50);
+}
+
+.add-task-title {
+  margin: 0 0 1.5rem;
+  font-size: var(--font-size-xl);
+  background: linear-gradient(135deg, var(--color-wine-300), var(--color-gold-400));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.add-task-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-label {
+  font-size: var(--font-size-sm-near);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-warm-300);
+}
+
+.form-input,
+.form-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--color-near-black-overlay);
+  border: 1px solid var(--color-warm-overlay-50);
+  border-radius: var(--radius-lg);
+  color: var(--color-warm-100);
+  font-size: var(--font-size-sm-plus);
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.form-input:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--color-wine-700);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* Priority Selector */
+.priority-selector {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+
+.priority-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.625rem 0.5rem;
+  background: var(--color-warm-overlay-30);
+  border: 2px solid transparent;
+  border-radius: var(--radius-lg);
+  color: var(--color-warm-400);
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  text-transform: capitalize;
+  transition: all var(--transition-normal);
+}
+
+.priority-btn:hover {
+  border-color: var(--color-wine-overlay-40);
+}
+
+.priority-btn.active.priority-urgent {
+  background: var(--color-danger-overlay-20);
+  border-color: var(--color-red-500);
+  color: var(--color-red-500);
+}
+
+.priority-btn.active.priority-high {
+  background: var(--color-wine-overlay-red-20);
+  border-color: var(--color-wine-500);
+  color: var(--color-wine-300);
+}
+
+.priority-btn.active.priority-medium {
+  background: var(--color-gold-overlay-20);
+  border-color: var(--color-gold-400);
+  color: var(--color-gold-400);
+}
+
+.priority-btn.active.priority-low {
+  background: var(--color-olive-overlay-20);
+  border-color: var(--color-olive-500);
+  color: var(--color-olive-500);
+}
+
+/* Tag Selector */
+.tag-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tag-btn {
+  padding: 0.375rem 0.75rem;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.tag-btn:hover {
+  transform: scale(1.05);
+}
+
+.tag-btn.active {
+  border-style: solid;
+}
+
+/* Actions */
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.btn-cancel,
+.btn-submit {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm-plus);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.btn-cancel {
+  background: var(--color-warm-overlay-50);
+  color: var(--color-warm-300);
+}
+
+.btn-cancel:hover {
+  background: var(--color-warm-overlay-70);
+}
+
+.btn-submit {
+  background: linear-gradient(135deg, var(--color-wine-700), var(--color-wine-400));
+  color: white;
+}
+
+.btn-submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--color-wine-overlay-40);
+}
+
+.btn-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .priority-selector {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

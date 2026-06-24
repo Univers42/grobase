@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   edge_capability.rs                                 :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:34:51 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:34:53 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Edge-case suite for `EngineCapabilities` (capability.rs) + `Isolation` /
 //! `safe_schema` (isolation.rs): the advertised op matrix per engine, route-cap
 //! isolation from `supports_op`, the strategy × engine-class scope table, and

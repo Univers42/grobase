@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   lib.rs                                             :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:33:02 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:33:03 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Pre-existing pedantic-lint debt in the A2/A3 data-plane modules (automations,
 // outbox, ratelimit, routes), surfaced the first time `clippy -D warnings` ran
 // across the full workspace post-cutover (the image build only runs
@@ -33,6 +45,8 @@ pub mod one_oauth;
 pub mod one_totp;
 #[cfg(feature = "control-pg")]
 pub mod outbox;
+#[cfg(feature = "pbcompat")]
+pub mod pb;
 pub mod quota;
 pub mod ratelimit;
 pub mod routes;

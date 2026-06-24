@@ -1,0 +1,16 @@
+INSERT INTO "ContactMessage" ("title","description","email") VALUES
+    ('Demande de devis mariage','Nous souhaitons un devis pour 80 personnes.','future.mariee@email.fr'),
+    ('Question allergènes','Mon fils est allergique aux arachides.','parent@email.fr'),
+    ('Partenariat entreprise','Nous cherchons un traiteur trimestriel.','rh@entreprise.fr'),
+    ('Réclamation livraison','Commande arrivée avec 30 min de retard.','bob@example.fr'),
+    ('Félicitations','Merci pour le brunch, c''était parfait !','david@example.fr'),
+    ('Menu personnalisé','Menu sans gluten et végan possible ?','regime@email.fr'),
+    ('Annulation souhaitée','Je souhaite annuler ma commande.','alice@example.fr'),
+    ('Question horaires fêtes','Ouvert le 25 décembre ?','noel@email.fr'),
+    ('Retour matériel','Quand rapporter le matériel prêté ?','david@example.fr'),
+    ('Menu halal','Proposez-vous des menus halal pour 40 personnes ?','mehdi@email.fr'),
+    ('Disponibilité été','Disponibles le 14 juillet ?','patriote@email.fr'),
+    ('Question facturation','Facture avec TVA pour association ?','tresorier@asso.fr'),
+    ('Retour positif','Le menu gastronomique était incroyable.','gourmet@email.fr'),
+    ('Livraison Arcachon','Livrez-vous jusqu''à Arcachon ?','plage@email.fr'),
+    ('Remerciements mariage','Merci pour le service lors de notre mariage.','jeunes.maries@email.fr');

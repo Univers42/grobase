@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   sec_schema_ddl.rs                                  :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:35:15 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:35:16 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Security: DDL contract guards. `validate_default_expr` must reject statement
 //! separators, SQL comments, and control characters (a DEFAULT clause is
 //! interpolated into DDL text — it cannot bind params), while accepting

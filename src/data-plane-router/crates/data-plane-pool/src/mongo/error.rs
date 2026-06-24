@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   error.rs                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:27:44 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:27:46 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Mongo error classification — pure message-based mapping of driver errors to
 //! the right client/server bucket (`Conflict`/`InvalidRequest`/`Backend`).
 

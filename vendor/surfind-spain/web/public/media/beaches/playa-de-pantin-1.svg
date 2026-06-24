@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Pantin, A Coruna">
+  <defs>
+    <linearGradient id="g4661sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#073043"/><stop offset="1" stop-color="#ffd27a"/>
+    </linearGradient>
+    <radialGradient id="g4661sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff1c2" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#fff1c2" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g4661sky)"/>
+  <circle cx="205" cy="259" r="160" fill="url(#g4661sun)"/>
+  <circle cx="205" cy="259" r="54" fill="#fff1c2" opacity="0.9"/>
+  <rect y="338" width="1280" height="382" fill="#0d6178" opacity="0.55"/>
+  <path d="M0 378 C 96 394 224 362 320 378 C 416 362 544 394 640 378 C 736 394 864 362 960 378 C 1056 362 1184 394 1280 378 L 1280 720 L 0 720 Z" fill="#0d6178" opacity="0.85"/><path d="M0 448 C 96 426 224 470 320 448 C 416 470 544 426 640 448 C 736 426 864 470 960 448 C 1056 470 1184 426 1280 448 L 1280 720 L 0 720 Z" fill="#28a7c0" opacity="0.8"/><path d="M0 538 C 96 568 224 508 320 538 C 416 508 544 568 640 538 C 736 568 864 508 960 538 C 1056 508 1184 568 1280 538 L 1280 720 L 0 720 Z" fill="#28a7c0" opacity="0.6"/><path d="M0 638 C 96 598 224 678 320 638 C 416 678 544 598 640 638 C 736 598 864 678 960 638 C 1056 678 1184 598 1280 638 L 1280 720 L 0 720 Z" fill="#ffffff" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">A CORUNA</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Pantin · 1</text>
+</svg>

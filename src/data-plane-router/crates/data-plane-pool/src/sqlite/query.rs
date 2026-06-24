@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   query.rs                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:30:10 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:30:11 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Pure `(sql, params)` plan building, no DB access — the CRUD/aggregate
 //! lowering. SQL-building primitives (identifier quoting, owner-scoped filter,
 //! column rendering) live in [`super::columns`]; the executors that run these

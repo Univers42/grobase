@@ -1,0 +1,62 @@
+---
+import SectionHeading from '../ui/SectionHeading.astro';
+import Icon from '../ui/Icon.astro';
+
+// Four plain-language promises — the whole value of Grobase, condensed. No jargon,
+// no comparisons, no acronyms a newcomer would have to look up.
+const VALUES = [
+	{
+		title: 'One API, any database',
+		body: 'Postgres, MySQL, Mongo, SQLite, Redis and more — the same simple API over all of them. Switch engines without rewriting your app.',
+		icon: 'plug',
+	},
+	{
+		title: 'Starts tiny, grows huge — same code',
+		body: 'Begin on a 5 MB binary on a spare machine. Grow to thousands of customers on shared servers. You never rewrite to move up.',
+		icon: 'chart',
+	},
+	{
+		title: 'You own your data',
+		body: 'Self-host it anywhere — your keys, your database, your machine. There is no lock-in, and the source is open.',
+		icon: 'key',
+	},
+	{
+		title: 'Honest, measured numbers',
+		body: 'Every figure on this site is measured on real hardware, not invented for marketing. You pay for what you actually use.',
+		icon: 'chart',
+	},
+];
+---
+
+<section class="gb-section gb-section--dim gb-section--value has-pat-checker has-pat-mesh" aria-labelledby="value-title">
+	<!-- ONE massive background word, bleeding off-edge (decorative). -->
+	<p class="bgword bgword--right" aria-hidden="true">GET</p>
+	<!-- Floating decorative shapes — rotate the accents, animated, aria-hidden. -->
+	<span class="floater floater--lg floater--tr accent-2 floater--ring animate-spin-slow" aria-hidden="true"></span>
+	<span class="floater floater--tl accent-3 floater--square" aria-hidden="true"></span>
+	<span class="floater floater--sm floater--ml accent-4 floater--diamond" aria-hidden="true"></span>
+	<span class="floater floater--mr accent-5 floater--ring" aria-hidden="true"></span>
+	<span class="floater floater--sm floater--bl accent-1" aria-hidden="true"></span>
+	<span class="floater floater--br accent-2 floater--square" aria-hidden="true"></span>
+	<span class="floater floater--sm floater--c1 accent-3 floater--diamond" aria-hidden="true"></span>
+
+	<div class="gb-container">
+		<SectionHeading
+			kicker="Why people choose it"
+			title="Everything a backend needs — nothing you have to babysit."
+			lede="Auth, database, realtime, files, search and functions in one place. Plain to start, honest about the rest."
+			id="value-title"
+		/>
+		<ul class="gb-values" role="list">
+			{VALUES.map((v) => (
+				<li class="gb-value" data-rise>
+					<span class="gb-value__icon animate-bounce-subtle" aria-hidden="true">
+						<Icon name={v.icon} size={28} />
+					</span>
+					<h3 class="gb-value__title">{v.title}</h3>
+					<p class="gb-value__body">{v.body}</p>
+				</li>
+			))}
+		</ul>
+	</div>
+</section>

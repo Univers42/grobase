@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   pool.rs                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:29:15 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:29:16 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The `EnginePool` trait impl for `PostgresPool`.
 //!
 //! A trait impl must live in one block, so all eight methods are here. The two
@@ -43,8 +55,13 @@ impl EnginePool for PostgresPool {
         tx::apply_rls_context(&*tx, &identity).await?;
         tx::apply_search_path(&*tx, self.search_path_schema.as_deref()).await?;
 
-        let result =
-            tx::dispatch_op(&*tx, &operation, &identity, self.isolation.owner_scoped()).await?;
+        let ctx = tx::ScopeCtx {
+            isolation_owner_scoped: self.isolation.owner_scoped(),
+            shared: &self.shared_resources,
+            admin_bypass: self.admin_bypass,
+            read_predicate: self.read_predicate,
+        };
+        let result = tx::dispatch_op(&*tx, &operation, &identity, &ctx).await?;
 
         tx.commit().await.map_err(|e| convert::backend(&e))?;
         Ok(result)
@@ -100,7 +117,10 @@ impl EnginePool for PostgresPool {
         Ok(Box::new(tx::PgTxHandle {
             tx_id,
             mount_id: self.mount_id.clone(),
-            owner_scoped: self.isolation.owner_scoped(),
+            isolation_owner_scoped: self.isolation.owner_scoped(),
+            shared_resources: self.shared_resources.clone(),
+            admin_bypass: self.admin_bypass,
+            read_predicate: self.read_predicate,
             client: Mutex::new(client),
         }))
     }

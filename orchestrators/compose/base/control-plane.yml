@@ -34,6 +34,12 @@ services:
       # looped this service (measured 2026-06-11, 17 restarts).
       SCRYPT_MAX_CONCURRENT: ${SCRYPT_MAX_CONCURRENT:-2}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+    # Wait for migrations: EnsureSchema's RLS DDL references auth.current_tenant_id()
+    # (migration 016). Without this the service crash-looped on a fresh DB until a
+    # manual `make migrate`. pg-migrate (un-profiled, always-on) gates startup.
+    depends_on:
+      pg-migrate:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:${ADAPTER_REGISTRY_GO_PORT:-3021}:3021"
     healthcheck:
@@ -117,10 +123,15 @@ services:
       # exact pre-B4a behavior (the public Kong route then 404/401s at the upstream =
       # harmless). Gate: scripts/verify/m84-selfserve-kong.sh (ON + OFF parity arms).
       TENANT_SELFSERVE_ENABLED: ${TENANT_SELFSERVE_ENABLED:-1}
+      # Dynamic builder (BUILDER_ENABLED) — mounts the self-serve /v1/tenants/me*
+      # builder routes AND the operator routes (PATCH /v1/tenants/{id}/ceiling,
+      # PUT /v1/tenants/{id}/entitlement). OFF by default = byte-parity (routes 404,
+      # tenant_entitlements unread, resolution is manifest.For verbatim).
+      BUILDER_ENABLED: ${BUILDER_ENABLED:-0}
     ports:
       - "127.0.0.1:${TENANT_CONTROL_PORT:-3022}:3022"
     depends_on:
-      db-bootstrap:
+      pg-migrate:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
@@ -170,7 +181,7 @@ services:
     ports:
       - "127.0.0.1:${WEBHOOK_DISPATCHER_PORT:-3025}:3025"
     depends_on:
-      db-bootstrap:
+      pg-migrate:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
@@ -225,8 +236,11 @@ services:
       EMAIL_FROM: ${EMAIL_FROM:-noreply@mini-baas.local}
       # session sub-service TTL
       SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-7}
-      # newsletter sub-service (outbound mail + confirm links)
-      EMAIL_SERVICE_URL: ${EMAIL_SERVICE_URL:-http://email-service:3030}
+      # newsletter sub-service (outbound mail + confirm links). The A4 cutover
+      # folded email INTO this orchestrator (emailsvc serves POST /send on :3026),
+      # so point the newsletter sender at the orchestrator's own endpoint — the
+      # standalone email-service:3030 is retired and not running by default.
+      EMAIL_SERVICE_URL: ${EMAIL_SERVICE_URL:-http://localhost:3026}
       NEWSLETTER_BASE_URL: ${NEWSLETTER_BASE_URL:-http://localhost:8000/newsletter/v1}
       NEWSLETTER_BATCH_SIZE: ${NEWSLETTER_BATCH_SIZE:-5}
       # gdpr sub-service (schema-agnostic export/erasure webhooks)
@@ -249,7 +263,7 @@ services:
     ports:
       - "127.0.0.1:${ORCHESTRATOR_PORT:-3026}:3026"
     depends_on:
-      db-bootstrap:
+      pg-migrate:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "/app/app", "--healthcheck"]
@@ -289,7 +303,7 @@ services:
     ports:
       - "127.0.0.1:${FUNCTION_SCHEDULER_PORT:-3027}:3027"
     depends_on:
-      db-bootstrap:
+      pg-migrate:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "/app/app", "--healthcheck"]

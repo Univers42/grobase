@@ -1,0 +1,93 @@
+/**
+ * TypeBadge Styles
+ * Fly.io Light Theme - Professional type indicators
+ */
+
+.type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-md, 6px);
+  white-space: nowrap;
+  line-height: var(--line-height-none);
+}
+
+/* Sizes */
+.type-badge-sm {
+  height: 20px;
+  padding: 0 8px;
+  font-size: var(--font-size-xs0);
+}
+
+.type-badge-md {
+  height: 24px;
+  padding: 0 10px;
+  font-size: var(--font-size-xs);
+}
+
+/* Type variants - Light theme with subtle colored backgrounds */
+.type-badge-automatic {
+  background: var(--color-primary-50, var(--color-primary-50));
+  color: var(--color-primary-700, var(--color-primary-700));
+  border: 1px solid var(--color-primary-200, var(--color-primary-200));
+}
+
+.type-badge-manual {
+  background: var(--color-secondary-50, #eef2ff);
+  color: var(--color-secondary-700, var(--color-secondary-700));
+  border: 1px solid var(--color-secondary-200, #e0e7ff);
+}
+
+.type-badge-api {
+  background: var(--color-accent-50, #ecfeff);
+  color: var(--color-accent-700, var(--color-accent-700));
+  border: 1px solid var(--color-accent-200, #a5f3fc);
+}
+
+.type-badge-database {
+  background: var(--color-warning-50, #fffbeb);
+  color: var(--color-warning-700, var(--color-amber-700));
+  border: 1px solid var(--color-warning-200, var(--color-amber-200));
+}
+
+.type-badge-security {
+  background: var(--color-danger-50, #fff1f2);
+  color: var(--color-danger-700, var(--color-danger-700));
+  border: 1px solid var(--color-danger-200, var(--color-rose-200));
+}
+
+.type-badge-scenario {
+  background: var(--color-success-50, var(--color-success-50));
+  color: var(--color-success-700, var(--color-success-700));
+  border: 1px solid var(--color-success-200, var(--color-emerald-200));
+}
+
+.type-badge-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .type-badge-md {
+    height: 22px;
+    padding: 0 8px;
+    font-size: var(--font-size-xs0);
+  }
+}
+
+@media (max-width: 320px) {
+  .type-badge-md {
+    height: 20px;
+    padding: 0 6px;
+    font-size: var(--font-size-xs2);
+  }
+  
+  .type-badge-label {
+    display: none;
+  }
+}

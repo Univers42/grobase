@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   state_build.rs                                     :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:37 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:38 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! `AppState` construction helpers, split out of `state.rs` so the constructor
 //! reads as a short orchestration of named builders rather than one 150-line
 //! function. Each builder owns one concern (resolver, adapter registry, ABAC

@@ -1,0 +1,25 @@
+---
+import Icon from './Icon.astro';
+
+type Props = {
+	kicker: string;
+	title: string;
+	lede?: string;
+	id?: string;
+	/** Tint for the kicker pill + heading-shadow rotation (1–5). Decoration only. */
+	accent?: 1 | 2 | 3 | 4 | 5;
+	/** Render the title as animated multi-accent gradient-text. */
+	gradient?: boolean;
+};
+const { kicker, title, lede, id, accent = 3, gradient = false } = Astro.props;
+const accClass = `accent-${accent}`;
+// Mega stacked shadow on the title; gradient-text carries its own depth (a
+// drop-shadow filter), so it must NOT also get a stacked text-shadow.
+const titleClass = gradient ? 'gradient-text' : 'tshadow-mega';
+---
+
+<div class={`gb-section__head ${accClass}`} data-rise>
+	<p class="gb-kicker"><span aria-hidden="true"><Icon name="star" size={14} /></span> {kicker}</p>
+	<h2 id={id} class={titleClass}>{title}</h2>
+	{lede && <p class="gb-lede">{lede}</p>}
+</div>

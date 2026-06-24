@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   schema.rs                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:34:46 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:34:48 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Engine-agnostic schema introspection contract (M22, live-database mode).
 //!
 //! [`SchemaDescriptor`] is the wire shape returned by `POST /v1/schema` and

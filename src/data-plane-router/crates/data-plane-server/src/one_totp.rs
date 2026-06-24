@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   one_totp.rs                                        :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:33:26 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:33:28 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! binocle-one TOTP MFA — RFC 6238 over the in-tree hmac, plus recovery codes.
 //!
 //! HMAC-SHA1 because that is what every authenticator app (Google

@@ -1,0 +1,24 @@
+---
+// STATUS PILL — the honest implementation status of one control. AA-contrast,
+// and NEVER colour-only: the status word ("Implemented" / "Partial" / "Roadmap")
+// is real text, so the meaning survives for colour-blind and screen-reader users
+// (WCAG 1.4.1 Use of Color). Colour comes from a status class — no inline style
+// (strict hashed CSP).
+import type { SecurityControl } from '../../data/security';
+
+type Props = { status: SecurityControl['status'] };
+const { status } = Astro.props;
+
+// status → visible label + a colour class defined in sections/_security.scss.
+const LABEL: Record<SecurityControl['status'], string> = {
+	implemented: 'Implemented',
+	partial: 'Partial',
+	planned: 'Roadmap',
+};
+const label = LABEL[status];
+---
+
+<span class={`gb-sec-pill gb-sec-pill--${status}`}>
+	<span class="gb-sec-pill__dot" aria-hidden="true"></span>
+	{label}
+</span>

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   message.go                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:48:04 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:48:05 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 package emailsvc
 
 import (
@@ -11,12 +23,13 @@ import (
 
 // message is the built email; bytes() renders the RFC 5322 wire form.
 type message struct {
-	from      string
-	to        string
-	subject   string
-	html      string
-	text      string
-	messageID string
+	from            string
+	to              string
+	subject         string
+	html            string
+	text            string
+	messageID       string
+	listUnsubscribe string
 }
 
 // bytes renders headers + body. Both html and text → multipart/alternative;
@@ -29,6 +42,9 @@ func (m *message) bytes() []byte {
 	b.WriteString("Message-ID: " + m.messageID + "\r\n")
 	b.WriteString("Date: " + time.Now().UTC().Format(time.RFC1123Z) + "\r\n")
 	b.WriteString("MIME-Version: 1.0\r\n")
+	if m.listUnsubscribe != "" {
+		b.WriteString("List-Unsubscribe: <" + m.listUnsubscribe + ">\r\n")
+	}
 
 	switch {
 	case m.html != "" && m.text != "":

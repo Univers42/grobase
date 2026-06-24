@@ -1,0 +1,37 @@
+---
+// ── DocsToc — the RIGHT "On this page" rail, built from the rendered headings.
+// Astro's render() returns the document's heading tree ({ depth, slug, text });
+// we list h2/h3 with their auto-generated anchor slugs. A scroll-spy script
+// (DocsActive script in DocsLayout) toggles aria-current on the link for the
+// section currently in view — class-only highlight, CSP-safe, no inline style.
+interface Heading {
+	depth: number;
+	slug: string;
+	text: string;
+}
+interface Props {
+	headings: Heading[];
+}
+
+const { headings } = Astro.props;
+// Only surface section headings (h2) and their direct subsections (h3); skip the
+// page H1 (depth 1) and anything deeper to keep the rail short and scannable.
+const items = headings.filter((h) => h.depth === 2 || h.depth === 3);
+---
+
+{
+	items.length > 0 && (
+		<nav class="gb-docs-toc" aria-label="On this page" data-docs-toc>
+			<p class="gb-docs-toc__title">On this page</p>
+			<ul class="gb-docs-toc__list">
+				{items.map((h) => (
+					<li class={`gb-docs-toc__item gb-docs-toc__item--h${h.depth}`}>
+						<a class="gb-docs-toc__link" href={`#${h.slug}`} data-toc-link={h.slug}>
+							{h.text}
+						</a>
+					</li>
+				))}
+			</ul>
+		</nav>
+	)
+}

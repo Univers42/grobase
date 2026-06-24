@@ -1,0 +1,16 @@
+node_modules
+dist
+dist-ssr
+*.local
+*.log
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store

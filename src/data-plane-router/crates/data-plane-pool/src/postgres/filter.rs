@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   filter.rs                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:29:10 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:29:11 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The `Pred` filter compiler (JSON filter → Postgres boolean with constant
 //! folding) and the ORDER BY builder. Shared by the read and mutating paths.
 
@@ -37,6 +49,32 @@ pub(super) fn build_where(
         // owner predicate (`{where_sql} AND owner_id = $n` in update/delete) ANDs
         // it as one unit — a top-level `$or` must not leave a branch unscoped.
         Pred::Sql(clause) => format!(" WHERE ({clause})"),
+    })
+}
+
+/// Append the server-trusted `owner_id = $n` predicate to an already-built
+/// ` WHERE …` clause (F1/F2 read owner-scoping). `None` returns `where_sql`
+/// unchanged — the OFF / shared-table / admin-bypass path → byte-identical SQL,
+/// zero extra alloc or param. `Some(principal)` pushes the principal as the next
+/// `$n` and ANDs the predicate. The client predicate is already parenthesized by
+/// [`build_where`] / `combine_where`, so a top-level `$or` stays fully scoped (no
+/// cross-owner leak); appending to ` WHERE FALSE` keeps it matching nothing.
+// perf: the None arm moves `where_sql` straight back out — no format!, no Box.
+pub(super) fn append_owner_predicate(
+    where_sql: String,
+    owner: Option<&str>,
+    params: &mut Vec<BoxedParam>,
+) -> DataPlaneResult<String> {
+    let Some(principal) = owner else {
+        return Ok(where_sql);
+    };
+    params.push(Box::new(principal.to_string()));
+    let idx = params.len();
+    let owner_col = quote_ident("owner_id")?;
+    Ok(if where_sql.is_empty() {
+        format!(" WHERE {owner_col} = ${idx}")
+    } else {
+        format!("{where_sql} AND {owner_col} = ${idx}")
     })
 }
 
@@ -231,6 +269,60 @@ mod tests {
             Pred::Sql(s) => s,
         };
         (sql, params.len())
+    }
+
+    // --- F1/F2 read owner predicate (append_owner_predicate) ---
+
+    #[test]
+    fn append_owner_none_is_byte_identical_and_pushes_nothing() {
+        let mut p: Vec<BoxedParam> = Vec::new();
+        assert_eq!(append_owner_predicate(String::new(), None, &mut p).unwrap(), "");
+        assert_eq!(
+            append_owner_predicate(" WHERE (\"a\" = $1)".to_string(), None, &mut p).unwrap(),
+            " WHERE (\"a\" = $1)"
+        );
+        assert_eq!(p.len(), 0, "the OFF/shared/admin path pushes no param");
+    }
+
+    #[test]
+    fn append_owner_some_scopes_and_numbers_monotonically() {
+        // empty WHERE → owner is the sole predicate at $1.
+        let mut p: Vec<BoxedParam> = Vec::new();
+        assert_eq!(
+            append_owner_predicate(String::new(), Some("user:1"), &mut p).unwrap(),
+            " WHERE \"owner_id\" = $1"
+        );
+        assert_eq!(p.len(), 1);
+        // non-empty WHERE → ANDed, $n follows the already-bound params.
+        let mut p2: Vec<BoxedParam> = vec![Box::new(7i64)];
+        assert_eq!(
+            append_owner_predicate(" WHERE (\"a\" = $1)".to_string(), Some("user:1"), &mut p2)
+                .unwrap(),
+            " WHERE (\"a\" = $1) AND \"owner_id\" = $2"
+        );
+        assert_eq!(p2.len(), 2);
+        // top-level $or stays parenthesized → owner is ANDed OUTSIDE the OR
+        // (the cross-owner-leak guard: no branch left unscoped).
+        let mut p3: Vec<BoxedParam> = vec![Box::new(1i64), Box::new(2i64)];
+        assert_eq!(
+            append_owner_predicate(
+                " WHERE ((\"a\" = $1) OR (\"b\" = $2))".to_string(),
+                Some("user:1"),
+                &mut p3
+            )
+            .unwrap(),
+            " WHERE ((\"a\" = $1) OR (\"b\" = $2)) AND \"owner_id\" = $3"
+        );
+        assert_eq!(p3.len(), 3);
+    }
+
+    #[test]
+    fn append_owner_to_always_false_still_matches_nothing() {
+        let mut p: Vec<BoxedParam> = Vec::new();
+        assert_eq!(
+            append_owner_predicate(" WHERE FALSE".to_string(), Some("user:1"), &mut p).unwrap(),
+            " WHERE FALSE AND \"owner_id\" = $1"
+        );
     }
 
     #[test]

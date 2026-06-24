@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   adapter.rs                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:29:33 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:29:35 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The Redis [`EngineAdapter`]: opens a per-mount auto-reconnecting pool and
 //! advertises the engine's capabilities + supported operation set.
 

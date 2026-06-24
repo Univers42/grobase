@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Las Americas, S.C. Tenerife">
+  <defs>
+    <linearGradient id="g1724sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#073043"/><stop offset="1" stop-color="#ffd27a"/>
+    </linearGradient>
+    <radialGradient id="g1724sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff1c2" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#fff1c2" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g1724sky)"/>
+  <circle cx="405" cy="33" r="160" fill="url(#g1724sun)"/>
+  <circle cx="405" cy="33" r="54" fill="#fff1c2" opacity="0.9"/>
+  <rect y="246" width="1280" height="474" fill="#0d6178" opacity="0.55"/>
+  <path d="M0 286 C 96 270 224 302 320 286 C 416 302 544 270 640 286 C 736 270 864 302 960 286 C 1056 302 1184 270 1280 286 L 1280 720 L 0 720 Z" fill="#0d6178" opacity="0.85"/><path d="M0 356 C 96 378 224 334 320 356 C 416 334 544 378 640 356 C 736 378 864 334 960 356 C 1056 334 1184 378 1280 356 L 1280 720 L 0 720 Z" fill="#28a7c0" opacity="0.8"/><path d="M0 446 C 96 416 224 476 320 446 C 416 476 544 416 640 446 C 736 416 864 476 960 446 C 1056 476 1184 416 1280 446 L 1280 720 L 0 720 Z" fill="#28a7c0" opacity="0.6"/><path d="M0 546 C 96 586 224 506 320 546 C 416 506 544 586 640 546 C 736 586 864 506 960 546 C 1056 506 1184 586 1280 546 L 1280 720 L 0 720 Z" fill="#ffffff" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">S.C. TENERIFE</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Las Americas</text>
+</svg>

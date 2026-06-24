@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   one_files.rs                                       :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:33:20 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:33:22 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! binocle-one file storage — upload, serve, thumbnails, protected links.
 //!
 //! Files attach to a `(table, record, field)` coordinate like PocketBase's

@@ -98,6 +98,10 @@ redis = { version = "0.27", default-features = false, features = ["tokio-comp", 
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 # R8: percent-encode HTTP path segments (resource ids etc.) safely.
 percent-encoding = "2"
+# pbcompat: PocketBase-compatible facade backup/restore + file archives.
+zip = { version = "2", default-features = false, features = ["deflate"] }
+# hooks: embedded JS runtime for PB's JS hooks (routerAdd, onRecord*).
+rquickjs = { version = "0.9", features = ["loader"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"

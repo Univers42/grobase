@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   schema.rs                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:30:12 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:30:14 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Structured schema DDL (typed collections) — pure SQL builders.
 //!
 //! Mirrors the MySQL/PG lowering (`build_mysql_ddl`) in SQLite's dialect.

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   exec.rs                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:30:02 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:30:03 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Blocking executors (run inside `interact` / the writer thread, sync
 //! rusqlite): run a built [`SqlPlan`], query/execute raw SQL, and the schema
 //! introspection that maps `PRAGMA table_info` back to engine-neutral columns.

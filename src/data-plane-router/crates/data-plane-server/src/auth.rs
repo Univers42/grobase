@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   auth.rs                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:52 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:53 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Phase 7 — Rust-native authentication for the direct `/data/v1` front door.
 //!
 //! Go remains the SOLE identity authority: Rust never hashes or stores API keys.

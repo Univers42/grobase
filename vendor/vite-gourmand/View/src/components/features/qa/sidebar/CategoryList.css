@@ -1,0 +1,47 @@
+/**
+ * CategoryList styles
+ * Transparent sidebar with section dividers
+ */
+
+.category-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-4);
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Category section group */
+.category-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Section divider line */
+.category-divider {
+  border: none;
+  height: 1px;
+  background: var(--color-border-primary);
+  margin: var(--space-5) var(--space-2);
+}
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .category-list {
+    padding: var(--space-4) var(--space-3);
+    gap: var(--space-2);
+  }
+  
+  .category-divider {
+    margin: var(--space-4) var(--space-2);
+  }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .category-list {
+    display: none;
+  }
+}

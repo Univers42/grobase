@@ -1,0 +1,166 @@
+/**
+ * CategoryItem Styles
+ * Fly.io-style navigation items
+ */
+
+.category-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-lg);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+  font-family: var(--font-family-sans);
+  font-size: var(--text-sm);
+  position: relative;
+  white-space: nowrap;
+}
+
+.category-item:hover {
+  background: var(--color-primary-700-overlay-06);
+  color: var(--color-primary-600);
+}
+
+.category-item:hover .category-icon-wrapper {
+  background: var(--icon-gradient-active);
+}
+
+.category-item-active {
+  background: var(--color-border-secondary);
+  color: var(--color-primary-700);
+}
+
+.category-item-active .category-icon-wrapper {
+  background: var(--icon-gradient-active);
+  box-shadow: 0 1px 4px var(--color-primary-700-overlay-15);
+}
+
+.category-item-active .category-svg-icon {
+  color: var(--color-primary-600);
+}
+
+/* Icon wrapper - Fly.io gradient container */
+.category-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-md);
+  background: var(--icon-gradient);
+  box-shadow: 0 1px 2px var(--color-primary-700-overlay-06);
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+  border: 1px solid var(--color-border-secondary);
+}
+
+.category-svg-icon {
+  color: var(--color-primary-500);
+  transition: color var(--transition-fast);
+}
+
+.category-item:hover .category-svg-icon {
+  color: var(--color-primary-700);
+}
+
+.category-label {
+  flex: 1;
+  font-weight: var(--font-weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.category-count {
+  min-width: 1.5rem;
+  height: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  background: var(--color-border-secondary);
+  color: var(--color-primary-700);
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  padding: 0 var(--space-2);
+}
+
+.category-item-active .category-count {
+  background: var(--glass-shadow-lg);
+}
+
+/* Tablet - Compact */
+@media (max-width: 1024px) {
+  .category-item {
+    padding: var(--space-2);
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+  }
+
+  .category-icon-wrapper {
+    width: 22px;
+    height: 22px;
+  }
+
+  .category-count {
+    min-width: 1.25rem;
+    height: 1rem;
+    font-size: var(--font-size-xs1);
+  }
+}
+
+/* Mobile - Bottom nav icons */
+@media (max-width: 768px) {
+  .category-item {
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-2);
+    border-radius: 0;
+    min-width: 56px;
+    flex: 1;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .category-item-active {
+    background: linear-gradient(to top, var(--color-border-secondary), transparent);
+  }
+
+  .category-icon-wrapper {
+    width: 28px;
+    height: 28px;
+    border: none;
+  }
+
+  .category-label {
+    font-size: var(--font-size-xs1);
+    flex: none;
+  }
+
+  .category-count {
+    display: none;
+  }
+}
+
+/* Small phones - Icons only */
+@media (max-width: 480px) {
+  .category-item {
+    min-width: 44px;
+    padding: var(--space-1);
+  }
+
+  .category-icon-wrapper {
+    width: 24px;
+    height: 24px;
+  }
+
+  .category-label {
+    font-size: var(--font-size-2xs);
+  }
+}

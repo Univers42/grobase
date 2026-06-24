@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   quota.rs                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:33:38 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:33:39 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Control-plane honor-set machinery (Track-B). A control-plane guard
 //! periodically evaluates each tenant against some budget/policy and publishes a
 //! SET of "denied" tenant ids to Redis; this module is the data plane's CHEAP

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   schema_ddl.rs                                      :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:34:44 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:34:45 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Engine-agnostic schema DDL contract (M22 live-database mode, step 2).
 //!
 //! [`SchemaDdlRequest`] is the wire shape consumed by `POST /v1/schema/ddl`

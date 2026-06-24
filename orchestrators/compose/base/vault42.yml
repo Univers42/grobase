@@ -1,0 +1,37 @@
+# vault42 plane — vault42-server (the zero-knowledge secrets MOTOR) run as its PUBLISHED
+# image, never cloned: the image is the integration surface (vendor/vault42 need not exist).
+# Opt in via the `vault42` profile; not part of any default edition (byte-parity preserved).
+#
+# vault42 is a separate product that uses grobase as its STORE (GrobaseStore): `make
+# vault42-up` provisions the vault42 contract (which emits build/vault42-grobase-store.env
+# with the connection vars), then starts this service wired to Kong over the internal
+# network. Set VAULT42_IMAGE to pin a tag. Design: the vault42 repo's deploy/GROBASE-STORE.md.
+services:
+  vault42:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: "${VAULT42_IMAGE:-docker.io/dlesieur/vault42-server:latest}"
+    container_name: mini-baas-vault42
+    profiles: ["vault42"]
+    # GROBASE_ANON_KEY / GROBASE_APP_KEY / GROBASE_DB_ID — emitted by provisioning the
+    # contract (required:false so a pre-provision `compose up` doesn't hard-fail; `make
+    # vault42-up` always provisions first).
+    env_file:
+      - path: build/vault42-grobase-store.env
+        required: false
+    environment:
+      # Internal network — overrides the emitted localhost value so the container reaches Kong.
+      GROBASE_QUERY_URL: "http://kong:8000"
+      # = grobase's shared GoTrue secret. The .env key is JWT_SECRET (gotrue maps it to
+      # GOTRUE_JWT_SECRET internally); fall back to GOTRUE_JWT_SECRET for older envs.
+      JWT_SECRET: "${JWT_SECRET:-${GOTRUE_JWT_SECRET:-}}"
+      # OFF by default = byte-parity; flip to 1 for the org/team/group + per-env scope-key RPCs.
+      VAULT42_SCOPE_KEYS_ENABLED: "${VAULT42_SCOPE_KEYS_ENABLED:-0}"
+      VAULT42_HOST: "0.0.0.0"
+      VAULT42_PORT: "8443"
+      RUST_LOG: "info"
+    ports:
+      # host default 18443 — the network-controls/WAF plane already binds host :8443.
+      - "${VAULT42_PORT:-18443}:8443"
+    depends_on:
+      kong:
+        condition: service_started

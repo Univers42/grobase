@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   schema.rs                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:29:19 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:29:25 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Introspection, schema-DDL apply, and migration — the heavy `EnginePool`
 //! method bodies, factored out so the trait impl in [`super::pool`] stays a
 //! thin guard+delegate. Each is byte-for-byte the pre-split method body, with

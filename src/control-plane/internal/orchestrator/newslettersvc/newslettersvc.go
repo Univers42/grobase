@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   newslettersvc.go                                   :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:49:22 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:49:23 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package newslettersvc is the Go port of the Node newsletter-service (R2).
 //
 // It owns the `newsletter.subscriber` + `newsletter.send_log` tables and ports
@@ -22,8 +34,9 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
-// emailSender abstracts the outbound /send call (fakeable in tests).
-type emailSender func(ctx context.Context, to, subject, html, text string) error
+// emailSender abstracts the outbound /send call (fakeable in tests). unsubURL is
+// the per-subscriber unsubscribe link, emitted as a List-Unsubscribe header.
+type emailSender func(ctx context.Context, to, subject, html, text, unsubURL string) error
 
 // repo is the newsletter persistence seam (satisfied by *store; faked in tests).
 type repo interface {

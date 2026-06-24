@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   sec_filter.rs                                      :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:35:07 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:35:09 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Security: the engine-neutral filter parser must reject malformed / unknown
 //! grammar and must treat SQL-looking strings as DATA (never operators). Values
 //! that look like injection ("1 OR 1=1", "'; DROP TABLE--", "$ne", "../../etc")

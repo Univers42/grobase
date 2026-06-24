@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="La Barca, Las Palmas">
+  <defs>
+    <linearGradient id="g9285sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a2a45"/><stop offset="1" stop-color="#f6b35c"/>
+    </linearGradient>
+    <radialGradient id="g9285sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffd98a" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffd98a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g9285sky)"/>
+  <circle cx="1008" cy="224" r="160" fill="url(#g9285sun)"/>
+  <circle cx="1008" cy="224" r="54" fill="#ffd98a" opacity="0.9"/>
+  <rect y="328" width="1280" height="392" fill="#1f6f8f" opacity="0.55"/>
+  <path d="M0 368 C 96 352 224 384 320 368 C 416 384 544 352 640 368 C 736 352 864 384 960 368 C 1056 384 1184 352 1280 368 L 1280 720 L 0 720 Z" fill="#1f6f8f" opacity="0.85"/><path d="M0 438 C 96 460 224 416 320 438 C 416 416 544 460 640 438 C 736 460 864 416 960 438 C 1056 416 1184 460 1280 438 L 1280 720 L 0 720 Z" fill="#2b9bb5" opacity="0.8"/><path d="M0 528 C 96 498 224 558 320 528 C 416 558 544 498 640 528 C 736 498 864 558 960 528 C 1056 558 1184 498 1280 528 L 1280 720 L 0 720 Z" fill="#2b9bb5" opacity="0.6"/><path d="M0 628 C 96 668 224 588 320 628 C 416 588 544 668 640 628 C 736 668 864 588 960 628 C 1056 588 1184 668 1280 628 L 1280 720 L 0 720 Z" fill="#eaf7fb" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">LAS PALMAS</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">La Barca</text>
+</svg>

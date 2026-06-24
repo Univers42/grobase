@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   query_guards.rs                                    :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:29 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:31 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Pre-execution enforcement for the query hot path, split out of
 //! `run_query_inner` so the handler body stays small. Every check here is a
 //! READ over `(state, request)` that either short-circuits with a ready
