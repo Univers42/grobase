@@ -70,12 +70,22 @@ class GameNet {
     this.store.dispatch(gameStarted({ pieces: generate(PIECE_BATCH, seed), gameMode: mode, seed }));
   }
 
-  /** startGame starts solo locally, else (host) broadcasts the shared seed. */
+  /** startGame starts solo locally, else broadcasts the shared seed. ANY player
+   *  in the room may start — so a stale/ghost "host" can never block the match. */
   startGame() {
     if (this.solo) return this.startSolo(this.name, this.mode);
-    if (!this.room || !this._isHost()) return;
+    if (!this.room) return;
     const seed = (Date.now() & 0x7fffffff) || 1;
     this.client.broadcast(roomTopic(this.room), 'start', { seed, gameMode: this.mode, players: this._roster() });
+  }
+
+  /** leave cleanly removes this player from the room + lobby presence (called on
+   *  page unload) so a refresh/close doesn't leave a ghost that breaks the roster. */
+  leave() {
+    try {
+      if (this.room) this.client.untrack(roomTopic(this.room));
+      this.client.untrack(LOBBY);
+    } catch { /* page is going away anyway */ }
   }
 
   setMode(mode) {
@@ -95,9 +105,9 @@ class GameNet {
     this.client.broadcast(roomTopic(this.room), 'spectrum', { from: this._id(), name: this.name, spectrum });
   }
 
-  sendBoard(board) {
+  sendBoard(board, score, lines) {
     if (!this.room || !this.started) return;
-    this.client.broadcast(roomTopic(this.room), 'board', { from: this._id(), name: this.name, board });
+    this.client.broadcast(roomTopic(this.room), 'board', { from: this._id(), name: this.name, board, score, lines });
   }
 
   sendLines(linesCleared, score) {
@@ -128,7 +138,7 @@ class GameNet {
     if (m.event === 'mode') { this.mode = p.mode; this.store.dispatch(setGameMode(p.mode)); this._pushState(); return; }
     if (m.event === 'reset') return this._onReset();
     if (m.event === 'spectrum') { if (p.from !== this._id()) this.store.dispatch(updateOpponentSpectrum({ socketId: p.from, playerName: p.name, spectrum: p.spectrum })); return; }
-    if (m.event === 'board') { if (p.from !== this._id()) this.store.dispatch(updateOpponentBoard({ socketId: p.from, playerName: p.name, board: p.board })); return; }
+    if (m.event === 'board') { if (p.from !== this._id()) this.store.dispatch(updateOpponentBoard({ socketId: p.from, playerName: p.name, board: p.board, score: p.score, lines: p.lines })); return; }
     if (m.event === 'lines') return this._onLines(p);
     if (m.event === 'over') return this._onOver(p);
   }
@@ -243,6 +253,9 @@ const init = (store) => {
   store.dispatch(setSocket(net));
   client.onState((up) => store.dispatch(setConnected(up)));
   client.track(LOBBY, { room: null, name: currentUserId() ? 'player' : 'guest' });
+  const bye = () => net.leave();
+  window.addEventListener('pagehide', bye);
+  window.addEventListener('beforeunload', bye);
   return net;
 };
 

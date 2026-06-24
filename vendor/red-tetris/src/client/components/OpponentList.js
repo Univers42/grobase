@@ -31,7 +31,20 @@ const OpponentList = () => {
   };
 
   if (others.length === 0) {
-    return <div className="vs-card"><div className="vs-label">rival</div><div className="vs-waiting">waiting for a rival…</div></div>;
+    const room = gameState?.roomName || '';
+    const host = typeof window !== 'undefined' ? window.location.host : '';
+    const isLocal = /^(localhost|127\.|0\.0\.0\.0)/.test(host);
+    return (
+      <div className="vs-card">
+        <div className="vs-label">rival</div>
+        <div className="vs-waiting">
+          <div style={{ color: '#ffd45e', fontWeight: 700 }}>No rival in room “{room}” yet.</div>
+          {isLocal
+            ? <div style={{ marginTop: 10, fontSize: 12, color: '#ff8a8a' }}>You are on <b>localhost</b> — the other PC can’t reach it. Re-open on your Wi-Fi address (run <code>make red-tetris-lan</code>) and share THAT.</div>
+            : <div style={{ marginTop: 10, fontSize: 12, color: '#9a9ab6' }}>The other player must open<br /><b style={{ color: '#5fd0e0' }}>http://{host}</b><br />and join the SAME room: <b>{room}</b></div>}
+        </div>
+      </div>
+    );
   }
 
   return (
