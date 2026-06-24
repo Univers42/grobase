@@ -137,14 +137,14 @@ export class StorageController {
   // ── bucket management ────────────────────────────────────────────────────
   @Get('bucket')
   @ApiOperation({ summary: 'List buckets' })
-  async listBuckets() {
-    return { buckets: await this.service.listBuckets() };
+  async listBuckets(@CurrentUser() user: UserContext) {
+    return { buckets: await this.service.listBuckets(principalOf(user)) };
   }
 
   @Post('bucket/:name')
   @ApiOperation({ summary: 'Create a bucket (idempotent)' })
-  async createBucket(@Param('name') name: string) {
-    return this.service.createBucket(name);
+  async createBucket(@CurrentUser() user: UserContext, @Param('name') name: string) {
+    return this.service.createBucket(name, principalOf(user));
   }
 
   // ── helpers ──────────────────────────────────────────────────────────────

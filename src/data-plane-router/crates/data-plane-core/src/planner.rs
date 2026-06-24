@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   planner.rs                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:34:39 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:34:40 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Capability-aware pre-flight validation (wiki/04-data-plane.md §2, gap G6).
 //!
 //! The router advertises an [`EngineCapabilities`] descriptor per engine at

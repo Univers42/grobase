@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Nemina, A Coruna">
+  <defs>
+    <linearGradient id="g6306sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a2a45"/><stop offset="1" stop-color="#f6b35c"/>
+    </linearGradient>
+    <radialGradient id="g6306sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffd98a" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffd98a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g6306sky)"/>
+  <circle cx="672" cy="188" r="160" fill="url(#g6306sun)"/>
+  <circle cx="672" cy="188" r="54" fill="#ffd98a" opacity="0.9"/>
+  <rect y="316" width="1280" height="404" fill="#1f6f8f" opacity="0.55"/>
+  <path d="M0 356 C 96 372 224 340 320 356 C 416 340 544 372 640 356 C 736 372 864 340 960 356 C 1056 340 1184 372 1280 356 L 1280 720 L 0 720 Z" fill="#1f6f8f" opacity="0.85"/><path d="M0 426 C 96 404 224 448 320 426 C 416 448 544 404 640 426 C 736 404 864 448 960 426 C 1056 448 1184 404 1280 426 L 1280 720 L 0 720 Z" fill="#2b9bb5" opacity="0.8"/><path d="M0 516 C 96 546 224 486 320 516 C 416 486 544 546 640 516 C 736 546 864 486 960 516 C 1056 486 1184 546 1280 516 L 1280 720 L 0 720 Z" fill="#2b9bb5" opacity="0.6"/><path d="M0 616 C 96 576 224 656 320 616 C 416 656 544 576 640 616 C 736 576 864 656 960 616 C 1056 656 1184 576 1280 616 L 1280 720 L 0 720 Z" fill="#eaf7fb" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">A CORUNA</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Nemina · 2</text>
+</svg>

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   main.go                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:37:05 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:37:06 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // scale-seed — bulk tenant provisioner for the 10K-tenant scale experiments
 // (program phase B1). Drives tenant-control's idempotent POST /v1/provision
 // with bounded concurrency, capturing each tenant's api key + mount ids as

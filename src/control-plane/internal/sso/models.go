@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   models.go                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:56:32 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:56:33 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package sso implements enterprise OIDC single-sign-on at the org/tenant level
 // (Track-D D2a). It is FLAG-GATED OFF by default (SSO_ENABLED): when off, none of
 // its routes are mounted and the sso_connections table (migration 053) is never

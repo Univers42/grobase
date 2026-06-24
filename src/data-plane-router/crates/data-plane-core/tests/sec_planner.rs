@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   sec_planner.rs                                     :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:35:12 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:35:13 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Security: capability-aware pre-flight gating. `required_capability` must map
 //! every op kind to its flag; `validate_operation` must REJECT an op the engine
 //! cannot serve (and oversize batches); `tier_gate` must DENY when the tenant's

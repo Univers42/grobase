@@ -46,8 +46,9 @@ build-svc-%: _require-compose ## Build ONE service image (all profiles defined, 
 health: ## Quick gateway health probe
 	@echo -e "$(_B)Checking endpoints…$(_0)"
 	@p="$$(docker port mini-baas-kong 8000/tcp 2>/dev/null | head -1 | sed 's/.*://')"; p="$${p:-8000}"; \
-		curl -fsS http://localhost:$$p/auth/v1/health >/dev/null && echo "  ✓ /auth/v1/health" || echo "  ✗ /auth/v1/health"; \
-		curl -fsS http://localhost:$$p/rest/v1/ >/dev/null && echo "  ✓ /rest/v1/" || echo "  ✗ /rest/v1/"
+		k="$$(sed -n 's/^ANON_KEY=//p' .env 2>/dev/null | head -1)"; \
+		curl -fsS -H "apikey: $$k" http://localhost:$$p/auth/v1/health >/dev/null && echo "  ✓ /auth/v1/health" || echo "  ✗ /auth/v1/health"; \
+		curl -fsS -H "apikey: $$k" http://localhost:$$p/rest/v1/ >/dev/null && echo "  ✓ /rest/v1/" || echo "  ✗ /rest/v1/"
 
 bench-startup: _require-compose _rm-stale ## Time the stack until health checks pass (target ≤90s)
 	@t0=$$(date +%s); eval "$$(bash scripts/ops/resolve-ports.sh 2>/dev/null || true)"; $(DCE) up -d; \

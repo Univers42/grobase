@@ -35,6 +35,9 @@ go.work
 ### Node ###
 # Logs
 logs
+# never ignore source-tree logs modules (e.g. vite-gourmand DevBoard features/logs)
+!**/src/**/logs/
+!**/src/**/logs/**
 !src/apps/log-service/src/logs/
 !src/apps/log-service/src/logs/**
 *.log
@@ -205,6 +208,11 @@ lib/
 # sdks/dart/lib is committed generated code, like the python/swift/kotlin siblings)
 !sdks/dart/lib/
 !sdks/dart/lib/**
+# and track scripts/lib (shared sourced helpers: service-auth.sh, lib-*.sh/.mjs);
+# the broad `lib/` rule was swallowing the provisioner's service-auth dependency,
+# breaking provision-contract.sh + bench/live-tenant scripts in every fresh clone.
+!scripts/lib/
+!scripts/lib/**
 lib64/
 parts/
 sdist/
@@ -404,6 +412,11 @@ certs/*
 /vendor/MovieVerse/
 /vendor/claude-deal-with-the-devil/
 
+# vault42 — a SEPARATE product repo (own .git → git@github.com:Univers42/vault42.git),
+# developed in-tree here for convenience but committed/pushed only from its own remote
+# (gitflow). Ignored so grobase never embeds it as an orphan gitlink. See vault42/DECISIONS.md.
+/vendor/vault42/
+
 # Knowledge-graph output produced by the tool. Ignored to keep the repo clean —
 # it is fully reproducible from vendor/Understand-Anything (the .ua-*.mjs scripts).
 # NOTE: .understand-anything/knowledge-graph.json IS commit-safe if you want to
@@ -425,3 +438,27 @@ certs/*
 /src/control-plane/scale-seed
 /src/control-plane/tenant-control
 /src/control-plane/webhook-dispatcher
+
+# ── Per-tenant / per-app provisioning state (secrets: api keys, JWT, DSNs) — NEVER track. ──
+# Emitted by scripts/seed/*-tenant.sh; sourced by re-runs + the verify gates. Use GLOBS so
+# new apps are covered automatically (the old explicit list missed agency/savanna/surfind/…).
+*-tenant.env
+*-baas.env
+*.services.env
+.services.env
+# cloud overlay carries a real STRIPE_API_KEY — never track (flags.env.example is the template).
+infra/config/cloud/flags.env.cloud
+
+# Emitted frontend config carries the app API key — never track (glob covers every app).
+**/public/baas-config.js
+**/baas-config.js
+# Generated audit reports embed live keys/JWTs from the run — never track.
+wiki/reports/edge-report.html
+wiki/reports/postman-offers-report.html
+
+# local 42ctl CLI state (config + keystore) for the `make ctl` image wrapper
+.42ctl/
+
+# Accidental gitlinks (no .gitmodules); local vendored content only.
+vendor/scripts/
+vendor/twenty/

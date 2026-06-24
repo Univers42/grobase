@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   ddl.rs                                             :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:29:08 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:29:09 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Pure schema-DDL SQL builders + the Postgres→neutral type normalizer.
 //!
 //! Everything here is pure (testable without a DB). Identifiers go through

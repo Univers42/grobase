@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Los Lances, Cadiz">
+  <defs>
+    <linearGradient id="g4135sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c1e33"/><stop offset="1" stop-color="#caa6d6"/>
+    </linearGradient>
+    <radialGradient id="g4135sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffd9ec" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffd9ec" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g4135sky)"/>
+  <circle cx="822" cy="207" r="160" fill="url(#g4135sun)"/>
+  <circle cx="822" cy="207" r="54" fill="#ffd9ec" opacity="0.9"/>
+  <rect y="355" width="1280" height="365" fill="#1d4f6c" opacity="0.55"/>
+  <path d="M0 395 C 96 379 224 411 320 395 C 416 411 544 379 640 395 C 736 379 864 411 960 395 C 1056 411 1184 379 1280 395 L 1280 720 L 0 720 Z" fill="#1d4f6c" opacity="0.85"/><path d="M0 465 C 96 487 224 443 320 465 C 416 443 544 487 640 465 C 736 487 864 443 960 465 C 1056 443 1184 487 1280 465 L 1280 720 L 0 720 Z" fill="#368fad" opacity="0.8"/><path d="M0 555 C 96 525 224 585 320 555 C 416 585 544 525 640 555 C 736 525 864 585 960 555 C 1056 585 1184 525 1280 555 L 1280 720 L 0 720 Z" fill="#368fad" opacity="0.6"/><path d="M0 655 C 96 695 224 615 320 655 C 416 615 544 695 640 655 C 736 695 864 615 960 655 C 1056 615 1184 695 1280 655 L 1280 720 L 0 720 Z" fill="#f4fbfe" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">CADIZ</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Los Lances · 1</text>
+</svg>

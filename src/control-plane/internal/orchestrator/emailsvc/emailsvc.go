@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   emailsvc.go                                        :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:47:59 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:48:00 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package emailsvc is the Go port of the Node email-service (R2 consolidation).
 //
 // It exposes POST /send, builds an RFC 5322 message from {to,subject,html,text}

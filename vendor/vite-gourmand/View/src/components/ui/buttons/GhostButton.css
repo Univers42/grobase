@@ -1,0 +1,18 @@
+/**
+ * GhostButton Styles
+ * Uses ONLY CSS variables from graphical_chart.css
+ */
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+}
+
+.btn-ghost:active:not(:disabled) {
+  background: var(--color-bg-secondary);
+}

@@ -1,0 +1,42 @@
+---
+// ── DocsPager — prev / next navigation in flat reading order. Each side is a
+// real link with a directional label, so keyboard + screen-reader users get the
+// sequence. Either side may be absent (start / end of the docs).
+import Icon from '../ui/Icon.astro';
+import type { DocNavItem } from './nav';
+
+interface Props {
+	prev: DocNavItem | null;
+	next: DocNavItem | null;
+}
+const { prev, next } = Astro.props;
+---
+
+<nav class="gb-docs-pager" aria-label="Pagination">
+	{
+		prev ? (
+			<a class="gb-docs-pager__link gb-docs-pager__link--prev" href={prev.href} rel="prev">
+				<span class="gb-docs-pager__dir">
+					<Icon name="arrow-right" size={16} class="gb-docs-pager__icon gb-docs-pager__icon--prev" />
+					Previous
+				</span>
+				<span class="gb-docs-pager__t">{prev.title}</span>
+			</a>
+		) : (
+			<span class="gb-docs-pager__spacer" aria-hidden="true" />
+		)
+	}
+	{
+		next ? (
+			<a class="gb-docs-pager__link gb-docs-pager__link--next" href={next.href} rel="next">
+				<span class="gb-docs-pager__dir">
+					Next
+					<Icon name="arrow-right" size={16} class="gb-docs-pager__icon" />
+				</span>
+				<span class="gb-docs-pager__t">{next.title}</span>
+			</a>
+		) : (
+			<span class="gb-docs-pager__spacer" aria-hidden="true" />
+		)
+	}
+</nav>

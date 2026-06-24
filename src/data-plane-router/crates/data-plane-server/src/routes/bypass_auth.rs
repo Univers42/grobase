@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   bypass_auth.rs                                     :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:09 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:10 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Shared `/data/v1` bypass authentication plumbing, split out of `bypass.rs`:
 //! the scope check, the cached key-verify, the verify+resolve pair, the internal
 //! envelope builder, the audited scope-denial, and the explicit rate-limit the

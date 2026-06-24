@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   trust.go                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 05:00:29 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 05:00:30 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package trust serves a read-only, public-readable security/compliance posture
 // (Track-D D4.6, "Trust Center"). It is FILE-BACKED: a single machine-readable
 // manifest (config/trust/posture.json) is the SINGLE SOURCE the endpoint serves,

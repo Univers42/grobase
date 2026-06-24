@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   scope.rs                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:28:49 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:28:51 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Owner-scoping + parameter binding — the security core shared by every CRUD
 //! builder in [`super::query`]. Every read intersects `owner_id = ?`; every
 //! write re-stamps `owner_id` from the verified identity. The engine-neutral
@@ -28,15 +40,20 @@ impl crate::sql_scope::SqlParamSink for MysqlSink {
     }
 }
 
-/// Take the client filter, strip any attempt to override `owner_id`, then
-/// intersect with the server-trusted owner. Always returns a `WHERE` clause
-/// that includes `owner_id = ?` (the second line of defense against tenant
-/// escape — defense in depth alongside per-mount DSN isolation). The
-/// engine-neutral filter lowering lives in [`crate::sql_scope`]; only the
-/// `owner_id` stamping below is MySQL-specific.
+/// Take the client filter, strip any attempt to override `owner_id`, then —
+/// when `scoped` — intersect with the server-trusted owner. The reserved
+/// `owner_id` is ALWAYS stripped from client input first (a shared read can't
+/// be tricked into forging it either). When `scoped` is true the trusted
+/// `owner_id = ?` predicate is appended (the second line of defense against
+/// tenant escape — defense in depth alongside per-mount DSN isolation); when
+/// `scoped` is false (a NAMED shared catalog table on a per-table-isolation
+/// mount) it is NOT appended, so an empty client filter yields no `WHERE` at
+/// all. The engine-neutral filter lowering lives in [`crate::sql_scope`]; only
+/// the `owner_id` stamping below is MySQL-specific.
 pub(super) fn build_owner_filter(
     filter: Option<&Value>,
     identity: &RequestIdentity,
+    scoped: bool,
 ) -> DataPlaneResult<(String, Vec<MysqlValue>)> {
     let mut sink = MysqlSink(Vec::new());
     let mut clauses: Vec<String> = Vec::new();
@@ -56,20 +73,27 @@ pub(super) fn build_owner_filter(
         }
     }
 
-    // Always inject the trusted owner predicate.
-    sink.0
-        .push(MysqlValue::Bytes(owner_of(identity).into_bytes()));
-    clauses.push("`owner_id` = ?".to_string());
+    if scoped {
+        sink.0
+            .push(MysqlValue::Bytes(owner_of(identity).into_bytes()));
+        clauses.push("`owner_id` = ?".to_string());
+    }
 
+    if clauses.is_empty() {
+        return Ok((String::new(), sink.0));
+    }
     Ok((format!(" WHERE {}", clauses.join(" AND ")), sink.0))
 }
 
-/// Strip reserved columns from client payload, then re-inject the trusted
-/// `owner_id`. Returns the ordered list of (column, value) pairs and is the
-/// shared core of `INSERT` and `UPSERT`.
+/// Strip reserved columns from client payload, then — when `scoped` — re-inject
+/// the trusted `owner_id`. Returns the ordered list of (column, value) pairs and
+/// is the shared core of `INSERT` and `UPSERT`. When `scoped` is false (a NAMED
+/// shared catalog table) the reserved columns are still stripped, but no trusted
+/// `owner_id` is appended, so the row carries no owner stamp.
 pub(super) fn build_owned_columns(
     data: Option<&Value>,
     identity: &RequestIdentity,
+    scoped: bool,
 ) -> DataPlaneResult<Vec<(String, Value)>> {
     let map = require_object(data, "data")?;
     let mut columns: Vec<(String, Value)> = Vec::with_capacity(map.len() + 1);
@@ -79,7 +103,9 @@ pub(super) fn build_owned_columns(
         }
         columns.push((col.clone(), val.clone()));
     }
-    columns.push(("owner_id".to_string(), Value::String(owner_of(identity))));
+    if scoped {
+        columns.push(("owner_id".to_string(), Value::String(owner_of(identity))));
+    }
     Ok(columns)
 }
 

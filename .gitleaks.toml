@@ -39,6 +39,11 @@ paths = [
   # example/sample env templates carry placeholders by design
   '''(.*/)?\.env\.example$''',
   '''(.*/)?\.env\.sample$''',
+  # SonarQube issue-tracking exports (issue UUIDs, not credentials)
+  '''(.*/)?infra/config/audit/issues-.*\.json$''',
+  # deterministic demo/seed data generators + Go test fixtures (example keys, no live secrets)
+  '''(.*/)?scripts/seed/''',
+  '''(.*/)?[^/]+_test\.go$''',
 ]
 
 # Documented non-secret placeholders, shell-var refs and deliberately-invalid
@@ -59,6 +64,11 @@ regexes = [
   '''(?i)changeme''',
   '''(?i)example\.com''',
   '''POSTGRES_PASSWORD=postgres\b''',
+  # deterministic test fixtures in verify gate scripts + seed data (no live secrets)
+  '''m[0-9]+-[a-z]+-key-[0-9a-f]+''',
+  '''0123456789abcdef''',
+  '''api-key:[0-9a-f][0-9a-f-]*''',
+  '''X25519SCOPE[A-Z]+''',
 ]
 
 stopwords = [

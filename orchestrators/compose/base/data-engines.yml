@@ -79,6 +79,47 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # ─── Schema migrations (init container) ──────────────────────────
+  # Applies scripts/migrations/postgresql/*.sql in order so a fresh `make up`
+  # has the full schema WITHOUT a manual `make migrate` (the gap that left
+  # auth.current_tenant_id() missing → adapter-registry crash-looped). Reuses the
+  # db-bootstrap client image (psql + pg_isready). Idempotent: the batch re-runs
+  # cleanly (CREATE … IF NOT EXISTS / guarded), so a re-`up` is a safe no-op.
+  # Strips the 42-header `#` lines (not valid SQL) exactly like the make target.
+  # Ordered AFTER gotrue so auth.users exists before the migrations reference it.
+  pg-migrate:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: ghcr.io/univers42/grobase-db-bootstrap:latest # pull-fallback (shares the db-bootstrap client image)
+    build:
+      context: ./infra/docker/services/db-bootstrap
+      dockerfile: Dockerfile
+    container_name: mini-baas-pg-migrate
+    env_file: [.env]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    command: >
+      sh -ec '
+        until pg_isready -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"; do sleep 1; done;
+        for f in /migrations/*.sql; do
+          echo "  Applying: $${f}";
+          sed "/^#/d" "$${f}" | psql -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" -v ON_ERROR_STOP=1 -f -;
+        done;
+        echo "PostgreSQL migrations applied";
+      '
+    volumes:
+      - ./scripts/migrations/postgresql:/migrations:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-bootstrap:
+        condition: service_completed_successfully
+      gotrue:
+        condition: service_healthy
+    restart: "no"
+
   # ─── Document Database ───────────────────────────────────────────
   redis:
     extends: { file: orchestrators/compose/base/_common.yml, service: base }

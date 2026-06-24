@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   resolver.rs                                        :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:31:47 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:31:52 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 use crate::credential::{ProviderConfig, ProviderRegistry};
 use async_trait::async_trait;
 use data_plane_core::{DataPlaneError, DataPlaneResult, DatabaseMount, Isolation};

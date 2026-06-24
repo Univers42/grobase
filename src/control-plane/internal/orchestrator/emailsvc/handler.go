@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   handler.go                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:48:01 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:48:03 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 package emailsvc
 
 import (
@@ -12,10 +24,11 @@ import (
 
 // sendRequest mirrors SendEmailDto.
 type sendRequest struct {
-	To      string `json:"to"`
-	Subject string `json:"subject"`
-	HTML    string `json:"html"`
-	Text    string `json:"text"`
+	To              string `json:"to"`
+	Subject         string `json:"subject"`
+	HTML            string `json:"html"`
+	Text            string `json:"text"`
+	ListUnsubscribe string `json:"listUnsubscribe"`
 }
 
 // validate reproduces the DTO constraints: a valid recipient, a non-empty
@@ -49,12 +62,13 @@ func (s *Service) handleSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m := &message{
-		from:      s.from,
-		to:        req.To,
-		subject:   req.Subject,
-		html:      req.HTML,
-		text:      req.Text,
-		messageID: newMessageID(s.from),
+		from:            s.from,
+		to:              req.To,
+		subject:         req.Subject,
+		html:            req.HTML,
+		text:            req.Text,
+		messageID:       newMessageID(s.from),
+		listUnsubscribe: req.ListUnsubscribe,
 	}
 	if err := s.send(m); err != nil {
 		s.log.Error("smtp send failed", "to", req.To, "err", err)

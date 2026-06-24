@@ -1,0 +1,398 @@
+// Landing-page section specifics.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED SECTION CHROME — every section breathes (generous py), carries a
+// layered pattern background hook, a bold uppercase kicker-pill, a readable
+// lede, and a mega-shadowed heading. All decoration is CSP-safe (classes only,
+// no inline style=), zero-CLS (absolute / pseudo), and motion-safe.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Generous vertical rhythm: every section gets 6rem+ of breathing room. The base
+// .gb-section (layout/_shell.scss) already sets padding-block: --gb-section-gap
+// (clamp 5rem→8.5rem); bump the floor so even the short sections feel loud.
+.gb-section {
+	position: relative;
+	isolation: isolate;
+	padding-block: max(6rem, var(--gb-section-gap));
+}
+
+// Layered pattern background hook: drop .gb-section--patterned on any section to
+// paint TWO clashing pattern layers (dots + diagonal stripes) behind its content
+// via pseudo-elements — pattern-on-pattern, pointer-events:none, z-index:-1.
+.gb-section--patterned::before,
+.gb-section--patterned::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	pointer-events: none;
+}
+
+.gb-section--patterned::before {
+	background-image: var(--pat-dots);
+	background-size: 24px 24px;
+	opacity: 0.07;
+}
+
+.gb-section--patterned::after {
+	background-image: var(--pat-stripes);
+	opacity: 0.05;
+}
+
+// Kicker → bold uppercase PILL: a glowing mono label-chip in a clashing accent.
+// Inherits --acc (default yellow via the .gb-kicker color), so a parent
+// .accent-N flips the whole pill. Dark ink keeps it AA on the light accent fill.
+.gb-kicker {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.42rem 1.05rem;
+	border: 3px solid var(--acc, var(--gb-a3));
+	border-radius: var(--gb-radius-pill);
+	background: color-mix(in srgb, var(--acc, var(--gb-a3)) 14%, transparent);
+	color: var(--acc, var(--gb-a3));
+	box-shadow:
+		0 0 16px color-mix(in srgb, var(--acc, var(--gb-a3)) 45%, transparent),
+		4px 4px 0 var(--gb-a5);
+	text-shadow: 1px 1px 0 rgb(13 13 26 / 55%);
+	width: fit-content;
+}
+
+// A bigger, blockier section heading than the global h2 default: scale up,
+// near-1 leading, mega stacked shadow already comes from .tshadow-mega when
+// requested; the base section head h2 keeps the global double shadow.
+.gb-section__head h2 {
+	line-height: 0.92;
+}
+
+.gb-engines-strip {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--gb-space-3);
+}
+
+.gb-engine-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.55rem;
+	padding: 0.55rem 1.05rem;
+	border: 1px solid var(--gb-line-strong);
+	border-radius: 999px;
+	background: rgb(13 20 36 / 70%);
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-sm);
+	color: var(--gb-text);
+}
+
+.gb-engine-chip::before {
+	content: '';
+	width: 0.62rem;
+	height: 0.62rem;
+	border-radius: 50%;
+	background: var(--engine-color, var(--gb-primary));
+	box-shadow: 0 0 10px var(--engine-color, var(--gb-primary));
+}
+
+.gb-split {
+	display: grid;
+	gap: var(--gb-space-12);
+	align-items: center;
+}
+
+@media (width >= 900px) {
+	.gb-split {
+		grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+	}
+
+	.gb-split--flip > :first-child {
+		order: 2;
+	}
+}
+
+.gb-checklist {
+	list-style: none;
+	padding: 0;
+	display: grid;
+	gap: var(--gb-space-3);
+}
+
+.gb-checklist li {
+	display: grid;
+	grid-template-columns: 1.4rem 1fr;
+	gap: 0.6rem;
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-sm);
+}
+
+.gb-checklist li::before {
+	content: '◆';
+	color: var(--gb-primary);
+	font-size: 0.8rem;
+	line-height: 1.9;
+}
+
+.gb-checklist strong {
+	color: var(--gb-text);
+}
+
+.gb-tier-row {
+	display: grid;
+	gap: var(--gb-space-4);
+	grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr));
+}
+
+.gb-tier-mini {
+	border: 1px solid var(--gb-line);
+	border-top: 3px solid var(--tier-color, var(--gb-primary));
+	border-radius: var(--gb-radius);
+	background: rgb(10 15 26 / 80%);
+	padding: var(--gb-space-4);
+	display: grid;
+	gap: 0.3rem;
+}
+
+.gb-tier-mini__name {
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	font-size: var(--gb-text-lg);
+}
+
+.gb-tier-mini__meta {
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	color: var(--gb-text-faint);
+}
+
+.gb-tier-mini__price {
+	font-family: var(--gb-font-mono);
+	color: var(--gb-primary);
+	font-size: var(--gb-text-sm);
+}
+
+.gb-roadmap-list {
+	display: grid;
+	gap: var(--gb-space-4);
+}
+
+// ── Honesty-note decoration — a wiggling emoji badge in the clashing accent. ──
+// The base .gb-honesty (components/_cards.scss) already gives the fat left bar +
+// hard shadow + --acc tint; this just pins a decorative badge top-right without
+// disturbing the existing <p> flow. aria-hidden via the markup; motion-safe.
+.gb-honesty {
+	position: relative;
+}
+
+.gb-honesty__badge {
+	position: absolute;
+	top: -0.9rem;
+	right: -0.9rem;
+	display: grid;
+	place-items: center;
+	width: 2.6rem;
+	height: 2.6rem;
+	border-radius: 50%;
+	border: 3px solid var(--acc);
+	background: var(--gb-bg-raised);
+	font-size: 1.25rem;
+	line-height: 1;
+	box-shadow:
+		0 0 16px color-mix(in srgb, var(--acc) 50%, transparent),
+		3px 3px 0 var(--gb-a5);
+	pointer-events: none;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FINAL CTA — the LOUDEST section. A clashing-bordered container with a mega
+// multi-shadow, three layered patterns, floating shapes + a giant bg word, a
+// gradient-text headline, and a glow+pulse primary CTA beside the ghost source
+// link. Everything decorative is aria-hidden, absolute (zero-CLS), motion-safe.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Section host — extra-tall, holds the absolute decoration layer + bg word.
+.gb-cta {
+	position: relative;
+	isolation: isolate;
+	overflow: hidden; // keep the bleeding bg word / floaters from causing scroll
+	padding-block: clamp(6rem, 14vh, 9rem);
+}
+
+// Decoration layer (floaters + emoji) — sits behind the card, never interactive.
+.gb-cta__decor {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	pointer-events: none;
+}
+
+// Big floating emoji glyphs (aria-hidden) scattered around the card.
+.gb-cta__emoji {
+	position: absolute;
+	font-size: clamp(2.2rem, 5vw, 3.6rem);
+	line-height: 1;
+	filter: drop-shadow(2px 2px 0 rgb(13 13 26 / 60%));
+	user-select: none;
+}
+
+.gb-cta__emoji--1 {
+	top: 14%;
+	left: 8%;
+}
+
+.gb-cta__emoji--2 {
+	top: 20%;
+	right: 10%;
+}
+
+.gb-cta__emoji--3 {
+	bottom: 18%;
+	left: 13%;
+}
+
+.gb-cta__emoji--4 {
+	bottom: 14%;
+	right: 11%;
+}
+
+// The CTA card itself — fat clashing border, mega stacked + glow shadow, mesh +
+// dot pattern layered behind the copy. Sits above the decor + bg word (z-index).
+.gb-cta-final {
+	--acc: var(--gb-a1);
+
+	position: relative;
+	z-index: 2;
+	isolation: isolate;
+	text-align: center;
+	display: grid;
+	justify-items: center;
+	gap: var(--gb-space-6);
+	max-width: 52rem;
+	margin-inline: auto;
+	padding: clamp(2.5rem, 6vw, 4.5rem) clamp(1.6rem, 5vw, 3.5rem);
+	border: 8px solid var(--gb-a3); // yellow border clashes with the dark fill
+	border-radius: var(--gb-radius-lg);
+	background: color-mix(in srgb, var(--gb-surface) 78%, transparent);
+
+	// MEGA shadow: a magenta/purple glow + three hard offset blocks, each a
+	// DIFFERENT accent (purple → magenta → cyan). Never a single shadow.
+	box-shadow:
+		0 0 44px rgb(255 58 242 / 45%),
+		10px 10px 0 var(--gb-a5),
+		20px 20px 0 var(--gb-a1),
+		30px 30px 0 var(--gb-a2);
+}
+
+// Two patterns layered on the card surface (mesh glow + dot grid) → pattern-on-
+// pattern behind the headline. Pseudo layers, z-index:-1, pointer-events:none.
+.gb-cta-final::before,
+.gb-cta-final::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	border-radius: inherit;
+	pointer-events: none;
+}
+
+.gb-cta-final::before {
+	background-image: var(--pat-mesh);
+	opacity: 0.2;
+}
+
+.gb-cta-final::after {
+	background-image: var(--pat-dots);
+	background-size: 22px 22px;
+	opacity: 0.1;
+}
+
+// The giant gradient-text headline — bumped well past the global h2 scale.
+.gb-cta-final h2 {
+	max-width: 16ch;
+	font-size: clamp(2.8rem, 1.8rem + 5vw, 6rem);
+	line-height: 0.9;
+}
+
+.gb-cta-final .gb-lede {
+	max-width: 46ch;
+	margin-inline: auto;
+}
+
+// Center the reused hero CTA row inside the card.
+.gb-cta-final .gb-hero__ctas {
+	justify-content: center;
+}
+
+.gb-code-note {
+	margin-top: var(--gb-space-3);
+	font-size: var(--gb-text-xs);
+	color: var(--gb-text-faint);
+}
+
+pre.gb-code .c {
+	color: var(--gb-text-faint);
+}
+
+pre.gb-code .k {
+	color: var(--gb-engine-sqlite);
+}
+
+pre.gb-code .s {
+	color: var(--gb-primary);
+}
+
+pre.gb-code .f {
+	color: var(--gb-engine-postgres);
+}
+
+// Color hooks — inline style= attributes are banned (hashed CSP), so engine
+// and tier accents are applied via classes that set the custom property.
+.engine--postgres {
+	--engine-color: var(--gb-engine-postgres);
+}
+
+.engine--mysql {
+	--engine-color: var(--gb-engine-mysql);
+}
+
+.engine--mongodb {
+	--engine-color: var(--gb-engine-mongodb);
+}
+
+.engine--sqlite {
+	--engine-color: var(--gb-engine-sqlite);
+}
+
+.engine--redis {
+	--engine-color: var(--gb-engine-redis);
+}
+
+.engine--cockroach {
+	--engine-color: var(--gb-engine-cockroach);
+}
+
+.engine--mssql {
+	--engine-color: var(--gb-engine-mssql);
+}
+
+.engine--http {
+	--engine-color: var(--gb-engine-http);
+}
+
+.tier--nano {
+	--tier-color: var(--gb-tier-nano);
+}
+
+.tier--basic {
+	--tier-color: var(--gb-tier-basic);
+}
+
+.tier--essential {
+	--tier-color: var(--gb-tier-essential);
+}
+
+.tier--pro {
+	--tier-color: var(--gb-tier-pro);
+}
+
+.tier--max {
+	--tier-color: var(--gb-tier-max);
+}

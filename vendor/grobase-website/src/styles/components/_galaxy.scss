@@ -1,0 +1,124 @@
+// The tenant-galaxy canvas: fixed full-viewport AMBIENT backdrop on the landing
+// page. Content scrolls above it (.gb-shell has z-index 1). CLS-free by
+// construction. Recoloured to the MAXIMALISM five accents (its node colours come
+// from src/data/galaxy-palette.ts) but kept DIM so it never steals focus.
+.gb-galaxy {
+	position: fixed;
+	inset: 0;
+	z-index: 0;
+	pointer-events: none;
+}
+
+.gb-galaxy canvas {
+	width: 100%;
+	height: 100%;
+
+	// Ambient: the backdrop stays faint so it never competes with reading. A soft
+	// radial fade pulls it further back behind the centre column where copy lives.
+	opacity: 0.34; // nudged up a touch now that nodes glow in the warm accents
+	mask-image: radial-gradient(125% 90% at 50% 38%, rgb(0 0 0 / 35%) 0%, rgb(0 0 0 / 70%) 48%, #000 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.gb-galaxy canvas {
+		opacity: 0.24;
+	}
+}
+
+// Static fallback (no JS): a calm SVG starfield (now warmed to the accents) so
+// the hero still has depth.
+.gb-galaxy__fallback {
+	position: fixed;
+	inset: 0;
+	z-index: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	opacity: 0.34;
+}
+
+// Hover/pin card describing one tenant's stack. Built via createElement only.
+// Maximalist treatment: fat clashing border + the multi-accent glow-card shadow.
+.gb-galaxy-card {
+	position: fixed;
+	z-index: 30;
+	max-width: 17rem;
+	padding: var(--gb-space-4);
+	border: 4px solid var(--gb-a2); // cyan border clashes with the dark fill
+	border-radius: var(--gb-radius-lg);
+	background: rgb(13 13 26 / 94%);
+	box-shadow: var(--gb-glow-card);
+	font-size: var(--gb-text-sm);
+	pointer-events: none;
+}
+
+.gb-galaxy-card[hidden] {
+	display: none;
+}
+
+.gb-galaxy-card__name {
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: -0.01em;
+	margin-bottom: 0.2rem;
+	text-shadow: 2px 2px 0 var(--gb-a5);
+}
+
+.gb-galaxy-card__tier {
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	color: var(--tier-color, var(--gb-a3));
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+}
+
+.gb-galaxy-card__row {
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-xs);
+	margin-top: 0.35rem;
+}
+
+// Keyboard path: visible-on-focus tenant explorer pills (hero only).
+.gb-galaxy-explorer {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--gb-space-2);
+}
+
+.gb-galaxy-explorer button {
+	border: 2px dashed var(--gb-line-strong);
+	background: rgb(45 27 78 / 60%);
+	color: var(--gb-text-muted);
+	border-radius: var(--gb-radius-pill);
+	padding: 0.3rem 0.9rem;
+	font-size: var(--gb-text-xs);
+	font-family: var(--gb-font-mono);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	cursor: pointer;
+	transition:
+		border-color var(--gb-dur-fast) var(--gb-ease-out),
+		color var(--gb-dur-fast) var(--gb-ease-out),
+		box-shadow var(--gb-dur-fast) var(--gb-ease-out);
+}
+
+.gb-galaxy-explorer button:hover,
+.gb-galaxy-explorer button[aria-pressed='true'] {
+	border-style: solid;
+	border-color: var(--gb-a1);
+	color: var(--gb-text);
+	box-shadow: 0 0 16px rgb(255 58 242 / 45%);
+}
+
+// DOUBLE focus ring (8px total, contrasting accents + outline change).
+.gb-galaxy-explorer button:focus-visible {
+	outline: 3px solid var(--gb-a3);
+	outline-offset: 2px;
+	box-shadow:
+		0 0 0 4px var(--gb-bg),
+		0 0 0 8px var(--gb-a2);
+}
+
+// (The Genesis → Big Bang narrative beats were retired: the galaxy is now a calm
+// ambient backdrop, so the act-break, flash and supernova styles are gone.)

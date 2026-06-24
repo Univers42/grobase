@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   txregistry.rs                                      :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:47 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:48 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The in-`AppState` transaction registry: active multi-statement transaction
 //! handles keyed by `tx_id`, with pool-pin bookkeeping and TTL reaping. Split
 //! out of `state.rs` so the shared `AppState` module stays focused on

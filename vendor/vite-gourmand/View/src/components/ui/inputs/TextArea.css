@@ -1,0 +1,71 @@
+/**
+ * TextArea Styles
+ * Uses ONLY CSS variables from graphical_chart.css
+ */
+
+.textarea-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.textarea-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.textarea-required {
+  color: var(--color-danger-500);
+  margin-left: var(--space-1);
+}
+
+.textarea {
+  width: 100%;
+  font-family: var(--font-family-sans);
+  font-size: var(--input-font-size);
+  color: var(--color-text-primary);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+  resize: vertical;
+  min-height: 100px;
+  transition: all var(--transition-fast);
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: var(--shadow-focus-ring);
+}
+
+.textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.textarea::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.textarea-error {
+  border-color: var(--color-danger-500);
+}
+
+.textarea-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.textarea-error-msg {
+  font-size: var(--font-size-xs);
+  color: var(--color-danger-500);
+}
+
+.textarea-count {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  margin-left: auto;
+}

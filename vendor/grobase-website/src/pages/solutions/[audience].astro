@@ -1,0 +1,76 @@
+---
+// ── /solutions/<audience>/ — one premium "Who is it for?" page per audience.
+// Static-generated from src/data/solutions.ts (9 slugs). Composes the standard
+// Layout + Header + Footer (per pricing.astro) with a restrained-premium hero,
+// a "pain → how Grobase solves it" grid, an honest product manifesto, and a
+// closing CTA — all content from the data file (no invented numbers, no
+// competitor mentions).
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/layout/Header.astro';
+import Footer from '../../components/layout/Footer.astro';
+import SolutionHero from '../../components/solutions/SolutionHero.astro';
+import SolutionPainGrid from '../../components/solutions/SolutionPainGrid.astro';
+import SolutionManifesto from '../../components/solutions/SolutionManifesto.astro';
+import SolutionCta from '../../components/solutions/SolutionCta.astro';
+import { SITE } from '../../data/site';
+import { SOLUTIONS_CONTENT, SOLUTIONS_LIST } from '../../data/solutions';
+
+export function getStaticPaths() {
+	return SOLUTIONS_LIST.map((s) => ({
+		params: { audience: s.slug },
+		props: { solution: s },
+	}));
+}
+
+const { solution } = Astro.props;
+const s = solution ?? SOLUTIONS_CONTENT[Astro.params.audience as string]!;
+
+const title = `${s.title} — ${SITE.name}`;
+const description = `${s.headline} ${s.sub}`;
+
+// Pick ONE existing word from the headline as the serif-italic premium accent —
+// the last word before the first sentence-ending punctuation, lowercased to read
+// as a graceful italic. This never invents copy; it only emphasises a real word.
+const firstWords = s.headline.replace(/[.,—].*$/, '').trim().split(' ');
+const accentWord = firstWords.length > 2 ? firstWords[firstWords.length - 1] : undefined;
+
+// Honest PRODUCT MANIFESTO (not a fabricated testimonial) — the one promise the
+// whole product keeps, the same on every tier. One serif-italic accent word.
+const MANIFESTO = ['One', 'backend.', 'Any', 'frontend.', 'No', 'rewrite', 'as', 'you', 'grow.'];
+const MANIFESTO_ACCENT = 5; // "rewrite"
+
+const jsonLd = [
+	{
+		'@type': 'BreadcrumbList',
+		itemListElement: [
+			{ '@type': 'ListItem', position: 1, name: 'Solutions', item: '/solutions/' },
+			{ '@type': 'ListItem', position: 2, name: s.title, item: `/solutions/${s.slug}/` },
+		],
+	},
+];
+---
+
+<Layout title={title} description={description} jsonLd={jsonLd}>
+	<div class="gb-shell">
+		<Header />
+		<main id="main-content">
+			<SolutionHero
+				icon={s.icon}
+				title={s.title}
+				headline={s.headline}
+				accentWord={accentWord}
+				sub={s.sub}
+				ctaLabel={s.ctaLabel}
+				ctaHref={s.ctaHref}
+				id="solution-title"
+			/>
+
+			<SolutionPainGrid points={s.points} title={s.title} id="solution-points-title" />
+
+			<SolutionManifesto words={MANIFESTO} accentIndex={MANIFESTO_ACCENT} id="solution-manifesto-title" />
+
+			<SolutionCta title={s.title} ctaLabel={s.ctaLabel} ctaHref={s.ctaHref} id="solution-cta-title" />
+		</main>
+		<Footer />
+	</div>
+</Layout>

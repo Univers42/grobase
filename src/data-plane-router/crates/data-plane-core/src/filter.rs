@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   filter.rs                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:34:22 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:34:23 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Engine-neutral filter AST (product-plan 02 — "one tree, many backends").
 //!
 //! The wire grammar (a MongoDB-style `$`-operator JSON) is parsed and validated

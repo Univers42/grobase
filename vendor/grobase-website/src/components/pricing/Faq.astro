@@ -1,0 +1,15 @@
+---
+import type { FaqItem } from '../../data/faq';
+
+type Props = { items: FaqItem[] };
+const { items } = Astro.props;
+---
+
+<div class="gb-faq" data-rise>
+	{items.map((item) => (
+		<details>
+			<summary>{item.q}</summary>
+			<p>{item.a}</p>
+		</details>
+	))}
+</div>

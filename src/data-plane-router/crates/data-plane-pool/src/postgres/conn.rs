@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   conn.rs                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:28:57 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:28:59 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! TLS posture + connection-pooler DSN repoint for the Postgres adapter.
 //!
 //! All pure (env reads aside): the pooler/TLS helpers take their inputs as

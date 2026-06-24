@@ -1,0 +1,18 @@
+/**
+ * DangerButton Styles
+ * Uses ONLY CSS variables from graphical_chart.css
+ */
+
+.btn-danger {
+  background: var(--color-danger-600);
+  color: var(--color-text-primary);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--color-danger-700);
+  box-shadow: var(--shadow-glow-danger);
+}
+
+.btn-danger:active:not(:disabled) {
+  background: var(--color-danger-700);
+}

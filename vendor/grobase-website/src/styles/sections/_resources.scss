@@ -1,0 +1,288 @@
+// ── RESOURCES — the hub + partners/templates/connectors/guides pages.
+//
+// Premium-minimal layer over the dopamine system: a restrained cinematic hero
+// (lots of negative space, a liquid-glass kicker pill, one serif-italic accent
+// word) and dense, dopamine-tinted card grids in the body. Every accent is a
+// CLASS (.accent-N) or a :nth-child rule — NEVER an inline style attribute
+// (strict CSP). All motion is decoration-only, transform/opacity, reduced-motion
+// gated by the global animation guards. Owned by the resources/blog agent; edits
+// stay inside this partial.
+
+// ── RESTRAINED PREMIUM HERO ─────────────────────────────────────────────────
+// Quiet + cinematic: generous top space, narrow measure, big bold heading, a
+// single serif-italic accent. The dopamine energy lives in the body grids.
+.gb-rhero {
+	position: relative;
+	isolation: isolate;
+	overflow: hidden;
+	padding-block: clamp(5rem, 4rem + 9vh, 9rem) clamp(3rem, 6vw, 5rem);
+	text-align: center;
+}
+
+.gb-rhero__inner {
+	display: grid;
+	justify-items: center;
+	gap: var(--gb-space-6);
+	max-width: 52rem;
+}
+
+// liquid-glass kicker pill — the .liquid-glass utility supplies the frosted
+// surface + gradient hairline; this only lays out the chip contents.
+.gb-rhero__kicker {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.55rem;
+	padding: 0.5rem 1.1rem;
+	border-radius: var(--gb-radius-pill);
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	font-weight: 600;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--gb-text);
+}
+
+.gb-rhero__title {
+	max-width: 18ch;
+	font-size: clamp(2.6rem, 1.7rem + 4.6vw, 5.2rem);
+	line-height: 0.95;
+}
+
+// the single serif-italic accent word — the key premium signal, used once.
+.gb-rhero__title .serif-italic {
+	font-weight: 400;
+}
+
+.gb-rhero__lede {
+	max-width: 44ch;
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-lg);
+	line-height: 1.55;
+}
+
+// ── BODY SECTIONS ────────────────────────────────────────────────────────────
+.gb-rsection {
+	position: relative;
+}
+
+// ── CARD GRID ────────────────────────────────────────────────────────────────
+.gb-rgrid {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: clamp(1.6rem, 3vw, 2.4rem);
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+}
+
+// ── RESOURCE CARD ────────────────────────────────────────────────────────────
+// Built on the maximalist .gb-card surface but tuned for an icon card: top icon
+// chip, title, body, and a "more" affordance pinned to the bottom.
+.gb-rcard {
+	--acc: var(--gb-a1);
+
+	position: relative;
+	isolation: isolate;
+	display: grid;
+	grid-template-rows: auto auto 1fr auto;
+	gap: var(--gb-space-3);
+	padding: var(--gb-space-6);
+	border: 3px solid var(--acc);
+	border-radius: var(--gb-radius-lg);
+	background: linear-gradient(160deg, rgb(58 37 102 / 60%), rgb(26 19 48 / 88%));
+	box-shadow:
+		5px 5px 0 var(--gb-a5),
+		10px 10px 0 color-mix(in srgb, var(--acc) 60%, transparent);
+	backdrop-filter: blur(8px);
+	transition:
+		transform var(--gb-dur-fast) var(--gb-ease-bounce),
+		box-shadow var(--gb-dur-fast) var(--gb-ease-out),
+		border-color var(--gb-dur-fast) var(--gb-ease-out);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.gb-rcard--link:hover {
+		transform: translateY(-4px) rotate(-0.6deg);
+	}
+}
+
+.gb-rcard--link:hover,
+.gb-rcard--link:focus-within {
+	box-shadow:
+		0 0 26px color-mix(in srgb, var(--acc) 45%, transparent),
+		8px 8px 0 var(--gb-a5),
+		16px 16px 0 color-mix(in srgb, var(--acc) 60%, transparent);
+}
+
+// icon chip — inherits the card's --acc as its colour.
+.gb-rcard__icon {
+	display: grid;
+	place-items: center;
+	width: 3rem;
+	height: 3rem;
+	border-radius: var(--gb-radius);
+	border: 2px solid color-mix(in srgb, var(--acc) 60%, transparent);
+	background: color-mix(in srgb, var(--acc) 12%, transparent);
+	color: var(--acc);
+}
+
+.gb-rcard__title {
+	margin: 0;
+	font-size: var(--gb-text-lg);
+	color: #fff;
+}
+
+.gb-rcard__body {
+	margin: 0;
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-sm);
+	line-height: 1.55;
+}
+
+// the title link stretches across the whole card so the card is the click target.
+.gb-rcard__link {
+	color: inherit;
+	text-decoration: none;
+}
+
+.gb-rcard__link::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	border-radius: inherit;
+}
+
+.gb-rcard__link:focus-visible {
+	outline: 3px solid var(--gb-a3);
+	outline-offset: 3px;
+	border-radius: 4px;
+}
+
+.gb-rcard__more {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	margin-top: var(--gb-space-2);
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--acc);
+}
+
+// nudge the arrow on hover (motion-safe).
+@media (prefers-reduced-motion: no-preference) {
+	.gb-rcard__more .gb-icon {
+		transition: transform var(--gb-dur-fast) var(--gb-ease-out);
+	}
+
+	.gb-rcard--link:hover .gb-rcard__more .gb-icon,
+	.gb-rcard--link:focus-within .gb-rcard__more .gb-icon {
+		transform: translateX(3px);
+	}
+}
+
+// ── UNIFORM-API VERB STRIP (connectors page) ─────────────────────────────────
+.gb-rverbs {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: var(--gb-space-4);
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 13.5rem), 1fr));
+}
+
+.gb-rverb {
+	--acc: var(--gb-a2);
+
+	display: flex;
+	align-items: flex-start;
+	gap: var(--gb-space-3);
+	padding: var(--gb-space-4) var(--gb-space-4);
+	border: 1px solid var(--gb-line-strong);
+	border-left: 4px solid var(--acc);
+	border-radius: var(--gb-radius);
+	background: rgb(13 13 26 / 55%);
+}
+
+.gb-rverb__icon {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 2.4rem;
+	height: 2.4rem;
+	border-radius: var(--gb-radius-sm);
+	background: color-mix(in srgb, var(--acc) 14%, transparent);
+	color: var(--acc);
+}
+
+.gb-rverb__text {
+	display: grid;
+	gap: 0.2rem;
+}
+
+.gb-rverb__label {
+	font-family: var(--gb-font-display);
+	font-weight: 700;
+	color: #fff;
+}
+
+.gb-rverb__note {
+	font-size: var(--gb-text-sm);
+	color: var(--gb-text-muted);
+}
+
+// rotate the verb accents 1→5 so the strip cycles the palette (no inline style).
+.gb-rverb:nth-child(5n + 1) { --acc: var(--gb-a1); }
+.gb-rverb:nth-child(5n + 2) { --acc: var(--gb-a2); }
+.gb-rverb:nth-child(5n + 3) { --acc: var(--gb-a3); }
+.gb-rverb:nth-child(5n + 4) { --acc: var(--gb-a4); }
+.gb-rverb:nth-child(5n + 5) { --acc: var(--gb-a5-text); } // AA-safe purple (icon reads as text)
+
+// ── INLINE CTA STRIP (liquid-glass) ──────────────────────────────────────────
+.gb-rcta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--gb-space-6);
+	margin-top: clamp(2.5rem, 5vw, 4rem);
+	padding: clamp(1.6rem, 4vw, 2.4rem);
+	border-radius: var(--gb-radius-lg);
+}
+
+.gb-rcta__copy {
+	display: grid;
+	gap: 0.35rem;
+	max-width: 42ch;
+}
+
+.gb-rcta__eyebrow {
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--acc, var(--gb-a2));
+}
+
+.gb-rcta__lead {
+	margin: 0;
+	color: var(--gb-text);
+	font-size: var(--gb-text-lg);
+	line-height: 1.5;
+}
+
+// keep the glassy CTA button group from stretching full width on wide screens.
+.gb-rcta .gb-btn {
+	flex: none;
+}
+
+// Accent rotation is driven entirely by the .accent-N class the ResourceCard
+// component applies (utilities/_fx.scss maps each to --acc, and crucially maps
+// accent-5 to the AA-safe --gb-a5-text so the purple icon/“more” text stays
+// legible). We deliberately do NOT add a competing :nth-child override here —
+// that would replace the AA-safe purple with the decoration-only deep purple
+// and tank the contrast of the purple card's icon + label.

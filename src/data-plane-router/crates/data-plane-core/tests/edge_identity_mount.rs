@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   edge_identity_mount.rs                             :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:35:00 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:35:01 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Edge-case suite for `RequestIdentity` (identity.rs) and `DatabaseMount`
 //! (mount.rs): owner-principal resolution, namespace resolution per isolation,
 //! and pool-key determinism / collision-resistance.

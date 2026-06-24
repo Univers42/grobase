@@ -1,0 +1,83 @@
+---
+// ── SolutionHero — the PREMIUM, RESTRAINED hero for one audience page.
+// Deep dark, generous negative space, the least information possible: a kicker
+// pill (liquid-glass), one headline with a single serif-italic accent word, one
+// supporting sentence, one CTA — beside a cinematic LOCAL dashboard-mock.svg
+// shown with mix-blend luminosity, a bottom fade and a gentle CSS scroll
+// parallax. No floaters, no bgword, no emoji — the energy lives in the body
+// sections, the hero stays cinematic. All CSP-safe (classes only, no inline
+// style=), zero-CLS (decoration absolute), motion behind reduced-motion.
+import Icon from '../ui/Icon.astro';
+
+type Props = {
+	/** registry.ts icon name for the kicker pill */
+	icon: string;
+	/** short audience title — becomes the kicker label ("For founders") */
+	title: string;
+	/** the full headline; ONE word may be wrapped for the serif-italic accent */
+	headline: string;
+	/** the accent word to render serif-italic (must appear in headline) */
+	accentWord?: string;
+	sub: string;
+	ctaLabel: string;
+	ctaHref: string;
+	/** heading id for aria-labelledby */
+	id: string;
+};
+
+const { icon, title, headline, accentWord, sub, ctaLabel, ctaHref, id } = Astro.props;
+
+// Split the headline into [before, accent, after] so exactly one word becomes
+// the serif-italic premium accent — done at build time (no inline style, no JS).
+let before = headline;
+let accent = '';
+let after = '';
+if (accentWord && headline.includes(accentWord)) {
+	const at = headline.indexOf(accentWord);
+	before = headline.slice(0, at);
+	accent = accentWord;
+	after = headline.slice(at + accentWord.length);
+}
+---
+
+<section class="gb-section gb-sol-hero" aria-labelledby={id}>
+	<div class="gb-container gb-sol-hero__grid">
+		<div class="gb-sol-hero__copy">
+			<p class="gb-kicker gb-sol-hero__kicker liquid-glass accent-2">
+				<Icon name={icon} size={18} class="accent-2" />
+				<span>For {title.toLowerCase()}</span>
+			</p>
+
+			<h1 id={id} class="gb-sol-hero__title tshadow-1">
+				{accent ? (
+					<>
+						{before}<em class="serif-italic accent-1">{accent}</em>{after}
+					</>
+				) : (
+					headline
+				)}
+			</h1>
+
+			<p class="gb-sol-hero__sub gb-lede">{sub}</p>
+
+			<div class="gb-sol-hero__ctas">
+				<a class="gb-btn gb-btn--primary" href={ctaHref}>{ctaLabel}</a>
+				<a class="gb-btn gb-btn--ghost" href="/solutions/">Who else is it for? →</a>
+			</div>
+		</div>
+
+		<div class="gb-sol-hero__visual" aria-hidden="true">
+			<img
+				class="gb-sol-hero__mock blend-luminosity parallax parallax--slow"
+				src="/img/dashboard-mock.svg"
+				alt=""
+				width="1280"
+				height="720"
+				loading="eager"
+				decoding="async"
+			/>
+			<span class="premium-fade-bottom"></span>
+			<span class="gb-sol-hero__halo accent-1"></span>
+		</div>
+	</div>
+</section>

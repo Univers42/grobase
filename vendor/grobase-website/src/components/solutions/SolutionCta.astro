@@ -1,0 +1,36 @@
+---
+// ── SolutionCta — the per-audience closing call to action.
+// A restrained-premium card (liquid-glass), one honest line, the audience's own
+// CTA beside a constant "see the tiers" path. No invented numbers, no competitor
+// mentions. Decoration is absolute + aria-hidden (zero-CLS), motion-safe.
+import Icon from '../ui/Icon.astro';
+
+type Props = {
+	/** audience title, used for the closing line */
+	title: string;
+	ctaLabel: string;
+	ctaHref: string;
+	id: string;
+};
+
+const { title, ctaLabel, ctaHref, id } = Astro.props;
+---
+
+<section class="gb-section gb-sol-cta" aria-labelledby={id}>
+	<span class="floater floater--lg floater--ring floater--tl accent-1 animate-spin-slow" aria-hidden="true"></span>
+	<span class="floater floater--sm floater--br accent-3 animate-float" aria-hidden="true"></span>
+
+	<div class="gb-container">
+		<div class="gb-sol-cta__card liquid-glass accent-1">
+			<p class="gb-kicker accent-1"><Icon name="sparkle" size={16} class="accent-1" /> Ready when you are</p>
+			<h2 id={id} class="gb-sol-cta__title">
+				One backend for <em class="serif-italic accent-2">{title.toLowerCase()}</em> — start small, grow without a rewrite.
+			</h2>
+			<p class="gb-sol-cta__sub">Every tier is the same codebase and the same SDK. Pick a size, and move up only when you need to.</p>
+			<div class="gb-sol-cta__ctas">
+				<a class="gb-btn gb-btn--primary" href={ctaHref}>{ctaLabel}</a>
+				<a class="gb-btn gb-btn--ghost" href="/pricing/">See the tiers →</a>
+			</div>
+		</div>
+	</div>
+</section>

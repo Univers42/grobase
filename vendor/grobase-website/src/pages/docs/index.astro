@@ -1,0 +1,97 @@
+---
+// ── /docs — the documentation home.
+//
+// A restrained, premium landing (NOT the three-column reading shell): a calm hero
+// with one serif-italic accent word and the most minimal information possible,
+// then a card grid of every section auto-built from the docs collection. The
+// reading shell (sidebar + TOC) is for the individual pages under /docs/[...].
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/layout/Header.astro';
+import Footer from '../../components/layout/Footer.astro';
+import Icon from '../../components/ui/Icon.astro';
+import { getCollection } from 'astro:content';
+import { buildNav } from '../../components/docs/nav';
+import { SITE } from '../../data/site';
+
+const entries = await getCollection('docs');
+const sections = buildNav(entries);
+
+const title = `Documentation — ${SITE.name}`;
+const description =
+	'Grobase documentation: get started, follow task-first guides for auth, data, realtime, storage, functions and search, self-host with Docker, and read the security model.';
+
+// One icon per section (names from the fixed registry).
+const SECTION_ICON: Record<string, string> = {
+	'Getting started': 'rocket',
+	Guides: 'book-open',
+	'Self-hosting': 'server',
+	Security: 'shield',
+};
+// Rotate the five accents across the section cards (decoration only).
+const ACCENTS = [2, 1, 3, 5];
+---
+
+<Layout title={title} description={description}>
+	<div class="gb-shell">
+		<Header />
+		<main id="main-content">
+			<!-- HERO — premium-minimal: minimal info, generous space, one serif word. -->
+			<section class="gb-section gb-docs-hero" aria-labelledby="docs-title">
+				<span class="floater floater--lg floater--tr accent-2 animate-float" aria-hidden="true"></span>
+				<span class="floater floater--ring floater--bl accent-5 animate-spin-slow" aria-hidden="true"></span>
+				<div class="gb-container gb-docs-hero__inner">
+					<p class="gb-kicker accent-2" data-rise>
+						<Icon name="book-open" size={15} class="gb-docs-hero__kicon" /> Documentation
+					</p>
+					<h1 id="docs-title" class="gb-docs-hero__title" data-rise>
+						Build on Grobase, <em class="serif-italic">honestly</em>.
+					</h1>
+					<p class="gb-docs-hero__lede" data-rise>
+						One backend, one SDK, eight engines. Start here.
+					</p>
+					<div class="gb-docs-hero__cta" data-rise>
+						<a class="gb-btn gb-btn--primary" href="/docs/getting-started/quickstart/">
+							Quickstart
+							<Icon name="arrow-right" size={18} class="gb-btn__icon" />
+						</a>
+						<a class="gb-btn gb-btn--ghost" href="/docs/getting-started/concepts/">Core concepts</a>
+					</div>
+				</div>
+			</section>
+
+			<!-- SECTION GRID — auto-built from the collection. -->
+			<section class="gb-section gb-section--dim gb-docs-sections" aria-labelledby="docs-sections-title">
+				<div class="gb-container">
+					<h2 id="docs-sections-title" class="visually-hidden">Documentation sections</h2>
+					<ul class="gb-docs-cards stagger">
+						{
+							sections.map((group, i) => (
+								<li class={`gb-docs-card liquid-glass accent-${ACCENTS[i % ACCENTS.length]}`} data-rise>
+									<p class="gb-docs-card__icon" aria-hidden="true">
+										<Icon name={SECTION_ICON[group.section] ?? 'file-text'} size={26} />
+									</p>
+									<h3 class="gb-docs-card__title">
+										<a class="gb-docs-card__heading-link" href={group.href}>
+											{group.section}
+										</a>
+									</h3>
+									<ul class="gb-docs-card__list">
+										{group.items.map((item) => (
+											<li>
+												<a class="gb-docs-card__link" href={item.href}>
+													<Icon name="arrow-right" size={14} class="gb-docs-card__arrow" />
+													{item.title}
+												</a>
+											</li>
+										))}
+									</ul>
+								</li>
+							))
+						}
+					</ul>
+				</div>
+			</section>
+		</main>
+		<Footer />
+	</div>
+</Layout>

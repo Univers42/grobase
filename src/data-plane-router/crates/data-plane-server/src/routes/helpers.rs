@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   helpers.rs                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:17 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:18 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Cross-cutting response shaping + guards shared by every handler module:
 //! the central `ApiError` body, the `map_data_plane_error` mapping, the status
 //! builders (bad_request / 402 / 403 / 404 / 429 / 501), the admin + identity

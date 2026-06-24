@@ -1,0 +1,447 @@
+// ── BLOG — the post index grid + the premium single-post article layout.
+//
+// Premium-readable: the index is a dopamine-tinted card grid (shares the hero +
+// CTA chrome from _resources.scss); the post page is a narrow, high-contrast
+// article with calm, generous prose typography — white ink on the dark canvas,
+// serif-italic <em> accents, and a comfortable measure. Every accent is a CLASS
+// (.accent-N) or :nth-child rule, never an inline style (strict CSP). Motion is
+// decoration-only and reduced-motion gated by the global guards. Owned by the
+// resources/blog agent; edits stay inside this partial.
+
+// ── POST INDEX GRID ──────────────────────────────────────────────────────────
+.gb-bsection {
+	position: relative;
+}
+
+.gb-bgrid {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: clamp(1.6rem, 3vw, 2.4rem);
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+}
+
+// ── BLOG CARD ────────────────────────────────────────────────────────────────
+.gb-bcard {
+	--acc: var(--gb-a1);
+
+	position: relative;
+	isolation: isolate;
+	display: grid;
+	grid-template-rows: auto auto 1fr auto auto;
+	gap: var(--gb-space-3);
+	padding: var(--gb-space-6);
+	border: 3px solid var(--acc);
+	border-radius: var(--gb-radius-lg);
+	background: linear-gradient(160deg, rgb(58 37 102 / 58%), rgb(26 19 48 / 88%));
+	box-shadow:
+		5px 5px 0 var(--gb-a5),
+		10px 10px 0 color-mix(in srgb, var(--acc) 55%, transparent);
+	backdrop-filter: blur(8px);
+	transition:
+		transform var(--gb-dur-fast) var(--gb-ease-bounce),
+		box-shadow var(--gb-dur-fast) var(--gb-ease-out);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.gb-bcard:hover {
+		transform: translateY(-4px) rotate(-0.5deg);
+	}
+}
+
+.gb-bcard:hover,
+.gb-bcard:focus-within {
+	box-shadow:
+		0 0 26px color-mix(in srgb, var(--acc) 42%, transparent),
+		8px 8px 0 var(--gb-a5),
+		16px 16px 0 color-mix(in srgb, var(--acc) 55%, transparent);
+}
+
+.gb-bcard__tags {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+}
+
+.gb-bcard__tag {
+	padding: 0.2rem 0.65rem;
+	border-radius: var(--gb-radius-pill);
+	border: 1px solid color-mix(in srgb, var(--acc) 55%, transparent);
+	background: color-mix(in srgb, var(--acc) 10%, transparent);
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	letter-spacing: 0.06em;
+	color: var(--acc);
+}
+
+.gb-bcard__title {
+	margin: 0;
+	font-size: var(--gb-text-lg);
+	line-height: 1.15;
+	color: #fff;
+}
+
+// stretched link makes the whole card the click target.
+.gb-bcard__link {
+	color: inherit;
+	text-decoration: none;
+}
+
+.gb-bcard__link::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	border-radius: inherit;
+}
+
+.gb-bcard__link:focus-visible {
+	outline: 3px solid var(--gb-a3);
+	outline-offset: 3px;
+	border-radius: 4px;
+}
+
+.gb-bcard__excerpt {
+	margin: 0;
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-sm);
+	line-height: 1.55;
+}
+
+.gb-bcard__meta {
+	margin: 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	color: var(--gb-text-faint);
+}
+
+.gb-bcard__dot {
+	color: var(--acc);
+}
+
+.gb-bcard__more {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--acc);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.gb-bcard__more .gb-icon {
+		transition: transform var(--gb-dur-fast) var(--gb-ease-out);
+	}
+
+	.gb-bcard:hover .gb-bcard__more .gb-icon,
+	.gb-bcard:focus-within .gb-bcard__more .gb-icon {
+		transform: translateX(3px);
+	}
+}
+
+// ── SINGLE POST — premium article layout ─────────────────────────────────────
+.gb-post {
+	position: relative;
+	isolation: isolate;
+	overflow: hidden;
+	padding-block: clamp(3.5rem, 3rem + 6vh, 6rem) clamp(4rem, 8vw, 7rem);
+}
+
+.gb-post__wrap {
+	// a comfortable reading measure, centred.
+	max-width: 46rem;
+}
+
+// "all posts" back affordance.
+.gb-post__back {
+	margin: 0 0 var(--gb-space-8);
+}
+
+.gb-post__back a {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--gb-a2);
+	text-decoration: none;
+}
+
+.gb-post__back a:hover {
+	color: var(--gb-a1);
+}
+
+// flip the arrow icon to point back (no separate "left arrow" icon in registry).
+.gb-post__back-icon {
+	transform: scaleX(-1);
+}
+
+.gb-post__back a:focus-visible {
+	outline: 3px solid var(--gb-a3);
+	outline-offset: 3px;
+	border-radius: 4px;
+}
+
+// post header
+.gb-post__head {
+	display: grid;
+	gap: var(--gb-space-4);
+	margin-bottom: var(--gb-space-8);
+}
+
+.gb-post__tags {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.45rem;
+}
+
+.gb-post__tag {
+	padding: 0.25rem 0.75rem;
+	border-radius: var(--gb-radius-pill);
+	border: 1px solid var(--gb-a2);
+	background: color-mix(in srgb, var(--gb-a2) 12%, transparent);
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	letter-spacing: 0.06em;
+	color: var(--gb-a2);
+}
+
+.gb-post__title {
+	margin: 0;
+	font-size: clamp(2.4rem, 1.7rem + 3.4vw, 4rem);
+	line-height: 0.98;
+}
+
+.gb-post__lede {
+	margin: 0;
+	color: var(--gb-text-muted);
+	font-size: var(--gb-text-lg);
+	line-height: 1.5;
+}
+
+.gb-post__meta {
+	margin: 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-sm);
+	color: var(--gb-text-faint);
+}
+
+.gb-post__dot {
+	color: var(--gb-a1);
+}
+
+// a gradient hairline rule under the header.
+.gb-post__rule {
+	height: 2px;
+	margin-bottom: var(--gb-space-8);
+	background: linear-gradient(90deg, var(--gb-a1), var(--gb-a2) 50%, transparent);
+	border-radius: 2px;
+}
+
+// ── PROSE — the rendered markdown body. Calm, readable, premium. ─────────────
+.gb-prose {
+	color: var(--gb-text-muted);
+	font-size: 1.06rem;
+	line-height: 1.75;
+}
+
+// the markdown emits its own <h1> (post title duplicated) — hide it; the page
+// header already shows the title as the real <h1>. This keeps one visible H1.
+.gb-prose > h1:first-child {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	border: 0;
+	clip-path: inset(50%);
+}
+
+.gb-prose h2 {
+	margin-top: 2.4em;
+	margin-bottom: 0.6em;
+	font-family: var(--gb-font-display);
+	font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+	line-height: 1.1;
+	color: #fff;
+}
+
+.gb-prose h3 {
+	margin-top: 1.8em;
+	margin-bottom: 0.5em;
+	font-family: var(--gb-font-display);
+	font-size: var(--gb-text-lg);
+	color: #fff;
+}
+
+.gb-prose p {
+	margin-block: 0 1.3em;
+}
+
+.gb-prose a {
+	color: var(--gb-a2);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	text-decoration-thickness: 1px;
+	text-decoration-color: color-mix(in srgb, var(--gb-a2) 55%, transparent);
+}
+
+.gb-prose a:hover {
+	color: var(--gb-a1);
+	text-decoration-color: var(--gb-a1);
+}
+
+.gb-prose a:focus-visible {
+	outline: 3px solid var(--gb-a3);
+	outline-offset: 2px;
+	border-radius: 3px;
+}
+
+.gb-prose strong {
+	color: #fff;
+	font-weight: 600;
+}
+
+// markdown emphasis renders in the premium serif italic accent face.
+.gb-prose em {
+	font-family: var(--gb-font-serif);
+	font-style: italic;
+	color: var(--gb-text);
+}
+
+.gb-prose ul,
+.gb-prose ol {
+	margin-block: 0 1.4em;
+	padding-left: 1.4em;
+	display: grid;
+	gap: 0.5em;
+}
+
+.gb-prose li {
+	padding-left: 0.25em;
+}
+
+.gb-prose li::marker {
+	color: var(--gb-a1);
+}
+
+.gb-prose blockquote {
+	margin: 1.6em 0;
+	padding: var(--gb-space-4) var(--gb-space-6);
+	border-left: 6px solid var(--gb-a3);
+	border-radius: 0 var(--gb-radius) var(--gb-radius) 0;
+	background: color-mix(in srgb, var(--gb-a3) 8%, transparent);
+	color: var(--gb-text);
+}
+
+.gb-prose blockquote p:last-child {
+	margin-bottom: 0;
+}
+
+// inline + block code — mono on a tinted surface (plain text, no highlighter).
+.gb-prose code {
+	font-family: var(--gb-font-mono);
+	font-size: 0.9em;
+	padding: 0.12em 0.4em;
+	border-radius: var(--gb-radius-sm);
+	background: rgb(13 13 26 / 70%);
+	border: 1px solid var(--gb-line);
+	color: var(--gb-a2);
+}
+
+.gb-prose pre {
+	margin: 1.6em 0;
+	padding: var(--gb-space-6);
+	overflow-x: auto;
+	border-radius: var(--gb-radius);
+	background: rgb(8 10 20 / 85%);
+	border: 1px solid var(--gb-line-strong);
+	box-shadow: 4px 4px 0 var(--gb-a5);
+}
+
+.gb-prose pre code {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--gb-text);
+}
+
+.gb-prose hr {
+	margin: 2.4em 0;
+	border: 0;
+	height: 1px;
+	background: var(--gb-line);
+}
+
+.gb-prose img {
+	max-width: 100%;
+	height: auto;
+	border-radius: var(--gb-radius);
+}
+
+// ── POST FOOTER CTA (liquid-glass) ──────────────────────────────────────────
+.gb-post__foot {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--gb-space-6);
+	margin-top: clamp(3rem, 6vw, 4.5rem);
+	padding: clamp(1.6rem, 4vw, 2.4rem);
+	border-radius: var(--gb-radius-lg);
+}
+
+.gb-post__foot-copy {
+	display: grid;
+	gap: 0.35rem;
+	max-width: 36ch;
+}
+
+.gb-post__foot-eyebrow {
+	font-family: var(--gb-font-mono);
+	font-size: var(--gb-text-xs);
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--acc, var(--gb-a2));
+}
+
+.gb-post__foot-lead {
+	margin: 0;
+	color: var(--gb-text);
+	font-size: var(--gb-text-lg);
+	line-height: 1.5;
+}
+
+.gb-post__foot-ctas {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--gb-space-3);
+}
+
+// blog card accent rotation is driven by the .accent-N class the BlogCard
+// applies (accent-5 → AA-safe --gb-a5-text), same discipline as the resource
+// cards — no competing :nth-child override.

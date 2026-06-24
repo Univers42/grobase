@@ -1,0 +1,48 @@
+/**
+ * BurgerIcon Styles - Animated hamburger menu icon
+ */
+
+.burger-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.burger-icon:hover {
+  background: var(--color-neutral-100);
+}
+
+.burger-icon svg {
+  width: 24px;
+  height: 24px;
+  color: var(--color-text-primary);
+}
+
+/* Animated lines */
+.burger-line {
+  transform-origin: center;
+  transition: all var(--transition-slow);
+  stroke-linecap: round;
+}
+
+/* Open state - X shape */
+.burger-icon--open .burger-line--top {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.burger-icon--open .burger-line--middle {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.burger-icon--open .burger-line--bottom {
+  transform: translateY(-6px) rotate(-45deg);
+}

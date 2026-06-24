@@ -1,0 +1,214 @@
+/**
+ * TestCardItem styles
+ * Fly.io light theme - Professional test cards - Responsive
+ */
+
+.test-card-item {
+  background: var(--color-bg-card, var(--color-bg-secondary));
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.test-card-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--color-primary-500);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.test-card-item:hover {
+  border-color: var(--color-primary-300);
+  box-shadow: var(--glass-shadow, var(--shadow-card-md));
+}
+
+.test-card-item:hover::before {
+  opacity: 1;
+}
+
+.test-card-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.test-card-item-name {
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+  line-height: var(--leading-tight);
+}
+
+.test-card-item-badges {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.test-card-item-description {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-4);
+  line-height: var(--leading-relaxed);
+}
+
+.test-card-item-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-primary);
+}
+
+.test-card-item-meta {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.test-card-item-actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.test-card-run-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-primary-600);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.test-card-run-btn:hover:not(:disabled) {
+  background: var(--color-primary-700);
+  box-shadow: var(--shadow-glow-primary, 0 0 12px rgba(168, 85, 247, 0.4));
+}
+
+.test-card-run-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.test-card-run-btn svg {
+  flex-shrink: 0;
+}
+
+.test-card-view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.test-card-view-btn:hover {
+  background: var(--color-bg-secondary);
+  color: var(--color-primary-600);
+  border-color: var(--color-primary-300);
+}
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .test-card-item {
+    padding: var(--space-4);
+  }
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .test-card-item {
+    padding: var(--space-3);
+  }
+
+  .test-card-item-header {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .test-card-item-badges {
+    justify-content: flex-start;
+  }
+
+  .test-card-item-name {
+    font-size: var(--text-sm);
+  }
+
+  .test-card-item-description {
+    font-size: var(--text-xs);
+    margin-bottom: var(--space-3);
+  }
+
+  .test-card-item-footer {
+    flex-direction: column;
+    gap: var(--space-3);
+    align-items: stretch;
+  }
+
+  .test-card-item-meta {
+    text-align: center;
+  }
+
+  .test-card-item-actions {
+    justify-content: center;
+  }
+
+  .test-card-run-btn {
+    flex: 1;
+    justify-content: center;
+    padding: var(--space-3) var(--space-4);
+  }
+}
+
+/* Very small screens (200px+) */
+@media (max-width: 320px) {
+  .test-card-item {
+    padding: var(--space-2);
+  }
+
+  .test-card-item-name {
+    font-size: var(--font-size-sm-alt);
+  }
+
+  .test-card-item-badges {
+    gap: 4px;
+  }
+
+  .test-card-run-btn {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-xs);
+  }
+
+  .test-card-view-btn {
+    width: 32px;
+    height: 32px;
+  }
+}

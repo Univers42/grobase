@@ -1,0 +1,5 @@
+# The root .gitignore has a broad `lib/` rule (for build-output dirs). Our
+# src/lib/ is the BaaS client SOURCE (db/auth/tx/baas/provision/guards/…), not a
+# build artifact — re-include the directory so it is tracked.
+!src/lib/
+!src/lib/**

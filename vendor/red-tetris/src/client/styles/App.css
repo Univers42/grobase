@@ -1,0 +1,491 @@
+/* Red Tetris - Global Styles */
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a0a2e 100%);
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  padding: 20px;
+}
+
+.app-title {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #ff4444;
+  text-shadow: 0 0 20px rgba(255, 68, 68, 0.5);
+  margin-bottom: 10px;
+  letter-spacing: 4px;
+}
+
+.app-subtitle {
+  font-size: 0.9rem;
+  color: #888;
+  margin-bottom: 30px;
+}
+
+/* ---------- LOBBY ---------- */
+.lobby {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  max-width: 500px;
+  width: 100%;
+}
+
+.lobby-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.lobby-form input {
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.lobby-form input:focus {
+  border-color: #ff4444;
+}
+
+.lobby-form input::placeholder {
+  color: #666;
+}
+
+.btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #ff4444, #cc0000);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(255, 68, 68, 0.3);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 68, 68, 0.5);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.error-message {
+  color: #ff4444;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 8px;
+  background: rgba(255, 68, 68, 0.1);
+  border-radius: 6px;
+}
+
+/* ---------- ROOMS LIST ---------- */
+.rooms-list {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.rooms-list h3 {
+  color: #aaa;
+  font-size: 0.9rem;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.room-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.room-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.room-item .room-name {
+  color: #ff8888;
+}
+
+.room-item .room-status {
+  font-size: 0.8rem;
+  color: #888;
+}
+
+/* ---------- WAITING ROOM ---------- */
+.waiting-room {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  max-width: 600px;
+  width: 100%;
+}
+
+.waiting-room h2 {
+  color: #ff8888;
+}
+
+.player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.player-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+}
+
+.player-item .host-badge {
+  color: #ffcc00;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.mode-selector {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.mode-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  color: #ccc;
+  transition: all 0.2s;
+}
+
+.mode-btn.active {
+  background: rgba(255, 68, 68, 0.2);
+  border-color: #ff4444;
+  color: #ff4444;
+}
+
+.mode-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ---------- GAME AREA ---------- */
+.game-container {
+  display: flex;
+  gap: 30px;
+  align-items: flex-start;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.game-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.game-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  min-width: 120px;
+}
+
+/* ---------- BOARD ---------- */
+.board-container {
+  position: relative;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 30px rgba(255, 68, 68, 0.1);
+}
+
+.board-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(20, 1fr);
+  gap: 1px;
+  width: 250px;
+  height: 500px;
+}
+
+.cell {
+  border-radius: 2px;
+  transition: background-color 0.05s;
+}
+
+.cell-empty {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.cell-ghost {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+}
+
+.cell-invisible {
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.game-over-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  border-radius: 4px;
+}
+
+.game-over-overlay h2 {
+  color: #ff4444;
+  font-size: 1.8rem;
+  margin-bottom: 10px;
+}
+
+.game-over-overlay p {
+  color: #ccc;
+}
+
+/* ---------- NEXT PIECE ---------- */
+.next-piece-box {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.next-piece-box h4 {
+  color: #888;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+
+.next-piece-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 20px);
+  grid-template-rows: repeat(4, 20px);
+  gap: 1px;
+}
+
+.next-piece-cell {
+  border-radius: 2px;
+  background: transparent;
+}
+
+/* ---------- SCORE PANEL ---------- */
+.score-panel {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.score-panel h4 {
+  color: #888;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+
+.score-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #ff8888;
+}
+
+.score-lines {
+  font-size: 0.9rem;
+  color: #aaa;
+  margin-top: 4px;
+}
+
+/* ---------- OPPONENTS ---------- */
+.opponents-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.opponent-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.opponent-card .name {
+  font-size: 0.8rem;
+  color: #aaa;
+  margin-bottom: 6px;
+}
+
+.spectrum-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(20, 1fr);
+  gap: 1px;
+  width: 80px;
+  height: 160px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+}
+
+.spectrum-cell {
+  border-radius: 1px;
+}
+
+.spectrum-cell-filled {
+  background: rgba(255, 68, 68, 0.4);
+}
+
+.spectrum-cell-empty {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* ---------- LEADERBOARD ---------- */
+.leaderboard {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 16px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.leaderboard h3 {
+  color: #ffcc00;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.leaderboard-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.leaderboard-row .rank {
+  color: #888;
+  width: 30px;
+}
+
+.leaderboard-row .name {
+  flex: 1;
+  color: #ccc;
+}
+
+.leaderboard-row .lb-score {
+  color: #ff8888;
+  font-weight: bold;
+}
+
+.leaderboard-row.winner .name {
+  color: #ffcc00;
+}
+
+/* ---------- CONTROLS INFO ---------- */
+.controls-info {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.controls-info div {
+  margin-bottom: 3px;
+}
+
+.controls-info span {
+  color: #aaa;
+}
+
+/* ---------- PENALTY FLASH ---------- */
+@keyframes penaltyFlash {
+  0% { box-shadow: 0 0 30px rgba(255, 0, 0, 0.8); }
+  100% { box-shadow: 0 0 30px rgba(255, 68, 68, 0.1); }
+}
+
+.board-penalty-flash {
+  animation: penaltyFlash 0.3s ease-out;
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 700px) {
+  .game-container {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .board-grid {
+    width: 200px;
+    height: 400px;
+  }
+}

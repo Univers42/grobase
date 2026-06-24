@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="El Medano, S.C. Tenerife">
+  <defs>
+    <linearGradient id="g6226sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#10243b"/><stop offset="1" stop-color="#e98a6b"/>
+    </linearGradient>
+    <radialGradient id="g6226sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffc07a" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffc07a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g6226sky)"/>
+  <circle cx="779" cy="78" r="160" fill="url(#g6226sun)"/>
+  <circle cx="779" cy="78" r="54" fill="#ffc07a" opacity="0.9"/>
+  <rect y="277" width="1280" height="443" fill="#15506a" opacity="0.55"/>
+  <path d="M0 317 C 96 301 224 333 320 317 C 416 333 544 301 640 317 C 736 301 864 333 960 317 C 1056 333 1184 301 1280 317 L 1280 720 L 0 720 Z" fill="#15506a" opacity="0.85"/><path d="M0 387 C 96 409 224 365 320 387 C 416 365 544 409 640 387 C 736 409 864 365 960 387 C 1056 365 1184 409 1280 387 L 1280 720 L 0 720 Z" fill="#2f8aa6" opacity="0.8"/><path d="M0 477 C 96 447 224 507 320 477 C 416 507 544 447 640 477 C 736 447 864 507 960 477 C 1056 507 1184 447 1280 477 L 1280 720 L 0 720 Z" fill="#2f8aa6" opacity="0.6"/><path d="M0 577 C 96 617 224 537 320 577 C 416 537 544 617 640 577 C 736 617 864 537 960 577 C 1056 537 1184 617 1280 577 L 1280 720 L 0 720 Z" fill="#f0fbff" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">S.C. TENERIFE</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">El Medano · 1</text>
+</svg>

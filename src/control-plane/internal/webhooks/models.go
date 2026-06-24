@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   models.go                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 05:01:15 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 05:01:16 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package webhooks implements the tenant-scoped webhook subscription registry
 // and the dispatcher worker that consumes outbox events from Redis Streams and
 // POSTs HMAC-signed payloads to subscriber URLs with retry + DLQ semantics.

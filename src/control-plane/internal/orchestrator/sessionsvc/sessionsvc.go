@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   sessionsvc.go                                      :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:50:41 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:50:43 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package sessionsvc is the Go port of the Node session-service (R2 consolidation).
 //
 // It owns the `session.user_sessions` table and exposes the same user-scoped

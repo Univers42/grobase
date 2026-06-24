@@ -1,0 +1,228 @@
+/* ════════════════════════════════════════════════════════
+   CAMAGRU — Instagram-Style CSS
+   ════════════════════════════════════════════════════════ */
+
+/* ── Smooth rendering ── */
+* {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+html, body {
+    overflow-x: hidden;
+}
+
+/* ── Like heart animation ── */
+.like-btn {
+    transition: transform 0.2s ease;
+    cursor: pointer;
+}
+
+.like-btn:active {
+    transform: scale(1.3);
+}
+
+.like-btn.liked svg {
+    fill: #ed4956;
+    color: #ed4956;
+}
+
+/* ── Heart pop animation on like ── */
+@keyframes heartPop {
+    0% { transform: scale(1); }
+    25% { transform: scale(1.3); }
+    50% { transform: scale(0.95); }
+    100% { transform: scale(1); }
+}
+
+.like-btn.animate-heart {
+    animation: heartPop 0.3s ease;
+}
+
+/* ── Loading spinner ── */
+.spinner {
+    border: 3px solid #dbdbdb;
+    border-top-color: #0095f6;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Fade in animation for gallery cards ── */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in-up {
+    animation: fadeInUp 0.4s ease-out both;
+}
+
+/* ── Webcam video mirror effect ── */
+.webcam-mirror {
+    transform: scaleX(-1);
+}
+
+/* ── Canvas overlay positioning ── */
+.canvas-container {
+    position: relative;
+}
+
+.canvas-container canvas,
+.canvas-container video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 0.5rem;
+}
+
+/* ── Overlay thumbnail selection ── */
+.overlay-thumb {
+    transition: all 0.2s ease;
+    cursor: pointer;
+    border: 2px solid transparent;
+    border-radius: 0.5rem;
+}
+
+.overlay-thumb:hover {
+    border-color: rgba(0, 149, 246, 0.4);
+    transform: scale(1.05);
+}
+
+.overlay-thumb.selected {
+    border-color: #0095f6;
+    box-shadow: 0 0 0 2px rgba(0, 149, 246, 0.2);
+}
+
+/* ── Scrollbar styling ── */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c7c7c7;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* ── Pulse glow for capture button ── */
+@keyframes pulseGlow {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(0, 149, 246, 0.6);
+    }
+    50% {
+        box-shadow: 0 0 0 12px rgba(0, 149, 246, 0);
+    }
+}
+
+.capture-btn:not(:disabled) {
+    animation: pulseGlow 2s ease-in-out infinite;
+}
+
+.capture-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ── Double-tap like animation ── */
+@keyframes doubleTapHeart {
+    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    15% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+    30% { transform: translate(-50%, -50%) scale(0.95); opacity: 1; }
+    50% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    80% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+
+.double-tap-heart {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    pointer-events: none;
+    z-index: 20;
+    animation: doubleTapHeart 1s ease forwards;
+}
+
+/* ── Flash message auto-dismiss ── */
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+[role="alert"] {
+    animation: slideDown 0.3s ease-out;
+}
+
+/* ── Touch-friendly enhancements ── */
+@media (max-width: 640px) {
+    .like-btn,
+    .overlay-thumb {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    textarea {
+        font-size: 16px !important;
+    }
+}
+
+/* ── Safe area insets for notched phones ── */
+body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+}
+
+footer {
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── Image loading placeholder ── */
+article img {
+    background: linear-gradient(135deg, #f5f5f5 0%, #efefef 50%, #f5f5f5 100%);
+    background-size: 200% 200%;
+    animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0% { background-position: 100% 100%; }
+    100% { background-position: 0% 0%; }
+}
+
+article img[src] {
+    animation: none;
+}
+
+/* ── Comment list styling ── */
+.comments-list {
+    scrollbar-width: thin;
+    scrollbar-color: #c7c7c7 transparent;
+}

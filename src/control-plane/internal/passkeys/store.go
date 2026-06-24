@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   store.go                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:52:36 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:52:37 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package passkeys implements server-side WebAuthn / passkey ceremonies
 // (Track-D D2c) — net-new enterprise auth gotrue does not provide.
 //

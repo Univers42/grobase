@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   metrics.rs                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:33:09 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:33:10 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Dependency-free Prometheus metrics for the data plane (wiki/04 §6, gap G7).
 //!
 //! Kept consistent with the Go control plane's `baas_*` exposition and without

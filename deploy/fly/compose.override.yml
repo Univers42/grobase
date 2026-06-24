@@ -1,0 +1,8 @@
+# fly single-Machine overlay: publish Kong on 0.0.0.0 so fly-proxy can reach it.
+# The base compose binds Kong to 127.0.0.1 (WAF is the intended public door in the
+# full topology); on this single-Machine deploy Kong IS the public door, fronted by
+# fly's edge (TLS terminated there). `!override` replaces the port list, not appends.
+services:
+  kong:
+    ports: !override
+      - "0.0.0.0:8000:8000"

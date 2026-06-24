@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   edge_filter.rs                                     :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:34:57 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:34:58 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Edge-case suite for `Filter::parse` + `Filter::fold` (filter.rs).
 //!
 //! Proves the public filter API never panics and rejects every malformed shape

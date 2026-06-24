@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   tx.rs                                              :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:29:29 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:29:30 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The pinned `PgTxHandle`, per-request RLS/search-path application, and the
 //! operation dispatcher shared by the auto-commit and interactive-tx paths.
 
@@ -21,9 +33,12 @@ use tokio_postgres::GenericClient;
 pub(super) struct PgTxHandle {
     pub(super) tx_id: String,
     pub(super) mount_id: String,
-    /// Snapshot of the mount's `Isolation::owner_scoped()` at begin time —
-    /// txn writes must scope exactly like single-op writes on this mount.
-    pub(super) owner_scoped: bool,
+    /// Snapshot of the owner-scope inputs at begin time — a txn's ops must scope
+    /// exactly like single-op execs on this mount (see [`ScopeCtx`]).
+    pub(super) isolation_owner_scoped: bool,
+    pub(super) shared_resources: std::sync::Arc<[String]>,
+    pub(super) admin_bypass: bool,
+    pub(super) read_predicate: bool,
     pub(super) client: Mutex<Object>,
 }
 
@@ -43,8 +58,14 @@ impl TxHandle for PgTxHandle {
         identity: RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
         let client = self.client.lock().await;
+        let ctx = ScopeCtx {
+            isolation_owner_scoped: self.isolation_owner_scoped,
+            shared: &self.shared_resources,
+            admin_bypass: self.admin_bypass,
+            read_predicate: self.read_predicate,
+        };
         // MutexGuard → Object → ClientWrapper → Client. Three derefs.
-        dispatch_op(&***client, &operation, &identity, self.owner_scoped).await
+        dispatch_op(&***client, &operation, &identity, &ctx).await
     }
 
     async fn commit(&self) -> DataPlaneResult<()> {
@@ -133,11 +154,39 @@ pub(crate) const SUPPORTED_OPS: &[DataOperationKind] = &[
     DataOperationKind::Batch,
 ];
 
+/// Per-request owner-scope inputs threaded to the dispatcher, built once from the
+/// pool's cached mount flags. Every field is OFF-by-default such that the
+/// derivation collapses to today's behavior (byte-parity): an empty `shared` set,
+/// `admin_bypass`/`read_predicate` both false → `derive_scope` returns
+/// `(isolation_owner_scoped, isolation_owner_scoped)` and reads append no predicate.
+pub(super) struct ScopeCtx<'a> {
+    /// `mount.isolation().owner_scoped()` — false for `tenant_owned`.
+    pub(super) isolation_owner_scoped: bool,
+    /// F1: NAMED tables that skip owner-scoping. Empty unless the master is ON.
+    pub(super) shared: &'a [String],
+    /// F2: an admin identity's reads + filter-mutations skip the owner predicate.
+    pub(super) admin_bypass: bool,
+    /// Read-predicate master: gates predicate-based read owner-scoping on Postgres
+    /// (OFF → reads append no `owner_id` predicate). Separate from F1 so an admin
+    /// DB browser can edit (F1 + admin-bypass) without owner-scoping public reads.
+    pub(super) read_predicate: bool,
+}
+
+/// Derive `(scoped, read_scoped)` for one operation's resource. `scoped` gates
+/// INSERT/UPSERT owner stamping (false only for a NAMED shared table);
+/// `read_scoped` additionally drops the owner predicate for an admin caller under
+/// F2 (reads + filter-mutations). Pure → unit-tested without a client.
+fn derive_scope(resource: &str, ctx: &ScopeCtx, is_admin: bool) -> (bool, bool) {
+    let scoped = ctx.isolation_owner_scoped && !ctx.shared.iter().any(|t| t == resource);
+    let read_scoped = scoped && !(ctx.admin_bypass && is_admin);
+    (scoped, read_scoped)
+}
+
 pub(super) async fn dispatch_op<C: GenericClient + Sync>(
     client: &C,
     operation: &DataOperation,
     identity: &RequestIdentity,
-    owner_scoped: bool,
+    ctx: &ScopeCtx<'_>,
 ) -> DataPlaneResult<DataResult> {
     if !SUPPORTED_OPS.contains(&operation.op) {
         return Err(DataPlaneError::NotImplemented {
@@ -145,36 +194,34 @@ pub(super) async fn dispatch_op<C: GenericClient + Sync>(
         });
     }
     match &operation.op {
-        DataOperationKind::Batch => run_batch(client, operation, identity, owner_scoped).await,
-        _ => dispatch_single(client, operation, identity, owner_scoped).await,
+        DataOperationKind::Batch => run_batch(client, operation, identity, ctx).await,
+        _ => dispatch_single(client, operation, identity, ctx).await,
     }
 }
 
 /// Single (non-batch) operation dispatch — the arms `run_batch` loops over.
 /// Exhaustive by enumeration (no wildcard): deleting a CRUD arm is a compile
-/// error, so the match can't silently drift from SUPPORTED_OPS.
+/// error, so the match can't silently drift from SUPPORTED_OPS. `scoped` gates
+/// write owner-stamping; `read_owner_scoped` (F1-master-gated) gates the appended
+/// read predicate — OFF → reads are byte-identical (RLS-GUC-scoped only).
 async fn dispatch_single<C: GenericClient + Sync>(
     client: &C,
     operation: &DataOperation,
     identity: &RequestIdentity,
-    owner_scoped: bool,
+    ctx: &ScopeCtx<'_>,
 ) -> DataPlaneResult<DataResult> {
+    let (scoped, read_scoped) = derive_scope(&operation.resource, ctx, identity.is_admin());
+    let read_owner_scoped = ctx.read_predicate && read_scoped;
     match &operation.op {
-        DataOperationKind::List => query::run_list(client, operation).await,
-        DataOperationKind::Get => query::run_get(client, operation).await,
-        DataOperationKind::Insert => {
-            crud::run_insert(client, operation, identity, owner_scoped).await
+        DataOperationKind::List => query::run_list(client, operation, identity, read_owner_scoped).await,
+        DataOperationKind::Get => query::run_get(client, operation, identity, read_owner_scoped).await,
+        DataOperationKind::Insert => crud::run_insert(client, operation, identity, scoped).await,
+        DataOperationKind::Update => crud::run_update(client, operation, identity, read_scoped).await,
+        DataOperationKind::Delete => crud::run_delete(client, operation, identity, read_scoped).await,
+        DataOperationKind::Upsert => crud::run_upsert(client, operation, identity, scoped).await,
+        DataOperationKind::Aggregate => {
+            query::run_aggregate(client, operation, identity, read_owner_scoped).await
         }
-        DataOperationKind::Update => {
-            crud::run_update(client, operation, identity, owner_scoped).await
-        }
-        DataOperationKind::Delete => {
-            crud::run_delete(client, operation, identity, owner_scoped).await
-        }
-        DataOperationKind::Upsert => {
-            crud::run_upsert(client, operation, identity, owner_scoped).await
-        }
-        DataOperationKind::Aggregate => query::run_aggregate(client, operation).await,
         DataOperationKind::Batch => Err(DataPlaneError::InvalidRequest {
             message: "nested batches are not allowed".to_string(),
         }),
@@ -190,7 +237,7 @@ async fn run_batch<C: GenericClient + Sync>(
     client: &C,
     operation: &DataOperation,
     identity: &RequestIdentity,
-    owner_scoped: bool,
+    ctx: &ScopeCtx<'_>,
 ) -> DataPlaneResult<DataResult> {
     let items = operation
         .batch_items()
@@ -198,7 +245,7 @@ async fn run_batch<C: GenericClient + Sync>(
     let mut outcomes = Vec::with_capacity(items.len());
     let mut total: u64 = 0;
     for (idx, item) in items.iter().enumerate() {
-        let result = dispatch_single(client, item, identity, owner_scoped)
+        let result = dispatch_single(client, item, identity, ctx)
             .await
             .map_err(|e| DataPlaneError::prefix_message(&format!("batch item {idx}: "), e))?;
         total += result.affected_rows;
@@ -218,4 +265,74 @@ async fn run_batch<C: GenericClient + Sync>(
             items: outcomes,
         }),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ctx<'a>(iso: bool, shared: &'a [String], admin_bypass: bool, pti: bool) -> ScopeCtx<'a> {
+        ScopeCtx {
+            isolation_owner_scoped: iso,
+            shared,
+            admin_bypass,
+            read_predicate: pti,
+        }
+    }
+
+    #[test]
+    fn derive_scope_off_is_byte_parity() {
+        // Flags OFF (empty shared set, no admin bypass) → (iso, iso) for ANY
+        // caller, admin or not → byte-identical to before.
+        let empty: Vec<String> = vec![];
+        assert_eq!(
+            derive_scope("Order", &ctx(true, &empty, false, false), false),
+            (true, true)
+        );
+        assert_eq!(
+            derive_scope("Order", &ctx(true, &empty, false, false), true),
+            (true, true)
+        );
+        // tenant_owned (iso=false) → both false regardless of flags.
+        assert_eq!(
+            derive_scope("Order", &ctx(false, &empty, true, true), true),
+            (false, false)
+        );
+    }
+
+    #[test]
+    fn derive_scope_shared_table_skips_owner() {
+        let shared = vec!["Menu".to_string()];
+        assert_eq!(
+            derive_scope("Menu", &ctx(true, &shared, false, true), false),
+            (false, false),
+            "a NAMED shared catalog table is never owner-scoped"
+        );
+        assert_eq!(
+            derive_scope("Order", &ctx(true, &shared, false, true), false),
+            (true, true),
+            "a non-shared table stays owner-scoped"
+        );
+    }
+
+    #[test]
+    fn derive_scope_admin_bypass_drops_read_scope_only() {
+        let empty: Vec<String> = vec![];
+        // F2 ON + admin → read_scoped false (read/update/delete cross-owner) but
+        // scoped stays true (INSERT/UPSERT still stamp owner_id).
+        assert_eq!(
+            derive_scope("Order", &ctx(true, &empty, true, true), true),
+            (true, false)
+        );
+        // F2 ON + non-admin → unchanged.
+        assert_eq!(
+            derive_scope("Order", &ctx(true, &empty, true, true), false),
+            (true, true)
+        );
+        // F2 OFF + admin → unchanged (byte-parity).
+        assert_eq!(
+            derive_scope("Order", &ctx(true, &empty, false, true), true),
+            (true, true)
+        );
+    }
 }

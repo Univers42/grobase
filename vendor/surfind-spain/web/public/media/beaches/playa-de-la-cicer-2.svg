@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="La Cicer, Las Palmas">
+  <defs>
+    <linearGradient id="g3065sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#062436"/><stop offset="1" stop-color="#7fb7c9"/>
+    </linearGradient>
+    <radialGradient id="g3065sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#dff3f8" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#dff3f8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g3065sky)"/>
+  <circle cx="1070" cy="92" r="160" fill="url(#g3065sun)"/>
+  <circle cx="1070" cy="92" r="54" fill="#dff3f8" opacity="0.9"/>
+  <rect y="244" width="1280" height="476" fill="#0f5a73" opacity="0.55"/>
+  <path d="M0 284 C 96 268 224 300 320 284 C 416 300 544 268 640 284 C 736 268 864 300 960 284 C 1056 300 1184 268 1280 284 L 1280 720 L 0 720 Z" fill="#0f5a73" opacity="0.85"/><path d="M0 354 C 96 376 224 332 320 354 C 416 332 544 376 640 354 C 736 376 864 332 960 354 C 1056 332 1184 376 1280 354 L 1280 720 L 0 720 Z" fill="#3aa0bb" opacity="0.8"/><path d="M0 444 C 96 414 224 474 320 444 C 416 474 544 414 640 444 C 736 414 864 474 960 444 C 1056 474 1184 414 1280 444 L 1280 720 L 0 720 Z" fill="#3aa0bb" opacity="0.6"/><path d="M0 544 C 96 584 224 504 320 544 C 416 504 544 584 640 544 C 736 584 864 504 960 544 C 1056 504 1184 584 1280 544 L 1280 720 L 0 720 Z" fill="#ffffff" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">LAS PALMAS</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">La Cicer · 2</text>
+</svg>

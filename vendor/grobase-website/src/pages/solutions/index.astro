@@ -1,0 +1,61 @@
+---
+// ── /solutions/ — the "Who is it for?" overview.
+// A restrained-premium intro + an icon grid linking all nine audience pages
+// (content from src/data/solutions.ts). Standard Layout + Header + Footer,
+// mirroring pricing.astro. No invented numbers, no competitor mentions.
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/layout/Header.astro';
+import Footer from '../../components/layout/Footer.astro';
+import SectionHeading from '../../components/ui/SectionHeading.astro';
+import AudienceGrid from '../../components/solutions/AudienceGrid.astro';
+import { SITE } from '../../data/site';
+import { SOLUTIONS_LIST } from '../../data/solutions';
+
+const title = `Solutions — ${SITE.name}`;
+const description =
+	'Who is Grobase for? One backend — any frontend, no per-project server code — that fits founders, internal-tools builders, designers and more. Explore the audience that fits you.';
+
+const jsonLd = [
+	{
+		'@type': 'ItemList',
+		name: 'Grobase solutions by audience',
+		itemListElement: SOLUTIONS_LIST.map((s, i) => ({
+			'@type': 'ListItem',
+			position: i + 1,
+			name: s.title,
+			url: `/solutions/${s.slug}/`,
+		})),
+	},
+];
+---
+
+<Layout title={title} description={description} jsonLd={jsonLd}>
+	<div class="gb-shell">
+		<Header />
+		<main id="main-content">
+			<section class="gb-section gb-section--mesh gb-sol-index has-pat-dots" aria-labelledby="solutions-title">
+				<p class="bgword bgword--top accent-2" aria-hidden="true">WHO</p>
+				<span class="floater floater--lg floater--tl accent-1 animate-float" aria-hidden="true"></span>
+				<span class="floater floater--diamond floater--tr accent-3 animate-float-reverse" aria-hidden="true"></span>
+				<span class="floater floater--sm floater--mr accent-5" aria-hidden="true"></span>
+
+				<div class="gb-container">
+					<SectionHeading
+						kicker="Who is it for?"
+						title="One backend, fit to what you build."
+						lede="Grobase is one backend for any frontend, with no per-project server code to write. Whoever you are, the shape that fits you is here — and it is the same codebase and the same SDK the whole way up."
+						id="solutions-title"
+						accent={2}
+					/>
+
+					<AudienceGrid solutions={SOLUTIONS_LIST} />
+
+					<p class="gb-sol-index__note">
+						Not sure which fits? They all run on the same single codebase — start anywhere and grow without a rewrite. <a class="gb-sol-index__link" href="/pricing/">See the tiers →</a>
+					</p>
+				</div>
+			</section>
+		</main>
+		<Footer />
+	</div>
+</Layout>

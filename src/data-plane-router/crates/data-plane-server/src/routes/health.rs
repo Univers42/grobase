@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   health.rs                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:14 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:16 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Liveness, capability advertisement, and Prometheus metrics: the probe/scrape
 //! surface plus the `track_metrics` middleware. Engine descriptors live here.
 use axum::body::Body;

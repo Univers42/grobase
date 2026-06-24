@@ -1,0 +1,191 @@
+/* Tailwind CSS v4 */
+@import 'tailwindcss';
+
+/* Import design system variables */
+@import './styles/graphical_chart.css';
+@import './styles/graphical_chart_part2.css';
+@import './styles/graphical_chart_part3.css';
+
+/* Enter/exit + scroll-reveal animation utilities */
+@import './styles/animations.css';
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    font-family: var(--font-family-sans);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    line-height: 1.5;
+    overflow-x: hidden;
+    /* Prevent Chrome scroll-anchoring jitter with fixed navbar */
+    overflow-anchor: none;
+  }
+
+  #root {
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Button base reset — Tailwind utilities layer overrides these */
+  button {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    cursor: pointer;
+  }
+
+  button:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+  }
+}
+
+/* IMPORTANT: These must be OUTSIDE @layer to have higher specificity than browser defaults */
+/* Reset link styles - components use inline styles or explicit color classes for their needs */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: none;
+}
+
+a:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 3px;
+}
+
+.lazy-image-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--color-white-40) 50%,
+    transparent 100%
+  ); /* shimmer mid-stop has no exact token — intentionally left inline */
+  background-size: 200% 100%;
+  animation: lazyImageShimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes lazyImageShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Scale up on large displays for readability */
+@media (min-width: 1920px) {
+  html {
+    font-size: 17px;
+  }
+}
+@media (min-width: 2560px) {
+  html {
+    font-size: 18px;
+  }
+}
+
+/* Smooth scrolling */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Custom scrollbar for modern look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-black-15);
+  border-radius: var(--radius-xs);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-black-25);
+}
+
+/* Toast slide-in animation */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes statusPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+/*
+ * Soft `prefers-reduced-motion` handling.
+ *
+ * Firefox on Linux mirrors the GTK "enable animations" setting and reports
+ * `prefers-reduced-motion: reduce` even when the user hasn't explicitly
+ * asked for it — the previous rule killed every transition/animation
+ * globally with `!important`, which broke modals, hover states and
+ * scroll reveals across the site.
+ *
+ * Modern a11y guidance: only disable *decorative*, auto-looping motion.
+ * Short user-driven transitions (hover, focus, modal pop-in) stay on.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Kill obvious decorative loops (spinning rings, pulses, shimmers) */
+  .lazy-image-shimmer,
+  [class*="animate-spin"],
+  [class*="animate-pulse"],
+  [class*="animate-bounce"],
+  [class*="animate-ping"] {
+    animation: none !important;
+  }
+}

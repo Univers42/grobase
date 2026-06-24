@@ -1,0 +1,60 @@
+---
+// RESPONSIBLE DISCLOSURE — how to report a vulnerability and what to expect. The
+// contact is a mailto: (allowed: not an external http(s) asset, no egress). Steps
+// are plain and honest; no SLA we cannot keep is promised.
+import Icon from '../ui/Icon.astro';
+import { SITE } from '../../data/site';
+
+const SECURITY_EMAIL = 'security@grobase.dev';
+const PROCESS = [
+	{
+		icon: 'mail',
+		title: 'Tell us privately',
+		body: 'Email the security address below with steps to reproduce. Please give us a chance to fix the issue before any public disclosure.',
+	},
+	{
+		icon: 'check',
+		title: 'We acknowledge',
+		body: 'We confirm we received your report and work with you to understand impact and scope. Good-faith research is always welcome.',
+	},
+	{
+		icon: 'shield',
+		title: 'We fix, then credit',
+		body: 'We remediate, validate the fix in the running stack, and — with your consent — credit your finding. No legal action for good-faith reports.',
+	},
+];
+---
+
+<div class="gb-sec-disclose">
+	<ol class="gb-sec-disclose__steps rotate-accents" role="list">
+		{
+			PROCESS.map((s) => (
+				<li class="gb-sec-disclose__step" data-rise>
+					<span class="gb-sec-disclose__icon" aria-hidden="true">
+						<Icon name={s.icon} size={22} />
+					</span>
+					<h3 class="gb-sec-disclose__title">{s.title}</h3>
+					<p class="gb-sec-disclose__body">{s.body}</p>
+				</li>
+			))
+		}
+	</ol>
+
+	<div class="gb-sec-disclose__contact liquid-glass" data-rise>
+		<p class="gb-sec-disclose__eyebrow accent-2">
+			<Icon name="lock" size={16} /> Coordinated disclosure
+		</p>
+		<p class="gb-sec-disclose__lead">
+			Found something? Report it privately and we will work it with you in good faith.
+		</p>
+		<a class="gb-btn gb-btn--primary" href={`mailto:${SECURITY_EMAIL}`}>
+			<Icon name="mail" size={18} /> {SECURITY_EMAIL}
+		</a>
+		<p class="gb-sec-disclose__note">
+			Prefer code? The full source is open — issues and fixes are tracked there too.
+			<a class="gb-sec-disclose__src" href={SITE.repoUrl} rel="noopener">
+				View the source <Icon name="arrow-up-right" size={14} />
+			</a>
+		</p>
+	</div>
+</div>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Razo, A Coruna">
+  <defs>
+    <linearGradient id="g1869sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a2a45"/><stop offset="1" stop-color="#f6b35c"/>
+    </linearGradient>
+    <radialGradient id="g1869sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffd98a" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffd98a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g1869sky)"/>
+  <circle cx="828" cy="265" r="160" fill="url(#g1869sun)"/>
+  <circle cx="828" cy="265" r="54" fill="#ffd98a" opacity="0.9"/>
+  <rect y="351" width="1280" height="369" fill="#1f6f8f" opacity="0.55"/>
+  <path d="M0 391 C 96 407 224 375 320 391 C 416 375 544 407 640 391 C 736 407 864 375 960 391 C 1056 375 1184 407 1280 391 L 1280 720 L 0 720 Z" fill="#1f6f8f" opacity="0.85"/><path d="M0 461 C 96 439 224 483 320 461 C 416 483 544 439 640 461 C 736 439 864 483 960 461 C 1056 483 1184 439 1280 461 L 1280 720 L 0 720 Z" fill="#2b9bb5" opacity="0.8"/><path d="M0 551 C 96 581 224 521 320 551 C 416 521 544 581 640 551 C 736 581 864 521 960 551 C 1056 521 1184 581 1280 551 L 1280 720 L 0 720 Z" fill="#2b9bb5" opacity="0.6"/><path d="M0 651 C 96 611 224 691 320 651 C 416 691 544 611 640 651 C 736 611 864 691 960 651 C 1056 691 1184 611 1280 651 L 1280 720 L 0 720 Z" fill="#eaf7fb" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">A CORUNA</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Razo · 2</text>
+</svg>

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   main.go                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:37:23 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:37:24 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package main boots the tenant-control service.
 //
 // Owns:
@@ -60,6 +72,13 @@ func (b *bootCtx) mountAll(ctx context.Context) {
 	b.mountAudit()
 	b.mountErase()
 	b.mountOrgs()
+	b.mountRBACHierarchy()
+	b.mountEnvironments()
+	b.mountGroups()
+	b.mountInvites()
+	b.mountPubkeys()
+	b.mountGitHub()
+	b.mountLoginOTP()
 	b.mountIPGuard()
 	b.mountCompliance(ctx)
 	b.mountExport()

@@ -1,0 +1,23 @@
+/**
+ * ActivityList Styles
+ * Container and state styles
+ */
+
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.activity-list__loading,
+.activity-list__error,
+.activity-list__empty {
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.activity-list__error {
+  color: var(--color-danger);
+}

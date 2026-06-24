@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Meron, Cantabria">
+  <defs>
+    <linearGradient id="g9035sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#073043"/><stop offset="1" stop-color="#ffd27a"/>
+    </linearGradient>
+    <radialGradient id="g9035sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff1c2" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#fff1c2" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g9035sky)"/>
+  <circle cx="189" cy="124" r="160" fill="url(#g9035sun)"/>
+  <circle cx="189" cy="124" r="54" fill="#fff1c2" opacity="0.9"/>
+  <rect y="249" width="1280" height="471" fill="#0d6178" opacity="0.55"/>
+  <path d="M0 289 C 96 305 224 273 320 289 C 416 273 544 305 640 289 C 736 305 864 273 960 289 C 1056 273 1184 305 1280 289 L 1280 720 L 0 720 Z" fill="#0d6178" opacity="0.85"/><path d="M0 359 C 96 337 224 381 320 359 C 416 381 544 337 640 359 C 736 337 864 381 960 359 C 1056 381 1184 337 1280 359 L 1280 720 L 0 720 Z" fill="#28a7c0" opacity="0.8"/><path d="M0 449 C 96 479 224 419 320 449 C 416 419 544 479 640 449 C 736 479 864 419 960 449 C 1056 419 1184 479 1280 449 L 1280 720 L 0 720 Z" fill="#28a7c0" opacity="0.6"/><path d="M0 549 C 96 509 224 589 320 549 C 416 589 544 509 640 549 C 736 509 864 589 960 549 C 1056 589 1184 509 1280 549 L 1280 720 L 0 720 Z" fill="#ffffff" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">CANTABRIA</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Meron · 2</text>
+</svg>

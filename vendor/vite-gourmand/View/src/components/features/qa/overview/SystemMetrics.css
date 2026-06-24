@@ -1,0 +1,164 @@
+/**
+ * SystemMetrics grid styles - with 3D shadow
+ */
+
+.system-metrics {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-xl);
+  padding: 20px;
+  box-shadow: 
+    0 4px 6px -1px var(--color-black-10),
+    0 2px 4px -2px var(--color-black-10),
+    0 0 0 1px var(--color-black-02);
+}
+
+.system-metrics-title {
+  margin: 0 0 16px 0;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-gray-800);
+}
+
+.system-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.system-metric-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background: var(--color-gray-50);
+  border: 1px solid var(--color-gray-200);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.system-metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--color-black-10);
+}
+
+.system-metric-card--good {
+  border-color: #86efac;
+}
+
+.system-metric-card--warning {
+  border-color: var(--color-yellow-300);
+}
+
+.system-metric-card--critical {
+  border-color: #fca5a5;
+}
+
+.system-metric-icon {
+  font-size: var(--font-size-2xl);
+  flex-shrink: 0;
+}
+
+.system-metric-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.system-metric-label {
+  font-size: var(--font-size-xs0);
+  color: var(--color-gray-400);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.system-metric-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.system-metric-value {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.system-metric-card--good .system-metric-value {
+  color: var(--color-success-600);
+}
+
+.system-metric-card--warning .system-metric-value {
+  color: var(--color-warning-600);
+}
+
+.system-metric-card--critical .system-metric-value {
+  color: var(--color-danger-600);
+}
+
+.system-metric-unit {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .system-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .system-metrics {
+    padding: var(--space-3);
+  }
+
+  .system-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-2);
+  }
+
+  .system-metric-card {
+    padding: var(--space-2);
+    gap: var(--space-2);
+  }
+
+  .system-metric-icon {
+    font-size: var(--font-size-xl);
+  }
+
+  .system-metric-value {
+    font-size: var(--font-size-base);
+  }
+}
+
+/* Very small */
+@media (max-width: 320px) {
+  .system-metrics {
+    padding: var(--space-2);
+  }
+
+  .system-metrics-title {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-3);
+  }
+
+  .system-metrics-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .system-metric-card {
+    padding: 8px;
+  }
+
+  .system-metric-icon {
+    font-size: var(--font-size-base);
+  }
+
+  .system-metric-value {
+    font-size: var(--font-size-sm);
+  }
+}

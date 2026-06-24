@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # ─── MongoDB ─────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: music-room-db
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: music-room
+    networks:
+      - music-room
+
+  # ─── Backend API ──────────────────────────
+  api:
+    build:
+      context: ./back
+      dockerfile: Dockerfile
+    container_name: music-room-api
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    depends_on:
+      - mongodb
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      MONGODB_URI: mongodb://mongodb:27017/music-room
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_EXPIRATION: 15m
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-refresh-in-production}
+      JWT_REFRESH_EXPIRATION: 7d
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8081}
+      THROTTLE_TTL: 60000
+      THROTTLE_LIMIT: 60
+    networks:
+      - music-room
+
+  # ─── MQTT Broker (IoT) ────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: music-room-mqtt
+    restart: unless-stopped
+    ports:
+      - '1883:1883'
+      - '9001:9001'
+    volumes:
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    networks:
+      - music-room
+
+volumes:
+  mongodb_data:
+  mosquitto_data:
+  mosquitto_log:
+
+networks:
+  music-room:
+    driver: bridge

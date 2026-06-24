@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   bypass.rs                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:12 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:13 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The Phase-7 `/data/v1` bypass front door: Rust-native API-key auth (verify +
 //! resolve mount + scope gate) feeding the SAME cores as the internal routes, so
 //! a Node-free tier serves api-key callers with identical authorization.

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   registry.rs                                        :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:31:44 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:31:46 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 use async_trait::async_trait;
 use data_plane_core::{
     DataOperation, DataPlaneError, DataPlaneResult, DataResult, DatabaseMount, EngineAdapter,

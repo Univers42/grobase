@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   pool.rs                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:28:42 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:28:43 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The pooled MySQL connection set ([`MysqlPool`]) and the pinned interactive
 //! transaction handle ([`MysqlTxHandle`]) — the `EnginePool`/`TxHandle` surface.
 //
@@ -31,6 +43,10 @@ pub struct MysqlPool {
     /// database selected via `USE` on every checkout. `None` (shared_rls /
     /// db_per_tenant) means no `USE` — the DSN-default database, as before G5.
     pub(super) namespace: Option<String>,
+    /// F1 per-table isolation: NAMED tables that skip owner-scoping (a shared
+    /// catalog readable across owners). Empty unless `DATA_PLANE_PER_TABLE_ISOLATION`
+    /// is ON and the mount opted in → byte-parity (every table owner-scoped).
+    pub(super) shared_resources: std::sync::Arc<[String]>,
 }
 
 impl MysqlPool {
@@ -105,8 +121,10 @@ impl EnginePool for MysqlPool {
         // Batch rides the same per-request transaction every other op gets,
         // so a poisoned item rolls the whole batch back (atomic).
         let result = match operation.op {
-            DataOperationKind::Batch => run_batch(&mut tx, &operation, &identity).await,
-            _ => dispatch_single(&mut tx, &operation, &identity).await,
+            DataOperationKind::Batch => {
+                run_batch(&mut tx, &operation, &identity, &self.shared_resources).await
+            }
+            _ => dispatch_single(&mut tx, &operation, &identity, &self.shared_resources).await,
         };
 
         match result {
@@ -160,6 +178,7 @@ impl EnginePool for MysqlPool {
             // byte-identical (the dispatcher guarantees identity == pool tenant);
             // on a shared pool it is the only correct owner of this transaction.
             tenant_id: request.identity.tenant_id.clone(),
+            shared_resources: self.shared_resources.clone(),
             conn: Mutex::new(Some(conn)),
         }))
     }
@@ -413,6 +432,7 @@ pub struct MysqlTxHandle {
     tx_id: String,
     mount_id: String,
     tenant_id: String,
+    shared_resources: std::sync::Arc<[String]>,
     conn: Mutex<Option<Conn>>,
 }
 
@@ -448,8 +468,10 @@ impl TxHandle for MysqlTxHandle {
         // Inside an interactive transaction a failed batch item poisons the
         // tx like any failed statement — the caller decides commit/rollback.
         match operation.op {
-            DataOperationKind::Batch => run_batch(conn, &operation, &identity).await,
-            _ => dispatch_single(conn, &operation, &identity).await,
+            DataOperationKind::Batch => {
+                run_batch(conn, &operation, &identity, &self.shared_resources).await
+            }
+            _ => dispatch_single(conn, &operation, &identity, &self.shared_resources).await,
         }
     }
 
