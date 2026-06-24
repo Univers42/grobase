@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   packages.go                                        :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:51:54 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:51:56 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package packages loads the BaaS service-tier manifest (Phase 4 tiering).
 //
 // The canonical manifest lives at config/packages/packages.json; a byte-

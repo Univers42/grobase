@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   adapter.rs                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:28:14 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:28:15 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The HTTP [`EngineAdapter`]: parses the mount connection, runs the SSRF guard
 //! while opening a pinned `reqwest::Client`, and advertises capabilities.
 

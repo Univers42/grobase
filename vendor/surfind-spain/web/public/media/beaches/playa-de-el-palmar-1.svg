@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="El Palmar, Cadiz">
+  <defs>
+    <linearGradient id="g1714sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c1e33"/><stop offset="1" stop-color="#caa6d6"/>
+    </linearGradient>
+    <radialGradient id="g1714sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffd9ec" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffd9ec" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g1714sky)"/>
+  <circle cx="318" cy="198" r="160" fill="url(#g1714sun)"/>
+  <circle cx="318" cy="198" r="54" fill="#ffd9ec" opacity="0.9"/>
+  <rect y="337" width="1280" height="383" fill="#1d4f6c" opacity="0.55"/>
+  <path d="M0 377 C 96 361 224 393 320 377 C 416 393 544 361 640 377 C 736 361 864 393 960 377 C 1056 393 1184 361 1280 377 L 1280 720 L 0 720 Z" fill="#1d4f6c" opacity="0.85"/><path d="M0 447 C 96 469 224 425 320 447 C 416 425 544 469 640 447 C 736 469 864 425 960 447 C 1056 425 1184 469 1280 447 L 1280 720 L 0 720 Z" fill="#368fad" opacity="0.8"/><path d="M0 537 C 96 507 224 567 320 537 C 416 567 544 507 640 537 C 736 507 864 567 960 537 C 1056 567 1184 507 1280 537 L 1280 720 L 0 720 Z" fill="#368fad" opacity="0.6"/><path d="M0 637 C 96 677 224 597 320 637 C 416 597 544 677 640 637 C 736 677 864 597 960 637 C 1056 597 1184 677 1280 637 L 1280 720 L 0 720 Z" fill="#f4fbfe" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">CADIZ</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">El Palmar · 1</text>
+</svg>

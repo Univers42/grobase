@@ -29,8 +29,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
-VG_SQL="${REPO_ROOT}/apps/vite-gourmand/Back/src/Model/sql"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+VG_SQL="${REPO_ROOT}/vendor/vite-gourmand/sql"
 PG_CTN="mini-baas-postgres"
 DB="gourmand"
 
@@ -87,6 +87,12 @@ for d in role permission role_permission user user_address user_session user_con
       <"${VG_SQL}/seeds/${d}.sql" >/dev/null 2>>/tmp/gourmand-localdb.seed.err || cyan "seed ${d}: non-fatal issue (continuing)"
   fi
 done
+
+# ── Grobase owner-scoping overlay (owner_id columns + business triggers) ─────
+# Re-homes the NestJS business invariants into the DB and adds the owner_id
+# columns the Rust data plane stamps/filters (Mechanism A). Idempotent.
+cyan "applying Grobase owner-scoping overlay (owner_id + business triggers)"
+LOAD "${DB}" "${SCRIPT_DIR}/gourmand-owner-scoping.sql" "owner-scoping overlay"
 
 tables="$(PSQL -d "${DB}" -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")"
 orders="$(PSQL -d "${DB}" -tAc "SELECT count(*) FROM \"Order\"" 2>/dev/null || echo 0)"

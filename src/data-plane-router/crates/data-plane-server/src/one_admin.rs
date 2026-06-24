@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   one_admin.rs                                       :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:33:15 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:33:16 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! binocle-one admin surface — the embedded dashboard + its admin-only API.
 //!
 //! `GET /_/` serves a single hand-rolled HTML/JS page from `include_str!` —

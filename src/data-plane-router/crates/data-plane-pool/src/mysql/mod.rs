@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   mod.rs                                             :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:28:39 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:28:41 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! MySQL engine adapter — R7.
 //!
 //! Mirrors the design of [`crate::postgres`] but for the official
@@ -142,10 +154,38 @@ mod tests {
     #[test]
     fn owner_filter_always_injects_owner_predicate() {
         let id = identity_with(Some("u-1"));
-        let (sql, params) = build_owner_filter(None, &id).unwrap();
+        let (sql, params) = build_owner_filter(None, &id, true).unwrap();
         assert_eq!(sql, " WHERE `owner_id` = ?");
         assert_eq!(params.len(), 1);
         assert!(matches!(&params[0], MysqlValue::Bytes(b) if b == b"u-1"));
+    }
+
+    #[test]
+    fn shared_table_skips_owner_scoping_but_still_strips_reserved() {
+        // F1: a NAMED shared table (`scoped = false`) reads ACROSS owners — no
+        // `owner_id = ?` predicate is appended, so an empty client filter yields
+        // NO `WHERE` clause and binds NO params.
+        let id = identity_with(Some("u-1"));
+        let (sql, params) = build_owner_filter(None, &id, false).unwrap();
+        assert_eq!(sql, "");
+        assert!(params.is_empty());
+
+        // A client filter on a shared read is honored WITHOUT the owner predicate,
+        // yet a forged `owner_id` in the client filter is STILL stripped (a shared
+        // read can't be tricked into self-scoping or forging a different owner).
+        let filter = json!({ "owner_id": "u-attacker", "region": "eu" });
+        let (sql, params) = build_owner_filter(Some(&filter), &id, false).unwrap();
+        assert_eq!(sql, " WHERE (`region` = ?)");
+        assert!(!sql.contains("owner_id"));
+        assert_eq!(params.len(), 1);
+        assert!(matches!(&params[0], MysqlValue::Bytes(b) if b == b"eu"));
+
+        // A write to a shared table carries NO trusted owner_id stamp.
+        let data = json!({ "owner_id": "u-attacker", "name": "ok" });
+        let cols = build_owned_columns(Some(&data), &id, false).unwrap();
+        assert!(!cols.iter().any(|(c, _)| c == "owner_id"));
+        assert_eq!(cols.len(), 1);
+        assert_eq!(cols[0].0, "name");
     }
 
     #[test]
@@ -155,8 +195,8 @@ mod tests {
         // identity, so two tenants sharing one pool get two different owner
         // filters and can never read each other's rows. This is what makes
         // skipping the single-owner `check_tenant` guard safe on MySQL.
-        let (_, pa) = build_owner_filter(None, &identity_with(Some("api-key:a"))).unwrap();
-        let (_, pb) = build_owner_filter(None, &identity_with(Some("api-key:b"))).unwrap();
+        let (_, pa) = build_owner_filter(None, &identity_with(Some("api-key:a")), true).unwrap();
+        let (_, pb) = build_owner_filter(None, &identity_with(Some("api-key:b")), true).unwrap();
         assert!(matches!(&pa[0], MysqlValue::Bytes(b) if b == b"api-key:a"));
         assert!(matches!(&pb[0], MysqlValue::Bytes(b) if b == b"api-key:b"));
     }
@@ -199,7 +239,7 @@ mod tests {
             ), // equality still works
         ];
         for (filter, expected) in cases {
-            let (sql, _) = build_owner_filter(Some(&filter), &id).unwrap();
+            let (sql, _) = build_owner_filter(Some(&filter), &id, true).unwrap();
             assert_eq!(sql, expected, "filter {filter}");
         }
     }
@@ -207,7 +247,7 @@ mod tests {
     #[test]
     fn owner_filter_rejects_unknown_operator() {
         let id = identity_with(Some("u-1"));
-        let err = build_owner_filter(Some(&json!({ "a": { "$drop": 1 } })), &id).unwrap_err();
+        let err = build_owner_filter(Some(&json!({ "a": { "$drop": 1 } })), &id, true).unwrap_err();
         assert!(
             matches!(err, DataPlaneError::InvalidRequest { .. }),
             "{err:?}"
@@ -243,7 +283,7 @@ mod tests {
     fn owner_filter_drops_client_owner_id_override() {
         let id = identity_with(Some("u-trusted"));
         let filter = json!({"owner_id": "u-attacker", "name": "needle"});
-        let (sql, params) = build_owner_filter(Some(&filter), &id).unwrap();
+        let (sql, params) = build_owner_filter(Some(&filter), &id, true).unwrap();
         // Client `owner_id` is dropped, only the trusted one is appended at the end.
         assert!(sql.contains("`name` = ?"));
         assert!(sql.ends_with("`owner_id` = ?"));
@@ -254,7 +294,7 @@ mod tests {
     #[test]
     fn owner_filter_falls_back_to_tenant_id() {
         let id = identity_with(None);
-        let (_, params) = build_owner_filter(None, &id).unwrap();
+        let (_, params) = build_owner_filter(None, &id, true).unwrap();
         assert!(matches!(&params[0], MysqlValue::Bytes(b) if b == b"t-1"));
     }
 
@@ -262,7 +302,7 @@ mod tests {
     fn owner_filter_rejects_non_object_filter() {
         let id = identity_with(Some("u-1"));
         let bad = json!("just a string");
-        let err = build_owner_filter(Some(&bad), &id).unwrap_err();
+        let err = build_owner_filter(Some(&bad), &id, true).unwrap_err();
         assert!(matches!(err, DataPlaneError::InvalidRequest { .. }));
     }
 
@@ -270,7 +310,7 @@ mod tests {
     fn owner_filter_rejects_injection_via_column_name() {
         let id = identity_with(Some("u-1"));
         let bad = json!({"name; DROP TABLE users;--": "x"});
-        let err = build_owner_filter(Some(&bad), &id).unwrap_err();
+        let err = build_owner_filter(Some(&bad), &id, true).unwrap_err();
         assert!(matches!(err, DataPlaneError::InvalidIdentifier { .. }));
     }
 
@@ -278,7 +318,7 @@ mod tests {
     fn owned_columns_strips_client_owner_id_and_appends_trusted_one() {
         let id = identity_with(Some("u-trusted"));
         let data = json!({"owner_id": "u-attacker", "name": "ok"});
-        let cols = build_owned_columns(Some(&data), &id).unwrap();
+        let cols = build_owned_columns(Some(&data), &id, true).unwrap();
         let names: Vec<&str> = cols.iter().map(|(c, _)| c.as_str()).collect();
         assert!(!names.contains(&"owner_id") || names.last().copied() == Some("owner_id"));
         // owner_id must appear exactly once and be the trusted value.
@@ -297,7 +337,7 @@ mod tests {
     #[test]
     fn owned_columns_rejects_missing_data() {
         let id = identity_with(Some("u-1"));
-        let err = build_owned_columns(None, &id).unwrap_err();
+        let err = build_owned_columns(None, &id, true).unwrap_err();
         assert!(matches!(err, DataPlaneError::InvalidRequest { .. }));
     }
 

@@ -1,9 +1,20 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   handler.go                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:51:01 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:51:02 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 package orgs
 
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 	"github.com/dlesieur/mini-baas/control-plane/internal/provision"
@@ -80,26 +91,7 @@ func Mount(mux *http.ServeMux, d Deps) {
 // authJWT resolves the calling human's GoTrue user uuid from the Authorization
 // Bearer JWT. On any failure it writes 401 and returns ok=false.
 func (rt *routes) authJWT(w http.ResponseWriter, r *http.Request) (userID string, ok bool) {
-	if rt.jwt == nil {
-		httpx.WriteError(w, http.StatusNotImplemented, "not_implemented",
-			"org API requires a JWT verifier (set GOTRUE_JWT_SECRET)")
-		return "", false
-	}
-	auth := strings.TrimSpace(r.Header.Get("Authorization"))
-	if auth == "" {
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "Authorization: Bearer <jwt> required")
-		return "", false
-	}
-	id, err := rt.jwt.Verify(auth)
-	if err != nil {
-		httpx.WriteError(w, http.StatusUnauthorized, "invalid_token", err.Error())
-		return "", false
-	}
-	if id.UserID == "" {
-		httpx.WriteError(w, http.StatusUnauthorized, "invalid_token", "token missing sub")
-		return "", false
-	}
-	return id.UserID, true
+	return resolveJWT(rt.jwt, w, r)
 }
 
 // requireCapability is the load-bearing gate: it resolves the caller's role in
@@ -112,21 +104,7 @@ func (rt *routes) authJWT(w http.ResponseWriter, r *http.Request) (userID string
 // This is a pure control-plane decision — it never consults the data-plane ABAC
 // PDP and never touches RequestIdentity or the RLS GUCs.
 func (rt *routes) requireCapability(w http.ResponseWriter, r *http.Request, orgID, cap string) (userID string, role Role, ok bool) {
-	userID, ok = rt.authJWT(w, r)
-	if !ok {
-		return "", "", false
-	}
-	role, member := rt.svc.MemberRole(r.Context(), orgID, userID)
-	if !member {
-		httpx.WriteError(w, http.StatusNotFound, "not_found", "org not found")
-		return "", "", false
-	}
-	if !Can(role, cap) {
-		httpx.WriteError(w, http.StatusForbidden, "forbidden",
-			"your org role ("+string(role)+") may not perform "+cap)
-		return "", "", false
-	}
-	return userID, role, true
+	return gateCapability(rt.svc, rt.jwt, w, r, orgID, cap)
 }
 
 // handleLookup maps a service lookup error to the right status (mirrors

@@ -1,6 +1,21 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   models.go                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:38:44 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:38:46 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 package adapterregistry
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 // isAllowedEngine reports whether the control plane will ACCEPT a mount for the
 // engine. Honesty rule (Phase 3): this is exactly the engines the Rust data
@@ -14,6 +29,21 @@ func isAllowedEngine(engine string) bool {
 	switch engine {
 	case "postgresql", "cockroachdb", "mysql", "mariadb", "mongodb",
 		"redis", "sqlite", "mssql", "http":
+		return true
+	case "dynamodb":
+		return dynamodbEngineEnabled()
+	}
+	return false
+}
+
+// dynamodbEngineEnabled reports whether the 8th engine is turned on for this
+// deployment (`DYNAMODB_ENGINE_ENABLED`). The control plane accepts a dynamodb
+// mount ONLY when this is set — it pairs with the data plane's compile-time
+// `--features dynamodb` build, so a mount is never registered that the data
+// plane would 501 on (the honesty rule). Both off = byte-parity OSS edition.
+func dynamodbEngineEnabled() bool {
+	switch os.Getenv("DYNAMODB_ENGINE_ENABLED") {
+	case "1", "true", "TRUE", "on", "ON", "yes":
 		return true
 	}
 	return false
@@ -69,6 +99,20 @@ type RegisterDatabaseRequest struct {
 	// platform stores only the wrapped DEK + ciphertext and cannot decrypt without
 	// the KMS. Ignored (parity) when CMEK is disabled or a credential_ref is used.
 	KMSKeyID string `json:"kms_key_id"`
+	// SharedResources is the optional list of table names on this mount that are
+	// NOT owner-scoped (a shared catalog readable across owners). It is carried
+	// verbatim into the mount's capability_overrides under the reserved key
+	// `shared_resources`, which the Rust data plane reads
+	// (DatabaseMount::shared_resources). Absent/empty = no shared tables = every
+	// table owner-scoped (parity). Entries must be plain table-name strings.
+	SharedResources []string `json:"shared_resources"`
+	// ReadScoped opts THIS mount into predicate-based READ owner-scoping,
+	// independent of the global DATA_PLANE_PG_READ_PREDICATE env flag. It is
+	// carried into the mount's capability_overrides under the reserved key
+	// `read_scoped`, which the Rust data plane reads (DatabaseMount::read_scoped)
+	// and ORs with the env flag. Absent/false = no opt-in = reads follow the
+	// global flag alone (parity).
+	ReadScoped bool `json:"read_scoped"`
 }
 
 // Validate enforces the same constraints as the Node DTO + DB check, plus the
@@ -86,7 +130,42 @@ func (r RegisterDatabaseRequest) Validate() error {
 	if r.Isolation != "" && !isAllowedIsolation(r.Isolation) {
 		return fmt.Errorf("unsupported isolation %q", r.Isolation)
 	}
+	if err := validateSharedResources(r.SharedResources); err != nil {
+		return err
+	}
 	return nil
+}
+
+// validateSharedResources rejects any shared-table entry that is not a plain
+// table-name string. The names are interpolated nowhere on the control-plane
+// path (they travel as a JSON array into capability_overrides), but the data
+// plane matches on them, so they are kept clean: 1..64 chars, no whitespace,
+// quotes, or semicolons. An empty/nil list is valid (no opt-in = parity).
+func validateSharedResources(names []string) error {
+	for _, n := range names {
+		if l := len(n); l < 1 || l > 64 {
+			return fmt.Errorf("shared_resources entry must be 1..64 chars")
+		}
+		if !isPlainTableName(n) {
+			return fmt.Errorf("invalid shared_resources entry %q", n)
+		}
+	}
+	return nil
+}
+
+// isPlainTableName reports whether s is a plain table identifier — ASCII
+// letters/digits/underscore only (a leading dot is allowed for a schema-qualified
+// name). Switch-based, no regexp global; rejects whitespace, quotes, semicolons,
+// and any other punctuation by construction.
+func isPlainTableName(s string) bool {
+	for _, c := range s {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '_', c == '.':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // validateCredentialSource enforces the S2 EXACTLY-ONE-OF {connection_string,

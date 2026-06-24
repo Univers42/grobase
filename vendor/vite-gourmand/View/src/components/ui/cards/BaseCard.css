@@ -1,0 +1,51 @@
+/**
+ * BaseCard Styles
+ * Uses ONLY CSS variables from graphical_chart.css
+ */
+
+.base-card {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-xl);
+  transition: all var(--transition-fast);
+  width: 100%;
+  text-align: left;
+}
+
+/* Variants */
+.base-card-default {
+  border: var(--card-border-width) solid var(--color-border-primary);
+}
+
+.base-card-elevated {
+  border: none;
+  box-shadow: var(--shadow-lg);
+}
+
+.base-card-outlined {
+  background: transparent;
+  border: var(--card-border-width) solid var(--color-border-secondary);
+}
+
+/* Padding */
+.base-card-padding-sm { padding: var(--card-padding-sm); }
+.base-card-padding-md { padding: var(--card-padding-md); }
+.base-card-padding-lg { padding: var(--card-padding-lg); }
+
+/* Clickable state */
+.base-card-clickable {
+  cursor: pointer;
+  font: inherit;
+}
+
+.base-card-clickable:hover {
+  background: var(--color-bg-card-hover);
+}
+
+.base-card-clickable:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.base-card-clickable:active {
+  transform: scale(0.99);
+}

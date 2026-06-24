@@ -1,0 +1,76 @@
+/**
+ * Select Styles
+ * Uses ONLY CSS variables from graphical_chart.css
+ */
+
+.select-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.select-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.select-required {
+  color: var(--color-danger-500);
+  margin-left: var(--space-1);
+}
+
+.select-container {
+  position: relative;
+}
+
+.select {
+  width: 100%;
+  font-family: var(--font-family-sans);
+  font-size: var(--input-font-size);
+  color: var(--color-text-primary);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-lg);
+  padding: 0 var(--space-10) 0 var(--input-padding-x);
+  appearance: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: var(--shadow-focus-ring);
+}
+
+.select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Sizes */
+.select-sm { height: var(--input-height-sm); }
+.select-md { height: var(--input-height-md); }
+.select-lg { height: var(--input-height-lg); }
+
+/* Error state */
+.select-error {
+  border-color: var(--color-danger-500);
+}
+
+.select-chevron {
+  position: absolute;
+  right: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--color-text-tertiary);
+  pointer-events: none;
+}
+
+.select-error-msg {
+  font-size: var(--font-size-xs);
+  color: var(--color-danger-500);
+}

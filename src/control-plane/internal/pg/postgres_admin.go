@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   postgres_admin.go                                  :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:52:44 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:52:46 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 package pg
 
 import (
@@ -16,6 +28,13 @@ func (p *Postgres) AdminExec(ctx context.Context, sql string, args ...any) error
 // AdminQuery runs a privileged query and returns rows.
 func (p *Postgres) AdminQuery(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
 	return p.pool.Query(ctx, sql, args...)
+}
+
+// AdminQueryRow runs a privileged single-row query; the returned Row yields
+// pgx.ErrNoRows from Scan when nothing matched, and surfaces a unique-violation
+// (from an INSERT ... RETURNING) through Scan's error — bypassing tenant scoping.
+func (p *Postgres) AdminQueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	return p.pool.QueryRow(ctx, sql, args...)
 }
 
 // Begin starts a transaction on a pooled connection. The returned pgx.Tx owns

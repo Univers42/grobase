@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Tapia, Asturias">
+  <defs>
+    <linearGradient id="g7753sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c1e33"/><stop offset="1" stop-color="#caa6d6"/>
+    </linearGradient>
+    <radialGradient id="g7753sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffd9ec" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffd9ec" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g7753sky)"/>
+  <circle cx="958" cy="206" r="160" fill="url(#g7753sun)"/>
+  <circle cx="958" cy="206" r="54" fill="#ffd9ec" opacity="0.9"/>
+  <rect y="352" width="1280" height="368" fill="#1d4f6c" opacity="0.55"/>
+  <path d="M0 392 C 96 408 224 376 320 392 C 416 376 544 408 640 392 C 736 408 864 376 960 392 C 1056 376 1184 408 1280 392 L 1280 720 L 0 720 Z" fill="#1d4f6c" opacity="0.85"/><path d="M0 462 C 96 440 224 484 320 462 C 416 484 544 440 640 462 C 736 440 864 484 960 462 C 1056 484 1184 440 1280 462 L 1280 720 L 0 720 Z" fill="#368fad" opacity="0.8"/><path d="M0 552 C 96 582 224 522 320 552 C 416 522 544 582 640 552 C 736 582 864 522 960 552 C 1056 522 1184 582 1280 552 L 1280 720 L 0 720 Z" fill="#368fad" opacity="0.6"/><path d="M0 652 C 96 612 224 692 320 652 C 416 692 544 612 640 652 C 736 612 864 692 960 652 C 1056 692 1184 612 1280 652 L 1280 720 L 0 720 Z" fill="#f4fbfe" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">ASTURIAS</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Tapia</text>
+</svg>

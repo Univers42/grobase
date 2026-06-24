@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   sec_capability.rs                                  :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:35:04 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:35:06 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Security: capability descriptor honesty + wire back-compat. The optional
 //! `#[serde(default)]` flags (batch/aggregate/introspect/schema_ddl) must
 //! default to the SAFE value `false` when a partial descriptor omits them — so

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   crud.rs                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:29:04 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:29:07 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Mutating operations: insert, update, delete, upsert — the effectful runners
 //! that dispatch over a live connection. The pure SQL builders they call live
 //! in [`super::crud_build`] (testable without a DB).

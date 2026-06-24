@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Somo, Cantabria">
+  <defs>
+    <linearGradient id="g3624sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a2c4a"/><stop offset="1" stop-color="#f3a05a"/>
+    </linearGradient>
+    <radialGradient id="g3624sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffe1a3" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffe1a3" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g3624sky)"/>
+  <circle cx="1065" cy="205" r="160" fill="url(#g3624sun)"/>
+  <circle cx="1065" cy="205" r="54" fill="#ffe1a3" opacity="0.9"/>
+  <rect y="350" width="1280" height="370" fill="#234e6e" opacity="0.55"/>
+  <path d="M0 390 C 96 374 224 406 320 390 C 416 406 544 374 640 390 C 736 374 864 406 960 390 C 1056 406 1184 374 1280 390 L 1280 720 L 0 720 Z" fill="#234e6e" opacity="0.85"/><path d="M0 460 C 96 482 224 438 320 460 C 416 438 544 482 640 460 C 736 482 864 438 960 460 C 1056 438 1184 482 1280 460 L 1280 720 L 0 720 Z" fill="#3f97b8" opacity="0.8"/><path d="M0 550 C 96 520 224 580 320 550 C 416 580 544 520 640 550 C 736 520 864 580 960 550 C 1056 580 1184 520 1280 550 L 1280 720 L 0 720 Z" fill="#3f97b8" opacity="0.6"/><path d="M0 650 C 96 690 224 610 320 650 C 416 610 544 690 640 650 C 736 690 864 610 960 650 C 1056 610 1184 690 1280 650 L 1280 720 L 0 720 Z" fill="#eef9fd" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">CANTABRIA</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Somo · 1</text>
+</svg>

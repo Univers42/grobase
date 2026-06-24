@@ -1,0 +1,43 @@
+# fly.toml app configuration file generated for vite-gourmand-withered-glitter-7902 on 2026-02-04T17:06:01+01:00
+#
+# Source of truth: infrastructure/services/fly/config/fly.toml
+# Use Fly through the Docker service:
+#   docker compose --profile tools run --rm fly flyctl deploy -c infrastructure/services/fly/config/fly.toml
+
+app = 'vite-gourmand-withered-glitter-7902'
+primary_region = 'cdg'
+
+[build]
+  dockerfile = "../../app/Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  COOKIE_SECURE = "true"
+  FRONTEND_URL = "https://vite-gourmand.fr"
+  PUBLIC_SITE_URL = "https://vite-gourmand.fr"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "60s"
+    method = "GET"
+    path = "/api"
+
+[[vm]]
+  memory = '1024mb'
+  cpus = 1
+  memory_mb = 1024

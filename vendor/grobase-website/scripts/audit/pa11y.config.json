@@ -1,0 +1,8 @@
+{
+	"standard": "WCAG2AA",
+	"timeout": 60000,
+	"chromeLaunchConfig": {
+		"executablePath": "/usr/bin/chromium-browser",
+		"args": ["--no-sandbox", "--disable-dev-shm-usage"]
+	}
+}

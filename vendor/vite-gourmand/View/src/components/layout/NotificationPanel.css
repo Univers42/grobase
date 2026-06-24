@@ -1,0 +1,15 @@
+.notification-panel-shell {
+  animation: notifPanelIn 200ms ease-out both;
+}
+
+@keyframes notifPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -1,0 +1,87 @@
+---
+import SectionHeading from '../ui/SectionHeading.astro';
+import Icon from '../ui/Icon.astro';
+
+// A real roadmap: three phases left-to-right (shipped → building → next), each
+// with a status and an honest checklist. Items move left ONLY when they pass the
+// same shadow → parity → cutover gates — nothing is listed as done that isn't.
+type Phase = { key: string; label: string; tag: string; icon: string; items: string[] };
+
+const PHASES: Phase[] = [
+	{
+		key: 'shipped',
+		label: 'Shipped',
+		tag: 'live today',
+		icon: 'check',
+		items: [
+			'8 engines behind one API — list, get, insert, filter, aggregate',
+			'Auth, realtime, object storage, functions and GraphQL',
+			'First-class full-text + vector search (typed ops)',
+			'Per-tenant isolation, owner-scoping and rate limits',
+			'Self-host anywhere — measured 5 MB → multi-tenant footprints',
+		],
+	},
+	{
+		key: 'building',
+		label: 'Building now',
+		tag: 'in flight, gated',
+		icon: 'wrench',
+		items: [
+			'Full update/delete parity on the Rust plane (Postgres write verbs)',
+			'Metering → quotas → Stripe billing — built & gate-proven, flag-gated, going live in the cloud',
+			'Per-tenant backup/restore and a self-service console',
+		],
+	},
+	{
+		key: 'next',
+		label: 'Next',
+		tag: 'planned, not yet',
+		icon: 'server',
+		items: [
+			'Unified OLAP/OLTP cost-routing — point-reads hit the engine, analytics hit the lakehouse, automatically',
+			'HA + horizontal scale (Helm/K8s, multi-region) — most tiers genuinely don’t need it yet',
+			'More engines — one honest, fully-tested adapter at a time (8, not 80)',
+		],
+	},
+];
+---
+
+<section class="gb-section gb-section--dim gb-section--roadmap has-pat-stripes has-pat-dots" aria-labelledby="roadmap-title">
+	<!-- ONE massive background word, bleeding off-edge (decorative). -->
+	<p class="bgword bgword--bottom" aria-hidden="true">ROADMAP</p>
+	<!-- Floating decorative shapes — rotate the accents, animated, aria-hidden. -->
+	<span class="floater floater--lg floater--tl accent-2 floater--ring animate-spin-slow" aria-hidden="true"></span>
+	<span class="floater floater--tr accent-3 floater--diamond" aria-hidden="true"></span>
+	<span class="floater floater--sm floater--ml accent-5 floater--square" aria-hidden="true"></span>
+	<span class="floater floater--mr accent-1" aria-hidden="true"></span>
+	<span class="floater floater--sm floater--bl accent-2 floater--diamond" aria-hidden="true"></span>
+	<span class="floater floater--br accent-3 floater--ring" aria-hidden="true"></span>
+
+	<div class="gb-container">
+		<SectionHeading
+			kicker="What we won't pretend"
+			title="The honest roadmap."
+			lede="Most marketing pages hide this part. We don't: here's what's live, what we're building right now, and what's still ahead — and nothing moves left until it passes the same gates as everything else."
+			id="roadmap-title"
+		/>
+		<ol class="gb-roadmap" role="list">
+			{PHASES.map((p) => (
+				<li class={`gb-rm gb-rm--${p.key}`} data-rise>
+					<div class="gb-rm__head">
+						<span class="gb-rm__dot" aria-hidden="true"></span>
+						<h3 class="gb-rm__label">{p.label}</h3>
+						<span class="gb-rm__emoji" aria-hidden="true"><Icon name={p.icon} size={22} /></span>
+						<span class="gb-rm__tag">{p.tag}</span>
+					</div>
+					<ul class="gb-rm__items" role="list">
+						{p.items.map((it) => <li>{it}</li>)}
+					</ul>
+				</li>
+			))}
+		</ol>
+		<p class="gb-rm__foot">
+			Things move from <strong>Next</strong> to <strong>Building</strong> to <strong>Shipped</strong> only
+			after shadow → parity → cutover gates pass. No silent shipping, no vapourware.
+		</p>
+	</div>
+</section>

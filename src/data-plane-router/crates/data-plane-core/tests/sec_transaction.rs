@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   sec_transaction.rs                                 :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:35:17 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:35:22 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Security: transaction session wire contract. `TxState` is a CLOSED set of
 //! lifecycle states (open → committed | rolled_back | reaped) with a stable
 //! snake_case wire encoding; `TxSession` and `TxBeginRequest` round-trip

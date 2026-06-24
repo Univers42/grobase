@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   dynamodb.rs                                        :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:31:31 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:31:32 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! DynamoDB-compatible engine adapter — the 8th data-plane adapter (OFF by
 //! default, behind `--features dynamodb`).
 //!

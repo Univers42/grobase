@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   transaction.rs                                     :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:34:49 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:34:50 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 use crate::{DatabaseMount, IsolationLevel, RequestIdentity};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

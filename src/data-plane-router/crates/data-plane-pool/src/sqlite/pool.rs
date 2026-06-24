@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   pool.rs                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:30:07 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:30:08 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The mount-scoped [`SqlitePool`] and its [`EnginePool`] surface: per-request
 //! tenant cross-check, the writer-thread submit channel, and the CRUD / raw-SQL
 //! / introspection / structured-DDL endpoints. Mutations queue to the single

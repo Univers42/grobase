@@ -1,0 +1,138 @@
+---
+// ── /docs/[...slug] — every documentation page AND every section landing.
+//
+// getStaticPaths emits one route per collection entry (the page itself) PLUS one
+// route per top folder (the section index, e.g. /docs/guides/). Section indexes
+// are what the nav targets — the resources mega-menu links straight to
+// /docs/guides/ — so they MUST resolve. We distinguish the two kinds with a
+// `kind` prop carried through getStaticPaths.
+import { getCollection, render } from 'astro:content';
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import Icon from '../../components/ui/Icon.astro';
+import { buildNav, topFolder } from '../../components/docs/nav';
+import type { DocEntry } from '../../components/docs/nav';
+
+export async function getStaticPaths() {
+	const entries = await getCollection('docs');
+
+	// one route per actual doc page
+	const pages = entries.map((entry: DocEntry) => ({
+		params: { slug: entry.id },
+		props: { kind: 'page' as const, entry },
+	}));
+
+	// one route per top folder = a section landing index (deduped)
+	const folders = [...new Set(entries.map((e: DocEntry) => topFolder(e.id)))];
+	const indexes = folders.map((folder) => ({
+		params: { slug: folder },
+		props: { kind: 'section' as const, folder },
+	}));
+
+	return [...pages, ...indexes];
+}
+
+type Props =
+	| { kind: 'page'; entry: DocEntry }
+	| { kind: 'section'; folder: string };
+
+const props = Astro.props as Props;
+
+// Section-landing copy — honest, derived from the section it summarises.
+const SECTION_INTRO: Record<string, string> = {
+	'Getting started': 'Run the server, learn the core ideas, and make your first calls.',
+	Guides: 'Task-first walkthroughs for authentication, data, realtime, storage, functions and search.',
+	'Self-hosting': 'Run Grobase yourself — Docker, configuration, and the tier ladder.',
+	Security: 'How Grobase keeps data isolated by default, on every request.',
+};
+
+// ── PAGE branch — render the markdown + its headings up front (robust pattern).
+let Content: Awaited<ReturnType<typeof render>>['Content'] | null = null;
+let pageData: {
+	title: string;
+	description: string;
+	slug: string;
+	headings: Awaited<ReturnType<typeof render>>['headings'];
+	crumbs: { label: string; href?: string }[];
+	kicker: string;
+} | null = null;
+
+// ── SECTION branch — assemble the landing list from the nav.
+let sectionData: {
+	name: string;
+	description: string;
+	items: { title: string; href: string }[];
+	crumbs: { label: string; href?: string }[];
+} | null = null;
+
+if (props.kind === 'page') {
+	const { entry } = props;
+	const rendered = await render(entry);
+	Content = rendered.Content;
+	const folder = topFolder(entry.id);
+	pageData = {
+		title: entry.data.title,
+		description: entry.data.description,
+		slug: entry.id,
+		headings: rendered.headings,
+		crumbs: [
+			{ label: 'Docs', href: '/docs/' },
+			{ label: entry.data.section, href: `/docs/${folder}/` },
+			{ label: entry.data.title },
+		],
+		kicker: entry.data.section,
+	};
+} else {
+	const all = await getCollection('docs');
+	const sections = buildNav(all);
+	const group = sections.find((s) => s.href === `/docs/${props.folder}/`);
+	const name = group?.section ?? props.folder;
+	const description = SECTION_INTRO[name] ?? `Documentation for ${name}.`;
+	sectionData = {
+		name,
+		description,
+		items: (group?.items ?? []).map((i) => ({ title: i.title, href: i.href })),
+		crumbs: [{ label: 'Docs', href: '/docs/' }, { label: name }],
+	};
+}
+---
+
+{
+	pageData && Content && (
+		<DocsLayout
+			title={pageData.title}
+			description={pageData.description}
+			activeSlug={pageData.slug}
+			headings={pageData.headings}
+			crumbs={pageData.crumbs}
+			kicker={pageData.kicker}
+		>
+			<Content />
+		</DocsLayout>
+	)
+}
+
+{
+	sectionData && (
+		<DocsLayout
+			title={sectionData.name}
+			description={sectionData.description}
+			activeSlug={null}
+			crumbs={sectionData.crumbs}
+			pager={false}
+			kicker="Section"
+		>
+			<h2>In this section</h2>
+			<p>{sectionData.description}</p>
+			<ul class="gb-docs-index">
+				{sectionData.items.map((item) => (
+					<li class="gb-docs-index__item">
+						<a class="gb-docs-index__link" href={item.href}>
+							<span class="gb-docs-index__t">{item.title}</span>
+							<Icon name="arrow-right" size={16} class="gb-docs-index__arrow" />
+						</a>
+					</li>
+				))}
+			</ul>
+		</DocsLayout>
+	)
+}

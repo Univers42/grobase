@@ -23,6 +23,7 @@
 import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response, NextFunction } from 'express';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import * as http from 'node:http';
 import { signIdentityEnvelope } from '../identity/request-identity';
 import { serviceAuthHeaders } from '../security/service-auth';
@@ -33,6 +34,14 @@ interface VerifyResponse {
   key_id?: string;
   scopes?: string[];
   reason?: string;
+}
+
+/** The owner identity an app key resolves to: either the app key itself
+ *  (`api-key:<keyId>`) or — when a verified GoTrue user JWT rides alongside —
+ *  the user (`user:<sub>`), carrying the JWT's role for the F2 admin bypass. */
+interface OwnerIdentity {
+  userId: string;
+  role: string;
 }
 
 @Injectable()
@@ -53,6 +62,9 @@ export class ApiKeyMiddleware implements NestMiddleware {
   // handshake is amortized away. (Hardening against stale-keepalive wedges; not
   // a cure for the separate sparse-verify event-loop stall under heavy edge load.)
   private readonly agent: http.Agent;
+  // GoTrue HS256 secret — verifies a user Bearer JWT for per-user owner-scoping.
+  // Empty (unset) → the user-JWT branch is inert and the app key stays the owner.
+  private readonly jwtSecret: string;
 
   constructor(config: ConfigService) {
     // internal/loopback only — not externally exposed
@@ -65,6 +77,7 @@ export class ApiKeyMiddleware implements NestMiddleware {
     this.serviceToken = config.get<string>('INTERNAL_SERVICE_TOKEN', '');
     this.timeoutMs = Number(config.get('API_KEY_VERIFY_TIMEOUT_MS', '2000'));
     this.cacheTtlMs = Number(config.get('API_KEY_VERIFY_CACHE_TTL_MS', '30000'));
+    this.jwtSecret = config.get<string>('GOTRUE_JWT_SECRET', '') || config.get<string>('JWT_SECRET', '');
     this.agent = new http.Agent({ keepAlive: false });
   }
 
@@ -92,14 +105,20 @@ export class ApiKeyMiddleware implements NestMiddleware {
       return;
     }
 
+    // Per-user owner-scoping: when a verified GoTrue user JWT rides alongside
+    // the app key, the OWNER is the user (`user:<sub>`) and the JWT's role flows
+    // through (so an `admin` JWT triggers the data plane's F2 bypass). Absent or
+    // unverifiable JWT → the app key is the owner = the pre-existing behavior.
+    const owner = this.resolveOwner(req, verify);
+
     // Mint a signed identity envelope so strict-mode AuthGuard accepts the
     // api-key caller (raw identity headers are rejected in strict mode). It is
     // self-signed over the same canonical string + key set the verifier uses.
     try {
       const envelope = signIdentityEnvelope(req, {
         tenantId: verify.tenant_id!,
-        userId: `api-key:${verify.key_id ?? ''}`,
-        role: 'authenticated',
+        userId: owner.userId,
+        role: owner.role,
         appId: 'api-key',
         scopes: verify.scopes ?? [],
       });
@@ -140,6 +159,46 @@ export class ApiKeyMiddleware implements NestMiddleware {
     this.cache.set(key, { exp: now + this.cacheTtlMs, res: body });
     this.pruneCache(now);
     return body;
+  }
+
+  /**
+   * Resolve the OWNER for the request. A verified GoTrue user Bearer JWT makes
+   * the user the owner (`user:<sub>`) and carries its role (so `role:admin`
+   * reaches the data plane's F2 bypass); otherwise the app key is the owner
+   * (`api-key:<keyId>`, role `authenticated`) — the pre-existing behavior.
+   */
+  private resolveOwner(req: Request, verify: VerifyResponse): OwnerIdentity {
+    const fallback: OwnerIdentity = {
+      userId: `api-key:${verify.key_id ?? ''}`,
+      role: 'authenticated',
+    };
+    const auth = pickHeader(req, 'authorization');
+    if (!auth || !auth.toLowerCase().startsWith('bearer ') || !this.jwtSecret) return fallback;
+    const claims = this.verifyUserJwt(auth.slice(7).trim());
+    if (!claims?.sub) return fallback;
+    return { userId: `user:${claims.sub}`, role: claims.role || 'authenticated' };
+  }
+
+  /**
+   * Verify a GoTrue HS256 JWT against jwtSecret and return its claims, or null
+   * if the signature/format is invalid or the token is expired. Stdlib-only
+   * (HMAC-SHA256 + constant-time compare) — no jsonwebtoken dependency.
+   */
+  private verifyUserJwt(token: string): { sub?: string; role?: string } | null {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const [h, p, sig] = parts;
+    const expected = createHmac('sha256', this.jwtSecret).update(`${h}.${p}`).digest('base64url');
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+    try {
+      const claims = JSON.parse(Buffer.from(p, 'base64url').toString('utf8'));
+      if (typeof claims.exp === 'number' && claims.exp * 1000 < Date.now()) return null;
+      return claims;
+    } catch {
+      return null;
+    }
   }
 
   /**

@@ -1,0 +1,58 @@
+---
+import SectionHeading from '../ui/SectionHeading.astro';
+import Icon from '../ui/Icon.astro';
+import { USE_CASES } from '../../data/usecases';
+
+// One safe registry icon per use-case (aria-hidden decoration — wiggles on hover).
+const ICONS: Record<string, string> = {
+	prototype: 'rocket',
+	internal: 'lock',
+	app: 'smartphone',
+	saas: 'globe',
+	data: 'database',
+};
+---
+
+<section id="usecases" class="gb-section gb-section--max has-pat-dots" aria-labelledby="usecases-title">
+	<!-- ONE massive background word, bleeding off-edge (decorative). -->
+	<p class="bgword bgword--left" aria-hidden="true">BUILD</p>
+	<!-- Floating decorative shapes — rotate the five accents, animated, aria-hidden. -->
+	<span class="floater floater--lg floater--ring floater--tl accent-1 animate-spin-slow" aria-hidden="true"></span>
+	<span class="floater floater--tr accent-2 floater--diamond" aria-hidden="true"></span>
+	<span class="floater floater--sm floater--ml accent-3" aria-hidden="true"></span>
+	<span class="floater floater--square floater--mr accent-4" aria-hidden="true"></span>
+	<span class="floater floater--bl accent-5 floater--ring" aria-hidden="true"></span>
+	<span class="floater floater--sm floater--br accent-1 floater--square" aria-hidden="true"></span>
+	<span class="floater floater--sm floater--c1 accent-2" aria-hidden="true"></span>
+	<span class="floater floater--c2 accent-3 floater--diamond" aria-hidden="true"></span>
+
+	<div class="gb-container">
+		<SectionHeading
+			kicker="Start where you are"
+			title="What are you building?"
+			lede="Pick the thing you're making — Grobase gives you the right shape for it, and the same code grows with you when you outgrow it."
+			id="usecases-title"
+		/>
+		<ul class="gb-usecases" role="list">
+			{USE_CASES.map((u) => (
+				<li class={`gb-uc tier-${u.tier}`} data-rise>
+					<a class="gb-uc__link" href={u.href} aria-label={`${u.building} — start with ${u.tierName}`}>
+						<span class="gb-uc__icon animate-wiggle" aria-hidden="true">
+							<Icon name={ICONS[u.id]} size={28} />
+						</span>
+						<h3 class="gb-uc__title">{u.building}</h3>
+						<p class="gb-uc__blurb">{u.blurb}</p>
+						<ul class="gb-uc__points" role="list">
+							{u.points.map((p) => <li>{p}</li>)}
+						</ul>
+						<span class="gb-uc__foot">
+							<span class="gb-uc__badge">{u.tierName}</span>
+							<span class="gb-uc__price">{u.price}</span>
+							<span class="gb-uc__go" aria-hidden="true">→</span>
+						</span>
+					</a>
+				</li>
+			))}
+		</ul>
+	</div>
+</section>

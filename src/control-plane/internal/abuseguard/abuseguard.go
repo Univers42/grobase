@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   abuseguard.go                                      :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:38:03 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:38:04 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package abuseguard (Track-B B7.9) is the control-plane ABUSE / free-tier
 // KYC-lite gate. It guards a public free tier against the abuse vectors that make
 // "anyone can sign up" dangerous: crypto-mining / spam-relay via runaway project

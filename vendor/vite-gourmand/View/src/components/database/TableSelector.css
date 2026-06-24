@@ -1,0 +1,53 @@
+/* Table Selector Styles - Modern Dropdown */
+
+.table-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.table-selector label {
+  font-size: var(--font-size-sm-plus);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text, var(--color-wine-900));
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.table-selector label::before {
+  content: '🗄️';
+  font-size: var(--font-size-base-lg);
+}
+
+.table-selector select {
+  padding: 0.75rem 2.5rem 0.75rem 1rem;
+  border: 2px solid var(--color-border, var(--color-neutral-200));
+  border-radius: var(--radius-md);
+  background: var(--color-surface, var(--color-bg-secondary));
+  font-size: var(--font-size-base-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text, var(--color-wine-900));
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  min-width: 180px;
+}
+
+.table-selector select:hover {
+  border-color: var(--color-primary-light, var(--color-violet-400));
+}
+
+.table-selector select:focus {
+  outline: none;
+  border-color: var(--color-primary, var(--color-primary-700));
+  box-shadow: var(--shadow-focus-primary-alt);
+}
+
+.table-selector select option {
+  padding: 0.5rem;
+  font-weight: var(--font-weight-medium);
+}

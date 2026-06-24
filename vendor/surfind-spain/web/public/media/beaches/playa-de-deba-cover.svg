@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Deba, Gipuzkoa">
+  <defs>
+    <linearGradient id="g5275sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#10243b"/><stop offset="1" stop-color="#e98a6b"/>
+    </linearGradient>
+    <radialGradient id="g5275sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffc07a" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffc07a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g5275sky)"/>
+  <circle cx="353" cy="59" r="160" fill="url(#g5275sun)"/>
+  <circle cx="353" cy="59" r="54" fill="#ffc07a" opacity="0.9"/>
+  <rect y="299" width="1280" height="421" fill="#15506a" opacity="0.55"/>
+  <path d="M0 339 C 96 355 224 323 320 339 C 416 323 544 355 640 339 C 736 355 864 323 960 339 C 1056 323 1184 355 1280 339 L 1280 720 L 0 720 Z" fill="#15506a" opacity="0.85"/><path d="M0 409 C 96 387 224 431 320 409 C 416 431 544 387 640 409 C 736 387 864 431 960 409 C 1056 431 1184 387 1280 409 L 1280 720 L 0 720 Z" fill="#2f8aa6" opacity="0.8"/><path d="M0 499 C 96 529 224 469 320 499 C 416 469 544 529 640 499 C 736 529 864 469 960 499 C 1056 469 1184 529 1280 499 L 1280 720 L 0 720 Z" fill="#2f8aa6" opacity="0.6"/><path d="M0 599 C 96 559 224 639 320 599 C 416 639 544 559 640 599 C 736 559 864 639 960 599 C 1056 639 1184 559 1280 599 L 1280 720 L 0 720 Z" fill="#f0fbff" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">GIPUZKOA</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Deba</text>
+</svg>

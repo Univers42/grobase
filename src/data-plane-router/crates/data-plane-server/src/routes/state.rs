@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   state.rs                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:42 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:43 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Shared application state: the engine registry, caches, rate limiter, metering
 //! sets, and the in-process transaction registry. The `AppState` struct + its
 //! constructor live here; the construction helpers are in `state_build`, the
@@ -105,6 +117,14 @@ pub struct AppState {
     /// binocle-one: user accounts + JWT sessions on top of nano.
     #[cfg(feature = "one")]
     pub(crate) one: Option<Arc<crate::one::OneState>>,
+    /// pbcompat: the PocketBase-compatible facade runtime (collections registry,
+    /// SSE realtime, file storage, request logs). `Some` only when the one
+    /// runtime booted this state (`one::run`); router-only wiring otherwise.
+    #[cfg(feature = "pbcompat")]
+    pub(crate) pb: Option<Arc<crate::pb::PbState>>,
+    /// pbcompat hooks: embedded JS runtime serving PB `routerAdd`/`onRecord*`.
+    #[cfg(feature = "hooks")]
+    pub(crate) hooks: Option<Arc<crate::pb::hooks::Hooks>>,
     /// Short-TTL cache of `api-key → VerifiedIdentity` for the bypass front door,
     /// mirroring the query-router's `ApiKeyMiddleware` 30 s cache. Without it the
     /// bypass re-runs the Argon2id key-verify (a tenant-control round-trip) on
@@ -182,6 +202,10 @@ impl AppState {
             nano: None,
             #[cfg(feature = "one")]
             one: None,
+            #[cfg(feature = "pbcompat")]
+            pb: None,
+            #[cfg(feature = "hooks")]
+            hooks: None,
             verify_cache: Arc::new(std::sync::Mutex::new(HashMap::new())),
             mount_cache: Arc::new(std::sync::Mutex::new(HashMap::new())),
         }

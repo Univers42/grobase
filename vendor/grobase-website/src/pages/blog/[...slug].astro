@@ -1,0 +1,110 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/layout/Header.astro';
+import Footer from '../../components/layout/Footer.astro';
+import Icon from '../../components/ui/Icon.astro';
+import { getCollection, render } from 'astro:content';
+import { SITE } from '../../data/site';
+
+// One static page per blog post (Astro content layer).
+export async function getStaticPaths() {
+	const posts = await getCollection('blog');
+	return posts.map((post) => ({
+		params: { slug: post.id },
+		props: { post },
+	}));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+
+const dateFmt = new Intl.DateTimeFormat('en-US', {
+	year: 'numeric',
+	month: 'long',
+	day: 'numeric',
+});
+const dateLabel = dateFmt.format(post.data.date);
+const isoDate = post.data.date.toISOString();
+const tags = post.data.tags ?? [];
+
+const title = `${post.data.title} — ${SITE.name} Blog`;
+const description = post.data.description;
+
+const jsonLd = [
+	{
+		'@type': 'BlogPosting',
+		headline: post.data.title,
+		description,
+		datePublished: isoDate,
+		author: { '@type': 'Organization', name: post.data.author },
+		publisher: { '@type': 'Organization', name: SITE.name },
+		keywords: tags.join(', '),
+	},
+];
+---
+
+<Layout title={title} description={description} jsonLd={jsonLd}>
+	<div class="gb-shell">
+		<Header />
+		<main id="main-content">
+			<article class="gb-section gb-post" aria-labelledby="post-title">
+				{/* restrained premium decoration — two floaters only */}
+				<span class="floater floater--lg floater--ring accent-5 floater--tr animate-float" aria-hidden="true"></span>
+				<span class="floater floater--sm floater--diamond accent-2 floater--bl animate-float-reverse" aria-hidden="true"></span>
+
+				<div class="gb-container gb-post__wrap">
+					<p class="gb-post__back">
+						<a href="/blog/">
+							<Icon name="arrow-right" size={16} class="gb-post__back-icon" />
+							<span>All posts</span>
+						</a>
+					</p>
+
+					<header class="gb-post__head" data-rise>
+						{
+							tags.length > 0 && (
+								<ul class="gb-post__tags" role="list" aria-label="Tags">
+									{tags.map((t) => (
+										<li class="gb-post__tag">{t}</li>
+									))}
+								</ul>
+							)
+						}
+						<h1 id="post-title" class="gb-post__title tshadow-2">{post.data.title}</h1>
+						<p class="gb-post__lede">{post.data.description}</p>
+						<p class="gb-post__meta">
+							<time datetime={isoDate}>{dateLabel}</time>
+							<span class="gb-post__dot" aria-hidden="true">·</span>
+							<span class="gb-post__author">{post.data.author}</span>
+						</p>
+					</header>
+
+					<div class="gb-post__rule" aria-hidden="true"></div>
+
+					<div class="gb-prose">
+						<Content />
+					</div>
+
+					<footer class="gb-post__foot liquid-glass" data-rise>
+						<div class="gb-post__foot-copy">
+							<p class="gb-post__foot-eyebrow accent-2">Measured, not claimed</p>
+							<p class="gb-post__foot-lead">
+								Every figure on this site is measured on the real stack and reproducible. See it for yourself.
+							</p>
+						</div>
+						<div class="gb-post__foot-ctas">
+							<a class="gb-btn gb-btn--primary" href="/pricing/">
+								<span>See pricing</span>
+								<Icon name="arrow-right" size={18} />
+							</a>
+							<a class="gb-btn gb-btn--ghost" href="/blog/">
+								<span>More posts</span>
+							</a>
+						</div>
+					</footer>
+				</div>
+			</article>
+		</main>
+		<Footer />
+	</div>
+</Layout>

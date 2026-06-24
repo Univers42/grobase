@@ -1,0 +1,38 @@
+---
+// ── DocsBreadcrumb — Docs › Section › Page. An ordered list in a labelled nav,
+// with aria-current="page" on the last crumb (WCAG breadcrumb pattern). Links
+// stay on real pages: "Docs" → /docs/, the section → its landing index.
+interface Crumb {
+	label: string;
+	href?: string;
+}
+interface Props {
+	crumbs: Crumb[];
+}
+const { crumbs } = Astro.props;
+---
+
+<nav class="gb-docs-crumbs" aria-label="Breadcrumb">
+	<ol class="gb-docs-crumbs__list">
+		{
+			crumbs.map((c, i) => (
+				<li class="gb-docs-crumbs__item">
+					{c.href && i < crumbs.length - 1 ? (
+						<a class="gb-docs-crumbs__link" href={c.href}>
+							{c.label}
+						</a>
+					) : (
+						<span class="gb-docs-crumbs__current" aria-current="page">
+							{c.label}
+						</span>
+					)}
+					{i < crumbs.length - 1 && (
+						<span class="gb-docs-crumbs__sep" aria-hidden="true">
+							›
+						</span>
+					)}
+				</li>
+			))
+		}
+	</ol>
+</nav>

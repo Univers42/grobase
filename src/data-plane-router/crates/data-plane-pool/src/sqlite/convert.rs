@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   convert.rs                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:29:56 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:29:58 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! JSON ↔ rusqlite value conversion (pure). SQLite has no native composite
 //! types, so arrays/objects are stored as their JSON text and read back as a
 //! string; non-finite reals and out-of-i64 numbers degrade to Null rather than

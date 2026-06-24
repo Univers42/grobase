@@ -1,0 +1,329 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Hypertube API",
+    "version": "1.0.0",
+    "description": "The subject-mandated RESTful OAuth2 API for Hypertube (vendor app on Grobase). A client_credentials grant issues short-lived HS256 bearer tokens (aud=hypertube-api); every resource route is bearer-guarded. Email is exposed only to a profile's own owner; comment mutation is owner-only and distinguishes 403 (exists, not yours) from 404 (absent). Errors are RFC-7807 problem+json and never leak internals."
+  },
+  "servers": [{ "url": "http://localhost:3082" }],
+  "tags": [
+    { "name": "oauth" },
+    { "name": "users" },
+    { "name": "movies" },
+    { "name": "comments" }
+  ],
+  "paths": {
+    "/oauth/token": {
+      "post": {
+        "operationId": "issueToken",
+        "summary": "client_credentials grant -> bearer token",
+        "tags": ["oauth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": ["grant_type", "client_id", "client_secret"],
+                "properties": {
+                  "grant_type": { "type": "string", "enum": ["client_credentials"] },
+                  "client_id": { "type": "string" },
+                  "client_secret": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "token issued",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Token" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Problem", "description": "unsupported or missing grant_type" },
+          "401": { "$ref": "#/components/responses/Problem", "description": "invalid client credentials" },
+          "415": { "$ref": "#/components/responses/Problem", "description": "wrong content type" }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "operationId": "listUsers",
+        "summary": "Directory of users (id + username), cross-owner",
+        "tags": ["users"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "user list",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/UserBrief" } }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem", "description": "missing or invalid bearer token" }
+        }
+      }
+    },
+    "/users/{id}": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": {
+        "operationId": "getUser",
+        "summary": "Public profile; email only when token sub == id",
+        "tags": ["users"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "profile (email present only for the owner)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/UserProfile" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem", "description": "missing or invalid bearer token" },
+          "404": { "$ref": "#/components/responses/Problem", "description": "unknown user" }
+        }
+      },
+      "patch": {
+        "operationId": "updateUser",
+        "summary": "Update own profile only (token sub == id)",
+        "tags": ["users"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/UserPatch" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "profile updated", "content": { "application/json": { "schema": { "type": "object" } } } },
+          "400": { "$ref": "#/components/responses/Problem", "description": "invalid profile fields" },
+          "401": { "$ref": "#/components/responses/Problem", "description": "missing or invalid bearer token" },
+          "403": { "$ref": "#/components/responses/Problem", "description": "cannot edit another user's profile" }
+        }
+      }
+    },
+    "/movies": {
+      "get": {
+        "operationId": "listMovies",
+        "summary": "Movie catalog (id + name), popularity-sorted",
+        "tags": ["movies"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "movie list",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/MovieBrief" } }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem", "description": "missing or invalid bearer token" }
+        }
+      }
+    },
+    "/movies/{id}": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": {
+        "operationId": "getMovie",
+        "summary": "Movie detail with aggregated comment_count",
+        "tags": ["movies"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "movie detail",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/MovieDetail" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem", "description": "missing or invalid bearer token" },
+          "404": { "$ref": "#/components/responses/Problem", "description": "unknown movie" }
+        }
+      }
+    },
+    "/movies/{movie_id}/comments": {
+      "parameters": [{ "name": "movie_id", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "post": {
+        "operationId": "createMovieComment",
+        "summary": "Create a comment on a movie (author + date filled by the server)",
+        "tags": ["comments"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CommentNew" } } }
+        },
+        "responses": {
+          "201": { "description": "comment created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Comment" } } } },
+          "400": { "$ref": "#/components/responses/Problem", "description": "missing or invalid content" },
+          "401": { "$ref": "#/components/responses/Problem", "description": "missing or invalid bearer token" }
+        }
+      }
+    },
+    "/comments": {
+      "get": {
+        "operationId": "listComments",
+        "summary": "Latest comments",
+        "tags": ["comments"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "latest comments",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Comment" } }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Problem", "description": "missing or invalid bearer token" }
+        }
+      },
+      "post": {
+        "operationId": "createComment",
+        "summary": "Create a comment (author + date filled by the server)",
+        "tags": ["comments"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CommentNew" } } }
+        },
+        "responses": {
+          "201": { "description": "comment created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Comment" } } } },
+          "400": { "$ref": "#/components/responses/Problem", "description": "missing or invalid content" },
+          "401": { "$ref": "#/components/responses/Problem", "description": "missing or invalid bearer token" }
+        }
+      }
+    },
+    "/comments/{id}": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": {
+        "operationId": "getComment",
+        "summary": "A single comment",
+        "tags": ["comments"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "comment", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Comment" } } } },
+          "401": { "$ref": "#/components/responses/Problem", "description": "missing or invalid bearer token" },
+          "404": { "$ref": "#/components/responses/Problem", "description": "unknown comment" }
+        }
+      },
+      "patch": {
+        "operationId": "updateComment",
+        "summary": "Edit a comment (author_id == token sub only)",
+        "tags": ["comments"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CommentNew" } } }
+        },
+        "responses": {
+          "200": { "description": "comment updated", "content": { "application/json": { "schema": { "type": "object" } } } },
+          "400": { "$ref": "#/components/responses/Problem", "description": "invalid comment fields" },
+          "401": { "$ref": "#/components/responses/Problem", "description": "missing or invalid bearer token" },
+          "403": { "$ref": "#/components/responses/Problem", "description": "not the comment author" },
+          "404": { "$ref": "#/components/responses/Problem", "description": "unknown comment" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteComment",
+        "summary": "Delete a comment (author_id == token sub only)",
+        "tags": ["comments"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "204": { "description": "comment deleted" },
+          "401": { "$ref": "#/components/responses/Problem", "description": "missing or invalid bearer token" },
+          "403": { "$ref": "#/components/responses/Problem", "description": "not the comment author" },
+          "404": { "$ref": "#/components/responses/Problem", "description": "unknown comment" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "responses": {
+      "Problem": {
+        "description": "RFC-7807 problem detail",
+        "content": {
+          "application/problem+json": { "schema": { "$ref": "#/components/schemas/Problem" } }
+        }
+      }
+    },
+    "schemas": {
+      "Token": {
+        "type": "object",
+        "properties": {
+          "access_token": { "type": "string" },
+          "token_type": { "type": "string", "enum": ["bearer"] },
+          "expires_in": { "type": "integer" }
+        }
+      },
+      "UserBrief": {
+        "type": "object",
+        "properties": { "id": { "type": "string" }, "username": { "type": "string" } }
+      },
+      "UserProfile": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "username": { "type": "string" },
+          "avatar_url": { "type": "string" },
+          "email": { "type": "string", "description": "present only when token sub == id" }
+        }
+      },
+      "UserPatch": {
+        "type": "object",
+        "properties": {
+          "username": { "type": "string" },
+          "first_name": { "type": "string" },
+          "last_name": { "type": "string" },
+          "avatar_url": { "type": "string" },
+          "preferred_language": { "type": "string" }
+        }
+      },
+      "MovieBrief": {
+        "type": "object",
+        "properties": { "id": { "type": "string" }, "name": { "type": "string" } }
+      },
+      "MovieDetail": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "rating": { "type": "number" },
+          "year": { "type": "integer" },
+          "length": { "type": "integer" },
+          "subtitle_langs": { "type": "array", "items": { "type": "string" } },
+          "comment_count": { "type": "integer" }
+        }
+      },
+      "Comment": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "author_username": { "type": "string" },
+          "date": { "type": "string", "format": "date-time" },
+          "content": { "type": "string" }
+        }
+      },
+      "CommentNew": {
+        "type": "object",
+        "required": ["content"],
+        "properties": {
+          "content": { "type": "string" },
+          "movie_id": { "type": "string" }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string" },
+          "title": { "type": "string" },
+          "status": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

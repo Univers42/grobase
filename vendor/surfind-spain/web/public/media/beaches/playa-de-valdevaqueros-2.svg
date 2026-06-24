@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Valdevaqueros, Cadiz">
+  <defs>
+    <linearGradient id="g4107sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a2a45"/><stop offset="1" stop-color="#f6b35c"/>
+    </linearGradient>
+    <radialGradient id="g4107sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffd98a" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffd98a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#g4107sky)"/>
+  <circle cx="906" cy="89" r="160" fill="url(#g4107sun)"/>
+  <circle cx="906" cy="89" r="54" fill="#ffd98a" opacity="0.9"/>
+  <rect y="298" width="1280" height="422" fill="#1f6f8f" opacity="0.55"/>
+  <path d="M0 338 C 96 354 224 322 320 338 C 416 322 544 354 640 338 C 736 354 864 322 960 338 C 1056 322 1184 354 1280 338 L 1280 720 L 0 720 Z" fill="#1f6f8f" opacity="0.85"/><path d="M0 408 C 96 386 224 430 320 408 C 416 430 544 386 640 408 C 736 386 864 430 960 408 C 1056 430 1184 386 1280 408 L 1280 720 L 0 720 Z" fill="#2b9bb5" opacity="0.8"/><path d="M0 498 C 96 528 224 468 320 498 C 416 468 544 528 640 498 C 736 528 864 468 960 498 C 1056 468 1184 528 1280 498 L 1280 720 L 0 720 Z" fill="#2b9bb5" opacity="0.6"/><path d="M0 598 C 96 558 224 638 320 598 C 416 638 544 558 640 598 C 736 558 864 638 960 598 C 1056 638 1184 558 1280 598 L 1280 720 L 0 720 Z" fill="#eaf7fb" opacity="0.5"/>
+  <text x="48" y="624" font-family="DM Sans, system-ui, sans-serif" font-size="26" font-weight="700" fill="#ffffff" opacity="0.85" letter-spacing="6">CADIZ</text>
+  <text x="46" y="676" font-family="DM Sans, system-ui, sans-serif" font-size="58" font-weight="900" fill="#ffffff">Valdevaqueros · 2</text>
+</svg>

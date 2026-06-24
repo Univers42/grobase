@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   models.go                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:44:40 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:44:42 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package functriggers implements the tenant-scoped DB-event -> function
 // trigger registry (A2 Functions DX) plus the delivery path that invokes a
 // deployed edge function when an outbox event matches an enabled trigger.

@@ -1,0 +1,84 @@
+/**
+ * TestCard Styles
+ * Uses ONLY CSS variables from graphical_chart.css
+ */
+
+.test-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.test-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.test-card-name {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+}
+
+.test-card-status {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.test-card-status-idle {
+  background: var(--color-neutral-500);
+}
+
+.test-card-status-running {
+  background: var(--color-warning-500);
+  animation: pulse 1.5s infinite;
+}
+
+.test-card-status-success {
+  background: var(--color-success-500);
+}
+
+.test-card-status-failed {
+  background: var(--color-danger-500);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.test-card-description {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+}
+
+.test-card-footer {
+  display: flex;
+  align-items: center;
+  margin-top: auto;
+}
+
+.test-card-type {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+}
+
+.test-card-type-automatic {
+  background: var(--color-primary-600);
+  color: var(--color-text-primary);
+}
+
+.test-card-type-manual {
+  background: var(--color-secondary-600);
+  color: var(--color-text-primary);
+}

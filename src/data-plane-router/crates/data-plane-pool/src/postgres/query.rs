@@ -1,13 +1,26 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   query.rs                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:29:17 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:29:18 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Read operations: list, get, grouped aggregate — plus the full-text and
 //! pgvector search builders the list path layers on.
 
+use super::adapter::PostgresPool;
 use super::convert::{as_param_refs, backend};
-use super::filter::{build_order_by, build_where, compile_filter, Pred};
+use super::filter::{append_owner_predicate, build_order_by, build_where, compile_filter, Pred};
 use super::search::{build_search, build_vector_order};
 use super::BoxedParam;
 use crate::ident::quote_ident;
 use data_plane_core::{
-    AggFunc, Aggregate, DataOperation, DataPlaneError, DataPlaneResult, DataResult,
+    AggFunc, Aggregate, DataOperation, DataPlaneError, DataPlaneResult, DataResult, RequestIdentity,
 };
 use serde_json::Value;
 
@@ -21,6 +34,8 @@ use serde_json::Value;
 pub(super) async fn run_aggregate<C: tokio_postgres::GenericClient + Sync>(
     client: &C,
     op: &DataOperation,
+    identity: &RequestIdentity,
+    scoped: bool,
 ) -> DataPlaneResult<DataResult> {
     let table = quote_ident(&op.resource)?;
     let spec = op
@@ -64,6 +79,9 @@ pub(super) async fn run_aggregate<C: tokio_postgres::GenericClient + Sync>(
 
     let mut params: Vec<BoxedParam> = Vec::new();
     let where_sql = build_where(op.filter.as_ref(), &mut params)?;
+    // F1/F2 read owner-scoping: append before LIMIT so the owner `$n` precedes it.
+    let owner = scoped.then(|| PostgresPool::principal(identity));
+    let where_sql = append_owner_predicate(where_sql, owner, &mut params)?;
     let group_sql = if group_cols.is_empty() {
         String::new()
     } else {
@@ -118,13 +136,16 @@ pub(super) fn build_aggregate_expr(agg: &Aggregate) -> DataPlaneResult<String> {
 pub(super) async fn run_list<C: tokio_postgres::GenericClient + Sync>(
     client: &C,
     op: &DataOperation,
+    identity: &RequestIdentity,
+    scoped: bool,
 ) -> DataPlaneResult<DataResult> {
     let table = quote_ident(&op.resource)?;
     let mut params: Vec<BoxedParam> = Vec::new();
 
     // Client filter (a Pred), optionally AND'd with a full-text predicate.
     // Param push order is the source of $n truth: filter params, then the FTS
-    // query param, then the vector embedding param, then limit/offset.
+    // query param, then the owner predicate, then the vector embedding param,
+    // then limit/offset.
     let client_pred = compile_filter(op.filter.as_ref(), &mut params)?;
     let fts = op
         .search
@@ -132,6 +153,10 @@ pub(super) async fn run_list<C: tokio_postgres::GenericClient + Sync>(
         .map(|s| build_search(s, &mut params))
         .transpose()?; // Option<(predicate, rank_expr)>
     let where_sql = combine_where(client_pred, fts.as_ref().map(|(p, _)| p.as_str()));
+    // F1/F2 read owner-scoping: append after the client/FTS predicate and before
+    // the vector + limit/offset params so every `$n` stays monotonic.
+    let owner = scoped.then(|| PostgresPool::principal(identity));
+    let where_sql = append_owner_predicate(where_sql, owner, &mut params)?;
 
     // ORDER BY precedence: vector k-NN distance > explicit sort > FTS rank > none.
     let vec_order = op
@@ -177,8 +202,8 @@ pub(super) async fn run_list<C: tokio_postgres::GenericClient + Sync>(
 }
 
 /// Combine the client filter [`Pred`] with an optional full-text predicate into a
-/// single ` WHERE …` clause (owner-scoping on reads is enforced by RLS GUCs, so
-/// it is not appended here).
+/// single ` WHERE …` clause. The owner predicate is NOT added here — the caller
+/// appends it via [`append_owner_predicate`] (gated by F1; OFF → RLS-GUC-only).
 fn combine_where(client: Pred, fts: Option<&str>) -> String {
     match (client, fts) {
         (Pred::AlwaysFalse, _) => " WHERE FALSE".to_string(),
@@ -192,10 +217,14 @@ fn combine_where(client: Pred, fts: Option<&str>) -> String {
 pub(super) async fn run_get<C: tokio_postgres::GenericClient + Sync>(
     client: &C,
     op: &DataOperation,
+    identity: &RequestIdentity,
+    scoped: bool,
 ) -> DataPlaneResult<DataResult> {
     let table = quote_ident(&op.resource)?;
     let mut params: Vec<BoxedParam> = Vec::new();
     let where_sql = build_where(op.filter.as_ref(), &mut params)?;
+    let owner = scoped.then(|| PostgresPool::principal(identity));
+    let where_sql = append_owner_predicate(where_sql, owner, &mut params)?;
 
     let sql = format!("SELECT to_jsonb(t) AS row FROM {table} t{where_sql} LIMIT 1");
     let row = client

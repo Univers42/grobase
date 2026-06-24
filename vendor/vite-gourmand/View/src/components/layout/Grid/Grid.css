@@ -1,0 +1,33 @@
+/**
+ * Grid Styles
+ * Uses ONLY CSS variables from graphical_chart.css
+ */
+
+.layout-grid {
+  display: grid;
+  width: 100%;
+}
+
+/* Columns */
+.layout-grid-cols-1 { grid-template-columns: 1fr; }
+.layout-grid-cols-2 { grid-template-columns: var(--grid-columns-2); }
+.layout-grid-cols-3 { grid-template-columns: var(--grid-columns-3); }
+.layout-grid-cols-4 { grid-template-columns: var(--grid-columns-4); }
+.layout-grid-cols-auto { grid-template-columns: var(--grid-columns-auto); }
+
+/* Gap */
+.layout-grid-gap-sm { gap: var(--space-3); }
+.layout-grid-gap-md { gap: var(--grid-gap); }
+.layout-grid-gap-lg { gap: var(--space-6); }
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .layout-grid-cols-4 { grid-template-columns: var(--grid-columns-2); }
+  .layout-grid-cols-3 { grid-template-columns: var(--grid-columns-2); }
+}
+
+@media (max-width: 640px) {
+  .layout-grid-cols-4,
+  .layout-grid-cols-3,
+  .layout-grid-cols-2 { grid-template-columns: 1fr; }
+}

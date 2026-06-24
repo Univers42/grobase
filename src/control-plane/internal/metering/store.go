@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   store.go                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:47:27 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:47:29 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package metering is the control-plane sink for the flag-gated per-tenant usage
 // pipeline (Track-B B1b). The data plane (DATA_PLANE_METERING) and extra planes
 // emit windowed (tenant_id, metric, qty, ts) rollups onto the `usage.events`

@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   newslettersvc_test.go                              :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:49:19 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:49:21 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 package newslettersvc
 
 import (
@@ -65,7 +77,7 @@ type recordingSender struct {
 	failFor map[string]bool
 }
 
-func (s *recordingSender) send(_ context.Context, to, _, _, _ string) error {
+func (s *recordingSender) send(_ context.Context, to, _, _, _, _ string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sent = append(s.sent, to)

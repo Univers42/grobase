@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   store.go                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:43:47 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:43:50 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package export implements per-tenant DATA EXPORT — a PORTABLE bundle of ONE
 // tenant's data for GDPR Art. 20 data portability (Track-D D4.3).
 //

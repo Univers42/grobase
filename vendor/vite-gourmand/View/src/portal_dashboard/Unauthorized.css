@@ -1,0 +1,98 @@
+/**
+ * Unauthorized Page Styles
+ */
+
+.unauthorized-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-primary);
+  padding: var(--space-4);
+  position: relative;
+}
+
+.unauthorized-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
+  text-align: center;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: var(--glass-shadow);
+}
+
+.unauthorized-icon {
+  font-size: 4rem;
+  display: block;
+  margin-bottom: var(--space-4);
+}
+
+.unauthorized-card h1 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-2);
+}
+
+.unauthorized-card p {
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-4);
+  line-height: var(--line-height-relaxed);
+}
+
+.unauthorized-role {
+  background: var(--color-bg-secondary);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-primary-600);
+  font-weight: var(--font-weight-medium);
+}
+
+.unauthorized-role strong {
+  color: var(--color-accent);
+  text-transform: capitalize;
+}
+
+.unauthorized-actions {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: center;
+  margin-top: var(--space-6);
+}
+
+.unauthorized-actions .btn-secondary {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-primary);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-weight: var(--font-weight-medium);
+}
+
+.unauthorized-actions .btn-secondary:hover {
+  background: var(--color-bg-tertiary);
+  border-color: var(--color-primary-300);
+}
+
+.unauthorized-actions .btn-primary {
+  background: var(--color-primary-600);
+  color: white;
+  border: none;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-weight: var(--font-weight-medium);
+  box-shadow: var(--shadow-glow-primary);
+}
+
+.unauthorized-actions .btn-primary:hover {
+  background: var(--color-primary-700);
+  transform: translateY(-1px);
+}

@@ -1,0 +1,20 @@
+---
+import { AMORTIZATION } from '../../data/tiers';
+import HonestyNote from '../ui/HonestyNote.astro';
+---
+
+<div class="gb-grid gb-grid--2 rotate-accents" data-rise>
+	<article class="gb-card">
+		<h3>The multi-tenant math</h3>
+		<p>
+			The dedicated-stack prices above are the <em>worst case</em> — one tenant carrying a whole stack.
+			In a shared deployment the planes and engine clusters are shared, so a new tenant adds only a
+			schema plus a few MiB of RAM. One Pro host (~${AMORTIZATION.proHostUsd}/mo) across
+			~{AMORTIZATION.tenantsPerHost} tenants ≈ <strong>{AMORTIZATION.perTenant}</strong>.
+		</p>
+	</article>
+	<HonestyNote title="Yes, that means the upper tiers have fat margins.">
+		{AMORTIZATION.marginal} The markup funds support, SLAs and development — we'd rather show you that
+		math than pretend it doesn't exist.
+	</HonestyNote>
+</div>

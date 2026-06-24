@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   pool.rs                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:27:35 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:27:37 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! The pooled SQL Server connection set ([`MssqlPool`]) plus plan execution
 //! (`run_plan`) and the atomic batch (`run_batch`) — the `EnginePool` surface.
 

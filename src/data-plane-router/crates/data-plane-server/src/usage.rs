@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   usage.rs                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:33:48 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:33:50 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Track-B metering (B1a + B1b) — per-tenant usage counters in the data plane.
 //!
 //! The rate limiter caps *how fast* a tenant may go; metering records *how much*

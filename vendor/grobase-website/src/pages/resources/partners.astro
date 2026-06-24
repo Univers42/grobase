@@ -1,0 +1,68 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/layout/Header.astro';
+import Footer from '../../components/layout/Footer.astro';
+import ResourceHero from '../../components/resources/ResourceHero.astro';
+import ResourceGrid from '../../components/resources/ResourceGrid.astro';
+import Icon from '../../components/ui/Icon.astro';
+import { SITE } from '../../data/site';
+import { PARTNERS } from '../../data/resources';
+
+const title = `Partners — ${SITE.name}`;
+const description = PARTNERS.intro;
+
+const jsonLd = [
+	{
+		'@type': 'CollectionPage',
+		name: title,
+		description,
+		hasPart: PARTNERS.items.map((p) => ({ '@type': 'WebPage', name: p.title, description: p.body })),
+	},
+];
+---
+
+<Layout title={title} description={description} jsonLd={jsonLd}>
+	<div class="gb-shell">
+		<Header />
+		<main id="main-content">
+			<ResourceHero
+				kicker="Partners"
+				titleLead="Deploy it,"
+				titleAccent="extend"
+				titleTail="it, build on it."
+				lede={PARTNERS.intro}
+				icon="handshake"
+				id="partners-title"
+			/>
+
+			<section class="gb-section gb-section--dim gb-rsection" aria-labelledby="partners-kinds-title">
+				<div class="gb-container">
+					<div class="gb-section__head accent-1" data-rise>
+						<p class="gb-kicker"><span aria-hidden="true">→</span> The partnerships we build</p>
+						<h2 id="partners-kinds-title" class="tshadow-mega">No resellers — partners</h2>
+						<p class="gb-lede">
+							Because the platform is open and self-hostable, partners run, extend and ship it rather than resell a black
+							box. These are the kinds of partnership Grobase grows.
+						</p>
+					</div>
+					<ResourceGrid items={PARTNERS.items} />
+
+					<aside class="gb-rcta liquid-glass" data-rise>
+						<div class="gb-rcta__copy">
+							<p class="gb-rcta__eyebrow accent-2">Open invitation</p>
+							<p class="gb-rcta__lead">
+								Want to host, integrate or extend Grobase? It is open-source — start from the repository, then get in
+								touch.
+							</p>
+						</div>
+						<a class="gb-btn gb-btn--ghost" href={SITE.repoUrl} rel="noopener noreferrer">
+							<span>View the source</span>
+							<Icon name="github" size={18} title="GitHub" />
+						</a>
+					</aside>
+				</div>
+			</section>
+		</main>
+		<Footer />
+	</div>
+</Layout>

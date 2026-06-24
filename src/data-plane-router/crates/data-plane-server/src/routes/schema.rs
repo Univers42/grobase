@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   schema.rs                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:32:34 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:32:35 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! Engine-agnostic schema introspection (`/v1/schema`) + DDL (`/v1/schema/ddl`):
 //! the envelope handlers and the shared `run_*` cores the bypass twins reuse.
 use axum::extract::State;

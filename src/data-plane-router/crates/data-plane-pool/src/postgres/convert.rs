@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   convert.rs                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:29:00 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:29:01 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 //! JSON↔Postgres value binding (the adaptive `JsonParam`) and the error
 //! classifier that maps `tokio_postgres` failures to the platform's
 //! `DataPlaneError` taxonomy.

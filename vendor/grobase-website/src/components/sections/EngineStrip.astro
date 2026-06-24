@@ -1,0 +1,20 @@
+---
+import SectionHeading from '../ui/SectionHeading.astro';
+import { ENGINES } from '../../data/engines';
+---
+
+<section class="gb-section" data-galaxy-state="engines" aria-labelledby="engines-title">
+	<div class="gb-container">
+		<SectionHeading
+			kicker="Engine-agnostic"
+			title="One API. Eight engines."
+			lede="The platform never needs to know the shape of your data. Every engine below answers the same /query/v1 call — pick per mount, mix per tenant, swap without rewriting."
+			id="engines-title"
+		/>
+		<ul class="gb-engines-strip" role="list">
+			{ENGINES.map((e) => (
+				<li class={`gb-engine-chip engine--${e.id}`} title={e.note}>{e.name}</li>
+			))}
+		</ul>
+	</div>
+</section>

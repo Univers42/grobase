@@ -82,7 +82,7 @@
           "if (auth === 'key') {",
           "  pm.variables.set('__tenantKey', apiKey);",
           "} else if (auth === 'badkey') {",
-          "  pm.variables.set('__tenantKey', 'mbk_deadbeefdeadbeefdeadbeefdeadbeef');",
+          "  pm.variables.set('__tenantKey', '{{apikey}}');",
           "} else {",
           "  // none / anon-only → no tenant key header at all",
           "  pm.variables.set('__tenantKey', '');",

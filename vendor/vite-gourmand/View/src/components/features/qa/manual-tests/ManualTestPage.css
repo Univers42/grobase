@@ -1,0 +1,63 @@
+/**
+ * ManualTestPage styles
+ * Full page layout for manual test execution
+ */
+
+.manual-test-page {
+  max-width: var(--layout-content-max-width);
+  margin: 0 auto;
+  padding: var(--space-6);
+}
+
+.manual-test-page-header {
+  margin-bottom: var(--space-8);
+}
+
+.manual-test-page-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) 0;
+  margin-bottom: var(--space-4);
+  background: transparent;
+  border: none;
+  color: var(--text-link);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.manual-test-page-back:hover {
+  color: var(--text-link-hover);
+}
+
+.manual-test-page-title {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+  margin: 0 0 var(--space-2);
+}
+
+.manual-test-page-description {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: var(--leading-relaxed);
+}
+
+.manual-test-page-content {
+  margin-bottom: var(--space-8);
+}
+
+.manual-test-page-section-title {
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin: 0 0 var(--space-4);
+}
+
+.manual-test-page-actions {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+}

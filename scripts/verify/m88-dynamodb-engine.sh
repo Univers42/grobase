@@ -154,17 +154,12 @@ wait_ddb() { # wait for dynamodb-local to accept connections
 # sibling Dockerfile that adds `--features dynamodb` to the cargo build lines.
 # (A default-feature image is built separately for the parity arm.)
 step "0/8 build scratch data-plane-router --features dynamodb FROM CURRENT source"
-DDB_DOCKERFILE="$(mktemp)"
-# Reuse the real multi-stage Dockerfile but inject the feature flag into both
-# cargo build invocations. sed keeps every other layer/cache identical.
-sed 's/cargo build --release --bin data-plane-router/cargo build --release --features dynamodb --bin data-plane-router/g' \
-  "${DPR_DIR}/Dockerfile" >"${DDB_DOCKERFILE}"
-DOCKER_BUILDKIT=1 docker build -q -f "${DDB_DOCKERFILE}" -t "${SCRATCH_IMG}" "${DPR_DIR}" >/dev/null ||
-  {
-    rm -f "${DDB_DOCKERFILE}"
-    fail "scratch DPR --features dynamodb image build failed — the gate must exercise the drafted adapter (line: docker build dynamodb)"
-  }
-rm -f "${DDB_DOCKERFILE}"
+# Build with the dynamodb feature via the Dockerfile's DATA_PLANE_FEATURES
+# build-arg (default empty → byte-parity). No dockerfile rewrite needed, so
+# the build is robust to the syntax-frontend resolution quirk the sed/-f form hit.
+DOCKER_BUILDKIT=1 docker build -q --build-arg DATA_PLANE_FEATURES="--features dynamodb" \
+  -f "${DPR_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${DPR_DIR}" >/dev/null ||
+  fail "scratch DPR --features dynamodb image build failed — the gate must exercise the drafted adapter (line: docker build dynamodb)"
 ok "dynamodb-feature router built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
 
 step "0b/8 build scratch data-plane-router with DEFAULT features (parity arm C)"

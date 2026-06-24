@@ -1,0 +1,21 @@
+# Vite Gourmand production HTTPS policy for Apache/OVH-style static hosting.
+# The Nest/Fly backend enforces the same policy in Back/src/main.ts.
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Canonical production host: https://vite-gourmand.fr
+  RewriteCond %{HTTPS} !=on [OR]
+  RewriteCond %{HTTP_HOST} ^www\.vite-gourmand\.fr$ [NC]
+  RewriteRule ^ https://vite-gourmand.fr%{REQUEST_URI} [R=308,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https://images.unsplash.com; connect-src 'self' https://vite-gourmand.fr https://www.vite-gourmand.fr https://accounts.google.com; frame-src 'self' https://accounts.google.com; upgrade-insecure-requests"
+  Header always set Cross-Origin-Opener-Policy "same-origin-allow-popups"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+</IfModule>

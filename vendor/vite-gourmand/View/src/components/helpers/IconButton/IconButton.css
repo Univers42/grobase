@@ -1,0 +1,67 @@
+/**
+ * IconButton Styles
+ * Bordeaux theme - Professional icon buttons
+ */
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Sizes */
+.icon-btn-sm { width: 2rem; height: 2rem; font-size: var(--font-size-sm); }
+.icon-btn-md { width: 2.5rem; height: 2.5rem; font-size: var(--font-size-base); }
+.icon-btn-lg { width: 3rem; height: 3rem; font-size: var(--font-size-xl); }
+
+/* Variants - Bordeaux theme */
+.icon-btn-ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.icon-btn-ghost:hover:not(:disabled) {
+  background: var(--color-wine-overlay-20);
+  color: var(--color-primary-300);
+  border-color: var(--color-wine-overlay-40);
+  transform: scale(1.05);
+}
+
+.icon-btn-subtle {
+  background: var(--color-warm-overlay-50);
+  color: var(--color-text-secondary);
+  border-color: var(--color-warm-overlay-40);
+}
+
+.icon-btn-subtle:hover:not(:disabled) {
+  background: var(--color-wine-overlay-25);
+  color: var(--color-primary-300);
+  border-color: var(--color-wine-overlay-40);
+  transform: scale(1.05);
+}
+
+.icon-btn-danger {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.icon-btn-danger:hover:not(:disabled) {
+  background: var(--color-wine-red-25);
+  color: var(--color-danger-500);
+  border-color: var(--color-wine-red-40);
+  transform: scale(1.05);
+}

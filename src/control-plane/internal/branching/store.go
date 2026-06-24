@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   store.go                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:41:12 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:41:14 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package branching implements per-tenant DB BRANCHES (Track-E DB branching) —
 // Supabase-parity "branches". A branch is an isolated SCHEMA-CLONE of a
 // schema_per_tenant mount: the parent's tables + a full row copy, living next to

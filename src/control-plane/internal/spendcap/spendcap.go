@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   spendcap.go                                        :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/21 04:56:14 by dlesieur          #+#    #+#             */
+/*   Updated: 2026/06/21 04:56:15 by dlesieur         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Package spendcap (Track-B B7.8) is the control-plane SPEND-CAP guard. It guards
 // a public free tier against COST runaway: a tenant whose projected spend crosses
 // its budget is HALTED from billable service, and at 80% of budget an ALERT fires

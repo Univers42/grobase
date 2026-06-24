@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#7c3aed" />
+    <meta name="description" content="Canagrou — capture from your webcam, add playful overlays, and share your moments." />
+    <title>Canagrou — Capture, Create, Share</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Tailwind compiled to a STATIC file (build-css.sh) instead of the runtime
+         CDN, so styling works even when cdn.tailwindcss.com is blocked by CSP. -->
+    <link rel="stylesheet" href="/tailwind.css" />
+    <link rel="stylesheet" href="/src/styles/app.css" />
+
+    <!-- Generated BaaS config (window.__BAAS__) — MUST load before the app module -->
+    <script src="/baas-config.js"></script>
+  </head>
+  <body class="min-h-screen text-ig-text flex flex-col font-sans">
+    <div id="app" class="flex flex-col min-h-screen"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

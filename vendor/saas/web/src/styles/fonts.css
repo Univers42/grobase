@@ -1,0 +1,20 @@
+/* fonts.css — self-hosted @font-face (NO runtime Google Fonts; CSP forbids it).
+   Drop the woff2 into public/fonts/ (see public/fonts/README.md). Until present,
+   the @font-face simply 404s and the family falls back through the stack declared
+   in tailwind.config.js (Instrument Serif → Georgia, Inter → system-ui). */
+
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/instrument-serif-italic.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-var.woff2') format('woff2');
+}

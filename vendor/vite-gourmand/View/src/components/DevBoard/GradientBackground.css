@@ -1,0 +1,192 @@
+/**
+ * Animated Gradient Background
+ * Beautiful, eye-catching moving gradients - accessibility-friendly
+ */
+
+/* Animated gradient mesh background */
+.devboard-gradient-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-base);
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    #f0f4ff 0%,
+    var(--color-primary-50) 25%,
+    #f5f3ff 50%,
+    #f0fdfa 75%,
+    var(--color-sky-50) 100%
+  );
+}
+
+/* Gradient orbs - vivid and beautiful */
+.gradient-orb {
+  position: absolute;
+  border-radius: var(--radius-full);
+  filter: blur(60px);
+  opacity: 0.6;
+  mix-blend-mode: multiply;
+  will-change: transform;
+}
+
+/* Primary orb - purple/violet - large top-right */
+.gradient-orb--primary {
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(
+    circle,
+    var(--color-violet-overlay-50) 0%,
+    var(--color-purple-overlay-30) 40%,
+    rgba(139, 92, 246, 0) 70%
+  );
+  top: -250px;
+  right: -150px;
+  animation: floatPrimary 20s ease-in-out infinite;
+}
+
+/* Secondary orb - cyan/teal - bottom-left */
+.gradient-orb--secondary {
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(
+    circle,
+    rgba(6, 182, 212, 0.45) 0%,
+    rgba(34, 211, 238, 0.25) 40%,
+    rgba(6, 182, 212, 0) 70%
+  );
+  bottom: -180px;
+  left: -120px;
+  animation: floatSecondary 25s ease-in-out infinite;
+}
+
+/* Tertiary orb - emerald - center */
+.gradient-orb--tertiary {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(
+    circle,
+    var(--color-success-overlay-35) 0%,
+    rgba(52, 211, 153, 0.2) 40%,
+    rgba(16, 185, 129, 0) 70%
+  );
+  top: 35%;
+  left: 25%;
+  animation: floatTertiary 30s ease-in-out infinite;
+}
+
+/* Accent orb - pink/rose - top-left */
+.gradient-orb--accent {
+  width: 450px;
+  height: 450px;
+  background: radial-gradient(
+    circle,
+    rgba(244, 114, 182, 0.4) 0%,
+    rgba(251, 146, 60, 0.2) 40%,
+    rgba(244, 114, 182, 0) 70%
+  );
+  top: 10%;
+  left: 10%;
+  animation: floatAccent 22s ease-in-out infinite;
+}
+
+/* Fifth orb - indigo - bottom-right */
+.gradient-orb::after {
+  content: '';
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(
+    circle,
+    var(--color-secondary-overlay-30) 0%,
+    rgba(99, 102, 241, 0) 70%
+  );
+  bottom: 15%;
+  right: 10%;
+  border-radius: var(--radius-full);
+  filter: blur(50px);
+  animation: floatSecondary 28s ease-in-out infinite reverse;
+}
+
+/* Subtle grain overlay for texture */
+.gradient-noise {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+
+/* Animations - slow and gentle for accessibility */
+@keyframes floatPrimary {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(-30px, 20px) scale(1.02);
+  }
+  50% {
+    transform: translate(-20px, 40px) scale(0.98);
+  }
+  75% {
+    transform: translate(10px, 20px) scale(1.01);
+  }
+}
+
+@keyframes floatSecondary {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(40px, -30px) scale(1.03);
+  }
+  66% {
+    transform: translate(20px, -15px) scale(0.97);
+  }
+}
+
+@keyframes floatTertiary {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  20% {
+    transform: translate(25px, 15px) scale(0.98);
+  }
+  40% {
+    transform: translate(15px, 35px) scale(1.02);
+  }
+  60% {
+    transform: translate(-20px, 25px) scale(0.99);
+  }
+  80% {
+    transform: translate(-15px, 10px) scale(1.01);
+  }
+}
+
+@keyframes floatAccent {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  30% {
+    transform: translate(-35px, 25px) scale(1.02);
+  }
+  60% {
+    transform: translate(15px, 40px) scale(0.98);
+  }
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .gradient-orb {
+    animation: none !important;
+  }
+}
+
+/* Force light theme - ignore system dark mode preference */
+/* The DevBoard uses a custom light design inspired by Fly.io */
+/* Dark mode is intentionally disabled to maintain brand consistency */

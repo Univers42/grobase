@@ -1,0 +1,95 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/layout/Header.astro';
+import Footer from '../../components/layout/Footer.astro';
+import ResourceHero from '../../components/resources/ResourceHero.astro';
+import BlogCard from '../../components/resources/BlogCard.astro';
+import { getCollection } from 'astro:content';
+import { SITE } from '../../data/site';
+
+const title = `Blog — ${SITE.name}`;
+const description =
+	'Release notes, engineering write-ups and the measured story behind every claim — straight from the team that builds Grobase.';
+
+// Pull the blog collection and sort newest-first by date.
+const posts = (await getCollection('blog')).sort(
+	(a, b) => b.data.date.valueOf() - a.data.date.valueOf(),
+);
+
+const dateFmt = new Intl.DateTimeFormat('en-US', {
+	year: 'numeric',
+	month: 'long',
+	day: 'numeric',
+});
+
+const accents = [1, 2, 3, 4, 5] as const;
+
+const cards = posts.map((post, i) => ({
+	href: `/blog/${post.id}/`,
+	title: post.data.title,
+	excerpt: post.data.description,
+	isoDate: post.data.date.toISOString(),
+	dateLabel: dateFmt.format(post.data.date),
+	author: post.data.author,
+	tags: post.data.tags ?? [],
+	accent: accents[i % accents.length],
+}));
+
+const jsonLd = [
+	{
+		'@type': 'Blog',
+		name: title,
+		description,
+		blogPost: posts.map((p) => ({
+			'@type': 'BlogPosting',
+			headline: p.data.title,
+			description: p.data.description,
+			datePublished: p.data.date.toISOString(),
+			author: { '@type': 'Organization', name: p.data.author },
+		})),
+	},
+];
+---
+
+<Layout title={title} description={description} jsonLd={jsonLd}>
+	<div class="gb-shell">
+		<Header />
+		<main id="main-content">
+			<ResourceHero
+				kicker="Blog"
+				titleLead="The story behind the"
+				titleAccent="numbers"
+				lede={description}
+				icon="file-text"
+				id="blog-title"
+			/>
+
+			<section class="gb-section gb-section--dim gb-bsection" aria-labelledby="blog-list-title">
+				<div class="gb-container">
+					<h2 id="blog-list-title" class="visually-hidden">All posts</h2>
+					{
+						cards.length > 0 ? (
+							<ul class="gb-bgrid" role="list">
+								{cards.map((c) => (
+									<BlogCard
+										href={c.href}
+										title={c.title}
+										excerpt={c.excerpt}
+										isoDate={c.isoDate}
+										dateLabel={c.dateLabel}
+										author={c.author}
+										tags={c.tags}
+										accent={c.accent}
+									/>
+								))}
+							</ul>
+						) : (
+							<p class="gb-lede">No posts yet — check back soon.</p>
+						)
+					}
+				</div>
+			</section>
+		</main>
+		<Footer />
+	</div>
+</Layout>
