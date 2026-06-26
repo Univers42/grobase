@@ -90,8 +90,10 @@ services:
       timeout: 3s
       start_period: 30s
       retries: 5
-    mem_limit: 128m
-    cpus: 0.25
+    # Raised for the multi-engine graph overview (tens of thousands of nodes/edges
+    # paged + edge-derived in one request); was 128m / 0.25.
+    mem_limit: 512m
+    cpus: 1.0
 
   # ─── Rust Data Plane Router (live cutover — see parity-probe.sh) ──
   outbox-relay:

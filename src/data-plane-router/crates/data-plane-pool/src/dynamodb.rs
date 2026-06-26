@@ -47,9 +47,9 @@ use aws_sdk_dynamodb::error::SdkError;
 use aws_sdk_dynamodb::types::{AttributeValue, Put, TransactWriteItem};
 use aws_sdk_dynamodb::Client;
 use data_plane_core::{
-    DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, DataResult, DatabaseMount,
-    EngineAdapter, EngineCapabilities, EngineHealth, EnginePool, RequestIdentity, TxBeginRequest,
-    TxHandle,
+    ColumnSchema, DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, DataResult,
+    DatabaseMount, EngineAdapter, EngineCapabilities, EngineHealth, EnginePool, NormalizedType,
+    RequestIdentity, SchemaDescriptor, TableSchema, TxBeginRequest, TxHandle,
 };
 use serde_json::{Map as JsonMap, Number, Value};
 use std::collections::HashMap;
@@ -61,6 +61,10 @@ use std::sync::Mutex;
 /// that does not exist for this caller — the structural isolation property.
 const PK: &str = "owner_pk";
 const SK: &str = "id";
+
+/// How many items `describe_schema` samples per table (a `Query` on the owner
+/// partition) to infer the column shape — mirrors the Mongo `$sample` size.
+const SCHEMA_SAMPLE_SIZE: i32 = 200;
 
 /// Same identifier discipline as the Redis adapter (`is_valid_segment`): a
 /// table / resource name is `[A-Za-z0-9_:-]{1,255}`; rejecting anything that
@@ -525,6 +529,52 @@ impl DynamoPool {
             }),
         })
     }
+
+    /// Every table name visible to this mount's endpoint, paginated. The owner
+    /// partition key isolates ROWS per request; table names are the shared
+    /// schema (the same set for every tenant on a shared pool), so enumerating
+    /// them is not a cross-owner data leak.
+    async fn list_table_names(&self) -> DataPlaneResult<Vec<String>> {
+        let mut names = Vec::new();
+        let mut start: Option<String> = None;
+        loop {
+            let mut req = self.client.list_tables();
+            if let Some(s) = start.take() {
+                req = req.exclusive_start_table_name(s);
+            }
+            let out = req.send().await.map_err(sdk_err)?;
+            names.extend(out.table_names.unwrap_or_default());
+            match out.last_evaluated_table_name {
+                Some(last) => start = Some(last),
+                None => break,
+            }
+        }
+        Ok(names)
+    }
+
+    /// Sample up to [`SCHEMA_SAMPLE_SIZE`] of THIS owner's items from `table` —
+    /// a `Query` on the owner partition, never a cross-owner `Scan` — each run
+    /// through [`item_to_row`] so the `owner_pk`/`owner` envelope is stripped
+    /// and the sort key surfaced as `id`.
+    async fn sample_owner_rows(&self, table: &str, owner_pk: &str) -> DataPlaneResult<Vec<Value>> {
+        let out = self
+            .client
+            .query()
+            .table_name(table)
+            .key_condition_expression("#pk = :owner")
+            .expression_attribute_names("#pk", PK)
+            .expression_attribute_values(":owner", AttributeValue::S(owner_pk.to_string()))
+            .limit(SCHEMA_SAMPLE_SIZE)
+            .send()
+            .await
+            .map_err(sdk_err)?;
+        Ok(out
+            .items
+            .unwrap_or_default()
+            .into_iter()
+            .map(item_to_row)
+            .collect())
+    }
 }
 
 #[async_trait]
@@ -555,6 +605,42 @@ impl EnginePool for DynamoPool {
             DataOperationKind::Batch => self.run_batch(&operation, &identity).await,
             _ => self.dispatch_single(&operation, &identity).await,
         }
+    }
+
+    /// Engine-agnostic schema introspection. Lists every `owner_pk`/`id`-shaped
+    /// table on the mount and infers each one's columns from a Query-sample of
+    /// THIS owner's items (so a shared pool never samples another tenant's
+    /// rows). `primary_key` is always `["id"]` — the sort key is the logical key
+    /// the grid CRUDs by; the `owner_pk` partition is the hidden isolation
+    /// envelope ([`item_to_row`] strips it). A table lacking the owner-partition
+    /// schema can't be served by this adapter, so its Query errors and it is
+    /// omitted rather than surfaced as an uneditable phantom.
+    async fn describe_schema(
+        &self,
+        identity: RequestIdentity,
+    ) -> DataPlaneResult<SchemaDescriptor> {
+        if !self.shared_pool && self.owner_scoped && identity.tenant_id != self.tenant_id {
+            return Err(DataPlaneError::Backend {
+                message: "identity tenant does not match pool tenant".into(),
+            });
+        }
+        let owner_pk = self.owner_pk(&identity);
+        let mut names = self.list_table_names().await?;
+        names.sort();
+        let mut tables = Vec::with_capacity(names.len());
+        for name in names {
+            if let Ok(rows) = self.sample_owner_rows(&name, &owner_pk).await {
+                tables.push(TableSchema {
+                    primary_key: vec![SK.to_string()],
+                    columns: infer_dynamo_columns(&rows),
+                    name,
+                });
+            }
+        }
+        Ok(SchemaDescriptor {
+            engine: "dynamodb".to_string(),
+            tables,
+        })
     }
 
     /// Begin a buffer-then-commit transaction. Allocates an empty buffer + a
@@ -950,6 +1036,86 @@ fn attr_to_json(v: &AttributeValue) -> Value {
         AttributeValue::Null(_) => Value::Null,
         _ => Value::Null,
     }
+}
+
+/// The observed type tag of a JSON value — both the `native_type` hint and the
+/// key into [`tag_to_normalized`]. DynamoDB's single Number type is split into
+/// `int`/`float` from the JSON value so the grid renders integers correctly.
+/// Pure.
+fn dynamo_type_tag(v: &Value) -> &'static str {
+    match v {
+        Value::String(_) => "S",
+        Value::Number(n) if n.is_i64() || n.is_u64() => "int",
+        Value::Number(_) => "float",
+        Value::Bool(_) => "BOOL",
+        Value::Array(_) => "L",
+        Value::Object(_) => "M",
+        Value::Null => "NULL",
+    }
+}
+
+/// Type tag → engine-neutral [`NormalizedType`] (mirrors the Mongo mapper).
+/// Pure.
+fn tag_to_normalized(tag: &str) -> NormalizedType {
+    match tag {
+        "S" => NormalizedType::Text,
+        "int" => NormalizedType::Integer,
+        "float" => NormalizedType::Float,
+        "BOOL" => NormalizedType::Boolean,
+        "L" => NormalizedType::Array,
+        "M" => NormalizedType::Json,
+        _ => NormalizedType::Unknown,
+    }
+}
+
+/// Infer columns from sampled rows: per-field majority (non-null) type; a field
+/// absent from some rows or carrying nulls is nullable. The sort key `id` is
+/// always present and non-null (the logical primary key), injected if the
+/// sample was empty. Always `inferred: true` — a statistical guess, not a
+/// declared contract. Pure (unit-tested without DynamoDB).
+fn infer_dynamo_columns(rows: &[Value]) -> Vec<ColumnSchema> {
+    use std::collections::BTreeMap;
+    let total = rows.len();
+    let mut fields: BTreeMap<String, (usize, usize, BTreeMap<&'static str, usize>)> =
+        BTreeMap::new();
+    for row in rows {
+        let Value::Object(map) = row else { continue };
+        for (key, value) in map {
+            let entry = fields.entry(key.clone()).or_default();
+            entry.0 += 1;
+            let tag = dynamo_type_tag(value);
+            if tag == "NULL" {
+                entry.1 += 1;
+            } else {
+                *entry.2.entry(tag).or_default() += 1;
+            }
+        }
+    }
+    fields.entry(SK.to_string()).or_insert_with(|| {
+        let mut counts = BTreeMap::new();
+        counts.insert("S", 1);
+        (total.max(1), 0, counts)
+    });
+    fields
+        .into_iter()
+        .map(|(name, (present, nulls, counts))| {
+            let majority = counts
+                .iter()
+                .max_by_key(|(_, count)| *count)
+                .map(|(tag, _)| *tag)
+                .unwrap_or("S");
+            ColumnSchema {
+                nullable: name != SK && (present < total || nulls > 0),
+                native_type: majority.to_string(),
+                normalized_type: tag_to_normalized(majority),
+                name,
+                default: None,
+                enum_values: None,
+                references: None,
+                inferred: true,
+            }
+        })
+        .collect()
 }
 
 fn empty_result() -> DataResult {
@@ -1454,6 +1620,52 @@ mod tests {
     }
 
     // ── result constructors: empty / single / write echo ─────────────────────
+
+    // ── describe_schema inference (pure) ─────────────────────────────────────
+
+    #[test]
+    fn infer_dynamo_columns_majority_type_and_nullability() {
+        let rows = vec![
+            json!({ "id": "a", "name": "x", "score": 1 }),
+            json!({ "id": "b", "name": "y", "score": 2, "note": "hi" }),
+        ];
+        let cols = infer_dynamo_columns(&rows);
+        let by = |n: &str| cols.iter().find(|c| c.name == n).cloned().expect("col");
+        // id is the pk: present in every row, non-null, text.
+        assert_eq!(by("id").normalized_type, NormalizedType::Text);
+        assert!(!by("id").nullable);
+        // score is an integer present in both rows → non-null integer.
+        assert_eq!(by("score").normalized_type, NormalizedType::Integer);
+        assert!(!by("score").nullable);
+        // note is present in 1/2 rows → nullable.
+        assert!(by("note").nullable);
+        assert!(cols.iter().all(|c| c.inferred), "all inferred");
+    }
+
+    #[test]
+    fn infer_dynamo_columns_empty_sample_still_exposes_id_pk() {
+        let cols = infer_dynamo_columns(&[]);
+        assert_eq!(cols.len(), 1);
+        assert_eq!(cols[0].name, "id");
+        assert_eq!(cols[0].normalized_type, NormalizedType::Text);
+        assert!(!cols[0].nullable);
+    }
+
+    #[test]
+    fn dynamo_type_tag_maps_each_json_kind_to_normalized() {
+        let cases = [
+            (json!("s"), NormalizedType::Text),
+            (json!(3), NormalizedType::Integer),
+            (json!(-1), NormalizedType::Integer),
+            (json!(1.5), NormalizedType::Float),
+            (json!(true), NormalizedType::Boolean),
+            (json!([1, 2]), NormalizedType::Array),
+            (json!({ "k": 1 }), NormalizedType::Json),
+        ];
+        for (v, want) in cases {
+            assert_eq!(tag_to_normalized(dynamo_type_tag(&v)), want, "value {v}");
+        }
+    }
 
     #[test]
     fn result_constructors_shapes() {

@@ -129,3 +129,56 @@ fn auth_claims_empty_namespaces_deny_by_default() {
     assert!(wild.can_subscribe_to(&TopicPattern::Exact(TopicPath::new("anything/x"))));
     assert!(wild.can_publish_to(&TopicPath::new("anything/x")));
 }
+
+#[test]
+fn protected_namespace_excludes_wildcard() {
+    // A `"*"` wildcard reaches everything EXCEPT a protected-prefix namespace,
+    // which needs an exact grant — so a wildcard token cannot read a `collab:`
+    // space it was not explicitly added to.
+    let protected = vec!["collab:".to_string()];
+    let collab = TopicPattern::Exact(TopicPath::new("collab:abc"));
+    let chat = TopicPattern::Exact(TopicPath::new("chat:xyz"));
+
+    let wild = AuthClaims {
+        sub: "u".to_string(),
+        namespaces: vec!["*".to_string()],
+        can_publish: true,
+        can_subscribe: true,
+        metadata: HashMap::new(),
+    };
+    assert!(
+        wild.can_subscribe_to_scoped(&chat, &protected),
+        "wildcard still covers unprotected namespaces"
+    );
+    assert!(
+        !wild.can_subscribe_to_scoped(&collab, &protected),
+        "wildcard must NOT cover a protected namespace"
+    );
+    assert!(
+        wild.can_subscribe_to_scoped(&collab, &[]),
+        "empty protected list is byte-parity (wildcard covers everything)"
+    );
+    assert!(
+        !wild.can_publish_to_scoped(&TopicPath::new("collab:abc"), &protected),
+        "publish is protected the same way"
+    );
+
+    let member = AuthClaims {
+        sub: "u".to_string(),
+        namespaces: vec!["collab:abc".to_string()],
+        can_publish: true,
+        can_subscribe: true,
+        metadata: HashMap::new(),
+    };
+    assert!(
+        member.can_subscribe_to_scoped(&collab, &protected),
+        "an exact grant still reaches the protected space"
+    );
+    assert!(
+        !member.can_subscribe_to_scoped(
+            &TopicPattern::Exact(TopicPath::new("collab:other")),
+            &protected
+        ),
+        "but only the granted space, not a sibling"
+    );
+}

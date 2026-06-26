@@ -61,51 +61,51 @@ pub struct AuthClaims {
 }
 
 impl AuthClaims {
-    /// Check if these claims allow subscribing to the given pattern.
-    ///
-    /// # Arguments
-    /// * `topic` — The topic pattern to check against.
-    ///
-    /// # Returns
-    /// `true` if subscribing is allowed.
-    ///
-    /// # Panics
-    /// Never panics.
+    /// Whether these claims allow subscribing to `topic`. Deny-by-default: an
+    /// empty namespace list grants nothing; all-access is the explicit `"*"`.
     #[must_use]
     pub fn can_subscribe_to(&self, topic: &TopicPattern) -> bool {
-        if !self.can_subscribe {
-            return false;
-        }
-        // Deny-by-default: an empty namespace list grants nothing. All-access is
-        // explicit (`["*"]`), never implied by absence.
-        if self.namespaces.is_empty() {
-            return false;
-        }
-        let topic_ns = extract_pattern_namespace(topic);
-        self.namespaces.iter().any(|ns| ns == "*" || ns == topic_ns)
+        self.can_subscribe_to_scoped(topic, &[])
     }
 
-    /// Check if these claims allow publishing to the given topic.
-    ///
-    /// # Arguments
-    /// * `topic` — The concrete topic to check.
-    ///
-    /// # Returns
-    /// `true` if publishing is allowed.
-    ///
-    /// # Panics
-    /// Never panics.
+    /// Like [`Self::can_subscribe_to`], but a `"*"` wildcard does NOT cover a
+    /// namespace whose prefix is in `protected` — those require an EXACT grant
+    /// (a wildcard token must not reach a `collab:` space it was not explicitly
+    /// granted). An empty `protected` slice is byte-identical to the plain check.
+    #[must_use]
+    pub fn can_subscribe_to_scoped(&self, topic: &TopicPattern, protected: &[String]) -> bool {
+        if !self.can_subscribe || self.namespaces.is_empty() {
+            return false;
+        }
+        self.namespace_allowed(extract_pattern_namespace(topic), protected)
+    }
+
+    /// Whether these claims allow publishing to `topic` (deny-by-default).
     #[must_use]
     pub fn can_publish_to(&self, topic: &TopicPath) -> bool {
-        if !self.can_publish {
+        self.can_publish_to_scoped(topic, &[])
+    }
+
+    /// Like [`Self::can_publish_to`], with the protected-prefix rule of
+    /// [`Self::can_subscribe_to_scoped`].
+    #[must_use]
+    pub fn can_publish_to_scoped(&self, topic: &TopicPath, protected: &[String]) -> bool {
+        if !self.can_publish || self.namespaces.is_empty() {
             return false;
         }
-        // Deny-by-default (see can_subscribe_to): empty namespaces grant nothing.
-        if self.namespaces.is_empty() {
-            return false;
-        }
-        let ns = topic.namespace();
-        self.namespaces.iter().any(|n| n == "*" || n == ns)
+        self.namespace_allowed(topic.namespace(), protected)
+    }
+
+    /// Whether this claim's namespaces grant `topic_ns`: an exact grant always
+    /// wins; `"*"` grants every namespace except those whose prefix is in
+    /// `protected`.
+    fn namespace_allowed(&self, topic_ns: &str, protected: &[String]) -> bool {
+        let is_protected = protected
+            .iter()
+            .any(|prefix| !prefix.is_empty() && topic_ns.starts_with(prefix.as_str()));
+        self.namespaces
+            .iter()
+            .any(|ns| ns == topic_ns || (ns == "*" && !is_protected))
     }
 }
 

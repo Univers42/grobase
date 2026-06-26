@@ -101,6 +101,13 @@ services:
       # the fallback directly with REALTIME_NAMESPACE_FALLBACK=permissive|deny.
       SECURITY_MODE: ${SECURITY_MODE:-baseline}
       REALTIME_NAMESPACE_FALLBACK: ${REALTIME_NAMESPACE_FALLBACK:-permissive}
+      # Namespace prefixes the `["*"]` wildcard must NOT cover — a subscriber
+      # needs the EXACT namespace to reach them (so a wildcard/namespace-less
+      # token can't read a `collab:` space it was not explicitly granted).
+      # Comma-separated; EMPTY (the default) = byte-parity. Set `collab:` to
+      # enforce Shared-space isolation WITHOUT the breaking global deny flip
+      # (chat/feed/live-DB keep their wildcard reach; only collab: is gated).
+      REALTIME_PROTECTED_NAMESPACES: ${REALTIME_PROTECTED_NAMESPACES:-}
       REALTIME_PG_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
       REALTIME_PG_CHANNEL: realtime_events
       # Mongo change-streams producer (M10.b — close the realtime fan-out gap).
