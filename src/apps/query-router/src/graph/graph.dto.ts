@@ -52,11 +52,11 @@ export class GraphOverviewDto {
   @IsString()
   edgesTable?: string;
 
-  @ApiPropertyOptional({ description: 'Max rows loaded per resource (1–2000)', default: 500 })
+  @ApiPropertyOptional({ description: 'Max rows loaded per resource (1–20000)', default: 500 })
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(2000)
+  @Max(20000)
   limit?: number;
 
   @ApiPropertyOptional({ description: 'Secondary edge generators (same shape as /graph)' })

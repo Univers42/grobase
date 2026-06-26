@@ -197,9 +197,9 @@ fn introspect_matches_each_engine_surface() {
     assert!(EngineCapabilities::mongodb().introspect);
     assert!(EngineCapabilities::sqlite().introspect);
     assert!(EngineCapabilities::mssql().introspect);
+    assert!(EngineCapabilities::dynamodb().introspect);
     assert!(!EngineCapabilities::redis().introspect);
     assert!(!EngineCapabilities::http().introspect);
-    assert!(!EngineCapabilities::dynamodb().introspect);
 }
 
 #[test]

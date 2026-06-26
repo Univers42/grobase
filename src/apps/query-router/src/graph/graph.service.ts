@@ -3,7 +3,7 @@ import { VerifiedRequestIdentity } from '@mini-baas/common';
 import { ExecuteQueryDto } from '../query/dto/query.dto';
 import { QueryService } from '../query/query.service';
 import { GraphOverviewDto, GraphRequestDto } from './graph.dto';
-import { generatedEdges } from './graph.generators';
+import { conventionEdges, generatedEdges } from './graph.generators';
 import {
   EdgeRecord,
   formatNodeId,
@@ -25,6 +25,19 @@ interface GraphAcc {
   visited: Set<string>;
 }
 
+/** Compact a row for the wire: scalar columns only (the FK/label/display fields the
+ *  graph + inspector use), long strings truncated, JSON/array columns dropped. The
+ *  node never needs the full record — edge derivation already ran over the source
+ *  row, so this only trims payload + client memory, not relationships. */
+function slimRow(row: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (value === null || value === undefined || typeof value === 'object') continue;
+    out[key] = typeof value === 'string' && value.length > 160 ? value.slice(0, 160) : value;
+  }
+  return out;
+}
+
 /**
  * Assembles a node-link subgraph by composing the existing `/v1/query` reads —
  * no new engine work, no cross-database join. Nodes and their neighbours come
@@ -41,7 +54,11 @@ export class GraphService {
   private static readonly MAX_DEPTH = 3;
   private static readonly EDGE_FANOUT = 1000;
   private static readonly DEFAULT_OVERVIEW_LIMIT = 500;
-  private static readonly MAX_OVERVIEW_LIMIT = 2000;
+  // ponytail: fixed ceilings — env-configurable if a workspace outgrows them.
+  private static readonly MAX_OVERVIEW_LIMIT = 20000;
+  private static readonly OVERVIEW_EDGE_LIMIT = 200000;
+  // The data plane caps a single `list` near 1000 rows; page past it with offset.
+  private static readonly LIST_PAGE = 1000;
 
   constructor(private readonly query: QueryService) {}
 
@@ -58,23 +75,29 @@ export class GraphService {
       GraphService.MAX_OVERVIEW_LIMIT,
     );
     const edgesTable = req.edgesTable ?? 'edges';
+    const resources = this.validResources(req.resources);
+    const byMount = this.resourcesByMount(resources);
+    const [nodeLists, explicitEdges] = await Promise.all([
+      Promise.all(resources.map((ref) => this.listNodes(ref.dbId, ref.table, limit, userId, ctx))),
+      this.listAllEdges(req.edgesDbId, edgesTable, userId, ctx),
+    ]);
     const nodes = new Map<string, GraphNode>();
-    for (const ref of this.validResources(req.resources)) {
-      for (const node of await this.listNodes(ref.dbId, ref.table, limit, userId, ctx)) {
-        nodes.set(node.id, node);
-      }
-    }
+    for (const list of nodeLists) for (const node of list) nodes.set(node.id, node);
     const edges = new Map<string, EdgeRecord>();
-    for (const edge of await this.listAllEdges(req.edgesDbId, edgesTable, userId, ctx)) {
-      edges.set(edge.id, edge);
-    }
+    for (const edge of explicitEdges) edges.set(edge.id, edge);
     for (const node of nodes.values()) {
       for (const edge of generatedEdges(node, req.generators)) edges.set(edge.id, edge);
+      for (const edge of conventionEdges(node, byMount)) edges.set(edge.id, edge);
     }
+    // Keep only edges whose BOTH endpoints are loaded — a dangling edge to an
+    // unloaded record would make the client materialize a placeholder stub node,
+    // inflating the rendered graph far past the loaded set. (Raise the per-resource
+    // limit for more cross-cluster reach.)
+    const connected = [...edges.values()].filter((e) => nodes.has(e.from) && nodes.has(e.to));
     return {
       depth: 0,
       nodes: [...nodes.values()],
-      edges: [...edges.values()],
+      edges: connected,
       guarantee: 'subgraph_eventual',
     };
   }
@@ -210,6 +233,53 @@ export class GraphService {
     );
   }
 
+  /** mount → the set of its requested table names, so `conventionEdges` can resolve
+   *  a `<base>_id` FK to a real sibling table on the same mount (no catalog read). */
+  private resourcesByMount(resources: ResourceRef[]): Map<string, Set<string>> {
+    const map = new Map<string, Set<string>>();
+    for (const ref of resources) {
+      const set = map.get(ref.dbId) ?? new Set<string>();
+      set.add(ref.table);
+      map.set(ref.dbId, set);
+    }
+    return map;
+  }
+
+  /** Page through `op:'list'` until `limit` rows are collected or the table ends.
+   *  The data plane caps a single list near `LIST_PAGE`, so offset-paging is the
+   *  only way past it. Engine-agnostic: no ORDER BY (that needs the per-engine pk),
+   *  so the tail order is the adapter's natural one — fine for an overview. An
+   *  optional `filter` lets callers page a targeted id set (coordinated sampling). */
+  private async listRows(
+    dbId: string,
+    table: string,
+    limit: number,
+    userId: string,
+    ctx: Ctx,
+    filter?: Record<string, unknown>,
+  ): Promise<Array<Record<string, unknown>>> {
+    const out: Array<Record<string, unknown>> = [];
+    let offset = 0;
+    while (out.length < limit) {
+      const dto = new ExecuteQueryDto();
+      dto.op = 'list';
+      dto.limit = GraphService.LIST_PAGE;
+      dto.offset = offset;
+      if (filter) dto.filter = filter;
+      let rows: Array<Record<string, unknown>>;
+      try {
+        rows = ((await this.query.executeQuery(dbId, table, userId, dto, ctx)) as QueryRows).rows ?? [];
+      } catch (error) {
+        this.logger.debug(`list ${dbId}:${table} @${offset} failed: ${(error as Error).message}`);
+        break;
+      }
+      if (rows.length === 0) break;
+      out.push(...rows);
+      offset += rows.length;
+    }
+    return out.length > limit ? out.slice(0, limit) : out;
+  }
+
   /** List up to `limit` rows of one resource as nodes (unreadable resource → []). */
   private async listNodes(
     dbId: string,
@@ -218,56 +288,39 @@ export class GraphService {
     userId: string,
     ctx: Ctx,
   ): Promise<GraphNode[]> {
-    const dto = new ExecuteQueryDto();
-    dto.op = 'list';
-    dto.limit = limit;
-    try {
-      const res = (await this.query.executeQuery(dbId, table, userId, dto, ctx)) as QueryRows;
-      return (res.rows ?? [])
-        .map((row) => this.rowToNode(dbId, table, row))
-        .filter((node): node is GraphNode => node !== null);
-    } catch (error) {
-      this.logger.debug(`overview list ${dbId}:${table} failed: ${(error as Error).message}`);
-      return [];
-    }
+    const rows = await this.listRows(dbId, table, limit, userId, ctx);
+    return rows
+      .map((row) => this.rowToNode(dbId, table, row))
+      .filter((node): node is GraphNode => node !== null);
   }
 
-  /** A listed row → a node, keyed by its `id` column (the node PK convention). */
+  /** A listed row → a node, keyed by its `id` column — or `_id` for Mongo, whose
+   *  primary key (and the ids the `edges` mount references it by) is `_id`. */
   private rowToNode(
     dbId: string,
     resource: string,
     row: Record<string, unknown>,
   ): GraphNode | null {
-    const rawPk = row.id;
+    const rawPk = row.id ?? row._id;
     if (typeof rawPk !== 'string' && typeof rawPk !== 'number') return null;
     const pk = String(rawPk);
-    return { id: formatNodeId(dbId, resource, pk), mount: dbId, resource, pk, data: row };
+    return { id: formatNodeId(dbId, resource, pk), mount: dbId, resource, pk, data: slimRow(row) };
   }
 
-  /** Every edge in the `edges` mount (bounded), for the global overview. */
+  /** Every edge in the `edges` mount (paged past the data-plane cap), for the overview. */
   private async listAllEdges(
     edgesDbId: string,
     edgesTable: string,
     userId: string,
     ctx: Ctx,
   ): Promise<EdgeRecord[]> {
-    const dto = new ExecuteQueryDto();
-    dto.op = 'list';
-    dto.limit = GraphService.EDGE_FANOUT;
-    try {
-      const res = (await this.query.executeQuery(
-        edgesDbId,
-        edgesTable,
-        userId,
-        dto,
-        ctx,
-      )) as QueryRows;
-      return (res.rows ?? []).map(toEdgeRecord).filter((edge): edge is EdgeRecord => edge !== null);
-    } catch (error) {
-      this.logger.debug(
-        `overview edges ${edgesDbId}:${edgesTable} failed: ${(error as Error).message}`,
-      );
-      return [];
-    }
+    const rows = await this.listRows(
+      edgesDbId,
+      edgesTable,
+      GraphService.OVERVIEW_EDGE_LIMIT,
+      userId,
+      ctx,
+    );
+    return rows.map(toEdgeRecord).filter((edge): edge is EdgeRecord => edge !== null);
   }
 }

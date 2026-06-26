@@ -166,12 +166,15 @@ services:
             config:
               key_names: [apikey]
               hide_credentials: false
+          # Raised for the osionos bridge: opening a large workspace bursts
+          # auth/token + per-page member-checks from a single IP, far above the
+          # old 300/min public-client cap. local-dev ceiling.
           - name: rate-limiting
             config:
               policy: local
               limit_by: ip
-              minute: 300
-              hour: 5000
+              minute: 60000
+              hour: 2000000
 
   - name: rest
     url: http://postgrest:3000
@@ -191,12 +194,16 @@ services:
               claims_to_verify: [exp]
               run_on_preflight: false
               anonymous: __KONG_ANON_UUID__
+          # Raised for the osionos bridge: a 280-page workspace open fans out
+          # ~hundreds of /rest reads (page rows + per-page member-checks) at
+          # once from one IP, blowing past the old 180/min cap → 429 → the
+          # bridge surfaced 502/fallback and the workspace failed to load.
           - name: rate-limiting
             config:
               policy: local
               limit_by: ip
-              minute: 180
-              hour: 5000
+              minute: 60000
+              hour: 2000000
 
   # MovieVerse TMDB catalog proxy (Go). Public browsing → key-auth ONLY (anon
   # apikey); deliberately NO jwt plugin, so anonymous visitors fetch the catalog
@@ -369,12 +376,13 @@ services:
               claims_to_verify: [exp]
               run_on_preflight: false
               anonymous: __KONG_ANON_UUID__
+          # Raised for the osionos bridge realtime publish on bulk page writes.
           - name: rate-limiting
             config:
               policy: local
               limit_by: ip
-              minute: 120
-              hour: 3000
+              minute: 60000
+              hour: 2000000
 
   # Realtime WebSocket — separate service so it can skip auth plugins.
   # WS auth happens in-band inside the WebSocket protocol.
@@ -404,12 +412,13 @@ services:
               claims_to_verify: [exp]
               run_on_preflight: false
               anonymous: __KONG_ANON_UUID__
+          # Raised for osionos asset loads (page covers/images) on a bulk open.
           - name: rate-limiting
             config:
               policy: local
               limit_by: ip
-              minute: 60
-              hour: 1500
+              minute: 60000
+              hour: 2000000
           - name: request-size-limiting
             config:
               allowed_payload_size: 10
