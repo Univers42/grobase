@@ -1,0 +1,143 @@
+{
+  "stack": "mini-baas (grobase)",
+  "created_utc": "2026-06-26T23:48:07Z",
+  "excluded": [
+    "vault42 (zero-knowledge secrets)",
+    "redis (cache)"
+  ],
+  "total_bytes": 13083667,
+  "files": [
+    {
+      "engine": "mongodb",
+      "file": "mongodb/activity.archive.gz",
+      "bytes": 1159577,
+      "sha256": "508a03779c9f55bf45dac8f938b9488b41a20fe7cb84a7c222ae5d175b07d206"
+    },
+    {
+      "engine": "mongodb",
+      "file": "mongodb/mini_baas.archive.gz",
+      "bytes": 614,
+      "sha256": "81a4bddf6fc0ae15eccdebaad33b4f532d4e92ecb67b60e17a36c47cab6183b7"
+    },
+    {
+      "engine": "mongodb",
+      "file": "mongodb/mini_baas_ai.archive.gz",
+      "bytes": 667,
+      "sha256": "19c6db67e298d5d530059a7c79349ec27f4e005ab8d98371fcecf2c390bc68c0"
+    },
+    {
+      "engine": "mongodb",
+      "file": "mongodb/mini_baas_analytics.archive.gz",
+      "bytes": 390,
+      "sha256": "f94c69d8aaf36c9dad2d6f6977c0ee931fde45ff834695446f9e5aea4288f4c0"
+    },
+    {
+      "engine": "dynamodb",
+      "file": "dynamodb/alerts.items.json.gz",
+      "bytes": 2765,
+      "sha256": "93f4b8c845ee45457434f4863591a40d886a271a55b297d134fc7ea10bd97df6"
+    },
+    {
+      "engine": "dynamodb",
+      "file": "dynamodb/alerts.schema.json.gz",
+      "bytes": 157,
+      "sha256": "ca9ab77ce370dae37b441f6797de4724e9798fab07da210842467b557a07a021"
+    },
+    {
+      "engine": "dynamodb",
+      "file": "dynamodb/device_events.items.json.gz",
+      "bytes": 16703,
+      "sha256": "47784afad1c0456513e5ea7776efd94501d08658b63189ed29d9b2b6e6c87197"
+    },
+    {
+      "engine": "dynamodb",
+      "file": "dynamodb/device_events.schema.json.gz",
+      "bytes": 164,
+      "sha256": "85b737675a4ab4a00ce084db98eac14ad1b14d9019fae9500e01cf80ca40198b"
+    },
+    {
+      "engine": "dynamodb",
+      "file": "dynamodb/devices.items.json.gz",
+      "bytes": 2423,
+      "sha256": "1d11a702c07fbb2156e8db7b410f14acd55707827f00009a9b1d94f020d197ea"
+    },
+    {
+      "engine": "dynamodb",
+      "file": "dynamodb/devices.schema.json.gz",
+      "bytes": 158,
+      "sha256": "24846f4a291d2dc08e0b867cd50fc93c6ffe338174c8fc5e5fcb136a75a58ea3"
+    },
+    {
+      "engine": "mssql",
+      "file": "mssql/finance.bak.gz",
+      "bytes": 467797,
+      "sha256": "f8610e9e5aff0c7be2f74ae5b45a6247c38fdf1cb768593df15acd25f71644ef"
+    },
+    {
+      "engine": "postgres",
+      "file": "postgres/db-agency.dump",
+      "bytes": 43024,
+      "sha256": "ada942551f72105e68d2ffa08571b462d7498bac4cf4c4efeb22b0284abfd1a5"
+    },
+    {
+      "engine": "postgres",
+      "file": "postgres/db-commerce.dump",
+      "bytes": 1907292,
+      "sha256": "07a29dcc04b9940425fbbd8e7d1eb4426f894543c5352acd7d4011e6f5f6f1a4"
+    },
+    {
+      "engine": "postgres",
+      "file": "postgres/db-gourmand.dump",
+      "bytes": 187278,
+      "sha256": "153508c78796d172bd950afe1f94dceba6ca0fc271d36bbe84b2ebfb90eab572"
+    },
+    {
+      "engine": "postgres",
+      "file": "postgres/db-postgres.dump",
+      "bytes": 1571060,
+      "sha256": "4c428ab9766008617ee7d3a3becec398a5388d71fdfbe4765a9a026572eaf6be"
+    },
+    {
+      "engine": "postgres",
+      "file": "postgres/db-realtime.dump",
+      "bytes": 821,
+      "sha256": "f4f67106c31c5a43e2df3cccd69ee54e22c2d4449d21433fbc5c059ad82731da"
+    },
+    {
+      "engine": "postgres",
+      "file": "postgres/db-red-tetris.dump",
+      "bytes": 23245,
+      "sha256": "06aac49127b0cdb98ad30f9a9da8ab2b91597767d13d91724f3102d8f60baba3"
+    },
+    {
+      "engine": "postgres",
+      "file": "postgres/db-website.dump",
+      "bytes": 3142,
+      "sha256": "6b969cf395edd7f2b6c57702e5a33d4f282c0341e72fe5d4ea1004869a4600bc"
+    },
+    {
+      "engine": "postgres",
+      "file": "postgres/globals.sql.gz",
+      "bytes": 490,
+      "sha256": "d9a6aad58585b5d5c43d4b675009cbf51e5b7f59d4fd8b26a38e3467a753f8e0"
+    },
+    {
+      "engine": "mysql",
+      "file": "mysql/mini_baas.sql.gz",
+      "bytes": 591,
+      "sha256": "4ec97ef6bbf58687df65927b69002498e287b112b021d266e3f4cb0e5823f6e8"
+    },
+    {
+      "engine": "mysql",
+      "file": "mysql/ops.sql.gz",
+      "bytes": 213950,
+      "sha256": "50f422a9f0b13d79836da817fd4002841da416668e2092ce611f91f5c3b4d21b"
+    },
+    {
+      "engine": "minio",
+      "file": "minio/objects.tar.gz",
+      "bytes": 7481359,
+      "sha256": "24baf22bf28e5c039f018192a9310b45ecdc35c61580d91ed1663fa722d12e13"
+    }
+  ]
+}
