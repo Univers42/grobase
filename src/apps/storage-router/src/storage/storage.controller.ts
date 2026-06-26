@@ -109,7 +109,7 @@ export class StorageController {
     );
     res.setHeader('Content-Type', obj.contentType);
     res.setHeader('Content-Length', String(obj.size));
-    res.send(obj.body);
+    await new Promise<void>((resolve) => res.end(obj.body, () => resolve()));
   }
 
   @Delete('object/:bucket/*')

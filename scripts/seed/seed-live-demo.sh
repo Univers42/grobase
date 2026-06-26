@@ -167,6 +167,7 @@ trap 'rm -rf "${OUT_DIR}"' EXIT
 docker run --rm --network none \
   -v "${SCRIPT_DIR}/live-demo-generate.mjs:/gen.mjs:ro" -v "${OUT_DIR}:/out" \
   -e SEED_OWNER="${OWNER}" -e SEED_TENANT="${TENANT}" -e SEED_SCALE="${SEED_SCALE:-1}" \
+  -e PG_DB_ID="${PG_DB_ID}" -e MY_DB_ID="${MY_DB_ID}" -e MG_DB_ID="${MG_DB_ID}" \
   "${NODE_IMAGE}" node /gen.mjs || fail "generator failed"
 count_of() { python3 -c "import json; print(json.load(open('${OUT_DIR}/counts.json'))['$1']['$2'])"; }
 

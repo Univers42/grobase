@@ -828,8 +828,26 @@ export class QueryService implements OnModuleInit {
       dbId,
       identity?.tenantId ?? userId,
     );
-    const adapter = this.resolveAdapter(engine);
-    const resources = await adapter.listResources(connection_string);
+    let resources: string[];
+    if (this.rustProxy.shouldForward(engine)) {
+      const schema = await this.rustProxy.describeSchema({
+        databaseId: dbId,
+        engine,
+        tenantId: identity?.tenantId ?? userId,
+        projectId: identity?.projectId,
+        appId: identity?.appId,
+        userId,
+        roles: identity?.roleNames,
+        scopes: identity?.scopes,
+        credentialReference: dbId,
+        credentialVersion: 'live',
+        connectionString: connection_string,
+      });
+      resources = schema.tables.map((t) => t.name);
+    } else {
+      const adapter = this.resolveAdapter(engine);
+      resources = await adapter.listResources(connection_string);
+    }
 
     // Per-engine response key kept for back-compat with existing clients that
     // looked for `.tables` (SQL) or `.collections` (Mongo). New engines only

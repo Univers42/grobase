@@ -389,7 +389,7 @@ impl EngineCapabilities {
             upsert: true,       // PutItem (no condition) = last-writer-wins
             batch: true,        // BatchWriteItem (NON-atomic, max 25)
             aggregate: false,   // no server-side GROUP BY/SUM — OLAP is the bridge
-            introspect: false, // describe_schema NOT implemented in the MVP (DescribeTable/ListTables→SchemaDescriptor deferred); advertising it would be a route-cap lie
+            introspect: true, // describe_schema implemented: ListTables → per-owner Query-sample → inferred columns (pk = sort key `id`, owner_pk envelope hidden); see dynamodb.rs::describe_schema
             schema_ddl: false, // apply_schema_ddl NOT implemented in the MVP (CreateTable/DeleteTable deferred); keep the descriptor honest vs the adapter
             stream: false,     // DynamoDB Streams CDC DESIGNED but DEFERRED (MVP)
             ddl: false,        // no apply_migration batch (mirrors mongo)
@@ -548,10 +548,11 @@ mod tests {
             caps.native_idempotency,
             "ClientRequestToken — the only adapter that can honestly set this"
         );
-        // Route capabilities introspect/schema_ddl are honestly FALSE in the
-        // MVP: the adapter overrides neither describe_schema nor
-        // apply_schema_ddl, so advertising either would be a route-cap lie.
-        assert!(!caps.introspect && !caps.schema_ddl);
+        // introspect is TRUE — the adapter overrides describe_schema
+        // (ListTables → per-owner Query-sample → inferred columns). schema_ddl
+        // stays FALSE: apply_schema_ddl (CreateTable/DeleteTable) is deferred,
+        // so advertising it would be a route-cap lie.
+        assert!(caps.introspect && !caps.schema_ddl);
         assert!(!caps.ddl, "no apply_migration batch (mirrors mongo)");
         assert!(!caps.stream, "Streams CDC deferred in the MVP");
         assert!(!caps.aggregate);

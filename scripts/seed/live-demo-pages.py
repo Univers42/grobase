@@ -66,10 +66,10 @@ def page_sql(page_id, parent, title, icon, surface, content) -> str:
 
 
 def main() -> None:
-    folder_id = str(uuid.uuid5(NS, "live-demo:folder"))
+    folder_id = str(uuid.uuid5(NS, f"{WS}:live-demo:folder"))
     statements = ["BEGIN;"]
     statements.append(page_sql(folder_id, None, "Live Databases", "🔌", "folder", []))
-    intro_id = str(uuid.uuid5(NS, "live-demo:intro"))
+    intro_id = str(uuid.uuid5(NS, f"{WS}:live-demo:intro"))
     statements.append(page_sql(intro_id, folder_id, "Start here — live data", "🚀", "page", [
         {"id": "blk-1", "type": "heading_1", "content": "Real engines, real rows"},
         {"id": "blk-2", "type": "paragraph", "content":
@@ -86,11 +86,11 @@ def main() -> None:
             "mongo-activity the event stream (events, reviews, notes)."},
     ]))
     for mount_name, db_id, engine, engine_icon, tables in TABLES:
-        mount_page = str(uuid.uuid5(NS, f"live-demo:{mount_name}"))
+        mount_page = str(uuid.uuid5(NS, f"{WS}:live-demo:{mount_name}"))
         statements.append(page_sql(
             mount_page, folder_id, mount_name, engine_icon, "folder", []))
         for table, icon, blurb in tables:
-            page_id = str(uuid.uuid5(NS, f"live-demo:{mount_name}:{table}"))
+            page_id = str(uuid.uuid5(NS, f"{WS}:live-demo:{mount_name}:{table}"))
             title = table.replace("_", " ").title()
             statements.append(page_sql(page_id, mount_page, title, icon, "page", [
                 {"id": "blk-1", "type": "paragraph",

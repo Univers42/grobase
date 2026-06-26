@@ -36,7 +36,7 @@ impl AuthProvider for JwtAuthProvider {
     }
 
     async fn authorize_subscribe(&self, claims: &AuthClaims, topic: &TopicPattern) -> Result<()> {
-        if claims.can_subscribe_to(topic) {
+        if claims.can_subscribe_to_scoped(topic, &self.protected_namespaces) {
             Ok(())
         } else {
             Err(RealtimeError::AuthorizationDenied(format!(
@@ -46,7 +46,7 @@ impl AuthProvider for JwtAuthProvider {
     }
 
     async fn authorize_publish(&self, claims: &AuthClaims, topic: &TopicPath) -> Result<()> {
-        if claims.can_publish_to(topic) {
+        if claims.can_publish_to_scoped(topic, &self.protected_namespaces) {
             Ok(())
         } else {
             Err(RealtimeError::AuthorizationDenied(format!(

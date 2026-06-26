@@ -37,6 +37,21 @@ const OWNER = process.env.SEED_OWNER;
 const TENANT = process.env.SEED_TENANT;
 const OUT = process.env.OUT_DIR ?? '/out';
 const SCALE = Number(process.env.SEED_SCALE ?? '1');
+// Mount dbIds (assigned at registration time, passed in by seed-live-demo.sh) let the
+// `edges` table carry graph-contract node ids (`dbId:resource:pk`) directly, so the
+// Second-Brain graph renders cross-engine relations without a post-load remap. Empty
+// when the generator runs standalone → from/to fall back to NULL.
+const DB = { pg: process.env.PG_DB_ID ?? '', my: process.env.MY_DB_ID ?? '', mg: process.env.MG_DB_ID ?? '' };
+const NODE_PREFIX = {
+  customer: DB.pg && `${DB.pg}:customers`, product: DB.pg && `${DB.pg}:products`,
+  order: DB.pg && `${DB.pg}:orders`, employee: DB.pg && `${DB.pg}:employees`,
+  ticket: DB.my && `${DB.my}:tickets`, task: DB.my && `${DB.my}:tasks`, project: DB.my && `${DB.my}:projects`,
+  event: DB.mg && `${DB.mg}:events`, review: DB.mg && `${DB.mg}:product_reviews`, note: DB.mg && `${DB.mg}:notes`,
+};
+const nodeId = (kind, id) => {
+  const prefix = NODE_PREFIX[kind];
+  return prefix ? `${prefix}:${id}` : null;
+};
 if (!OWNER || !TENANT) {
   console.error('SEED_OWNER and SEED_TENANT are required');
   process.exit(2);
@@ -231,6 +246,7 @@ CREATE TABLE IF NOT EXISTS order_items (
 CREATE TABLE IF NOT EXISTS edges (
   id serial PRIMARY KEY, src_kind text NOT NULL, src_id text NOT NULL,
   dst_kind text NOT NULL, dst_id text NOT NULL, rel text NOT NULL,
+  "from" text, "to" text, "type" text,
   owner_id text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (src_kind, src_id, dst_kind, dst_id, rel));
 CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders (customer_id);
@@ -445,21 +461,27 @@ for (const [name, docs] of [['events', events], ['product_reviews', reviews], ['
 mongo.push(`print('mongo-activity seeded: events=' + db.events.countDocuments() + ' product_reviews=' + db.product_reviews.countDocuments() + ' notes=' + db.notes.countDocuments());`);
 
 // ═══════════════ cross-engine edges (PG table, built from the same streams) ═
+// Built per-type, then INTERLEAVED: the graph overview reads a bounded window of
+// the edges mount (EDGE_FANOUT), so inserting all of one type first would hide the
+// others. Interleaving makes that window a representative mix of every cross-engine
+// relation (mysql ticket→pg order, mongo review→pg product, mongo event→pg customer).
+const ticketEdges = tickets
+  .filter((ticket) => ticket.orderRef !== null)
+  .map((ticket) => ({ srcKind: 'ticket', srcId: String(ticket.id), dstKind: 'order', dstId: String(ticket.orderRef), rel: 'ticket_about_order' }));
+const reviewEdges = reviews.slice(0, 2000)
+  .map((review) => ({ srcKind: 'review', srcId: review._id, dstKind: 'product', dstId: String(review.product_ref), rel: 'review_of_product' }));
+const eventEdges = events.slice(0, 2000)
+  .map((event) => ({ srcKind: 'event', srcId: event._id, dstKind: 'customer', dstId: String(event.customer_ref), rel: 'event_by_customer' }));
 const edges = [];
-for (const ticket of tickets) {
-  if (ticket.orderRef !== null) {
-    edges.push({ srcKind: 'ticket', srcId: String(ticket.id), dstKind: 'order', dstId: String(ticket.orderRef), rel: 'ticket_about_order' });
-  }
-}
-for (const review of reviews.slice(0, 2000)) {
-  edges.push({ srcKind: 'review', srcId: review._id, dstKind: 'product', dstId: String(review.product_ref), rel: 'review_of_product' });
-}
-for (const event of events.slice(0, 2000)) {
-  edges.push({ srcKind: 'event', srcId: event._id, dstKind: 'customer', dstId: String(event.customer_ref), rel: 'event_by_customer' });
+const maxEdgeStream = Math.max(ticketEdges.length, reviewEdges.length, eventEdges.length);
+for (let i = 0; i < maxEdgeStream; i += 1) {
+  if (i < ticketEdges.length) edges.push(ticketEdges[i]);
+  if (i < reviewEdges.length) edges.push(reviewEdges[i]);
+  if (i < eventEdges.length) edges.push(eventEdges[i]);
 }
 pg.push('BEGIN;');
-insertBatches(pg, 'edges', 'src_kind, src_id, dst_kind, dst_id, rel, owner_id', edges,
-  (e) => `(${q(e.srcKind)}, ${q(e.srcId)}, ${q(e.dstKind)}, ${q(e.dstId)}, ${q(e.rel)}, ${q(OWNER)})`,
+insertBatches(pg, 'edges', 'src_kind, src_id, dst_kind, dst_id, rel, "from", "to", "type", owner_id', edges,
+  (e) => `(${q(e.srcKind)}, ${q(e.srcId)}, ${q(e.dstKind)}, ${q(e.dstId)}, ${q(e.rel)}, ${orNull(nodeId(e.srcKind, e.srcId), q)}, ${orNull(nodeId(e.dstKind, e.dstId), q)}, ${q(e.rel)}, ${q(OWNER)})`,
   { conflict: '\nON CONFLICT (src_kind, src_id, dst_kind, dst_id, rel) DO NOTHING' });
 pg.push('COMMIT;');
 // Serial sequences must clear the seeded ids or the app's first INSERT 409s.

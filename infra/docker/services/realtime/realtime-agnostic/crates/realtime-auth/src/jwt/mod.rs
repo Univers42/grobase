@@ -34,6 +34,9 @@ use serde::{Deserialize, Serialize};
 pub struct JwtAuthProvider {
     pub(crate) decoding_key: DecodingKey,
     pub(crate) validation: Validation,
+    /// Namespace prefixes the `"*"` wildcard must NOT cover (resolved once at
+    /// construction from `REALTIME_PROTECTED_NAMESPACES`). Empty = byte-parity.
+    pub(crate) protected_namespaces: Vec<String>,
 }
 
 /// Internal JWT claims structure expected in the token payload.
@@ -70,8 +73,26 @@ impl JwtAuthProvider {
         Ok(Self {
             decoding_key,
             validation,
+            protected_namespaces: protected_namespaces_from_env(),
         })
     }
+}
+
+/// Namespace prefixes that the `"*"` wildcard must not cover, from
+/// `REALTIME_PROTECTED_NAMESPACES` (comma-separated, e.g. `collab:`). Empty —
+/// the default — keeps the prior all-access wildcard behavior (byte-parity).
+/// Read once at provider construction (a cold path), never per request.
+fn protected_namespaces_from_env() -> Vec<String> {
+    std::env::var("REALTIME_PROTECTED_NAMESPACES")
+        .ok()
+        .map(|raw| {
+            raw.split(',')
+                .map(str::trim)
+                .filter(|prefix| !prefix.is_empty())
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn build_decoding_key(config: &JwtConfig) -> Result<DecodingKey> {
