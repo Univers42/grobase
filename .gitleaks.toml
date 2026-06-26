@@ -44,6 +44,9 @@ paths = [
   # deterministic demo/seed data generators + Go test fixtures (example keys, no live secrets)
   '''(.*/)?scripts/seed/''',
   '''(.*/)?[^/]+_test\.go$''',
+  # portable demo-DB snapshots (throwaway local-stack data: demo bcrypt hashes +
+  # default container connection strings; vault42 ZK secrets are NOT included)
+  '''(.*/)?data-snapshots/archives/''',
 ]
 
 # Documented non-secret placeholders, shell-var refs and deliberately-invalid

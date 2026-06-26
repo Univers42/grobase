@@ -1,0 +1,4 @@
+# Portable demo-DB snapshots: throwaway local-stack data (demo bcrypt hashes +
+# default container connection strings). No live/production secrets; vault42
+# zero-knowledge data is deliberately NOT included. See data-snapshots/README.md.
+data-snapshots/archives/
