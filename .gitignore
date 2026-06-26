@@ -446,6 +446,8 @@ certs/*
 *-baas.env
 *.services.env
 .services.env
+# stale/rotated copies of the above secret envs (e.g. .agency-tenant.env.stale)
+*.env.stale
 # cloud overlay carries a real STRIPE_API_KEY — never track (flags.env.example is the template).
 infra/config/cloud/flags.env.cloud
 
