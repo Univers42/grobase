@@ -61,6 +61,11 @@ if [ "$verb" = "push" ]; then
 	printf '[vault42] %s candidate file(s) → encrypting locally + uploading to project=%s …\n' "$n" "$PROJECT" >&2
 fi
 
+# A push from the repo ROOT mirrors the tree: --prune drops vault entries whose file
+# is gone/now-ignored, so node_modules/vendor noise self-cleans on the next push.
+_prune=""
+[ "$verb" = "push" ] && _prune="--prune"
+
 # Liveness heartbeat: the transfer is network-bound and 42ctl is quiet, so emit
 # elapsed seconds every 5s — you can always tell it is working, not stuck.
 _t0=$(date +%s)
@@ -74,7 +79,7 @@ docker run --rm --user "$(id -u):$(id -g)" \
 	-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 -e FT_PASSPHRASE \
 	-e RUST_LOG="${RUST_LOG:-info}" \
 	-v "$CTL_CFG_DIR:/cfg" -v "$REPO_DIR:/work" -w /work \
-	"$CTL_IMAGE" "$verb" --project "$PROJECT" "$@"
+	"$CTL_IMAGE" "$verb" --project "$PROJECT" $_prune "$@"
 _rc=$?
 set -e
 
