@@ -40,18 +40,19 @@ reassemble_parts() {
 }
 
 restore_postgres() {
-  local c=mini-baas-postgres f db
+  local c=mini-baas-postgres f db pw
   have_container "$c" || { warn "postgres not running — skipped"; return; }
   hdr "PostgreSQL"
+  pw=$(docker exec "$c" printenv POSTGRES_PASSWORD 2>/dev/null)
   [ -f "$IN/postgres/globals.sql.gz" ] && \
-    gunzip -c "$IN/postgres/globals.sql.gz" | docker exec -i "$c" psql -U postgres -v ON_ERROR_STOP=0 -q >/dev/null 2>&1 && ok "roles (existing ignored)"
+    gunzip -c "$IN/postgres/globals.sql.gz" | docker exec -i -e PGPASSWORD="$pw" "$c" psql -U postgres -v ON_ERROR_STOP=0 -q >/dev/null 2>&1 && ok "roles (existing ignored)"
   for f in "$IN"/postgres/db-*.dump; do
     [ -f "$f" ] || continue
     db=$(basename "$f" .dump); db=${db#db-}
     if [ "$db" = "postgres" ]; then
-      docker exec -i "$c" pg_restore --clean --if-exists --no-owner --no-privileges -d postgres < "$f" >/dev/null 2>&1
+      docker exec -i -e PGPASSWORD="$pw" "$c" pg_restore --clean --if-exists --no-owner --no-privileges -d postgres < "$f" >/dev/null 2>&1
     else
-      docker exec -i "$c" pg_restore --create --clean --if-exists --no-owner --no-privileges -d postgres < "$f" >/dev/null 2>&1
+      docker exec -i -e PGPASSWORD="$pw" "$c" pg_restore --create --clean --if-exists --no-owner --no-privileges -d postgres < "$f" >/dev/null 2>&1
     fi
     ok "restored $db"
   done
