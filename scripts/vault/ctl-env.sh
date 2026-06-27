@@ -6,7 +6,8 @@
 # it never echoes, never appears in argv (so not in `ps` or shell history), and is
 # forwarded only into the container via `-e FT_PASSPHRASE`. Because the passphrase
 # comes from the env, the docker run needs NO `-it`, so there is no interactive
-# prompt to hang on. RUST_LOG=info prints each file as it is encrypted/uploaded.
+# prompt to hang on. The push is otherwise SILENT, so the wrapper prints the
+# candidate file list up front + a 5s liveness heartbeat + a ✓/✗ status with timing.
 set -eu
 
 CTL_IMAGE="${CTL_IMAGE:-docker.io/dlesieur/42ctl:latest}"
@@ -45,8 +46,44 @@ ensure_profile
 }
 read_passphrase
 
-exec docker run --rm --user "$(id -u):$(id -g)" \
+# Preview the *.env*/*.secrets tree about to be pushed, so the scope is visible up
+# front (42ctl prints nothing per-file during the encrypt+upload; the vault filters
+# vendored/ignored paths further, so this is the candidate set, not the exact upload).
+if [ "$verb" = "push" ]; then
+	printf '\n[vault42] scanning %s for *.env*/*.secrets…\n' "$REPO_DIR" >&2
+	candidates=$(cd "$REPO_DIR" && find . \
+		\( -name node_modules -o -name .git -o -name target -o -name dist -o -name build \
+		   -o -name .claude -o -name .vault -o -path '*/vendor/*' -o -path '*/baas.bak/*' \) -prune -o \
+		-type f \( -name '.env' -o -name '.env.*' -o -name '*.env' -o -name '*.secrets' -o -name '*.secret' \) -print \
+		2>/dev/null | sed 's#^\./##' | sort)
+	printf '%s\n' "$candidates" | sed '/^$/d; s/^/  + /' >&2
+	n=$(printf '%s\n' "$candidates" | sed '/^$/d' | wc -l | tr -d ' ')
+	printf '[vault42] %s candidate file(s) → encrypting locally + uploading to project=%s …\n' "$n" "$PROJECT" >&2
+fi
+
+# Liveness heartbeat: the transfer is network-bound and 42ctl is quiet, so emit
+# elapsed seconds every 5s — you can always tell it is working, not stuck.
+_t0=$(date +%s)
+( while :; do sleep 5; printf '[vault42] … working (%ss elapsed)\n' "$(( $(date +%s) - _t0 ))" >&2; done ) &
+_hb=$!
+# shellcheck disable=SC2064
+trap "kill $_hb 2>/dev/null || true" EXIT INT TERM
+
+set +e
+docker run --rm --user "$(id -u):$(id -g)" \
 	-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 -e FT_PASSPHRASE \
 	-e RUST_LOG="${RUST_LOG:-info}" \
 	-v "$CTL_CFG_DIR:/cfg" -v "$REPO_DIR:/work" -w /work \
 	"$CTL_IMAGE" "$verb" --project "$PROJECT" "$@"
+_rc=$?
+set -e
+
+kill "$_hb" 2>/dev/null || true
+trap - EXIT INT TERM
+_dt=$(( $(date +%s) - _t0 ))
+if [ "$_rc" -eq 0 ]; then
+	printf '[vault42] ✓ %s completed in %ss\n' "$verb" "$_dt" >&2
+else
+	printf '[vault42] ✗ %s FAILED (exit %s) after %ss — see the error above\n' "$verb" "$_rc" "$_dt" >&2
+fi
+exit "$_rc"
