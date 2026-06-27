@@ -29,6 +29,11 @@ ensure_profile() {
 # passphrase is never shown and never lands in argv/history. stty is restored even
 # if read is interrupted.
 read_passphrase() {
+	# Non-interactive (CI / automation): honor a pre-set FT_PASSPHRASE (42ctl's own
+	# documented CI env var) or VAULT42_PASSPHRASE as a friendlier alias — no TTY, no
+	# prompt to hang on. This is what lets the GitHub Action pull with no mail/OTP.
+	if [ -n "${FT_PASSPHRASE:-}" ]; then export FT_PASSPHRASE; return 0; fi
+	if [ -n "${VAULT42_PASSPHRASE:-}" ]; then FT_PASSPHRASE="$VAULT42_PASSPHRASE"; export FT_PASSPHRASE; return 0; fi
 	printf 'vault42 keystore passphrase: ' >&2
 	stty -echo 2>/dev/null || true
 	trap 'stty echo 2>/dev/null || true' EXIT INT TERM
