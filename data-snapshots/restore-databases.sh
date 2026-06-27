@@ -50,9 +50,9 @@ restore_postgres() {
     [ -f "$f" ] || continue
     db=$(basename "$f" .dump); db=${db#db-}
     if [ "$db" = "postgres" ]; then
-      docker exec -i -e PGPASSWORD="$pw" "$c" pg_restore --clean --if-exists --no-owner --no-privileges -d postgres < "$f" >/dev/null 2>&1
+      docker exec -i -e PGPASSWORD="$pw" "$c" pg_restore -U postgres --clean --if-exists --no-owner --no-privileges -d postgres < "$f" >/dev/null 2>&1
     else
-      docker exec -i -e PGPASSWORD="$pw" "$c" pg_restore --create --clean --if-exists --no-owner --no-privileges -d postgres < "$f" >/dev/null 2>&1
+      docker exec -i -e PGPASSWORD="$pw" "$c" pg_restore -U postgres --create --clean --if-exists --no-owner --no-privileges -d postgres < "$f" >/dev/null 2>&1
     fi
     ok "restored $db"
   done
