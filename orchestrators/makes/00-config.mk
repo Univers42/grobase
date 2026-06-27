@@ -63,7 +63,7 @@ PROFILES_playground    := playground
 # engines" add-on / Max package. Optional; never in default editions.
 PROFILES_engines       := engines-extra
 
-EDITIONS := lean query realtime analytics prod full tetris
+EDITIONS := lean query realtime analytics prod full tetris migrate
 
 # edition -> plane list  (core, profile-less, is always included)
 EDITION_lean      :=
@@ -75,6 +75,12 @@ EDITION_prod      := data go rust adapter background storage realtime observabil
 # bind-mount (./playground) has nothing to serve. Excluded from `full` so `make up
 # EDITION=full` comes up clean; restore the playground/ assets + drop the filter to re-enable.
 EDITION_full      := $(filter-out playground,$(PLANES))
+# `migrate` — the all-data-engine but lean shape the root `make all` brings up for the
+# fresh-machine restore: every snapshot engine (postgres mongo mysql in data, mssql in
+# engines, minio in storage) + the full app/control/data plane + realtime, WITHOUT the
+# monitoring/lakehouse extras (loki/prometheus/grafana, trino, studio, functions, ops
+# backups) that come up unhealthy in a constrained env and aren't needed to run/restore.
+EDITION_migrate   := $(filter-out analytics observability ops studio functions playground,$(PLANES))
 # `tetris` — the maximal red-tetris game edition: relational data + control + rust
 # data plane + adapter + background, plus realtime (the multiplayer game bus + live
 # leaderboard CDC), storage (avatars), functions (scheduled league recompute),
