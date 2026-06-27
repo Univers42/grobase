@@ -14,7 +14,9 @@ services:
     extends: { file: orchestrators/compose/base/_common.yml, service: base }
     image: amazon/dynamodb-local:latest
     container_name: mini-baas-dynamodb-local
-    profiles: ["hypertube"]
+    # Also in the `engines` plane (engines-extra profile) so the migrate edition / `make all`
+    # brings DynamoDB up alongside the other engines and its snapshot data restores. Public image.
+    profiles: ["hypertube", "engines-extra"]
     command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
     ports:
       - "${DYNAMODB_LOCAL_PORT:-8500}:8000"
