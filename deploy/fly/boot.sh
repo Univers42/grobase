@@ -18,7 +18,8 @@ DC="docker compose -f docker-compose.yml -f $OVERRIDE"
 CONTRACTS="website vault42"
 SERVICES="postgres db-bootstrap gotrue mailpit kong postgrest redis realtime \
 mongo mongo-init mongo-keyfile tenant-control adapter-registry-go \
-data-plane-router-rust query-router log-service permission-engine vault42"
+data-plane-router-rust query-router log-service permission-engine vault42 \
+mysql mssql dynamodb-local minio"
 
 log() { printf '\n[boot] %s\n' "$*"; }
 
