@@ -40,7 +40,9 @@ DO $$ BEGIN
   CREATE OR REPLACE FUNCTION public.realtime_notify()
   RETURNS TRIGGER AS $fn$
   DECLARE
-    payload JSONB;
+    payload  JSONB;
+    p_text   TEXT;
+    slim_rec JSONB;
   BEGIN
     payload := jsonb_build_object(
       'schema',     TG_TABLE_SCHEMA,
@@ -57,7 +59,24 @@ DO $$ BEGIN
       'timestamp',  extract(epoch FROM now())
     );
 
-    PERFORM pg_notify('realtime_events', payload::text);
+    p_text := payload::text;
+
+    IF length(p_text) <= 7500 THEN
+      PERFORM pg_notify('realtime_events', p_text);
+    ELSE
+      slim_rec := (CASE WHEN TG_OP = 'DELETE' THEN row_to_json(OLD)::jsonb
+                        ELSE row_to_json(NEW)::jsonb END)
+        - ARRAY['content','content_tokens','properties','settings','metadata','body'];
+      PERFORM pg_notify('realtime_events', jsonb_build_object(
+        'schema',            TG_TABLE_SCHEMA,
+        'table',             TG_TABLE_NAME,
+        'type',              TG_OP,
+        'content_truncated', true,
+        'record',            slim_rec,
+        'timestamp',         extract(epoch FROM now())
+      )::text);
+    END IF;
+
     RETURN COALESCE(NEW, OLD);
   END;
   $fn$ LANGUAGE plpgsql SECURITY DEFINER;

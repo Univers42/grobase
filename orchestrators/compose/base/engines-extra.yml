@@ -89,7 +89,7 @@ services:
     # v24's single-node guard. RAM-capped via --cache/--max-sql-memory.
     command: >
       start-single-node --insecure --advertise-addr=cockroach
-      --cache=256MiB --max-sql-memory=256MiB --http-addr=0.0.0.0:8080
+      --cache=128MiB --max-sql-memory=128MiB --http-addr=0.0.0.0:8080
     ports:
       - "${COCKROACH_PORT:-26257}:26257"
       - "${COCKROACH_HTTP_PORT:-28080}:8080"
