@@ -153,6 +153,24 @@ plugins:
 
 # ─── Services & Routes ───────────────────────────────────────────
 services:
+  # osionos-bridge — workspace persistence/data BFF, co-located on the mini-baas
+  # network (container mini-baas-osionos-bridge:4000). Serves the FULL /api/... path
+  # itself, so strip_path:false. The regex ~/api/.+ outranks the bare /api hypertube
+  # prefix. NO key-auth — the bridge does its own HMAC + osionos_v1 session auth.
+  - name: osionos-bridge
+    url: http://mini-baas-osionos-bridge:4000
+    routes:
+      - name: osionos-bridge-route
+        paths: ["~/api/.+"]
+        strip_path: false
+        plugins:
+          - name: rate-limiting
+            config:
+              policy: local
+              limit_by: ip
+              minute: 60000
+              hour: 2000000
+
   # Note: The auth service (GoTrue) does NOT get the jwt plugin — it
   # issues JWTs; clients hit it to log in before they have a token.
   - name: auth
