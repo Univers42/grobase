@@ -1,0 +1,28 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "astro",
+  "buildCommand": "npx astro build",
+  "outputDirectory": "dist",
+  "build": {
+    "env": {
+      "GROBASE_IN_DOCKER": "1"
+    }
+  },
+  "rewrites": [
+    { "source": "/auth/:path*", "destination": "https://grobase-stack.fly.dev/auth/:path*" },
+    { "source": "/query/:path*", "destination": "https://grobase-stack.fly.dev/query/:path*" },
+    { "source": "/storage/:path*", "destination": "https://grobase-stack.fly.dev/storage/:path*" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+      ]
+    }
+  ]
+}
