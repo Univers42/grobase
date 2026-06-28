@@ -88,6 +88,8 @@ func (b *bootCtx) mountAll(ctx context.Context) {
 	b.mountTrust()
 	b.mountBranching()
 	b.mountPush()
+	b.mountAppChannels()
+	b.mountAppsSelfServe()
 }
 
 func envFirst(keys ...string) string {

@@ -13,11 +13,8 @@
 package tenants
 
 import (
-	"errors"
 	"net/http"
-	"strings"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 	"github.com/dlesieur/mini-baas/control-plane/internal/packages"
 )
 
@@ -42,6 +39,8 @@ type selfServe struct {
 	// updates public.tenant_billing.plan. The live Stripe subscription change is a
 	// SEPARATE flag-gated step (see PATCH handler TODO) — NOT in B4a.
 	billing bool
+	// auth is the shared self-auth seam (credential → caller's own tenant slug + scopes).
+	auth *SelfAuthenticator
 }
 
 // MountSelfServe registers the six self-service routes onto the shared mux. It is
@@ -63,7 +62,10 @@ type SelfServeDeps struct {
 }
 
 func MountSelfServe(mux *http.ServeMux, d SelfServeDeps) {
-	ss := &selfServe{svc: d.Svc, jwt: d.JWT, manifest: d.Manifest, billing: d.Billing}
+	ss := &selfServe{
+		svc: d.Svc, jwt: d.JWT, manifest: d.Manifest, billing: d.Billing,
+		auth: NewSelfAuthenticator(d.Svc, d.JWT),
+	}
 
 	mux.HandleFunc("GET /v1/tenants/me", ss.me)
 	mux.HandleFunc("GET /v1/tenants/me/usage", ss.meUsage)
@@ -73,70 +75,9 @@ func MountSelfServe(mux *http.ServeMux, d SelfServeDeps) {
 	mux.HandleFunc("PATCH /v1/tenants/me", ss.patch)
 }
 
-// selfAuth resolves the caller's OWN tenant from its credential. It tries, in
-// order:
-//  1. a tenant API key — X-API-Key, or `Authorization: Bearer mbk_...` —
-//     verified via Service.VerifyKey, yielding {TenantID (slug), Scopes}.
-//  2. a GoTrue user JWT — `Authorization: Bearer <jwt>` — verified via
-//     JWTVerifier.Verify, then owner_user_id → tenant resolved. A JWT grants
-//     full self-management scopes (the user owns the tenant), so writes are
-//     allowed; an API key is constrained by its own scopes.
-//
-// On any failure it writes a 401 and returns ok=false. The returned tenantID is
-// the canonical SLUG (what every downstream Service method keys on).
+// selfAuth resolves the caller's OWN tenant from its credential by delegating to the shared
+// SelfAuthenticator (API key first, else Authorization bearer JWT). On any failure it writes
+// the HTTP error and returns ok=false; the returned tenantID is the canonical SLUG.
 func (ss *selfServe) selfAuth(w http.ResponseWriter, r *http.Request) (tenantID string, scopes []string, ok bool) {
-	if raw := httpx.APIKeyFromRequest(r); raw != "" {
-		return ss.authByAPIKey(w, r, raw)
-	}
-	if auth := strings.TrimSpace(r.Header.Get("Authorization")); auth != "" {
-		return ss.authByJWT(w, r, auth)
-	}
-	httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",
-		"X-API-Key, Authorization: Bearer <api-key>, or Authorization: Bearer <jwt> required")
-	return "", nil, false
-}
-
-// authByAPIKey resolves the caller's tenant from a verified tenant API key.
-func (ss *selfServe) authByAPIKey(w http.ResponseWriter, r *http.Request, raw string) (string, []string, bool) {
-	out, err := ss.svc.VerifyKey(r.Context(), raw)
-	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
-		return "", nil, false
-	}
-	if !out.Valid {
-		httpx.WriteError(w, http.StatusUnauthorized, "invalid_key", "API key is not valid")
-		return "", nil, false
-	}
-	return out.TenantID, out.Scopes, true
-}
-
-// authByJWT resolves the caller's tenant from a GoTrue user JWT (RESOLVE-ONLY).
-//
-// A /me request must never have a write side effect: tenant creation is the
-// explicit job of POST /v1/tenants/me/bootstrap, so a JWT for a user who owns no
-// tenant yet gets a 404 here (not a silently-provisioned tenant). A
-// JWT-authenticated user is the tenant OWNER, so once resolved it gets full
-// self-management scopes.
-func (ss *selfServe) authByJWT(w http.ResponseWriter, r *http.Request, auth string) (string, []string, bool) {
-	if ss.jwt == nil {
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",
-			"JWT self-auth not configured (no GOTRUE_JWT_SECRET); use an API key")
-		return "", nil, false
-	}
-	identity, err := ss.jwt.Verify(auth)
-	if err != nil {
-		httpx.WriteError(w, http.StatusUnauthorized, "invalid_token", err.Error())
-		return "", nil, false
-	}
-	t, err := ss.svc.findForUser(r.Context(), identity.UserID)
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			httpx.WriteError(w, http.StatusNotFound, "no_tenant",
-				"no tenant for this user yet — POST /v1/tenants/me/bootstrap to create one")
-			return "", nil, false
-		}
-		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
-		return "", nil, false
-	}
-	return t.ID, []string{"read", "write", "admin"}, true
+	return ss.auth.Authenticate(w, r)
 }

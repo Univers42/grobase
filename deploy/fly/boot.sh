@@ -18,7 +18,7 @@ DC="docker compose -f docker-compose.yml -f $OVERRIDE"
 CONTRACTS="website vault42"
 SERVICES="postgres db-bootstrap gotrue mailpit kong postgrest redis realtime \
 mongo mongo-init mongo-keyfile tenant-control adapter-registry-go \
-data-plane-router-rust query-router log-service permission-engine"
+data-plane-router-rust query-router log-service permission-engine vault42"
 
 log() { printf '\n[boot] %s\n' "$*"; }
 
@@ -61,6 +61,19 @@ write_local_overrides() {
 		KEY_HASH_PEPPER=$pepper
 		EMAIL_OTP_TTL_SECS=300
 		EMAIL_OTP_MAX_ATTEMPTS=5
+		TENANT_SELFSERVE_ENABLED=1
+		BUILDER_ENABLED=1
+		ORG_MODEL_ENABLED=1
+		RBAC_HIERARCHY_ENABLED=1
+		ENVIRONMENTS_ENABLED=1
+		GROUPS_ENABLED=1
+		INVITES_ENABLED=1
+		USER_PUBKEYS_ENABLED=1
+		GOTRUE_DISABLE_SIGNUP=false
+		APP_CHANNELS_ENABLED=1
+		REALTIME_PROTECTED_NAMESPACES=collab:,xapp:
+		APPS_SELFSERVE_ENABLED=1
+		VAULT42_SCOPE_KEYS_ENABLED=1
 	EOF
 	# Real SMTP from fly secrets (set SMTP_PASS on the app) routes OTP/mail to a real
 	# inbox; absent it, the stack keeps the internal mailpit sink (dev default).
