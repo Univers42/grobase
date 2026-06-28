@@ -13,10 +13,8 @@ import {
 } from '../lib/lib-report.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// scripts/report -> mini-baas-infra
+// scripts/report -> grobase repo root
 const INFRA = resolve(HERE, '..', '..');
-// mini-baas-infra -> apps/baas
-const BAAS = resolve(INFRA, '..');
 
 const readJSON = (p) => JSON.parse(readFileSync(p, 'utf8'));
 
@@ -284,7 +282,7 @@ const html = renderPage({
   sections: [verdict, methodology, parity, latency, resourcesTotal, sbDonut, tierSection, honest, evidence]
 });
 
-const OUT_DIR = resolve(BAAS, 'wiki/reports');
+const OUT_DIR = resolve(INFRA, 'wiki/reports');
 mkdirSync(OUT_DIR, { recursive: true });
 const OUT = resolve(OUT_DIR, 'benchmark-resources.html');
 writeFileSync(OUT, html, 'utf8');

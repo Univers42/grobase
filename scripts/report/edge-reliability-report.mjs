@@ -4,9 +4,9 @@
 //
 // Run (in-container, no host node):
 //   docker run --rm -u "$(id -u):$(id -g)" \
-//     -v "/home/dlesieur/Documents/ft_transcendence/apps/baas":/b -w /b \
+//     -v "$PWD":/b -w /b \
 //     public.ecr.aws/docker/library/node:22-bookworm \
-//     node /b/mini-baas-infra/scripts/report/edge-reliability-report.mjs
+//     node /b/scripts/report/edge-reliability-report.mjs
 //
 // MEASURED, NOT CLAIMED — every number below is derived from edge-run.json (+ the corpus
 // for the family breakdown). Nothing is invented.
@@ -22,12 +22,12 @@ import {
 // ---- paths -----------------------------------------------------------------
 // Resolve everything relative to THIS file so it works both on the host and
 // inside the container (where the baas subtree is mounted at /b, not the host
-// absolute path). __dirname here = .../apps/baas/mini-baas-infra/scripts/report.
+// absolute path). __dirname here = <repo>/scripts/report.
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = resolve(HERE, '../../..');                 // -> apps/baas
-const RUN = resolve(REPO, 'mini-baas-infra/artifacts/test/edge-run.json');
-const CORPUS = resolve(REPO, 'mini-baas-infra/postman/corpus/edge-corpus.json');
+const REPO = resolve(HERE, '../..');                    // -> grobase repo root
+const RUN = resolve(REPO, 'artifacts/test/edge-run.json');
+const CORPUS = resolve(REPO, 'infra/config/postman/corpus/edge-corpus.json');
 const OUT = resolve(REPO, 'wiki/reports/edge-reliability.html');
 
 // ---- safe JSON load --------------------------------------------------------
@@ -380,7 +380,7 @@ const evidence = section({
       `real defects (5xx+leak) = ${realDefects}`,
       `load-tail (502+socket)  = ${loadTail}`
     ],
-    gate: 'bash mini-baas-infra/scripts/verify/m52-edge-reliability.sh'
+    gate: 'bash scripts/verify/m52-edge-reliability.sh'
   })
 });
 
