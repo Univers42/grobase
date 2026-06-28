@@ -186,6 +186,10 @@ impl KeyStore {
         let scopes: Vec<String> = serde_json::from_str(&scopes_json).unwrap_or_default();
         let out = (name, scopes);
         if let Ok(mut c) = self.verify_cache.write() {
+            // ponytail: clear-on-overflow cap (mirrors verify_cache/mount_cache) — LRU if a nano ever serves >4096 distinct keys
+            if c.len() >= 4096 {
+                c.clear();
+            }
             c.insert(digest, out.clone());
         }
         Some(out)

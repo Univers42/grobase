@@ -90,7 +90,15 @@ if [[ "${key_ok}" == "1" ]]; then
   cyan "reusing existing key + mount (${DB_ID})"
 else
   cyan "minting API key"
-  akbody='{"name":"agency-app","scopes":["read","write"]}'
+  # The osionos bridge writes EVERY workspace's database edits through this single
+  # key, AFTER enforcing workspace access itself (resolveAccessibleMount) — so it
+  # is a trusted gateway. It therefore carries `apikey:admin`: the data plane's
+  # per-request owner-scope bypass (needs DATA_PLANE_ADMIN_BYPASS=1, on for the
+  # demo stack) then lets it persist edits on rows owned by ANY seeded principal,
+  # on any mount/table, with no per-table shared_resources config. Without it an
+  # osionos user editing seeded demo data gets affected_rows=0 ("row vanished")
+  # and the edit silently reverts.
+  akbody='{"name":"agency-app","scopes":["read","write","apikey:admin"]}'
   svc_auth POST "/v1/tenants/${TENANT_SLUG}/keys" "${akbody}"
   code=$(curl -s -o /tmp/agency-key.json -w '%{http_code}' -X POST \
     "${TC_URL}/v1/tenants/${TENANT_SLUG}/keys" \

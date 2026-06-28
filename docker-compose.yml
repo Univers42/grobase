@@ -55,6 +55,7 @@ volumes:
   cockroach-data:
   mssql-data:
   mariadb-data:
+  sqlite-data:        # data-plane-router /tmp — durable file-backed sqlite mounts (osionos-restaurant)
   mongo-keyfile:
   redis-data:
   minio-data:

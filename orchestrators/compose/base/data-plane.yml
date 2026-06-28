@@ -57,6 +57,16 @@ services:
       # empty/absent disables — notify is a no-op in realtime-less tiers).
       REALTIME_PUBLISH_URL: ${REALTIME_PUBLISH_URL:-http://realtime:4000/v1/publish}
       RUST_LOG: ${RUST_LOG:-info}
+    # Durable sqlite. The `osionos-restaurant` mount is `sqlite:///tmp/osionos-restaurant.db`,
+    # and /tmp is the distroless `nonroot` user's ONLY writable dir. Without this volume the db
+    # file lives in the container's ephemeral overlay layer, so every restart/recreate wipes it
+    # (symptom: `GET /<dbId>/tables` → `resources:[]`; restore via
+    # scripts/seed/osionos-extra-engines.sh). A named volume at /tmp persists it — the fresh
+    # volume inherits /tmp's writable perms (1777) from the image, so `nonroot` can still write.
+    # External engines (pg/mysql/mongo/mssql) persist on their own servers; only the
+    # file-backed sqlite engine needs this.
+    volumes:
+      - sqlite-data:/tmp
     ports:
       - "127.0.0.1:${DATA_PLANE_RUST_PORT:-4011}:4011"
     # host-gateway: lets external-client mounts (gourmand-tenant.sh dev

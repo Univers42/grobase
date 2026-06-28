@@ -63,7 +63,7 @@ PROFILES_playground    := playground
 # engines" add-on / Max package. Optional; never in default editions.
 PROFILES_engines       := engines-extra
 
-EDITIONS := lean query realtime analytics prod full tetris migrate
+EDITIONS := lean query realtime analytics prod full tetris migrate devlean
 
 # edition -> plane list  (core, profile-less, is always included)
 EDITION_lean      :=
@@ -81,6 +81,13 @@ EDITION_full      := $(filter-out playground,$(PLANES))
 # monitoring/lakehouse extras (loki/prometheus/grafana, trino, studio, functions, ops
 # backups) that come up unhealthy in a constrained env and aren't needed to run/restore.
 EDITION_migrate   := $(filter-out analytics observability ops studio functions playground,$(PLANES))
+# `devlean` — the daily-dev default the root `make all` uses: `migrate` MINUS the
+# à-la-carte extra-engines plane (mysql/mariadb/cockroach/mssql — the heaviest at
+# ~750 MiB, cockroach alone ~590 MiB). Keeps every core engine (postgres/mongo/redis
+# always-on, minio via storage) + full app/control/data plane + realtime, so no
+# osionos feature is lost. The extra DB engines stay one flag away via
+# `make all GROBASE_EDITION=migrate` (or `=full` for everything-on).
+EDITION_devlean   := $(filter-out engines analytics observability ops studio functions playground,$(PLANES))
 # `tetris` — the maximal red-tetris game edition: relational data + control + rust
 # data plane + adapter + background, plus realtime (the multiplayer game bus + live
 # leaderboard CDC), storage (avatars), functions (scheduled league recompute),
