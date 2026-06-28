@@ -62,6 +62,7 @@ func main() {
 	ctx, stop, cfg, db := boot(log)
 	defer stop()
 	defer db.Close()
+	startPprofIfEnabled(ctx, log)
 
 	available := availableServices(log, db, newQuotaGuard(log, db))
 	enabled := selectServices(available, os.Getenv("ORCHESTRATOR_SERVICES"))
