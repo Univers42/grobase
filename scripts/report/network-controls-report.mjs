@@ -5,7 +5,7 @@
 // or is clearly labelled ROADMAP (the Cloudflare front-door recipe). No invented numbers.
 //
 // Usage (per repo rules, in Docker):
-//   node mini-baas-infra/scripts/report/network-controls-report.mjs
+//   node scripts/report/network-controls-report.mjs
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -17,8 +17,8 @@ import {
 } from '../lib/lib-report.mjs';
 
 // Resolve out path from this module's URL (subtree-relative; no host assumptions).
-const SUBTREE = fileURLToPath(new URL('../../..', import.meta.url)); // .../apps/baas
-const OUT = fileURLToPath(new URL('../../../wiki/reports/network-controls.html', import.meta.url));
+const SUBTREE = fileURLToPath(new URL('../..', import.meta.url)); // grobase repo root
+const OUT = fileURLToPath(new URL('../../wiki/reports/network-controls.html', import.meta.url));
 
 // ── 0. header KPIs (from §5 verdict table) ──────────────────────────────────
 const kpis = kpiGrid([
