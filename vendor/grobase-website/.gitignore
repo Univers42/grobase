@@ -4,3 +4,4 @@ dist/
 test-results/
 .env
 .env.local
+.vercel
