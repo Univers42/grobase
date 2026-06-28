@@ -208,6 +208,12 @@ impl AutomationEngine {
             None => Vec::new(),
         };
         if let Ok(mut cache) = self.cache.lock() {
+            if cache.len() >= 4096 {
+                cache.retain(|_, (at, _)| at.elapsed() < RULES_CACHE_TTL);
+                if cache.len() >= 4096 {
+                    cache.clear();
+                }
+            }
             cache.insert(key, (Instant::now(), rules.clone()));
         }
         Ok(rules)
