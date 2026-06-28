@@ -18,9 +18,9 @@
 // Zero-dep ESM. No external packages. No network. No Date.now()/Math.random().
 // Run (Docker, no host node):
 //   docker run --rm -u "$(id -u):$(id -g)" \
-//     -v "/home/dlesieur/Documents/ft_transcendence/apps/baas":/b -w /b \
+//     -v "$PWD":/b -w /b \
 //     public.ecr.aws/docker/library/node:22-bookworm \
-//     node /b/mini-baas-infra/scripts/report/security-wins-report.mjs
+//     node /b/scripts/report/security-wins-report.mjs
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -31,9 +31,9 @@ import {
   barChart, donut, matrixTable, calloutGrid, layers, evidenceCard,
 } from '../lib/lib-report.mjs';
 
-// INFRA = mini-baas-infra/ ; WIKI = apps/baas/wiki/
+// INFRA = grobase repo root ; WIKI = <repo>/wiki/
 const INFRA = fileURLToPath(new URL('../..', import.meta.url));
-const OUT = fileURLToPath(new URL('../../../wiki/reports/security-data-wins.html', import.meta.url));
+const OUT = fileURLToPath(new URL('../../wiki/reports/security-data-wins.html', import.meta.url));
 
 // ── 0. constants pulled from the docs (the static "last updated" — deterministic) ──
 const UPDATED = '2026-06-15';

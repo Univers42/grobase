@@ -12,9 +12,9 @@
 //
 // Run (no host node):
 //   docker run --rm -u "$(id -u):$(id -g)" \
-//     -v "/home/dlesieur/Documents/ft_transcendence/apps/baas":/b \
+//     -v "$PWD":/b \
 //     -w /b public.ecr.aws/docker/library/node:22-bookworm \
-//     node /b/mini-baas-infra/scripts/report/compliance-posture-report.mjs
+//     node /b/scripts/report/compliance-posture-report.mjs
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -26,9 +26,8 @@ import {
 } from '../lib/lib-report.mjs';
 
 // Resolve paths from this module's location (kernel rule: deterministic, self-locating).
-const INFRA = fileURLToPath(new URL('../..', import.meta.url));        // mini-baas-infra/
-const WIKI = fileURLToPath(new URL('../../../wiki/', import.meta.url)); // apps/baas/wiki/
-const MD = WIKI + 'compliance-posture.md';
+const WIKI = fileURLToPath(new URL('../../wiki/', import.meta.url));   // <repo>/wiki/
+const MD = WIKI + 'compliance/compliance-posture.md';
 const OUT = WIKI + 'reports/compliance-posture.html';
 
 const md = readFileSync(MD, 'utf8');

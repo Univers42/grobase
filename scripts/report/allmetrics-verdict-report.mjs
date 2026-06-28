@@ -29,11 +29,10 @@ import {
 
 // ── paths (resolve everything from import.meta.url) ──────────────────────────
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const INFRA = resolve(__dirname, "..", "..");          // mini-baas-infra/
-const SUBTREE = resolve(INFRA, "..");                  // apps/baas/
+const INFRA = resolve(__dirname, "..", "..");          // grobase repo root
 const BENCH = join(INFRA, "scripts", "bench");
 const ARTI = join(INFRA, "artifacts", "bench");
-const WIKI = join(SUBTREE, "wiki");
+const WIKI = join(INFRA, "wiki");
 const OUT = join(WIKI, "reports", "grobase-vs-supabase-allmetrics.html");
 
 const readJSON = (p) => JSON.parse(readFileSync(p, "utf8"));
