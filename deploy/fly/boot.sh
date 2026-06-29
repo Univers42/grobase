@@ -75,6 +75,9 @@ write_local_overrides() {
 		REALTIME_PROTECTED_NAMESPACES=collab:,xapp:
 		APPS_SELFSERVE_ENABLED=1
 		VAULT42_SCOPE_KEYS_ENABLED=1
+		DATA_PLANE_FEATURES=--features dynamodb
+		DYNAMODB_ENGINE_ENABLED=1
+		RUST_DATA_PLANE_FORWARD_ENGINES=postgresql,mysql,mongodb,mssql,dynamodb,sqlite
 	EOF
 	# Real SMTP from fly secrets (set SMTP_PASS on the app) routes OTP/mail to a real
 	# inbox; absent it, the stack keeps the internal mailpit sink (dev default).
@@ -187,10 +190,31 @@ provision_apps() {
 	[ "$ok" = 1 ] && touch "$PROVISIONED" || log "provision incomplete — will retry next boot"
 }
 
+# ensure_dynamodb_feature builds the Rust data-plane WITH the dynamodb opt-in
+# feature when the running binary lacks it (the ghcr :latest pull-fallback compiles
+# dynamodb OUT). Uses the host network so the build reaches crates.io; BuildKit-cached
+# so only the first boot after a fresh pull pays the compile cost. Best-effort: a
+# failure leaves the default (no-dynamodb) data-plane and logs.
+ensure_dynamodb_feature() {
+	cd "$REPO"
+	if docker exec mini-baas-query-router node -e "fetch('http://mini-baas-data-plane-router-rust:4011/v1/capabilities').then(r=>r.text()).then(t=>process.exit(/dynamodb/.test(t)?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
+		log "data-plane already carries the dynamodb feature"
+		return 0
+	fi
+	log "data-plane lacks dynamodb — building with --features dynamodb (host network for crates.io)"
+	DOCKER_BUILDKIT=1 docker build --network=host \
+		--build-arg DATA_PLANE_FEATURES="--features dynamodb" \
+		-t ghcr.io/univers42/grobase-data-plane-router:latest \
+		-f src/data-plane-router/Dockerfile src/data-plane-router \
+		&& $DC up -d --no-deps --force-recreate --pull never data-plane-router-rust \
+		|| log "dynamodb feature build failed — data-plane stays on default (no dynamodb)"
+}
+
 main() {
 	start_dockerd; sync_repo; assemble_env; maybe_reset
 	cd "$REPO"; log "clean container slate (keeping data volume)"; $DC down --remove-orphans || true
 	bring_up
+	ensure_dynamodb_feature
 	provision_apps
 	log "stack up — public https://$PUBLIC_HOST (Kong :8000)"
 	exec $DC logs -f kong gotrue tenant-control data-plane-router-rust query-router
