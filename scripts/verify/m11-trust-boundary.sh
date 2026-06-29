@@ -65,7 +65,7 @@ step "checking tenant-aware RLS settings"
 POSTGRES="${DB_DIR}/postgres/postgres.service.ts"
 # R2+R7+R8 cutover: the TS postgresql.engine.ts was deleted once parity was
 # proven. The tenant-GUC contract now lives in the Rust pool adapter.
-PG_ENGINE_RS="${BAAS_DIR}/src/data-plane-router/crates/data-plane-pool/src/postgres.rs"
+PG_ENGINE_RS="${BAAS_DIR}/src/data-plane-router/crates/data-plane-pool/src/postgres/adapter.rs"
 RLS_MIGRATION="${BAAS_DIR}/scripts/migrations/postgresql/016_unify_rls.sql"
 grep -q "app.current_tenant_id" "${POSTGRES}" || fail "PostgresService tenantQuery must set app.current_tenant_id"
 grep -q "app.current_tenant_id" "${PG_ENGINE_RS}" ||
@@ -86,7 +86,7 @@ grep -q "tenantId" "${QUERY_SERVICE}" || fail "QueryService must route registry 
 pass "query-router carries verified tenant/project/app context into registry, ABAC and adapters"
 
 step "checking runtime wiring remains opt-in compatible"
-grep -q "JWT_SECRET" "${COMPOSE_FILE}" || fail "compose must still propagate JWT_SECRET for legacy JWT validation chain"
+grep -rq "JWT_SECRET" "${BAAS_DIR}/orchestrators/compose/base/" || fail "compose must still propagate JWT_SECRET for legacy JWT validation chain"
 grep -q "pre-function" "${BAAS_DIR}/infra/docker/services/kong/conf/kong.yml" || fail "Kong identity pre-function missing"
 pass "gateway path remains present while strict upstream verification can be enabled"
 

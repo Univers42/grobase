@@ -87,8 +87,10 @@ export SERVICE_TOKEN="$(_lt_env mini-baas-tenant-control INTERNAL_SERVICE_TOKEN)
 ANON_KEY="$(_lt_env mini-baas-kong KONG_PUBLIC_API_KEY)"
 SERVICE_KEY="$(_lt_env mini-baas-kong KONG_SERVICE_API_KEY)"
 RT_JWT_SECRET="$(_lt_env mini-baas-realtime REALTIME_JWT_SECRET)"
-MUSER="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_USERNAME)"; MUSER="${MUSER:-mongo}"
-MPASS="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_PASSWORD)"; MPASS="${MPASS:-mongo}"
+MUSER="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_USERNAME)"
+MUSER="${MUSER:-mongo}"
+MPASS="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_PASSWORD)"
+MPASS="${MPASS:-mongo}"
 [[ -n "${SERVICE_TOKEN}" && -n "${ANON_KEY}" && -n "${SERVICE_KEY}" ]] || fail "stack secrets not found"
 
 # ── 1) tenant + enterprise ceiling + entitlement(mongodb, dynamodb) ──────────
@@ -110,12 +112,17 @@ curl -s -o /dev/null -X PUT "${TC_URL}/v1/tenants/${TENANT_SLUG}/entitlement" \
   "${SVC_AUTH[@]}" -H 'Content-Type: application/json' -d "${ebody}" || true
 
 # ── 2) API key — reuse from state if still valid, else mint ──────────────────
-API_KEY=""; KEY_ID=""; MONGO_DB_ID=""; DYNAMO_DB_ID=""
+API_KEY=""
+KEY_ID=""
+MONGO_DB_ID=""
+DYNAMO_DB_ID=""
 if [[ -f "${STATE_ENV}" ]]; then
   # shellcheck disable=SC1090
   source "${STATE_ENV}"
-  API_KEY="${HT_API_KEY:-}"; KEY_ID="${HT_KEY_ID:-}"
-  MONGO_DB_ID="${HT_MONGO_DB_ID:-}"; DYNAMO_DB_ID="${HT_DYNAMO_DB_ID:-}"
+  API_KEY="${HT_API_KEY:-}"
+  KEY_ID="${HT_KEY_ID:-}"
+  MONGO_DB_ID="${HT_MONGO_DB_ID:-}"
+  DYNAMO_DB_ID="${HT_DYNAMO_DB_ID:-}"
 fi
 # Validate the state key against the CONTROL PLANE (key exists + not revoked),
 # NOT a data-plane query: a transiently-stale data-plane pool must never make us
@@ -180,14 +187,14 @@ register_mount() { # $1 engine, $2 name, $3 dsn, $4 shared_json(or "")
   if [[ "${REG_CODE}" == "201" ]]; then
     REG_ID="$(_lt_json_field id </tmp/ht-mount.json)"
   elif [[ "${REG_CODE}" == "409" ]]; then
-    REG_ID="$(curl -fsS "${KONG_URL}/admin/v1/databases" -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT_SLUG}" \
-      | MNT="$2" python3 -c 'import json,sys,os; print(next((r["id"] for r in json.load(sys.stdin) if r.get("name")==os.environ["MNT"]),""))')"
+    REG_ID="$(curl -fsS "${KONG_URL}/admin/v1/databases" -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT_SLUG}" |
+      MNT="$2" python3 -c 'import json,sys,os; print(next((r["id"] for r in json.load(sys.stdin) if r.get("name")==os.environ["MNT"]),""))')"
   fi
 }
 
-if [[ -z "${MONGO_DB_ID}" ]] \
-  || [[ "$(curl -s -o /dev/null -w '%{http_code}' "${KONG_URL}/query/v1/${MONGO_DB_ID}/schema" \
-      -H "apikey: ${ANON_KEY}" -H "X-Baas-Api-Key: ${API_KEY}")" != "200" ]]; then
+if [[ -z "${MONGO_DB_ID}" ]] ||
+  [[ "$(curl -s -o /dev/null -w '%{http_code}' "${KONG_URL}/query/v1/${MONGO_DB_ID}/schema" \
+    -H "apikey: ${ANON_KEY}" -H "X-Baas-Api-Key: ${API_KEY}")" != "200" ]]; then
   cyan "registering mongo mount '${MONGO_MOUNT}' → ${MONGO_DB}"
   dsn="mongodb://${MUSER}:${MPASS}@${MONGO_NET_HOST}:27017/${MONGO_DB}?authSource=admin"
   register_mount mongodb "${MONGO_MOUNT}" "${dsn}" "${SHARED_RESOURCES}"
@@ -226,9 +233,9 @@ print('collections=' + db.getCollectionNames().filter(n => ['movies','comments',
 " >&2 || warn "collection ensure had non-zero output (continuing)"
 
 # ── 5) DynamoDB mount (tolerant until P1 enables the engine) ──────────────────
-if [[ -n "${DYNAMO_DB_ID}" ]] \
-  && [[ "$(curl -s -o /dev/null -w '%{http_code}' "${KONG_URL}/query/v1/${DYNAMO_DB_ID}/schema" \
-      -H "apikey: ${ANON_KEY}" -H "X-Baas-Api-Key: ${API_KEY}")" == "200" ]]; then
+if [[ -n "${DYNAMO_DB_ID}" ]] &&
+  [[ "$(curl -s -o /dev/null -w '%{http_code}' "${KONG_URL}/query/v1/${DYNAMO_DB_ID}/schema" \
+    -H "apikey: ${ANON_KEY}" -H "X-Baas-Api-Key: ${API_KEY}")" == "200" ]]; then
   cyan "reusing dynamo mount ${DYNAMO_DB_ID}"
 else
   cyan "registering dynamo mount '${DYNAMO_MOUNT}'"
@@ -255,8 +262,8 @@ if [[ -n "${DYNAMO_DB_ID}" ]]; then
         --table-name "${tbl}" \
         --attribute-definitions AttributeName=owner_pk,AttributeType=S AttributeName=id,AttributeType=S \
         --key-schema AttributeName=owner_pk,KeyType=HASH AttributeName=id,KeyType=RANGE \
-        --billing-mode PAY_PER_REQUEST >/dev/null 2>&1 \
-        && cyan "dynamo table ${tbl} created" || cyan "dynamo table ${tbl} present"
+        --billing-mode PAY_PER_REQUEST >/dev/null 2>&1 &&
+        cyan "dynamo table ${tbl} created" || cyan "dynamo table ${tbl} present"
     done
   else
     warn "dynamodb-local container not found — bring up the hypertube profile to pre-create tables"
@@ -357,6 +364,12 @@ GOTRUE_SERVICE_KEY=${SERVICE_KEY}
 EOF
 chmod 600 "${REPO_ROOT}/vendor/hypertube/.services.env"
 
+ht_alice_key="alice@hypertube.local"
+ht_bob_key="bob@hypertube.local"
+ht_carol_key="carol@hypertube.local"
+ht_alice_sub="${SUBS[$ht_alice_key]:-}"
+ht_bob_sub="${SUBS[$ht_bob_key]:-}"
+ht_carol_sub="${SUBS[$ht_carol_key]:-}"
 cat >"${STATE_ENV}" <<EOF
 # generated by scripts/seed/hypertube-tenant.sh — $(date -Iseconds)
 HT_TENANT_SLUG=${TENANT_SLUG}
@@ -369,9 +382,9 @@ HT_KONG_URL=${KONG_URL}
 HT_ANON_APIKEY=${ANON_KEY}
 HT_SERVICE_APIKEY=${SERVICE_KEY}
 HT_REALTIME_TOKEN=${RT_TOKEN}
-HT_ALICE_SUB=${SUBS[alice@hypertube.local]:-}
-HT_BOB_SUB=${SUBS[bob@hypertube.local]:-}
-HT_CAROL_SUB=${SUBS[carol@hypertube.local]:-}
+HT_ALICE_SUB=${ht_alice_sub}
+HT_BOB_SUB=${ht_bob_sub}
+HT_CAROL_SUB=${ht_carol_sub}
 HT_API_OAUTH_CLIENT_SECRET=${API_OAUTH_CLIENT_SECRET}
 HT_API_JWT_SECRET=${API_JWT_SECRET_VAL}
 EOF

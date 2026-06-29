@@ -41,7 +41,10 @@ pub(crate) enum PbExpr {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Operand {
-    Field { name: String, modifier: Option<Mod> },
+    Field {
+        name: String,
+        modifier: Option<Mod>,
+    },
     Lit(Value),
     /// `geoDistance(lonA, latA, lonB, latB)` → km (haversine).
     Geo(Box<[Operand; 4]>),
@@ -49,7 +52,11 @@ pub(crate) enum Operand {
     /// (resolved to a literal by the async resolver before eval; see
     /// records::resolve_collection_refs). Distinct aliases on the same
     /// collection are DIFFERENT join rows (PB semantics).
-    Collection { collection: String, alias: Option<String>, field: String },
+    Collection {
+        collection: String,
+        alias: Option<String>,
+        field: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -85,7 +92,11 @@ pub(crate) fn parse(
     if tokens.is_empty() {
         return Ok(PbExpr::And(vec![]));
     }
-    let mut p = Parser { tokens, pos: 0, resolver };
+    let mut p = Parser {
+        tokens,
+        pos: 0,
+        resolver,
+    };
     let e = p.or_expr(0)?;
     match p.peek() {
         None => Ok(e),
@@ -121,11 +132,31 @@ fn lex(input: &str) -> Result<Vec<Tok>, String> {
             continue;
         }
         match c {
-            '(' => { out.push(Tok::LParen); i += 1; continue; }
-            ')' => { out.push(Tok::RParen); i += 1; continue; }
-            ',' => { out.push(Tok::Comma); i += 1; continue; }
-            '&' if b.get(i + 1) == Some(&b'&') => { out.push(Tok::AndAnd); i += 2; continue; }
-            '|' if b.get(i + 1) == Some(&b'|') => { out.push(Tok::OrOr); i += 2; continue; }
+            '(' => {
+                out.push(Tok::LParen);
+                i += 1;
+                continue;
+            }
+            ')' => {
+                out.push(Tok::RParen);
+                i += 1;
+                continue;
+            }
+            ',' => {
+                out.push(Tok::Comma);
+                i += 1;
+                continue;
+            }
+            '&' if b.get(i + 1) == Some(&b'&') => {
+                out.push(Tok::AndAnd);
+                i += 2;
+                continue;
+            }
+            '|' if b.get(i + 1) == Some(&b'|') => {
+                out.push(Tok::OrOr);
+                i += 2;
+                continue;
+            }
             '\'' | '"' => {
                 let quote = c;
                 let mut s = String::new();
@@ -210,7 +241,11 @@ impl Parser<'_> {
             self.next();
             parts.push(self.and_expr(depth)?);
         }
-        Ok(if parts.len() == 1 { parts.pop().unwrap() } else { PbExpr::Or(parts) })
+        Ok(if parts.len() == 1 {
+            parts.pop().unwrap()
+        } else {
+            PbExpr::Or(parts)
+        })
     }
 
     fn and_expr(&mut self, depth: usize) -> Result<PbExpr, String> {
@@ -219,12 +254,18 @@ impl Parser<'_> {
             self.next();
             parts.push(self.atom(depth)?);
         }
-        Ok(if parts.len() == 1 { parts.pop().unwrap() } else { PbExpr::And(parts) })
+        Ok(if parts.len() == 1 {
+            parts.pop().unwrap()
+        } else {
+            PbExpr::And(parts)
+        })
     }
 
     fn atom(&mut self, depth: usize) -> Result<PbExpr, String> {
         if depth > MAX_DEPTH {
-            return Err(format!("filter nesting exceeds the {MAX_DEPTH}-level limit"));
+            return Err(format!(
+                "filter nesting exceeds the {MAX_DEPTH}-level limit"
+            ));
         }
         if self.peek() == Some(&Tok::LParen) {
             self.next();
@@ -259,14 +300,21 @@ impl Parser<'_> {
         if let (Some(l), Some(r)) = (left.const_value(), right.const_value()) {
             return Ok(PbExpr::Const(eval_cmp(&l, cmp, &r)));
         }
-        Ok(PbExpr::Cmp { left, op: cmp, right, any })
+        Ok(PbExpr::Cmp {
+            left,
+            op: cmp,
+            right,
+            any,
+        })
     }
 
     fn operand(&mut self) -> Result<Operand, String> {
         match self.next() {
             Some(Tok::Str(s)) => Ok(Operand::Lit(Value::String(s))),
             Some(Tok::Num(n)) => Ok(Operand::Lit(
-                serde_json::Number::from_f64(n).map(Value::Number).unwrap_or(Value::Null),
+                serde_json::Number::from_f64(n)
+                    .map(Value::Number)
+                    .unwrap_or(Value::Null),
             )),
             Some(Tok::Ident(w)) => self.ident_operand(w),
             t => Err(format!("expected an operand, got {t:?}")),
@@ -377,19 +425,34 @@ impl PbExpr {
                 .map(PbExpr::to_engine_filter)
                 .collect::<Option<Vec<_>>>()
                 .map(Filter::Or),
-            PbExpr::Cmp { left, op, right, any } => {
+            PbExpr::Cmp {
+                left,
+                op,
+                right,
+                any,
+            } => {
                 if *any {
                     return None;
                 }
-                let Operand::Field { name, modifier: None } = left else {
+                let Operand::Field {
+                    name,
+                    modifier: None,
+                } = left
+                else {
                     return None;
                 };
                 let Operand::Lit(v) = right else {
                     return None;
                 };
                 Some(match op {
-                    Cmp::Eq if v.is_null() => Filter::IsNull { field: name.clone(), negate: false },
-                    Cmp::Ne if v.is_null() => Filter::IsNull { field: name.clone(), negate: true },
+                    Cmp::Eq if v.is_null() => Filter::IsNull {
+                        field: name.clone(),
+                        negate: false,
+                    },
+                    Cmp::Ne if v.is_null() => Filter::IsNull {
+                        field: name.clone(),
+                        negate: true,
+                    },
                     Cmp::Eq => cmp(name, CmpOp::Eq, v.clone()),
                     Cmp::Ne => cmp(name, CmpOp::Ne, v.clone()),
                     Cmp::Gt => cmp(name, CmpOp::Gt, v.clone()),
@@ -440,7 +503,12 @@ impl PbExpr {
             PbExpr::Const(b) => *b,
             PbExpr::And(parts) => parts.iter().all(|p| p.eval(record)),
             PbExpr::Or(parts) => parts.iter().any(|p| p.eval(record)),
-            PbExpr::Cmp { left, op, right, any } => eval_compare(left, *op, right, *any, record),
+            PbExpr::Cmp {
+                left,
+                op,
+                right,
+                any,
+            } => eval_compare(left, *op, right, *any, record),
         }
     }
 }
@@ -449,11 +517,18 @@ impl PbExpr {
 /// record (used to build a `@collection` EXISTS sub-filter). A Collection
 /// operand returns Null (the resolver supplies the other side).
 pub(crate) fn operand_literal(op: &Operand, record: &Value) -> Value {
-    operand_values(op, record).into_iter().next().unwrap_or(Value::Null)
+    operand_values(op, record)
+        .into_iter()
+        .next()
+        .unwrap_or(Value::Null)
 }
 
 fn cmp(field: &str, op: CmpOp, value: Value) -> Filter {
-    Filter::Cmp { field: field.to_string(), op, value }
+    Filter::Cmp {
+        field: field.to_string(),
+        op,
+        value,
+    }
 }
 
 fn like(field: &str, value: &Value) -> Filter {
@@ -461,8 +536,16 @@ fn like(field: &str, value: &Value) -> Filter {
         Value::String(s) => s.clone(),
         other => other.to_string(),
     };
-    let pattern = if raw.contains('%') { raw } else { format!("%{raw}%") };
-    Filter::Like { field: field.to_string(), pattern: Value::String(pattern), ci: true }
+    let pattern = if raw.contains('%') {
+        raw
+    } else {
+        format!("%{raw}%")
+    };
+    Filter::Like {
+        field: field.to_string(),
+        pattern: Value::String(pattern),
+        ci: true,
+    }
 }
 
 // ─── in-memory evaluation ────────────────────────────────────────────────────
@@ -492,7 +575,9 @@ fn operand_values(op: &Operand, record: &Value) -> Vec<Value> {
                         Value::Array(a) => a.len(),
                         Value::String(s) => {
                             // a stringified JSON array still counts its elements
-                            serde_json::from_str::<Vec<Value>>(s).map(|a| a.len()).unwrap_or(s.chars().count())
+                            serde_json::from_str::<Vec<Value>>(s)
+                                .map(|a| a.len())
+                                .unwrap_or(s.chars().count())
                         }
                         Value::Null => 0,
                         _ => 1,
@@ -544,14 +629,28 @@ fn to_array(v: &Value) -> Vec<Value> {
 ///   `tags = 'c'` is false but `tags ~ 'c'` matches the substring) — `?` does
 ///   NOT decompose a stored array.
 fn eval_compare(left: &Operand, op: Cmp, right: &Operand, any: bool, record: &Value) -> bool {
-    if let Operand::Field { name, modifier: Some(Mod::Each) } = left {
+    if let Operand::Field {
+        name,
+        modifier: Some(Mod::Each),
+    } = left
+    {
         let elems = to_array(&field_value(record, name));
         let rs = operand_values(right, record);
         let one = |l: &Value| rs.iter().any(|r| eval_cmp(l, op, r));
-        return if any { elems.iter().any(one) } else { elems.iter().all(one) };
+        return if any {
+            elems.iter().any(one)
+        } else {
+            elems.iter().all(one)
+        };
     }
-    let l = operand_values(left, record).into_iter().next().unwrap_or(Value::Null);
-    let r = operand_values(right, record).into_iter().next().unwrap_or(Value::Null);
+    let l = operand_values(left, record)
+        .into_iter()
+        .next()
+        .unwrap_or(Value::Null);
+    let r = operand_values(right, record)
+        .into_iter()
+        .next()
+        .unwrap_or(Value::Null);
     eval_cmp(&l, op, &r)
 }
 
@@ -577,7 +676,11 @@ fn eval_cmp(a: &Value, op: Cmp, b: &Value) -> bool {
 
 fn like_pattern(b: &Value) -> String {
     let raw = value_to_string(b);
-    if raw.contains('%') { raw } else { format!("%{raw}%") }
+    if raw.contains('%') {
+        raw
+    } else {
+        format!("%{raw}%")
+    }
 }
 
 fn loose_eq(a: &Value, b: &Value) -> bool {
@@ -630,7 +733,10 @@ fn geo_distance(args: &[Operand; 4], record: &Value) -> Value {
     let n = |o: &Operand| -> f64 {
         operand_values(o, record)
             .first()
-            .and_then(|v| v.as_f64().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+            .and_then(|v| {
+                v.as_f64()
+                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+            })
             .unwrap_or(f64::NAN)
     };
     let (lon1, lat1, lon2, lat2) = (n(&args[0]), n(&args[1]), n(&args[2]), n(&args[3]));
@@ -640,7 +746,9 @@ fn geo_distance(args: &[Operand; 4], record: &Value) -> Value {
     let dlam = (lon2 - lon1).to_radians();
     let a = (dphi / 2.0).sin().powi(2) + p1.cos() * p2.cos() * (dlam / 2.0).sin().powi(2);
     let d = 2.0 * R * a.sqrt().atan2((1.0 - a).sqrt());
-    serde_json::Number::from_f64(d).map(Value::Number).unwrap_or(Value::Null)
+    serde_json::Number::from_f64(d)
+        .map(Value::Number)
+        .unwrap_or(Value::Null)
 }
 
 fn datetime_macro(name: &str) -> Result<Value, String> {
@@ -648,11 +756,17 @@ fn datetime_macro(name: &str) -> Result<Value, String> {
     let dt = |t: chrono::DateTime<chrono::Utc>| {
         Value::String(t.format("%Y-%m-%d %H:%M:%S%.3fZ").to_string())
     };
-    let day_start = now.date_naive().and_hms_opt(0, 0, 0).unwrap_or_default().and_utc();
+    let day_start = now
+        .date_naive()
+        .and_hms_opt(0, 0, 0)
+        .unwrap_or_default()
+        .and_utc();
     Ok(match name {
         "@now" => dt(now),
         "@todayStart" => dt(day_start),
-        "@todayEnd" => dt(day_start + chrono::Duration::days(1) - chrono::Duration::milliseconds(1)),
+        "@todayEnd" => {
+            dt(day_start + chrono::Duration::days(1) - chrono::Duration::milliseconds(1))
+        }
         "@monthStart" => dt(now
             .date_naive()
             .with_day(1)

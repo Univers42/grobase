@@ -28,7 +28,11 @@ pub(crate) fn s3_target(
     }
     let endpoint = s3.get("endpoint")?.as_str()?.parse().ok()?;
     let bucket = s3.get("bucket")?.as_str()?.to_string();
-    let region = s3.get("region").and_then(|v| v.as_str()).unwrap_or("us-east-1").to_string();
+    let region = s3
+        .get("region")
+        .and_then(|v| v.as_str())
+        .unwrap_or("us-east-1")
+        .to_string();
     let path_style = if s3.get("forcePathStyle") == Some(&serde_json::Value::Bool(true)) {
         rusty_s3::UrlStyle::Path
     } else {
@@ -63,7 +67,12 @@ pub(crate) async fn s3_put(
     use rusty_s3::S3Action;
     let action = bucket.put_object(Some(creds), key);
     let url = action.sign(std::time::Duration::from_secs(300));
-    let resp = s3_http().put(url).body(bytes).send().await.map_err(|e| e.to_string())?;
+    let resp = s3_http()
+        .put(url)
+        .body(bytes)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
     if !resp.status().is_success() {
         return Err(format!("s3 put {} -> {}", key, resp.status()));
     }
@@ -87,11 +96,7 @@ pub(crate) async fn s3_get(
 }
 
 #[cfg(feature = "s3")]
-pub(crate) async fn s3_delete(
-    bucket: &rusty_s3::Bucket,
-    creds: &rusty_s3::Credentials,
-    key: &str,
-) {
+pub(crate) async fn s3_delete(bucket: &rusty_s3::Bucket, creds: &rusty_s3::Credentials, key: &str) {
     use rusty_s3::S3Action;
     let action = bucket.delete_object(Some(creds), key);
     let url = action.sign(std::time::Duration::from_secs(300));
@@ -107,7 +112,13 @@ pub(crate) fn stored_name(original: &str) -> String {
     };
     let safe: String = base
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .take(40)
         .collect();
     let rand: String = super::pb_id().chars().take(10).collect();
@@ -119,7 +130,11 @@ pub(crate) fn stored_name(original: &str) -> String {
 }
 
 fn content_type_of(name: &str) -> &'static str {
-    match name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).as_deref() {
+    match name
+        .rsplit_once('.')
+        .map(|(_, e)| e.to_ascii_lowercase())
+        .as_deref()
+    {
         Some("png") => "image/png",
         Some("jpg" | "jpeg") => "image/jpeg",
         Some("gif") => "image/gif",
@@ -142,7 +157,8 @@ fn content_type_of(name: &str) -> &'static str {
 fn safe_segment(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 128
-        && s.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
         && !s.contains("..")
 }
 
@@ -178,8 +194,13 @@ fn make_thumb(bytes: &[u8], spec: &str) -> Option<Vec<u8>> {
                 );
                 let sw = (img.width() as f64 * scale).round() as u32;
                 let sh = (img.height() as f64 * scale).round() as u32;
-                let scaled = img.resize_exact(sw.max(w), sh.max(h), image::imageops::FilterType::Triangle);
-                let y = if m == 't' { 0 } else { scaled.height().saturating_sub(h) };
+                let scaled =
+                    img.resize_exact(sw.max(w), sh.max(h), image::imageops::FilterType::Triangle);
+                let y = if m == 't' {
+                    0
+                } else {
+                    scaled.height().saturating_sub(h)
+                };
                 let x = (scaled.width().saturating_sub(w)) / 2;
                 scaled.crop_imm(x, y, w, h)
             }
@@ -199,7 +220,10 @@ async fn file_token(
 ) -> axum::response::Response {
     let principal = match super::pb_auth(&state, &headers) {
         super::PbAuth::Superuser => "su".to_string(),
-        super::PbAuth::Record { collection_id, record_id } => {
+        super::PbAuth::Record {
+            collection_id,
+            record_id,
+        } => {
             format!("{collection_id}:{record_id}")
         }
         _ => {
@@ -236,7 +260,11 @@ async fn field_is_protected(
                     f.get("type").and_then(serde_json::Value::as_str) == Some("file")
                         && f.get("protected").and_then(serde_json::Value::as_bool) == Some(true)
                 })
-                .filter_map(|f| f.get("name").and_then(serde_json::Value::as_str).map(String::from))
+                .filter_map(|f| {
+                    f.get("name")
+                        .and_then(serde_json::Value::as_str)
+                        .map(String::from)
+                })
                 .collect()
         })
         .unwrap_or_default();
@@ -248,9 +276,13 @@ async fn field_is_protected(
     let Ok(result) = super::exec(state, op).await else {
         return true; // can't prove it's public → protect
     };
-    let Some(row) = result.rows.first() else { return true };
+    let Some(row) = result.rows.first() else {
+        return true;
+    };
     protected_fields.iter().any(|f| match row.get(f) {
-        Some(serde_json::Value::String(s)) => s == filename || s.starts_with('[') && s.contains(filename),
+        Some(serde_json::Value::String(s)) => {
+            s == filename || s.starts_with('[') && s.contains(filename)
+        }
         _ => false,
     })
 }
@@ -284,7 +316,10 @@ async fn serve(
             .unwrap_or(false)
             || matches!(super::pb_auth(&state, &headers), super::PbAuth::Superuser);
         if !authorized {
-            return pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found.");
+            return pb_err(
+                StatusCode::NOT_FOUND,
+                "The requested resource wasn't found.",
+            );
         }
     }
     let dir = pb.storage_root.join(&col.id).join(&rid);
@@ -298,7 +333,10 @@ async fn serve(
         }
     }
     let Some(bytes) = bytes else {
-        return pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found.");
+        return pb_err(
+            StatusCode::NOT_FOUND,
+            "The requested resource wasn't found.",
+        );
     };
 
     if let Some(spec) = q.get("thumb").filter(|s| !s.is_empty()) {

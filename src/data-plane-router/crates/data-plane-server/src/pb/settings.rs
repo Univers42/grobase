@@ -34,7 +34,10 @@ fn deep_merge(base: &mut Value, patch: &Value) {
 impl super::PbState {
     pub(crate) fn settings(&self) -> Value {
         let mut out = defaults();
-        let conn = self.meta.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let conn = self
+            .meta
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let stored: Option<String> = conn
             .query_row(
                 "SELECT value FROM pb_config WHERE key = 'settings'",
@@ -52,7 +55,10 @@ impl super::PbState {
     }
 
     fn settings_patch(&self, patch: &Value) -> Value {
-        let conn = self.meta.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let conn = self
+            .meta
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let stored: String = conn
             .query_row(
                 "SELECT value FROM pb_config WHERE key = 'settings'",
@@ -77,7 +83,10 @@ async fn view(
     headers: header::HeaderMap,
 ) -> axum::response::Response {
     if !matches!(pb_auth(&state, &headers), PbAuth::Superuser) {
-        return pb_err(StatusCode::FORBIDDEN, "Only superusers can perform this action.");
+        return pb_err(
+            StatusCode::FORBIDDEN,
+            "Only superusers can perform this action.",
+        );
     }
     match pb_of(&state) {
         Ok(pb) => (StatusCode::OK, Json(pb.settings())).into_response(),
@@ -91,7 +100,10 @@ async fn update(
     Json(patch): Json<Value>,
 ) -> axum::response::Response {
     if !matches!(pb_auth(&state, &headers), PbAuth::Superuser) {
-        return pb_err(StatusCode::FORBIDDEN, "Only superusers can perform this action.");
+        return pb_err(
+            StatusCode::FORBIDDEN,
+            "Only superusers can perform this action.",
+        );
     }
     match pb_of(&state) {
         Ok(pb) => (StatusCode::OK, Json(pb.settings_patch(&patch))).into_response(),

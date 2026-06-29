@@ -19,7 +19,11 @@ use crate::routes::AppState;
 /// The shaped auth record for a verified `PbAuth::Record` caller (None for
 /// guests/superuser) — feeds `@request.auth.*` rule substitution.
 pub(crate) async fn auth_record_of(state: &AppState, auth: &PbAuth) -> Option<Value> {
-    let PbAuth::Record { collection_id, record_id } = auth else {
+    let PbAuth::Record {
+        collection_id,
+        record_id,
+    } = auth
+    else {
         return None;
     };
     super::records::fetch_shaped(state, collection_id, record_id)
@@ -60,7 +64,9 @@ async fn pb_verify_singleflight(
     let flights = FLIGHTS.get_or_init(Default::default);
     let key = crate::one::sha256_hex(&format!("{rid}\u{0}{password}"));
     let gate = {
-        let mut map = flights.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut map = flights
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if map.len() > 4096 {
             map.retain(|_, v| std::sync::Arc::strong_count(v) > 1);
         }
@@ -80,8 +86,14 @@ async fn pb_verify_singleflight(
         pb.cache_verify_pb(rid, password);
     }
     drop(_guard);
-    let mut map = flights.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    if map.get(&key).map(|v| std::sync::Arc::strong_count(v) <= 1).unwrap_or(false) {
+    let mut map = flights
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if map
+        .get(&key)
+        .map(|v| std::sync::Arc::strong_count(v) <= 1)
+        .unwrap_or(false)
+    {
         map.remove(&key);
     }
     ok
@@ -148,7 +160,11 @@ async fn auth_with_password(
         .and_then(|v| v.as_str())
         .unwrap_or_default()
         .to_string();
-    let rid = row.get("id").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+    let rid = row
+        .get("id")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
     // cache + single-flight: identical concurrent logins collapse to one KDF
     let ok = pb_verify_singleflight(&pb, &rid, &stored, &password).await;
     if !ok {
@@ -160,11 +176,7 @@ async fn auth_with_password(
     if col.options["mfa"]["enabled"] == serde_json::json!(true) {
         let mfa_id = super::pb_id();
         pb.code_issue(&format!("mfa-{mfa_id}"), &col.id, &rid, &mfa_id);
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(json!({ "mfaId": mfa_id })),
-        )
-            .into_response();
+        return (StatusCode::UNAUTHORIZED, Json(json!({ "mfaId": mfa_id }))).into_response();
     }
     let token = match mint_record_token(&state, &col.id, &rid, &identity) {
         Ok(t) => t,
@@ -175,7 +187,11 @@ async fn auth_with_password(
         _ => return pb_err(StatusCode::INTERNAL_SERVER_ERROR, "record vanished"),
     };
     scrub_auth_record(&mut record, true); // it IS the caller
-    (StatusCode::OK, Json(json!({ "token": token, "record": record }))).into_response()
+    (
+        StatusCode::OK,
+        Json(json!({ "token": token, "record": record })),
+    )
+        .into_response()
 }
 
 /// POST /api/collections/{c}/auth-refresh — fresh token for the bearer.
@@ -192,23 +208,41 @@ async fn auth_refresh(
         return pb_err(StatusCode::NOT_FOUND, "collection not found");
     };
     let auth = super::pb_auth(&state, &headers);
-    let PbAuth::Record { collection_id, record_id } = &auth else {
-        return pb_err(StatusCode::UNAUTHORIZED, "The request requires valid record authorization token.");
+    let PbAuth::Record {
+        collection_id,
+        record_id,
+    } = &auth
+    else {
+        return pb_err(
+            StatusCode::UNAUTHORIZED,
+            "The request requires valid record authorization token.",
+        );
     };
     if *collection_id != col.id && *collection_id != col.name {
-        return pb_err(StatusCode::FORBIDDEN, "token does not belong to this collection");
+        return pb_err(
+            StatusCode::FORBIDDEN,
+            "token does not belong to this collection",
+        );
     }
     let mut record = match super::records::fetch_shaped(&state, &col.name, record_id).await {
         Ok(Some(rec)) => rec,
         _ => return pb_err(StatusCode::NOT_FOUND, "missing auth record"),
     };
-    let email = record.get("email").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+    let email = record
+        .get("email")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
     let token = match mint_record_token(&state, &col.id, record_id, &email) {
         Ok(t) => t,
         Err(r) => return r,
     };
     scrub_auth_record(&mut record, true);
-    (StatusCode::OK, Json(json!({ "token": token, "record": record }))).into_response()
+    (
+        StatusCode::OK,
+        Json(json!({ "token": token, "record": record })),
+    )
+        .into_response()
 }
 
 /// POST /api/collections/{c}/impersonate/{id} — superuser-only,
@@ -224,16 +258,28 @@ async fn impersonate(
         Err(r) => return r,
     };
     if !matches!(super::pb_auth(&state, &headers), PbAuth::Superuser) {
-        return pb_err(StatusCode::FORBIDDEN, "Only superusers can perform this action.");
+        return pb_err(
+            StatusCode::FORBIDDEN,
+            "Only superusers can perform this action.",
+        );
     }
     let Some(col) = pb.col_get(&cname) else {
         return pb_err(StatusCode::NOT_FOUND, "collection not found");
     };
     let mut record = match super::records::fetch_shaped(&state, &col.name, &rid).await {
         Ok(Some(rec)) => rec,
-        _ => return pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found."),
+        _ => {
+            return pb_err(
+                StatusCode::NOT_FOUND,
+                "The requested resource wasn't found.",
+            )
+        }
     };
-    let email = record.get("email").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+    let email = record
+        .get("email")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
     let duration = body
         .as_ref()
         .and_then(|Json(b)| b.get("duration").and_then(Value::as_u64))
@@ -255,12 +301,25 @@ async fn impersonate(
         },
     };
     scrub_auth_record(&mut record, true);
-    (StatusCode::OK, Json(json!({ "token": token, "record": record }))).into_response()
+    (
+        StatusCode::OK,
+        Json(json!({ "token": token, "record": record })),
+    )
+        .into_response()
 }
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/collections/:collection/auth-with-password", post(auth_with_password))
-        .route("/api/collections/:collection/auth-refresh", post(auth_refresh))
-        .route("/api/collections/:collection/impersonate/:id", post(impersonate))
+        .route(
+            "/api/collections/:collection/auth-with-password",
+            post(auth_with_password),
+        )
+        .route(
+            "/api/collections/:collection/auth-refresh",
+            post(auth_refresh),
+        )
+        .route(
+            "/api/collections/:collection/impersonate/:id",
+            post(impersonate),
+        )
 }

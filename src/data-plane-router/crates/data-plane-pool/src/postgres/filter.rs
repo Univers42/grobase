@@ -276,7 +276,10 @@ mod tests {
     #[test]
     fn append_owner_none_is_byte_identical_and_pushes_nothing() {
         let mut p: Vec<BoxedParam> = Vec::new();
-        assert_eq!(append_owner_predicate(String::new(), None, &mut p).unwrap(), "");
+        assert_eq!(
+            append_owner_predicate(String::new(), None, &mut p).unwrap(),
+            ""
+        );
         assert_eq!(
             append_owner_predicate(" WHERE (\"a\" = $1)".to_string(), None, &mut p).unwrap(),
             " WHERE (\"a\" = $1)"

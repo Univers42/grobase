@@ -40,5 +40,10 @@ COPY --from=builder /out/app /app/app
 
 ENV APP=${APP}
 EXPOSE ${PORT}
+# Distroless has no shell — probe via the binary's own `--healthcheck` subcommand
+# (every cmd/<app>/main.go handles os.Args[1] == "--healthcheck"), mirroring the
+# data-plane image. M1 hardening gate: every service Dockerfile carries a HEALTHCHECK.
+HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
+    CMD ["/app/app", "--healthcheck"]
 USER nonroot:nonroot
 ENTRYPOINT ["/app/app"]

@@ -23,7 +23,10 @@ const OTP_MAX_ATTEMPTS: i64 = 5;
 
 impl super::PbState {
     pub(crate) fn code_issue(&self, otp_id: &str, collection: &str, record: &str, code: &str) {
-        let conn = self.meta.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let conn = self
+            .meta
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let _ = conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS pb_codes (
                 id         TEXT PRIMARY KEY,
@@ -49,8 +52,16 @@ impl super::PbState {
 
     /// Burn an attempt; deletes on success or exhaustion. Returns the record
     /// id on a correct, fresh code.
-    pub(crate) fn code_consume(&self, otp_id: &str, collection: &str, code: &str) -> Option<String> {
-        let conn = self.meta.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    pub(crate) fn code_consume(
+        &self,
+        otp_id: &str,
+        collection: &str,
+        code: &str,
+    ) -> Option<String> {
+        let conn = self
+            .meta
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let row: Option<(String, String, i64, i64)> = conn
             .query_row(
                 "SELECT record, digest, expires_at, attempts FROM pb_codes
@@ -75,11 +86,7 @@ impl super::PbState {
 }
 
 /// Find an auth record's engine row by email (None when absent).
-async fn record_by_email(
-    state: &AppState,
-    collection: &str,
-    email: &str,
-) -> Option<Value> {
+async fn record_by_email(state: &AppState, collection: &str, email: &str) -> Option<Value> {
     let mut op = super::records::base_op_pub(data_plane_core::DataOperationKind::Get, collection);
     op.filter = Some(json!({ "email": email }));
     exec(state, op).await.ok()?.rows.first().cloned()
@@ -164,8 +171,14 @@ async fn auth_with_otp(
             "The collection is not configured to allow OTP authentication.",
         );
     }
-    let otp_id = req.get("otpId").and_then(|v| v.as_str()).unwrap_or_default();
-    let code = req.get("password").and_then(|v| v.as_str()).unwrap_or_default();
+    let otp_id = req
+        .get("otpId")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+    let code = req
+        .get("password")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
     let Some(rid) = pb.code_consume(otp_id, &col.id, code) else {
         return pb_err(StatusCode::BAD_REQUEST, "Failed to authenticate.");
     };
@@ -183,7 +196,11 @@ async fn auth_with_otp(
         Ok(Some(rec)) => rec,
         _ => return pb_err(StatusCode::BAD_REQUEST, "Failed to authenticate."),
     };
-    let email = record.get("email").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+    let email = record
+        .get("email")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
     let one = match crate::one::one_of(&state) {
         Ok(o) => o,
         Err(r) => return r,
@@ -193,7 +210,11 @@ async fn auth_with_otp(
         Err(e) => return pb_err(StatusCode::INTERNAL_SERVER_ERROR, &e),
     };
     super::auth::scrub_auth_record(&mut record, true);
-    (StatusCode::OK, Json(json!({ "token": token, "record": record }))).into_response()
+    (
+        StatusCode::OK,
+        Json(json!({ "token": token, "record": record })),
+    )
+        .into_response()
 }
 
 /// The three "request a mail" doors — 204 unconditionally (no enumeration),
@@ -240,7 +261,10 @@ async fn request_verification(
     Path(cname): Path<String>,
     Json(req): Json<Value>,
 ) -> axum::response::Response {
-    let email = req.get("email").and_then(|v| v.as_str()).unwrap_or_default();
+    let email = req
+        .get("email")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
     request_mail_flow(&state, &cname, email, "Verify your email", "pbverify").await
 }
 
@@ -249,7 +273,10 @@ async fn request_password_reset(
     Path(cname): Path<String>,
     Json(req): Json<Value>,
 ) -> axum::response::Response {
-    let email = req.get("email").and_then(|v| v.as_str()).unwrap_or_default();
+    let email = req
+        .get("email")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
     request_mail_flow(&state, &cname, email, "Reset your password", "pbreset").await
 }
 
@@ -278,8 +305,13 @@ async fn request_email_change(
     }
     let _ = cname;
     // Token carries the target address; confirm applies it after verify.
-    if let (PbAuth::Record { collection_id, record_id }, Ok(one)) =
-        (&auth, crate::one::one_of(&state))
+    if let (
+        PbAuth::Record {
+            collection_id,
+            record_id,
+        },
+        Ok(one),
+    ) = (&auth, crate::one::one_of(&state))
     {
         if let Ok(token) = one.mint_flow_jwt(
             &format!("pb:{collection_id}:{record_id}:{new_email}"),
@@ -323,7 +355,10 @@ async fn confirm_verification(
     Path(cname): Path<String>,
     Json(req): Json<Value>,
 ) -> axum::response::Response {
-    let token = req.get("token").and_then(|v| v.as_str()).unwrap_or_default();
+    let token = req
+        .get("token")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
     let (_, rid, _) = match confirm_flow(&state, token, "pbverify").await {
         Ok(v) => v,
         Err(r) => return r,
@@ -342,9 +377,18 @@ async fn confirm_password_reset(
     Path(cname): Path<String>,
     Json(req): Json<Value>,
 ) -> axum::response::Response {
-    let token = req.get("token").and_then(|v| v.as_str()).unwrap_or_default();
-    let password = req.get("password").and_then(|v| v.as_str()).unwrap_or_default();
-    let confirm = req.get("passwordConfirm").and_then(|v| v.as_str()).unwrap_or_default();
+    let token = req
+        .get("token")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+    let password = req
+        .get("password")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+    let confirm = req
+        .get("passwordConfirm")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
     if password.len() < 8 || password != confirm {
         return pb_err(StatusCode::BAD_REQUEST, "invalid or unconfirmed password");
     }
@@ -371,7 +415,10 @@ async fn confirm_email_change(
     Path(cname): Path<String>,
     Json(req): Json<Value>,
 ) -> axum::response::Response {
-    let token = req.get("token").and_then(|v| v.as_str()).unwrap_or_default();
+    let token = req
+        .get("token")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
     let (_, rid, extra) = match confirm_flow(&state, token, "pbemailchange").await {
         Ok(v) => v,
         Err(r) => return r,
@@ -390,12 +437,36 @@ async fn confirm_email_change(
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/collections/:collection/request-otp", post(request_otp))
-        .route("/api/collections/:collection/auth-with-otp", post(auth_with_otp))
-        .route("/api/collections/:collection/request-verification", post(request_verification))
-        .route("/api/collections/:collection/confirm-verification", post(confirm_verification))
-        .route("/api/collections/:collection/request-password-reset", post(request_password_reset))
-        .route("/api/collections/:collection/confirm-password-reset", post(confirm_password_reset))
-        .route("/api/collections/:collection/request-email-change", post(request_email_change))
-        .route("/api/collections/:collection/confirm-email-change", post(confirm_email_change))
+        .route(
+            "/api/collections/:collection/request-otp",
+            post(request_otp),
+        )
+        .route(
+            "/api/collections/:collection/auth-with-otp",
+            post(auth_with_otp),
+        )
+        .route(
+            "/api/collections/:collection/request-verification",
+            post(request_verification),
+        )
+        .route(
+            "/api/collections/:collection/confirm-verification",
+            post(confirm_verification),
+        )
+        .route(
+            "/api/collections/:collection/request-password-reset",
+            post(request_password_reset),
+        )
+        .route(
+            "/api/collections/:collection/confirm-password-reset",
+            post(confirm_password_reset),
+        )
+        .route(
+            "/api/collections/:collection/request-email-change",
+            post(request_email_change),
+        )
+        .route(
+            "/api/collections/:collection/confirm-email-change",
+            post(confirm_email_change),
+        )
 }

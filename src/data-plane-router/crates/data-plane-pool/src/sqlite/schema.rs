@@ -88,6 +88,14 @@ fn sqlite_column_clause(def: &DdlColumnDef) -> DataPlaneResult<String> {
     Ok(clause)
 }
 
+/// The inline auto-increment primary-key clause for SQLite. Only an `INTEGER
+/// PRIMARY KEY` declared INLINE aliases rowid and auto-assigns on an id-less
+/// insert; a trailing `PRIMARY KEY (col)` clause would NOT — so the auto PK
+/// column carries its own PRIMARY KEY and the table-level clause is skipped.
+fn sqlite_autoincrement_pk_clause(name: &str) -> DataPlaneResult<String> {
+    Ok(format!("{} INTEGER PRIMARY KEY", quote_ident(name)?))
+}
+
 /// Lowers a [`SchemaDdlRequest`] to its single SQLite DDL statement.
 /// `alter_column_type` is honestly rejected: SQLite has no `ALTER COLUMN`
 /// (the official recipe is a 12-step table rebuild, out of this contract).
@@ -109,24 +117,31 @@ pub(crate) fn build_sqlite_ddl(ddl: &SchemaDdlRequest) -> DataPlaneResult<String
         }
         SchemaDdlOp::CreateTable => {
             let (columns, primary_key) = ddl.require_create_spec()?;
+            let auto_pk = data_plane_core::auto_increment_pk(columns, primary_key);
             let mut clauses = Vec::with_capacity(columns.len() + 2);
             let mut has_owner = false;
             for def in columns {
                 if def.name == "owner_id" {
                     has_owner = true;
                 }
-                clauses.push(sqlite_column_clause(def)?);
+                if Some(def.name.as_str()) == auto_pk {
+                    clauses.push(sqlite_autoincrement_pk_clause(&def.name)?);
+                } else {
+                    clauses.push(sqlite_column_clause(def)?);
+                }
             }
             if !has_owner {
                 // The adapter owner-scopes every read/write on owner_id — a
                 // table without the column would fail its first request.
                 clauses.push(format!("{} TEXT", quote_ident("owner_id")?));
             }
-            let pk: Vec<String> = primary_key
-                .iter()
-                .map(|c| quote_ident(c))
-                .collect::<DataPlaneResult<_>>()?;
-            clauses.push(format!("PRIMARY KEY ({})", pk.join(", ")));
+            if auto_pk.is_none() {
+                let pk: Vec<String> = primary_key
+                    .iter()
+                    .map(|c| quote_ident(c))
+                    .collect::<DataPlaneResult<_>>()?;
+                clauses.push(format!("PRIMARY KEY ({})", pk.join(", ")));
+            }
             format!("CREATE TABLE {table} ({})", clauses.join(", "))
         }
         SchemaDdlOp::DropTable => format!("DROP TABLE {table}"),
@@ -166,6 +181,26 @@ mod tests {
         assert_eq!(
             sql,
             "CREATE TABLE \"posts\" (\"id\" TEXT, \"views\" INTEGER, \"owner_id\" TEXT, PRIMARY KEY (\"id\"))"
+        );
+    }
+
+    #[test]
+    fn ddl_create_table_int_pk_inlines_autoincrement() {
+        let req = SchemaDdlRequest {
+            op: SchemaDdlOp::CreateTable,
+            table: "notes".into(),
+            column: None,
+            column_name: None,
+            columns: Some(vec![
+                col("id", NormalizedType::Integer),
+                col("body", NormalizedType::Text),
+            ]),
+            primary_key: Some(vec!["id".into()]),
+        };
+        let sql = build_sqlite_ddl(&req).unwrap();
+        assert_eq!(
+            sql,
+            "CREATE TABLE \"notes\" (\"id\" INTEGER PRIMARY KEY, \"body\" TEXT, \"owner_id\" TEXT)"
         );
     }
 

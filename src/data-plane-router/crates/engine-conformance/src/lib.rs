@@ -777,7 +777,10 @@ mod tests {
     fn skip_formats_name_with_reason() {
         let mut r = SuiteReport::default();
         r.skip("batch", "descriptor: batch=false");
-        assert_eq!(r.skipped, vec!["batch (descriptor: batch=false)".to_string()]);
+        assert_eq!(
+            r.skipped,
+            vec!["batch (descriptor: batch=false)".to_string()]
+        );
     }
 
     #[test]
@@ -804,10 +807,20 @@ mod tests {
         // Every engine the descriptor marks `ddl`/relational must bootstrap an
         // explicit table carrying the composite UNIQUE(owner_id, id) the
         // owner-scoped upsert arbitrates on.
-        for engine in ["postgresql", "cockroachdb", "mysql", "mariadb", "sqlite", "mssql"] {
+        for engine in [
+            "postgresql",
+            "cockroachdb",
+            "mysql",
+            "mariadb",
+            "sqlite",
+            "mssql",
+        ] {
             let ddl = scratch_create_sql(engine)
                 .unwrap_or_else(|| panic!("{engine} must have scratch DDL"));
-            assert!(ddl.contains("conf_probe"), "{engine}: targets the probe table");
+            assert!(
+                ddl.contains("conf_probe"),
+                "{engine}: targets the probe table"
+            );
             assert!(
                 ddl.to_ascii_lowercase().contains("owner_id"),
                 "{engine}: scratch table carries the owner_id column"
@@ -842,14 +855,26 @@ mod tests {
     fn drop_sql_pairs_with_create_for_every_relational_engine() {
         // An engine that bootstraps an explicit table must also tear one down,
         // and the drop must target the same `conf_probe` resource.
-        for engine in ["postgresql", "cockroachdb", "mysql", "mariadb", "sqlite", "mssql"] {
+        for engine in [
+            "postgresql",
+            "cockroachdb",
+            "mysql",
+            "mariadb",
+            "sqlite",
+            "mssql",
+        ] {
             let drop = scratch_drop_sql(engine)
                 .unwrap_or_else(|| panic!("{engine} creates a table, so it must drop one"));
-            assert!(drop.contains("conf_probe"), "{engine}: drops the probe table");
+            assert!(
+                drop.contains("conf_probe"),
+                "{engine}: drops the probe table"
+            );
         }
         // Postgres qualifies to `public` on both create and drop so they land in
         // the same schema (the predrop handles the unqualified shadow).
-        assert!(scratch_drop_sql("postgresql").unwrap().contains("public.conf_probe"));
+        assert!(scratch_drop_sql("postgresql")
+            .unwrap()
+            .contains("public.conf_probe"));
         // Implicit-resource engines drop nothing.
         for engine in ["mongodb", "redis", "http"] {
             assert_eq!(scratch_drop_sql(engine), None, "{engine}");

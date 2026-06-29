@@ -172,7 +172,9 @@ pub(crate) async fn kdf_blocking<T: Send + 'static>(
             .and_then(|v| v.parse::<usize>().ok())
             .filter(|n| *n > 0)
             .unwrap_or_else(|| {
-                std::thread::available_parallelism().map_or(4, |n| n.get()).clamp(2, 16)
+                std::thread::available_parallelism()
+                    .map_or(4, |n| n.get())
+                    .clamp(2, 16)
             });
         tokio::sync::Semaphore::new(n)
     });
@@ -379,7 +381,10 @@ impl UserStore {
     /// facade's cron loop. Ported from binocle-one for `pbcompat`.
     #[cfg(feature = "pbcompat")]
     pub(crate) fn maintain(&self) -> (usize, usize) {
-        let conn = self.conn.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let conn = self
+            .conn
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let now = chrono::Utc::now().timestamp();
         let codes = conn
             .execute("DELETE FROM one_codes WHERE expires_at < ?1", [now])
@@ -914,7 +919,12 @@ impl OneState {
 
     /// Short-lived (30 min) typed flow token (pb facade: email-verify, reset,
     /// OTP, file-token). Ported from binocle-one for `pbcompat`.
-    pub(crate) fn mint_flow_jwt(&self, sub: &str, email: &str, typ: &str) -> Result<String, String> {
+    pub(crate) fn mint_flow_jwt(
+        &self,
+        sub: &str,
+        email: &str,
+        typ: &str,
+    ) -> Result<String, String> {
         self.mint_typed(sub, email, typ, 1800)
     }
 
@@ -935,7 +945,12 @@ impl OneState {
     }
 
     /// Custom-TTL auth token (facade impersonation). Ported for `pbcompat`.
-    pub(crate) fn mint_jwt_ttl(&self, user_id: &str, email: &str, ttl: u64) -> Result<String, String> {
+    pub(crate) fn mint_jwt_ttl(
+        &self,
+        user_id: &str,
+        email: &str,
+        ttl: u64,
+    ) -> Result<String, String> {
         self.mint_typed(user_id, email, "auth", ttl)
     }
 
@@ -1288,8 +1303,7 @@ async fn hooks_fallback(
                 serde_json::from_slice(&body_bytes).unwrap_or(serde_json::Value::Null);
             return match hooks.serve_route(&method, &path, &query, &body).await {
                 Ok((status, body)) => (
-                    axum::http::StatusCode::from_u16(status)
-                        .unwrap_or(axum::http::StatusCode::OK),
+                    axum::http::StatusCode::from_u16(status).unwrap_or(axum::http::StatusCode::OK),
                     axum::Json(body),
                 )
                     .into_response(),
