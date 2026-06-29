@@ -42,7 +42,7 @@ pub use ports::{
 };
 pub use schema::{ColumnSchema, ForeignKeyRef, NormalizedType, SchemaDescriptor, TableSchema};
 pub use schema_ddl::{
-    validate_default_expr, DdlColumnDef, SchemaDdlOp, SchemaDdlRequest, SchemaDdlResult,
-    SchemaDdlStatus,
+    auto_increment_pk, validate_default_expr, DdlColumnDef, SchemaDdlOp, SchemaDdlRequest,
+    SchemaDdlResult, SchemaDdlStatus,
 };
 pub use transaction::{TxBeginRequest, TxSession, TxState};

@@ -30,9 +30,9 @@ pub mod logs;
 pub mod predicate;
 pub mod ratelimit;
 pub mod realtime;
+pub mod records;
 pub mod rules;
 pub mod settings;
-pub mod records;
 
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
@@ -193,10 +193,12 @@ impl PbState {
 }
 
 pub(crate) fn pb_of(state: &AppState) -> Result<std::sync::Arc<PbState>, axum::response::Response> {
-    state
-        .pb
-        .clone()
-        .ok_or_else(|| pb_err(StatusCode::SERVICE_UNAVAILABLE, "pb runtime not initialised"))
+    state.pb.clone().ok_or_else(|| {
+        pb_err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "pb runtime not initialised",
+        )
+    })
 }
 
 // ─── PB wire shapes ──────────────────────────────────────────────────────────
@@ -232,7 +234,9 @@ pub(crate) fn pb_id() -> String {
 
 /// PB's canonical datetime rendering (`2026-06-12 08:15:30.123Z`).
 pub(crate) fn pb_now() -> String {
-    chrono::Utc::now().format("%Y-%m-%d %H:%M:%S%.3fZ").to_string()
+    chrono::Utc::now()
+        .format("%Y-%m-%d %H:%M:%S%.3fZ")
+        .to_string()
 }
 
 // ─── auth ────────────────────────────────────────────────────────────────────
@@ -241,7 +245,10 @@ pub(crate) enum PbAuth {
     Superuser,
     /// An authenticated AUTH-COLLECTION record (`sub = pb:{col id}:{rid}`)
     /// — the identity `@request.auth.*` rules read.
-    Record { collection_id: String, record_id: String },
+    Record {
+        collection_id: String,
+        record_id: String,
+    },
     /// A native binocle-one account JWT (not a PB auth record).
     #[allow(dead_code)]
     User(String),
@@ -281,7 +288,11 @@ pub(crate) fn pb_auth(state: &AppState, headers: &header::HeaderMap) -> PbAuth {
     };
     match one.verify_jwt(raw) {
         Ok(id) if id.key_id == "pb:su" => PbAuth::Superuser,
-        Ok(id) => match id.key_id.strip_prefix("pb:").and_then(|r| r.split_once(':')) {
+        Ok(id) => match id
+            .key_id
+            .strip_prefix("pb:")
+            .and_then(|r| r.split_once(':'))
+        {
             Some((col, rid)) => PbAuth::Record {
                 collection_id: col.to_string(),
                 record_id: rid.to_string(),
@@ -312,7 +323,10 @@ async fn superuser_auth(
         .unwrap_or_default()
         .trim()
         .to_lowercase();
-    let password = req.get("password").and_then(|v| v.as_str()).unwrap_or_default();
+    let password = req
+        .get("password")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
     let (Some(su_email), Some(su_pass)) = (pb.su_email.as_deref(), pb.su_pass.as_deref()) else {
         return pb_err(
             StatusCode::BAD_REQUEST,
@@ -355,7 +369,10 @@ pub(crate) async fn exec(
     op: DataOperation,
 ) -> Result<DataResult, axum::response::Response> {
     let Some(nano) = state.nano.as_ref() else {
-        return Err(pb_err(StatusCode::SERVICE_UNAVAILABLE, "engine unavailable"));
+        return Err(pb_err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "engine unavailable",
+        ));
     };
     let mount_info = nano
         .resolve_mount(PB_MOUNT)
@@ -415,7 +432,14 @@ pub(crate) async fn exec(
     // Same post-commit fan-out the native door does (control-pg paths are
     // compiled out of the one build): nano SSE bus, best-effort.
     if is_mutation {
-        nano.publish_mutation(PB_MOUNT, &table, kind, pk.as_ref(), result.affected_rows, "pb");
+        nano.publish_mutation(
+            PB_MOUNT,
+            &table,
+            kind,
+            pk.as_ref(),
+            result.affected_rows,
+            "pb",
+        );
     }
     Ok(result)
 }
@@ -426,7 +450,10 @@ pub(crate) async fn exec_raw(
     statement: data_plane_core::RawStatement,
 ) -> Result<DataResult, axum::response::Response> {
     let Some(nano) = state.nano.as_ref() else {
-        return Err(pb_err(StatusCode::SERVICE_UNAVAILABLE, "engine unavailable"));
+        return Err(pb_err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "engine unavailable",
+        ));
     };
     let mount_info = nano
         .resolve_mount(PB_MOUNT)

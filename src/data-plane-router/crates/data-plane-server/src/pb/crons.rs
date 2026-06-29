@@ -24,10 +24,16 @@ const JOBS: &[(&str, &str)] = &[
     ("__pbLogsCleanup__", "0 */6 * * *"),
 ];
 
-fn require_su(state: &AppState, headers: &header::HeaderMap) -> Result<(), axum::response::Response> {
+fn require_su(
+    state: &AppState,
+    headers: &header::HeaderMap,
+) -> Result<(), axum::response::Response> {
     match pb_auth(state, headers) {
         PbAuth::Superuser => Ok(()),
-        _ => Err(pb_err(StatusCode::FORBIDDEN, "Only superusers can perform this action.")),
+        _ => Err(pb_err(
+            StatusCode::FORBIDDEN,
+            "Only superusers can perform this action.",
+        )),
     }
 }
 
@@ -36,12 +42,12 @@ pub(crate) async fn run_job(state: &AppState, id: &str) -> bool {
     let Ok(pb) = pb_of(state) else { return false };
     match id {
         "__pbOTPCleanup__" => {
-            let conn = pb.meta.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let conn = pb
+                .meta
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let now = chrono::Utc::now().timestamp();
-            let _ = conn.execute(
-                "DELETE FROM pb_codes WHERE expires_at < ?1",
-                [now],
-            );
+            let _ = conn.execute("DELETE FROM pb_codes WHERE expires_at < ?1", [now]);
             true
         }
         "__pbMFACleanup__" => {
@@ -52,7 +58,10 @@ pub(crate) async fn run_job(state: &AppState, id: &str) -> bool {
             true
         }
         "__pbDBOptimize__" => {
-            let conn = pb.meta.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let conn = pb
+                .meta
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let _ = conn.execute_batch("PRAGMA optimize;");
             true
         }
@@ -76,7 +85,10 @@ pub(crate) async fn run_job(state: &AppState, id: &str) -> bool {
 }
 
 /// GET /api/crons
-async fn list(State(state): State<AppState>, headers: header::HeaderMap) -> axum::response::Response {
+async fn list(
+    State(state): State<AppState>,
+    headers: header::HeaderMap,
+) -> axum::response::Response {
     if let Err(r) = require_su(&state, &headers) {
         return r;
     }

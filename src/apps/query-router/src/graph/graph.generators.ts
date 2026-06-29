@@ -142,7 +142,9 @@ function polymorphicEdge(
   const target = resolveTarget(node.mount, kind, byMount);
   if (!target) return null;
   const to = `${target.mount}:${target.resource}:${String(pk)}`;
-  return to === node.id ? null : { id: `poly:${node.id}|${field}`, from: node.id, to, type: kind, directed: true };
+  return to === node.id
+    ? null
+    : { id: `poly:${node.id}|${field}`, from: node.id, to, type: kind, directed: true };
 }
 
 /** Key edges (engine-agnostic, no schema introspection): turn every reference a

@@ -47,7 +47,7 @@ while IFS= read -r f; do
     red "  missing HEALTHCHECK: $f"
     missing=$((missing + 1))
   fi
-done < <(find "${BAAS_DIR}/docker/services" "${BAAS_DIR}/src" -name Dockerfile)
+done < <(find "${BAAS_DIR}/src" -name Dockerfile)
 [[ $missing -eq 0 ]] || fail "${missing} Dockerfiles without HEALTHCHECK"
 pass "every Dockerfile has a HEALTHCHECK"
 
@@ -56,9 +56,10 @@ pass "every Dockerfile has a HEALTHCHECK"
 # evict them at the memory cap, and a disabled AOF rewrite grows the AOF file
 # without bound (a bench day put 250 MB into one untrimmed CDC stream).
 step "checking redis eviction + AOF-rewrite posture"
-grep -A16 '^  redis:' "${COMPOSE_FILE}" | grep -q 'maxmemory-policy volatile-lru' ||
+REDIS_COMPOSE="${BAAS_DIR}/orchestrators/compose/base/data-engines.yml"
+grep -q 'maxmemory-policy volatile-lru' "${REDIS_COMPOSE}" ||
   fail "redis must use volatile-lru (allkeys-lru can evict outbox.* streams)"
-grep -A16 '^  redis:' "${COMPOSE_FILE}" | grep -q 'auto-aof-rewrite-percentage 100' ||
+grep -q 'auto-aof-rewrite-percentage 100' "${REDIS_COMPOSE}" ||
   fail "redis AOF rewrite must be enabled (percentage 100; 0 = unbounded AOF growth)"
 pass "redis: volatile-lru + AOF rewrite enabled"
 
@@ -81,8 +82,8 @@ for engine_file in \
   [[ -f "${engine_file}" ]] && fail "${engine_file} should be deleted post-cutover"
 done
 for rust_adapter in \
-  "${ROUTER_DIR}/crates/data-plane-pool/src/postgres.rs" \
-  "${ROUTER_DIR}/crates/data-plane-pool/src/mongo.rs"; do
+  "${ROUTER_DIR}/crates/data-plane-pool/src/postgres/adapter.rs" \
+  "${ROUTER_DIR}/crates/data-plane-pool/src/mongo/adapter.rs"; do
   [[ -f "${rust_adapter}" ]] || fail "${rust_adapter} (Rust replacement) missing"
   grep -q "impl EngineAdapter" "${rust_adapter}" ||
     fail "${rust_adapter} does not implement EngineAdapter"

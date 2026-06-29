@@ -148,6 +148,7 @@ pub(super) fn build_mysql_ddl(ddl: &SchemaDdlRequest) -> DataPlaneResult<String>
         ),
         SchemaDdlOp::CreateTable => {
             let (columns, primary_key) = ddl.require_create_spec()?;
+            let auto_pk = data_plane_core::auto_increment_pk(columns, primary_key);
             let pk_set: std::collections::BTreeSet<&str> =
                 primary_key.iter().map(String::as_str).collect();
             let mut clauses = Vec::with_capacity(columns.len() + 2);
@@ -156,10 +157,11 @@ pub(super) fn build_mysql_ddl(ddl: &SchemaDdlRequest) -> DataPlaneResult<String>
                 if def.name == "owner_id" {
                     has_owner = true;
                 }
-                clauses.push(mysql_column_clause(
-                    def,
-                    pk_set.contains(def.name.as_str()),
-                )?);
+                let mut clause = mysql_column_clause(def, pk_set.contains(def.name.as_str()))?;
+                if Some(def.name.as_str()) == auto_pk {
+                    clause.push_str(" AUTO_INCREMENT");
+                }
+                clauses.push(clause);
             }
             if !has_owner {
                 // The MySQL adapter owner-scopes every read/write on owner_id

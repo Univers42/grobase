@@ -26,13 +26,18 @@ pub(crate) struct Windows {
 impl Windows {
     /// Returns false when the (label, ip) window is exhausted.
     fn allow(&self, label: &str, ip: &str, max: u32, duration_secs: u64) -> bool {
-        let mut map = self.map.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut map = self
+            .map
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // bound the map: a sweep when it grows past 16k entries
         if map.len() > 16_384 {
             map.retain(|_, (_, start)| start.elapsed().as_secs() < 3600);
         }
         let now = Instant::now();
-        let entry = map.entry((label.to_string(), ip.to_string())).or_insert((0, now));
+        let entry = map
+            .entry((label.to_string(), ip.to_string()))
+            .or_insert((0, now));
         if entry.1.elapsed().as_secs() >= duration_secs {
             *entry = (0, now);
         }
@@ -115,7 +120,8 @@ pub(crate) async fn enforce(
             continue;
         }
         let hit = if let Some(prefix) = label.strip_prefix('/') {
-            path.trim_start_matches('/').starts_with(prefix.trim_start_matches('/'))
+            path.trim_start_matches('/')
+                .starts_with(prefix.trim_start_matches('/'))
                 || path.starts_with(label)
         } else if let Some((col_part, op_part)) = label.split_once(':') {
             (col_part == "*" || Some(col_part) == collection.as_deref()) && op_part == op
@@ -135,14 +141,22 @@ mod tests {
 
     #[test]
     fn op_classes_match_pb_labels() {
-        assert_eq!(op_class("POST", "/api/collections/users/auth-with-password"),
-                   (Some("users".into()), "auth"));
-        assert_eq!(op_class("POST", "/api/collections/posts/records"),
-                   (Some("posts".into()), "create"));
-        assert_eq!(op_class("GET", "/api/collections/posts/records"),
-                   (Some("posts".into()), "list"));
-        assert_eq!(op_class("PATCH", "/api/collections/posts/records/abc"),
-                   (Some("posts".into()), "update"));
+        assert_eq!(
+            op_class("POST", "/api/collections/users/auth-with-password"),
+            (Some("users".into()), "auth")
+        );
+        assert_eq!(
+            op_class("POST", "/api/collections/posts/records"),
+            (Some("posts".into()), "create")
+        );
+        assert_eq!(
+            op_class("GET", "/api/collections/posts/records"),
+            (Some("posts".into()), "list")
+        );
+        assert_eq!(
+            op_class("PATCH", "/api/collections/posts/records/abc"),
+            (Some("posts".into()), "update")
+        );
         assert_eq!(op_class("GET", "/api/health"), (None, "other"));
     }
 
@@ -151,7 +165,10 @@ mod tests {
         let w = Windows::default();
         assert!(w.allow("l", "1.2.3.4", 2, 60));
         assert!(w.allow("l", "1.2.3.4", 2, 60));
-        assert!(!w.allow("l", "1.2.3.4", 2, 60), "third call in window blocked");
+        assert!(
+            !w.allow("l", "1.2.3.4", 2, 60),
+            "third call in window blocked"
+        );
         assert!(w.allow("l", "5.6.7.8", 2, 60), "other ip unaffected");
     }
 }

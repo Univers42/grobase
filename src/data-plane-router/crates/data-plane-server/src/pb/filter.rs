@@ -82,10 +82,26 @@ fn lex(input: &str) -> Result<Vec<Tok>, String> {
             continue;
         }
         match c {
-            '(' => { out.push(Tok::LParen); i += 1; continue; }
-            ')' => { out.push(Tok::RParen); i += 1; continue; }
-            '&' if b.get(i + 1) == Some(&b'&') => { out.push(Tok::AndAnd); i += 2; continue; }
-            '|' if b.get(i + 1) == Some(&b'|') => { out.push(Tok::OrOr); i += 2; continue; }
+            '(' => {
+                out.push(Tok::LParen);
+                i += 1;
+                continue;
+            }
+            ')' => {
+                out.push(Tok::RParen);
+                i += 1;
+                continue;
+            }
+            '&' if b.get(i + 1) == Some(&b'&') => {
+                out.push(Tok::AndAnd);
+                i += 2;
+                continue;
+            }
+            '|' if b.get(i + 1) == Some(&b'|') => {
+                out.push(Tok::OrOr);
+                i += 2;
+                continue;
+            }
             '\'' | '"' => {
                 let quote = c;
                 let mut s = String::new();
@@ -175,7 +191,11 @@ impl Parser {
             self.next();
             parts.push(self.and_expr(depth, resolver)?);
         }
-        Ok(if parts.len() == 1 { parts.pop().expect("len checked") } else { Filter::Or(parts) })
+        Ok(if parts.len() == 1 {
+            parts.pop().expect("len checked")
+        } else {
+            Filter::Or(parts)
+        })
     }
 
     fn and_expr(
@@ -188,7 +208,11 @@ impl Parser {
             self.next();
             parts.push(self.atom(depth, resolver)?);
         }
-        Ok(if parts.len() == 1 { parts.pop().expect("len checked") } else { Filter::And(parts) })
+        Ok(if parts.len() == 1 {
+            parts.pop().expect("len checked")
+        } else {
+            Filter::And(parts)
+        })
     }
 
     fn atom(
@@ -197,7 +221,9 @@ impl Parser {
         resolver: &dyn Fn(&str) -> Option<Value>,
     ) -> Result<Filter, String> {
         if depth > MAX_PAREN_DEPTH {
-            return Err(format!("filter nesting exceeds the {MAX_PAREN_DEPTH}-level limit"));
+            return Err(format!(
+                "filter nesting exceeds the {MAX_PAREN_DEPTH}-level limit"
+            ));
         }
         match self.next() {
             Some(Tok::LParen) => {
@@ -230,16 +256,24 @@ impl Parser {
             };
             let right = self.literal(resolver)?;
             let truth = const_compare(&left, op.strip_prefix('?').unwrap_or(op), &right)?;
-            return Ok(if truth { Filter::And(vec![]) } else { Filter::Or(vec![]) });
+            return Ok(if truth {
+                Filter::And(vec![])
+            } else {
+                Filter::Or(vec![])
+            });
         }
         if field.starts_with("@collection") {
-            return Err(format!("'{field}' joins are not supported by this engine version"));
+            return Err(format!(
+                "'{field}' joins are not supported by this engine version"
+            ));
         }
         if field.contains(':') {
             return Err(format!("field modifiers are not supported: '{field}'"));
         }
         if field.starts_with('@') {
-            return Err(format!("a datetime macro ('{field}') cannot be the left operand"));
+            return Err(format!(
+                "a datetime macro ('{field}') cannot be the left operand"
+            ));
         }
         let Some(Tok::Op(op)) = self.next() else {
             return Err(format!("expected an operator after '{field}'"));
@@ -249,8 +283,14 @@ impl Parser {
         // the "any of" forms as plain `op` over each value).
         let plain = op.strip_prefix('?').unwrap_or(op);
         Ok(match plain {
-            "=" if value.is_null() => Filter::IsNull { field, negate: false },
-            "!=" if value.is_null() => Filter::IsNull { field, negate: true },
+            "=" if value.is_null() => Filter::IsNull {
+                field,
+                negate: false,
+            },
+            "!=" if value.is_null() => Filter::IsNull {
+                field,
+                negate: true,
+            },
             "=" => cmp(field, CmpOp::Eq, value),
             "!=" => cmp(field, CmpOp::Ne, value),
             ">" => cmp(field, CmpOp::Gt, value),
@@ -273,8 +313,9 @@ impl Parser {
                 "true" => Ok(Value::Bool(true)),
                 "false" => Ok(Value::Bool(false)),
                 "null" => Ok(Value::Null),
-                m if m.starts_with("@request") => resolver(m)
-                    .ok_or_else(|| format!("'{m}' is not available in this context")),
+                m if m.starts_with("@request") => {
+                    resolver(m).ok_or_else(|| format!("'{m}' is not available in this context"))
+                }
                 m if m.starts_with('@') => datetime_macro(m),
                 other => Err(format!(
                     "right operand must be a literal or datetime macro, got '{other}'"
@@ -319,7 +360,11 @@ fn const_compare(left: &Value, op: &str, right: &Value) -> Result<bool, String> 
         ">=" => matches!(ord(), Some(Greater | Equal)),
         "<" => matches!(ord(), Some(Less)),
         "<=" => matches!(ord(), Some(Less | Equal)),
-        other => return Err(format!("operator '{other}' is not supported on caller references")),
+        other => {
+            return Err(format!(
+                "operator '{other}' is not supported on caller references"
+            ))
+        }
     })
 }
 
@@ -330,8 +375,16 @@ fn like(field: String, value: &Value) -> Filter {
         Value::String(s) => s.clone(),
         other => other.to_string(),
     };
-    let pattern = if raw.contains('%') { raw } else { format!("%{raw}%") };
-    Filter::Like { field, pattern: Value::String(pattern), ci: true }
+    let pattern = if raw.contains('%') {
+        raw
+    } else {
+        format!("%{raw}%")
+    };
+    Filter::Like {
+        field,
+        pattern: Value::String(pattern),
+        ci: true,
+    }
 }
 
 /// PB's datetime macros, evaluated at parse time. Datetimes render in PB's
@@ -341,11 +394,17 @@ fn datetime_macro(name: &str) -> Result<Value, String> {
     let dt = |t: chrono::DateTime<chrono::Utc>| {
         Value::String(t.format("%Y-%m-%d %H:%M:%S%.3fZ").to_string())
     };
-    let day_start = now.date_naive().and_hms_opt(0, 0, 0).unwrap_or_default().and_utc();
+    let day_start = now
+        .date_naive()
+        .and_hms_opt(0, 0, 0)
+        .unwrap_or_default()
+        .and_utc();
     Ok(match name {
         "@now" => dt(now),
         "@todayStart" => dt(day_start),
-        "@todayEnd" => dt(day_start + chrono::Duration::days(1) - chrono::Duration::milliseconds(1)),
+        "@todayEnd" => {
+            dt(day_start + chrono::Duration::days(1) - chrono::Duration::milliseconds(1))
+        }
         "@monthStart" => dt(now
             .date_naive()
             .with_day(1)
@@ -381,34 +440,66 @@ mod tests {
     fn parses_simple_comparisons() {
         assert_eq!(
             f("status = 'active'"),
-            Filter::Cmp { field: "status".into(), op: CmpOp::Eq, value: "active".into() }
+            Filter::Cmp {
+                field: "status".into(),
+                op: CmpOp::Eq,
+                value: "active".into()
+            }
         );
         assert_eq!(
             f("count > 5"),
-            Filter::Cmp { field: "count".into(), op: CmpOp::Gt, value: serde_json::json!(5.0) }
+            Filter::Cmp {
+                field: "count".into(),
+                op: CmpOp::Gt,
+                value: serde_json::json!(5.0)
+            }
         );
         assert_eq!(
             f("done = true"),
-            Filter::Cmp { field: "done".into(), op: CmpOp::Eq, value: Value::Bool(true) }
+            Filter::Cmp {
+                field: "done".into(),
+                op: CmpOp::Eq,
+                value: Value::Bool(true)
+            }
         );
     }
 
     #[test]
     fn null_equality_lowers_to_is_null() {
-        assert_eq!(f("deleted = null"), Filter::IsNull { field: "deleted".into(), negate: false });
-        assert_eq!(f("deleted != null"), Filter::IsNull { field: "deleted".into(), negate: true });
+        assert_eq!(
+            f("deleted = null"),
+            Filter::IsNull {
+                field: "deleted".into(),
+                negate: false
+            }
+        );
+        assert_eq!(
+            f("deleted != null"),
+            Filter::IsNull {
+                field: "deleted".into(),
+                negate: true
+            }
+        );
     }
 
     #[test]
     fn tilde_wraps_in_wildcards_like_pb() {
         assert_eq!(
             f("title ~ 'abc'"),
-            Filter::Like { field: "title".into(), pattern: "%abc%".into(), ci: true }
+            Filter::Like {
+                field: "title".into(),
+                pattern: "%abc%".into(),
+                ci: true
+            }
         );
         // an explicit wildcard is respected, not double-wrapped
         assert_eq!(
             f("title ~ 'ab%'"),
-            Filter::Like { field: "title".into(), pattern: "ab%".into(), ci: true }
+            Filter::Like {
+                field: "title".into(),
+                pattern: "ab%".into(),
+                ci: true
+            }
         );
         assert!(matches!(f("title !~ 'x'"), Filter::Not(_)));
     }
@@ -416,7 +507,9 @@ mod tests {
     #[test]
     fn boolean_composition_and_parens() {
         let got = f("a = 1 && (b = 2 || c = 3)");
-        let Filter::And(parts) = got else { panic!("expected And") };
+        let Filter::And(parts) = got else {
+            panic!("expected And")
+        };
         assert_eq!(parts.len(), 2);
         assert!(matches!(&parts[1], Filter::Or(o) if o.len() == 2));
     }
@@ -430,10 +523,14 @@ mod tests {
 
     #[test]
     fn datetime_macros_evaluate() {
-        let Filter::Cmp { value, .. } = f("created >= @todayStart") else { panic!() };
+        let Filter::Cmp { value, .. } = f("created >= @todayStart") else {
+            panic!()
+        };
         let s = value.as_str().unwrap();
         assert!(s.ends_with(" 00:00:00.000Z"), "got {s}");
-        let Filter::Cmp { value, .. } = f("created < @now") else { panic!() };
+        let Filter::Cmp { value, .. } = f("created < @now") else {
+            panic!()
+        };
         assert!(value.as_str().unwrap().ends_with('Z'));
     }
 
@@ -441,15 +538,28 @@ mod tests {
     fn escapes_quotes_and_rejects_garbage() {
         assert_eq!(
             f(r#"name = 'it\'s'"#),
-            Filter::Cmp { field: "name".into(), op: CmpOp::Eq, value: "it's".into() }
+            Filter::Cmp {
+                field: "name".into(),
+                op: CmpOp::Eq,
+                value: "it's".into()
+            }
         );
         assert!(parse_pb_filter("a = ").is_err());
         assert!(parse_pb_filter("= 'x'").is_err());
         assert!(parse_pb_filter("a = 'x' &&").is_err());
         assert!(parse_pb_filter("a = 'unterminated").is_err());
-        assert!(parse_pb_filter("@now = 1").is_err(), "macro as left operand");
-        assert!(parse_pb_filter("@request.auth.id = 'x'").is_err(), "rules-only ref");
-        assert!(parse_pb_filter("a:isset = true").is_err(), "rules-only modifier");
+        assert!(
+            parse_pb_filter("@now = 1").is_err(),
+            "macro as left operand"
+        );
+        assert!(
+            parse_pb_filter("@request.auth.id = 'x'").is_err(),
+            "rules-only ref"
+        );
+        assert!(
+            parse_pb_filter("a:isset = true").is_err(),
+            "rules-only modifier"
+        );
     }
 
     #[test]

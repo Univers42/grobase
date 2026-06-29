@@ -123,8 +123,8 @@ type DeviceStart struct {
 
 // SyncSummary reports what a github sync mapped into the vault42 model.
 type SyncSummary struct {
-	Teams        int `json:"teams"`
-	Members      int `json:"members"`
-	Repos        int `json:"repos"`
-	RolesSeeded  int `json:"roles_seeded"`
+	Teams       int `json:"teams"`
+	Members     int `json:"members"`
+	Repos       int `json:"repos"`
+	RolesSeeded int `json:"roles_seeded"`
 }

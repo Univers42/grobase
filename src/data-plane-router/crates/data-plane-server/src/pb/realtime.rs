@@ -58,9 +58,7 @@ impl Realtime {
             for raw in &c.topics {
                 let topic = raw.split('?').next().unwrap_or(raw);
                 let hit = topic_keys.iter().any(|k| {
-                    topic == *k
-                        || topic == format!("{k}/*")
-                        || topic == format!("{k}/{record_id}")
+                    topic == *k || topic == format!("{k}/*") || topic == format!("{k}/{record_id}")
                 });
                 if hit && (public || c.superuser) {
                     // a dead pipe = a disconnected client → drop it
@@ -88,7 +86,11 @@ async fn stream(State(state): State<AppState>) -> axum::response::Response {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .insert(
             client_id.clone(),
-            Client { topics: vec![], superuser: false, tx },
+            Client {
+                topics: vec![],
+                superuser: false,
+                tx,
+            },
         );
 
     let connect = json!({ "clientId": client_id }).to_string();
@@ -96,11 +98,17 @@ async fn stream(State(state): State<AppState>) -> axum::response::Response {
     let drop_id = client_id.clone();
     let stream = async_stream(move |yield_tx| async move {
         let _ = yield_tx.send(Ok::<Event, std::convert::Infallible>(
-            Event::default().id(&client_id).event("PB_CONNECT").data(&connect),
+            Event::default()
+                .id(&client_id)
+                .event("PB_CONNECT")
+                .data(&connect),
         ));
         while let Some((topic, payload)) = rx.recv().await {
             if yield_tx
-                .send(Ok(Event::default().id(&client_id).event(&topic).data(&payload)))
+                .send(Ok(Event::default()
+                    .id(&client_id)
+                    .event(&topic)
+                    .data(&payload)))
                 .is_err()
             {
                 break;
@@ -115,7 +123,11 @@ async fn stream(State(state): State<AppState>) -> axum::response::Response {
             .remove(&drop_id);
     });
     Sse::new(stream)
-        .keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(15)).text("keepalive"))
+        .keep_alive(
+            KeepAlive::new()
+                .interval(std::time::Duration::from_secs(15))
+                .text("keepalive"),
+        )
         .into_response()
 }
 
@@ -150,7 +162,11 @@ async fn subscribe(
     let topics: Vec<String> = req
         .get("subscriptions")
         .and_then(|v| v.as_array())
-        .map(|a| a.iter().filter_map(|t| t.as_str().map(String::from)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|t| t.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
     let superuser = matches!(pb_auth(&state, &headers), PbAuth::Superuser);
     let mut clients = pb

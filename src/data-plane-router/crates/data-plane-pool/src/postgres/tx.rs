@@ -213,11 +213,19 @@ async fn dispatch_single<C: GenericClient + Sync>(
     let (scoped, read_scoped) = derive_scope(&operation.resource, ctx, identity.is_admin());
     let read_owner_scoped = ctx.read_predicate && read_scoped;
     match &operation.op {
-        DataOperationKind::List => query::run_list(client, operation, identity, read_owner_scoped).await,
-        DataOperationKind::Get => query::run_get(client, operation, identity, read_owner_scoped).await,
+        DataOperationKind::List => {
+            query::run_list(client, operation, identity, read_owner_scoped).await
+        }
+        DataOperationKind::Get => {
+            query::run_get(client, operation, identity, read_owner_scoped).await
+        }
         DataOperationKind::Insert => crud::run_insert(client, operation, identity, scoped).await,
-        DataOperationKind::Update => crud::run_update(client, operation, identity, read_scoped).await,
-        DataOperationKind::Delete => crud::run_delete(client, operation, identity, read_scoped).await,
+        DataOperationKind::Update => {
+            crud::run_update(client, operation, identity, read_scoped).await
+        }
+        DataOperationKind::Delete => {
+            crud::run_delete(client, operation, identity, read_scoped).await
+        }
         DataOperationKind::Upsert => crud::run_upsert(client, operation, identity, scoped).await,
         DataOperationKind::Aggregate => {
             query::run_aggregate(client, operation, identity, read_owner_scoped).await

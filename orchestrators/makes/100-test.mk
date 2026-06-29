@@ -61,7 +61,7 @@ test-lint-yaml: ## Lint YAML — yamllint with the committed .yamllint policy (w
 		&& echo -e "$(_G)✓ yaml$(_0)"
 
 test-lint-docker: ## Lint Dockerfiles — hadolint with the committed .hadolint.yaml policy (warnings fail, in Docker)
-	@rc=0; for df in $$(git ls-files '*Dockerfile*' 2>/dev/null | grep -v node_modules); do \
+	@rc=0; for df in $$(git ls-files '*Dockerfile*' 2>/dev/null | grep -vE 'node_modules|(^|/)vendor/'); do \
 		docker run --rm -i -v "$(CURDIR)/.hadolint.yaml":/cfg.yaml hadolint/hadolint hadolint --config /cfg.yaml - < "$$df" \
 			|| { echo -e "$(_R)  $$df$(_0)"; rc=1; }; done; \
 	[ $$rc -eq 0 ] && echo -e "$(_G)✓ dockerfiles$(_0)" || exit 1

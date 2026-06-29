@@ -268,7 +268,8 @@ export class GraphService {
       if (filter) dto.filter = filter;
       let rows: Array<Record<string, unknown>>;
       try {
-        rows = ((await this.query.executeQuery(dbId, table, userId, dto, ctx)) as QueryRows).rows ?? [];
+        rows =
+          ((await this.query.executeQuery(dbId, table, userId, dto, ctx)) as QueryRows).rows ?? [];
       } catch (error) {
         this.logger.debug(`list ${dbId}:${table} @${offset} failed: ${(error as Error).message}`);
         break;

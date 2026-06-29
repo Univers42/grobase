@@ -68,7 +68,10 @@ async fn batch(
         // PB ships batch DISABLED; superusers enable it via /api/settings.
         return pb_err(StatusCode::FORBIDDEN, "Batch requests are not allowed.");
     }
-    let max_batch = settings["batch"]["maxRequests"].as_u64().unwrap_or(50).max(1) as usize;
+    let max_batch = settings["batch"]["maxRequests"]
+        .as_u64()
+        .unwrap_or(50)
+        .max(1) as usize;
     let Some(requests) = req.get("requests").and_then(|v| v.as_array()) else {
         return pb_err(StatusCode::BAD_REQUEST, "missing requests array");
     };
@@ -127,13 +130,19 @@ async fn batch(
     for plan in &plans {
         let body = match plan.op.op {
             DataOperationKind::Delete => json!(null),
-            _ => match super::records::fetch_shaped(&state, &plan.collection, &plan.record_id).await
-            {
-                Ok(Some(rec)) => rec,
-                _ => json!(null),
-            },
+            _ => {
+                match super::records::fetch_shaped(&state, &plan.collection, &plan.record_id).await
+                {
+                    Ok(Some(rec)) => rec,
+                    _ => json!(null),
+                }
+            }
         };
-        let status = if plan.op.op == DataOperationKind::Delete { 204 } else { 200 };
+        let status = if plan.op.op == DataOperationKind::Delete {
+            204
+        } else {
+            200
+        };
         out.push(json!({ "status": status, "body": body }));
     }
     (StatusCode::OK, Json(Value::Array(out))).into_response()
