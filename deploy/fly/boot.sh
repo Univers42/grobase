@@ -77,7 +77,7 @@ write_local_overrides() {
 		VAULT42_SCOPE_KEYS_ENABLED=1
 		DATA_PLANE_FEATURES=--features dynamodb
 		DYNAMODB_ENGINE_ENABLED=1
-		RUST_DATA_PLANE_FORWARD_ENGINES=postgresql,mysql,mongodb,mssql,dynamodb,sqlite
+		RUST_DATA_PLANE_FORWARD_ENGINES=postgresql,cockroachdb,mongodb,mysql,mariadb,redis,sqlite,mssql,http,dynamodb
 	EOF
 	# Real SMTP from fly secrets (set SMTP_PASS on the app) routes OTP/mail to a real
 	# inbox; absent it, the stack keeps the internal mailpit sink (dev default).
