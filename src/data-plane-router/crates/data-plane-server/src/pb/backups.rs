@@ -116,15 +116,24 @@ fn restore_zip(archive: &std::path::Path, data: &std::path::Path) -> Result<(), 
     Ok(())
 }
 
-fn require_su(state: &AppState, headers: &header::HeaderMap) -> Result<(), axum::response::Response> {
+fn require_su(
+    state: &AppState,
+    headers: &header::HeaderMap,
+) -> Result<(), axum::response::Response> {
     match pb_auth(state, headers) {
         PbAuth::Superuser => Ok(()),
-        _ => Err(pb_err(StatusCode::FORBIDDEN, "Only superusers can perform this action.")),
+        _ => Err(pb_err(
+            StatusCode::FORBIDDEN,
+            "Only superusers can perform this action.",
+        )),
     }
 }
 
 /// GET /api/backups
-async fn list(State(state): State<AppState>, headers: header::HeaderMap) -> axum::response::Response {
+async fn list(
+    State(state): State<AppState>,
+    headers: header::HeaderMap,
+) -> axum::response::Response {
     if let Err(r) = require_su(&state, &headers) {
         return r;
     }
@@ -179,7 +188,10 @@ async fn create(
             )
         });
     if !safe_key(&key) {
-        return pb_err(StatusCode::BAD_REQUEST, "invalid backup name (must be a .zip key)");
+        return pb_err(
+            StatusCode::BAD_REQUEST,
+            "invalid backup name (must be a .zip key)",
+        );
     }
     let dir = backups_dir(&pb);
     if std::fs::create_dir_all(&dir).is_err() {
@@ -223,7 +235,10 @@ async fn download(
             bytes,
         )
             .into_response(),
-        Err(_) => pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found."),
+        Err(_) => pb_err(
+            StatusCode::NOT_FOUND,
+            "The requested resource wasn't found.",
+        ),
     }
 }
 
@@ -245,7 +260,10 @@ async fn remove(
     }
     match tokio::fs::remove_file(backups_dir(&pb).join(&key)).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
-        Err(_) => pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found."),
+        Err(_) => pb_err(
+            StatusCode::NOT_FOUND,
+            "The requested resource wasn't found.",
+        ),
     }
 }
 
@@ -267,7 +285,10 @@ async fn restore(
     }
     let archive = backups_dir(&pb).join(&key);
     if !archive.exists() {
-        return pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found.");
+        return pb_err(
+            StatusCode::NOT_FOUND,
+            "The requested resource wasn't found.",
+        );
     }
     let data = data_dir(&pb);
     let unpacked = tokio::task::spawn_blocking(move || restore_zip(&archive, &data)).await;

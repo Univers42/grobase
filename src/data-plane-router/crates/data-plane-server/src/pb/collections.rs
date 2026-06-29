@@ -23,10 +23,11 @@ use crate::routes::AppState;
 fn valid_ident(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 64
-        && name
-            .chars()
-            .enumerate()
-            .all(|(i, c)| c == '_' || c.is_ascii_alphanumeric() && (i > 0 || !c.is_ascii_digit()) || (i > 0 && c.is_ascii_digit()))
+        && name.chars().enumerate().all(|(i, c)| {
+            c == '_'
+                || c.is_ascii_alphanumeric() && (i > 0 || !c.is_ascii_digit())
+                || (i > 0 && c.is_ascii_digit())
+        })
         && !name.starts_with(|c: char| c.is_ascii_digit())
 }
 
@@ -119,22 +120,22 @@ impl super::PbState {
     /// every collection change records a full snapshot, so schema history is
     /// inspectable and replayable.
     pub(crate) fn migration_record(&self, kind: &str, c: &Collection) {
-        let conn = self.meta.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let conn = self
+            .meta
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let _ = conn.execute(
             "INSERT INTO pb_migrations_history (id, type, collection, snapshot, created)
              VALUES (?1, ?2, ?3, ?4, ?5)",
-            rusqlite::params![
-                pb_id(),
-                kind,
-                c.name,
-                c.to_json().to_string(),
-                pb_now(),
-            ],
+            rusqlite::params![pb_id(), kind, c.name, c.to_json().to_string(), pb_now(),],
         );
     }
 
     pub(crate) fn col_get(&self, id_or_name: &str) -> Option<Collection> {
-        let conn = self.meta.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let conn = self
+            .meta
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         conn.query_row(
             &format!("{COL_SELECT} WHERE id = ?1 OR name = ?1"),
             [id_or_name],
@@ -144,7 +145,10 @@ impl super::PbState {
     }
 
     pub(crate) fn col_list(&self) -> Vec<Collection> {
-        let conn = self.meta.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let conn = self
+            .meta
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let Ok(mut stmt) = conn.prepare(&format!("{COL_SELECT} ORDER BY created, name")) else {
             return vec![];
         };
@@ -153,7 +157,10 @@ impl super::PbState {
     }
 
     fn col_insert(&self, c: &Collection) -> Result<(), String> {
-        let conn = self.meta.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let conn = self
+            .meta
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         conn.execute(
             "INSERT INTO pb_collections (id, name, type, system, fields, listRule, viewRule,
              createRule, updateRule, deleteRule, indexes, options, created, updated)
@@ -178,7 +185,10 @@ impl super::PbState {
     }
 
     fn col_update(&self, c: &Collection) -> Result<(), String> {
-        let conn = self.meta.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let conn = self
+            .meta
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         conn.execute(
             "UPDATE pb_collections SET fields = ?2, listRule = ?3, viewRule = ?4,
              createRule = ?5, updateRule = ?6, deleteRule = ?7, indexes = ?8, updated = ?9,
@@ -202,7 +212,10 @@ impl super::PbState {
     }
 
     fn col_delete(&self, id: &str) -> bool {
-        let conn = self.meta.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let conn = self
+            .meta
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         conn.execute("DELETE FROM pb_collections WHERE id = ?1", [id])
             .unwrap_or(0)
             > 0
@@ -231,8 +244,14 @@ fn normalize_fields_for(
     let empty = vec![];
     let items = input.and_then(|v| v.as_array()).unwrap_or(&empty);
     for item in items {
-        let name = item.get("name").and_then(|v| v.as_str()).unwrap_or_default();
-        let ftype = item.get("type").and_then(|v| v.as_str()).unwrap_or_default();
+        let name = item
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let ftype = item
+            .get("type")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
         if !valid_ident(name) {
             return Err(format!("invalid field name '{name}'"));
         }
@@ -264,16 +283,28 @@ fn normalize_fields_for(
     if is_auth {
         // PB auth-collection system fields: identity columns the auth
         // endpoints depend on. `password` is write-only (never serialized).
-        all.push(json!({"id": "f_sys_email0000", "name": "email", "type": "email",
-                        "system": true, "required": true}));
-        all.push(json!({"id": "f_sys_password0", "name": "password", "type": "password",
-                        "system": true, "required": true, "hidden": true}));
-        all.push(json!({"id": "f_sys_verified0", "name": "verified", "type": "bool",
-                        "system": true}));
-        all.push(json!({"id": "f_sys_emailvis0", "name": "emailVisibility", "type": "bool",
-                        "system": true}));
-        for (name, ty) in [("email", "TEXT"), ("password", "TEXT"),
-                           ("verified", "INTEGER"), ("emailVisibility", "INTEGER")] {
+        all.push(
+            json!({"id": "f_sys_email0000", "name": "email", "type": "email",
+                        "system": true, "required": true}),
+        );
+        all.push(
+            json!({"id": "f_sys_password0", "name": "password", "type": "password",
+                        "system": true, "required": true, "hidden": true}),
+        );
+        all.push(
+            json!({"id": "f_sys_verified0", "name": "verified", "type": "bool",
+                        "system": true}),
+        );
+        all.push(
+            json!({"id": "f_sys_emailvis0", "name": "emailVisibility", "type": "bool",
+                        "system": true}),
+        );
+        for (name, ty) in [
+            ("email", "TEXT"),
+            ("password", "TEXT"),
+            ("verified", "INTEGER"),
+            ("emailVisibility", "INTEGER"),
+        ] {
             if !cols.iter().any(|(n, _)| n == name) {
                 cols.push((name.to_string(), ty));
             }
@@ -288,14 +319,20 @@ fn create_table_sql(name: &str, cols: &[(String, &'static str)]) -> String {
     for (col, ty) in cols {
         parts.push(format!("\"{col}\" {ty}"));
     }
-    format!("CREATE TABLE IF NOT EXISTS \"{name}\" ({})", parts.join(", "))
+    format!(
+        "CREATE TABLE IF NOT EXISTS \"{name}\" ({})",
+        parts.join(", ")
+    )
 }
 
 /// Run facade-side DDL through the engine's writer thread (raw, expect_rows
 /// false) so the data file has exactly one writer.
 async fn exec_ddl(state: &AppState, sql: String) -> Result<(), axum::response::Response> {
     let Some(nano) = state.nano.as_ref() else {
-        return Err(pb_err(StatusCode::SERVICE_UNAVAILABLE, "engine unavailable"));
+        return Err(pb_err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "engine unavailable",
+        ));
     };
     let _ = nano; // mount resolution happens inside exec via the same helper
     let op = data_plane_core::RawStatement {
@@ -334,22 +371,39 @@ async fn create(
         Ok(p) => p,
         Err(r) => return r,
     };
-    let name = req.get("name").and_then(|v| v.as_str()).unwrap_or_default().to_string();
-    let kind = req.get("type").and_then(|v| v.as_str()).unwrap_or("base").to_string();
+    let name = req
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    let kind = req
+        .get("type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("base")
+        .to_string();
     if !valid_ident(&name) || name.starts_with('_') {
         return pb_err(StatusCode::BAD_REQUEST, "invalid collection name");
     }
     if kind == "view" {
         // SELECT-backed read-only collection: no table, the query IS the data.
         let Some(q) = req.get("viewQuery").and_then(|v| v.as_str()).map(str::trim) else {
-            return pb_err(StatusCode::BAD_REQUEST, "view collections require a viewQuery");
+            return pb_err(
+                StatusCode::BAD_REQUEST,
+                "view collections require a viewQuery",
+            );
         };
         if !q.to_ascii_uppercase().starts_with("SELECT") || q.contains(';') || q.len() > 4096 {
-            return pb_err(StatusCode::BAD_REQUEST, "viewQuery must be a single SELECT statement");
+            return pb_err(
+                StatusCode::BAD_REQUEST,
+                "viewQuery must be a single SELECT statement",
+            );
         }
     }
     if pb.col_get(&name).is_some() {
-        return pb_err(StatusCode::BAD_REQUEST, "a collection with this name already exists");
+        return pb_err(
+            StatusCode::BAD_REQUEST,
+            "a collection with this name already exists",
+        );
     }
     let (fields, cols) = match normalize_fields_for(req.get("fields"), kind == "auth") {
         Ok(v) => v,
@@ -358,8 +412,17 @@ async fn create(
     if kind == "view" {
         // a REAL SQLite view: filters/sorts/getOne flow through the normal
         // engine path; the records layer only blocks mutations
-        let q = req.get("viewQuery").and_then(|v| v.as_str()).unwrap_or_default().trim();
-        if let Err(r) = exec_ddl(&state, format!("CREATE VIEW IF NOT EXISTS \"{name}\" AS {q}")).await {
+        let q = req
+            .get("viewQuery")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .trim();
+        if let Err(r) = exec_ddl(
+            &state,
+            format!("CREATE VIEW IF NOT EXISTS \"{name}\" AS {q}"),
+        )
+        .await
+        {
             return r;
         }
     } else if let Err(r) = exec_ddl(&state, create_table_sql(&name, &cols)).await {
@@ -375,7 +438,16 @@ async fn create(
     }
     let rule = |k: &str| req.get(k).and_then(|v| v.as_str()).map(String::from);
     let mut options = serde_json::Map::new();
-    for key in ["otp", "mfa", "passwordAuth", "oauth2", "authToken", "authRule", "manageRule", "viewQuery"] {
+    for key in [
+        "otp",
+        "mfa",
+        "passwordAuth",
+        "oauth2",
+        "authToken",
+        "authRule",
+        "manageRule",
+        "viewQuery",
+    ] {
         if let Some(v) = req.get(key) {
             options.insert(key.to_string(), v.clone());
         }
@@ -517,7 +589,15 @@ async fn update(
     if let Some(idx) = req.get("indexes") {
         col.indexes = idx.clone();
     }
-    for key in ["otp", "mfa", "passwordAuth", "oauth2", "authToken", "authRule", "manageRule"] {
+    for key in [
+        "otp",
+        "mfa",
+        "passwordAuth",
+        "oauth2",
+        "authToken",
+        "authRule",
+        "manageRule",
+    ] {
         if let Some(v) = req.get(key) {
             if let Some(o) = col.options.as_object_mut() {
                 o.insert(key.to_string(), v.clone());
@@ -528,7 +608,15 @@ async fn update(
         return pb_err(StatusCode::BAD_REQUEST, &m);
     }
     pb.migration_record("update", &col);
-    (StatusCode::OK, Json(pb.col_get(&col.id).map(|c| c.to_json()).unwrap_or_else(|| col.to_json()))).into_response()
+    (
+        StatusCode::OK,
+        Json(
+            pb.col_get(&col.id)
+                .map(|c| c.to_json())
+                .unwrap_or_else(|| col.to_json()),
+        ),
+    )
+        .into_response()
 }
 
 /// DELETE /api/collections/{idOrName} (superuser) — registry row + table.
@@ -581,7 +669,11 @@ async fn import(
     };
     let mut names = std::collections::HashSet::new();
     for entry in entries {
-        let name = entry.get("name").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        let name = entry
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
         names.insert(name.clone());
         let exists = pb.col_get(&name).is_some();
         let resp = if exists {
@@ -599,10 +691,19 @@ async fn import(
             return resp;
         }
     }
-    if req.get("deleteMissing").and_then(Value::as_bool).unwrap_or(false) {
+    if req
+        .get("deleteMissing")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
         for col in pb.col_list() {
             if !names.contains(&col.name) {
-                let _ = remove(State(state.clone()), headers.clone(), Path(col.name.clone())).await;
+                let _ = remove(
+                    State(state.clone()),
+                    headers.clone(),
+                    Path(col.name.clone()),
+                )
+                .await;
             }
         }
     }

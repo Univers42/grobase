@@ -77,7 +77,8 @@ export class ApiKeyMiddleware implements NestMiddleware {
     this.serviceToken = config.get<string>('INTERNAL_SERVICE_TOKEN', '');
     this.timeoutMs = Number(config.get('API_KEY_VERIFY_TIMEOUT_MS', '2000'));
     this.cacheTtlMs = Number(config.get('API_KEY_VERIFY_CACHE_TTL_MS', '30000'));
-    this.jwtSecret = config.get<string>('GOTRUE_JWT_SECRET', '') || config.get<string>('JWT_SECRET', '');
+    this.jwtSecret =
+      config.get<string>('GOTRUE_JWT_SECRET', '') || config.get<string>('JWT_SECRET', '');
     this.agent = new http.Agent({ keepAlive: false });
   }
 

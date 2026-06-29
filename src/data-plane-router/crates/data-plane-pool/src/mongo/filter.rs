@@ -333,9 +333,13 @@ mod tests {
             "shared read must not owner-scope: {shared:?}"
         );
         assert_eq!(shared.get_str("tenant_id").unwrap(), "t1");
-        let scoped =
-            build_tenant_filter(Some(&json!({ "kind": "x" })), &probe_identity(), "t1", false)
-                .unwrap();
+        let scoped = build_tenant_filter(
+            Some(&json!({ "kind": "x" })),
+            &probe_identity(),
+            "t1",
+            false,
+        )
+        .unwrap();
         assert_eq!(scoped.get_str("owner_id").unwrap(), "api-key:k1");
     }
 
@@ -459,9 +463,13 @@ mod tests {
         assert!(candidates.contains(&Bson::ObjectId(oid)));
         assert!(candidates.contains(&Bson::String(hex.to_string())));
         // Non-hex pk strings stay literal (seeded ids like `evt-000001`).
-        let plain =
-            build_tenant_filter(Some(&json!({ "_id": "evt-1" })), &probe_identity(), "t1", false)
-                .unwrap();
+        let plain = build_tenant_filter(
+            Some(&json!({ "_id": "evt-1" })),
+            &probe_identity(),
+            "t1",
+            false,
+        )
+        .unwrap();
         assert_eq!(plain.get_str("_id").unwrap(), "evt-1");
     }
 

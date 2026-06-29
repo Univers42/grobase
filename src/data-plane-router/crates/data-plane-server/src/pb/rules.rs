@@ -47,7 +47,11 @@ impl RuleCtx {
         self.headers = Value::Object(
             headers
                 .iter()
-                .filter_map(|(k, v)| v.to_str().ok().map(|v| (k.as_str().to_lowercase(), json!(v))))
+                .filter_map(|(k, v)| {
+                    v.to_str()
+                        .ok()
+                        .map(|v| (k.as_str().to_lowercase(), json!(v)))
+                })
                 .collect(),
         );
         self
@@ -182,7 +186,13 @@ mod tests {
     use super::*;
 
     fn ctx(auth: Option<Value>) -> RuleCtx {
-        RuleCtx { auth, superuser: false, body: None, query: json!({}), headers: json!({}) }
+        RuleCtx {
+            auth,
+            superuser: false,
+            body: None,
+            query: json!({}),
+            headers: json!({}),
+        }
     }
 
     #[test]
@@ -204,7 +214,10 @@ mod tests {
             _ => panic!("guest still gets a (never-matching) constraint"),
         }
         assert!(matches!(lower_rule(None, &g), Lowered::Deny));
-        assert!(matches!(lower_rule(Some(&String::new()), &g), Lowered::Open));
+        assert!(matches!(
+            lower_rule(Some(&String::new()), &g),
+            Lowered::Open
+        ));
     }
 
     #[test]
@@ -229,7 +242,10 @@ mod tests {
         c.body = Some(json!({ "owner": "u" }));
         // @request.body.owner = @request.auth.id → 'u' = 'u' → AlwaysTrue
         assert!(matches!(
-            lower_rule(Some(&"@request.body.owner = @request.auth.id".to_string()), &c),
+            lower_rule(
+                Some(&"@request.body.owner = @request.auth.id".to_string()),
+                &c
+            ),
             Lowered::Open
         ));
         // a genuinely unknown @request namespace still fails closed
@@ -238,5 +254,4 @@ mod tests {
             Lowered::Deny
         ));
     }
-
 }

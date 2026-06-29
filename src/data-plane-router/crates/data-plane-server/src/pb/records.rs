@@ -44,10 +44,7 @@ fn rule_of(raw: Option<&String>) -> Rule<'_> {
 }
 
 /// Resolve the caller + their auth record once per request (rule context).
-async fn caller(
-    state: &AppState,
-    headers: &header::HeaderMap,
-) -> (PbAuth, super::rules::RuleCtx) {
+async fn caller(state: &AppState, headers: &header::HeaderMap) -> (PbAuth, super::rules::RuleCtx) {
     let auth = pb_auth(state, headers);
     let record = super::auth::auth_record_of(state, &auth).await;
     let ctx = super::rules::RuleCtx::from_auth(&auth, record).with_headers(headers);
@@ -258,7 +255,9 @@ fn filter_wire(raw: &str) -> Result<Option<Value>, String> {
 pub(crate) fn filter_to_wire(f: &data_plane_core::Filter) -> Value {
     use data_plane_core::{CmpOp, Filter};
     match f {
-        Filter::And(parts) => json!({ "$and": parts.iter().map(filter_to_wire).collect::<Vec<_>>() }),
+        Filter::And(parts) => {
+            json!({ "$and": parts.iter().map(filter_to_wire).collect::<Vec<_>>() })
+        }
         Filter::Or(parts) => json!({ "$or": parts.iter().map(filter_to_wire).collect::<Vec<_>>() }),
         Filter::Not(inner) => json!({ "$not": filter_to_wire(inner) }),
         Filter::Cmp { field, op, value } => {
@@ -281,7 +280,6 @@ pub(crate) fn filter_to_wire(f: &data_plane_core::Filter) -> Value {
         Filter::IsNull { field, negate } => json!({ field: { "$null": !negate } }),
     }
 }
-
 
 // ─── expand (relations + back-relations) ─────────────────────────────────────
 
@@ -325,7 +323,11 @@ async fn apply_expand(
         return;
     }
     let Ok(pb) = pb_of(state) else { return };
-    for token in expand_raw.split(',').map(str::trim).filter(|t| !t.is_empty()) {
+    for token in expand_raw
+        .split(',')
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+    {
         let (head, rest) = match token.split_once('.') {
             Some((h, r)) => (h, Some(r)),
             None => (token, None),
@@ -339,21 +341,27 @@ async fn apply_expand(
             }
         } else if let Some((tname, via)) = head.rsplit_once("_via_") {
             match pb.col_get(tname) {
-                Some(t) => (t, Link::Back { via: via.to_string() }),
+                Some(t) => (
+                    t,
+                    Link::Back {
+                        via: via.to_string(),
+                    },
+                ),
                 None => continue,
             }
         } else {
             continue;
         };
-        let (rule_filter, rule_mem) = match super::rules::lower_rule(target_col.view_rule.as_ref(), ctx) {
-            super::rules::Lowered::Open => (None, None),
-            super::rules::Lowered::Constrain(f) => (Some(f), None),
-            super::rules::Lowered::Memory(e) => {
-                (e.sql_prefilter().map(|x| filter_to_wire(&x)), Some(e))
-            }
-            // locked/never: PB omits the expansion
-            super::rules::Lowered::Never | super::rules::Lowered::Deny => continue,
-        };
+        let (rule_filter, rule_mem) =
+            match super::rules::lower_rule(target_col.view_rule.as_ref(), ctx) {
+                super::rules::Lowered::Open => (None, None),
+                super::rules::Lowered::Constrain(f) => (Some(f), None),
+                super::rules::Lowered::Memory(e) => {
+                    (e.sql_prefilter().map(|x| filter_to_wire(&x)), Some(e))
+                }
+                // locked/never: PB omits the expansion
+                super::rules::Lowered::Never | super::rules::Lowered::Deny => continue,
+            };
         let target_kinds = field_kinds(&target_col);
 
         let mut fetched: Vec<Value> = Vec::new();
@@ -416,7 +424,15 @@ async fn apply_expand(
             shaped = kept;
         }
         if let Some(rest) = rest {
-            Box::pin(apply_expand(state, &target_col, &mut shaped, rest, ctx, depth + 1)).await;
+            Box::pin(apply_expand(
+                state,
+                &target_col,
+                &mut shaped,
+                rest,
+                ctx,
+                depth + 1,
+            ))
+            .await;
         }
         let by_id: HashMap<String, Value> = shaped
             .into_iter()
@@ -465,27 +481,83 @@ async fn apply_expand(
 // ─── @collection.* join resolution (rules engine) ────────────────────────────
 
 /// Build one engine-filter term for a `@collection.X.field <op> value` ref.
-fn collection_term(field: &str, op: super::predicate::Cmp, value: Value) -> data_plane_core::Filter {
-    use data_plane_core::{CmpOp, Filter};
+fn collection_term(
+    field: &str,
+    op: super::predicate::Cmp,
+    value: Value,
+) -> data_plane_core::Filter {
     use super::predicate::Cmp;
+    use data_plane_core::{CmpOp, Filter};
     match op {
-        Cmp::Eq if value.is_null() => Filter::IsNull { field: field.into(), negate: false },
-        Cmp::Ne if value.is_null() => Filter::IsNull { field: field.into(), negate: true },
-        Cmp::Eq => Filter::Cmp { field: field.into(), op: CmpOp::Eq, value },
-        Cmp::Ne => Filter::Cmp { field: field.into(), op: CmpOp::Ne, value },
-        Cmp::Gt => Filter::Cmp { field: field.into(), op: CmpOp::Gt, value },
-        Cmp::Gte => Filter::Cmp { field: field.into(), op: CmpOp::Gte, value },
-        Cmp::Lt => Filter::Cmp { field: field.into(), op: CmpOp::Lt, value },
-        Cmp::Lte => Filter::Cmp { field: field.into(), op: CmpOp::Lte, value },
+        Cmp::Eq if value.is_null() => Filter::IsNull {
+            field: field.into(),
+            negate: false,
+        },
+        Cmp::Ne if value.is_null() => Filter::IsNull {
+            field: field.into(),
+            negate: true,
+        },
+        Cmp::Eq => Filter::Cmp {
+            field: field.into(),
+            op: CmpOp::Eq,
+            value,
+        },
+        Cmp::Ne => Filter::Cmp {
+            field: field.into(),
+            op: CmpOp::Ne,
+            value,
+        },
+        Cmp::Gt => Filter::Cmp {
+            field: field.into(),
+            op: CmpOp::Gt,
+            value,
+        },
+        Cmp::Gte => Filter::Cmp {
+            field: field.into(),
+            op: CmpOp::Gte,
+            value,
+        },
+        Cmp::Lt => Filter::Cmp {
+            field: field.into(),
+            op: CmpOp::Lt,
+            value,
+        },
+        Cmp::Lte => Filter::Cmp {
+            field: field.into(),
+            op: CmpOp::Lte,
+            value,
+        },
         Cmp::Like => {
-            let raw = value.as_str().map(String::from).unwrap_or_else(|| value.to_string());
-            let pat = if raw.contains('%') { raw } else { format!("%{raw}%") };
-            Filter::Like { field: field.into(), pattern: Value::String(pat), ci: true }
+            let raw = value
+                .as_str()
+                .map(String::from)
+                .unwrap_or_else(|| value.to_string());
+            let pat = if raw.contains('%') {
+                raw
+            } else {
+                format!("%{raw}%")
+            };
+            Filter::Like {
+                field: field.into(),
+                pattern: Value::String(pat),
+                ci: true,
+            }
         }
         Cmp::NLike => {
-            let raw = value.as_str().map(String::from).unwrap_or_else(|| value.to_string());
-            let pat = if raw.contains('%') { raw } else { format!("%{raw}%") };
-            Filter::Not(Box::new(Filter::Like { field: field.into(), pattern: Value::String(pat), ci: true }))
+            let raw = value
+                .as_str()
+                .map(String::from)
+                .unwrap_or_else(|| value.to_string());
+            let pat = if raw.contains('%') {
+                raw
+            } else {
+                format!("%{raw}%")
+            };
+            Filter::Not(Box::new(Filter::Like {
+                field: field.into(),
+                pattern: Value::String(pat),
+                ci: true,
+            }))
         }
     }
 }
@@ -505,14 +577,24 @@ fn collect_collection_terms(
                 collect_collection_terms(p, outer, groups);
             }
         }
-        PbExpr::Cmp { left, op, right, .. } => {
-            if let Operand::Collection { collection, alias, field } = left {
+        PbExpr::Cmp {
+            left, op, right, ..
+        } => {
+            if let Operand::Collection {
+                collection,
+                alias,
+                field,
+            } = left
+            {
                 let val = super::predicate::operand_literal(right, outer);
                 let key = match alias {
                     Some(a) => format!("{collection}:{a}"),
                     None => collection.clone(),
                 };
-                groups.entry(key).or_default().push((collection.clone(), collection_term(field, *op, val)));
+                groups
+                    .entry(key)
+                    .or_default()
+                    .push((collection.clone(), collection_term(field, *op, val)));
             }
         }
         PbExpr::Const(_) => {}
@@ -526,14 +608,23 @@ fn substitute_collection_refs(
 ) -> super::predicate::PbExpr {
     use super::predicate::{Operand, PbExpr};
     match expr {
-        PbExpr::And(parts) => {
-            PbExpr::And(parts.iter().map(|p| substitute_collection_refs(p, exists)).collect())
-        }
-        PbExpr::Or(parts) => {
-            PbExpr::Or(parts.iter().map(|p| substitute_collection_refs(p, exists)).collect())
-        }
+        PbExpr::And(parts) => PbExpr::And(
+            parts
+                .iter()
+                .map(|p| substitute_collection_refs(p, exists))
+                .collect(),
+        ),
+        PbExpr::Or(parts) => PbExpr::Or(
+            parts
+                .iter()
+                .map(|p| substitute_collection_refs(p, exists))
+                .collect(),
+        ),
         PbExpr::Cmp { left, .. } => {
-            if let Operand::Collection { collection, alias, .. } = left {
+            if let Operand::Collection {
+                collection, alias, ..
+            } = left
+            {
                 let key = match alias {
                     Some(a) => format!("{collection}:{a}"),
                     None => collection.clone(),
@@ -582,7 +673,9 @@ pub(crate) async fn eval_access(
     record: &Value,
 ) -> bool {
     if expr.has_collection_refs() {
-        resolve_collection_refs(state, expr, record).await.eval(record)
+        resolve_collection_refs(state, expr, record)
+            .await
+            .eval(record)
     } else {
         expr.eval(record)
     }
@@ -648,7 +741,11 @@ pub(crate) fn record_for_batch(
             }
             let mut op = base_op(DataOperationKind::Insert, &col.name);
             op.data = Some(Value::Object(data));
-            Ok(BatchPlan { op, collection: col.name.clone(), record_id: id })
+            Ok(BatchPlan {
+                op,
+                collection: col.name.clone(),
+                record_id: id,
+            })
         }
         ("PATCH", Some(id)) => {
             if !pass(&col.update_rule) {
@@ -666,7 +763,11 @@ pub(crate) fn record_for_batch(
             let mut op = base_op(DataOperationKind::Update, &col.name);
             op.data = Some(Value::Object(data));
             op.filter = Some(json!({ "id": id }));
-            Ok(BatchPlan { op, collection: col.name.clone(), record_id: id })
+            Ok(BatchPlan {
+                op,
+                collection: col.name.clone(),
+                record_id: id,
+            })
         }
         ("DELETE", Some(id)) => {
             if !pass(&col.delete_rule) {
@@ -674,7 +775,11 @@ pub(crate) fn record_for_batch(
             }
             let mut op = base_op(DataOperationKind::Delete, &col.name);
             op.filter = Some(json!({ "id": id }));
-            Ok(BatchPlan { op, collection: col.name.clone(), record_id: id })
+            Ok(BatchPlan {
+                op,
+                collection: col.name.clone(),
+                record_id: id,
+            })
         }
         (m, r) => Err(format!("unsupported batch op {m} (id: {r:?})")),
     }
@@ -704,10 +809,14 @@ fn publish_event(state: &AppState, col: &Collection, action: &str, record: &Valu
         .unwrap_or_default()
         .to_string();
     let public = matches!(rule_of(col.view_rule.as_ref()), Rule::Public);
-    pb.realtime
-        .publish(&[col.name.as_str(), col.id.as_str()], &rid, action, record, public);
+    pb.realtime.publish(
+        &[col.name.as_str(), col.id.as_str()],
+        &rid,
+        action,
+        record,
+        public,
+    );
 }
-
 
 // ─── request-body extraction (JSON or multipart) ─────────────────────────────
 
@@ -772,12 +881,8 @@ async fn extract_body(
                     .and_then(serde_json::Number::from_f64)
                     .map(Value::Number)
                     .unwrap_or(Value::Null),
-                Some(FieldKind::Bool) => {
-                    Value::Bool(matches!(text.as_str(), "true" | "1" | "on"))
-                }
-                Some(FieldKind::Json) => {
-                    serde_json::from_str(&text).unwrap_or(Value::String(text))
-                }
+                Some(FieldKind::Bool) => Value::Bool(matches!(text.as_str(), "true" | "1" | "on")),
+                Some(FieldKind::Json) => serde_json::from_str(&text).unwrap_or(Value::String(text)),
                 _ => Value::String(text),
             };
             match map.get_mut(&name) {
@@ -832,26 +937,38 @@ async fn persist_files(
             .map_err(|_| pb_err(StatusCode::INTERNAL_SERVER_ERROR, "storage unavailable"))?;
     }
     for (field, original, bytes) in files {
-        if !matches!(kinds.get(field.as_str()), Some(FieldKind::Single | FieldKind::Multi)) {
+        if !matches!(
+            kinds.get(field.as_str()),
+            Some(FieldKind::Single | FieldKind::Multi)
+        ) {
             continue; // not a declared file-capable field — ignored like unknown keys
         }
         let stored = super::files::stored_name(&original);
         #[cfg(feature = "s3")]
         if let Some((bucket, creds)) = s3.as_ref() {
-            super::files::s3_put(bucket, creds, &format!("{col_id}/{record_id}/{stored}"), bytes.clone())
-                .await
-                .map_err(|e| pb_err(StatusCode::INTERNAL_SERVER_ERROR, &e))?;
+            super::files::s3_put(
+                bucket,
+                creds,
+                &format!("{col_id}/{record_id}/{stored}"),
+                bytes.clone(),
+            )
+            .await
+            .map_err(|e| pb_err(StatusCode::INTERNAL_SERVER_ERROR, &e))?;
         }
         if !use_s3 {
             tokio::fs::write(dir.join(&stored), &bytes)
                 .await
-                .map_err(|_| pb_err(StatusCode::INTERNAL_SERVER_ERROR, "could not persist the file"))?;
+                .map_err(|_| {
+                    pb_err(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "could not persist the file",
+                    )
+                })?;
         }
         match kinds.get(field.as_str()) {
             Some(FieldKind::Multi) => match data.get_mut(&field) {
                 Some(Value::String(prev)) if prev.starts_with('[') => {
-                    let mut arr: Vec<Value> =
-                        serde_json::from_str(prev).unwrap_or_default();
+                    let mut arr: Vec<Value> = serde_json::from_str(prev).unwrap_or_default();
                     arr.push(json!(stored));
                     data.insert(field, Value::String(Value::Array(arr).to_string()));
                 }
@@ -894,7 +1011,11 @@ async fn list(
     };
     let (_auth, ctx) = caller(&state, &headers).await;
     let ctx = ctx.with_query(&q);
-    let page: u32 = q.get("page").and_then(|v| v.parse().ok()).unwrap_or(1).max(1);
+    let page: u32 = q
+        .get("page")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1)
+        .max(1);
     let per_page: u32 = q
         .get("perPage")
         .and_then(|v| v.parse().ok())
@@ -915,12 +1036,13 @@ async fn list(
     };
     let combined = match super::rules::rule_pred(col.list_rule.as_ref(), &ctx) {
         super::rules::RulePred::Deny => {
-            return pb_err(StatusCode::FORBIDDEN, "Only superusers can perform this action.");
+            return pb_err(
+                StatusCode::FORBIDDEN,
+                "Only superusers can perform this action.",
+            );
         }
         super::rules::RulePred::Open => filter_expr,
-        super::rules::RulePred::Pred(rp) => {
-            super::predicate::PbExpr::And(vec![filter_expr, rp])
-        }
+        super::rules::RulePred::Pred(rp) => super::predicate::PbExpr::And(vec![filter_expr, rp]),
     };
 
     let mut op = base_op(DataOperationKind::List, &col.name);
@@ -995,8 +1117,7 @@ async fn list(
                 shape_record(&col, &kinds, r)
             };
             if col.kind == "auth" {
-                let is_self = self_id.as_deref()
-                    == rec.get("id").and_then(Value::as_str);
+                let is_self = self_id.as_deref() == rec.get("id").and_then(Value::as_str);
                 super::auth::scrub_auth_record(&mut rec, su || is_self);
             }
             rec
@@ -1015,7 +1136,11 @@ async fn list(
         }
         let total = kept.len() as i64;
         let start = ((page - 1) * per_page) as usize;
-        items = kept.into_iter().skip(start).take(per_page as usize).collect();
+        items = kept
+            .into_iter()
+            .skip(start)
+            .take(per_page as usize)
+            .collect();
         Some(total)
     } else {
         None
@@ -1095,16 +1220,25 @@ async fn view(
     let ctx = ctx.with_query(&q);
     let pred = super::rules::rule_pred(col.view_rule.as_ref(), &ctx);
     if matches!(pred, super::rules::RulePred::Deny) {
-        return pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found.");
+        return pb_err(
+            StatusCode::NOT_FOUND,
+            "The requested resource wasn't found.",
+        );
     }
     let mut op = base_op(DataOperationKind::Get, &col.name);
     op.filter = Some(json!({ "id": rid }));
-    match exec(&state, op).await.map(|r| r.rows.first().map(|row| shape_record(&col, &kinds, row))) {
+    match exec(&state, op)
+        .await
+        .map(|r| r.rows.first().map(|row| shape_record(&col, &kinds, row)))
+    {
         Ok(Some(mut rec)) => {
             // the view rule gates the record in memory (covers advanced rules)
             if let super::rules::RulePred::Pred(e) = &pred {
                 if !eval_access(&state, e, &rec).await {
-                    return pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found.");
+                    return pb_err(
+                        StatusCode::NOT_FOUND,
+                        "The requested resource wasn't found.",
+                    );
                 }
             }
             if let Some(exp) = q.get("expand").filter(|e| !e.trim().is_empty()) {
@@ -1124,7 +1258,10 @@ async fn view(
             }
             (StatusCode::OK, Json(rec)).into_response()
         }
-        Ok(None) => pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found."),
+        Ok(None) => pb_err(
+            StatusCode::NOT_FOUND,
+            "The requested resource wasn't found.",
+        ),
         Err(r) => r,
     }
 }
@@ -1141,7 +1278,10 @@ async fn create(
         Err(r) => return r,
     };
     if col.kind == "view" {
-        return pb_err(StatusCode::BAD_REQUEST, "unable to create a view collection record");
+        return pb_err(
+            StatusCode::BAD_REQUEST,
+            "unable to create a view collection record",
+        );
     }
     let (_auth, ctx) = caller(&state, &headers).await;
     let pb = match pb_of(&state) {
@@ -1158,12 +1298,23 @@ async fn create(
     };
     // Auth collections: validate + hash the password server-side.
     if col.kind == "auth" {
-        let password = body.get("password").and_then(|v| v.as_str()).unwrap_or_default();
-        let confirm = body.get("passwordConfirm").and_then(|v| v.as_str()).unwrap_or_default();
+        let password = body
+            .get("password")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let confirm = body
+            .get("passwordConfirm")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
         if password.len() < 8 || password != confirm {
             return pb_err(StatusCode::BAD_REQUEST, "invalid or unconfirmed password");
         }
-        let email = body.get("email").and_then(|v| v.as_str()).unwrap_or_default().trim().to_lowercase();
+        let email = body
+            .get("email")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .trim()
+            .to_lowercase();
         if email.is_empty() || !email.contains('@') {
             return pb_err(StatusCode::BAD_REQUEST, "invalid email");
         }
@@ -1178,7 +1329,11 @@ async fn create(
     let id = body
         .get("id")
         .and_then(|v| v.as_str())
-        .filter(|s| s.len() == 15 && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()))
+        .filter(|s| {
+            s.len() == 15
+                && s.chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        })
         .map(String::from)
         .unwrap_or_else(pb_id);
     let now = pb_now();
@@ -1204,10 +1359,15 @@ async fn create(
         }
     }
     // createRule is checked against the submitted body + the would-be record
-    let create_rule =
-        super::rules::rule_pred(col.create_rule.as_ref(), &ctx.clone().with_body(body.clone()));
+    let create_rule = super::rules::rule_pred(
+        col.create_rule.as_ref(),
+        &ctx.clone().with_body(body.clone()),
+    );
     if matches!(create_rule, super::rules::RulePred::Deny) {
-        return pb_err(StatusCode::FORBIDDEN, "Only superusers can perform this action.");
+        return pb_err(
+            StatusCode::FORBIDDEN,
+            "Only superusers can perform this action.",
+        );
     }
     if let super::rules::RulePred::Pred(e) = &create_rule {
         if !eval_access(&state, e, &Value::Object(data.clone())).await {
@@ -1230,7 +1390,10 @@ async fn create(
             }
             (StatusCode::OK, Json(rec)).into_response()
         }
-        Ok(None) => pb_err(StatusCode::INTERNAL_SERVER_ERROR, "record vanished after insert"),
+        Ok(None) => pb_err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "record vanished after insert",
+        ),
         Err(r) => r,
     }
 }
@@ -1247,14 +1410,20 @@ async fn update(
         Err(r) => return r,
     };
     if col.kind == "view" {
-        return pb_err(StatusCode::BAD_REQUEST, "unable to update a view collection record");
+        return pb_err(
+            StatusCode::BAD_REQUEST,
+            "unable to update a view collection record",
+        );
     }
     let (_auth, ctx) = caller(&state, &headers).await;
     if matches!(
         super::rules::rule_pred(col.update_rule.as_ref(), &ctx),
         super::rules::RulePred::Deny
     ) {
-        return pb_err(StatusCode::FORBIDDEN, "Only superusers can perform this action.");
+        return pb_err(
+            StatusCode::FORBIDDEN,
+            "Only superusers can perform this action.",
+        );
     }
     let pb = match pb_of(&state) {
         Ok(p) => p,
@@ -1269,15 +1438,19 @@ async fn update(
         Err(m) => return pb_err(StatusCode::BAD_REQUEST, &m),
     };
     // The update rule is checked against the EXISTING record + submitted body.
-    if let super::rules::RulePred::Pred(e) =
-        super::rules::rule_pred(col.update_rule.as_ref(), &ctx.clone().with_body(body.clone()))
-    {
+    if let super::rules::RulePred::Pred(e) = super::rules::rule_pred(
+        col.update_rule.as_ref(),
+        &ctx.clone().with_body(body.clone()),
+    ) {
         let allowed = match fetch_by_id(&state, &col, &kinds, &rid).await {
             Ok(Some(existing)) => eval_access(&state, &e, &existing).await,
             _ => false,
         };
         if !allowed {
-            return pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found.");
+            return pb_err(
+                StatusCode::NOT_FOUND,
+                "The requested resource wasn't found.",
+            );
         }
     }
     if let Err(r) = persist_files(&pb, &kinds, &col.id, &rid, pending, &mut data).await {
@@ -1294,7 +1467,10 @@ async fn update(
         // unchanged record rather than erroring.
         return match fetch_by_id(&state, &col, &kinds, &rid).await {
             Ok(Some(rec)) => (StatusCode::OK, Json(rec)).into_response(),
-            Ok(None) => pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found."),
+            Ok(None) => pb_err(
+                StatusCode::NOT_FOUND,
+                "The requested resource wasn't found.",
+            ),
             Err(r) => r,
         };
     }
@@ -1319,14 +1495,20 @@ async fn update(
         Err(r) => return r,
     };
     if result.affected_rows == 0 {
-        return pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found.");
+        return pb_err(
+            StatusCode::NOT_FOUND,
+            "The requested resource wasn't found.",
+        );
     }
     match fetch_by_id(&state, &col, &kinds, &rid).await {
         Ok(Some(rec)) => {
             publish_event(&state, &col, "update", &rec);
             (StatusCode::OK, Json(rec)).into_response()
         }
-        Ok(None) => pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found."),
+        Ok(None) => pb_err(
+            StatusCode::NOT_FOUND,
+            "The requested resource wasn't found.",
+        ),
         Err(r) => r,
     }
 }
@@ -1342,12 +1524,18 @@ async fn remove(
         Err(r) => return r,
     };
     if col.kind == "view" {
-        return pb_err(StatusCode::BAD_REQUEST, "unable to delete a view collection record");
+        return pb_err(
+            StatusCode::BAD_REQUEST,
+            "unable to delete a view collection record",
+        );
     }
     let (_auth, ctx) = caller(&state, &headers).await;
     let delete_rule = super::rules::rule_pred(col.delete_rule.as_ref(), &ctx);
     if matches!(delete_rule, super::rules::RulePred::Deny) {
-        return pb_err(StatusCode::FORBIDDEN, "Only superusers can perform this action.");
+        return pb_err(
+            StatusCode::FORBIDDEN,
+            "Only superusers can perform this action.",
+        );
     }
     // Pre-image for the realtime event (PB sends the deleted record's last
     // known state) AND the delete-rule gate (checked in memory).
@@ -1358,7 +1546,10 @@ async fn remove(
             None => false,
         };
         if !allowed {
-            return pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found.");
+            return pb_err(
+                StatusCode::NOT_FOUND,
+                "The requested resource wasn't found.",
+            );
         }
     }
     #[cfg(feature = "hooks")]
@@ -1377,7 +1568,10 @@ async fn remove(
         Err(r) => return r,
     };
     if result.affected_rows == 0 {
-        return pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found.");
+        return pb_err(
+            StatusCode::NOT_FOUND,
+            "The requested resource wasn't found.",
+        );
     }
     if let Some(rec) = pre.as_ref() {
         publish_event(&state, &col, "delete", rec);
@@ -1393,12 +1587,22 @@ async fn remove(
                     }
                     match rec.get(name) {
                         Some(Value::String(stored)) if !stored.is_empty() => {
-                            super::files::s3_delete(&bucket, &creds, &format!("{}/{}/{}", col.id, rid, stored)).await;
+                            super::files::s3_delete(
+                                &bucket,
+                                &creds,
+                                &format!("{}/{}/{}", col.id, rid, stored),
+                            )
+                            .await;
                         }
                         Some(Value::Array(items)) => {
                             for it in items {
                                 if let Some(stored) = it.as_str() {
-                                    super::files::s3_delete(&bucket, &creds, &format!("{}/{}/{}", col.id, rid, stored)).await;
+                                    super::files::s3_delete(
+                                        &bucket,
+                                        &creds,
+                                        &format!("{}/{}/{}", col.id, rid, stored),
+                                    )
+                                    .await;
                                 }
                             }
                         }
@@ -1413,7 +1617,10 @@ async fn remove(
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/collections/:collection/records", get(list).post(create))
+        .route(
+            "/api/collections/:collection/records",
+            get(list).post(create),
+        )
         .route(
             "/api/collections/:collection/records/:id",
             get(view).patch(update).delete(remove),
@@ -1461,7 +1668,11 @@ mod tests {
         assert_eq!(rec["n"], json!(0), "NULL number renders as 0");
         assert_eq!(rec["ok"], json!(true), "INTEGER 1 renders as true");
         assert_eq!(rec["meta"], json!({"a": 1}), "json TEXT parses");
-        assert_eq!(rec["tags"], json!(["x", "y"]), "multi-select parses to array");
+        assert_eq!(
+            rec["tags"],
+            json!(["x", "y"]),
+            "multi-select parses to array"
+        );
         assert_eq!(rec["collectionName"], json!("t"));
     }
 
@@ -1475,7 +1686,11 @@ mod tests {
         let body = json!({"title": "x", "meta": {"a": 1}, "evil": "ignored"});
         let out = lower_body(&kinds, &body).unwrap();
         assert_eq!(out.get("title"), Some(&json!("x")));
-        assert_eq!(out.get("meta"), Some(&json!("{\"a\":1}")), "json lowered to TEXT");
+        assert_eq!(
+            out.get("meta"),
+            Some(&json!("{\"a\":1}")),
+            "json lowered to TEXT"
+        );
         assert!(!out.contains_key("evil"), "unknown keys ignored like PB");
     }
 
@@ -1484,12 +1699,19 @@ mod tests {
         let col = col_with(json!([{"name": "b", "type": "text"}, {"name": "a", "type": "text"}]));
         let kinds = field_kinds(&col);
         let s = parse_sort("-b,a,+id", &kinds, false).unwrap();
-        assert_eq!(s, vec![
-            ("b".to_string(), "desc".to_string()),
-            ("a".to_string(), "asc".to_string()),
-            ("id".to_string(), "asc".to_string()),
-        ], "declaration order preserved — the reason sort_order exists");
-        assert!(parse_sort("created", &kinds, false).is_err(), "created only when declared");
+        assert_eq!(
+            s,
+            vec![
+                ("b".to_string(), "desc".to_string()),
+                ("a".to_string(), "asc".to_string()),
+                ("id".to_string(), "asc".to_string()),
+            ],
+            "declaration order preserved — the reason sort_order exists"
+        );
+        assert!(
+            parse_sort("created", &kinds, false).is_err(),
+            "created only when declared"
+        );
         assert!(parse_sort("nope", &kinds, false).is_err());
     }
 
@@ -1502,12 +1724,18 @@ mod tests {
         ]));
         let kinds = field_kinds(&col);
         let out = lower_body(&kinds, &json!({"title": "x", "created": "spoof"})).unwrap();
-        assert!(!out.contains_key("created"), "client can never set an autodate");
+        assert!(
+            !out.contains_key("created"),
+            "client can never set an autodate"
+        );
         let ad = autodates(&col);
-        assert_eq!(ad, vec![
-            ("created".to_string(), true, false),
-            ("updated".to_string(), true, true),
-        ]);
+        assert_eq!(
+            ad,
+            vec![
+                ("created".to_string(), true, false),
+                ("updated".to_string(), true, true),
+            ]
+        );
     }
 
     #[test]
@@ -1515,7 +1743,11 @@ mod tests {
         for _ in 0..50 {
             let id = super::super::pb_id();
             assert_eq!(id.len(), 15);
-            assert!(id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()), "{id}");
+            assert!(
+                id.chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()),
+                "{id}"
+            );
         }
     }
 

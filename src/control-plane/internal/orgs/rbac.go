@@ -52,10 +52,10 @@ const (
 	CapBillingManage = "billing:manage"  // change org plan, payment method
 
 	// RBAC-hierarchy capabilities (RBAC_HIERARCHY_ENABLED, internal/teams).
-	CapTeamCreate = "team:create" // create a team in the org
-	CapTeamUpdate = "team:update" // rename / re-tag a team
-	CapTeamDelete = "team:delete" // delete a team
-	CapTeamMember = "team:member" // add/remove a team member (or a team manager)
+	CapTeamCreate = "team:create"   // create a team in the org
+	CapTeamUpdate = "team:update"   // rename / re-tag a team
+	CapTeamDelete = "team:delete"   // delete a team
+	CapTeamMember = "team:member"   // add/remove a team member (or a team manager)
 	CapProjGrant  = "project:grant" // grant/revoke a project role (user or team)
 	CapTokenIssue = "token:issue"   // mint/revoke a scoped, non-escalating RBAC token
 )

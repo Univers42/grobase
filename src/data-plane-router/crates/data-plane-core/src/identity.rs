@@ -62,7 +62,10 @@ impl RequestIdentity {
         self.roles
             .iter()
             .any(|r| r == "admin" || r == "superadmin" || r == "service_role")
-            || self.scopes.iter().any(|s| s == "admin" || s == "apikey:admin")
+            || self
+                .scopes
+                .iter()
+                .any(|s| s == "admin" || s == "apikey:admin")
     }
 }
 
@@ -94,7 +97,10 @@ mod tests {
     #[test]
     fn is_admin_reads_roles_and_scopes() {
         let mut base = id(Some("u1"), "t1");
-        assert!(!base.is_admin(), "no role/scope → not admin (parity default)");
+        assert!(
+            !base.is_admin(),
+            "no role/scope → not admin (parity default)"
+        );
         base.roles = vec!["admin".to_string()];
         assert!(base.is_admin(), "role=admin");
         let mut by_scope = id(Some("u1"), "t1");

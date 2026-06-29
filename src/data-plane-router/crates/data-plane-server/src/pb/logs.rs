@@ -55,7 +55,9 @@ impl Logs {
             );
             // batch loop: drain up to 100 entries or 2s, one tx per batch
             loop {
-                let Some(first) = rx.blocking_recv() else { return };
+                let Some(first) = rx.blocking_recv() else {
+                    return;
+                };
                 let mut batch = vec![first];
                 let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
                 while batch.len() < 100 {
@@ -80,7 +82,13 @@ impl Logs {
                          VALUES (?1, ?2, ?3, ?4, ?5)",
                         rusqlite::params![
                             super::pb_id(),
-                            if e.status >= 500 { 8 } else if e.status >= 400 { 4 } else { 0 },
+                            if e.status >= 500 {
+                                8
+                            } else if e.status >= 400 {
+                                4
+                            } else {
+                                0
+                            },
                             format!("{} {}", e.method, e.url),
                             data.to_string(),
                             super::pb_now(),
@@ -130,17 +138,19 @@ pub(crate) async fn capture(
 
 fn open_ro(pb: &super::PbState) -> Option<rusqlite::Connection> {
     let path = pb.storage_root.parent()?.join("pb_logs.db");
-    rusqlite::Connection::open_with_flags(
-        path,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-    )
-    .ok()
+    rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).ok()
 }
 
-fn require_su(state: &AppState, headers: &header::HeaderMap) -> Result<(), axum::response::Response> {
+fn require_su(
+    state: &AppState,
+    headers: &header::HeaderMap,
+) -> Result<(), axum::response::Response> {
     match pb_auth(state, headers) {
         PbAuth::Superuser => Ok(()),
-        _ => Err(pb_err(StatusCode::FORBIDDEN, "Only superusers can perform this action.")),
+        _ => Err(pb_err(
+            StatusCode::FORBIDDEN,
+            "Only superusers can perform this action.",
+        )),
     }
 }
 
@@ -157,7 +167,11 @@ async fn list(
         Ok(p) => p,
         Err(r) => return r,
     };
-    let page: i64 = q.get("page").and_then(|v| v.parse().ok()).unwrap_or(1).max(1);
+    let page: i64 = q
+        .get("page")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1)
+        .max(1);
     let per_page: i64 = q
         .get("perPage")
         .and_then(|v| v.parse().ok())
@@ -179,19 +193,16 @@ async fn list(
         "SELECT id, level, message, data, created FROM pb_logs
          ORDER BY created DESC LIMIT ?1 OFFSET ?2",
     ) {
-        let rows = stmt.query_map(
-            rusqlite::params![per_page, (page - 1) * per_page],
-            |r| {
-                let data_raw: String = r.get(3)?;
-                Ok(json!({
-                    "id": r.get::<_, String>(0)?,
-                    "level": r.get::<_, i64>(1)?,
-                    "message": r.get::<_, String>(2)?,
-                    "data": serde_json::from_str::<Value>(&data_raw).unwrap_or(Value::Null),
-                    "created": r.get::<_, String>(4)?,
-                }))
-            },
-        );
+        let rows = stmt.query_map(rusqlite::params![per_page, (page - 1) * per_page], |r| {
+            let data_raw: String = r.get(3)?;
+            Ok(json!({
+                "id": r.get::<_, String>(0)?,
+                "level": r.get::<_, i64>(1)?,
+                "message": r.get::<_, String>(2)?,
+                "data": serde_json::from_str::<Value>(&data_raw).unwrap_or(Value::Null),
+                "created": r.get::<_, String>(4)?,
+            }))
+        });
         if let Ok(rows) = rows {
             items.extend(rows.flatten());
         }
@@ -249,7 +260,10 @@ async fn view(
         Err(r) => return r,
     };
     let Some(conn) = open_ro(&pb) else {
-        return pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found.");
+        return pb_err(
+            StatusCode::NOT_FOUND,
+            "The requested resource wasn't found.",
+        );
     };
     let row = conn.query_row(
         "SELECT id, level, message, data, created FROM pb_logs WHERE id = ?1",
@@ -267,7 +281,10 @@ async fn view(
     );
     match row {
         Ok(v) => (StatusCode::OK, Json(v)).into_response(),
-        Err(_) => pb_err(StatusCode::NOT_FOUND, "The requested resource wasn't found."),
+        Err(_) => pb_err(
+            StatusCode::NOT_FOUND,
+            "The requested resource wasn't found.",
+        ),
     }
 }
 

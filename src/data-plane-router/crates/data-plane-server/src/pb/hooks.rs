@@ -82,11 +82,10 @@ impl Hooks {
         if self.tx.send(job).is_err() {
             return Ok(None); // hooks thread gone: fail open for events
         }
-        let got = tokio::task::spawn_blocking(move || {
-            rx.recv_timeout(std::time::Duration::from_secs(2))
-        })
-        .await
-        .map_err(|_| "hooks join failed".to_string())?;
+        let got =
+            tokio::task::spawn_blocking(move || rx.recv_timeout(std::time::Duration::from_secs(2)))
+                .await
+                .map_err(|_| "hooks join failed".to_string())?;
         match got {
             Ok(Ok(s)) => Ok(serde_json::from_str(&s).ok()),
             Ok(Err(m)) => Err(m),
@@ -109,12 +108,13 @@ impl Hooks {
             request: request.to_string(),
             reply,
         };
-        self.tx.send(job).map_err(|_| "hooks thread gone".to_string())?;
-        let got = tokio::task::spawn_blocking(move || {
-            rx.recv_timeout(std::time::Duration::from_secs(2))
-        })
-        .await
-        .map_err(|_| "hooks join failed".to_string())?;
+        self.tx
+            .send(job)
+            .map_err(|_| "hooks thread gone".to_string())?;
+        let got =
+            tokio::task::spawn_blocking(move || rx.recv_timeout(std::time::Duration::from_secs(2)))
+                .await
+                .map_err(|_| "hooks join failed".to_string())?;
         match got {
             Ok(Ok(s)) => {
                 let v: Value = serde_json::from_str(&s).unwrap_or(json!({}));
@@ -184,7 +184,10 @@ fn cron_field_matches(field: &str, value: u32) -> bool {
         return true;
     }
     if let Some(step) = field.strip_prefix("*/") {
-        return step.parse::<u32>().map(|s| s > 0 && value % s == 0).unwrap_or(false);
+        return step
+            .parse::<u32>()
+            .map(|s| s > 0 && value % s == 0)
+            .unwrap_or(false);
     }
     field
         .split(',')
@@ -262,24 +265,27 @@ fn run_js_thread(
 ) {
     use rquickjs::{Context, Function, Runtime};
 
-    let deadline = std::sync::Arc::new(Mutex::new(std::time::Instant::now() + std::time::Duration::from_secs(3600)));
+    let deadline = std::sync::Arc::new(Mutex::new(
+        std::time::Instant::now() + std::time::Duration::from_secs(3600),
+    ));
 
     type SharedRegistry = std::rc::Rc<std::cell::RefCell<Registry>>;
-    let build = |sig: &Vec<(String, std::time::SystemTime)>| -> Option<(Runtime, Context, SharedRegistry)> {
-        // the interrupt deadline is SHARED with job execution — the last job
-        // left it ~500 ms in the past, which aborted reload evals until this
-        // re-arm (the m51 reload lane caught it)
-        arm(&deadline, 10_000);
-        let rt = Runtime::new().ok()?;
-        let dl = deadline.clone();
-        rt.set_interrupt_handler(Some(Box::new(move || {
-            std::time::Instant::now()
-                > *dl.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
-        })));
-        let ctx = Context::full(&rt).ok()?;
-        let registry = std::rc::Rc::new(std::cell::RefCell::new(Registry::default()));
+    let build =
+        |sig: &Vec<(String, std::time::SystemTime)>| -> Option<(Runtime, Context, SharedRegistry)> {
+            // the interrupt deadline is SHARED with job execution — the last job
+            // left it ~500 ms in the past, which aborted reload evals until this
+            // re-arm (the m51 reload lane caught it)
+            arm(&deadline, 10_000);
+            let rt = Runtime::new().ok()?;
+            let dl = deadline.clone();
+            rt.set_interrupt_handler(Some(Box::new(move || {
+                std::time::Instant::now()
+                    > *dl.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+            })));
+            let ctx = Context::full(&rt).ok()?;
+            let registry = std::rc::Rc::new(std::cell::RefCell::new(Registry::default()));
 
-        ctx.with(|ctx| -> Option<()> {
+            ctx.with(|ctx| -> Option<()> {
             let globals = ctx.globals();
             let reg = registry.clone();
             globals
@@ -372,10 +378,10 @@ fn run_js_thread(
             Some(())
         })?;
 
-        // the prelude's closures hold Rc clones for the context's lifetime —
-        // the registry stays shared, readers borrow()
-        Some((rt, ctx, registry))
-    };
+            // the prelude's closures hold Rc clones for the context's lifetime —
+            // the registry stays shared, readers borrow()
+            Some((rt, ctx, registry))
+        };
 
     let mut sig = dir_signature(&dir);
     let Some((mut _rt, mut ctx, mut registry)) = build(&sig) else {
@@ -418,11 +424,15 @@ fn run_js_thread(
         let Some(job) = job else { continue };
         arm(&deadline, 500);
         match job {
-            Job::Record { action, collection, record, reply } => {
+            Job::Record {
+                action,
+                collection,
+                record,
+                reply,
+            } => {
                 let mut current = record;
                 let mut failed = None;
-                let handlers: Vec<(String, Vec<String>, usize)> =
-                    registry.borrow().record.clone();
+                let handlers: Vec<(String, Vec<String>, usize)> = registry.borrow().record.clone();
                 for (act, cols, idx) in &handlers {
                     if act != action || !(cols.is_empty() || cols.contains(&collection)) {
                         continue;
@@ -452,7 +462,11 @@ fn run_js_thread(
                     None => Ok(current),
                 });
             }
-            Job::Route { key, request, reply } => {
+            Job::Route {
+                key,
+                request,
+                reply,
+            } => {
                 let idx_opt = registry.borrow().routes.get(&key).copied();
                 let out = match idx_opt.as_ref() {
                     Some(idx) => ctx
@@ -485,7 +499,9 @@ fn run_js_thread(
 }
 
 fn arm(deadline: &std::sync::Arc<Mutex<std::time::Instant>>, ms: u64) {
-    *deadline.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =
+    *deadline
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) =
         std::time::Instant::now() + std::time::Duration::from_millis(ms);
 }
 
@@ -543,7 +559,13 @@ fn app_list(state: &AppState, handle: &tokio::runtime::Handle, col: &str, filter
     }
 }
 
-fn app_update(state: &AppState, handle: &tokio::runtime::Handle, col: &str, id: &str, data: &str) -> String {
+fn app_update(
+    state: &AppState,
+    handle: &tokio::runtime::Handle,
+    col: &str,
+    id: &str,
+    data: &str,
+) -> String {
     let Ok(data) = serde_json::from_str::<Value>(data) else {
         return json!({"error": "bad data"}).to_string();
     };
