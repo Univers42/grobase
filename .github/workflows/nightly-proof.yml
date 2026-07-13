@@ -138,8 +138,15 @@ jobs:
                       /usr/lib/jvm "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
           df -h / | tail -1
 
+      # Assemble the FULL .env (config.env + minted .env.secrets + .env.local).
+      # generate-env.sh alone writes only the SECRETS layer, leaving every
+      # config.env value empty (KONG_CORS_ORIGIN_*, GOTRUE_JWT_ISS, service
+      # hosts…) — kong's declarative config is then invalid, kong crashes on
+      # boot, and `make up` dies with "dependency failed to start: container
+      # mini-baas-kong is unhealthy". This is the same assemble step the green
+      # ci.yml uses (see its "Generate CI environment").
       - name: Generate env
-        run: FORCE=1 bash scripts/env/generate-env.sh .env
+        run: bash scripts/env/assemble-env.sh
 
       - name: Boot query edition
         run: |
@@ -165,6 +172,8 @@ jobs:
           set -uo pipefail
           mkdir -p artifacts
           docker compose -f docker-compose.yml ps > artifacts/nightly-footprint-ps.txt 2>&1 || true
+          docker compose -f docker-compose.yml logs --no-color --tail=200 \
+            > artifacts/nightly-footprint-logs.txt 2>&1 || true
           ls -la artifacts/footprint-*.json 2>/dev/null || echo "no footprint json produced"
 
       - name: Upload footprint artifacts
@@ -175,6 +184,7 @@ jobs:
           path: |
             artifacts/footprint-*.json
             artifacts/nightly-footprint-ps.txt
+            artifacts/nightly-footprint-logs.txt
           retention-days: 30
           if-no-files-found: warn
 
@@ -221,8 +231,10 @@ jobs:
                       /usr/lib/jvm "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
           df -h / | tail -1
 
+      # Same reason as the footprint job: the full config+secrets .env, or kong's
+      # declarative config is invalid and the stack never comes up.
       - name: Generate env
-        run: FORCE=1 bash scripts/env/generate-env.sh .env
+        run: bash scripts/env/assemble-env.sh
 
       - name: Boot query edition (+ mysql/mongo for the cross-engine probe)
         run: |
