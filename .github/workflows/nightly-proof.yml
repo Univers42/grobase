@@ -239,6 +239,13 @@ jobs:
       - name: Boot query edition (+ mysql/mongo for the cross-engine probe)
         run: |
           set -euo pipefail
+          # m46 runs with SHARE_POOLS_EXPECT=1 (assert pool COLLAPSE), which is only
+          # true when the data plane actually has pool-sharing ON. The var was never
+          # set here, so the probe asserted collapse against a stack running the
+          # default DATA_PLANE_SHARE_POOLS=false → it could only ever report
+          # "4 pools held, expected 2". Turn the feature ON for this probe (the gate
+          # is the whole point of the job); it stays default-OFF everywhere else.
+          echo "DATA_PLANE_SHARE_POOLS=true" >> .env
           make build EDITION=query
           make up EDITION=query
           # m46 + conformance need live mysql + mongo on the mini-baas network.
