@@ -23,6 +23,12 @@ services:
       # take effect when these are truthy.
       DATA_PLANE_PER_TABLE_ISOLATION: ${DATA_PLANE_PER_TABLE_ISOLATION:-0}
       DATA_PLANE_ADMIN_BYPASS: ${DATA_PLANE_ADMIN_BYPASS:-0}
+      # Pool-collapse (SHARE_POOLS): 10K tenants onto one pool per engine. The
+      # Rust side already defaults it false (data-plane-server/src/config.rs:241)
+      # but the var was never passed through here, so the container could NEVER
+      # see it — m46's EXPECT=1 collapse proof was unsatisfiable by construction.
+      # Default false = byte-parity, unchanged; the m46 probe opts in explicitly.
+      DATA_PLANE_SHARE_POOLS: ${DATA_PLANE_SHARE_POOLS:-false}
       DATA_PLANE_ADAPTER_REGISTRY_URL: ${DATA_PLANE_ADAPTER_REGISTRY_URL:-http://adapter-registry-go:3021}
       DATA_PLANE_PERMISSION_BUNDLE_URL: http://permission-engine:3050/permissions/bundles/latest
       DATA_PLANE_PERMISSION_MODE: ${DATA_PLANE_PERMISSION_MODE:-abac}

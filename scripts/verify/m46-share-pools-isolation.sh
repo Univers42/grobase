@@ -51,7 +51,17 @@ ART="${ART_DIR}/share-pools-cross-engine-expect${EXPECT}.json"
 # per engine when SHARE_POOLS is on. Creds + in-network hostnames from compose.
 MYSQL_PW="${MYSQL_PW:-mini_baas_pw}"
 MYSQL_DSN="mysql://mini_baas:${MYSQL_PW}@mysql:3306/mini_baas"
-MONGO_DSN="mongodb://mongo:mongo@mongo:27017/mini_baas?authSource=admin"
+# Mongo creds are READ FROM THE CONTAINER (same rule as the postgres DSN in
+# lib-live-tenant.sh), not hardcoded: MONGO_INITDB_ROOT_PASSWORD is a GENERATED
+# secret (scripts/env/generate-env.sh:70, `gen_alnum 24`), so the old literal
+# "mongo:mongo" only ever authenticated against a stale pre-existing volume and
+# died with "SCRAM failure: Authentication failed" on any fresh boot (i.e. CI).
+# The `:-mongo` fallbacks mirror compose's own ${MONGO_INITDB_ROOT_*:-mongo}.
+MONGO_USER="$(_lt_env mini-baas-mongo MONGO_INITDB_ROOT_USERNAME)"
+MONGO_USER="${MONGO_USER:-mongo}"
+MONGO_PW="$(_lt_env mini-baas-mongo MONGO_INITDB_ROOT_PASSWORD)"
+MONGO_PW="${MONGO_PW:-mongo}"
+MONGO_DSN="mongodb://${MONGO_USER}:${MONGO_PW}@mongo:27017/mini_baas?authSource=admin"
 TABLE="sp_items_${TS}" # unique per run (mysql table + mongo collection)
 
 metric() { # $1 = metric substring → value (pipefail-safe: empty on no-match)
