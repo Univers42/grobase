@@ -60,7 +60,7 @@ jobs:
     timeout-minutes: 30
     defaults:
       run:
-        working-directory: mini-baas-infra
+        working-directory: .
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
@@ -110,7 +110,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nightly-image-sizes-${{ github.run_id }}
-          path: mini-baas-infra/artifacts/nightly-image-sizes.txt
+          path: artifacts/nightly-image-sizes.txt
           retention-days: 30
 
   # ─── Job 2: Footprint drift — the "lightweight (running)" artifact ───────────
@@ -125,7 +125,7 @@ jobs:
     timeout-minutes: 35
     defaults:
       run:
-        working-directory: mini-baas-infra
+        working-directory: .
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
@@ -173,8 +173,8 @@ jobs:
         with:
           name: nightly-footprint-${{ github.run_id }}
           path: |
-            mini-baas-infra/artifacts/footprint-*.json
-            mini-baas-infra/artifacts/nightly-footprint-ps.txt
+            artifacts/footprint-*.json
+            artifacts/nightly-footprint-ps.txt
           retention-days: 30
           if-no-files-found: warn
 
@@ -208,7 +208,7 @@ jobs:
     timeout-minutes: 90
     defaults:
       run:
-        working-directory: mini-baas-infra
+        working-directory: .
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
@@ -287,9 +287,9 @@ jobs:
         with:
           name: nightly-isolation-${{ github.run_id }}
           path: |
-            mini-baas-infra/artifacts/bench/share-pools-*.json
-            mini-baas-infra/artifacts/nightly-iso-ps.txt
-            mini-baas-infra/artifacts/nightly-iso-logs.txt
+            artifacts/bench/share-pools-*.json
+            artifacts/nightly-iso-ps.txt
+            artifacts/nightly-iso-logs.txt
           retention-days: 30
           if-no-files-found: warn
 
