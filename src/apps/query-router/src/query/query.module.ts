@@ -14,6 +14,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
 import { QueryController } from './query.controller';
+import { SqlRoController } from './sqlro.controller';
+import { SqlRoService } from './sqlro.service';
 import { TxnController } from './txn.controller';
 import { EnginesController } from './engines.controller';
 import { CapabilitiesController } from './capabilities.controller';
@@ -39,6 +41,7 @@ import { GraphService } from '../graph/graph.service';
   imports: [ConfigModule, HttpModule],
   controllers: [
     QueryController,
+    SqlRoController,
     TxnController,
     EnginesController,
     CapabilitiesController,
@@ -48,6 +51,7 @@ import { GraphService } from '../graph/graph.service';
   ],
   providers: [
     QueryService,
+    SqlRoService,
     OutboxService,
     AutomationsService,
     RealtimePublisherService,
