@@ -288,7 +288,7 @@ services:
       args:
         APP: function-scheduler
         PORT: 3027
-    profiles: [functions, background, go-control-plane]
+    profiles: [functions]
     container_name: mini-baas-function-scheduler
     env_file: [.env]
     environment:
