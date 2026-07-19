@@ -160,7 +160,7 @@ services:
       start_period: 15s
       retries: 5
     container_name: mini-baas-pg-meta
-    profiles: [control-plane, extras]
+    profiles: [studio, extras]
     env_file: [.env]
     environment:
       PG_META_PORT: 8080

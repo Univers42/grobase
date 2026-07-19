@@ -82,11 +82,11 @@ EDITION_full      := $(filter-out playground,$(PLANES))
 # backups) that come up unhealthy in a constrained env and aren't needed to run/restore.
 EDITION_migrate   := $(filter-out analytics observability ops studio functions playground,$(PLANES))
 # `devlean` — the daily-dev default the root `make all` uses: `migrate` MINUS the
-# à-la-carte extra-engines plane (mysql/mariadb/cockroach/mssql — the heaviest at
-# ~750 MiB, cockroach alone ~590 MiB). Keeps every core engine (postgres/mongo/redis
-# always-on, minio via storage) + full app/control/data plane + realtime, so no
-# osionos feature is lost. The extra DB engines stay one flag away via
-# `make all GROBASE_EDITION=migrate` (or `=full` for everything-on).
+# à-la-carte extra-engines plane (mariadb/cockroach/mssql — the heaviest, cockroach
+# alone ~590 MiB; mysql lives in the data plane and STAYS). Keeps every core engine
+# (postgres/mysql/mongo/redis always-on, minio via storage) + full app/control/data
+# plane + realtime, so no osionos feature is lost. The extra DB engines stay one
+# flag away via `make all GROBASE_EDITION=migrate` (or `=full`).
 EDITION_devlean   := $(filter-out engines analytics observability ops studio functions playground,$(PLANES))
 # `tetris` — the maximal red-tetris game edition: relational data + control + rust
 # data plane + adapter + background, plus realtime (the multiplayer game bus + live
