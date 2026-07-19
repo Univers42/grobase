@@ -42,10 +42,11 @@ services:
       context: ./infra/docker/services/supavisor
       dockerfile: Dockerfile
     healthcheck:
+      # wget, not curl — the runtime image ships busybox wget but no curl.
       test:
         [
           "CMD-SHELL",
-          "curl -sSfL --head -o /dev/null http://127.0.0.1:4000/api/health || exit 1",
+          "wget -q -O /dev/null -T 4 http://127.0.0.1:4000/api/health || exit 1",
         ]
       interval: 15s
       timeout: 5s
