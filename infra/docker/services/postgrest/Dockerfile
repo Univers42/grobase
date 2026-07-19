@@ -22,5 +22,5 @@ COPY --from=fetch /bin/busybox.static /bin/busybox
 EXPOSE 3000
 USER 1001:1001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD ["/bin/busybox", "wget", "-qO-", "http://localhost:3000/"]
+  CMD ["/bin/busybox", "wget", "-qO-", "http://127.0.0.1:3000/"]
 ENTRYPOINT ["/bin/postgrest"]
