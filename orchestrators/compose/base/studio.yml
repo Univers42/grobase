@@ -7,7 +7,7 @@ services:
       context: ./infra/docker/services/studio
       dockerfile: Dockerfile
     container_name: mini-baas-studio
-    profiles: [control-plane, extras, studio]
+    profiles: [studio, extras]
     env_file: [.env]
     environment:
       HOSTNAME: 0.0.0.0

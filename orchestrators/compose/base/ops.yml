@@ -53,7 +53,7 @@ services:
       start_period: 30s
       retries: 5
     container_name: mini-baas-supavisor
-    profiles: [control-plane, extras]
+    profiles: [ops, extras]
     env_file: [.env]
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
