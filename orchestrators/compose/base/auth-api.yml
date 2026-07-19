@@ -109,9 +109,15 @@ services:
       context: ./infra/docker/services/postgrest
       dockerfile: Dockerfile
     container_name: mini-baas-postgrest
-    # No healthcheck BY DESIGN: the postgrest image is shell-less (no sh/curl/
-    # wget), so an exec probe is impossible. Its health is observed upstream —
-    # Kong's /rest/v1 route + `make health` probe it over HTTP.
+    # The scratch image ships a static busybox exactly for this probe. Probe
+    # 127.0.0.1, not localhost: PostgREST binds IPv4 only and localhost
+    # resolves to ::1 first → the image's own HEALTHCHECK false-negatives.
+    healthcheck:
+      test: ["CMD", "/bin/busybox", "wget", "-q", "-O", "/dev/null", "-T", "4", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
     env_file: [.env]
     environment:
       # PostgREST connects as the dedicated non-superuser `authenticator` role
