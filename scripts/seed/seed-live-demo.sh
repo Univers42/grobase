@@ -377,6 +377,10 @@ if [[ "${SEED_PAGES:-1}" == "1" ]]; then
          ON CONFLICT (workspace_id, user_id) DO NOTHING" &&
         pass "${DEMO_EMAIL} is an editor of the agency org workspace (shared wiki visible)"
     fi
+    # The app opens the most recently updated workspace (bridge RPC orders by
+    # updated_at DESC) — touch the seeded one so the fresh pages are what opens.
+    "${PGX[@]}" psql -U postgres -d postgres -q -c \
+      "UPDATE public.osionos_workspaces SET updated_at = now() WHERE id='${WS}'"
     if "${PGX[@]}" psql -U postgres -d postgres -tAc \
       "SELECT 1 FROM auth.users WHERE id='${DYLAN}'" 2>/dev/null | grep -q 1; then
       pass "pages seeded in workspace ${WS}; ${DEMO_EMAIL} exists in gotrue"
