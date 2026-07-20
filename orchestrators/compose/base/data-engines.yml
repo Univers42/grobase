@@ -23,7 +23,7 @@ services:
         -c shared_preload_libraries=pg_net
         -c wal_level=logical
         -c pg_net.database_name=${POSTGRES_DB:-postgres}
-        -c max_connections=${PG_MAX_CONNECTIONS:-300}
+        -c max_connections=${PG_MAX_CONNECTIONS:-100}
     networks:
       mini-baas:
         aliases:
