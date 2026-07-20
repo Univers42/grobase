@@ -28,6 +28,10 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     volumes:
       - minio-data:/data
+    # Bound an otherwise-uncapped process on the constrained host — ~4× the ~64MiB
+    # base, covering the scanner + multipart-upload bursts for single-user osionos.
+    # Raise to 512m if a storage-heavy workload ever OOMs.
+    mem_limit: 256m
 
   # ─── Edge Functions Runtime (Deno worker-per-invocation MVP) ──────
   # Tenants POST TS/JS code to /v1/functions and invoke them at
