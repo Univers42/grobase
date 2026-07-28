@@ -17,18 +17,20 @@ WORKDIR /src
 
 # Module + build caches persist across builds (and across the APP variants),
 # so each binary build only compiles what changed instead of cold-compiling
-# the whole dependency graph per app.
+# the whole dependency graph per app. sharing=shared (not locked): Go's module
+# and build caches do their own file locking, so the per-APP variant builds
+# run CONCURRENTLY instead of serializing on the mount.
 COPY go.mod go.sum* ./
 ENV GOFLAGS=-mod=mod
-RUN --mount=type=cache,id=gomod,target=/go/pkg/mod,sharing=locked \
+RUN --mount=type=cache,id=gomod,target=/go/pkg/mod,sharing=shared \
     go mod download all || true
 
 COPY . .
 # -mod=mod lets the build resolve anything go.sum is missing; `go mod tidy`
 # at image-build time rewrote go.mod inside the image (non-reproducible) and
 # re-resolved the graph on every build.
-RUN --mount=type=cache,id=gomod,target=/go/pkg/mod,sharing=locked \
-    --mount=type=cache,id=gobuild,target=/root/.cache/go-build,sharing=locked \
+RUN --mount=type=cache,id=gomod,target=/go/pkg/mod,sharing=shared \
+    --mount=type=cache,id=gobuild,target=/root/.cache/go-build,sharing=shared \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
       -o /out/app ./cmd/${APP}
 

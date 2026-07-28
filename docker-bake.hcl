@@ -157,7 +157,7 @@ target "session-service" {
 
 # ─── Infrastructure images ───────────────────────────────────────
 target "waf" {
-  context    = "./docker/services/waf"
+  context    = "./infra/docker/services/waf"
   dockerfile = "Dockerfile"
   platforms  = ["linux/amd64", "linux/arm64"]
   tags       = ["${REGISTRY}/mini-baas-waf:${TAG}"]
@@ -166,7 +166,7 @@ target "waf" {
 }
 
 target "vault" {
-  context    = "./docker/services/vault"
+  context    = "./infra/docker/services/vault"
   dockerfile = "Dockerfile"
   platforms  = ["linux/amd64", "linux/arm64"]
   tags       = ["${REGISTRY}/mini-baas-vault:${TAG}"]
@@ -175,7 +175,7 @@ target "vault" {
 }
 
 target "postgres" {
-  context    = "./docker/services/postgres"
+  context    = "./infra/docker/services/postgres"
   dockerfile = "Dockerfile"
   platforms  = ["linux/amd64", "linux/arm64"]
   tags       = ["${REGISTRY}/mini-baas-postgres:${TAG}"]
