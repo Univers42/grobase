@@ -22,7 +22,7 @@ all:
 all-full:
 	@$(MAKE) --no-print-directory EDITION=full all
 
-clean: clean-project ## Project clean: THIS project's images/containers/networks/build-caches — KEEPS all data volumes + other projects (was a global nuke; now scoped)
+clean: clean-project ## Project clean: THIS project's images/containers/networks — KEEPS build caches (NUKE_CACHES=1 wipes), all data volumes + other projects (was a global nuke; now scoped)
 
 fclean: fclean-project ## DANGER: clean + WIPE this project's OWN data volumes (mini-baas_*). Needs CONFIRM=1. Other projects untouched, NO global prune.
 
