@@ -6,6 +6,8 @@ services:
     build:
       context: ./infra/docker/services/gotrue
       dockerfile: Dockerfile
+      cache_from:
+        - ghcr.io/univers42/grobase-gotrue:buildcache
     container_name: mini-baas-gotrue
     env_file: [.env]
     environment:

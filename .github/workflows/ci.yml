@@ -175,6 +175,10 @@ jobs:
           # is additionally PUBLISHED. Shared buildx cache key makes the rebuild cheap.
           - { service: postgres,     context: infra/docker/services/postgres }
           - { service: data-plane-router, context: src/data-plane-router }
+          # realtime event-bus (Rust, vendored workspace) — CI-built so compose's
+          # cache_from has a warm :buildcache to import (the compose `image:` stays
+          # pinned to dlesieur/realtime-agnostic; this GHCR tag is cache + mirror).
+          - { service: realtime,     context: infra/docker/services/realtime/realtime-agnostic }
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
@@ -204,6 +208,11 @@ jobs:
 
       # push ONLY on main pushes (PRs/forks build-validate without publishing).
       # Tags are the GHCR pull-fallback that compose `image:` references.
+      # Registry cache: main pushes also export the FULL layer cache to
+      # :buildcache (mode=max — intermediate stages included), which local
+      # `make build` imports via compose cache_from — a fresh machine's cold
+      # build becomes mostly downloads. PRs import it too (best-effort; without
+      # a GHCR login the import is a warning and the local cache still applies).
       - name: Build & publish ${{ matrix.service }}
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
@@ -212,14 +221,57 @@ jobs:
           tags: |
             ghcr.io/univers42/grobase-${{ matrix.service }}:latest
             ghcr.io/univers42/grobase-${{ matrix.service }}:sha-${{ github.sha }}
-          cache-from: type=local,src=/tmp/.buildx-cache/${{ matrix.service }}
-          cache-to: type=local,dest=/tmp/.buildx-cache-new/${{ matrix.service }},mode=max
+          cache-from: |
+            type=local,src=/tmp/.buildx-cache/${{ matrix.service }}
+            type=registry,ref=ghcr.io/univers42/grobase-${{ matrix.service }}:buildcache
+          cache-to: |
+            type=local,dest=/tmp/.buildx-cache-new/${{ matrix.service }},mode=max
+            ${{ (github.ref == 'refs/heads/main' && github.event_name == 'push') && format('type=registry,ref=ghcr.io/univers42/grobase-{0}:buildcache,mode=max', matrix.service) || '' }}
 
       - name: Rotate cache
         if: always()
         run: |
           rm -rf /tmp/.buildx-cache/${{ matrix.service }}
           mv /tmp/.buildx-cache-new/${{ matrix.service }} /tmp/.buildx-cache/${{ matrix.service }} 2>/dev/null || true
+
+  # ─── Job 2b': data-plane dynamodb-feature CACHE (main only, image never pushed) ──
+  # Local dev + fly build the data plane WITH --features dynamodb (the opt-in 8th
+  # engine), so the default :buildcache above can never match their dependency
+  # layer. This job builds that exact shape and publishes ONLY its layer cache
+  # (push: false) to :buildcache-dynamodb — compose cache_from lists both refs, so
+  # either feature shape cold-builds from downloads. The published :latest image
+  # stays 7-engine byte-parity.
+  dpr-dynamodb-cache:
+    name: Cache data-plane-router (dynamodb)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+                      /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build (cache export only)
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
+        with:
+          context: src/data-plane-router
+          build-args: |
+            DATA_PLANE_FEATURES=--features dynamodb
+          push: false
+          cache-from: |
+            type=registry,ref=ghcr.io/univers42/grobase-data-plane-router:buildcache-dynamodb
+            type=registry,ref=ghcr.io/univers42/grobase-data-plane-router:buildcache
+          cache-to: type=registry,ref=ghcr.io/univers42/grobase-data-plane-router:buildcache-dynamodb,mode=max
 
   # ─── Job 2c: Publish lightweight app/control images to GHCR ──────────────────
   # The NestJS app + Go control-plane services build in seconds, so they're not in

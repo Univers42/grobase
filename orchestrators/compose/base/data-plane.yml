@@ -10,6 +10,12 @@ services:
         # Opt-in extra cargo features (e.g. "--features dynamodb"). Empty by
         # default → byte-parity 7-engine build. Set in .env for this deployment.
         DATA_PLANE_FEATURES: ${DATA_PLANE_FEATURES:-}
+      # CI-published layer cache (read-only import; a missing/unauthorized
+      # manifest is a warning, never a failure). Both feature shapes are listed
+      # so a fresh machine cold-builds from downloads either way.
+      cache_from:
+        - ghcr.io/univers42/grobase-data-plane-router:buildcache-dynamodb
+        - ghcr.io/univers42/grobase-data-plane-router:buildcache
     profiles: [adapter-plane, rust-data-plane]
     container_name: mini-baas-data-plane-router-rust
     env_file: [.env]
@@ -100,6 +106,8 @@ services:
       context: ./infra/docker/services/realtime/realtime-agnostic
       dockerfile: Dockerfile
       # Run:  docker compose build realtime  to rebuild with source fixes
+      cache_from:
+        - ghcr.io/univers42/grobase-realtime:buildcache
     # Opt-in: realtime fan-out is a feature, not a foundation. Single-tenant
     # CRUD deployments that don't need WebSocket events can skip this
     # service entirely by leaving the `realtime` profile off.
