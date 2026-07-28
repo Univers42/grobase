@@ -1,35 +1,59 @@
 {
   "stack": "mini-baas (grobase)",
-  "created_utc": "2026-06-26T23:59:00Z",
+  "created_utc": "2026-07-28T09:25:33Z",
   "excluded": [
     "vault42 (zero-knowledge secrets)",
     "redis (cache)"
   ],
-  "total_bytes": 13049205,
+  "total_bytes": 13064662,
   "files": [
+    {
+      "engine": "mysql",
+      "file": "mysql/mini_baas.sql.gz",
+      "bytes": 592,
+      "sha256": "9eb257d74650d3698d921397480355d0d5300de86998e7b65cb040334ee95eeb"
+    },
+    {
+      "engine": "mysql",
+      "file": "mysql/ops.sql.gz",
+      "bytes": 214034,
+      "sha256": "d65c2f98796411f0d99bb3425861f4836adbec7e26b06be2ae16c13310e8cb25"
+    },
     {
       "engine": "mongodb",
       "file": "mongodb/activity.archive.gz",
-      "bytes": 1159577,
-      "sha256": "508a03779c9f55bf45dac8f938b9488b41a20fe7cb84a7c222ae5d175b07d206"
+      "bytes": 1159579,
+      "sha256": "23ee7060eb419e5ccc0fce72e0386a3c7b4d8b428421cc866e982735fd7865b2"
     },
     {
       "engine": "mongodb",
       "file": "mongodb/mini_baas.archive.gz",
-      "bytes": 614,
-      "sha256": "81a4bddf6fc0ae15eccdebaad33b4f532d4e92ecb67b60e17a36c47cab6183b7"
+      "bytes": 615,
+      "sha256": "a553003fe7c6583e1e5d8932b494a426655a5c2b6c0c9dd6395eb079beaaa798"
     },
     {
       "engine": "mongodb",
       "file": "mongodb/mini_baas_ai.archive.gz",
-      "bytes": 667,
-      "sha256": "19c6db67e298d5d530059a7c79349ec27f4e005ab8d98371fcecf2c390bc68c0"
+      "bytes": 671,
+      "sha256": "39e310d6f53690aaeafb5d05ef4c9edfab041510cfc6c8d9f2aac8606cbd5231"
     },
     {
       "engine": "mongodb",
       "file": "mongodb/mini_baas_analytics.archive.gz",
       "bytes": 390,
-      "sha256": "f94c69d8aaf36c9dad2d6f6977c0ee931fde45ff834695446f9e5aea4288f4c0"
+      "sha256": "aef72b16a8ea394e4a2bda67822c48ce2dcce5a756fa33c9a890b533f9d16ee1"
+    },
+    {
+      "engine": "mssql",
+      "file": "mssql/finance.bak.gz",
+      "bytes": 467323,
+      "sha256": "32b9c6cb5e3f374ddcb064cff1ac5613e09ed151b86c3a85c9b0ec5706b56b92"
+    },
+    {
+      "engine": "minio",
+      "file": "minio/objects.tar.gz",
+      "bytes": 7476612,
+      "sha256": "f87710c2fcaec4438d2ccee20c47393de6ab6e034593d9590753a2ff022e41b2"
     },
     {
       "engine": "dynamodb",
@@ -68,76 +92,52 @@
       "sha256": "24846f4a291d2dc08e0b867cd50fc93c6ffe338174c8fc5e5fcb136a75a58ea3"
     },
     {
-      "engine": "mssql",
-      "file": "mssql/finance.bak.gz",
-      "bytes": 467323,
-      "sha256": "32b9c6cb5e3f374ddcb064cff1ac5613e09ed151b86c3a85c9b0ec5706b56b92"
-    },
-    {
       "engine": "postgres",
       "file": "postgres/db-agency.dump",
       "bytes": 49726,
-      "sha256": "b077027917767598827ac34825562585ae51a1c45bb59c001fea6aec36746d7d"
+      "sha256": "4da11a2263debe090c30776778af116c4819929752abdd8b40ff190748ddbc71"
     },
     {
       "engine": "postgres",
       "file": "postgres/db-commerce.dump",
       "bytes": 1877679,
-      "sha256": "a971755817fa80ec7cce51ab5fb4f0b117eed3ac824af1c3d8a9f27685771012"
+      "sha256": "4c6c1ccce4d59a7b5c1eb57a8b96de35b8f8bc24cdf21fa49c433e416810b966"
     },
     {
       "engine": "postgres",
       "file": "postgres/db-gourmand.dump",
-      "bytes": 187278,
-      "sha256": "2684172aeeb8e8254be9123f749525bfac4132a7e75f1a21201760089ff20c6d"
+      "bytes": 187068,
+      "sha256": "88166747f6b8ef41059698a818a445beee502a66f5ab1d42b68afa189a892b00"
     },
     {
       "engine": "postgres",
       "file": "postgres/db-postgres.dump",
-      "bytes": 1571059,
-      "sha256": "4f05d692cd4d8dd3ec5d058ab8bde5b91b97fc63765f885e54a7d706a2389cc6"
+      "bytes": 1580308,
+      "sha256": "2a1256e8b26b084dea97ecbd2faf4d90acad8be587146a5b5d406f0ec75b61b9"
     },
     {
       "engine": "postgres",
       "file": "postgres/db-realtime.dump",
       "bytes": 821,
-      "sha256": "55d2ab8227df06b1a00591974068cb292bb9b5f4c32ef40ab34b4002ba693496"
+      "sha256": "bd2d3aa1561392c96b9c61a3dee24e58b9cbfdaaeae2fc4639cf56721fb6fc5f"
     },
     {
       "engine": "postgres",
       "file": "postgres/db-red-tetris.dump",
       "bytes": 23245,
-      "sha256": "0021f18a37dffb852323c2671646530abe455bcbb3e6e8505364407d21f68d9a"
+      "sha256": "585e74c827ef4633a05acb26baa204b766936daccf86840b32c54374c041cf09"
     },
     {
       "engine": "postgres",
       "file": "postgres/db-website.dump",
-      "bytes": 3142,
-      "sha256": "41b39cf679a138c1b18b88fbd046788b4adbab18921ad57e9d319c36d952a7d9"
+      "bytes": 3134,
+      "sha256": "a31911e20908b16410c49468bf64b4b5b2df9d791f368be9503be0f9e0838575"
     },
     {
       "engine": "postgres",
       "file": "postgres/globals.sql.gz",
       "bytes": 495,
-      "sha256": "6321fe486c15c3537294db44e7f234ffd3b1d30f528e9553d9886c80fc78a6f2"
-    },
-    {
-      "engine": "mysql",
-      "file": "mysql/mini_baas.sql.gz",
-      "bytes": 592,
-      "sha256": "d81fbc5c3dfc68df5113c758e10f3642643e359a836bc2a3fbc334612391c513"
-    },
-    {
-      "engine": "mysql",
-      "file": "mysql/ops.sql.gz",
-      "bytes": 214030,
-      "sha256": "08dcc205e243d3b634cf955800426c63114d1f7ca96093b2bded367bafb535dd"
-    },
-    {
-      "engine": "minio",
-      "file": "minio/objects.tar.gz",
-      "bytes": 7470197,
-      "sha256": "fea9294cc53879c2bcf2bb6d304a1b83532bd8dd14ac9d24ba587632dc0c9c89"
+      "sha256": "d2ac1e64848d91e81130937514ea70b7edcaba68348d90e0546e8cd362059c64"
     }
   ]
 }
