@@ -35,13 +35,16 @@ pull: _require-compose ## Pull images for the selected EDITION
 	@$(DCE) pull
 	@echo -e "$(_G)✓ Pulled$(_0)"
 
-build: _require-compose ## Build images for the selected EDITION (BuildKit, parallel)
-	@DOCKER_BUILDKIT=1 $(DCE) build --build-arg BUILDKIT_INLINE_CACHE=1
+build: _require-compose ## Build images for the selected EDITION (bake: one parallel BuildKit graph, dedup'd shared stages)
+	@COMPOSE_BAKE=true $(DCE) build
 	@echo -e "$(_G)✓ Build complete$(_0)"
 
 build-svc-%: _require-compose ## Build ONE service image (all profiles defined, builds only $*; e.g. make build-svc-query-router)
-	@DOCKER_BUILDKIT=1 $(DC) $(call flags_of,$(PLANES)) build $*
+	@COMPOSE_BAKE=true $(DC) $(call flags_of,$(PLANES)) build $*
 	@echo -e "$(_G)✓ built $*$(_0)"
+
+bench-build: ## Build-speed bench → artifacts/bench/build/results.tsv (MODE=noop|incr-rust|incr-ts|cold; cold wipes the builder cache, needs BENCH_COLD=1)
+	@MODE="$(if $(MODE),$(MODE),noop)" EDITION="$(EDITION)" BENCH_COLD="$(BENCH_COLD)" sh scripts/bench/build-bench.sh
 
 health: ## Quick gateway health probe
 	@echo -e "$(_B)Checking endpoints…$(_0)"

@@ -27,10 +27,10 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
   npm prune --omit=dev --ignore-scripts --no-audit --no-fund
 
 # ─── Stage 4: Production image ───────────────────────────────────
+# APP-independent layers FIRST (ARG APP/ENV comes after them): all app images
+# share one apk-upgrade/user/npm-strip/node_modules layer chain instead of
+# re-running them per app.
 FROM public.ecr.aws/docker/library/node:${NODE_VERSION}-alpine AS runtime
-ARG APP
-ENV NODE_ENV=production \
-  APP_NAME=${APP}
 
 # Patch base OS packages (openssl/musl/zlib) to the latest alpine fixes — clears
 # scanner HIGH/CRITICAL CVEs the node:alpine base ships with between base bumps.
@@ -49,6 +49,10 @@ RUN rm -rf \
 # Copy production-only deps without a second registry install.
 COPY --from=prod-deps --chown=appuser:appgroup /app/node_modules ./node_modules
 COPY --from=prod-deps --chown=appuser:appgroup /app/package.json ./
+
+ARG APP
+ENV NODE_ENV=production \
+  APP_NAME=${APP}
 
 # Copy compiled output
 COPY --from=build --chown=appuser:appgroup --chmod=0555 /app/dist/ ./dist/

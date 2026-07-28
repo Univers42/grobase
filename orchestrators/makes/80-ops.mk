@@ -68,18 +68,19 @@ docker-gc: ## Reclaim build cache >1wk + named build-cache volumes (daemon GC ca
 # ── project-scoped clean + automatic rebuild ─────────────────────────────────
 # clean-project erases ONLY this project (compose project `mini-baas`): its containers,
 # networks, project images (the grobase planes + the suite motor/CLI/realtime — see
-# PROJ_IMG_RE), dangling layers, this suite's build-CACHE volumes (cargo/target/
-# node_modules) and the DEFAULT builder's build cache. It NEVER removes *-data/_data
-# volumes (Postgres/Mongo/MySQL/… pure data), NEVER touches another project's images,
-# volumes, or its OWN buildx builder (e.g. track-binocle-builder keeps its cache), and
-# never runs a global `docker system prune`. KEEP_CACHES=1 keeps the build caches for a
-# faster rebuild (default removes them — "all the caches").
+# PROJ_IMG_RE) and dangling layers. It NEVER removes *-data/_data volumes
+# (Postgres/Mongo/MySQL/… pure data), NEVER touches another project's images, volumes,
+# or its OWN buildx builder (e.g. track-binocle-builder keeps its cache), and never
+# runs a global `docker system prune`. Build caches (BuildKit layers + the cargo/npm/go
+# cache mounts + this suite's cache volumes) are KEPT by default so `make re` rebuilds
+# WARM in seconds-to-minutes instead of a ~30 min cold compile; NUKE_CACHES=1 restores
+# the full cold wipe, `make docker-gc` reclaims by age.
 DATA_VOL_RE := (\-|_)data($$|[-_])|pgdata|keyfile
 # This project's images = the grobase planes + the suite's own motor (vault42-server),
 # CLI (42ctl) and realtime image — NOT base images (postgres/rust/alpine/mailpit) and
 # NOT other apps (pomodoro/hellish), which are kept.
 PROJ_IMG_RE := ^(ghcr\.io/univers42/grobase-|mini-baas[-_]|binocle[-_]|dlesieur/(vault42-server|realtime-agnostic|42ctl)(:|$$)|(vault42-server|42ctl|realtime-agnostic):)
-clean-project: _require-compose ## Erase THIS project's images/containers/networks/build-caches ONLY — keeps all data volumes + other projects
+clean-project: _require-compose ## Erase THIS project's images/containers/networks ONLY — build caches KEPT (NUKE_CACHES=1 wipes them); data volumes + other projects untouched
 	@echo -e "$(_Y)$(_W)▶ project clean (mini-baas) — data volumes + other projects PRESERVED$(_0)"
 	@echo "  • containers (compose project=mini-baas)…"
 	@docker ps -aq --filter label=com.docker.compose.project=mini-baas | xargs -r docker rm -f >/dev/null 2>&1 || true
@@ -90,15 +91,15 @@ clean-project: _require-compose ## Erase THIS project's images/containers/networ
 	  echo "  • images: $$n project image(s) (grobase-* · vault42-server · realtime-agnostic · 42ctl) — base/other-app images kept…"; \
 	  [ -z "$$imgs" ] || echo "$$imgs" | xargs -r docker rmi -f >/dev/null 2>&1 || true
 	@docker image prune -f >/dev/null 2>&1 || true
-	@if [ -z "$(KEEP_CACHES)" ]; then \
-	  echo "  • this suite's BUILD-CACHE volumes (cargo/target/node_modules) — never *-data…"; \
+	@if [ -n "$(NUKE_CACHES)" ]; then \
+	  echo "  • NUKE_CACHES=1 → this suite's BUILD-CACHE volumes (cargo/target/node_modules) — never *-data…"; \
 	  docker volume ls -q \
 	    | grep -E 'cargo|target|node_modules|gocache|go-?mod|go-build|modcache|npm-cache|deno-cache|-m2$$|-nm$$|hypertube-cache|vault42-bin' \
 	    | grep -vE 'track-binocle|$(DATA_VOL_RE)' \
 	    | xargs -r docker volume rm >/dev/null 2>&1 || true; \
-	  echo "  • build cache: the DEFAULT builder (where this project builds) — dedicated builders (track-binocle/prismatica) keep theirs…"; \
+	  echo "  • build cache: the DEFAULT builder wiped — next build is COLD…"; \
 	  docker buildx prune -af >/dev/null 2>&1 || true; docker builder prune -af >/dev/null 2>&1 || true; \
-	else echo "  • KEEP_CACHES=1 → build caches kept (faster rebuild)"; fi
+	else echo "  • build caches KEPT (BuildKit layers + cargo/npm/go mounts) → warm rebuild. Cold wipe: NUKE_CACHES=1 · age-based reclaim: make docker-gc"; fi
 	@echo -e "$(_G)✓ clean done — PRESERVED data volumes:$(_0)"; docker volume ls -q | grep -E '$(DATA_VOL_RE)' | sed 's/^/      /'
 	@docker system df
 

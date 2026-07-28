@@ -5,6 +5,9 @@
 #  - BuildKit cache mounts: the crates registry and the target dir persist
 #    ACROSS builds, so a manifest change no longer re-downloads the registry,
 #    and a source change only recompiles the crates that actually changed.
+# The registry/git mounts are sharing=shared (cargo does its own file locking)
+# so this build and the realtime workspace compile CONCURRENTLY instead of
+# serializing on the mount lock; only the per-workspace target dir stays locked.
 FROM public.ecr.aws/docker/library/rust:1.96-slim-bookworm AS deps
 WORKDIR /build
 # Opt-in extra cargo features for THIS deployment (e.g. "--features dynamodb").
@@ -20,23 +23,23 @@ COPY crates/data-plane-server/Cargo.toml crates/data-plane-server/Cargo.toml
 # the bin build, so a stub lib is enough — its deps are never compiled here.
 COPY crates/engine-conformance/Cargo.toml crates/engine-conformance/Cargo.toml
 
-RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=locked \
+RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=shared \
+    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=shared \
     --mount=type=cache,id=dpr-target,target=/build/target,sharing=locked \
     for dir in crates/data-plane-core crates/data-plane-pool crates/data-plane-server crates/engine-conformance; do \
       mkdir -p "$dir/src"; \
       echo "pub fn placeholder() {}" > "$dir/src/lib.rs"; \
     done && \
     echo "fn main() {}" > crates/data-plane-server/src/main.rs && \
-    cargo build --release ${DATA_PLANE_FEATURES} --bin data-plane-router
+    cargo build --release ${DATA_PLANE_FEATURES} --bin data-plane-router && \
+    find /build/target -path '*/.fingerprint/*' -type f -exec touch -t 200001010000 {} +
 
 FROM deps AS builder
 ARG DATA_PLANE_FEATURES=""
 COPY crates/ crates/
-RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=locked \
+RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=shared \
+    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=shared \
     --mount=type=cache,id=dpr-target,target=/build/target,sharing=locked \
-    touch crates/data-plane-core/src/*.rs crates/data-plane-pool/src/*.rs crates/data-plane-server/src/*.rs && \
     cargo build --release ${DATA_PLANE_FEATURES} --bin data-plane-router && \
     cp /build/target/release/data-plane-router /data-plane-router
 

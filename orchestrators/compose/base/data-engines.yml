@@ -89,10 +89,9 @@ services:
   # Ordered AFTER gotrue so auth.users exists before the migrations reference it.
   pg-migrate:
     extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    # Reuses the image db-bootstrap builds (same context) — no build: block here,
+    # or bake exports the same tag twice concurrently and races ("already exists").
     image: ghcr.io/univers42/grobase-db-bootstrap:latest # pull-fallback (shares the db-bootstrap client image)
-    build:
-      context: ./infra/docker/services/db-bootstrap
-      dockerfile: Dockerfile
     container_name: mini-baas-pg-migrate
     env_file: [.env]
     environment:
