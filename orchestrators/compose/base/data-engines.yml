@@ -69,13 +69,14 @@ services:
       # Password for the non-superuser PostgREST `authenticator` role created by
       # db-bootstrap.psql (see migration 065 — safe-by-construction REST isolation).
       AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD:-}
-    command: >
-      sh -ec '
-        until pg_isready -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"; do sleep 1; done;
-        psql -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" -v ON_ERROR_STOP=1 -v pwd="$${POSTGRES_PASSWORD}" -v realtime_db="$${REALTIME_DB_NAME}" -v authenticator_pwd="$${AUTHENTICATOR_PASSWORD}" -f /bootstrap/db-bootstrap.psql;
-      '
+    # Logic in scripts/db/db-bootstrap.sh. It waits on a real authenticated query rather
+    # than pg_isready, which answers "is the server accepting connections" and exits 0 on a
+    # password rejection — so the old inline `until pg_isready` passed instantly and the
+    # psql after it died with a bare "password authentication failed" and no cause.
+    command: ["sh", "/bootstrap/db-bootstrap.sh"]
     volumes:
       - ./scripts/db/db-bootstrap.psql:/bootstrap/db-bootstrap.psql:ro
+      - ./scripts/db/db-bootstrap.sh:/bootstrap/db-bootstrap.sh:ro
     depends_on:
       postgres:
         condition: service_healthy
