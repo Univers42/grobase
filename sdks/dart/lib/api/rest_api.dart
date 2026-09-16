@@ -24,7 +24,7 @@ class RestApi {
   ///
   /// * [String] resource (required):
   ///   Table or view name.
-  Future<Response> restDeleteWithHttpInfo(String resource, { Future<void>? abortTrigger, }) async {
+  Future<Response> restDeleteWithHttpInfo(String resource,) async {
     // ignore: prefer_const_declarations
     final path = r'/rest/v1/{resource}'
       .replaceAll('{resource}', resource);
@@ -47,7 +47,6 @@ class RestApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -57,8 +56,8 @@ class RestApi {
   ///
   /// * [String] resource (required):
   ///   Table or view name.
-  Future<void> restDelete(String resource, { Future<void>? abortTrigger, }) async {
-    final response = await restDeleteWithHttpInfo(resource, abortTrigger: abortTrigger,);
+  Future<void> restDelete(String resource,) async {
+    final response = await restDeleteWithHttpInfo(resource,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -73,14 +72,14 @@ class RestApi {
   /// * [String] resource (required):
   ///   Table or view name.
   ///
-  /// * [Map<String, Object>] requestBody (required):
-  Future<Response> restInsertWithHttpInfo(String resource, Map<String, Object> requestBody, { Future<void>? abortTrigger, }) async {
+  /// * [Object] body (required):
+  Future<Response> restInsertWithHttpInfo(String resource, Object body,) async {
     // ignore: prefer_const_declarations
     final path = r'/rest/v1/{resource}'
       .replaceAll('{resource}', resource);
 
     // ignore: prefer_final_locals
-    Object? postBody = requestBody;
+    Object? postBody = body;
 
     final queryParams = <QueryParam>[];
     final headerParams = <String, String>{};
@@ -97,7 +96,6 @@ class RestApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -108,9 +106,9 @@ class RestApi {
   /// * [String] resource (required):
   ///   Table or view name.
   ///
-  /// * [Map<String, Object>] requestBody (required):
-  Future<void> restInsert(String resource, Map<String, Object> requestBody, { Future<void>? abortTrigger, }) async {
-    final response = await restInsertWithHttpInfo(resource, requestBody, abortTrigger: abortTrigger,);
+  /// * [Object] body (required):
+  Future<void> restInsert(String resource, Object body,) async {
+    final response = await restInsertWithHttpInfo(resource, body,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -125,7 +123,7 @@ class RestApi {
   /// * [String] fn (required):
   ///
   /// * [Map<String, Object>] requestBody:
-  Future<Response> restRpcWithHttpInfo(String fn, { Map<String, Object>? requestBody, Future<void>? abortTrigger, }) async {
+  Future<Response> restRpcWithHttpInfo(String fn, { Map<String, Object>? requestBody, }) async {
     // ignore: prefer_const_declarations
     final path = r'/rest/v1/rpc/{fn}'
       .replaceAll('{fn}', fn);
@@ -148,7 +146,6 @@ class RestApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -159,8 +156,8 @@ class RestApi {
   /// * [String] fn (required):
   ///
   /// * [Map<String, Object>] requestBody:
-  Future<void> restRpc(String fn, { Map<String, Object>? requestBody, Future<void>? abortTrigger, }) async {
-    final response = await restRpcWithHttpInfo(fn, requestBody: requestBody, abortTrigger: abortTrigger,);
+  Future<void> restRpc(String fn, { Map<String, Object>? requestBody, }) async {
+    final response = await restRpcWithHttpInfo(fn,  requestBody: requestBody, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -184,7 +181,7 @@ class RestApi {
   /// * [int] limit:
   ///
   /// * [int] offset:
-  Future<Response> restSelectWithHttpInfo(String resource, { String? select, String? order, int? limit, int? offset, Future<void>? abortTrigger, }) async {
+  Future<Response> restSelectWithHttpInfo(String resource, { String? select, String? order, int? limit, int? offset, }) async {
     // ignore: prefer_const_declarations
     final path = r'/rest/v1/{resource}'
       .replaceAll('{resource}', resource);
@@ -220,7 +217,6 @@ class RestApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -240,8 +236,8 @@ class RestApi {
   /// * [int] limit:
   ///
   /// * [int] offset:
-  Future<List<Object>?> restSelect(String resource, { String? select, String? order, int? limit, int? offset, Future<void>? abortTrigger, }) async {
-    final response = await restSelectWithHttpInfo(resource, select: select, order: order, limit: limit, offset: offset, abortTrigger: abortTrigger,);
+  Future<List<Object>?> restSelect(String resource, { String? select, String? order, int? limit, int? offset, }) async {
+    final response = await restSelectWithHttpInfo(resource,  select: select, order: order, limit: limit, offset: offset, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -268,7 +264,7 @@ class RestApi {
   ///   Table or view name.
   ///
   /// * [Map<String, Object>] requestBody (required):
-  Future<Response> restUpdateWithHttpInfo(String resource, Map<String, Object> requestBody, { Future<void>? abortTrigger, }) async {
+  Future<Response> restUpdateWithHttpInfo(String resource, Map<String, Object> requestBody,) async {
     // ignore: prefer_const_declarations
     final path = r'/rest/v1/{resource}'
       .replaceAll('{resource}', resource);
@@ -291,7 +287,6 @@ class RestApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -303,8 +298,8 @@ class RestApi {
   ///   Table or view name.
   ///
   /// * [Map<String, Object>] requestBody (required):
-  Future<void> restUpdate(String resource, Map<String, Object> requestBody, { Future<void>? abortTrigger, }) async {
-    final response = await restUpdateWithHttpInfo(resource, requestBody, abortTrigger: abortTrigger,);
+  Future<void> restUpdate(String resource, Map<String, Object> requestBody,) async {
+    final response = await restUpdateWithHttpInfo(resource, requestBody,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
