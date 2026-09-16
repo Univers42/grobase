@@ -53,10 +53,10 @@ class TxnRequest {
       // Note 1: the values aren't checked for validity beyond being non-null.
       // Note 2: this code is stripped in release mode!
       assert(() {
-        assert(json.containsKey(r'databaseId'), 'Required key "TxnRequest[databaseId]" is missing from JSON.');
-        assert(json[r'databaseId'] != null, 'Required key "TxnRequest[databaseId]" has a null value in JSON.');
-        assert(json.containsKey(r'operations'), 'Required key "TxnRequest[operations]" is missing from JSON.');
-        assert(json[r'operations'] != null, 'Required key "TxnRequest[operations]" has a null value in JSON.');
+        requiredKeys.forEach((key) {
+          assert(json.containsKey(key), 'Required key "TxnRequest[$key]" is missing from JSON.');
+          assert(json[key] != null, 'Required key "TxnRequest[$key]" has a null value in JSON.');
+        });
         return true;
       }());
 

@@ -23,7 +23,7 @@ class StorageApi {
   /// Parameters:
   ///
   /// * [String] name (required):
-  Future<Response> storageCreateBucketWithHttpInfo(String name, { Future<void>? abortTrigger, }) async {
+  Future<Response> storageCreateBucketWithHttpInfo(String name,) async {
     // ignore: prefer_const_declarations
     final path = r'/storage/v1/bucket/{name}'
       .replaceAll('{name}', name);
@@ -46,7 +46,6 @@ class StorageApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -55,8 +54,8 @@ class StorageApi {
   /// Parameters:
   ///
   /// * [String] name (required):
-  Future<StorageCreateBucket200Response?> storageCreateBucket(String name, { Future<void>? abortTrigger, }) async {
-    final response = await storageCreateBucketWithHttpInfo(name, abortTrigger: abortTrigger,);
+  Future<StorageCreateBucket200Response?> storageCreateBucket(String name,) async {
+    final response = await storageCreateBucketWithHttpInfo(name,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -79,7 +78,7 @@ class StorageApi {
   /// * [String] bucket (required):
   ///
   /// * [String] key (required):
-  Future<Response> storageDeleteWithHttpInfo(String bucket, String key, { Future<void>? abortTrigger, }) async {
+  Future<Response> storageDeleteWithHttpInfo(String bucket, String key,) async {
     // ignore: prefer_const_declarations
     final path = r'/storage/v1/object/{bucket}/{key}'
       .replaceAll('{bucket}', bucket)
@@ -103,7 +102,6 @@ class StorageApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -114,8 +112,8 @@ class StorageApi {
   /// * [String] bucket (required):
   ///
   /// * [String] key (required):
-  Future<void> storageDelete(String bucket, String key, { Future<void>? abortTrigger, }) async {
-    final response = await storageDeleteWithHttpInfo(bucket, key, abortTrigger: abortTrigger,);
+  Future<void> storageDelete(String bucket, String key,) async {
+    final response = await storageDeleteWithHttpInfo(bucket, key,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -130,7 +128,7 @@ class StorageApi {
   /// * [String] bucket (required):
   ///
   /// * [String] key (required):
-  Future<Response> storageDownloadWithHttpInfo(String bucket, String key, { Future<void>? abortTrigger, }) async {
+  Future<Response> storageDownloadWithHttpInfo(String bucket, String key,) async {
     // ignore: prefer_const_declarations
     final path = r'/storage/v1/object/{bucket}/{key}'
       .replaceAll('{bucket}', bucket)
@@ -154,7 +152,6 @@ class StorageApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -165,8 +162,8 @@ class StorageApi {
   /// * [String] bucket (required):
   ///
   /// * [String] key (required):
-  Future<MultipartFile?> storageDownload(String bucket, String key, { Future<void>? abortTrigger, }) async {
-    final response = await storageDownloadWithHttpInfo(bucket, key, abortTrigger: abortTrigger,);
+  Future<MultipartFile?> storageDownload(String bucket, String key,) async {
+    final response = await storageDownloadWithHttpInfo(bucket, key,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -189,7 +186,7 @@ class StorageApi {
   /// * [String] bucket (required):
   ///
   /// * [String] prefix:
-  Future<Response> storageListWithHttpInfo(String bucket, { String? prefix, Future<void>? abortTrigger, }) async {
+  Future<Response> storageListWithHttpInfo(String bucket, { String? prefix, }) async {
     // ignore: prefer_const_declarations
     final path = r'/storage/v1/list/{bucket}'
       .replaceAll('{bucket}', bucket);
@@ -216,7 +213,6 @@ class StorageApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -227,8 +223,8 @@ class StorageApi {
   /// * [String] bucket (required):
   ///
   /// * [String] prefix:
-  Future<StorageList200Response?> storageList(String bucket, { String? prefix, Future<void>? abortTrigger, }) async {
-    final response = await storageListWithHttpInfo(bucket, prefix: prefix, abortTrigger: abortTrigger,);
+  Future<StorageList200Response?> storageList(String bucket, { String? prefix, }) async {
+    final response = await storageListWithHttpInfo(bucket,  prefix: prefix, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -245,7 +241,7 @@ class StorageApi {
   /// List buckets.
   ///
   /// Note: This method returns the HTTP [Response].
-  Future<Response> storageListBucketsWithHttpInfo({ Future<void>? abortTrigger, }) async {
+  Future<Response> storageListBucketsWithHttpInfo() async {
     // ignore: prefer_const_declarations
     final path = r'/storage/v1/bucket';
 
@@ -267,13 +263,12 @@ class StorageApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
   /// List buckets.
-  Future<StorageListBuckets200Response?> storageListBuckets({ Future<void>? abortTrigger, }) async {
-    final response = await storageListBucketsWithHttpInfo(abortTrigger: abortTrigger,);
+  Future<StorageListBuckets200Response?> storageListBuckets() async {
+    final response = await storageListBucketsWithHttpInfo();
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -298,7 +293,7 @@ class StorageApi {
   /// * [String] key (required):
   ///
   /// * [StorageSignRequest] storageSignRequest:
-  Future<Response> storageSignWithHttpInfo(String bucket, String key, { StorageSignRequest? storageSignRequest, Future<void>? abortTrigger, }) async {
+  Future<Response> storageSignWithHttpInfo(String bucket, String key, { StorageSignRequest? storageSignRequest, }) async {
     // ignore: prefer_const_declarations
     final path = r'/storage/v1/sign/{bucket}/{key}'
       .replaceAll('{bucket}', bucket)
@@ -322,7 +317,6 @@ class StorageApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -335,8 +329,8 @@ class StorageApi {
   /// * [String] key (required):
   ///
   /// * [StorageSignRequest] storageSignRequest:
-  Future<SignedUrl?> storageSign(String bucket, String key, { StorageSignRequest? storageSignRequest, Future<void>? abortTrigger, }) async {
-    final response = await storageSignWithHttpInfo(bucket, key, storageSignRequest: storageSignRequest, abortTrigger: abortTrigger,);
+  Future<SignedUrl?> storageSign(String bucket, String key, { StorageSignRequest? storageSignRequest, }) async {
+    final response = await storageSignWithHttpInfo(bucket, key,  storageSignRequest: storageSignRequest, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -361,7 +355,7 @@ class StorageApi {
   /// * [String] key (required):
   ///
   /// * [MultipartFile] body (required):
-  Future<Response> storageUploadWithHttpInfo(String bucket, String key, MultipartFile body, { Future<void>? abortTrigger, }) async {
+  Future<Response> storageUploadWithHttpInfo(String bucket, String key, MultipartFile body,) async {
     // ignore: prefer_const_declarations
     final path = r'/storage/v1/object/{bucket}/{key}'
       .replaceAll('{bucket}', bucket)
@@ -385,7 +379,6 @@ class StorageApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -398,8 +391,8 @@ class StorageApi {
   /// * [String] key (required):
   ///
   /// * [MultipartFile] body (required):
-  Future<UploadResult?> storageUpload(String bucket, String key, MultipartFile body, { Future<void>? abortTrigger, }) async {
-    final response = await storageUploadWithHttpInfo(bucket, key, body, abortTrigger: abortTrigger,);
+  Future<UploadResult?> storageUpload(String bucket, String key, MultipartFile body,) async {
+    final response = await storageUploadWithHttpInfo(bucket, key, body,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

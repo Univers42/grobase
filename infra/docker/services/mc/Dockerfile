@@ -30,9 +30,16 @@
 # ── builder: fetch + verify the static binary + stage busybox/CA/home ────────
 FROM alpine:3.21 AS build
 ARG MC_RELEASE=RELEASE.2025-04-08T15-39-49Z
+# dl.min.io answers 410 for every release path now — see the minio image for the
+# same change. Pinned and checksum-verified from the project's GitHub release.
+ARG MC_URL=https://github.com/minio/mc/releases/download
 RUN apk add --no-cache wget ca-certificates busybox-static \
  && wget -q -O /mc \
-      "https://dl.min.io/client/mc/release/linux-amd64/archive/mc.${MC_RELEASE}" \
+      "${MC_URL}/${MC_RELEASE}/mc.linux-amd64.${MC_RELEASE}" \
+ && wget -q -O /mc.sha256 \
+      "${MC_URL}/${MC_RELEASE}/mc.linux-amd64.${MC_RELEASE}.sha256sum" \
+ && echo "$(cut -d" " -f1 /mc.sha256)  /mc" | sha256sum -c - \
+ && rm -f /mc.sha256 \
  && chmod +x /mc \
  && /mc --version
 # Stage the runtime layout the scratch image needs (builder has a shell):

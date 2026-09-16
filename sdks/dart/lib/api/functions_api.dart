@@ -23,7 +23,7 @@ class FunctionsApi {
   /// Parameters:
   ///
   /// * [String] name (required):
-  Future<Response> functionDeleteWithHttpInfo(String name, { Future<void>? abortTrigger, }) async {
+  Future<Response> functionDeleteWithHttpInfo(String name,) async {
     // ignore: prefer_const_declarations
     final path = r'/functions/v1/{name}'
       .replaceAll('{name}', name);
@@ -46,7 +46,6 @@ class FunctionsApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -55,8 +54,8 @@ class FunctionsApi {
   /// Parameters:
   ///
   /// * [String] name (required):
-  Future<void> functionDelete(String name, { Future<void>? abortTrigger, }) async {
-    final response = await functionDeleteWithHttpInfo(name, abortTrigger: abortTrigger,);
+  Future<void> functionDelete(String name,) async {
+    final response = await functionDeleteWithHttpInfo(name,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -69,7 +68,7 @@ class FunctionsApi {
   /// Parameters:
   ///
   /// * [String] name (required):
-  Future<Response> functionGetWithHttpInfo(String name, { Future<void>? abortTrigger, }) async {
+  Future<Response> functionGetWithHttpInfo(String name,) async {
     // ignore: prefer_const_declarations
     final path = r'/functions/v1/{name}'
       .replaceAll('{name}', name);
@@ -92,7 +91,6 @@ class FunctionsApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -101,8 +99,8 @@ class FunctionsApi {
   /// Parameters:
   ///
   /// * [String] name (required):
-  Future<FunctionGet200Response?> functionGet(String name, { Future<void>? abortTrigger, }) async {
-    final response = await functionGetWithHttpInfo(name, abortTrigger: abortTrigger,);
+  Future<FunctionGet200Response?> functionGet(String name,) async {
+    final response = await functionGetWithHttpInfo(name,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -125,7 +123,7 @@ class FunctionsApi {
   /// * [String] name (required):
   ///
   /// * [Map<String, Object>] requestBody:
-  Future<Response> functionInvokeWithHttpInfo(String name, { Map<String, Object>? requestBody, Future<void>? abortTrigger, }) async {
+  Future<Response> functionInvokeWithHttpInfo(String name, { Map<String, Object>? requestBody, }) async {
     // ignore: prefer_const_declarations
     final path = r'/functions/v1/{name}/invoke'
       .replaceAll('{name}', name);
@@ -148,7 +146,6 @@ class FunctionsApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -159,8 +156,8 @@ class FunctionsApi {
   /// * [String] name (required):
   ///
   /// * [Map<String, Object>] requestBody:
-  Future<void> functionInvoke(String name, { Map<String, Object>? requestBody, Future<void>? abortTrigger, }) async {
-    final response = await functionInvokeWithHttpInfo(name, requestBody: requestBody, abortTrigger: abortTrigger,);
+  Future<void> functionInvoke(String name, { Map<String, Object>? requestBody, }) async {
+    final response = await functionInvokeWithHttpInfo(name,  requestBody: requestBody, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

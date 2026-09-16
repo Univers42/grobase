@@ -14,9 +14,17 @@
 # ── builder: fetch + verify the static binary ────────────────────────────────
 FROM alpine:3.21 AS build
 ARG MINIO_RELEASE=RELEASE.2025-09-07T16-13-09Z
+# dl.min.io answers 410 for every release path now, so the binary comes from the
+# project's own GitHub release. The published .sha256sum names a different file, so
+# only the digest is taken from it and the check line is built here.
+ARG MINIO_URL=https://github.com/minio/minio/releases/download
 RUN apk add --no-cache wget \
  && wget -q -O /minio \
-      "https://dl.min.io/server/minio/release/linux-amd64/archive/minio.${MINIO_RELEASE}" \
+      "${MINIO_URL}/${MINIO_RELEASE}/minio.linux-amd64.${MINIO_RELEASE}" \
+ && wget -q -O /minio.sha256 \
+      "${MINIO_URL}/${MINIO_RELEASE}/minio.linux-amd64.${MINIO_RELEASE}.sha256sum" \
+ && echo "$(cut -d" " -f1 /minio.sha256)  /minio" | sha256sum -c - \
+ && rm -f /minio.sha256 \
  && chmod +x /minio \
  && /minio --version
 
