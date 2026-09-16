@@ -357,7 +357,36 @@ restore_mysql() {
 		| docker exec -i mini-baas-mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -u root' \
 		>/dev/null 2>"$err" || { cat "$err" >&2; rm -f "$err"; die "mysql restore failed (error above)"; }
 	rm -f "$err"
+	mysql_grant_app_user
 	note "mysql: done"
+}
+
+# mysql_grant_app_user: give the application account back its access to every database the
+# dump restored.
+#
+# Skipping the `mysql` system database drops the source's passwords — the point — but it also
+# drops its GRANTs, and those are not credentials, they are access. A fresh volume's entrypoint
+# grants MYSQL_USER only on MYSQL_DATABASE; `ops` was granted later by
+# scripts/seed/seed-live-demo.sh. Measured after a restore: the data-plane router got
+# "Access denied for user 'mini_baas'@'%' to database 'ops'", the workspace's "Ops · MySQL"
+# database showed 503, and nothing in the restore had reported a problem.
+#
+# The databases are read from the dump itself, so this grants exactly what was restored and
+# nothing more. The account and its password stay the TARGET's.
+mysql_grant_app_user() {
+	dbs=$(gzip -dc "$SEED_DIR/mysql-all.sql.gz" | sed -n 's/^-- Current Database: `\([^`]*\)`$/\1/p' | sort -u | grep -vx mysql || true)
+	[ -n "$dbs" ] || return 0
+	sql=""
+	for db in $dbs; do
+		sql="$sql GRANT ALL PRIVILEGES ON \`$db\`.* TO '__APP_USER__'@'%';"
+	done
+	# MYSQL_USER is read inside the container, so the account name is the one this stack
+	# actually created; a stack with no app account is left alone.
+	printf '%s FLUSH PRIVILEGES;\n' "$sql" | docker exec -i mini-baas-mysql sh -c \
+		'[ -n "$MYSQL_USER" ] || exit 0
+		 sed "s/__APP_USER__/$MYSQL_USER/g" | MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -u root' \
+		>/dev/null 2>&1 || die "mysql: could not grant the application account access to:$(printf ' %s' $dbs)"
+	note "mysql: application account granted on:$(printf ' %s' $dbs)"
 }
 
 restore_mongo() {
