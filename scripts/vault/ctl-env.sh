@@ -19,10 +19,25 @@ PROJECT="${VAULT_ENV_PROJECT:-grobase}"
 verb="$1"
 shift
 
+# The seeded profile is what a machine with no ~/.config/42ctl gets, so these hosts
+# must be OUR deployments. vault42.fly.dev and grobase-nano.fly.dev are NOT: they are
+# unrelated apps owned by other people that happen to hold the names we wanted. A
+# fresh machine seeded with those authenticates against a stranger's authority.
+# `blobs` is part of the profile because files above the 4 MiB transport ceiling are
+# stored as chunks in the object store — without it a pull silently restores only the
+# small files. The credential for it stays OUT of here; it is fetched from the vault
+# itself further down (ctl_vault_get).
 ensure_profile() {
 	mkdir -p "$CTL_CFG_DIR"
 	[ -f "$CTL_CFG_DIR/config.json" ] && return 0
-	printf '%s\n' '{"current":"default","profiles":{"default":{"server":"https://vault42.fly.dev","authority":"https://grobase-nano.fly.dev","grobase":"https://grobase-stack.fly.dev"}}}' >"$CTL_CFG_DIR/config.json"
+	cat >"$CTL_CFG_DIR/config.json" <<-'JSON'
+	{"current":"default","profiles":{"default":{
+	  "server":"https://vault42-server.fly.dev",
+	  "authority":"https://vault42-authority.fly.dev",
+	  "grobase":"https://grobase-stack.fly.dev",
+	  "blobs":{"endpoint":"https://fly.storage.tigris.dev","bucket":"vault42-seeds","region":"auto"}
+	}}}
+	JSON
 }
 
 # read_passphrase prompts on stderr and reads with terminal echo disabled, so the
@@ -79,9 +94,32 @@ _hb=$!
 # shellcheck disable=SC2064
 trap "kill $_hb 2>/dev/null || true" EXIT INT TERM
 
+# A file above the transport ceiling (a volume dump) is stored as CHUNKS in an object
+# store, and that credential is deliberately not in config.json — it lives in the vault
+# itself. Without it the pull dies partway through with "FT_S3_KEY and FT_S3_SECRET are not
+# set", which on a fresh machine is the difference between restoring the tree and restoring
+# most of it and reporting failure. The credential is a small secret, so fetching it needs
+# no object store: one `vault get` before the run that needs it.
+#
+# Not fatal when absent: a tree with no chunked file pulls perfectly well without it, and a
+# vault that has no infra/S3_KEY simply yields empty here.
+ctl_vault_get() {
+	docker run --rm --user "$(id -u):$(id -g)" \
+		-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 -e FT_PASSPHRASE \
+		-v "$CTL_CFG_DIR:/cfg" "$CTL_IMAGE" vault get "$1" 2>/dev/null || true
+}
+
+if [ -z "${FT_S3_KEY:-}" ] || [ -z "${FT_S3_SECRET:-}" ]; then
+	printf '[vault42] fetching the object-store credential from the vault…\n' >&2
+	FT_S3_KEY="$(ctl_vault_get infra/S3_KEY)"
+	FT_S3_SECRET="$(ctl_vault_get infra/S3_SECRET)"
+	export FT_S3_KEY FT_S3_SECRET
+fi
+
 set +e
 docker run --rm --user "$(id -u):$(id -g)" \
 	-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 -e FT_PASSPHRASE \
+	-e FT_S3_KEY -e FT_S3_SECRET \
 	-e RUST_LOG="${RUST_LOG:-info}" \
 	-v "$CTL_CFG_DIR:/cfg" -v "$REPO_DIR:/work" -w /work \
 	"$CTL_IMAGE" "$verb" --project "$PROJECT" $_prune "$@"
