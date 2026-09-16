@@ -160,7 +160,10 @@ preflight() {
 # Exited mini-baas-* container, so that bookkeeping could not survive. The `make up EDITION`
 # at the end of main() is the supported way back, and it recreates them.
 stop_non_engines() {
-	keep=""
+	# The optional engines (engines-extra profile) are engines too: stopping them here meant
+	# restore_dynamodb then found DynamoDB "not running" and skipped it, and the final
+	# `make up EDITION=devlean` never brings it back — the restore would have switched it off.
+	keep=" mini-baas-dynamodb-local mini-baas-mssql mini-baas-mariadb mini-baas-cockroach"
 	for e in $ENGINES; do keep="$keep mini-baas-$e"; done
 	victims=""
 	for c in $(docker ps --format '{{.Names}}' 2>/dev/null | grep '^mini-baas-' || true); do
@@ -454,6 +457,56 @@ restore_redis() {
 	note "redis: done"
 }
 
+# DynamoDB is OPTIONAL: it runs only under the engines-extra profile, so it is not in the
+# default ENGINES and never gates coverage. When the seed has it and the engine is up, it is
+# restored; otherwise the skip is named, never silent. Tables are dropped and re-created so a
+# re-run replays the same state (DynamoDB has no --clean). Format is what vault-seed.sh
+# writes: a tar of <table>.schema.json (TableName/KeySchema/AttributeDefinitions) and
+# <table>.items.json (a `scan` result).
+restore_dynamodb() {
+	have dynamodb-all.tar.gz || return 0
+	if ! docker ps --format '{{.Names}}' | grep -qx mini-baas-dynamodb-local; then
+		note "dynamodb: seed present but mini-baas-dynamodb-local is not running — SKIPPED (start the engines-extra profile)"
+		return 0
+	fi
+	note "dynamodb: re-creating tables and loading items"
+	stage=$(mktemp -d)
+	tar -xzf "$SEED_DIR/dynamodb-all.tar.gz" -C "$stage" || die "dynamodb: cannot unpack the seed"
+	python3 - "$stage" <<-'PY' || die "dynamodb: cannot prepare the batches"
+	import json, os, sys
+	d = sys.argv[1]
+	for f in sorted(os.listdir(d)):
+	    if not f.endswith(".schema.json"):
+	        continue
+	    t = f[: -len(".schema.json")]
+	    s = json.load(open(os.path.join(d, f)))
+	    json.dump({"TableName": s["TableName"], "KeySchema": s["KeySchema"],
+	               "AttributeDefinitions": s["AttributeDefinitions"], "BillingMode": "PAY_PER_REQUEST"},
+	              open(os.path.join(d, t + ".create"), "w"))
+	    p = os.path.join(d, t + ".items.json")
+	    items = json.load(open(p)).get("Items", []) if os.path.exists(p) else []
+	    for i in range(0, len(items), 25):
+	        json.dump({s["TableName"]: [{"PutRequest": {"Item": it}} for it in items[i:i + 25]]},
+	                  open(os.path.join(d, "%s.batch.%05d" % (t, i // 25)), "w"))
+	PY
+	aws="docker run --rm --network $NET -v $stage:/work:ro -e AWS_ACCESS_KEY_ID=local -e AWS_SECRET_ACCESS_KEY=local -e AWS_DEFAULT_REGION=us-east-1 amazon/aws-cli --endpoint-url http://mini-baas-dynamodb-local:8000 dynamodb"
+	for c in "$stage"/*.create; do
+		[ -f "$c" ] || continue
+		t=$(basename "$c" .create)
+		# shellcheck disable=SC2086
+		$aws delete-table --table-name "$t" >/dev/null 2>&1 || true
+		# shellcheck disable=SC2086
+		$aws create-table --cli-input-json "file:///work/$t.create" >/dev/null || die "dynamodb: create-table $t failed"
+		for b in "$stage/$t".batch.*; do
+			[ -f "$b" ] || continue
+			# shellcheck disable=SC2086
+			$aws batch-write-item --request-items "file:///work/$(basename "$b")" >/dev/null || die "dynamodb: batch write into $t failed"
+		done
+	done
+	rm -rf "$stage"
+	note "dynamodb: done"
+}
+
 main() {
 	preflight
 	require_coverage
@@ -463,6 +516,7 @@ main() {
 	restore_mongo
 	restore_minio
 	restore_redis
+	restore_dynamodb
 	note "bringing up the full edition '$EDITION'"
 	make --no-print-directory up EDITION="$EDITION" >/dev/null || die "stack did not come up"
 	note "restore complete"
