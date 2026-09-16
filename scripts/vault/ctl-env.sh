@@ -114,6 +114,18 @@ if [ -z "${FT_S3_KEY:-}" ] || [ -z "${FT_S3_SECRET:-}" ]; then
 	FT_S3_KEY="$(ctl_vault_get infra/S3_KEY)"
 	FT_S3_SECRET="$(ctl_vault_get infra/S3_SECRET)"
 	export FT_S3_KEY FT_S3_SECRET
+	# Say whether it landed — never the value. Empty here and the run dies further down
+	# with "FT_S3_KEY and FT_S3_SECRET are not set", which reads as "you forgot to export
+	# them" when the real cause is "the vault has no infra/S3_KEY" or "the keystore could
+	# not be opened". Same message, three causes: name which one before the failure.
+	if [ -n "$FT_S3_KEY" ] && [ -n "$FT_S3_SECRET" ]; then
+		printf '[vault42] ✓ object-store credential loaded from the vault (infra/S3_KEY)\n' >&2
+	else
+		printf '[vault42] ! the vault returned no infra/S3_KEY / infra/S3_SECRET.\n' >&2
+		printf '[vault42] ! Files above the 4 MiB ceiling cannot travel. Check with:\n' >&2
+		printf '[vault42] !   42ctl vault ls | grep infra/\n' >&2
+		printf '[vault42] ! then seal them once: 42ctl vault set infra/S3_KEY / infra/S3_SECRET\n' >&2
+	fi
 fi
 
 set +e
