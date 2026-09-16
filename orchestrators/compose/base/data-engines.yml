@@ -1,3 +1,7 @@
+# Engine host ports bind to ${ENGINE_BIND_ADDR:-127.0.0.1}, like Kong and every other service
+# in these files. They were published on 0.0.0.0 — postgres, mysql, mongo, mssql, minio all
+# reachable from the whole LAN. Set ENGINE_BIND_ADDR=0.0.0.0 only if another host must reach
+# an engine directly; the fly deploy overrides only Kong and is unaffected.
 # data-engines plane — postgres, db-bootstrap, redis, mongo, mongo-keyfile, mongo-init
 services:
   postgres:
@@ -11,7 +15,7 @@ services:
     container_name: mini-baas-postgres
     env_file: [.env]
     ports:
-      - "${PG_PORT:-5432}:5432"
+      - "${ENGINE_BIND_ADDR:-127.0.0.1}:${PG_PORT:-5432}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -188,7 +192,7 @@ services:
       mongo-keyfile:
         condition: service_completed_successfully
     ports:
-      - "${MONGO_PORT:-27017}:27017"
+      - "${ENGINE_BIND_ADDR:-127.0.0.1}:${MONGO_PORT:-27017}:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-mongo}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-mongo}
