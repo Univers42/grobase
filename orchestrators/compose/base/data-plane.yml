@@ -2,7 +2,13 @@
 services:
   data-plane-router-rust:
     extends: { file: orchestrators/compose/base/_common.yml, service: base }
-    image: ghcr.io/univers42/grobase-data-plane-router:latest # pull-fallback (built from ./build context below)
+    # The tag carries the feature set. With one shared `:latest`, a deployment asking for
+    # DATA_PLANE_FEATURES=--features dynamodb was silently served the pulled 7-engine image:
+    # compose `up` never builds when an image with that tag already exists, so the build arg
+    # never took effect and every DynamoDB database answered "engine 'dynamodb' is not
+    # mounted in the Rust router". Measured. Set DATA_PLANE_IMAGE_SUFFIX=-dynamodb together
+    # with the feature flag, and the pulled default can no longer stand in for it.
+    image: ghcr.io/univers42/grobase-data-plane-router:latest${DATA_PLANE_IMAGE_SUFFIX:-} # pull-fallback (built from ./build context below)
     build:
       context: ./src/data-plane-router
       dockerfile: Dockerfile
