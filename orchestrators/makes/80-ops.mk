@@ -33,6 +33,9 @@ vault-restore: _require-compose ## Restore every engine's DATA from the 42ctl va
 	@$(if $(FETCH),FETCH=$(FETCH),) $(if $(SEED_DIR),SEED_DIR=$(SEED_DIR),) \
 		EDITION=$(EDITION) bash scripts/ops/vault-restore.sh
 
+reconcile-credentials: _require-compose ## Make the engines accept the credentials in .env after a re-mint/force-pull (postgres|mongo|all) — keeps all data
+	@sh scripts/ops/reconcile-credentials.sh $(ENGINE)
+
 newsletter-broadcast: _require-compose ## Send a newsletter to all CONFIRMED subscribers — server-side ops (SUBJECT= HTML= [TEXT=])
 	@SUBJECT="$(SUBJECT)" HTML="$(HTML)" TEXT="$(TEXT)" bash scripts/ops/newsletter-broadcast.sh
 
