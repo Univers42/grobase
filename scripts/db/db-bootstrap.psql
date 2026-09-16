@@ -83,9 +83,16 @@ CREATE OR REPLACE FUNCTION auth.uid() RETURNS UUID AS $$
   SELECT (current_setting('request.jwt.claims', true)::jsonb->>'sub')::uuid;
 $$ LANGUAGE SQL STABLE;
 
+-- Set the password on EVERY boot, not only on create — the same reasoning as authenticator
+-- above. A data restore replays roles WITHOUT their password clauses (a restore moves data,
+-- never the source machine's credentials; see scripts/ops/vault-restore.sh), so a role the
+-- dump dropped and recreated comes back passwordless. Create-only left it that way forever
+-- and the adapter registry could no longer log in.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'adapter_registry_role') THEN
     CREATE ROLE adapter_registry_role LOGIN PASSWORD 'adapter_registry_pw';
+  ELSE
+    ALTER ROLE adapter_registry_role WITH LOGIN PASSWORD 'adapter_registry_pw';
   END IF;
 END $$;
 

@@ -293,7 +293,7 @@ restore_postgres() {
 	pg_terminate_sessions
 	note "postgres: replaying dump"
 	err=$(mktemp)
-	gzip -dc "$SEED_DIR/postgres-all.sql.gz" \
+	gzip -dc "$SEED_DIR/postgres-all.sql.gz" | pg_strip_role_passwords \
 		| docker exec -i mini-baas-postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -q -U "$POSTGRES_USER"' \
 		>/dev/null 2>"$err" || true
 	real=$(grep '^ERROR:' "$err" 2>/dev/null | grep -Ev "$PG_BENIGN" || true)
@@ -316,12 +316,47 @@ restore_postgres() {
 	note "postgres: replayed cleanly (only the unavoidable globals errors)"
 }
 
+# ── A RESTORE MOVES DATA, NEVER CREDENTIALS ────────────────────────────────────────
+#
+# Every whole-instance dump carries the SOURCE machine's credentials:
+#   postgres  pg_dumpall   ALTER ROLE ... PASSWORD 'SCRAM-SHA-256$...'  (3 LOGIN roles)
+#   mongo     mongodump    admin.system.users
+#   mysql     mysqldump -A the entire `mysql` system database (grant tables)
+#
+# Replayed as-is, they overwrite the TARGET's passwords with the source's, and every app —
+# which authenticates with the target's .env — is locked out of its own databases. Measured
+# restoring the real seeds onto a fresh clone: afterwards postgres over TCP and mongo accepted
+# ONLY the source machine's passwords, and MariaDB root rejected every credential that exists.
+# The earlier "proven" round-trip could not see this: its seeds were captured from the same
+# stack they were restored into, so the imported passwords happened to be the right ones.
+#
+# On a machine that pulled its .env from the SAME vault push the passwords coincide and
+# nothing breaks — which is exactly what makes it dangerous: it works until the first
+# re-mint, rotation, or LOCAL-mode machine, and then it bricks the stack. The target's .env
+# is the authority on credentials; the seeds are the authority on data. So each stream is
+# filtered on the way in. Filtering at RESTORE time also covers seeds captured before this.
+
+# pg_strip_role_passwords: keep every role's attributes, drop only its PASSWORD clause, so an
+# existing role keeps the password the target's .env gave it.
+pg_strip_role_passwords() {
+	sed -E "/^(CREATE|ALTER) ROLE /s/ PASSWORD '([^']|'')*'//"
+}
+
+# mysql_skip_system_db: drop every `mysql` section of a mysqldump --all-databases stream. A
+# section runs from its "-- Current Database:" header to the next one; the dump has two per
+# database (schema, then routines), and both are skipped.
+mysql_skip_system_db() {
+	awk '/^-- Current Database: `/ { skip = ($0 ~ /`mysql`/) } !skip'
+}
+
 restore_mysql() {
 	have mysql-all.sql.gz || { note "no mysql dump — skipped"; return 0; }
-	note "mysql: replaying dump"
-	gzip -dc "$SEED_DIR/mysql-all.sql.gz" \
-		| docker exec -i mini-baas-mysql sh -c 'mysql -u root -p"$MYSQL_ROOT_PASSWORD"' \
-		>/dev/null 2>&1 || die "mysql restore failed"
+	note "mysql: replaying dump (application databases only — grant tables skipped)"
+	err=$(mktemp)
+	gzip -dc "$SEED_DIR/mysql-all.sql.gz" | mysql_skip_system_db \
+		| docker exec -i mini-baas-mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -u root' \
+		>/dev/null 2>"$err" || { cat "$err" >&2; rm -f "$err"; die "mysql restore failed (error above)"; }
+	rm -f "$err"
 	note "mysql: done"
 }
 
@@ -331,10 +366,17 @@ restore_mongo() {
 	MU="$(docker exec mini-baas-mongo printenv MONGO_INITDB_ROOT_USERNAME)"
 	MP="$(docker exec mini-baas-mongo printenv MONGO_INITDB_ROOT_PASSWORD)"
 	export MU MP
+	# --nsExclude admin.system.*: users and the auth-schema version belong to the TARGET.
+	# Without it --drop replaces the root user mid-restore with the source machine's password;
+	# the connection that authenticated at the start then fails, and the stack is locked out.
+	err=$(mktemp)
 	docker run --rm -i --network "$NET" -e MU -e MP --entrypoint sh "$MONGO_IMAGE" -c \
 		'mongorestore --host mini-baas-mongo --port 27017 --username "$MU" --password "$MP" \
-		 --authenticationDatabase admin --archive --gzip --drop' \
-		< "$SEED_DIR/mongo.archive.gz" >/dev/null 2>&1 || die "mongo restore failed"
+		 --authenticationDatabase admin --archive --gzip --drop \
+		 --nsExclude "admin.system.users" --nsExclude "admin.system.version"' \
+		< "$SEED_DIR/mongo.archive.gz" >/dev/null 2>"$err" \
+		|| { grep -iv password "$err" | tail -5 >&2; rm -f "$err"; die "mongo restore failed (error above)"; }
+	rm -f "$err"
 	note "mongo: done"
 }
 

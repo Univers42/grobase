@@ -86,11 +86,18 @@ guard() {
 	mkdir -p "$SEED_DIR" || die "cannot create $SEED_DIR"
 }
 
+# Seeds carry DATA, never credentials. A whole-instance dump otherwise ships the source
+# machine's role SCRAM hashes, MongoDB users and MariaDB grant tables into the shared vault,
+# and replaying them onto another machine overwrites its passwords and locks every app out
+# of its own databases — measured, see scripts/ops/vault-restore.sh. The restore side filters
+# them too (so older seeds are safe); keeping them out of the capture means they are never
+# stored in the vault at all. Mongo cannot exclude admin users from a whole-instance
+# mongodump, so that one is filtered only at restore.
 seed_postgres() {
 	have_container mini-baas-postgres || { missed postgres "container not running"; return 0; }
 	t="$SEED_DIR/.postgres-all.sql.gz.tmp"
 	docker exec mini-baas-postgres sh -c \
-		'PGPASSWORD="$POSTGRES_PASSWORD" pg_dumpall -U "$POSTGRES_USER" --clean' 2>/dev/null |
+		'PGPASSWORD="$POSTGRES_PASSWORD" pg_dumpall -U "$POSTGRES_USER" --clean --no-role-passwords' 2>/dev/null |
 		gzip -9 >"$t" || true
 	commit_if_ok postgres "$t" "$SEED_DIR/postgres-all.sql.gz"
 }
@@ -98,8 +105,13 @@ seed_postgres() {
 seed_mysql() {
 	have_container mini-baas-mysql || { missed mysql "container not running"; return 0; }
 	t="$SEED_DIR/.mysql-all.sql.gz.tmp"
+	# Application schemas only: --all-databases would include the `mysql` grant tables.
+	# MYSQL_PWD rather than -p so the password is not in the container's process list.
 	docker exec mini-baas-mysql sh -c \
-		'mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" --all-databases --single-transaction --routines --events' \
+		'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"
+		 dbs=$(mysql -u root -N -e "SELECT schema_name FROM information_schema.schemata
+		   WHERE schema_name NOT IN (\"mysql\",\"information_schema\",\"performance_schema\",\"sys\")")
+		 [ -n "$dbs" ] && mysqldump -u root --databases $dbs --single-transaction --routines --events' \
 		2>/dev/null | gzip -9 >"$t" || true
 	commit_if_ok mysql "$t" "$SEED_DIR/mysql-all.sql.gz"
 }
