@@ -29,6 +29,9 @@ restore-verify: ## Prove a backup restores (dump→drop→restore→checksum, sc
 # `up` returns the stack with EMPTY engines; this returns what was in them. Kept
 # next to restore-verify because they answer different questions: that one proves
 # a backup is restorable, this one performs the restore after real data loss.
+vault-seed: _require-compose ## Capture every RUNNING engine's data into ./secrets — the file set vault-restore replays. Records coverage in MANIFEST.json. Never deletes.
+	@$(if $(SEED_DIR),SEED_DIR=$(SEED_DIR),) bash scripts/ops/vault-seed.sh
+
 vault-restore: _require-compose ## Restore every engine's DATA from the 42ctl vault seeds (FETCH=1 pulls first; SEED_DIR=, EDITION=)
 	@$(if $(FETCH),FETCH=$(FETCH),) $(if $(SEED_DIR),SEED_DIR=$(SEED_DIR),) \
 		EDITION=$(EDITION) bash scripts/ops/vault-restore.sh
