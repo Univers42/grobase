@@ -507,6 +507,46 @@ restore_dynamodb() {
 	note "dynamodb: done"
 }
 
+# mssql_restore_one DB — RESTORE one database from /tmp/DB.bak inside the container. Logical
+# file names differ per backup, so each is MOVEd to the container's data dir by the names
+# RESTORE FILELISTONLY reports (the same approach as data-snapshots/restore-databases.sh).
+mssql_restore_one() {
+	sqlcmd='/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -h-1 -W'
+	moves=$(docker exec mini-baas-mssql sh -lc "$sqlcmd -Q \"SET NOCOUNT ON; RESTORE FILELISTONLY FROM DISK='/tmp/$1.bak'\"" 2>/dev/null |
+		awk '{n=$1; t=$3} t=="D"{printf ", MOVE N'"'"'%s'"'"' TO N'"'"'/var/opt/mssql/data/%s.mdf'"'"'",n,n} t=="L"{printf ", MOVE N'"'"'%s'"'"' TO N'"'"'/var/opt/mssql/data/%s.ldf'"'"'",n,n}')
+	if ! out=$(docker exec mini-baas-mssql sh -lc "$sqlcmd -b -Q \"RESTORE DATABASE [$1] FROM DISK='/tmp/$1.bak' WITH REPLACE$moves\"" 2>&1); then
+		printf '%s\n' "$out" | grep -E '^Msg|terminating|denied|error' | head -4 >&2
+		docker exec -u 0 mini-baas-mssql rm -f "/tmp/$1.bak" >/dev/null 2>&1 || true
+		die "mssql: restore of $1 failed (SQL Server's message above)"
+	fi
+	docker exec -u 0 mini-baas-mssql rm -f "/tmp/$1.bak" >/dev/null 2>&1 || true
+}
+
+# MSSQL is OPTIONAL like DynamoDB (engines-extra profile, 2 GB memory reservation): restored
+# when the seed has it and the engine is up, named as skipped otherwise. Format is what
+# vault-seed.sh writes: a tar of <database>.bak files from BACKUP DATABASE.
+restore_mssql() {
+	have mssql-all.tar.gz || return 0
+	if ! docker ps --format '{{.Names}}' | grep -qx mini-baas-mssql; then
+		note "mssql: seed present but mini-baas-mssql is not running — SKIPPED (start the engines-extra profile)"
+		return 0
+	fi
+	stage=$(mktemp -d)
+	tar -xzf "$SEED_DIR/mssql-all.tar.gz" -C "$stage" || die "mssql: cannot unpack the seed"
+	for bak in "$stage"/*.bak; do
+		[ -f "$bak" ] || continue
+		db=$(basename "$bak" .bak)
+		note "mssql: restoring $db"
+		docker cp "$bak" "mini-baas-mssql:/tmp/$db.bak" >/dev/null || die "mssql: cannot copy $db into the container"
+		# docker cp keeps the host owner and mode; the extracted .bak is private to the caller,
+		# so SQL Server (its own uid) got "Operating system error 5 (Access is denied)".
+		docker exec -u 0 mini-baas-mssql chmod 0644 "/tmp/$db.bak" || die "mssql: cannot make $db.bak readable"
+		mssql_restore_one "$db"
+	done
+	rm -rf "$stage"
+	note "mssql: done"
+}
+
 main() {
 	preflight
 	require_coverage
@@ -517,6 +557,7 @@ main() {
 	restore_minio
 	restore_redis
 	restore_dynamodb
+	restore_mssql
 	note "bringing up the full edition '$EDITION'"
 	make --no-print-directory up EDITION="$EDITION" >/dev/null || die "stack did not come up"
 	note "restore complete"
