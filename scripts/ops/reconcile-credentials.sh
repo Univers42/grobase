@@ -27,7 +27,7 @@
 # is not something a boot path should do on its own.
 #
 # Usage:
-#   sh scripts/ops/reconcile-credentials.sh            # postgres + mongo
+#   sh scripts/ops/reconcile-credentials.sh            # postgres + mongo + mysql
 #   sh scripts/ops/reconcile-credentials.sh postgres   # one engine
 set -eu
 
@@ -134,16 +134,83 @@ reconcile_mongo() {
 	say "mongo: reconciled and verified by a separate process on the same volume"
 }
 
+# ── mysql (MariaDB) ─────────────────────────────────────────────────────────────
+# Grant tables live in the data volume, so a replayed `mysql` system database — or any
+# re-mint of MYSQL_ROOT_PASSWORD — leaves root holding a password nobody has. Observed: after
+# restoring a dump that carried the grant tables, root rejected every credential that exists.
+# A throwaway mariadbd with --skip-grant-tables and --skip-networking on the same volume accepts
+# a local socket with no password; FLUSH PRIVILEGES re-enables account management so ALTER USER
+# works. Same discipline as mongo: SIGTERM, then verified against the REAL container.
+MYSQL_CONTAINER="${MYSQL_CONTAINER:-mini-baas-mysql}"
+MYSQL_VOLUME="${MYSQL_VOLUME:-mini-baas_mysql-data}"
+TMP_MYSQL=reconcile-mysql-tmp
+
+# The image's entrypoint is bypassed, so nothing has created /run/mysqld: socket and pid go to
+# /tmp, which the mysql user can always write.
+mysql_tmp_sql() { docker exec -i "$TMP_MYSQL" mysql -uroot -S /tmp/mysqld.sock -N "$@"; }
+
+mysql_write_password() {
+	docker run -d --name "$TMP_MYSQL" -v "$MYSQL_VOLUME:/var/lib/mysql" --entrypoint mariadbd "$1" \
+		--user=mysql --skip-grant-tables --skip-networking \
+		--socket=/tmp/mysqld.sock --pid-file=/tmp/mysqld.pid >/dev/null
+	i=0
+	until mysql_tmp_sql -e 'select 1' >/dev/null 2>&1; do
+		i=$((i + 1))
+		[ "$i" -lt 45 ] || die "throwaway mariadbd never became reachable"
+		sleep 2
+	done
+	hosts=$(mysql_tmp_sql -e "SELECT Host FROM mysql.global_priv WHERE User='root'" 2>/dev/null)
+	[ -n "$hosts" ] || die "no root account in the grant tables — refusing to guess which to create"
+	esc=$(printf '%s' "$2" | sed "s/'/''/g")
+	sql="FLUSH PRIVILEGES;"
+	for h in $hosts; do
+		sql="$sql ALTER USER 'root'@'$h' IDENTIFIED BY '$esc';"
+	done
+	# The password travels on stdin, never argv — `ps` inside the container cannot see it.
+	printf '%s\n' "$sql" | mysql_tmp_sql >/dev/null
+	docker stop -t "$STOP_TIMEOUT" "$TMP_MYSQL" >/dev/null
+	docker rm "$TMP_MYSQL" >/dev/null
+}
+
+reconcile_mysql() {
+	pw=$(getenv MYSQL_ROOT_PASSWORD)
+	# MYSQL_ROOT_PASSWORD is in no env file today: compose falls back to its own literal
+	# (`${MYSQL_ROOT_PASSWORD:-...}` in engines-extra.yml). The value the container was started
+	# with is therefore the one every client uses, so that is the one to reconcile to.
+	if [ -z "$pw" ]; then
+		pw=$(docker inspect "$MYSQL_CONTAINER" -f '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null |
+			sed -n 's/^MYSQL_ROOT_PASSWORD=//p' | head -1)
+	fi
+	[ -n "$pw" ] || die "MYSQL_ROOT_PASSWORD is set neither in $ENV_FILE nor on $MYSQL_CONTAINER"
+	img=$(docker inspect "$MYSQL_CONTAINER" -f '{{.Config.Image}}') || die "cannot inspect $MYSQL_CONTAINER"
+	docker rm -f "$TMP_MYSQL" >/dev/null 2>&1 || true
+	docker stop -t "$STOP_TIMEOUT" "$MYSQL_CONTAINER" >/dev/null 2>&1 || true
+	trap 'docker rm -f "$TMP_MYSQL" >/dev/null 2>&1 || true
+	      docker start "$MYSQL_CONTAINER" >/dev/null 2>&1 || true' EXIT INT TERM
+	mysql_write_password "$img" "$pw"
+	trap - EXIT INT TERM
+	docker start "$MYSQL_CONTAINER" >/dev/null
+	i=0
+	until docker exec -e MYSQL_PWD="$pw" "$MYSQL_CONTAINER" mysql -uroot -N -e 'select 1' >/dev/null 2>&1; do
+		i=$((i + 1))
+		[ "$i" -lt 45 ] || die "mysql still rejects the password after the reset"
+		sleep 2
+	done
+	say "mysql: reconciled and verified against the real container"
+}
+
 main() {
 	[ -f "$ENV_FILE" ] || die "$ENV_FILE not found (run from apps/grobase, or set ENV_FILE=)"
 	case "${1:-all}" in
 	postgres) reconcile_postgres ;;
 	mongo) reconcile_mongo ;;
+	mysql) reconcile_mysql ;;
 	all)
 		reconcile_postgres
 		reconcile_mongo
+		reconcile_mysql
 		;;
-	*) die "unknown engine '${1}' — use: postgres | mongo | all" ;;
+	*) die "unknown engine '${1}' — use: postgres | mongo | mysql | all" ;;
 	esac
 	say "done. Bring the stack back with: make up"
 }
