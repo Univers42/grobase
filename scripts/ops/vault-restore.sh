@@ -44,9 +44,11 @@
 #   SEED_DIR     ./secrets              directory holding the dumps
 #   FETCH        0                      1 = `42ctl pull` before restoring
 #   PROJECT      groot                  42ctl project to pull
-#   EDITION      realtime               edition to bring up at the end
+#   EDITION      devlean                edition to bring up at the end (= make all's default)
 #   ENGINES      postgres mysql mongo redis minio
 #   NET          mini-baas_mini-baas    compose network for sidecar tools
+#   STATE_DIR    ~/.local/state/grobase/vault-restore
+#                                       pre-restore backups + failed-replay logs (never SEED_DIR)
 
 set -eu
 
@@ -69,6 +71,12 @@ PROJECT="${PROJECT:-groot}"
 EDITION="${EDITION:-devlean}"
 ENGINES="${ENGINES:-postgres mysql mongo redis minio}"
 NET="${NET:-mini-baas_mini-baas}"
+# Where pre-restore backups and failed-replay logs go. NEVER inside SEED_DIR: at the
+# superproject root SEED_DIR is ./secrets, and 42ctl takes EVERY regular file under a
+# directory named secrets/ — so a backup written there rides the next `make vault42-push-all`
+# into the shared vault: a full extra pg_dumpall, role password hashes included, growing by
+# one per restore. Outside the repository entirely, so it can be neither pushed nor committed.
+STATE_DIR="${STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/grobase/vault-restore}"
 MONGO_IMAGE="${MONGO_IMAGE:-mongo:7}"
 MC_IMAGE="${MC_IMAGE:-ghcr.io/univers42/grobase-mc:latest}"
 REDIS_IMAGE="${REDIS_IMAGE:-ghcr.io/univers42/grobase-redis:latest}"
@@ -268,7 +276,8 @@ clear_postgres_db() {
 # Reversibility of this operation was scored 5/5: it drops 8 databases and 7 roles with no
 # way back, and the git snapshot only rewinds to 2026-07-28. One command buys a way back.
 backup_postgres() {
-	out="$SEED_DIR/pre-restore-postgres-$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
+	mkdir -p "$STATE_DIR" && chmod 700 "$STATE_DIR" || die "cannot create $STATE_DIR"
+	out="$STATE_DIR/pre-restore-postgres-$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
 	note "postgres: taking a pre-restore dump -> $(basename "$out")"
 	docker exec mini-baas-postgres sh -c \
 		'PGPASSWORD="$POSTGRES_PASSWORD" pg_dumpall -U "$POSTGRES_USER" --clean' 2>/dev/null \
@@ -293,7 +302,7 @@ restore_postgres() {
 		# Keep the WHOLE stderr, not the five lines that fit on screen. Diagnosing this
 		# needs the shape of all of them — 408 "relation already exists" says the clear
 		# failed, one "duplicate key" says something quite different.
-		kept="$SEED_DIR/failed-replay-$(date -u +%Y%m%dT%H%M%SZ).log"
+		kept="$STATE_DIR/failed-replay-$(date -u +%Y%m%dT%H%M%SZ).log"
 		cp "$err" "$kept" 2>/dev/null || true
 		rm -f "$err"
 		printf '%s\n' "$real" | head -10 >&2
@@ -301,7 +310,7 @@ restore_postgres() {
   globals (first 10 above). That means the pre-replay clear did not clear: the dump's
   CREATE TABLE landed on existing tables and its COPY never ran. The stack is NOT restored.
     full stderr : $kept
-    rollback    : gzip -dc $SEED_DIR/pre-restore-postgres-*.sql.gz | docker exec -i mini-baas-postgres sh -c 'PGPASSWORD=\"\$POSTGRES_PASSWORD\" psql -q -U \"\$POSTGRES_USER\"'"
+    rollback    : gzip -dc $STATE_DIR/pre-restore-postgres-*.sql.gz | docker exec -i mini-baas-postgres sh -c 'PGPASSWORD=\"\$POSTGRES_PASSWORD\" psql -q -U \"\$POSTGRES_USER\"'"
 	fi
 	rm -f "$err"
 	note "postgres: replayed cleanly (only the unavoidable globals errors)"
