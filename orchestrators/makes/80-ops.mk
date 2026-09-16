@@ -26,6 +26,13 @@ backup-now: ## Take a one-off Postgres backup right now (pg-backup `once` → Mi
 restore-verify: ## Prove a backup restores (dump→drop→restore→checksum, scratch DB; tenant data untouched)
 	@bash scripts/verify/m47-backup-restore.sh
 
+# `up` returns the stack with EMPTY engines; this returns what was in them. Kept
+# next to restore-verify because they answer different questions: that one proves
+# a backup is restorable, this one performs the restore after real data loss.
+vault-restore: _require-compose ## Restore every engine's DATA from the 42ctl vault seeds (FETCH=1 pulls first; SEED_DIR=, EDITION=)
+	@$(if $(FETCH),FETCH=$(FETCH),) $(if $(SEED_DIR),SEED_DIR=$(SEED_DIR),) \
+		EDITION=$(EDITION) bash scripts/ops/vault-restore.sh
+
 newsletter-broadcast: _require-compose ## Send a newsletter to all CONFIRMED subscribers — server-side ops (SUBJECT= HTML= [TEXT=])
 	@SUBJECT="$(SUBJECT)" HTML="$(HTML)" TEXT="$(TEXT)" bash scripts/ops/newsletter-broadcast.sh
 
