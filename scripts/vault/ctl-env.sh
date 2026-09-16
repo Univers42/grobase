@@ -69,16 +69,36 @@ read_passphrase
 # Preview the *.env*/*.secrets tree about to be pushed, so the scope is visible up
 # front (42ctl prints nothing per-file during the encrypt+upload; the vault filters
 # vendored/ignored paths further, so this is the candidate set, not the exact upload).
+# A LOWER BOUND, not the upload. 42ctl's scanner also descends git repositories parked inside
+# skipped directories (vendor/<repo>/.env is stored, vendor/<plain-dir>/.env is not), which
+# `find` cannot express without walking every prune candidate — measured 43 here against 50
+# actually scanned. Reimplementing a Rust walker in find is how the two drift apart silently,
+# so this says "at least" and 42ctl stays the authority. The point is the ORDER of magnitude:
+# you are about to send tens of MB, not a handful of dotfiles.
+#
+# 42ctl takes EVERY regular file under a directory named secrets/ or .secrets/, whatever
+# its name, on top of the *.env*/*.secrets patterns — that is how a CA key, a mongo
+# rs-keyfile and the engine dumps travel at all (they are named for what they hold, never
+# for the fact that they are secret). A preview that lists only the pattern matches
+# under-reports the upload by exactly the files that make it big: measured on this monorepo,
+# 28 listed against 50 actually scanned and 43 MB actually sent. A preview that understates
+# the scope is worse than none — it is the number you check the transfer against.
 if [ "$verb" = "push" ]; then
-	printf '\n[vault42] scanning %s for *.env*/*.secrets…\n' "$REPO_DIR" >&2
+	printf '\n[vault42] scanning %s for *.env*/*.secrets + every file under secrets/…\n' "$REPO_DIR" >&2
 	candidates=$(cd "$REPO_DIR" && find . \
 		\( -name node_modules -o -name .git -o -name target -o -name dist -o -name build \
 		   -o -name .claude -o -name .vault -o -path '*/vendor/*' -o -path '*/baas.bak/*' \) -prune -o \
-		-type f \( -name '.env' -o -name '.env.*' -o -name '*.env' -o -name '*.secrets' -o -name '*.secret' \) -print \
+		-type f \( -name '*.env*' -o -name '*.secrets' -o -name '*.secret' \
+		   -o -path '*/secrets/*' -o -path './secrets/*' -o -path '*/.secrets/*' \) -print \
 		2>/dev/null | sed 's#^\./##' | sort)
 	printf '%s\n' "$candidates" | sed '/^$/d; s/^/  + /' >&2
 	n=$(printf '%s\n' "$candidates" | sed '/^$/d' | wc -l | tr -d ' ')
-	printf '[vault42] %s candidate file(s) → encrypting locally + uploading to project=%s …\n' "$n" "$PROJECT" >&2
+	# `du -k` per file rather than one bulk call: xargs -d/-0 and du -b are GNU-only, and a
+	# preview that dies on a non-GNU box is a preview nobody trusts. 50-odd forks, once.
+	kb=$(cd "$REPO_DIR" && printf '%s\n' "$candidates" | sed '/^$/d' | \
+		while IFS= read -r f; do du -k "$f" 2>/dev/null; done | awk '{t+=$1} END{print t+0}')
+	printf '[vault42] at least %s file(s), %s MB → encrypting locally + uploading to project=%s …\n' \
+		"$n" "$(( ${kb:-0} / 1024 ))" "$PROJECT" >&2
 fi
 
 # A push from the repo ROOT mirrors the tree: --prune drops vault entries whose file
