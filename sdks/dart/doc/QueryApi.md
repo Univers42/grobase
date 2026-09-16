@@ -152,7 +152,7 @@ Name | Type | Description  | Notes
 
 ### Return type
 
-**Map<String, Object>**
+[**Map<String, Object>**](Object.md)
 
 ### Authorization
 

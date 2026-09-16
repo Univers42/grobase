@@ -79,8 +79,10 @@ class VerifyRequest {
       // Note 1: the values aren't checked for validity beyond being non-null.
       // Note 2: this code is stripped in release mode!
       assert(() {
-        assert(json.containsKey(r'type'), 'Required key "VerifyRequest[type]" is missing from JSON.');
-        assert(json[r'type'] != null, 'Required key "VerifyRequest[type]" has a null value in JSON.');
+        requiredKeys.forEach((key) {
+          assert(json.containsKey(key), 'Required key "VerifyRequest[$key]" is missing from JSON.');
+          assert(json[key] != null, 'Required key "VerifyRequest[$key]" has a null value in JSON.');
+        });
         return true;
       }());
 

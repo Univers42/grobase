@@ -65,12 +65,10 @@ class QueryRequest {
       // Note 1: the values aren't checked for validity beyond being non-null.
       // Note 2: this code is stripped in release mode!
       assert(() {
-        assert(json.containsKey(r'database_id'), 'Required key "QueryRequest[database_id]" is missing from JSON.');
-        assert(json[r'database_id'] != null, 'Required key "QueryRequest[database_id]" has a null value in JSON.');
-        assert(json.containsKey(r'action'), 'Required key "QueryRequest[action]" is missing from JSON.');
-        assert(json[r'action'] != null, 'Required key "QueryRequest[action]" has a null value in JSON.');
-        assert(json.containsKey(r'resource'), 'Required key "QueryRequest[resource]" is missing from JSON.');
-        assert(json[r'resource'] != null, 'Required key "QueryRequest[resource]" has a null value in JSON.');
+        requiredKeys.forEach((key) {
+          assert(json.containsKey(key), 'Required key "QueryRequest[$key]" is missing from JSON.');
+          assert(json[key] != null, 'Required key "QueryRequest[$key]" has a null value in JSON.');
+        });
         return true;
       }());
 

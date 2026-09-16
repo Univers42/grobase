@@ -22,6 +22,9 @@
 # hardening to a dedicated user tracked in wiki/security-audit.md.
 FROM debian:bookworm-slim
 
+# Pinned to the same release the mc image uses, so the two cannot drift apart.
+ARG MC_RELEASE=RELEASE.2025-04-08T15-39-49Z
+
 ENV DEBIAN_FRONTEND=noninteractive \
     PATH=/usr/lib/postgresql/16/bin:$PATH
 
@@ -36,8 +39,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       > /etc/apt/sources.list.d/pgdg.list && \
     apt-get update && apt-get install -y --no-install-recommends \
       postgresql-client-16 && \
-    curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc \
-      -o /usr/local/bin/mc && chmod +x /usr/local/bin/mc && \
+    curl -fsSL "https://github.com/minio/mc/releases/download/${MC_RELEASE}/mc.linux-amd64.${MC_RELEASE}" \
+      -o /usr/local/bin/mc && \
+    curl -fsSL "https://github.com/minio/mc/releases/download/${MC_RELEASE}/mc.linux-amd64.${MC_RELEASE}.sha256sum" \
+      -o /tmp/mc.sha256 && \
+    echo "$(cut -d' ' -f1 /tmp/mc.sha256)  /usr/local/bin/mc" | sha256sum -c - && \
+    rm -f /tmp/mc.sha256 && chmod +x /usr/local/bin/mc && \
     rm -rf /var/lib/apt/lists/*
 
 COPY scripts/ /opt/pg-backup/
