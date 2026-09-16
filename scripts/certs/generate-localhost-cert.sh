@@ -25,6 +25,27 @@ SERVER_CERT="$CERT_DIR/localhost.pem"
 OPENSSL_CONFIG="$CERT_DIR/localhost-openssl.cnf"
 SERVER_EXT="$CERT_DIR/localhost-ext.cnf"
 
+WAF_TLS_GID=${MINI_BAAS_WAF_TLS_GID:-101}
+
+# The waf's nginx runs as uid/gid 101 and reads the key through a compose FILE
+# secret, which bind-mounts the host inode as-is: compose (non-swarm) ignores the
+# secret's uid/gid/mode keys, so host permissions ARE container permissions. The
+# key must therefore be readable by gid 101 on the host without becoming
+# world-readable. Three rungs, cheapest first; docker is the backstop because it
+# is already a hard prerequisite and its daemon is root.
+grant_waf_read() {
+	if chgrp "$WAF_TLS_GID" "$1" 2>/dev/null; then
+		chmod 640 "$1"
+		return 0
+	fi
+	chmod 600 "$1"
+	if command -v setfacl >/dev/null 2>&1 && setfacl -m "g:$WAF_TLS_GID:r" "$1" 2>/dev/null; then
+		return 0
+	fi
+	docker run --rm -v "$CERT_DIR:/certs" --entrypoint sh busybox:1.37 -c \
+		"chgrp $WAF_TLS_GID /certs/$(basename "$1") && chmod 640 /certs/$(basename "$1")" >/dev/null 2>&1
+}
+
 mkdir -p "$CERT_DIR"
 
 cat > "$OPENSSL_CONFIG" <<'EOF'
@@ -109,11 +130,10 @@ else
 fi
 
 chmod 600 "$CA_KEY"
-if chgrp "${MINI_BAAS_WAF_TLS_GID:-101}" "$SERVER_KEY" 2>/dev/null; then
-  chmod 640 "$SERVER_KEY"
-else
-  chmod 600 "$SERVER_KEY"
-  printf 'Warning: could not set server key group to WAF gid %s; WAF may not read %s.\n' "${MINI_BAAS_WAF_TLS_GID:-101}" "$SERVER_KEY" >&2
+if ! grant_waf_read "$SERVER_KEY"; then
+  printf 'Error: %s is not readable by the WAF gid %s (tried chgrp, setfacl, docker).\n' "$SERVER_KEY" "$WAF_TLS_GID" >&2
+  printf '       The WAF will fail to start. Fix: sudo chgrp %s %s && sudo chmod 640 %s\n' "$WAF_TLS_GID" "$SERVER_KEY" "$SERVER_KEY" >&2
+  exit 1
 fi
 chmod 644 "$CA_CERT" "$SERVER_CERT"
 rm -f "$SERVER_CSR" "$OPENSSL_CONFIG" "$SERVER_EXT"
