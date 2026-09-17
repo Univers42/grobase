@@ -206,7 +206,10 @@ services:
           'mongosh --quiet --eval "try { rs.status().myState === 1 ? quit(0) : quit(1) } catch(e) { db.runCommand({ ping: 1 }).ok ? quit(0) : quit(1) }"',
         ]
       interval: 5s
-      timeout: 3s
+      # mongosh is a Node program and this container gets half a CPU: on a busy host
+      # (load 14-17 during `make all`) its startup alone overran 3 s, ten times in a row,
+      # so a healthy mongo reported unhealthy and restore-if-empty waited out its 180 s.
+      timeout: 10s
       retries: 10
       start_period: 15s
     mem_limit: 512m
