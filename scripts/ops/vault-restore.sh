@@ -58,10 +58,10 @@ set -eu
 # SERVICE entirely — so "engines only" would silently become "the whole stack". The default
 # SEED_DIR=./secrets happens to resolve at the root too, which is exactly what would have
 # hidden the bug.
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-GROBASE_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+GROBASE_ROOT=$(CDPATH='' cd -- "$SCRIPT_DIR/../.." && pwd)
 _seed_in="${SEED_DIR:-./secrets}"
-SEED_DIR=$(CDPATH= cd -- "$_seed_in" 2>/dev/null && pwd || printf '%s' "$_seed_in")
+SEED_DIR=$(CDPATH='' cd -- "$_seed_in" 2>/dev/null && pwd || printf '%s' "$_seed_in")
 cd "$GROBASE_ROOT"
 
 FETCH="${FETCH:-0}"
@@ -92,6 +92,10 @@ note() {
 
 have() {
 	[ -f "$SEED_DIR/$1" ]
+}
+
+is_running() {
+	docker ps --format '{{.Names}}' | grep -qx "$1"
 }
 
 dump_for() {
@@ -465,7 +469,7 @@ restore_redis() {
 # <table>.items.json (a `scan` result).
 restore_dynamodb() {
 	have dynamodb-all.tar.gz || return 0
-	if ! docker ps --format '{{.Names}}' | grep -qx mini-baas-dynamodb-local; then
+	if ! is_running mini-baas-dynamodb-local; then
 		note "dynamodb: seed present but mini-baas-dynamodb-local is not running — SKIPPED (start the engines-extra profile)"
 		return 0
 	fi
@@ -527,7 +531,7 @@ mssql_restore_one() {
 # vault-seed.sh writes: a tar of <database>.bak files from BACKUP DATABASE.
 restore_mssql() {
 	have mssql-all.tar.gz || return 0
-	if ! docker ps --format '{{.Names}}' | grep -qx mini-baas-mssql; then
+	if ! is_running mini-baas-mssql; then
 		note "mssql: seed present but mini-baas-mssql is not running — SKIPPED (start the engines-extra profile)"
 		return 0
 	fi
@@ -550,9 +554,13 @@ restore_mssql() {
 # Every helper image the restore runs, pulled BEFORE anything is stopped or dropped. On a
 # clean machine they were pulled mid-restore: a failed pull there left postgres replayed and
 # the rest of the stack down, which the next `make all` then read as "data present".
+# The 650 MB aws-cli image only when DynamoDB runs: restore_dynamodb skips otherwise, and
+# stop_non_engines keeps it running, so this check holds for the whole restore.
 prefetch_helpers() {
 	images="$MONGO_IMAGE $MC_IMAGE alpine:latest $REDIS_IMAGE"
-	have dynamodb-all.tar.gz && images="$images amazon/aws-cli"
+	if have dynamodb-all.tar.gz && is_running mini-baas-dynamodb-local; then
+		images="$images amazon/aws-cli"
+	fi
 	for img in $images; do
 		docker image inspect "$img" >/dev/null 2>&1 && continue
 		note "pulling helper image $img (nothing has been stopped yet)"
