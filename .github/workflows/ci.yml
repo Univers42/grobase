@@ -234,15 +234,16 @@ jobs:
           rm -rf /tmp/.buildx-cache/${{ matrix.service }}
           mv /tmp/.buildx-cache-new/${{ matrix.service }} /tmp/.buildx-cache/${{ matrix.service }} 2>/dev/null || true
 
-  # ─── Job 2b': data-plane dynamodb-feature CACHE (main only, image never pushed) ──
+  # ─── Job 2b': data-plane dynamodb-feature IMAGE + CACHE (main only) ──────────────
   # Local dev + fly build the data plane WITH --features dynamodb (the opt-in 8th
   # engine), so the default :buildcache above can never match their dependency
-  # layer. This job builds that exact shape and publishes ONLY its layer cache
-  # (push: false) to :buildcache-dynamodb — compose cache_from lists both refs, so
-  # either feature shape cold-builds from downloads. The published :latest image
-  # stays 7-engine byte-parity.
+  # layer. This job builds that exact shape, pushes it as :latest-dynamodb (the tag
+  # compose asks for when DATA_PLANE_IMAGE_SUFFIX=-dynamodb) and exports its layer
+  # cache to :buildcache-dynamodb. Without the image, every fresh machine compiled
+  # the router: a Rust toolchain, its target dir and a multi-GB RAM spike on /var.
+  # The published :latest image stays 7-engine byte-parity.
   dpr-dynamodb-cache:
-    name: Cache data-plane-router (dynamodb)
+    name: Publish data-plane-router (dynamodb)
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
@@ -261,13 +262,16 @@ jobs:
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Build (cache export only)
+      - name: Build & publish (dynamodb feature)
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: src/data-plane-router
           build-args: |
             DATA_PLANE_FEATURES=--features dynamodb
-          push: false
+          push: true
+          tags: |
+            ghcr.io/univers42/grobase-data-plane-router:latest-dynamodb
+            ghcr.io/univers42/grobase-data-plane-router:sha-${{ github.sha }}-dynamodb
           cache-from: |
             type=registry,ref=ghcr.io/univers42/grobase-data-plane-router:buildcache-dynamodb
             type=registry,ref=ghcr.io/univers42/grobase-data-plane-router:buildcache
