@@ -547,9 +547,23 @@ restore_mssql() {
 	note "mssql: done"
 }
 
+# Every helper image the restore runs, pulled BEFORE anything is stopped or dropped. On a
+# clean machine they were pulled mid-restore: a failed pull there left postgres replayed and
+# the rest of the stack down, which the next `make all` then read as "data present".
+prefetch_helpers() {
+	images="$MONGO_IMAGE $MC_IMAGE alpine:latest $REDIS_IMAGE"
+	have dynamodb-all.tar.gz && images="$images amazon/aws-cli"
+	for img in $images; do
+		docker image inspect "$img" >/dev/null 2>&1 && continue
+		note "pulling helper image $img (nothing has been stopped yet)"
+		docker pull -q "$img" >/dev/null || die "cannot pull $img — nothing was stopped or changed"
+	done
+}
+
 main() {
 	preflight
 	require_coverage
+	prefetch_helpers
 	engines_up
 	restore_postgres
 	restore_mysql
