@@ -66,6 +66,8 @@ subjectAltName = @alt_names
 DNS.1 = localhost
 DNS.2 = host.docker.internal
 DNS.3 = local-https-proxy
+DNS.4 = track-binocle.test
+DNS.5 = *.track-binocle.test
 IP.1 = 127.0.0.1
 IP.2 = ::1
 EOF
@@ -80,6 +82,8 @@ subjectAltName = @alt_names
 DNS.1 = localhost
 DNS.2 = host.docker.internal
 DNS.3 = local-https-proxy
+DNS.4 = track-binocle.test
+DNS.5 = *.track-binocle.test
 IP.1 = 127.0.0.1
 IP.2 = ::1
 EOF
@@ -105,7 +109,7 @@ if [ "$ca_regenerated" -eq 0 ] && [ -s "$SERVER_KEY" ] && [ -s "$SERVER_CERT" ];
   if openssl verify -CAfile "$CA_CERT" "$SERVER_CERT" >/dev/null 2>&1 \
     && openssl x509 -checkend 2592000 -noout -in "$SERVER_CERT" >/dev/null 2>&1; then
     case "$san" in
-      *DNS:localhost*DNS:host.docker.internal*DNS:local-https-proxy*IP\ Address:127.0.0.1*)
+      *DNS:localhost*DNS:host.docker.internal*DNS:local-https-proxy*DNS:track-binocle.test*DNS:\*.track-binocle.test*IP\ Address:127.0.0.1*)
         server_needs_regen=0
         ;;
     esac
