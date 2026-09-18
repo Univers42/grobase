@@ -11,7 +11,7 @@ Name | Type | Description | Notes
 **databaseId** | **String** |  | 
 **action** | **String** |  | 
 **resource** | **String** |  | 
-**payload** | **Map<String, Object>** |  | [optional] [default to const {}]
+**payload** | [**Map<String, Object>**](Object.md) |  | [optional] [default to const {}]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

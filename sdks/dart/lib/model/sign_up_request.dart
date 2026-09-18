@@ -59,10 +59,10 @@ class SignUpRequest {
       // Note 1: the values aren't checked for validity beyond being non-null.
       // Note 2: this code is stripped in release mode!
       assert(() {
-        assert(json.containsKey(r'email'), 'Required key "SignUpRequest[email]" is missing from JSON.');
-        assert(json[r'email'] != null, 'Required key "SignUpRequest[email]" has a null value in JSON.');
-        assert(json.containsKey(r'password'), 'Required key "SignUpRequest[password]" is missing from JSON.');
-        assert(json[r'password'] != null, 'Required key "SignUpRequest[password]" has a null value in JSON.');
+        requiredKeys.forEach((key) {
+          assert(json.containsKey(key), 'Required key "SignUpRequest[$key]" is missing from JSON.');
+          assert(json[key] != null, 'Required key "SignUpRequest[$key]" has a null value in JSON.');
+        });
         return true;
       }());
 

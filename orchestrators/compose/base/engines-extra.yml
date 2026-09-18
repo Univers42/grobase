@@ -17,7 +17,7 @@ services:
     # MySQL 8.4 removed --default-authentication-plugin; caching_sha2_password
     # has been the default since 8.0.4, so no command override is needed.
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "${ENGINE_BIND_ADDR:-127.0.0.1}:${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -58,7 +58,7 @@ services:
       MARIADB_USER: ${MARIADB_USER:-mini_baas}
       MARIADB_PASSWORD: ${MARIADB_PASSWORD:-mini_baas_pw}
     ports:
-      - "${MARIADB_PORT:-3307}:3306"
+      - "${ENGINE_BIND_ADDR:-127.0.0.1}:${MARIADB_PORT:-3307}:3306"
     volumes:
       - mariadb-data:/var/lib/mysql
     healthcheck:
@@ -91,8 +91,8 @@ services:
       start-single-node --insecure --advertise-addr=cockroach
       --cache=128MiB --max-sql-memory=128MiB --http-addr=0.0.0.0:8080
     ports:
-      - "${COCKROACH_PORT:-26257}:26257"
-      - "${COCKROACH_HTTP_PORT:-28080}:8080"
+      - "${ENGINE_BIND_ADDR:-127.0.0.1}:${COCKROACH_PORT:-26257}:26257"
+      - "${ENGINE_BIND_ADDR:-127.0.0.1}:${COCKROACH_HTTP_PORT:-28080}:8080"
     volumes:
       - cockroach-data:/cockroach/cockroach-data
     healthcheck:
@@ -130,7 +130,7 @@ services:
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-Mssql_Strong!Pass1}
       MSSQL_PID: Developer
     ports:
-      - "${MSSQL_PORT:-1433}:1433"
+      - "${ENGINE_BIND_ADDR:-127.0.0.1}:${MSSQL_PORT:-1433}:1433"
     volumes:
       - mssql-data:/var/opt/mssql
     healthcheck:

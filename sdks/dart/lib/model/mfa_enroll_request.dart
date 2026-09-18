@@ -13,13 +13,13 @@ part of openapi.api;
 class MfaEnrollRequest {
   /// Returns a new [MfaEnrollRequest] instance.
   MfaEnrollRequest({
-    this.factorType = const MfaEnrollRequestFactorTypeEnum._('totp'),
+    this.factorType = MfaFactorType.totp,
     this.friendlyName,
     this.issuer,
     this.phone,
   });
 
-  MfaEnrollRequestFactorTypeEnum factorType;
+  MfaFactorType factorType;
 
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
@@ -95,11 +95,15 @@ class MfaEnrollRequest {
       // Note 1: the values aren't checked for validity beyond being non-null.
       // Note 2: this code is stripped in release mode!
       assert(() {
+        requiredKeys.forEach((key) {
+          assert(json.containsKey(key), 'Required key "MfaEnrollRequest[$key]" is missing from JSON.');
+          assert(json[key] != null, 'Required key "MfaEnrollRequest[$key]" has a null value in JSON.');
+        });
         return true;
       }());
 
       return MfaEnrollRequest(
-        factorType: MfaEnrollRequestFactorTypeEnum.fromJson(json[r'factor_type']) ?? const MfaEnrollRequestFactorTypeEnum._('totp'),
+        factorType: MfaFactorType.fromJson(json[r'factor_type']) ?? MfaFactorType.totp,
         friendlyName: mapValueOfType<String>(json, r'friendly_name'),
         issuer: mapValueOfType<String>(json, r'issuer'),
         phone: mapValueOfType<String>(json, r'phone'),
@@ -152,78 +156,4 @@ class MfaEnrollRequest {
   static const requiredKeys = <String>{
   };
 }
-
-
-class MfaEnrollRequestFactorTypeEnum {
-  /// Instantiate a new enum with the provided [value].
-  const MfaEnrollRequestFactorTypeEnum._(this.value);
-
-  /// The underlying value of this enum member.
-  final String value;
-
-  @override
-  String toString() => value;
-
-  String toJson() => value;
-
-  static const totp = MfaEnrollRequestFactorTypeEnum._(r'totp');
-  static const phone = MfaEnrollRequestFactorTypeEnum._(r'phone');
-
-  /// List of all possible values in this [enum][MfaEnrollRequestFactorTypeEnum].
-  static const values = <MfaEnrollRequestFactorTypeEnum>[
-    totp,
-    phone,
-  ];
-
-  static MfaEnrollRequestFactorTypeEnum? fromJson(dynamic value) => MfaEnrollRequestFactorTypeEnumTypeTransformer().decode(value);
-
-  static List<MfaEnrollRequestFactorTypeEnum> listFromJson(dynamic json, {bool growable = false,}) {
-    final result = <MfaEnrollRequestFactorTypeEnum>[];
-    if (json is List && json.isNotEmpty) {
-      for (final row in json) {
-        final value = MfaEnrollRequestFactorTypeEnum.fromJson(row);
-        if (value != null) {
-          result.add(value);
-        }
-      }
-    }
-    return result.toList(growable: growable);
-  }
-}
-
-/// Transformation class that can [encode] an instance of [MfaEnrollRequestFactorTypeEnum] to String,
-/// and [decode] dynamic data back to [MfaEnrollRequestFactorTypeEnum].
-class MfaEnrollRequestFactorTypeEnumTypeTransformer {
-  factory MfaEnrollRequestFactorTypeEnumTypeTransformer() => _instance ??= const MfaEnrollRequestFactorTypeEnumTypeTransformer._();
-
-  const MfaEnrollRequestFactorTypeEnumTypeTransformer._();
-
-  String encode(MfaEnrollRequestFactorTypeEnum data) => data.value;
-
-  /// Decodes a [dynamic value][data] to a MfaEnrollRequestFactorTypeEnum.
-  ///
-  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
-  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
-  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
-  ///
-  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
-  /// and users are still using an old app with the old code.
-  MfaEnrollRequestFactorTypeEnum? decode(dynamic data, {bool allowNull = true}) {
-    if (data != null) {
-      switch (data) {
-        case r'totp': return MfaEnrollRequestFactorTypeEnum.totp;
-        case r'phone': return MfaEnrollRequestFactorTypeEnum.phone;
-        default:
-          if (!allowNull) {
-            throw ArgumentError('Unknown enum value to decode: $data');
-          }
-      }
-    }
-    return null;
-  }
-
-  /// Singleton [MfaEnrollRequestFactorTypeEnumTypeTransformer] instance.
-  static MfaEnrollRequestFactorTypeEnumTypeTransformer? _instance;
-}
-
 

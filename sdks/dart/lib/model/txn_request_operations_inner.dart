@@ -81,10 +81,10 @@ class TxnRequestOperationsInner {
       // Note 1: the values aren't checked for validity beyond being non-null.
       // Note 2: this code is stripped in release mode!
       assert(() {
-        assert(json.containsKey(r'op'), 'Required key "TxnRequestOperationsInner[op]" is missing from JSON.');
-        assert(json[r'op'] != null, 'Required key "TxnRequestOperationsInner[op]" has a null value in JSON.');
-        assert(json.containsKey(r'resource'), 'Required key "TxnRequestOperationsInner[resource]" is missing from JSON.');
-        assert(json[r'resource'] != null, 'Required key "TxnRequestOperationsInner[resource]" has a null value in JSON.');
+        requiredKeys.forEach((key) {
+          assert(json.containsKey(key), 'Required key "TxnRequestOperationsInner[$key]" is missing from JSON.');
+          assert(json[key] != null, 'Required key "TxnRequestOperationsInner[$key]" has a null value in JSON.');
+        });
         return true;
       }());
 

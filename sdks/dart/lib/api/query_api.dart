@@ -19,7 +19,7 @@ class QueryApi {
   /// List registered engines + capabilities.
   ///
   /// Note: This method returns the HTTP [Response].
-  Future<Response> queryEnginesWithHttpInfo({ Future<void>? abortTrigger, }) async {
+  Future<Response> queryEnginesWithHttpInfo() async {
     // ignore: prefer_const_declarations
     final path = r'/query/v1/engines';
 
@@ -41,13 +41,12 @@ class QueryApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
   /// List registered engines + capabilities.
-  Future<QueryEngines200Response?> queryEngines({ Future<void>? abortTrigger, }) async {
-    final response = await queryEnginesWithHttpInfo(abortTrigger: abortTrigger,);
+  Future<QueryEngines200Response?> queryEngines() async {
+    final response = await queryEnginesWithHttpInfo();
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -68,7 +67,7 @@ class QueryApi {
   /// Parameters:
   ///
   /// * [QueryRequest] queryRequest (required):
-  Future<Response> queryExecuteWithHttpInfo(QueryRequest queryRequest, { Future<void>? abortTrigger, }) async {
+  Future<Response> queryExecuteWithHttpInfo(QueryRequest queryRequest,) async {
     // ignore: prefer_const_declarations
     final path = r'/query/v1/execute';
 
@@ -90,7 +89,6 @@ class QueryApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -99,8 +97,8 @@ class QueryApi {
   /// Parameters:
   ///
   /// * [QueryRequest] queryRequest (required):
-  Future<QueryResponse?> queryExecute(QueryRequest queryRequest, { Future<void>? abortTrigger, }) async {
-    final response = await queryExecuteWithHttpInfo(queryRequest, abortTrigger: abortTrigger,);
+  Future<QueryResponse?> queryExecute(QueryRequest queryRequest,) async {
+    final response = await queryExecuteWithHttpInfo(queryRequest,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -121,7 +119,7 @@ class QueryApi {
   /// Parameters:
   ///
   /// * [String] dbId (required):
-  Future<Response> querySchemaWithHttpInfo(String dbId, { Future<void>? abortTrigger, }) async {
+  Future<Response> querySchemaWithHttpInfo(String dbId,) async {
     // ignore: prefer_const_declarations
     final path = r'/query/v1/{dbId}/schema'
       .replaceAll('{dbId}', dbId);
@@ -144,7 +142,6 @@ class QueryApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -153,8 +150,8 @@ class QueryApi {
   /// Parameters:
   ///
   /// * [String] dbId (required):
-  Future<Map<String, Object>?> querySchema(String dbId, { Future<void>? abortTrigger, }) async {
-    final response = await querySchemaWithHttpInfo(dbId, abortTrigger: abortTrigger,);
+  Future<Map<String, Object>?> querySchema(String dbId,) async {
+    final response = await querySchemaWithHttpInfo(dbId,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -177,7 +174,7 @@ class QueryApi {
   /// * [String] dbId (required):
   ///
   /// * [Map<String, Object>] requestBody (required):
-  Future<Response> querySchemaDdlWithHttpInfo(String dbId, Map<String, Object> requestBody, { Future<void>? abortTrigger, }) async {
+  Future<Response> querySchemaDdlWithHttpInfo(String dbId, Map<String, Object> requestBody,) async {
     // ignore: prefer_const_declarations
     final path = r'/query/v1/{dbId}/schema/ddl'
       .replaceAll('{dbId}', dbId);
@@ -200,7 +197,6 @@ class QueryApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -211,8 +207,8 @@ class QueryApi {
   /// * [String] dbId (required):
   ///
   /// * [Map<String, Object>] requestBody (required):
-  Future<void> querySchemaDdl(String dbId, Map<String, Object> requestBody, { Future<void>? abortTrigger, }) async {
-    final response = await querySchemaDdlWithHttpInfo(dbId, requestBody, abortTrigger: abortTrigger,);
+  Future<void> querySchemaDdl(String dbId, Map<String, Object> requestBody,) async {
+    final response = await querySchemaDdlWithHttpInfo(dbId, requestBody,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -225,7 +221,7 @@ class QueryApi {
   /// Parameters:
   ///
   /// * [TxnRequest] txnRequest (required):
-  Future<Response> queryTxnWithHttpInfo(TxnRequest txnRequest, { Future<void>? abortTrigger, }) async {
+  Future<Response> queryTxnWithHttpInfo(TxnRequest txnRequest,) async {
     // ignore: prefer_const_declarations
     final path = r'/query/v1/txn';
 
@@ -247,7 +243,6 @@ class QueryApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -256,8 +251,8 @@ class QueryApi {
   /// Parameters:
   ///
   /// * [TxnRequest] txnRequest (required):
-  Future<TxnResponse?> queryTxn(TxnRequest txnRequest, { Future<void>? abortTrigger, }) async {
-    final response = await queryTxnWithHttpInfo(txnRequest, abortTrigger: abortTrigger,);
+  Future<TxnResponse?> queryTxn(TxnRequest txnRequest,) async {
+    final response = await queryTxnWithHttpInfo(txnRequest,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

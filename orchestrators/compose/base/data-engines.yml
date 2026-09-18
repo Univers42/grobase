@@ -1,3 +1,7 @@
+# Engine host ports bind to ${ENGINE_BIND_ADDR:-127.0.0.1}, like Kong and every other service
+# in these files. They were published on 0.0.0.0 — postgres, mysql, mongo, mssql, minio all
+# reachable from the whole LAN. Set ENGINE_BIND_ADDR=0.0.0.0 only if another host must reach
+# an engine directly; the fly deploy overrides only Kong and is unaffected.
 # data-engines plane — postgres, db-bootstrap, redis, mongo, mongo-keyfile, mongo-init
 services:
   postgres:
@@ -11,7 +15,7 @@ services:
     container_name: mini-baas-postgres
     env_file: [.env]
     ports:
-      - "${PG_PORT:-5432}:5432"
+      - "${ENGINE_BIND_ADDR:-127.0.0.1}:${PG_PORT:-5432}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -70,13 +74,14 @@ services:
       # Password for the non-superuser PostgREST `authenticator` role created by
       # db-bootstrap.psql (see migration 065 — safe-by-construction REST isolation).
       AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD:-}
-    command: >
-      sh -ec '
-        until pg_isready -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"; do sleep 1; done;
-        psql -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" -v ON_ERROR_STOP=1 -v pwd="$${POSTGRES_PASSWORD}" -v realtime_db="$${REALTIME_DB_NAME}" -v authenticator_pwd="$${AUTHENTICATOR_PASSWORD}" -f /bootstrap/db-bootstrap.psql;
-      '
+    # Logic in scripts/db/db-bootstrap.sh. It waits on a real authenticated query rather
+    # than pg_isready, which answers "is the server accepting connections" and exits 0 on a
+    # password rejection — so the old inline `until pg_isready` passed instantly and the
+    # psql after it died with a bare "password authentication failed" and no cause.
+    command: ["sh", "/bootstrap/db-bootstrap.sh"]
     volumes:
       - ./scripts/db/db-bootstrap.psql:/bootstrap/db-bootstrap.psql:ro
+      - ./scripts/db/db-bootstrap.sh:/bootstrap/db-bootstrap.sh:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -189,7 +194,7 @@ services:
       mongo-keyfile:
         condition: service_completed_successfully
     ports:
-      - "${MONGO_PORT:-27017}:27017"
+      - "${ENGINE_BIND_ADDR:-127.0.0.1}:${MONGO_PORT:-27017}:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-mongo}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-mongo}
@@ -204,7 +209,10 @@ services:
         ]
       interval: 30s
       start_interval: 2s
-      timeout: 3s
+      # mongosh is a Node program and this container gets half a CPU: on a busy host
+      # (load 14-17 during `make all`) its startup alone overran 3 s, ten times in a row,
+      # so a healthy mongo reported unhealthy and restore-if-empty waited out its 180 s.
+      timeout: 10s
       retries: 10
       start_period: 15s
     mem_limit: 512m

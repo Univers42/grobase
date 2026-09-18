@@ -12,8 +12,8 @@ Name | Type | Description | Notes
 **email** | **String** |  | [optional] 
 **role** | **String** |  | [optional] 
 **aud** | **String** |  | [optional] 
-**appMetadata** | **Map<String, Object>** |  | [optional] [default to const {}]
-**userMetadata** | **Map<String, Object>** |  | [optional] [default to const {}]
+**appMetadata** | [**Map<String, Object>**](Object.md) |  | [optional] [default to const {}]
+**userMetadata** | [**Map<String, Object>**](Object.md) |  | [optional] [default to const {}]
 **createdAt** | [**DateTime**](DateTime.md) |  | [optional] 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

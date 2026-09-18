@@ -54,6 +54,7 @@ volumes:
   mysql-data:
   cockroach-data:
   mssql-data:
+  dynamodb-data:      # dynamodb-local — persistent workspace databases (was -inMemory, lost on restart)
   mariadb-data:
   sqlite-data:        # data-plane-router /tmp — durable file-backed sqlite mounts (osionos-restaurant)
   mongo-keyfile:
