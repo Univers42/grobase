@@ -88,7 +88,8 @@ services:
       - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "/app/data-plane-router", "--healthcheck"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5
@@ -149,7 +150,8 @@ services:
         required: false
     healthcheck:
       test: ["CMD", "/app/realtime-server", "--healthcheck"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5

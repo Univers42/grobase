@@ -3,6 +3,18 @@
 # defaults to `restart: unless-stopped`. Per-service exceptions stay in the service and win
 # on merge (init containers use `restart: "no"`; `env_file`/aliases are per-service).
 # NOT listed in the root include: — this is a reusable template, not a plane.
+#
+# Healthcheck cadence convention (applies to every plane file, not enforceable
+# from here because `extends` cannot merge a partial healthcheck): use
+# `interval: 30s` + `start_interval: 2s`, never a bare `interval: 5s`.
+# A healthcheck is a full `runc` container-exec — MEASURED at ~47 forks per
+# invocation on an emulated-I/O dev VM (`nginx -t` 49, `pg_isready` 45). At 5s
+# across the running set that was ~5.5 execs/sec ≈ 250 forks/sec of pure
+# namespace setup, and the guest measured 136 forks/sec with the stack IDLE.
+# `start_interval` keeps probing every 2s until the container first reports
+# healthy, so `depends_on: condition: service_healthy` gating is exactly as
+# fast as before — the 30s applies only to the steady state, where nothing is
+# waiting on the answer. Requires Docker >= 25.
 services:
   base:
     networks:
