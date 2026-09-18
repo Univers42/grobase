@@ -23,6 +23,13 @@ services:
       VAULT_ENC_KEY: ${VAULT_ENC_KEY:-0123456789abcdef0123456789abcdef}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
+      # DynamoDB mount registration. isAllowedEngine() refuses `dynamodb` unless
+      # this is on, by the honesty rule: the Rust router only serves the engines
+      # it was COMPILED with, so accepting a mount the data plane cannot query
+      # would store a row that 501s forever. Turn this on ONLY together with a
+      # router built as DATA_PLANE_FEATURES="--features dynamodb" (check the
+      # running image with GET /v1/capabilities) and a reachable dynamodb-local.
+      DYNAMODB_ENGINE_ENABLED: ${DYNAMODB_ENGINE_ENABLED:-0}
       # Phase 4 tiering kill switch. Default 0 (OFF) so enabling tiering never
       # retroactively gates existing `free` tenants — flip to 1 once tenant
       # plans are assigned to enforce engine allowlist + mount quota + the
