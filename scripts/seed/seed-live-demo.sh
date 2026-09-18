@@ -233,7 +233,12 @@ path = pathlib.Path(sys.argv[1])
 mode = os.stat(path).st_mode & 0o777 if path.exists() else 0o600
 lines = path.read_text().splitlines() if path.exists() else []
 updates = {
-    "VITE_BAAS_URL": "http://127.0.0.1:${KONG_PORT}",
+    # The APP's origin, not Kong's port: the local TLS proxy mounts Kong's
+    # /auth/v1 /rest/v1 /realtime/v1 /storage/v1 /query/v1 /meta/v1 on the app
+    # port too, so the browser needs ONE reachable port. Kong's own
+    # 127.0.0.1:${KONG_PORT} is docker-host loopback plain HTTP — not a browser
+    # origin — and vite BAKES this value in, so a wrong one ships to every client.
+    "VITE_BAAS_URL": "${OSIONOS_APP_ORIGIN:-https://localhost:3001}",
     # Kong key-auth anon key — refresh it too, or a secrets rotation strands
     # the app on a stale key and every /query/v1 call 401s.
     "VITE_BAAS_KONG_KEY": "${ANON_KEY}",
