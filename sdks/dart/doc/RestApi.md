@@ -67,7 +67,7 @@ void (empty response body)
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **restInsert**
-> restInsert(resource, requestBody)
+> restInsert(resource, body)
 
 Insert one or many rows.
 
@@ -87,10 +87,10 @@ import 'package:grobase/api.dart';
 
 final api_instance = RestApi();
 final resource = resource_example; // String | Table or view name.
-final requestBody = Map<String, Object>(); // Map<String, Object> | 
+final body = Object(); // Object | 
 
 try {
-    api_instance.restInsert(resource, requestBody);
+    api_instance.restInsert(resource, body);
 } catch (e) {
     print('Exception when calling RestApi->restInsert: $e\n');
 }
@@ -101,7 +101,7 @@ try {
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **resource** | **String**| Table or view name. | 
- **requestBody** | [**Map<String, Object>**](Object.md)|  | 
+ **body** | **Object**|  | 
 
 ### Return type
 
@@ -218,7 +218,7 @@ Name | Type | Description  | Notes
 
 ### Return type
 
-**List<Object>**
+[**List<Object>**](Object.md)
 
 ### Authorization
 

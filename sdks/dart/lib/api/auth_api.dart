@@ -29,7 +29,7 @@ class AuthApi {
   /// * [String] redirectTo:
   ///
   /// * [String] scopes:
-  Future<Response> authAuthorizeWithHttpInfo(String provider, { String? redirectTo, String? scopes, Future<void>? abortTrigger, }) async {
+  Future<Response> authAuthorizeWithHttpInfo(String provider, { String? redirectTo, String? scopes, }) async {
     // ignore: prefer_const_declarations
     final path = r'/auth/v1/authorize';
 
@@ -59,7 +59,6 @@ class AuthApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -74,8 +73,8 @@ class AuthApi {
   /// * [String] redirectTo:
   ///
   /// * [String] scopes:
-  Future<void> authAuthorize(String provider, { String? redirectTo, String? scopes, Future<void>? abortTrigger, }) async {
-    final response = await authAuthorizeWithHttpInfo(provider, redirectTo: redirectTo, scopes: scopes, abortTrigger: abortTrigger,);
+  Future<void> authAuthorize(String provider, { String? redirectTo, String? scopes, }) async {
+    final response = await authAuthorizeWithHttpInfo(provider,  redirectTo: redirectTo, scopes: scopes, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -84,7 +83,7 @@ class AuthApi {
   /// Get the authenticated user.
   ///
   /// Note: This method returns the HTTP [Response].
-  Future<Response> authGetUserWithHttpInfo({ Future<void>? abortTrigger, }) async {
+  Future<Response> authGetUserWithHttpInfo() async {
     // ignore: prefer_const_declarations
     final path = r'/auth/v1/user';
 
@@ -106,13 +105,12 @@ class AuthApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
   /// Get the authenticated user.
-  Future<User?> authGetUser({ Future<void>? abortTrigger, }) async {
-    final response = await authGetUserWithHttpInfo(abortTrigger: abortTrigger,);
+  Future<User?> authGetUser() async {
+    final response = await authGetUserWithHttpInfo();
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -129,7 +127,7 @@ class AuthApi {
   /// Revoke the current session.
   ///
   /// Note: This method returns the HTTP [Response].
-  Future<Response> authLogoutWithHttpInfo({ Future<void>? abortTrigger, }) async {
+  Future<Response> authLogoutWithHttpInfo() async {
     // ignore: prefer_const_declarations
     final path = r'/auth/v1/logout';
 
@@ -151,13 +149,12 @@ class AuthApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
   /// Revoke the current session.
-  Future<void> authLogout({ Future<void>? abortTrigger, }) async {
-    final response = await authLogoutWithHttpInfo(abortTrigger: abortTrigger,);
+  Future<void> authLogout() async {
+    final response = await authLogoutWithHttpInfo();
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -170,7 +167,7 @@ class AuthApi {
   /// Parameters:
   ///
   /// * [AuthRecoverRequest] authRecoverRequest (required):
-  Future<Response> authRecoverWithHttpInfo(AuthRecoverRequest authRecoverRequest, { Future<void>? abortTrigger, }) async {
+  Future<Response> authRecoverWithHttpInfo(AuthRecoverRequest authRecoverRequest,) async {
     // ignore: prefer_const_declarations
     final path = r'/auth/v1/recover';
 
@@ -192,7 +189,6 @@ class AuthApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -201,8 +197,8 @@ class AuthApi {
   /// Parameters:
   ///
   /// * [AuthRecoverRequest] authRecoverRequest (required):
-  Future<void> authRecover(AuthRecoverRequest authRecoverRequest, { Future<void>? abortTrigger, }) async {
-    final response = await authRecoverWithHttpInfo(authRecoverRequest, abortTrigger: abortTrigger,);
+  Future<void> authRecover(AuthRecoverRequest authRecoverRequest,) async {
+    final response = await authRecoverWithHttpInfo(authRecoverRequest,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -215,7 +211,7 @@ class AuthApi {
   /// Parameters:
   ///
   /// * [SignUpRequest] signUpRequest (required):
-  Future<Response> authSignUpWithHttpInfo(SignUpRequest signUpRequest, { Future<void>? abortTrigger, }) async {
+  Future<Response> authSignUpWithHttpInfo(SignUpRequest signUpRequest,) async {
     // ignore: prefer_const_declarations
     final path = r'/auth/v1/signup';
 
@@ -237,7 +233,6 @@ class AuthApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -246,8 +241,8 @@ class AuthApi {
   /// Parameters:
   ///
   /// * [SignUpRequest] signUpRequest (required):
-  Future<AuthSignUp200Response?> authSignUp(SignUpRequest signUpRequest, { Future<void>? abortTrigger, }) async {
-    final response = await authSignUpWithHttpInfo(signUpRequest, abortTrigger: abortTrigger,);
+  Future<AuthSignUp200Response?> authSignUp(SignUpRequest signUpRequest,) async {
+    final response = await authSignUpWithHttpInfo(signUpRequest,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -270,7 +265,7 @@ class AuthApi {
   /// * [String] grantType (required):
   ///
   /// * [TokenRequest] tokenRequest (required):
-  Future<Response> authTokenWithHttpInfo(String grantType, TokenRequest tokenRequest, { Future<void>? abortTrigger, }) async {
+  Future<Response> authTokenWithHttpInfo(String grantType, TokenRequest tokenRequest,) async {
     // ignore: prefer_const_declarations
     final path = r'/auth/v1/token';
 
@@ -294,7 +289,6 @@ class AuthApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -305,8 +299,8 @@ class AuthApi {
   /// * [String] grantType (required):
   ///
   /// * [TokenRequest] tokenRequest (required):
-  Future<Session?> authToken(String grantType, TokenRequest tokenRequest, { Future<void>? abortTrigger, }) async {
-    final response = await authTokenWithHttpInfo(grantType, tokenRequest, abortTrigger: abortTrigger,);
+  Future<Session?> authToken(String grantType, TokenRequest tokenRequest,) async {
+    final response = await authTokenWithHttpInfo(grantType, tokenRequest,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -327,7 +321,7 @@ class AuthApi {
   /// Parameters:
   ///
   /// * [UpdateUserRequest] updateUserRequest (required):
-  Future<Response> authUpdateUserWithHttpInfo(UpdateUserRequest updateUserRequest, { Future<void>? abortTrigger, }) async {
+  Future<Response> authUpdateUserWithHttpInfo(UpdateUserRequest updateUserRequest,) async {
     // ignore: prefer_const_declarations
     final path = r'/auth/v1/user';
 
@@ -349,7 +343,6 @@ class AuthApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -358,8 +351,8 @@ class AuthApi {
   /// Parameters:
   ///
   /// * [UpdateUserRequest] updateUserRequest (required):
-  Future<User?> authUpdateUser(UpdateUserRequest updateUserRequest, { Future<void>? abortTrigger, }) async {
-    final response = await authUpdateUserWithHttpInfo(updateUserRequest, abortTrigger: abortTrigger,);
+  Future<User?> authUpdateUser(UpdateUserRequest updateUserRequest,) async {
+    final response = await authUpdateUserWithHttpInfo(updateUserRequest,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -380,7 +373,7 @@ class AuthApi {
   /// Parameters:
   ///
   /// * [VerifyRequest] verifyRequest (required):
-  Future<Response> authVerifyWithHttpInfo(VerifyRequest verifyRequest, { Future<void>? abortTrigger, }) async {
+  Future<Response> authVerifyWithHttpInfo(VerifyRequest verifyRequest,) async {
     // ignore: prefer_const_declarations
     final path = r'/auth/v1/verify';
 
@@ -402,7 +395,6 @@ class AuthApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -411,8 +403,8 @@ class AuthApi {
   /// Parameters:
   ///
   /// * [VerifyRequest] verifyRequest (required):
-  Future<AuthSignUp200Response?> authVerify(VerifyRequest verifyRequest, { Future<void>? abortTrigger, }) async {
-    final response = await authVerifyWithHttpInfo(verifyRequest, abortTrigger: abortTrigger,);
+  Future<AuthSignUp200Response?> authVerify(VerifyRequest verifyRequest,) async {
+    final response = await authVerifyWithHttpInfo(verifyRequest,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -433,7 +425,7 @@ class AuthApi {
   /// Parameters:
   ///
   /// * [String] factorId (required):
-  Future<Response> mfaChallengeWithHttpInfo(String factorId, { Future<void>? abortTrigger, }) async {
+  Future<Response> mfaChallengeWithHttpInfo(String factorId,) async {
     // ignore: prefer_const_declarations
     final path = r'/auth/v1/factors/{factorId}/challenge'
       .replaceAll('{factorId}', factorId);
@@ -456,7 +448,6 @@ class AuthApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -465,8 +456,8 @@ class AuthApi {
   /// Parameters:
   ///
   /// * [String] factorId (required):
-  Future<MfaChallengeResponse?> mfaChallenge(String factorId, { Future<void>? abortTrigger, }) async {
-    final response = await mfaChallengeWithHttpInfo(factorId, abortTrigger: abortTrigger,);
+  Future<MfaChallengeResponse?> mfaChallenge(String factorId,) async {
+    final response = await mfaChallengeWithHttpInfo(factorId,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -487,7 +478,7 @@ class AuthApi {
   /// Parameters:
   ///
   /// * [MfaEnrollRequest] mfaEnrollRequest (required):
-  Future<Response> mfaEnrollWithHttpInfo(MfaEnrollRequest mfaEnrollRequest, { Future<void>? abortTrigger, }) async {
+  Future<Response> mfaEnrollWithHttpInfo(MfaEnrollRequest mfaEnrollRequest,) async {
     // ignore: prefer_const_declarations
     final path = r'/auth/v1/factors';
 
@@ -509,7 +500,6 @@ class AuthApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -518,8 +508,8 @@ class AuthApi {
   /// Parameters:
   ///
   /// * [MfaEnrollRequest] mfaEnrollRequest (required):
-  Future<MfaEnrollResponse?> mfaEnroll(MfaEnrollRequest mfaEnrollRequest, { Future<void>? abortTrigger, }) async {
-    final response = await mfaEnrollWithHttpInfo(mfaEnrollRequest, abortTrigger: abortTrigger,);
+  Future<MfaEnrollResponse?> mfaEnroll(MfaEnrollRequest mfaEnrollRequest,) async {
+    final response = await mfaEnrollWithHttpInfo(mfaEnrollRequest,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -540,7 +530,7 @@ class AuthApi {
   /// Parameters:
   ///
   /// * [String] factorId (required):
-  Future<Response> mfaUnenrollWithHttpInfo(String factorId, { Future<void>? abortTrigger, }) async {
+  Future<Response> mfaUnenrollWithHttpInfo(String factorId,) async {
     // ignore: prefer_const_declarations
     final path = r'/auth/v1/factors/{factorId}'
       .replaceAll('{factorId}', factorId);
@@ -563,7 +553,6 @@ class AuthApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -572,8 +561,8 @@ class AuthApi {
   /// Parameters:
   ///
   /// * [String] factorId (required):
-  Future<void> mfaUnenroll(String factorId, { Future<void>? abortTrigger, }) async {
-    final response = await mfaUnenrollWithHttpInfo(factorId, abortTrigger: abortTrigger,);
+  Future<void> mfaUnenroll(String factorId,) async {
+    final response = await mfaUnenrollWithHttpInfo(factorId,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -588,7 +577,7 @@ class AuthApi {
   /// * [String] factorId (required):
   ///
   /// * [MfaVerifyRequest] mfaVerifyRequest (required):
-  Future<Response> mfaVerifyWithHttpInfo(String factorId, MfaVerifyRequest mfaVerifyRequest, { Future<void>? abortTrigger, }) async {
+  Future<Response> mfaVerifyWithHttpInfo(String factorId, MfaVerifyRequest mfaVerifyRequest,) async {
     // ignore: prefer_const_declarations
     final path = r'/auth/v1/factors/{factorId}/verify'
       .replaceAll('{factorId}', factorId);
@@ -611,7 +600,6 @@ class AuthApi {
       headerParams,
       formParams,
       contentTypes.isEmpty ? null : contentTypes.first,
-      abortTrigger: abortTrigger,
     );
   }
 
@@ -622,8 +610,8 @@ class AuthApi {
   /// * [String] factorId (required):
   ///
   /// * [MfaVerifyRequest] mfaVerifyRequest (required):
-  Future<Session?> mfaVerify(String factorId, MfaVerifyRequest mfaVerifyRequest, { Future<void>? abortTrigger, }) async {
-    final response = await mfaVerifyWithHttpInfo(factorId, mfaVerifyRequest, abortTrigger: abortTrigger,);
+  Future<Session?> mfaVerify(String factorId, MfaVerifyRequest mfaVerifyRequest,) async {
+    final response = await mfaVerifyWithHttpInfo(factorId, mfaVerifyRequest,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

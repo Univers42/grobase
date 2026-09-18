@@ -43,6 +43,7 @@ part 'model/mfa_challenge_response.dart';
 part 'model/mfa_enroll_request.dart';
 part 'model/mfa_enroll_response.dart';
 part 'model/mfa_enroll_response_totp.dart';
+part 'model/mfa_factor_type.dart';
 part 'model/mfa_verify_request.dart';
 part 'model/query_engines200_response.dart';
 part 'model/query_request.dart';

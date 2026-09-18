@@ -270,7 +270,7 @@ green "people search resolves the analyst; profile carries org role + presence"
 # ── h) analyst decide mask through the bridge proxy ───────────────────────────
 cyan "h) /api/perms/decide (bridge proxy) shows the analyst amount mask"
 decision="$("${CURL[@]}" -X POST "${BRIDGE_URL}/api/perms/decide" \
-  -H 'Content-Type: application/json' \
+  -H 'Content-Type: application/json' -H "Authorization: Bearer ${ANALYST_TOKEN}" \
   -d "{\"user\":{\"id\":\"${ANALYST_UUID}\"},\"resource_type\":\"table\",\"resource_name\":\"transactions\",\"op\":\"list\"}")" ||
   fail "decide through the bridge failed"
 echo "${decision}" | grep -q '"allow":true' || fail "analyst must be allowed: ${decision}"
