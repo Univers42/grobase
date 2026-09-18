@@ -85,10 +85,10 @@ class MfaEnrollResponse {
       // Note 1: the values aren't checked for validity beyond being non-null.
       // Note 2: this code is stripped in release mode!
       assert(() {
-        assert(json.containsKey(r'id'), 'Required key "MfaEnrollResponse[id]" is missing from JSON.');
-        assert(json[r'id'] != null, 'Required key "MfaEnrollResponse[id]" has a null value in JSON.');
-        assert(json.containsKey(r'type'), 'Required key "MfaEnrollResponse[type]" is missing from JSON.');
-        assert(json[r'type'] != null, 'Required key "MfaEnrollResponse[type]" has a null value in JSON.');
+        requiredKeys.forEach((key) {
+          assert(json.containsKey(key), 'Required key "MfaEnrollResponse[$key]" is missing from JSON.');
+          assert(json[key] != null, 'Required key "MfaEnrollResponse[$key]" has a null value in JSON.');
+        });
         return true;
       }());
 

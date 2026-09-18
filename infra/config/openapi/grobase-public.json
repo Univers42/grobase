@@ -1338,10 +1338,10 @@
         "type": "object",
         "properties": {
           "factor_type": {
-            "type": "string",
-            "enum": [
-              "totp",
-              "phone"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MfaFactorType"
+              }
             ],
             "default": "totp"
           },
@@ -1613,6 +1613,14 @@
             }
           }
         }
+      },
+      "MfaFactorType": {
+        "type": "string",
+        "enum": [
+          "totp",
+          "phone"
+        ],
+        "description": "Second-factor type. Named rather than inline so generated clients emit a real enum type."
       }
     }
   }

@@ -8,7 +8,7 @@ import 'package:grobase/api.dart';
 ## Properties
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**factorType** | **String** |  | [optional] [default to 'totp']
+**factorType** | [**MfaFactorType**](MfaFactorType.md) |  | [optional] [default to MfaFactorType.totp]
 **friendlyName** | **String** |  | [optional] 
 **issuer** | **String** |  | [optional] 
 **phone** | **String** |  | [optional] 

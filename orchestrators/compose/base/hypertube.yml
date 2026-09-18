@@ -8,8 +8,19 @@
 # npm ci && npm run build` first.
 services:
   # In-container DynamoDB (no AWS account). The data plane dials it as
-  # `dynamodb-local:8000` (the seed mount DSN). In-memory: the seeder re-creates
-  # tables + rows idempotently on each run.
+  # `dynamodb-local:8000` (the seed mount DSN).
+  #
+  # PERSISTENT, not -inMemory. In-memory was fine for the hypertube seeder, which
+  # re-creates its rows on every run — but this engine also backs workspace
+  # databases (engines-extra), and nothing re-seeds those: restore-if-empty only
+  # restores when postgres/mysql/mongo are ALL empty, which a populated machine
+  # never is. So every restart silently emptied the "IoT · DynamoDB" workspace
+  # database for good. Measured: tables restored, container recreated, zero tables.
+  # The seeder stays correct against a persistent store (it is idempotent).
+  #
+  # user: root — the image runs as uid 1000, and a fresh named volume is
+  # root-owned, so the first write fails. Verified: a table created as root
+  # survives a brand-new container on the same volume.
   dynamodb-local:
     extends: { file: orchestrators/compose/base/_common.yml, service: base }
     image: amazon/dynamodb-local:latest
@@ -17,9 +28,14 @@ services:
     # Also in the `engines` plane (engines-extra profile) so the migrate edition / `make all`
     # brings DynamoDB up alongside the other engines and its snapshot data restores. Public image.
     profiles: ["hypertube", "engines-extra"]
-    command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
+    user: root
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/home/dynamodblocal/data"]
+    volumes:
+      - dynamodb-data:/home/dynamodblocal/data
+    # Loopback only, like every other engine here. It was published on 0.0.0.0 —
+    # an unauthenticated database reachable from the whole LAN.
     ports:
-      - "${DYNAMODB_LOCAL_PORT:-8500}:8000"
+      - "127.0.0.1:${DYNAMODB_LOCAL_PORT:-8500}:8000"
 
   hypertube:
     extends: { file: orchestrators/compose/base/_common.yml, service: base }
