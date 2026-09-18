@@ -71,7 +71,8 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9999/health || exit 1"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 15s
       retries: 8
@@ -96,7 +97,8 @@ services:
       - "127.0.0.1:${MAILPIT_UI_PORT:-8026}:8025"
     healthcheck:
       test: ["CMD", "/mailpit", "readyz"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       retries: 5
       start_period: 5s
@@ -199,7 +201,8 @@ services:
     healthcheck:
       test:
         ["CMD-SHELL", "wget -qO- http://localhost:3010/health/live || exit 1"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5
