@@ -79,7 +79,8 @@ services:
       '
     healthcheck:
       test: ["CMD-SHELL", "kong health"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 20s
       retries: 10

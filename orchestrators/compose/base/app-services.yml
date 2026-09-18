@@ -86,7 +86,8 @@ services:
     healthcheck:
       test:
         ["CMD-SHELL", "wget -qO- http://localhost:4001/health/live || exit 1"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5
@@ -166,7 +167,8 @@ services:
     healthcheck:
       test:
         ["CMD-SHELL", "wget -qO- http://localhost:3030/health/live || exit 1"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5
@@ -212,7 +214,8 @@ services:
     healthcheck:
       test:
         ["CMD-SHELL", "wget -qO- http://localhost:3040/health/live || exit 1"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5
@@ -248,7 +251,8 @@ services:
     healthcheck:
       test:
         ["CMD-SHELL", "wget -qO- http://localhost:3050/health/live || exit 1"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5
@@ -286,7 +290,8 @@ services:
     healthcheck:
       test:
         ["CMD-SHELL", "wget -qO- http://localhost:3060/health/live || exit 1"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5
@@ -320,7 +325,8 @@ services:
     healthcheck:
       test:
         ["CMD-SHELL", "wget -qO- http://localhost:3070/health/live || exit 1"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5
@@ -352,7 +358,8 @@ services:
     healthcheck:
       test:
         ["CMD-SHELL", "wget -qO- http://localhost:3080/health/live || exit 1"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5
@@ -387,7 +394,8 @@ services:
     healthcheck:
       test:
         ["CMD-SHELL", "wget -qO- http://localhost:3090/health/live || exit 1"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5
@@ -426,7 +434,8 @@ services:
     healthcheck:
       test:
         ["CMD-SHELL", "wget -qO- http://localhost:3100/health/live || exit 1"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5
@@ -454,7 +463,8 @@ services:
     healthcheck:
       test:
         ["CMD-SHELL", "wget -qO- http://localhost:3110/health/live || exit 1"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5
@@ -485,7 +495,8 @@ services:
     healthcheck:
       test:
         ["CMD-SHELL", "wget -qO- http://localhost:3120/health/live || exit 1"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5

@@ -51,7 +51,8 @@ services:
       - "127.0.0.1:${ADAPTER_REGISTRY_GO_PORT:-3021}:3021"
     healthcheck:
       test: ["CMD", "/app/app", "--healthcheck"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5
@@ -144,7 +145,8 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "/app/app", "--healthcheck"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5
@@ -194,7 +196,8 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "/app/app", "--healthcheck"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5
@@ -274,7 +277,8 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "/app/app", "--healthcheck"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5
@@ -314,7 +318,8 @@ services:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "/app/app", "--healthcheck"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 30s
       retries: 5

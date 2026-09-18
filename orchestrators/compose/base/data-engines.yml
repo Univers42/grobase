@@ -36,7 +36,8 @@ services:
           "CMD-SHELL",
           "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}",
         ]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       retries: 5
       # Crash-recovery boots (ungraceful stop on a sizable volume) spend 40s+
@@ -152,7 +153,8 @@ services:
       - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       start_period: 5s
       retries: 5
@@ -200,7 +202,8 @@ services:
           "CMD-SHELL",
           'mongosh --quiet --eval "try { rs.status().myState === 1 ? quit(0) : quit(1) } catch(e) { db.runCommand({ ping: 1 }).ok ? quit(0) : quit(1) }"',
         ]
-      interval: 5s
+      interval: 30s
+      start_interval: 2s
       timeout: 3s
       retries: 10
       start_period: 15s
