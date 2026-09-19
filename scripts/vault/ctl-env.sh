@@ -14,6 +14,14 @@ CTL_IMAGE="${CTL_IMAGE:-docker.io/dlesieur/42ctl:latest}"
 CTL_CFG_DIR="${CTL_CFG_DIR:-$HOME/.config/42ctl}"
 REPO_DIR="${REPO_DIR:-$PWD}"
 PROJECT="${VAULT_ENV_PROJECT:-grobase}"
+# Shared-environment coordinates. BOTH set → the TEAM path (`env push`/`env pull`,
+# sealed to the ENVIRONMENT's key, so every member the authority granted can read
+# the tree). Either unset → the personal path (`push`/`pull`, sealed to the caller
+# ALONE and readable by nobody else). That distinction is the whole ballgame: a
+# teammate pulling a tree pushed the personal way gets "no manifest for project X"
+# no matter what org role they hold, because it is encryption, not RBAC.
+ORG="${VAULT_ENV_ORG:-}"
+ENVNAME="${VAULT_ENV_NAME:-}"
 
 [ "$#" -ge 1 ] || { printf 'usage: ctl-env.sh push|pull [flags]\n' >&2; exit 2; }
 verb="$1"
@@ -124,6 +132,23 @@ trap "kill $_hb 2>/dev/null || true" EXIT INT TERM
 # Not fatal when absent: a tree with no chunked file pulls perfectly well without it, and a
 # vault that has no infra/S3_KEY simply yields empty here.
 ctl_vault_get() {
+	# In TEAM mode, look in the shared ENVIRONMENT first: a secret set there is
+	# readable by every member granted the project, so a new teammate needs no
+	# per-person re-share. `42ctl vault get` reads the PERSONAL vault, which on a
+	# teammate's machine is empty — they would hit "FT_S3_KEY and FT_S3_SECRET are
+	# not set" on the first file above the 4 MiB ceiling and restore only the small
+	# half of the tree. Falls back to the personal vault so a machine that has the
+	# credential sealed to itself (the original pusher's) keeps working unchanged.
+	if [ -n "$ORG" ] && [ -n "$ENVNAME" ]; then
+		_v=$(docker run --rm --user "$(id -u):$(id -g)" \
+			-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 -e FT_PASSPHRASE \
+			-v "$CTL_CFG_DIR:/cfg" "$CTL_IMAGE" \
+			env secret get --org "$ORG" --project "$PROJECT" --env "$ENVNAME" "$1" 2>/dev/null || true)
+		if [ -n "$_v" ]; then
+			printf '%s' "$_v"
+			return 0
+		fi
+	fi
 	docker run --rm --user "$(id -u):$(id -g)" \
 		-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 -e FT_PASSPHRASE \
 		-v "$CTL_CFG_DIR:/cfg" "$CTL_IMAGE" vault get "$1" 2>/dev/null || true
@@ -148,13 +173,42 @@ if [ -z "${FT_S3_KEY:-}" ] || [ -z "${FT_S3_SECRET:-}" ]; then
 	fi
 fi
 
+# Build the 42ctl argv for the selected mode. The env verbs take a DIFFERENT flag
+# set from the personal ones — neither --prune nor --force exists there — so those
+# are dropped with a note rather than allowed to fail the whole transfer. `env pull`
+# offers --backup for what --force approximated; it is passed through untouched.
+if [ -n "$ORG" ] && [ -n "$ENVNAME" ]; then
+	_n=$#
+	_i=0
+	while [ "$_i" -lt "$_n" ]; do
+		_a="$1"
+		shift
+		case "$_a" in
+		--prune | --force)
+			printf '[vault42] note: %s is not a shared-environment flag — dropped\n' "$_a" >&2
+			;;
+		*) set -- "$@" "$_a" ;;
+		esac
+		_i=$((_i + 1))
+	done
+	printf '[vault42] mode: SHARED environment %s/%s/%s — sealed to the env key\n' \
+		"$ORG" "$PROJECT" "$ENVNAME" >&2
+	set -- env "$verb" --org "$ORG" --project "$PROJECT" --env "$ENVNAME" "$@"
+elif [ -n "$_prune" ]; then
+	printf '[vault42] mode: PERSONAL project %s — sealed to you alone\n' "$PROJECT" >&2
+	set -- "$verb" --project "$PROJECT" "$_prune" "$@"
+else
+	printf '[vault42] mode: PERSONAL project %s — sealed to you alone\n' "$PROJECT" >&2
+	set -- "$verb" --project "$PROJECT" "$@"
+fi
+
 set +e
 docker run --rm --user "$(id -u):$(id -g)" \
 	-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 -e FT_PASSPHRASE \
 	-e FT_S3_KEY -e FT_S3_SECRET \
 	-e RUST_LOG="${RUST_LOG:-info}" \
 	-v "$CTL_CFG_DIR:/cfg" -v "$REPO_DIR:/work" -w /work \
-	"$CTL_IMAGE" "$verb" --project "$PROJECT" $_prune "$@"
+	"$CTL_IMAGE" "$@"
 _rc=$?
 set -e
 
