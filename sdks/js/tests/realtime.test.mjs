@@ -78,7 +78,7 @@ test('subscribe() sends AUTH then SUBSCRIBE for the channel', async () => {
   assert.equal(ws.sent[0].type, 'AUTH');
   const sub = ws.sent.find((m) => m.type === 'SUBSCRIBE');
   assert.ok(sub, 'a SUBSCRIBE frame was sent');
-  assert.equal(sub.topic, 'pg/public/todos/*');
+  assert.equal(sub.topic, 'pg/todos/*');
 });
 
 test('handle.broadcast() sends a BROADCAST frame with topic/event/payload', async () => {
@@ -89,7 +89,7 @@ test('handle.broadcast() sends a BROADCAST frame with topic/event/payload', asyn
 
   const bcast = ws.sent.find((m) => m.type === 'BROADCAST');
   assert.ok(bcast, 'a BROADCAST frame was sent');
-  assert.equal(bcast.topic, 'pg/public/todos/*');
+  assert.equal(bcast.topic, 'pg/todos/*');
   assert.equal(bcast.event, 'cursor_move');
   assert.deepEqual(bcast.payload, { x: 1, y: 2 });
 });
@@ -100,7 +100,7 @@ test('presence:true auto-sends TRACK after SUBSCRIBED', async () => {
 
   const track = ws.sent.find((m) => m.type === 'TRACK');
   assert.ok(track, 'a TRACK frame was sent on subscribe');
-  assert.equal(track.topic, 'pg/public/todos/*');
+  assert.equal(track.topic, 'pg/todos/*');
   assert.deepEqual(track.meta, { name: 'alice' });
 });
 
@@ -128,9 +128,9 @@ test('presence EVENT frames route to onPresence, not onEvent', async () => {
     type: 'EVENT',
     sub_id: sub.sub_id,
     event: {
-      topic: 'pg/public/todos/*',
+      topic: 'pg/todos/*',
       event_type: 'presence',
-      payload: { topic: 'pg/public/todos/*', members: [{ conn_id: '7', user_id: 'alice', meta: { color: 'blue' } }] },
+      payload: { topic: 'pg/todos/*', members: [{ conn_id: '7', user_id: 'alice', meta: { color: 'blue' } }] },
     },
   });
 
@@ -162,7 +162,7 @@ test('broadcast EVENT frames route to onEvent', async () => {
     type: 'EVENT',
     sub_id: sub.sub_id,
     event: {
-      topic: 'pg/public/todos/*',
+      topic: 'pg/todos/*',
       event_type: 'broadcast',
       payload: { event: 'cursor_move', payload: { x: 9 } },
     },

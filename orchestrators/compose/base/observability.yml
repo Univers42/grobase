@@ -23,7 +23,7 @@ services:
       - ./infra/config/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus-data:/prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
 
   # ─── Observability: Grafana ──────────────────────────────────────
   grafana:
@@ -51,7 +51,7 @@ services:
       - ./infra/config/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
     ports:
-      - "3030:3000"
+      - "127.0.0.1:3030:3000"
 
   # ─── Observability: Loki ─────────────────────────────────────────
   loki:
@@ -77,7 +77,7 @@ services:
       - loki-data:/loki
     command: ["-config.file=/etc/loki/config.yaml"]
     ports:
-      - "${LOKI_PORT:-3100}:3100"
+      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
     # The one long-running service that had no base cap: a heavy log day blew
     # it to 750+ MiB of chunk/index cache (uncapped = host-RAM-bounded). Under
     # a cap loki evicts caches and keeps working; prod overlay tightens to 384m.

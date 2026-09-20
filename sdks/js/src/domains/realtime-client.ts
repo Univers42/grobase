@@ -36,7 +36,7 @@ import type { EngineId } from '../generated/engines.js';
 
 /** Standard event envelope emitted by the realtime engine. */
 export interface RealtimeEvent<Row = Record<string, unknown>> {
-  /** Originating topic, e.g. `pg.public.todos` or `mongo.mini_baas.orders`. */
+  /** Originating topic, e.g. `pg/todos/inserted` or `mongo/mini_baas/orders/*`. */
   readonly topic: string;
   /** Event type — `insert`, `update`, `delete`, or producer-specific. */
   readonly event: string;
@@ -265,7 +265,14 @@ export class RealtimeClient {
 function defaultTopic(adapter: EngineId, channel: string): string {
   const normalizedChannel = channel.split('/').filter(Boolean).join('/').replaceAll('.', '/');
   if (adapter === 'mongodb') return `mongo/${normalizedChannel}/*`;
-  if (adapter === 'postgresql') return `pg/${normalizedChannel}/*`;
+  // The Postgres producer emits `pg/<table>/<inserted|updated|deleted>` (see
+  // realtime-db-postgres parser.rs: `{topic_prefix}/{table}/{event_type}`), with
+  // no schema segment; `pg/public/todos/*` never matched a single event. A
+  // `schema.table` channel keeps the table only.
+  if (adapter === 'postgresql') {
+    const parts = normalizedChannel.split('/');
+    return `pg/${parts[parts.length - 1]}/*`;
+  }
   return `${adapter}/${normalizedChannel}/*`;
 }
 
