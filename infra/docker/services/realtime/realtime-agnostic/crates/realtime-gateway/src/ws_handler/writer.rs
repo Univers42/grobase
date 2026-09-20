@@ -17,8 +17,11 @@ use axum::extract::ws::{Message, WebSocket};
 use futures::stream::SplitSink;
 use futures::SinkExt;
 use realtime_core::{ConnectionId, EventEnvelope};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, warn};
+
+/// How long the goodbye may take before the socket is dropped anyway.
+const CLOSE_TIMEOUT: Duration = Duration::from_millis(500);
 
 enum SendStatus {
     Ok,
@@ -80,12 +83,24 @@ async fn send_frame(
     }
 }
 
+/// The writer owns the sink, so it is the only side that can answer a Close
+/// frame. `goodbye` is how the connection task asks it to: one signal, one
+/// Close frame, flushed, then done. Without it the socket was simply dropped
+/// and every peer that closed politely was told 1006 (see `reader::Ending`).
+/// Returns the sink when it did NOT send the closing frame itself.
+///
+/// A peer that closes while a frame is in flight makes the pending write
+/// fail, and the write side ends before the read side has reported the Close
+/// frame -- measured on this gateway: of two sockets closed in the same
+/// instant, exactly one lost its goodbye that way and was told 1006. Handing
+/// the sink back is what lets the connection task answer anyway.
 pub(super) async fn writer_loop(
     mut ws_sink: SplitSink<WebSocket, Message>,
     mut send_rx: mpsc::Receiver<(String, Arc<EventEnvelope>)>,
     mut ctrl_rx: mpsc::Receiver<String>,
+    mut goodbye: oneshot::Receiver<()>,
     conn_id: ConnectionId,
-) {
+) -> Option<SplitSink<WebSocket, Message>> {
     let mut slow_count = 0u32;
     loop {
         let json = tokio::select! {
@@ -94,12 +109,29 @@ pub(super) async fn writer_loop(
                 continue;
             },
             Some(ctrl) = ctrl_rx.recv() => ctrl,
+            _ = &mut goodbye => {
+                send_close(&mut ws_sink, conn_id).await;
+                return None;
+            }
             else => break,
         };
         match send_frame(&mut ws_sink, json, conn_id, &mut slow_count).await {
             SendStatus::Ok => {}
-            SendStatus::SlowClient | SendStatus::Failed => return,
+            SendStatus::SlowClient | SendStatus::Failed => return Some(ws_sink),
         }
+    }
+    Some(ws_sink)
+}
+
+/// Answer the peer's Close frame, then flush it. Bounded: a peer that has
+/// already gone away must not hold this task open.
+pub(super) async fn send_close(ws_sink: &mut SplitSink<WebSocket, Message>, conn_id: ConnectionId) {
+    let closing = async {
+        let _ = ws_sink.send(Message::Close(None)).await;
+        let _ = ws_sink.flush().await;
+    };
+    if tokio::time::timeout(CLOSE_TIMEOUT, closing).await.is_err() {
+        debug!(conn_id = %conn_id, "timed out sending the close frame");
     }
 }
 
