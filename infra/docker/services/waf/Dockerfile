@@ -102,6 +102,13 @@ ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
   METRICS_ALLOW_FROM=127.0.0.0/24 \
   METRICS_DENY_FROM=all \
   METRICSLOG=/dev/null \
+  # conf/crs-setup.conf lands as crs-setup-override.conf, which the CRS image's
+  # setup.conf never includes: the widened method list there was dead config and
+  # the WAF answered an HTML 403 (no CORS headers, so browsers saw status 0) to
+  # every PATCH/PUT/DELETE and to image/* uploads. These two variables are what
+  # the image's 95-configure-rules.sh rewrites crs-setup.conf from at start.
+  ALLOWED_METHODS="GET HEAD POST OPTIONS PUT PATCH DELETE" \
+  ALLOWED_REQUEST_CONTENT_TYPE="|application/x-www-form-urlencoded| |multipart/form-data| |multipart/related| |text/xml| |application/xml| |application/soap+xml| |application/json| |application/cloudevents+json| |application/cloudevents-batch+json| |application/grpc| |application/octet-stream| |image/png| |image/jpeg| |image/gif| |image/webp| |image/svg+xml| |text/plain| |text/csv| |application/pdf|" \
   MODSEC_ARGUMENT_SEPARATOR='&' \
   MODSEC_ARGUMENTS_LIMIT=1000 \
   MODSEC_AUDIT_ENGINE=RelevantOnly \

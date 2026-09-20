@@ -169,7 +169,7 @@ export function makeEngineClient<E extends EngineId, Row = Record<string, unknow
   if (caps.stream) {
     const realtime = new RealtimeClient(http);
     // Channel naming mirrors the realtime engine's producer prefix:
-    //   PG  → `pg.<schema>.<table>`   e.g. `pg.public.todos`
+    //   PG  → `pg/<table>/*`   e.g. `pg/todos/*` (the producer emits no schema segment)
     //   Mongo → `mongo.<db>.<coll>`   e.g. `mongo.mini_baas.orders`
     // The `resource` arg is the bare table/collection name; the caller may
     // also pass an already-qualified name (e.g. `public.todos`) and it will

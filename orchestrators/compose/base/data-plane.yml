@@ -110,7 +110,10 @@ services:
     # Pinned upstream (versioned like kong:3.8 — bump procedure in RELEASE.md).
     # The build: context below always wins locally; the pin is for pull-only
     # deployments so they never drift on `latest`.
-    image: dlesieur/realtime-agnostic:0.2.1
+    # CI publishes ghcr.io/univers42/grobase-realtime for every commit (and :latest);
+    # the Docker Hub 0.2.1 tag predates presence and broadcast (TRACK/BROADCAST were
+    # silently dropped by the deployed service). Same pull-fallback as every other service.
+    image: ghcr.io/univers42/grobase-realtime:latest # pull-fallback (built from ./build context below)
     build:
       context: ./infra/docker/services/realtime/realtime-agnostic
       dockerfile: Dockerfile
