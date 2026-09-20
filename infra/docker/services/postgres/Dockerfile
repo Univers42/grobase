@@ -111,9 +111,33 @@ HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
 # nosemgrep: dockerfile.security.missing-user.missing-user -- the official postgres
 # entrypoint starts as root to initialize/chown PGDATA, then drops to the unprivileged
 # `postgres` user via gosu; an explicit USER would break initdb.
+# ── pg_graphql (supabase) — GraphQL over the schema PostgREST already serves ──
+# supabase ships only glibc .deb packages; this Alpine server compiles the
+# extension with pgrx against its own pg_config (same clang/llvm as the server:
+# clang-21). rustfmt is what pgrx's bindgen shells out to. Kong's /graphql/v1
+# route and migration 087 (graphql_public.graphql()) are what serve it.
+FROM postgres_runtime AS pg_graphql_builder
+ARG PG_GRAPHQL_VERSION=v1.6.2
+RUN apk add --no-cache rust cargo rustfmt git clang21 clang21-dev llvm21-dev build-base \
+      openssl-dev musl-dev pkgconf readline-dev zlib-dev bison flex perl icu-dev \
+      libxml2-dev libxslt-dev linux-headers
+ENV CARGO_BUILD_JOBS=4 \
+    RUSTFLAGS="-C target-feature=-crt-static" \
+    CARGO_HOME=/root/.cargo \
+    PATH=/root/.cargo/bin:/usr/local/bin:/usr/bin:/bin
+RUN git clone --depth 1 -b ${PG_GRAPHQL_VERSION} https://github.com/supabase/pg_graphql /tmp/pg_graphql \
+ && v=$(grep -m1 -E '^pgrx\s*=' /tmp/pg_graphql/Cargo.toml | sed -E 's/.*"=?([0-9][0-9.]*)".*/\1/') \
+ && cargo install cargo-pgrx --version "$v" --locked \
+ && cargo pgrx init --pg16 "$(which pg_config)" \
+ && cd /tmp/pg_graphql \
+ && cargo pgrx install --release --pg-config "$(which pg_config)" \
+ && test -f /usr/local/lib/postgresql/pg_graphql.so
+
 FROM scratch
 
 COPY --from=postgres_runtime / /
+COPY --from=pg_graphql_builder /usr/local/lib/postgresql/pg_graphql.so /usr/local/lib/postgresql/
+COPY --from=pg_graphql_builder /usr/local/share/postgresql/extension/pg_graphql* /usr/local/share/postgresql/extension/
 
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
   GOSU_VERSION=1.19 \
