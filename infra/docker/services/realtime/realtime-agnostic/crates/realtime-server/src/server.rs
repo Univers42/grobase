@@ -217,6 +217,7 @@ fn build_http_router(
         presence: Arc::new(PresenceTracker::new()),
         presence_shared: build_presence_shared(),
         usage: build_usage(),
+        allowed_origins: realtime_gateway::origin::OriginPolicy::from_env().map(Arc::new),
     };
     Router::new()
         .route("/ws", get(ws_handler::ws_upgrade))

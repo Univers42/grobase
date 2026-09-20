@@ -32,7 +32,8 @@ use std::sync::Arc;
 
 use axum::extract::ws::WebSocketUpgrade;
 use axum::extract::State;
-use axum::response::IntoResponse;
+use axum::http::{HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Response};
 use realtime_core::AuthProvider;
 use realtime_engine::registry::SubscriptionRegistry;
 use realtime_engine::PresenceTracker;
@@ -60,10 +61,36 @@ pub struct AppState {
     /// `REALTIME_METERING` sub-flag is ON; `None` at parity — the close path then
     /// records nothing, no flusher runs, no Redis connection is opened.
     pub usage: Option<crate::usage::Usage>,
+    /// Browser origins allowed to open a socket. `None` at parity: no Origin
+    /// header is looked at. See [`crate::origin::OriginPolicy`] for why CORS
+    /// does not cover this door.
+    pub allowed_origins: Option<Arc<crate::origin::OriginPolicy>>,
 }
 
 /// Axum handler for WebSocket upgrade requests (`GET /ws`).
+///
+/// The handshake is not preflighted and carries no CORS answer, so this is the
+/// only place an unwanted origin can be turned away.
 #[allow(clippy::unused_async)]
-pub async fn ws_upgrade(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
+pub async fn ws_upgrade(
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Response {
+    // Only a browser sends Origin, and only a browser can be aimed at us by a
+    // page its user never wrote. A handshake without one is a server-side
+    // client and is left alone.
+    if let (Some(policy), Some(origin)) = (
+        state.allowed_origins.as_deref(),
+        headers
+            .get(axum::http::header::ORIGIN)
+            .and_then(|v| v.to_str().ok()),
+    ) {
+        if !policy.allows(origin) {
+            tracing::warn!(origin = %origin, "refused a WebSocket handshake: origin not in REALTIME_ALLOWED_ORIGINS");
+            return (StatusCode::FORBIDDEN, "origin not allowed").into_response();
+        }
+    }
     ws.on_upgrade(move |socket| connection::handle_websocket(socket, state))
+        .into_response()
 }

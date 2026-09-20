@@ -38,6 +38,7 @@
 pub mod connection;
 pub mod fanout;
 pub mod metrics;
+pub mod origin;
 pub mod presence_shared;
 pub mod rest_api;
 pub mod usage;

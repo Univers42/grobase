@@ -144,6 +144,13 @@ services:
       # enforce Shared-space isolation WITHOUT the breaking global deny flip
       # (chat/feed/live-DB keep their wildcard reach; only collab: is gated).
       REALTIME_PROTECTED_NAMESPACES: ${REALTIME_PROTECTED_NAMESPACES:-}
+      # Browser origins allowed to open a WebSocket. A handshake is not a CORS
+      # request -- no preflight, no Access-Control-Allow-Origin -- so Kong's
+      # list protects every REST door and none of this one. EMPTY (the default)
+      # = byte-parity: no Origin is checked. Set it to the same origins the
+      # gateway allows to close the door on other websites. A handshake with no
+      # Origin header (a server-side client) is always allowed.
+      REALTIME_ALLOWED_ORIGINS: ${REALTIME_ALLOWED_ORIGINS:-}
       REALTIME_PG_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
       REALTIME_PG_CHANNEL: realtime_events
       # Mongo change-streams producer (M10.b — close the realtime fan-out gap).
