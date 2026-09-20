@@ -19,8 +19,8 @@
 #
 # Usage:
 #   source scripts/lib/service-auth.sh
-#   svc_auth_header_args POST /v1/keys/verify '{"key":"x"}'   # echoes curl -H args
-#   curl ... $(svc_auth_header_args POST /v1/keys/verify "$BODY") ...
+#   svc_auth POST /v1/keys/verify '{"key":"x"}'        # fills the SVC_AUTH array
+#   curl ... "${SVC_AUTH[@]}" -d '{"key":"x"}' ...
 #
 # In static mode (default / SERVICE_TOKEN_MODE unset) it emits the legacy
 # `-H X-Service-Token: <token>`; in hmac mode it emits the signed

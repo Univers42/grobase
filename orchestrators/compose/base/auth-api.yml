@@ -133,7 +133,9 @@ services:
       PGRST_DB_SCHEMA: ${PGRST_DB_SCHEMA:-public}
       PGRST_SERVER_PORT: 3000
       PGRST_JWT_SECRET: ${JWT_SECRET}
-      PGRST_DB_SCHEMAS: public
+      # graphql_public: the schema Kong's /graphql/v1 route targets (Content-Profile);
+      # migration 087 creates it around pg_graphql when the server carries it.
+      PGRST_DB_SCHEMAS: public, graphql_public
       PGRST_DB_ANON_ROLE: anon
     extra_hosts:
       - "host.docker.internal:host-gateway"
