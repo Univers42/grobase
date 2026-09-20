@@ -37,6 +37,9 @@ plugins:
         - __KONG_CORS_ORIGIN_PLAYGROUND__
         - __KONG_CORS_ORIGIN_STUDIO__
         - __KONG_CORS_ORIGIN_FRONTEND__
+        - http://127.0.0.1:5180
+        - http://localhost:5180
+        - http://127.0.0.1:5173
         # osionos second-brain Vite dev server — plain http in dev (no TLS).
         # Lets the in-browser BaaS graph mode call /query/v1/* across origins.
         - http://localhost:3001
