@@ -44,13 +44,31 @@ pub(super) enum Action {
     Close,
 }
 
+/// How the read side ended.
+///
+/// This matters for exactly one thing: RFC 6455 §5.5.1 says an endpoint that
+/// receives a Close frame MUST send one back. This loop used to `return` on
+/// `Message::Close`, the socket was then dropped, and the peer never got an
+/// answer -- so a client that said goodbye politely saw close code **1006**
+/// (abnormal closure) instead of 1000. Measured from a browser against this
+/// gateway (2026-09-20): every one of six bench sockets closed 1006. An SDK
+/// cannot tell that from a dropped connection, so a normal disconnect looks
+/// like a network failure and drives reconnect-with-backoff and error logs.
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+pub(super) enum Ending {
+    /// the peer sent a Close frame and is owed one back
+    ClientClose,
+    /// the stream ended, errored, or a handler asked to hang up
+    Gone,
+}
+
 pub(super) async fn reader_loop(
     mut ws_stream: SplitStream<WebSocket>,
     conn_id: ConnectionId,
     state: AppState,
     ctrl_tx: mpsc::Sender<String>,
     tenant_slot: TenantSlot,
-) {
+) -> Ending {
     let mut auth = AuthState::default();
     while let Some(result) = ws_stream.next().await {
         match result {
@@ -69,20 +87,21 @@ pub(super) async fn reader_loop(
                     }
                 }
                 if action == Action::Close {
-                    return;
+                    return Ending::Gone;
                 }
             }
             Ok(Message::Close(_)) => {
                 info!(conn_id = %conn_id, "Client initiated close");
-                return;
+                return Ending::ClientClose;
             }
             Err(e) => {
                 debug!(conn_id = %conn_id, "WebSocket read error: {}", e);
-                return;
+                return Ending::Gone;
             }
             _ => {}
         }
     }
+    Ending::Gone
 }
 
 async fn dispatch_text(
