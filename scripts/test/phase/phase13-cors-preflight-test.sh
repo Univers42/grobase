@@ -18,7 +18,12 @@
 BASE_URL="${BASE_URL:-http://localhost:8000}"
 TIMEOUT="${TIMEOUT:-10}"
 APIKEY="${APIKEY:-public-anon-key}"
-TEST_ORIGIN="${TEST_ORIGIN:-http://localhost:3000}"
+# config.env ships KONG_CORS_ORIGIN_APP=https://localhost:3000, so an http
+# origin is simply not on Kong's allow-list and the preflight comes back
+# with no access-control-allow-origin at all. CI has been exporting
+# TEST_ORIGIN="https://localhost:3000" to paper over this default, which
+# left `make test-smoke` failing on a correctly configured gateway.
+TEST_ORIGIN="${TEST_ORIGIN:-https://localhost:3000}"
 TMPDIR="${TMPDIR:-$(mktemp -d /tmp/phase13_cors.XXXXXX)}"
 
 mkdir -p "$TMPDIR"
