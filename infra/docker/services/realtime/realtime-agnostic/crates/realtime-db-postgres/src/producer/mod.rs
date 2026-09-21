@@ -28,7 +28,11 @@ use crate::config::PostgresConfig;
 pub struct PostgresProducer {
     pub(crate) config: PostgresConfig,
     pub(crate) running: Arc<AtomicBool>,
-    pub(crate) client: std::sync::Mutex<Option<tokio_postgres::Client>>,
+    /// Shared with the supervisor task, which replaces it on every re-attach.
+    pub(crate) client: Arc<std::sync::Mutex<Option<tokio_postgres::Client>>>,
+    /// True only while a LISTEN is actually attached. `running` says the
+    /// producer was asked to run; this says it is currently delivering.
+    pub(crate) connected: Arc<AtomicBool>,
 }
 
 impl PostgresProducer {
@@ -41,8 +45,19 @@ impl PostgresProducer {
         Self {
             config,
             running: Arc::new(AtomicBool::new(false)),
-            client: std::sync::Mutex::new(None),
+            client: Arc::new(std::sync::Mutex::new(None)),
+            connected: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    /// Whether a LISTEN is attached right now.
+    ///
+    /// A dead producer leaves the process serving `WebSockets` happily while no
+    /// row change is ever delivered, so this is the difference between "the
+    /// port is open" and "events are flowing".
+    #[must_use]
+    pub fn is_connected(&self) -> bool {
+        self.connected.load(std::sync::atomic::Ordering::SeqCst)
     }
 
     /// Generate the SQL DDL for the notification trigger function.

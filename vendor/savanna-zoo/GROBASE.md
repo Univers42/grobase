@@ -142,9 +142,10 @@ Grobase's realtime plane is **independent of the query-router**. Migration `012`
 
 - **Port 5181 is taken by `mini-baas-hypertube`** — savanna serves on **5182**. (A container whose host
   port is already bound silently stays in `Created` state; `docker run -d` won't error loudly.)
-- **The realtime PG producer does not auto-reconnect.** If `docker logs mini-baas-realtime` shows
-  `PostgreSQL connection error: connection closed`, the LISTEN is dead and PostgREST writes stop
-  producing events — `docker restart mini-baas-realtime` revives it.
+- **The realtime PG producer re-attaches its own LISTEN** (m184). `PostgreSQL connection error:
+  connection closed` in `docker logs mini-baas-realtime` is followed by `PostgreSQL LISTEN
+  re-attached` within a second; delivery resumes without a restart. It used to need
+  `docker restart mini-baas-realtime` by hand, which is why older notes say so.
 - **Build with a glibc node image** (`node:20-bookworm-slim`), not `node:20-alpine` — the host
   `node_modules` carries the glibc (`-gnu`) rollup native binary; alpine (musl) fails with
   `MODULE_NOT_FOUND` on rollup's `native.js`.
