@@ -21,7 +21,12 @@ APIKEY="${APIKEY:-public-anon-key}"
 MINIO_ENDPOINT="${MINIO_ENDPOINT:-http://127.0.0.1:9000}"
 MINIO_ACCESS_KEY="${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-}}"
 MINIO_SECRET_KEY="${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-}}"
-MC_IMAGE="${MC_IMAGE:-minio/mc:latest}"
+# MinIO withdrew its Docker Hub repositories, so `minio/mc:latest` now answers
+# "pull access denied … repository does not exist" and every mc step here dies
+# before it reaches MinIO. quay.io is where MinIO publishes the client, and it
+# still carries the /bin/sh mc_cmd needs (grobase's own grobase-mc image is
+# FROM scratch: a static binary with no shell, so it cannot serve here).
+MC_IMAGE="${MC_IMAGE:-quay.io/minio/mc:latest}"
 TMPDIR="${TMPDIR:-$(mktemp -d /tmp/phase9_storage.XXXXXX)}"
 
 mkdir -p "$TMPDIR"
@@ -90,9 +95,12 @@ assert_code_one_of() {
 
 mc_cmd() {
   local cmd="$1"
+  # The status is the caller's to judge. This used to end in `return 0`, which
+  # reported "Object uploaded" as a pass while the image could not even be
+  # pulled -- three green steps on a client that never ran, and the failure
+  # only surfaced two tests later as "object key missing from list".
   docker run -i --rm --network container:mini-baas-minio --entrypoint /bin/sh -e HOME=/tmp "$MC_IMAGE" \
     -ec "mc alias set local '$MINIO_ENDPOINT' '$MINIO_ACCESS_KEY' '$MINIO_SECRET_KEY' >/dev/null && $cmd"
-  return 0
 }
 
 cleanup_resources() {
