@@ -127,7 +127,21 @@ ok "secrets discovered (service-token, anon+service Kong keys, pg DSN${JWT_SECRE
 # ── 2) write the concrete environment json (blanks filled, NEVER committed) ─
 step "2/4 write concrete env → ${POSTMAN_DIR}/${GEN_ENV}"
 mkdir -p "${REPORT_DIR}"
+# authEmail/authPassword were seeded EMPTY, and the only thing that ever set
+# authEmail was the signup request's OWN test script, reading it back out of
+# the response. So every run posted {"email":"","password":""} to
+# /auth/v1/signup, GoTrue answered 422, the folder's deliberately forgiving
+# assertion counted that as "a clean validation response" -- and the whole
+# storage and functions half of the collection then failed 401 for want of a
+# user identity (19 of 78 assertions). Seed a fresh identity per run instead:
+# unique, so a second run is not "User already registered", and strong enough
+# for any password policy.
+AUTH_EMAIL="${AUTH_EMAIL:-offers-$(date +%s)-$$@example.com}"
+AUTH_PASSWORD="${AUTH_PASSWORD:-Offers-$(date +%s)-Aa1!}"
+
 jq -n \
+  --arg authEmail "${AUTH_EMAIL}" \
+  --arg authPassword "${AUTH_PASSWORD}" \
   --arg baseUrl "${BASE_URL}" \
   --arg controlUrl "${CONTROL_URL}" \
   --arg dataPlaneUrl "${DATA_PLANE_URL}" \
@@ -153,8 +167,8 @@ jq -n \
       { key: "keyId",         value: "",             enabled: true },
       { key: "mountName",     value: "",             enabled: true },
       { key: "jwt",           value: "",             enabled: true },
-      { key: "authEmail",     value: "",             enabled: true },
-      { key: "authPassword",  value: "",             enabled: true },
+      { key: "authEmail",     value: $authEmail,     enabled: true },
+      { key: "authPassword",  value: $authPassword,  enabled: true },
       { key: "crudTable",     value: "",             enabled: true },
       { key: "bucket",        value: "",             enabled: true },
       { key: "storageSub",    value: "",             enabled: true },
