@@ -10,6 +10,7 @@
 #                                                                              #
 # **************************************************************************** #
 
+##@ Integration tests, verify gates, parity & deploy manifests
 test-smoke: ## Run all phase smoke tests (phase1→N) vs the live stack
 	@export APIKEY=$${APIKEY:-$$(grep '^ANON_KEY=' .env 2>/dev/null | cut -d= -f2-)}; \
 	export PUBLIC_APIKEY=$${PUBLIC_APIKEY:-$$APIKEY}; \
@@ -76,16 +77,30 @@ cutover-%: ## Gated promotion of a plane/service (runs parity, then restarts it)
 	@$(MAKE) --no-print-directory parity NEW="$(or $(NEW),http://127.0.0.1:4011)" ROUTES="$(or $(ROUTES),data-plane-contract)"
 	@$(DCE) up -d --no-deps $* && echo -e "$(_G)✓ '$*' restarted; set its *_PRODUCT_MODE=enabled in .env to make it live$(_0)"
 
+# Docker-first, like every other toolchain here: gen-deploy.py imports PyYAML,
+# which a host python3 carries only by accident (it failed exactly that way).
+# Runs as the caller's uid so the generated deploy/ files are not root-owned.
+PYTHON_IMAGE ?= python:3.12-alpine
+
 deploy-gen: ## (G11) Compile the edition manifest → Helm values + Kustomize overlays (DEPLOY_REGISTRY=/DEPLOY_TAG= override images)
-	@command -v python3 >/dev/null 2>&1 || { echo -e "$(_R)python3 required$(_0)"; exit 1; }
-	@python3 scripts/deploy/gen-deploy.py
+	@docker run --rm -u "$$(id -u):$$(id -g)" -v "$(CURDIR)":/repo -w /repo \
+		-e PYTHONPATH=/tmp/pylibs -e PIP_NO_CACHE_DIR=1 \
+		-e DEPLOY_REGISTRY="$(DEPLOY_REGISTRY)" -e DEPLOY_TAG="$(DEPLOY_TAG)" $(PYTHON_IMAGE) \
+		sh -c 'pip install --quiet --target /tmp/pylibs pyyaml && python3 scripts/deploy/gen-deploy.py'
 
 deploy-template: ## (G11) Render an edition's K8s manifests via Helm (EDITION=lean|query|realtime|analytics|prod|full)
 	@command -v helm >/dev/null 2>&1 || { echo -e "$(_R)helm required$(_0)"; exit 1; }
 	@helm template mini-baas deploy/helm/mini-baas -f deploy/helm/mini-baas/values-$(EDITION).yaml
 
+# The WAF is the public entrypoint but it does NOT publish on :80 — it lands on
+# WAF_HTTP_PORT (default 8880), and resolve-ports.sh may bump that again when the
+# port is taken. Discover the live one, exactly as `make health` does for Kong.
+# A security gate that reports "not blocked" must also EXIT non-zero.
 waf-test: ## Confirm the WAF blocks SQLi/XSS at the edge
-	@for q in "?id=1%20OR%201=1" "/<script>alert(1)</script>"; do \
-		code=$$(curl -s -o /dev/null -w '%{http_code}' "http://localhost/rest/v1/$$q"); \
-		[ "$$code" = "403" ] && echo "  ✓ blocked ($$q)" || echo "  ✗ expected 403, got $$code ($$q)"; \
-	done
+	@p="$$(docker port mini-baas-waf 80/tcp 2>/dev/null | head -1 | sed 's/.*://')"; \
+	p="$${p:-$${WAF_HTTP_PORT:-8880}}"; rc=0; \
+	for q in "?id=1%20OR%201=1" "/<script>alert(1)</script>"; do \
+		code=$$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$$p/rest/v1/$$q"); \
+		if [ "$$code" = "403" ]; then echo "  ✓ blocked ($$q)"; \
+		else echo "  ✗ expected 403, got $$code ($$q)"; rc=1; fi; \
+	done; exit $$rc
