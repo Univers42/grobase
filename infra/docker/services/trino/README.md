@@ -1,6 +1,6 @@
 # Trino
 
-Trino 467 — distributed SQL query engine. Enables federated queries across multiple data sources (PostgreSQL, MongoDB, etc.) using standard SQL syntax.
+Trino 483 — distributed SQL query engine. Enables federated queries across multiple data sources (PostgreSQL, MongoDB, etc.) using standard SQL syntax.
 
 ## Quick Start
 
@@ -121,7 +121,7 @@ Returns JSON with server version and uptime when healthy.
 
 ## Docker
 
-- **Image:** `trinodb/trino:467`
+- **Image:** `trinodb/trino:483` (this repo builds its own from the release tarball)
 - **Port:** `8080`
 - **Volumes:** Configuration files mounted to `/etc/trino`
 - **Networks:** Internal `baas` network
