@@ -50,7 +50,7 @@ test-all: ## Run EVERYTHING available: unit + (if the stack is up) integration p
 		$(MAKE) --no-print-directory test-smoke  || rc=1; \
 		$(MAKE) --no-print-directory test-offers || rc=1; \
 		$(MAKE) --no-print-directory test-edge   || rc=1; \
-		$(MAKE) --no-print-directory waf-test    || true; \
+		$(MAKE) --no-print-directory waf-test    || rc=1; \
 		$(MAKE) --no-print-directory conformance || rc=1; \
 	else \
 		echo -e "$(_Y)• stack down — skipping integration / Postman / edge / conformance (run 'make up' first)$(_0)"; \
