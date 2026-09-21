@@ -10,6 +10,7 @@
 #                                                                              #
 # **************************************************************************** #
 
+##@ Migrations, seeds & the vendor playground apps
 migrate: ## Apply pending PostgreSQL migrations
 	@set -e; for f in $$(ls -1 scripts/migrations/postgresql/*.sql 2>/dev/null | sort); do \
 		echo "  Applying: $$f"; sed '/^#/d' "$$f" | $(DC) exec -T postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f -; \
@@ -54,8 +55,8 @@ gourmand: gourmand-verify ## vite-gourmand: full end-to-end — verify, then bui
 	@$(MAKE) --no-print-directory gourmand-creds
 
 gourmand-creds: ## Print the seeded vite-gourmand logins (persisted in .gourmand-baas.env)
-	@[ -f .gourmand-baas.env ] || { echo -e "$(_Y)no .gourmand-baas.env yet — run 'make gourmand-verify' first$(_0)"; exit 0; }
-	@ae="$$(sed -n 's/^VG_ADMIN_EMAIL=//p' .gourmand-baas.env)"; ap="$$(sed -n 's/^VG_ADMIN_PASSWORD=//p' .gourmand-baas.env)"; \
+	@[ -f .gourmand-baas.env ] || { echo -e "$(_Y)no .gourmand-baas.env yet — run 'make gourmand-verify' first$(_0)"; exit 0; }; \
+		ae="$$(sed -n 's/^VG_ADMIN_EMAIL=//p' .gourmand-baas.env)"; ap="$$(sed -n 's/^VG_ADMIN_PASSWORD=//p' .gourmand-baas.env)"; \
 		ce="$$(sed -n 's/^VG_CLIENT_EMAIL=//p' .gourmand-baas.env)"; cp="$$(sed -n 's/^VG_CLIENT_PASSWORD=//p' .gourmand-baas.env)"; \
 		echo -e "$(_W)vite-gourmand logins$(_0)  (saved in .gourmand-baas.env)"; \
 		echo -e "  URL       $(_C)http://localhost:$(GOURMAND_PORT)$(_0)"; \
@@ -109,8 +110,8 @@ movieverse: _require-compose ## movieverse: end-to-end — up + seed demo users 
 	@$(MAKE) --no-print-directory movieverse-creds
 
 movieverse-creds: ## Print the seeded MovieVerse logins (.movieverse-baas.env)
-	@[ -f .movieverse-baas.env ] || { echo -e "$(_Y)no .movieverse-baas.env yet — run 'make movieverse' first$(_0)"; exit 0; }
-	@pw="$$(sed -n 's/^MV_PASSWORD=//p' .movieverse-baas.env)"; \
+	@[ -f .movieverse-baas.env ] || { echo -e "$(_Y)no .movieverse-baas.env yet — run 'make movieverse' first$(_0)"; exit 0; }; \
+		pw="$$(sed -n 's/^MV_PASSWORD=//p' .movieverse-baas.env)"; \
 		echo -e "$(_W)MovieVerse logins$(_0)  (password: $(_G)$$pw$(_0))"; \
 		echo -e "  URL        $(_C)http://localhost:$(MOVIEVERSE_PORT)$(_0)"; \
 		sed -n 's/^MV_USER=/  · /p' .movieverse-baas.env | while read -r l; do echo -e "  $(_G)$$l$(_0)"; done
