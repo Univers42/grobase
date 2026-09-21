@@ -18,7 +18,7 @@ services:
       PORT: "80"
       KONG_URL: "http://kong:8000"
     ports:
-      - "${RED_TETRIS_PORT:-5178}:80"
+      - "127.0.0.1:${RED_TETRIS_PORT:-5178}:80"
     volumes:
       - ./vendor/red-tetris:/app:ro
     depends_on:

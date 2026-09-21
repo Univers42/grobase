@@ -34,11 +34,27 @@ services:
       mini-baas:
         aliases:
           - db
+    # `-h postgres` is load-bearing, not decoration — the same shape as mongo's
+    # `--host mongo`. On a FRESH postgres-data volume the entrypoint starts a
+    # TEMPORARY server with `listen_addresses=''` (socket only, no TCP) to run
+    # initdb, then restarts for real. `pg_isready` with no `-h` asks that socket,
+    # so it answers 0 during a window in which nothing can connect over the
+    # network — compose then releases `depends_on: service_healthy` and the ten
+    # dependents that dial postgres:5432 get ECONNREFUSED.
+    #
+    # MEASURED on this image (empty volume, socket-ready -> TCP-ready):
+    #   cpus=1.00   231ms window, TCP up 1.2s after start
+    #   cpus=0.25   410ms window, TCP up 4.7s after start
+    #   cpus=0.10  1101ms window, TCP up 15.4s after start
+    # At full speed TCP beats the first probe (start_interval 2s) and the race
+    # never fires; under load the window both widens and slides later, into the
+    # region where probes are landing every 2s. That is why this is a CI failure
+    # and never a warm-VM one. Naming the host asks the question dependents ask.
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}",
+          "pg_isready -h postgres -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}",
         ]
       interval: 30s
       start_interval: 2s

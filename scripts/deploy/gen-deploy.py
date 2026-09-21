@@ -34,8 +34,10 @@ import re
 import sys
 import yaml
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-MAKEFILE = os.path.join(ROOT, "Makefile")
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+# The MANIFEST (PLANES/PROFILES_*/EDITIONS/EDITION_*) lives in the first make
+# fragment, not the root Makefile — that is a 70-line `include` orchestrator.
+MAKEFILE = os.path.join(ROOT, "orchestrators", "makes", "00-config.mk")
 COMPOSE = os.path.join(ROOT, "docker-compose.yml")
 DEPLOY = os.path.join(ROOT, "deploy")
 HELM = os.path.join(DEPLOY, "helm", "mini-baas")
@@ -177,13 +179,30 @@ def service_facts(name, spec) -> dict:
     return svc
 
 
+def _compose_docs(path: str) -> list[dict]:
+    """Every compose document reachable from `path`, that file first then its `include:`s.
+
+    The root docker-compose.yml is a thin orchestrator that only `include:`s the
+    per-plane base/*.yml files, so every service lives one level down. Include
+    paths resolve against the including file's directory, as Compose does.
+    """
+    doc = yaml.safe_load(open(path, encoding="utf-8")) or {}
+    docs, base = [doc], os.path.dirname(os.path.abspath(path))
+    for inc in doc.get("include") or []:
+        raw = inc.get("path") if isinstance(inc, dict) else inc
+        for rel in (raw if isinstance(raw, list) else [raw]):
+            if rel:
+                docs.extend(_compose_docs(os.path.join(base, rel)))
+    return docs
+
+
 def parse_compose():
-    doc = yaml.safe_load(open(COMPOSE, encoding="utf-8"))
     services = {}
-    for name, spec in (doc.get("services") or {}).items():
-        if not isinstance(spec, dict):
-            continue
-        services[name] = service_facts(name, spec)
+    for doc in _compose_docs(COMPOSE):
+        for name, spec in (doc.get("services") or {}).items():
+            if not isinstance(spec, dict):
+                continue
+            services[name] = service_facts(name, spec)
     return services
 
 

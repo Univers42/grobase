@@ -10,11 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
 import { QueryService } from './query.service';
@@ -53,7 +49,8 @@ export class SqlRoService {
     const trimmed = sql.trim().replace(/;\s*$/, '');
     if (trimmed.includes(';')) throw new BadRequestException('Only a single statement is allowed.');
     const first = trimmed.toLowerCase().split(/\s+/, 1)[0] ?? '';
-    if (!READ_PREFIXES.includes(first)) throw new BadRequestException('Only read-only queries are allowed.');
+    if (!READ_PREFIXES.includes(first))
+      throw new BadRequestException('Only read-only queries are allowed.');
     return trimmed;
   }
 
@@ -71,7 +68,12 @@ export class SqlRoService {
   /** Open a short-lived single-connection pool and run in a READ ONLY txn. */
   private async execute(connectionString: string, statement: string): Promise<SqlRoResult> {
     // ponytail: per-request pool — cache by dbId if this becomes a hot path.
-    const pool = new Pool({ connectionString, max: 1, statement_timeout: STATEMENT_TIMEOUT_MS, idleTimeoutMillis: 1000 });
+    const pool = new Pool({
+      connectionString,
+      max: 1,
+      statement_timeout: STATEMENT_TIMEOUT_MS,
+      idleTimeoutMillis: 1000,
+    });
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
