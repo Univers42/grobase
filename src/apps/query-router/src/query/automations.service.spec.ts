@@ -12,6 +12,15 @@
 // The repo's jest setup does not ship `@types/jest` — import globals explicitly.
 import { describe, expect, it, jest } from '@jest/globals';
 import { ConfigService } from '@nestjs/config';
+
+// The SSRF guard resolves hostnames through node:dns. Answer here instead of
+// asking the host resolver: a real lookup made this suite depend on the
+// resolver's NXDOMAIN latency, which overran Jest's 5s budget. Replying with an
+// internal address also proves the STRONGER branch — a name that RESOLVES to a
+// private IP is refused, not merely one that fails to resolve.
+jest.mock('node:dns/promises', () => ({
+  lookup: async () => [{ address: '10.0.0.7', family: 4 }],
+}));
 import {
   AutomationsService,
   evaluateCondition,
