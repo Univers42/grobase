@@ -2,12 +2,13 @@
 # File: docker/services/trino/Dockerfile
 #
 # Self-built Trino from the OFFICIAL server tarball on a JRE-Alpine base — we do
-# NOT pull the ready-made trinodb/trino:467 image (1.49 GB). The only thing
+# NOT pull the ready-made trinodb/trino image (1.49 GB). The only thing
 # pulled is the JRE base (allowed by the 42-Inception rule) and the signed
 # release tarball from Maven Central.
 #
-# Trino 467 REQUIRES Java 23 (Java 21/22 are rejected by its version check), so
-# the runtime base is eclipse-temurin:23-jre-alpine. The container layout mirrors
+# Trino REQUIRES an exact Java generation (its own version check rejects the
+# others by name: 8, 11, 17, 21 and 24 "do not work"), so the runtime base has
+# to move with TRINO_VERSION. 483 wants Java 25. The container layout mirrors
 # upstream exactly so docker-compose.yml's mounts keep working unchanged:
 #   install → /usr/lib/trino   ·   config → /etc/trino   ·   data → /data/trino
 # compose mounts /etc/trino/config.properties and /etc/trino/catalog/*.properties
@@ -17,8 +18,15 @@
 
 # ── builder: fetch + extract the official Trino server tarball ──────────────
 FROM alpine:3.21 AS fetch
-ARG TRINO_VERSION=467
-ARG TRINO_TARBALL=https://repo1.maven.org/maven2/io/trino/trino-server/${TRINO_VERSION}/trino-server-${TRINO_VERSION}.tar.gz
+# The tarball comes from the GitHub release, which is where Maven Central has
+# been REDIRECTING this artifact to anyway -- and the redirect is why the
+# `Build (infra) trino` job on main broke: Trino prunes the release assets of
+# older versions, so 467's trino-server-467.tar.gz 404s at the end of that
+# redirect while the Maven directory listing still advertises it. Pointing at
+# the real host makes that failure legible the day it happens again; the
+# version has to be one whose asset still exists (483 as of 2026-09-21).
+ARG TRINO_VERSION=483
+ARG TRINO_TARBALL=https://github.com/trinodb/trino/releases/download/${TRINO_VERSION}/trino-server-${TRINO_VERSION}.tar.gz
 RUN apk add --no-cache curl tar gzip
 WORKDIR /build
 RUN curl -fSL "${TRINO_TARBALL}" -o trino.tar.gz \
@@ -31,8 +39,8 @@ RUN curl -fSL "${TRINO_TARBALL}" -o trino.tar.gz \
  && rm -rf /opt/trino/bin/*.jdk 2>/dev/null || true
 
 # ── runtime: Java 23 JRE on Alpine ──────────────────────────────────────────
-FROM eclipse-temurin:23-jre-alpine
-ARG TRINO_VERSION=467
+FROM eclipse-temurin:25-jre-alpine
+ARG TRINO_VERSION=483
 
 # python3 → required by bin/launcher; bash → run-trino; curl → healthcheck.
 RUN apk add --no-cache bash python3 curl \
