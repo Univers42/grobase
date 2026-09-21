@@ -17,7 +17,7 @@ services:
       PORT: "80"
       KONG_URL: "http://kong:8000"
     ports:
-      - "${GOURMAND_PORT:-5174}:80"
+      - "127.0.0.1:${GOURMAND_PORT:-5174}:80"
     volumes:
       - ./vendor/vite-gourmand:/app:ro
     depends_on:
