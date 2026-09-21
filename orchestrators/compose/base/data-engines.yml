@@ -201,11 +201,22 @@ services:
     volumes:
       - mongo-data:/data/db
       - mongo-keyfile:/etc/mongo
+    # `--host mongo` is load-bearing, not decoration. On a FRESH mongo-data volume
+    # the official entrypoint starts a TEMPORARY mongod bound to 127.0.0.1 only,
+    # runs the initdb steps against it, shuts it down and restarts for real. A
+    # healthcheck that connects to localhost answers OK during that window, so
+    # compose declared mongo healthy, released `depends_on: service_healthy`, and
+    # mongo-init then dialled mongo:27017 over the network and got ECONNREFUSED.
+    # The replica set was never initiated, mongo stayed RSGhost, and mongo-api
+    # crash-looped 16 times in 150 s. Dialling the service name means the probe
+    # asserts exactly what every dependent needs: reachable ON THE NETWORK.
+    # Invisible on a warm volume (no initdb, no temporary mongod) — which is why
+    # this only ever bit CI.
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          'mongosh --quiet --eval "try { rs.status().myState === 1 ? quit(0) : quit(1) } catch(e) { db.runCommand({ ping: 1 }).ok ? quit(0) : quit(1) }"',
+          'mongosh --host mongo --quiet --eval "try { rs.status().myState === 1 ? quit(0) : quit(1) } catch(e) { db.runCommand({ ping: 1 }).ok ? quit(0) : quit(1) }"',
         ]
       interval: 30s
       start_interval: 2s
@@ -265,6 +276,18 @@ services:
       - bash
       - -c
       - |
+        # Defence in depth behind the healthcheck fix above: this container is
+        # `restart: "no"`, so ONE refused connection used to leave the replica set
+        # uninitiated for the whole life of the stack, with no second chance and
+        # no failure anyone would notice until mongo-api crash-looped. Retry the
+        # dial; the initiate itself is already idempotent (rs.status() first).
+        for attempt in $$(seq 1 30); do
+          if mongosh --host mongo -u "$$MONGO_USER" -p "$$MONGO_PASS" \
+               --authenticationDatabase admin --quiet --eval 'quit(0)' >/dev/null 2>&1; then
+            break
+          fi
+          echo "mongo not reachable yet (attempt $$attempt/30)"; sleep 2
+        done
         mongosh --host mongo \
           -u "$$MONGO_USER" -p "$$MONGO_PASS" \
           --authenticationDatabase admin --quiet --eval '
