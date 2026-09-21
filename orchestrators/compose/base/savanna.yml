@@ -19,7 +19,7 @@ services:
       KONG_URL: "http://kong:8000"
     ports:
       # 5181 is taken by mini-baas-hypertube → default to 5182
-      - "${SAVANNA_PORT:-5182}:80"
+      - "127.0.0.1:${SAVANNA_PORT:-5182}:80"
     volumes:
       - ./vendor/savanna-zoo:/app:ro
     depends_on:
