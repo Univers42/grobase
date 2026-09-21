@@ -325,6 +325,16 @@ fn spawn_producer_task(
                         error!(adapter = %adapter_name, "Failed to publish event: {}", e);
                     }
                 }
+                // next_event() returning None means the producer's sender was
+                // dropped: this task is finished and no further change event
+                // will EVER be published for this database. It used to end
+                // here in total silence while the process kept serving
+                // WebSockets, so the only symptom was subscribers receiving
+                // nothing. Say so.
+                error!(
+                    adapter = %adapter_name,
+                    "producer stream ended — no further change events will be published for this database"
+                );
             }
             Err(e) => error!(adapter = %adapter_name, "Failed to start producer: {}", e),
         }
