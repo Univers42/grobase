@@ -405,8 +405,21 @@ jobs:
               sleep 3; elapsed=$((elapsed + 3))
             done
             echo "$name health check failed after 150s (last=$code)"
+            # `compose ps/logs` omits any service whose profile is inactive, and
+            # mongo-api carries `profiles: [data-plane]` — the step above starts it
+            # BY NAME, which bypasses the profile but does not activate it. So the
+            # run that failed here printed nine services and not one line from the
+            # one that was down. Name it explicitly with plain `docker`, which has
+            # no notion of profiles, and show WHY it is down (a crash loop and a
+            # slow boot look identical in `ps`).
             docker compose -f docker-compose.yml ps
             docker compose -f docker-compose.yml logs --tail=120
+            for c in mini-baas-mongo-api mini-baas-mongo; do
+              echo "──── $c ────"
+              docker inspect -f 'status={{.State.Status}} restarts={{.RestartCount}} exit={{.State.ExitCode}} oomkilled={{.State.OOMKilled}} health={{.State.Health.Status}}' "$c" 2>&1 || true
+              docker inspect -f '{{range .State.Health.Log}}--- probe rc={{.ExitCode}}: {{.Output}}{{end}}' "$c" 2>&1 | tail -20 || true
+              docker logs --tail=200 "$c" 2>&1 || true
+            done
             return 1
           }
           wait_200 http://localhost:8000/auth/v1/health gateway
@@ -455,6 +468,16 @@ jobs:
           mkdir -p artifacts
           docker compose -f docker-compose.yml ps    > artifacts/compose-ps.txt   2>&1 || true
           docker compose -f docker-compose.yml logs --no-color > artifacts/compose-logs.txt 2>&1 || true
+          # Same profile blind spot as the health-wait handler: compose walks the
+          # project's ACTIVE profiles, so the data-plane services this job starts by
+          # name never reach the artifact. `docker ps` filtered on the project label
+          # sees every container that exists, profile or not.
+          docker ps -a --filter label=com.docker.compose.project=mini-baas \
+            --format '{{.Names}}\t{{.Status}}\t{{.Image}}' > artifacts/docker-ps.txt 2>&1 || true
+          while read -r c _; do
+            [ -n "$c" ] || continue
+            docker logs --tail=400 "$c" > "artifacts/log-$c.txt" 2>&1 || true
+          done < artifacts/docker-ps.txt
 
       - name: Upload test artifacts
         if: always()
