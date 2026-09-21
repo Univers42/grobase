@@ -5,7 +5,8 @@
 # edition. Requires a prior `cd vendor/surfind-spain/web && npm run build`
 # (produces web/dist) and a run of vendor/surfind-spain/infra/init.sh (applies
 # the public schema + GoTrue users). The realtime PG producer must be alive
-# (mini-baas-realtime); restart it if it logged a "connection closed" error.
+# (mini-baas-realtime). It re-attaches its own LISTEN now (m184), so a
+# "connection closed" log line is a recovery, not a thing to restart by hand.
 services:
   surfind:
     extends: { file: orchestrators/compose/base/_common.yml, service: base }
