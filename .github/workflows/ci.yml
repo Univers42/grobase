@@ -366,12 +366,16 @@ jobs:
           bash scripts/certs/generate-localhost-cert.sh
           docker compose -f docker-compose.yml build
           docker compose -f docker-compose.yml up -d
-          # Mongo path for phases 14/15 — start the data-plane mongo services BY NAME
-          # so realtime (same profile, builds from the SSH submodule) is never pulled.
-          # --build forces THIS commit's Dockerfiles: the services now carry a ghcr.io
+          # Mongo path for phases 14/15 — start the data-plane mongo services BY NAME.
+          # --build forces THIS commit's Dockerfiles: the services carry a ghcr.io
           # image: pull-fallback, and without --build, up would pull the published
           # :latest and exercise stale code instead of the current source.
           docker compose -f docker-compose.yml up -d --build mongo-keyfile mongo mongo-init mongo-api
+          # Storage plane for phase 9 and realtime for phase 11. These were skipped
+          # for years because realtime built from an SSH submodule CI could not
+          # reach; the workspace is vendored as plain files now (163 tracked), so
+          # the build context is local and the blocker is gone.
+          docker compose -f docker-compose.yml up -d --build minio storage-router realtime
 
       - name: Apply PostgreSQL migrations
         run: |
@@ -412,9 +416,12 @@ jobs:
             # one that was down. Name it explicitly with plain `docker`, which has
             # no notion of profiles, and show WHY it is down (a crash loop and a
             # slow boot look identical in `ps`).
-            docker compose -f docker-compose.yml ps
+            # Plain `docker` with the compose project label: it has no notion of
+            # profiles, so nothing started by name can hide from this listing.
+            docker ps -a --filter label=com.docker.compose.project=mini-baas \
+              --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'
             docker compose -f docker-compose.yml logs --tail=120
-            for c in mini-baas-mongo-api mini-baas-mongo; do
+            for c in mini-baas-mongo-api mini-baas-mongo mini-baas-storage-router mini-baas-minio mini-baas-realtime; do
               echo "──── $c ────"
               docker inspect -f 'status={{.State.Status}} restarts={{.RestartCount}} exit={{.State.ExitCode}} oomkilled={{.State.OOMKilled}} health={{.State.Health.Status}}' "$c" 2>&1 || true
               docker inspect -f '{{range .State.Health.Log}}--- probe rc={{.ExitCode}}: {{.Output}}{{end}}' "$c" 2>&1 | tail -20 || true
@@ -425,7 +432,7 @@ jobs:
           wait_200 http://localhost:8000/auth/v1/health gateway
           wait_200 http://localhost:8000/mongo/v1/health mongo-api
 
-      - name: Run test phases 1-4, 14, 15
+      - name: Run test phases 1-16
         env:
           FORCE_COLORS: "0"
         run: |
@@ -435,10 +442,14 @@ jobs:
           # or phase 2's preflight check sees no access-control-allow-origin header.
           export APIKEY PUBLIC_APIKEY="$APIKEY" BASE_URL="http://localhost:8000" TEST_ORIGIN="https://localhost:3000"
           rc_all=0
-          # 5-8,10,16 use only /rest + /auth (the default stack); 14-15 are Mongo.
-          # Phases 9 (storage) and 11-13 (realtime) need extra planes — added once
-          # those services are wired into this job.
-          for phase in 1 2 3 4 5 6 7 8 10 14 15 16; do
+          # All sixteen. The four that were skipped are exactly the four the
+          # mutation manifest targets hardest, and exactly where the green-but-blind
+          # gates were found — the suites CI never ran were the ones free to rot.
+          #   9     storage  -> needs minio + storage-router (started above)
+          #   11    realtime -> needs realtime (started above)
+          #   12,13 rate-limit + CORS -> only ever needed Kong; they were grouped
+          #         under "realtime" in the old comment and skipped for no reason.
+          for phase in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do
             script=$(ls scripts/test/phase/phase${phase}-*.sh scripts/test/phase/phase${phase}-*.py 2>/dev/null | head -1 || true)
             if [ -z "$script" ]; then
               echo "No test script for phase ${phase}, skipping"; continue
