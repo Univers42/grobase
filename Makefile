@@ -15,6 +15,7 @@
 
 include $(sort $(wildcard orchestrators/makes/*.mk))
 
+##@ 42 Classics — all · clean · fclean · re  (+ the full test matrix)
 all:
 	@$(MAKE) --no-print-directory build
 	@$(MAKE) --no-print-directory up
@@ -64,7 +65,7 @@ tests: ## Run the FULL test matrix (Go·Rust·TS·SDK·lint·deps·scan·conform
         sonar-coverage sonar-scan \
         rust-data-plane-check rust-data-plane-build go-control-plane-check \
         rust-realtime-check rust-realtime-test rust-realtime-build _rust-toolchain \
-        go-control-plane-build preflight hooks update help \
+        go-control-plane-build preflight help \
         quickstart release-binaries release-images release-check _require-version \
         backup-now restore-verify cloud-flags-print cloud-up cloud-down \
         _require-docker _require-compose _rm-stale

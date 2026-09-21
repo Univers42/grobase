@@ -10,6 +10,7 @@
 #                                                                              #
 # **************************************************************************** #
 
+##@ Stack lifecycle — up · down · build · health · benchmarks · reports
 up: _require-compose _rm-stale ## Start the selected EDITION (detached)
 	@[ -f .env ] || { echo -e "$(_Y).env missing → generating (make env)…$(_0)"; $(MAKE) --no-print-directory env; }
 	@[ -f certs/localhost.pem ] || { echo -e "$(_Y)TLS cert missing → generating (make certs)…$(_0)"; $(MAKE) --no-print-directory certs; }

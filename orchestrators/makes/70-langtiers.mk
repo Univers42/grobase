@@ -10,6 +10,7 @@
 #                                                                              #
 # **************************************************************************** #
 
+##@ Per-language toolchains — TS · Rust · Go · SDK · Sonar · nano/one
 NODE_IMAGE := public.ecr.aws/docker/library/node:20-alpine
 NODE_RUN    = docker run --rm -v "$(CURDIR)/src":/app -w /app \
 	-v mini-baas-src-node-modules:/app/node_modules \
@@ -67,7 +68,8 @@ CARGO_VOLS           = -v mini-baas-cargo-registry:/usr/local/cargo/registry -v 
 CARGO_DPR            = docker run --rm -v "$(CURDIR)/src/data-plane-router":/work -w /work $(CARGO_VOLS) -v mini-baas-dpr-target:/work/target $(RUST_TOOLCHAIN_IMG)
 CARGO_REALTIME       = docker run --rm -v "$(CURDIR)/infra/docker/services/realtime/realtime-agnostic":/work -w /work $(CARGO_VOLS) -v mini-baas-realtime-target:/work/target $(RUST_TOOLCHAIN_IMG)
 
-_rust-toolchain: ## (internal) cargo-in-docker image: rust + pkg-config/libssl (layer-cached)
+# (internal, hidden from help) cargo-in-docker image: rust + pkg-config/libssl (layer-cached)
+_rust-toolchain:
 	@printf 'FROM $(RUST_IMAGE)\nRUN rustup component add clippy rustfmt && apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*\n' \
 		| docker build -q -t $(RUST_TOOLCHAIN_IMG) - >/dev/null
 

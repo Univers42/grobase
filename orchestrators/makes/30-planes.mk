@@ -10,6 +10,7 @@
 #                                                                              #
 # **************************************************************************** #
 
+##@ Planes, editions & packages — the stack-shaping dimensions
 define PLANE_RULES
 up-$(1): _require-compose ## (generated) start the '$(1)' plane on a running core
 	@echo -e "$(_B)+ plane $(_W)$(1)$(_0) → $(_C)$(PROFILES_$(1))$(_0)"
