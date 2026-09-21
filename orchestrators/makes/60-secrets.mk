@@ -10,6 +10,7 @@
 #                                                                              #
 # **************************************************************************** #
 
+##@ Secrets, .env assembly, TLS certs & Vault
 secrets: ## Generate all secrets → .env
 	@bash scripts/secrets/generate-secrets.sh
 secrets-validate: ## Validate required secrets exist
