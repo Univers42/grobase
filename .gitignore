@@ -430,6 +430,11 @@ certs/*
 # bench artifact as evidence with `git add -f artifacts/bench/<file>` if needed.
 /artifacts/
 
+# ── Core dumps — never track. ──
+# The vendored realtime workspace has dropped 250 MB+ cores (core.8012, core.8101)
+# straight into the tree; one `git add -A` would put them past GitHub's 100 MB wall.
+core.[0-9]*
+
 # ── Compiled Go control-plane binaries — build outputs of cmd/* (~98 MB total). ──
 # The toolchain builds these in Docker (`make go-control-plane-build`); never track.
 /src/control-plane/adapter-registry

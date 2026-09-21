@@ -10,12 +10,9 @@
 #                                                                              #
 # **************************************************************************** #
 
+##@ Ops — backup/restore, cloud edition, project cleanup, vault42 & 42ctl
 preflight: ## Run pre-deployment checks
 	@bash scripts/ci/preflight-check.sh
-hooks: ## Activate git hooks
-	@if [ -d .git ]; then git config --local core.hooksPath $(HOOKS_DIR); chmod +x $(HOOKS_DIR)/* 2>/dev/null || true; echo -e "  $(_G)✓$(_0) hooks → $(HOOKS_DIR)"; else echo "  • not a git repo"; fi
-update: ## Update git submodules
-	@git submodule update --remote --merge && echo -e "$(_G)✓ Submodules updated$(_0)"
 
 
 backup-now: ## Take a one-off Postgres backup right now (pg-backup `once` → MinIO)
@@ -60,13 +57,22 @@ CLOUD_PROFILES  := --profile control-plane --profile go-control-plane \
                    --profile observability --profile ops --profile backups \
                    --profile cloud
 
-cloud-up: _require-compose _rm-stale ## Boot the FULL managed-cloud stack locally (all cloud flags ON, mock Stripe)
+# flags.env.cloud is gitignored on purpose (it carries a real STRIPE_API_KEY), so a
+# fresh clone has only the template and every CLOUD_FILES command dies on a bare
+# `stat: no such file`. Name the file and the fix instead.
+_require-cloud-flags:
+	@[ -f infra/config/cloud/flags.env.cloud ] || { \
+		echo -e "$(_R)✗ infra/config/cloud/flags.env.cloud is missing$(_0) — gitignored by design (it carries a real STRIPE_API_KEY)."; \
+		echo -e "  Create it: $(_C)cp infra/config/cloud/flags.env.example infra/config/cloud/flags.env.cloud$(_0), then flip the flags ON and fill STRIPE_*."; \
+		exit 1; }
+
+cloud-up: _require-compose _require-cloud-flags _rm-stale ## Boot the FULL managed-cloud stack locally (all cloud flags ON, mock Stripe)
 	@echo -e "$(_B)Starting CLOUD edition (all managed-cloud flags ON, mock Stripe) → prod planes + cloud profile$(_0)"
 	@eval "$$(bash scripts/ops/resolve-ports.sh 2>/dev/null || true)"; \
 	  docker compose $(CLOUD_FILES) $(CLOUD_PROFILES) up -d $(SERVICE)
 	@echo -e "$(_G)✓ Cloud edition up (infra/config/cloud/flags.env.cloud layered; stripe-mock in the cloud profile)$(_0)"
 
-cloud-down: _require-compose ## Stop the cloud edition (overlay + cloud profile)
+cloud-down: _require-compose _require-cloud-flags ## Stop the cloud edition (overlay + cloud profile)
 	@docker compose $(CLOUD_FILES) $(CLOUD_PROFILES) down
 	@echo -e "$(_G)✓ Cloud edition down$(_0)"
 

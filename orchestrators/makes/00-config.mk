@@ -20,7 +20,6 @@ IMAGE_TAG      ?= latest
 REGISTRY       ?= localhost:5000
 SERVICE        ?=
 STEPS          ?= 1
-HOOKS_DIR      := vendor/scripts/hooks
 DC             := docker compose -f $(COMPOSE_FILE)
 
 # Colors
