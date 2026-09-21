@@ -1445,7 +1445,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "// Mint an HS256 JWT (iss=supabase, sub=storage owner) like m55's mint_jwt.",
-                  "const CryptoJS = require('crypto-js');",
+                  "// crypto-js is already required by the COLLECTION prerequest, which newman runs in the same scope as this one: declaring it again threw \"Identifier 'CryptoJS' has already been declared\", the script died before minting storageJwt, and all of 80 Storage then failed 401.",
                   "const secret = pm.environment.get('jwtSecret');",
                   "if (secret) {",
                   "  const b64u = (s) => CryptoJS.enc.Base64.stringify(s).replace(/=+$/,'').replace(/\\+/g,'-').replace(/\\//g,'_');",
