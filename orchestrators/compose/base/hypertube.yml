@@ -48,7 +48,7 @@ services:
       PORT: "80"
       KONG_URL: "http://kong:8000"
     ports:
-      - "${HYPERTUBE_PORT:-5176}:80"
+      - "127.0.0.1:${HYPERTUBE_PORT:-5176}:80"
     volumes:
       - ./vendor/hypertube:/app:ro
     depends_on:
