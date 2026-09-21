@@ -148,8 +148,10 @@ compose stack; the K8s equivalents are `kubectl … exec`/`logs`/`port-forward`.
 ### R6 — Realtime down / events not delivering (SEV2)
 - **Probe:** realtime `/health` (`/app/realtime-server --healthcheck`); outbox
   relay draining? `baas_*` on the relay; is `REALTIME_PUBLISH_URL` set?
-- **Mitigate:** restart realtime; presence is per-node today (cross-node is
-  Track E2) so a single-node restart drops presence — expected.
+- **Mitigate:** the PG producer re-attaches its own LISTEN (m184) — look for
+  `PostgreSQL LISTEN re-attached` before restarting anything. If instead you see
+  `PostgreSQL re-attach failed` repeating, the database is refusing it and THAT
+  is the fault. A restart drops presence (per-node today, cross-node is Track E2).
 
 ### R7 — Backup / restore (per-tenant) (SEV2/3)
 - **Probe:** `POST /v1/tenants/{id}/backup` + `/restore/{id}` (B6, flag
