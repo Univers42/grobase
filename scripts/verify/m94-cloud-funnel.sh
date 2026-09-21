@@ -554,12 +554,44 @@ grep -q "\"customer\":\"${CUS}\"" "${EVENTS_TMP}" || fail "B3: no event for cust
 # A value > 0 (the window qty). The window may be one or more (each ≥1); the SUM seen
 # across events for this customer must be > 0 — assert at least one non-zero value.
 grep -Eq "\"value\":\"[1-9][0-9]*\"" "${EVENTS_TMP}" || fail "B3: every meter event had value 0 — $(head -c 400 "${EVENTS_TMP}")"
+# ── idempotency: prove the reporter RAN, then prove it did not re-send ────────
+# This was `BEFORE=$(count); sleep 5.5; AFTER=$(count); [[ AFTER == BEFORE ]]`, which
+# is the one thing the header of this file forbids — a bare sleep on a behaviour
+# assertion — and it flaked in BOTH directions. A starved runner emits no new events
+# for exactly the same reason a working ledger does, so the assertion passed
+# VACUOUSLY whenever the reporter never ticked; and a window landing mid-flight
+# failed it spuriously. Re-running turned it green, which trains everyone to re-run
+# instead of read.
+#
+# Causal instead. Hand the reporter a SECOND window with its own idempotency key and
+# wait for ITS event to arrive: that arrival is proof a tick ran. The first window's
+# key must then still appear exactly once — proof the billing_reported ledger
+# suppressed the re-send, rather than the reporter merely having been asleep.
+# The mock deliberately does not implement Stripe's identifier-dedup (see
+# m82-mock-stripe/server.mjs), so a re-send would be visible here if it happened.
+ORIG_IDEM="$(pg_val "${PG}" "SELECT idempotency_key FROM public.tenant_usage WHERE tenant_id='${T_FUNNEL}' AND metric='query.count' ORDER BY window_start LIMIT 1")"
+[[ -n "${ORIG_IDEM}" ]] || fail "B3: no seeded tenant_usage row for ${T_FUNNEL}/query.count to judge idempotency on"
 BEFORE="$(mock_events "${PORT_MOCK}")"
-sleep "$(awk 'BEGIN{print (1500*3/1000)+1}')" # ≥3 report intervals
-AFTER="$(mock_events "${PORT_MOCK}")"
-[[ "${AFTER}" == "${BEFORE}" ]] ||
-  fail "B3: idempotency broken — events grew ${BEFORE}→${AFTER} after re-ticks (the billing_reported ledger must suppress re-sends)"
-ok "B3: ≥1 meter event (event_name=${EVENT_NAME}, customer=${CUS}, value>0); re-tick added nothing (${BEFORE}→${AFTER}) = idempotent"
+PROBE_IDEM="m94-retick-${RUNID}"
+printf "INSERT INTO public.tenant_usage (tenant_id, metric, window_start, qty, idempotency_key)
+        VALUES ('%s','query.count', date_trunc('hour', now()) - interval '1 hour', 3, '%s');\n" \
+  "${T_FUNNEL}" "${PROBE_IDEM}" | pg_q "${PG}" >/dev/null ||
+  fail "B3: could not insert the re-tick probe window"
+
+for _ in $(seq 1 60); do
+  AFTER="$(mock_events "${PORT_MOCK}")"
+  grep -q "\"identifier\":\"${PROBE_IDEM}\"" "${EVENTS_TMP}" && break
+  sleep 0.5
+done
+grep -q "\"identifier\":\"${PROBE_IDEM}\"" "${EVENTS_TMP}" ||
+  fail "B3: the probe window ${PROBE_IDEM} never reached stripe-mock within 30s — the reporter is not ticking, so idempotency cannot be judged (this used to pass as a silent green)"
+
+ORIG_SEEN="$(grep -c "\"identifier\":\"${ORIG_IDEM}\"" "${EVENTS_TMP}" || true)"
+[[ "${ORIG_SEEN}" == "1" ]] ||
+  fail "B3: idempotency broken — the first window (${ORIG_IDEM}) was sent ${ORIG_SEEN}× across re-ticks; the billing_reported ledger must suppress re-sends"
+[[ "${AFTER}" == "$((BEFORE + 1))" ]] ||
+  fail "B3: re-ticks emitted $((AFTER - BEFORE)) extra event(s), expected exactly 1 (the probe window) — un-suppressed re-sends"
+ok "B3: ≥1 meter event (event_name=${EVENT_NAME}, customer=${CUS}, value>0); reporter demonstrably ticked (probe delivered) and re-sent nothing — first window seen exactly once, ${BEFORE}→${AFTER}"
 
 step "11/14 [POSITIVE 7 · B4b] Kong route ~/v1/tenants/me (the key) → 200 (public buyer-facing surface wired)"
 C="$(curl -s -o "${BODY_TMP}" -w '%{http_code}' "http://127.0.0.1:${PORT_KONG}/v1/tenants/me" -H "Authorization: Bearer ${KEY}")"
@@ -730,6 +762,10 @@ C="$(post_q "${PORT_PDPR}" "$(payload_list "${PDB_INNET}" "${T_OVERQ}")")"
 ok "[PARITY] over-cap /v1/query → 200 (quota:over never written, set never consulted) = byte-parity"
 
 step "P5/6 [PARITY · zero billing + spend OFF] fresh stripe-mock /_events count==0; spend:over never written"
+# A bare wait is right HERE and wrong in B3: this asserts an ABSENCE, and there is
+# nothing to poll for when the correct outcome is that no event ever arrives. B3
+# asserted a behaviour (the ledger suppressed a re-send) and so had to prove the
+# reporter ran at all. Reporting is off in this arm by construction, not by timing.
 sleep "$(awk 'BEGIN{print (1500*3/1000)+1}')"
 PEV="$(mock_events "${PORT_PMOCK}")"
 [[ "${PEV}" == "0" ]] || {
