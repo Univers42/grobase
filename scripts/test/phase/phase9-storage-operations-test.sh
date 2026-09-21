@@ -200,6 +200,26 @@ LARGE_CODE=$(curl -sS -o "$TMPDIR/large-payload.out" -w "$CURL_FMT" \
   --max-time "$TIMEOUT" 2>/dev/null || echo '000')
 assert_code_one_of "Storage payload >10MB rejected" "$LARGE_CODE" "413"
 
+# Nothing above this point needs the storage PLANE to be running:
+# scripts/test/mutants/run.sh stopped mini-baas-storage-router and the whole
+# suite stayed green. Test 1 is Kong refusing a keyless request, test 9 is
+# Kong's payload limit, test 2's /storage/v1/minio/health/live is routed
+# straight to MinIO, and tests 3-8 talk to MinIO with mc, past the gateway
+# entirely. So a suite called "storage operations" proved nothing about the
+# service that serves them.
+#
+# The object API is what needs it. An anon key is deliberately NOT a user
+# identity there, so the plane itself answers 401 -- and with the plane
+# stopped the request dies at the gateway with 000 instead, which is what
+# makes this assertion load-bearing rather than another liveness ping.
+ui_step "Test 10: the storage plane itself answers, and refuses an anon-only identity"
+BUCKET_API_CODE=$(curl -sS -o "$TMPDIR/bucket-api.out" -w "$CURL_FMT" \
+  -X GET "$BASE_URL/storage/v1/bucket" \
+  -H "apikey: $APIKEY" \
+  -H "Authorization: Bearer $APIKEY" \
+  --max-time "$TIMEOUT" 2>/dev/null || echo '000')
+assert_code_one_of "Object API refuses an anon-only identity (401, not a dead upstream)" "$BUCKET_API_CODE" "401"
+
 ui_step "Cleanup"
 rm -rf "$TMPDIR" >/dev/null 2>&1 || true
 echo "✓ Temporary files cleaned up"
