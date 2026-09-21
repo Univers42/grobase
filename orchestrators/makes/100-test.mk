@@ -121,3 +121,10 @@ test-waf: ## WAF: confirm SQLi/XSS are blocked at the edge
 test-gates: ## Verify-gate battery (curated --fast set via run-gate-battery)
 	@if [ -x scripts/verify/run-gate-battery.sh ]; then bash scripts/verify/run-gate-battery.sh --fast; \
 	else $(MAKE) --no-print-directory verify-all; fi
+
+# The suites answer "does the platform work". This answers "would the suites
+# notice if it stopped" — the question four green-but-blind gates failed for as
+# long as they existed. A SURVIVED verdict is a bug report about the suite; a
+# BASELINE means the suite was already red and nothing can be concluded.
+test-mutants: _require-compose ## Mutation testing: break one behaviour at a time, assert the suite goes red (needs a live stack)
+	@bash scripts/test/mutants/run.sh $(MUTANT)
