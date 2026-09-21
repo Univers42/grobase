@@ -75,7 +75,7 @@ services:
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       AWS_REGION: us-east-1
     ports:
-      - "${ICEBERG_REST_PORT:-8181}:8181"
+      - "127.0.0.1:${ICEBERG_REST_PORT:-8181}:8181"
     depends_on:
       minio-iceberg-init:
         condition: service_completed_successfully

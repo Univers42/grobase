@@ -78,11 +78,23 @@ mod tests {
     fn only_the_exact_origins_listed() {
         let p = OriginPolicy::parse("http://localhost:5180, https://app.example.com").unwrap();
         assert!(p.allows("http://localhost:5180"));
-        assert!(p.allows("http://LOCALHOST:5180/"), "case and a trailing slash are still the same origin");
-        assert!(!p.allows("http://localhost:5181"), "a neighbouring port is a different origin");
-        assert!(!p.allows("https://app.example.com.evil.test"), "a suffix is not a match");
+        assert!(
+            p.allows("http://LOCALHOST:5180/"),
+            "case and a trailing slash are still the same origin"
+        );
+        assert!(
+            !p.allows("http://localhost:5181"),
+            "a neighbouring port is a different origin"
+        );
+        assert!(
+            !p.allows("https://app.example.com.evil.test"),
+            "a suffix is not a match"
+        );
         assert!(!p.allows("https://evil.test/?x=https://app.example.com"));
-        assert!(!p.allows("null"), "a sandboxed iframe sends null and gets nothing");
+        assert!(
+            !p.allows("null"),
+            "a sandboxed iframe sends null and gets nothing"
+        );
         assert!(!p.allows(""));
     }
 
