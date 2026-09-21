@@ -1,0 +1,19 @@
+# Mutation manifest — id <TAB> kind <TAB> suite <TAB> what its survival would mean
+#
+# kind=env  an environment override for the suite only; the platform is not
+#           touched, and the question is "would this suite notice?"
+# kind=svc  a service is stopped under the suite; the platform IS touched and
+#           is restored afterwards, including by the EXIT trap.
+#
+# Few and meaningful, not exhaustive (Google's lesson): every row destroys one
+# behaviour a suite claims to prove, and the last column is the sentence a
+# survivor would earn.
+mc-image-missing	env	phase9	storage passes without a MinIO client: the mc steps report success on a container that was never created
+minio-secret-wrong	env	phase9	storage passes with the wrong secret key: the suite proves nothing about authentication to MinIO
+storage-router-down	svc	phase9	storage passes with the storage plane stopped
+cors-origin-hostile	env	phase13	the CORS suite passes from an origin the gateway must refuse: it never read the header it asserts on
+gateway-unreachable	env	phase13	a suite is green against a gateway that is not there — the vacuous-pass case that HTTP 000 used to hide
+realtime-down	svc	phase11	realtime passes with the realtime plane stopped
+mongo-api-down	svc	phase14	the Mongo MVP passes with the mongo API stopped
+offers-no-identity	env	offers	the offers collection passes with no user identity, as it did while authEmail was seeded empty
+waf-down	svc	waf	the security gate passes with the WAF itself stopped — exactly what it did while it curled a port nothing listens on
