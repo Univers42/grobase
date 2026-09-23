@@ -68,14 +68,30 @@ docker run --rm -v "${RUST_WS}":/work -w /work \
 }
 
 cyan "[deps] Go — govulncheck (control-plane, reachability-based)"
+# govulncheck v1.8+ needs go >= 1.26; pin the last release GO_IMG can build. An install
+# failure exits 99 so it is never mistaken for a finding (exit 3) or a clean scan (0).
+GOVULN_VER="v1.7.0"
+govuln_rc=0
 docker run --rm -v "${GO_DIR}":/work -w /work \
-  -v mini-baas-go-build-cache:/go/pkg/mod -e GOFLAGS=-mod=mod "${GO_IMG}" sh -c '
-    go install golang.org/x/vuln/cmd/govulncheck@latest >/dev/null 2>&1
+  -v mini-baas-go-build-cache:/go/pkg/mod -e GOFLAGS=-mod=mod "${GO_IMG}" sh -c "
+    go install golang.org/x/vuln/cmd/govulncheck@${GOVULN_VER} || exit 99
     /go/bin/govulncheck ./...
-  ' || {
+  " || govuln_rc=$?
+case "${govuln_rc}" in
+0) ;;
+3)
   red "[deps] govulncheck found a vulnerability"
   rc=1
-}
+  ;;
+99)
+  red "[deps] govulncheck ${GOVULN_VER} could not be installed — the Go scan did NOT run"
+  rc=1
+  ;;
+*)
+  red "[deps] govulncheck errored (exit ${govuln_rc}) — the Go scan result is unknown"
+  rc=1
+  ;;
+esac
 
 [[ "${rc}" == "0" ]] && green "[deps] OK — no new vulnerabilities (Go clean; Rust transitive advisories tracked)" ||
   red "[deps] FAIL — see above"

@@ -175,11 +175,3 @@ func TestVerifyServiceRequestHMAC(t *testing.T) {
 		t.Fatal("hmac mode must reject an expired signature")
 	}
 }
-
-func req(headers map[string]string) *http.Request {
-	r, _ := http.NewRequest(http.MethodGet, "/", nil)
-	for k, v := range headers {
-		r.Header.Set(k, v)
-	}
-	return r
-}

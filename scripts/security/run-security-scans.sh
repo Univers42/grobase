@@ -24,16 +24,20 @@
 #   bash scripts/security/run-security-scans.sh
 #   bash scripts/security/run-security-scans.sh --only=semgrep,trivy
 #   bash scripts/security/run-security-scans.sh --skip=trufflehog
+#   bash scripts/security/run-security-scans.sh --list-images
+#     prints the images the Trivy image leg would scan, then exits (1 if none)
 #
 # Environment knobs:
 #   SECURITY_FAIL_LEVEL    high|critical (default: high) — npm audit threshold
 #   SECURITY_TRIVY_SEVERITY HIGH,CRITICAL (default)
 #   SECURITY_SEMGREP_CONFIG p/owasp-top-ten,p/typescript,p/dockerfile,p/nodejs (default)
 #   SECURITY_ARTIFACTS_DIR  artifacts/security (default)
-#   SKIP_BUILD              1 to skip baas image build before Trivy scan
+#   SECURITY_TRIVY_IMAGE_PARALLELISM  concurrent image scans (default: 4)
+#   SKIP_BUILD              1 to skip the Trivy image leg (filesystem scan only)
 #
 # Exit code: 0 only when every enabled scanner returns no findings at or above
-# the configured severity threshold.
+# the configured severity threshold. The Trivy image leg fails when it selects
+# zero images, so an empty host never reads as a clean scan.
 
 set -euo pipefail
 
@@ -58,10 +62,12 @@ ok() { green "[sec] OK:   $*"; }
 # ── argument parsing ─────────────────────────────────────────────────────────
 ONLY=""
 SKIP=""
+LIST_IMAGES=0
 for arg in "$@"; do
   case "${arg}" in
   --only=*) ONLY="${arg#--only=}" ;;
   --skip=*) SKIP="${arg#--skip=}" ;;
+  --list-images) LIST_IMAGES=1 ;;
   --help | -h)
     sed -n '/^# Usage:/,/^# Exit code:/p' "$0" | sed 's/^# \?//'
     exit 0
@@ -101,6 +107,8 @@ run_semgrep() {
     --exclude='**/playwright-report' \
     --exclude='**/test-results' \
     --exclude='vendor' \
+    --exclude='infra/docker/services/realtime/realtime-agnostic/.github' \
+    --exclude='sdks/python/.github' \
     --json-output=/out/semgrep.json \
     --metrics=off \
     --no-rewrite-rule-ids \
@@ -170,6 +178,33 @@ run_npm_audit() {
   return 0
 }
 
+# select_images prints the stack's shipped runtime images present on the host,
+# one per line, sorted. That is the ghcr.io/univers42/grobase-<svc> tag every
+# compose service carries as its pull-fallback (a local build is tagged the
+# same), plus bare mini-baas-*/grobase-* and dlesieur/realtime tags. The newman
+# edge-test runner and the build toolchains are never deployed, so they are
+# dropped. Prints nothing when nothing matches or the docker daemon is down.
+select_images() {
+  docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null |
+    grep -E '^(ghcr\.io/univers42/)?(mini-baas|grobase)|^dlesieur/realtime' |
+    grep -vE '<none>|newman|rust-toolchain|node-build|go-build|toolchain' |
+    sort -u || true
+}
+
+# list_images prints select_images' result on stdout and exits: 0 with at least
+# one image, 1 (with the reason on stderr) when the image leg would scan nothing.
+list_images() {
+  local images
+  images=$(select_images)
+  if [[ -z "${images}" ]]; then
+    fail "zero stack images selected on this host" >&2
+    exit 1
+  fi
+  printf '%s\n' "${images}"
+  step "$(printf '%s\n' "${images}" | wc -l) image(s) selected" >&2
+  exit 0
+}
+
 run_trivy() {
   step "Trivy — Container + filesystem scan"
   local severity="${SECURITY_TRIVY_SEVERITY:-HIGH,CRITICAL}"
@@ -187,7 +222,7 @@ run_trivy() {
     -v "${REPO_ROOT}/${BAAS_DIR}:/src:ro" \
     -v "${REPO_ROOT}/${out_dir}:/out" \
     -v "${REPO_ROOT}/${cache_dir}:/root/.cache/trivy" \
-    aquasec/trivy:latest \
+    aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
     fs --quiet \
     --severity "${severity}" \
     --ignore-unfixed \
@@ -201,20 +236,17 @@ run_trivy() {
     return 1
   fi
 
-  # Container image scan — only if SKIP_BUILD!=1 and the BaaS image exists.
-  if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
+  if [[ "${SKIP_BUILD:-0}" == "1" ]]; then
+    warn "  image scan skipped (SKIP_BUILD=1) — the verdict covers the filesystem scan only"
+  else
     step "  Trivy image scan (shipped runtime images on host)"
-    # Scan SHIPPED runtime images only — the newman edge-test runner and the
-    # rust/node build toolchains are never deployed, so their base CVEs aren't
-    # part of the product's attack surface.
     local images
-    images=$(docker images --format '{{.Repository}}:{{.Tag}}' |
-      grep -E '^mini-baas|^grobase|^dlesieur/realtime' |
-      grep -vE '<none>|newman|rust-toolchain|node-build|go-build|toolchain' |
-      head -20 || true)
+    images=$(select_images)
     if [[ -z "${images}" ]]; then
-      warn "  no mini-baas images on host — run \`make baas-up\` first to scan images"
+      fail "  image scan selected 0 images (ghcr.io/univers42/grobase-*, mini-baas-*, grobase-*) — pull or build the stack first (make up / make build), or set SKIP_BUILD=1 to skip this leg on purpose"
+      return 1
     else
+      step "  $(printf '%s\n' "${images}" | wc -l) image(s) selected: ${images//$'\n'/ }"
       local image_list="${out_dir}/.trivy-images.txt"
       local parallelism="${SECURITY_TRIVY_IMAGE_PARALLELISM:-4}"
       local img_rc=0
@@ -235,7 +267,7 @@ run_trivy() {
           -v "${repo_root}/${out_dir}:/out" \
           -v "${repo_root}/${ignore_file}:/trivyignore:ro" \
           -v "${cache_root}/db:/root/.cache/trivy/db:ro" \
-          aquasec/trivy:latest \
+          aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
           image --quiet \
                 --skip-db-update \
                 --skip-java-db-update \
@@ -249,7 +281,7 @@ run_trivy() {
         img_rc=1
       fi
       if [[ ${img_rc} -gt 0 ]]; then
-        warn "  one or more image scans failed (reports in ${out_dir})"
+        fail "  one or more image scans failed (reports in ${out_dir})"
         return 1
       fi
     fi
@@ -310,6 +342,8 @@ run_trufflehog() {
 
 # ── orchestration ────────────────────────────────────────────────────────────
 fail_count=0
+
+if [[ "${LIST_IMAGES}" == "1" ]]; then list_images; fi
 
 step "Security scan suite started ($(date -u +%FT%TZ))"
 step "Artifacts will land under ${ARTIFACTS_DIR}"

@@ -1,6 +1,6 @@
 ---
-globs: ["**/*.go"]
-description: Go packages are organised by domain/capability, not by type; minimal exports
+paths:
+  - "**/*.go"
 ---
 
 # Go Package Design — package by domain, not by type

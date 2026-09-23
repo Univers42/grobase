@@ -1,7 +1,3 @@
----
-description: Deploy/runtime service boundaries — fly=grobase owns all state, Vercel=stateless frontends, apps are contracts
----
-
 # Service Boundaries (binding)
 
 Full rule: [`wiki/architecture/service-boundaries.md`](../../wiki/architecture/service-boundaries.md).

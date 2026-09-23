@@ -321,13 +321,16 @@ jobs:
         run: FORCE=1 bash scripts/env/generate-env.sh .env
 
       - name: Build app images (validates the lightweight layer)
-        run: docker compose -f docker-compose.yml build $APP_SVCS
+        run: |
+          read -ra svcs <<<"$APP_SVCS"
+          docker compose -f docker-compose.yml build "${svcs[@]}"
 
       - name: Log in to GHCR + push (main only)
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker compose -f docker-compose.yml push $APP_SVCS
+          read -ra svcs <<<"$APP_SVCS"
+          docker compose -f docker-compose.yml push "${svcs[@]}"
 
   # ─── Job 3: Integration tests ──────────────────────────────────
   integration-tests:
@@ -389,7 +392,8 @@ jobs:
           # db-bootstrap only seeds tenant_databases/schema_registry, so apply the
           # numbered migrations the way `make migrate` does (strip # comment lines).
           until docker compose -f docker-compose.yml exec -T postgres pg_isready -U postgres -d postgres >/dev/null 2>&1; do sleep 2; done
-          for f in $(ls -1 scripts/migrations/postgresql/*.sql 2>/dev/null | sort); do
+          shopt -s nullglob
+          for f in scripts/migrations/postgresql/*.sql; do
             echo "Applying: $f"
             sed '/^#/d' "$f" | docker compose -f docker-compose.yml exec -T postgres \
               psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f -
@@ -460,7 +464,10 @@ jobs:
           #   12,13 rate-limit + CORS -> only ever needed Kong; they were grouped
           #         under "realtime" in the old comment and skipped for no reason.
           for phase in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do
-            script=$(ls scripts/test/phase/phase${phase}-*.sh scripts/test/phase/phase${phase}-*.py 2>/dev/null | head -1 || true)
+            script=""
+            for c in scripts/test/phase/phase"${phase}"-*.sh scripts/test/phase/phase"${phase}"-*.py; do
+              if [ -e "$c" ]; then script=$c; break; fi
+            done
             if [ -z "$script" ]; then
               echo "No test script for phase ${phase}, skipping"; continue
             fi
@@ -509,7 +516,7 @@ jobs:
 
       - name: Upload test artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: test-artifacts-${{ github.run_id }}
           path: artifacts/
@@ -612,7 +619,7 @@ jobs:
 
       # Python — grobase-sdk
       - if: matrix.sdk == 'python'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.11'
       - if: matrix.sdk == 'python'
@@ -625,7 +632,7 @@ jobs:
 
       # Kotlin — com.grobase:grobase-sdk (gradle wrapper is committed)
       - if: matrix.sdk == 'kotlin'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
         with:
           distribution: temurin
           java-version: '21'
@@ -639,7 +646,7 @@ jobs:
       # committed OpenAPI spec (same generator the committed tests came from), then
       # analyze + test the regenerated package.
       - if: matrix.sdk == 'dart'
-        uses: dart-lang/setup-dart@v1
+        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d
         with:
           sdk: stable
       - if: matrix.sdk == 'dart'
@@ -727,7 +734,7 @@ jobs:
 
       - name: Upload per-gate logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: gate-battery-logs-${{ github.run_id }}
           path: artifacts/gate-battery/
@@ -772,7 +779,7 @@ jobs:
 
       # NestJS — apps + libs (jest)
       - if: matrix.suite == 'nestjs'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '20'
       - if: matrix.suite == 'nestjs'

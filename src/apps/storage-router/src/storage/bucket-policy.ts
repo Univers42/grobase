@@ -41,6 +41,8 @@
 // the flag on with an empty/partial map is still effectively-parity for unlisted
 // buckets, never a surprise lock-out of the whole plane.
 
+import { isTruthy } from './feature-flag';
+
 export type BucketAction = 'read' | 'write';
 
 /** The authz subject the policy is evaluated against (a subset of UserContext). */
@@ -114,9 +116,4 @@ function principalTokens(p: PolicyPrincipal): Set<string> {
 function matchesAny(list: string[] | undefined, tokens: Set<string>): boolean {
   if (!list || list.length === 0) return false;
   return list.some((entry) => tokens.has(entry.trim()));
-}
-
-function isTruthy(value: string | undefined): boolean {
-  if (!value) return false;
-  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
 }

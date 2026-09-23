@@ -469,3 +469,10 @@ wiki/reports/postman-offers-report.html
 # Accidental gitlinks (no .gitmodules); local vendored content only.
 vendor/scripts/
 vendor/twenty/
+
+# Claude Code local state — tool digest cache, personal overrides, hook bytecode
+.claude/cache/
+.claude/settings.local.json
+.claude/hooks/config/hooks-config.local.json
+.claude/hooks/sounds/*/
+.claude/**/__pycache__/

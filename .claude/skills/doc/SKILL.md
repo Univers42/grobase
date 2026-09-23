@@ -3,7 +3,6 @@ name: doc
 description: >
   Generate or update documentation. Auto-triggers on:
   "document this", "update the README", "write docs"
-tools: Read, Write, Bash, Grep
 ---
 
 # Documentation

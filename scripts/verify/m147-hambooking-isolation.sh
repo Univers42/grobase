@@ -68,7 +68,8 @@ q() {
 }
 # Create a confirmed GoTrue user with role $2 → echoes "<sub> <jwt>".
 mk_user() {
-  local email="m147_$1_$(date +%s)$$@hambooking.com" role="$2"
+  local email role="$2"
+  email="m147_$1_$(date +%s)$$@hambooking.com"
   curl -s -o "${TMP}/au.json" -X POST "${KONG}/auth/v1/admin/users" \
     -H "apikey: ${ANON}" -H "Authorization: Bearer ${SVC}" -H 'Content-Type: application/json' \
     -d "{\"email\":\"${email}\",\"password\":\"M147pass!secret\",\"role\":\"${role}\",\"email_confirm\":true}" >/dev/null
