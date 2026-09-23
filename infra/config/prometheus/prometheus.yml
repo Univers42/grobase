@@ -60,10 +60,9 @@ scrape_configs:
     static_configs:
       - targets: ["vault:8200"]
 
-  - job_name: "postgres-exporter"
-    static_configs:
-      - targets: ["postgres:5432"]
-    metrics_path: /metrics
+  # No postgres_exporter service exists in this stack; scraping postgres:5432
+  # itself only ever produced EOF (the database speaks the Postgres protocol,
+  # not HTTP). Database metrics come from Grafana's direct Postgres datasource.
 
   # Realtime gateway — dependency-free /metrics (Track-2 C4):
   # baas_realtime_events_dropped_total{reason}, _dispatched_total,

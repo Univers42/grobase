@@ -52,6 +52,11 @@ services:
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+      # The provisioned Postgres-Usage datasource expands ${GF_POSTGRES_*}
+      # (infra/config/grafana/provisioning/datasources); without them Grafana
+      # answered "no PostgreSQL user name specified in startup packet".
+      GF_POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      GF_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD missing from .env}
     volumes:
       - ./infra/config/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
