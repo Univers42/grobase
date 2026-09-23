@@ -92,12 +92,16 @@ pub async fn handle_websocket(socket: WebSocket, state: AppState) {
             // it is owed an answer -- the writer hands the sink back so there
             // is still something to answer with.
             let mut sink = handed_back.ok().flatten();
-            if let Ok(Ok(Ending::ClientClose)) = tokio::time::timeout(GOODBYE_GRACE, &mut reader).await {
-                match sink.as_mut() {
-                    Some(sink) => send_close(sink, conn_id).await,
+            if matches!(
+                tokio::time::timeout(GOODBYE_GRACE, &mut reader).await,
+                Ok(Ok(Ending::ClientClose))
+            ) {
+                if let Some(sink) = sink.as_mut() {
+                    send_close(sink, conn_id).await;
+                } else {
                     // the write side is gone with the sink: nothing left to
                     // answer with, and this peer will see 1006.
-                    None => warn!(conn_id = %conn_id, "client close went unanswered: no sink"),
+                    warn!(conn_id = %conn_id, "client close went unanswered: no sink");
                 }
             }
         }

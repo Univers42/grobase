@@ -62,7 +62,10 @@ sonar-scan: sonar-coverage ## Regenerate coverage, then run the SonarCloud scann
 # Cargo runs INSIDE Docker (no rustc/cargo on the host). The registry and the
 # per-workspace target dirs live in named volumes, so dependency downloads and
 # incremental build state persist across runs while the host stays clean.
-RUST_IMAGE          := public.ecr.aws/docker/library/rust:1.96-slim-bookworm
+# Pinned by DIGEST, not tag: rebuilding the toolchain image under the same
+# 1.96 tag moved the clippy lint set and broke workspace clippy in a file
+# nobody touched (issue #19). Bump both halves together, deliberately.
+RUST_IMAGE          := public.ecr.aws/docker/library/rust:1.96-slim-bookworm@sha256:e18a79fc84dfcfc3ab5ba72290398a644c135c97eaa881447fddc354ee4701a3
 RUST_TOOLCHAIN_IMG  := mini-baas-rust-toolchain
 CARGO_VOLS           = -v mini-baas-cargo-registry:/usr/local/cargo/registry -v mini-baas-cargo-git:/usr/local/cargo/git
 CARGO_DPR            = docker run --rm -v "$(CURDIR)/src/data-plane-router":/work -w /work $(CARGO_VOLS) -v mini-baas-dpr-target:/work/target $(RUST_TOOLCHAIN_IMG)
