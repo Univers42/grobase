@@ -339,6 +339,16 @@ pub struct BatchPublishResponse {
     pub results: Vec<PublishResponse>,
 }
 
+/// One database producer as reported by `GET /v1/health`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ProducerHealth {
+    /// Adapter name from the configuration (e.g. `"postgresql"`).
+    pub name: String,
+    /// `Some(true)` attached, `Some(false)` detached (the endpoint then
+    /// answers 503), `None` the producer does not track attachment.
+    pub attached: Option<bool>,
+}
+
 /// Response from the `GET /health` endpoint.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HealthResponse {
@@ -356,6 +366,10 @@ pub struct HealthResponse {
     /// Dispatch-pipeline telemetry snapshot.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dispatch: Option<serde_json::Value>,
+    /// Change-feed state of every configured database producer. Empty when
+    /// none is configured; `#[serde(default)]` keeps older payloads parsing.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub producers: Vec<ProducerHealth>,
 }
 
 impl ServerMessage {
