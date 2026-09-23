@@ -30,6 +30,8 @@
 #   BASELINE  the suite was already red before the mutant, so nothing can be
 #             concluded; fix the suite first. Never counted as a kill.
 #   SKIPPED   the mutant could not be applied here (its service is not up)
+#   UNKNOWN   the manifest names a mutant this runner does not implement; a
+#             typo used to be skipped silently and read as "nothing to report"
 #
 # USAGE
 #   bash scripts/test/mutants/run.sh [mutant-id]
@@ -62,6 +64,27 @@ C_0=$'\033[0m'
 # draft set it inside a $(...) and the assignment died with the subshell,
 # which would have left a service stopped with nothing tracking it.
 STOPPED=""
+# Services a `recreate` mutant re-created with an override; restored by
+# re-creating them from the compose files alone, and waited on until healthy
+# so the next mutant's baseline run does not inherit a half-started service.
+RECREATED=""
+
+# The compose files as `make up` sees them, every profile active so any one
+# service can be addressed by name; --no-deps keeps the rest untouched.
+compose_one() {
+    docker compose -f docker-compose.yml --profile '*' "$@"
+}
+
+wait_healthy() { # <container> [seconds]
+    local c="$1" n="${2:-90}" st
+    while [ "$n" -gt 0 ]; do
+        st=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$c" 2>/dev/null || echo missing)
+        case "$st" in healthy | running) return 0 ;; esac
+        sleep 2
+        n=$((n - 2))
+    done
+    return 1
+}
 
 restore_services() {
     local c
@@ -69,6 +92,11 @@ restore_services() {
         docker start "$c" >/dev/null 2>&1 || true
     done
     STOPPED=""
+    for c in $RECREATED; do
+        compose_one up -d --no-deps --force-recreate "$c" >/dev/null 2>&1 || true
+        wait_healthy "mini-baas-$c" || printf 'warning: %s did not report healthy after restore\n' "$c" >&2
+    done
+    RECREATED=""
 }
 trap 'restore_services; rm -rf "$TMP"' EXIT
 trap 'exit 130' INT
@@ -93,6 +121,7 @@ run_suite() { # <suite> [VAR=VALUE ...]
     shift
     case "$suite" in
         phase*) script=$(ls "scripts/test/phase/${suite}-"*.sh "scripts/test/phase/${suite}-"*.py 2>/dev/null | head -1) ;;
+        m[0-9]*) script=$(ls "scripts/verify/${suite}-"*.sh 2>/dev/null | head -1) ;;
     esac
     case "$suite" in
         offers) env APIKEY="$ANON_KEY" PUBLIC_APIKEY="$ANON_KEY" BASE_URL="$BASE_URL" \
@@ -133,6 +162,29 @@ mutant_env() { # <id>
     esac
 }
 
+# A `recreate` mutant re-creates ONE service with a single environment key
+# overridden, through a compose override file, and the platform is restored
+# by re-creating it from the real files. It is for the class of claims a
+# stop cannot express: "this service is configured correctly", where the
+# suite must notice a service that is up, healthy and misconfigured.
+# Returns 3 when the service is not running here (a SKIP).
+mutant_recreate() { # <id>
+    local svc key value
+    case "$1" in
+        node-heap-uncapped)
+            svc=mongo-api
+            key=NODE_OPTIONS
+            value=""
+            ;;
+        *) return 2 ;;
+    esac
+    docker ps --format '{{.Names}}' | grep -qx "mini-baas-$svc" || return 3
+    printf 'services:\n  %s:\n    environment:\n      %s: "%s"\n' "$svc" "$key" "$value" >"$TMP/mutant-override.yml"
+    compose_one -f "$TMP/mutant-override.yml" up -d --no-deps --force-recreate "$svc" >/dev/null 2>&1 || return 3
+    RECREATED="$RECREATED $svc"
+    wait_healthy "mini-baas-$svc" || return 3
+}
+
 # The service an `svc` mutant takes away. Returns 3 when it is not running,
 # which is a SKIP: a mutant that was never applied must not be scored.
 mutant_stop() { # <id>
@@ -153,6 +205,7 @@ killed=0
 survived=0
 skipped=0
 baseline=0
+unknown=0
 : >"$TMP/rows"
 
 printf '── grobase mutation run ──\ngateway: %s\n' "$BASE_URL"
@@ -172,27 +225,31 @@ while IFS=$'\t' read -r id kind suite means <&3; do
     fi
 
     overrides=""
-    if [ "$kind" = env ]; then
-        overrides=$(mutant_env "$id") || {
-            printf 'unknown mutant: %s\n' "$id" >&2
+    rc=0
+    case "$kind" in
+        env) overrides=$(mutant_env "$id") || rc=$? ;;
+        svc) mutant_stop "$id" || rc=$? ;;
+        recreate) mutant_recreate "$id" || rc=$? ;;
+        *) rc=2 ;;
+    esac
+    case "$rc" in
+        0) [ "$kind" = env ] || sleep 3 ;;
+        3)
+            skipped=$((skipped + 1))
+            printf '%sSKIPPED%s  %s — the service it needs is not running here\n' "$C_Y" "$C_0" "$id"
+            printf '%s\t%s\t%s\tSKIPPED\t%s\n' "$id" "$kind" "$suite" "$means" >>"$TMP/rows"
+            restore_services
             continue
-        }
-    else
-        mutant_stop "$id"
-        case $? in
-            3)
-                skipped=$((skipped + 1))
-                printf '%sSKIPPED%s  %s — the service it stops is not running here\n' "$C_Y" "$C_0" "$id"
-                printf '%s\t%s\t%s\tSKIPPED\t%s\n' "$id" "$kind" "$suite" "$means" >>"$TMP/rows"
-                continue
-                ;;
-            2)
-                printf 'unknown mutant: %s\n' "$id" >&2
-                continue
-                ;;
-        esac
-        sleep 3
-    fi
+            ;;
+        *)
+            # Not silent: a manifest row nobody implemented is a claim with no
+            # test behind it, and the run must say so and fail.
+            unknown=$((unknown + 1))
+            printf '%sUNKNOWN%s  %s — no %s mutant by that id in this runner\n' "$C_R" "$C_0" "$id" "$kind" >&2
+            printf '%s\t%s\t%s\tUNKNOWN\t%s\n' "$id" "$kind" "$suite" "$means" >>"$TMP/rows"
+            continue
+            ;;
+    esac
 
     # shellcheck disable=SC2086  # the overrides are a deliberate word list
     if run_suite "$suite" $overrides; then
@@ -212,8 +269,8 @@ done 3<"$MANIFEST"
 {
     printf '# Mutation report — grobase suites\n\n'
     printf 'Generated by `scripts/test/mutants/run.sh` on %s.\n\n' "$(date -u '+%Y-%m-%d %H:%M UTC')"
-    printf 'killed %s · survived %s · baseline %s · skipped %s\n\n' \
-        "$killed" "$survived" "$baseline" "$skipped"
+    printf 'killed %s · survived %s · baseline %s · skipped %s · unknown %s\n\n' \
+        "$killed" "$survived" "$baseline" "$skipped" "$unknown"
     printf '| mutant | suite | verdict | what its survival would mean |\n'
     printf '| --- | --- | --- | --- |\n'
     while IFS=$'\t' read -r id _kind suite verdict means; do
@@ -223,6 +280,6 @@ done 3<"$MANIFEST"
     printf 'place by having one written against it.\n'
 } >"$REPORT"
 
-printf '\n── killed %s · survived %s · baseline %s · skipped %s ──\nreport: %s\n' \
-    "$killed" "$survived" "$baseline" "$skipped" "$REPORT"
-[ "$survived" = 0 ] && [ "$baseline" = 0 ]
+printf '\n── killed %s · survived %s · baseline %s · skipped %s · unknown %s ──\nreport: %s\n' \
+    "$killed" "$survived" "$baseline" "$skipped" "$unknown" "$REPORT"
+[ "$survived" = 0 ] && [ "$baseline" = 0 ] && [ "$unknown" = 0 ]

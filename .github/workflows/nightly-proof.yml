@@ -29,6 +29,12 @@
 #     red nightly" rule it is **workflow_dispatch-only** (see its `if:` + comment),
 #     so it is run on demand / on a beefier self-hosted runner, never auto-failed
 #     nightly. It still uploads its artifacts when run.
+#   • mutation-run — boots the SAME stack as ci.yml's integration job (proven
+#     green on every push on this runner class), then runs the mutation runner:
+#     each manifest row breaks one behaviour and the suite that claims to cover
+#     it must go red. It stops and re-creates real containers, which is why it
+#     lives here and not in the push CI. A survivor, a baseline-red suite or an
+#     unknown id fails the job; the report is uploaded either way.
 name: Nightly Proof
 
 on:
@@ -310,6 +316,87 @@ jobs:
             artifacts/nightly-iso-ps.txt
             artifacts/nightly-iso-logs.txt
           retention-days: 30
+          if-no-files-found: warn
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker-compose.yml down -v
+
+  # ─── Job 4: Mutation run — are the suites load-bearing? ────────────────────
+  # Green suites are claims. scripts/test/mutants/run.sh applies each manifest
+  # row (an env override, a stopped service, or one service re-created with a
+  # key cleared) and asserts the covering suite goes red. It was scored 1 of 9
+  # by hand for as long as it existed; a survivor was found by nobody. The boot
+  # below is ci.yml's integration boot, step for step, so a red here is the
+  # mutants' verdict and not a boot difference.
+  mutation-run:
+    name: Mutation run (every suite must go red for its mutant)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Generate CI environment
+        run: |
+          set -euo pipefail
+          bash scripts/env/assemble-env.sh
+          echo "GOTRUE_MAILER_AUTOCONFIRM=true" >> .env
+          echo "IDENTITY_HEADER_MODE=compat" >> .env
+
+      - name: Build and start core stack
+        run: |
+          set -euo pipefail
+          bash scripts/certs/generate-localhost-cert.sh
+          docker compose -f docker-compose.yml build
+          docker compose -f docker-compose.yml up -d
+          docker compose -f docker-compose.yml up -d --build mongo-keyfile mongo mongo-init mongo-api
+          docker compose -f docker-compose.yml up -d --build minio storage-router realtime
+
+      - name: Apply PostgreSQL migrations
+        run: |
+          set -euo pipefail
+          until docker compose -f docker-compose.yml exec -T postgres pg_isready -U postgres -d postgres >/dev/null 2>&1; do sleep 2; done
+          for f in $(ls -1 scripts/migrations/postgresql/*.sql 2>/dev/null | sort); do
+            sed '/^#/d' "$f" | docker compose -f docker-compose.yml exec -T postgres \
+              psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f -
+          done
+          docker compose -f docker-compose.yml exec -T postgres \
+            psql -U postgres -d postgres -c "NOTIFY pgrst, 'reload schema';"
+          sleep 3
+
+      - name: Wait for gateway + mongo-api health (max 150s each)
+        run: |
+          set -euo pipefail
+          APIKEY=$(grep '^KONG_PUBLIC_API_KEY=' .env | cut -d= -f2-)
+          wait_200() {
+            local url="$1" name="$2" elapsed=0 code=000
+            while [ "$elapsed" -lt 150 ]; do
+              code=$(curl -sS -o /dev/null -w '%{http_code}' "$url" -H "apikey: $APIKEY" 2>/dev/null || echo 000)
+              [ "$code" = "200" ] && { echo "$name healthy after ${elapsed}s"; return 0; }
+              sleep 3; elapsed=$((elapsed + 3))
+            done
+            echo "$name health check failed after 150s (last=$code)"
+            docker ps --filter label=com.docker.compose.project=mini-baas --format '{{.Names}} {{.Status}}'
+            return 1
+          }
+          wait_200 http://localhost:8000/auth/v1/health gateway
+          wait_200 http://localhost:8000/mongo/v1/health mongo-api
+
+      - name: Run the mutation manifest
+        id: mutants
+        env:
+          FORCE_COLORS: "0"
+        run: bash scripts/test/mutants/run.sh
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report-${{ github.run_id }}
+          path: artifacts/test/mutants.md
           if-no-files-found: warn
 
       - name: Teardown
