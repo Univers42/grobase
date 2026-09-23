@@ -14,6 +14,7 @@
 mc-image-missing	env	phase9	storage passes without a MinIO client: the mc steps report success on a container that was never created
 minio-secret-wrong	env	phase9	storage passes with the wrong secret key: the suite proves nothing about authentication to MinIO
 storage-router-down	svc	phase9	storage passes with the storage plane stopped
+provenance-blind	env	m190	the image provenance gate passes with a checker that approves everything: a binary older than its source would start unchallenged
 cors-origin-hostile	env	phase13	the CORS suite passes from an origin the gateway must refuse: it never read the header it asserts on
 gateway-unreachable	env	phase13	a suite is green against a gateway that is not there — the vacuous-pass case that HTTP 000 used to hide
 gateway-probes-blind	env	m187	the gateway probe gate passes with probes that never make a request: kong green with its proxy off, the WAF green in front of nothing
