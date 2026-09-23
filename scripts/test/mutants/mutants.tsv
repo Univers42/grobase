@@ -22,4 +22,5 @@ mongo-api-down	svc	phase14	the Mongo MVP passes with the mongo API stopped
 engine-restore-dry	env	m188	the engine backup gate passes when the restore validates the archive and applies nothing: the data is not back and nobody would know
 offers-no-identity	env	offers	the offers collection passes with no user identity, as it did while authEmail was seeded empty
 waf-down	svc	waf	the security gate passes with the WAF itself stopped — exactly what it did while it curled a port nothing listens on
+nest-probes-live	env	m191	the readiness gate passes with a Nest service probing liveness: MongoDB stops, the container stays healthy, and whatever waits on it is released
 node-heap-uncapped	recreate	m185	the heap gate passes with a Node service whose V8 ceiling is back above its cgroup: the exit-137-with-no-log-line case the gate exists for
