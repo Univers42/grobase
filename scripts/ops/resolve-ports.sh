@@ -80,11 +80,35 @@ fi
 # ── Helpers ─────────────────────────────────────────────────────────
 _used_ports="" # track ports we've already claimed in this run
 
+# Host ports published by THIS compose project's own containers. They are not
+# "in use" for the purpose of `up`: compose either keeps that container (same
+# port, no conflict) or stops it before recreating it. Counting them as busy
+# is what made `make up` on a live stack relocate Kong 8000->8001 and the WAF
+# 8443->8444 / 8880->8881 while every client still dialled the old ports
+# (issue #19, measured 2026-09-23; gate m193). A port held by anything else is
+# still avoided; without docker the old behaviour stands.
+PROJECT="${COMPOSE_PROJECT_NAME:-$(sed -n 's/^name:[[:space:]]*//p' "$(dirname "${BASH_SOURCE[0]}")/../../docker-compose.yml" 2>/dev/null | head -n1)}"
+_own_ports=" "
+if [[ -n "$PROJECT" ]] && command -v docker >/dev/null 2>&1; then
+  # From inspect, not `docker ps --format {{.Ports}}`: that column collapses
+  # consecutive ports into ranges ("9000-9001->9000-9001/tcp").
+  _ids=$(docker ps -q --filter "label=com.docker.compose.project=${PROJECT}" 2>/dev/null || true)
+  if [[ -n "$_ids" ]]; then
+    # shellcheck disable=SC2086 # one id per word, on purpose
+    _own_ports=" $(docker inspect -f '{{range $p, $b := .NetworkSettings.Ports}}{{range $b}}{{.HostPort}} {{end}}{{end}}' $_ids 2>/dev/null |
+      tr ' ' '\n' | grep -E '^[0-9]+$' | sort -u | tr '\n' ' ')"
+  fi
+fi
+
 port_in_use() {
   local p=$1
   # Already claimed by an earlier entry in this script run
   if [[ " $_used_ports " == *" $p "* ]]; then
     return 0
+  fi
+  # Held by this stack itself: `up` reuses or frees it (see above)
+  if [[ "$_own_ports" == *" $p "* ]]; then
+    return 1
   fi
   # Check if something on the host is listening
   if ss -tlnH 2>/dev/null | awk '{print $4}' | grep -qE "(:|^)${p}$"; then
