@@ -75,8 +75,10 @@ ENV KONG_DATABASE=off \
 EXPOSE 8000 8001
 STOPSIGNAL SIGQUIT
 
+# A request to the proxy listener, not `kong health` (nginx PIDs only; green
+# with proxy_listen off). Same probe as orchestrators/compose/base/gateway.yml.
 HEALTHCHECK --interval=15s --timeout=3s --start-period=15s --retries=3 \
-  CMD kong health || exit 1
+  CMD ["bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8000 && printf 'GET / HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && IFS= read -r line <&3 && [[ $line == HTTP/1.* ]]"]
 
 # Run as the unprivileged `kong` user (UID 1000) created by the .deb so semgrep
 # dockerfile.security.missing-user does not flag the image, and no later layer
