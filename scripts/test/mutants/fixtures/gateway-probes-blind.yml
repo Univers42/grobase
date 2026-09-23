@@ -1,0 +1,10 @@
+# Mutant fixture for gate m187 (manifest row gateway-probes-blind): the
+# gateway probes as they were before they made a request. Merged over
+# docker-compose.yml with `-f`; m187 must go red with it.
+services:
+  kong:
+    healthcheck:
+      test: ["CMD-SHELL", "kong health"]
+  waf:
+    healthcheck:
+      test: ["CMD-SHELL", "grep -qi ':0050 .* 0A' /proc/net/tcp || exit 1"]
