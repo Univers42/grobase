@@ -629,10 +629,25 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      # Caches the wrapper distribution and the dependency cache across runs.
+      # Without it every run fetched the ~200 MB gradle-8.14.3-all.zip from
+      # GitHub's release host, and one HTTP 500 there failed the job in 12 s
+      # (PR #20, 2026-09-23) for a reason unrelated to the code under test.
+      - if: matrix.sdk == 'kotlin'
+        uses: gradle/actions/setup-gradle@v4
       - if: matrix.sdk == 'kotlin'
         working-directory: sdks/kotlin
         run: |
           chmod +x ./gradlew
+          # Only the DOWNLOAD is retried: `--version` makes the wrapper fetch
+          # the distribution and nothing else. The build and the tests below
+          # run once, so a real failure is never retried into a pass.
+          for attempt in 1 2 3; do
+            ./gradlew --version --no-daemon >/dev/null && break
+            [ "$attempt" = 3 ] && { echo "gradle distribution unavailable after 3 attempts"; exit 1; }
+            echo "gradle distribution download failed (attempt $attempt); retrying in 20 s"
+            sleep 20
+          done
           ./gradlew build test --no-daemon
 
       # Dart — grobase. lib/ is gitignored, so regenerate the client from the
