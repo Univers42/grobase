@@ -20,7 +20,15 @@ services:
       kong:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "grep -qi ':0050 .* 0A' /proc/net/tcp || exit 1"]
+      # A real HTTPS request through the door dependents use: :443 -> Kong.
+      # The old probe grepped /proc/net/tcp for a socket in LISTEN state and
+      # never made a request, so the WAF reported healthy with nothing behind
+      # it (gate m187). Any non-5xx answer passes -- Kong's 404 for "/" proves
+      # the whole path; a 502 means Kong is gone. The image has no curl or
+      # bash; openssl s_client is what it ships.
+      test:
+        - CMD-SHELL
+        - "code=$$(printf 'GET / HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' | openssl s_client -quiet -connect 127.0.0.1:443 -servername localhost 2>/dev/null | head -n1 | cut -d' ' -f2); [ -n \"$$code\" ] && [ \"$$code\" -lt 500 ]"
       interval: 10s
       timeout: 3s
       start_period: 5s
@@ -81,7 +89,16 @@ services:
         exec /docker-entrypoint.sh kong docker-start
       '
     healthcheck:
-      test: ["CMD-SHELL", "kong health"]
+      # Asks the proxy listener dependents dial (:8000), not `kong health`,
+      # which only checks that nginx PIDs exist and stays green with
+      # proxy_listen off (gate m187). Kong's own "no Route matched" 404 for
+      # "/" is a correct answer: it proves the router loaded the declarative
+      # config and serves HTTP. Pure bash: the image purges curl after install.
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/8000 && printf 'GET / HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && IFS= read -r line <&3 && [[ $$line == HTTP/1.* ]]"
       interval: 30s
       start_interval: 2s
       timeout: 3s
