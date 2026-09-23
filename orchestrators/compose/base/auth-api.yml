@@ -193,6 +193,7 @@ services:
     env_file: [.env]
     environment:
       PORT: 3010
+      NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017
       MONGO_DB_NAME: ${MONGO_DB_NAME:-mini_baas}
       JWT_SECRET: ${JWT_SECRET}

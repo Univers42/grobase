@@ -10,6 +10,7 @@ services:
     profiles: [studio, extras]
     env_file: [.env]
     environment:
+      NODE_OPTIONS: --max-old-space-size=288 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       HOSTNAME: 0.0.0.0
       STUDIO_PG_META_URL: http://pg-meta:8080
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
