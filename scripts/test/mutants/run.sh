@@ -158,6 +158,7 @@ mutant_env() { # <id>
         minio-secret-wrong) printf 'MINIO_SECRET_KEY=not-the-secret' ;;
         provenance-blind) printf 'M190_TOOL=scripts/test/mutants/fixtures/provenance-approve-all.sh' ;;
         cors-origin-hostile) printf 'TEST_ORIGIN=http://hostile.invalid:5181' ;;
+        nest-probes-live) printf 'M191_EXTRA_COMPOSE=scripts/test/mutants/fixtures/nest-probes-live.yml' ;;
         gateway-unreachable) printf 'BASE_URL=http://127.0.0.1:1' ;;
         offers-no-identity) printf 'AUTH_EMAIL=not-an-email AUTH_PASSWORD=x' ;;
         gateway-probes-blind) printf 'M187_EXTRA_COMPOSE=scripts/test/mutants/fixtures/gateway-probes-blind.yml' ;;
