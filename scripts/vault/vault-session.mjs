@@ -234,7 +234,16 @@ function commandExists(commandName) {
 function githubToken() {
   const token = option('VAULT_GITHUB_TOKEN', option('GITHUB_TOKEN', ''));
   if (token) return token;
-  if (!commandExists('gh')) throw new SessionError('[vault-session] GitHub auth requires GITHUB_TOKEN, VAULT_GITHUB_TOKEN, or gh auth token');
+  // The PAT lives OUTSIDE the repo on purpose: .env is handed to every
+  // container (env_file: [.env]), so scripts/env/assemble-env.sh withholds a
+  // token-shaped line from it. ~/.grobase-gh-pat (mode 600) is the one place a
+  // token may sit; GROBASE_GH_PAT_FILE points elsewhere.
+  const patFile = expandHome(option('GROBASE_GH_PAT_FILE', '~/.grobase-gh-pat'));
+  if (existsSync(patFile)) {
+    const fromFile = readFileSync(patFile, 'utf8').trim();
+    if (fromFile) return fromFile;
+  }
+  if (!commandExists('gh')) throw new SessionError(`[vault-session] GitHub auth requires ${patFile} (mode 600), GITHUB_TOKEN, VAULT_GITHUB_TOKEN, or gh auth token`);
   return run('gh', ['auth', 'token']).trim();
 }
 
