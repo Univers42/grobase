@@ -156,6 +156,7 @@ mutant_env() { # <id>
         engine-restore-dry) printf 'M188_RESTORE_ARGS=--dry-run' ;;
         mc-image-missing) printf 'MC_IMAGE=grobase-mutant/no-such-mc:latest' ;;
         minio-secret-wrong) printf 'MINIO_SECRET_KEY=not-the-secret' ;;
+        provenance-blind) printf 'M190_TOOL=scripts/test/mutants/fixtures/provenance-approve-all.sh' ;;
         cors-origin-hostile) printf 'TEST_ORIGIN=http://hostile.invalid:5181' ;;
         gateway-unreachable) printf 'BASE_URL=http://127.0.0.1:1' ;;
         offers-no-identity) printf 'AUTH_EMAIL=not-an-email AUTH_PASSWORD=x' ;;

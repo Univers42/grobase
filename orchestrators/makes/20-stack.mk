@@ -11,7 +11,7 @@
 # **************************************************************************** #
 
 ##@ Stack lifecycle — up · down · build · health · benchmarks · reports
-up: _require-compose _rm-stale ## Start the selected EDITION (detached)
+up: _require-compose _rm-stale _image-provenance ## Start the selected EDITION (detached)
 	@[ -f .env ] || { echo -e "$(_Y).env missing → generating (make env)…$(_0)"; $(MAKE) --no-print-directory env; }
 	@[ -f certs/localhost.pem ] || { echo -e "$(_Y)TLS cert missing → generating (make certs)…$(_0)"; $(MAKE) --no-print-directory certs; }
 	@echo -e "$(_B)Starting edition '$(_W)$(EDITION)$(_0)$(_B)' → profiles: $(_C)$(ACTIVE_PROFILES)$(_0)"
@@ -37,11 +37,11 @@ pull: _require-compose ## Pull images for the selected EDITION
 	@echo -e "$(_G)✓ Pulled$(_0)"
 
 build: _require-compose ## Build images for the selected EDITION (bake: one parallel BuildKit graph, dedup'd shared stages)
-	@COMPOSE_BAKE=true $(DCE) build
+	@$(call with_provenance,$(DCE),build)
 	@echo -e "$(_G)✓ Build complete$(_0)"
 
 build-svc-%: _require-compose ## Build ONE service image (all profiles defined, builds only $*; e.g. make build-svc-query-router)
-	@COMPOSE_BAKE=true $(DC) $(call flags_of,$(PLANES)) build $*
+	@$(call with_provenance,$(DC) $(call flags_of,$(PLANES)),build $*)
 	@echo -e "$(_G)✓ built $*$(_0)"
 
 bench-build: ## Build-speed bench → artifacts/bench/build/results.tsv (MODE=noop|incr-rust|incr-ts|cold; cold wipes the builder cache, needs BENCH_COLD=1)
@@ -153,3 +153,20 @@ scale-teardown: _require-compose ## Soft-delete every tenant in artifacts/scale/
 
 audit-deps: ## Supply-chain CVE scan — cargo-audit (Rust) + govulncheck (Go)
 	@bash scripts/security/audit-deps.sh
+
+# ── image provenance (issue #19, gate m190) ─────────────────────────────────
+# Every image built from this tree is labelled with the commit it came from
+# (org.opencontainers.image.revision, via a generated compose override passed
+# with a second -f), and `up` refuses to start one built before its build
+# context last changed -- the grobase-realtime:latest-lagged-the-commit case.
+# Pulled images carry no label and are reported "unproven", not refused.
+# GROBASE_ALLOW_STALE_IMAGES=1 starts anyway. See scripts/ops/image-provenance.sh.
+# $(1) = the compose command (files + profiles), $(2) = the build arguments.
+with_provenance = tmp=$$(mktemp -d); \
+	$(1) config --format json >"$$tmp/config.json" 2>/dev/null \
+	  && bash scripts/ops/image-provenance.sh override "$$tmp/config.json" >"$$tmp/provenance.yml" \
+	  && COMPOSE_BAKE=true $(1) -f "$$tmp/provenance.yml" $(2); \
+	rc=$$?; rm -rf "$$tmp"; exit $$rc
+
+_image-provenance:
+	@$(DCE) config --format json 2>/dev/null | bash scripts/ops/image-provenance.sh check
