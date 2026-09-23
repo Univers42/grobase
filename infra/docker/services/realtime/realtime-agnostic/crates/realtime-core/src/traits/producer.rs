@@ -41,6 +41,17 @@ pub trait DatabaseProducer: Send + Sync + 'static {
 
     /// Human-readable name (e.g. `"postgresql"`, `"mongodb"`).
     fn name(&self) -> &str;
+
+    /// Whether the change feed is attached right now: a LISTEN, a change
+    /// stream. `None` means this producer does not track it.
+    ///
+    /// Not the same question as [`health_check()`](Self::health_check), which
+    /// opens a NEW connection and asks whether the database answers. A
+    /// producer whose feed died answers that one happily while no change is
+    /// ever delivered again -- exactly the state `/v1/health` exists to show.
+    fn attached(&self) -> Option<bool> {
+        None
+    }
 }
 
 /// Async stream of `EventEnvelope`s from any event source.
