@@ -49,7 +49,9 @@ printf '  %-34s %9s %9s  %s\n' "container" "limit(MB)" "heap(MB)" "verdict"
 for c in "${containers[@]}"; do
   # Only containers that can run node are Node services; the exec is the
   # detection, so a scratch or Go image is skipped without a list to maintain.
-  if ! docker exec "$c" sh -c 'command -v node >/dev/null 2>&1' 2>/dev/null; then
+  # docker prints the "exec: sh: not found" of a scratch image on STDOUT
+  # (rc 127), so both streams are dropped, not just stderr.
+  if ! docker exec "$c" sh -c 'command -v node >/dev/null 2>&1' >/dev/null 2>&1; then
     continue
   fi
   limit_b=$(docker inspect -f '{{.HostConfig.Memory}}' "$c")
