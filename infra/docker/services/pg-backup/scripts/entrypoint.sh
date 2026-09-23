@@ -9,7 +9,7 @@
 #                                (postgres archive_command target; needs PG_BACKUP_PITR=1)
 #   pitr-restore <base> <time> - PITR (C4b): rebuild a PGDATA from a base + replay
 #                                WAL to recovery_target_time (needs PG_BACKUP_PITR=1)
-#   liveness                   - exit 0 if config is sane (used by healthchecks)
+#   liveness                   - exit 0 if PostgreSQL and MinIO both answer (used by healthchecks)
 set -euo pipefail
 
 MODE="${1:-loop}"
@@ -27,11 +27,26 @@ ensure_bucket() {
 
 case "$MODE" in
 liveness)
+  # "Could I take a backup right now?" -- not "is my config non-empty". The
+  # old check tested that DATABASE_URL was set and that a string with a
+  # default was non-empty, so the sidecar reported healthy with PostgreSQL
+  # and MinIO both unreachable (issue #19, gate m192). Both are bounded so a
+  # dead peer fails the probe instead of hanging it.
   test -n "${DATABASE_URL:-}" || {
     echo "DATABASE_URL is required"
     exit 1
   }
-  test -n "${MINIO_ENDPOINT:-http://minio:9000}" || exit 1
+  pg_isready -q -t 2 -d "$DATABASE_URL" || {
+    echo "PostgreSQL does not answer at DATABASE_URL"
+    exit 1
+  }
+  # Listing the buckets proves the endpoint answers AND the credentials work,
+  # without depending on the backup bucket existing yet.
+  timeout 3 sh -c 'mc alias set baas "$1" "$2" "$3" >/dev/null && mc ls baas/ >/dev/null' _ \
+    "${MINIO_ENDPOINT:-http://minio:9000}" "${MINIO_ROOT_USER:-minioadmin}" "${MINIO_ROOT_PASSWORD:-minioadmin}" || {
+    echo "MinIO does not answer at ${MINIO_ENDPOINT:-http://minio:9000} with these credentials"
+    exit 1
+  }
   exit 0
   ;;
 
