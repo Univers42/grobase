@@ -65,6 +65,33 @@ pub struct AppState {
     /// header is looked at. See [`crate::origin::OriginPolicy`] for why CORS
     /// does not cover this door.
     pub allowed_origins: Option<Arc<crate::origin::OriginPolicy>>,
+    /// Every database producer the server started, so `/v1/health` can say
+    /// whether change events can still flow. Empty when none is configured.
+    pub producers: Arc<Vec<ProducerHandle>>,
+}
+
+/// A started database producer, as `/v1/health` sees it.
+#[derive(Clone)]
+pub struct ProducerHandle {
+    /// Adapter name from the configuration.
+    pub name: String,
+    /// The producer itself, for [`realtime_core::DatabaseProducer::attached`].
+    pub producer: Arc<dyn realtime_core::DatabaseProducer>,
+    /// Set by the server when the producer's stream ended or it failed to
+    /// start: no change event will ever be published for it again.
+    pub ended: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl ProducerHandle {
+    /// `Some(false)` once the stream ended, else what the producer reports.
+    #[must_use]
+    pub fn attached(&self) -> Option<bool> {
+        if self.ended.load(std::sync::atomic::Ordering::SeqCst) {
+            Some(false)
+        } else {
+            self.producer.attached()
+        }
+    }
 }
 
 /// Axum handler for WebSocket upgrade requests (`GET /ws`).

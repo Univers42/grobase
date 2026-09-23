@@ -91,6 +91,10 @@ impl DatabaseProducer for PostgresProducer {
         Ok(())
     }
 
+    fn attached(&self) -> Option<bool> {
+        Some(self.is_connected())
+    }
+
     fn name(&self) -> &'static str {
         "postgresql"
     }

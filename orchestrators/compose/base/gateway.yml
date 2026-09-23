@@ -109,8 +109,12 @@ services:
         condition: service_healthy
       postgrest:
         condition: service_started
+      # service_started, not service_healthy: realtime's health now includes
+      # its database change feed (a detached producer answers 503, gate m189).
+      # A broken CDC must mark realtime unhealthy, not keep the whole API
+      # gateway from starting.
       realtime:
-        condition: service_healthy
+        condition: service_started
         required: false
     mem_limit: 1g
     cpus: 1.0
