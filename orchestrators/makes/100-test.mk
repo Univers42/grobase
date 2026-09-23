@@ -32,33 +32,42 @@ test-sdk: ## SDKs: js node:test + js catalog (m10) + polyglot compile gates (py/
 # error OR warning fails. Accepted-style rules are declared in committed project
 # configs (.shellcheckrc · .hadolint.yaml · .yamllint), each with justification —
 # not silenced inline. So a finding here is a real issue to fix.
-LINT_KINDS := test-lint-shell test-lint-rust test-lint-go test-lint-ts test-lint-yaml test-lint-docker test-lint-make
+LINT_KINDS := test-lint-shell test-lint-rust test-lint-go test-lint-ts test-lint-yaml test-lint-docker test-lint-make test-lint-compose
+SHELLCHECK_IMG := koalaman/shellcheck:v0.11.0
+GOLANGCI_IMG   := golangci/golangci-lint:v2.13.2
+ACTIONLINT_IMG := rhysd/actionlint:1.7.12
+SH_FILES        = $(shell git ls-files '*.sh' 2>/dev/null | grep -vE '(^|/)(node_modules|vendor)/')
+# ponytail: track-binocle overlay skipped — carried-over monorepo overlay needs a pg-meta service this repo never defines; delete it or add pg-meta, then drop the skip
+COMPOSE_LINT_SKIP := docker-compose.track-binocle.yml
 
-test-lint-shell: ## Lint shell — bash -n (all) + shellcheck (honours .shellcheckrc), warnings fail
-	@rc=0; for f in $$(git ls-files '*.sh' 2>/dev/null); do bash -n "$$f" || { echo -e "$(_R)  parse: $$f$(_0)"; rc=1; }; done; \
-	if command -v shellcheck >/dev/null 2>&1; then \
-		for f in $$(git ls-files '*.sh' 2>/dev/null); do shellcheck "$$f" || rc=1; done; \
-	else echo -e "$(_D)  (host shellcheck absent — bash -n only)$(_0)"; fi; \
+test-lint-shell: ## Lint shell — bash -n + shellcheck (host binary, else pinned image; honours .shellcheckrc), warnings fail
+	@rc=0; for f in $(SH_FILES); do bash -n "$$f" || { echo -e "$(_R)  parse: $$f$(_0)"; rc=1; }; done; \
+	if command -v shellcheck >/dev/null 2>&1; then shellcheck $(SH_FILES) || rc=1; \
+	else docker run --rm -v "$(CURDIR)":/mnt -w /mnt $(SHELLCHECK_IMG) $(SH_FILES) || rc=1; fi; \
 	[ $$rc -eq 0 ] && echo -e "$(_G)✓ shell$(_0)" || exit 1
 
 test-lint-rust: _rust-toolchain ## Lint Rust — cargo clippy -D warnings (data-plane workspace, in Docker)
 	@$(CARGO_DPR) sh -c 'rustup component add clippy >/dev/null 2>&1 || true; cargo clippy --workspace --all-targets -- -D warnings' \
 		&& echo -e "$(_G)✓ rust clippy (zero warnings)$(_0)"
 
-test-lint-go: ## Lint Go — go vet + gofmt (control plane, in Docker)
+test-lint-go: ## Lint Go — go vet + gofmt, then golangci-lint (gofumpt + default linters, src/control-plane/.golangci.yml), in Docker
 	@docker run --rm -v "$(CURDIR)/src/control-plane":/src -w /src \
 		-v mini-baas-gomod:/go/pkg/mod -v mini-baas-gobuild:/root/.cache/go-build golang:1.25-bookworm \
 		sh -c 'GOFLAGS=-mod=mod go vet ./... && o=$$(gofmt -l . | grep -v "^vendor/" || true); [ -z "$$o" ] || { echo -e "$(_R)  gofmt needs: $$o$(_0)"; exit 1; }' \
-		&& echo -e "$(_G)✓ go vet+fmt$(_0)"
+		&& echo -e "$(_G)✓ go vet+fmt$(_0)" \
+	&& docker run --rm -v "$(CURDIR)/src/control-plane":/src -w /src -e GOFLAGS=-mod=mod \
+		-v mini-baas-gomod:/go/pkg/mod -v mini-baas-golangci:/root/.cache $(GOLANGCI_IMG) golangci-lint run ./... \
+		&& echo -e "$(_G)✓ golangci-lint (gofumpt)$(_0)"
 
 test-lint-ts: ## Lint TypeScript — eslint over apps/libs (in Docker)
 	@$(NODE_RUN) sh -c 'npm ci --ignore-scripts --prefer-offline --no-audit --no-fund >/dev/null 2>&1; npx eslint "apps/**/*.ts" "libs/**/*.ts"' \
 		&& echo -e "$(_G)✓ ts eslint$(_0)"
 
-test-lint-yaml: ## Lint YAML — yamllint with the committed .yamllint policy (warnings fail, in Docker)
+test-lint-yaml: ## Lint YAML — yamllint (.yamllint policy) + actionlint over .github/workflows (warnings fail, in Docker)
 	@docker run --rm -v "$(CURDIR)":/d -w /d cytopia/yamllint:latest -c .yamllint \
 		orchestrators/compose infra/config docker-compose.yml \
-		&& echo -e "$(_G)✓ yaml$(_0)"
+		&& docker run --rm -v "$(CURDIR)":/repo -w /repo $(ACTIONLINT_IMG) \
+		&& echo -e "$(_G)✓ yaml + actionlint$(_0)"
 
 test-lint-docker: ## Lint Dockerfiles — hadolint with the committed .hadolint.yaml policy (warnings fail, in Docker)
 	@rc=0; for df in $$(git ls-files '*Dockerfile*' 2>/dev/null | grep -vE 'node_modules|(^|/)vendor/'); do \
@@ -72,7 +81,14 @@ test-lint-make: ## Lint Makefiles — parse-validate (make + every fragment must
 		else rm -f /tmp/mk-lint.$$$$; echo -e "$(_G)✓ make (parses clean, no warnings)$(_0)"; fi; \
 	else cat /tmp/mk-lint.$$$$; rm -f /tmp/mk-lint.$$$$; echo -e "$(_R)  Makefile parse error$(_0)"; exit 1; fi
 
-test-lint: ## Lint EVERYTHING (shell·rust·go·ts·yaml·docker·make) — runs all, shows each, summary
+test-lint-compose: ## Lint compose — the base file and every overlay on top of it must render (`docker compose config --quiet`)
+	@rc=0; docker compose -f docker-compose.yml config --quiet || { echo -e "$(_R)  base$(_0)"; rc=1; }; \
+	for o in orchestrators/compose/docker-compose.*.yml; do \
+		case " $(COMPOSE_LINT_SKIP) " in *" $${o##*/} "*) echo -e "$(_D)  skip $$o$(_0)"; continue;; esac; \
+		docker compose -f docker-compose.yml -f "$$o" config --quiet || { echo -e "$(_R)  $$o$(_0)"; rc=1; }; done; \
+	[ $$rc -eq 0 ] && echo -e "$(_G)✓ compose (base + overlays)$(_0)" || exit 1
+
+test-lint: ## Lint EVERYTHING (shell·rust·go·ts·yaml·docker·make·compose) — runs all, shows each, summary
 	@pass=0; fail=0; failed=""; \
 	for t in $(LINT_KINDS); do \
 		echo -e "\n$(_B)──────── $$t ────────$(_0)"; \

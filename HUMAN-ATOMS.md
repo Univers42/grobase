@@ -41,6 +41,10 @@
 | 12 | Live IdP for SSO (OIDC) + SCIM | enterprise | Enterprise auth / "real-IdP SSO+SCIM" | 🔵 💰 |
 | 13 | Cloud KMS backend for CMEK (Vault Transit works today; m123 ✅) | enterprise | Compliance / "customer-managed encryption" | ✅ code · 🔵 💰 cloud-KMS optional |
 | 14 | Remove the two `*.rootowned-stale` dirs | housekeeping | Repo hygiene / "no dead duplicates" | ⚪ (`git rm`; sudo only if root-owned) |
+| 15 | Revoke the leaked GitHub PAT (`GH_PAT` in `.env.local`) | all | Security / "no live credential ever pasted into a doc" | 🔵 **urgent** |
+| 16 | Bring the prod-overlay hardening to the live fly stack | cloud | Security / "prod runs the hardened shape, not the dev one" | ⚪📌 deploy |
+| 17 | Fly Vault: drop root, rotate the on-disk root token, leave EOL 1.16 | cloud | Security / "no root process holding the root token" | ⚪📌 deploy |
+| 18 | Vault base image 1.21 → 2.x (self-host image) | OSS + cloud | Supply chain / "image scan green" | ⚪ + upgrade review |
 
 > "PENDING measurement" = honestly **not yet measured** (the 100K is *projected*;
 > failover is *unbuilt*). Do not quote an availability % or a 100K-load number until
@@ -342,6 +346,60 @@ files and overlaps the SDK story, so it stays a human-triggered step).
   ```
 
 **Irreversible?** A delete, but recoverable from git history — low risk.
+
+---
+
+# Group 6 — Security follow-through (from the 2026-09-23 hardening pass)
+
+The code for each of these is written, flag-gated OFF and gate-proven in the repo; what is
+left needs an account or a deploy. Status of every finding: `wiki/security/remediation-tracker-2025-07-14.md`.
+
+## 15 · Revoke the leaked GitHub PAT  🔵 urgent
+
+A live `ghp_` token from `.env.local` (`GH_PAT`) was pasted into four docs by an AI-generated
+report. The copies are redacted and never reached git history, but the token also sits in local
+agent transcripts, so only revocation closes it.
+
+- 🔵 **a.** github.com → Settings → Developer settings → Personal access tokens → revoke it.
+- ⚪ **b.** Mint a replacement only if something still needs one; put it in `.env.local` only.
+- ⚪ **c.** `make check-secrets` — gitleaks now scans docs too; it must stay green.
+
+## 16 · Prod-overlay hardening on the live fly stack  📌
+
+`deploy/fly/boot.sh` does not load `orchestrators/compose/docker-compose.prod.yml`, so the live
+`grobase-stack` runs none of: Kong admin/Manager off (`KONG_ADMIN_LISTEN=off`,
+`KONG_ADMIN_GUI_LISTEN=off`, `KONG_STATUS_LISTEN=0.0.0.0:8001` so Prometheus keeps `/metrics`),
+the GoTrue signup policy, `STORAGE_ACTIVE_CONTENT_GUARD_ENABLED=1` (storage-router),
+`AUTOMATION_WEBHOOK_IP_PIN_ENABLED=1` (query-router). `deploy/go-live/go-live.sh`'s `SET_FLAGS`
+(Helm path) also lacks the two guard flags.
+
+- ⚪ **a.** Decide per value, then add it to `deploy/fly/compose.override.yml` (and `SET_FLAGS`).
+- ⚪ **b.** Render check: `docker compose -f docker-compose.yml -f deploy/fly/compose.override.yml config --quiet`.
+- ⚪📌 **c.** Deploy, then prove on the live host: `curl -s kong:8001/key-auths` from a peer
+  container must fail; `bash scripts/verify/m190-prod-overlay-hardening.sh` documents the values.
+
+## 17 · Fly Vault (`track-binocle-vault`)  📌
+
+It runs as root (`Dockerfile.fly` replaces the base entrypoint that would drop privileges), the
+root token and the single unseal key sit in plaintext in `/vault/data/.vault-keys.json`, and the
+image is `vault:1.16` (end of life).
+
+- ⚪📌 **a.** Snapshot the `vault_data` volume, set `VAULT_DROP_PRIVILEGES_ENABLED=1` under `[env]`
+  in `infra/docker/services/vault/fly.toml`, redeploy. First boot chowns the volume to `vault`.
+  Proof of the mechanism: `bash scripts/verify/m191-vault-drop-privileges.sh`.
+- ⚪📌 **b.** Rotate the root token and move to Shamir shares or auto-unseal; delete the keys file.
+- ⚪📌 **c.** Bump `Dockerfile.fly` off 1.16 (re-run m191 after).
+
+## 18 · Vault base image 1.21 → 2.x  ⚪
+
+`infra/docker/services/vault/Dockerfile` floats on `hashicorp/vault:1.21` (= 1.21.4). Trivy is red
+on it with or without the old `.trivyignore` entries (25 of the 26 formerly suppressed CVEs are
+still present); 2.1.1 contains none of them. A plain `.trivyignore` entry would also hide the same
+IDs in gotrue/loki/mc, so suppression is not the fix.
+
+- ⚪ **a.** Read the 1.x → 2.x upgrade notes, pin an exact 2.x tag, `make build-svc-vault`.
+- ⚪ **b.** `bash scripts/security/run-security-scans.sh --only=trivy` (on < 5 GB free:
+  `SECURITY_TRIVY_IMAGE_PARALLELISM=1`) must show the vault image green.
 
 ---
 

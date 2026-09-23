@@ -113,7 +113,7 @@ jobs:
 
       - name: Upload image-size artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: nightly-image-sizes-${{ github.run_id }}
           path: artifacts/nightly-image-sizes.txt
@@ -184,7 +184,7 @@ jobs:
 
       - name: Upload footprint artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: nightly-footprint-${{ github.run_id }}
           path: |
@@ -308,7 +308,7 @@ jobs:
 
       - name: Upload isolation + conformance artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: nightly-isolation-${{ github.run_id }}
           path: |
@@ -359,7 +359,8 @@ jobs:
         run: |
           set -euo pipefail
           until docker compose -f docker-compose.yml exec -T postgres pg_isready -U postgres -d postgres >/dev/null 2>&1; do sleep 2; done
-          for f in $(ls -1 scripts/migrations/postgresql/*.sql 2>/dev/null | sort); do
+          shopt -s nullglob
+          for f in scripts/migrations/postgresql/*.sql; do
             sed '/^#/d' "$f" | docker compose -f docker-compose.yml exec -T postgres \
               psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f -
           done
@@ -393,7 +394,7 @@ jobs:
 
       - name: Upload mutation report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: mutation-report-${{ github.run_id }}
           path: artifacts/test/mutants.md

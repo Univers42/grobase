@@ -12,6 +12,7 @@
 import { dirname, join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { ensureDir } from "https://deno.land/std@0.224.0/fs/ensure_dir.ts";
 import { FUNCTION_INVOCATIONS_METRIC, UsageMeter } from "./usage-meter.ts";
+import { workerNet } from "./net-policy.ts";
 
 const PORT = Number(Deno.env.get("FUNCTIONS_PORT") ?? "3060");
 const HOST = Deno.env.get("FUNCTIONS_HOST") ?? "0.0.0.0";
@@ -85,6 +86,18 @@ const MEM_POLL_MS = Math.max(
   5,
   Number(Deno.env.get("FUNCTIONS_MEM_POLL_MS") ?? "25"),
 );
+
+// Tenant Worker network ALLOWLIST. DEFAULT OFF (byte-parity): Workers keep
+// `net: "inherit"`. When ON, a Worker may open connections only to the
+// host[:port] entries in FUNCTIONS_NET_ALLOW (empty => no network at all); the
+// runtime process itself (secrets resolve, metering) is unaffected. The
+// docker-compose.prod/cloud overlays turn it ON beside the functions network
+// jail (gate m192). Semantics and limits: net-policy.ts.
+const NET_ALLOWLIST = envBool(Deno.env.get("FUNCTIONS_NET_ALLOWLIST_ENABLED"));
+const NET_ALLOW = Deno.env.get("FUNCTIONS_NET_ALLOW") ?? "";
+if (NET_ALLOWLIST) {
+  console.log(`[functions] worker net allowlist ON: ${JSON.stringify(workerNet(true, NET_ALLOW))}`);
+}
 
 await ensureDir(DATA_DIR);
 
@@ -411,7 +424,7 @@ function invokeInWorker(
       deno: {
         permissions: {
           read: [codePath],
-          net: "inherit",
+          net: workerNet(NET_ALLOWLIST, NET_ALLOW),
           // Scope env to exactly the whitelisted secret keys, else disable.
           env: secretKeys.length > 0 ? secretKeys : false,
           run: false,
@@ -518,7 +531,7 @@ class WarmPool {
       deno: {
         permissions: {
           read: [codePath],
-          net: "inherit",
+          net: workerNet(NET_ALLOWLIST, NET_ALLOW),
           env: secretKeys.length > 0 ? secretKeys : false,
           run: false,
           write: false,

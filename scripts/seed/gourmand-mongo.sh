@@ -43,7 +43,9 @@ ANON="${VG_ANON_APIKEY}"
 AK="${VG_API_KEY}"
 SERVICE_KEY="${VG_SERVICE_APIKEY}"
 TENANT="${VG_TENANT_SLUG}"
-export SERVICE_TOKEN="$(_lt_env mini-baas-tenant-control INTERNAL_SERVICE_TOKEN)"
+SERVICE_TOKEN="$(_lt_env mini-baas-tenant-control INTERNAL_SERVICE_TOKEN)" ||
+  { echo "cannot read INTERNAL_SERVICE_TOKEN from mini-baas-tenant-control (is it running?)" >&2; exit 1; }
+export SERVICE_TOKEN
 TC_URL="http://127.0.0.1:$(_lt_host_port mini-baas-tenant-control 3022/tcp)"
 MUSER="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_USERNAME)"; MUSER="${MUSER:-mongo}"
 MPASS="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_PASSWORD)"; MPASS="${MPASS:-mongo}"

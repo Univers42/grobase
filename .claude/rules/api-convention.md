@@ -1,6 +1,7 @@
 ---
-globs: ["src/apps/**/*.ts", "src/go/control-plane/**/*.go"]
-description: REST API conventions — endpoints, auth, owner-scoping, errors
+paths:
+  - "src/apps/**/*.ts"
+  - "src/control-plane/**/*.go"
 ---
 
 # API Conventions

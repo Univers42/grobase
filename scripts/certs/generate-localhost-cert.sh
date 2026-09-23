@@ -13,8 +13,8 @@
 #!/usr/bin/env sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-REPO_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd) # script lives at scripts/certs/ → repo root is two up
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+REPO_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR/../.." && pwd) # script lives at scripts/certs/ → repo root is two up
 CERT_DIR=${TRACK_BINOCLE_CERT_DIR:-"$REPO_DIR/certs"}
 CA_NAME="Track Binocle Local Development CA"
 CA_KEY="$CERT_DIR/track-binocle-local-ca-key.pem"

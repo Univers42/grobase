@@ -1,8 +1,3 @@
----
-description: Minimalism decision ladder with performance guardrail
-alwaysApply: true
----
-
 # Code generation ladder
 
 Before writing ANY code, walk top to bottom. Stop at the first rung that works:

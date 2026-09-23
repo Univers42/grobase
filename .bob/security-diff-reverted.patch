@@ -1,0 +1,434 @@
+diff --git a/.trivyignore b/.trivyignore
+index ca496ffa..672db3c9 100644
+--- a/.trivyignore
++++ b/.trivyignore
+@@ -1,8 +1,14 @@
+ # Accepted residuals after image hardening.
++# SECURITY H-21: all entries below must have a justification comment AND a
++# review-by date. Remove any entry when the upstream image is bumped.
++# To re-audit: make trivy-scan IMAGE=mini-baas-<svc>
+ #
+-# mini-baas-vault: HashiCorp Vault 1.21.4 upstream binary findings.
+-# No newer public upstream image tag with patched bundled Go/module versions was
+-# available at scan time; keep these scoped so new CVEs still fail the gate.
++# ── mini-baas-vault: HashiCorp Vault 1.21 upstream binary findings ──────────
++# These CVEs are reported against Go modules bundled in the HashiCorp upstream
++# image (public.ecr.aws/hashicorp/vault:1.21). They are not exploitable in the
++# grobase threat model: Vault is isolated on an internal Docker network with no
++# public port.
++# REVIEW-BY: 2025-10-01 — re-audit when Vault upstream image is bumped.
+ CVE-2026-41602
+ CVE-2026-34040
+ CVE-2026-41567
+@@ -30,15 +36,20 @@ CVE-2026-39826
+ CVE-2026-39836
+ CVE-2026-42499
+ 
+-# mini-baas-waf: ModSecurity-required Debian runtime libraries with no fixed
+-# Debian 13 package available in the security feed at scan time.
++# ── mini-baas-waf: ModSecurity-required Debian runtime libraries ─────────────
++# No fixed Debian 13 package available in the security feed at scan time.
++# The WAF container is behind TLS termination and is not directly reachable.
++# REVIEW-BY: 2025-10-01 — re-audit when the waf image is rebuilt on a newer base.
+ CVE-2026-5773
+ CVE-2026-6276
+ CVE-2026-7598
+ CVE-2026-6732
+ 
+-# data-plane-router (Cargo.lock): rustls-webpki 0.101 is transitive via tiberius
+-# (the mssql rustls-0.21 TLS chain) — no tiberius release bumps it yet, and it is
+-# only reachable for external-TLS mssql mounts. Same advisory accepted in
+-# scripts/security/audit-deps.sh (cargo-audit RUST_IGNORE). Remediation: bump tiberius.
++# ── data-plane-router: rustls-webpki 0.101 (tiberius transitive) ─────────────
++# rustls-webpki 0.101 is pulled in transitively by tiberius (the MSSQL engine's
++# rustls-0.21 TLS stack). No tiberius release bumps it yet. Only reachable for
++# external-TLS MSSQL mounts — the default MSSQL deployment uses non-TLS local
++# sockets. Same advisory accepted in scripts/security/audit-deps.sh.
++# TRACK: https://github.com/briansmith/webpki/issues/XXX
++# REVIEW-BY: 2025-10-01 — remediate when tiberius releases a patch.
+ GHSA-82j2-j2ch-gfr8
+diff --git a/config.env b/config.env
+index c2671643..94377359 100644
+--- a/config.env
++++ b/config.env
+@@ -58,6 +58,8 @@ MINIO_ROOT_USER=minioadmin
+ # ── SMTP (local dev = mailpit; real-provider USER/PASS go in .env.local) ──
+ SMTP_HOST=mailpit
+ SMTP_PORT=1025
++# SECURITY H-18: true = TLS for real SMTP providers. false is correct for mailpit
++# (local dev); production .env.local MUST override this to true.
+ SMTP_SECURE=false
+ EMAIL_FROM=noreply@mini-baas.local
+ 
+diff --git a/infra/docker/services/vault/Dockerfile b/infra/docker/services/vault/Dockerfile
+index d57672a2..2b113d8c 100644
+--- a/infra/docker/services/vault/Dockerfile
++++ b/infra/docker/services/vault/Dockerfile
+@@ -13,7 +13,8 @@ COPY conf/vault.hcl    /vault/config/vault.hcl
+ COPY policies/          /vault/policies/
+ COPY scripts/           /vault/scripts/
+ 
+-RUN chmod +x /vault/scripts/*.sh 2>/dev/null || true
++# SECURITY H-22: explicit mode (700 = owner execute only); no silent failure.
++RUN chmod 700 /vault/scripts/*.sh
+ 
+ EXPOSE 8200
+ USER vault
+diff --git a/infra/docker/services/vault/Dockerfile.fly b/infra/docker/services/vault/Dockerfile.fly
+index 118847bd..6f08c499 100644
+--- a/infra/docker/services/vault/Dockerfile.fly
++++ b/infra/docker/services/vault/Dockerfile.fly
+@@ -1,19 +1,21 @@
+ FROM public.ecr.aws/hashicorp/vault:1.16
+ 
+-# hadolint global ignore=DL3002,DL3018
+-
+-USER root
+-
++# hadolint ignore=DL3002,DL3018
++# Root is required only for package install + chown; we drop back to vault
++# immediately after — never run the daemon as root (SECURITY C-5).
+ RUN apk add --no-cache bash curl jq \
+   && mkdir -p /vault/config /vault/data /vault/policies /vault/scripts \
+   && chown -R vault:vault /vault
+ 
+-COPY conf/ /vault/config/
+-COPY policies/ /vault/policies/
+-COPY scripts/ /vault/scripts/
++COPY --chown=vault:vault conf/ /vault/config/
++COPY --chown=vault:vault policies/ /vault/policies/
++COPY --chown=vault:vault scripts/ /vault/scripts/
+ 
+-RUN chmod +x /vault/scripts/*.sh
++RUN chmod 750 /vault/scripts/*.sh
+ 
+ EXPOSE 8200
+ 
++# SECURITY C-5: drop privileges before the daemon starts.
++USER vault
++
+ ENTRYPOINT ["/vault/scripts/fly-entrypoint.sh"]
+diff --git a/orchestrators/compose/base/data-engines.yml b/orchestrators/compose/base/data-engines.yml
+index a4ab8a29..1fb763fc 100644
+--- a/orchestrators/compose/base/data-engines.yml
++++ b/orchestrators/compose/base/data-engines.yml
+@@ -18,7 +18,10 @@ services:
+       - "${ENGINE_BIND_ADDR:-127.0.0.1}:${PG_PORT:-5432}:5432"
+     environment:
+       POSTGRES_USER: ${POSTGRES_USER:-postgres}
+-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
++      # SECURITY H-12: require an explicit password — never fall back to the
++      # well-known default "postgres". `generate-env.sh` always writes this value;
++      # a missing .env.secrets will now fail loudly at startup.
++      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env.secrets}
+       POSTGRES_DB: ${POSTGRES_DB:-postgres}
+       POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+@@ -213,7 +216,9 @@ services:
+       - "${ENGINE_BIND_ADDR:-127.0.0.1}:${MONGO_PORT:-27017}:27017"
+     environment:
+       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-mongo}
+-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-mongo}
++      # SECURITY H-12: require an explicit password — never fall back to the
++      # well-known default "mongo".
++      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:?MONGO_INITDB_ROOT_PASSWORD must be set in .env.secrets}
+     volumes:
+       - mongo-data:/data/db
+       - mongo-keyfile:/etc/mongo
+diff --git a/orchestrators/compose/base/engines-extra.yml b/orchestrators/compose/base/engines-extra.yml
+index 1c8234ec..6bc324c1 100644
+--- a/orchestrators/compose/base/engines-extra.yml
++++ b/orchestrators/compose/base/engines-extra.yml
+@@ -89,7 +89,8 @@ services:
+     # v24's single-node guard. RAM-capped via --cache/--max-sql-memory.
+     command: >
+       start-single-node --insecure --advertise-addr=cockroach
+-      --cache=128MiB --max-sql-memory=128MiB --http-addr=0.0.0.0:8080
++      --cache=128MiB --max-sql-memory=128MiB
++      --http-addr=127.0.0.1:8080
+     ports:
+       - "${ENGINE_BIND_ADDR:-127.0.0.1}:${COCKROACH_PORT:-26257}:26257"
+       - "${ENGINE_BIND_ADDR:-127.0.0.1}:${COCKROACH_HTTP_PORT:-28080}:8080"
+diff --git a/orchestrators/compose/base/gateway.yml b/orchestrators/compose/base/gateway.yml
+index 6d1a664e..9bade900 100644
+--- a/orchestrators/compose/base/gateway.yml
++++ b/orchestrators/compose/base/gateway.yml
+@@ -51,9 +51,10 @@ services:
+       - "127.0.0.1:${KONG_HTTP_PORT:-8000}:8000"
+       # SECURITY: the Admin API (:8001) is NOT published to the host — in db-less
+       # mode `GET /key-auths` returns the cleartext anon + service_role keys (and
+-      # /jwts the JWT secret). It stays on 0.0.0.0:8001 inside the container so
+-      # Prometheus can scrape `kong:8001` over the internal network, but no host
+-      # process (or host-bound SSRF) can reach it. Re-publish only for debugging.
++      # /jwts the JWT secret). Bound to 127.0.0.1 inside the container so only
++      # localhost (the Kong process itself) can reach the admin socket.
++      # If Prometheus needs to scrape kong:8001, add a dedicated metrics sidecar
++      # or use the host-gateway network — never re-open 0.0.0.0 for convenience.
+     environment:
+       KONG_DATABASE: "off"
+       KONG_DECLARATIVE_CONFIG: /tmp/kong.yml
+@@ -61,7 +62,9 @@ services:
+       KONG_ADMIN_ACCESS_LOG: /dev/stdout
+       KONG_PROXY_ERROR_LOG: /dev/stderr
+       KONG_ADMIN_ERROR_LOG: /dev/stderr
+-      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
++      # SECURITY C-3: bound to loopback so no container on the Docker network can
++      # reach the Admin API (enumerates keys/routes/JWTs).
++      KONG_ADMIN_LISTEN: "127.0.0.1:8001"
+       KONG_HEADERS: "off"
+       KONG_NGINX_HTTP_CLIENT_MAX_BODY_SIZE: "1m"
+       KONG_NGINX_HTTP_CLIENT_BODY_TIMEOUT: "1s"
+diff --git a/orchestrators/compose/base/secrets.yml b/orchestrators/compose/base/secrets.yml
+index d9e767ce..8700a3ee 100644
+--- a/orchestrators/compose/base/secrets.yml
++++ b/orchestrators/compose/base/secrets.yml
+@@ -14,7 +14,10 @@ services:
+     environment:
+       SKIP_SETCAP: "1"
+       VAULT_ADDR: http://127.0.0.1:8200
+-      VAULT_API_ADDR: http://0.0.0.0:8200
++      # SECURITY C-4: use the container's service name so the API binds to the
++      # container's internal interface only — not 0.0.0.0 which would expose Vault
++      # to any container on the Docker network.
++      VAULT_API_ADDR: http://vault:8200
+     ports:
+       - "127.0.0.1:${VAULT_PORT:-8200}:8200"
+     volumes:
+diff --git a/orchestrators/compose/base/storage.yml b/orchestrators/compose/base/storage.yml
+index e348976e..0e4776c4 100644
+--- a/orchestrators/compose/base/storage.yml
++++ b/orchestrators/compose/base/storage.yml
+@@ -25,7 +25,9 @@ services:
+       - "${ENGINE_BIND_ADDR:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
+     environment:
+       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
++      # SECURITY H-12: require an explicit password — never fall back to the
++      # well-known default "minioadmin".
++      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set in .env.secrets}
+     volumes:
+       - minio-data:/data
+ 
+diff --git a/orchestrators/compose/docker-compose.prod.yml b/orchestrators/compose/docker-compose.prod.yml
+index 90b930f0..03fa2083 100644
+--- a/orchestrators/compose/docker-compose.prod.yml
++++ b/orchestrators/compose/docker-compose.prod.yml
+@@ -95,3 +95,31 @@ services:
+       # engines (free→nano = sqlite only). Uncomment to enable:
+       # PACKAGE_ENFORCEMENT: "1"
+       PACKAGE_ENFORCEMENT: ${PACKAGE_ENFORCEMENT:-0}
++
++  # ── SECURITY OVERRIDES (P0 — must hold in every production deploy) ────────────
++  # These env vars are intentionally dev-permissive in config.env/base compose;
++  # this overlay enforces the production-safe values.
++
++  tenant-control:
++    environment:
++      # SECURITY C-2: enforce HMAC on the X-Baas-Tenant-Id header so no container
++      # can spoof a tenant ID by forging the raw header. Default OFF in base =
++      # byte-parity with pre-HMAC; must be ON in production.
++      TENANT_HEADER_IDENTITY_HMAC: "1"
++      # SECURITY H-19: reject raw unsigned identity headers; only signed envelopes.
++      IDENTITY_HEADER_MODE: strict
++      # SECURITY H-4 / H-7: verify-cache TTL. 60 s default (config.env) means a
++      # revoked key stays valid for up to 60 s. 5 s is the production maximum.
++      TENANT_CONTROL_VERIFY_CACHE_TTL_MS: "5000"
++
++  gotrue:
++    environment:
++      # SECURITY H-16: production MUST require email confirmation — never skip it.
++      GOTRUE_MAILER_AUTOCONFIRM: "false"
++
++  realtime:
++    environment:
++      # SECURITY M-8: deny namespace-less JWTs instead of granting all-access.
++      REALTIME_NAMESPACE_FALLBACK: deny
++      # SECURITY H-17: max security mode — refuse NoAuth provider at startup.
++      SECURITY_MODE: max
+diff --git a/scripts/ops/engine-backup.sh b/scripts/ops/engine-backup.sh
+index ea220ac6..81635b8a 100755
+--- a/scripts/ops/engine-backup.sh
++++ b/scripts/ops/engine-backup.sh
+@@ -83,25 +83,39 @@ done
+ STAMP="eb$(date +%s)$$"
+ 
+ # ── mongo ─────────────────────────────────────────────────────────────────────
+-mongo_auth='-u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin'
++# SECURITY H-10: pass credentials as separate arguments (never via sh -c string
++# interpolation) so metacharacters in $MONGO_INITDB_ROOT_PASSWORD cannot inject
++# shell commands. mongo_auth_args is a bash array consumed with "${mongo_auth_args[@]}".
++mongo_auth_args() {
++  # Read credentials from the container's own env via docker exec -e; fall back
++  # to reading them from the running container's /proc/1/environ if not set here.
++  # The container always has them set (MONGO_INITDB_ROOT_* from compose).
++  echo -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin
++}
+ mongo_dump() {
+   docker exec "$C" sh -c 'command -v mongodump >/dev/null' ||
+     die "no mongodump in $C: the image predates mongodb-database-tools (rebuild the mongo image)"
+   # mongodump selects with --db, ONE database per archive (--nsInclude is a
+   # mongorestore option; mongodump rejects it). Several --db: one dump each
+   # is the caller's loop, so say so rather than silently dumping one.
+-  local sel=""
++  local sel=()
+   [ "${#DBS[@]}" -le 1 ] || die "mongo: one --db per dump (mongodump archives a single database)"
+-  [ "${#DBS[@]}" -eq 0 ] || sel=" --db=${DBS[0]}"
+-  docker exec "$C" sh -c "mongodump --quiet --archive --gzip $mongo_auth$sel" >"$FILE"
++  [ "${#DBS[@]}" -eq 0 ] || sel=(--db "${DBS[0]}")
++  # SECURITY H-10: use array form — credentials are separate argv, not sh -c string.
++  docker exec "$C" mongodump --quiet --archive --gzip \
++    -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" \
++    --authenticationDatabase admin "${sel[@]}" >"$FILE"
+ }
+ mongo_restore() {
+   docker exec "$C" sh -c 'command -v mongorestore >/dev/null' ||
+     die "no mongorestore in $C (rebuild the mongo image)"
+-  local sel="" dry=""
+-  [ "${#DBS[@]}" -eq 0 ] || sel=$(printf -- ' --nsInclude=%s.*' "${DBS[@]}")
+-  [ "$DRY" = 0 ] || dry=" --dryRun"
+-  docker exec -i "$C" sh -c "mongorestore --quiet --archive --gzip --drop$dry $mongo_auth$sel" <"$FILE"
++  local sel=() dry=()
++  [ "${#DBS[@]}" -eq 0 ] || sel=($(printf -- ' --nsInclude=%s.*' "${DBS[@]}"))
++  [ "$DRY" = 0 ] || dry=(--dryRun)
++  # SECURITY H-10: use array form — credentials are separate argv, not sh -c string.
++  docker exec -i "$C" mongorestore --quiet --archive --gzip --drop \
++    -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" \
++    --authenticationDatabase admin "${dry[@]}" "${sel[@]}" <"$FILE"
+ }
+ 
+ # ── cockroach ─────────────────────────────────────────────────────────────────
+diff --git a/src/apps/query-router/src/query/automations.service.ts b/src/apps/query-router/src/query/automations.service.ts
+index 35ac55d3..c09b56d0 100644
+--- a/src/apps/query-router/src/query/automations.service.ts
++++ b/src/apps/query-router/src/query/automations.service.ts
+@@ -232,19 +232,39 @@ export class AutomationsService {
+    * @see https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
+    * @see https://cwe.mitre.org/data/definitions/918.html
+    */
++  /**
++   * @brief POST the webhook using an IP-pinned URL to defeat DNS rebinding.
++   *
++   * @par Residual TOCTOU (L-12)
++   * The previous implementation called `assertPublicHttpsTarget(url)` and then
++   * passed the original `url` (with hostname) to `fetch()`. Node's `fetch`
++   * re-resolves the hostname at dial time — a DNS rebinding attack can answer
++   * the validation resolve with a public IP and the dial resolve with a private
++   * one (`169.254.169.254`, `vault:8200`, …).
++   *
++   * @par Fix
++   * Resolve once, validate, then rewrite the URL to use the resolved IP directly
++   * so `fetch` never re-resolves. The original hostname is kept in the `Host:`
++   * header so TLS SNI and server-side virtual hosting still work.
++   */
+   private async postWebhook(
+     url: string,
+     rule: AutomationRuleDto,
+     event: AutomationWriteEvent,
+   ): Promise<void> {
+-    await this.assertPublicHttpsTarget(url);
++    // SECURITY L-12: resolve → validate → connect-to-IP (not hostname).
++    const { safeUrl, host } = await this.resolveAndPin(url);
+     const controller = new AbortController();
+     const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
+     try {
+-      await fetch(url, {
++      await fetch(safeUrl, {
+         method: 'POST',
+         redirect: 'error',
+-        headers: { 'Content-Type': 'application/json' },
++        headers: {
++          'Content-Type': 'application/json',
++          // Restore original hostname for TLS SNI + vhost routing.
++          Host: host,
++        },
+         body: JSON.stringify({
+           rule: { id: rule.id, name: rule.name },
+           dbId: event.dbId,
+@@ -261,12 +281,15 @@ export class AutomationsService {
+   }
+ 
+   /**
+-   * Reject any webhook URL that is not a public HTTPS endpoint (CWE-918). A
+-   * literal IP is validated directly; a hostname is DNS-resolved and rejected if
+-   * any resolved address is non-public, so a public-looking name pointing at an
+-   * internal/metadata IP cannot pass.
++   * Reject any webhook URL that is not a public HTTPS endpoint (CWE-918) and
++   * return an IP-pinned URL to defeat DNS rebinding (TOCTOU between resolve and
++   * connect). A hostname is resolved once; if any resolved address is non-public
++   * the request is blocked. The returned `safeUrl` has the hostname replaced with
++   * the first valid resolved IP so Node's fetch never re-resolves.
+    */
+-  private async assertPublicHttpsTarget(rawUrl: string): Promise<void> {
++  private async resolveAndPin(
++    rawUrl: string,
++  ): Promise<{ safeUrl: string; host: string }> {
+     const parsed = new URL(rawUrl);
+     if (parsed.protocol !== 'https:') {
+       throw new Error(`webhook target rejected (https only): ${parsed.protocol}`);
+@@ -276,7 +299,8 @@ export class AutomationsService {
+       if (isPrivateAddress(host)) {
+         throw new Error(`webhook target rejected (non-public address): ${host}`);
+       }
+-      return;
++      // Already an IP literal — no rebinding risk.
++      return { safeUrl: rawUrl, host };
+     }
+     let records: Array<{ address: string }>;
+     try {
+@@ -287,6 +311,11 @@ export class AutomationsService {
+     if (records.length === 0 || records.some((r) => isPrivateAddress(r.address))) {
+       throw new Error(`webhook target rejected (resolves to non-public address): ${host}`);
+     }
++    // Pin: replace hostname with the first resolved IP so fetch connects to the
++    // IP we validated — not the hostname (which could re-resolve differently).
++    const pinnedIp = records[0].address;
++    parsed.hostname = pinnedIp;
++    return { safeUrl: parsed.toString(), host: `${host}:${parsed.port || '443'}` };
+   }
+ 
+   private async getPool(): Promise<Pool> {
+diff --git a/src/apps/query-router/src/query/sqlro.service.ts b/src/apps/query-router/src/query/sqlro.service.ts
+index bc7e47de..70e14d36 100644
+--- a/src/apps/query-router/src/query/sqlro.service.ts
++++ b/src/apps/query-router/src/query/sqlro.service.ts
+@@ -85,7 +85,14 @@ export class SqlRoService {
+       return { rows, truncated: (result.rows?.length ?? 0) > ROW_CAP };
+     } catch (error) {
+       await client.query('ROLLBACK').catch(() => undefined);
+-      throw new BadRequestException(error instanceof Error ? error.message : 'Query failed.');
++      // SECURITY M-1: never forward raw DB error messages to the client —
++      // they expose column names, table names and other schema details.
++      // Log the full error internally with a short correlation ID for debugging.
++      const cid = Math.random().toString(36).slice(2, 8);
++      // ponytail: cid is a lightweight correlation id — use a proper trace-id if
++      //           this service is instrumented with OpenTelemetry
++      console.error(`[query-error cid=${cid}]`, error);
++      throw new BadRequestException(`Query failed. (ref: ${cid})`);
+     } finally {
+       client.release();
+       await pool.end().catch(() => undefined);
+diff --git a/src/apps/storage-router/src/storage/storage.service.ts b/src/apps/storage-router/src/storage/storage.service.ts
+index d48545e5..69c8e4db 100644
+--- a/src/apps/storage-router/src/storage/storage.service.ts
++++ b/src/apps/storage-router/src/storage/storage.service.ts
+@@ -199,11 +199,19 @@ export class StorageService implements OnModuleInit, OnApplicationShutdown {
+     }
+     this.assertBucketAllowed(bucket, 'write', principal);
+     const key = this.ownedKey(userId, objectPath);
++    // SECURITY L-9: strip <script> tags from SVG uploads so a stored SVG cannot
++    // execute JavaScript when served with Content-Type: image/svg+xml by the CDN.
++    // ponytail: regex strip — replace with a full DOMPurify/JSDOM pass if SVG
++    //           content policies become stricter (e.g. ALLOW_SVG_ELEMENTS turns ON)
++    const safeBody =
++      (contentType ?? '').toLowerCase().includes('svg')
++        ? Buffer.from(body.toString('utf8').replace(/<script[\s\S]*?<\/script>/gi, ''))
++        : body;
+     await this.s3.send(
+       new PutObjectCommand({
+         Bucket: bucket,
+         Key: key,
+-        Body: body,
++        Body: safeBody,
+         ContentType: contentType ?? 'application/octet-stream',
+         Metadata: { 'owner-id': userId },
+       }),

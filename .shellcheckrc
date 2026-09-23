@@ -35,6 +35,13 @@ disable=SC1128
 # Verified: realtime audit.sh:30-34, go-live.sh:394.
 disable=SC2034
 
+# SC2329 — "This function is never invoked" (shellcheck >= 0.10). Of the 68 hits, all 62
+# remaining after the dead-code sweep are EXIT-trap handlers (`cleanup`, `on_exit`,
+# `cleanup_resources`) invoked only through `trap <fn> EXIT`, which shellcheck does not
+# count as a call. The 6 genuinely-unused functions it found were deleted, not silenced.
+# Verified: m87 cleanup, security/audit/iac-scan.sh on_exit, v09-keystore-escrow.sh cleanup.
+disable=SC2329
+
 # SC2120 — "<fn> references arguments, but none are ever passed." Pass-through helpers
 # like `psql_q() { … "$@"; }` forward "$@"; gates call them argument-less — the
 # intended-optional contract, not a bug. Verified: m100/m101/m104 psql_q.

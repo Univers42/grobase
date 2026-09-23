@@ -4,6 +4,7 @@
 
 services:
   postgres:
+    volumes: !reset []
     tmpfs:
       - /var/lib/postgresql/data
     environment:
@@ -16,6 +17,7 @@ services:
       - /data/db
 
   redis:
+    volumes: !reset []
     tmpfs:
       - /data
 

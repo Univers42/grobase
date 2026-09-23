@@ -1,44 +1,31 @@
-# Accepted residuals after image hardening.
+# Accepted residuals. One entry: an accepted residual has to be a finding with
+# nothing to fix, and only this one still is.
 #
-# mini-baas-vault: HashiCorp Vault 1.21.4 upstream binary findings.
-# No newer public upstream image tag with patched bundled Go/module versions was
-# available at scan time; keep these scoped so new CVEs still fail the gate.
-CVE-2026-41602
-CVE-2026-34040
-CVE-2026-41567
-CVE-2026-42306
-CVE-2026-34986
-CVE-2026-3605
-CVE-2026-4525
-CVE-2026-5807
-CVE-2026-32286
-CVE-2026-33816
-CVE-2026-44503
-CVE-2026-29181
-CVE-2026-39883
-CVE-2026-33186
-CVE-2026-25679
-CVE-2026-32280
-CVE-2026-32281
-CVE-2026-32283
-CVE-2026-33811
-CVE-2026-33814
-CVE-2026-39820
-CVE-2026-39823
-CVE-2026-39825
-CVE-2026-39826
-CVE-2026-39836
-CVE-2026-42499
-
-# mini-baas-waf: ModSecurity-required Debian runtime libraries with no fixed
-# Debian 13 package available in the security feed at scan time.
-CVE-2026-5773
-CVE-2026-6276
-CVE-2026-7598
-CVE-2026-6732
-
-# data-plane-router (Cargo.lock): rustls-webpki 0.101 is transitive via tiberius
-# (the mssql rustls-0.21 TLS chain) — no tiberius release bumps it yet, and it is
-# only reachable for external-TLS mssql mounts. Same advisory accepted in
-# scripts/security/audit-deps.sh (cargo-audit RUST_IGNORE). Remediation: bump tiberius.
-GHSA-82j2-j2ch-gfr8
+# Every ID here is ignored in every image and in the fs scan: trivy's plain
+# ignore file cannot scope an ID to one image.
+#
+# Deleted, not re-dated: 4 mini-baas-waf IDs and 26 mini-baas-vault IDs, checked
+# on 2026-09-23 with trivy 0.74.0 and the gate's flags (--severity HIGH,CRITICAL
+# --ignore-unfixed).
+# - waf (CVE-2026-5773, -6276, -7598, -6732): in no package of
+#   ghcr.io/univers42/grobase-waf:latest (Debian 13.7), at any severity.
+# - vault: infra/docker/services/vault/Dockerfile's FROM hashicorp/vault:1.21
+#   resolves to 1.21.4 (Go 1.25.7), the last 1.21 tag. There, 16 of the IDs are
+#   fixable HIGH/CRITICAL, 6 are HIGH with no fix, 3 are MEDIUM (the gate drops
+#   those 9) and 1 is absent. Vault 2.1.1 carries none of the 26. They stay out
+#   because 12 of them are also in grobase-gotrue and 10 in grobase-loki and
+#   grobase-mc, where the vault reason does not hold, and because the vault image
+#   fails the gate without them: 30 other fixable HIGH/CRITICAL findings that no
+#   entry here ever covered. The fix is the base bump to Vault 2.x, which ships to
+#   deployments and needs a human trigger.
+#
+# GHSA-82j2-j2ch-gfr8 (RUSTSEC-2026-0104): rustls-webpki 0.101.7 in
+# src/data-plane-router/Cargo.lock -- the one scanned lockfile holding 0.101.x
+# (realtime-agnostic/Cargo.lock is 0.103.13; vendor/ is skip-dirs). Two paths,
+# both over rustls 0.21.12: tiberius 0.12.3 -> tokio-rustls 0.24.1 (mssql, always
+# built) and aws-smithy-http-client 1.1.13 -> hyper-rustls 0.24.2 (dynamodb,
+# opt-in). The bug is a panic parsing a CRL, and the advisory scopes it to callers
+# that pass RevocationOptions; both paths build rustls-0.21 CLIENT configs
+# with_no_client_auth() and load no CRL, so it is unreachable here. Drop this when
+# tiberius leaves rustls 0.21. REVIEW-BY 2026-12-23, enforced by the exp: below.
+GHSA-82j2-j2ch-gfr8 exp:2026-12-23

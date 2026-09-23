@@ -28,7 +28,6 @@ type fakeRepo struct {
 	consentMissing bool
 	pending        bool
 	delReq         *DeletionRequest
-	delReqStatus   string
 	withdrawn      int
 	lastSetConsent bool
 	lastUpdateType string

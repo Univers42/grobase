@@ -22,14 +22,16 @@ byte-parity with the OSS edition (flag tables below).
 
 The **lean (flattened) layout IS the layout** — the restructure is **done and committed to
 `origin/main`**. `mini-baas-infra/` no longer exists; its contents were hoisted to the repo root
-(`src/`, `infra/`, `sdks/`, `orchestrators/`, `scripts/`) under a **thin ~74-line root `Makefile`**
-that `include`s **12** `orchestrators/makes/*.mk` fragments (the old 735-line monolith survives only
+(`src/`, `infra/`, `sdks/`, `orchestrators/`, `scripts/`) under a **thin ~71-line root `Makefile`**
+that `include`s **13** `orchestrators/makes/*.mk` fragments (`00-config` … `99-help`, incl. `85-fly.mk` and `prettier.mk`) (the old 735-line monolith survives only
 as `Makefile.bak`). A fresh clone gets this layout — **there is no dual-layout situation anymore** and
 no `mini-baas-infra/` prefix to re-map. (Sanity check: `ls mini-baas-infra` → "No such file".) The
 SDK-codegen chain and CI (`.github/workflows/ci.yml`) were repointed to lean paths in the same
 restructure and are on `main` too.
 
-The active branch is **`main`** (HEAD `e8cb34d2`); the vendor re-platform commits (Canagrou · HamBooking ·
+Day-to-day work happens on **`integration/local`**, which merges `fix/*` / `feat/*` branches from
+`origin` on top of `main` (at `b18ed2e5` it carried the `m181`–`m188` hardening band described under
+"Verify gates"); PRs still target **`main`**. On `main`, the vendor re-platform commits (Canagrou · HamBooking ·
 Nimbus · MovieVerse · vite-gourmand · surfind-spain · hypertube) plus the per-table-isolation +
 query-router-JWT data-plane work, the websites playground, and the per-mount `read_scoped` data-plane
 feature (migration `070`) all **landed on `main`** earlier. Since then `main` has advanced through the
@@ -42,8 +44,10 @@ self-serve app creation (`APPS_SELFSERVE_ENABLED`), cross-app `xapp:` messaging 
 is largely **clean**: the AppFlowy clone is committed as **plain tracked files** (nested `.git` removed,
 ~2880 files); the old in-repo `vendor/java-dam-baas/` stale snapshot was **removed** in `a0bfc38`. The
 former `vendor/twenty/` orphan gitlink and the `vendor/vault42/` nested checkout are **both gone from
-disk now** — there are **no `160000` gitlinks tracked** anywhere (`git ls-files -s vendor/ | grep
-160000` is empty), and vault42 is consumed as a **published image** via the `vault42` compose plane, not
+disk now** — there are **no `160000` gitlinks under `vendor/`** (`git ls-files -s vendor/ | grep
+160000` is empty). The one exception is at the **repo root**: `claude-deal-with-the-devil/` has been
+re-added as a **git submodule** (with a new `.gitmodules`). It is the upstream source of the `.claude/`
+agent-config pattern, not an app. vault42 is consumed as a **published image** via the `vault42` compose plane, not
 a clone. (Sanity check: `ls vendor/` → **11** dirs, no `twenty`/`vault42`.)
 
 ## Code generation
@@ -95,10 +99,10 @@ The `make legacy-*` target is **gone** (the monolith survives only as `Makefile.
 └── vendor/                    # playground apps re-platformed onto / mounted into the BaaS — see "vendor/" below
 ```
 
-Other on-disk artifacts to know: `certs/` and `infra/docker/services/realtime/realtime-agnostic`
-are **untracked** in the working tree (the realtime workspace is vendored plain files, ~163 source
-files, no nested `.git`). `.gitmodules` has been **removed** (committed to `main` — it declared 6
-dead submodules, none ever initialized); the orphan nested `grobase/` gitlink was de-tracked in
+Other on-disk artifacts to know: `certs/` is **untracked** (local TLS material). The realtime workspace
+`infra/docker/services/realtime/realtime-agnostic` is vendored as plain **tracked** files (no nested
+`.git`). The old `.gitmodules` (6 dead submodules, never initialized) was **removed** on `main`; the current
+one declares only the `claude-deal-with-the-devil` submodule. The orphan nested `grobase/` gitlink was de-tracked in
 `3396baf`. There is **no `site/`** (marketing site) in this repo, on any
 ref. `coverage/` HTML under `src/` will pollute `grep` hits — exclude it.
 
@@ -106,8 +110,8 @@ ref. `coverage/` HTML under `src/` will pollute `grep` hits — exclude it.
 `SECURITY.md` (threat model / hardening / reporting), `RELEASE.md` (how a version ships),
 `HUMAN-ATOMS.md` (the GA human/money/account checklist), and the open-core licensing set —
 `LICENSING.md` · `LICENSE` (AGPLv3) · `LICENSE-ENTERPRISE.md` · `CLA.md` (see **Licensing** below).
-`DEVDOC.md`/`USERDOC.md` are dev/user guides; `prompt.md` is a design-rationale scratch note (origin
-of the minimalism-ladder rule), not operational. Builds can also go through `docker-bake.hcl` (buildx
+`DEVDOC.md`/`USERDOC.md` are dev/user guides; `prompt.md` is the short start-here briefing for any
+agent (it points back here and deliberately carries no counts). Builds can also go through `docker-bake.hcl` (buildx
 bake groups `apps`/`infra`).
 
 ## Three-language plane layout (lean paths)
@@ -202,7 +206,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **160 scripts, highest m180** (`m180-frontend-vercel-rewrite.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **168 scripts, highest m188** (`m188-engine-backup-restore.sh`); the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -254,6 +258,11 @@ on its OWN fresh `CREATE DATABASE` + scoped key), `m179` cross-app messaging cha
 app-tenants over the protected `xapp:<channel_id>` namespace), `m180` website same-origin Vercel rewrite
 (browser → fly only same-origin, realtime the one direct `wss://` exception). `m177`/`m179`/`m180` are
 the load-bearing proof of [`.claude/rules/service-boundaries.md`](.claude/rules/service-boundaries.md).
+The newest band **m181–m188** is **operational hardening** (not flag-gated): `m181` DDL
+autoincrement PK, `m182` query-router raw read-only SQL, `m183` healthchecks assert real network
+readiness, `m184` realtime `LISTEN` survives a Postgres restart, `m185` Node V8 heap sized under the
+cgroup limit, `m186` functions cold-invoke latency, `m187` Kong/WAF probes go through the proxy itself,
+`m188` MongoDB / CockroachDB / SQL Server backup + restore (`scripts/ops/engine-backup.sh`).
 
 ### Build, lint & test (per plane) — including how to run ONE test
 
@@ -278,6 +287,15 @@ Notes: the data-plane crate's produced binary is **`data-plane-router`** (packag
 is **gitignored** (except the committed curated `engines.ts`) — regenerate with `cd sdks/js && npm run codegen:all` (the `openapi:collect` link in
 that chain was repointed to `../../scripts/ops/openapi-collect.sh` in the flatten). All SDKs derive
 from one spec: `infra/config/openapi/grobase-public.json` (polyglot via `bash sdks/js/scripts/codegen-polyglot.sh`).
+
+**Lint / scan / audit matrix** (`orchestrators/makes/100-test.mk`, all Docker, images pinned):
+`make test-lint` runs shell (shellcheck, host binary else `koalaman/shellcheck`, `vendor/` excluded) ·
+rust clippy · go (vet + gofmt, then golangci-lint + gofumpt per `src/control-plane/.golangci.yml`) ·
+ts eslint · yaml (yamllint + actionlint) · docker (hadolint) · make · **compose** (base + every
+`docker-compose.*.yml` overlay must render; `track-binocle` is skipped — it needs a `pg-meta` service
+this repo never defines). `make test-scan` = `check-secrets` (grep patterns **plus gitleaks over the
+whole tree, docs and untracked files included**, policy `.gitleaks.toml`) + semgrep/trivy/npm audit.
+`make audit-deps` = cargo-audit + govulncheck. First results: `artifacts/quality/baseline-2026-09-23.md`.
 
 **Code quality (SonarCloud).** `sonar-project.properties` (repo root; org `univers42`, projectKey
 `Univers42_grobase`) defines the scope — sources `docker/services, scripts, config, src/apps,
@@ -314,7 +332,7 @@ old single-file monolith was split into these. Beyond that base, additive overla
 | `docker-compose.track-binocle.yml` | Carried-over monorepo-integration overlay                           |
 | `docker-compose.monolith.yml`      | Preserved pre-split single-file compose (all services inline; uses stale `./docker/services/` paths) |
 
-**Gotcha — GHCR pull-fallback.** **54** services across the `orchestrators/compose/base/*.yml` plane
+**Gotcha — GHCR pull-fallback.** **56** services across the `orchestrators/compose/base/*.yml` plane
 files (included by the thin root `docker-compose.yml`) carry an
 `image: ghcr.io/univers42/grobase-<svc>:latest` line above their `build:` block (annotated
 `# pull-fallback`), so a plain `docker compose up` **pulls the prebuilt `:latest` image instead of
@@ -335,8 +353,8 @@ planes, e.g. metering = `METERING_ENABLED` (Go control) AND `DATA_PLANE_METERING
 `PERMISSION_CONDITIONS_ENABLED` / `API_KEY_ABAC_ENABLED` (m135–m139, ABAC) are _not_ Go `envBool`
 route-mount gates — they gate at the **TS / data-plane PDP**, so grep them in
 `src/apps/permission-engine` & `src/apps/query-router`, not the Go control plane. SQL migrations live
-in **`scripts/migrations/postgresql/`**; the numeric set now runs **001–085** (74 files; sequence is
-non-contiguous, gaps include **057–059**: `056` jumps to `060`; highest is `085_app_channels.sql`). The
+in **`scripts/migrations/postgresql/`**; the numeric set now runs **001–087** (76 files; sequence is
+non-contiguous, gaps include **057–059**: `056` jumps to `060`; highest is `087_graphql_public.sql`). The
 cloud/enterprise/parity flag slice runs **040–065**; **066–070** are vendor/infra, not flag-gated
 (`066`/`067` MovieVerse schema + like-counts, `068` per-mount shared_resources, `069` DynamoDB engine
 CHECK, `070` per-mount `read_scoped` read-owner-scoping). The newest band **071–076** backs the
@@ -352,7 +370,9 @@ m166/m168/m170/m172; live cross-repo proof `scripts/test/e2e-rbac-scope-keys-liv
 migration **`085_app_channels.sql`** backs cross-app secure messaging (`APP_CHANNELS_ENABLED`, gate
 `m179`): a consented bidirectional realtime link between two app-tenants over the protected
 `xapp:<channel_id>` namespace — control-plane-only (`internal/appchannels`, served over the admin pool,
-never an RLS GUC), flag-gated OFF = parity.
+never an RLS GUC), flag-gated OFF = parity. After it come two infra migrations, neither flag-gated:
+`086` caps the size of the realtime `NOTIFY` payload, and `087` exposes the `graphql_public` schema
+so Kong's `/graphql/v1` → PostgREST `/rpc/graphql` actually serves requests, the Supabase way.
 Mongo/MySQL migrations are separate and tiny
 (`scripts/migrations/{mongodb,mysql}/`, via `make migrate-mongo` / `migrate-mysql`, which need the
 `data-plane` profile up).
@@ -448,8 +468,9 @@ codegen now resolves against the lean tree.
   (+ a `<app>.schema.sql`) that the generic provisioner consumes to create an isolated DB, seed it,
   mint keys, and emit the frontend's `PUBLIC_*` config (gate `m165`). Stateless frontends live on
   Vercel; **grobase (fly) owns all state** (DB/auth/OTP/realtime/files). This boundary is **binding** —
-  see [`.claude/rules/service-boundaries.md`](.claude/rules/service-boundaries.md). Live contracts today:
-  `website.json` and `vault42.json`.
+  see [`.claude/rules/service-boundaries.md`](.claude/rules/service-boundaries.md). Contracts in
+  `infra/config/contracts/`: `website`, `vault42`, `red-tetris` (plus a `_smoke` fixture); the
+  provisioner is `scripts/provision-contract.sh`.
 
 ## Licensing (open-core)
 
@@ -491,15 +512,28 @@ package across the open-core line, add/remove its directory `LICENSE` and update
 
 Unlike the monorepo's `apps/baas/.claude/` (a three-layer agent-OS *kernel*), this repo's `.claude/`
 is deliberately **lean and kernel-less** — see [`.claude/AGENTS.md`](.claude/AGENTS.md): fan out
-subagents per task, converge, discard the scaffolding; don't rebuild half a kernel. It holds
-`settings.json` + `settings.local.json` (the latter disables the `osionos` MCP server); `rules/` (the
-binding code-gen rules — `minimalism-ladder`, `minimalism-markers`, `comments`, `no-globals`,
-`go-package-design`, per-language `refactor-{c,go,rust,typescript,shell,common}`, `api-convention`,
-and the binding **`service-boundaries`** rule — grobase owns all state, Vercel hosts only stateless
-frontends, apps are contracts not code); `agents/` (8 single-purpose
-specialists: architect · benchmarker · compat-tester · devil · documenter · norminette · reviewer ·
-security); `skills/` (api-endpoint · debug · doc · incident · new-module · pr-review · release ·
-write-test); `commands/`; `workflows/`; and `plugins/`. There is **no** kernel
+subagents per task, converge, discard the scaffolding; don't rebuild half a kernel. Its toolchain is
+merged from the **`claude-deal-with-the-devil`** submodule (grobase's own versions of files both trees
+share were kept; `bash .claude/tools/selfcheck.sh --summary` must report 0 failed after any edit):
+
+- `settings.json` — permissions, the `hooks/scripts/hooks.py` hooks (PreToolUse denies/asks on
+  destructive or irreversible commands, PostToolUse lints the edited file, SessionStart injects
+  `tools/digest.sh`, PreCompact), empty `attribution` (binding rule 1). Humans apply changes to it.
+- `rules/` — always-on: `minimalism-ladder`, `minimalism-markers`, `comments`, `no-globals`,
+  `refactor-common`, **`service-boundaries`**, plus the devil set (`risk`, `quality-bar`,
+  `run-safely`, `library-first`, …). Lazy via `paths:`: `refactor-{c,go,rust,shell,typescript}`,
+  `go-package-design`, `api-convention`.
+- `agents/` — architect · benchmarker · builder · compat-tester · devil · documenter · forger ·
+  innovator · norminette · reviewer · security. `skills/` — `ls .claude/skills`.
+- `commands/` — incl. `/prompt`, `/quality`; `commands/workflow/*.md` are symlinks to `workflows/`,
+  which is what makes `/workflow:<name>` resolve.
+- `tools/*.sh` — digest · facts · preflight · codemap · untested · dupes · quality · watch ·
+  selfcheck · context · ponytail · scripts (grobase copy fixes SIGPIPE-under-pipefail and skips
+  `vendor/`). Local cache in `.claude/cache/` (gitignored).
+- Root **`.mcp.json`** — `grafana` + `postgres` (read-only views of the local stack via
+  `scripts/ops/mcp-server.sh`), `playwright`, `context7`, `deepwiki`, `supermemory` (external).
+
+There is **no** kernel
 (`CLAUDE.md`/`instructions.md`/`objectives/`) and **no** `/baas-wave` skill — references to "the
 kernel" or `make -C ../.. baas-*` in carried-over docs belong to the monorepo, not this repo.
 
@@ -553,7 +587,7 @@ the default build/CI (the exceptions are opt-in `movieverse` + `gourmand` compos
 | **AppFlowy**                      | OSS Notion-alternative — Flutter UI + Rust `flowy-*` core (AGPL-3.0) | ⬜ now committed in-repo as **plain tracked files** (nested `.git` removed in `a0bfc38`, ~2880 files; upstream was `AppFlowy-IO/AppFlowy.git` HEAD `4af02cdc`), still **zero BaaS wiring**; its own backend (AppFlowy-Cloud = PG + GoTrue + storage + collab) mirrors Grobase → a prime future re-platform target. See the **AppFlowy** note below the table | —                               |
 | **twenty** _(removed from disk)_  | TypeScript CRM — twentyhq/twenty (NestJS + GraphQL + TypeORM/Postgres) | ⬜ the orphan gitlink (mode 160000, HEAD `705caab2`) is **no longer on disk or tracked** — `git ls-files -s vendor/ \| grep 160000` is now empty. Documented only so a pre-flatten ref reads correctly; its NestJS + Postgres + GraphQL backend still mirrors Grobase → a future re-platform candidate | —                               |
 | **vault42** _(no longer in `vendor/`)_ | _(separate product, own repo `Univers42/vault42`)_ — zero-knowledge secrets vault (Rust) | ✅ built **native on Grobase** — uses grobase as its store (**GrobaseStore**): per-user ZK envelope blobs in a dedicated `vault42` DB via `/query/v1` with per-user JWT-minting → `read_scoped` owner-scoping (proven: user B sees 0 rows of A). Driven by the **42ctl** umbrella CLI (separate repo `Univers42/42ctl`). **Now consumed as a published image** via the `vault42` compose plane (`make vault42-up`), not a vendor checkout. Substrate migration `071`; OTP-login `075` + escrow `076` | `m162`–`m165` (rbac/github/otp/contract) |
-| **claude-deal-with-the-devil**    | _(not an app)_                               | n/a — a Claude Code framework (rules/agents/skills/tools), **misfiled** here; not a migration target | —                               |
+| **claude-deal-with-the-devil**    | _(not an app)_                               | n/a — a Claude Code framework (rules/agents/skills/tools). It is no longer under `vendor/`: it is now a **repo-root submodule** (`./claude-deal-with-the-devil`) and the upstream of `.claude/`. Not a migration target | —                               |
 
 **Gotchas:** Canagrou carries heavy uncommitted/untracked changes on the current branch
 (`feature/grobase-hambooking-baas`). MovieVerse opts into the stack with

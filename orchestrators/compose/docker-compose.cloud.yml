@@ -23,6 +23,18 @@
 #   2. Adds ONE new service, stripe-mock — the in-tree zero-dep Node mock of the
 #      Stripe Meter Events API — behind a NEW `cloud` profile so it never starts for
 #      a non-cloud edition. The BillingReporter targets it via STRIPE_API_BASE.
+#   3. Turns the two default-OFF app-plane guards ON, as docker-compose.prod.yml
+#      does: STORAGE_ACTIVE_CONTENT_GUARD_ENABLED on storage-router and
+#      AUTOMATION_WEBHOOK_IP_PIN_ENABLED on query-router. Neither router reads
+#      flags.env.cloud, and handing them that file would widen STRIPE_API_KEY and
+#      the billing values to two more containers, so each gets a per-service
+#      `environment:` entry (merged into its base map, which wins over .env).
+#   4. Jails the functions plane exactly as docker-compose.prod.yml does (gate
+#      m192): functions-runtime alone on a `functions-jail` network, one
+#      functions-relay (the runtime's own image, relay.ts) bridging it to
+#      mini-baas, and FUNCTIONS_NET_ALLOWLIST_ENABLED=1 on the runtime. Only
+#      matters when the functions profile is up (`make cloud-up` does not
+#      select it). Needs images built from this tree.
 # It adds NO new app images and changes NO default-stack value.
 
 services:
@@ -50,6 +62,59 @@ services:
       - .env
       - infra/config/cloud/flags.env.cloud
 
+  # ── app-plane guards (L-9, L-12): per-service environment, NOT flags.env.cloud.
+  #    storage-router: nosniff on downloads + CSP sandbox/attachment on active types.
+  #    query-router: automation webhooks pinned to a public address at connect time.
+  storage-router:
+    environment:
+      STORAGE_ACTIVE_CONTENT_GUARD_ENABLED: "1"
+  query-router:
+    environment:
+      AUTOMATION_WEBHOOK_IP_PIN_ENABLED: "1"
+
+  # ── functions network jail — a copy of docker-compose.prod.yml's block (the
+  #    rationale lives there); gate m190 fails if the two renders differ.
+  functions-runtime:
+    networks: !override
+      functions-jail:
+        aliases: [functions-sandbox]
+    environment:
+      FUNCTION_SECRETS_URL: http://functions-relay:3025/internal/v1/function-secrets/resolve
+      FUNCTIONS_NET_ALLOWLIST_ENABLED: "1"
+      FUNCTIONS_NET_ALLOW: "functions-relay:8000,${FUNCTIONS_NET_ALLOW:-}"
+  functions-relay:
+    image: ghcr.io/univers42/grobase-functions-runtime:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/functions-runtime
+      dockerfile: Dockerfile
+    profiles: [functions, extras]
+    container_name: mini-baas-functions-relay
+    restart: unless-stopped
+    entrypoint: ["deno", "run", "--allow-net", "--allow-env=FUNCTIONS_RELAY_TCP,FUNCTIONS_RELAY_HTTP", "/app/relay.ts"]
+    environment:
+      FUNCTIONS_RELAY_TCP: "3060=functions-sandbox:3060,8000=kong:8000"
+      FUNCTIONS_RELAY_HTTP: "3025=http://webhook-dispatcher:3025/internal/v1/function-secrets/resolve"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "deno",
+          "eval",
+          "try{const r=await fetch('http://127.0.0.1:3060/health/live');Deno.exit(r.ok?0:1)}catch{Deno.exit(1)}",
+        ]
+      interval: 30s
+      start_interval: 2s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    networks:
+      mini-baas:
+        aliases: [functions-runtime]
+      functions-jail: {}
+    tmpfs: [/data] # the image's VOLUME, unused by the relay: no anonymous volume
+    mem_limit: 64m
+    cpus: 0.25
+
   # ── stripe-mock — local Stripe Meter Events mock (NO live account, design §2).
   #    Records every POST /v1/billing/meter_events; serves the recorded list at
   #    GET /_events. The BillingReporter points STRIPE_API_BASE here. In a `cloud`
@@ -66,3 +131,8 @@ services:
     networks:
       - mini-baas
     restart: unless-stopped
+
+networks:
+  # functions-runtime's only network — see docker-compose.prod.yml.
+  functions-jail:
+    driver: bridge
