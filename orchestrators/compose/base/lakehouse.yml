@@ -26,6 +26,10 @@ services:
     cpus: 2.0
     env_file: [.env]
     environment:
+      # config.properties reads catalog.management=${ENV:CATALOG_MANAGEMENT};
+      # nothing set it, so Trino exited 100 ("Environment variable is not
+      # set") in a loop. static = catalogs come from /etc/trino/catalog/*.
+      CATALOG_MANAGEMENT: ${CATALOG_MANAGEMENT:-static}
       MYSQL_USER: ${MYSQL_USER:-mini_baas}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-mini_baas_pw}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
