@@ -13,6 +13,7 @@ services:
     env_file: [.env]
     environment:
       PORT: 4001
+      NODE_OPTIONS: --max-old-space-size=384 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       # Adapter-registry cutover: Go is the primary service now. The TS
       # adapter-registry was retired after parity-probe.sh proved the Go
       # implementation byte-compatible (same AES-GCM scheme, same RLS).
@@ -110,6 +111,7 @@ services:
     env_file: [.env]
     environment:
       PORT: 3130
+      NODE_OPTIONS: --max-old-space-size=192 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       OUTBOX_REDIS_URL: ${OUTBOX_REDIS_URL:-redis://redis:6379}
       OUTBOX_MONGO_URL: ${OUTBOX_MONGO_URL:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017/mini_baas?authSource=admin}
@@ -156,6 +158,7 @@ services:
     env_file: [.env]
     environment:
       PORT: 3030
+      NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       SMTP_HOST: ${SMTP_HOST:-mailpit}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_SECURE: ${SMTP_SECURE:-false}
@@ -189,6 +192,7 @@ services:
     env_file: [.env]
     environment:
       PORT: 3040
+      NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       JWT_SECRET: ${JWT_SECRET}
       # storage-router authenticates END-USERS via the Kong-verified JWT
       # (Kong's pre-function clears then sets X-User-Id from claims.sub), so it
@@ -236,6 +240,7 @@ services:
     env_file: [.env]
     environment:
       PORT: 3050
+      NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
       JWT_SECRET: ${JWT_SECRET}
@@ -273,6 +278,7 @@ services:
     env_file: [.env]
     environment:
       PORT: 3060
+      NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       # Adapter-registry cutover: Go is the primary service now. The TS
       # adapter-registry was retired after parity-probe.sh proved the Go
@@ -314,6 +320,7 @@ services:
     env_file: [.env]
     environment:
       PORT: 3070
+      NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017
       MONGO_DB_NAME: ${ANALYTICS_MONGO_DB:-mini_baas_analytics}
       ANALYTICS_RETENTION_DAYS: ${ANALYTICS_RETENTION_DAYS:-90}
@@ -347,6 +354,7 @@ services:
     env_file: [.env]
     environment:
       PORT: 3080
+      NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       GDPR_DELETION_WEBHOOK_URL: ${GDPR_DELETION_WEBHOOK_URL:-}
       GDPR_EXPORT_WEBHOOK_URL: ${GDPR_EXPORT_WEBHOOK_URL:-}
@@ -380,6 +388,7 @@ services:
     env_file: [.env]
     environment:
       PORT: 3090
+      NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       EMAIL_SERVICE_URL: http://email-service:3030
       NEWSLETTER_BASE_URL: ${NEWSLETTER_BASE_URL:-http://localhost:8000/newsletter/v1}
@@ -418,6 +427,7 @@ services:
     env_file: [.env]
     environment:
       PORT: 3100
+      NODE_OPTIONS: --max-old-space-size=192 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017
       MONGO_DB_NAME: ${AI_MONGO_DB:-mini_baas_ai}
       LLM_API_URL: ${LLM_API_URL:-https://api.groq.com/openai/v1}
@@ -456,6 +466,7 @@ services:
     env_file: [.env]
     environment:
       PORT: 3110
+      NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       LOG_BUFFER_SIZE: ${LOG_BUFFER_SIZE:-1000}
       LOG_STREAM_TOKEN: ${LOG_STREAM_TOKEN:-}
       JWT_SECRET: ${JWT_SECRET}
@@ -485,6 +496,7 @@ services:
     env_file: [.env]
     environment:
       PORT: 3120
+      NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-7}
       JWT_SECRET: ${JWT_SECRET}

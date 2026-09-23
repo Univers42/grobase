@@ -437,6 +437,11 @@ jobs:
           wait_200 http://localhost:8000/auth/v1/health gateway
           wait_200 http://localhost:8000/mongo/v1/health mongo-api
 
+      # Runtime, not grep: exec into every Node container and read V8's own
+      # heap ceiling. A cap edited in one place and not the other fails here.
+      - name: Node heap under cgroup gate (m185)
+        run: bash scripts/verify/m185-node-heap-under-cgroup.sh
+
       - name: Run test phases 1-16
         env:
           FORCE_COLORS: "0"
