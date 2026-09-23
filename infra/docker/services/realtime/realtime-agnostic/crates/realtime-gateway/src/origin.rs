@@ -28,6 +28,7 @@ impl OriginPolicy {
 
     /// `Some` only when the variable names at least one origin; `None` is the
     /// parity default and means "do not check".
+    #[must_use]
     pub fn from_env() -> Option<Self> {
         Self::parse(&std::env::var(Self::ENV).ok()?)
     }
@@ -45,7 +46,7 @@ impl OriginPolicy {
         }
     }
 
-    /// An `Origin` header is an ASCII-serialized origin -- scheme://host[:port],
+    /// An `Origin` header is an ASCII-serialized origin -- `scheme://host[:port]`,
     /// never a path -- so it is compared as a whole string, lowercased, with a
     /// stray trailing slash tolerated. No prefix or suffix matching: an
     /// allow-list that matched suffixes would accept `app.example.com.evil.test`.
@@ -53,6 +54,7 @@ impl OriginPolicy {
         s.trim().trim_end_matches('/').to_ascii_lowercase()
     }
 
+    #[must_use]
     pub fn allows(&self, origin: &str) -> bool {
         let o = Self::normalize(origin);
         self.allowed.contains("*") || self.allowed.contains(&o)
