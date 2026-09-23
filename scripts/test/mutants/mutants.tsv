@@ -15,5 +15,6 @@ cors-origin-hostile	env	phase13	the CORS suite passes from an origin the gateway
 gateway-unreachable	env	phase13	a suite is green against a gateway that is not there — the vacuous-pass case that HTTP 000 used to hide
 realtime-down	svc	phase11	realtime passes with the realtime plane stopped
 mongo-api-down	svc	phase14	the Mongo MVP passes with the mongo API stopped
+engine-restore-dry	env	m188	the engine backup gate passes when the restore validates the archive and applies nothing: the data is not back and nobody would know
 offers-no-identity	env	offers	the offers collection passes with no user identity, as it did while authEmail was seeded empty
 waf-down	svc	waf	the security gate passes with the WAF itself stopped — exactly what it did while it curled a port nothing listens on

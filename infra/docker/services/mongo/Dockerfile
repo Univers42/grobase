@@ -21,6 +21,9 @@ FROM debian:bookworm-slim
 ARG MONGO_MAJOR=7.0
 
 # gpg/curl/ca-certificates are needed only to add the apt repo; remove afterwards.
+# mongodb-database-tools brings mongodump/mongorestore. Without them every
+# backup of this engine was a claim: tools/backup.sh called a binary this image
+# did not have. scripts/ops/engine-backup.sh uses them; gate m188 round-trips.
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN set -eux; \
     apt-get update; \
@@ -33,7 +36,13 @@ RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         mongodb-org-server \
-        mongodb-mongosh; \
+        mongodb-mongosh \
+        mongodb-database-tools; \
+    # Keep only the two tools backup needs: the package's other six static
+    # binaries (bsondump, mongoexport/import, mongofiles, mongostat/top) cost
+    # ~165 MB of the ~226 MB it adds, measured 2026-09-23.
+    rm -f /usr/bin/bsondump /usr/bin/mongoexport /usr/bin/mongofiles \
+          /usr/bin/mongoimport /usr/bin/mongostat /usr/bin/mongotop; \
     apt-get purge -y --auto-remove curl gnupg; \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/* /tmp/* /var/tmp/*; \
     # Docs/man/info/locale are never read at runtime (mongod + mongosh only).

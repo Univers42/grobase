@@ -464,6 +464,13 @@ jobs:
           [ "$rc_all" -eq 0 ] || { echo "Some test phases failed"; exit 1; }
           echo "All test phases passed"
 
+      # Mongo is up and built from THIS commit's Dockerfile (--build above), so
+      # this proves the image carries mongodump/mongorestore and that a scratch
+      # database survives backup -> drop -> restore. Cockroach and MSSQL are
+      # not in this stack: the gate names them skipped and still requires one.
+      - name: Engine backup round trip (m188)
+        run: bash scripts/verify/m188-engine-backup-restore.sh
+
       - name: Gateway query-path regression gate (m102)
         env:
           BASE_URL: http://localhost:8000
