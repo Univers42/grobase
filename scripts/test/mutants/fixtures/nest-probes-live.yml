@@ -1,0 +1,7 @@
+# Mutant fixture for gate m191 (manifest row nest-probes-live): ai-service
+# probing liveness again, as all thirteen Nest services did. Merged over
+# docker-compose.yml with `-f`; m191 must go red with it, on both halves.
+services:
+  ai-service:
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/health/live || exit 1"]

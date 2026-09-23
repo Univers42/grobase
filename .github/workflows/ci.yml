@@ -493,6 +493,12 @@ jobs:
       - name: Engine backup round trip (m188)
         run: bash scripts/verify/m188-engine-backup-restore.sh
 
+      # Throwaway MongoDB + throwaway ai-service (pulled): the CONFIGURED probe
+      # must fail once MongoDB stops. Statically, every Nest service that
+      # implements /health/ready must probe it.
+      - name: Nest readiness probes (m191)
+        run: bash scripts/verify/m191-nest-readiness-probes.sh
+
       - name: Gateway query-path regression gate (m102)
         env:
           BASE_URL: http://localhost:8000
