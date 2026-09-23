@@ -84,6 +84,7 @@ async fn start_test_server() -> (String, Arc<dyn EventBusPublisher>, Arc<dyn Eve
         presence_shared: None,
         usage: None,
         allowed_origins: None,
+        producers: Arc::new(Vec::new()),
     };
 
     let app = Router::new()

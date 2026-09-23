@@ -131,8 +131,10 @@ services:
       mongo:
         condition: service_healthy
         required: false
+      # service_started: outbox-relay only needs realtime's HTTP publish door,
+      # and realtime's health now also covers its CDC feed (gate m189).
       realtime:
-        condition: service_healthy
+        condition: service_started
         required: false
     healthcheck:
       test:
