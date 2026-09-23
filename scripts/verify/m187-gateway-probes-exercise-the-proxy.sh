@@ -89,19 +89,29 @@ for n in ("kong", "waf"):
 while read -r name probe; do printf '  %-5s %s\n' "${name}" "${probe:0:110}"; done <"${WORK}/probes"
 
 # Run the configured probe of <service> inside <container>; returns its rc.
+# The argv goes to `docker exec` as a list from python, never through a
+# line-split shell array: a probe may legitimately contain newlines, and an
+# earlier draft of this gate cut such a probe at its first one and reported
+# the resulting syntax error (rc 2) as the probe's verdict.
 run_probe() { # <service> <container>
-  local json
-  json=$(awk -v n="$1" '$1 == n { sub(/^[^ ]+ /, ""); print }' "${WORK}/probes")
-  mapfile -t argv < <(python3 -c '
-import json, sys
-t = json.loads(sys.argv[1])
-if t[0] == "CMD-SHELL":
-    print("sh"); print("-c"); print(t[1])
-elif t[0] == "CMD":
-    print(*t[1:], sep="\n")
-else:
-    sys.exit("unsupported healthcheck form: " + t[0])' "${json}")
-  timeout 15 docker exec "$2" "${argv[@]}" >/dev/null 2>&1
+  python3 -c '
+import json, subprocess, sys
+svc, container, probes = sys.argv[1:4]
+t = None
+for line in open(probes):
+    name, _, js = line.rstrip("\n").partition(" ")
+    if name == svc:
+        t = json.loads(js)
+        break
+if t is None or t[0] not in ("CMD", "CMD-SHELL"):
+    sys.exit(125)
+argv = ["sh", "-c", t[1]] if t[0] == "CMD-SHELL" else t[1:]
+try:
+    rc = subprocess.run(["docker", "exec", container, *argv], stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL, timeout=15).returncode
+except subprocess.TimeoutExpired:
+    rc = 124
+sys.exit(rc)' "$1" "$2" "${WORK}/probes"
 }
 
 step "2/4 DYNAMIC — two throwaway Kongs: proxy on, proxy off"
