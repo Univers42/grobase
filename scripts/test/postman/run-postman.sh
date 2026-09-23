@@ -185,7 +185,13 @@ HTML_REPORT="${REPORT_DIR}/postman-offers-report.html"
 JUNIT_REPORT="${REPORT_DIR}/postman-offers.xml"
 step "3/4 run newman (${NEWMAN_IMAGE}) → HTML + JUnit"
 # shellcheck disable=SC2054  # newman wants ONE comma-separated --reporters value, not split array elements
+# --user: as the caller, not root. The reports land in a bind-mounted host
+# directory, and newman ran as root, so every run left root-owned files the
+# caller could not delete -- 101 MB of edge reports needed a sudo rm (issue
+# #19). HOME=/tmp: newman writes nothing there, but node wants a HOME that
+# exists for the uid.
 DOCKER_CMD=(docker run --rm --network host
+  --user "$(id -u):$(id -g)" -e HOME=/tmp
   -v "${POSTMAN_DIR}:/etc/newman"
   -v "${REPORT_DIR}:/reports"
   "${NEWMAN_IMAGE}" run "/etc/newman/${COLLECTION}"
