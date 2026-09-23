@@ -25,6 +25,8 @@ env-secrets: ## (Re)mint .env.secrets only (FORCE=1 to overwrite), then run `mak
 	@FORCE=$(FORCE) bash scripts/env/generate-env.sh
 env-check: ## Verify mandatory secrets present + enabled features have their keys
 	@bash scripts/env/check-env.sh
+env-test: ## Prove `make env` withholds GitHub tokens from .env (no live stack needed)
+	@bash scripts/test/assemble-env-test.sh
 certs: ## Generate localhost TLS cert/key into certs (idempotent; the waf reads them as Docker secrets)
 	@bash scripts/certs/generate-localhost-cert.sh
 vault-init: _require-compose ## Run Vault init/unseal/seed
