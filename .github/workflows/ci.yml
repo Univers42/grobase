@@ -773,3 +773,17 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npx jest
+
+  # ─── Functions cold-invoke gate (m186) ─────────────────────────
+  # Builds only the functions runtime and runs 40 cold deploy+invoke cycles
+  # against a throwaway copy. The cold path used to drop the input when it
+  # arrived before the handler import resolved: ~30% of invokes hung 5 s.
+  functions-cold-invoke:
+    name: Functions cold invoke (m186)
+    runs-on: ubuntu-latest
+    needs: [shellcheck]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: 40 cold invokes must all answer
+        run: bash scripts/verify/m186-functions-cold-invoke.sh
