@@ -330,6 +330,19 @@ jobs:
           docker compose -f docker-compose.yml push $APP_SVCS
 
   # ─── Job 3: Integration tests ──────────────────────────────────
+  # ─── pg-backup liveness (m192) ────────────────────────────────
+  # Builds pg-backup from the commit; its liveness must fail when PostgreSQL
+  # or MinIO is gone (it tested only that DATABASE_URL was set).
+  pg-backup-liveness:
+    name: pg-backup liveness (m192)
+    runs-on: ubuntu-latest
+    needs: [shellcheck]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: liveness follows PostgreSQL and MinIO
+        run: bash scripts/verify/m192-pg-backup-liveness.sh
+
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
