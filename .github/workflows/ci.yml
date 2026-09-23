@@ -382,6 +382,13 @@ jobs:
           # the build context is local and the blocker is gone.
           docker compose -f docker-compose.yml up -d --build minio storage-router realtime
 
+      # Realtime is built from THIS commit above. Its health must follow its
+      # PostgreSQL change feed: healthy when the LISTEN is attached, 503 and a
+      # failing --healthcheck when PostgreSQL is gone, healthy again after.
+      # Own throwaway PostgreSQL; the stack's is not touched.
+      - name: Realtime producer health (m189)
+        run: bash scripts/verify/m189-realtime-producer-health.sh
+
       - name: Apply PostgreSQL migrations
         run: |
           set -euo pipefail
