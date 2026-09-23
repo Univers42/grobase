@@ -17,3 +17,4 @@ realtime-down	svc	phase11	realtime passes with the realtime plane stopped
 mongo-api-down	svc	phase14	the Mongo MVP passes with the mongo API stopped
 offers-no-identity	env	offers	the offers collection passes with no user identity, as it did while authEmail was seeded empty
 waf-down	svc	waf	the security gate passes with the WAF itself stopped — exactly what it did while it curled a port nothing listens on
+gateway-probes-blind	env	m187	the gateway probe gate passes with probes that never make a request: kong green with its proxy off, the WAF green in front of nothing

@@ -57,8 +57,10 @@ USER nginx
 
 EXPOSE 80 443
 
+# A real HTTPS request through the door (:443 -> Kong), not a LISTEN socket in
+# /proc/net/tcp. Same probe as orchestrators/compose/base/gateway.yml.
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-  CMD sh -c 'grep -qi ":0050 .* 0A" /proc/net/tcp || exit 1'
+  CMD sh -c 'code=$(printf "GET / HTTP/1.0\r\nHost: localhost\r\n\r\n" | openssl s_client -quiet -connect 127.0.0.1:443 -servername localhost 2>/dev/null | head -n1 | cut -d" " -f2); [ -n "$code" ] && [ "$code" -lt 500 ]'
 
 FROM scratch
 
@@ -168,5 +170,7 @@ EXPOSE 80 443
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]
 
+# A real HTTPS request through the door (:443 -> Kong), not a LISTEN socket in
+# /proc/net/tcp. Same probe as orchestrators/compose/base/gateway.yml.
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-  CMD sh -c 'grep -qi ":0050 .* 0A" /proc/net/tcp || exit 1'
+  CMD sh -c 'code=$(printf "GET / HTTP/1.0\r\nHost: localhost\r\n\r\n" | openssl s_client -quiet -connect 127.0.0.1:443 -servername localhost 2>/dev/null | head -n1 | cut -d" " -f2); [ -n "$code" ] && [ "$code" -lt 500 ]'

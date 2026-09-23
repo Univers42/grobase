@@ -93,6 +93,7 @@ run_suite() { # <suite> [VAR=VALUE ...]
     shift
     case "$suite" in
         phase*) script=$(ls "scripts/test/phase/${suite}-"*.sh "scripts/test/phase/${suite}-"*.py 2>/dev/null | head -1) ;;
+        m[0-9]*) script=$(ls "scripts/verify/${suite}-"*.sh 2>/dev/null | head -1) ;;
     esac
     case "$suite" in
         offers) env APIKEY="$ANON_KEY" PUBLIC_APIKEY="$ANON_KEY" BASE_URL="$BASE_URL" \
@@ -129,6 +130,7 @@ mutant_env() { # <id>
         cors-origin-hostile) printf 'TEST_ORIGIN=http://hostile.invalid:5181' ;;
         gateway-unreachable) printf 'BASE_URL=http://127.0.0.1:1' ;;
         offers-no-identity) printf 'AUTH_EMAIL=not-an-email AUTH_PASSWORD=x' ;;
+        gateway-probes-blind) printf 'M187_EXTRA_COMPOSE=scripts/test/mutants/fixtures/gateway-probes-blind.yml' ;;
         *) return 2 ;;
     esac
 }
