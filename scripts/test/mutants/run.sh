@@ -93,6 +93,7 @@ run_suite() { # <suite> [VAR=VALUE ...]
     shift
     case "$suite" in
         phase*) script=$(ls "scripts/test/phase/${suite}-"*.sh "scripts/test/phase/${suite}-"*.py 2>/dev/null | head -1) ;;
+        m[0-9]*) script=$(ls "scripts/verify/${suite}-"*.sh 2>/dev/null | head -1) ;;
     esac
     case "$suite" in
         offers) env APIKEY="$ANON_KEY" PUBLIC_APIKEY="$ANON_KEY" BASE_URL="$BASE_URL" \
@@ -124,6 +125,7 @@ run_suite() { # <suite> [VAR=VALUE ...]
 # applied and the run would report a kill it never made.
 mutant_env() { # <id>
     case "$1" in
+        engine-restore-dry) printf 'M188_RESTORE_ARGS=--dry-run' ;;
         mc-image-missing) printf 'MC_IMAGE=grobase-mutant/no-such-mc:latest' ;;
         minio-secret-wrong) printf 'MINIO_SECRET_KEY=not-the-secret' ;;
         cors-origin-hostile) printf 'TEST_ORIGIN=http://hostile.invalid:5181' ;;
