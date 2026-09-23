@@ -41,9 +41,11 @@ test-lint-shell: ## Lint shell — bash -n (all) + shellcheck (honours .shellche
 	else echo -e "$(_D)  (host shellcheck absent — bash -n only)$(_0)"; fi; \
 	[ $$rc -eq 0 ] && echo -e "$(_G)✓ shell$(_0)" || exit 1
 
-test-lint-rust: _rust-toolchain ## Lint Rust — cargo clippy -D warnings (data-plane workspace, in Docker)
+test-lint-rust: _rust-toolchain ## Lint Rust — cargo clippy -D warnings, BOTH workspaces (data plane + realtime, in Docker)
 	@$(CARGO_DPR) sh -c 'rustup component add clippy >/dev/null 2>&1 || true; cargo clippy --workspace --all-targets -- -D warnings' \
-		&& echo -e "$(_G)✓ rust clippy (zero warnings)$(_0)"
+		&& echo -e "$(_G)✓ rust clippy data-plane (zero warnings)$(_0)"
+	@$(CARGO_REALTIME) sh -c 'rustup component add clippy >/dev/null 2>&1 || true; cargo clippy --workspace --all-targets -- -D warnings' \
+		&& echo -e "$(_G)✓ rust clippy realtime (zero warnings)$(_0)"
 
 test-lint-go: ## Lint Go — go vet + gofmt (control plane, in Docker)
 	@docker run --rm -v "$(CURDIR)/src/control-plane":/src -w /src \

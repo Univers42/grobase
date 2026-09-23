@@ -787,3 +787,18 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       - name: 40 cold invokes must all answer
         run: bash scripts/verify/m186-functions-cold-invoke.sh
+
+  # ─── Rust lint (both workspaces) ───────────────────────────────
+  # clippy ran nowhere in CI, and `make test-lint-rust` covered only the data
+  # plane, so the realtime workspace drifted red unnoticed (issue #19). Both
+  # workspaces, -D warnings, in the digest-pinned toolchain the make target
+  # builds, so CI and a laptop lint with the same compiler.
+  rust-lint:
+    name: Rust lint (clippy, data plane + realtime)
+    runs-on: ubuntu-latest
+    needs: [shellcheck]
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: cargo clippy --workspace --all-targets -D warnings
+        run: make test-lint-rust

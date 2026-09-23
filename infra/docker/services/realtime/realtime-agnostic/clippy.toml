@@ -1,0 +1,7 @@
+# The workspace denies unwrap/expect/panic (Cargo.toml [workspace.lints]). In
+# production code that stands; in #[test] code an unwrap IS the assertion, and
+# denying it there made `cargo clippy --all-targets` fail on test modules before
+# it reached any real finding. These keys scope the relaxation to tests only.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
