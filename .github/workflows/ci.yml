@@ -534,6 +534,19 @@ jobs:
   # stack, no external secrets — a green build actually proves quota enforcement,
   # spend caps, the abuse guard, the API-version contract, the cloud funnel and the
   # data-plane spend/suspend enforcement, not just the smoke phases.
+  # ─── resolve-ports keeps the stack's own ports (m193) ─────────
+  # `make up` on a live stack used to relocate Kong and the WAF: the stack's
+  # own containers counted as "port in use". Throwaway holders, no stack.
+  resolve-ports:
+    name: resolve-ports own stack (m193)
+    runs-on: ubuntu-latest
+    needs: [shellcheck]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: own ports kept, foreign ports avoided
+        run: bash scripts/verify/m193-resolve-ports-own-stack.sh
+
   cloud-gates:
     name: Cloud gates (m101 m89 m90 m91 m94 m120)
     runs-on: ubuntu-latest
