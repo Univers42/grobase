@@ -59,6 +59,11 @@ jobs:
           printf '%s\0' "${shfiles[@]}" | xargs -0 shellcheck -S error -e SC1091 -e SC2034 -e SC1128
           echo "shellcheck passed on ${#shfiles[@]} files"
 
+      # `make env` must never carry a GitHub token into .env: every container
+      # reads .env. A scratch-tree test, no stack needed, so it rides with lint.
+      - name: env assembly withholds GitHub tokens
+        run: bash scripts/test/assemble-env-test.sh
+
   # ─── Job 2: Docker build for each service ──────────────────────
   # Build contexts live under the repo root. NestJS apps build from src/ with
   # an APP build-arg; the Go control plane from src/control-plane/ with APP+PORT;
