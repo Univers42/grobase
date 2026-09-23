@@ -374,14 +374,27 @@ function invokeInWorker(
     // handler reads its secrets via the normal Deno.env.get(...) API. env
     // permission is scoped to exactly the whitelisted keys (least privilege);
     // when there are no secrets, env stays disabled.
+    //
+    // onmessage is wired BEFORE the import resolves, and awaits it. The host
+    // posts the input the moment the worker exists; when that message was
+    // dispatched while `await import(...)` was still pending, no handler was
+    // registered yet, the input was dropped, and the invoke hung until the
+    // TIMEOUT_MS guard -- 12 of 40 cold invokes of a trivial echo function on
+    // 2026-09-23, each exactly 5 s (instrumented: message-event logged one
+    // millisecond before "imported"). The warm pool already avoided this with
+    // its __ready handshake; this path never had one. The .catch marks the
+    // promise handled so an import failure surfaces through onmessage's catch
+    // as a function_error, not as an unhandled rejection.
     const workerSource = `${memWatchdogPreamble()}
       const __secrets = ${JSON.stringify(secrets)};
       for (const [k, v] of Object.entries(__secrets)) {
         try { Deno.env.set(k, v); } catch (_) { /* env not permitted */ }
       }
-      const { default: handler } = await import("file://${codePath}");
+      const __handler = import("file://${codePath}").then((m) => m.default);
+      __handler.catch(() => {});
       self.onmessage = async (ev) => {
         try {
+          const handler = await __handler;
           const out = await handler(ev.data);
           self.postMessage({ ok: true, out });
         } catch (e) {
