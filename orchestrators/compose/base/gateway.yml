@@ -28,7 +28,7 @@ services:
       # bash; openssl s_client is what it ships.
       test:
         - CMD-SHELL
-        - "code=$$(printf 'GET / HTTP/1.0\r\nHost: localhost\r\n\r\n' | openssl s_client -quiet -connect 127.0.0.1:443 -servername localhost 2>/dev/null | head -n1 | cut -d' ' -f2); [ -n \"$$code\" ] && [ \"$$code\" -lt 500 ]"
+        - "code=$$(printf 'GET / HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' | openssl s_client -quiet -connect 127.0.0.1:443 -servername localhost 2>/dev/null | head -n1 | cut -d' ' -f2); [ -n \"$$code\" ] && [ \"$$code\" -lt 500 ]"
       interval: 10s
       timeout: 3s
       start_period: 5s
@@ -98,7 +98,7 @@ services:
         - CMD
         - bash
         - -c
-        - "exec 3<>/dev/tcp/127.0.0.1/8000 && printf 'GET / HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 && IFS= read -r line <&3 && [[ $$line == HTTP/1.* ]]"
+        - "exec 3<>/dev/tcp/127.0.0.1/8000 && printf 'GET / HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && IFS= read -r line <&3 && [[ $$line == HTTP/1.* ]]"
       interval: 30s
       start_interval: 2s
       timeout: 3s

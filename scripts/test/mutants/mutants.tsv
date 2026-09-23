@@ -13,8 +13,8 @@ minio-secret-wrong	env	phase9	storage passes with the wrong secret key: the suit
 storage-router-down	svc	phase9	storage passes with the storage plane stopped
 cors-origin-hostile	env	phase13	the CORS suite passes from an origin the gateway must refuse: it never read the header it asserts on
 gateway-unreachable	env	phase13	a suite is green against a gateway that is not there — the vacuous-pass case that HTTP 000 used to hide
+gateway-probes-blind	env	m187	the gateway probe gate passes with probes that never make a request: kong green with its proxy off, the WAF green in front of nothing
 realtime-down	svc	phase11	realtime passes with the realtime plane stopped
 mongo-api-down	svc	phase14	the Mongo MVP passes with the mongo API stopped
 offers-no-identity	env	offers	the offers collection passes with no user identity, as it did while authEmail was seeded empty
 waf-down	svc	waf	the security gate passes with the WAF itself stopped — exactly what it did while it curled a port nothing listens on
-gateway-probes-blind	env	m187	the gateway probe gate passes with probes that never make a request: kong green with its proxy off, the WAF green in front of nothing
