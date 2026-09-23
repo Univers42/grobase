@@ -143,7 +143,7 @@ NET="$(docker inspect mini-baas-postgres --format '{{range $k,$v := .NetworkSett
 ensure_toolchain() {
   docker image inspect "${TOOLCHAIN_IMG}" >/dev/null 2>&1 && return 0
   step "building the rust toolchain image (one-off, layer-cached)"
-  printf 'FROM public.ecr.aws/docker/library/rust:1.96-slim-bookworm\nRUN rustup component add clippy rustfmt && apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*\n' |
+  printf 'FROM public.ecr.aws/docker/library/rust:1.96-slim-bookworm@sha256:e18a79fc84dfcfc3ab5ba72290398a644c135c97eaa881447fddc354ee4701a3\nRUN rustup component add clippy rustfmt && apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*\n' |
     docker build -q -t "${TOOLCHAIN_IMG}" - >/dev/null
 }
 
