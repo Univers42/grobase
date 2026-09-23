@@ -153,6 +153,7 @@ run_suite() { # <suite> [VAR=VALUE ...]
 # applied and the run would report a kill it never made.
 mutant_env() { # <id>
     case "$1" in
+        engine-restore-dry) printf 'M188_RESTORE_ARGS=--dry-run' ;;
         mc-image-missing) printf 'MC_IMAGE=grobase-mutant/no-such-mc:latest' ;;
         minio-secret-wrong) printf 'MINIO_SECRET_KEY=not-the-secret' ;;
         cors-origin-hostile) printf 'TEST_ORIGIN=http://hostile.invalid:5181' ;;
