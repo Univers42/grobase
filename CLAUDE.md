@@ -22,14 +22,16 @@ byte-parity with the OSS edition (flag tables below).
 
 The **lean (flattened) layout IS the layout** — the restructure is **done and committed to
 `origin/main`**. `mini-baas-infra/` no longer exists; its contents were hoisted to the repo root
-(`src/`, `infra/`, `sdks/`, `orchestrators/`, `scripts/`) under a **thin ~74-line root `Makefile`**
-that `include`s **12** `orchestrators/makes/*.mk` fragments (the old 735-line monolith survives only
+(`src/`, `infra/`, `sdks/`, `orchestrators/`, `scripts/`) under a **thin ~71-line root `Makefile`**
+that `include`s **13** `orchestrators/makes/*.mk` fragments via `$(sort $(wildcard …))` (lexical order, so
+`100-test.mk` loads right after `00-config.mk`) (the old 735-line monolith survives only
 as `Makefile.bak`). A fresh clone gets this layout — **there is no dual-layout situation anymore** and
 no `mini-baas-infra/` prefix to re-map. (Sanity check: `ls mini-baas-infra` → "No such file".) The
 SDK-codegen chain and CI (`.github/workflows/ci.yml`) were repointed to lean paths in the same
 restructure and are on `main` too.
 
-The active branch is **`main`** (HEAD `e8cb34d2`); the vendor re-platform commits (Canagrou · HamBooking ·
+Work lands on `main` **via small PRs from `fix/*` / `feat/*` / `ci/*` branches** (one gate per PR — see
+the m181–m193 band). History: the vendor re-platform commits (Canagrou · HamBooking ·
 Nimbus · MovieVerse · vite-gourmand · surfind-spain · hypertube) plus the per-table-isolation +
 query-router-JWT data-plane work, the websites playground, and the per-mount `read_scoped` data-plane
 feature (migration `070`) all **landed on `main`** earlier. Since then `main` has advanced through the
@@ -44,7 +46,10 @@ is largely **clean**: the AppFlowy clone is committed as **plain tracked files**
 former `vendor/twenty/` orphan gitlink and the `vendor/vault42/` nested checkout are **both gone from
 disk now** — there are **no `160000` gitlinks tracked** anywhere (`git ls-files -s vendor/ | grep
 160000` is empty), and vault42 is consumed as a **published image** via the `vault42` compose plane, not
-a clone. (Sanity check: `ls vendor/` → **11** dirs, no `twenty`/`vault42`.)
+a clone. (Sanity check: `ls vendor/` → **11** dirs, no `twenty`/`vault42`.) Since then `main` has moved
+through an **ops/reliability hardening** band (gates `m181`–`m193`, migrations `086`–`087`): healthchecks
+that probe readiness not liveness, image provenance stamping, realtime reconnect/producer health,
+`resolve-ports` keeping a live stack's own ports, pg-backup liveness, GraphQL via PostgREST.
 
 ## Code generation
 
@@ -175,6 +180,14 @@ make audit-deps               # supply-chain CVE scan: cargo-audit (Rust) + govu
 make nano-up|one-up           # product editions: binocle-nano (:8090) / binocle-one (:8091)
 make cloud-up                 # managed-cloud overlay (turns cloud/enterprise flags ON — NOT a default)
 make conformance | conformance-<engine> | parity | parity-suite
+make tests                    # the WHOLE matrix (100-test.mk), green/red summary; or one kind:
+                              #   test-go test-rust test-nestjs test-sdk test-lint (-shell -rust -go -ts
+                              #   -yaml -docker -make) test-deps test-scan test-scripts test-postman
+                              #   test-waf test-gates test-conformance test-mutants  (live group needs `make up`)
+make prettiers | prettiers-check   # every language's canonical formatter in Docker (gofumpt, cargo fmt,
+                              #   prettier, shfmt -i 2); -check is the CI no-write variant
+make fly-status|fly-logs|fly-deploy|fly-ssh|fly-backup   # fly.io grobase-stack lifecycle (85-fly.mk);
+                              #   fly-destroy / vercel-remove need CONFIRM=1 — irreversible, ask first
 ```
 
 **Two orthogonal stack-shaping dimensions** exist, not one: **EDITIONS** (a named set of planes) and
@@ -202,7 +215,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **160 scripts, highest m180** (`m180-frontend-vercel-rewrite.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **173 scripts, highest m193** (`m193-resolve-ports-own-stack.sh`); the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -254,6 +267,12 @@ on its OWN fresh `CREATE DATABASE` + scoped key), `m179` cross-app messaging cha
 app-tenants over the protected `xapp:<channel_id>` namespace), `m180` website same-origin Vercel rewrite
 (browser → fly only same-origin, realtime the one direct `wss://` exception). `m177`/`m179`/`m180` are
 the load-bearing proof of [`.claude/rules/service-boundaries.md`](.claude/rules/service-boundaries.md).
+The latest band **m181–m193** is **ops/reliability hardening** (not flag-gated, one gate per fix PR):
+`m181` DDL autoincrement PK · `m182` raw read-only SQL · `m183` healthcheck network readiness · `m184`
+realtime LISTEN reconnect · `m185` node heap under cgroup · `m186` functions cold invoke · `m187` gateway
+probes exercise the proxy · `m188` engine backup/restore · `m189` realtime producer health · `m190` image
+provenance (built images stamped with their commit; refuses one older than its source) · `m191` Nest
+readiness probes · `m192` pg-backup liveness · `m193` resolve-ports keeps a live stack's own ports.
 
 ### Build, lint & test (per plane) — including how to run ONE test
 
@@ -335,8 +354,8 @@ planes, e.g. metering = `METERING_ENABLED` (Go control) AND `DATA_PLANE_METERING
 `PERMISSION_CONDITIONS_ENABLED` / `API_KEY_ABAC_ENABLED` (m135–m139, ABAC) are _not_ Go `envBool`
 route-mount gates — they gate at the **TS / data-plane PDP**, so grep them in
 `src/apps/permission-engine` & `src/apps/query-router`, not the Go control plane. SQL migrations live
-in **`scripts/migrations/postgresql/`**; the numeric set now runs **001–085** (74 files; sequence is
-non-contiguous, gaps include **057–059**: `056` jumps to `060`; highest is `085_app_channels.sql`). The
+in **`scripts/migrations/postgresql/`**; the numeric set now runs **001–087** (76 files; sequence is
+non-contiguous, gaps include **057–059**: `056` jumps to `060`; `085_app_channels.sql`, then `086_realtime_notify_payload_cap`, `087_graphql_public`). The
 cloud/enterprise/parity flag slice runs **040–065**; **066–070** are vendor/infra, not flag-gated
 (`066`/`067` MovieVerse schema + like-counts, `068` per-mount shared_resources, `069` DynamoDB engine
 CHECK, `070` per-mount `read_scoped` read-owner-scoping). The newest band **071–076** backs the
