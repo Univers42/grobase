@@ -31,6 +31,7 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // main boots the adapter-registry: load config, open Postgres, build the
@@ -54,7 +55,7 @@ func main() {
 	m := observability.NewMetrics()
 	svc := buildService(ctx, db, log)
 	mux := httpx.NewRouter("adapter-registry", db, m)
-	adapterregistry.Mount(mux, svc, cfg.ServiceToken)
+	adapterregistry.Mount(mux, svc, cfg.ServiceToken, serviceauth.NewRotationNotice(log, m))
 	runServer(ctx, runServerParams{stop: stop, cfg: cfg, mux: mux, log: log, m: m})
 }
 

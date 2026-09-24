@@ -23,53 +23,42 @@ import (
 	"time"
 )
 
-// VerifyServiceRequest authenticates an internal service-to-service request.
-// static mode (default): constant-time X-Service-Token compare — exactly the
-// pre-existing behavior. hmac mode: requires a valid X-Service-Auth signature
-// within ±SERVICE_AUTH_SKEW_SECS (default 120). Reads and RESTORES r.Body so
-// handlers can still decode it.
-//
-// During a rotation window (INTERNAL_SERVICE_TOKEN_PREV non-empty) the request
-// is accepted if it verifies under EITHER the current token OR the previous one,
-// so a peer that has not yet rotated — or an in-flight token minted before the
-// flip — is not rejected mid-rotation. With PREV empty the second arm is never
-// taken and the path is byte-identical to single-key behavior.
+// VerifyServiceRequest reports whether r authenticates as an internal
+// service-to-service request under the current OR (during a rotation window,
+// INTERNAL_SERVICE_TOKEN_PREV non-empty) the previous token. It is the bool
+// view of Verify — use Verify / RotationNotice.Accept to learn WHICH matched.
+// With PREV empty the second arm is never taken and the path is byte-identical
+// to single-key behavior.
 func VerifyServiceRequest(r *http.Request, expected string) bool {
-	if expected == "" {
-		return false
-	}
-	prev := prevServiceToken()
-	if !ServiceAuthHMAC() {
-		return verifyStaticToken(r, expected, prev)
-	}
-	return verifyHMAC(r, expected, prev)
+	return Verify(r, expected) != NoMatch
 }
 
 // verifyStaticToken evaluates BOTH arms unconditionally (no `||` short-circuit)
-// so the timing of a verify does not leak which key matched. SecureCompare is
-// constant-time per-arm; an empty prev returns false.
-func verifyStaticToken(r *http.Request, expected, prev string) bool {
+// so the timing of a verify does not leak which key matched, then folds them
+// with pickMatch. SecureCompare is constant-time per-arm; an empty prev is false.
+func verifyStaticToken(r *http.Request, expected, prev string) Match {
 	got := r.Header.Get("X-Service-Token")
 	curOK := SecureCompare(got, expected)
 	prevOK := prev != "" && SecureCompare(got, prev)
-	return curOK || prevOK
+	return pickMatch(curOK, prevOK)
 }
 
 // verifyHMAC validates a v1 X-Service-Auth signature against the current and
-// (during rotation) previous token, within the configured clock skew.
-func verifyHMAC(r *http.Request, expected, prev string) bool {
+// (during rotation) previous token, within the configured clock skew, and
+// reports which one signed it (both signatures are always computed first).
+func verifyHMAC(r *http.Request, expected, prev string) Match {
 	hdr := r.Header.Get("X-Service-Auth")
 	parts := strings.Split(hdr, ".")
 	if len(parts) != 3 || parts[0] != "v1" {
-		return false
+		return NoMatch
 	}
 	ts, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		return false
+		return NoMatch
 	}
 	now := time.Now().Unix()
 	if skew := serviceAuthSkew(); ts < now-skew || ts > now+skew {
-		return false
+		return NoMatch
 	}
 	body := readAndRestoreBody(r)
 	msg := SignedRequest{Method: r.Method, Path: r.URL.Path, Body: body, TS: ts}
@@ -80,7 +69,7 @@ func verifyHMAC(r *http.Request, expected, prev string) bool {
 		wantPrev := ComputeServiceSignature(prev, msg)
 		prevOK = subtle.ConstantTimeCompare([]byte(hdr), []byte(wantPrev)) == 1
 	}
-	return curOK || prevOK
+	return pickMatch(curOK, prevOK)
 }
 
 // serviceAuthSkew is the accepted clock skew in seconds (SERVICE_AUTH_SKEW_SECS,
