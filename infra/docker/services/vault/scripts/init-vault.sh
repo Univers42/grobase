@@ -39,12 +39,16 @@ done
 INIT_OUTPUT=$(vault status -address="${VAULT_ADDR}" 2>&1) || true
 VAULT_INITIALIZED=$(echo "${INIT_OUTPUT}" | grep 'Initialized' | awk '{print $2}')
 
+# Initialized but the key file is gone: without the unseal key the storage cannot
+# be opened again, yet it still holds every secret and CMEK key. Never wipe it from
+# here — the old in-place wipe ran under a live, unsealed server, which kept
+# reporting "initialized", so it destroyed the data and still failed to re-init.
+# A reset is a deliberate operator act on the stopped container and its volume.
 if [[ "${VAULT_INITIALIZED}" == "true" && ! -f "${KEYS_FILE}" ]]; then
-  echo "[!] Vault is initialized but keys file is missing — resetting storage for fresh init…"
-  # Wipe vault's file-backend data (preserving our keys dir structure)
-  find /vault/data -mindepth 1 ! -name '.vault-keys.json' -exec rm -rf {} + 2>/dev/null || true
-  echo "[!] Waiting for Vault to detect clean storage…"
-  sleep 3
+  echo "[!] Vault is initialized but ${KEYS_FILE} is missing; refusing to touch its storage." >&2
+  echo "[!] Restore the key file, or reset on purpose (every secret is lost):" >&2
+  echo "[!]   docker compose rm -sf vault vault-init && docker volume rm <project>_vault-data" >&2
+  exit 1
 fi
 
 # ── 3. Initialize if not already ──────────────────────────────────
@@ -62,9 +66,11 @@ else
   echo "[=] Vault already initialized"
 fi
 
-# The env helper runs as the host user so generated files are not root-owned.
-# Keep this local-dev key file readable inside the Docker volume.
-chmod 0644 "${KEYS_FILE}" 2>/dev/null || true
+# The key file holds the unseal key AND the root token: owner-only, always (an
+# older run may have left it 0644). Nothing reads it as another uid — the Fly
+# path reads it over `fly ssh` as root, and the monorepo's host-side env helper
+# that once needed 0644 does not exist in this repo.
+chmod 0600 "${KEYS_FILE}"
 
 # ── 4. Unseal ─────────────────────────────────────────────────────
 SEAL_OUTPUT=$(vault status -address="${VAULT_ADDR}" 2>&1) || true
