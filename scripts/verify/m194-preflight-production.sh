@@ -74,10 +74,10 @@ trap 'rm -rf "${T}"' EXIT
 RC=0
 OUT=""
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
-step() { cyan "[M189] $*"; }
+step() { cyan "[M194] $*"; }
 ok() { printf '\033[0;32m  ✓ %s\033[0m\n' "$*"; }
 fail() {
-  printf '\033[0;31m[M189] FAIL — %s\033[0m\n' "$*" >&2
+  printf '\033[0;31m[M194] FAIL — %s\033[0m\n' "$*" >&2
   [ -z "${OUT}" ] || printf '%s\n' "${OUT}" | sed 's/^/    | /' >&2
   exit 1
 }
@@ -332,4 +332,4 @@ arm_drift
 arm_dsn_drift
 step "(g) usage"
 arm_usage
-printf '\033[0;32m[M189] PASS — preflight-production refuses dev env files, accepts hardened ones, never prints a value\033[0m\n'
+printf '\033[0;32m[M194] PASS — preflight-production refuses dev env files, accepts hardened ones, never prints a value\033[0m\n'

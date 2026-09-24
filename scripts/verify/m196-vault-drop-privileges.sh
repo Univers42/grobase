@@ -42,10 +42,10 @@ TAG="${P}:vault-fly"
 KEYS=/vault/data/.vault-keys.json
 READY='mapped to track-binocle-env-reader'
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
-step() { cyan "[M191] $*"; }
+step() { cyan "[M196] $*"; }
 ok() { printf '\033[0;32m  ✓ %s\033[0m\n' "$*"; }
 fail() {
-  printf '\033[0;31m[M191] FAIL — %s\033[0m\n' "$*" >&2
+  printf '\033[0;31m[M196] FAIL — %s\033[0m\n' "$*" >&2
   exit 1
 }
 
@@ -54,7 +54,7 @@ command -v docker >/dev/null && docker info >/dev/null 2>&1 || fail "docker is n
 [ -r "${ENTRY}" ] || fail "entrypoint ${ENTRY} is not readable"
 FREE_KB="$(df -Pk "$(docker info -f '{{.DockerRootDir}}')" | awk 'NR == 2 { print $4 }')"
 if [ "${FREE_KB:-0}" -lt $((MIN_FREE_MB * 1024)) ]; then
-  printf '\033[0;33m[M191] SKIP — %s MB free for docker, the build needs %s MB; nothing built, nothing proven\033[0m\n' \
+  printf '\033[0;33m[M196] SKIP — %s MB free for docker, the build needs %s MB; nothing built, nothing proven\033[0m\n' \
     "$((${FREE_KB:-0} / 1024))" "${MIN_FREE_MB}" >&2
   exit 77
 fi
@@ -213,4 +213,4 @@ build_image
 leg_off
 leg_on
 leg_neg
-printf '\033[0;32m[M191] PASS — the flag drops Vault to the vault user; unset keeps HEAD root\033[0m\n'
+printf '\033[0;32m[M196] PASS — the flag drops Vault to the vault user; unset keeps HEAD root\033[0m\n'
