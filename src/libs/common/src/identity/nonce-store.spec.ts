@@ -87,8 +87,21 @@ describe('createNonceStore (IDENTITY_NONCE_STORE selection)', () => {
     expect(createNonceStore({})).toBeInstanceOf(MemoryNonceStore);
   });
 
-  it.each(['memory', 'REDIS', 'redis ', ''])('%p → MemoryNonceStore', (value) => {
+  it.each(['memory', ' Memory ', ''])('%p → MemoryNonceStore', (value) => {
     expect(createNonceStore({ IDENTITY_NONCE_STORE: value })).toBeInstanceOf(MemoryNonceStore);
+  });
+
+  it.each(['REDIS', 'redis '])('%p → RedisNonceStore (case and spaces ignored)', (value) => {
+    expect(
+      createNonceStore({
+        IDENTITY_NONCE_STORE: value,
+        IDENTITY_NONCE_REDIS_URL: 'redis://127.0.0.1:1',
+      }),
+    ).toBeInstanceOf(RedisNonceStore);
+  });
+
+  it.each(['redsi', 'on', 'true'])('%p is refused, never a silent downgrade to memory', (value) => {
+    expect(() => createNonceStore({ IDENTITY_NONCE_STORE: value })).toThrow(/IDENTITY_NONCE_STORE/);
   });
 
   it('redis → RedisNonceStore (lazyConnect: no socket opened here)', () => {

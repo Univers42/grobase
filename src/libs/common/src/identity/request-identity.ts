@@ -274,7 +274,8 @@ function verifyHmac(secret: string, canonical: string, expectedHex: string): boo
 }
 
 function maxSkewMs(): number {
-  return Number(process.env['INTERNAL_IDENTITY_MAX_SKEW_MS'] ?? DEFAULT_SKEW_MS);
+  const raw = Number(process.env['INTERNAL_IDENTITY_MAX_SKEW_MS'] ?? DEFAULT_SKEW_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_SKEW_MS;
 }
 
 function ensureFreshIssuedAt(iat: string): void {
