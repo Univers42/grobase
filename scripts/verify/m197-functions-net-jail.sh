@@ -35,9 +35,9 @@
 #                                                                              #
 #  Needs .env (compose render), jq, the functions-runtime image locally, and   #
 #  the stack up with kong/postgres/mongo. Missing any = FAIL.                  #
-#  Mutant hooks: M192_OVERLAY=<path> checks another overlay; one that leaves   #
+#  Mutant hooks: M197_OVERLAY=<path> checks another overlay; one that leaves   #
 #  functions-runtime on mini-baas, or drops the Worker allowlist, goes red.    #
-#  M192_SRC=<dir> runs another runtime src/; one whose Workers keep            #
+#  M197_SRC=<dir> runs another runtime src/; one whose Workers keep            #
 #  net:"inherit" whatever the flag says goes red.                              #
 #  Removes every container/network it creates (EXIT trap); never stops,        #
 #  restarts or re-aliases a running mini-baas container.                       #
@@ -46,8 +46,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${ROOT}" || exit 1
-OVERLAY="${M192_OVERLAY:-orchestrators/compose/docker-compose.prod.yml}"
-SRC="${M192_SRC:-${ROOT}/infra/docker/services/functions-runtime/src}"
+OVERLAY="${M197_OVERLAY:-orchestrators/compose/docker-compose.prod.yml}"
+SRC="${M197_SRC:-${ROOT}/infra/docker/services/functions-runtime/src}"
 P="m197-$$"
 TENANT="m192t$$"
 TOKEN="m197-dummy-service-token"
@@ -313,8 +313,8 @@ command -v jq >/dev/null || fail "jq is required"
 step "render base and base+overlay (${OVERLAY##*/})"
 render "${T}/base.json" -f docker-compose.yml
 render "${T}/prod.json" -f docker-compose.yml -f "${OVERLAY}"
-IMG="${M192_IMAGE:-$(jq -r '.services["functions-runtime"].image' "${T}/prod.json")}"
-docker image inspect "${IMG}" >/dev/null 2>&1 || fail "image ${IMG} not present locally (make build-svc-functions-runtime, or M192_IMAGE=<tag>)"
+IMG="${M197_IMAGE:-$(jq -r '.services["functions-runtime"].image' "${T}/prod.json")}"
+docker image inspect "${IMG}" >/dev/null 2>&1 || fail "image ${IMG} not present locally (make build-svc-functions-runtime, or M197_IMAGE=<tag>)"
 live_stack
 INTERNAL=(kong:8001 kong:8002 mini-baas-kong:8001 "${KONG_IP}:8001" m197-rebind.test:8001 vault:8200 postgres:5432
   mongo:27017 cockroach:26257 cockroach:8080 redis:6379 webhook-dispatcher:3025 function-scheduler:3027)

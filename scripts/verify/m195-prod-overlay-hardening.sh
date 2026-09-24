@@ -50,11 +50,11 @@
 #  that cannot look has not passed. The rendered JSON carries .env secrets: it #
 #  stays in a mode-700 temp dir and only named, non-secret paths are printed.  #
 #                                                                              #
-#  Mutant hook: M190_OVERLAY=<path> checks another overlay; one that drops a   #
+#  Mutant hook: M195_OVERLAY=<path> checks another overlay; one that drops a   #
 #  value, leaves the admin API on, sets an identity flag, puts a guard flag    #
 #  on the wrong service, leaves functions-runtime on mini-baas, drops the      #
 #  Worker allowlist, or relays one port more must go red.                      #
-#  M190_CLOUD_OVERLAY=<path> does the same for the cloud overlay: one that     #
+#  M195_CLOUD_OVERLAY=<path> does the same for the cloud overlay: one that     #
 #  drops a guard, hands flags.env.cloud to another service, or lets its        #
 #  functions jail drift from prod's must go red.                               #
 # **************************************************************************** #
@@ -62,8 +62,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${ROOT}" || exit 1
-OVERLAY="${M190_OVERLAY:-orchestrators/compose/docker-compose.prod.yml}"
-CLOUD="${M190_CLOUD_OVERLAY:-orchestrators/compose/docker-compose.cloud.yml}"
+OVERLAY="${M195_OVERLAY:-orchestrators/compose/docker-compose.prod.yml}"
+CLOUD="${M195_CLOUD_OVERLAY:-orchestrators/compose/docker-compose.cloud.yml}"
 P="m190gate$$"
 T="$(mktemp -d)" || exit 1
 chmod 700 "${T}"
@@ -146,7 +146,7 @@ static_guards() {
 # env_file pointed at a stub holding one sentinel key: the real file is
 # gitignored, carries STRIPE_*, and must not be needed to prove where it goes.
 render_cloud() {
-  printf 'M190_CLOUD_SENTINEL=1\n' >"${T}/flags.env.cloud"
+  printf 'M195_CLOUD_SENTINEL=1\n' >"${T}/flags.env.cloud"
   sed "s#infra/config/cloud/flags\.env\.cloud#${T}/flags.env.cloud#g" "${CLOUD}" >"${T}/cloud.yml"
   render "$1" -f docker-compose.yml -f "${T}/cloud.yml"
 }
@@ -161,7 +161,7 @@ static_cloud() {
     | ($b[0].services[$s].environment | keys) - ($p[0].services[$s].environment | keys)]
     | flatten | length == 0' >/dev/null ||
     fail "cloud overlay replaced a router's base env map (storage-router/query-router keys lost)"
-  got="$(jq -r '[.services | to_entries[] | select(.value.environment.M190_CLOUD_SENTINEL != null) | .key]
+  got="$(jq -r '[.services | to_entries[] | select(.value.environment.M195_CLOUD_SENTINEL != null) | .key]
     | sort | join(" ")' "${c}")"
   [ "${got}" = "data-plane-router-rust orchestrator tenant-control" ] ||
     fail "flags.env.cloud reaches '${got}', want only 'data-plane-router-rust orchestrator tenant-control' (STRIPE_* widening)"

@@ -25,17 +25,17 @@
 #  image is pulled by the build and removed again if it was absent before;     #
 #  tag, intermediates, containers, volumes and temp dir go in an EXIT trap.    #
 #                                                                              #
-#  Mutant hook: M191_ENTRYPOINT=<path> builds with another entrypoint; one     #
+#  Mutant hook: M196_ENTRYPOINT=<path> builds with another entrypoint; one     #
 #  that keeps root, loosens the keys file or leaves the scripts writable       #
-#  must go red. M191_MIN_FREE_MB overrides the 2560 MB disk guard.             #
+#  must go red. M196_MIN_FREE_MB overrides the 2560 MB disk guard.             #
 #                                                                              #
 # **************************************************************************** #
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 CTX="${ROOT}/infra/docker/services/vault"
-ENTRY="${M191_ENTRYPOINT:-${CTX}/scripts/fly-entrypoint.sh}"
-MIN_FREE_MB="${M191_MIN_FREE_MB:-2560}"
+ENTRY="${M196_ENTRYPOINT:-${CTX}/scripts/fly-entrypoint.sh}"
+MIN_FREE_MB="${M196_MIN_FREE_MB:-2560}"
 BASE="$(awk '$1 == "FROM" { print $2; exit }' "${CTX}/Dockerfile.fly")"
 P="m191gate$$"
 TAG="${P}:vault-fly"

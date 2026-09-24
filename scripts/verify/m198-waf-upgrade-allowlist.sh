@@ -22,15 +22,15 @@
 #  Needs docker, the WAF image and node:20-alpine already present (nothing is  #
 #  pulled) and certs/localhost{,-key}.pem; otherwise SKIP, exit 77, never 0.   #
 #  Containers, network and temp dir go in an EXIT trap.                        #
-#  M193_CONF=<path> tests another config (a mutant that relays h2c must go    #
+#  M198_CONF=<path> tests another config (a mutant that relays h2c must go    #
 #  red).                                                                       #
 # **************************************************************************** #
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-CONF="${M193_CONF:-${ROOT}/infra/docker/services/waf/conf/nginx.conf}"
-WAF_IMG="${M193_WAF_IMAGE:-ghcr.io/univers42/grobase-waf:latest}"
-NODE_IMG="${M193_NODE_IMAGE:-public.ecr.aws/docker/library/node:20-alpine}"
+CONF="${M198_CONF:-${ROOT}/infra/docker/services/waf/conf/nginx.conf}"
+WAF_IMG="${M198_WAF_IMAGE:-ghcr.io/univers42/grobase-waf:latest}"
+NODE_IMG="${M198_NODE_IMAGE:-public.ecr.aws/docker/library/node:20-alpine}"
 CERT="${ROOT}/certs/localhost.pem"
 KEY="${ROOT}/certs/localhost-key.pem"
 TAG="m193gate$$"
