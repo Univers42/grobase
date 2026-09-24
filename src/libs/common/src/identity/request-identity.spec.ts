@@ -226,6 +226,27 @@ describe('signed-envelope integrity (HMAC tamper detection)', () => {
 });
 
 describe('signed-envelope freshness & replay protection', () => {
+  it.each(['abc', '-5', 'Infinity'])(
+    'a malformed skew %p falls back to the default window, never disables it',
+    async (skew) => {
+      process.env.INTERNAL_IDENTITY_MAX_SKEW_MS = skew;
+      const req = reqWith({});
+      const iat = String(Date.now() - 3_600_000);
+      const nonce = randomUUID();
+      const canonical = canonicalIdentityString(req, baseIdentity(), iat, nonce);
+      const sig = createHmac('sha256', SECRET).update(canonical).digest('hex');
+      const headers = {
+        ...signedHeaders(req),
+        'x-baas-issued-at': iat,
+        'x-baas-nonce': nonce,
+        'x-baas-signature': `v1=${sig}`,
+      };
+      await expect(resolveRequestIdentity(reqWith(headers), true)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    },
+  );
+
   it('rejects a stale issued-at outside the skew window', async () => {
     process.env.INTERNAL_IDENTITY_MAX_SKEW_MS = '1000';
     const req = reqWith({});

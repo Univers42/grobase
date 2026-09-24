@@ -76,14 +76,27 @@ export class RedisNonceStore implements NonceStore {
 }
 
 /**
- * Builds the store named by IDENTITY_NONCE_STORE: exactly 'redis' selects Redis
- * (IDENTITY_NONCE_REDIS_URL || REDIS_URL || redis://redis:6379); anything else,
- * including unset, selects the in-memory store.
+ * Builds the store named by IDENTITY_NONCE_STORE (case and spaces ignored): unset,
+ * '' or 'memory' → in-memory (OSS parity); 'redis' → Redis at
+ * IDENTITY_NONCE_REDIS_URL || REDIS_URL || redis://redis:6379, with 2 s connect and
+ * command timeouts so a hung Redis fails closed in bounded time. Any other value
+ * throws: a typo must not silently downgrade a replay control to per-process.
  */
 export function createNonceStore(env: NodeJS.ProcessEnv): NonceStore {
-  if (env['IDENTITY_NONCE_STORE'] !== 'redis') return new MemoryNonceStore();
+  const kind = (env['IDENTITY_NONCE_STORE'] ?? '').trim().toLowerCase();
+  if (kind === '' || kind === 'memory') return new MemoryNonceStore();
+  if (kind !== 'redis') {
+    throw new Error(`IDENTITY_NONCE_STORE must be 'memory' or 'redis', got '${kind}'`);
+  }
   const url = (env['IDENTITY_NONCE_REDIS_URL'] || env['REDIS_URL'] || 'redis://redis:6379').trim();
-  return new RedisNonceStore(new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 2 }));
+  return new RedisNonceStore(
+    new Redis(url, {
+      lazyConnect: true,
+      maxRetriesPerRequest: 2,
+      connectTimeout: 2000,
+      commandTimeout: 2000,
+    }),
+  );
 }
 
 // ponytail: process-wide store built lazily on first use; env is read once, so changing IDENTITY_NONCE_STORE needs a restart — inject a NonceStore via Nest DI if per-module stores are ever needed
