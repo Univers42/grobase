@@ -34,8 +34,8 @@ COPY tests/integration/Cargo.toml             tests/integration/Cargo.toml
 
 # Stub every crate so Cargo can resolve the graph, then pre-compile all
 # dependencies (the slow step — cached until the manifests change).
-RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=shared \
-    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=shared \
+RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=realtime-target,target=/build/target,sharing=locked \
     for dir in \
         crates/realtime-core \
@@ -70,8 +70,8 @@ COPY tests/  tests/
 # Stub fingerprints were retro-dated in the deps stage, so real sources (any
 # mtime) read as newer → cargo rebuilds exactly the crates whose files changed.
 # The binary is copied OUT of the cache mount so it lands in the layer.
-RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=shared \
-    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=shared \
+RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=realtime-target,target=/build/target,sharing=locked \
     cargo build --release --bin realtime-server && \
     cp /build/target/release/realtime-server /realtime-server
