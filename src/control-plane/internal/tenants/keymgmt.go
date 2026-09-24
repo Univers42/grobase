@@ -39,7 +39,8 @@ const insertAPIKey = `
 	  FROM ins`
 
 // IssueKey generates a new API key for the tenant identified by slug.
-// Persists prefix+hash, returns the full cleartext key ONCE.
+// Persists prefix+hash, returns the full cleartext key ONCE, and logs an
+// "api key issued" audit line (tenant, key id, scopes — never the key, M-11).
 func (s *Service) IssueKey(ctx context.Context, slug string, req IssueKeyRequest) (IssueKeyResponse, error) {
 	if req.Name == "" {
 		return IssueKeyResponse{}, fmt.Errorf("name is required")
@@ -64,6 +65,7 @@ func (s *Service) IssueKey(ctx context.Context, slug string, req IssueKeyRequest
 	if err != nil {
 		return IssueKeyResponse{}, err
 	}
+	s.log.Info("api key issued", "tenant", slug, "key_id", out.ID, "name", req.Name, "scopes", scopes)
 	return IssueKeyResponse{APIKey: out, Key: fullKey}, nil
 }
 

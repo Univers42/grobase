@@ -294,6 +294,12 @@ C="$(me_req DELETE "${PORT_ON}" "/v1/tenants/me/keys/${ADMIN2_ID}" "${KEY_A}")"
 [[ "${C}" == "200" ]] || fail "(A) the admin key revoking the second admin key got ${C}, want 200 (line: H-13 admin revoke)"
 ok "(A) write-only → admin key: 403 and still active; admin → admin key: 200"
 
+step "4e3/8 (M-11) key issuance and revocation leave an audit line in tenant-control's log"
+LOGS="$(docker logs "${TC_ON}" 2>&1)"
+grep -q "api key issued.*${ADMIN2_ID}" <<<"${LOGS}" || fail "(A) no 'api key issued' log line naming ${ADMIN2_ID} — key issuance leaves no trail (line: M-11 issued)"
+grep -q "api key revoked.*${ADMIN2_ID}" <<<"${LOGS}" || fail "(A) no 'api key revoked' log line naming ${ADMIN2_ID} — key revocation leaves no trail (line: M-11 revoked)"
+ok "(A) tenant-control logged 'api key issued' and 'api key revoked' for ${ADMIN2_ID}"
+
 step "4f/8 (A · POSITIVE) PATCH /v1/tenants/me {plan:\"pro\"} with A's key → 200, re-GET shows pro"
 C="$(me_req PATCH "${PORT_ON}" /v1/tenants/me "${KEY_A}" '{"plan":"pro"}')"
 [[ "${C}" == "200" ]] || fail "(A) PATCH /me {plan:pro} expected 200, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A PATCH /me)"
