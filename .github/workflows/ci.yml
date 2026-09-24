@@ -817,7 +817,20 @@ jobs:
         run: FORCE=1 bash scripts/env/generate-env.sh .env
 
       - name: Compile/enforce ${{ matrix.offer }}
-        run: ${{ matrix.run }}
+        env:
+          OFFER_RUN: ${{ matrix.run }}
+        run: |
+          set -o pipefail
+          bash -c "$OFFER_RUN" 2>&1 | tee /tmp/offer.log
+
+      # A red offer names its cause in the (public) annotations: the first error
+      # lines of the build and the runner's disk headroom.
+      - name: Explain a failed offer
+        if: failure()
+        run: |
+          why=$(grep -m3 -iE 'error|failed|no space|denied|timed out' /tmp/offer.log | tr '\n' ' ' | cut -c1-600)
+          disk=$(df -h / | awk 'NR==2 {print $4 " free of " $2}')
+          echo "::error title=offer ${{ matrix.offer }} failed::${why:-no error line matched; see log} | disk: ${disk}"
 
   # ─── Job 7: Full enterprise gate battery (nightly + manual) ─────
   # The heavy enterprise + parity suite (m103..m145): orgs/RBAC, audit chain,
