@@ -77,8 +77,8 @@ per problem).
 | H-6 | A rotated-out service token is accepted with no log line | Low; only when `INTERNAL_SERVICE_TOKEN_PREV` is set. |
 | H-14 | Identity nonce replay cache is per process | Matters only with several replicas (compose runs one); needs a shared store. |
 | H-20 | ShellCheck SC2086 disabled globally | Info-level under CI's `-S error`; enable per file where input is untrusted. |
-| M-4 | Realtime does not check `iss` | `appchannels` tokens carry no `iss`; enforcing it would break m179. Add `iss` to every minter first. tenant-control already checks it. |
-| M-5 | `sub` not validated as a UUID | Token minters must be audited first. |
+| M-4 | Realtime does not check `iss` | Step 1 done (`fix/sec-m4-issuer-expression`: GoTrue and tenant-control resolve the issuer from one expression, so an override cannot split minter and verifier). Remaining, in order: stamp `iss` in `appchannels/mint.go` (only after the Go verifier can tell that token apart — its `sub` is a tenant slug); re-issue the five seed app tokens that use `iss: "supabase"` (canagrou, gourmand, hambooking, hypertube, red-tetris) plus m22/m23/seed-live-demo; set `REALTIME_JWT_ISSUER`; then require `iss` in realtime's validation. Every minter shares one secret, so this is defence in depth. Minter inventory: 12 paths, in the M-4/M-5 sweep of 2026-09-25. |
+| M-5 | `sub` not validated as a UUID | **Rejected as asked**: SSO sessions carry the IdP's raw subject and passkeys' `user_id` is client-supplied — a UUID check breaks both (and gate m64). The real hole it pointed at is closed instead: with an empty `GOTRUE_JWT_ISSUER` the verifier accepted any same-secret token (cross-app, seed) as a user session; tenant-control now refuses to start with an empty issuer (`fix/sec-m5-issuer-guard`, `JWT_ALLOW_NO_ISSUER=1` opts out; `TestRequireIssuer`). |
 | — | `edition-query` offer build was intermittent in CI | Cause found: concurrent Rust builds raced on a `sharing=shared` cargo cache mount ('failed to unpack package'); now `sharing=locked`. |
 
 ## False positive, mitigated or by design
