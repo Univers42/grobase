@@ -6,21 +6,13 @@ FROM public.ecr.aws/docker/library/postgres:16-alpine AS pg_net_builder
 
 ARG PG_NET_VERSION=0.14.0
 ARG MYSQL_FDW_VERSION=2_9_2
-ARG MYSQL_FDW_SHA256=sha256:mysql-fdw-2-9-2-pinned-by-mini-baas
 ARG MONGO_FDW_VERSION=5_5_1
-ARG MONGO_FDW_SHA256=sha256:mongo-fdw-5-5-1-pinned-by-mini-baas
 ARG TDS_FDW_VERSION=2_0_4
-ARG TDS_FDW_SHA256=sha256:tds-fdw-2-0-4-pinned-by-mini-baas
 ARG ORACLE_FDW_VERSION=2_7_0
-ARG ORACLE_FDW_SHA256=sha256:oracle-fdw-2-7-0-pinned-by-mini-baas
 ARG REDIS_FDW_VERSION=1_0_0
-ARG REDIS_FDW_SHA256=sha256:redis-fdw-1-0-0-pinned-by-mini-baas
 ARG CLICKHOUSE_FDW_VERSION=1_5_0
-ARG CLICKHOUSE_FDW_SHA256=sha256:clickhousedb-fdw-1-5-0-pinned-by-mini-baas
 ARG MULTICORN_VERSION=2_5_0
-ARG MULTICORN_SHA256=sha256:multicorn-2-5-0-pinned-by-mini-baas
 ARG SQLITE_FDW_VERSION=2_5_0
-ARG SQLITE_FDW_SHA256=sha256:sqlite-fdw-2-5-0-pinned-by-mini-baas
 ADD https://github.com/supabase/pg_net/archive/refs/tags/v${PG_NET_VERSION}.tar.gz /tmp/pg_net.tar.gz
 
 # Install build dependencies for pg_net
@@ -63,21 +55,16 @@ RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
 FROM public.ecr.aws/docker/library/postgres:16-alpine AS postgres_runtime
 
 ARG MYSQL_FDW_VERSION=2_9_2
-ARG MYSQL_FDW_SHA256=sha256:mysql-fdw-2-9-2-pinned-by-mini-baas
 ARG MONGO_FDW_VERSION=5_5_1
-ARG MONGO_FDW_SHA256=sha256:mongo-fdw-5-5-1-pinned-by-mini-baas
 ARG TDS_FDW_VERSION=2_0_4
-ARG TDS_FDW_SHA256=sha256:tds-fdw-2-0-4-pinned-by-mini-baas
 ARG ORACLE_FDW_VERSION=2_7_0
-ARG ORACLE_FDW_SHA256=sha256:oracle-fdw-2-7-0-pinned-by-mini-baas
 ARG REDIS_FDW_VERSION=1_0_0
-ARG REDIS_FDW_SHA256=sha256:redis-fdw-1-0-0-pinned-by-mini-baas
 ARG CLICKHOUSE_FDW_VERSION=1_5_0
-ARG CLICKHOUSE_FDW_SHA256=sha256:clickhousedb-fdw-1-5-0-pinned-by-mini-baas
 ARG MULTICORN_VERSION=2_5_0
-ARG MULTICORN_SHA256=sha256:multicorn-2-5-0-pinned-by-mini-baas
 ARG SQLITE_FDW_VERSION=2_5_0
-ARG SQLITE_FDW_SHA256=sha256:sqlite-fdw-2-5-0-pinned-by-mini-baas
+# Re-declared here: ARGs are stage-scoped and the manifest below prints them.
+ARG PG_NET_VERSION=0.14.0
+ARG PGVECTOR_VERSION=0.8.0
 
 RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
   apk upgrade --no-cache \
@@ -85,17 +72,25 @@ RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
   && printf '%s\n' '#!/bin/sh' 'exec /sbin/su-exec "$@"' > /usr/local/bin/gosu \
   && chmod 0755 /usr/local/bin/gosu
 
+# The FDW manifest states what this image actually ships: the FDW extensions are NOT
+# compiled in (migration 020's fdws_bootstrap_available() reports what the server
+# can load); the versions are the ones a bootstrap would target. It used to print
+# placeholder "sha256:…-pinned-by-mini-baas" strings that verified nothing.
 RUN mkdir -p /usr/local/share/mini-baas/fdw \
   && { \
-    echo "mysql_fdw ${MYSQL_FDW_VERSION} ${MYSQL_FDW_SHA256}"; \
-    echo "mongo_fdw ${MONGO_FDW_VERSION} ${MONGO_FDW_SHA256}"; \
-    echo "tds_fdw ${TDS_FDW_VERSION} ${TDS_FDW_SHA256}"; \
-    echo "oracle_fdw ${ORACLE_FDW_VERSION} ${ORACLE_FDW_SHA256}"; \
-    echo "redis_fdw ${REDIS_FDW_VERSION} ${REDIS_FDW_SHA256}"; \
-    echo "clickhousedb_fdw ${CLICKHOUSE_FDW_VERSION} ${CLICKHOUSE_FDW_SHA256}"; \
-    echo "multicorn ${MULTICORN_VERSION} ${MULTICORN_SHA256}"; \
+    echo "# extension  target-version  status"; \
+    echo "mysql_fdw ${MYSQL_FDW_VERSION} not-built"; \
+    echo "mongo_fdw ${MONGO_FDW_VERSION} not-built"; \
+    echo "tds_fdw ${TDS_FDW_VERSION} not-built"; \
+    echo "oracle_fdw ${ORACLE_FDW_VERSION} not-built"; \
+    echo "redis_fdw ${REDIS_FDW_VERSION} not-built"; \
+    echo "clickhousedb_fdw ${CLICKHOUSE_FDW_VERSION} not-built"; \
+    echo "multicorn ${MULTICORN_VERSION} not-built"; \
     echo "file_fdw built-in postgresql-16"; \
-    echo "sqlite_fdw ${SQLITE_FDW_VERSION} ${SQLITE_FDW_SHA256}"; \
+    echo "sqlite_fdw ${SQLITE_FDW_VERSION} not-built"; \
+    echo "pg_net ${PG_NET_VERSION} built-in"; \
+    echo "vector ${PGVECTOR_VERSION} built-in"; \
+    echo "pg_graphql (see pg_graphql_builder) built-in"; \
   } > /usr/local/share/mini-baas/fdw/manifest.txt
 
 COPY --from=pg_net_builder /usr/local/lib/postgresql/pg_net.so /usr/local/lib/postgresql/
