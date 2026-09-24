@@ -71,21 +71,18 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       GOTRUE_JWT_ISS: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}
       KONG_ANON_UUID: ${KONG_ANON_UUID:-cd4f782c-ac87-5081-b322-b54834d15651}
+      # Local dev CORS origins (vite :5173/:5180, osionos :3001), comma-separated.
+      # `-` not `:-`: UNSET keeps the dev list (an .env assembled before this line
+      # existed behaves as it did); SET-but-empty — prod overlay, fly — adds none (H-15).
+      KONG_CORS_ORIGIN_DEV_LIST: ${KONG_CORS_ORIGIN_DEV_LIST-http://127.0.0.1:5180,http://localhost:5180,http://127.0.0.1:5173,http://localhost:3001,http://127.0.0.1:3001}
     volumes:
       - ./infra/docker/services/kong/conf/kong.yml:/etc/kong/kong.yml.tmpl:ro
+      - ./infra/docker/services/kong/render-kong-config.sh:/etc/kong/render-kong-config.sh:ro
+    # render-kong-config.sh substitutes every __PLACEHOLDER__ (dev CORS origins from
+    # KONG_CORS_ORIGIN_DEV_LIST) and refuses to start Kong if one survives.
     command: >
       sh -ec '
-        sed \
-          -e "s|__KONG_PUBLIC_API_KEY__|$${KONG_PUBLIC_API_KEY}|g" \
-          -e "s|__KONG_SERVICE_API_KEY__|$${KONG_SERVICE_API_KEY}|g" \
-          -e "s|__KONG_CORS_ORIGIN_APP__|$${KONG_CORS_ORIGIN_APP}|g" \
-          -e "s|__KONG_CORS_ORIGIN_PLAYGROUND__|$${KONG_CORS_ORIGIN_PLAYGROUND}|g" \
-          -e "s|__KONG_CORS_ORIGIN_STUDIO__|$${KONG_CORS_ORIGIN_STUDIO}|g" \
-          -e "s|__KONG_CORS_ORIGIN_FRONTEND__|$${KONG_CORS_ORIGIN_FRONTEND}|g" \
-          -e "s|__JWT_SECRET__|$${JWT_SECRET}|g" \
-          -e "s|__GOTRUE_JWT_ISS__|$${GOTRUE_JWT_ISS}|g" \
-          -e "s|__KONG_ANON_UUID__|$${KONG_ANON_UUID}|g" \
-          /etc/kong/kong.yml.tmpl > /tmp/kong.yml;
+        sh /etc/kong/render-kong-config.sh /etc/kong/kong.yml.tmpl /tmp/kong.yml;
         exec /docker-entrypoint.sh kong docker-start
       '
     healthcheck:
