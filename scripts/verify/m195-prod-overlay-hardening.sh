@@ -104,6 +104,25 @@ render() {
     fail "compose render failed ($*): $(head -c 400 "${T}/render.err")"
 }
 
+# static_ports asserts the overlay's port stripping took effect (H-1): every service
+# the overlay gives an empty ports list publishes nothing in the render (compose
+# MERGES port lists, so a bare `ports: []` strips nothing — it needs !reset), and
+# minio publishes exactly its S3 port 9000, once.
+static_ports() {
+  local j="${T}/prod.json" svc leaked
+  local stripped
+  stripped="$(awk '/^  [a-z0-9-]+:$/ { s = substr($1, 1, length($1) - 1) }
+    /^    ports: (!reset )?\[\]/ { print s }' "${OVERLAY}")"
+  [ -n "${stripped}" ] || fail "no stripped ports found in ${OVERLAY} (parser drift?)"
+  for svc in ${stripped}; do
+    leaked="$(jq -r --arg s "${svc}" '[.services[$s].ports[]? | "\(.host_ip // "0.0.0.0"):\(.published)"] | join(" ")' "${j}")"
+    [ -z "${leaked}" ] || fail "prod render still publishes ${svc} on ${leaked} — the overlay's empty ports list merged instead of replacing (use !reset)"
+  done
+  jq -e '[.services.minio.ports[]? | "\(.published)->\(.target)"] == ["9000->9000"]' "${j}" >/dev/null ||
+    fail "minio in prod publishes $(jq -c '[.services.minio.ports[]? | "\(.host_ip // "0.0.0.0"):\(.published)->\(.target)"]' "${j}"), want only 9000->9000"
+  ok "$(printf '%s\n' "${stripped}" | wc -w) stripped services publish nothing; minio publishes only 9000"
+}
+
 # static_overlay asserts every intended value on its service, with the base
 # env map merged rather than replaced.
 static_overlay() {
@@ -376,6 +395,8 @@ static_overlay
 static_kong
 static_guards
 static_held
+step "overlay strips the dev ports it lists (H-1)"
+static_ports
 step "functions network jail (m197 proves it live)"
 static_jail "${T}/prod.json"
 step "cloud overlay (make cloud-up): guards on, flags.env.cloud not widened, functions jailed"

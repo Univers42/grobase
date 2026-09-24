@@ -75,32 +75,32 @@
 services:
   # ── strip direct data-store ports (reachable in-network only) ──────────────
   postgres:
-    ports: []
+    ports: !reset []
   mongo:
-    ports: []
+    ports: !reset []
   redis:
-    ports: []
+    ports: !reset []
   mysql:
-    ports: []
+    ports: !reset []
   mariadb:
-    ports: []
+    ports: !reset []
   cockroach:
-    ports: []
+    ports: !reset []
   mssql:
-    ports: []
+    ports: !reset []
   iceberg-rest:
-    ports: []
+    ports: !reset []
 
   # ── strip direct service ports (everything flows through Kong) ─────────────
   gotrue:
-    ports: []
+    ports: !reset []
     environment:
       GOTRUE_MAILER_AUTOCONFIRM: "false"
       GOTRUE_PASSWORD_MIN_LENGTH: "12"
   postgrest:
-    ports: []
+    ports: !reset []
   studio:
-    ports: []
+    ports: !reset []
 
   # ── gateway: no Admin API in production ────────────────────────────────────
   # db-less Kong's Admin API serves GET /key-auths (cleartext anon +
@@ -183,11 +183,11 @@ services:
 
   # ── observability + infra: strip ports AND cap the uncapped ────────────────
   prometheus:
-    ports: [] # scraped in-network; expose via Grafana only
+    ports: !reset [] # scraped in-network; expose via Grafana only
     mem_limit: 512m
     cpus: 0.50
   loki:
-    ports: [] # queried by Grafana in-network
+    ports: !reset [] # queried by Grafana in-network
     mem_limit: 384m
     cpus: 0.50
   grafana:
@@ -203,7 +203,9 @@ services:
     mem_limit: 512m
     cpus: 0.50
   minio:
-    ports:
+    # !override: compose MERGES port lists, so without it the base's 127.0.0.1
+    # 9000/9001 bindings stayed next to this one (console not stripped, 9000 bound twice).
+    ports: !override
       - "9000:9000" # keep the S3 API (presigned URLs), strip the console
     mem_limit: 512m
     cpus: 0.50
