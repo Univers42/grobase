@@ -17,11 +17,10 @@ import (
 	"net/http"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
-	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 func (rt *routes) remove(w http.ResponseWriter, r *http.Request) {
-	if !validServiceToken(r, rt.serviceToken) {
+	if !rt.validServiceToken(r) {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
 		return
 	}
@@ -37,7 +36,7 @@ func (rt *routes) remove(w http.ResponseWriter, r *http.Request) {
 // owned by that caller (the service binds `AND tenant_id = $caller`). A mount
 // UUID is therefore not a bearer capability across tenants.
 func (rt *routes) removeScoped(w http.ResponseWriter, r *http.Request) {
-	if !validServiceToken(r, rt.serviceToken) {
+	if !rt.validServiceToken(r) {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
 		return
 	}
@@ -84,8 +83,8 @@ func writeRegisterError(w http.ResponseWriter, req RegisterDatabaseRequest, err 
 }
 
 // validServiceToken reports whether the request carries a valid service token.
-// It delegates to serviceauth.VerifyServiceRequest, which does a constant-time
-// compare (timing-leak fix) — see serviceauth.SecureCompare.
-func validServiceToken(r *http.Request, expected string) bool {
-	return serviceauth.VerifyServiceRequest(r, expected)
+// It delegates to serviceauth.RotationNotice.Accept (constant-time compare, see
+// serviceauth.SecureCompare), which also signals a previous-token acceptance.
+func (rt *routes) validServiceToken(r *http.Request) bool {
+	return rt.rotation.Accept(r, rt.serviceToken)
 }
