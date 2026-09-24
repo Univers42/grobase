@@ -144,6 +144,7 @@ static_overlay() {
   expect_val "${j}" '.services.kong.environment.KONG_STATUS_LISTEN' 0.0.0.0:8001
   expect_val "${j}" '.services.kong.environment.KONG_ADMIN_LISTEN' off
   expect_val "${j}" '.services.kong.environment.KONG_ADMIN_GUI_LISTEN' off
+  expect_val "${j}" '.services.kong.environment.KONG_CORS_ORIGIN_DEV_LIST' ''
   expect_val "${j}" '.services.kong.environment.KONG_DECLARATIVE_CONFIG' /tmp/kong.yml
   jq -e -n --slurpfile b "${b}" --slurpfile p "${j}" '[("gotrue", "kong", "storage-router", "query-router") as $s
     | ($b[0].services[$s].environment | keys) - ($p[0].services[$s].environment | keys)]
@@ -326,22 +327,35 @@ listener_args() {
     | select(.key | test("^KONG_(ADMIN|ADMIN_GUI|STATUS)_LISTEN$")) | "-e", "\(.key)=\(.value)"' "$1"
 }
 
-# start_kong runs throwaway Kong $1 on no network with the repo kong.yml
-# rendered from dummy keys plus the listener args in file $2.
+# start_kong runs throwaway Kong $1 on no network with the repo kong.yml rendered
+# by the repo's own render-kong-config.sh from dummy keys, the listener args in
+# file $2 and the KONG_CORS_ORIGIN_DEV_LIST the render $3 gives Kong.
 start_kong() {
   local -a listen
+  local dev
   mapfile -t listen <"$2"
+  dev="$(jq -r '.services.kong.environment.KONG_CORS_ORIGIN_DEV_LIST // ""' "$3")"
   docker run -d --name "$1" --network none --memory 1g \
     -v "${ROOT}/infra/docker/services/kong/conf/kong.yml:/etc/kong/kong.yml.tmpl:ro" \
+    -v "${ROOT}/infra/docker/services/kong/render-kong-config.sh:/etc/kong/render-kong-config.sh:ro" \
     -e KONG_DATABASE=off -e KONG_DECLARATIVE_CONFIG=/tmp/kong.yml -e KONG_HEADERS=off \
     -e KONG_NGINX_WORKER_PROCESSES=1 -e KONG_MEM_CACHE_SIZE=64m \
     -e KONG_UNTRUSTED_LUA_SANDBOX_REQUIRES=cjson.safe "${listen[@]}" \
-    --entrypoint sh "${KONG_IMG}" -ec 'sed -e "s|__KONG_PUBLIC_API_KEY__|m195-anon|g" -e "s|__KONG_SERVICE_API_KEY__|m195-service|g" \
-      -e "s|__KONG_CORS_ORIGIN_[A-Z_]*__|http://localhost|g" -e "s|__JWT_SECRET__|m195-dummy-jwt-secret-m195-dummy-jwt|g" \
-      -e "s|__GOTRUE_JWT_ISS__|http://localhost:8000/auth/v1|g" \
-      -e "s|__KONG_ANON_UUID__|cd4f782c-ac87-5081-b322-b54834d15651|g" \
-      /etc/kong/kong.yml.tmpl >/tmp/kong.yml; exec /docker-entrypoint.sh kong docker-start' \
+    -e KONG_PUBLIC_API_KEY=m195-anon -e KONG_SERVICE_API_KEY=m195-service \
+    -e KONG_CORS_ORIGIN_APP=https://app.example -e KONG_CORS_ORIGIN_PLAYGROUND=https://app.example \
+    -e KONG_CORS_ORIGIN_STUDIO=https://app.example -e KONG_CORS_ORIGIN_FRONTEND=https://app.example \
+    -e KONG_CORS_ORIGIN_DEV_LIST="${dev}" -e JWT_SECRET=m195-dummy-jwt-secret-m195-dummy-jwt \
+    -e GOTRUE_JWT_ISS=http://localhost:8000/auth/v1 -e KONG_ANON_UUID=cd4f782c-ac87-5081-b322-b54834d15651 \
+    --entrypoint sh "${KONG_IMG}" -ec 'sh /etc/kong/render-kong-config.sh /etc/kong/kong.yml.tmpl /tmp/kong.yml
+      exec /docker-entrypoint.sh kong docker-start' \
     >/dev/null || fail "could not start throwaway kong $1"
+}
+
+# acao prints the Access-Control-Allow-Origin Kong $1 answers to a CORS preflight
+# from origin $2 (empty when the origin is not allowed).
+acao() {
+  docker exec "$1" bash -c "exec 3<>/dev/tcp/127.0.0.1/8000 && printf 'OPTIONS /rest/v1/ HTTP/1.0\r\nHost: localhost\r\nOrigin: $2\r\nAccess-Control-Request-Method: GET\r\n\r\n' >&3 && cat <&3" 2>/dev/null |
+    tr -d '\r' | awk -F': ' 'tolower($1) == "access-control-allow-origin" { print $2 }'
 }
 
 # kget prints Kong $1's raw HTTP answer to GET $3 on port $2, REFUSED if no
@@ -374,8 +388,8 @@ metric_names() { kget "$1" 8001 /metrics | grep -E '^kong_' | sed -E 's/[{ ].*//
 dynamic_kong() {
   listener_args "${T}/base.json" >"${T}/base.listen"
   listener_args "${T}/prod.json" >"${T}/prod.listen"
-  start_kong "${P}-base" "${T}/base.listen"
-  start_kong "${P}-prod" "${T}/prod.listen"
+  start_kong "${P}-base" "${T}/base.listen" "${T}/base.json"
+  start_kong "${P}-prod" "${T}/prod.listen" "${T}/prod.json"
   wait_proxy "${P}-base"
   wait_proxy "${P}-prod"
   [ "$(kcode "${P}-base" 8001 /key-auths)" = 200 ] || fail "base admin /key-auths not 200 — the exposure check would be vacuous"
@@ -389,6 +403,12 @@ dynamic_kong() {
   [ "$(kcode "${P}-prod" 8002 /)" = REFUSED ] || fail "prod Kong Manager :8002 still listens"
   [ "$(kcode "${P}-prod" 8444 /)" = REFUSED ] || fail "prod admin TLS :8444 still listens"
   kget "${P}-prod" 8000 / | head -n1 | grep -q '^HTTP/1\.' || fail "prod proxy :8000 does not answer"
+  [ "$(acao "${P}-base" http://localhost:5180)" = http://localhost:5180 ] ||
+    fail "base Kong refuses CORS for the dev origin http://localhost:5180 — the dev-parity side of H-15 is broken"
+  [ -z "$(acao "${P}-prod" http://localhost:5180)" ] ||
+    fail "prod Kong grants credentialed CORS to http://localhost:5180 — a localhost dev origin ships to production (H-15)"
+  [ "$(acao "${P}-prod" https://app.example)" = https://app.example ] || fail "prod Kong refuses its configured origin"
+  ok "CORS: base allows the localhost dev origin, prod refuses it and keeps its configured origin (H-15)"
   ok "base admin /key-auths=200; prod :8001/metrics = same $(wc -l <"${T}/prod.names") kong_* names, /key-auths+/jwts 404, :8002/:8444 refused, proxy answers"
 }
 
@@ -396,7 +416,7 @@ dynamic_kong() {
 command -v jq >/dev/null || fail "jq is required"
 unset GOTRUE_MAILER_AUTOCONFIRM GOTRUE_PASSWORD_MIN_LENGTH KONG_STATUS_LISTEN KONG_ADMIN_LISTEN \
   KONG_ADMIN_GUI_LISTEN REALTIME_NAMESPACE_FALLBACK TENANT_CONTROL_VERIFY_CACHE_TTL_MS \
-  IDENTITY_HEADER_MODE TENANT_HEADER_IDENTITY_HMAC SECURITY_MODE
+  IDENTITY_HEADER_MODE TENANT_HEADER_IDENTITY_HMAC SECURITY_MODE KONG_CORS_ORIGIN_DEV_LIST
 step "render base, base+prod and base+cloud (every profile) to JSON"
 render "${T}/base.json" -f docker-compose.yml
 render "${T}/prod.json" -f docker-compose.yml -f "${OVERLAY}"
