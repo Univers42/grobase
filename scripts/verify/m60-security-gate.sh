@@ -116,7 +116,7 @@ cleanup() {
   if [[ -n "${TBL}" && -n "${A_DB}" && -n "${KONG}" && -n "${A_KEY}" ]]; then
     curl -s -o /dev/null -X POST "${KONG}/query/v1/${A_DB}/schema/ddl" \
       -H "apikey: ${ANON}" -H "X-Baas-Api-Key: ${A_KEY}" \
-      -H 'Content-Type: application/json' -d "{\"op\":\"drop_table\",\"table\":\"${TBL}\"}" 2>/dev/null || true
+      -H 'Content-Type: application/json' -d "{\"op\":\"drop_table\",\"table\":\"${TBL}\",\"confirm\":true}" 2>/dev/null || true
   fi
   # foreign tenant B (lib LIVE_* currently hold B after its provision, but be explicit).
   [[ -n "${B_SLUG}" ]] && { LIVE_TENANT_SLUG="${B_SLUG}" LIVE_TENANT_KEY_ID="${B_KEY_ID}" LIVE_TENANT_DB_ID="${B_DB}" live_tenant_cleanup 2>/dev/null || true; }
