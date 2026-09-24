@@ -52,6 +52,7 @@ type Deps struct {
 	ServiceToken string
 	JWT          *JWTVerifier
 	Reconciler   *provision.Reconciler
+	Rotation     *serviceauth.RotationNotice
 }
 
 // Mount registers the tenant control-plane routes on mux.
@@ -62,7 +63,7 @@ type Deps struct {
 // matched before the {id} parameterised one because net/http mux gives
 // precedence to the most-specific pattern.
 func Mount(mux *http.ServeMux, d Deps) {
-	rt := &routes{svc: d.Svc, serviceToken: d.ServiceToken, jwt: d.JWT, reconciler: d.Reconciler}
+	rt := &routes{svc: d.Svc, serviceToken: d.ServiceToken, jwt: d.JWT, reconciler: d.Reconciler, rotation: d.Rotation}
 
 	mux.HandleFunc("POST /v1/tenants", rt.requireServiceToken(rt.create))
 	mux.HandleFunc("GET /v1/tenants", rt.requireServiceToken(rt.list))
@@ -88,13 +89,14 @@ type routes struct {
 	serviceToken string
 	jwt          *JWTVerifier
 	reconciler   *provision.Reconciler
+	rotation     *serviceauth.RotationNotice
 }
 
 const msgInvalidJSON = "invalid JSON"
 
 func (rt *routes) requireServiceToken(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !serviceauth.VerifyServiceRequest(r, rt.serviceToken) {
+		if !rt.rotation.Accept(r, rt.serviceToken) {
 			httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
 			return
 		}
@@ -115,7 +117,7 @@ func (rt *routes) requireServiceToken(next http.HandlerFunc) http.HandlerFunc {
 // each caller to forward a credential this internal {id} route does not receive
 // today; the HMAC envelope closes the forge vector without that wider change.
 func (rt *routes) tokenOrSelf(w http.ResponseWriter, r *http.Request, id string) bool {
-	if serviceauth.VerifyServiceRequest(r, rt.serviceToken) {
+	if rt.rotation.Accept(r, rt.serviceToken) {
 		return true
 	}
 	if identity.TenantSelfMatch(r, rt.serviceToken, id) {
