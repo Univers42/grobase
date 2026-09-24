@@ -13,8 +13,8 @@
 #!/usr/bin/env sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-REPO_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+REPO_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)
 CERT_DIR=${TRACK_BINOCLE_CERT_DIR:-"$REPO_DIR/certs"}
 CA_CERT="$CERT_DIR/track-binocle-local-ca.pem"
 LOCAL_TRUST_SCRIPT="$SCRIPT_DIR/trust-localhost-cert.sh"
@@ -211,6 +211,7 @@ if [ -z "$SELECTED_TARGET" ]; then
   exit 0
 fi
 
+# shellcheck disable=SC2029 # the remote command is built from local values on purpose
 if ssh $SELECTED_SSH_ARGS "$SELECTED_TARGET" "mkdir -p '$REMOTE_CERT_DIR'" \
   && scp $SELECTED_SCP_ARGS "$CA_CERT" "$LOCAL_TRUST_SCRIPT" "$SELECTED_TARGET:$REMOTE_CERT_DIR/" \
   && ssh $SELECTED_SSH_ARGS "$SELECTED_TARGET" "TRACK_BINOCLE_CERT_DIR='$REMOTE_CERT_DIR' sh '$REMOTE_CERT_DIR/$(basename "$LOCAL_TRUST_SCRIPT")' --system"; then

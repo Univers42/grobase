@@ -167,11 +167,6 @@ json_str() { # $1=field
   { grep -o "\"$1\":\"[^\"]*\"" "${BODY_TMP}" 2>/dev/null || true; } | head -1 | sed 's/.*://; s/"//g'
 }
 
-# Extract a top-level JSON numeric field value off BODY_TMP (size_bytes etc.).
-json_num() { # $1=field
-  { grep -o "\"$1\":[0-9]*" "${BODY_TMP}" 2>/dev/null || true; } | head -1 | sed 's/.*://'
-}
-
 wait_ready() { # $1=container $2=port
   local i
   for i in $(seq 1 60); do

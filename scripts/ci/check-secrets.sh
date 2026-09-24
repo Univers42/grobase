@@ -49,6 +49,16 @@ hits="$(grep -rEn 'Bearer[[:space:]]+[A-Za-z0-9_.-]{20,}' \
   . 2>/dev/null | strip_false_positives)" || true
 [[ -n "$hits" ]] && { printf '%s\n' "$hits"; FOUND=1; }
 
+# gitleaks: provider-token rules over the whole working tree, docs and untracked
+# files included (the patterns above only see assignments in code/yaml).
+GITLEAKS_IMG="zricethezav/gitleaks:v8.30.1"
+if command -v docker >/dev/null 2>&1; then
+  docker run --rm -v "$PWD":/repo:ro "$GITLEAKS_IMG" dir /repo \
+    --config /repo/.gitleaks.toml --redact --no-banner --exit-code 1 || FOUND=1
+else
+  echo "(docker absent — gitleaks pass skipped)"
+fi
+
 if [[ "$FOUND" -eq 1 ]]; then
   echo ""
   echo "⚠ Potential hardcoded secrets detected above!"
