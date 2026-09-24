@@ -27,8 +27,7 @@ per problem).
 
 | # | Finding | Evidence | Options |
 |---|---|---|---|
-| **N-3** | **A tenant table created through the DDL API on a mount that points at the platform database is readable with the public anon key via PostgREST.** Proven: a table `m60` created via `POST /query/v1/{db}/schema/ddl` answered `GET /rest/v1/<table>` with its secret row (anon key only). Cause: `001_initial_schema` / `db-bootstrap` `ALTER DEFAULT PRIVILEGES … GRANT … TO anon, authenticated` on `public`, and API-created tables have no RLS. | m200's invariant flags every such table. Contract-provisioned and self-serve apps get their own database (m176/m177), which PostgREST does not see; test tenants (lib-live-tenant) and any operator-made mount on the platform DB do not. | (a) the Postgres DDL path enables RLS on tables it creates in the platform DB; (b) revoke the default privileges and grant explicitly (vendor apps on PostgREST must then grant in their schema.sql); (c) forbid mounts on the platform database. |
-| **H-16** | `deploy/fly/boot.sh` sets `GOTRUE_MAILER_AUTOCONFIRM=true` on the live stack: sign-up without owning the address. | `boot.sh:60` | Turning it off changes sign-up UX for the website/vault42 frontends (separate repos, not verifiable here). |
+| **H-16** | `deploy/fly/boot.sh` sets `GOTRUE_MAILER_AUTOCONFIRM=true` on the live stack: sign-up without owning the address. | `boot.sh:61` — now `${GOTRUE_MAILER_AUTOCONFIRM:-true}`, so the flip is a fly secret (`fly secrets set GOTRUE_MAILER_AUTOCONFIRM=false`), no code change. | Flip once real SMTP is set and the website/vault42 frontends (separate repos) handle the confirmation step. |
 | **H-19** | `IDENTITY_HEADER_MODE=compat` everywhere but fly. | `config.env:37`; the prod overlay deliberately does not set strict: no signer exists for the JWT path, so strict/HMAC would 401 legitimate traffic. | Build the header signer first, then flip. |
 | **H-4** | Verify-cache TTLs (Go 60 s, TS 30 s) bound revocation latency. | Go revocation already evicts both local and data-plane caches; the 60 s TTL is the measured fix for the Argon2 verify ceiling. | Lower only with a bench artifact (binding rule 3). |
 | **H-5** | An `admin`-scoped API key short-circuits ABAC (`query.service.ts:774`). | By design; m139 asserts `API_KEY_ABAC_ENABLED` defaults off. | Turn the flag on per deployment after testing policies. |
@@ -61,12 +60,15 @@ per problem).
 | ID | Finding | Fix | Proof |
 |---|---|---|---|
 | N-1 | `public.schema_registry` (cross-tenant table catalog) readable, insertable and deletable with the anon key | `90c122e0`, migration 088 | m200 (invariant + live 401) |
+| **N-3** | A table created through the DDL API on a mount pointing at the platform database — or any table nothing granted — was readable/writable with the anon key via PostgREST: `db-bootstrap` + `001` granted anon/authenticated on every existing AND future `public` table, and bootstrap re-granted every boot (fly never re-runs migrations, so a reboot undid 088). On a fresh install every control-plane table had anon read+write with RLS as the only barrier. Option (b) taken: no blanket/default grant; bootstrap revokes the default every boot; migration 089. | `fix/sec-n3-default-privileges` | m200 step 4 (fresh ungranted table: 200 → 401); old-vs-new fresh-install ACL diff over 67 tables (authenticated keeps every explicit grant); CI integration phases on a fresh stack |
 | N-4 | Vault unseal key + root token written `0644`; a lost key file wiped all Vault storage | `03b69632` | m199 |
 | N-5 | `h2` 0.3 (RUSTSEC-2026-0258) in the DynamoDB build fly runs | `5047bb02` | `make audit-deps`: FAIL → OK; live dynamodb-local round trip |
 | N-6 | 17 fixable HIGH npm advisories (multer, sharp, nodemailer, axios, js-yaml, …) | `d40b2909` | trivy fs 17 → 0; jest 445/445; m55 + phase 9 live |
 | N-7 | SAST scanner reported "clean" on a missing report; real semgrep verdict was 1 ERROR | `c628adb8` | semgrep 0 ERROR; missing report → FAIL |
 | N-8 | Gates that could not fail: m157 (swallowed render errors), m198 (never booted), m5/m60 (monorepo paths, formatter-mangled key) | `8e74a577`, `132c995e`, `9dba37ec` | each red on a broken input, green on the real one |
 | N-9 | No security scanner ran in CI | `9dba37ec` | `.github/workflows/mini-baas-security.yml` + blocking `security-gate`; m5, m60 green |
+| N-10 | `postgres/Dockerfile` wrote placeholder "sha256:…-pinned-by-mini-baas" strings into a manifest claiming pinned FDW builds; m6 "proved" the pins by grepping the ARG names; the FDWs are not compiled in at all | `fix/fdw-manifest-honest` | manifest states not-built/built-in with real versions (partial image build printed); m6 fails on any placeholder pin |
+| M-13 / L-5 | GoTrue password length and refresh-reuse window hard-coded in base compose | `fix/gotrue-compose-params` | renders: base 8/10, .env override 14, prod 12 |
 
 ## Open, tracked
 
@@ -77,8 +79,6 @@ per problem).
 | H-20 | ShellCheck SC2086 disabled globally | Info-level under CI's `-S error`; enable per file where input is untrusted. |
 | M-4 | Realtime does not check `iss` | `appchannels` tokens carry no `iss`; enforcing it would break m179. Add `iss` to every minter first. tenant-control already checks it. |
 | M-5 | `sub` not validated as a UUID | Token minters must be audited first. |
-| M-13 / L-5 | GoTrue password length and refresh-reuse window hard-coded in base compose | Prod overlay sets min length 12. |
-| — | `postgres/Dockerfile` FDW "checksums" are placeholders written to a manifest | No download uses them; the manifest overstates what is installed. |
 | — | `edition-query` offer build was intermittent in CI | Cause found: concurrent Rust builds raced on a `sharing=shared` cargo cache mount ('failed to unpack package'); now `sharing=locked`. |
 
 ## False positive, mitigated or by design
