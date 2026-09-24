@@ -80,6 +80,14 @@ export function isTransformableType(contentType: string): boolean {
 }
 
 /**
+ * Largest input sharp may decode, in pixels (L-6). Measured under the service's
+ * 128 MiB mem_limit, resizing a noisy PNG: 37.7 MP peaks ~126 MiB, 51.4 MP ~142 MiB
+ * and survives, 151 MP is OOM-killed — and sharp's own default (~268 MP) would let one
+ * small, highly compressible upload kill the storage plane for every tenant.
+ */
+const MAX_INPUT_PIXELS = 50_000_000;
+
+/**
  * Apply the transform with sharp (lazy-imported so OFF builds never load it).
  * Returns the encoded bytes + the resulting MIME type. Resize uses `inside` fit
  * (preserve aspect, never enlarge) so a 64×64 ask on a smaller source returns the
@@ -91,7 +99,8 @@ export async function applyTransform(
   sourceContentType: string,
 ): Promise<{ body: Buffer; contentType: string }> {
   const sharp = (await import('sharp')).default;
-  let pipeline = sharp(input, { failOn: 'none' });
+  // ponytail: fixed cap sized for the 128 MiB mem_limit — derive it from the limit if that changes
+  let pipeline = sharp(input, { failOn: 'none', limitInputPixels: MAX_INPUT_PIXELS });
 
   if (spec.width !== undefined || spec.height !== undefined) {
     pipeline = pipeline.resize({

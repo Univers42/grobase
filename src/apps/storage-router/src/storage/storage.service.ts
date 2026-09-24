@@ -17,6 +17,7 @@ import {
   OnApplicationShutdown,
   BadRequestException,
   NotFoundException,
+  UnprocessableEntityException,
   ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -251,7 +252,9 @@ export class StorageService implements OnModuleInit, OnApplicationShutdown {
       const contentType = out.ContentType ?? 'application/octet-stream';
 
       if (transform && isTransformableType(contentType)) {
-        const variant = await applyTransform(original, transform, contentType);
+        const variant = await applyTransform(original, transform, contentType).catch(() => {
+          throw new UnprocessableEntityException('image cannot be transformed');
+        });
         return {
           body: variant.body,
           contentType: variant.contentType,
