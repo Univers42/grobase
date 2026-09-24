@@ -837,7 +837,10 @@ jobs:
       - name: Explain a failed offer
         if: failure()
         run: |
-          why=$(grep -m3 -iE 'error|failed|no space|denied|timed out' /tmp/offer.log | tr '\n' ' ' | cut -c1-600)
+          # BuildKit prints the failing stage (' > [svc stage n/m] RUN …') and the cause
+          # ('ERROR: … failed to solve …') at the END of the log; the first line that
+          # merely mentions 'error' is often a harmless RUN line (e.g. errors.c).
+          why=$(grep -E '^ > \[|^ERROR|failed to solve|error(\[|:)|No space left|timed out' /tmp/offer.log | tail -n 4 | tr '\n' ' ' | cut -c1-900)
           disk=$(df -h / | awk 'NR==2 {print $4 " free of " $2}')
           echo "::error title=offer ${{ matrix.offer }} failed::${why:-no error line matched; see log} | disk: ${disk}"
 
