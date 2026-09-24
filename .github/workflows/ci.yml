@@ -545,6 +545,11 @@ jobs:
       # not in this stack: the gate names them skipped and still requires one.
       # All migrations applied above: nothing in `public` that anon/authenticated
       # can touch lacks RLS, and the anon key cannot read or write schema_registry.
+      # The Kong admin API (key-auths, JWT secrets) is not published to the host,
+      # live or in the rendered compose config.
+      - name: Kong admin API not host-exposed (m157)
+        run: bash scripts/verify/m157-kong-admin-not-exposed.sh
+
       - name: Public tables behind RLS (m200)
         run: bash scripts/verify/m200-public-tables-rls.sh
 

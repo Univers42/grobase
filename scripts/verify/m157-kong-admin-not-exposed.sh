@@ -36,18 +36,19 @@ if [ -n "$ADMIN_PUB" ]; then
   [ "$code" = "000" ] || fail "/key-auths reachable on :$P (HTTP $code)"
 fi
 
-# (2) the proxy still works (we didn't break the gateway)
-code=$(curl -s -o /dev/null -w '%{http_code}' "$GW/rest/v1/animals?limit=1" -H "apikey: $ANON")
+# (2) the proxy still works (we didn't break the gateway). /rest/v1/ is PostgREST's
+# root, present on every stack — not a table some vendor app has to seed first.
+code=$(curl -s -o /dev/null -w '%{http_code}' "$GW/rest/v1/" -H "apikey: $ANON")
 [ "$code" = "200" ] || fail "proxy not serving on $GW (HTTP $code)"
 ok "proxy still serves on $GW (HTTP 200)"
 
-# (3) durable: the merged compose config no longer publishes the admin port
-if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
-  pub=$(cd "$ROOT" && docker compose config 2>/dev/null \
-        | awk '/container_name: mini-baas-kong/{f=1} f&&/published/{print} /^  [a-z]/{if(f&&!/kong/)f=0}' \
-        | grep -E '"8001"|target: 8001' || true)
-  [ -z "$pub" ] || fail "compose config still publishes the admin port: $pub"
-  ok "compose config does not publish the Kong admin port"
-fi
+# (3) durable: the merged compose config does not publish the admin port. A render
+# that fails is a FAIL — it used to be swallowed, and an empty render 'passed'.
+command -v jq >/dev/null || fail "jq is required"
+render="$(cd "$ROOT" && docker compose config --format json 2>&1)" ||
+  fail "compose config does not render — the port check cannot run: $(printf '%s' "$render" | head -c 300)"
+pub="$(printf '%s' "$render" | jq -r '[.services.kong.ports[]? | select((.target | tostring) == "8001") | "\(.host_ip // "0.0.0.0"):\(.published)"] | join(" ")')"
+[ -z "$pub" ] || fail "compose config still publishes the admin port: $pub"
+ok "compose config does not publish the Kong admin port"
 
 printf '\n\033[1;32mm157 PASS — Kong Admin API is internal-only; the key/secret dump is not host-reachable\033[0m\n'
