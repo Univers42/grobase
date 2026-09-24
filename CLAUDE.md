@@ -213,7 +213,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **178 scripts, highest m198** (`m198-waf-upgrade-allowlist.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **180 scripts, highest m200** (`m200-public-tables-rls.sh`); the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -275,7 +275,10 @@ older than its source), `m191` Nest readiness probes, `m192` pg-backup liveness,
 a live stack's own ports. The band **m194–m198** is the **security-audit hardening** set (see
 `wiki/security/`): `m194` preflight-production (`scripts/ops/preflight-production.sh`), `m195` prod-overlay
 hardening, `m196` vault drops privileges on Fly, `m197` functions network jail, `m198` WAF upgrade allowlist.
-New security gates continue from `m199`.
+`m199` vault-init keeps the unseal key 0600 and never wipes storage on a lost key file, `m200`
+no RLS-less `public` table is reachable by anon/authenticated (+ PostgREST logs in as authenticator).
+The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
+Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 
 ### Build, lint & test (per plane) — including how to run ONE test
 
@@ -366,8 +369,8 @@ planes, e.g. metering = `METERING_ENABLED` (Go control) AND `DATA_PLANE_METERING
 `PERMISSION_CONDITIONS_ENABLED` / `API_KEY_ABAC_ENABLED` (m135–m139, ABAC) are _not_ Go `envBool`
 route-mount gates — they gate at the **TS / data-plane PDP**, so grep them in
 `src/apps/permission-engine` & `src/apps/query-router`, not the Go control plane. SQL migrations live
-in **`scripts/migrations/postgresql/`**; the numeric set now runs **001–087** (76 files; sequence is
-non-contiguous, gaps include **057–059**: `056` jumps to `060`; highest is `087_graphql_public.sql`). The
+in **`scripts/migrations/postgresql/`**; the numeric set now runs **001–088** (77 files; sequence is
+non-contiguous, gaps include **057–059**: `056` jumps to `060`; highest is `088_schema_registry_private.sql`). The
 cloud/enterprise/parity flag slice runs **040–065**; **066–070** are vendor/infra, not flag-gated
 (`066`/`067` MovieVerse schema + like-counts, `068` per-mount shared_resources, `069` DynamoDB engine
 CHECK, `070` per-mount `read_scoped` read-owner-scoping). The newest band **071–076** backs the
