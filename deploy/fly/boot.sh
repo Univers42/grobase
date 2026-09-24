@@ -105,6 +105,16 @@ assemble_env() {
 	write_local_overrides
 	bash scripts/env/assemble-env.sh
 	cp .env.secrets "$SECRETS_SAVE"; cp .env.local "$LOCAL_SAVE"
+	preflight
+}
+
+# preflight runs scripts/ops/preflight-production.sh (m194) on the assembled .env: it
+# names dev defaults, placeholders and unsafe settings, never a value. Warn-only, so a
+# redeploy never bricks the live stack; PREFLIGHT_ENFORCE=1 refuses to boot instead.
+preflight() {
+	sh scripts/ops/preflight-production.sh .env && return 0
+	[ "${PREFLIGHT_ENFORCE:-0}" = 1 ] && { log "preflight-production failed and PREFLIGHT_ENFORCE=1 — refusing to boot"; exit 1; }
+	log "preflight-production reported problems (above); booting anyway — set PREFLIGHT_ENFORCE=1 to refuse"
 }
 
 maybe_reset() {
