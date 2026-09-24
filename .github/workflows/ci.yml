@@ -553,6 +553,10 @@ jobs:
         run: |
           set -euo pipefail
           docker compose -f docker-compose.yml build functions-runtime
+          # m197's overlay leg proves the runtime reaches the secrets resolve through
+          # the relay, which webhook-dispatcher answers; the core stack does not
+          # start it (profile control-plane), so start it by name from this commit.
+          docker compose -f docker-compose.yml up -d --build --wait webhook-dispatcher
           bash scripts/verify/m197-functions-net-jail.sh
 
       # Throwaway MongoDB + throwaway ai-service (pulled): the CONFIGURED probe
