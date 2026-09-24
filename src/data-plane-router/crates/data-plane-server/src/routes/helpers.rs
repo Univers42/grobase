@@ -136,10 +136,22 @@ pub(crate) fn map_data_plane_error(err: &DataPlaneError) -> axum::response::Resp
         status,
         Json(ApiError {
             error: code.to_string(),
-            message: err.to_string(),
+            message: public_message(err),
         }),
     )
         .into_response()
+}
+
+/// The message a caller may see for `err`. A `Backend` (502) failure carries
+/// transport/pool detail — hosts, DSN fragments, upstream URLs — so the caller
+/// gets a fixed sentence and the detail goes to the server log (M-1). Every
+/// caller-actionable class (conflict, invalid request, not found, …) keeps its text.
+fn public_message(err: &DataPlaneError) -> String {
+    if let DataPlaneError::Backend { .. } = err {
+        tracing::warn!(error = %err, "data-plane backend error (detail withheld from the response)");
+        return "the data backend failed to process the request".to_string();
+    }
+    err.to_string()
 }
 
 /// Shape a data-plane result into the wire response every execute-on-pool

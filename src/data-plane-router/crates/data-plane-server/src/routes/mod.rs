@@ -156,6 +156,46 @@ mod tests {
         map_data_plane_error(&err).status()
     }
 
+    /// The JSON body `map_data_plane_error` answers for `err`, as text.
+    async fn body_of(err: DataPlaneError) -> String {
+        let body = axum::body::to_bytes(map_data_plane_error(&err).into_body(), 64 * 1024)
+            .await
+            .expect("error body");
+        String::from_utf8_lossy(&body).into_owned()
+    }
+
+    /// M-1: a 502 must not echo backend internals (hosts, DSN fragments, upstream
+    /// URLs) to the caller; the detail stays in the server log.
+    #[tokio::test]
+    async fn backend_error_body_hides_internal_detail() {
+        let backend = || DataPlaneError::Backend {
+            message: "pool checkout failed: host=pg-internal.svc port=5432".to_string(),
+        };
+        assert_eq!(status_of(backend()), StatusCode::BAD_GATEWAY);
+        let text = body_of(backend()).await;
+        assert!(
+            !text.contains("pg-internal"),
+            "backend detail leaked: {text}"
+        );
+        assert!(
+            text.contains("backend_error"),
+            "stable error code kept: {text}"
+        );
+    }
+
+    /// The caller-actionable classes keep their message (constraint, bad input).
+    #[tokio::test]
+    async fn conflict_error_body_keeps_its_message() {
+        let text = body_of(DataPlaneError::Conflict {
+            message: "duplicate key value violates unique constraint".to_string(),
+        })
+        .await;
+        assert!(
+            text.contains("duplicate key value"),
+            "conflict message lost: {text}"
+        );
+    }
+
     /// Minimal `TxHandle` that records how many times `rollback()` fired, so the
     /// reaper test can prove an expired tx is rolled back (not just dropped).
     struct CountingTxHandle {
