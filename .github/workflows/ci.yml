@@ -543,6 +543,11 @@ jobs:
       # this proves the image carries mongodump/mongorestore and that a scratch
       # database survives backup -> drop -> restore. Cockroach and MSSQL are
       # not in this stack: the gate names them skipped and still requires one.
+      # All migrations applied above: nothing in `public` that anon/authenticated
+      # can touch lacks RLS, and the anon key cannot read or write schema_registry.
+      - name: Public tables behind RLS (m200)
+        run: bash scripts/verify/m200-public-tables-rls.sh
+
       - name: Engine backup round trip (m188)
         run: bash scripts/verify/m188-engine-backup-restore.sh
 

@@ -134,7 +134,11 @@ CREATE TABLE IF NOT EXISTS public.schema_registry (
   UNIQUE (database_id, name)
 );
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.schema_registry TO authenticated;
+-- Private to schema-service (admin pool): the blanket public grants above must not
+-- reach it, and RLS with no policy denies any non-superuser role (migration 088).
+REVOKE ALL ON public.schema_registry FROM anon, authenticated;
+ALTER TABLE public.schema_registry ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.schema_registry FORCE ROW LEVEL SECURITY;
 
 -- Qualify public.current_tenant_id() (text) explicitly: search_path is `auth,
 -- public` (set above), and a migration also defines auth.current_tenant_id()
