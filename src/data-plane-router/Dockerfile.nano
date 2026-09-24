@@ -26,8 +26,8 @@ COPY crates/data-plane-core/Cargo.toml crates/data-plane-core/Cargo.toml
 COPY crates/data-plane-pool/Cargo.toml crates/data-plane-pool/Cargo.toml
 COPY crates/data-plane-server/Cargo.toml crates/data-plane-server/Cargo.toml
 COPY crates/engine-conformance/Cargo.toml crates/engine-conformance/Cargo.toml
-RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=shared \
-    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=shared \
+RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=dpr-target-nano,target=/build/target,sharing=locked \
     for dir in crates/data-plane-core crates/data-plane-pool crates/data-plane-server crates/engine-conformance; do \
       mkdir -p "$dir/src"; \
@@ -40,8 +40,8 @@ RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharin
 
 FROM builder AS compiler
 COPY crates/ crates/
-RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=shared \
-    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=shared \
+RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=dpr-target-nano,target=/build/target,sharing=locked \
     cargo build --profile nano -p data-plane-server --bin data-plane-router \
       --no-default-features --features nano && \
