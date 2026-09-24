@@ -151,7 +151,7 @@ scale-teardown: _require-compose ## Soft-delete every tenant in artifacts/scale/
 		go run ./cmd/scale-seed -teardown -base "http://127.0.0.1:$$TC_PORT" -token "$$TOKEN" \
 		-out "/artifacts/scale/tenants-$$SCALE.jsonl"
 
-audit-deps: ## Supply-chain CVE scan — cargo-audit (Rust) + govulncheck (Go)
+audit-deps: _rust-toolchain ## Supply-chain CVE scan — cargo-audit (Rust) + govulncheck (Go)
 	@bash scripts/security/audit-deps.sh
 
 # ── image provenance (issue #19, gate m190) ─────────────────────────────────
