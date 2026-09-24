@@ -113,6 +113,7 @@ services:
       KONG_STATUS_LISTEN: "0.0.0.0:8001"
       KONG_ADMIN_LISTEN: "off"
       KONG_ADMIN_GUI_LISTEN: "off"
+      KONG_CORS_ORIGIN_DEV_LIST: "" # no localhost dev origin gets credentialed CORS (H-15)
 
   # ── app-plane guards: default OFF in the base, ON in production ────────────
   storage-router:
