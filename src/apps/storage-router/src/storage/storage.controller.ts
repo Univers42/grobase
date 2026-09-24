@@ -59,7 +59,7 @@ export class StorageController {
     @Req() req: Request,
     @Body() dto: PresignDto,
   ) {
-    return this.service.presign(bucket, this.wildcard(req), user.id, dto);
+    return this.service.presign(bucket, this.wildcard(req), user.id, dto, principalOf(user));
   }
 
   // ── proxied object I/O (works with the internal minio endpoint) ──────────
