@@ -39,9 +39,11 @@ services:
       GOTRUE_SECURITY_MFA_MAX_VERIFIED_FACTORS: 5
       # Refresh token security
       GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: "true"
-      GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: 10
+      # 10 s absorbs a retried refresh over a slow link; override per deployment (L-5).
+      GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: ${GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL:-10}
       # Password policy
-      GOTRUE_PASSWORD_MIN_LENGTH: 8
+      # dev default; docker-compose.prod.yml sets 12 (M-13). Overridable from .env.
+      GOTRUE_PASSWORD_MIN_LENGTH: ${GOTRUE_PASSWORD_MIN_LENGTH:-8}
       # Rate limiting (per-IP) — raised for E2E test suite
       GOTRUE_RATE_LIMIT_HEADER: X-Real-IP
       GOTRUE_RATE_LIMIT_EMAIL_SENT: ${GOTRUE_RATE_LIMIT_EMAIL_SENT:-100}
