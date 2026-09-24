@@ -29,6 +29,7 @@ import { AuthGuard, CurrentUser, UserContext } from '@mini-baas/common';
 import { StorageService } from './storage.service';
 import { PresignDto } from './dto/presign.dto';
 import { parseTransform } from './image-transform';
+import { activeContentHeaders } from './active-content';
 import type { PolicyPrincipal } from './bucket-policy';
 import type { Request, Response } from 'express';
 
@@ -109,6 +110,9 @@ export class StorageController {
     );
     res.setHeader('Content-Type', obj.contentType);
     res.setHeader('Content-Length', String(obj.size));
+    for (const [name, value] of Object.entries(activeContentHeaders(obj.contentType))) {
+      res.setHeader(name, value);
+    }
     await new Promise<void>((resolve) => res.end(obj.body, () => resolve()));
   }
 
