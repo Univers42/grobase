@@ -42,7 +42,8 @@ func (s *Service) ListKeys(ctx context.Context, slug string) ([]APIKey, error) {
 	return out, rows.Err()
 }
 
-// RevokeKey marks a key revoked. Keyed by tenant slug + key uuid.
+// RevokeKey marks a key revoked. Keyed by tenant slug + key uuid. Logs an
+// "api key revoked" audit line (tenant, key id — M-11).
 func (s *Service) RevokeKey(ctx context.Context, slug, keyID string) error {
 	tag, err := s.exec(ctx, `
 		UPDATE public.tenant_api_keys k
@@ -57,6 +58,7 @@ func (s *Service) RevokeKey(ctx context.Context, slug, keyID string) error {
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
+	s.log.Info("api key revoked", "tenant", slug, "key_id", keyID)
 	s.evictVerifyCaches(ctx, "data-plane evict-verify after key revoke failed")
 	return nil
 }
