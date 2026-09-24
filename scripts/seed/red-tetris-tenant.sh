@@ -87,7 +87,9 @@ tc_port="$(_lt_host_port mini-baas-tenant-control 3022/tcp)"
 [[ -n "${kong_port}" && -n "${tc_port}" ]] || fail "stack not running (kong/tenant-control)"
 KONG_URL="http://127.0.0.1:${kong_port}"
 TC_URL="http://127.0.0.1:${tc_port}"
-export SERVICE_TOKEN="$(_lt_env mini-baas-tenant-control INTERNAL_SERVICE_TOKEN)"
+SERVICE_TOKEN="$(_lt_env mini-baas-tenant-control INTERNAL_SERVICE_TOKEN)" ||
+  { echo "cannot read INTERNAL_SERVICE_TOKEN from mini-baas-tenant-control (is it running?)" >&2; exit 1; }
+export SERVICE_TOKEN
 ANON_KEY="${ANON_KEY:-$(_lt_env mini-baas-kong KONG_PUBLIC_API_KEY)}"
 SERVICE_KEY="$(_lt_env mini-baas-kong KONG_SERVICE_API_KEY)"
 RT_JWT_SECRET="$(_lt_env mini-baas-realtime REALTIME_JWT_SECRET)"
@@ -103,6 +105,7 @@ if [[ -z "${API_KEY}" && -f "${REPO_ROOT}/build/red-tetris.env" ]]; then
   API_KEY="$(grep -hoE 'PUBLIC_API_KEY=mbk_[A-Za-z0-9_-]+' "${REPO_ROOT}/build/red-tetris.env" 2>/dev/null | head -1 | cut -d= -f2-)"
 fi
 [[ -n "${API_KEY:-}" && -f "${STATE_ENV}" ]] || true
+# shellcheck source=/dev/null
 if [[ -z "${API_KEY:-}" && -f "${STATE_ENV}" ]]; then source "${STATE_ENV}"; API_KEY="${RT_API_KEY:-}"; fi
 [[ "${API_KEY:-}" == mbk_* ]] || fail "no app key (run scripts/provision-contract.sh first)"
 

@@ -13,8 +13,8 @@
 #!/usr/bin/env sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-REPO_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+REPO_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)
 CERT_DIR=${TRACK_BINOCLE_CERT_DIR:-"$REPO_DIR/certs"}
 CA_CERT="$CERT_DIR/track-binocle-local-ca.pem"
 CA_NICKNAME="Track Binocle Local Development CA"
@@ -233,7 +233,7 @@ trust_firefox_profile() {
 
 trust_firefox_profiles_ini() {
   profiles_ini=$1
-  base_dir=$(CDPATH= cd -- "$(dirname -- "$profiles_ini")" && pwd)
+  base_dir=$(CDPATH='' cd -- "$(dirname -- "$profiles_ini")" && pwd)
   awk '
     function emit() { if (path != "") print rel "|" path }
     /^\[/ { emit(); path=""; rel="1"; next }

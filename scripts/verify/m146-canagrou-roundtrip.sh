@@ -91,7 +91,8 @@ gotrue() {
 }
 
 signup_user() { # $1 label → echoes "<sub> <jwt>"
-  local email="m146_$1_$(date +%s)$$@canagrou.local"
+  local email
+  email="m146_$1_$(date +%s)$$@canagrou.local"
   local code
   code=$(gotrue "signup" "{\"email\":\"${email}\",\"password\":\"M146pass!secret\",\"data\":{\"username\":\"m146_$1_$$\"}}")
   [[ "${code}" == "200" || "${code}" == "201" ]] || fail "signup $1 (${code}): $(head -c 200 /tmp/m146-a.json)"

@@ -27,9 +27,29 @@
 #  RESTORE SEMANTICS                                                           #
 #    mongo and mssql replace the named databases (--drop / WITH REPLACE).      #
 #    cockroach refuses to restore over an existing database, by design of      #
-#    RESTORE; drop it first. --dry-run reads and validates the archive and     #
-#    applies nothing -- the gate's mutant uses it to prove a restore that      #
-#    does not land data is caught.                                             #
+#    RESTORE; drop it first. --dry-run restores no data -- the gate's mutant   #
+#    uses it to prove a restore that does not land data is caught -- but it    #
+#    is not inert: cockroach and mssql still unpack the archive into the       #
+#    engine container's scratch dir (removed after) to SHOW BACKUP / RESTORE   #
+#    VERIFYONLY it; mongo streams it through mongorestore --dryRun.            #
+#                                                                              #
+#  NAMES AND ARCHIVES (an archive is untrusted input, dry run or not)          #
+#    --db NAME must be a plain identifier, taken exactly (cockroach: case      #
+#    kept). Without --db, cockroach names (SHOW DATABASES / the backup) are    #
+#    read hex-encoded and pasted as "..." identifiers, a " doubled, so upper   #
+#    case, keywords (user, table) and quotes stay the name itself.             #
+#    mssql names (sys.databases / the archive) are quoted the QUOTENAME way    #
+#    and sqlcmd runs with -x, so ] ' and $( stay data. dump refuses a name     #
+#    restore could not read back from its <name>.bak path: \, a control        #
+#    character, or an empty, . or .. folder part (a / makes a folder).         #
+#    mssql restore refuses master, model, msdb and tempdb (any case, trailing  #
+#    spaces ignored) before unpacking anything, and each RESTORE re-checks     #
+#    DB_ID <= 4 first, for a name the collation folds onto one (full width).   #
+#    Every member of an archive must be a plain file or directory under its    #
+#    one eb<N>/ id (mssql: folders and .bak files only), with no .. part, or   #
+#    nothing is unpacked. mssql restore takes names from tar's listing: run    #
+#    it in a UTF-8 locale, or tar escapes a non-ASCII name and that database   #
+#    fails to restore.                                                         #
 #                                                                              #
 #  USAGE                                                                       #
 #    engine-backup.sh dump    <mongo|cockroach|mssql> <file> [--db NAME]...   #
@@ -82,6 +102,21 @@ for d in "${DBS[@]}"; do
 done
 STAMP="eb$(date +%s)$$"
 
+# archive_id ENGINE TAIL: print the eb<N> id of the tar $FILE; die unless every
+# member is a plain file or directory <id>/ + TAIL (an ERE) with no `..` part,
+# so unpacking stays in <id>/. awk drains each listing (`| head -n1` let tar die
+# of SIGPIPE on a long archive).
+archive_id() {
+  local id
+  id=$(tar -tf "$FILE" | awk -F/ 'NR == 1 { print $1 }')
+  [[ "$id" =~ ^eb[0-9]+$ ]] || die "$FILE is not an engine-backup $1 archive"
+  tar -tvf "$FILE" | awk '!/^[-d]/ { print "engine-backup: refusing member: " $0 > "/dev/stderr"; bad = 1 } END { exit bad }' ||
+    die "$FILE holds a link or special member; nothing unpacked"
+  tar -tf "$FILE" | RE="^${id}/($2)\$" awk '/(^|\/)\.\.(\/|$)/ || $0 !~ ENVIRON["RE"] { print "engine-backup: refusing member: " $0 > "/dev/stderr"; bad = 1 } END { exit bad }' ||
+    die "$FILE holds a member outside ${id}/; nothing unpacked"
+  echo "$id"
+}
+
 # ── mongo ─────────────────────────────────────────────────────────────────────
 mongo_auth='-u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin'
 mongo_dump() {
@@ -106,39 +141,38 @@ mongo_restore() {
 
 # ── cockroach ─────────────────────────────────────────────────────────────────
 crdb_sql() { docker exec "$C" cockroach sql --insecure --format=tsv -e "$1"; }
-crdb_user_dbs() {
-  crdb_sql "SELECT database_name FROM [SHOW DATABASES] WHERE database_name NOT IN ('system','defaultdb','postgres')" | tail -n +2
+# crdb_names SQL: run SQL, whose one column is a database name hex-encoded, and
+# print each name NUL-terminated. Hex, because --format=tsv CSV-quotes a name
+# holding " or a tab, and a newline in a name would split it.
+crdb_names() {
+  local esc
+  crdb_sql "$1" | tail -n +2 | sed 's/../\\x&/g' | while IFS= read -r esc; do printf '%b\0' "$esc"; done
+}
+# crdb_list NAME...: the NAMEs comma-joined as double-quoted identifiers, each
+# `"` doubled, so upper case and keywords (user, table) stay the name itself.
+crdb_list() {
+  local d dq='"' list=""
+  for d in "$@"; do list+="${list:+,}${dq}${d//$dq/$dq$dq}${dq}"; done
+  printf '%s' "$list"
 }
 crdb_dump() {
   local dbs=("${DBS[@]}")
-  [ "${#dbs[@]}" -gt 0 ] || mapfile -t dbs < <(crdb_user_dbs)
+  [ "${#dbs[@]}" -gt 0 ] || mapfile -d '' -t dbs < <(crdb_names "SELECT encode(database_name::BYTES, 'hex') FROM [SHOW DATABASES] WHERE database_name NOT IN ('system','defaultdb','postgres')")
   [ "${#dbs[@]}" -gt 0 ] || die "cockroach has no user database to back up"
-  local list
-  list=$(printf '%s,' "${dbs[@]}")
-  crdb_sql "BACKUP DATABASE ${list%,} INTO 'nodelocal://1/engine-backup/${STAMP}'" >/dev/null
+  crdb_sql "BACKUP DATABASE $(crdb_list "${dbs[@]}") INTO 'nodelocal://1/engine-backup/${STAMP}'" >/dev/null
   docker exec "$C" tar -C /cockroach/cockroach-data/extern/engine-backup -cf - "$STAMP" >"$FILE"
   docker exec "$C" rm -rf "/cockroach/cockroach-data/extern/engine-backup/${STAMP}"
 }
 crdb_restore() {
   local id dbs=("${DBS[@]}")
-  # awk reads the listing to the end: `| head -n1` closed the pipe early, tar
-  # died of SIGPIPE on a long archive, and pipefail + set -e aborted the
-  # restore with no message (cockroach's archive lists hundreds of entries).
-  id=$(tar -tf "$FILE" | awk -F/ 'NR == 1 { print $1 }')
-  [[ "$id" =~ ^eb[0-9]+$ ]] || die "$FILE is not an engine-backup cockroach archive"
+  id=$(archive_id cockroach '.*')
   docker exec -i "$C" sh -c 'mkdir -p /cockroach/cockroach-data/extern/engine-backup && tar -C /cockroach/cockroach-data/extern/engine-backup -xf -' <"$FILE"
   local where="'nodelocal://1/engine-backup/${id}'" rc=0
   if [ "$DRY" = 1 ]; then
     crdb_sql "SHOW BACKUP FROM LATEST IN ${where}" >/dev/null || rc=$?
-  elif [ "${#dbs[@]}" -gt 0 ]; then
-    local list
-    list=$(printf '%s,' "${dbs[@]}")
-    crdb_sql "RESTORE DATABASE ${list%,} FROM LATEST IN ${where}" >/dev/null || rc=$?
   else
-    mapfile -t dbs < <(crdb_sql "SELECT DISTINCT database_name FROM [SHOW BACKUP FROM LATEST IN ${where}] WHERE object_type = 'database'" | tail -n +2)
-    local list
-    list=$(printf '%s,' "${dbs[@]}")
-    crdb_sql "RESTORE DATABASE ${list%,} FROM LATEST IN ${where}" >/dev/null || rc=$?
+    [ "${#dbs[@]}" -gt 0 ] || mapfile -d '' -t dbs < <(crdb_names "SELECT DISTINCT encode(object_name::BYTES, 'hex') FROM [SHOW BACKUP FROM LATEST IN ${where}] WHERE object_type = 'database'")
+    crdb_sql "RESTORE DATABASE $(crdb_list "${dbs[@]}") FROM LATEST IN ${where}" >/dev/null || rc=$?
   fi
   docker exec "$C" rm -rf "/cockroach/cockroach-data/extern/engine-backup/${id}"
   return "$rc"
@@ -146,35 +180,64 @@ crdb_restore() {
 
 # ── mssql ─────────────────────────────────────────────────────────────────────
 MSSQL_DIR=/var/opt/mssql/engine-backup
+MSSQL_BAK_TAIL='([^/]+/)*([^/]*[.]bak)?'
+# mssql_sql SQL: run SQL as sa inside the container. -x stops sqlcmd rewriting
+# $(VAR) in it first (the container's env included), so a name stays text; -r0
+# sends SQL errors to stderr, not into the stdout a caller parses or drops.
 mssql_sql() {
-  docker exec "$C" sh -c '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -No -b -h -1 -W -Q "$1"' _ "$1"
+  docker exec "$C" sh -c '/opt/mssql-tools18/bin/sqlcmd -x -r0 -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -No -b -h -1 -W -Q "$1"' _ "$1"
+}
+# sql_ident NAME: NAME as a bracketed T-SQL identifier, `]` doubled, as QUOTENAME(NAME).
+sql_ident() {
+  local rb="]"
+  printf '[%s]' "${1//$rb/$rb$rb}"
+}
+# sql_lit TEXT: TEXT as an N'...' T-SQL literal, `'` doubled, as N + QUOTENAME(TEXT, '''').
+sql_lit() {
+  local q="'"
+  printf "N'%s'" "${1//$q/$q$q}"
+}
+# mssql_check NAME: die unless restore reads NAME back from its <NAME>.bak path:
+# no \ (SQL Server turns it into /), no control character (tar escapes it) and
+# no empty, . or .. folder part (SQL Server folds it, or writes outside <id>/).
+mssql_check() {
+  local re='(^|/)[.]{0,2}/'
+  [[ "$1" != *[\\[:cntrl:]]* && ! "$1" =~ $re ]] ||
+    die "mssql: refusing database name '$1': restore cannot read it back from its .bak path"
 }
 mssql_dump() {
   local dbs=("${DBS[@]}") d
   [ "${#dbs[@]}" -gt 0 ] || mapfile -t dbs < <(mssql_sql "SET NOCOUNT ON; SELECT name FROM sys.databases WHERE database_id > 4" | sed '/^\s*$/d')
   [ "${#dbs[@]}" -gt 0 ] || die "mssql has no user database to back up"
+  for d in "${dbs[@]}"; do mssql_check "$d"; done
   docker exec "$C" mkdir -p "${MSSQL_DIR}/${STAMP}"
   for d in "${dbs[@]}"; do
-    mssql_sql "BACKUP DATABASE [${d}] TO DISK = N'${MSSQL_DIR}/${STAMP}/${d}.bak' WITH COPY_ONLY, INIT, FORMAT" >/dev/null
+    mssql_sql "BACKUP DATABASE $(sql_ident "$d") TO DISK = $(sql_lit "${MSSQL_DIR}/${STAMP}/${d}.bak") WITH COPY_ONLY, INIT, FORMAT" >/dev/null
   done
   docker exec "$C" tar -C "$MSSQL_DIR" -cf - "$STAMP" >"$FILE"
   docker exec "$C" rm -rf "${MSSQL_DIR:?}/${STAMP}"
 }
+# mssql_refuse_system NAME: die when NAME is master, model, msdb or tempdb in
+# any case, trailing spaces ignored as SQL Server compares names: restore only
+# ever replaces user databases, whatever an archive calls its members.
+mssql_refuse_system() {
+  local n="${1,,}"
+  n="${n%"${n##*[! ]}"}"
+  case "$n" in master | model | msdb | tempdb) die "mssql: refusing to restore system database '$1'; nothing unpacked" ;; esac
+}
 mssql_restore() {
   local id bak d rc=0 dbs=("${DBS[@]}")
-  # awk reads the listing to the end: `| head -n1` closed the pipe early, tar
-  # died of SIGPIPE on a long archive, and pipefail + set -e aborted the
-  # restore with no message (cockroach's archive lists hundreds of entries).
-  id=$(tar -tf "$FILE" | awk -F/ 'NR == 1 { print $1 }')
-  [[ "$id" =~ ^eb[0-9]+$ ]] || die "$FILE is not an engine-backup mssql archive"
-  docker exec -i "$C" sh -c "mkdir -p '${MSSQL_DIR}' && tar -C '${MSSQL_DIR}' -xf -" <"$FILE"
+  local guard="THROW 50000, N'engine-backup: refusing to restore over a system database', 1;"
+  id=$(archive_id mssql "$MSSQL_BAK_TAIL")
   [ "${#dbs[@]}" -gt 0 ] || mapfile -t dbs < <(tar -tf "$FILE" | sed -n 's|^[^/]*/\(.*\)\.bak$|\1|p')
+  for d in "${dbs[@]}"; do mssql_refuse_system "$d"; done
+  docker exec -i "$C" sh -c "mkdir -p '${MSSQL_DIR}' && tar -C '${MSSQL_DIR}' -xf -" <"$FILE"
   for d in "${dbs[@]}"; do
-    bak="${MSSQL_DIR}/${id}/${d}.bak"
+    bak=$(sql_lit "${MSSQL_DIR}/${id}/${d}.bak")
     if [ "$DRY" = 1 ]; then
-      mssql_sql "RESTORE VERIFYONLY FROM DISK = N'${bak}'" >/dev/null || rc=$?
+      mssql_sql "RESTORE VERIFYONLY FROM DISK = ${bak}" >/dev/null || rc=$?
     else
-      mssql_sql "RESTORE DATABASE [${d}] FROM DISK = N'${bak}' WITH REPLACE" >/dev/null || rc=$?
+      mssql_sql "IF DB_ID($(sql_lit "$d")) <= 4 ${guard} RESTORE DATABASE $(sql_ident "$d") FROM DISK = ${bak} WITH REPLACE" >/dev/null || rc=$?
     fi
   done
   docker exec "$C" rm -rf "${MSSQL_DIR:?}/${id}"
