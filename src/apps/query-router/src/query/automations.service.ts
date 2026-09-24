@@ -72,6 +72,15 @@ function webhookBody(rule: AutomationRuleDto, event: AutomationWriteEvent): stri
   });
 }
 
+/**
+ * A tenant-supplied string made safe for one log line (M-16): JSON-quoted, so a
+ * CR/LF or control character is escaped rather than starting a forged line, and
+ * capped so a huge value cannot flood the log.
+ */
+function logSafe(value: unknown): string {
+  return JSON.stringify(String(value)).slice(0, 300);
+}
+
 @Injectable()
 export class AutomationsService {
   private readonly logger = new Logger(AutomationsService.name);
@@ -149,7 +158,7 @@ export class AutomationsService {
       for (const action of rule.actions) {
         await this.runAction(rule, action, event, execute, publishNotify).catch((error: Error) =>
           this.logger.warn(
-            `automation "${rule.name}" action ${action.type} failed: ${error.message}`,
+            `automation ${rule.id} ${logSafe(rule.name)} action ${action.type} failed: ${logSafe(error.message)}`,
           ),
         );
       }
