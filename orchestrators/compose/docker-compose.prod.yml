@@ -12,9 +12,65 @@
 #     base leaves uncapped (observability + infra helpers).
 #   • Same shorthand keys as the base (mem_limit/cpus), never deploy.resources,
 #     so the merge can never conflict.
+#   • (c) security values that must hold in production but stay dev-permissive
+#     in the base (byte-parity for self-host/dev): GoTrue signup policy, the
+#     Kong Admin API, and two default-OFF TS guards (storage-router download
+#     headers, query-router webhook IP pin). Gate m195 asserts each one lands
+#     on its service.
 # Kept exposed on purpose: kong (the product), grafana :3030 (operator
 # dashboard — firewall it), minio :9000 (S3 API for presigned URLs; console
 # stripped).
+#
+# Operator consequences of (c):
+#   • GOTRUE_MAILER_AUTOCONFIRM=false: a signup gets no session until the user
+#     clicks the mailed link. SMTP_HOST is MANDATORY — it defaults to mailpit
+#     (auth-api.yml), which swallows the mail, so nobody could ever confirm.
+#     Breaks the public /signup-then-use flows in gates m146, m150, m151, m155,
+#     m160, m161 and scripts/seed/movieverse-tenant.sh. Users created through
+#     /auth/v1/admin/users with email_confirm:true are unaffected.
+#   • GOTRUE_PASSWORD_MIN_LENGTH=12: rejects the <12-char demo passwords in
+#     m146 (Passw0rd!23), m160/m161 (surf-1234, admin1234) and seeds
+#     nimbus-tenant (Nimbus#2026), red-tetris-tenant (Tetris#2026),
+#     osionos-collaborators (Acme#2026).
+#   • Kong Admin API + Kong Manager OFF: nothing may configure Kong at runtime
+#     (db-less renders kong.yml at start; no runtime writer exists). The Status
+#     API serves /status and /metrics on :8001 instead.
+#   • STORAGE_ACTIVE_CONTENT_GUARD_ENABLED=1 (storage-router, L-9): every
+#     object download storage-router serves (GET storage/v1/object/…) gets
+#     `nosniff`; a type off the passive list (text/plain, octet-stream, pdf,
+#     json, non-SVG/XML image|audio|video) also gets `Content-Security-Policy:
+#     sandbox` + `Content-Disposition: attachment`, so an uploaded HTML/SVG/XML
+#     file opening in a tab downloads instead of rendering. NOT covered: only
+#     the /storage/v1/{sign,object,list,bucket} prefixes reach storage-router
+#     (kong.yml `storage-sign-routes`). Kong's catch-all `storage-routes`
+#     (/storage/v1, strip_path, → minio:9000) forwards EVERY other
+#     /storage/v1/* path, e.g. /storage/v1/<bucket>/<key>, straight to MinIO
+#     on the app origin, so whatever MinIO serves there (an anonymous-read
+#     bucket, or any request MinIO's own auth accepts) carries none of these
+#     headers; presigned URLs on minio :9000 bypass storage-router as well.
+#   • Functions network jail (gate m197): functions-runtime leaves mini-baas for
+#     its own `functions-jail` bridge; functions-relay (same image, relay.ts)
+#     is the only container on both. Needs images built from this tree — the
+#     ghcr :latest pull-fallback predates relay.ts. A function's platform-API
+#     callback targets http://functions-relay:8000 (Kong's proxy), not
+#     kong:8000; public hosts must be listed in FUNCTIONS_NET_ALLOW
+#     (comma-separated host[:port]); FUNCTION_METERING (off by default) cannot
+#     reach redis from the jail.
+#   • AUTOMATION_WEBHOOK_IP_PIN_ENABLED=1 (query-router, L-12): automation
+#     webhooks go out over node:https with a connect-time lookup that refuses a
+#     non-public address, so a DNS rebind after the pre-check cannot reach an
+#     internal target. One un-pooled socket per delivery; a target the https +
+#     public-address pre-check admits is refused only if its DNS turns private.
+# Deliberately NOT set here:
+#   • REALTIME_NAMESPACE_FALLBACK=deny — GoTrue session JWTs carry no
+#     `namespaces` claim, so deny closes every topic to browser clients until a
+#     minting path exists. Use REALTIME_PROTECTED_NAMESPACES for collab: meanwhile.
+#   • TENANT_CONTROL_VERIFY_CACHE_TTL_MS — the 60 s cache is the measured fix
+#     for the Argon2id verify ceiling; lowering it needs a bench artifact first.
+#   • IDENTITY_HEADER_MODE=strict / TENANT_HEADER_IDENTITY_HMAC — no signer
+#     exists for the JWT path (Kong sets raw X-User-* headers) nor for
+#     X-Baas-Identity-Auth, so either flag would 401 legitimate traffic.
+# deploy/fly/boot.sh does NOT load this overlay; none of (c) reaches fly.
 
 services:
   # ── strip direct data-store ports (reachable in-network only) ──────────────
@@ -38,10 +94,92 @@ services:
   # ── strip direct service ports (everything flows through Kong) ─────────────
   gotrue:
     ports: []
+    environment:
+      GOTRUE_MAILER_AUTOCONFIRM: "false"
+      GOTRUE_PASSWORD_MIN_LENGTH: "12"
   postgrest:
     ports: []
   studio:
     ports: []
+
+  # ── gateway: no Admin API in production ────────────────────────────────────
+  # db-less Kong's Admin API serves GET /key-auths (cleartext anon +
+  # service_role keys) and /jwts (the JWT secret) to every peer container on
+  # the flat network, tenant function Workers included. The Status API takes
+  # over :8001 and serves the same /metrics, so prometheus.yml's `kong:8001`
+  # target stays as it is.
+  kong:
+    environment:
+      KONG_STATUS_LISTEN: "0.0.0.0:8001"
+      KONG_ADMIN_LISTEN: "off"
+      KONG_ADMIN_GUI_LISTEN: "off"
+
+  # ── app-plane guards: default OFF in the base, ON in production ────────────
+  storage-router:
+    environment:
+      STORAGE_ACTIVE_CONTENT_GUARD_ENABLED: "1"
+  query-router:
+    environment:
+      AUTOMATION_WEBHOOK_IP_PIN_ENABLED: "1"
+
+  # ── functions network jail (gate m197) — keep identical in the cloud overlay ─
+  # Tenant code runs in Deno Workers inside functions-runtime. On the flat
+  # mini-baas network it reached kong:8001, vault:8200, postgres:5432, … by
+  # name, by container IP, or through a DNS name it controls. Here the runtime
+  # sits alone on `functions-jail` (a plain bridge: public egress stays) and
+  # functions-relay is the one container on both networks, relaying exactly:
+  #   ingress  functions-runtime:3060 on mini-baas → the jailed runtime (the
+  #            relay holds the alias, so kong.yml, webhook-dispatcher and
+  #            function-scheduler are unchanged)
+  #   egress   functions-relay:8000 → kong:8000, the proxy only: a callback
+  #            passes key-auth/JWT like any client; admin/status never relayed
+  #   secrets  functions-relay:3025 → GET /internal/v1/function-secrets/resolve
+  #            only (service-token guarded); webhook-dispatcher's /v1/* routes
+  #            trust raw identity headers and stay out of reach
+  # FUNCTIONS_NET_ALLOWLIST_ENABLED=1 is the in-process second layer: a Worker
+  # connects only to functions-relay:8000 plus FUNCTIONS_NET_ALLOW, so the
+  # relay's 3060/3025, the runtime's own 127.0.0.1:3060 and every unlisted
+  # public host are refused too.
+  functions-runtime:
+    networks: !override
+      functions-jail:
+        aliases: [functions-sandbox]
+    environment:
+      FUNCTION_SECRETS_URL: http://functions-relay:3025/internal/v1/function-secrets/resolve
+      FUNCTIONS_NET_ALLOWLIST_ENABLED: "1"
+      FUNCTIONS_NET_ALLOW: "functions-relay:8000,${FUNCTIONS_NET_ALLOW:-}"
+  functions-relay:
+    image: ghcr.io/univers42/grobase-functions-runtime:latest # pull-fallback (built from ./build context below)
+    build:
+      context: ./infra/docker/services/functions-runtime
+      dockerfile: Dockerfile
+    profiles: [functions, extras]
+    container_name: mini-baas-functions-relay
+    restart: unless-stopped
+    entrypoint: ["deno", "run", "--allow-net", "--allow-env=FUNCTIONS_RELAY_TCP,FUNCTIONS_RELAY_HTTP", "/app/relay.ts"]
+    environment:
+      FUNCTIONS_RELAY_TCP: "3060=functions-sandbox:3060,8000=kong:8000"
+      FUNCTIONS_RELAY_HTTP: "3025=http://webhook-dispatcher:3025/internal/v1/function-secrets/resolve"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "deno",
+          "eval",
+          "try{const r=await fetch('http://127.0.0.1:3060/health/live');Deno.exit(r.ok?0:1)}catch{Deno.exit(1)}",
+        ]
+      interval: 30s
+      start_interval: 2s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    networks:
+      mini-baas:
+        aliases: [functions-runtime]
+      functions-jail: {}
+    tmpfs: [/data] # the image's VOLUME, unused by the relay: no anonymous volume
+    mem_limit: 64m
+    cpus: 0.25
 
   # ── observability + infra: strip ports AND cap the uncapped ────────────────
   prometheus:
@@ -95,3 +233,10 @@ services:
       # engines (free→nano = sqlite only). Uncomment to enable:
       # PACKAGE_ENFORCEMENT: "1"
       PACKAGE_ENFORCEMENT: ${PACKAGE_ENFORCEMENT:-0}
+
+networks:
+  # functions-runtime's only network (see the functions jail block above). Not
+  # `internal:` — functions keep public egress; Docker drops bridge-to-bridge
+  # traffic, so mini-baas containers are reachable only through functions-relay.
+  functions-jail:
+    driver: bridge
