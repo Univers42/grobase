@@ -135,8 +135,10 @@ services:
       # namespace fallback (a namespace-less JWT → all-access, logged as
       # deprecated); `max` denies it AND refuses the NoAuth provider. Override
       # the fallback directly with REALTIME_NAMESPACE_FALLBACK=permissive|deny.
+      # Unset stays EMPTY so the mode decides: a `permissive` default here used
+      # to override `max`, so max mode never denied (M-8).
       SECURITY_MODE: ${SECURITY_MODE:-baseline}
-      REALTIME_NAMESPACE_FALLBACK: ${REALTIME_NAMESPACE_FALLBACK:-permissive}
+      REALTIME_NAMESPACE_FALLBACK: ${REALTIME_NAMESPACE_FALLBACK:-}
       # Namespace prefixes the `["*"]` wildcard must NOT cover — a subscriber
       # needs the EXACT namespace to reach them (so a wildcard/namespace-less
       # token can't read a `collab:` space it was not explicitly granted).

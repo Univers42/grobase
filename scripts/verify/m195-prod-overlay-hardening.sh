@@ -123,6 +123,18 @@ static_ports() {
   ok "$(printf '%s\n' "${stripped}" | wc -w) stripped services publish nothing; minio publishes only 9000"
 }
 
+# static_realtime_mode asserts SECURITY_MODE=max is not undone by the compose layer
+# (M-8): with the fallback unset, realtime must receive it empty so the mode decides
+# (max → deny); a `permissive` default used to be passed and won over max.
+static_realtime_mode() {
+  local j="${T}/max.json" got
+  SECURITY_MODE=max render "${j}" -f docker-compose.yml
+  got="$(jq -r '.services.realtime.environment.REALTIME_NAMESPACE_FALLBACK // ""' "${j}")"
+  [ -z "${got}" ] || fail "SECURITY_MODE=max renders realtime with REALTIME_NAMESPACE_FALLBACK=${got} — it overrides max, so namespace-less JWTs keep all-access"
+  expect_val "${j}" '.services.realtime.environment.SECURITY_MODE' max
+  ok "SECURITY_MODE=max reaches realtime with the fallback left to the mode (deny)"
+}
+
 # static_overlay asserts every intended value on its service, with the base
 # env map merged rather than replaced.
 static_overlay() {
@@ -397,6 +409,8 @@ static_guards
 static_held
 step "overlay strips the dev ports it lists (H-1)"
 static_ports
+step "SECURITY_MODE=max is not undone by a compose default (M-8)"
+static_realtime_mode
 step "functions network jail (m197 proves it live)"
 static_jail "${T}/prod.json"
 step "cloud overlay (make cloud-up): guards on, flags.env.cloud not widened, functions jailed"
