@@ -139,7 +139,19 @@ export class StorageService implements OnModuleInit, OnApplicationShutdown {
     }
   }
 
-  async presign(bucket: string, objectPath: string, userId: string, dto: PresignDto) {
+  /**
+   * Presign a GET (read) or PUT (write) on the caller's own key. The bucket policy
+   * is checked first, exactly as the proxied routes do: a URL is a capability, so
+   * a denied principal must not be able to mint one (M-12).
+   */
+  async presign(
+    bucket: string,
+    objectPath: string,
+    userId: string,
+    dto: PresignDto,
+    principal?: PolicyPrincipal,
+  ) {
+    this.assertBucketAllowed(bucket, dto.method === 'GET' ? 'read' : 'write', principal);
     const key = this.ownedKey(userId, objectPath);
     const expiresIn = Math.min(Math.max(dto.expiresIn ?? this.defaultExpires, 60), 86400);
 
