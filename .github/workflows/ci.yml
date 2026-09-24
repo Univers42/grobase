@@ -548,10 +548,10 @@ jobs:
       # The Kong admin API (key-auths, JWT secrets) is not published to the host,
       # live or in the rendered compose config.
       - name: Kong admin API not host-exposed (m157)
-        run: bash scripts/verify/m157-kong-admin-not-exposed.sh
+        run: bash scripts/verify/run-gate-battery.sh m157-kong-admin-not-exposed
 
       - name: Public tables behind RLS (m200)
-        run: bash scripts/verify/m200-public-tables-rls.sh
+        run: bash scripts/verify/run-gate-battery.sh m200-public-tables-rls
 
       - name: Engine backup round trip (m188)
         run: bash scripts/verify/m188-engine-backup-restore.sh
@@ -924,22 +924,22 @@ jobs:
       # Prod/cloud overlays render the security values on the right services;
       # a throwaway Kong proves the admin API is off while /metrics survives.
       - name: Prod overlay hardening (m195)
-        run: bash scripts/verify/m195-prod-overlay-hardening.sh
+        run: bash scripts/verify/run-gate-battery.sh m195-prod-overlay-hardening
 
       # Builds Dockerfile.fly and boots it --network none: the flag drops Vault
       # to the vault user; unset keeps today's root.
       - name: Vault drops privileges (m196)
-        run: bash scripts/verify/m196-vault-drop-privileges.sh
+        run: bash scripts/verify/run-gate-battery.sh m196-vault-drop-privileges
 
       # Only Upgrade: websocket reaches Kong; h2c is dropped. A mutant config
       # must relay h2c, proving the probe can see smuggling at all.
       - name: WAF upgrade allowlist (m198)
-        run: bash scripts/verify/m198-waf-upgrade-allowlist.sh
+        run: bash scripts/verify/run-gate-battery.sh m198-waf-upgrade-allowlist
 
       # Throwaway vault + init-vault.sh: the unseal-key file is 600, and a lost key
       # file is refused instead of wiping Vault's storage.
       - name: Vault init keeps its keys private and its storage intact (m199)
-        run: bash scripts/verify/m199-vault-init-keys.sh
+        run: bash scripts/verify/run-gate-battery.sh m199-vault-init-keys
 
   unit-tests:
     name: Unit tests (${{ matrix.suite }})
