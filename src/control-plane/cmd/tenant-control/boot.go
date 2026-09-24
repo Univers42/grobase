@@ -78,13 +78,18 @@ func (b *bootCtx) setupJWT() {
 		b.log.Warn("no GOTRUE_JWT_SECRET/JWT_SECRET set — /v1/tenants/me/bootstrap disabled")
 		return
 	}
-	v, err := tenants.NewJWTVerifier(b.jwtSecret, os.Getenv("GOTRUE_JWT_ISSUER"))
+	issuer := os.Getenv("GOTRUE_JWT_ISSUER")
+	if err := tenants.RequireIssuer(issuer); err != nil {
+		b.log.Error("jwt verifier refused to start", "err", err)
+		os.Exit(1)
+	}
+	v, err := tenants.NewJWTVerifier(b.jwtSecret, issuer)
 	if err != nil {
 		b.log.Error("jwt verifier init failed", "err", err)
 		os.Exit(1)
 	}
 	b.jwtVerifier = v
-	b.log.Info("jwt verifier enabled", "issuer", os.Getenv("GOTRUE_JWT_ISSUER"))
+	b.log.Info("jwt verifier enabled", "issuer", issuer)
 }
 
 // openDB connects Postgres and ensures the tenant schema — fatal on either error,
