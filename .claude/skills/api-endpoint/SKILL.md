@@ -3,7 +3,6 @@ name: api-endpoint
 description: >
   Scaffold a new REST endpoint across the planes. Auto-triggers on:
   "add an endpoint", "new API route", "expose this over HTTP", "wire a handler"
-tools: Read, Write, Bash, Grep
 ---
 
 # API Endpoint
