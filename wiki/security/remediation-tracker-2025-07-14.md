@@ -79,7 +79,6 @@ per problem).
 | M-5 | `sub` not validated as a UUID | Token minters must be audited first. |
 | M-13 / L-5 | GoTrue password length and refresh-reuse window hard-coded in base compose | Prod overlay sets min length 12. |
 | — | `postgres/Dockerfile` FDW "checksums" are placeholders written to a manifest | No download uses them; the manifest overstates what is installed. |
-| — | m60's cleanup leaves its probe table behind | That table is how N-3 was found. |
 | — | `edition-query` offer build is intermittent in CI | The annotation now names BuildKit's failing stage. |
 
 ## False positive, mitigated or by design
