@@ -45,6 +45,7 @@
 import { Logger } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import Redis from 'ioredis';
+import { isTruthy } from './feature-flag';
 
 /** The single Redis stream every usage window is XADD'd to (frozen contract). */
 export const USAGE_STREAM_KEY = 'usage.events';
@@ -228,9 +229,4 @@ export class UsageMeter {
     await this.flush().catch(() => undefined);
     await this.redis.quit().catch(() => undefined);
   }
-}
-
-function isTruthy(value: string | undefined): boolean {
-  if (!value) return false;
-  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
 }

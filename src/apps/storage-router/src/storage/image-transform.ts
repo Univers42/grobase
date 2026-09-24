@@ -30,6 +30,7 @@
 // params) is the unchanged original-bytes path; params opt INTO a derived variant.
 
 import { BadRequestException, Logger } from '@nestjs/common';
+import { isTruthy } from './feature-flag';
 
 const log = new Logger('ImageTransform');
 
@@ -163,9 +164,4 @@ function formatFromContentType(ct: string): TransformFormat | undefined {
 
 function mimeForFormat(fmt: TransformFormat): string {
   return fmt === 'jpg' ? 'image/jpeg' : `image/${fmt}`;
-}
-
-function isTruthy(value: string | undefined): boolean {
-  if (!value) return false;
-  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
 }
