@@ -2,6 +2,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { UserContext, VerifiedRequestIdentity } from '../interfaces/user-context.interface';
+import { defaultNonceStore, type NonceStore } from './nonce-store';
 
 type HeaderRequest = Pick<Request, 'headers' | 'method' | 'url' | 'originalUrl'>;
 type IdentityHeaderMode = 'compat' | 'strict';
@@ -11,14 +12,20 @@ interface IdentityKey {
   secret: string;
 }
 
-const seenNonces = new Map<string, number>();
 const DEFAULT_SKEW_MS = 30_000;
 
-export function resolveRequestIdentity(
+/**
+ * Resolves the caller's verified identity: a signed envelope first, then (compat
+ * mode only) legacy raw headers. `nonceStore` is the replay cache — defaults to
+ * the process-wide store selected by IDENTITY_NONCE_STORE. Async: callers MUST
+ * await it, since an un-awaited Promise is truthy and would pass any guard.
+ */
+export async function resolveRequestIdentity(
   req: HeaderRequest,
   requireIdentity = true,
-): VerifiedRequestIdentity | undefined {
-  const signedIdentity = readSignedIdentity(req);
+  nonceStore: NonceStore = defaultNonceStore(),
+): Promise<VerifiedRequestIdentity | undefined> {
+  const signedIdentity = await readSignedIdentity(req, nonceStore);
   if (signedIdentity) return signedIdentity;
 
   const mode = identityHeaderMode();
@@ -142,7 +149,10 @@ export function signIdentityEnvelope(
   return headers;
 }
 
-function readSignedIdentity(req: HeaderRequest): VerifiedRequestIdentity | undefined {
+async function readSignedIdentity(
+  req: HeaderRequest,
+  nonceStore: NonceStore,
+): Promise<VerifiedRequestIdentity | undefined> {
   const signatureHeader = header(req, 'x-baas-signature');
   if (!signatureHeader) return undefined;
 
@@ -180,7 +190,7 @@ function readSignedIdentity(req: HeaderRequest): VerifiedRequestIdentity | undef
   if (!matchedKey) {
     throw new UnauthorizedException('Invalid identity envelope signature');
   }
-  rememberNonce(matchedKey.kid, nonce);
+  await rememberNonce(nonceStore, matchedKey.kid, nonce);
   return identity;
 }
 
@@ -263,23 +273,24 @@ function verifyHmac(secret: string, canonical: string, expectedHex: string): boo
   );
 }
 
+function maxSkewMs(): number {
+  const raw = Number(process.env['INTERNAL_IDENTITY_MAX_SKEW_MS'] ?? DEFAULT_SKEW_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_SKEW_MS;
+}
+
 function ensureFreshIssuedAt(iat: string): void {
   const issuedAt = Number(iat);
-  const maxSkew = Number(process.env['INTERNAL_IDENTITY_MAX_SKEW_MS'] ?? DEFAULT_SKEW_MS);
-  if (!Number.isFinite(issuedAt) || Math.abs(Date.now() - issuedAt) > maxSkew) {
+  if (!Number.isFinite(issuedAt) || Math.abs(Date.now() - issuedAt) > maxSkewMs()) {
     throw new UnauthorizedException('Expired identity envelope');
   }
 }
 
-function rememberNonce(kid: string, nonce: string): void {
-  const now = Date.now();
-  const maxSkew = Number(process.env['INTERNAL_IDENTITY_MAX_SKEW_MS'] ?? DEFAULT_SKEW_MS);
-  for (const [key, seenAt] of seenNonces.entries()) {
-    if (now - seenAt > maxSkew) seenNonces.delete(key);
-  }
-  const nonceKey = `${kid}:${nonce}`;
-  if (seenNonces.has(nonceKey)) {
+/**
+ * Rejects a nonce the store has already seen. It is kept for 2x the skew window:
+ * an envelope issued up to `skew` in the future stays fresh until iat + skew.
+ */
+async function rememberNonce(store: NonceStore, kid: string, nonce: string): Promise<void> {
+  if (!(await store.remember(kid, nonce, 2 * maxSkewMs()))) {
     throw new UnauthorizedException('Replayed identity envelope');
   }
-  seenNonces.set(nonceKey, now);
 }

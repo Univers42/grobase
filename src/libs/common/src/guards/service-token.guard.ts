@@ -29,7 +29,7 @@ import { timingSafeStringEqual } from '../security/service-auth';
 export class ServiceTokenGuard implements CanActivate {
   constructor(private readonly config: ConfigService) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<Request>();
 
     // 1. Try service token
@@ -49,7 +49,7 @@ export class ServiceTokenGuard implements CanActivate {
       return true;
     }
 
-    const identity = resolveRequestIdentity(req, true);
+    const identity = await resolveRequestIdentity(req, true);
     if (!identity) throw new UnauthorizedException('Missing authentication');
     req.identity = identity;
     req.user = identityToUserContext(identity, req.headers['x-user-email'] as string | undefined);
