@@ -427,6 +427,9 @@ jobs:
           # reach; the workspace is vendored as plain files now (163 tracked), so
           # the build context is local and the blocker is gone.
           docker compose -f docker-compose.yml up -d --build minio storage-router realtime
+          # Phase 9's mc client is grobase's own image (upstream minio/mc images now
+          # refuse anonymous pulls); minio-iceberg-init is the service that builds it.
+          docker compose -f docker-compose.yml build minio-iceberg-init
 
       # Realtime is built from THIS commit above. Its health must follow its
       # PostgreSQL change feed: healthy when the LISTEN is attached, 503 and a

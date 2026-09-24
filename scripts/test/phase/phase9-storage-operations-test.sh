@@ -21,12 +21,12 @@ APIKEY="${APIKEY:-public-anon-key}"
 MINIO_ENDPOINT="${MINIO_ENDPOINT:-http://127.0.0.1:9000}"
 MINIO_ACCESS_KEY="${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-}}"
 MINIO_SECRET_KEY="${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-}}"
-# MinIO withdrew its Docker Hub repositories, so `minio/mc:latest` now answers
-# "pull access denied … repository does not exist" and every mc step here dies
-# before it reaches MinIO. quay.io is where MinIO publishes the client, and it
-# still carries the /bin/sh mc_cmd needs (grobase's own grobase-mc image is
-# FROM scratch: a static binary with no shell, so it cannot serve here).
-MC_IMAGE="${MC_IMAGE:-quay.io/minio/mc:latest}"
+# MinIO withdrew its public client images: Docker Hub `minio/mc` answers "pull
+# access denied" and quay.io/minio/mc now answers 401 to anonymous pulls. grobase
+# builds its own client (infra/docker/services/mc: the release binary, sha256
+# checked, plus busybox sh/echo/sleep), so the suite depends on nothing upstream
+# can withdraw. The image has no wc/tr: byte counts happen on the host.
+MC_IMAGE="${MC_IMAGE:-ghcr.io/univers42/grobase-mc:latest}"
 TMPDIR="${TMPDIR:-$(mktemp -d /tmp/phase9_storage.XXXXXX)}"
 
 mkdir -p "$TMPDIR"
@@ -99,7 +99,7 @@ mc_cmd() {
   # reported "Object uploaded" as a pass while the image could not even be
   # pulled -- three green steps on a client that never ran, and the failure
   # only surfaced two tests later as "object key missing from list".
-  docker run -i --rm --network container:mini-baas-minio --entrypoint /bin/sh -e HOME=/tmp "$MC_IMAGE" \
+  docker run -i --rm --network container:mini-baas-minio --entrypoint /bin/sh "$MC_IMAGE" \
     -ec "mc alias set local '$MINIO_ENDPOINT' '$MINIO_ACCESS_KEY' '$MINIO_SECRET_KEY' >/dev/null && $cmd"
 }
 
@@ -160,7 +160,7 @@ fi
 
 ui_step "Test 6: Download object and verify integrity"
 EXPECTED_SIZE=$(printf '%s\n' "$OBJECT_PAYLOAD" | wc -c | tr -d ' ')
-DOWNLOADED_SIZE=$(mc_cmd "mc cat local/$BUCKET_NAME/$OBJECT_KEY | wc -c | tr -d ' '" 2>/dev/null || true)
+DOWNLOADED_SIZE=$(mc_cmd "mc cat local/$BUCKET_NAME/$OBJECT_KEY" 2>/dev/null | wc -c | tr -d ' ' || true)
 if [[ -n "$DOWNLOADED_SIZE" ]]; then
   pass "Object downloaded"
 else
