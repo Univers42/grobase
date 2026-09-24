@@ -875,7 +875,7 @@ jobs:
   # built HERE from this commit (never the published :latest). A missing image or
   # too little disk is a non-zero SKIP (exit 77), never a silent pass.
   security-gates:
-    name: Security gates (m195 m196 m198)
+    name: Security gates (m195 m196 m198 m199)
     runs-on: ubuntu-latest
     needs: [shellcheck]
     timeout-minutes: 30
@@ -918,6 +918,11 @@ jobs:
       # must relay h2c, proving the probe can see smuggling at all.
       - name: WAF upgrade allowlist (m198)
         run: bash scripts/verify/m198-waf-upgrade-allowlist.sh
+
+      # Throwaway vault + init-vault.sh: the unseal-key file is 600, and a lost key
+      # file is refused instead of wiping Vault's storage.
+      - name: Vault init keeps its keys private and its storage intact (m199)
+        run: bash scripts/verify/m199-vault-init-keys.sh
 
   unit-tests:
     name: Unit tests (${{ matrix.suite }})
