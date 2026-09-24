@@ -21,11 +21,12 @@
 #
 # GHSA-82j2-j2ch-gfr8 (RUSTSEC-2026-0104): rustls-webpki 0.101.7 in
 # src/data-plane-router/Cargo.lock -- the one scanned lockfile holding 0.101.x
-# (realtime-agnostic/Cargo.lock is 0.103.13; vendor/ is skip-dirs). Two paths,
-# both over rustls 0.21.12: tiberius 0.12.3 -> tokio-rustls 0.24.1 (mssql, always
-# built) and aws-smithy-http-client 1.1.13 -> hyper-rustls 0.24.2 (dynamodb,
-# opt-in). The bug is a panic parsing a CRL, and the advisory scopes it to callers
-# that pass RevocationOptions; both paths build rustls-0.21 CLIENT configs
+# (realtime-agnostic/Cargo.lock is 0.103.13; vendor/ is skip-dirs). One path left,
+# over rustls 0.21.12: tiberius 0.12.3 -> tokio-rustls 0.24.1 (mssql, always built);
+# the dynamodb path (aws-smithy-http-client -> hyper-rustls 0.24.2) went with the SDK's
+# legacy `rustls` feature (RUSTSEC-2026-0258 fix). The bug is a panic parsing a CRL,
+# and the advisory scopes it to callers that pass RevocationOptions; tiberius builds
+# rustls-0.21 CLIENT configs
 # with_no_client_auth() and load no CRL, so it is unreachable here. Drop this when
 # tiberius leaves rustls 0.21. REVIEW-BY 2026-12-23, enforced by the exp: below.
 GHSA-82j2-j2ch-gfr8 exp:2026-12-23

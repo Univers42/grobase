@@ -85,7 +85,10 @@ mongodb = "3"
 # LIFTED — they may be relaxed to pull newer AWS SDK releases. Default features
 # give the rustls https client + tokio runtime; `behavior-version-latest` lets
 # the adapter call `aws_config::defaults(BehaviorVersion::latest())`.
-aws-sdk-dynamodb = { version = "=1.104.0", features = ["behavior-version-latest"] }
+# default-features = false drops the SDK's legacy `rustls` feature (hyper 0.14 → h2 0.3,
+# RUSTSEC-2026-0258: unbounded empty DATA frames — a mount's endpoint is caller-set);
+# default-https-client (hyper 1 / h2 0.4) + rt-tokio are the rest of its defaults.
+aws-sdk-dynamodb = { version = "=1.104.0", default-features = false, features = ["behavior-version-latest", "default-https-client", "rt-tokio"] }
 aws-config = { version = "=1.8.13", features = ["behavior-version-latest"] }
 # R7: MySQL adapter. `default-rustls` selects rustls (matches the tls posture
 # of the rest of the workspace; avoids dragging in openssl).
