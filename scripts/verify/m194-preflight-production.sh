@@ -115,7 +115,7 @@ compose_fallbacks() {
   grep -ho -E '\$\{[A-Za-z0-9_]+:-[^}$]+' orchestrators/compose/base/*.yml |
     sed -E 's/^\$\{([A-Za-z0-9_]+):-(.*)$/\1\t\2/' |
     grep -E '^([A-Z0-9_]*(PASSWORD|SECRET|TOKEN|KEY)[A-Z0-9_]*|MINIO_ROOT_[A-Z_]+)'$'\t' |
-    grep -v -E '^[A-Z0-9_]*(_MODE|_ENABLED|_URL|_PREFIX|_MS|_TOKENS)'$'\t' |
+    grep -v -E '^[A-Z0-9_]*(_MODE|_ENABLED|_URL|_PREFIX|_MS|_TOKENS|_LENGTH|_INTERVAL)'$'\t' |
     sort -u
 }
 
