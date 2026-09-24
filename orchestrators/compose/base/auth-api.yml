@@ -32,7 +32,9 @@ services:
       GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
       GOTRUE_JWT_SECRET: ${JWT_SECRET}
       GOTRUE_JWT_EXP: 3600
-      GOTRUE_JWT_ISSUER: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}
+      # Same expression as control-plane.yml's verifier: a GOTRUE_JWT_ISSUER override must
+      # reach the minter AND the verifier, or every session is rejected (M-4).
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       # MFA / 2FA (TOTP)
       GOTRUE_MFA_ENABLED: "true"
       GOTRUE_SECURITY_MFA_MAX_ENROLLED_FACTORS: 5
