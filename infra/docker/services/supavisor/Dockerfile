@@ -49,18 +49,29 @@ RUN git clone --depth 1 --branch "${SUPAVISOR_VERSION}" \
 # pure-Erlang downloader cannot fetch hex/rebar.  wget (OpenSSL) is lenient, so
 # we pull the OTP-27-compatible hex archive (the 1.16.0 build line) + rebar3
 # binary leniently and install hex offline.  Pinned for reproducibility.
+# Both downloads are checked against pinned SHA-256s before use (H-11): the lenient
+# wget must not decide what runs in the build. HEX_SHA256 was cross-checked against
+# the sha512 hex publishes in builds.hex.pm/installs/hex-1.x.csv; REBAR3_SHA256 comes
+# from a TLS-verified download (GitHub records no digest for that asset). Bumping a
+# version means bumping its checksum.
 ARG HEX_VERSION=2.4.2
 ARG HEX_ELIXIR_BUILD=1.16.0
+ARG HEX_SHA256=e693d4fc7f6f9dfa2f8ad4360bc69d14600d608e77b5a7d01f4c249798dd41c3
 ARG REBAR3_VERSION=3.24.0
+ARG REBAR3_SHA256=d2d31cfb98904b8e4917300a75f870de12cb5167cd6214d1043e973a56668a54
 RUN set -eux; \
   wget -qO /tmp/hex.ez "https://builds.hex.pm/installs/${HEX_ELIXIR_BUILD}/hex-${HEX_VERSION}.ez"; \
+  printf '%s  %s\n' "${HEX_SHA256}" /tmp/hex.ez >/tmp/hex.sha256; sha256sum -c /tmp/hex.sha256; \
   mix archive.install /tmp/hex.ez --force; \
   wget -qO /usr/local/bin/rebar3 "https://github.com/erlang/rebar3/releases/download/${REBAR3_VERSION}/rebar3"; \
+  printf '%s  %s\n' "${REBAR3_SHA256}" /usr/local/bin/rebar3 >/tmp/rebar3.sha256; sha256sum -c /tmp/rebar3.sha256; \
   chmod +x /usr/local/bin/rebar3; \
   mix local.rebar rebar3 /usr/local/bin/rebar3 --force
 
 # hex's own HTTP layer also talks to repo.hex.pm over the same OTP-strict TLS;
-# HEX_UNSAFE_HTTPS=1 switches it to verify_none so deps resolve.  (Build-only;
+# HEX_UNSAFE_HTTPS=1 switches it to verify_none so deps resolve. Integrity still
+# holds: supavisor's mix.lock pins an outer checksum per package and hex refuses a
+# tarball that does not match it (H-11 residual: transport, not content).  (Build-only;
 # never reaches the runtime image.)  NOTE: we deliberately do NOT cache-mount
 # /root/.mix or /root/.hex here — a cache mount would mask the hex/rebar
 # archives just installed above, making Mix try to re-bootstrap hex over the
