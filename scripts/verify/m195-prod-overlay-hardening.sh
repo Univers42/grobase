@@ -68,10 +68,10 @@ P="m190gate$$"
 T="$(mktemp -d)" || exit 1
 chmod 700 "${T}"
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
-step() { cyan "[M190] $*"; }
+step() { cyan "[M195] $*"; }
 ok() { printf '\033[0;32m  ✓ %s\033[0m\n' "$*"; }
 fail() {
-  printf '\033[0;31m[M190] FAIL — %s\033[0m\n' "$*" >&2
+  printf '\033[0;31m[M195] FAIL — %s\033[0m\n' "$*" >&2
   exit 1
 }
 
@@ -387,4 +387,4 @@ step "throwaway Kong: status listener vs admin API"
 KONG_IMG="$(jq -r '.services.kong.image' "${T}/prod.json")"
 docker image inspect "${KONG_IMG}" >/dev/null 2>&1 || fail "kong image ${KONG_IMG} not present locally (make build-svc-kong, or docker pull)"
 dynamic_kong
-printf '\033[0;32m[M190] PASS — prod overlay: signup policy on gotrue, Kong admin off with metrics intact, storage/webhook guards on their routers (prod and cloud), functions jailed behind one relay with the Worker allowlist on (prod and cloud), base unchanged\033[0m\n'
+printf '\033[0;32m[M195] PASS — prod overlay: signup policy on gotrue, Kong admin off with metrics intact, storage/webhook guards on their routers (prod and cloud), functions jailed behind one relay with the Worker allowlist on (prod and cloud), base unchanged\033[0m\n'

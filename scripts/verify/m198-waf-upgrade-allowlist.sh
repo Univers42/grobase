@@ -43,11 +43,11 @@ bad() {
   printf '\033[0;31m  ✗ %s\033[0m\n' "$*"
   FAILED=1
 }
-step() { printf '\033[0;36m[M193] %s\033[0m\n' "$*"; }
+step() { printf '\033[0;36m[M198] %s\033[0m\n' "$*"; }
 
 # skip REASON: print why nothing was proven and exit 77 (a gate that did not look has not passed).
 skip() {
-  printf '\033[0;33m[M193] SKIP — %s; nothing proven\033[0m\n' "$*"
+  printf '\033[0;33m[M198] SKIP — %s; nothing proven\033[0m\n' "$*"
   exit 77
 }
 
@@ -69,10 +69,14 @@ preconditions() {
 }
 
 # start_waf NAME CONF: boot the WAF image with CONF as its server block; wait for /waf-health.
+# CONF is copied into a per-container conf.d dir mounted in place of the image's: the entrypoint's
+# 93-update-proxy-ssl-config.sh runs `sed -i` on default.conf, and a rename over a single-file
+# bind mount fails with EBUSY, so a file mount never boots.
 start_waf() {
-  local name="$1" conf="$2" i
+  local name="$1" conf="$2" dir="${WORK}/confd-$1" i
+  mkdir -p "${dir}" && cp "${conf}" "${dir}/default.conf" && chmod 0777 "${dir}" && chmod 0666 "${dir}/default.conf"
   docker run -d --name "${name}" --network "${NET}" \
-    -v "${conf}:/etc/nginx/conf.d/default.conf:ro" \
+    -v "${dir}:/etc/nginx/conf.d" \
     -v "${CERT}:/run/secrets/localhost_cert:ro" \
     -v "${KEY}:/run/secrets/localhost_key:ro" \
     "${WAF_IMG}" >/dev/null || return 1
@@ -144,7 +148,7 @@ fi
 
 step "3/3 verdict"
 [ "${FAILED}" -eq 0 ] || {
-  printf '\033[0;31m[M193] FAIL — the WAF relays a non-WebSocket upgrade, or the probe is blind\033[0m\n' >&2
+  printf '\033[0;31m[M198] FAIL — the WAF relays a non-WebSocket upgrade, or the probe is blind\033[0m\n' >&2
   exit 1
 }
-printf '\033[0;32m[M193] PASS — only Upgrade: websocket reaches Kong; h2c is dropped\033[0m\n'
+printf '\033[0;32m[M198] PASS — only Upgrade: websocket reaches Kong; h2c is dropped\033[0m\n'

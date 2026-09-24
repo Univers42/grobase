@@ -54,10 +54,10 @@ TOKEN="m197-dummy-service-token"
 T="$(mktemp -d)" || exit 1
 chmod 700 "${T}"
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
-step() { cyan "[M192] $*"; }
+step() { cyan "[M197] $*"; }
 ok() { printf '\033[0;32m  ✓ %s\033[0m\n' "$*"; }
 fail() {
-  printf '\033[0;31m[M192] FAIL — %s\033[0m\n' "$*" >&2
+  printf '\033[0;31m[M197] FAIL — %s\033[0m\n' "$*" >&2
   exit 1
 }
 
@@ -362,4 +362,4 @@ step "leg overlay — as shipped: jail + allowlist, in through functions-relay"
 leg_overlay
 step "verdicts (refused:<error> = no connection; a target refused in base too is not evidence of the jail)"
 report
-printf '\033[0;32m[M192] PASS — tenant functions: internals refused by the network jail alone and by the Worker allowlist alone; Kong proxy callback and secrets resolve still work through functions-relay\033[0m\n'
+printf '\033[0;32m[M197] PASS — tenant functions: internals refused by the network jail alone and by the Worker allowlist alone; Kong proxy callback and secrets resolve still work through functions-relay\033[0m\n'
