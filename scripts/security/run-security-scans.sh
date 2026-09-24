@@ -48,6 +48,9 @@ cd "${REPO_ROOT}"
 BAAS_DIR="."
 ARTIFACTS_DIR="${SECURITY_ARTIFACTS_DIR:-${BAAS_DIR}/artifacts/security}"
 mkdir -p "${ARTIFACTS_DIR}"
+# Absolute from here on: the scanners mount it into containers, and a relative-vs-
+# absolute mix used to send an absolute SECURITY_ARTIFACTS_DIR's reports elsewhere.
+ARTIFACTS_DIR="$(cd "${ARTIFACTS_DIR}" && pwd)"
 
 # ── colour helpers ───────────────────────────────────────────────────────────
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
@@ -93,7 +96,7 @@ run_semgrep() {
 
   if ! docker run --rm \
     -v "${REPO_ROOT}:/src:ro" \
-    -v "${REPO_ROOT}/${ARTIFACTS_DIR}:/out" \
+    -v "${ARTIFACTS_DIR}:/out" \
     -w /src \
     returntocorp/semgrep:latest \
     semgrep scan \
@@ -118,8 +121,12 @@ run_semgrep() {
   fi
 
   local errors warnings
-  errors=$(jq -r '[.results[]? | select(.extra.severity == "ERROR")] | length' "${out}" 2>/dev/null || echo 0)
-  warnings=$(jq -r '[.results[]? | select(.extra.severity == "WARNING")] | length' "${out}" 2>/dev/null || echo 0)
+  # A report that is missing or unreadable is a failure, never "0 findings".
+  errors=$(jq -er '[.results[]? | select(.extra.severity == "ERROR")] | length' "${out}" 2>/dev/null) || {
+    fail "Semgrep wrote no readable report at ${out}"
+    return 1
+  }
+  warnings=$(jq -r '[.results[]? | select(.extra.severity == "WARNING")] | length' "${out}")
 
   if [[ "${errors}" -gt 0 ]]; then
     fail "Semgrep: ${errors} ERROR + ${warnings} WARNING findings (report: ${out})"
@@ -220,8 +227,8 @@ run_trivy() {
   step "  Trivy filesystem scan"
   if ! docker run --rm \
     -v "${REPO_ROOT}/${BAAS_DIR}:/src:ro" \
-    -v "${REPO_ROOT}/${out_dir}:/out" \
-    -v "${REPO_ROOT}/${cache_dir}:/root/.cache/trivy" \
+    -v "${out_dir}:/out" \
+    -v "${cache_dir}:/root/.cache/trivy" \
     aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
     fs --quiet \
     --severity "${severity}" \
@@ -288,12 +295,12 @@ run_trivy() {
   fi
 
   # Verdict: aggregate fs vulns + image vulns.
-  local total=0
-  if [[ -f "${out_dir}/trivy-fs.json" ]]; then
-    local n
-    n=$(jq -r '[.Results[]?.Vulnerabilities[]?] | length' "${out_dir}/trivy-fs.json" 2>/dev/null || echo 0)
-    total=$((total + n))
-  fi
+  local total=0 n
+  n=$(jq -er '[.Results[]?.Vulnerabilities[]?] | length' "${out_dir}/trivy-fs.json" 2>/dev/null) || {
+    fail "Trivy wrote no readable filesystem report at ${out_dir}/trivy-fs.json"
+    return 1
+  }
+  total=$((total + n))
   for f in "${out_dir}"/trivy-image-*.json; do
     [[ -f "$f" ]] || continue
     local n
