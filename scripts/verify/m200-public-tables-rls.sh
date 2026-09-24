@@ -15,6 +15,9 @@
 #    (2) live: anon GET/POST /rest/v1/schema_registry through Kong is refused  #
 #    (3) live (C-7): PostgREST's sessions are all `authenticator`, which is    #
 #        neither superuser nor BYPASSRLS — so RLS applies to every REST call   #
+#    (4) live (N-3): a NEW table with no grants — what the DDL API creates on a  #
+#        mount that points at this database — is not readable with the anon    #
+#        key; the default privilege that made it readable is gone               #
 #  Needs the stack up (postgres + postgrest + kong) and .env.                  #
 #                                                                              #
 # **************************************************************************** #
@@ -30,7 +33,7 @@ fail() {
 }
 psql_q() { docker exec -i mini-baas-postgres psql -U postgres -d postgres -Atq -v ON_ERROR_STOP=1 -c "$1"; }
 
-step "0/3 preconditions — postgres + kong up, anon key in .env"
+step "0/4 preconditions — postgres + kong up, anon key in .env"
 [ -f "${ROOT}/.env" ] || fail ".env missing (make env)"
 docker inspect -f '{{.State.Running}}' mini-baas-postgres 2>/dev/null | grep -qx true || fail "mini-baas-postgres is not running (make up)"
 KP="$(docker port mini-baas-kong 8000/tcp 2>/dev/null | head -n1 | sed 's/.*://')"
@@ -39,7 +42,7 @@ AK="$(grep -m1 '^KONG_PUBLIC_API_KEY=' "${ROOT}/.env" | cut -d= -f2-)"
 [ -n "${AK}" ] || fail "KONG_PUBLIC_API_KEY missing from .env"
 ok "stack up (kong :${KP})"
 
-step "1/3 invariant — anon/authenticated privileges only on RLS-enabled tables"
+step "1/4 invariant — anon/authenticated privileges only on RLS-enabled tables"
 exposed="$(psql_q "SELECT string_agg(n.nspname || '.' || c.relname, ' ' ORDER BY 1)
   FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
   WHERE c.relkind IN ('r', 'p') AND n.nspname = 'public' AND NOT c.relrowsecurity
@@ -49,7 +52,7 @@ exposed="$(psql_q "SELECT string_agg(n.nspname || '.' || c.relname, ' ' ORDER BY
 [ -z "${exposed}" ] || fail "reachable by anon/authenticated WITHOUT row-level security: ${exposed}"
 ok "no public table grants anon/authenticated access without RLS"
 
-step "2/3 live — the anon key through Kong cannot read or write schema_registry"
+step "2/4 live — the anon key through Kong cannot read or write schema_registry"
 base="http://localhost:${KP}/rest/v1/schema_registry"
 get="$(curl -s -o /dev/null -w '%{http_code}' "${base}?limit=1" -H "apikey: ${AK}")"
 post="$(curl -s -o /dev/null -w '%{http_code}' -X POST "${base}" -H "apikey: ${AK}" -H 'Content-Type: application/json' \
@@ -59,11 +62,19 @@ case "${get}" in 2*) fail "anon GET schema_registry answered ${get} — the cros
 case "${post}" in 2*) fail "anon POST schema_registry answered ${post} — the catalog is writable with the public key" ;; esac
 ok "anon GET → ${get}, POST → ${post} (refused)"
 
-step "3/3 live — PostgREST logs in as a role RLS applies to (C-7)"
+step "3/4 live — PostgREST logs in as a role RLS applies to (C-7)"
 role="$(psql_q "SELECT rolsuper || ',' || rolbypassrls FROM pg_roles WHERE rolname = 'authenticator'")"
 [ "${role}" = "false,false" ] || fail "authenticator is superuser/bypassrls (${role:-missing}) — RLS would not apply to REST calls"
 users="$(psql_q "SELECT string_agg(DISTINCT usename, ',') FROM pg_stat_activity WHERE application_name ILIKE '%postgrest%'")"
 [ -n "${users}" ] || fail "no PostgREST session in pg_stat_activity — cannot tell which role it uses (is postgrest up?)"
 [ "${users}" = authenticator ] || fail "PostgREST is connected as '${users}', not only authenticator"
 ok "PostgREST sessions: ${users} (not superuser, not bypassrls)"
-printf '\033[0;32m[M200] PASS — no RLS-less public table is reachable with the public API key; PostgREST runs as authenticator\033[0m\n'
+
+step "4/4 live — a new table nothing granted is not reachable with the anon key (N-3)"
+psql_q "DROP TABLE IF EXISTS public.m200_probe; CREATE TABLE public.m200_probe (id int PRIMARY KEY, secret text); INSERT INTO public.m200_probe VALUES (1, 'm200-secret')" >/dev/null || fail "could not create the probe table"
+psql_q "NOTIFY pgrst, 'reload schema'" >/dev/null; sleep 2
+probe="$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${KP}/rest/v1/m200_probe?select=secret" -H "apikey: ${AK}")"
+psql_q "DROP TABLE IF EXISTS public.m200_probe" >/dev/null
+case "${probe}" in 2*) fail "anon GET on a fresh, never-granted table answered ${probe} — the default privilege still hands new tables to the public key" ;; esac
+ok "fresh ungranted table: anon GET → ${probe} (refused)"
+printf '\033[0;32m[M200] PASS — no RLS-less public table is reachable with the public API key; PostgREST runs as authenticator; new tables are not reachable by default\033[0m\n'

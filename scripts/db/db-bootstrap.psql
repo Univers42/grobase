@@ -20,8 +20,14 @@ CREATE ROLE authenticated NOLOGIN;
 \endif
 
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO anon, authenticated;
+-- No blanket table grant and NO default privilege for the PostgREST roles (N-3): a
+-- table that nothing granted explicitly — one a tenant creates through the DDL API on a
+-- mount that points at this database, a gate's probe table, a future migration — was
+-- readable and writable with the public anon key through /rest/v1. Every table PostgREST
+-- must serve carries its own GRANT (+ RLS policies). This runs on EVERY boot, so it also
+-- retracts the default privilege older installs still hold (fly re-runs bootstrap, not
+-- migrations); the old blanket GRANT here re-exposed every existing table each boot.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM anon, authenticated;
 
 SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') AS service_role_exists
 \gset
