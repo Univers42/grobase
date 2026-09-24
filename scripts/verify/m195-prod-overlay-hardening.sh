@@ -64,7 +64,7 @@ ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${ROOT}" || exit 1
 OVERLAY="${M195_OVERLAY:-orchestrators/compose/docker-compose.prod.yml}"
 CLOUD="${M195_CLOUD_OVERLAY:-orchestrators/compose/docker-compose.cloud.yml}"
-P="m190gate$$"
+P="m195gate$$"
 T="$(mktemp -d)" || exit 1
 chmod 700 "${T}"
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }

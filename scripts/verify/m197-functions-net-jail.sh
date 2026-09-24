@@ -49,7 +49,7 @@ cd "${ROOT}" || exit 1
 OVERLAY="${M197_OVERLAY:-orchestrators/compose/docker-compose.prod.yml}"
 SRC="${M197_SRC:-${ROOT}/infra/docker/services/functions-runtime/src}"
 P="m197-$$"
-TENANT="m192t$$"
+TENANT="m197t$$"
 TOKEN="m197-dummy-service-token"
 T="$(mktemp -d)" || exit 1
 chmod 700 "${T}"
@@ -172,11 +172,11 @@ wait_api() {
 # writes its per-target JSON result to $2.
 probe_via() {
   local r args
-  r="$(api "$1" POST /v1/functions "$(jq -n --rawfile c "${T}/probe.js" '{name: "m192probe", code: $c}')")"
+  r="$(api "$1" POST /v1/functions "$(jq -n --rawfile c "${T}/probe.js" '{name: "m197probe", code: $c}')")"
   [ "$(head -n1 <<<"${r}")" = 201 ] || fail "deploy through $1: ${r:0:300}"
   args="$(jq -n --args '{targets: $ARGS.positional, urls: ["http://functions-relay:8000/functions/v1"]}' \
     "${INTERNAL[@]}" "${SIDE[@]}" functions-relay:8000 kong:8000)"
-  r="$(api "$1" POST /v1/functions/m192probe/invoke "${args}")"
+  r="$(api "$1" POST /v1/functions/m197probe/invoke "${args}")"
   [ "$(head -n1 <<<"${r}")" = 200 ] || fail "invoke through $1: ${r:0:300}"
   tail -n +2 <<<"${r}" >"$2"
 }
@@ -258,7 +258,7 @@ leg_overlay() {
 secrets_path() {
   local url r code
   url="$(rt_env "${T}/prod.json" FUNCTION_SECRETS_URL)"
-  r="$(http_in "$1" GET "${url}?tenant=${TENANT}&function=m192probe" "" "{\"x-internal-service-token\":\"${TOKEN}\"}")"
+  r="$(http_in "$1" GET "${url}?tenant=${TENANT}&function=m197probe" "" "{\"x-internal-service-token\":\"${TOKEN}\"}")"
   code="$(head -n1 <<<"${r}")"
   case "${code}" in
   401) grep -q 'service token' <<<"${r}" || fail "secrets resolve 401 is not webhook-dispatcher's: ${r:0:200}" ;;

@@ -37,7 +37,7 @@ CTX="${ROOT}/infra/docker/services/vault"
 ENTRY="${M196_ENTRYPOINT:-${CTX}/scripts/fly-entrypoint.sh}"
 MIN_FREE_MB="${M196_MIN_FREE_MB:-2560}"
 BASE="$(awk '$1 == "FROM" { print $2; exit }' "${CTX}/Dockerfile.fly")"
-P="m191gate$$"
+P="m196gate$$"
 TAG="${P}:vault-fly"
 KEYS=/vault/data/.vault-keys.json
 READY='mapped to track-binocle-env-reader'
