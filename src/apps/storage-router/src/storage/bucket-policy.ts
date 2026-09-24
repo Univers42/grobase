@@ -89,9 +89,14 @@ export class BucketPolicy {
     return new BucketPolicy(parsed as PolicyMap);
   }
 
-  /** True iff `principal` may perform `action` on `bucket`. */
+  /**
+   * True iff `principal` may perform `action` on `bucket`. Rules are looked up as
+   * OWN properties only: a bucket named `constructor`, `toString` or `__proto__`
+   * must fall through to the "*" rule, not resolve to an Object.prototype member
+   * that carries no deny list (M-12).
+   */
   allows(bucket: string, action: BucketAction, principal: PolicyPrincipal): boolean {
-    const rule = this.rules[bucket] ?? this.rules['*'];
+    const rule = this.ownRule(bucket) ?? this.ownRule('*');
     if (!rule) return true; // no rule for this bucket → owner-scope governs alone
 
     const tokens = principalTokens(principal);
@@ -100,6 +105,10 @@ export class BucketPolicy {
     const allow = action === 'read' ? rule.read : rule.write;
     if (!allow || allow.length === 0) return true; // action not restricted by this rule
     return matchesAny(allow, tokens);
+  }
+
+  private ownRule(bucket: string): BucketRule | undefined {
+    return Object.hasOwn(this.rules, bucket) ? this.rules[bucket] : undefined;
   }
 
   /** Number of buckets with an explicit rule — a gauge a gate can read. */
