@@ -94,7 +94,7 @@ func healthcheck(cfg config.Config) int {
 	if err != nil {
 		return 1
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return 1
 	}

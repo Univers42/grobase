@@ -87,7 +87,7 @@ func (ar *AdapterRegistry) register(ctx context.Context, tenantScope string, m M
 	if err != nil {
 		return "", "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return ar.parseRegisterResp(ctx, resp, tenantScope, m.Name)
 }
 
