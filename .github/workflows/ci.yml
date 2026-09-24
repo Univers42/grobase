@@ -749,7 +749,7 @@ jobs:
       # GitHub's release host, and one HTTP 500 there failed the job in 12 s
       # (PR #20, 2026-09-23) for a reason unrelated to the code under test.
       - if: matrix.sdk == 'kotlin'
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
       - if: matrix.sdk == 'kotlin'
         working-directory: sdks/kotlin
         run: |
