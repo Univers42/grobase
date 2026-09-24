@@ -21,7 +21,7 @@ per problem).
 | **C-1** | Revoke the leaked GitHub PAT, then rotate anything that used it. | Issuer-side action. `fix/pat-out-of-env` (m-series, on main) stops `make env` from carrying GitHub tokens into `.env`. |
 | **L-11** | Require signed commits on `main` (GitHub → Branches). | Repository setting. |
 | **Vault base image** | `infra/docker/services/vault/Dockerfile` is `vault:1.21` (last 1.21 tag), `Dockerfile.fly` is `vault:1.16`; both carry fixable HIGH/CRITICAL CVEs (see `.trivyignore` note). Fix = Vault 2.x. | Major upgrade that ships to deployments (storage format, unseal) — needs a planned rollout. |
-| **Fly redeploy** | `deploy/fly/boot.sh` changed (H-15: no dev CORS origins on fly). | Deploys are human-triggered. |
+| **Fly redeploy** | `deploy/fly/boot.sh` changed (H-15: no dev CORS origins on fly; preflight-production now runs at boot, warn-only — `PREFLIGHT_ENFORCE=1` to refuse). | Deploys are human-triggered. |
 
 ## Needs a product / architecture decision
 
@@ -79,7 +79,7 @@ per problem).
 | M-5 | `sub` not validated as a UUID | Token minters must be audited first. |
 | M-13 / L-5 | GoTrue password length and refresh-reuse window hard-coded in base compose | Prod overlay sets min length 12. |
 | — | `postgres/Dockerfile` FDW "checksums" are placeholders written to a manifest | No download uses them; the manifest overstates what is installed. |
-| — | `edition-query` offer build is intermittent in CI | The annotation now names BuildKit's failing stage. |
+| — | `edition-query` offer build is intermittent in CI | Named stage: the data-plane deps build; cargo now retries over HTTP/1.1 (the rust job's mitigation). Watch it. |
 
 ## False positive, mitigated or by design
 
@@ -87,7 +87,7 @@ C-4 (`VAULT_API_ADDR` is the advertise address) · C-6 (dev-only profile, localh
 (container-internal binds) · H-7 (verify needs the service token; fast hash for new keys) · H-8
 (`GITHUB_TOKEN` is per-job and masked; H-9 least privilege done in `a51ffad2`) · H-10 (the original
 `sh -c` expands inside the container and is not injectable; the reverted fix broke backups) · H-12
-(`:?` in base breaks every render without `.env`; enforced by the preflight, m194) · H-17 (realtime
+(`:?` in base breaks every render without `.env`; enforced by the preflight, m194, which fly's boot now runs) · H-17 (realtime
 already refuses NoAuth under max) · H-18 (`SMTP_SECURE=false` still upgrades via STARTTLS) · H-21
 (2026 CVE ids are real) · L-1 (`NODE_ENV=production` in the image) · L-2 (algorithm pinned before
 parse) · L-3 (`|| true` on `vault status` is required) · L-7 (applies to push, not automations) ·
