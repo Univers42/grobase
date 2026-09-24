@@ -27,7 +27,9 @@ import { ConfigService } from '@nestjs/config';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { Pool } from 'pg';
+import { evaluateCondition } from './automation-condition';
 import { AutomationRuleDto } from './dto/automations.dto';
+import { isPrivateAddress, isPrivateAddressStrict, postPinned } from './webhook-ssrf';
 
 /** A write the runner inspects (one per mutated resource). */
 export interface AutomationWriteEvent {
@@ -58,56 +60,16 @@ const TRIGGER_OPS: Record<string, readonly string[]> = {
 const RULES_CACHE_TTL_MS = 30_000;
 const WEBHOOK_TIMEOUT_MS = 5_000;
 
-/**
- * @brief Classify an already-parsed IP literal as non-public (SSRF block-list).
- *
- * Unmaps an IPv4-mapped-IPv6 literal (`::ffff:169.254.169.254`) to its dotted
- * form first — the documented bypass for hostname denylists — then applies the
- * IPv4 / IPv6 private-range rules: loopback, RFC1918/ULA private, link-local
- * (incl. the 169.254.169.254 cloud-metadata range) and CGNAT. Anything not
- * parseable as an IP fails closed (treated as private).
- *
- * @see https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
- *
- * Exported for unit tests.
- */
-export function isPrivateAddress(ip: string): boolean {
-  let addr = ip;
-  // Unmap a *dotted* IPv4-mapped IPv6 literal (::ffff:169.254.169.254) so the
-  // IPv4 rules below catch it. The WHATWG URL parser may instead hand us the
-  // *hex* form (::ffff:a9fe:a9fe) — that is caught wholesale in the IPv6 branch
-  // below (any address that is not global-unicast is refused).
-  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(addr);
-  if (mapped) addr = mapped[1];
-  const fam = isIP(addr);
-  if (fam === 4) {
-    const o = addr.split('.').map(Number);
-    return (
-      o[0] === 0 ||
-      o[0] === 10 ||
-      o[0] === 127 ||
-      (o[0] === 169 && o[1] === 254) || // link-local + cloud metadata
-      (o[0] === 172 && o[1] >= 16 && o[1] <= 31) || // 172.16.0.0/12
-      (o[0] === 192 && o[1] === 168) || // 192.168.0.0/16
-      (o[0] === 100 && o[1] >= 64 && o[1] <= 127) // CGNAT 100.64.0.0/10
-    );
-  }
-  if (fam === 6) {
-    // Global-unicast IPv6 (the only public range, 2000::/3) never starts with
-    // `::`, so refusing every `::*` form blocks loopback (::1), unspecified (::)
-    // and BOTH encodings of IPv4-mapped/-compatible addresses (::ffff:a9fe:a9fe
-    // and ::ffff:169.254.169.254) — closing the IPv4-mapped-IPv6 bypass. ULA
-    // (fc/fd), link-local (fe80) and multicast (ff) are likewise non-public.
-    const lower = addr.toLowerCase();
-    return (
-      lower.startsWith('::') ||
-      lower.startsWith('fe80:') ||
-      lower.startsWith('fc') ||
-      lower.startsWith('fd') ||
-      lower.startsWith('ff')
-    );
-  }
-  return true; // not an IP literal → fail closed
+/** The JSON body both webhook transports send, so either path posts the same shape. */
+function webhookBody(rule: AutomationRuleDto, event: AutomationWriteEvent): string {
+  return JSON.stringify({
+    rule: { id: rule.id, name: rule.name },
+    dbId: event.dbId,
+    table: event.table,
+    op: event.op,
+    pk: event.pk ?? null,
+    ts: new Date().toISOString(),
+  });
 }
 
 @Injectable()
@@ -116,8 +78,19 @@ export class AutomationsService {
   private pool?: Pool;
   private tableReady = false;
   private readonly cache = new Map<string, { rules: AutomationRuleDto[]; expiresAt: number }>();
+  private readonly ipPin: boolean;
 
-  constructor(private readonly config: ConfigService) {}
+  /**
+   * Reads AUTOMATION_WEBHOOK_IP_PIN_ENABLED once: `1`/`true`/`yes`/`on`, case- and
+   * space-insensitive like the storage plane's flags (OFF when unset — today's fetch path).
+   */
+  constructor(private readonly config: ConfigService) {
+    this.ipPin = ['1', 'true', 'yes', 'on'].includes(
+      (this.config.get<string>('AUTOMATION_WEBHOOK_IP_PIN_ENABLED', '0') ?? '0')
+        .trim()
+        .toLowerCase(),
+    );
+  }
 
   /** All rules stored for (tenant, mount). TTL-cached for the write path. */
   async listRules(tenantId: string, dbId: string): Promise<AutomationRuleDto[]> {
@@ -224,9 +197,12 @@ export class AutomationsService {
    * IPv4-mapped-IPv6), and for hostnames DNS-resolves and refuses if ANY resolved
    * address is non-public (fail-closed on resolution failure). The fetch sets
    * `redirect: 'error'` so a 3xx to an unvalidated internal target fails delivery
-   * rather than being followed. Residual: a sub-millisecond DNS-rebind between
-   * resolve and connect is not closed here (Node global fetch re-resolves at
-   * dial); the Go push dispatcher pins the connected IP for its equivalent path.
+   * rather than being followed. DNS-rebind between resolve and connect (L-12):
+   * with AUTOMATION_WEBHOOK_IP_PIN_ENABLED ON, delivery goes through
+   * `postPinned`, whose connect-time `publicOnlyLookup` checks the address the
+   * socket actually dials, closing that window, and both checks use the wider
+   * `isPrivateAddressStrict` ranges. OFF (the default) keeps the fetch path and
+   * `isPrivateAddress`, where Node's fetch re-resolves at dial and the window remains.
    * Engine-agnostic — applies regardless of which DB engine fired the automation.
    *
    * @see https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
@@ -241,18 +217,15 @@ export class AutomationsService {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
     try {
+      if (this.ipPin) {
+        await postPinned(url, webhookBody(rule, event), controller.signal);
+        return;
+      }
       await fetch(url, {
         method: 'POST',
         redirect: 'error',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rule: { id: rule.id, name: rule.name },
-          dbId: event.dbId,
-          table: event.table,
-          op: event.op,
-          pk: event.pk ?? null,
-          ts: new Date().toISOString(),
-        }),
+        body: webhookBody(rule, event),
         signal: controller.signal,
       });
     } finally {
@@ -264,16 +237,20 @@ export class AutomationsService {
    * Reject any webhook URL that is not a public HTTPS endpoint (CWE-918). A
    * literal IP is validated directly; a hostname is DNS-resolved and rejected if
    * any resolved address is non-public, so a public-looking name pointing at an
-   * internal/metadata IP cannot pass.
+   * internal/metadata IP cannot pass. The classifier is `isPrivateAddress` with
+   * the pin flag OFF (unchanged) and `isPrivateAddressStrict` with it ON — there
+   * this check is the only one an IP literal gets, as the socket dials a literal
+   * without calling `publicOnlyLookup`.
    */
   private async assertPublicHttpsTarget(rawUrl: string): Promise<void> {
+    const nonPublic = this.ipPin ? isPrivateAddressStrict : isPrivateAddress;
     const parsed = new URL(rawUrl);
     if (parsed.protocol !== 'https:') {
       throw new Error(`webhook target rejected (https only): ${parsed.protocol}`);
     }
     const host = parsed.hostname.replace(/^\[|\]$/g, ''); // strip IPv6 brackets
     if (isIP(host)) {
-      if (isPrivateAddress(host)) {
+      if (nonPublic(host)) {
         throw new Error(`webhook target rejected (non-public address): ${host}`);
       }
       return;
@@ -284,7 +261,7 @@ export class AutomationsService {
     } catch {
       throw new Error(`webhook target rejected (unresolvable host): ${host}`);
     }
-    if (records.length === 0 || records.some((r) => isPrivateAddress(r.address))) {
+    if (records.length === 0 || records.some((r) => nonPublic(r.address))) {
       throw new Error(`webhook target rejected (resolves to non-public address): ${host}`);
     }
   }
@@ -309,51 +286,4 @@ export class AutomationsService {
     }
     return this.pool;
   }
-}
-
-/** Tiny server-side condition evaluator over the written row. Exported for
- *  unit tests. Unknown columns make every operator but is_empty false. */
-export function evaluateCondition(
-  row: Record<string, unknown>,
-  condition: { column: string; operator: string; value?: unknown },
-): boolean {
-  const value = row[condition.column];
-  const empty = value === undefined || value === null || value === '';
-  switch (condition.operator) {
-    case 'is_empty':
-      return empty;
-    case 'is_not_empty':
-      return !empty;
-    case 'equals':
-      return looseEquals(value, condition.value);
-    case 'not_equals':
-      return !looseEquals(value, condition.value);
-    case 'contains':
-      return stringify(value ?? '')
-        .toLowerCase()
-        .includes(stringify(condition.value ?? '').toLowerCase());
-    case 'greater_than':
-      return Number(value) > Number(condition.value);
-    case 'less_than':
-      return Number(value) < Number(condition.value);
-    default:
-      return false;
-  }
-}
-
-/** Stable text form of any condition operand. Primitives match `String(x)`
- *  exactly (the normal case); objects serialise to JSON instead of collapsing
- *  to the unhelpful `[object Object]`. */
-function stringify(value: unknown): string {
-  if (value !== null && typeof value === 'object') return JSON.stringify(value);
-  return String(value);
-}
-
-function looseEquals(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  // numeric strings vs numbers (engines disagree on wire types)
-  if (a !== null && b !== null && a !== undefined && b !== undefined) {
-    return stringify(a) === stringify(b);
-  }
-  return false;
 }
