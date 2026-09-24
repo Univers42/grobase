@@ -24,7 +24,7 @@
 #             it inherits its password from is named when unset too            #
 #    usage    unreadable file -> exit 2                                        #
 #                                                                              #
-#  Mutant hook: M189_PREFLIGHT=<path> runs the arms against another copy of    #
+#  Mutant hook: M194_PREFLIGHT=<path> runs the arms against another copy of    #
 #  the preflight; a copy that leaks a value, drops a default or resolves       #
 #  ${..} must turn this gate red.                                              #
 # **************************************************************************** #
@@ -32,7 +32,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${ROOT}" || exit 1
-PF="${M189_PREFLIGHT:-scripts/ops/preflight-production.sh}"
+PF="${M194_PREFLIGHT:-scripts/ops/preflight-production.sh}"
 readonly DSN_AWK='
 # fallback returns the text between `${NAME:-` and its matching brace.
 function fallback(s,   o, i, c, d) {
