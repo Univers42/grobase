@@ -27,8 +27,8 @@ COPY crates/data-plane-server/Cargo.toml crates/data-plane-server/Cargo.toml
 # the bin build, so a stub lib is enough — its deps are never compiled here.
 COPY crates/engine-conformance/Cargo.toml crates/engine-conformance/Cargo.toml
 
-RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=shared \
-    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=shared \
+RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=dpr-target,target=/build/target,sharing=locked \
     for dir in crates/data-plane-core crates/data-plane-pool crates/data-plane-server crates/engine-conformance; do \
       mkdir -p "$dir/src"; \
@@ -41,8 +41,8 @@ RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharin
 FROM deps AS builder
 ARG DATA_PLANE_FEATURES=""
 COPY crates/ crates/
-RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=shared \
-    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=shared \
+RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=dpr-target,target=/build/target,sharing=locked \
     cargo build --release ${DATA_PLANE_FEATURES} --bin data-plane-router && \
     cp /build/target/release/data-plane-router /data-plane-router
