@@ -237,7 +237,7 @@ export class QueryService implements OnModuleInit {
     );
     this.staticMounts = parseStaticMounts(this.config.get<string>('DATA_PLANE_MOUNTS', '') ?? '');
     this.apiKeyAbacEnabled = ['1', 'true', 'yes', 'on'].includes(
-      (this.config.get<string>('API_KEY_ABAC_ENABLED', '0') ?? '0').toLowerCase(),
+      (this.config.get<string>('API_KEY_ABAC_ENABLED', '0') ?? '0').trim().toLowerCase(),
     );
     if (this.apiKeyAbacEnabled) {
       this.logger.log(
@@ -284,6 +284,15 @@ export class QueryService implements OnModuleInit {
    */
   async resolveConnection(dbId: string, tenantId: string): Promise<AdapterResponse> {
     return this.fetchConnection(dbId, tenantId);
+  }
+
+  /**
+   * Whether `dbId` is served from the static `DATA_PLANE_MOUNTS` table — matched
+   * by dbId alone, with no owning tenant (its scope comes from the Rust pool).
+   * Callers that run outside that pool (the raw read-only SQL runner) refuse it.
+   */
+  isStaticMount(dbId: string): boolean {
+    return this.staticMounts.has(dbId);
   }
 
   private async fetchConnection(dbId: string, userId: string): Promise<AdapterResponse> {

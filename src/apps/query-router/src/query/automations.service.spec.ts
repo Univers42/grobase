@@ -21,12 +21,9 @@ import { ConfigService } from '@nestjs/config';
 jest.mock('node:dns/promises', () => ({
   lookup: async () => [{ address: '10.0.0.7', family: 4 }],
 }));
-import {
-  AutomationsService,
-  evaluateCondition,
-  isPrivateAddress,
-  type AutomationWriteEvent,
-} from './automations.service';
+import { evaluateCondition } from './automation-condition';
+import { AutomationsService, type AutomationWriteEvent } from './automations.service';
+import { isPrivateAddress } from './webhook-ssrf';
 import type { AutomationRuleDto } from './dto/automations.dto';
 
 function makeService(rules: AutomationRuleDto[]): AutomationsService {

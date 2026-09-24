@@ -1,6 +1,7 @@
 // `@jest/globals` (bundled with jest) provides the typings — the monorepo does
 // not ship `@types/jest`, so the globals must be imported explicitly.
 import { describe, expect, it } from '@jest/globals';
+import type { ConfigService } from '@nestjs/config';
 import { QueryService } from './query.service';
 
 // `resourceIdFromFilter` is a pure private helper (it reads only its argument,
@@ -32,5 +33,23 @@ describe('QueryService.resourceIdFromFilter', () => {
 
   it('JSON-encodes a composite (object) id', () => {
     expect(call({ id: { a: 1 } })).toBe('{"a":1}');
+  });
+});
+
+describe('QueryService.isStaticMount', () => {
+  const STATIC_DB = '22222222-2222-4222-8222-222222222222';
+  const mounts = JSON.stringify({
+    [STATIC_DB]: { engine: 'postgresql', connection_string: 'postgres://static/db' },
+  });
+  const config = {
+    getOrThrow: () => 'http://adapter-registry:3020',
+    get: (key: string, def?: unknown) => (key === 'DATA_PLANE_MOUNTS' ? mounts : def),
+  } as unknown as ConfigService;
+  const unused = {} as never;
+  const svc = new QueryService(config, unused, unused, unused, unused, unused);
+
+  it('is true only for a dbId in the DATA_PLANE_MOUNTS table', () => {
+    expect(svc.isStaticMount(STATIC_DB)).toBe(true);
+    expect(svc.isStaticMount('33333333-3333-4333-8333-333333333333')).toBe(false);
   });
 });
