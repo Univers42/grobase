@@ -90,7 +90,7 @@ func fileHasPassMarker(path, gate string, passRe *regexp.Regexp) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	want := gate + "=PASS"
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)

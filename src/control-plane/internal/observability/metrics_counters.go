@@ -53,19 +53,19 @@ func (m *Metrics) collectDomainRows() []crow {
 }
 
 // writeDomainCounters emits the collected domain counters, printing HELP/TYPE
-// exactly once per metric name.
+// exactly once per metric name (write errors discarded, see WriteProm).
 func (m *Metrics) writeDomainCounters(w http.ResponseWriter, svc string) {
 	lastName := ""
 	for _, r := range m.collectDomainRows() {
 		if r.id.name != lastName {
-			fmt.Fprintf(w, "# HELP %s %s\n", r.id.name, r.help)
-			fmt.Fprintf(w, "# TYPE %s counter\n", r.id.name)
+			_, _ = fmt.Fprintf(w, "# HELP %s %s\n", r.id.name, r.help)
+			_, _ = fmt.Fprintf(w, "# TYPE %s counter\n", r.id.name)
 			lastName = r.id.name
 		}
 		if r.id.labelKey != "" {
-			fmt.Fprintf(w, "%s{service=%q,%s=%q} %d\n", r.id.name, svc, r.id.labelKey, r.id.labelVal, r.n)
+			_, _ = fmt.Fprintf(w, "%s{service=%q,%s=%q} %d\n", r.id.name, svc, r.id.labelKey, r.id.labelVal, r.n)
 		} else {
-			fmt.Fprintf(w, "%s{service=%q} %d\n", r.id.name, svc, r.n)
+			_, _ = fmt.Fprintf(w, "%s{service=%q} %d\n", r.id.name, svc, r.n)
 		}
 	}
 }

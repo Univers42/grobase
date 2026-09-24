@@ -59,7 +59,7 @@ func TestDropTenantSchema_RejectsEmptySchema(t *testing.T) {
 		// dereference a nil tx — skip rather than crash, but flag the drift.
 		t.Skipf("sanitizer no longer maps '---' to empty (got %q); update the test vector", s)
 	}
-	if _, err := dropTenantSchema(nil, nil, ""); err == nil {
+	if _, err := dropTenantSchema(t.Context(), nil, ""); err == nil {
 		t.Fatal("dropTenantSchema must reject an empty schema name (never DROP SCHEMA \"\" CASCADE)")
 	}
 }

@@ -33,6 +33,10 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 )
 
+// main wires both dispatchers, serves the API, and blocks until shutdown. The
+// dispatchers' Close errors are discarded: Close only tears down each Redis
+// client's pool at exit, after every stream command (XREADGROUP/XACK) already
+// returned its own error, so a failed teardown loses nothing and has no remedy.
 func main() {
 	log := observability.NewLogger("webhook-dispatcher")
 	cfg, ctx, stop, db := bootstrap(log)
@@ -46,14 +50,14 @@ func main() {
 		log.Error("dispatcher init failed", "err", err)
 		os.Exit(1)
 	}
-	defer dispatcher.Close()
+	defer func() { _ = dispatcher.Close() }()
 
 	ftSvc, ftDispatcher, err := buildFunctriggers(ctx, db, log, redisURL)
 	if err != nil {
 		log.Error("function dispatcher init failed", "err", err)
 		os.Exit(1)
 	}
-	defer ftDispatcher.Close()
+	defer func() { _ = ftDispatcher.Close() }()
 
 	mux := buildRouter(ctx, routerDeps{db: db, log: log, svc: svc, ftSvc: ftSvc, serviceToken: cfg.ServiceToken, m: m})
 	srv := newServer(cfg, mux, log, m)
@@ -88,7 +92,7 @@ func healthcheck(cfg config.Config) int {
 	if err != nil {
 		return 1
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return 1
 	}

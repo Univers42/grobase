@@ -78,7 +78,7 @@ func (b *stripeBiller) ReportMeterEvent(ctx context.Context, ev MeterEvent) erro
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode/100 != 2 {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return fmt.Errorf("stripe meter_events %d: %s", resp.StatusCode, strings.TrimSpace(string(msg)))

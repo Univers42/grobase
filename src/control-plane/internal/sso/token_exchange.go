@@ -71,7 +71,7 @@ func exchangeCode(ctx context.Context, c Connection, code string) (string, error
 	if err != nil {
 		return "", fmt.Errorf("%w: token endpoint: %v", ErrTokenRejected, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("%w: token endpoint status %d", ErrTokenRejected, resp.StatusCode)

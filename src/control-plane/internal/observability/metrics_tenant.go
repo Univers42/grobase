@@ -103,12 +103,14 @@ func (m *Metrics) collectTenantRows() []trow {
 // (and only this counter, never a histogram). Empty unless both obs flags are on,
 // keeping OFF output byte-identical. tenant is already sanitized at Observe time;
 // emitted raw inside quotes so escape sequences match the Rust plane byte-for-byte.
+// Write errors are discarded: a scrape write only fails on a hung-up scraper (see
+// WriteProm).
 func (m *Metrics) writeTenantSeries(w http.ResponseWriter, svc string) {
 	if !tenantObsCounterEnabled() {
 		return
 	}
 	for _, r := range m.collectTenantRows() {
-		fmt.Fprintf(w, "baas_http_requests_total{service=%q,status=%q,tenant_id=\"%s\"} %d\n",
+		_, _ = fmt.Fprintf(w, "baas_http_requests_total{service=%q,status=%q,tenant_id=\"%s\"} %d\n",
 			svc, r.status, r.tenant, r.n)
 	}
 }

@@ -178,7 +178,7 @@ func (b *sqlBackend) Decide(ctx context.Context, userID, resourceType, resourceN
 	if err != nil {
 		return false, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return false, fmt.Errorf("permission-engine %d: %s", resp.StatusCode, httpx.RedactDSN(strings.TrimSpace(string(msg))))
