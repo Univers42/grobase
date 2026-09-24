@@ -28,6 +28,9 @@ import * as http from 'node:http';
 import { signIdentityEnvelope } from '../identity/request-identity';
 import { serviceAuthHeaders } from '../security/service-auth';
 
+/** Clock skew tolerated on a user JWT's iat/nbf, in seconds. */
+const JWT_CLOCK_SKEW_S = 60;
+
 interface VerifyResponse {
   valid: boolean;
   tenant_id?: string;
@@ -65,6 +68,8 @@ export class ApiKeyMiddleware implements NestMiddleware {
   // GoTrue HS256 secret — verifies a user Bearer JWT for per-user owner-scoping.
   // Empty (unset) → the user-JWT branch is inert and the app key stays the owner.
   private readonly jwtSecret: string;
+  // JWT_ALLOW_NO_EXP=1 is the opt-out that re-admits a user JWT with no `exp` (M-3).
+  private readonly allowNoExp: boolean;
 
   constructor(config: ConfigService) {
     // internal/loopback only — not externally exposed
@@ -80,6 +85,7 @@ export class ApiKeyMiddleware implements NestMiddleware {
     this.jwtSecret =
       config.get<string>('GOTRUE_JWT_SECRET', '') || config.get<string>('JWT_SECRET', '');
     this.agent = new http.Agent({ keepAlive: false });
+    this.allowNoExp = /^(1|true)$/i.test(String(config.get('JWT_ALLOW_NO_EXP', '')).trim());
   }
 
   async use(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -182,8 +188,9 @@ export class ApiKeyMiddleware implements NestMiddleware {
 
   /**
    * Verify a GoTrue HS256 JWT against jwtSecret and return its claims, or null
-   * if the signature/format is invalid or the token is expired. Stdlib-only
-   * (HMAC-SHA256 + constant-time compare) — no jsonwebtoken dependency.
+   * if the signature/format is invalid or its time claims don't hold (see
+   * timeClaimsHold). Stdlib-only (HMAC-SHA256 + constant-time compare) — no
+   * jsonwebtoken dependency.
    */
   private verifyUserJwt(token: string): { sub?: string; role?: string } | null {
     const parts = token.split('.');
@@ -195,11 +202,25 @@ export class ApiKeyMiddleware implements NestMiddleware {
     if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
     try {
       const claims = JSON.parse(Buffer.from(p, 'base64url').toString('utf8'));
-      if (typeof claims.exp === 'number' && claims.exp * 1000 < Date.now()) return null;
-      return claims;
+      return this.timeClaimsHold(claims) ? claims : null;
     } catch {
       return null;
     }
+  }
+
+  /**
+   * True iff the token is inside its validity window (M-3): `exp` is required (a
+   * token without one would never expire — JWT_ALLOW_NO_EXP=1 opts out) and must
+   * be in the future; `iat` and `nbf`, when present, must not be later than now
+   * plus JWT_CLOCK_SKEW_S, so a token minted "in the future" is not accepted early.
+   */
+  private timeClaimsHold(claims: { exp?: unknown; iat?: unknown; nbf?: unknown }): boolean {
+    const now = Date.now() / 1000;
+    const exp = claims.exp;
+    if (exp === undefined ? !this.allowNoExp : typeof exp !== 'number' || exp < now) return false;
+    return [claims.iat, claims.nbf].every(
+      (t) => t === undefined || (typeof t === 'number' && t <= now + JWT_CLOCK_SKEW_S),
+    );
   }
 
   /**
