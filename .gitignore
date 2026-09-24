@@ -208,6 +208,9 @@ lib/
 # sdks/dart/lib is committed generated code, like the python/swift/kotlin siblings)
 !sdks/dart/lib/
 !sdks/dart/lib/**
+# and the agent tooling's shared shell library (sourced by .claude/tools/*.sh)
+!.claude/tools/lib/
+!.claude/tools/lib/**
 # and track scripts/lib (shared sourced helpers: service-auth.sh, lib-*.sh/.mjs);
 # the broad `lib/` rule was swallowing the provisioner's service-auth dependency,
 # breaking provision-contract.sh + bench/live-tenant scripts in every fresh clone.
@@ -469,3 +472,10 @@ wiki/reports/postman-offers-report.html
 # Accidental gitlinks (no .gitmodules); local vendored content only.
 vendor/scripts/
 vendor/twenty/
+
+# Claude Code local state — tool digest cache, personal overrides, hook bytecode
+.claude/cache/
+.claude/settings.local.json
+.claude/hooks/config/hooks-config.local.json
+.claude/hooks/sounds/*/
+.claude/**/__pycache__/

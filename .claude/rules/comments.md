@@ -1,8 +1,3 @@
----
-globs: ["**/*.go", "**/*.rs", "**/*.ts", "**/*.tsx", "**/*.c", "**/*.h", "**/*.sh", "**/*.mjs", "**/*.py"]
-description: Comments live ABOVE the function, never inside its body
----
-
 # Function comments — above, never inside (all technologies)
 
 A function body carries **NO prose comments**. Every explanation a function needs
