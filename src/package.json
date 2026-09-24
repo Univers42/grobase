@@ -2,7 +2,7 @@
   "name": "mini-baas",
   "version": "1.0.0",
   "private": true,
-  "description": "Mini BaaS — NestJS monorepo",
+  "description": "Mini BaaS \u2014 NestJS monorepo",
   "license": "MIT",
   "scripts": {
     "prebuild": "rimraf dist",
@@ -73,7 +73,7 @@
     "reflect-metadata": "^0.2.2",
     "rimraf": "^6.0.1",
     "rxjs": "^7.8.1",
-    "sharp": "^0.33.5",
+    "sharp": "^0.35.4",
     "uuid": "^11.0.5"
   },
   "devDependencies": {
@@ -100,7 +100,9 @@
     "typescript": "^5.7.3"
   },
   "overrides": {
-    "multer": "^2.2.0"
+    "multer": "^2.3.0",
+    "js-yaml@^4.0.0": "^4.3.2",
+    "@opentelemetry/propagator-jaeger": "^2.9.0"
   },
   "jest": {
     "moduleFileExtensions": [
