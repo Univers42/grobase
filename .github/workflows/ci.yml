@@ -871,13 +871,25 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Environment, certs and images from this commit
+      - name: Assemble .env
+        run: bash scripts/env/assemble-env.sh
+
+      - name: Localhost certs (m198's WAF mounts them)
+        run: bash scripts/certs/generate-localhost-cert.sh
+
+      - name: Build kong + waf from this commit
+        run: docker compose -f docker-compose.yml build kong waf
+
+      # m198's echo upstream. Anonymous public.ecr.aws pulls are rate-limited per
+      # runner IP, so retry, then fall back to Docker Hub and point the gate at it.
+      - name: Pull node:20-alpine for m198
         run: |
-          set -euo pipefail
-          bash scripts/env/assemble-env.sh
-          bash scripts/certs/generate-localhost-cert.sh
-          docker compose -f docker-compose.yml build kong waf
-          docker pull -q public.ecr.aws/docker/library/node:20-alpine
+          set -uo pipefail
+          img=public.ecr.aws/docker/library/node:20-alpine
+          for i in 1 2 3; do docker pull -q "$img" && exit 0; sleep $((i * 10)); done
+          echo "::warning title=m198 node image::public.ecr.aws pull failed 3x; using docker.io node:20-alpine"
+          docker pull -q node:20-alpine
+          echo "M198_NODE_IMAGE=node:20-alpine" >> "$GITHUB_ENV"
 
       # Prod/cloud overlays render the security values on the right services;
       # a throwaway Kong proves the admin API is off while /metrics survives.

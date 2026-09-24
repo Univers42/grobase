@@ -64,6 +64,15 @@ red() { printf '%s%s%s\n' "$C_R" "$*" "$C_0"; }
 yellow() { printf '%s%s%s\n' "$C_Y" "$*" "$C_0"; }
 blue() { printf '%s%s%s\n' "$C_B" "$*" "$C_0"; }
 
+# gha_gate_error NAME RC LOG — a GitHub Actions ::error annotation naming the failed
+# gate and its first failure line, so a red battery is readable from the run summary
+# (annotations are public; job logs are not).
+gha_gate_error() {
+  local why
+  why=$(sed 's/\x1b\[[0-9;]*m//g' "$3" | grep -m1 -E 'FAIL|✗|fail' | tr -d '\r' | cut -c1-300)
+  printf '::error title=gate %s failed (rc=%s)::%s\n' "$1" "$2" "${why:-see ${3}}"
+}
+
 # ── curated sets (single source of truth — keep CI in sync with these) ─────────
 # Full enterprise + data-plane battery, in dependency-free order. m102 is NOT
 # here: it needs a LIVE Kong gateway and is already gated in CI's per-PR
@@ -206,6 +215,7 @@ for i in "${!SCRIPTS[@]}"; do
   else
     red "    FAIL ${name} (rc=${rc}, ${g_dur}s) — log: ${log}"
     RESULTS+=("FAIL  ${name}  ${g_dur}s  rc=${rc}")
+    [ "${GITHUB_ACTIONS:-}" = "true" ] && gha_gate_error "$name" "$rc" "$log"
     overall_rc=$rc
     if [ "${BATTERY_KEEP_GOING:-0}" != "1" ]; then
       # fail-fast (default): record the remaining gates as SKIPPED and stop.
