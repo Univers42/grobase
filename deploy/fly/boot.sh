@@ -58,7 +58,7 @@ write_local_overrides() {
 		KONG_CORS_ORIGIN_STUDIO=https://$PUBLIC_HOST
 		KONG_CORS_ORIGIN_DEV_LIST=
 		IDENTITY_HEADER_MODE=strict
-		GOTRUE_MAILER_AUTOCONFIRM=true
+		GOTRUE_MAILER_AUTOCONFIRM=${GOTRUE_MAILER_AUTOCONFIRM:-true}
 		EMAIL_OTP_ENABLED=1
 		KEY_HASH_PEPPER=$pepper
 		EMAIL_OTP_TTL_SECS=300
@@ -82,6 +82,9 @@ write_local_overrides() {
 	EOF
 	# Real SMTP from fly secrets (set SMTP_PASS on the app) routes OTP/mail to a real
 	# inbox; absent it, the stack keeps the internal mailpit sink (dev default).
+	# GOTRUE_MAILER_AUTOCONFIRM defaults to true (today's behaviour, H-16); once real SMTP
+	# is set and the frontends handle a confirmation step, flip it with a fly secret:
+	#   fly secrets set GOTRUE_MAILER_AUTOCONFIRM=false
 	if [ -n "${SMTP_PASS:-}" ]; then
 		cat >>.env.local <<-EOF
 			SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
