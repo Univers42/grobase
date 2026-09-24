@@ -329,9 +329,11 @@ run_trufflehog() {
     --no-update \
     --only-verified \
     --json \
-    >"${out}" 2>/dev/null; then
-    # TruffleHog returns non-zero when it finds secrets; capture+parse below.
-    :
+    >"${out}" 2>"${ARTIFACTS_DIR}/trufflehog.err"; then
+    # Without --fail, trufflehog exits 0 whether or not it finds secrets (counted
+    # below); non-zero means it did not scan, which must not read as "clean".
+    fail "TruffleHog did not complete a scan: $(tail -n 2 "${ARTIFACTS_DIR}/trufflehog.err")"
+    return 1
   fi
 
   local count
