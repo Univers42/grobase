@@ -18,6 +18,7 @@ import (
 	"net/http"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/identity"
 	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
@@ -78,12 +79,14 @@ func (rt *routes) doRemove(w http.ResponseWriter, ctx context.Context, tenantID,
 
 // tokenOrSelf authorises a CRUD request by either a control-plane service token
 // (admin, any tenant) or a matching X-Baas-Tenant-Id / X-Tenant-Id header (a
-// tenant acting on its OWN id) — byte-identical to audit.routes.tokenOrSelf.
+// tenant acting on its OWN id), through identity.TenantSelfMatch like audit.routes.tokenOrSelf:
+// with TENANT_HEADER_IDENTITY_HMAC set, the header must carry a valid identity
+// signature (C-2); unset, it is the raw header match it always was.
 func (rt *routes) tokenOrSelf(w http.ResponseWriter, r *http.Request, id string) bool {
 	if serviceauth.VerifyServiceRequest(r, rt.serviceToken) {
 		return true
 	}
-	if id != "" && (r.Header.Get("X-Baas-Tenant-Id") == id || r.Header.Get("X-Tenant-Id") == id) {
+	if identity.TenantSelfMatch(r, rt.serviceToken, id) {
 		return true
 	}
 	httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",
