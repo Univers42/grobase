@@ -21,21 +21,21 @@ pass() { green "[M6] PASS: ${*}"; }
 LIVE=0
 for arg in "$@"; do [[ "${arg}" == "--live" ]] && LIVE=1; done
 
-step "checking Postgres FDW supply-chain pins"
+step "checking the Postgres FDW manifest tells the truth"
 POSTGRES_DOCKERFILE="${BAAS_DIR}/infra/docker/services/postgres/Dockerfile"
 for token in \
-  MYSQL_FDW_VERSION MYSQL_FDW_SHA256 \
-  MONGO_FDW_VERSION MONGO_FDW_SHA256 \
-  TDS_FDW_VERSION TDS_FDW_SHA256 \
-  ORACLE_FDW_VERSION ORACLE_FDW_SHA256 \
-  REDIS_FDW_VERSION REDIS_FDW_SHA256 \
-  CLICKHOUSE_FDW_VERSION CLICKHOUSE_FDW_SHA256 \
-  MULTICORN_VERSION MULTICORN_SHA256 \
-  SQLITE_FDW_VERSION SQLITE_FDW_SHA256 \
+  MYSQL_FDW_VERSION MONGO_FDW_VERSION TDS_FDW_VERSION ORACLE_FDW_VERSION \
+  REDIS_FDW_VERSION CLICKHOUSE_FDW_VERSION MULTICORN_VERSION SQLITE_FDW_VERSION \
   fdw/manifest.txt; do
   grep -q "${token}" "${POSTGRES_DOCKERFILE}" || fail "${POSTGRES_DOCKERFILE} missing ${token}"
 done
-pass "FDW versions and checksums are pinned in the Postgres image manifest"
+# No placeholder "checksum" may claim a pin that nothing verifies (the FDWs are not
+# compiled into the image; a real download pin must be a sha256sum -c the build runs).
+if grep -qE 'sha256:[a-z0-9-]+-pinned-by' "${POSTGRES_DOCKERFILE}"; then
+  fail "${POSTGRES_DOCKERFILE} carries placeholder checksums that verify nothing"
+fi
+grep -q 'not-built' "${POSTGRES_DOCKERFILE}" || fail "FDW manifest does not state that the FDWs are not built into the image"
+pass "FDW target versions are declared and the manifest states the FDWs are not built in (no fake pins)"
 
 step "checking 020_fdw_servers migration"
 MIG="${BAAS_DIR}/scripts/migrations/postgresql/020_fdw_servers.sql"
