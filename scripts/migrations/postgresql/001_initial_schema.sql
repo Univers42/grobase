@@ -35,8 +35,8 @@ DO $$ BEGIN
 END $$;
 
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO anon, authenticated;
+-- Tables get explicit per-table grants below (users/user_profiles/posts) — never a
+-- blanket or default grant to the PostgREST roles (N-3; see db-bootstrap.psql and 089).
 
 -- JWT helper
 CREATE OR REPLACE FUNCTION auth.uid() RETURNS UUID AS $$
