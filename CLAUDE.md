@@ -369,8 +369,8 @@ planes, e.g. metering = `METERING_ENABLED` (Go control) AND `DATA_PLANE_METERING
 `PERMISSION_CONDITIONS_ENABLED` / `API_KEY_ABAC_ENABLED` (m135–m139, ABAC) are _not_ Go `envBool`
 route-mount gates — they gate at the **TS / data-plane PDP**, so grep them in
 `src/apps/permission-engine` & `src/apps/query-router`, not the Go control plane. SQL migrations live
-in **`scripts/migrations/postgresql/`**; the numeric set now runs **001–088** (77 files; sequence is
-non-contiguous, gaps include **057–059**: `056` jumps to `060`; highest is `088_schema_registry_private.sql`). The
+in **`scripts/migrations/postgresql/`**; the numeric set now runs **001–089** (78 files; sequence is
+non-contiguous, gaps include **057–059**: `056` jumps to `060`; highest is `089_default_privileges_revoke.sql`; `088`/`089` close the anon-readable `schema_registry` and the blanket anon/authenticated default privilege on `public` — see `wiki/security/`). The
 cloud/enterprise/parity flag slice runs **040–065**; **066–070** are vendor/infra, not flag-gated
 (`066`/`067` MovieVerse schema + like-counts, `068` per-mount shared_resources, `069` DynamoDB engine
 CHECK, `070` per-mount `read_scoped` read-owner-scoping). The newest band **071–076** backs the
