@@ -79,7 +79,7 @@ per problem).
 | M-5 | `sub` not validated as a UUID | Token minters must be audited first. |
 | M-13 / L-5 | GoTrue password length and refresh-reuse window hard-coded in base compose | Prod overlay sets min length 12. |
 | — | `postgres/Dockerfile` FDW "checksums" are placeholders written to a manifest | No download uses them; the manifest overstates what is installed. |
-| — | `edition-query` offer build is intermittent in CI | Named stage: the data-plane deps build; cargo now retries over HTTP/1.1 (the rust job's mitigation). Watch it. |
+| — | `edition-query` offer build was intermittent in CI | Cause found: concurrent Rust builds raced on a `sharing=shared` cargo cache mount ('failed to unpack package'); now `sharing=locked`. |
 
 ## False positive, mitigated or by design
 
