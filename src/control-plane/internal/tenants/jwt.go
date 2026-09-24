@@ -34,6 +34,7 @@ type JWTVerifier struct {
 	secret []byte      // HS256 mode
 	keys   *jwksKeyset // RS256 mode
 	issuer string      // optional; if set, `iss` claim must match
+	parser *jwt.Parser // pinned alg + time-claim rules, built once (newJWTParser)
 }
 
 // NewJWTVerifier builds a verifier. HS256 (default) uses `secret`; RS256
@@ -44,7 +45,7 @@ func NewJWTVerifier(secret, issuer string) (*JWTVerifier, error) {
 	if alg == "" {
 		alg = "HS256"
 	}
-	v := &JWTVerifier{alg: alg, issuer: issuer}
+	v := &JWTVerifier{alg: alg, issuer: issuer, parser: newJWTParser(alg)}
 	switch alg {
 	case "HS256":
 		if secret == "" {
@@ -79,7 +80,7 @@ func (v *JWTVerifier) Verify(raw string) (VerifiedIdentity, error) {
 	if raw == "" {
 		return VerifiedIdentity{}, errors.New("empty token")
 	}
-	token, err := jwt.Parse(raw, v.keyFunc, jwt.WithValidMethods([]string{v.alg}))
+	token, err := v.parser.Parse(raw, v.keyFunc)
 	if err != nil {
 		return VerifiedIdentity{}, fmt.Errorf("parse: %w", err)
 	}
