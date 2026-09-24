@@ -103,9 +103,10 @@ ENTERPRISE_BATTERY=(
   m168-invites          # generalized team/group invitations (single-use, expiry, flag-OFF parity)
   m170-standalone-invites # standalone-project direct invites + org-guard (409 invite-via-a-team)
   m172-pubkeys          # member pubkey registry + grant-fulfilment seam (vault42 crypto bridge)
-  m194                  # preflight-production refuses dev credentials, never prints a value
-  m195                  # prod/cloud overlays render every hardening value on the right service
-  m196                  # VAULT_DROP_PRIVILEGES_ENABLED: vault runs as uid != 0; unset keeps HEAD root
+  # m194–m199 (security hardening) are NOT here: they need an assembled .env, certs
+  # and images built from the commit, which this job does not have. CI runs them in
+  # their own jobs — m194 with shellcheck, m195/m196/m198/m199 in security-gates, m197
+  # in integration-tests against the live stack.
   # m144 (trust-page parity) and m145 (cost-model artifact lockstep) are intentionally
   # NOT in the CI battery: they validate the marketing site (site/ — gitignored in this
   # repo) and the measured bench artifacts (mini-baas-infra/artifacts/ — produced by
