@@ -65,6 +65,7 @@ services:
       # (set on the webhook-dispatcher's /internal route). Empty => no secrets.
       FUNCTION_SECRETS_URL: ${FUNCTION_SECRETS_URL:-http://webhook-dispatcher:3025/internal/v1/function-secrets/resolve}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
     ports:
       - "127.0.0.1:${FUNCTIONS_PORT:-3060}:3060"
     volumes:

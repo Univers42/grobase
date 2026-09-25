@@ -68,6 +68,7 @@ services:
       DATA_PLANE_BYPASS_ENABLED: ${DATA_PLANE_BYPASS_ENABLED:-1}
       TENANT_CONTROL_URL: ${TENANT_CONTROL_URL:-http://tenant-control:3022}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
       # Phase 7d: system Postgres holding public.outbox_events. On the bypass
       # write path the data plane emits the row-change event itself (the
