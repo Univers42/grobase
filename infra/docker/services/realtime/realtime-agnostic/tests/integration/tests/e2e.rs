@@ -1140,7 +1140,7 @@ async fn test_untrack_emits_leave() {
     );
 }
 
-/// A refused AUTH reaches the client as AUTH_FAILED before the close. The writer
+/// A refused AUTH reaches the client as `AUTH_FAILED` before the close. The writer
 /// used to race the queued error frame against the goodbye and sometimes sent
 /// only the close, so a client could not tell an auth refusal from a drop.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -1156,7 +1156,7 @@ async fn test_auth_failed_frame_precedes_close() {
         let first = tokio::time::timeout(Duration::from_secs(5), ws.next()).await;
         match first.expect("no reply within 5s") {
             Some(Ok(Message::Text(t))) => {
-                assert!(t.contains("AUTH_FAILED"), "attempt {attempt}: {t}")
+                assert!(t.contains("AUTH_FAILED"), "attempt {attempt}: {t}");
             }
             other => panic!("attempt {attempt}: closed before AUTH_FAILED: {other:?}"),
         }
