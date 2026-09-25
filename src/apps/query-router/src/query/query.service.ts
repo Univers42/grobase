@@ -213,6 +213,10 @@ export class QueryService implements OnModuleInit {
   // + conditions a JWT caller gets. OFF (default) ⇒ today's decideByApiKeyScope
   // — byte-identical scope-only decision.
   private readonly apiKeyAbacEnabled: boolean;
+  // H-5: last time each tenant+subject's ABAC bypass was announced, so the log
+  // records the bypass without one busy admin key drowning everything else.
+  private readonly abacBypassSeen = new Map<string, number>();
+  private readonly abacBypassLogIntervalMs: number;
 
   constructor(
     private readonly config: ConfigService,
@@ -238,6 +242,9 @@ export class QueryService implements OnModuleInit {
     this.staticMounts = parseStaticMounts(this.config.get<string>('DATA_PLANE_MOUNTS', '') ?? '');
     this.apiKeyAbacEnabled = ['1', 'true', 'yes', 'on'].includes(
       (this.config.get<string>('API_KEY_ABAC_ENABLED', '0') ?? '0').trim().toLowerCase(),
+    );
+    this.abacBypassLogIntervalMs = Number(
+      this.config.get<string>('ABAC_BYPASS_LOG_INTERVAL_MS', '300000'),
     );
     if (this.apiKeyAbacEnabled) {
       this.logger.log(
@@ -760,6 +767,38 @@ export class QueryService implements OnModuleInit {
   }
 
   /**
+   * Records that an `admin`-scoped app key skipped the ABAC PDP (H-5). The
+   * bypass is deliberate — `decideByApiKeyScope` is the documented scope-only
+   * path and m139 pins `API_KEY_ABAC_ENABLED` off — but it left no trace, so a
+   * log reader could not tell an allow the PDP made from one it never saw.
+   *
+   * Announced once per tenant+subject per ABAC_BYPASS_LOG_INTERVAL_MS (default
+   * 5 min) so a busy admin key cannot flood the log; the map is bounded the same
+   * way the DSN cache is. Observability only — the decision is untouched.
+   *
+   * Both interpolated fields are safe to log unescaped: the caller gates on
+   * `authMethod === 'kong-hmac'`, which only `readSignedIdentity` sets, so
+   * `tenantId` came from the control plane's key verify and `userId` is
+   * `api-key:<key_id>` or `user:<sub>` out of an HMAC-verified envelope — never
+   * a raw client header.
+   */
+  private announceAbacBypass(identity: VerifiedRequestIdentity): void {
+    const key = `${identity.tenantId}|${identity.userId ?? ''}`;
+    const now = Date.now();
+    const last = this.abacBypassSeen.get(key);
+    if (last !== undefined && now - last < this.abacBypassLogIntervalMs) return;
+    if (this.abacBypassSeen.size >= 256) {
+      for (const [seen, at] of this.abacBypassSeen) {
+        if (now - at >= this.abacBypassLogIntervalMs) this.abacBypassSeen.delete(seen);
+      }
+    }
+    this.abacBypassSeen.set(key, now);
+    this.logger.log(
+      `ABAC bypassed: api-key admin scope authorized tenant=${identity.tenantId} subject=${identity.userId} (set API_KEY_ABAC_ENABLED=1 to route it through the PDP)`,
+    );
+  }
+
+  /**
    * Scope-based authorization for api-key callers (authMethod `kong-hmac` with a
    * synthetic `api-key:<id>` actor). Returns a decision to short-circuit ABAC,
    * or `undefined` for JWT/user callers (who fall through to the ABAC engine).
@@ -780,7 +819,10 @@ export class QueryService implements OnModuleInit {
     if (!isApiKeyOwner && !isUserUnderApiKey) return undefined;
 
     const scopes = new Set(identity.scopes ?? []);
-    if (scopes.has('admin')) return { allow: true, reason: 'api-key admin scope' };
+    if (scopes.has('admin')) {
+      this.announceAbacBypass(identity);
+      return { allow: true, reason: 'api-key admin scope' };
+    }
 
     const lop = op.toLowerCase();
     const READ = new Set(['list', 'get', 'select', 'read', 'count', 'aggregate']);
