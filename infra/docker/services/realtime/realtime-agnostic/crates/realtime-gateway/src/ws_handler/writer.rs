@@ -89,7 +89,7 @@ async fn send_frame(
 /// and every peer that closed politely was told 1006 (see `reader::Ending`).
 /// Returns the sink when it did NOT send the closing frame itself.
 ///
-/// The select is `biased`: queued control frames (AUTH_FAILED, errors, acks)
+/// The select is `biased`: queued control frames (`AUTH_FAILED`, errors, acks)
 /// go out before the goodbye, so a server-side close never overtakes the frame
 /// that explains it -- unbiased, 6 of 20 refused AUTHs saw only the close. The
 /// reader, their sole producer, has ended by then, so the backlog is finite.
