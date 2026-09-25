@@ -46,8 +46,9 @@ export function securityEvent(status: number): string | undefined {
  * RequestMetricsMiddleware counts and logs every response when it finishes —
  * including the 401s a middleware writes itself and the 401/403s a guard
  * throws, which an interceptor never sees because neither reaches it.
- * A request that matched no route is labelled `unrouted`, never with its raw
- * path, so a scanner cannot inflate the metric's cardinality.
+ * The route label is always a registered pattern — a controller route, the
+ * `/{*path}` wildcard of an app-wide middleware (Nest 11), or `unrouted` —
+ * never the raw path, so a scanner cannot inflate the metric's cardinality.
  * It must run before any middleware that can answer a request, which is why
  * ObservabilityModule is global (Nest registers global modules' middleware first).
  */
