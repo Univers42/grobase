@@ -445,3 +445,127 @@ describe('guards reject a replayed envelope (no missed await)', () => {
     await expect(replay).rejects.toThrow(UnauthorizedException);
   });
 });
+
+// H-19: the bearer-JWT identity path. Until it existed, only the api-key route
+// had a signer, so strict mode would have 401'd every JWT caller — the reason
+// production stayed on compat. These tests pin BOTH halves: that the new path
+// verifies a GoTrue token cryptographically, and that it stays inert in compat
+// mode unless opted in, so today's baseline is byte-identical.
+const JWT_SECRET = randomBytes(24).toString('hex');
+
+function mintJwt(claims: Record<string, unknown>, secret: string = JWT_SECRET): string {
+  const part = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const body = `${part({ alg: 'HS256', typ: 'JWT' })}.${part({
+    exp: Math.floor(Date.now() / 1000) + 600,
+    ...claims,
+  })}`;
+  return `${body}.${createHmac('sha256', secret).update(body).digest('base64url')}`;
+}
+
+function bearerReq(token: string, extra: Record<string, string> = {}): FakeReq {
+  return reqWith({ authorization: `Bearer ${token}`, ...extra });
+}
+
+describe('bearer-JWT identity path (H-19)', () => {
+  beforeEach(() => {
+    process.env.GOTRUE_JWT_SECRET = JWT_SECRET;
+    delete process.env.IDENTITY_JWT_BEARER_ENABLED;
+    delete process.env.GOTRUE_JWT_ISSUER;
+  });
+
+  it('COMPAT mode ignores a bearer JWT unless opted in (byte-parity default)', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'compat';
+    const req = bearerReq(mintJwt({ sub: 'u-9', role: 'authenticated' }));
+    await expect(resolveRequestIdentity(req, true)).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('COMPAT + IDENTITY_JWT_BEARER_ENABLED accepts a verified bearer JWT', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'compat';
+    process.env.IDENTITY_JWT_BEARER_ENABLED = '1';
+    const req = bearerReq(
+      mintJwt({ sub: 'u-9', role: 'authenticated', app_metadata: { tenant_id: 't-7' } }),
+    );
+    const id = await resolveRequestIdentity(req, true);
+    expect(id?.authMethod).toBe('jwt');
+    expect(id?.userId).toBe('user:u-9');
+    expect(id?.tenantId).toBe('t-7');
+  });
+
+  it('COMPAT keeps legacy headers winning, so existing traffic is unchanged', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'compat';
+    process.env.IDENTITY_JWT_BEARER_ENABLED = '1';
+    const req = bearerReq(mintJwt({ sub: 'u-9', app_metadata: { tenant_id: 't-7' } }), {
+      'x-user-id': 'u-1',
+      'x-baas-tenant-id': 't-1',
+    });
+    const id = await resolveRequestIdentity(req, true);
+    expect(id?.authMethod).toBe('legacy-header');
+    expect(id?.tenantId).toBe('t-1');
+  });
+
+  it('STRICT mode accepts the JWT and IGNORES the raw headers Kong sets', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    const req = bearerReq(mintJwt({ sub: 'u-9', app_metadata: { tenant_id: 't-7' } }), {
+      'x-user-id': 'spoofed',
+      'x-baas-tenant-id': 'other-tenant',
+      'x-user-role': 'service_role',
+    });
+    const id = await resolveRequestIdentity(req, true);
+    expect(id?.authMethod).toBe('jwt');
+    expect(id?.userId).toBe('user:u-9');
+    expect(id?.tenantId).toBe('t-7');
+    expect(id?.role).toBe('authenticated');
+  });
+
+  it('falls back to sub as the tenant when app_metadata carries none', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    const id = await resolveRequestIdentity(bearerReq(mintJwt({ sub: 'u-9' })), true);
+    expect(id?.tenantId).toBe('u-9');
+    expect(id?.projectId).toBe('u-9');
+  });
+
+  it('a client-supplied x-baas-roles / x-baas-scopes never reaches a jwt identity', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    const req = bearerReq(mintJwt({ sub: 'u-9' }), {
+      'x-baas-roles': 'service_role',
+      'x-baas-scopes': 'admin',
+    });
+    const id = await resolveRequestIdentity(req, true);
+    expect(id?.roleNames).toEqual(['authenticated']);
+    expect(id?.scopes).toEqual([]);
+  });
+
+  const rejected: Array<[string, () => string]> = [
+    ['signed with an unknown secret', () => mintJwt({ sub: 'u-9' }, WRONG_SECRET)],
+    ['expired', () => mintJwt({ sub: 'u-9', exp: Math.floor(Date.now() / 1000) - 10 })],
+    ['carrying no exp', () => mintJwt({ sub: 'u-9', exp: undefined })],
+    ['carrying no sub', () => mintJwt({ role: 'authenticated' })],
+    ['malformed', () => 'not.a.jwt'],
+  ];
+  it.each(rejected)('STRICT mode rejects a bearer JWT %s', async (_name, mint) => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    await expect(resolveRequestIdentity(bearerReq(mint()), true)).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('rejects a foreign issuer once GOTRUE_JWT_ISSUER pins one (M-4)', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    process.env.GOTRUE_JWT_ISSUER = 'https://localhost:8443/auth/v1';
+    const mine = mintJwt({ sub: 'u-9', iss: 'https://localhost:8443/auth/v1' });
+    await expect(resolveRequestIdentity(bearerReq(mine), true)).resolves.toMatchObject({
+      authMethod: 'jwt',
+    });
+    const theirs = mintJwt({ sub: 'u-9', iss: 'https://evil.example/auth/v1' });
+    await expect(resolveRequestIdentity(bearerReq(theirs), true)).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('is inert when no JWT secret is configured (cannot verify, must not trust)', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    delete process.env.GOTRUE_JWT_SECRET;
+    const req = bearerReq(mintJwt({ sub: 'u-9' }));
+    await expect(resolveRequestIdentity(req, true)).rejects.toThrow(UnauthorizedException);
+  });
+});
