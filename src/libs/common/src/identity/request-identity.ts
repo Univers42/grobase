@@ -74,6 +74,19 @@ export function identityToUserContext(identity: VerifiedRequestIdentity, email =
   };
 }
 
+/**
+ * The signed message of an identity envelope: every field a downstream authorizer
+ * may act on. `roles` and `scopes` are part of it because they are authorization
+ * inputs, not decoration — `roleNames` reaches RolesGuard and the ABAC PDP, and
+ * `scopes` reaches the api-key admin short-circuit in query.service. Leaving
+ * either unsigned let a caller holding a valid api key bolt `X-Baas-Roles:
+ * service_role` onto the envelope ApiKeyMiddleware had just minted for them.
+ *
+ * Both lists are deduped and sorted so the signature binds the SET, independent
+ * of header ordering, and so signer and verifier derive the same string from the
+ * same grant. `roles` is the union of `roleNames` and `role`, matching how
+ * {@link readSignedIdentity} rebuilds it from headers.
+ */
 export function canonicalIdentityString(
   req: HeaderRequest,
   identity: VerifiedRequestIdentity,
@@ -87,6 +100,8 @@ export function canonicalIdentityString(
     `project=${identity.projectId}`,
     `user=${identity.userId ?? ''}`,
     `role=${identity.role}`,
+    `roles=${canonicalList([...(identity.roleNames ?? []), identity.role])}`,
+    `scopes=${canonicalList(identity.scopes ?? [])}`,
     `app=${identity.appId}`,
     `iat=${iat}`,
     `nonce=${nonce}`,
@@ -95,11 +110,24 @@ export function canonicalIdentityString(
 }
 
 /**
+ * Normalises a grant list into its canonical signed form: deduped, sorted,
+ * comma-joined. Order-insensitive by design — a reordered header is the same
+ * grant, while an ADDED or removed entry is a different one.
+ */
+function canonicalList(values: string[]): string {
+  return Array.from(new Set(values)).sort().join(',');
+}
+
+/**
  * Mint a signed identity envelope for a server-side trust boundary that has
  * already authenticated the caller by another means (e.g. ApiKeyMiddleware after
  * verifying an X-Baas-Api-Key). It signs over the SAME canonical string + key
  * set that {@link readSignedIdentity} verifies, so strict-mode AuthGuard accepts
  * it. Returns lower-cased header names ready to assign onto `req.headers`.
+ *
+ * EVERY header the verifier reads is returned, `x-baas-roles` and `x-baas-scopes`
+ * included even when empty: the caller assigns these onto the request the client
+ * controlled, so an omitted key would leave a client-supplied copy in place.
  *
  * Throws if no signing key is configured (the deployment is then unauthenticated
  * by design and the caller should surface a 5xx rather than forge trust).
@@ -143,9 +171,10 @@ export function signIdentityEnvelope(
     'x-baas-issued-at': iat,
     'x-baas-nonce': nonce,
     'x-baas-key-id': key.kid,
+    'x-baas-roles': identity.roleNames.join(','),
+    'x-baas-scopes': identity.scopes.join(','),
     'x-baas-signature': `v1=${sig}`,
   };
-  if (identity.scopes.length) headers['x-baas-scopes'] = identity.scopes.join(',');
   return headers;
 }
 

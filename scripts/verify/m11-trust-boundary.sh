@@ -21,6 +21,22 @@ fail() {
 step() { cyan "[M11] ${*}"; }
 pass() { green "[M11] PASS: ${*}"; }
 
+NODE_IMAGE="public.ecr.aws/docker/library/node:20-alpine"
+
+# node_in_src runs a node/npx command inside src/ through the same Docker image +
+# node_modules volume as `make nestjs-ci`, so the gate needs no host toolchain
+# (Docker-first). Falls back to the host when npx is on PATH.
+node_in_src() {
+  if command -v npx >/dev/null 2>&1; then
+    (cd "${BAAS_DIR}/src" && sh -c "$1")
+    return
+  fi
+  docker run --rm -v "${REPO_ROOT}/src":/app -w /app \
+    -v mini-baas-src-node-modules:/app/node_modules \
+    -v mini-baas-npm-cache:/root/.npm \
+    "${NODE_IMAGE}" sh -c "$1"
+}
+
 LIVE=0
 for arg in "$@"; do [[ "${arg}" == "--live" ]] && LIVE=1; done
 
@@ -91,8 +107,9 @@ grep -q "pre-function" "${BAAS_DIR}/infra/docker/services/kong/conf/kong.yml" ||
 pass "gateway path remains present while strict upstream verification can be enabled"
 
 step "checking signed envelope positive and forged-header negative paths"
-(
-  cd "${BAAS_DIR}/src" && npx ts-node -r tsconfig-paths/register --transpile-only <<'TS'
+ENVELOPE_TS="${BAAS_DIR}/src/.m11-envelope.ts"
+trap 'rm -f "${ENVELOPE_TS}"' EXIT
+cat >"${ENVELOPE_TS}" <<'TS'
 import { createHmac } from 'node:crypto';
 import { canonicalIdentityString, resolveRequestIdentity, type VerifiedRequestIdentity } from '@mini-baas/common';
 
@@ -127,26 +144,67 @@ const req = {
     'x-baas-key-id': 'm11-secret',
   },
 };
-const canonical = canonicalIdentityString(req, identity, issuedAt, 'm11-nonce');
-req.headers['x-baas-signature'] = `v1=${createHmac('sha256', 'super-secret').update(canonical).digest('hex')}`;
-const resolved = resolveRequestIdentity(req, true);
-if (resolved?.tenantId !== identity.tenantId || resolved.projectId !== identity.projectId) {
-  throw new Error('signed identity did not resolve to expected tenant/project');
+const sign = (r: typeof req, id: VerifiedRequestIdentity, iat: string, nonce: string) =>
+  `v1=${createHmac('sha256', 'super-secret').update(canonicalIdentityString(r, id, iat, nonce)).digest('hex')}`;
+req.headers['x-baas-signature'] = sign(req, identity, issuedAt, 'm11-nonce');
+
+// resolveRequestIdentity is async (the nonce replay store is a port) — every
+// call below MUST be awaited: an un-awaited Promise is truthy and would pass.
+async function main(): Promise<void> {
+  const resolved = await resolveRequestIdentity(req, true);
+  if (resolved?.tenantId !== identity.tenantId || resolved.projectId !== identity.projectId) {
+    throw new Error('signed identity did not resolve to expected tenant/project');
+  }
+  if (resolved.scopes.join(',') !== identity.scopes.join(',')) {
+    throw new Error('signed identity did not carry the signed scopes');
+  }
+
+  await rejects(
+    () => resolveRequestIdentity({ method: 'GET', url: '/query/x/tables', originalUrl: '/query/x/tables', headers: { 'x-user-id': 'victim' } }, true),
+    'Raw identity headers are not trusted',
+    'forged raw X-User-Id was accepted in strict mode',
+  );
+
+  // roles/scopes are signed: injecting either onto an otherwise valid envelope
+  // must break the signature, never silently grant the grant.
+  for (const forged of ['x-baas-roles', 'x-baas-scopes']) {
+    const iat = String(Date.now());
+    const nonce = `m11-nonce-${forged}`;
+    const headers = { ...req.headers, 'x-baas-issued-at': iat, 'x-baas-nonce': nonce };
+    const tampered = { ...req, headers };
+    tampered.headers['x-baas-signature'] = sign(tampered, identity, iat, nonce);
+    tampered.headers[forged] = 'service_role,admin';
+    await rejects(
+      () => resolveRequestIdentity(tampered, true),
+      'Invalid identity envelope signature',
+      `forged ${forged} was accepted on a signed envelope`,
+    );
+  }
 }
 
-try {
-  resolveRequestIdentity({ method: 'GET', url: '/query/x/tables', originalUrl: '/query/x/tables', headers: { 'x-user-id': 'victim' } }, true);
-  throw new Error('forged raw X-User-Id was accepted in strict mode');
-} catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
-  if (!message.includes('Raw identity headers are not trusted')) throw error;
+async function rejects(call: () => Promise<unknown>, expect: string, onAccept: string): Promise<void> {
+  try {
+    await call();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes(expect)) throw error;
+    return;
+  }
+  throw new Error(onAccept);
 }
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+});
 TS
-)
+node_in_src 'npx ts-node -r tsconfig-paths/register --transpile-only .m11-envelope.ts' ||
+  fail "signed-envelope round-trip or a forged-header negative case did not hold"
+rm -f "${ENVELOPE_TS}"
 pass "signed envelopes are accepted and forged raw identity is rejected in strict mode"
 
 step "checking TypeScript compiles"
-(cd "${BAAS_DIR}/src" && npx tsc --noEmit -p tsconfig.json)
+node_in_src 'npx tsc --noEmit -p tsconfig.json' || fail "TypeScript typecheck failed"
 pass "TypeScript typecheck passed"
 
 if [[ ${LIVE} -eq 1 ]]; then

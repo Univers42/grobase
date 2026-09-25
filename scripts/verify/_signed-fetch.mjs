@@ -27,6 +27,11 @@ export function signedHeaders(method, url, identity = {}) {
   const projectId = identity.projectId || tenantId;
   const role = identity.role || 'authenticated';
   const appId = identity.appId || 'verify';
+  // roles/scopes are signed too (they are authorization inputs) — deduped and
+  // sorted, exactly as canonicalIdentityString() in request-identity.ts does.
+  const canonicalList = (values) => Array.from(new Set(values)).sort().join(',');
+  const roleNames = identity.roleNames || [role];
+  const scopes = identity.scopes || [];
   const canonical = [
     `method=${method.toUpperCase()}`,
     `path=${path}`,
@@ -34,6 +39,8 @@ export function signedHeaders(method, url, identity = {}) {
     `project=${projectId}`,
     `user=${userId}`,
     `role=${role}`,
+    `roles=${canonicalList([...roleNames, role])}`,
+    `scopes=${canonicalList(scopes)}`,
     `app=${appId}`,
     `iat=${iat}`,
     `nonce=${nonce}`,
@@ -48,6 +55,8 @@ export function signedHeaders(method, url, identity = {}) {
     'X-Baas-App-Id': appId,
     'X-Baas-Issued-At': iat,
     'X-Baas-Nonce': nonce,
+    'X-Baas-Roles': roleNames.join(','),
+    'X-Baas-Scopes': scopes.join(','),
     'X-Baas-Signature': `v1=${sig}`,
   };
 }

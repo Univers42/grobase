@@ -125,6 +125,30 @@ describe('signIdentityEnvelope + resolveRequestIdentity (round-trip)', () => {
     };
     await expect(resolveRequestIdentity(otherPath, true)).rejects.toThrow(UnauthorizedException);
   });
+
+  // Privilege escalation: ApiKeyMiddleware signs an envelope for whoever presents
+  // a valid api key and assigns it onto the SAME req the client controlled, so any
+  // header the envelope does not overwrite survives into the verified identity.
+  // roleNames reaches RolesGuard + the ABAC PDP; scopes reaches the api-key admin
+  // short-circuit — neither may be client-supplied.
+  it('a client-supplied x-baas-roles / x-baas-scopes cannot survive envelope signing', async () => {
+    const req = reqWith({
+      'x-baas-roles': 'service_role',
+      'x-baas-scopes': 'admin',
+    });
+    const envelope = signIdentityEnvelope(req, {
+      tenantId: 't-1',
+      userId: 'api-key:abc',
+      role: 'authenticated',
+      appId: 'api-key',
+      scopes: [],
+    });
+    for (const [name, value] of Object.entries(envelope)) req.headers[name] = value;
+
+    const identity = await resolveRequestIdentity(req, true);
+    expect(identity?.roleNames).toEqual(['authenticated']);
+    expect(identity?.scopes).toEqual([]);
+  });
 });
 
 // Build a fully-signed header set by hand so individual fields can be tampered.
@@ -168,6 +192,10 @@ describe('signed-envelope integrity (HMAC tamper detection)', () => {
     ['x-baas-issued-at', String(Date.now() + 5)],
     ['x-baas-nonce', randomUUID()],
     ['x-baas-project-id', 'other-project'],
+    // authorization inputs, not just identity: roleNames feeds RolesGuard and the
+    // ABAC PDP, scopes feeds the api-key admin short-circuit in query.service.
+    ['x-baas-scopes', 'admin'],
+    ['x-baas-roles', 'service_role'],
   ];
   it.each(tamperFields)('rejects envelope with tampered %s', async (field, value) => {
     const req = reqWith({});
