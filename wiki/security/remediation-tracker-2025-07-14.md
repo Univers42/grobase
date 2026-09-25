@@ -110,7 +110,7 @@ already refuses NoAuth under max) · H-18 (`SMTP_SECURE=false` still upgrades vi
 (2026 CVE ids are real) · L-1 (`NODE_ENV=production` in the image) · L-2 (algorithm pinned before
 parse) · L-3 (`|| true` on `vault status` is required) · L-7 (applies to push, not automations) ·
 L-8 (masked) · L-13 (fast hash + upgrade) · L-14 (`chmod 600` everywhere) · M-2 (hash comparison
-is length-independent) · M-6 (deep operator check exists and is tested) · M-7 (session service
+is length-independent) · M-6 (deep operator check exists and is tested; now also property-tested: `collections.filter.property.spec.ts`, 6000 seeded random filters with duplicate/`__proto__`/dotted/operator keys against an independent oracle — refused exactly when unsafe, an accepted one always keeps the caller's `owner_id`; kills mutants that skip dotted keys, arrays, recursion, the owner_id field check or both checks, or let `__proto__` reach the driver; a 20000-deep filter answers 400, never a 500) · M-7 (session service
 retired) · M-13 (already parametrized: `auth-api.yml:48` is `${GOTRUE_PASSWORD_MIN_LENGTH:-8}`, the
 prod overlay pins 12 and m195 asserts both the 12 and the 8) · M-14/M-15 (single replica; Kong
 limits) · M-18 (mailpit is dev) · L-5 (accepted) · M-10 (default usernames: the preflight already refuses the `mongo` and `minioadmin` root usernames as dev defaults, m194; the Postgres superuser stays `postgres` because the supabase image's roles and ~110 scripts use it — its password is enforced by the preflight and the prod overlay publishes no Postgres port, m195 `static_ports`; a username is not a secret). Also planned but found to be a non-finding:
