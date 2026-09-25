@@ -316,6 +316,17 @@ run_trivy() {
   return 0
 }
 
+# trufflehog_open prints the findings of report $1 that no unexpired
+# .trufflehog-accepted entry (commit file detector expiry) covers.
+trufflehog_open() {
+  local accepted
+  accepted="$(awk -v today="$(date -u +%F)" '!/^#/ && NF >= 4 && $4 >= today { print $1 " " $2 " " $3 }' \
+    "${REPO_ROOT}/.trufflehog-accepted" 2>/dev/null || true)"
+  jq -c --arg acc "${accepted}" '($acc | split("\n") | map(select(length > 0))) as $a
+    | select(([.SourceMetadata.Data.Git.commit, .SourceMetadata.Data.Git.file, .DetectorName] | join(" ")) as $k
+      | $a | index($k) | not)' "$1"
+}
+
 run_trufflehog() {
   step "TruffleHog — secret scan on git history + working tree"
   local out="${ARTIFACTS_DIR}/trufflehog.json"
@@ -336,16 +347,21 @@ run_trufflehog() {
     return 1
   fi
 
-  local count
-  count=$(wc -l <"${out}" 2>/dev/null || echo 0)
-  count=$(echo "${count}" | tr -d ' ')
+  local open_out="${ARTIFACTS_DIR}/trufflehog-open.json" count accepted
+  trufflehog_open "${out}" >"${open_out}" || { fail "TruffleHog: could not apply .trufflehog-accepted"; return 1; }
+  count=$(grep -c . "${open_out}" || true)
+  accepted=$(($(grep -c . "${out}" || true) - count))
+  if [[ "${accepted}" -gt 0 ]]; then
+    warn "TruffleHog: ${accepted} verified secret(s) accepted until their .trufflehog-accepted expiry — still LIVE, revoke at the issuer"
+    echo "::warning title=trufflehog::${accepted} live secret(s) accepted by .trufflehog-accepted until expiry; revoke them"
+  fi
 
   if [[ "${count}" -gt 0 ]]; then
     fail "TruffleHog: ${count} verified secret(s) found in git history (report: ${out})"
-    head -5 "${out}" | jq -r '.SourceMetadata.Data.Git.repository + " :: " + .SourceMetadata.Data.Git.file + ":" + (.SourceMetadata.Data.Git.line|tostring) + " :: " + .DetectorName' 2>/dev/null || true
+    head -5 "${open_out}" | jq -r '.SourceMetadata.Data.Git.repository + " :: " + .SourceMetadata.Data.Git.file + ":" + (.SourceMetadata.Data.Git.line|tostring) + " :: " + .DetectorName' 2>/dev/null || true
     return 1
   fi
-  ok "TruffleHog: no verified secrets in git history"
+  ok "TruffleHog: no verified secrets in git history outside .trufflehog-accepted"
   return 0
 }
 
