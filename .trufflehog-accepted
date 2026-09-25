@@ -4,8 +4,4 @@
 # Matched exactly on commit + file + detector. An accepted finding is still
 # printed as a warning; on its expiry date the trufflehog job goes red again.
 # The finding stays OPEN in wiki/security/remediation-tracker-2025-07-14.md.
-#
-# N-2: Unsplash access key vendored with vite-gourmand. Unsplash has no
-# revocation API: the app owner regenerates it (unsplash.com/oauth/applications)
-# or api@unsplash.com revokes it. Accepted 2026-09-25.
-daa68cf93bb4137cf5112c5819136b3cc6d52f04 vendor/vite-gourmand/Back/scripts/update-menu-images.ts Unsplash 2026-10-09
+# Empty: N-2 (Unsplash) was purged from history on 2026-09-25 instead.
