@@ -19,3 +19,8 @@ BEGIN
   ALTER TABLE public.schema_registry FORCE ROW LEVEL SECURITY;
 END
 $$;
+
+-- Record it (the body above re-runs on every boot; this keeps migrate-status honest).
+INSERT INTO public.schema_migrations (version, name)
+SELECT 88, '088_schema_registry_private'
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = 88);

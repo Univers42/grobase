@@ -9,3 +9,8 @@
 -- never granted (per-app databases). db-bootstrap repeats it on every boot for installs
 -- that no longer run migrations (fly).
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM anon, authenticated;
+
+-- Record it (the body above re-runs on every boot; this keeps migrate-status honest).
+INSERT INTO public.schema_migrations (version, name)
+SELECT 89, '089_default_privileges_revoke'
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = 89);

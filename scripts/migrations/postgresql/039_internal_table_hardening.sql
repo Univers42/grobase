@@ -87,3 +87,8 @@ $fn$ LANGUAGE plpgsql;
 -- Belt-and-suspenders: ensure the ledger trigger is gone even if 038 ordering
 -- ever changed (idempotent).
 DROP TRIGGER IF EXISTS outbox_events_realtime_trigger ON public.outbox_events;
+
+-- Record it (the body above re-runs on every boot; this keeps migrate-status honest).
+INSERT INTO public.schema_migrations (version, name)
+SELECT 39, '039_internal_table_hardening'
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = 39);
