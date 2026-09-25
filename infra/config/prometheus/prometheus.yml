@@ -39,49 +39,58 @@ scrape_configs:
   - job_name: "nest"
     metrics_path: /metrics
     dns_sd_configs:
-      - { names: ["query-router"], type: A, port: 4001, refresh_interval: 15s }
-      - { names: ["mongo-api"], type: A, port: 3010, refresh_interval: 15s }
-      - { names: ["email-service"], type: A, port: 3030, refresh_interval: 15s }
-      - {
-          names: ["storage-router"],
-          type: A,
-          port: 3040,
-          refresh_interval: 15s,
-        }
-      - {
-          names: ["permission-engine"],
-          type: A,
-          port: 3050,
-          refresh_interval: 15s,
-        }
-      - {
-          names: ["schema-service"],
-          type: A,
-          port: 3060,
-          refresh_interval: 15s,
-        }
-      - {
-          names: ["analytics-service"],
-          type: A,
-          port: 3070,
-          refresh_interval: 15s,
-        }
-      - { names: ["gdpr-service"], type: A, port: 3080, refresh_interval: 15s }
-      - {
-          names: ["newsletter-service"],
-          type: A,
-          port: 3090,
-          refresh_interval: 15s,
-        }
-      - { names: ["ai-service"], type: A, port: 3100, refresh_interval: 15s }
-      - { names: ["log-service"], type: A, port: 3110, refresh_interval: 15s }
-      - {
-          names: ["session-service"],
-          type: A,
-          port: 3120,
-          refresh_interval: 15s,
-        }
-      - { names: ["outbox-relay"], type: A, port: 3130, refresh_interval: 15s }
+      - names: ["query-router"]
+        type: A
+        port: 4001
+        refresh_interval: 15s
+      - names: ["mongo-api"]
+        type: A
+        port: 3010
+        refresh_interval: 15s
+      - names: ["email-service"]
+        type: A
+        port: 3030
+        refresh_interval: 15s
+      - names: ["storage-router"]
+        type: A
+        port: 3040
+        refresh_interval: 15s
+      - names: ["permission-engine"]
+        type: A
+        port: 3050
+        refresh_interval: 15s
+      - names: ["schema-service"]
+        type: A
+        port: 3060
+        refresh_interval: 15s
+      - names: ["analytics-service"]
+        type: A
+        port: 3070
+        refresh_interval: 15s
+      - names: ["gdpr-service"]
+        type: A
+        port: 3080
+        refresh_interval: 15s
+      - names: ["newsletter-service"]
+        type: A
+        port: 3090
+        refresh_interval: 15s
+      - names: ["ai-service"]
+        type: A
+        port: 3100
+        refresh_interval: 15s
+      - names: ["log-service"]
+        type: A
+        port: 3110
+        refresh_interval: 15s
+      - names: ["session-service"]
+        type: A
+        port: 3120
+        refresh_interval: 15s
+      - names: ["outbox-relay"]
+        type: A
+        port: 3130
+        refresh_interval: 15s
     relabel_configs:
       - &stable-instance
         source_labels: [__meta_dns_name, __address__]
@@ -98,24 +107,18 @@ scrape_configs:
   - job_name: "go-control-plane"
     metrics_path: /metrics
     dns_sd_configs:
-      - {
-          names: ["adapter-registry-go"],
-          type: A,
-          port: 3021,
-          refresh_interval: 15s,
-        }
-      - {
-          names: ["tenant-control"],
-          type: A,
-          port: 3022,
-          refresh_interval: 15s,
-        }
-      - {
-          names: ["webhook-dispatcher"],
-          type: A,
-          port: 3025,
-          refresh_interval: 15s,
-        }
+      - names: ["adapter-registry-go"]
+        type: A
+        port: 3021
+        refresh_interval: 15s
+      - names: ["tenant-control"]
+        type: A
+        port: 3022
+        refresh_interval: 15s
+      - names: ["webhook-dispatcher"]
+        type: A
+        port: 3025
+        refresh_interval: 15s
     relabel_configs:
       - *stable-instance
       - source_labels: [__meta_dns_name]
@@ -128,12 +131,10 @@ scrape_configs:
   - job_name: "rust-data-plane"
     metrics_path: /metrics
     dns_sd_configs:
-      - {
-          names: ["data-plane-router-rust"],
-          type: A,
-          port: 4011,
-          refresh_interval: 15s,
-        }
+      - names: ["data-plane-router-rust"]
+        type: A
+        port: 4011
+        refresh_interval: 15s
     relabel_configs:
       - *stable-instance
       - { target_label: service, replacement: data-plane-router }
@@ -145,7 +146,10 @@ scrape_configs:
   - job_name: "realtime"
     metrics_path: /metrics
     dns_sd_configs:
-      - { names: ["realtime"], type: A, port: 4000, refresh_interval: 15s }
+      - names: ["realtime"]
+        type: A
+        port: 4000
+        refresh_interval: 15s
     relabel_configs:
       - *stable-instance
       - { target_label: service, replacement: realtime }
@@ -156,7 +160,10 @@ scrape_configs:
     params:
       format: ["prometheus"]
     dns_sd_configs:
-      - { names: ["vault"], type: A, port: 8200, refresh_interval: 15s }
+      - names: ["vault"]
+        type: A
+        port: 8200
+        refresh_interval: 15s
     relabel_configs:
       - *stable-instance
 
