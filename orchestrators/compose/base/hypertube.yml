@@ -30,6 +30,19 @@ services:
     profiles: ["hypertube", "engines-extra"]
     user: root
     command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/home/dynamodblocal/data"]
+    # The only engine here with no liveness probe, so `docker ps` reported no
+    # health for it at all and "every container healthy" could not be asserted
+    # for the tier. A bare GET is answered 400 -- DynamoDB Local wants a signed
+    # POST -- so curl runs WITHOUT -f: connecting is the signal, the status code
+    # is not. Measured in the running container: 0 when up, 7 when the port is
+    # dead. The image carries /usr/bin/curl.
+    healthcheck:
+      test:
+        ["CMD", "/usr/bin/curl", "-s", "-o", "/dev/null", "http://localhost:8000/"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
     volumes:
       - dynamodb-data:/home/dynamodblocal/data
     # Loopback only, like every other engine here. It was published on 0.0.0.0 —
