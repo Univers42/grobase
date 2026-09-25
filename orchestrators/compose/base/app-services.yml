@@ -27,6 +27,7 @@ services:
       # INTERNAL_SERVICE_TOKEN to translate X-Baas-Api-Key -> tenant headers.
       TENANT_CONTROL_URL: ${TENANT_CONTROL_URL:-http://tenant-control:3022}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
       API_KEY_VERIFY_TIMEOUT_MS: ${API_KEY_VERIFY_TIMEOUT_MS:-8000}
       API_KEY_VERIFY_CACHE_TTL_MS: ${API_KEY_VERIFY_CACHE_TTL_MS:-30000}
@@ -68,6 +69,7 @@ services:
       # bearer rung at all rather than trust any HS256 token signed with JWT_SECRET.
       GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      ADAPTER_REGISTRY_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # ── Rust data-plane cutover (parity proven via parity-probe.sh) ──
       # All five R2/R3/R7/R8 engines now forward to the Rust pool registry
@@ -260,6 +262,7 @@ services:
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      ADAPTER_REGISTRY_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       JWT_SECRET: ${JWT_SECRET}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
@@ -309,6 +312,7 @@ services:
       # TS service (only useful during the deprecation window).
       ADAPTER_REGISTRY_URL: ${ADAPTER_REGISTRY_URL:-http://adapter-registry-go:3021}
       ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      ADAPTER_REGISTRY_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
       JWT_SECRET: ${JWT_SECRET}
       # The issuer a bearer user JWT must carry for the identity library to accept

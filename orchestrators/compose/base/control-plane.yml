@@ -22,6 +22,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       VAULT_ENC_KEY: ${VAULT_ENC_KEY:-0123456789abcdef0123456789abcdef}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
       # DynamoDB mount registration. isAllowedEngine() refuses `dynamodb` unless
       # this is on, by the honesty rule: the Rust router only serves the engines
@@ -93,6 +94,7 @@ services:
       TENANT_CONTROL_PRODUCT_MODE: ${TENANT_CONTROL_PRODUCT_MODE:-enabled}
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
       # User-JWT verification (audit O2). Default HS256 with JWT_SECRET. Set
       # JWT_ALG=RS256 + JWKS_URL (e.g. GoTrue's .well-known/jwks.json once it
@@ -186,6 +188,7 @@ services:
       FUNCTIONS_RUNTIME_URL: ${FUNCTIONS_RUNTIME_URL:-http://functions-runtime:3060}
       VAULT_ENC_KEY: ${VAULT_ENC_KEY:-}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
       - "127.0.0.1:${WEBHOOK_DISPATCHER_PORT:-3025}:3025"
@@ -236,6 +239,7 @@ services:
       ORCHESTRATOR_SERVICES: ${ORCHESTRATOR_SERVICES:-}
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       LOG_SERVICE_LOKI_URL: ${LOG_SERVICE_LOKI_URL:-http://loki:3100/loki/api/v1/push}
       # email sub-service SMTP (parity with email-service defaults → Mailpit)
       SMTP_HOST: ${SMTP_HOST:-mailpit}
@@ -310,6 +314,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       FUNCTIONS_RUNTIME_URL: ${FUNCTIONS_RUNTIME_URL:-http://functions-runtime:3060}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
       - "127.0.0.1:${FUNCTION_SCHEDULER_PORT:-3027}:3027"
