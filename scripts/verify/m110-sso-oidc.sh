@@ -491,7 +491,7 @@ step "2/11 boot tenant-control SSO_ENABLED=1 on 127.0.0.1:${PORT_ON} (A · posit
 docker run -d --name "${TC_ON}" --network "${NET}" \
   -e DATABASE_URL="${DB_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
-  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e SSO_ENABLED=1 \
   -e SSO_SECRET_KEY="${SSO_KEY}" \
   -e TENANT_CONTROL_PORT=3070 \
@@ -621,7 +621,7 @@ CONN_BEFORE="$(psql_val "SELECT count(*) FROM public.sso_connections")"
 docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e DATABASE_URL="${DB_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
-  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e TENANT_CONTROL_PORT=3070 \
   -e TENANT_CONTROL_PRODUCT_MODE=enabled \
   -e LOG_LEVEL=debug \

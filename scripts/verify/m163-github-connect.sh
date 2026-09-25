@@ -204,7 +204,7 @@ ok "migrations applied (github_* empty); mock GitHub up at ${MOCK_BASE}"
 step "2/8 boot tenant-control GITHUB_CONNECT_ENABLED=1 on 127.0.0.1:${PORT_ON}"
 docker run -d --name "${TC_ON}" --network "${NET}" \
   -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
-  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e ORG_MODEL_ENABLED=1 -e RBAC_HIERARCHY_ENABLED=1 -e GITHUB_CONNECT_ENABLED=1 \
   -e GITHUB_APP_ID=123456 -e GITHUB_APP_PRIVATE_KEY="${APP_KEY}" \
   -e GITHUB_APP_CLIENT_ID="Iv1.testclientid" -e GITHUB_RELAY_SECRET="${RELAY_SECRET}" \
@@ -266,7 +266,7 @@ ok "(C) link + sync mapped owner+alice+bob + team core (idempotent); installatio
 step "6/8 (D · PARITY) GITHUB_CONNECT_ENABLED unset → /v1/github* + /github/* 404, base /v1/orgs 200"
 GH_ROWS_BEFORE="$(psql_val "SELECT count(*) FROM public.github_installations")"
 docker run -d --name "${TC_OFF}" --network "${NET}" \
-  -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e ORG_MODEL_ENABLED=1 -e RBAC_HIERARCHY_ENABLED=1 \
   -e TENANT_CONTROL_PORT=3020 -e TENANT_CONTROL_PRODUCT_MODE=enabled -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3020" "${TC_IMG}" >/dev/null

@@ -133,7 +133,7 @@ ok "migration 075 applied (login_otps empty); Mailpit up (SMTP ${MP}:1025, API :
 # ── 2) boot tenant-control EMAIL_OTP_ENABLED=1 (SMTP → Mailpit) ────────────────
 step "2/6 boot tenant-control EMAIL_OTP_ENABLED=1 on 127.0.0.1:${PORT_ON}"
 docker run -d --name "${TC_ON}" --network "${NET}" \
-  -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e EMAIL_OTP_ENABLED=1 -e KEY_HASH_PEPPER="${PEPPER}" \
   -e EMAIL_OTP_TTL_SECS=300 -e EMAIL_OTP_MAX_ATTEMPTS=3 \
   -e SMTP_HOST="${MP}" -e SMTP_PORT=1025 -e SMTP_SECURE=false -e EMAIL_FROM="otp@grobase.test" \
@@ -182,7 +182,7 @@ ok "(C) request is identical (200) for any address — no email-enumeration orac
 # ── 6) (D) PARITY: flag OFF → routes 404 ───────────────────────────────────────
 step "6/6 (D · PARITY) EMAIL_OTP_ENABLED unset → /v1/auth/otp/* 404"
 docker run -d --name "${TC_OFF}" --network "${NET}" \
-  -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e TENANT_CONTROL_PORT=3020 -e TENANT_CONTROL_PRODUCT_MODE=enabled -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3020" "${TC_IMG}" >/dev/null
 wait_ready_http "${TC_OFF}" "${PORT_OFF}" /health/live || fail "OTP-OFF tenant-control not ready"
