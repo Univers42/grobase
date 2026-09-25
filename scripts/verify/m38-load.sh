@@ -19,6 +19,8 @@
 # verify-all auto-discovers this; it must stay CHEAP — one 60s run on whatever
 # package is up (PACKAGE=essential default), and SKIP (exit 0) when the stack
 # is down (the m32/m36 precedent: a gate can't measure an absent stack).
+# M38_REQUIRE_STACK=1 turns that SKIP into a FAIL — CI sets it, so a stack
+# that never came up cannot pass the job vacuously.
 #
 # MODE=full (3×300s) and other PACKAGEs are the on-demand deep runs.
 set -euo pipefail
@@ -29,6 +31,10 @@ green() { printf '\033[0;32m[M38] %s\033[0m\n' "$*"; }
 red() { printf '\033[0;31m[M38] FAIL: %s\033[0m\n' "$*"; }
 cyan() { printf '\033[0;36m[M38] %s\033[0m\n' "$*"; }
 skip() {
+  [[ "${M38_REQUIRE_STACK:-0}" == 1 ]] && {
+    red "stack required (M38_REQUIRE_STACK=1): $*"
+    exit 1
+  }
   printf '\033[1;33m[M38] SKIP: %s\033[0m\n' "$*"
   exit 0
 }

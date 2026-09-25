@@ -21,6 +21,9 @@
 #     bar is generous and the bench step is `continue-on-error`, so a noisy
 #     hosted-runner reading records drift as an ARTIFACT without flapping red.
 #     Runs on schedule + dispatch.
+#   • load-baseline — boots the `query` edition and runs m38 (60 s k6 CRUD mix
+#     through Kong) against scripts/bench/budgets.json. FATAL: the bar sits ~10x
+#     above the measured p95, so red means a regression. Schedule + dispatch.
 #   • isolation-conformance — the HEAVY live proof: it provisions real tenants
 #     (m46 SHARE_POOLS_PROBE) and cold-compiles the Rust engine-conformance battery
 #     against live postgres+mongo. That shape is too slow/fragile to keep reliably
@@ -191,6 +194,55 @@ jobs:
             artifacts/footprint-*.json
             artifacts/nightly-footprint-ps.txt
             artifacts/nightly-footprint-logs.txt
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker-compose.yml down -v
+
+  # ─── Job 2b: Load baseline — the "fast" regression guard ─────────────────────
+  # m38: a 60 s k6 run of the canonical CRUD mix through Kong at the essential
+  # tier's rate must stay inside scripts/bench/budgets.json (p95 and error %).
+  # Unlike footprint-drift this step is FATAL: the bar (p95 <= 60 ms at 20 rps)
+  # is about 10x the measured value (5.4 ms, see the tracker), so a red here is a
+  # regression, not hosted-runner noise. The artifact is uploaded either way.
+  load-baseline:
+    name: Load baseline (m38, essential CRUD)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+                      /usr/local/share/boost /usr/local/share/powershell \
+                      /usr/lib/jvm "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
+          df -h / | tail -1
+
+      - name: Generate env
+        run: bash scripts/env/assemble-env.sh
+
+      - name: Boot query edition
+        run: |
+          set -euo pipefail
+          make build EDITION=query
+          make up EDITION=query
+
+      - name: Load smoke against budgets.json (m38)
+        run: PACKAGE=essential M38_REQUIRE_STACK=1 bash scripts/verify/m38-load.sh
+
+      - name: Upload load artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nightly-load-${{ github.run_id }}
+          path: artifacts/bench/load-*.json
           retention-days: 30
           if-no-files-found: warn
 
