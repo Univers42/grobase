@@ -578,6 +578,9 @@ jobs:
       - name: Strict identity mode is serviceable (m202)
         run: bash scripts/verify/run-gate-battery.sh m202-strict-identity-serviceable
 
+      - name: Every migration records itself (m203)
+        run: bash scripts/verify/run-gate-battery.sh m203-migrations-recorded
+
       - name: Engine backup round trip (m188)
         run: bash scripts/verify/m188-engine-backup-restore.sh
 

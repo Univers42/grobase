@@ -215,7 +215,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **182 scripts, highest m202** (`m202-strict-identity-serviceable.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **183 scripts, highest m203** (`m203-migrations-recorded.sh`); the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -289,6 +289,8 @@ instance accepts that same raw header (so the 401 is the mode, not a broken prob
 inside the container, so `JWT_SECRET` never reaches the host. It is the gate that licensed the prod
 overlay's strict mode (on the 11 identity readers, m195 asserts where; `PROD_IDENTITY_HEADER_MODE=compat`
 reverts it), and it fails fast on an image built before the bearer-JWT rung.
+`m203` asserts every PostgreSQL migration records its own version in `schema_migrations` (numbers
+unique, 035 the one historical group), so `make migrate-status` shows what a deployment ran.
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 
