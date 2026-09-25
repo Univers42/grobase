@@ -13,10 +13,12 @@
 #
 # M52 — the Prometheus config + platform alert rules are valid (Track-2 E2).
 #
-# Pure static check (Docker-first, no running stack needed): runs promtool from
-# the pinned prom image against the committed config + rules. Catches a broken
-# rule expression / bad YAML before it silently disables alerting at deploy.
-# When a prometheus container IS running, also asserts the rules actually loaded.
+# Static (Docker-first, no running stack needed): promtool from the pinned prom
+# image checks the committed rules and config, then runs the rule unit tests
+# (tests/platform.test.yml) — each alert fires on the synthetic series it is
+# meant for and stays quiet on the rest. When a prometheus container IS
+# running, also asserts the rules loaded and that no target is a service the
+# edition never started (a DNS failure = a permanent, meaningless TargetDown).
 
 set -euo pipefail
 
@@ -34,7 +36,7 @@ fail() {
 }
 
 PROM_IMG="prom/prometheus:v2.52.0"
-CFG="${BAAS_DIR}/config/prometheus"
+CFG="${M52_CFG:-${BAAS_DIR}/infra/config/prometheus}"
 
 [ -f "${CFG}/prometheus.yml" ] || fail "prometheus.yml missing"
 [ -d "${CFG}/rules" ] || fail "rules/ dir missing"
@@ -66,15 +68,32 @@ docker run --rm --entrypoint promtool -v "${CFG}":/etc/prometheus "${PROM_IMG}" 
 grep -q 'rule files found' /tmp/m52-cfg.txt || fail "prometheus.yml does not load any rule files (rule_files missing?)"
 pass "prometheus config valid + rule_files wired"
 
-# ── 3) live: rules actually loaded (only when prometheus is up) ───────────────
+# ── 3) rule unit tests ──────────────────────────────────────────────────────
+step "promtool test rules"
+docker run --rm --entrypoint promtool -v "${CFG}":/cfg -w /cfg/tests "${PROM_IMG}" \
+  test rules platform.test.yml >/tmp/m52-test.txt 2>&1 ||
+  {
+    cat /tmp/m52-test.txt
+    fail "rule unit tests failed"
+  }
+pass "rule unit tests pass"
+
+# ── 4) live: rules loaded, no phantom targets (only when prometheus is up) ────
+prom_api() {
+  docker exec mini-baas-prometheus /bin/busybox wget -qO- "http://localhost:9090/api/v1/$1"
+}
 if docker inspect -f '{{.State.Running}}' mini-baas-prometheus 2>/dev/null | grep -q true; then
   step "live: rules loaded into running prometheus"
-  port="$(docker port mini-baas-prometheus 9090/tcp 2>/dev/null | head -1 | sed 's/.*://')"
-  if [ -n "${port}" ]; then
-    groups="$(curl -s "http://127.0.0.1:${port}/api/v1/rules" 2>/dev/null | grep -o '"name":"platform-' | wc -l)"
-    [ "${groups}" -ge 1 ] || fail "prometheus is up but loaded 0 platform rule groups (reload needed?)"
-    pass "prometheus has the platform rule groups loaded"
-  fi
+  want="$(grep -c '^  - name: platform-' "${CFG}/rules/platform.yml")"
+  groups="$(prom_api rules | jq '[.data.groups[].name | select(startswith("platform-"))] | length')"
+  [ "${groups:-0}" -eq "${want}" ] || fail "prometheus loaded ${groups:-0} platform rule groups, the file has ${want} (restart it to reload the mounted rules)"
+  pass "prometheus has ${groups} platform rule groups loaded"
+  step "live: every target resolves"
+  phantom="$(prom_api targets | jq -r '.data.activeTargets[] | select(.lastError | test("lookup .* (server misbehaving|no such host)")) | .scrapeUrl')"
+  [ -z "${phantom}" ] || fail "targets for services this edition does not run (move them to dns_sd_configs): ${phantom}"
+  pass "no target points at a service the edition never started"
+else
+  printf '  SKIP live half: mini-baas-prometheus is not running\n'
 fi
 
 green "[M52] ALL GATES GREEN — Prometheus config + ${RULES_N} platform alert rules validate"
