@@ -23,13 +23,10 @@
 import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response, NextFunction } from 'express';
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import * as http from 'node:http';
 import { signIdentityEnvelope } from '../identity/request-identity';
+import { bearerToken, verifyUserJwt } from '../identity/user-jwt';
 import { serviceAuthHeaders } from '../security/service-auth';
-
-/** Clock skew tolerated on a user JWT's iat/nbf, in seconds. */
-const JWT_CLOCK_SKEW_S = 60;
 
 interface VerifyResponse {
   valid: boolean;
@@ -179,48 +176,11 @@ export class ApiKeyMiddleware implements NestMiddleware {
       userId: `api-key:${verify.key_id ?? ''}`,
       role: 'authenticated',
     };
-    const auth = pickHeader(req, 'authorization');
-    if (!auth || !auth.toLowerCase().startsWith('bearer ') || !this.jwtSecret) return fallback;
-    const claims = this.verifyUserJwt(auth.slice(7).trim());
+    const token = bearerToken(pickHeader(req, 'authorization'));
+    if (!token) return fallback;
+    const claims = verifyUserJwt(token, this.jwtSecret, { allowNoExp: this.allowNoExp });
     if (!claims?.sub) return fallback;
     return { userId: `user:${claims.sub}`, role: claims.role || 'authenticated' };
-  }
-
-  /**
-   * Verify a GoTrue HS256 JWT against jwtSecret and return its claims, or null
-   * if the signature/format is invalid or its time claims don't hold (see
-   * timeClaimsHold). Stdlib-only (HMAC-SHA256 + constant-time compare) — no
-   * jsonwebtoken dependency.
-   */
-  private verifyUserJwt(token: string): { sub?: string; role?: string } | null {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const [h, p, sig] = parts;
-    const expected = createHmac('sha256', this.jwtSecret).update(`${h}.${p}`).digest('base64url');
-    const a = Buffer.from(sig);
-    const b = Buffer.from(expected);
-    if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-    try {
-      const claims = JSON.parse(Buffer.from(p, 'base64url').toString('utf8'));
-      return this.timeClaimsHold(claims) ? claims : null;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * True iff the token is inside its validity window (M-3): `exp` is required (a
-   * token without one would never expire — JWT_ALLOW_NO_EXP=1 opts out) and must
-   * be in the future; `iat` and `nbf`, when present, must not be later than now
-   * plus JWT_CLOCK_SKEW_S, so a token minted "in the future" is not accepted early.
-   */
-  private timeClaimsHold(claims: { exp?: unknown; iat?: unknown; nbf?: unknown }): boolean {
-    const now = Date.now() / 1000;
-    const exp = claims.exp;
-    if (exp === undefined ? !this.allowNoExp : typeof exp !== 'number' || exp < now) return false;
-    return [claims.iat, claims.nbf].every(
-      (t) => t === undefined || (typeof t === 'number' && t <= now + JWT_CLOCK_SKEW_S),
-    );
   }
 
   /**
