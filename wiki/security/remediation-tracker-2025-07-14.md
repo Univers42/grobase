@@ -17,17 +17,19 @@ per problem).
 
 | # | What | Why it cannot be done in code |
 |---|---|---|
-| **N-2** | **Revoke the Unsplash access key** committed in `daa68cf93b` (`vendor/vite-gourmand/Back/scripts/update-menu-images.ts:18`, since removed from the tree). trufflehog verified it **live** on 2026-09-24. | It stays in git history; only revoking it at Unsplash makes it harmless. The `trufflehog` job of the Security workflow is red until then. |
-| **C-1** | Revoke the leaked GitHub PAT, then rotate anything that used it. | Issuer-side action. `fix/pat-out-of-env` (m-series, on main) stops `make env` from carrying GitHub tokens into `.env`. |
+| **N-2** | **Revoke the Unsplash access key** committed in `daa68cf93b` (`vendor/vite-gourmand/Back/scripts/update-menu-images.ts:18`, since removed from the tree). trufflehog verified it **live** on 2026-09-24. | It stays in git history; only revoking it makes it harmless, and Unsplash has **no revocation API** (checked 2026-09-25): the app owner deletes/regenerates the key at unsplash.com/oauth/applications or asks api@unsplash.com. The `trufflehog` job of the Security workflow is red until then. |
+| **C-1** | Revoke the leaked GitHub PAT at github.com/settings/tokens, then rotate anything that used it. | Issuer-side action. The value is no longer on the dev machine (checked 2026-09-25: `.env*`, home, containers, shell history, git history — only the fake fixture), and GitHub's revocation API needs the value. `fix/pat-out-of-env` (m-series, on main) stops `make env` from carrying GitHub tokens into `.env`. |
 | **L-11** | Require signed commits on `main` (GitHub → Branches). | Repository setting. |
 | **Vault base image** | `infra/docker/services/vault/Dockerfile` is `vault:1.21` (last 1.21 tag), `Dockerfile.fly` is `vault:1.16`; both carry fixable HIGH/CRITICAL CVEs (see `.trivyignore` note). Fix = Vault 2.x. | Major upgrade that ships to deployments (storage format, unseal) — needs a planned rollout. |
-| **Fly redeploy** | `deploy/fly/boot.sh` changed (H-15: no dev CORS origins on fly; preflight-production now runs at boot, warn-only — `PREFLIGHT_ENFORCE=1` to refuse). | Deploys are human-triggered. |
+
+Deployment target: **self-hosted** (`make prod-up` = enforced preflight + prod overlay). fly.io is retired
+(2026-09, cost); `deploy/fly/` is kept, not deleted, and its `boot.sh` changes ship only if it returns.
 
 ## Needs a product / architecture decision
 
 | # | Finding | Evidence | Options |
 |---|---|---|---|
-| **H-16** | `deploy/fly/boot.sh` sets `GOTRUE_MAILER_AUTOCONFIRM=true` on the live stack: sign-up without owning the address. | `boot.sh:61` — now `${GOTRUE_MAILER_AUTOCONFIRM:-true}`, so the flip is a fly secret (`fly secrets set GOTRUE_MAILER_AUTOCONFIRM=false`), no code change. | Flip once real SMTP is set and the website/vault42 frontends (separate repos) handle the confirmation step. |
+| **H-16** | `deploy/fly/boot.sh` sets `GOTRUE_MAILER_AUTOCONFIRM=true`: sign-up without owning the address. | Fly is retired. The self-hosted path (`make prod-up`) layers the prod overlay, which sets `false` (m195) and needs a real `SMTP_HOST`. `boot.sh:61` is `${GOTRUE_MAILER_AUTOCONFIRM:-true}` if Fly ever returns. | Decide before a Fly return; confirm the website/vault42 frontends handle the confirmation step before a self-hosted go-live. |
 | **H-19** | `IDENTITY_HEADER_MODE=compat` everywhere but fly. | `config.env:37`; the prod overlay deliberately does not set strict: no signer exists for the JWT path, so strict/HMAC would 401 legitimate traffic. | Build the header signer first, then flip. |
 | **H-4** | Verify-cache TTLs (Go 60 s, TS 30 s) bound revocation latency. | Go revocation already evicts both local and data-plane caches; the 60 s TTL is the measured fix for the Argon2 verify ceiling. | Lower only with a bench artifact (binding rule 3). |
 | **H-5** | An `admin`-scoped API key short-circuits ABAC (`query.service.ts:774`). | By design; m139 asserts `API_KEY_ABAC_ENABLED` defaults off. | Turn the flag on per deployment after testing policies. |

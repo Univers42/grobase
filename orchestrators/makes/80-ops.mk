@@ -76,6 +76,21 @@ cloud-down: _require-compose _require-cloud-flags ## Stop the cloud edition (ove
 	@docker compose $(CLOUD_FILES) $(CLOUD_PROFILES) down
 	@echo -e "$(_G)✓ Cloud edition down$(_0)"
 
+# Self-hosted production: the selected EDITION/PACKAGE with the prod overlay on top
+# (no dev ports, prod security values). The preflight refuses an .env that still
+# carries dev credentials; no resolve-ports — a taken port must fail, not move.
+PROD_FILES := -f $(COMPOSE_FILE) -f orchestrators/compose/docker-compose.prod.yml
+
+prod-up: _require-compose ## Self-hosted production: preflight the .env (refuse dev creds), then up with the prod overlay
+	@[ -f .env ] || { echo -e "$(_R)✗ .env missing$(_0) — run $(_C)make env$(_0), then replace every secret before a production bring-up."; exit 1; }
+	@sh scripts/ops/preflight-production.sh .env
+	@docker compose $(PROD_FILES) $(PROFILE_FLAGS) up -d $(SERVICE)
+	@echo -e "$(_G)✓ Production up$(_0) ($(ACTIVE_PROFILES) + docker-compose.prod.yml)"
+
+prod-down: _require-compose ## Stop the self-hosted production stack (data volumes kept)
+	@docker compose $(PROD_FILES) $(PROFILE_FLAGS) down
+	@echo -e "$(_G)✓ Production down$(_0)"
+
 docker-gc: ## Reclaim build cache >1wk + named build-cache volumes (daemon GC can't reach volumes); never touches *-data
 	-docker buildx prune -f --filter until=168h
 	-docker image prune -f
