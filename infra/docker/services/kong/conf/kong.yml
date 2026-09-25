@@ -119,11 +119,18 @@ plugins:
           -- Strip the forgeable namespace headers on both (admin/* routes are
           -- service-role + ip-restricted and the internal dispatcher invoke
           -- bypasses Kong, so neither legitimate path is affected).
+          -- X-Baas-Roles / X-Baas-Scopes go with them: they are authorization
+          -- inputs (roleNames -> RolesGuard + ABAC PDP, scopes -> the api-key
+          -- admin short-circuit) that only the signed envelope minted by
+          -- ApiKeyMiddleware may set. A signed internal caller cannot use these
+          -- prefixes anyway -- X-Baas-Tenant-Id is already cleared here.
           local _p = kong.request.get_path()
           if _p and (_p:sub(1, 11) == "/functions/" or _p:sub(1, 7) == "/query/") then
             kong.service.request.clear_header("X-Baas-Tenant-Id")
             kong.service.request.clear_header("X-Baas-User-Id")
             kong.service.request.clear_header("X-Tenant-Id")
+            kong.service.request.clear_header("X-Baas-Roles")
+            kong.service.request.clear_header("X-Baas-Scopes")
           end
           local auth = kong.request.get_header("authorization")
           if not auth then return end
