@@ -392,8 +392,8 @@ mysql_grant_app_user() {
 	printf '%s FLUSH PRIVILEGES;\n' "$sql" | docker exec -i mini-baas-mysql sh -c \
 		'[ -n "$MYSQL_USER" ] || exit 0
 		 sed "s/__APP_USER__/$MYSQL_USER/g" | MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -u root' \
-		>/dev/null 2>&1 || die "mysql: could not grant the application account access to:$(printf ' %s' $dbs)"
-	note "mysql: application account granted on:$(printf ' %s' $dbs)"
+		>/dev/null 2>&1 || die "mysql: could not grant the application account access to: $(printf '%s' "$dbs" | tr '\n' ' ')"
+	note "mysql: application account granted on: $(printf '%s' "$dbs" | tr '\n' ' ')"
 }
 
 restore_mongo() {

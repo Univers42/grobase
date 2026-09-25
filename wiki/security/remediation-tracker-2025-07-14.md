@@ -55,6 +55,7 @@ Deployment target: **self-hosted** (`make prod-up` = enforced preflight + prod o
 | M-16 | Automation rule names could forge log lines (CR/LF) | `61514472` | `automations.service.spec.ts` |
 | M-17/L-9 | Presigned GETs of SVG/HTML rendered on a browsable origin | `5807534a` (+ `a47f906a` proxied path) | `presign-active-content.spec.ts` |
 | L-6 | One small image upload + transform OOM-killed storage-router (measured: 151 MP under the 128 MiB limit) | `f3dc5cfc` | `image-transform.spec.ts`; measurements in the commit |
+| H-20 | ShellCheck SC2086 disabled globally | `fix/sec-h20-quoting` | CI shellcheck job, step *Quoting (SC2086) on untrusted-input scripts*: `--norc -i SC2086` over the 58 container-entrypoint / deploy / ops / db / env / secrets / vault scripts — red before (8 hits), green after. None of the 8 was exploitable (the `export PGPASSWORD=${…}` split only on dash < 0.5.11); fly's `bring_up` splits `$DC`/`$SERVICES` on purpose (function-level directive). |
 | L-12 | Webhook DNS rebinding | `2463fd66` (IP-pinned connect-time lookup; the reverted IP-rewrite broke TLS) | `automations.pin.spec.ts` |
 | C-3 | Kong admin API on the flat network | `e92133b1` (prod: admin off, status listener keeps /metrics) | m195 throwaway Kong |
 | C-5 | Vault on fly ran as root | `3368756b` (`VAULT_DROP_PRIVILEGES_ENABLED`) | m196 |
@@ -78,7 +79,6 @@ Deployment target: **self-hosted** (`make prod-up` = enforced preflight + prod o
 
 | ID | Finding | Note |
 |---|---|---|
-| H-20 | ShellCheck SC2086 disabled globally | Info-level under CI's `-S error`; enable per file where input is untrusted. |
 | M-4 | Realtime does not check `iss` | Step 1 done (`fix/sec-m4-issuer-expression`: GoTrue and tenant-control resolve the issuer from one expression, so an override cannot split minter and verifier). Remaining, in order: stamp `iss` in `appchannels/mint.go` (only after the Go verifier can tell that token apart — its `sub` is a tenant slug); re-issue the five seed app tokens that use `iss: "supabase"` (canagrou, gourmand, hambooking, hypertube, red-tetris) plus m22/m23/seed-live-demo; set `REALTIME_JWT_ISSUER`; then require `iss` in realtime's validation. Every minter shares one secret, so this is defence in depth. Minter inventory: 12 paths, in the M-4/M-5 sweep of 2026-09-25. |
 | M-5 | `sub` not validated as a UUID | **Rejected as asked**: SSO sessions carry the IdP's raw subject and passkeys' `user_id` is client-supplied — a UUID check breaks both (and gate m64). The real hole it pointed at is closed instead: with an empty `GOTRUE_JWT_ISSUER` the verifier accepted any same-secret token (cross-app, seed) as a user session; tenant-control now refuses to start with an empty issuer (`fix/sec-m5-issuer-guard`, `JWT_ALLOW_NO_ISSUER=1` opts out; `TestRequireIssuer`). |
 | — | `edition-query` offer build was intermittent in CI | Cause found: concurrent Rust builds raced on a `sharing=shared` cargo cache mount ('failed to unpack package'); now `sharing=locked`. |
@@ -89,7 +89,7 @@ C-4 (`VAULT_API_ADDR` is the advertise address) · C-6 (dev-only profile, localh
 (container-internal binds) · H-7 (verify needs the service token; fast hash for new keys) · H-8
 (`GITHUB_TOKEN` is per-job and masked; H-9 least privilege done in `a51ffad2`) · H-10 (the original
 `sh -c` expands inside the container and is not injectable; the reverted fix broke backups) · H-12
-(`:?` in base breaks every render without `.env`; enforced by the preflight, m194, which fly's boot now runs) · H-17 (realtime
+(`:?` in base breaks every render without `.env`; enforced by the preflight, m194, which `make prod-up` runs before compose up) · H-17 (realtime
 already refuses NoAuth under max) · H-18 (`SMTP_SECURE=false` still upgrades via STARTTLS) · H-21
 (2026 CVE ids are real) · L-1 (`NODE_ENV=production` in the image) · L-2 (algorithm pinned before
 parse) · L-3 (`|| true` on `vault status` is required) · L-7 (applies to push, not automations) ·
