@@ -61,16 +61,26 @@
 #     non-public address, so a DNS rebind after the pre-check cannot reach an
 #     internal target. One un-pooled socket per delivery; a target the https +
 #     public-address pre-check admits is refused only if its DNS turns private.
+#   • IDENTITY_HEADER_MODE=strict (the 11 Nest services that read it, H-19,
+#     gate m202): only a verified identity is accepted — query-router's HMAC
+#     envelope, or the bearer GoTrue JWT the service checks itself against
+#     JWT_SECRET + GOTRUE_JWT_ISSUER. Browser traffic is unaffected (Kong
+#     forwards the bearer it read X-User-Id from, and the bearer rung resolves
+#     the same owner, so compat-written data stays its owner's). Refused: raw
+#     X-User-* with no token, and expired, foreign-issuer (cross-app
+#     `grobase-realtime`) or wrong-secret tokens. PROD_IDENTITY_HEADER_MODE=compat
+#     in .env reverts it.
 # Deliberately NOT set here:
 #   • REALTIME_NAMESPACE_FALLBACK=deny — GoTrue session JWTs carry no
 #     `namespaces` claim, so deny closes every topic to browser clients until a
 #     minting path exists. Use REALTIME_PROTECTED_NAMESPACES for collab: meanwhile.
 #   • TENANT_CONTROL_VERIFY_CACHE_TTL_MS — the 60 s cache is the measured fix
 #     for the Argon2id verify ceiling; lowering it needs a bench artifact first.
-#   • IDENTITY_HEADER_MODE=strict / TENANT_HEADER_IDENTITY_HMAC — no signer
-#     exists for the JWT path (Kong sets raw X-User-* headers) nor for
-#     X-Baas-Identity-Auth, so either flag would 401 legitimate traffic.
+#   • TENANT_HEADER_IDENTITY_HMAC — no signer exists for X-Baas-Identity-Auth,
+#     so it would 401 legitimate traffic.
 # deploy/fly/boot.sh does NOT load this overlay; none of (c) reaches fly.
+
+x-strict-identity: &strict-identity ${PROD_IDENTITY_HEADER_MODE:-strict}
 
 services:
   # ── strip direct data-store ports (reachable in-network only) ──────────────
@@ -119,9 +129,40 @@ services:
   storage-router:
     environment:
       STORAGE_ACTIVE_CONTENT_GUARD_ENABLED: "1"
+      IDENTITY_HEADER_MODE: *strict-identity
   query-router:
     environment:
       AUTOMATION_WEBHOOK_IP_PIN_ENABLED: "1"
+      IDENTITY_HEADER_MODE: *strict-identity
+
+  # ── strict identity on the other Nest services that read it (H-19, m202) ───
+  ai-service:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
+  analytics-service:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
+  email-service:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
+  gdpr-service:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
+  mongo-api:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
+  newsletter-service:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
+  permission-engine:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
+  schema-service:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
+  session-service:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
 
   # ── functions network jail (gate m197) — keep identical in the cloud overlay ─
   # Tenant code runs in Deno Workers inside functions-runtime. On the flat
