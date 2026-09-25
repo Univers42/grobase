@@ -201,6 +201,11 @@ services:
       MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017
       MONGO_DB_NAME: ${MONGO_DB_NAME:-mini_baas}
       JWT_SECRET: ${JWT_SECRET}
+      # The issuer a bearer user JWT must carry for the identity library to accept
+      # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
+      # deployment minted verifies here; without it the library refuses to run the
+      # bearer rung at all rather than trust any HS256 token signed with JWT_SECRET.
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       mongo:
