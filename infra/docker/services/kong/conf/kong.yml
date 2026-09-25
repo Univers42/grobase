@@ -124,8 +124,15 @@ plugins:
           -- admin short-circuit) that only the signed envelope minted by
           -- ApiKeyMiddleware may set. A signed internal caller cannot use these
           -- prefixes anyway -- X-Baas-Tenant-Id is already cleared here.
+          --  * /storage/v1 : storage-router runs in compat mode and meters the
+          --    bytes written against the raw X-Baas-Tenant-Id, so a forged one
+          --    bills another tenant (and under QUOTA_ENFORCEMENT exhausts their
+          --    quota). Owner scoping there is by the JWT-derived X-User-Id and
+          --    is unaffected. /admin/v1 keeps the header on purpose: it is
+          --    service-role + ip-restricted and the in-browser mount catalog
+          --    scopes by it (see the CORS allow-list above).
           local _p = kong.request.get_path()
-          if _p and (_p:sub(1, 11) == "/functions/" or _p:sub(1, 7) == "/query/") then
+          if _p and (_p:sub(1, 11) == "/functions/" or _p:sub(1, 7) == "/query/" or _p:sub(1, 11) == "/storage/v1") then
             kong.service.request.clear_header("X-Baas-Tenant-Id")
             kong.service.request.clear_header("X-Baas-User-Id")
             kong.service.request.clear_header("X-Tenant-Id")

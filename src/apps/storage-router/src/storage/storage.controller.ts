@@ -72,8 +72,8 @@ export class StorageController {
   ) {
     const body = await this.readRawBody(req);
     const contentType = (req.headers['content-type'] as string) || 'application/octet-stream';
-    // Pass the authenticated tenant so the write is metered on the tenant
-    // dimension (Track-B B1d storage.bytes); falls back to user.id server-side.
+    // Pass the VERIFIED tenant so the write is metered on the tenant dimension
+    // (Track-B B1d storage.bytes); falls back to user.id server-side.
     // The principal (A1) is consulted by the bucket-policy ONLY when that flag is
     // ON — otherwise it is inert and the call is byte-parity.
     return this.service.putObject(
@@ -82,7 +82,7 @@ export class StorageController {
       user.id,
       body,
       contentType,
-      user.tenantId,
+      meteredTenant(user),
       principalOf(user),
     );
   }
@@ -195,4 +195,22 @@ function safeDecode(segment: string): string {
  *  Inert unless STORAGE_BUCKET_POLICY_ENABLED is ON (policy is then undefined). */
 function principalOf(user: UserContext): PolicyPrincipal {
   return { userId: user.id, role: user.role ?? 'authenticated' };
+}
+
+/**
+ * The tenant an upload is metered against, or undefined to fall back to the
+ * owner id. A `legacy-header` identity took its tenant from a raw
+ * X-Baas-Tenant-Id, which Kong strips only on /functions/ and /query/ — on
+ * /storage/v1 any authenticated caller could name someone else's tenant and
+ * charge them the bytes (and, under QUOTA_ENFORCEMENT, exhaust their quota).
+ * Only a cryptographically verified identity may set the dimension.
+ *
+ * STORAGE_METER_TRUST_RAW_TENANT=1 restores the old behavior for a deployment
+ * that fronts storage-router with its own trusted header-setting proxy.
+ */
+function meteredTenant(user: UserContext): string | undefined {
+  if (user.authMethod !== 'legacy-header') return user.tenantId;
+  return /^(1|true)$/i.test(String(process.env['STORAGE_METER_TRUST_RAW_TENANT'] ?? '').trim())
+    ? user.tenantId
+    : undefined;
 }

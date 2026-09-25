@@ -121,6 +121,11 @@ REDIS_INNET="redis://${REDIS}:6379"
 SVC_TOKEN="m77-scratch-service-token-$$-$(date +%s)"
 # storage-router AuthGuard compat mode reads X-User-Id (legacy header) and
 # X-Baas-Tenant-Id; we set both so the tenant dimension is a distinct value.
+# A raw-header tenant is no longer metered by default (N-13: through Kong any
+# authenticated caller could bill another tenant), so the scratch containers opt
+# back in with STORAGE_METER_TRUST_RAW_TENANT=1 — this gate reaches them
+# directly, not through the gateway, and is the trusted-proxy shape that flag
+# exists for.
 TMP="$(mktemp -d)"
 
 cleanup() {
@@ -188,6 +193,7 @@ stor_env_args() {
   set -- \
     -e PORT=3040 \
     -e IDENTITY_HEADER_MODE=compat \
+    -e STORAGE_METER_TRUST_RAW_TENANT=1 \
     -e JWT_SECRET="m77-jwt-secret-$$" \
     -e S3_ENDPOINT="http://${MINIO}:9000" \
     -e S3_REGION=us-east-1 \
