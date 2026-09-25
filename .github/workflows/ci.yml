@@ -571,6 +571,13 @@ jobs:
       - name: Realtime token issuers (m201)
         run: bash scripts/verify/run-gate-battery.sh m201-realtime-issuer
 
+      # storage-router (built above from this commit) served in strict identity
+      # mode by a second in-container process: a real GoTrue session is accepted,
+      # forged raw headers and foreign tokens are refused (H-19). The stack stays
+      # compat; this is the evidence the prod strict flip is gated on.
+      - name: Strict identity mode is serviceable (m202)
+        run: bash scripts/verify/run-gate-battery.sh m202-strict-identity-serviceable
+
       - name: Engine backup round trip (m188)
         run: bash scripts/verify/m188-engine-backup-restore.sh
 
