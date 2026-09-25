@@ -66,7 +66,14 @@ _require-cloud-flags:
 		echo -e "  Create it: $(_C)cp infra/config/cloud/flags.env.example infra/config/cloud/flags.env.cloud$(_0), then flip the flags ON and fill STRIPE_*."; \
 		exit 1; }
 
-cloud-up: _require-compose _require-cloud-flags _rm-stale ## Boot the FULL managed-cloud stack locally (all cloud flags ON, mock Stripe)
+# cloud-up is also run locally against a dev .env (mock Stripe), so the
+# preflight only warns there; PREFLIGHT_ENFORCE=1 refuses, as deploy/fly/boot.sh.
+_cloud-preflight:
+	@sh scripts/ops/preflight-production.sh .env || { \
+		[ "$${PREFLIGHT_ENFORCE:-0}" = 1 ] && { echo -e "$(_R)✗ preflight-production failed and PREFLIGHT_ENFORCE=1 — refusing cloud-up$(_0)"; exit 1; }; \
+		echo -e "$(_Y)⚠ preflight-production reported the above; fine for a local cloud-up, not for a real one (PREFLIGHT_ENFORCE=1 refuses)$(_0)"; }
+
+cloud-up: _require-compose _require-cloud-flags _cloud-preflight _rm-stale ## Boot the FULL managed-cloud stack locally (all cloud flags ON, mock Stripe)
 	@echo -e "$(_B)Starting CLOUD edition (all managed-cloud flags ON, mock Stripe) → prod planes + cloud profile$(_0)"
 	@eval "$$(bash scripts/ops/resolve-ports.sh 2>/dev/null || true)"; \
 	  docker compose $(CLOUD_FILES) $(CLOUD_PROFILES) up -d $(SERVICE)
