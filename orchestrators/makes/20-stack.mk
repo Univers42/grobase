@@ -80,6 +80,9 @@ bench-mem: _require-compose ## RSS under sustained load: peak + drift slope (PAC
 	@PACKAGE="$(if $(PACKAGE),$(PACKAGE),essential)" DURATION="$(if $(DURATION),$(DURATION),30m)" \
 		RATE="$(RATE)" bash scripts/bench/mem-under-load.sh
 
+bench-verify-hash: ## Cost of ONE api-key verify per hash scheme — the H-4 input for the verify-cache TTLs (BENCHTIME=2s; no stack needed)
+	@bash scripts/bench/verify-hash.sh $(if $(BENCHTIME),$(BENCHTIME),2s)
+
 bench-compare: ## Competitive graph report from scripts/bench/compare-data.json → artifacts/bench/compare/ (zero-dep SVG, no host node) (DATA= OUT=)
 	@mkdir -p artifacts/bench/compare
 	@docker run --rm -u "$(shell id -u):$(shell id -g)" \
