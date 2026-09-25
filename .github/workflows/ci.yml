@@ -67,6 +67,19 @@ jobs:
           printf '%s\0' "${shfiles[@]}" | xargs -0 shellcheck -S error -e SC1091 -e SC2034 -e SC1128
           echo "shellcheck passed on ${#shfiles[@]} files"
 
+      # H-20: SC2086 (unquoted expansion) is off repo-wide in .shellcheckrc but
+      # enforced where input is untrusted: container entrypoints, deploy, and the
+      # ops/db/env/secrets/vault scripts. --norc so the global disable cannot apply.
+      - name: Quoting (SC2086) on untrusted-input scripts
+        run: |
+          set -euo pipefail
+          mapfile -t qfiles < <(git ls-files 'infra/docker/services/*.sh' 'deploy/*.sh' \
+            'scripts/ops/*.sh' 'scripts/db/*.sh' 'scripts/env/*.sh' 'scripts/vault/*.sh' \
+            'scripts/secrets/*.sh' 'scripts/lib/*.sh' 'scripts/migrations/*.sh' \
+            'scripts/provision-contract.sh' | grep -v realtime-agnostic)
+          shellcheck --norc -S style -i SC2086 "${qfiles[@]}"
+          echo "SC2086 clean on ${#qfiles[@]} files"
+
       # `make env` must never carry a GitHub token into .env: every container
       # reads .env. A scratch-tree test, no stack needed, so it rides with lint.
       - name: env assembly withholds GitHub tokens
