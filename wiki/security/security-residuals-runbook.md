@@ -21,7 +21,7 @@
 | **G-Hdr** | LOW | Effective only when flipped on the live mount-resolution hot path | An unsigned caller → instant 401s, wedged live queries |
 | **G-Rotate** | LOW | JWT half is cross-repo + touches live login | A bug is a stack-wide auth outage |
 
-Priority order for the human waves: **G-RS256** (highest value, headline) → **G-Vault** → **G-Net (safe Helm half)** → **G-Hdr** → **G-Rotate (service-token half)**. The cross-repo/live-login halves of Net/Hdr/Rotate are lowest priority (LOW value, highest risk).
+Priority order for the human waves: **G-RS256** (highest value, headline) → **G-Vault** → **G-Net (safe Helm half)** → **G-Hdr** → **G-Rotate (JWT half; the service-token half is done)**. The cross-repo/live-login halves of Net/Hdr/Rotate are lowest priority (LOW value, highest risk).
 
 ---
 
@@ -202,15 +202,21 @@ Value is LOW (defense-in-depth on a path already protected by `SERVICE_TOKEN_MOD
 > Note: DSN/credential rotation already ships (`registry.rs drain_pool_key` + `/v1/admin/rotate`). This
 > residual is specifically `JWT_SECRET` + service-token rotation-without-restart.
 
-**Service-token half (in-repo, do first, low blast radius):**
-1. Add optional `INTERNAL_SERVICE_TOKEN_PREV` to Go `shared.VerifyServiceRequest` (`shared/token.go`):
-   verify against expected; on fail AND prev non-empty, verify against prev (constant-time both).
-2. Mirror in the Rust caller/bypass (`service_auth.rs`; `routes.rs` verify ~L1076/L1180) reading an
-   optional prev, default-empty.
-3. Author `scripts/verify/mNN-rotate.sh` on a SCRATCH compose project: old-token-accepted-during-window;
-   third-unrelated-token-rejected (401); old-rejected-after-window-cleared. Run `make baas-verify`.
-4. Document the swap: set `PREV=current`, set primary=new, roll peers one at a time, clear `PREV` after
-   grace.
+**Service-token half — DONE (`feat/g-rotate-service-token`, gate `m205`, live gate `m68`):**
+The Go verifiers (`serviceauth`, static and hmac) and the TS `ServiceTokenGuard` accept
+`INTERNAL_SERVICE_TOKEN_PREV` / `ADAPTER_REGISTRY_SERVICE_TOKEN_PREV` besides the current token, in
+constant time, and count each such use in `baas_service_token_previous_accepted_total` (alert
+`PreviousServiceTokenInUse`). The Rust data plane only sends the token, so it has nothing to verify.
+Compose maps the one source key `ADAPTER_REGISTRY_SERVICE_TOKEN_PREV` onto every holder. The procedure
+(each step is dry run without `--apply`, prints token lengths only):
+1. `bash scripts/ops/rotate-service-token.sh status` — expect "no rotation window".
+2. `... begin --apply`, then `make up` with the running PACKAGE/EDITION. The new token is accepted
+   everywhere; senders still send the old one.
+3. `... swap --apply`, then `make up`. Senders send the new token; the old one is still accepted from
+   any container not yet recreated.
+4. Wait until `PreviousServiceTokenInUse` is quiet for 15 min, then `... finish --apply` and `make up`.
+Limits: each `make up` recreates the containers that load `.env` (a short restart per phase, no 401s);
+a token held in Vault (`SECURITY_MODE=max`) is rotated at its source, not by this script.
 
 **JWT half (cross-repo, human + careful):**
 5. Confirm vendored gotrue can sign under `JWT_SECRET` while PostgREST accepts `JWT_SECRET` + a secondary
