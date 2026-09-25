@@ -265,6 +265,11 @@ function readLegacyIdentity(req: HeaderRequest): VerifiedRequestIdentity | undef
  * and in compat mode only under IDENTITY_JWT_BEARER_ENABLED=1, so the default
  * deployment keeps its exact current accept set while the path is exercised.
  *
+ * It yields the same `userId` (the raw `sub`) and `appId` (`legacy`) that
+ * readLegacyIdentity derives from the X-User-* headers Kong sets for this same
+ * token. Storage object keys and mongo `owner_id` are built from `userId`, so
+ * any other shape would hide every row a user already owns once strict is on.
+ *
  * Trust boundaries this path holds:
  *   - tenant/project come from `app_metadata`, which GoTrue does not let a user
  *     write, falling back to `sub` (a user is their own tenant) — never from a
@@ -297,8 +302,8 @@ function readBearerJwtIdentity(
   return {
     tenantId,
     projectId: claims.app_metadata?.project_id || tenantId,
-    appId: 'jwt',
-    userId: `user:${claims.sub}`,
+    appId: 'legacy',
+    userId: claims.sub,
     role,
     roleNames: [role],
     scopes: [],

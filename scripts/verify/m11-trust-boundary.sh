@@ -233,7 +233,7 @@ async function bearerJwtRung(): Promise<void> {
   if (resolved?.authMethod !== 'jwt' || resolved.tenantId !== identity.tenantId) {
     throw new Error('strict mode did not resolve a bearer GoTrue JWT to a jwt identity');
   }
-  if (resolved.userId !== `user:${sub}`) {
+  if (resolved.userId !== sub) {
     throw new Error('jwt identity took its user from somewhere other than the signed sub');
   }
   if (resolved.roleNames.join(',') !== 'authenticated' || resolved.scopes.length !== 0) {
