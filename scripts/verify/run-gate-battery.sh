@@ -40,6 +40,11 @@
 # Each gate's own stdout/stderr is teed to LOG_DIR/<gate>.log (default
 # ./artifacts/gate-battery/), so CI can upload per-gate logs as artifacts even
 # when an earlier gate already failed the run.
+#
+# Each gate is bounded by GATE_TIMEOUT seconds (default 1800; 0 = unbounded).
+# A gate that overruns gets SIGTERM, so its EXIT trap still cleans up, then
+# SIGKILL 60 s later; it is reported as FAIL with "timed out", not left to
+# hang until the CI job's own limit kills the run with no summary.
 
 set -uo pipefail
 
@@ -204,7 +209,7 @@ for i in "${!SCRIPTS[@]}"; do
   blue "─── [$((i + 1))/${#SCRIPTS[@]}] ${name} ───"
   g_start=$(date +%s)
   # tee so the gate's output is visible live AND captured per-gate for artifacts.
-  if FORCE_COLORS=0 bash "$path" 2>&1 | tee "$log"; then
+  if FORCE_COLORS=0 timeout --kill-after=60 "${GATE_TIMEOUT:-1800}" bash "$path" 2>&1 | tee "$log"; then
     rc=0
   else
     rc=${PIPESTATUS[0]}
@@ -214,8 +219,12 @@ for i in "${!SCRIPTS[@]}"; do
     green "    PASS ${name} (${g_dur}s)"
     RESULTS+=("PASS  ${name}  ${g_dur}s")
   else
-    red "    FAIL ${name} (rc=${rc}, ${g_dur}s) — log: ${log}"
-    RESULTS+=("FAIL  ${name}  ${g_dur}s  rc=${rc}")
+    why="rc=${rc}"
+    if [ "$rc" -eq 124 ] || { [ "$rc" -eq 137 ] && [ "$g_dur" -ge "${GATE_TIMEOUT:-1800}" ]; }; then
+      why="rc=${rc}, timed out after GATE_TIMEOUT=${GATE_TIMEOUT:-1800}s"
+    fi
+    red "    FAIL ${name} (${why}, ${g_dur}s) — log: ${log}"
+    RESULTS+=("FAIL  ${name}  ${g_dur}s  ${why}")
     [ "${GITHUB_ACTIONS:-}" = "true" ] && gha_gate_error "$name" "$rc" "$log"
     overall_rc=$rc
     if [ "${BATTERY_KEEP_GOING:-0}" != "1" ]; then
