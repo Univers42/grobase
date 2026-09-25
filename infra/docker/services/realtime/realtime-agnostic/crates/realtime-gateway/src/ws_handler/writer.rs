@@ -89,6 +89,11 @@ async fn send_frame(
 /// and every peer that closed politely was told 1006 (see `reader::Ending`).
 /// Returns the sink when it did NOT send the closing frame itself.
 ///
+/// The select is `biased`: queued control frames (AUTH_FAILED, errors, acks)
+/// go out before the goodbye, so a server-side close never overtakes the frame
+/// that explains it -- unbiased, 6 of 20 refused AUTHs saw only the close. The
+/// reader, their sole producer, has ended by then, so the backlog is finite.
+///
 /// A peer that closes while a frame is in flight makes the pending write
 /// fail, and the write side ends before the read side has reported the Close
 /// frame -- measured on this gateway: of two sockets closed in the same
@@ -104,15 +109,16 @@ pub(super) async fn writer_loop(
     let mut slow_count = 0u32;
     loop {
         let json = tokio::select! {
-            Some((sub_id, ev)) = send_rx.recv() => if let Some(j) = serialize_event(&sub_id, &ev) { j } else {
-                error!(conn_id = %conn_id, "Failed to serialize event");
-                continue;
-            },
+            biased;
             Some(ctrl) = ctrl_rx.recv() => ctrl,
             _ = &mut goodbye => {
                 send_close(&mut ws_sink, conn_id).await;
                 return None;
             }
+            Some((sub_id, ev)) = send_rx.recv() => if let Some(j) = serialize_event(&sub_id, &ev) { j } else {
+                error!(conn_id = %conn_id, "Failed to serialize event");
+                continue;
+            },
             else => break,
         };
         match send_frame(&mut ws_sink, json, conn_id, &mut slow_count).await {

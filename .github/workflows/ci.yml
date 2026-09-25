@@ -566,6 +566,11 @@ jobs:
       - name: Public tables behind RLS (m200)
         run: bash scripts/verify/run-gate-battery.sh m200-public-tables-rls
 
+      # Realtime (built above from this commit) accepts only the listed token
+      # issuers and refuses a token without `iss` (M-4).
+      - name: Realtime token issuers (m201)
+        run: bash scripts/verify/run-gate-battery.sh m201-realtime-issuer
+
       - name: Engine backup round trip (m188)
         run: bash scripts/verify/m188-engine-backup-restore.sh
 

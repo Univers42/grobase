@@ -56,6 +56,7 @@ Deployment target: **self-hosted** (`make prod-up` = enforced preflight + prod o
 | M-17/L-9 | Presigned GETs of SVG/HTML rendered on a browsable origin | `5807534a` (+ `a47f906a` proxied path) | `presign-active-content.spec.ts` |
 | L-6 | One small image upload + transform OOM-killed storage-router (measured: 151 MP under the 128 MiB limit) | `f3dc5cfc` | `image-transform.spec.ts`; measurements in the commit |
 | H-20 | ShellCheck SC2086 disabled globally | `fix/sec-h20-quoting` | CI shellcheck job, step *Quoting (SC2086) on untrusted-input scripts*: `--norc -i SC2086` over the 58 container-entrypoint / deploy / ops / db / env / secrets / vault scripts — red before (8 hits), green after. None of the 8 was exploitable (the `export PGPASSWORD=${…}` split only on dash < 0.5.11); fly's `bring_up` splits `$DC`/`$SERVICES` on purpose (function-level directive). |
+| M-4 | Realtime did not check `iss`: any same-secret token (a foreign-issuer bridge token, one with no `iss`) opened a session — reproduced live, `osionos-bridge` got AUTH_OK | `fix/sec-m4-issuer-expression` (one issuer expression for GoTrue + tenant-control) + `fix/sec-m4-realtime-issuer` | Realtime takes a comma-separated `REALTIME_JWT_ISSUER` allow-list and then requires `iss` (`REALTIME_JWT_ALLOW_NO_ISSUER=1` opts out). Compose lists the GoTrue issuer, `supabase` (anon/service-role keys — the SDK's anonymous realtime token — and the seed tokens, so no re-issue) and `grobase-realtime` (xapp channel tokens, `seed-live-demo`, m22, m23; tenant-control's user-session verifier refuses it, so a tenant-slug `sub` never passes as a user). `issuer_tests.rs` (red without the required-`iss` rule), `TestRealtimeClaimsIssuer`, **m201** in CI integration. |
 | L-12 | Webhook DNS rebinding | `2463fd66` (IP-pinned connect-time lookup; the reverted IP-rewrite broke TLS) | `automations.pin.spec.ts` |
 | C-3 | Kong admin API on the flat network | `e92133b1` (prod: admin off, status listener keeps /metrics) | m195 throwaway Kong |
 | C-5 | Vault on fly ran as root | `3368756b` (`VAULT_DROP_PRIVILEGES_ENABLED`) | m196 |
@@ -73,13 +74,13 @@ Deployment target: **self-hosted** (`make prod-up` = enforced preflight + prod o
 | N-8 | Gates that could not fail: m157 (swallowed render errors), m198 (never booted), m5/m60 (monorepo paths, formatter-mangled key) | `8e74a577`, `132c995e`, `9dba37ec` | each red on a broken input, green on the real one |
 | N-9 | No security scanner ran in CI | `9dba37ec` | `.github/workflows/mini-baas-security.yml` + blocking `security-gate`; m5, m60 green |
 | N-10 | `postgres/Dockerfile` wrote placeholder "sha256:…-pinned-by-mini-baas" strings into a manifest claiming pinned FDW builds; m6 "proved" the pins by grepping the ARG names; the FDWs are not compiled in at all | `fix/fdw-manifest-honest` | manifest states not-built/built-in with real versions (partial image build printed); m6 fails on any placeholder pin |
+| N-11 | Realtime sometimes closed a refused connection WITHOUT sending AUTH_FAILED (measured live: 6 of 20), so a client could not tell an auth refusal from a network drop: the writer's `select!` was unbiased and the goodbye raced the queued error frame | `fix/sec-m4-realtime-issuer` (`writer.rs`: `biased`, control frames before the goodbye) | `test_auth_failed_frame_precedes_close` (multi-thread runtime, 200 refusals): red 3/3 before, green 5/5 after |
 | M-13 / L-5 | GoTrue password length and refresh-reuse window hard-coded in base compose | `fix/gotrue-compose-params` | renders: base 8/10, .env override 14, prod 12 |
 
 ## Open, tracked
 
 | ID | Finding | Note |
 |---|---|---|
-| M-4 | Realtime does not check `iss` | Step 1 done (`fix/sec-m4-issuer-expression`: GoTrue and tenant-control resolve the issuer from one expression, so an override cannot split minter and verifier). Remaining, in order: stamp `iss` in `appchannels/mint.go` (only after the Go verifier can tell that token apart — its `sub` is a tenant slug); re-issue the five seed app tokens that use `iss: "supabase"` (canagrou, gourmand, hambooking, hypertube, red-tetris) plus m22/m23/seed-live-demo; set `REALTIME_JWT_ISSUER`; then require `iss` in realtime's validation. Every minter shares one secret, so this is defence in depth. Minter inventory: 12 paths, in the M-4/M-5 sweep of 2026-09-25. |
 | M-5 | `sub` not validated as a UUID | **Rejected as asked**: SSO sessions carry the IdP's raw subject and passkeys' `user_id` is client-supplied — a UUID check breaks both (and gate m64). The real hole it pointed at is closed instead: with an empty `GOTRUE_JWT_ISSUER` the verifier accepted any same-secret token (cross-app, seed) as a user session; tenant-control now refuses to start with an empty issuer (`fix/sec-m5-issuer-guard`, `JWT_ALLOW_NO_ISSUER=1` opts out; `TestRequireIssuer`). |
 | — | `edition-query` offer build was intermittent in CI | Cause found: concurrent Rust builds raced on a `sharing=shared` cargo cache mount ('failed to unpack package'); now `sharing=locked`. |
 
@@ -100,7 +101,7 @@ retired) · M-14/M-15 (single replica; Kong limits) · M-18 (mailpit is dev) · 
 ## Where CI proves it
 
 - **CI** (`ci.yml`, push to main and develop): unit suites incl. functions-runtime Deno; security
-  gates m195 m196 m198 m199; integration runs m157 m197 m200 plus the live test phases; cloud
+  gates m195 m196 m198 m199; integration runs m157 m197 m200 m201 plus the live test phases; cloud
   gates incl. m83; m194 in the lint job.
 - **Security** (`mini-baas-security.yml`): gitleaks · trufflehog · semgrep · trivy · cargo-audit +
   govulncheck · ZAP baseline → `security-gate`.

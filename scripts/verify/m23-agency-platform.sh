@@ -127,7 +127,7 @@ cat >"${WS_PROBE}" <<'WSJS'
 import { createHmac } from 'node:crypto';
 const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const head = b64u({ alg: 'HS256', typ: 'JWT' });
-const body = b64u({ sub: 'm23p-verify', exp: Math.floor(Date.now() / 1000) + 300 });
+const body = b64u({ iss: 'grobase-realtime', sub: 'm23p-verify', exp: Math.floor(Date.now() / 1000) + 300 });
 const sig = createHmac('sha256', process.env.RT_JWT_SECRET)
   .update(`${head}.${body}`).digest('base64url');
 const ws = new WebSocket(process.env.RT_WS_URL);
