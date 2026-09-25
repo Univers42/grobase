@@ -1,0 +1,142 @@
+# promtool unit tests for platform.yml — run by the m52 gate:
+#   promtool test rules infra/config/prometheus/tests/platform.test.yml
+# Each case feeds synthetic series and asserts which alerts fire, so a
+# threshold, label or `for:` that drifts fails here rather than in production.
+rule_files:
+  - ../rules/platform.yml
+
+evaluation_interval: 15s
+
+tests:
+  # A target that stops being scraped (its container stopped, so dns_sd dropped
+  # it) raises TargetVanished; one still scraped does not, and neither does one
+  # that never came up (vault, which the edition never started).
+  - interval: 1m
+    input_series:
+      - series: 'up{job="analytics-service", instance="analytics-service:3070"}'
+        values: "1 1 1 1 1 stale"
+      - series: 'up{job="query-router", instance="query-router:4001"}'
+        values: "1 1 1 1 1 1 1 1 1 1 1 1"
+      - series: 'up{job="vault", instance="vault:8200"}'
+        values: "0 0 0 0 0 stale"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: TargetVanished
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: analytics-service
+              instance: analytics-service:3070
+            exp_annotations:
+              summary: "analytics-service/analytics-service:3070 is no longer running"
+              description: "The target was scraped within the last hour and no longer resolves (container stopped or removed)."
+      - eval_time: 10m
+        alertname: TargetDown
+        exp_alerts: []
+
+  # A scraped target that fails pages as TargetDown after 2m.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="kong", instance="kong:8001"}'
+        values: "1 1 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: TargetDown
+        exp_alerts:
+          - exp_labels: { severity: critical, job: kong, instance: "kong:8001" }
+            exp_annotations:
+              summary: "kong/kong:8001 is down"
+              description: "Prometheus has failed to scrape this target for 2m."
+      - eval_time: 5m
+        alertname: TargetVanished
+        exp_alerts: []
+
+  # 2 rejected logins per second at the edge for 10m fires AuthFailureSpike; a
+  # trickle of 401s on another route and the 200s do not.
+  - interval: 1m
+    input_series:
+      - series: 'kong_http_requests_total{service="auth", code="401"}'
+        values: "0+120x15"
+      - series: 'kong_http_requests_total{service="rest", code="401"}'
+        values: "0+6x15"
+      - series: 'kong_http_requests_total{service="auth", code="200"}'
+        values: "0+600x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: AuthFailureSpike
+        exp_alerts:
+          - exp_labels:
+              { severity: warning, event_type: auth_failure, service: auth }
+            exp_annotations:
+              summary: "auth: sustained 401s at the gateway"
+              description: "2/s requests rejected as unauthenticated for 5m."
+      - eval_time: 3m
+        alertname: AuthFailureSpike
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'kong_http_requests_total{service="rest", code="403"}'
+        values: "0+90x15"
+      - series: 'kong_http_requests_total{service="rest", code="429"}'
+        values: "0+90x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: AccessDeniedSpike
+        exp_alerts:
+          - exp_labels:
+              { severity: warning, event_type: access_denied, service: rest }
+            exp_annotations:
+              summary: "rest: sustained 403s at the gateway"
+              description: "1.5/s requests refused for 5m."
+      - eval_time: 12m
+        alertname: RateLimitedSpike
+        exp_alerts:
+          - exp_labels:
+              { severity: info, event_type: rate_limited, service: rest }
+            exp_annotations:
+              summary: "rest: sustained 429s at the gateway"
+              description: "1.5/s requests rate-limited for 5m."
+
+  # 401 and 403 inside a Nest service sum together; 404s are not security events.
+  - interval: 1m
+    input_series:
+      - series: 'mini_baas_http_requests_total{service="query-router", route="/:dbId/tables", status_code="401"}'
+        values: "0+9x15"
+      - series: 'mini_baas_http_requests_total{service="query-router", route="/:dbId/tables", status_code="403"}'
+        values: "0+9x15"
+      - series: 'mini_baas_http_requests_total{service="storage-router", route="/object", status_code="404"}'
+        values: "0+600x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: AppPlaneAuthRejections
+        exp_alerts:
+          - exp_labels:
+              {
+                severity: warning,
+                event_type: auth_failure,
+                service: query-router,
+              }
+            exp_annotations:
+              summary: "query-router: sustained 401/403 inside the service"
+              description: "300m/s rejected requests for 5m (includes calls that bypassed Kong)."
+
+  - interval: 1m
+    input_series:
+      - series: 'baas_service_token_previous_accepted_total{job="go-control-plane", instance="tenant-control:3022"}'
+        values: "0 0 0 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: PreviousServiceTokenInUse
+        exp_alerts:
+          - exp_labels:
+              severity: info
+              event_type: token_rotation
+              job: go-control-plane
+              instance: tenant-control:3022
+            exp_annotations:
+              summary: "go-control-plane/tenant-control:3022 accepted the previous service token"
+              description: "3 request(s) in 15m used INTERNAL_SERVICE_TOKEN_PREV — a peer has not rolled to the new token."
+      - eval_time: 25m
+        alertname: PreviousServiceTokenInUse
+        exp_alerts: []

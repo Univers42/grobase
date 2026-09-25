@@ -1,7 +1,7 @@
 # Platform alert rules (Track-2 E2). Every expression targets a metric this
 # stack actually exposes — verified live against the running /metrics endpoints,
 # not guessed. Validate locally with:
-#   promtool check rules config/prometheus/rules/platform.yml
+#   promtool check rules infra/config/prometheus/rules/platform.yml
 # (the m52 gate runs exactly this.)
 groups:
   # ── availability ────────────────────────────────────────────────────────────
@@ -17,6 +17,21 @@ groups:
         annotations:
           summary: "{{ $labels.job }}/{{ $labels.instance }} is down"
           description: "Prometheus has failed to scrape this target for 2m."
+
+      - alert: TargetVanished
+        # A dns_sd target (prometheus.yml) that stopped resolving: Docker's DNS
+        # drops a container when it stops, so a crashed optional service leaves
+        # the target list instead of reporting up == 0. Fires for any target
+        # up at some point in the last hour that is no longer scraped at all.
+        # Ponytail: resolves by itself an hour after the container went away,
+        # and also fires for a deliberate `make down-<plane>` — both read as
+        # "was running, now isn't"; `make ps` tells them apart.
+        expr: max_over_time(up[1h]) == 1 unless on (job, instance) up
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.job }}/{{ $labels.instance }} is no longer running"
+          description: "The target was scraped within the last hour and no longer resolves (container stopped or removed)."
 
       - alert: High5xxRatio
         # 5xx share of a service's traffic over 5m, guarded by a minimum request
@@ -98,3 +113,60 @@ groups:
         annotations:
           summary: "Sustained webhook retry rate"
           description: ">1 retry/s over 10m for 15m on {{ $labels.service }} — a subscriber may be flapping."
+
+  # ── security events ─────────────────────────────────────────────────────────
+  # Kong sees every client request, so the edge counters are the complete view;
+  # the Nest counter adds calls that reached a service without passing Kong
+  # (another container, a published dev port). Ponytail: fixed thresholds (1/s
+  # sustained for 5m, 0.2/s for the app plane) are a starting point — a busy
+  # deployment raises them, a quiet one lowers them.
+  - name: platform-security
+    rules:
+      - alert: AuthFailureSpike
+        # Rejected credentials at the edge: brute force, credential stuffing,
+        # or a client still sending a rotated key.
+        expr: sum by (service) (rate(kong_http_requests_total{code="401"}[5m])) > 1
+        for: 5m
+        labels: { severity: warning, event_type: auth_failure }
+        annotations:
+          summary: "{{ $labels.service }}: sustained 401s at the gateway"
+          description: "{{ $value | humanize }}/s requests rejected as unauthenticated for 5m."
+
+      - alert: AccessDeniedSpike
+        # Authenticated callers refused: probing for other tenants' data, or a
+        # policy change that broke a client.
+        expr: sum by (service) (rate(kong_http_requests_total{code="403"}[5m])) > 1
+        for: 5m
+        labels: { severity: warning, event_type: access_denied }
+        annotations:
+          summary: "{{ $labels.service }}: sustained 403s at the gateway"
+          description: "{{ $value | humanize }}/s requests refused for 5m."
+
+      - alert: RateLimitedSpike
+        expr: sum by (service) (rate(kong_http_requests_total{code="429"}[5m])) > 1
+        for: 5m
+        labels: { severity: info, event_type: rate_limited }
+        annotations:
+          summary: "{{ $labels.service }}: sustained 429s at the gateway"
+          description: "{{ $value | humanize }}/s requests rate-limited for 5m."
+
+      - alert: AppPlaneAuthRejections
+        # 401/403 counted inside the Nest services themselves.
+        expr: |
+          sum by (service) (rate(mini_baas_http_requests_total{status_code=~"401|403"}[5m])) > 0.2
+        for: 5m
+        labels: { severity: warning, event_type: auth_failure }
+        annotations:
+          summary: "{{ $labels.service }}: sustained 401/403 inside the service"
+          description: "{{ $value | humanize }}/s rejected requests for 5m (includes calls that bypassed Kong)."
+
+      - alert: PreviousServiceTokenInUse
+        # A peer still authenticates with INTERNAL_SERVICE_TOKEN_PREV. Close the
+        # rotation window (clear PREV) only once this has stayed quiet. The
+        # series exists only after PREV has accepted a request.
+        expr: increase(baas_service_token_previous_accepted_total[15m]) > 0
+        for: 0m
+        labels: { severity: info, event_type: token_rotation }
+        annotations:
+          summary: "{{ $labels.job }}/{{ $labels.instance }} accepted the previous service token"
+          description: "{{ $value }} request(s) in 15m used INTERNAL_SERVICE_TOKEN_PREV — a peer has not rolled to the new token."

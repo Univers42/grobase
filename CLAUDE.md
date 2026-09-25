@@ -215,7 +215,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **183 scripts, highest m203** (`m203-migrations-recorded.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **184 scripts, highest m204** (`m204-security-events.sh`); the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -291,6 +291,10 @@ overlay's strict mode (on the 11 identity readers, m195 asserts where; `PROD_IDE
 reverts it), and it fails fast on an image built before the bearer-JWT rung.
 `m203` asserts every PostgreSQL migration records its own version in `schema_migrations` (numbers
 unique, 035 the one historical group), so `make migrate-status` shows what a deployment ran.
+`m204` proves a rejected credential is visible end to end on a live stack: bogus-key requests through
+Kong show in Kong's and query-router's 401 counters, as `event_type=auth_failure` log lines, in the
+`platform-security` alert expressions and as a Loki label. `m52` (promtool rules + config + the rule
+unit tests in `infra/config/prometheus/tests/`) needs no stack and runs in CI's lint job.
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 
