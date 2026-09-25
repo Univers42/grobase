@@ -102,7 +102,12 @@ already refuses NoAuth under max) · H-18 (`SMTP_SECURE=false` still upgrades vi
 parse) · L-3 (`|| true` on `vault status` is required) · L-7 (applies to push, not automations) ·
 L-8 (masked) · L-13 (fast hash + upgrade) · L-14 (`chmod 600` everywhere) · M-2 (hash comparison
 is length-independent) · M-6 (deep operator check exists and is tested) · M-7 (session service
-retired) · M-14/M-15 (single replica; Kong limits) · M-18 (mailpit is dev) · L-5 (accepted).
+retired) · M-13 (already parametrized: `auth-api.yml:48` is `${GOTRUE_PASSWORD_MIN_LENGTH:-8}`, the
+prod overlay pins 12 and m195 asserts both the 12 and the 8) · M-14/M-15 (single replica; Kong
+limits) · M-18 (mailpit is dev) · L-5 (accepted). Also planned but found to be a non-finding:
+m5/m60's references to `.github/workflows/mini-baas-security.yml` are not dead — that workflow
+exists and is the blocking `security-gate`; the "missing file" was an artifact of the pre-rebuild
+`develop`.
 
 ## Where CI proves it
 
