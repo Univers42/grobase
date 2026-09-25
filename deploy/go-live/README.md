@@ -84,7 +84,7 @@ GO_LIVE_APPLY=1 bash deploy/go-live/go-live.sh
    `QUOTA_*`, `BILLING_ENABLED` → live Stripe, `TENANT_SELFSERVE_ENABLED`,
    `TENANT_OBS_ENABLED`, `TENANT_BACKUP_*`, `SPEND_CAPS_ENABLED`,
    `ABUSE_GUARD_ENABLED`). The flag **names** are cross-checked against
-   `config/cloud/flags.env.cloud` (the single source of truth) so the list can't
+   `infra/config/cloud/flags.env.cloud` (the single source of truth) so the list can't
    drift. The **committed baseline stays OFF / byte-parity** — these flags live
    only in the live release's ConfigMap/Secret;
 3. **RS256 cutover, safely** (see below);
@@ -95,7 +95,7 @@ GO_LIVE_APPLY=1 bash deploy/go-live/go-live.sh
 
 By default B2 ships at `QUOTA_STAGE=warn` / `QUOTA_ENFORCEMENT=0` — usage is
 metered and overage logged, but **no `402`** is returned. This follows the
-promotion ladder in `config/cloud/README.md` (R4 → R5): never surprise a paying
+promotion ladder in `infra/config/cloud/README.md` (R4 → R5): never surprise a paying
 tenant with a hard cap before it has shadowed. Promote when ready:
 
 ```bash
@@ -197,7 +197,7 @@ These remain explicit, human-triggered actions (not automated by `go-live.sh`):
 - Not an image builder/pusher.
 - Not a flip of the committed baseline — the cloud flags are turned on only in the
   live release; the repo's default compose/chart/env stay byte-parity OFF
-  (`config/cloud/README.md` *Parity statement*).
+  (`infra/config/cloud/README.md` *Parity statement*).
 
 ## Overridable knobs (defaults are prod-sane)
 
