@@ -35,7 +35,12 @@
 #      mini-baas, and FUNCTIONS_NET_ALLOWLIST_ENABLED=1 on the runtime. Only
 #      matters when the functions profile is up (`make cloud-up` does not
 #      select it). Needs images built from this tree.
+#   5. IDENTITY_HEADER_MODE=strict on the 11 Nest services that read it, as
+#      docker-compose.prod.yml does (the rationale lives there; gates m195 +
+#      m202). PROD_IDENTITY_HEADER_MODE=compat in .env reverts both overlays.
 # It adds NO new app images and changes NO default-stack value.
+
+x-strict-identity: &strict-identity ${PROD_IDENTITY_HEADER_MODE:-strict}
 
 services:
   # ── orchestrator — hosts metering-ingest, quota-guard, billing-reporter, spend-cap.
@@ -68,9 +73,40 @@ services:
   storage-router:
     environment:
       STORAGE_ACTIVE_CONTENT_GUARD_ENABLED: "1"
+      IDENTITY_HEADER_MODE: *strict-identity
   query-router:
     environment:
       AUTOMATION_WEBHOOK_IP_PIN_ENABLED: "1"
+      IDENTITY_HEADER_MODE: *strict-identity
+
+  # ── strict identity on the other 9 readers (item 5 above).
+  ai-service:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
+  analytics-service:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
+  email-service:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
+  gdpr-service:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
+  mongo-api:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
+  newsletter-service:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
+  permission-engine:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
+  schema-service:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
+  session-service:
+    environment:
+      IDENTITY_HEADER_MODE: *strict-identity
 
   # ── functions network jail — a copy of docker-compose.prod.yml's block (the
   #    rationale lives there); gate m195 fails if the two renders differ.
