@@ -311,6 +311,20 @@ arm_usage() {
   ok "missing file -> exit 2; --help -> exit 0"
 }
 
+# arm_prod_up: `make prod-up` must run the preflight on .env BEFORE compose up
+# (a refused env stops the recipe), layer the prod overlay, and never resolve-ports.
+arm_prod_up() {
+  local plan pf up
+  plan="$(make -n --no-print-directory prod-up 2>/dev/null)" || fail "make -n prod-up failed"
+  pf="$(grep -n 'preflight-production.sh .env' <<<"${plan}" | head -1 | cut -d: -f1)"
+  up="$(grep -n 'docker-compose.prod.yml.* up -d' <<<"${plan}" | head -1 | cut -d: -f1)"
+  [ -n "${pf}" ] || fail "prod-up does not run the preflight on .env"
+  [ -n "${up}" ] || fail "prod-up does not bring the stack up with docker-compose.prod.yml"
+  [ "${pf}" -lt "${up}" ] || fail "prod-up runs compose up before the preflight"
+  ! grep -q 'resolve-ports' <<<"${plan}" || fail "prod-up must not auto-move busy ports"
+  ok "make prod-up: preflight .env -> compose up with the prod overlay, no resolve-ports"
+}
+
 command -v od >/dev/null || fail "od is required"
 step "extract credential fallbacks from orchestrators/compose/base/*.yml"
 compose_fallbacks >"${T}/fallbacks" || fail "fallback extraction failed"
@@ -332,4 +346,6 @@ arm_drift
 arm_dsn_drift
 step "(g) usage"
 arm_usage
+step "(h) make prod-up wiring"
+arm_prod_up
 printf '\033[0;32m[M194] PASS — preflight-production refuses dev env files, accepts hardened ones, never prints a value\033[0m\n'

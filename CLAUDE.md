@@ -184,7 +184,9 @@ make tests                    # the WHOLE matrix (100-test.mk), green/red summar
                               #   test-waf test-gates test-conformance test-mutants  (live group needs `make up`)
 make prettiers | prettiers-check   # every language's canonical formatter in Docker (gofumpt, cargo fmt,
                               #   prettier, shfmt -i 2); -check is the CI no-write variant
-make fly-status|fly-logs|fly-deploy|fly-ssh|fly-backup   # fly.io grobase-stack lifecycle (85-fly.mk);
+make prod-up | prod-down      # SELF-HOSTED production (the live target): preflight-production refuses a
+                              #   dev .env, then EDITION/PACKAGE + docker-compose.prod.yml (no resolve-ports)
+make fly-status|fly-logs|fly-deploy|fly-ssh|fly-backup   # fly.io — RETIRED, kept (85-fly.mk);
                               #   fly-destroy / vercel-remove need CONFIRM=1 — irreversible, ask first
 ```
 
@@ -472,18 +474,21 @@ codegen now resolves against the lean tree.
   otherwise it renders offline via `helm template`. `deploy/` also holds `helm/` (`grobase` +
   `mini-baas` charts), `kustomize/`, `ha/`, and `github-relay/` (the P5 Vercel relay for GitHub-App
   connect).
-- **The full backend is LIVE on fly.io** as the single Machine app **`grobase-stack`** (`deploy/fly/`).
-  It is a **Docker-in-Docker compose** deploy: `deploy/fly/Dockerfile` + `compose.override.yml` bring
-  the stack up inside one Machine, with Kong exposed publicly; `deploy/fly/boot.sh` is the turnkey
-  entrypoint that **auto-migrates and auto-provisions** the registered contracts on boot (`ensure_gateway`
-  force-starts mongo-init→realtime→kong so a reboot doesn't strand Kong). Backup rotation:
-  `deploy/fly/BACKUP-ROTATION.md`. Two non-merging Postgres DBs (website + vault42) prove per-user
-  `read_scoped` isolation over public HTTPS.
+- **Production is SELF-HOSTED** on the owner's own server: `make prod-up` (optionally
+  `EDITION=`/`PACKAGE=`) runs `scripts/ops/preflight-production.sh .env` — it refuses dev credentials /
+  dev security values (gate `m194`) — then brings the stack up with
+  `orchestrators/compose/docker-compose.prod.yml` (no dev ports, prod security values, gate `m195`).
+  Migrations/contract provisioning are run by hand (`make migrate`, `scripts/provision-contract.sh`).
+- **fly.io is RETIRED (2026-09, cost) but KEPT** — do **not** delete `deploy/fly/` or `85-fly.mk`; they
+  are the way back. It was a single-Machine **Docker-in-Docker compose** app `grobase-stack`:
+  `deploy/fly/Dockerfile` + `compose.override.yml`, `deploy/fly/boot.sh` auto-migrated + auto-provisioned
+  the contracts on boot (`ensure_gateway` force-started mongo-init→realtime→kong), backup rotation in
+  `deploy/fly/BACKUP-ROTATION.md`.
 - **grobase is a generic contract-driven factory, not an app host.** It contains **zero app-specific
   code**; each app is a declarative **provisioning contract** at `infra/config/contracts/<app>.json`
   (+ a `<app>.schema.sql`) that the generic provisioner consumes to create an isolated DB, seed it,
   mint keys, and emit the frontend's `PUBLIC_*` config (gate `m165`). Stateless frontends live on
-  Vercel; **grobase (fly) owns all state** (DB/auth/OTP/realtime/files). This boundary is **binding** —
+  Vercel; **grobase (the backend server) owns all state** (DB/auth/OTP/realtime/files). This boundary is **binding** —
   see [`.claude/rules/service-boundaries.md`](.claude/rules/service-boundaries.md). Contracts in
   `infra/config/contracts/`: `website`, `vault42`, `red-tetris` (plus a `_smoke` fixture); the
   provisioner is `scripts/provision-contract.sh`.
