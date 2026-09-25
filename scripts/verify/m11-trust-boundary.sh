@@ -106,6 +106,22 @@ grep -rq "JWT_SECRET" "${BAAS_DIR}/orchestrators/compose/base/" || fail "compose
 grep -q "pre-function" "${BAAS_DIR}/infra/docker/services/kong/conf/kong.yml" || fail "Kong identity pre-function missing"
 pass "gateway path remains present while strict upstream verification can be enabled"
 
+step "checking Kong strips forgeable identity headers on every public app prefix"
+KONG_CONF="${BAAS_DIR}/infra/docker/services/kong/conf/kong.yml"
+for hdr in X-User-Id X-User-Email X-User-Role \
+  X-Baas-Tenant-Id X-Baas-User-Id X-Tenant-Id X-Baas-Roles X-Baas-Scopes; do
+  grep -q "clear_header(\"${hdr}\")" "${KONG_CONF}" ||
+    fail "Kong pre-function must clear ${hdr} (client-supplied identity/authz input)"
+done
+# The prefix guard must cover every public route that reaches a service acting on
+# the tenant: /functions/ (namespace), /query/ (compat identity), /storage/v1
+# (usage-meter dimension, N-13). /admin/v1 is deliberately NOT in the list.
+for prefix in '/functions/' '/query/' '/storage/v1'; do
+  grep -q "== \"${prefix}\"" "${KONG_CONF}" ||
+    fail "Kong pre-function must clear the forgeable tenant headers on ${prefix}"
+done
+pass "Kong clears client identity + authz headers, on all three public prefixes"
+
 step "checking signed envelope positive and forged-header negative paths"
 ENVELOPE_TS="${BAAS_DIR}/src/.m11-envelope.ts"
 trap 'rm -f "${ENVELOPE_TS}"' EXIT
