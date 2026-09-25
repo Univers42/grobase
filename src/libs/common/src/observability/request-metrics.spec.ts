@@ -10,6 +10,7 @@ import {
   Module,
   NestMiddleware,
   NestModule,
+  RequestMethod,
   UseGuards,
 } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
@@ -69,7 +70,7 @@ class ItemsController {
 })
 class TestAppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RejectKeyMiddleware).forRoutes('*');
+    consumer.apply(RejectKeyMiddleware).forRoutes({ path: '*', method: RequestMethod.ALL });
   }
 }
 
@@ -130,7 +131,7 @@ describe('request metrics — every response is counted, rejections included', (
       path: '/items/open/1',
       headers: { 'x-baas-api-key': 'bad' },
       status: 401,
-      route: 'unrouted',
+      route: '/{*path}',
       event: 'auth_failure',
     },
     {
@@ -166,13 +167,13 @@ describe('request metrics — every response is counted, rejections included', (
     expect(log?.['event_type']).toBe(event);
   });
 
-  it('an unmatched path is counted under one route label, never its raw path', async () => {
+  it('an unmatched path is counted under the wildcard route label, never its raw path', async () => {
     const raw = `/scan-${Date.now()}`;
-    const before = await count('unrouted', '404');
+    const before = await count('/{*path}', '404');
     const { status, log } = await call(raw);
     expect(status).toBe(404);
-    expect(await count('unrouted', '404')).toBe(before + 1);
+    expect(await count('/{*path}', '404')).toBe(before + 1);
     expect(await count(raw, '404')).toBe(0);
-    expect(log?.['route']).toBe('unrouted');
+    expect(log?.['route']).toBe('/{*path}');
   });
 });
