@@ -47,6 +47,13 @@ use tower_http::cors::CorsLayer;
 
 /// Helper: spin up a full server and return the address + shared state.
 async fn start_test_server() -> (String, Arc<dyn EventBusPublisher>, Arc<dyn EventBus>) {
+    start_test_server_with(Arc::new(NoAuthProvider::new())).await
+}
+
+/// Start the test server with a given auth provider.
+async fn start_test_server_with(
+    auth_provider: Arc<dyn AuthProvider>,
+) -> (String, Arc<dyn EventBusPublisher>, Arc<dyn EventBus>) {
     let bus: Arc<dyn EventBus> = Arc::new(InProcessBus::new(16384));
 
     let publisher: Arc<dyn EventBusPublisher> = {
@@ -54,7 +61,6 @@ async fn start_test_server() -> (String, Arc<dyn EventBusPublisher>, Arc<dyn Eve
         Arc::from(p)
     };
 
-    let auth_provider: Arc<dyn AuthProvider> = Arc::new(NoAuthProvider::new());
     let registry = Arc::new(SubscriptionRegistry::new());
     let sequence_gen = Arc::new(SequenceGenerator::new());
     let conn_manager = Arc::new(ConnectionManager::new(1024));
@@ -1132,4 +1138,27 @@ async fn test_untrack_emits_leave() {
             .len(),
         0
     );
+}
+
+/// A refused AUTH reaches the client as AUTH_FAILED before the close. The writer
+/// used to race the queued error frame against the goodbye and sometimes sent
+/// only the close, so a client could not tell an auth refusal from a drop.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn test_auth_failed_frame_precedes_close() {
+    use realtime_auth::{JwtAuthProvider, JwtConfig};
+
+    let provider = JwtAuthProvider::new(&JwtConfig::hmac("race-secret-at-least-32-characters!!"));
+    let (addr, _publisher, _bus) = start_test_server_with(Arc::new(provider.unwrap())).await;
+    for attempt in 0..200 {
+        let (mut ws, _) = connect_async(format!("ws://{addr}/ws")).await.unwrap();
+        let auth = json!({ "type": "AUTH", "token": "not.a.token" }).to_string();
+        ws.send(Message::Text(auth)).await.unwrap();
+        let first = tokio::time::timeout(Duration::from_secs(5), ws.next()).await;
+        match first.expect("no reply within 5s") {
+            Some(Ok(Message::Text(t))) => {
+                assert!(t.contains("AUTH_FAILED"), "attempt {attempt}: {t}")
+            }
+            other => panic!("attempt {attempt}: closed before AUTH_FAILED: {other:?}"),
+        }
+    }
 }

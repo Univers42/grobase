@@ -219,7 +219,7 @@ RT_TOKEN="$(docker run --rm --network none -e RT_JWT_SECRET="${RT_JWT_SECRET}" "
 const { createHmac } = require("node:crypto");
 const b64u = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const head = b64u({ alg: "HS256", typ: "JWT" });
-const body = b64u({ sub: "osionos-live-demo", exp: Math.floor(Date.now() / 1000) + 30 * 86400 });
+const body = b64u({ iss: "grobase-realtime", sub: "osionos-live-demo", exp: Math.floor(Date.now() / 1000) + 30 * 86400 });
 const sig = createHmac("sha256", process.env.RT_JWT_SECRET).update(`${head}.${body}`).digest("base64url");
 console.log(`${head}.${body}.${sig}`);')"
 [[ -n "${RT_TOKEN}" ]] || fail "realtime token mint failed"
