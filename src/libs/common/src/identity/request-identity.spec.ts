@@ -452,11 +452,13 @@ describe('guards reject a replayed envelope (no missed await)', () => {
 // verifies a GoTrue token cryptographically, and that it stays inert in compat
 // mode unless opted in, so today's baseline is byte-identical.
 const JWT_SECRET = randomBytes(24).toString('hex');
+const ISSUER = 'https://localhost:8443/auth/v1';
 
 function mintJwt(claims: Record<string, unknown>, secret: string = JWT_SECRET): string {
   const part = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
   const body = `${part({ alg: 'HS256', typ: 'JWT' })}.${part({
     exp: Math.floor(Date.now() / 1000) + 600,
+    iss: ISSUER,
     ...claims,
   })}`;
   return `${body}.${createHmac('sha256', secret).update(body).digest('base64url')}`;
@@ -469,8 +471,9 @@ function bearerReq(token: string, extra: Record<string, string> = {}): FakeReq {
 describe('bearer-JWT identity path (H-19)', () => {
   beforeEach(() => {
     process.env.GOTRUE_JWT_SECRET = JWT_SECRET;
+    process.env.GOTRUE_JWT_ISSUER = ISSUER;
     delete process.env.IDENTITY_JWT_BEARER_ENABLED;
-    delete process.env.GOTRUE_JWT_ISSUER;
+    delete process.env.JWT_ALLOW_NO_ISSUER;
   });
 
   it('COMPAT mode ignores a bearer JWT unless opted in (byte-parity default)', async () => {
@@ -551,15 +554,48 @@ describe('bearer-JWT identity path (H-19)', () => {
 
   it('rejects a foreign issuer once GOTRUE_JWT_ISSUER pins one (M-4)', async () => {
     process.env.IDENTITY_HEADER_MODE = 'strict';
-    process.env.GOTRUE_JWT_ISSUER = 'https://localhost:8443/auth/v1';
-    const mine = mintJwt({ sub: 'u-9', iss: 'https://localhost:8443/auth/v1' });
-    await expect(resolveRequestIdentity(bearerReq(mine), true)).resolves.toMatchObject({
+    await expect(
+      resolveRequestIdentity(bearerReq(mintJwt({ sub: 'u-9' })), true),
+    ).resolves.toMatchObject({
       authMethod: 'jwt',
     });
     const theirs = mintJwt({ sub: 'u-9', iss: 'https://evil.example/auth/v1' });
     await expect(resolveRequestIdentity(bearerReq(theirs), true)).rejects.toThrow(
       UnauthorizedException,
     );
+  });
+
+  // The concrete token that makes the issuer pin load-bearing rather than
+  // decorative: appchannels/mint.go signs a realtime-only token with the SAME
+  // JWT_SECRET whose `sub` is a TENANT SLUG. Unpinned, it would resolve here to
+  // a full data-plane identity for that tenant.
+  it('refuses a cross-app realtime token whose sub is a tenant slug', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    const xapp = mintJwt({
+      sub: 'victim-tenant',
+      iss: 'grobase-realtime',
+      namespaces: ['xapp:ch-1'],
+      can_publish: true,
+    });
+    await expect(resolveRequestIdentity(bearerReq(xapp), true)).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('refuses to run at all when no issuer is pinned, naming the variable', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    delete process.env.GOTRUE_JWT_ISSUER;
+    await expect(resolveRequestIdentity(bearerReq(mintJwt({ sub: 'u-9' })), true)).rejects.toThrow(
+      /GOTRUE_JWT_ISSUER is empty/,
+    );
+  });
+
+  it('JWT_ALLOW_NO_ISSUER=1 is the escape hatch for a deployment without one', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    delete process.env.GOTRUE_JWT_ISSUER;
+    process.env.JWT_ALLOW_NO_ISSUER = '1';
+    const id = await resolveRequestIdentity(bearerReq(mintJwt({ sub: 'u-9' })), true);
+    expect(id?.authMethod).toBe('jwt');
   });
 
   it('is inert when no JWT secret is configured (cannot verify, must not trust)', async () => {
