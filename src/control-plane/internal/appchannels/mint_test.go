@@ -15,6 +15,7 @@ package appchannels
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 // TestRealtimeNamespaces proves a token grants exactly one xapp:<id> per accepted channel and
@@ -53,5 +54,15 @@ func TestHasScope(t *testing.T) {
 		if got := hasScope(c.scopes, c.want); got != c.ok {
 			t.Errorf("hasScope(%v, %q) = %v, want %v", c.scopes, c.want, got, c.ok)
 		}
+	}
+}
+
+// TestRealtimeClaimsIssuer is M-4: an xapp token carries the realtime-only issuer, which
+// realtime requires and tenant-control's user-session verifier (GOTRUE_JWT_ISSUER) refuses.
+func TestRealtimeClaimsIssuer(t *testing.T) {
+	now := time.Now()
+	c := realtimeClaims("tenant-slug", []string{"xapp:abc"}, now, now.Add(time.Minute))
+	if c["iss"] != "grobase-realtime" {
+		t.Fatalf("iss = %v, want grobase-realtime", c["iss"])
 	}
 }

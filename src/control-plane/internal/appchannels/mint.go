@@ -70,9 +70,15 @@ func realtimeNamespaces(chIDs []string) []string {
 	return ns
 }
 
-// realtimeClaims assembles the realtime-plane claim set (sub/iat/exp + namespaces + pub/sub).
+// realtimeIssuer is the `iss` of realtime-only tokens: realtime accepts it (REALTIME_JWT_ISSUER),
+// tenant-control's user-session verifier does not (it requires GOTRUE_JWT_ISSUER), so an xapp
+// token — whose sub is a tenant slug — can never pass as a user session.
+const realtimeIssuer = "grobase-realtime"
+
+// realtimeClaims assembles the realtime-plane claim set (iss/sub/iat/exp + namespaces + pub/sub).
 func realtimeClaims(sub string, namespaces []string, now, exp time.Time) jwt.MapClaims {
 	return jwt.MapClaims{
+		"iss":           realtimeIssuer,
 		"sub":           sub,
 		"iat":           now.Unix(),
 		"exp":           exp.Unix(),

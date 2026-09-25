@@ -131,6 +131,13 @@ services:
       REALTIME_PORT: 4000
       REALTIME_JWT_SECRET: ${JWT_SECRET}
       REALTIME_JWT_AUDIENCE: ""
+      # Accepted `iss` values (M-4); a token without `iss` is refused unless
+      # REALTIME_JWT_ALLOW_NO_ISSUER=1. GoTrue sessions (same expression as
+      # auth-api.yml), the anon/service-role keys and seed tokens (`supabase`),
+      # and realtime-only tokens such as xapp channel tokens (`grobase-realtime`,
+      # which tenant-control's user-session verifier does not accept).
+      REALTIME_JWT_ISSUER: ${REALTIME_JWT_ISSUER:-${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}},supabase,grobase-realtime}
+      REALTIME_JWT_ALLOW_NO_ISSUER: ${REALTIME_JWT_ALLOW_NO_ISSUER:-}
       # Phase 5/6 security mode. `baseline` keeps the one-release PERMISSIVE
       # namespace fallback (a namespace-less JWT → all-access, logged as
       # deprecated); `max` denies it AND refuses the NoAuth provider. Override

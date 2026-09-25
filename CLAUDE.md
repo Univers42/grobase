@@ -215,7 +215,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **180 scripts, highest m200** (`m200-public-tables-rls.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **181 scripts, highest m201** (`m201-realtime-issuer.sh`); the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -279,6 +279,8 @@ a live stack's own ports. The band **m194–m198** is the **security-audit harde
 hardening, `m196` vault drops privileges on Fly, `m197` functions network jail, `m198` WAF upgrade allowlist.
 `m199` vault-init keeps the unseal key 0600 and never wipes storage on a lost key file, `m200`
 no RLS-less `public` table is reachable by anon/authenticated (+ PostgREST logs in as authenticator).
+`m201` realtime accepts only the listed token issuers (`REALTIME_JWT_ISSUER`) and refuses a token
+without `iss` (`REALTIME_JWT_ALLOW_NO_ISSUER=1` opts out).
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 
