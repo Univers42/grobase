@@ -127,7 +127,10 @@ docker run -d --name "${TAG}-kong" --network "${NET}" --network-alias kong "${NO
   skip "could not start the echo upstream"
 
 step "1/3 WAF with ${CONF#"${ROOT}"/}"
-start_waf "${TAG}-waf" "${CONF}" || { bad "the WAF did not become healthy with this config"; exit 1; }
+start_waf "${TAG}-waf" "${CONF}" || {
+  bad "the WAF did not become healthy with this config"
+  exit 1
+}
 expect "h2c upgrade" "$(upstream "${TAG}-waf" h2c)" "-|close"
 expect "websocket upgrade" "$(upstream "${TAG}-waf" websocket)" "websocket|upgrade"
 expect "no upgrade" "$(upstream "${TAG}-waf" "")" "-|close"

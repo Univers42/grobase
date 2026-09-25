@@ -84,7 +84,10 @@ tc_port="$(_lt_host_port mini-baas-tenant-control 3022/tcp)"
 KONG_URL="http://127.0.0.1:${kong_port}"
 TC_URL="http://127.0.0.1:${tc_port}"
 SERVICE_TOKEN="$(_lt_env mini-baas-tenant-control INTERNAL_SERVICE_TOKEN)" ||
-  { echo "cannot read INTERNAL_SERVICE_TOKEN from mini-baas-tenant-control (is it running?)" >&2; exit 1; }
+  {
+    echo "cannot read INTERNAL_SERVICE_TOKEN from mini-baas-tenant-control (is it running?)" >&2
+    exit 1
+  }
 export SERVICE_TOKEN
 ANON_KEY="$(_lt_env mini-baas-kong KONG_PUBLIC_API_KEY)"
 SERVICE_KEY="$(_lt_env mini-baas-kong KONG_SERVICE_API_KEY)"

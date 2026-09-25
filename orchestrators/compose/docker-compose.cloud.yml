@@ -126,7 +126,14 @@ services:
     profiles: [functions, extras]
     container_name: mini-baas-functions-relay
     restart: unless-stopped
-    entrypoint: ["deno", "run", "--allow-net", "--allow-env=FUNCTIONS_RELAY_TCP,FUNCTIONS_RELAY_HTTP", "/app/relay.ts"]
+    entrypoint:
+      [
+        "deno",
+        "run",
+        "--allow-net",
+        "--allow-env=FUNCTIONS_RELAY_TCP,FUNCTIONS_RELAY_HTTP",
+        "/app/relay.ts",
+      ]
     environment:
       FUNCTIONS_RELAY_TCP: "3060=functions-sandbox:3060,8000=kong:8000"
       FUNCTIONS_RELAY_HTTP: "3025=http://webhook-dispatcher:3025/internal/v1/function-secrets/resolve"

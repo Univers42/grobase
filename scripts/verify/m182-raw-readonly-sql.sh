@@ -38,9 +38,15 @@ DEV_WS="0ea96910-277a-49d6-901c-524b147cc009"
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 step() { cyan "[M182] $*"; }
 ok() { printf '\033[0;32m  ✓ %s\033[0m\n' "$*"; }
-fail() { printf '\033[0;31m[M182] FAIL — %s\033[0m\n' "$*" >&2; exit 1; }
+fail() {
+  printf '\033[0;31m[M182] FAIL — %s\033[0m\n' "$*" >&2
+  exit 1
+}
 SKIPPED=""
-skip_leg() { printf '\033[0;33m  - SKIP %s — %s\033[0m\n' "$1" "$2"; SKIPPED="${SKIPPED} $1"; }
+skip_leg() {
+  printf '\033[0;33m  - SKIP %s — %s\033[0m\n' "$1" "$2"
+  SKIPPED="${SKIPPED} $1"
+}
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
@@ -89,7 +95,7 @@ try {
 const sha = createHash('sha256').update(stable).digest('hex').slice(0, 16);
 process.stdout.write(`${res.status} ${stable.length} ${sha}`);
 NODE
-dexec -i "${QR_CTN}" sh -c 'cat > /tmp/m182-run.mjs' < "${TMP}/run.mjs"
+dexec -i "${QR_CTN}" sh -c 'cat > /tmp/m182-run.mjs' <"${TMP}/run.mjs"
 run_on() { dexec "${QR_CTN}" node /tmp/m182-run.mjs "$1" "$2" "$3" 2>/dev/null || echo "0 0 -"; }
 run() { run_on "$1" "${PG_MOUNT}" "$2"; }
 status_of() { printf '%s' "$1" | cut -d' ' -f1; }

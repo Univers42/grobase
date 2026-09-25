@@ -58,7 +58,10 @@ DEMO_USERS=(
 
 cyan() { printf '\033[0;36m[red-tetris] %s\033[0m\n' "$*"; }
 warn() { printf '\033[0;33m[red-tetris] WARN: %s\033[0m\n' "$*" >&2; }
-fail() { printf '\033[0;31m[red-tetris] FAIL: %s\033[0m\n' "$*" >&2; exit 1; }
+fail() {
+  printf '\033[0;31m[red-tetris] FAIL: %s\033[0m\n' "$*" >&2
+  exit 1
+}
 
 # mint_jwt SECRET SUB — HS256 realtime WS token (role authenticated, 30 days).
 # Carries explicit realtime grants (namespaces ["*"], can_publish/can_subscribe)
@@ -77,8 +80,8 @@ const sig = createHmac("sha256", process.env.JWT_SECRET).update(`${head}.${body}
 console.log(`${head}.${body}.${sig}`);'
 }
 
-psql_rt()    { docker exec -i -e PGPASSWORD="${PG_PASS}" "${PG_CTN}" psql -U "${PG_USER}" -d "${RT_DB}"  -v ON_ERROR_STOP=1 -tA "$@"; }
-psql_admin() { docker exec -i -e PGPASSWORD="${PG_PASS}" "${PG_CTN}" psql -U "${PG_USER}" -d postgres   -v ON_ERROR_STOP=1 -tA "$@"; }
+psql_rt() { docker exec -i -e PGPASSWORD="${PG_PASS}" "${PG_CTN}" psql -U "${PG_USER}" -d "${RT_DB}" -v ON_ERROR_STOP=1 -tA "$@"; }
+psql_admin() { docker exec -i -e PGPASSWORD="${PG_PASS}" "${PG_CTN}" psql -U "${PG_USER}" -d postgres -v ON_ERROR_STOP=1 -tA "$@"; }
 mongosh_eval() { docker exec -i "${MONGO_CTN}" mongosh -u "${MUSER}" -p "${MPASS}" --authenticationDatabase admin --quiet --eval "$1"; }
 
 # ── 0) endpoints + secrets from the running stack ────────────────────────────
@@ -88,15 +91,22 @@ tc_port="$(_lt_host_port mini-baas-tenant-control 3022/tcp)"
 KONG_URL="http://127.0.0.1:${kong_port}"
 TC_URL="http://127.0.0.1:${tc_port}"
 SERVICE_TOKEN="$(_lt_env mini-baas-tenant-control INTERNAL_SERVICE_TOKEN)" ||
-  { echo "cannot read INTERNAL_SERVICE_TOKEN from mini-baas-tenant-control (is it running?)" >&2; exit 1; }
+  {
+    echo "cannot read INTERNAL_SERVICE_TOKEN from mini-baas-tenant-control (is it running?)" >&2
+    exit 1
+  }
 export SERVICE_TOKEN
 ANON_KEY="${ANON_KEY:-$(_lt_env mini-baas-kong KONG_PUBLIC_API_KEY)}"
 SERVICE_KEY="$(_lt_env mini-baas-kong KONG_SERVICE_API_KEY)"
 RT_JWT_SECRET="$(_lt_env mini-baas-realtime REALTIME_JWT_SECRET)"
-PG_USER="${PG_USER:-$(_lt_env "${PG_CTN}" POSTGRES_USER)}"; PG_USER="${PG_USER:-postgres}"
-PG_PASS="${PG_PASS:-$(_lt_env "${PG_CTN}" POSTGRES_PASSWORD)}"; PG_PASS="${PG_PASS:-postgres}"
-MUSER="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_USERNAME)"; MUSER="${MUSER:-mongo}"
-MPASS="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_PASSWORD)"; MPASS="${MPASS:-mongo}"
+PG_USER="${PG_USER:-$(_lt_env "${PG_CTN}" POSTGRES_USER)}"
+PG_USER="${PG_USER:-postgres}"
+PG_PASS="${PG_PASS:-$(_lt_env "${PG_CTN}" POSTGRES_PASSWORD)}"
+PG_PASS="${PG_PASS:-postgres}"
+MUSER="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_USERNAME)"
+MUSER="${MUSER:-mongo}"
+MPASS="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_PASSWORD)"
+MPASS="${MPASS:-mongo}"
 [[ -n "${SERVICE_TOKEN}" && -n "${ANON_KEY}" && -n "${SERVICE_KEY}" ]] || fail "stack secrets not found"
 
 # API key: prefer the provisioner-passed one, else the contract emit, else state.
@@ -106,12 +116,15 @@ if [[ -z "${API_KEY}" && -f "${REPO_ROOT}/build/red-tetris.env" ]]; then
 fi
 [[ -n "${API_KEY:-}" && -f "${STATE_ENV}" ]] || true
 # shellcheck source=/dev/null
-if [[ -z "${API_KEY:-}" && -f "${STATE_ENV}" ]]; then source "${STATE_ENV}"; API_KEY="${RT_API_KEY:-}"; fi
+if [[ -z "${API_KEY:-}" && -f "${STATE_ENV}" ]]; then
+  source "${STATE_ENV}"
+  API_KEY="${RT_API_KEY:-}"
+fi
 [[ "${API_KEY:-}" == mbk_* ]] || fail "no app key (run scripts/provision-contract.sh first)"
 
 # ── 1) patch PG mount shared_resources (the contract can't set this) ──────────
-PG_DB_ID="$(curl -s "${KONG_URL}/admin/v1/databases" -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT_SLUG}" \
-  | jq -r --arg n "${PG_MOUNT}" '.[]? | select(.name==$n) | .id' | head -1)"
+PG_DB_ID="$(curl -s "${KONG_URL}/admin/v1/databases" -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT_SLUG}" |
+  jq -r --arg n "${PG_MOUNT}" '.[]? | select(.name==$n) | .id' | head -1)"
 [[ -n "${PG_DB_ID}" ]] || fail "PG mount '${PG_MOUNT}' not found (provision the contract first)"
 psql_admin -c "UPDATE public.tenant_databases SET shared_resources='${SHARED_RESOURCES}'::jsonb WHERE id='${PG_DB_ID}' AND tenant_id='${TENANT_SLUG}';" >/dev/null
 cyan "PG mount ${PG_DB_ID}: shared_resources patched (world-readable leaderboard)"
@@ -119,24 +132,32 @@ cyan "PG mount ${PG_DB_ID}: shared_resources patched (world-readable leaderboard
 # ── 2) Mongo + Redis mounts (seed-registered; contract DSN builder is PG-only) ─
 register_mount() { # $1 engine, $2 name, $3 dsn, $4 shared_json(or "")
   local body
-  if [[ -n "${4:-}" ]]; then body="{\"engine\":\"$1\",\"name\":\"$2\",\"connection_string\":\"$3\",\"shared_resources\":$4}"
+  if [[ -n "${4:-}" ]]; then
+    body="{\"engine\":\"$1\",\"name\":\"$2\",\"connection_string\":\"$3\",\"shared_resources\":$4}"
   else body="{\"engine\":\"$1\",\"name\":\"$2\",\"connection_string\":\"$3\"}"; fi
   REG_ID=""
   REG_CODE=$(curl -s -o /tmp/rt-mount.json -w '%{http_code}' -X POST "${KONG_URL}/admin/v1/databases" \
     -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT_SLUG}" -H 'Content-Type: application/json' -d "${body}")
-  if [[ "${REG_CODE}" == "201" ]]; then REG_ID="$(_lt_json_field id </tmp/rt-mount.json)"
+  if [[ "${REG_CODE}" == "201" ]]; then
+    REG_ID="$(_lt_json_field id </tmp/rt-mount.json)"
   elif [[ "${REG_CODE}" == "409" ]]; then
-    REG_ID="$(curl -fsS "${KONG_URL}/admin/v1/databases" -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT_SLUG}" \
-      | jq -r --arg n "$2" '.[]? | select(.name==$n) | .id' | head -1)"; fi
+    REG_ID="$(curl -fsS "${KONG_URL}/admin/v1/databases" -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT_SLUG}" |
+      jq -r --arg n "$2" '.[]? | select(.name==$n) | .id' | head -1)"
+  fi
 }
 
-MONGO_DB_ID=""; REDIS_DB_ID=""
+MONGO_DB_ID=""
+REDIS_DB_ID=""
 register_mount mongodb "${MONGO_MOUNT}" "mongodb://${MUSER}:${MPASS}@mongo:27017/${MONGO_DB}?authSource=admin" '["replays"]'
-if [[ "${REG_CODE}" == "201" || "${REG_CODE}" == "409" ]]; then MONGO_DB_ID="${REG_ID}"; cyan "mongo mount = ${MONGO_DB_ID}"
+if [[ "${REG_CODE}" == "201" || "${REG_CODE}" == "409" ]]; then
+  MONGO_DB_ID="${REG_ID}"
+  cyan "mongo mount = ${MONGO_DB_ID}"
 else warn "mongo mount not registered (${REG_CODE}) — replays disabled until 'data' plane is up"; fi
 
 register_mount redis "${REDIS_MOUNT}" "redis://redis:6379" ""
-if [[ "${REG_CODE}" == "201" || "${REG_CODE}" == "409" ]]; then REDIS_DB_ID="${REG_ID}"; cyan "redis mount = ${REDIS_DB_ID}"
+if [[ "${REG_CODE}" == "201" || "${REG_CODE}" == "409" ]]; then
+  REDIS_DB_ID="${REG_ID}"
+  cyan "redis mount = ${REDIS_DB_ID}"
 else warn "redis mount not registered (${REG_CODE}) — hot cache disabled (Phase 6)"; fi
 
 # Mongo replay collection (idempotent) — only if the mount + mongo are up.
@@ -158,8 +179,8 @@ if [[ -n "${STORAGE_SECRET}" ]]; then
     -H "apikey: ${ANON_KEY}" -H "Authorization: Bearer ${STOR_TOKEN}" -H 'Content-Type: application/json' \
     -d '{"name":"avatars","public":true}' 2>/dev/null || true)
   case "${bcode}" in
-    2*|409) cyan "avatars bucket ready (HTTP ${bcode})" ;;
-    *)      warn "avatars bucket skipped (storage route → HTTP ${bcode:-000}); profile falls back to initials" ;;
+  2* | 409) cyan "avatars bucket ready (HTTP ${bcode})" ;;
+  *) warn "avatars bucket skipped (storage route → HTTP ${bcode:-000}); profile falls back to initials" ;;
   esac
 else warn "storage-router not up — skipping avatars bucket (Phase 6)"; fi
 
@@ -186,7 +207,8 @@ for spec in "${DEMO_USERS[@]}"; do
     -H "apikey: ${ANON_KEY}" -H "Authorization: Bearer ${SERVICE_KEY}" -H 'Content-Type: application/json' \
     -d "{\"email\":\"${email}\",\"password\":\"${DEMO_PASS}\",\"email_confirm\":true,\"user_metadata\":{\"username\":\"${username}\",\"first_name\":\"${first}\",\"last_name\":\"${last}\"}}")
   sub=""
-  if [[ "${code}" == "200" || "${code}" == "201" ]]; then sub="$(_lt_json_field id </tmp/rt-user.json)"
+  if [[ "${code}" == "200" || "${code}" == "201" ]]; then
+    sub="$(_lt_json_field id </tmp/rt-user.json)"
   else
     sub="$(EMAIL="${email}" KURL="${KONG_URL}" ANON="${ANON_KEY}" SVC="${SERVICE_KEY}" python3 -c '
 import json,os,urllib.request

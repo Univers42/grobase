@@ -233,26 +233,26 @@ END {
 
 # usage prints the command line and the exit codes.
 usage() {
-	printf 'usage: sh scripts/ops/preflight-production.sh [ENV_FILE]   (default .env)\n'
-	printf 'exit:  0 PASS, 1 offenders named, 2 unreadable file or internal error\n'
+  printf 'usage: sh scripts/ops/preflight-production.sh [ENV_FILE]   (default .env)\n'
+  printf 'exit:  0 PASS, 1 offenders named, 2 unreadable file or internal error\n'
 }
 
 # main feeds ENV_FILE to awk on stdin (never sourced, never an awk operand, so
 # a name holding `=` or a leading `-` cannot be misread) and returns its verdict.
 main() {
-	case "${1:-}" in -h | --help) usage && return 0 ;; esac
-	env_file="${1:-.env}"
-	if [ ! -f "$env_file" ] || [ ! -r "$env_file" ]; then
-		printf 'preflight-production: %s is missing or unreadable\n' "$env_file" >&2
-		return 2
-	fi
-	printf 'preflight-production: %s\n' "$env_file"
-	printf '  scope: this FILE only; host-shell env vars override it during compose interpolation.\n'
-	rc=0
-	awk "$PREFLIGHT_AWK" <"$env_file" || rc=$?
-	[ "$rc" -le 1 ] && return "$rc"
-	printf 'preflight-production: internal error (awk exit %s)\n' "$rc" >&2
-	return 2
+  case "${1:-}" in -h | --help) usage && return 0 ;; esac
+  env_file="${1:-.env}"
+  if [ ! -f "$env_file" ] || [ ! -r "$env_file" ]; then
+    printf 'preflight-production: %s is missing or unreadable\n' "$env_file" >&2
+    return 2
+  fi
+  printf 'preflight-production: %s\n' "$env_file"
+  printf '  scope: this FILE only; host-shell env vars override it during compose interpolation.\n'
+  rc=0
+  awk "$PREFLIGHT_AWK" <"$env_file" || rc=$?
+  [ "$rc" -le 1 ] && return "$rc"
+  printf 'preflight-production: internal error (awk exit %s)\n' "$rc" >&2
+  return 2
 }
 
 main "$@"

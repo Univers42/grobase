@@ -348,7 +348,10 @@ run_trufflehog() {
   fi
 
   local open_out="${ARTIFACTS_DIR}/trufflehog-open.json" count accepted
-  trufflehog_open "${out}" >"${open_out}" || { fail "TruffleHog: could not apply .trufflehog-accepted"; return 1; }
+  trufflehog_open "${out}" >"${open_out}" || {
+    fail "TruffleHog: could not apply .trufflehog-accepted"
+    return 1
+  }
   count=$(grep -c . "${open_out}" || true)
   accepted=$(($(grep -c . "${out}" || true) - count))
   if [[ "${accepted}" -gt 0 ]]; then

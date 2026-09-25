@@ -111,17 +111,17 @@ PB_INS_BODY='{"title":"load"}'
 declare -A R # R[system,op,c] = "rps p50 p95 p99"
 for c in 1 16 64; do
   cyan "[load] c=${c} insert ${DUR} each"
-  R[nano,ins,$c]=$(oha -z "${DUR}" -c "${c}" -m POST \
+  R[nano, ins, $c]=$(oha -z "${DUR}" -c "${c}" -m POST \
     -H "X-Baas-Api-Key: ${NK}" -H "Content-Type: application/json" \
     -d "${NANO_INS_BODY}" "${NANO}/data/v1/query" | parse)
-  R[pb,ins,$c]=$(oha -z "${DUR}" -c "${c}" -m POST \
+  R[pb, ins, $c]=$(oha -z "${DUR}" -c "${c}" -m POST \
     -H "Authorization: ${PB_TOKEN}" -H "Content-Type: application/json" \
     -d "${PB_INS_BODY}" "${PB}/api/collections/bench/records" | parse)
   cyan "[load] c=${c} list(30) ${DUR} each"
-  R[nano,list,$c]=$(oha -z "${DUR}" -c "${c}" -m POST \
+  R[nano, list, $c]=$(oha -z "${DUR}" -c "${c}" -m POST \
     -H "X-Baas-Api-Key: ${NK}" -H "Content-Type: application/json" \
     -d "${NANO_LIST_BODY}" "${NANO}/data/v1/query" | parse)
-  R[pb,list,$c]=$(oha -z "${DUR}" -c "${c}" \
+  R[pb, list, $c]=$(oha -z "${DUR}" -c "${c}" \
     -H "Authorization: ${PB_TOKEN}" \
     "${PB}/api/collections/bench/records?perPage=30&skipTotal=1" | parse)
 done
@@ -167,8 +167,8 @@ PB_BOOT=$(boot_ms load-pb "${PB}/api/health")
 # ── report ───────────────────────────────────────────────────────────────────
 row() { # label key
   local n p
-  read -ra n <<<"${R[nano,$2,$3]}"
-  read -ra p <<<"${R[pb,$2,$3]}"
+  read -ra n <<<"${R[nano, $2, $3]}"
+  read -ra p <<<"${R[pb, $2, $3]}"
   printf '  %-22s %9s %7s %7s %7s   %9s %7s %7s %7s\n' \
     "$1" "${n[0]}" "${n[1]}" "${n[2]}" "${n[3]}" "${p[0]}" "${p[1]}" "${p[2]}" "${p[3]}"
 }
@@ -191,8 +191,8 @@ python3 - "$PB_VERSION" "$DUR" "$BIG_N" <<EOF >artifacts/nano-vs-pocketbase-load
 import json, sys, datetime
 R = {
 $(for c in 1 16 64; do for op in ins list; do
-  echo "  (\"nano\",\"$op\",$c): \"${R[nano,$op,$c]}\","
-  echo "  (\"pb\",\"$op\",$c): \"${R[pb,$op,$c]}\","
+  echo "  (\"nano\",\"$op\",$c): \"${R[nano, $op, $c]}\","
+  echo "  (\"pb\",\"$op\",$c): \"${R[pb, $op, $c]}\","
 done; done)
 }
 def unpack(s):

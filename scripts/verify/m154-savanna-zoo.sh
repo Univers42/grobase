@@ -23,12 +23,15 @@ KPORT="$(docker port mini-baas-kong 8000/tcp 2>/dev/null | head -1 | sed 's/.*:/
 GW="http://localhost:${KPORT:-8000}"
 PASS="${ZOO_PASSWORD:-zoo-admin-2024}"
 ok() { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
-fail() { printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+fail() {
+  printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2
+  exit 1
+}
 
 login() { # $1=email -> echoes access_token
   curl -s -X POST "$GW/auth/v1/token?grant_type=password" -H "apikey: $ANON" \
-    -H 'Content-Type: application/json' -d "{\"email\":\"$1\",\"password\":\"$PASS\"}" \
-    | python3 -c "import sys,json;print(json.load(sys.stdin).get('access_token',''))"
+    -H 'Content-Type: application/json' -d "{\"email\":\"$1\",\"password\":\"$PASS\"}" |
+    python3 -c "import sys,json;print(json.load(sys.stdin).get('access_token',''))"
 }
 jlen() { python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else -1)"; }
 
@@ -48,22 +51,24 @@ ANON_TICKETS=$(curl -s "$GW/rest/v1/tickets?select=id" -H "apikey: $ANON" | jlen
 [ "$ANON_TICKETS" = "0" ] || fail "anon should NOT see tickets (RLS) — got $ANON_TICKETS"
 ok "RLS: anon reads animals ($ANON_ANIMALS), tickets hidden ($ANON_TICKETS)"
 
-ATOK="$(login sophie.laurent@savanna-zoo.com)"; [ -n "$ATOK" ] || fail "admin login failed"
+ATOK="$(login sophie.laurent@savanna-zoo.com)"
+[ -n "$ATOK" ] || fail "admin login failed"
 ADMIN_TICKETS=$(curl -s "$GW/rest/v1/tickets?select=id&limit=5" -H "apikey: $ANON" -H "Authorization: Bearer $ATOK" | jlen)
 [ "$ADMIN_TICKETS" -ge 1 ] || fail "admin cannot read tickets ($ADMIN_TICKETS)"
 ok "RLS: admin (Sophie) reads tickets ($ADMIN_TICKETS)"
 
-MTOK="$(login marcus.osei@savanna-zoo.com)"; [ -n "$MTOK" ] || fail "zookeeper login failed"
-SID=$(curl -s "$GW/rest/v1/staff?select=id&limit=1" -H "apikey: $ANON" -H "Authorization: Bearer $MTOK" \
-  | python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
+MTOK="$(login marcus.osei@savanna-zoo.com)"
+[ -n "$MTOK" ] || fail "zookeeper login failed"
+SID=$(curl -s "$GW/rest/v1/staff?select=id&limit=1" -H "apikey: $ANON" -H "Authorization: Bearer $MTOK" |
+  python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
 DENIED=$(curl -s -X PATCH "$GW/rest/v1/staff?id=eq.$SID" -H "apikey: $ANON" -H "Authorization: Bearer $MTOK" \
   -H 'Content-Type: application/json' -H 'Prefer: return=representation' -d '{"phone":"BLOCKED"}' | jlen)
 [ "$DENIED" = "0" ] || fail "zookeeper staff-write should be RLS-blocked (0 rows) — got $DENIED"
 ok "RLS: zookeeper (Marcus) staff-write blocked ($DENIED rows)"
 
 # ── (C) triggers: QR + visitor_stats ─────────────────────────
-TTID=$(curl -s "$GW/rest/v1/ticket_types?select=id&limit=1" -H "apikey: $ANON" \
-  | python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
+TTID=$(curl -s "$GW/rest/v1/ticket_types?select=id&limit=1" -H "apikey: $ANON" |
+  python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
 NEW=$(curl -s -X POST "$GW/rest/v1/tickets" -H "apikey: $ANON" -H "Authorization: Bearer $ATOK" \
   -H 'Content-Type: application/json' -H 'Prefer: return=representation' \
   -d "{\"ticket_type_id\":\"$TTID\",\"visitor_name\":\"m154 gate\",\"visitor_email\":\"g@t.co\",\"visit_date\":\"2026-09-09\",\"quantity\":3,\"total_eur\":\"74.70\",\"status\":\"valid\"}")

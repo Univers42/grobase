@@ -28,22 +28,38 @@ MIG_DIR="${INFRA_DIR}/scripts/migrations/postgresql"
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 ok() { green "  ✓ $*"; }
-fail() { red "[V09] FAIL — $*"; exit 1; }
+fail() {
+  red "[V09] FAIL — $*"
+  exit 1
+}
 
-TC_IMG="v09-tc-$$:scratch"; NET="v09net-$$"; PG="v09-pg-$$"; TC_ON="v09-on-$$"; TC_OFF="v09-off-$$"
-PORT_ON=19182; PORT_OFF=19183; PGPW=postgres
+TC_IMG="v09-tc-$$:scratch"
+NET="v09net-$$"
+PG="v09-pg-$$"
+TC_ON="v09-on-$$"
+TC_OFF="v09-off-$$"
+PORT_ON=19182
+PORT_OFF=19183
+PGPW=postgres
 DB_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
-JWT_SECRET="v09-shared-gotrue-secret-$$"; PEPPER="v09-pepper-$$"
+JWT_SECRET="v09-shared-gotrue-secret-$$"
+PEPPER="v09-pepper-$$"
 EMAIL="dev@grobase.test"
 BLOB="eyJzYWx0IjoiZGVhZGJlZWYiLCJjaXBoZXJ0ZXh0Ijoid3JhcHBlZC1rZXlzdG9yZS1ibG9iLXYwOSJ9"
 BODY="$(mktemp)"
 
-cleanup() { docker rm -fv "$TC_ON" "$TC_OFF" "$PG" >/dev/null 2>&1 || true; docker network rm "$NET" >/dev/null 2>&1 || true; docker image rm -f "$TC_IMG" >/dev/null 2>&1 || true; rm -f "$BODY" 2>/dev/null || true; }
+cleanup() {
+  docker rm -fv "$TC_ON" "$TC_OFF" "$PG" >/dev/null 2>&1 || true
+  docker network rm "$NET" >/dev/null 2>&1 || true
+  docker image rm -f "$TC_IMG" >/dev/null 2>&1 || true
+  rm -f "$BODY" 2>/dev/null || true
+}
 trap cleanup EXIT
 
 psql_v() { docker exec -i "$PG" psql -U postgres -d postgres -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 apply() { sed '/^#/d' "$1" | docker exec -i "$PG" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - >/dev/null 2>&1; }
-mint() { V_EMAIL="$1" V_SECRET="$JWT_SECRET" python3 - <<'PY'
+mint() {
+  V_EMAIL="$1" V_SECRET="$JWT_SECRET" python3 - <<'PY'
 import os, json, time, hmac, hashlib, base64
 b = lambda x: base64.urlsafe_b64encode(x).rstrip(b'=').decode()
 h = b(json.dumps({"alg":"HS256","typ":"JWT"},separators=(',',':')).encode())
@@ -52,13 +68,29 @@ sig = b(hmac.new(os.environ["V_SECRET"].encode(), f"{h}.{p}".encode(), hashlib.s
 print(f"{h}.{p}.{sig}")
 PY
 }
-wait_http() { local i; for i in $(seq 1 60); do [ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2$3" 2>/dev/null)" = 200 ] && return 0; docker inspect "$1" >/dev/null 2>&1 || { docker logs "$1" 2>&1 | tail -15; return 1; }; sleep 0.5; done; docker logs "$1" 2>&1 | tail -15; return 1; }
+wait_http() {
+  local i
+  for i in $(seq 1 60); do
+    [ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2$3" 2>/dev/null)" = 200 ] && return 0
+    docker inspect "$1" >/dev/null 2>&1 || {
+      docker logs "$1" 2>&1 | tail -15
+      return 1
+    }
+    sleep 0.5
+  done
+  docker logs "$1" 2>&1 | tail -15
+  return 1
+}
 
 echo "[V09] 1/5 build tenant-control + scratch postgres + migrations 005/032/075/076"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT=3020 -t "$TC_IMG" "$GO_DIR" >/dev/null || fail "build failed"
 docker network create "$NET" >/dev/null
 docker run -d --name "$PG" --network "$NET" -e POSTGRES_PASSWORD="$PGPW" postgres:16-alpine >/dev/null
-for i in $(seq 1 90); do docker exec "$PG" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 && [ "$(psql_v 'SELECT 1')" = 1 ] && break; [ "$i" = 90 ] && fail "pg never ready"; sleep 0.5; done
+for i in $(seq 1 90); do
+  docker exec "$PG" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 && [ "$(psql_v 'SELECT 1')" = 1 ] && break
+  [ "$i" = 90 ] && fail "pg never ready"
+  sleep 0.5
+done
 docker exec -i "$PG" psql -U postgres -d postgres -v ON_ERROR_STOP=1 >/dev/null 2>&1 <<'SQL'
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE IF NOT EXISTS public.schema_migrations (version int PRIMARY KEY, name text, applied_at timestamptz DEFAULT now());

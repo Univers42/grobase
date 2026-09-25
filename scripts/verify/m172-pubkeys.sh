@@ -55,9 +55,9 @@ SVC_TOKEN="m172-internal-service-token-$$"
 JWT_SECRET="m172-jwt-secret-deadbeefcafef00ddeadbeefcafef00d"
 BODY_TMP="$(mktemp)"
 
-U1="11111111-1111-1111-1111-111111111111" # org A owner (admin)
-U2="22222222-2222-2222-2222-222222222222" # team member
-U3="33333333-3333-3333-3333-333333333333" # team member
+U1="11111111-1111-1111-1111-111111111111"   # org A owner (admin)
+U2="22222222-2222-2222-2222-222222222222"   # team member
+U3="33333333-3333-3333-3333-333333333333"   # team member
 UOUT="44444444-4444-4444-4444-444444444444" # not a member
 
 cleanup() {
@@ -106,10 +106,16 @@ wait_ready_http() {
   local i
   for i in $(seq 1 60); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2$3" 2>/dev/null)" == "200" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # ── 1) postgres + migrations ──────────────────────────────────────────────────

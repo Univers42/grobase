@@ -26,14 +26,14 @@ FIREFOX_ENTERPRISE_ROOTS=${TRACK_BINOCLE_FIREFOX_ENTERPRISE_ROOTS:-1}
 
 for arg in "$@"; do
   case "$arg" in
-    --system)
-      INSTALL_SYSTEM=1
-      ;;
-    --verify)
-      VERIFY_ONLY=1
-      ;;
-    --help|-h)
-      cat <<EOF
+  --system)
+    INSTALL_SYSTEM=1
+    ;;
+  --verify)
+    VERIFY_ONLY=1
+    ;;
+  --help | -h)
+    cat <<EOF
 Usage: $(basename "$0") [--system] [--verify]
 
 Imports the Track Binocle local development CA into user browser trust stores.
@@ -42,12 +42,12 @@ Use --verify to check whether the system CA store has the current CA.
 On Debian/Ubuntu, --system installs missing ca-certificates and libnss3-tools unless TRACK_BINOCLE_CERTS_INSTALL_DEPS=0.
 Firefox profiles are also configured to read enterprise/system roots unless TRACK_BINOCLE_FIREFOX_ENTERPRISE_ROOTS=0.
 EOF
-      exit 0
-      ;;
-    *)
-      printf 'Unknown option: %s\n' "$arg" >&2
-      exit 2
-      ;;
+    exit 0
+    ;;
+  *)
+    printf 'Unknown option: %s\n' "$arg" >&2
+    exit 2
+    ;;
   esac
 done
 
@@ -111,8 +111,8 @@ run_as_root() {
 append_debian_package() {
   package=$1
   case " $DEBIAN_PACKAGES " in
-    *" $package "*) ;;
-    *) DEBIAN_PACKAGES="${DEBIAN_PACKAGES}${DEBIAN_PACKAGES:+ }$package" ;;
+  *" $package "*) ;;
+  *) DEBIAN_PACKAGES="${DEBIAN_PACKAGES}${DEBIAN_PACKAGES:+ }$package" ;;
   esac
 }
 
@@ -146,15 +146,15 @@ ensure_system_dependencies() {
   [ -n "$DEBIAN_PACKAGES" ] || return 0
 
   case "$AUTO_INSTALL_DEPS" in
-    0|false|FALSE|no|NO)
-      printf '[certs] Missing local certificate tooling: %s\n' "$DEBIAN_PACKAGES" >&2
-      if [ "$missing_system_store" -eq 1 ]; then
-        printf '[certs] Install ca-certificates, then rerun make certs-trust-system.\n' >&2
-        return 1
-      fi
-      printf '[certs] Browser NSS import will be skipped until libnss3-tools is installed.\n' >&2
-      return 0
-      ;;
+  0 | false | FALSE | no | NO)
+    printf '[certs] Missing local certificate tooling: %s\n' "$DEBIAN_PACKAGES" >&2
+    if [ "$missing_system_store" -eq 1 ]; then
+      printf '[certs] Install ca-certificates, then rerun make certs-trust-system.\n' >&2
+      return 1
+    fi
+    printf '[certs] Browser NSS import will be skipped until libnss3-tools is installed.\n' >&2
+    return 0
+    ;;
   esac
 
   if install_debian_packages $DEBIAN_PACKAGES; then
@@ -199,12 +199,12 @@ trust_existing_nss_db() {
 
 firefox_enterprise_roots_enabled() {
   case "$FIREFOX_ENTERPRISE_ROOTS" in
-    0|false|FALSE|no|NO)
-      return 1
-      ;;
-    *)
-      return 0
-      ;;
+  0 | false | FALSE | no | NO)
+    return 1
+    ;;
+  *)
+    return 0
+    ;;
   esac
 }
 
@@ -243,16 +243,16 @@ trust_firefox_profiles_ini() {
   ' "$profiles_ini" | while IFS='|' read -r is_relative profile_path; do
     [ -n "$profile_path" ] || continue
     case "$profile_path" in
-      /*)
+    /*)
+      profile_dir=$profile_path
+      ;;
+    *)
+      if [ "$is_relative" = "1" ]; then
+        profile_dir="$base_dir/$profile_path"
+      else
         profile_dir=$profile_path
-        ;;
-      *)
-        if [ "$is_relative" = "1" ]; then
-          profile_dir="$base_dir/$profile_path"
-        else
-          profile_dir=$profile_path
-        fi
-        ;;
+      fi
+      ;;
     esac
     trust_firefox_profile "$profile_dir"
   done
@@ -280,8 +280,8 @@ trust_firefox_profiles() {
 }
 
 warn_if_firefox_running() {
-  if resolve_command pgrep >/dev/null 2>&1 \
-    && { pgrep -x firefox >/dev/null 2>&1 || pgrep -f '/firefox/firefox' >/dev/null 2>&1; }; then
+  if resolve_command pgrep >/dev/null 2>&1 &&
+    { pgrep -x firefox >/dev/null 2>&1 || pgrep -f '/firefox/firefox' >/dev/null 2>&1; }; then
     printf '[certs] Firefox is running; fully quit every Firefox process before retesting localhost HTTPS.\n' >&2
   fi
 }
@@ -302,9 +302,9 @@ if CERTUTIL=$(resolve_command certutil); then
     find "$search_root" -type f -name cert9.db -print 2>/dev/null | while IFS= read -r cert_db; do
       db_dir=$(dirname "$cert_db")
       case "$db_dir" in
-        "$HOME/.mozilla/firefox"/*|"$HOME/snap/firefox/common/.mozilla/firefox"/*|"$HOME/.var/app/org.mozilla.firefox/.mozilla/firefox"/*)
-          continue
-          ;;
+      "$HOME/.mozilla/firefox"/* | "$HOME/snap/firefox/common/.mozilla/firefox"/* | "$HOME/.var/app/org.mozilla.firefox/.mozilla/firefox"/*)
+        continue
+        ;;
       esac
       trust_existing_nss_db "$db_dir"
     done

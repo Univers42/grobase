@@ -44,18 +44,21 @@ p=sys.argv[1].split(".")[1]; p+="="*(-len(p)%4)
 print(json.loads(base64.urlsafe_b64decode(p)).get("sub",""))' "$1" 2>/dev/null || true; }
 jrows() { python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1])).get("rows",[])))' "$1" 2>/dev/null || echo 0; }
 my_root_pw() {
-  docker inspect "${MYSQL_CTN}" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
-    | sed -n 's/^MYSQL_ROOT_PASSWORD=//p' | head -1
+  docker inspect "${MYSQL_CTN}" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null |
+    sed -n 's/^MYSQL_ROOT_PASSWORD=//p' | head -1
 }
 myq() { docker exec "${MYSQL_CTN}" mariadb -uroot -p"$(my_root_pw)" hambooking -N -e "$1" 2>/dev/null; }
 
 # ── 1) provision (idempotent) ────────────────────────────────────────────────
 step "1/5 provision the hambooking tenant (idempotent)"
-bash "${BAAS_DIR}/scripts/seed/hambooking-tenant.sh" >"${TMP}/seed.log" 2>&1 \
-  || fail "provisioning failed — $(tail -3 "${TMP}/seed.log")"
+bash "${BAAS_DIR}/scripts/seed/hambooking-tenant.sh" >"${TMP}/seed.log" 2>&1 ||
+  fail "provisioning failed — $(tail -3 "${TMP}/seed.log")"
 # shellcheck disable=SC1091
 source "${BAAS_DIR}/.hambooking-tenant.env"
-KONG="${HB_KONG_URL}"; ANON="${HB_ANON_APIKEY}"; AK="${HB_API_KEY}"; DB="${HB_DB_ID}"
+KONG="${HB_KONG_URL}"
+ANON="${HB_ANON_APIKEY}"
+AK="${HB_API_KEY}"
+DB="${HB_DB_ID}"
 SVC="${HB_SERVICE_APIKEY}"
 [[ -n "${KONG}" && -n "${AK}" && -n "${DB}" && -n "${SVC}" ]] || fail "incomplete provisioning state"
 ok "tenant=${HB_TENANT_SLUG} mount=${DB}"
@@ -123,10 +126,13 @@ ok "B cannot touch A's row (cross-user write owner-scoped)"
 
 # ── 3) admin sign-in + FK seed rows ──────────────────────────────────────────
 step "3/5 admin sign-in + FK seed rows"
-ADMIN_JWT="$(curl -s -X POST "${KONG}/auth/v1/token?grant_type=password" \
-  -H "apikey: ${ANON}" -H 'Content-Type: application/json' \
-  -d "{\"email\":\"${HB_ADMIN_EMAIL}\",\"password\":\"${HB_ADMIN_PASSWORD}\"}" \
-  -o "${TMP}/adm.json" >/dev/null 2>&1; jval "${TMP}/adm.json" access_token)"
+ADMIN_JWT="$(
+  curl -s -X POST "${KONG}/auth/v1/token?grant_type=password" \
+    -H "apikey: ${ANON}" -H 'Content-Type: application/json' \
+    -d "{\"email\":\"${HB_ADMIN_EMAIL}\",\"password\":\"${HB_ADMIN_PASSWORD}\"}" \
+    -o "${TMP}/adm.json" >/dev/null 2>&1
+  jval "${TMP}/adm.json" access_token
+)"
 [[ -n "${ADMIN_JWT}" ]] || fail "admin login failed: $(head -c 200 "${TMP}/adm.json")"
 [[ "$(jsub "${ADMIN_JWT}")" == "${HB_ADMIN_SUB}" ]] || fail "admin sub mismatch"
 # client + carver profile rows (FK targets) via root; users is owner-scoped now,
@@ -178,8 +184,8 @@ myq "DELETE FROM reservations WHERE owner_id='user:${UA}';
      DELETE FROM users WHERE email LIKE 'm147%@hb.com';" >/dev/null 2>&1 || true
 
 # re-confirm services stays shared after all the users-table changes.
-[[ "$(q services '{"op":"list"}' "${JB}")" == "201" && "$(jrows "${TMP}/q.json")" -ge 3 ]] \
-  || fail "services no longer shared after the run — F1 regressed"
+[[ "$(q services '{"op":"list"}' "${JB}")" == "201" && "$(jrows "${TMP}/q.json")" -ge 3 ]] ||
+  fail "services no longer shared after the run — F1 regressed"
 ok "services still shared (F1 intact)"
 
 printf '\033[0;32m[M147] ALL GATES GREEN — HamBooking isolation: F1 shared services · users owner-scope + role-lock · F2a owner-scope · F2b admin bypass · caps trigger\033[0m\n'

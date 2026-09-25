@@ -121,7 +121,18 @@ services:
     # 127.0.0.1, not localhost: PostgREST binds IPv4 only and localhost
     # resolves to ::1 first → the image's own HEALTHCHECK false-negatives.
     healthcheck:
-      test: ["CMD", "/bin/busybox", "wget", "-q", "-O", "/dev/null", "-T", "4", "http://127.0.0.1:3000/"]
+      test:
+        [
+          "CMD",
+          "/bin/busybox",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "-T",
+          "4",
+          "http://127.0.0.1:3000/",
+        ]
       interval: 30s
       timeout: 5s
       start_period: 15s

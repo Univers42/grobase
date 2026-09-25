@@ -53,7 +53,14 @@ VADIM_SUB="60000000-0000-4000-8000-000000000003"
 c() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 g() { printf '\033[0;32m  ✓ %s\033[0m\n' "$*"; }
 r() { printf '\033[0;31mFAIL — %s\033[0m\n' "$*"; }
-die() { r "$*"; echo "---- tenant-control logs ----"; docker logs --tail 40 "${TC}" 2>&1 | tail -40; echo "---- vault42 logs ----"; docker logs --tail 25 "${V42}" 2>&1 | tail -25; exit 1; }
+die() {
+  r "$*"
+  echo "---- tenant-control logs ----"
+  docker logs --tail 40 "${TC}" 2>&1 | tail -40
+  echo "---- vault42 logs ----"
+  docker logs --tail 25 "${V42}" 2>&1 | tail -25
+  exit 1
+}
 
 cleanup() {
   docker rm -f "${PG}" "${TC}" "${V42}" >/dev/null 2>&1 || true
@@ -79,17 +86,22 @@ mint_jwt() { # $1=sub $2=email
 }
 
 setup_identity() { # $1=name $2=sub $3=email
-  local d="${WORK}/$1"; mkdir -p "$d"
-  cat > "$d/config.json" <<JSON
+  local d="${WORK}/$1"
+  mkdir -p "$d"
+  cat >"$d/config.json" <<JSON
 {"current":"default","profiles":{"default":{"server":"http://127.0.0.1:${V42_PORT}","authority":"${GRO}","grobase":"${GRO}"}}}
 JSON
-  FT_CONFIG="$d/config.json" FT_KEYSTORE="$d/keystore.v42" FT_PASSPHRASE="${PASS}" "${CTL}" keys init >/dev/null 2>&1 \
-    || { echo "keys init failed for $1"; return 1; }
-  mint_jwt "$2" "$3" > "$d/session.tok"
+  FT_CONFIG="$d/config.json" FT_KEYSTORE="$d/keystore.v42" FT_PASSPHRASE="${PASS}" "${CTL}" keys init >/dev/null 2>&1 ||
+    {
+      echo "keys init failed for $1"
+      return 1
+    }
+  mint_jwt "$2" "$3" >"$d/session.tok"
 }
 
 ctl() { # $1=name, rest=args
-  local d="${WORK}/$1"; shift
+  local d="${WORK}/$1"
+  shift
   FT_CONFIG="${d}/config.json" FT_KEYSTORE="${d}/keystore.v42" FT_SESSION="${d}/session.tok" FT_PASSPHRASE="${PASS}" "${CTL}" "$@"
 }
 field() { sed 's/\x1b\[[0-9;]*m//g' | awk -v k="$1" '$1==k{print $2; exit}'; }
@@ -99,9 +111,10 @@ c "[1/12] network + scratch postgres"
 docker network create "${NET}" >/dev/null
 docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD=postgres postgres:16-alpine >/dev/null
 for i in $(seq 1 90); do
-  docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 && \
+  docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 &&
     [ "$(psql_val 'SELECT 1')" = "1" ] && break
-  [ "$i" = 90 ] && die "postgres never came up"; sleep 0.5
+  [ "$i" = 90 ] && die "postgres never came up"
+  sleep 0.5
 done
 g "postgres up"
 
@@ -122,9 +135,10 @@ GRANT EXECUTE ON FUNCTION auth.current_user_id() TO anon, authenticated, service
 GRANT EXECUTE ON FUNCTION auth.current_tenant_id() TO anon, authenticated, service_role;
 SQL
 for m in 005_add_tenant_table 032_tenants 040_tenant_usage 043_orgs 044_org_billing_rollup 047_tenant_audit_log \
-         072_teams 073_project_grants 077_environments 078_groups 079_project_grants_ext \
-         080_invites 081_user_pubkeys 082_vault42_scope_keys 083_env_scope_pubkey 084_vault42_env_secrets; do
-  f="${MIG}/${m}.sql"; [ -f "$f" ] || die "missing migration ${m}"
+  072_teams 073_project_grants 077_environments 078_groups 079_project_grants_ext \
+  080_invites 081_user_pubkeys 082_vault42_scope_keys 083_env_scope_pubkey 084_vault42_env_secrets; do
+  f="${MIG}/${m}.sql"
+  [ -f "$f" ] || die "missing migration ${m}"
   sed '/^#/d' "$f" | psql_exec -f - >/dev/null 2>&1 || die "migration ${m} failed"
 done
 g "migrations applied ($(psql_val 'SELECT count(*) FROM schema_migrations') rows)"
@@ -143,7 +157,8 @@ docker run -d --name "${TC}" --network "${NET}" \
 for i in $(seq 1 60); do
   code=$(curl -s -o /dev/null -w '%{http_code}' "${GRO}/v1/orgs" 2>/dev/null || echo 000)
   [ "${code}" != "000" ] && break
-  [ "$i" = 60 ] && die "tenant-control never answered"; sleep 0.5
+  [ "$i" = 60 ] && die "tenant-control never answered"
+  sleep 0.5
 done
 g "tenant-control up at ${GRO}"
 
@@ -159,9 +174,9 @@ g "vault42-server up on :${V42_PORT}"
 
 # ── 5. three identities (admin, sergio, vadim) ────────────────────────────────
 c "[5/12] create 3 identities + minted session JWTs"
-setup_identity admin  "${ADMIN_SUB}"  admin@example.com  || die "admin identity"
+setup_identity admin "${ADMIN_SUB}" admin@example.com || die "admin identity"
 setup_identity sergio "${SERGIO_SUB}" sergio@example.com || die "sergio identity"
-setup_identity vadim  "${VADIM_SUB}"  vadim@example.com  || die "vadim identity"
+setup_identity vadim "${VADIM_SUB}" vadim@example.com || die "vadim identity"
 g "admin/sergio/vadim ready"
 
 # ── 6. org + project + envs ───────────────────────────────────────────────────
@@ -174,7 +189,7 @@ INSERT INTO public.tenants (id, name, slug, owner_user_id, org_id)
 VALUES ('${PROJ}', 'app', 'app-${SUF}', '${ADMIN_SUB}', '${ORG}');
 SQL
 ctl admin env create --project "${PROJ}" --name prod >/dev/null 2>&1 || die "env create prod"
-ctl admin env create --project "${PROJ}" --name dev  >/dev/null 2>&1 || die "env create dev"
+ctl admin env create --project "${PROJ}" --name dev >/dev/null 2>&1 || die "env create dev"
 PROD_ENV="$(curl -fsS "${GRO}/v1/projects/${PROJ}/environments" -H "Authorization: Bearer $(cat "${WORK}/admin/session.tok")" | jq -r '.[]|select(.name=="prod")|.id')"
 DEV_ENV="$(curl -fsS "${GRO}/v1/projects/${PROJ}/environments" -H "Authorization: Bearer $(cat "${WORK}/admin/session.tok")" | jq -r '.[]|select(.name=="dev")|.id')"
 [ -n "${PROD_ENV}" ] && [ -n "${DEV_ENV}" ] || die "env ids not found (prod='${PROD_ENV}' dev='${DEV_ENV}')"
@@ -183,7 +198,7 @@ g "org=${ORG} proj=${PROJ} prod_env=${PROD_ENV} dev_env=${DEV_ENV}"
 # ── 7. bootstrap scope keys for prod + dev ────────────────────────────────────
 c "[7/12] admin: env-init prod + dev (scope keypairs)"
 ctl admin vault env-init --org "${ORG}" --project "${PROJ}" --env prod 2>&1 | sed 's/^/    /' || die "env-init prod"
-ctl admin vault env-init --org "${ORG}" --project "${PROJ}" --env dev  2>&1 | sed 's/^/    /' || die "env-init dev"
+ctl admin vault env-init --org "${ORG}" --project "${PROJ}" --env dev 2>&1 | sed 's/^/    /' || die "env-init dev"
 g "prod + dev scope keys bootstrapped"
 
 # ── 8. team + grant (writer on prod only) ─────────────────────────────────────
@@ -196,7 +211,7 @@ g "team=${TEAM} granted writer on prod"
 # ── 9. admin seals prod + dev secrets ─────────────────────────────────────────
 c "[9/12] admin: seal a prod secret + a dev secret"
 printf 'postgres://prod-db' | ctl admin vault set-env --org "${ORG}" --project "${PROJ}" --env prod DATABASE_URL 2>&1 | sed 's/^/    /' || die "set-env prod"
-printf 'postgres://dev-db'  | ctl admin vault set-env --org "${ORG}" --project "${PROJ}" --env dev  DATABASE_URL 2>&1 | sed 's/^/    /' || die "set-env dev"
+printf 'postgres://dev-db' | ctl admin vault set-env --org "${ORG}" --project "${PROJ}" --env dev DATABASE_URL 2>&1 | sed 's/^/    /' || die "set-env dev"
 g "prod + dev secrets sealed to their scope keys"
 
 # ── 10. invite sergio -> accept -> enroll -> sync-keys ────────────────────────
@@ -216,8 +231,10 @@ g "sergio joined + enrolled; prod scope key wrapped to sergio"
 c "[11/12] ASSERTIONS"
 GOT="$(ctl sergio vault get-env --org "${ORG}" --project "${PROJ}" --env prod DATABASE_URL 2>"${WORK}/sergio.err" || true)"
 if [ "${GOT}" != "postgres://prod-db" ]; then
-  echo "  --- sergio get-env stderr ---"; sed 's/^/    /' "${WORK}/sergio.err"
-  echo "  --- admin get-env prod (control) ---"; ctl admin vault get-env --org "${ORG}" --project "${PROJ}" --env prod DATABASE_URL 2>&1 | sed 's/^/    /'
+  echo "  --- sergio get-env stderr ---"
+  sed 's/^/    /' "${WORK}/sergio.err"
+  echo "  --- admin get-env prod (control) ---"
+  ctl admin vault get-env --org "${ORG}" --project "${PROJ}" --env prod DATABASE_URL 2>&1 | sed 's/^/    /'
   die "sergio could NOT read prod secret (got '${GOT}')"
 fi
 g "sergio decrypts prod/DATABASE_URL = '${GOT}'  (per-env grant + provisioning works)"

@@ -167,7 +167,6 @@ wait_api() {
   fail "runtime not answering through $1: $(docker logs "${2:-$1}" 2>&1 | tail -n3)"
 }
 
-
 # probe_via deploys and invokes the probe through container $1's API and
 # writes its per-target JSON result to $2.
 probe_via() {

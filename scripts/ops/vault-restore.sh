@@ -82,31 +82,31 @@ MC_IMAGE="${MC_IMAGE:-ghcr.io/univers42/grobase-mc:latest}"
 REDIS_IMAGE="${REDIS_IMAGE:-ghcr.io/univers42/grobase-redis:latest}"
 
 die() {
-	printf 'error: %s\n' "$*" >&2
-	exit 1
+  printf 'error: %s\n' "$*" >&2
+  exit 1
 }
 
 note() {
-	printf '[vault-restore] %s\n' "$*" >&2
+  printf '[vault-restore] %s\n' "$*" >&2
 }
 
 have() {
-	[ -f "$SEED_DIR/$1" ]
+  [ -f "$SEED_DIR/$1" ]
 }
 
 is_running() {
-	docker ps --format '{{.Names}}' | grep -qx "$1"
+  docker ps --format '{{.Names}}' | grep -qx "$1"
 }
 
 dump_for() {
-	case "$1" in
-	postgres) printf 'postgres-all.sql.gz' ;;
-	mysql) printf 'mysql-all.sql.gz' ;;
-	mongo) printf 'mongo.archive.gz' ;;
-	minio) printf 'minio.tar.gz' ;;
-	redis) printf 'redis.rdb' ;;
-	*) printf '' ;;
-	esac
+  case "$1" in
+  postgres) printf 'postgres-all.sql.gz' ;;
+  mysql) printf 'mysql-all.sql.gz' ;;
+  mongo) printf 'mongo.archive.gz' ;;
+  minio) printf 'minio.tar.gz' ;;
+  redis) printf 'redis.rdb' ;;
+  *) printf '' ;;
+  esac
 }
 
 # FAIL-CLOSED coverage, checked in preflight BEFORE anything is stopped or dropped.
@@ -121,28 +121,28 @@ dump_for() {
 # is running" is not knowable before engines_up, and a gate that depends on timing is not a
 # gate. A stack that legitimately omits an engine narrows ENGINES.
 require_coverage() {
-	missing=""
-	for eng in $ENGINES; do
-		f=$(dump_for "$eng")
-		[ -n "$f" ] || continue
-		have "$f" || missing="$missing $eng($f)"
-	done
-	[ -z "$missing" ] || die "ENGINES names these, but $SEED_DIR has no dump for:$missing
+  missing=""
+  for eng in $ENGINES; do
+    f=$(dump_for "$eng")
+    [ -n "$f" ] || continue
+    have "$f" || missing="$missing $eng($f)"
+  done
+  [ -z "$missing" ] || die "ENGINES names these, but $SEED_DIR has no dump for:$missing
   Restoring would replace some engines and leave the rest exactly as they were — a
   half-restored stack that still reports success. Capture them (make vault-seed), or
   narrow the set: ENGINES='postgres mysql' ..."
 }
 
 preflight() {
-	command -v docker >/dev/null 2>&1 || die "docker not found"
-	[ -d "$SEED_DIR" ] || die "SEED_DIR not found: $SEED_DIR (run with FETCH=1?)"
-	[ "$FETCH" = "1" ] || return 0
-	command -v 42ctl >/dev/null 2>&1 || die "42ctl not found but FETCH=1"
-	[ -n "${FT_PASSPHRASE:-}" ] || die "FT_PASSPHRASE required for 42ctl pull"
-	note "pulling project '$PROJECT' from the vault"
-	FT_S3_KEY="$(42ctl vault get infra/S3_KEY)" \
-	FT_S3_SECRET="$(42ctl vault get infra/S3_SECRET)" \
-		42ctl pull --project "$PROJECT" --apply || die "42ctl pull failed"
+  command -v docker >/dev/null 2>&1 || die "docker not found"
+  [ -d "$SEED_DIR" ] || die "SEED_DIR not found: $SEED_DIR (run with FETCH=1?)"
+  [ "$FETCH" = "1" ] || return 0
+  command -v 42ctl >/dev/null 2>&1 || die "42ctl not found but FETCH=1"
+  [ -n "${FT_PASSPHRASE:-}" ] || die "FT_PASSPHRASE required for 42ctl pull"
+  note "pulling project '$PROJECT' from the vault"
+  FT_S3_KEY="$(42ctl vault get infra/S3_KEY)" \
+  FT_S3_SECRET="$(42ctl vault get infra/S3_SECRET)" \
+    42ctl pull --project "$PROJECT" --apply || die "42ctl pull failed"
 }
 
 # Engines only. Anything that migrates or seeds must stay down until the replay has
@@ -164,45 +164,45 @@ preflight() {
 # Exited mini-baas-* container, so that bookkeeping could not survive. The `make up EDITION`
 # at the end of main() is the supported way back, and it recreates them.
 stop_non_engines() {
-	# The optional engines (engines-extra profile) are engines too: stopping them here meant
-	# restore_dynamodb then found DynamoDB "not running" and skipped it, and the final
-	# `make up EDITION=devlean` never brings it back — the restore would have switched it off.
-	keep=" mini-baas-dynamodb-local mini-baas-mssql mini-baas-mariadb mini-baas-cockroach"
-	for e in $ENGINES; do keep="$keep mini-baas-$e"; done
-	victims=""
-	for c in $(docker ps --format '{{.Names}}' 2>/dev/null | grep '^mini-baas-' || true); do
-		case " $keep " in *" $c "*) continue ;; esac
-		victims="$victims $c"
-	done
-	if [ -z "$victims" ]; then
-		note "only engines are running — nothing to stop"
-		return 0
-	fi
-	note "stopping non-engine containers so the replay is not raced:$victims"
-	# shellcheck disable=SC2086
-	docker stop -t 30 $victims >/dev/null 2>&1 || true
+  # The optional engines (engines-extra profile) are engines too: stopping them here meant
+  # restore_dynamodb then found DynamoDB "not running" and skipped it, and the final
+  # `make up EDITION=devlean` never brings it back — the restore would have switched it off.
+  keep=" mini-baas-dynamodb-local mini-baas-mssql mini-baas-mariadb mini-baas-cockroach"
+  for e in $ENGINES; do keep="$keep mini-baas-$e"; done
+  victims=""
+  for c in $(docker ps --format '{{.Names}}' 2>/dev/null | grep '^mini-baas-' || true); do
+    case " $keep " in *" $c "*) continue ;; esac
+    victims="$victims $c"
+  done
+  if [ -z "$victims" ]; then
+    note "only engines are running — nothing to stop"
+    return 0
+  fi
+  note "stopping non-engine containers so the replay is not raced:$victims"
+  # shellcheck disable=SC2086
+  docker stop -t 30 $victims >/dev/null 2>&1 || true
 }
 
 engines_up() {
-	stop_non_engines
-	note "starting engines only: $ENGINES"
-	# shellcheck disable=SC2086
-	make --no-print-directory up EDITION="$EDITION" SERVICE="$ENGINES" >/dev/null \
-		|| die "could not start engines"
-	wait_for_postgres
+  stop_non_engines
+  note "starting engines only: $ENGINES"
+  # shellcheck disable=SC2086
+  make --no-print-directory up EDITION="$EDITION" SERVICE="$ENGINES" >/dev/null ||
+    die "could not start engines"
+  wait_for_postgres
 }
 
 wait_for_postgres() {
-	n=0
-	while [ "$n" -lt 30 ]; do
-		if docker exec mini-baas-postgres sh -c \
-			'pg_isready -U "$POSTGRES_USER"' >/dev/null 2>&1; then
-			return 0
-		fi
-		n=$((n + 1))
-		sleep 2
-	done
-	die "postgres did not become ready"
+  n=0
+  while [ "$n" -lt 30 ]; do
+    if docker exec mini-baas-postgres sh -c \
+      'pg_isready -U "$POSTGRES_USER"' >/dev/null 2>&1; then
+      return 0
+    fi
+    n=$((n + 1))
+    sleep 2
+  done
+  die "postgres did not become ready"
 }
 
 # A pg_dumpall --clean replay ALWAYS emits statements that cannot succeed, because the dump
@@ -238,8 +238,8 @@ PG_BENIGN='^ERROR:  role "[^"]*" (already exists|cannot be dropped because some 
 # DROP DATABASE refuses while any session is connected; the dump carries 6 of them for real
 # application databases. Clear the connections so those DROPs can actually execute.
 pg_terminate_sessions() {
-	docker exec mini-baas-postgres sh -c \
-		'PGPASSWORD="$POSTGRES_PASSWORD" psql -q -U "$POSTGRES_USER" -d postgres -c \
+  docker exec mini-baas-postgres sh -c \
+    'PGPASSWORD="$POSTGRES_PASSWORD" psql -q -U "$POSTGRES_USER" -d postgres -c \
 		 "SELECT pg_terminate_backend(pid) FROM pg_stat_activity \
 		  WHERE pid <> pg_backend_pid() AND datname IS NOT NULL"' >/dev/null 2>&1 || true
 }
@@ -260,10 +260,10 @@ pg_terminate_sessions() {
 # has no quoting interaction with the shell at all, and the DO block keeps the whole thing
 # server-side so nothing has to be escaped twice.
 clear_postgres_db() {
-	note "postgres: clearing the 'postgres' database (schemas + publications)"
-	docker exec -i mini-baas-postgres sh -c \
-		'PGPASSWORD="$POSTGRES_PASSWORD" psql -q -U "$POSTGRES_USER" -d postgres -v ON_ERROR_STOP=1' \
-		>/dev/null 2>&1 <<-'SQL' || die "could not clear the postgres database"
+  note "postgres: clearing the 'postgres' database (schemas + publications)"
+  docker exec -i mini-baas-postgres sh -c \
+    'PGPASSWORD="$POSTGRES_PASSWORD" psql -q -U "$POSTGRES_USER" -d postgres -v ON_ERROR_STOP=1' \
+    >/dev/null 2>&1 <<-'SQL' || die "could not clear the postgres database"
 	DO $$
 	DECLARE r record;
 	BEGIN
@@ -283,44 +283,47 @@ clear_postgres_db() {
 # Reversibility of this operation was scored 5/5: it drops 8 databases and 7 roles with no
 # way back, and the git snapshot only rewinds to 2026-07-28. One command buys a way back.
 backup_postgres() {
-	mkdir -p "$STATE_DIR" && chmod 700 "$STATE_DIR" || die "cannot create $STATE_DIR"
-	out="$STATE_DIR/pre-restore-postgres-$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
-	note "postgres: taking a pre-restore dump -> $(basename "$out")"
-	docker exec mini-baas-postgres sh -c \
-		'PGPASSWORD="$POSTGRES_PASSWORD" pg_dumpall -U "$POSTGRES_USER" --clean' 2>/dev/null \
-		| gzip -9 >"$out" || true
-	[ -s "$out" ] || die "could not take a pre-restore backup — refusing to go further"
-	note "postgres: pre-restore backup is $(wc -c <"$out") bytes"
+  mkdir -p "$STATE_DIR" && chmod 700 "$STATE_DIR" || die "cannot create $STATE_DIR"
+  out="$STATE_DIR/pre-restore-postgres-$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
+  note "postgres: taking a pre-restore dump -> $(basename "$out")"
+  docker exec mini-baas-postgres sh -c \
+    'PGPASSWORD="$POSTGRES_PASSWORD" pg_dumpall -U "$POSTGRES_USER" --clean' 2>/dev/null |
+    gzip -9 >"$out" || true
+  [ -s "$out" ] || die "could not take a pre-restore backup — refusing to go further"
+  note "postgres: pre-restore backup is $(wc -c <"$out") bytes"
 }
 
 restore_postgres() {
-	have postgres-all.sql.gz || { note "no postgres dump — skipped"; return 0; }
-	backup_postgres
-	clear_postgres_db
-	pg_terminate_sessions
-	note "postgres: replaying dump"
-	err=$(mktemp)
-	gzip -dc "$SEED_DIR/postgres-all.sql.gz" | pg_strip_role_passwords \
-		| docker exec -i mini-baas-postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -q -U "$POSTGRES_USER"' \
-		>/dev/null 2>"$err" || true
-	real=$(grep '^ERROR:' "$err" 2>/dev/null | grep -Ev "$PG_BENIGN" || true)
-	count=$(printf '%s' "$real" | grep -c . || true)
-	if [ "${count:-0}" -gt 0 ]; then
-		# Keep the WHOLE stderr, not the five lines that fit on screen. Diagnosing this
-		# needs the shape of all of them — 408 "relation already exists" says the clear
-		# failed, one "duplicate key" says something quite different.
-		kept="$STATE_DIR/failed-replay-$(date -u +%Y%m%dT%H%M%SZ).log"
-		cp "$err" "$kept" 2>/dev/null || true
-		rm -f "$err"
-		printf '%s\n' "$real" | head -10 >&2
-		die "postgres replay reported $count schema/data error(s) beyond the unavoidable
+  have postgres-all.sql.gz || {
+    note "no postgres dump — skipped"
+    return 0
+  }
+  backup_postgres
+  clear_postgres_db
+  pg_terminate_sessions
+  note "postgres: replaying dump"
+  err=$(mktemp)
+  gzip -dc "$SEED_DIR/postgres-all.sql.gz" | pg_strip_role_passwords |
+    docker exec -i mini-baas-postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -q -U "$POSTGRES_USER"' \
+      >/dev/null 2>"$err" || true
+  real=$(grep '^ERROR:' "$err" 2>/dev/null | grep -Ev "$PG_BENIGN" || true)
+  count=$(printf '%s' "$real" | grep -c . || true)
+  if [ "${count:-0}" -gt 0 ]; then
+    # Keep the WHOLE stderr, not the five lines that fit on screen. Diagnosing this
+    # needs the shape of all of them — 408 "relation already exists" says the clear
+    # failed, one "duplicate key" says something quite different.
+    kept="$STATE_DIR/failed-replay-$(date -u +%Y%m%dT%H%M%SZ).log"
+    cp "$err" "$kept" 2>/dev/null || true
+    rm -f "$err"
+    printf '%s\n' "$real" | head -10 >&2
+    die "postgres replay reported $count schema/data error(s) beyond the unavoidable
   globals (first 10 above). That means the pre-replay clear did not clear: the dump's
   CREATE TABLE landed on existing tables and its COPY never ran. The stack is NOT restored.
     full stderr : $kept
     rollback    : gzip -dc $STATE_DIR/pre-restore-postgres-*.sql.gz | docker exec -i mini-baas-postgres sh -c 'PGPASSWORD=\"\$POSTGRES_PASSWORD\" psql -q -U \"\$POSTGRES_USER\"'"
-	fi
-	rm -f "$err"
-	note "postgres: replayed cleanly (only the unavoidable globals errors)"
+  fi
+  rm -f "$err"
+  note "postgres: replayed cleanly (only the unavoidable globals errors)"
 }
 
 # ── A RESTORE MOVES DATA, NEVER CREDENTIALS ────────────────────────────────────────
@@ -346,26 +349,33 @@ restore_postgres() {
 # pg_strip_role_passwords: keep every role's attributes, drop only its PASSWORD clause, so an
 # existing role keeps the password the target's .env gave it.
 pg_strip_role_passwords() {
-	sed -E "/^(CREATE|ALTER) ROLE /s/ PASSWORD '([^']|'')*'//"
+  sed -E "/^(CREATE|ALTER) ROLE /s/ PASSWORD '([^']|'')*'//"
 }
 
 # mysql_skip_system_db: drop every `mysql` section of a mysqldump --all-databases stream. A
 # section runs from its "-- Current Database:" header to the next one; the dump has two per
 # database (schema, then routines), and both are skipped.
 mysql_skip_system_db() {
-	awk '/^-- Current Database: `/ { skip = ($0 ~ /`mysql`/) } !skip'
+  awk '/^-- Current Database: `/ { skip = ($0 ~ /`mysql`/) } !skip'
 }
 
 restore_mysql() {
-	have mysql-all.sql.gz || { note "no mysql dump — skipped"; return 0; }
-	note "mysql: replaying dump (application databases only — grant tables skipped)"
-	err=$(mktemp)
-	gzip -dc "$SEED_DIR/mysql-all.sql.gz" | mysql_skip_system_db \
-		| docker exec -i mini-baas-mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -u root' \
-		>/dev/null 2>"$err" || { cat "$err" >&2; rm -f "$err"; die "mysql restore failed (error above)"; }
-	rm -f "$err"
-	mysql_grant_app_user
-	note "mysql: done"
+  have mysql-all.sql.gz || {
+    note "no mysql dump — skipped"
+    return 0
+  }
+  note "mysql: replaying dump (application databases only — grant tables skipped)"
+  err=$(mktemp)
+  gzip -dc "$SEED_DIR/mysql-all.sql.gz" | mysql_skip_system_db |
+    docker exec -i mini-baas-mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -u root' \
+      >/dev/null 2>"$err" || {
+    cat "$err" >&2
+    rm -f "$err"
+    die "mysql restore failed (error above)"
+  }
+  rm -f "$err"
+  mysql_grant_app_user
+  note "mysql: done"
 }
 
 # mysql_grant_app_user: give the application account back its access to every database the
@@ -381,84 +391,97 @@ restore_mysql() {
 # The databases are read from the dump itself, so this grants exactly what was restored and
 # nothing more. The account and its password stay the TARGET's.
 mysql_grant_app_user() {
-	dbs=$(gzip -dc "$SEED_DIR/mysql-all.sql.gz" | sed -n 's/^-- Current Database: `\([^`]*\)`$/\1/p' | sort -u | grep -vx mysql || true)
-	[ -n "$dbs" ] || return 0
-	sql=""
-	for db in $dbs; do
-		sql="$sql GRANT ALL PRIVILEGES ON \`$db\`.* TO '__APP_USER__'@'%';"
-	done
-	# MYSQL_USER is read inside the container, so the account name is the one this stack
-	# actually created; a stack with no app account is left alone.
-	printf '%s FLUSH PRIVILEGES;\n' "$sql" | docker exec -i mini-baas-mysql sh -c \
-		'[ -n "$MYSQL_USER" ] || exit 0
+  dbs=$(gzip -dc "$SEED_DIR/mysql-all.sql.gz" | sed -n 's/^-- Current Database: `\([^`]*\)`$/\1/p' | sort -u | grep -vx mysql || true)
+  [ -n "$dbs" ] || return 0
+  sql=""
+  for db in $dbs; do
+    sql="$sql GRANT ALL PRIVILEGES ON \`$db\`.* TO '__APP_USER__'@'%';"
+  done
+  # MYSQL_USER is read inside the container, so the account name is the one this stack
+  # actually created; a stack with no app account is left alone.
+  printf '%s FLUSH PRIVILEGES;\n' "$sql" | docker exec -i mini-baas-mysql sh -c \
+    '[ -n "$MYSQL_USER" ] || exit 0
 		 sed "s/__APP_USER__/$MYSQL_USER/g" | MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -u root' \
-		>/dev/null 2>&1 || die "mysql: could not grant the application account access to: $(printf '%s' "$dbs" | tr '\n' ' ')"
-	note "mysql: application account granted on: $(printf '%s' "$dbs" | tr '\n' ' ')"
+    >/dev/null 2>&1 || die "mysql: could not grant the application account access to: $(printf '%s' "$dbs" | tr '\n' ' ')"
+  note "mysql: application account granted on: $(printf '%s' "$dbs" | tr '\n' ' ')"
 }
 
 restore_mongo() {
-	have mongo.archive.gz || { note "no mongo dump — skipped"; return 0; }
-	note "mongo: replaying archive"
-	MU="$(docker exec mini-baas-mongo printenv MONGO_INITDB_ROOT_USERNAME)"
-	MP="$(docker exec mini-baas-mongo printenv MONGO_INITDB_ROOT_PASSWORD)"
-	export MU MP
-	# --nsExclude admin.system.*: users and the auth-schema version belong to the TARGET.
-	# Without it --drop replaces the root user mid-restore with the source machine's password;
-	# the connection that authenticated at the start then fails, and the stack is locked out.
-	err=$(mktemp)
-	docker run --rm -i --network "$NET" -e MU -e MP --entrypoint sh "$MONGO_IMAGE" -c \
-		'mongorestore --host mini-baas-mongo --port 27017 --username "$MU" --password "$MP" \
+  have mongo.archive.gz || {
+    note "no mongo dump — skipped"
+    return 0
+  }
+  note "mongo: replaying archive"
+  MU="$(docker exec mini-baas-mongo printenv MONGO_INITDB_ROOT_USERNAME)"
+  MP="$(docker exec mini-baas-mongo printenv MONGO_INITDB_ROOT_PASSWORD)"
+  export MU MP
+  # --nsExclude admin.system.*: users and the auth-schema version belong to the TARGET.
+  # Without it --drop replaces the root user mid-restore with the source machine's password;
+  # the connection that authenticated at the start then fails, and the stack is locked out.
+  err=$(mktemp)
+  docker run --rm -i --network "$NET" -e MU -e MP --entrypoint sh "$MONGO_IMAGE" -c \
+    'mongorestore --host mini-baas-mongo --port 27017 --username "$MU" --password "$MP" \
 		 --authenticationDatabase admin --archive --gzip --drop \
 		 --nsExclude "admin.system.users" --nsExclude "admin.system.version"' \
-		< "$SEED_DIR/mongo.archive.gz" >/dev/null 2>"$err" \
-		|| { grep -iv password "$err" | tail -5 >&2; rm -f "$err"; die "mongo restore failed (error above)"; }
-	rm -f "$err"
-	note "mongo: done"
+    <"$SEED_DIR/mongo.archive.gz" >/dev/null 2>"$err" ||
+    {
+      grep -iv password "$err" | tail -5 >&2
+      rm -f "$err"
+      die "mongo restore failed (error above)"
+    }
+  rm -f "$err"
+  note "mongo: done"
 }
 
 # Objects go back through the S3 API, never by writing into the volume.
 restore_minio() {
-	have minio.tar.gz || { note "no minio dump — skipped"; return 0; }
-	note "minio: mirroring objects back"
-	stage="$(mktemp -d)"
-	tar -xzf "$SEED_DIR/minio.tar.gz" -C "$stage"
-	MC_HOST_seed="http://$(docker exec mini-baas-minio printenv MINIO_ROOT_USER):$(docker exec mini-baas-minio printenv MINIO_ROOT_PASSWORD)@mini-baas-minio:9000"
-	export MC_HOST_seed
-	for bucket in "$stage"/*; do
-		[ -d "$bucket" ] || continue
-		docker run --rm --network "$NET" -e MC_HOST_seed -e HOME=/tmp \
-			--tmpfs /tmp:rw,size=16m "$MC_IMAGE" mb --ignore-existing \
-			"seed/$(basename "$bucket")" >/dev/null 2>&1 || true
-	done
-	docker run --rm --network "$NET" -e MC_HOST_seed -e HOME=/tmp --tmpfs /tmp:rw,size=16m \
-		-v "$stage":/in:ro "$MC_IMAGE" mirror --quiet /in seed >/dev/null 2>&1 \
-		|| die "minio mirror failed"
-	rm -rf "$stage"
-	note "minio: done"
+  have minio.tar.gz || {
+    note "no minio dump — skipped"
+    return 0
+  }
+  note "minio: mirroring objects back"
+  stage="$(mktemp -d)"
+  tar -xzf "$SEED_DIR/minio.tar.gz" -C "$stage"
+  MC_HOST_seed="http://$(docker exec mini-baas-minio printenv MINIO_ROOT_USER):$(docker exec mini-baas-minio printenv MINIO_ROOT_PASSWORD)@mini-baas-minio:9000"
+  export MC_HOST_seed
+  for bucket in "$stage"/*; do
+    [ -d "$bucket" ] || continue
+    docker run --rm --network "$NET" -e MC_HOST_seed -e HOME=/tmp \
+      --tmpfs /tmp:rw,size=16m "$MC_IMAGE" mb --ignore-existing \
+      "seed/$(basename "$bucket")" >/dev/null 2>&1 || true
+  done
+  docker run --rm --network "$NET" -e MC_HOST_seed -e HOME=/tmp --tmpfs /tmp:rw,size=16m \
+    -v "$stage":/in:ro "$MC_IMAGE" mirror --quiet /in seed >/dev/null 2>&1 ||
+    die "minio mirror failed"
+  rm -rf "$stage"
+  note "minio: done"
 }
 
 # See the REDIS note in the header: the real container reads the AOF, so the RDB
 # is loaded by a throwaway instance that then writes that AOF.
 restore_redis() {
-	have redis.rdb || { note "no redis dump — skipped"; return 0; }
-	note "redis: loading RDB through a throwaway instance"
-	docker stop mini-baas-redis >/dev/null 2>&1 || true
-	docker run --rm -v mini-baas_redis-data:/d alpine:latest \
-		rm -rf /d/appendonlydir /d/dump.rdb >/dev/null 2>&1 || true
-	docker cp "$SEED_DIR/redis.rdb" mini-baas-redis:/data/dump.rdb \
-		|| die "could not place the rdb"
-	docker rm -f vault-restore-redis >/dev/null 2>&1 || true
-	docker run -d --name vault-restore-redis -v mini-baas_redis-data:/data \
-		"$REDIS_IMAGE" redis-server --appendonly no --save '' --dir /data >/dev/null \
-		|| die "throwaway redis failed to start"
-	sleep 5
-	docker exec vault-restore-redis redis-cli config set appendonly yes >/dev/null 2>&1 \
-		|| die "could not enable AOF on the throwaway redis"
-	sleep 4
-	docker exec vault-restore-redis redis-cli shutdown nosave >/dev/null 2>&1 || true
-	docker rm -f vault-restore-redis >/dev/null 2>&1 || true
-	docker start mini-baas-redis >/dev/null 2>&1 || die "redis would not restart"
-	note "redis: done"
+  have redis.rdb || {
+    note "no redis dump — skipped"
+    return 0
+  }
+  note "redis: loading RDB through a throwaway instance"
+  docker stop mini-baas-redis >/dev/null 2>&1 || true
+  docker run --rm -v mini-baas_redis-data:/d alpine:latest \
+    rm -rf /d/appendonlydir /d/dump.rdb >/dev/null 2>&1 || true
+  docker cp "$SEED_DIR/redis.rdb" mini-baas-redis:/data/dump.rdb ||
+    die "could not place the rdb"
+  docker rm -f vault-restore-redis >/dev/null 2>&1 || true
+  docker run -d --name vault-restore-redis -v mini-baas_redis-data:/data \
+    "$REDIS_IMAGE" redis-server --appendonly no --save '' --dir /data >/dev/null ||
+    die "throwaway redis failed to start"
+  sleep 5
+  docker exec vault-restore-redis redis-cli config set appendonly yes >/dev/null 2>&1 ||
+    die "could not enable AOF on the throwaway redis"
+  sleep 4
+  docker exec vault-restore-redis redis-cli shutdown nosave >/dev/null 2>&1 || true
+  docker rm -f vault-restore-redis >/dev/null 2>&1 || true
+  docker start mini-baas-redis >/dev/null 2>&1 || die "redis would not restart"
+  note "redis: done"
 }
 
 # DynamoDB is OPTIONAL: it runs only under the engines-extra profile, so it is not in the
@@ -468,15 +491,15 @@ restore_redis() {
 # writes: a tar of <table>.schema.json (TableName/KeySchema/AttributeDefinitions) and
 # <table>.items.json (a `scan` result).
 restore_dynamodb() {
-	have dynamodb-all.tar.gz || return 0
-	if ! is_running mini-baas-dynamodb-local; then
-		note "dynamodb: seed present but mini-baas-dynamodb-local is not running — SKIPPED (start the engines-extra profile)"
-		return 0
-	fi
-	note "dynamodb: re-creating tables and loading items"
-	stage=$(mktemp -d)
-	tar -xzf "$SEED_DIR/dynamodb-all.tar.gz" -C "$stage" || die "dynamodb: cannot unpack the seed"
-	python3 - "$stage" <<-'PY' || die "dynamodb: cannot prepare the batches"
+  have dynamodb-all.tar.gz || return 0
+  if ! is_running mini-baas-dynamodb-local; then
+    note "dynamodb: seed present but mini-baas-dynamodb-local is not running — SKIPPED (start the engines-extra profile)"
+    return 0
+  fi
+  note "dynamodb: re-creating tables and loading items"
+  stage=$(mktemp -d)
+  tar -xzf "$SEED_DIR/dynamodb-all.tar.gz" -C "$stage" || die "dynamodb: cannot unpack the seed"
+  python3 - "$stage" <<-'PY' || die "dynamodb: cannot prepare the batches"
 	import json, os, sys
 	d = sys.argv[1]
 	for f in sorted(os.listdir(d)):
@@ -493,62 +516,62 @@ restore_dynamodb() {
 	        json.dump({s["TableName"]: [{"PutRequest": {"Item": it}} for it in items[i:i + 25]]},
 	                  open(os.path.join(d, "%s.batch.%05d" % (t, i // 25)), "w"))
 	PY
-	aws="docker run --rm --network $NET -v $stage:/work:ro -e AWS_ACCESS_KEY_ID=local -e AWS_SECRET_ACCESS_KEY=local -e AWS_DEFAULT_REGION=us-east-1 amazon/aws-cli --endpoint-url http://mini-baas-dynamodb-local:8000 dynamodb"
-	for c in "$stage"/*.create; do
-		[ -f "$c" ] || continue
-		t=$(basename "$c" .create)
-		# shellcheck disable=SC2086
-		$aws delete-table --table-name "$t" >/dev/null 2>&1 || true
-		# shellcheck disable=SC2086
-		$aws create-table --cli-input-json "file:///work/$t.create" >/dev/null || die "dynamodb: create-table $t failed"
-		for b in "$stage/$t".batch.*; do
-			[ -f "$b" ] || continue
-			# shellcheck disable=SC2086
-			$aws batch-write-item --request-items "file:///work/$(basename "$b")" >/dev/null || die "dynamodb: batch write into $t failed"
-		done
-	done
-	rm -rf "$stage"
-	note "dynamodb: done"
+  aws="docker run --rm --network $NET -v $stage:/work:ro -e AWS_ACCESS_KEY_ID=local -e AWS_SECRET_ACCESS_KEY=local -e AWS_DEFAULT_REGION=us-east-1 amazon/aws-cli --endpoint-url http://mini-baas-dynamodb-local:8000 dynamodb"
+  for c in "$stage"/*.create; do
+    [ -f "$c" ] || continue
+    t=$(basename "$c" .create)
+    # shellcheck disable=SC2086
+    $aws delete-table --table-name "$t" >/dev/null 2>&1 || true
+    # shellcheck disable=SC2086
+    $aws create-table --cli-input-json "file:///work/$t.create" >/dev/null || die "dynamodb: create-table $t failed"
+    for b in "$stage/$t".batch.*; do
+      [ -f "$b" ] || continue
+      # shellcheck disable=SC2086
+      $aws batch-write-item --request-items "file:///work/$(basename "$b")" >/dev/null || die "dynamodb: batch write into $t failed"
+    done
+  done
+  rm -rf "$stage"
+  note "dynamodb: done"
 }
 
 # mssql_restore_one DB — RESTORE one database from /tmp/DB.bak inside the container. Logical
 # file names differ per backup, so each is MOVEd to the container's data dir by the names
 # RESTORE FILELISTONLY reports (the same approach as data-snapshots/restore-databases.sh).
 mssql_restore_one() {
-	sqlcmd='/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -h-1 -W'
-	moves=$(docker exec mini-baas-mssql sh -lc "$sqlcmd -Q \"SET NOCOUNT ON; RESTORE FILELISTONLY FROM DISK='/tmp/$1.bak'\"" 2>/dev/null |
-		awk '{n=$1; t=$3} t=="D"{printf ", MOVE N'"'"'%s'"'"' TO N'"'"'/var/opt/mssql/data/%s.mdf'"'"'",n,n} t=="L"{printf ", MOVE N'"'"'%s'"'"' TO N'"'"'/var/opt/mssql/data/%s.ldf'"'"'",n,n}')
-	if ! out=$(docker exec mini-baas-mssql sh -lc "$sqlcmd -b -Q \"RESTORE DATABASE [$1] FROM DISK='/tmp/$1.bak' WITH REPLACE$moves\"" 2>&1); then
-		printf '%s\n' "$out" | grep -E '^Msg|terminating|denied|error' | head -4 >&2
-		docker exec -u 0 mini-baas-mssql rm -f "/tmp/$1.bak" >/dev/null 2>&1 || true
-		die "mssql: restore of $1 failed (SQL Server's message above)"
-	fi
-	docker exec -u 0 mini-baas-mssql rm -f "/tmp/$1.bak" >/dev/null 2>&1 || true
+  sqlcmd='/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -h-1 -W'
+  moves=$(docker exec mini-baas-mssql sh -lc "$sqlcmd -Q \"SET NOCOUNT ON; RESTORE FILELISTONLY FROM DISK='/tmp/$1.bak'\"" 2>/dev/null |
+    awk '{n=$1; t=$3} t=="D"{printf ", MOVE N'"'"'%s'"'"' TO N'"'"'/var/opt/mssql/data/%s.mdf'"'"'",n,n} t=="L"{printf ", MOVE N'"'"'%s'"'"' TO N'"'"'/var/opt/mssql/data/%s.ldf'"'"'",n,n}')
+  if ! out=$(docker exec mini-baas-mssql sh -lc "$sqlcmd -b -Q \"RESTORE DATABASE [$1] FROM DISK='/tmp/$1.bak' WITH REPLACE$moves\"" 2>&1); then
+    printf '%s\n' "$out" | grep -E '^Msg|terminating|denied|error' | head -4 >&2
+    docker exec -u 0 mini-baas-mssql rm -f "/tmp/$1.bak" >/dev/null 2>&1 || true
+    die "mssql: restore of $1 failed (SQL Server's message above)"
+  fi
+  docker exec -u 0 mini-baas-mssql rm -f "/tmp/$1.bak" >/dev/null 2>&1 || true
 }
 
 # MSSQL is OPTIONAL like DynamoDB (engines-extra profile, 2 GB memory reservation): restored
 # when the seed has it and the engine is up, named as skipped otherwise. Format is what
 # vault-seed.sh writes: a tar of <database>.bak files from BACKUP DATABASE.
 restore_mssql() {
-	have mssql-all.tar.gz || return 0
-	if ! is_running mini-baas-mssql; then
-		note "mssql: seed present but mini-baas-mssql is not running — SKIPPED (start the engines-extra profile)"
-		return 0
-	fi
-	stage=$(mktemp -d)
-	tar -xzf "$SEED_DIR/mssql-all.tar.gz" -C "$stage" || die "mssql: cannot unpack the seed"
-	for bak in "$stage"/*.bak; do
-		[ -f "$bak" ] || continue
-		db=$(basename "$bak" .bak)
-		note "mssql: restoring $db"
-		docker cp "$bak" "mini-baas-mssql:/tmp/$db.bak" >/dev/null || die "mssql: cannot copy $db into the container"
-		# docker cp keeps the host owner and mode; the extracted .bak is private to the caller,
-		# so SQL Server (its own uid) got "Operating system error 5 (Access is denied)".
-		docker exec -u 0 mini-baas-mssql chmod 0644 "/tmp/$db.bak" || die "mssql: cannot make $db.bak readable"
-		mssql_restore_one "$db"
-	done
-	rm -rf "$stage"
-	note "mssql: done"
+  have mssql-all.tar.gz || return 0
+  if ! is_running mini-baas-mssql; then
+    note "mssql: seed present but mini-baas-mssql is not running — SKIPPED (start the engines-extra profile)"
+    return 0
+  fi
+  stage=$(mktemp -d)
+  tar -xzf "$SEED_DIR/mssql-all.tar.gz" -C "$stage" || die "mssql: cannot unpack the seed"
+  for bak in "$stage"/*.bak; do
+    [ -f "$bak" ] || continue
+    db=$(basename "$bak" .bak)
+    note "mssql: restoring $db"
+    docker cp "$bak" "mini-baas-mssql:/tmp/$db.bak" >/dev/null || die "mssql: cannot copy $db into the container"
+    # docker cp keeps the host owner and mode; the extracted .bak is private to the caller,
+    # so SQL Server (its own uid) got "Operating system error 5 (Access is denied)".
+    docker exec -u 0 mini-baas-mssql chmod 0644 "/tmp/$db.bak" || die "mssql: cannot make $db.bak readable"
+    mssql_restore_one "$db"
+  done
+  rm -rf "$stage"
+  note "mssql: done"
 }
 
 # Every helper image the restore runs, pulled BEFORE anything is stopped or dropped. On a
@@ -557,32 +580,32 @@ restore_mssql() {
 # The 650 MB aws-cli image only when DynamoDB runs: restore_dynamodb skips otherwise, and
 # stop_non_engines keeps it running, so this check holds for the whole restore.
 prefetch_helpers() {
-	images="$MONGO_IMAGE $MC_IMAGE alpine:latest $REDIS_IMAGE"
-	if have dynamodb-all.tar.gz && is_running mini-baas-dynamodb-local; then
-		images="$images amazon/aws-cli"
-	fi
-	for img in $images; do
-		docker image inspect "$img" >/dev/null 2>&1 && continue
-		note "pulling helper image $img (nothing has been stopped yet)"
-		docker pull -q "$img" >/dev/null || die "cannot pull $img — nothing was stopped or changed"
-	done
+  images="$MONGO_IMAGE $MC_IMAGE alpine:latest $REDIS_IMAGE"
+  if have dynamodb-all.tar.gz && is_running mini-baas-dynamodb-local; then
+    images="$images amazon/aws-cli"
+  fi
+  for img in $images; do
+    docker image inspect "$img" >/dev/null 2>&1 && continue
+    note "pulling helper image $img (nothing has been stopped yet)"
+    docker pull -q "$img" >/dev/null || die "cannot pull $img — nothing was stopped or changed"
+  done
 }
 
 main() {
-	preflight
-	require_coverage
-	prefetch_helpers
-	engines_up
-	restore_postgres
-	restore_mysql
-	restore_mongo
-	restore_minio
-	restore_redis
-	restore_dynamodb
-	restore_mssql
-	note "bringing up the full edition '$EDITION'"
-	make --no-print-directory up EDITION="$EDITION" >/dev/null || die "stack did not come up"
-	note "restore complete"
+  preflight
+  require_coverage
+  prefetch_helpers
+  engines_up
+  restore_postgres
+  restore_mysql
+  restore_mongo
+  restore_minio
+  restore_redis
+  restore_dynamodb
+  restore_mssql
+  note "bringing up the full edition '$EDITION'"
+  make --no-print-directory up EDITION="$EDITION" >/dev/null || die "stack did not come up"
+  note "restore complete"
 }
 
 main "$@"

@@ -103,10 +103,16 @@ wait_ready_http() {
   local i
   for i in $(seq 1 60); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2$3" 2>/dev/null)" == "200" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # ── 1) postgres + migrations ──────────────────────────────────────────────────
@@ -161,7 +167,8 @@ ok "ON tenant-control up"
 step "3/5 (A) owner invites U2 directly to standalone SP -> U2 accepts -> direct grant"
 C="$(req POST "${PORT_ON}" "/v1/projects/${SP}/invites" "${JWT_U1}" '{"email":"u2@m170.test","role":"writer"}')"
 [[ "${C}" == "201" ]] || fail "(A) standalone project invite got ${C} — $(head -c 300 "${BODY_TMP}")"
-TOK="$(json_str token)"; [[ "${TOK}" == mbi_* ]] || fail "(A) token prefix"
+TOK="$(json_str token)"
+[[ "${TOK}" == mbi_* ]] || fail "(A) token prefix"
 [[ "$(req POST "${PORT_ON}" /v1/invites/accept "${JWT_U2}" "{\"token\":\"${TOK}\"}")" == "200" ]] || fail "(A) U2 accept"
 GRANT_ROLE="$(psql_val "SELECT project_role FROM public.project_grants WHERE project_id::text='${SP}' AND grantee_kind='user' AND grantee_id='${U2}' AND org_id IS NULL AND source='invite' AND revoked_at IS NULL")"
 [[ "${GRANT_ROLE}" == "writer" ]] || fail "(A) standalone grant not created (org_id NULL, source invite, writer) — got '${GRANT_ROLE}'"

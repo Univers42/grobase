@@ -122,6 +122,7 @@ exists and is the blocking `security-gate`; the "missing file" was an artifact o
 
 - **CI** (`ci.yml`, push to main and develop): unit suites incl. functions-runtime Deno; security
   gates m195 m196 m198 m199; integration runs m157 m197 m200 m201 m202 m203 plus the live test phases; cloud
-  gates incl. m83; m194 in the lint job.
+  gates incl. m83; m194 in the lint job; `make prettiers-check` (every language's formatter, pinned) in
+  the formatters job.
 - **Security** (`mini-baas-security.yml`): gitleaks · trufflehog · semgrep · trivy · cargo-audit +
   govulncheck · ZAP baseline → `security-gate`.
