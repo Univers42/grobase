@@ -19,8 +19,14 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CP="${ROOT}/src/control-plane"
 GO_IMG="${GO_IMG:-golang:1.25-bookworm}"
 PASS=0
-ok()   { printf '  \033[1;32m✓\033[0m %s\n' "$*"; PASS=$((PASS+1)); }
-fail() { printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+ok() {
+  printf '  \033[1;32m✓\033[0m %s\n' "$*"
+  PASS=$((PASS + 1))
+}
+fail() {
+  printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2
+  exit 1
+}
 
 printf '\033[1m── m179: cross-app messaging channel ──\033[0m\n'
 
@@ -29,25 +35,25 @@ MIG="${ROOT}/scripts/migrations/postgresql/085_app_channels.sql"
 [ -f "${MIG}" ] || fail "migration 085_app_channels.sql missing"
 grep -q "version = 85" "${MIG}" || fail "085 does not guard on version 85"
 grep -q "app_channels" "${MIG}" || fail "085 missing app_channels table"
-grep -q "least(tenant_a, tenant_b), greatest(tenant_a, tenant_b)" "${MIG}" \
-  || fail "085 missing the unordered-pair unique index"
+grep -q "least(tenant_a, tenant_b), greatest(tenant_a, tenant_b)" "${MIG}" ||
+  fail "085 missing the unordered-pair unique index"
 ok "migration 085 present (app_channels, version 85, unordered-pair unique)"
 
 # ── static: flag-gated mount = OFF parity ────────────────────────────────────
 MNT="${CP}/cmd/tenant-control/mount_appchannels.go"
 [ -f "${MNT}" ] || fail "mount_appchannels.go missing"
-grep -q 'config.EnvBool("APP_CHANNELS_ENABLED")' "${MNT}" \
-  || fail "channel routes are not gated on APP_CHANNELS_ENABLED (OFF must be 404 parity)"
+grep -q 'config.EnvBool("APP_CHANNELS_ENABLED")' "${MNT}" ||
+  fail "channel routes are not gated on APP_CHANNELS_ENABLED (OFF must be 404 parity)"
 ok "mount gated on APP_CHANNELS_ENABLED (OFF ⇒ no routes = byte-parity)"
 
 # ── static: routes + protected namespace ─────────────────────────────────────
 HDL="${CP}/internal/appchannels/handler.go"
-grep -q 'POST /v1/app-channels' "${HDL}"              || fail "missing POST /v1/app-channels"
+grep -q 'POST /v1/app-channels' "${HDL}" || fail "missing POST /v1/app-channels"
 grep -q 'POST /v1/app-channels/{channelId}/accept' "${HDL}" || fail "missing accept route"
-grep -q 'POST /v1/realtime/token' "${HDL}"            || fail "missing realtime-token route"
+grep -q 'POST /v1/realtime/token' "${HDL}" || fail "missing realtime-token route"
 ok "routes registered (open / accept / list / realtime-token)"
-grep -q 'REALTIME_PROTECTED_NAMESPACES=.*xapp:' "${ROOT}/deploy/fly/boot.sh" \
-  || fail "boot.sh must set REALTIME_PROTECTED_NAMESPACES to include xapp:"
+grep -q 'REALTIME_PROTECTED_NAMESPACES=.*xapp:' "${ROOT}/deploy/fly/boot.sh" ||
+  fail "boot.sh must set REALTIME_PROTECTED_NAMESPACES to include xapp:"
 ok "xapp: is a protected realtime namespace (wildcard tokens can't reach it)"
 
 # ── static: namespace-mint unit tests (the security-critical pure logic) ─────

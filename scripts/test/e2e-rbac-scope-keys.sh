@@ -35,10 +35,10 @@
 #     profiles/identities (admin, sergio, vadim) — see keys init / config endpoint.
 #
 # ── KNOBS ─────────────────────────────────────────────────────────────────────
-GROBASE="${GROBASE:-http://localhost:8000}"          # Kong public gateway
-V42_ADDR="${V42_ADDR:-https://localhost:8443}"       # vault42-server gRPC
+GROBASE="${GROBASE:-http://localhost:8000}"    # Kong public gateway
+V42_ADDR="${V42_ADDR:-https://localhost:8443}" # vault42-server gRPC
 CTL="${CTL:-42ctl}"
-PROJECT="${PROJECT:-app}"                              # an existing org-bound project (uuid via --project)
+PROJECT="${PROJECT:-app}" # an existing org-bound project (uuid via --project)
 set -euo pipefail
 
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
@@ -46,14 +46,21 @@ green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 step() { cyan "[E2E] $*"; }
 ok() { green "  ✓ $*"; }
-fail() { red "[E2E] FAIL — $*"; exit 1; }
+fail() {
+  red "[E2E] FAIL — $*"
+  exit 1
+}
 run() { "$@" || fail "command failed: $*"; }
 
 # admin/sergio/vadim drive distinct 42ctl profiles (FT_PROFILE) bound to distinct identities.
 ADMIN="${ADMIN_PROFILE:-admin}"
 SERGIO="${SERGIO_PROFILE:-sergio}"
 VADIM="${VADIM_PROFILE:-vadim}"
-ctl() { local p="$1"; shift; FT_PROFILE="$p" "${CTL}" "$@"; }
+ctl() {
+  local p="$1"
+  shift
+  FT_PROFILE="$p" "${CTL}" "$@"
+}
 
 step "0/9 preflight: grobase + vault42 reachable, 42ctl present"
 command -v "${CTL}" >/dev/null || fail "42ctl not on PATH (cargo build it from feat/rbac-org-team-group-verbs)"
@@ -75,14 +82,14 @@ ok "prod scope key bootstrapped; team core granted writer on prod"
 
 step "3/9 admin: seal a prod secret + a dev secret"
 echo -n "postgres://prod-db" | run ctl "${ADMIN}" vault set-env --org "${ORG}" --project "${PROJECT}" --env prod DATABASE_URL
-echo -n "postgres://dev-db"  | run ctl "${ADMIN}" vault set-env --org "${ORG}" --project "${PROJECT}" --env dev DATABASE_URL
+echo -n "postgres://dev-db" | run ctl "${ADMIN}" vault set-env --org "${ORG}" --project "${PROJECT}" --env dev DATABASE_URL
 ok "prod + dev secrets sealed to their env scope keys"
 
 step "4/9 invite sergio to the team; sergio accepts + enrolls his pubkey"
 TOK="$(ctl "${ADMIN}" team invite --org "${ORG}" --team "${TEAM}" --email sergio@example.com --json 2>/dev/null | jq -r .token)"
 [ -n "${TOK}" ] || fail "team invite returned no token"
 run ctl "${SERGIO}" invite accept --token "${TOK}"
-run ctl "${SERGIO}" keys enroll --org "${ORG}"          # publish sergio's X25519 pubkey
+run ctl "${SERGIO}" keys enroll --org "${ORG}" # publish sergio's X25519 pubkey
 ok "sergio joined team core (+org) and published his pubkey"
 
 step "5/9 admin: sync-keys (provision the prod scope key to the team's members)"

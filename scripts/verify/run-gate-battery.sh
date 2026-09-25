@@ -83,31 +83,31 @@ gha_gate_error() {
 # here: it needs a LIVE Kong gateway and is already gated in CI's per-PR
 # integration-tests job, not in this self-contained battery.
 ENTERPRISE_BATTERY=(
-  m101-quota-realtenant # quota-truth (real-tenant billing gate; supersedes the vacuous m80)
-  m103                  # orgs / RBAC
-  m104                  # tamper-evident audit chain
-  m105                  # hard-erase (GDPR right-to-be-forgotten)
-  m106                  # IP allowlist
-  m107                  # passkeys / WebAuthn
-  m108                  # SOC2-lite evidence (audit-ready, NOT certified)
-  m109                  # tenant data export
-  m110                  # SSO via OIDC
-  m111                  # SCIM user provisioning
-  m112                  # trust-center / legal templates
-  m120                  # data-plane spend-cap + abuse-suspend enforcement
-  m121                  # vault credential-ref enforcement
-  m122                  # read-replica routing
-  m135                  # fine-grained ABAC: column masking applied (the highest-value mask proof)
-  m136                  # fine-grained ABAC: stored conditions evaluate (ip_cidr/time_window; deny>allow; flag-OFF parity)
-  m137                  # fine-grained ABAC: per-table + per-instance granularity (table/instance overrides)
-  m139                  # fine-grained ABAC: api-key callers under the PDP (same mask as JWT; flag-OFF byte-parity)
-  m141                  # compliance posture honest+provable (audit-chain spine + GDPR routes + no dangling evidence)
-  m143                  # framework cross-walks complete+honest (SOC2 CC1-9 + GDPR articles + all 93 ISO Annex A controls)
-  m162-rbac-hierarchy   # org -> team/project-grants RBAC hierarchy (effective=MAX, non-escalating tokens)
+  m101-quota-realtenant    # quota-truth (real-tenant billing gate; supersedes the vacuous m80)
+  m103                     # orgs / RBAC
+  m104                     # tamper-evident audit chain
+  m105                     # hard-erase (GDPR right-to-be-forgotten)
+  m106                     # IP allowlist
+  m107                     # passkeys / WebAuthn
+  m108                     # SOC2-lite evidence (audit-ready, NOT certified)
+  m109                     # tenant data export
+  m110                     # SSO via OIDC
+  m111                     # SCIM user provisioning
+  m112                     # trust-center / legal templates
+  m120                     # data-plane spend-cap + abuse-suspend enforcement
+  m121                     # vault credential-ref enforcement
+  m122                     # read-replica routing
+  m135                     # fine-grained ABAC: column masking applied (the highest-value mask proof)
+  m136                     # fine-grained ABAC: stored conditions evaluate (ip_cidr/time_window; deny>allow; flag-OFF parity)
+  m137                     # fine-grained ABAC: per-table + per-instance granularity (table/instance overrides)
+  m139                     # fine-grained ABAC: api-key callers under the PDP (same mask as JWT; flag-OFF byte-parity)
+  m141                     # compliance posture honest+provable (audit-chain spine + GDPR routes + no dangling evidence)
+  m143                     # framework cross-walks complete+honest (SOC2 CC1-9 + GDPR articles + all 93 ISO Annex A controls)
+  m162-rbac-hierarchy      # org -> team/project-grants RBAC hierarchy (effective=MAX, non-escalating tokens)
   m166-groups-environments # per-project environments + project-scoped groups + per-env grant isolation
-  m168-invites          # generalized team/group invitations (single-use, expiry, flag-OFF parity)
-  m170-standalone-invites # standalone-project direct invites + org-guard (409 invite-via-a-team)
-  m172-pubkeys          # member pubkey registry + grant-fulfilment seam (vault42 crypto bridge)
+  m168-invites             # generalized team/group invitations (single-use, expiry, flag-OFF parity)
+  m170-standalone-invites  # standalone-project direct invites + org-guard (409 invite-via-a-team)
+  m172-pubkeys             # member pubkey registry + grant-fulfilment seam (vault42 crypto bridge)
   # m194–m199 (security hardening) are NOT here: they need an assembled .env, certs
   # and images built from the commit, which this job does not have. CI runs them in
   # their own jobs — m194 with shellcheck, m195/m196/m198/m199 in security-gates, m197

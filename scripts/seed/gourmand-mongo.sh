@@ -44,11 +44,16 @@ AK="${VG_API_KEY}"
 SERVICE_KEY="${VG_SERVICE_APIKEY}"
 TENANT="${VG_TENANT_SLUG}"
 SERVICE_TOKEN="$(_lt_env mini-baas-tenant-control INTERNAL_SERVICE_TOKEN)" ||
-  { echo "cannot read INTERNAL_SERVICE_TOKEN from mini-baas-tenant-control (is it running?)" >&2; exit 1; }
+  {
+    echo "cannot read INTERNAL_SERVICE_TOKEN from mini-baas-tenant-control (is it running?)" >&2
+    exit 1
+  }
 export SERVICE_TOKEN
 TC_URL="http://127.0.0.1:$(_lt_host_port mini-baas-tenant-control 3022/tcp)"
-MUSER="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_USERNAME)"; MUSER="${MUSER:-mongo}"
-MPASS="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_PASSWORD)"; MPASS="${MPASS:-mongo}"
+MUSER="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_USERNAME)"
+MUSER="${MUSER:-mongo}"
+MPASS="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_PASSWORD)"
+MPASS="${MPASS:-mongo}"
 
 mongosh_eval() { docker exec -i "${MONGO_CTN}" mongosh -u "${MUSER}" -p "${MPASS}" --authenticationDatabase admin --quiet --eval "$1"; }
 gq() { # $1 table, $2 json → echoes status, body in /tmp/gm-q.json
@@ -75,8 +80,8 @@ else
   if [[ "${code}" == "201" ]]; then
     MONGO_DB_ID="$(_lt_json_field id </tmp/gm-mount.json)"
   elif [[ "${code}" == "409" ]]; then
-    MONGO_DB_ID="$(curl -fsS "${KONG}/admin/v1/databases" -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT}" \
-      | MOUNT_NAME="${MOUNT_NAME}" python3 -c 'import json,sys,os; print(next(r["id"] for r in json.load(sys.stdin) if r.get("name")==os.environ["MOUNT_NAME"]))')"
+    MONGO_DB_ID="$(curl -fsS "${KONG}/admin/v1/databases" -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT}" |
+      MOUNT_NAME="${MOUNT_NAME}" python3 -c 'import json,sys,os; print(next(r["id"] for r in json.load(sys.stdin) if r.get("name")==os.environ["MOUNT_NAME"]))')"
   else
     fail "mongo mount register (${code}): $(cat /tmp/gm-mount.json)"
   fi

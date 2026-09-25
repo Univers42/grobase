@@ -55,11 +55,15 @@ docker inspect mini-baas-mongo >/dev/null 2>&1 || skip "mongo plane not up (hype
 
 # ── 1) provision (idempotent) ────────────────────────────────────────────────
 step "1/5 provision the hypertube tenant + mongo mount (idempotent)"
-bash "${BAAS_DIR}/scripts/seed/hypertube-tenant.sh" >"${TMP}/seed.log" 2>&1 \
-  || fail "provisioning failed — $(tail -3 "${TMP}/seed.log")"
+bash "${BAAS_DIR}/scripts/seed/hypertube-tenant.sh" >"${TMP}/seed.log" 2>&1 ||
+  fail "provisioning failed — $(tail -3 "${TMP}/seed.log")"
 # shellcheck disable=SC1091
 source "${BAAS_DIR}/.hypertube-baas.env"
-KONG="${HT_KONG_URL}"; ANON="${HT_ANON_APIKEY}"; AK="${HT_API_KEY}"; DB="${HT_MONGO_DB_ID}"; RT="${HT_REALTIME_TOKEN}"
+KONG="${HT_KONG_URL}"
+ANON="${HT_ANON_APIKEY}"
+AK="${HT_API_KEY}"
+DB="${HT_MONGO_DB_ID}"
+RT="${HT_REALTIME_TOKEN}"
 [[ -n "${KONG}" && -n "${ANON}" && -n "${AK}" && -n "${DB}" ]] || fail "incomplete provisioning state"
 [[ -n "${RT}" ]] || skip "no realtime token (realtime plane not up)"
 ok "tenant=${HT_TENANT_SLUG} mongo=${DB}"
@@ -99,8 +103,8 @@ ok "wrong password rejected (${bad})"
 # ── 3) movies: insert → list → delete (the shared catalog) ───────────────────
 step "3/5 movies: insert catalog doc (201) → list → delete"
 MID="m150-$$-$(date +%s)"
-[[ "$(q movies "{\"op\":\"insert\",\"data\":{\"movie_id\":\"${MID}\",\"title\":\"Gate Reel\",\"source\":\"test\",\"popularity\":1}}" "${JA}")" == "201" ]] \
-  || fail "movies insert: $(head -c 200 "${TMP}/q.json")"
+[[ "$(q movies "{\"op\":\"insert\",\"data\":{\"movie_id\":\"${MID}\",\"title\":\"Gate Reel\",\"source\":\"test\",\"popularity\":1}}" "${JA}")" == "201" ]] ||
+  fail "movies insert: $(head -c 200 "${TMP}/q.json")"
 # Shared/public read via the app-key path — the principal the SPA + REST API use
 # for catalog/profile/comment reads, a DIFFERENT principal than the user writer.
 q movies "{\"op\":\"list\",\"filter\":{\"movie_id\":{\"\$eq\":\"${MID}\"}}}" >/dev/null
@@ -110,11 +114,11 @@ ok "movie ${MID} written by a user, read back via the shared app-key path"
 # ── 4) shared read: A's comment is read by a DIFFERENT principal (B) ─────────
 step "4/5 shared_resources: A's comment read back by user B (LOAD-BEARING)"
 CTAG="m150-c-$$-$(date +%s)"
-[[ "$(q comments "{\"op\":\"insert\",\"data\":{\"movie_id\":\"${MID}\",\"author_id\":\"${UA}\",\"author_username\":\"m150_a\",\"content\":\"${CTAG}\",\"created_at\":\"2026-06-19T00:00:00Z\"}}" "${JA}")" == "201" ]] \
-  || fail "A comment insert: $(head -c 200 "${TMP}/q.json")"
+[[ "$(q comments "{\"op\":\"insert\",\"data\":{\"movie_id\":\"${MID}\",\"author_id\":\"${UA}\",\"author_username\":\"m150_a\",\"content\":\"${CTAG}\",\"created_at\":\"2026-06-19T00:00:00Z\"}}" "${JA}")" == "201" ]] ||
+  fail "A comment insert: $(head -c 200 "${TMP}/q.json")"
 q comments "{\"op\":\"list\",\"filter\":{\"movie_id\":{\"\$eq\":\"${MID}\"}}}" >/dev/null
-grep -q "\"content\":\"${CTAG}\"" "${TMP}/q.json" \
-  || fail "shared path cannot read A's comment — shared_resources on comments broken (VACUOUS otherwise)"
+grep -q "\"content\":\"${CTAG}\"" "${TMP}/q.json" ||
+  fail "shared path cannot read A's comment — shared_resources on comments broken (VACUOUS otherwise)"
 ok "cross-owner read: the shared app-key path sees A's comment (${CTAG})"
 q comments "{\"op\":\"list\",\"filter\":{\"movie_id\":{\"\$eq\":\"nobody-xyz-$$\"}}}" >/dev/null
 grep -q "\"content\":\"${CTAG}\"" "${TMP}/q.json" && fail "bogus filter leaked the comment"
@@ -148,8 +152,8 @@ ws.addEventListener("message", async (f) => {
 ws.addEventListener("error", () => finish("WSERR"));
 ' 2>/dev/null || true)
 case "${RT_OUT}" in
-  EVENT:*) ok "realtime ${RT_OUT} delivered to a non-writer subscriber" ;;
-  *) fail "no realtime EVENT (got '${RT_OUT}')" ;;
+EVENT:*) ok "realtime ${RT_OUT} delivered to a non-writer subscriber" ;;
+*) fail "no realtime EVENT (got '${RT_OUT}')" ;;
 esac
 
 # ── cleanup test data (leave the permanent tenant + mount + demo users) ──────

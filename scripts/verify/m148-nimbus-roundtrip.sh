@@ -45,8 +45,8 @@ rows_len() { python3 -c 'import json;print(len(json.load(open("/tmp/m148-q.json"
 
 # ── 1) provision (idempotent) ────────────────────────────────────────────────
 step "1/9 provision the nimbus tenant (idempotent)"
-bash "${BAAS_DIR}/scripts/seed/nimbus-tenant.sh" >/tmp/m148-seed.log 2>&1 \
-  || fail "provisioning failed — see /tmp/m148-seed.log: $(tail -3 /tmp/m148-seed.log)"
+bash "${BAAS_DIR}/scripts/seed/nimbus-tenant.sh" >/tmp/m148-seed.log 2>&1 ||
+  fail "provisioning failed — see /tmp/m148-seed.log: $(tail -3 /tmp/m148-seed.log)"
 # shellcheck disable=SC1091
 source "${BAAS_DIR}/.nimbus-tenant.env"
 KONG="${NIMBUS_KONG_URL}"
@@ -81,7 +81,9 @@ admin_auth() { [[ -n "${ADMIN_JWT:-}" ]] && printf -- '-H\nAuthorization: Bearer
 # admin JWT (F2 bypass) so the batch reaches the system:nimbus-owned accounts.
 # Retries once on a cold-pool 502 (data plane lazy-warms its first connection).
 txn() {
-  local code; local -a auth; mapfile -t auth < <(admin_auth)
+  local code
+  local -a auth
+  mapfile -t auth < <(admin_auth)
   code=$(curl -s -o /tmp/m148-txn.json -w '%{http_code}' -X POST "${KONG}/query/v1/txn" \
     -H "apikey: ${ANON}" -H "X-Baas-Api-Key: ${AK}" "${auth[@]}" -H 'Content-Type: application/json' -d "$1")
   if [[ "${code}" == "502" || "${code}" == "503" ]]; then
@@ -127,7 +129,8 @@ step "3/9 auth: signup → JWT; wrong password rejected; admin login"
 EMAIL="m148_$(date +%s)$$@nimbus.local"
 code=$(gotrue signup "{\"email\":\"${EMAIL}\",\"password\":\"M148pass!secret\"}")
 [[ "${code}" == "200" || "${code}" == "201" ]] || fail "signup (${code}): $(head -c200 /tmp/m148-a.json)"
-JWT="$(jval /tmp/m148-a.json access_token)"; SUB="$(jsub "${JWT}")"
+JWT="$(jval /tmp/m148-a.json access_token)"
+SUB="$(jsub "${JWT}")"
 [[ -n "${JWT}" && -n "${SUB}" ]] || fail "signup returned no JWT/sub"
 bad=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${KONG}/auth/v1/token?grant_type=password" \
   -H "apikey: ${ANON}" -H 'Content-Type: application/json' \
@@ -144,8 +147,8 @@ ok "signup JWT (sub ${SUB:0:8}); wrong-pw ${bad}; admin login 200"
 # ── 4) PG CRUD on app_users ──────────────────────────────────────────────────
 step "4/9 PG CRUD: app_users insert → list → update → delete"
 TUID="m148-user-$$"
-[[ "$(q "${PG}" app_users "{\"op\":\"insert\",\"data\":{\"id\":\"${TUID}\",\"email\":\"${TUID}@nimbus.local\",\"name\":\"Test User\",\"role\":\"customer\"}}")" == "201" ]] \
-  || fail "app_users insert: $(head -c200 /tmp/m148-q.json)"
+[[ "$(q "${PG}" app_users "{\"op\":\"insert\",\"data\":{\"id\":\"${TUID}\",\"email\":\"${TUID}@nimbus.local\",\"name\":\"Test User\",\"role\":\"customer\"}}")" == "201" ]] ||
+  fail "app_users insert: $(head -c200 /tmp/m148-q.json)"
 q "${PG}" app_users "{\"op\":\"list\",\"filter\":{\"id\":{\"\$eq\":\"${TUID}\"}}}" >/dev/null
 grep -q "\"email\":\"${TUID}@nimbus.local\"" /tmp/m148-q.json || fail "app_users read-back failed"
 q "${PG}" app_users "{\"op\":\"update\",\"filter\":{\"id\":{\"\$eq\":\"${TUID}\"}},\"data\":{\"status\":\"suspended\"}}" >/dev/null
@@ -163,7 +166,8 @@ A2="$(acct_id_by_kind revenue)"
 
 # ── 5) ACID COMMIT: a balanced money-move batch ──────────────────────────────
 step "5/9 ACID COMMIT: balanced 5-op txn moves money + writes 2 ledger rows"
-B1_BEFORE="$(acct_balance "${A1}")"; B2_BEFORE="$(acct_balance "${A2}")"
+B1_BEFORE="$(acct_balance "${A1}")"
+B2_BEFORE="$(acct_balance "${A2}")"
 [[ "${B1_BEFORE}" != "MISS" && "${B2_BEFORE}" != "MISS" ]] || fail "could not read account balances"
 REF="pay_gate_$$_$(date +%s)"
 AMT=4999
@@ -177,7 +181,8 @@ COMMIT_BODY="{\"mount\":\"${PG}\",\"operations\":[
 tcode="$(txn "${COMMIT_BODY}")"
 [[ "${tcode}" == "200" || "${tcode}" == "201" ]] || fail "txn commit (${tcode}): $(head -c300 /tmp/m148-txn.json)"
 grep -q '"guarantee":"atomic"' /tmp/m148-txn.json || fail "txn response missing atomic guarantee"
-B1_AFTER="$(acct_balance "${A1}")"; B2_AFTER="$(acct_balance "${A2}")"
+B1_AFTER="$(acct_balance "${A1}")"
+B2_AFTER="$(acct_balance "${A2}")"
 [[ "${B1_AFTER}" == "$((B1_BEFORE - AMT))" ]] || fail "customer balance wrong: ${B1_BEFORE}→${B1_AFTER} (want $((B1_BEFORE - AMT)))"
 [[ "${B2_AFTER}" == "$((B2_BEFORE + AMT))" ]] || fail "revenue balance wrong: ${B2_BEFORE}→${B2_AFTER} (want $((B2_BEFORE + AMT)))"
 # Thread txn id → ledger via the unique reference (results don't surface RETURNING).
@@ -197,7 +202,8 @@ ok "money moved ${B1_BEFORE}→${B1_AFTER} / ${B2_BEFORE}→${B2_AFTER}; txn ${T
 
 # ── 6) ACID ROLLBACK: a poisoned batch leaves the books untouched ────────────
 step "6/9 ACID ROLLBACK: poisoned batch → balances UNCHANGED, no poisoned txns row"
-B1_PRE="$(acct_balance "${A1}")"; B2_PRE="$(acct_balance "${A2}")"
+B1_PRE="$(acct_balance "${A1}")"
+B2_PRE="$(acct_balance "${A2}")"
 POISON_REF="poison_$$_$(date +%s)"
 # Last op violates the direction CHECK ('sideways') → whole batch rolls back.
 POISON_BODY="{\"mount\":\"${PG}\",\"operations\":[
@@ -208,7 +214,8 @@ POISON_BODY="{\"mount\":\"${PG}\",\"operations\":[
 ]}"
 rcode="$(txn "${POISON_BODY}")"
 [[ "${rcode}" -ge 400 ]] || fail "poisoned batch should NOT succeed (got ${rcode}): $(head -c300 /tmp/m148-txn.json)"
-B1_POST="$(acct_balance "${A1}")"; B2_POST="$(acct_balance "${A2}")"
+B1_POST="$(acct_balance "${A1}")"
+B2_POST="$(acct_balance "${A2}")"
 [[ "${B1_POST}" == "${B1_PRE}" ]] || fail "ROLLBACK BROKEN: customer balance moved ${B1_PRE}→${B1_POST}"
 [[ "${B2_POST}" == "${B2_PRE}" ]] || fail "ROLLBACK BROKEN: revenue balance moved ${B2_PRE}→${B2_POST}"
 qadmin "${PG}" txns "{\"op\":\"list\",\"filter\":{\"reference\":{\"\$eq\":\"${POISON_REF}\"}}}" >/dev/null
@@ -241,8 +248,8 @@ d=json.load(open("/tmp/m148-q.json"))
 for r in d.get("rows",[]):
   if r.get("status")=="posted": print(r.get("revenue")); break' 2>/dev/null)"
 [[ -n "${POSTED_SUM}" ]] || fail "aggregate returned no posted-status group: $(head -c300 /tmp/m148-q.json)"
-python3 -c "import sys;sys.exit(0 if int('${POSTED_SUM}')>=${AMT} else 1)" \
-  || fail "posted revenue ${POSTED_SUM} < committed ${AMT}"
+python3 -c "import sys;sys.exit(0 if int('${POSTED_SUM}')>=${AMT} else 1)" ||
+  fail "posted revenue ${POSTED_SUM} < committed ${AMT}"
 ok "posted revenue sum=${POSTED_SUM} (≥ committed ${AMT})"
 
 # ── 8b) owner isolation: the JWT is the authority, not the public app key ─────

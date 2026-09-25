@@ -29,7 +29,10 @@ source "${SCRIPT_DIR}/../lib/lib-live-tenant.sh"
 
 cyan() { printf '\033[0;36m[collab] %s\033[0m\n' "$*"; }
 pass() { printf '\033[0;32m[collab] %s\033[0m\n' "$*"; }
-fail() { printf '\033[0;31m[collab] FAIL: %s\033[0m\n' "$*" >&2; exit 1; }
+fail() {
+  printf '\033[0;31m[collab] FAIL: %s\033[0m\n' "$*" >&2
+  exit 1
+}
 
 KONG_PORT="$(_lt_host_port mini-baas-kong 8000/tcp)"
 [[ -n "${KONG_PORT}" ]] || fail "mini-baas-kong not mapped — bring the stack up"
@@ -41,8 +44,8 @@ SVC="$(_lt_env mini-baas-kong KONG_SERVICE_API_KEY)"
 PG_CTN="mini-baas-postgres"
 PSQL() { docker exec -i "${PG_CTN}" psql -U postgres -d postgres -tAc "$1"; }
 
-SHARED_WS="ac3e0000-0000-4000-a000-000000000001"   # "Acme Operations" (deterministic)
-OWNER_USER="5cc30a3f-87e4-471d-b795-c936723081ee"  # dev.pro.photo owns the work
+SHARED_WS="ac3e0000-0000-4000-a000-000000000001"  # "Acme Operations" (deterministic)
+OWNER_USER="5cc30a3f-87e4-471d-b795-c936723081ee" # dev.pro.photo owns the work
 PASSWORD="${COLLAB_PASSWORD:-Acme#2026}"
 PG_DB_ID="${1:-59939f19-7e8d-4876-a57f-61b3e7bb37be}"
 MY_DB_ID="${2:-028b32b2-78f2-405f-81e3-fa690c4649dc}"

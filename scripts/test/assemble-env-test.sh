@@ -43,7 +43,10 @@ if ! bash "$work/scripts/env/assemble-env.sh" >/dev/null 2>"$work/stderr"; then
   fail=1
 fi
 grep -q '^LLM_API_KEY=keep-me$' "$work/.env" 2>/dev/null ||
-  { echo "FAIL: a legitimate .env.local key did not reach .env"; fail=1; }
+  {
+    echo "FAIL: a legitimate .env.local key did not reach .env"
+    fail=1
+  }
 if grep -qE 'ghp_|github_pat_' "$work/.env" 2>/dev/null; then
   echo "FAIL: a GitHub token reached .env:"
   grep -nE 'ghp_|github_pat_' "$work/.env" | sed -E 's/(gh[pousr]_|github_pat_)[A-Za-z0-9_]+/\1<redacted>/'
@@ -51,10 +54,16 @@ if grep -qE 'ghp_|github_pat_' "$work/.env" 2>/dev/null; then
 fi
 for k in GITHUB_TOKEN SOME_OTHER_NAME GH_PAT; do
   n=$(grep -c "$k looks like a GitHub token" "$work/stderr" 2>/dev/null || true)
-  [ "${n:-0}" = 1 ] || { echo "FAIL: $k withheld $n time(s) on stderr, expected once"; fail=1; }
+  [ "${n:-0}" = 1 ] || {
+    echo "FAIL: $k withheld $n time(s) on stderr, expected once"
+    fail=1
+  }
 done
 grep -q '^# a comment survives$' "$work/.env" ||
-  { echo "FAIL: comments in .env.local no longer pass through"; fail=1; }
+  {
+    echo "FAIL: comments in .env.local no longer pass through"
+    fail=1
+  }
 
 if [ "$fail" = 0 ]; then
   echo "ok: assemble-env withholds GitHub tokens (3 withheld, 1 legitimate key kept, exit 0)"

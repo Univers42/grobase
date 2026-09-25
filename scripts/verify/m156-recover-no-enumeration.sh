@@ -17,8 +17,11 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 ANON="$(grep -E '^ANON_KEY=' "$ROOT/.env" | cut -d= -f2)"
 KPORT="$(docker port mini-baas-kong 8000/tcp 2>/dev/null | head -1 | sed 's/.*://' || echo 8000)"
 GW="http://localhost:${KPORT:-8000}"
-ok()   { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
-fail() { printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+ok() { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
+fail() {
+  printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2
+  exit 1
+}
 
 rec() { # email -> http status of /recover
   curl -s -o /dev/null -w '%{http_code}' --max-time 10 -X POST "$GW/auth/v1/recover" \
@@ -27,11 +30,11 @@ rec() { # email -> http status of /recover
 
 printf '\n\033[1mm156 — GoTrue /recover anti-enumeration\033[0m  (%s)\n' "$GW"
 
-docker ps --format '{{.Names}}' | grep -q '^mini-baas-mailpit$' \
-  || fail "mini-baas-mailpit not running — the SMTP sink is the fix (docker compose up -d mailpit)"
+docker ps --format '{{.Names}}' | grep -q '^mini-baas-mailpit$' ||
+  fail "mini-baas-mailpit not running — the SMTP sink is the fix (docker compose up -d mailpit)"
 ok "mailpit SMTP sink is up"
 
-EXIST="sophie.laurent@savanna-zoo.com"   # a known seeded user
+EXIST="sophie.laurent@savanna-zoo.com" # a known seeded user
 BOGUS="enum-probe-$(date +%s 2>/dev/null || echo x)@nowhere.invalid"
 # The invariant is "same response whether or not the email exists, and never the
 # old 500". 200 is the healthy value; a transient shared 429 (rate-limit, which

@@ -61,9 +61,9 @@ SVC_TOKEN="m168-internal-service-token-$$"
 JWT_SECRET="m168-jwt-secret-deadbeefcafef00ddeadbeefcafef00d"
 BODY_TMP="$(mktemp)"
 
-U1="11111111-1111-1111-1111-111111111111" # org A owner
-U2="22222222-2222-2222-2222-222222222222" # accepts the team invite
-U3="33333333-3333-3333-3333-333333333333" # accepts the group invite
+U1="11111111-1111-1111-1111-111111111111"   # org A owner
+U2="22222222-2222-2222-2222-222222222222"   # accepts the team invite
+U3="33333333-3333-3333-3333-333333333333"   # accepts the group invite
 UOUT="44444444-4444-4444-4444-444444444444" # not a member of org A
 
 cleanup() {
@@ -111,10 +111,16 @@ wait_ready_http() {
   local i
   for i in $(seq 1 60); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2$3" 2>/dev/null)" == "200" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never became ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never became ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # ── 1) postgres + migrations ──────────────────────────────────────────────────
@@ -164,23 +170,27 @@ JWT_UOUT="$(mint_jwt "${UOUT}" uout@m168.test)"
 # ── 3) org A + team core + group ──────────────────────────────────────────────
 step "3/6 (A) org A (U1 owner) + team core + project X + its group"
 [[ "$(req POST "${PORT_ON}" /v1/orgs "${JWT_U1}" "{\"slug\":\"m168-a-$$\",\"name\":\"Org A\"}")" == "201" ]] || fail "create org A"
-ORG_A="$(json_str id)"; [[ -n "${ORG_A}" ]] || fail "org A id"
+ORG_A="$(json_str id)"
+[[ -n "${ORG_A}" ]] || fail "org A id"
 [[ "$(req POST "${PORT_ON}" "/v1/orgs/${ORG_A}/teams" "${JWT_U1}" '{"slug":"core","name":"Core"}')" == "201" ]] || fail "create team core"
-TEAM_CORE="$(json_str id)"; [[ -n "${TEAM_CORE}" ]] || fail "team id"
+TEAM_CORE="$(json_str id)"
+[[ -n "${TEAM_CORE}" ]] || fail "team id"
 PROJ_SLUG="m168-x-$$"
 PROJ_BODY="{\"tenant\":\"${PROJ_SLUG}\",\"name\":\"Proj X\",\"plan\":\"nano\",\"seed_roles\":false,\"mounts\":[{\"engine\":\"postgresql\",\"name\":\"probe\",\"connection_string\":\"${DB_INNET}\",\"isolation\":\"shared_rls\"}]}"
 C="$(req POST "${PORT_ON}" "/v1/orgs/${ORG_A}/projects" "${JWT_U1}" "${PROJ_BODY}")"
 [[ "${C}" == "200" || "${C}" == "201" ]] || fail "provision project X got ${C}"
 PROJ_X="$(psql_val "SELECT id::text FROM public.tenants WHERE slug='${PROJ_SLUG}'")"
 [[ "$(req POST "${PORT_ON}" "/v1/projects/${PROJ_X}/groups" "${JWT_U1}")" == "201" ]] || fail "create group"
-GROUP_ID="$(json_str id)"; [[ -n "${GROUP_ID}" ]] || fail "group id"
+GROUP_ID="$(json_str id)"
+[[ -n "${GROUP_ID}" ]] || fail "group id"
 ok "org A (${ORG_A}), team core (${TEAM_CORE}), group (${GROUP_ID})"
 
 # ── 4) (A · POSITIVE) issue + accept a team invite, then a group invite ───────
 step "4/6 (A) team invite -> U2 accepts (joins team + becomes org member); group invite -> U3"
 C="$(req POST "${PORT_ON}" "/v1/orgs/${ORG_A}/teams/${TEAM_CORE}/invites" "${JWT_U1}" '{"email":"u2@m168.test","role":"member"}')"
 [[ "${C}" == "201" ]] || fail "issue team invite got ${C} — $(head -c 300 "${BODY_TMP}")"
-TOK_TEAM="$(json_str token)"; [[ "${TOK_TEAM}" == mbi_* ]] || fail "team token missing mbi_ prefix — '${TOK_TEAM}'"
+TOK_TEAM="$(json_str token)"
+[[ "${TOK_TEAM}" == mbi_* ]] || fail "team token missing mbi_ prefix — '${TOK_TEAM}'"
 [[ "$(psql_val "SELECT count(*) FROM public.invites WHERE token_hash LIKE '%${TOK_TEAM}%'")" == "0" ]] || fail "cleartext token leaked into DB"
 [[ "$(req GET "${PORT_ON}" "/v1/orgs/${ORG_A}/teams/${TEAM_CORE}/invites" "${JWT_U1}")" == "200" ]] || fail "list team invites"
 grep -q '"status":"pending"' "${BODY_TMP}" || fail "pending team invite not listed"
@@ -189,7 +199,8 @@ grep -q '"status":"pending"' "${BODY_TMP}" || fail "pending team invite not list
 [[ "$(psql_val "SELECT count(*) FROM public.org_members WHERE org_id::text='${ORG_A}' AND user_id='${U2}'")" == "1" ]] || fail "U2 not added as org member on team accept"
 C="$(req POST "${PORT_ON}" "/v1/groups/${GROUP_ID}/invites" "${JWT_U1}" '{"email":"u3@m168.test"}')"
 [[ "${C}" == "201" ]] || fail "issue group invite got ${C}"
-TOK_GROUP="$(json_str token)"; [[ "${TOK_GROUP}" == mbi_* ]] || fail "group token prefix"
+TOK_GROUP="$(json_str token)"
+[[ "${TOK_GROUP}" == mbi_* ]] || fail "group token prefix"
 [[ "$(req POST "${PORT_ON}" /v1/invites/accept "${JWT_U3}" "{\"token\":\"${TOK_GROUP}\"}")" == "200" ]] || fail "U3 accept group invite"
 [[ "$(psql_val "SELECT count(*) FROM public.group_members WHERE group_id::text='${GROUP_ID}' AND user_id='${U3}'")" == "1" ]] || fail "U3 not added to group on accept"
 ok "(A) team invite -> U2 in team + org; group invite -> U3 in group; token hash-only"

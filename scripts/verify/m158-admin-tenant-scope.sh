@@ -20,9 +20,12 @@ KPORT="$(docker port mini-baas-kong 8000/tcp 2>/dev/null | head -1 | sed 's/.*:/
 GW="http://localhost:${KPORT:-8000}"
 SVC="$(docker exec mini-baas-kong sh -c 'echo $KONG_SERVICE_API_KEY' 2>/dev/null || true)"
 [ -n "$SVC" ] || { [ -f "$ROOT/.savanna-tenant.env" ] && . "$ROOT/.savanna-tenant.env" && SVC="$SAVANNA_SERVICE_APIKEY"; }
-FORGE="00000000-0000-4000-8000-000000000002"   # an existing platform tenant uuid
-ok()   { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
-fail() { printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+FORGE="00000000-0000-4000-8000-000000000002" # an existing platform tenant uuid
+ok() { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
+fail() {
+  printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2
+  exit 1
+}
 
 printf '\n\033[1mm158 — adapter-registry admin route is service-role only\033[0m  (%s)\n' "$GW"
 [ -n "$SVC" ] || fail "could not resolve the service key (KONG_SERVICE_API_KEY)"

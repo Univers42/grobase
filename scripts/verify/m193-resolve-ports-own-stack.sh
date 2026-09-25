@@ -41,7 +41,10 @@ command -v ss >/dev/null 2>&1 || fail "ss is required (iproute2)"
 docker image inspect "${IMG}" >/dev/null 2>&1 || docker pull -q "${IMG}" >/dev/null || fail "cannot get ${IMG}"
 P=""
 for cand in $(seq 18600 18699); do
-  ss -tlnH | awk '{print $4}' | grep -qE "(:|^)${cand}$" || { P="${cand}"; break; }
+  ss -tlnH | awk '{print $4}' | grep -qE "(:|^)${cand}$" || {
+    P="${cand}"
+    break
+  }
 done
 [ -n "${P}" ] || fail "no free port in 18600-18699"
 ok "port ${P}"
@@ -55,7 +58,10 @@ hold() { # <project label>
   docker rm -f "${C}" >/dev/null 2>&1 || true
   docker run -d --name "${C}" --label "com.docker.compose.project=$1" -p "127.0.0.1:${P}:80" \
     --entrypoint sleep "${IMG}" 300 >/dev/null
-  for _ in $(seq 1 10); do ss -tlnH | awk '{print $4}' | grep -qE ":${P}$" && return 0; sleep 1; done
+  for _ in $(seq 1 10); do
+    ss -tlnH | awk '{print $4}' | grep -qE ":${P}$" && return 0
+    sleep 1
+  done
   fail "the holder never published ${P}"
 }
 

@@ -51,32 +51,32 @@ EOF
 
 for arg in "$@"; do
   case "$arg" in
-    --required)
-      REQUIRED=1
-      ;;
-    --target=*)
-      SSH_TARGET=${arg#--target=}
-      ;;
-    --target)
-      printf '[certs] --target requires user@host.\n' >&2
-      exit 2
-      ;;
-    --help|-h)
-      usage
-      exit 0
-      ;;
-    *)
-      printf '[certs] Unknown option: %s\n' "$arg" >&2
-      exit 2
-      ;;
+  --required)
+    REQUIRED=1
+    ;;
+  --target=*)
+    SSH_TARGET=${arg#--target=}
+    ;;
+  --target)
+    printf '[certs] --target requires user@host.\n' >&2
+    exit 2
+    ;;
+  --help | -h)
+    usage
+    exit 0
+    ;;
+  *)
+    printf '[certs] Unknown option: %s\n' "$arg" >&2
+    exit 2
+    ;;
   esac
 done
 
 case "$REMOTE_TRUST_MODE" in
-  0|false|FALSE|no|NO|skip|SKIP)
-    printf '[certs] skipping browser-host CA trust because TRACK_BINOCLE_BROWSER_HOST_TRUST=%s\n' "$REMOTE_TRUST_MODE"
-    exit 0
-    ;;
+0 | false | FALSE | no | NO | skip | SKIP)
+  printf '[certs] skipping browser-host CA trust because TRACK_BINOCLE_BROWSER_HOST_TRUST=%s\n' "$REMOTE_TRUST_MODE"
+  exit 0
+  ;;
 esac
 
 if [ ! -s "$CA_CERT" ]; then
@@ -101,8 +101,8 @@ append_unique_word() {
   candidate=$2
   [ -n "$candidate" ] || return 0
   case " $current " in
-    *" $candidate "*) printf '%s\n' "$current" ;;
-    *) printf '%s\n' "${current}${current:+ }$candidate" ;;
+  *" $candidate "*) printf '%s\n' "$current" ;;
+  *) printf '%s\n' "${current}${current:+ }$candidate" ;;
   esac
 }
 
@@ -110,20 +110,20 @@ split_target_port() {
   PARSED_TARGET=$1
   PARSED_PORT=""
   case "$PARSED_TARGET" in
-    *:*:*)
-      return 0
+  *:*:*)
+    return 0
+    ;;
+  *:*)
+    maybe_port=${PARSED_TARGET##*:}
+    maybe_target=${PARSED_TARGET%:*}
+    case "$maybe_port" in
+    '' | *[!0-9]*) ;;
+    *)
+      PARSED_TARGET=$maybe_target
+      PARSED_PORT=$maybe_port
       ;;
-    *:*)
-      maybe_port=${PARSED_TARGET##*:}
-      maybe_target=${PARSED_TARGET%:*}
-      case "$maybe_port" in
-        ''|*[!0-9]*) ;;
-        *)
-          PARSED_TARGET=$maybe_target
-          PARSED_PORT=$maybe_port
-          ;;
-      esac
-      ;;
+    esac
+    ;;
   esac
 }
 
@@ -173,17 +173,17 @@ for candidate_host in $CANDIDATE_HOSTS; do
   candidate_ports=${PARSED_PORT:-$SSH_PORTS}
   candidate_targets=""
   case "$PARSED_TARGET" in
-    *@*)
-      candidate_targets=$PARSED_TARGET
-      ;;
-    *)
-      for candidate_user in $SSH_USERS; do
-        if [ -n "$candidate_user" ]; then
-          candidate_targets=$(append_unique_word "$candidate_targets" "$candidate_user@$PARSED_TARGET")
-        fi
-      done
-      candidate_targets=$(append_unique_word "$candidate_targets" "$PARSED_TARGET")
-      ;;
+  *@*)
+    candidate_targets=$PARSED_TARGET
+    ;;
+  *)
+    for candidate_user in $SSH_USERS; do
+      if [ -n "$candidate_user" ]; then
+        candidate_targets=$(append_unique_word "$candidate_targets" "$candidate_user@$PARSED_TARGET")
+      fi
+    done
+    candidate_targets=$(append_unique_word "$candidate_targets" "$PARSED_TARGET")
+    ;;
   esac
 
   for candidate_target in $candidate_targets; do
@@ -212,9 +212,9 @@ if [ -z "$SELECTED_TARGET" ]; then
 fi
 
 # shellcheck disable=SC2029 # the remote command is built from local values on purpose
-if ssh $SELECTED_SSH_ARGS "$SELECTED_TARGET" "mkdir -p '$REMOTE_CERT_DIR'" \
-  && scp $SELECTED_SCP_ARGS "$CA_CERT" "$LOCAL_TRUST_SCRIPT" "$SELECTED_TARGET:$REMOTE_CERT_DIR/" \
-  && ssh $SELECTED_SSH_ARGS "$SELECTED_TARGET" "TRACK_BINOCLE_CERT_DIR='$REMOTE_CERT_DIR' sh '$REMOTE_CERT_DIR/$(basename "$LOCAL_TRUST_SCRIPT")' --system"; then
+if ssh $SELECTED_SSH_ARGS "$SELECTED_TARGET" "mkdir -p '$REMOTE_CERT_DIR'" &&
+  scp $SELECTED_SCP_ARGS "$CA_CERT" "$LOCAL_TRUST_SCRIPT" "$SELECTED_TARGET:$REMOTE_CERT_DIR/" &&
+  ssh $SELECTED_SSH_ARGS "$SELECTED_TARGET" "TRACK_BINOCLE_CERT_DIR='$REMOTE_CERT_DIR' sh '$REMOTE_CERT_DIR/$(basename "$LOCAL_TRUST_SCRIPT")' --system"; then
   printf '[certs] browser host trust import completed through %s.\n' "$SELECTED_TARGET"
   exit 0
 fi

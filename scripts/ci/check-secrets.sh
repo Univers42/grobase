@@ -39,7 +39,10 @@ hits="$(grep -rEn '(password|secret|key|token)[[:space:]]*[:=][[:space:]]*["\x27
   --exclude-dir=node_modules --exclude-dir='.git' --exclude-dir=vendor \
   --exclude='check-secrets.sh' --exclude='*.lock' \
   . 2>/dev/null | strip_false_positives)" || true
-[[ -n "$hits" ]] && { printf '%s\n' "$hits"; FOUND=1; }
+[[ -n "$hits" ]] && {
+  printf '%s\n' "$hits"
+  FOUND=1
+}
 
 # Pattern: Bearer tokens or API keys as string literals
 hits="$(grep -rEn 'Bearer[[:space:]]+[A-Za-z0-9_.-]{20,}' \
@@ -47,7 +50,10 @@ hits="$(grep -rEn 'Bearer[[:space:]]+[A-Za-z0-9_.-]{20,}' \
   --exclude-dir=node_modules --exclude-dir='.git' --exclude-dir=vendor \
   --exclude-dir=scripts \
   . 2>/dev/null | strip_false_positives)" || true
-[[ -n "$hits" ]] && { printf '%s\n' "$hits"; FOUND=1; }
+[[ -n "$hits" ]] && {
+  printf '%s\n' "$hits"
+  FOUND=1
+}
 
 # gitleaks: provider-token rules over the whole working tree, docs and untracked
 # files included (the patterns above only see assignments in code/yaml).

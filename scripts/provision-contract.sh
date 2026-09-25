@@ -30,7 +30,10 @@ REPO="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 PG_CTN="${PG_CONTAINER:-mini-baas-postgres}"
 
-die() { printf '✗ %s\n' "$*" >&2; exit 1; }
+die() {
+  printf '✗ %s\n' "$*" >&2
+  exit 1
+}
 note() { printf '· %s\n' "$*" >&2; }
 
 # Preflight: the tools + the contract file must exist.
@@ -44,8 +47,8 @@ preflight() {
 
 # Read a container env var (works for distroless images — no shell in the image).
 ctn_env() { # $1 container, $2 var
-  docker inspect "$1" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
-    | grep "^$2=" | head -1 | cut -d= -f2-
+  docker inspect "$1" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null |
+    grep "^$2=" | head -1 | cut -d= -f2-
 }
 
 # Host port a container publishes for $2 (e.g. 8000/tcp).
@@ -67,8 +70,10 @@ discover_stack() {
   SERVICE_TOKEN="$(ctn_env mini-baas-tenant-control INTERNAL_SERVICE_TOKEN)"
   ANON_KEY="$(ctn_env mini-baas-kong KONG_PUBLIC_API_KEY)"
   SERVICE_KEY="$(ctn_env mini-baas-kong KONG_SERVICE_API_KEY)"
-  PG_USER="$(ctn_env "${PG_CTN}" POSTGRES_USER)"; PG_USER="${PG_USER:-postgres}"
-  PG_PASS="$(ctn_env "${PG_CTN}" POSTGRES_PASSWORD)"; PG_PASS="${PG_PASS:-postgres}"
+  PG_USER="$(ctn_env "${PG_CTN}" POSTGRES_USER)"
+  PG_USER="${PG_USER:-postgres}"
+  PG_PASS="$(ctn_env "${PG_CTN}" POSTGRES_PASSWORD)"
+  PG_PASS="${PG_PASS:-postgres}"
   [ -n "${SERVICE_TOKEN}" ] || die "INTERNAL_SERVICE_TOKEN not found on tenant-control"
   [ -n "${SERVICE_KEY}" ] || die "Kong service key not found"
   export SERVICE_TOKEN
@@ -86,7 +91,10 @@ pg_sql() { # $1 database, stdin sql
 ensure_database() { # $1 dbname
   local exists
   exists="$(printf "SELECT 1 FROM pg_database WHERE datname='%s';" "$1" | pg_sql postgres || true)"
-  if [ "${exists}" = "1" ]; then note "db ${1}: exists"; return 0; fi
+  if [ "${exists}" = "1" ]; then
+    note "db ${1}: exists"
+    return 0
+  fi
   printf 'CREATE DATABASE "%s";' "$1" | pg_sql postgres >/dev/null
   note "db ${1}: created"
 }
@@ -99,14 +107,16 @@ resolve_dsn() { # $1 mount index
   src="$(jq -r ".mounts[$1].credentials.source" "${CONTRACT}")"
   db="$(jq -r ".mounts[$1].database" "${CONTRACT}")"
   case "${src}" in
-    fly_secret)
-      dsn_env="$(jq -r ".mounts[$1].credentials.dsn_env" "${CONTRACT}")"
-      dsn="$(printenv "${dsn_env}" || true)"
-      [ -n "${dsn}" ] || die "mount ${1}: ${dsn_env} not set in env" ;;
-    docker_service|*)
-      host="$(jq -r ".mounts[$1].credentials.host // \"postgres\"" "${CONTRACT}")"
-      port="$(jq -r ".mounts[$1].credentials.port // 5432" "${CONTRACT}")"
-      dsn="postgres://${PG_USER}:${PG_PASS}@${host}:${port}/${db}" ;;
+  fly_secret)
+    dsn_env="$(jq -r ".mounts[$1].credentials.dsn_env" "${CONTRACT}")"
+    dsn="$(printenv "${dsn_env}" || true)"
+    [ -n "${dsn}" ] || die "mount ${1}: ${dsn_env} not set in env"
+    ;;
+  docker_service | *)
+    host="$(jq -r ".mounts[$1].credentials.host // \"postgres\"" "${CONTRACT}")"
+    port="$(jq -r ".mounts[$1].credentials.port // 5432" "${CONTRACT}")"
+    dsn="postgres://${PG_USER}:${PG_PASS}@${host}:${port}/${db}"
+    ;;
   esac
   printf '%s' "${dsn}"
 }
@@ -117,7 +127,7 @@ build_engines() {
   local n eng iso dsn db count i
   ENGINES='[]'
   count="$(jq '.mounts | length' "${CONTRACT}")"
-  for ((i=0; i<count; i++)); do
+  for ((i = 0; i < count; i++)); do
     eng="$(jq -r ".mounts[$i].engine" "${CONTRACT}")"
     db="$(jq -r ".mounts[$i].database" "${CONTRACT}")"
     [ "${eng}" = "postgresql" ] && ensure_database "${db}"
@@ -158,8 +168,8 @@ provision_stack() {
 # run and on re-run, where /v1/provision no longer re-emits ids).
 mount_id() { # $1 mount name
   curl -s "${KONG_URL}/admin/v1/databases" \
-    -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT}" \
-    | jq -r --arg n "$1" '.[]? | select(.name==$n) | .id' | head -1
+    -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT}" |
+    jq -r --arg n "$1" '.[]? | select(.name==$n) | .id' | head -1
 }
 
 # Set read_scoped on each mount that asked for it (StackSpec carries no
@@ -168,7 +178,7 @@ mount_id() { # $1 mount name
 apply_read_scoped() {
   local count i n rs id
   count="$(jq '.mounts | length' "${CONTRACT}")"
-  for ((i=0; i<count; i++)); do
+  for ((i = 0; i < count; i++)); do
     rs="$(jq -r ".mounts[$i].read_scoped // false" "${CONTRACT}")"
     [ "${rs}" = "true" ] || continue
     n="$(jq -r ".mounts[$i].name" "${CONTRACT}")"
@@ -184,13 +194,13 @@ apply_read_scoped() {
 apply_schema() {
   local count i eng db file
   count="$(jq '.mounts | length' "${CONTRACT}")"
-  for ((i=0; i<count; i++)); do
+  for ((i = 0; i < count; i++)); do
     eng="$(jq -r ".mounts[$i].engine" "${CONTRACT}")"
     file="$(jq -r ".schema.${eng} // empty" "${CONTRACT}")"
     [ -n "${file}" ] || continue
     [ -f "${REPO}/${file}" ] || die "schema file missing: ${file}"
     db="$(jq -r ".mounts[$i].database" "${CONTRACT}")"
-    pg_sql "${db}" < "${REPO}/${file}" >/dev/null
+    pg_sql "${db}" <"${REPO}/${file}" >/dev/null
     note "schema applied to ${db} (${file})"
   done
 }
@@ -253,8 +263,8 @@ read_emitted_key() {
   [ -n "${path}" ] || return 0
   case "${path}" in /*) f="${path}" ;; *) f="${REPO}/${path}" ;; esac
   [ -f "${f}" ] || return 0
-  grep -hoE '(PUBLIC_API_KEY|VITE_BAAS_API_KEY|GROBASE_APP_KEY)=mbk_[A-Za-z0-9_-]+' "${f}" 2>/dev/null \
-    | head -1 | cut -d= -f2-
+  grep -hoE '(PUBLIC_API_KEY|VITE_BAAS_API_KEY|GROBASE_APP_KEY)=mbk_[A-Za-z0-9_-]+' "${f}" 2>/dev/null |
+    head -1 | cut -d= -f2-
 }
 
 # Substitute the contract's frontend_config tokens and write the config file the
@@ -263,9 +273,13 @@ read_emitted_key() {
 emit_frontend_config() {
   local path out k v line
   path="$(jq -r '.frontend_config.path // empty' "${CONTRACT}")"
-  [ -n "${path}" ] || { note "no frontend_config — skipped"; return 0; }
+  [ -n "${path}" ] || {
+    note "no frontend_config — skipped"
+    return 0
+  }
   case "${path}" in /*) out="${path}" ;; *) out="${REPO}/${path}" ;; esac
-  mkdir -p "$(dirname "${out}")"; : >"${out}"
+  mkdir -p "$(dirname "${out}")"
+  : >"${out}"
   while IFS=$'\t' read -r k v; do
     line="$(subst_tokens "${v}")"
     printf '%s=%s\n' "${k}" "${line}" >>"${out}"
@@ -281,7 +295,8 @@ subst_tokens() { # $1 template value
   v="${v//\$\{API_KEY\}/${API_KEY}}"
   v="${v//\$\{TENANT_ID\}/${TENANT}}"
   while [[ "${v}" =~ \$\{MOUNT_ID:([a-zA-Z0-9_-]+)\} ]]; do
-    name="${BASH_REMATCH[1]}"; id="$(mount_id "${name}")"
+    name="${BASH_REMATCH[1]}"
+    id="$(mount_id "${name}")"
     v="${v//\$\{MOUNT_ID:${name}\}/${id}}"
   done
   printf '%s' "${v}"
