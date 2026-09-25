@@ -150,6 +150,9 @@ apply_migrations() {
 	done
 }
 
+# bring_up starts the stack in dependency order. $DC and $SERVICES are word lists
+# (a command and its service names) and are split on purpose.
+# shellcheck disable=SC2086
 bring_up() {
 	cd "$REPO"
 	log "pulling images"; $DC pull $SERVICES || true
