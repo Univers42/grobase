@@ -34,8 +34,9 @@
 #                                                                              #
 #  SCOPE: this FILE only. Host-shell env vars override .env during compose     #
 #  interpolation, so a PASS covers the file, not the running environment.      #
-#  Not wired into deploy/go-live/go-live.sh or deploy/fly/boot.sh: advisory    #
-#  until an operator runs it. Gate: m194-preflight-production.sh.              #
+#  Wired: make prod-up (refuses); make cloud-up, deploy/fly/boot.sh (warn;     #
+#  PREFLIGHT_ENFORCE=1 refuses). Not go-live.sh: the Helm chart takes no       #
+#  compose .env. Gate: m194-preflight-production.sh.                           #
 #                                                                              #
 #  Usage: sh scripts/ops/preflight-production.sh [ENV_FILE]    (default .env)  #
 #  Exit:  0 PASS · 1 offenders named · 2 unreadable file or internal error     #
