@@ -105,7 +105,10 @@ expect_fail() {
 
 # with_line writes hardened.env plus the line $2 to $T/$1 and prints its path.
 with_line() {
-  { cat "${T}/hardened.env"; printf '%s\n' "$2"; } >"${T}/$1"
+  {
+    cat "${T}/hardened.env"
+    printf '%s\n' "$2"
+  } >"${T}/$1"
   printf '%s' "${T}/$1"
 }
 
@@ -173,7 +176,10 @@ arm_dev() {
   for sh_ in "sh" "sh -x" "bash -x"; do
     run_pf "${T}/dev.env" "${sh_}"
     [ "${RC}" = 1 ] || fail "${sh_}: expected exit 1, got ${RC}"
-    ! grep -qF "${sentinel}" <<<"${OUT}" || { OUT=""; fail "${sh_}: the sentinel value leaked into stdout/stderr"; }
+    ! grep -qF "${sentinel}" <<<"${OUT}" || {
+      OUT=""
+      fail "${sh_}: the sentinel value leaked into stdout/stderr"
+    }
   done
   ok "sentinel value absent from stdout+stderr under sh, sh -x and bash -x"
 }
@@ -188,7 +194,10 @@ arm_hardened() {
     [ "${RC}" = 0 ] || fail "${sh_}: hardened env expected exit 0, got ${RC}"
     grep -qx 'PASS' <<<"${OUT}" || fail "${sh_}: no PASS line"
     ! grep -q '^  ✗ ' <<<"${OUT}" || fail "${sh_}: hardened env produced an offender"
-    ! grep -qF -e "${jwt}" -e "${pg}" <<<"${OUT}" || { OUT=""; fail "${sh_}: a hardened value leaked"; }
+    ! grep -qF -e "${jwt}" -e "${pg}" <<<"${OUT}" || {
+      OUT=""
+      fail "${sh_}: a hardened value leaked"
+    }
   done
   ok "hardened env: exit 0 + PASS under sh, bash and sh -x; no value printed"
 }
@@ -245,7 +254,10 @@ arm_parser_fail() {
 # arm_parser_pass proves last-wins, single-quoted literals, inline comments
 # and a non-deny realtime fallback do not fail a hardened env.
 arm_parser_pass() {
-  { printf 'POSTGRES_PASSWORD=postgres\n'; cat "${T}/hardened.env"; } >"${T}/lastwins.env"
+  {
+    printf 'POSTGRES_PASSWORD=postgres\n'
+    cat "${T}/hardened.env"
+  } >"${T}/lastwins.env"
   run_pf "${T}/lastwins.env"
   [ "${RC}" = 0 ] || fail "last assignment must win (default first, strong last) — got ${RC}"
   run_pf "$(with_line literal.env "LOG_STREAM_TOKEN='lit\$eral-\$abc-$(rand 8)'")"
@@ -260,7 +272,10 @@ arm_parser_pass() {
 
 # arm_source proves command substitutions in values are never executed.
 arm_source() {
-  { cat "${T}/hardened.env"; printf 'EVIL=$(touch "%s/pwned")\nEVIL2=`touch %s/pwned2`\n' "${T}" "${T}"; } >"${T}/evil.env"
+  {
+    cat "${T}/hardened.env"
+    printf 'EVIL=$(touch "%s/pwned")\nEVIL2=`touch %s/pwned2`\n' "${T}" "${T}"
+  } >"${T}/evil.env"
   run_pf "${T}/evil.env"
   [ "${RC}" = 0 ] || fail "evil.env expected exit 0 (EVIL is not a checked key), got ${RC}"
   [ ! -e "${T}/pwned" ] && [ ! -e "${T}/pwned2" ] || fail "a value was executed — the file is being sourced"
@@ -295,7 +310,10 @@ arm_dsn_drift() {
     case "${dsn}" in *"'"*) fail "${name} DSN fallback holds a quote; cannot encode it" ;; esac
     expect_fail "$(with_line "dsn-${name}.env" "${name}='${dsn}'")" "${name}"
     grep -v "^${name}=" "${T}/hardened.env" >"${T}/dsn-unset.env"
-    [ -n "${src}" ] || { expect_fail "${T}/dsn-unset.env" "${name}"; continue; }
+    [ -n "${src}" ] || {
+      expect_fail "${T}/dsn-unset.env" "${name}"
+      continue
+    }
     grep -v "^${src}=" "${T}/dsn-unset.env" >"${T}/dsn-src.env"
     expect_fail "${T}/dsn-src.env" "${src}"
   done <"${T}/dsns"

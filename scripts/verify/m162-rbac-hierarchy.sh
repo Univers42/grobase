@@ -220,11 +220,16 @@ wait_ready_http "${TC_ON}" "${PORT_ON}" /health/live || fail "RBAC-ON tenant-con
   }
 ok "RBAC-ON tenant-control up (/v1/orgs/{id}/teams|grants|tokens mounted)"
 
-JWT_U1="$(mint_jwt "${U1}" u1@m162.test)"; [[ -n "${JWT_U1}" ]] || fail "mint U1"
-JWT_U2="$(mint_jwt "${U2}" u2@m162.test)"; [[ -n "${JWT_U2}" ]] || fail "mint U2"
-JWT_U3="$(mint_jwt "${U3}" u3@m162.test)"; [[ -n "${JWT_U3}" ]] || fail "mint U3"
-JWT_U4="$(mint_jwt "${U4}" u4@m162.test)"; [[ -n "${JWT_U4}" ]] || fail "mint U4"
-JWT_U5="$(mint_jwt "${U5}" u5@m162.test)"; [[ -n "${JWT_U5}" ]] || fail "mint U5"
+JWT_U1="$(mint_jwt "${U1}" u1@m162.test)"
+[[ -n "${JWT_U1}" ]] || fail "mint U1"
+JWT_U2="$(mint_jwt "${U2}" u2@m162.test)"
+[[ -n "${JWT_U2}" ]] || fail "mint U2"
+JWT_U3="$(mint_jwt "${U3}" u3@m162.test)"
+[[ -n "${JWT_U3}" ]] || fail "mint U3"
+JWT_U4="$(mint_jwt "${U4}" u4@m162.test)"
+[[ -n "${JWT_U4}" ]] || fail "mint U4"
+JWT_U5="$(mint_jwt "${U5}" u5@m162.test)"
+[[ -n "${JWT_U5}" ]] || fail "mint U5"
 [[ "$(org_req GET "${PORT_ON}" /v1/orgs "${JWT_U1}")" == "200" ]] || fail "minted JWT not accepted by verifier"
 ok "minted + verified five human JWTs (U1..U5)"
 
@@ -233,10 +238,12 @@ step "3/9 (A) U1 creates org A + project X; U4 creates org B"
 ORG_SLUG="m162-org-a-$$"
 [[ "$(org_req POST "${PORT_ON}" /v1/orgs "${JWT_U1}" "{\"slug\":\"${ORG_SLUG}\",\"name\":\"Org A\"}")" == "201" ]] ||
   fail "create org A — $(head -c 300 "${BODY_TMP}")"
-ORG_A="$(json_str id)"; [[ -n "${ORG_A}" ]] || fail "org A id missing"
+ORG_A="$(json_str id)"
+[[ -n "${ORG_A}" ]] || fail "org A id missing"
 [[ "$(org_req POST "${PORT_ON}" /v1/orgs "${JWT_U4}" "{\"slug\":\"m162-org-b-$$\",\"name\":\"Org B\"}")" == "201" ]] ||
   fail "create org B"
-ORG_B="$(json_str id)"; [[ -n "${ORG_B}" ]] || fail "org B id missing"
+ORG_B="$(json_str id)"
+[[ -n "${ORG_B}" ]] || fail "org B id missing"
 # U2,U3 are org-A members (a team member is always an org member); developer role
 # grants CapOrgRead (read teams/grants) but not team/grant management.
 psql_val "INSERT INTO public.org_members (org_id, user_id, role, invited_by) VALUES ('${ORG_A}'::uuid,'${U2}','developer','${U1}'),('${ORG_A}'::uuid,'${U3}','developer','${U1}') ON CONFLICT (org_id,user_id) DO NOTHING" >/dev/null
@@ -252,7 +259,8 @@ ok "org A (${ORG_A}), org B (${ORG_B}), project X (${PROJ_X}) created"
 step "4/9 (A) team core admin on X PROPAGATES to members (the transcendence example)"
 C="$(org_req POST "${PORT_ON}" "/v1/orgs/${ORG_A}/teams" "${JWT_U1}" '{"slug":"core","name":"Core"}')"
 [[ "${C}" == "201" ]] || fail "create team expected 201, got ${C} — $(head -c 300 "${BODY_TMP}")"
-TEAM_CORE="$(json_str id)"; [[ -n "${TEAM_CORE}" ]] || fail "team id missing"
+TEAM_CORE="$(json_str id)"
+[[ -n "${TEAM_CORE}" ]] || fail "team id missing"
 [[ "$(org_req POST "${PORT_ON}" "/v1/orgs/${ORG_A}/teams/${TEAM_CORE}/members" "${JWT_U1}" "{\"user_id\":\"${U2}\"}")" == "200" ]] || fail "add U2 to team"
 [[ "$(org_req POST "${PORT_ON}" "/v1/orgs/${ORG_A}/teams/${TEAM_CORE}/members" "${JWT_U1}" "{\"user_id\":\"${U3}\"}")" == "200" ]] || fail "add U3 to team"
 C="$(org_req POST "${PORT_ON}" "/v1/orgs/${ORG_A}/projects/${PROJ_X}/grants" "${JWT_U1}" \
@@ -294,7 +302,8 @@ psql_val "INSERT INTO public.org_members (org_id, user_id, role, invited_by) VAL
 grep -q 'forbidden' "${BODY_TMP}" || fail "(B) escalation 403 body missing 'forbidden'"
 C="$(org_req POST "${PORT_ON}" "/v1/orgs/${ORG_A}/tokens" "${JWT_U5}" '{"scope_kind":"org","project_role":"writer"}')"
 [[ "${C}" == "201" ]] || fail "(B) developer could not mint a writer token (got ${C}) — within-role mint must succeed"
-TOK1="$(json_str token)"; [[ "${TOK1}" == rbt_* ]] || fail "(B) minted token has no rbt_ prefix — got '${TOK1}'"
+TOK1="$(json_str token)"
+[[ "${TOK1}" == rbt_* ]] || fail "(B) minted token has no rbt_ prefix — got '${TOK1}'"
 [[ "$(psql_val "SELECT count(*) FROM public.rbac_tokens WHERE token_prefix LIKE 'rbt_%'")" -ge 1 ]] || fail "(B) rbac_tokens row not written"
 [[ "$(psql_val "SELECT count(*) FROM public.rbac_tokens WHERE token_hash LIKE '%${TOK1}%'")" == "0" ]] || fail "(B) cleartext token leaked into the DB — must store ONLY the hash"
 # project-scoped token: U5 granted only reader on X → minting writer is an escalation (403).

@@ -19,8 +19,14 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 VJ="${ROOT}/vendor/grobase-website/vercel.json"
 FLY="https://grobase-stack.fly.dev"
 PASS=0
-ok()   { printf '  \033[1;32m✓\033[0m %s\n' "$*"; PASS=$((PASS+1)); }
-fail() { printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+ok() {
+  printf '  \033[1;32m✓\033[0m %s\n' "$*"
+  PASS=$((PASS + 1))
+}
+fail() {
+  printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2
+  exit 1
+}
 
 printf '\033[1m── m180: website same-origin rewrite ──\033[0m\n'
 
@@ -32,36 +38,36 @@ if command -v jq >/dev/null 2>&1; then
   ok "vercel.json is valid JSON"
   for p in auth query storage; do
     jq -e --arg s "/$p/:path*" --arg d "${FLY}/$p/:path*" \
-      '.rewrites[] | select(.source==$s and .destination==$d)' "${VJ}" >/dev/null \
-      || fail "missing same-origin rewrite for /$p → ${FLY}"
+      '.rewrites[] | select(.source==$s and .destination==$d)' "${VJ}" >/dev/null ||
+      fail "missing same-origin rewrite for /$p → ${FLY}"
   done
   ok "rewrites /auth /query /storage → ${FLY}"
-  jq -e '.rewrites[] | select(.source|test("realtime"))' "${VJ}" >/dev/null 2>&1 \
-    && fail "vercel.json MUST NOT rewrite /realtime (WS is a direct browser→fly wss://)"
+  jq -e '.rewrites[] | select(.source|test("realtime"))' "${VJ}" >/dev/null 2>&1 &&
+    fail "vercel.json MUST NOT rewrite /realtime (WS is a direct browser→fly wss://)"
   ok "no /realtime rewrite (realtime is direct browser→fly wss://)"
-  jq -e '.headers[0].headers[] | select(.key=="Strict-Transport-Security")' "${VJ}" >/dev/null \
-    || fail "missing HSTS security header"
-  jq -e '.headers[0].headers[] | select(.key=="X-Content-Type-Options")' "${VJ}" >/dev/null \
-    || fail "missing X-Content-Type-Options header"
+  jq -e '.headers[0].headers[] | select(.key=="Strict-Transport-Security")' "${VJ}" >/dev/null ||
+    fail "missing HSTS security header"
+  jq -e '.headers[0].headers[] | select(.key=="X-Content-Type-Options")' "${VJ}" >/dev/null ||
+    fail "missing X-Content-Type-Options header"
   ok "security headers present (HSTS, nosniff, frame-options, referrer, permissions)"
 else
   python3 -c "import json,sys; json.load(open('${VJ}'))" 2>/dev/null || fail "vercel.json is not valid JSON"
-  grep -q "${FLY}/auth/:path" "${VJ}"   || fail "missing /auth rewrite"
-  grep -q "${FLY}/query/:path" "${VJ}"  || fail "missing /query rewrite"
+  grep -q "${FLY}/auth/:path" "${VJ}" || fail "missing /auth rewrite"
+  grep -q "${FLY}/query/:path" "${VJ}" || fail "missing /query rewrite"
   grep -q "${FLY}/storage/:path" "${VJ}" || fail "missing /storage rewrite"
   grep -q '"source": *"/realtime' "${VJ}" && fail "must not rewrite /realtime"
   ok "rewrites present; no /realtime rewrite (jq absent — grep fallback)"
 fi
 
 # the build must bypass the Docker-only guard on Vercel
-grep -q '"buildCommand": *"npx astro build"' "${VJ}" \
-  || grep -q '"GROBASE_IN_DOCKER"' "${VJ}" \
-  || fail "build must bypass container-only.mjs (buildCommand override or GROBASE_IN_DOCKER)"
+grep -q '"buildCommand": *"npx astro build"' "${VJ}" ||
+  grep -q '"GROBASE_IN_DOCKER"' "${VJ}" ||
+  fail "build must bypass container-only.mjs (buildCommand override or GROBASE_IN_DOCKER)"
 ok "build bypasses the Docker-only guard (Vercel can build the static site)"
 
 # never ship a fly secret to Vercel
-grep -qiE 'FLY_TOKEN|JWT_SECRET|mbk_|SERVICE_ROLE|POSTGRES_PASSWORD' "${VJ}" \
-  && fail "vercel.json must NOT contain any fly secret"
+grep -qiE 'FLY_TOKEN|JWT_SECRET|mbk_|SERVICE_ROLE|POSTGRES_PASSWORD' "${VJ}" &&
+  fail "vercel.json must NOT contain any fly secret"
 ok "no fly secret present in vercel.json"
 
 if [ "${BAAS_VERIFY_LIVE:-0}" = "1" ]; then

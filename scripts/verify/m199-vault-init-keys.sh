@@ -70,7 +70,10 @@ kv() {
 
 command -v docker >/dev/null && docker info >/dev/null 2>&1 || fail "docker is not reachable"
 step "0/2 build ${CTX} as ${TAG}; server on a throwaway network + volume"
-docker build -q -t "${TAG}" "${CTX}" >"${T}/build.log" 2>&1 || { tail -5 "${T}/build.log" >&2; fail "vault image build failed"; }
+docker build -q -t "${TAG}" "${CTX}" >"${T}/build.log" 2>&1 || {
+  tail -5 "${T}/build.log" >&2
+  fail "vault image build failed"
+}
 docker network create "${P}" >/dev/null && docker volume create "${P}" >/dev/null || fail "network/volume create failed"
 docker run -d --name "${P}-vault" --network "${P}" --network-alias vault --cap-add IPC_LOCK -e SKIP_SETCAP=1 \
   -e VAULT_ADDR=http://127.0.0.1:8200 -v "${P}:/vault/data" "${TAG}" vault server -config=/vault/config/vault.hcl >/dev/null ||
@@ -78,7 +81,10 @@ docker run -d --name "${P}-vault" --network "${P}" --network-alias vault --cap-a
 ok "image built, server started"
 
 step "1/2 fresh init — the key file (unseal key + root token) is private"
-run_init || { tail -8 "${T}/init.log" >&2; fail "(a) first init-vault.sh run failed"; }
+run_init || {
+  tail -8 "${T}/init.log" >&2
+  fail "(a) first init-vault.sh run failed"
+}
 mode="$(in_vol stat -c '%a %U' "${KEYS}")"
 [ "${mode}" = "600 vault" ] || fail "(a) ${KEYS} is '${mode}', want '600 vault' — the unseal key and root token are readable by any uid"
 ok "(a) ${KEYS} is ${mode}"
@@ -93,7 +99,10 @@ grep -q 'docker volume rm' "${T}/init.log" || fail "(b) the refusal does not say
 grep -q 'clean storage' "${T}/init.log" && fail "(b) init started wiping storage before refusing"
 ok "(b) refused non-zero, touched nothing, printed the deliberate reset"
 in_vol mv /vault/data/m199-keys.bak "${KEYS}" || fail "(b) could not restore the key file"
-run_init || { tail -8 "${T}/init.log" >&2; fail "(b) init with the key file restored failed"; }
+run_init || {
+  tail -8 "${T}/init.log" >&2
+  fail "(b) init with the key file restored failed"
+}
 kv get -mount=secret -field=canary m199/sentinel | grep -qx alive || fail "(b) the sentinel secret is gone — storage was not preserved"
 ok "(b) key file restored → the sentinel secret still reads 'alive' (storage intact)"
 

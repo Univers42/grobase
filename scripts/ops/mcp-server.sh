@@ -26,7 +26,10 @@ GRAFANA_IMG="grafana/mcp-grafana:1.5.1"
 POSTGRES_IMG="crystaldba/postgres-mcp:0.3.0"
 
 # die prints a message to stderr and exits 1.
-die() { printf '%s\n' "$*" >&2; exit 1; }
+die() {
+  printf '%s\n' "$*" >&2
+  exit 1
+}
 
 # host_port prints the host port a running stack container publishes, or nothing.
 # @param $1 container name  @param $2 container port/proto (e.g. 3000/tcp)
@@ -60,7 +63,7 @@ run_postgres() {
 }
 
 case "${1:-}" in
-  grafana) run_grafana ;;
-  postgres) run_postgres ;;
-  *) die "usage: $0 <grafana|postgres>" ;;
+grafana) run_grafana ;;
+postgres) run_postgres ;;
+*) die "usage: $0 <grafana|postgres>" ;;
 esac

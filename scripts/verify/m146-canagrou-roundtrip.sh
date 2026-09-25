@@ -56,8 +56,8 @@ print(json.loads(base64.urlsafe_b64decode(p)).get("sub",""))' "$1" 2>/dev/null |
 
 # ── 1) provision (idempotent) ────────────────────────────────────────────────
 step "1/9 provision the canagrou tenant (idempotent)"
-bash "${BAAS_DIR}/scripts/seed/canagrou-tenant.sh" >/tmp/m146-seed.log 2>&1 \
-  || fail "provisioning failed — see /tmp/m146-seed.log: $(tail -3 /tmp/m146-seed.log)"
+bash "${BAAS_DIR}/scripts/seed/canagrou-tenant.sh" >/tmp/m146-seed.log 2>&1 ||
+  fail "provisioning failed — see /tmp/m146-seed.log: $(tail -3 /tmp/m146-seed.log)"
 # shellcheck disable=SC1091
 source "${BAAS_DIR}/.canagrou-tenant.env"
 # shellcheck disable=SC1091
@@ -116,15 +116,15 @@ ok "wrong password rejected (${bad})"
 
 # ── 3) profile ────────────────────────────────────────────────────────────────
 step "3/9 profile insert (keyed by GoTrue sub)"
-[[ "$(qj profiles "{\"op\":\"insert\",\"data\":{\"id\":\"${U1}\",\"username\":\"m146_u1_$$\"}}" "${J1}")" == "201" ]] \
-  || fail "profile insert: $(head -c 200 /tmp/m146-q.json)"
+[[ "$(qj profiles "{\"op\":\"insert\",\"data\":{\"id\":\"${U1}\",\"username\":\"m146_u1_$$\"}}" "${J1}")" == "201" ]] ||
+  fail "profile insert: $(head -c 200 /tmp/m146-q.json)"
 ok "profile row created"
 
 # ── 4) post insert → read-back ────────────────────────────────────────────────
 step "4/9 post insert → read-back"
 IMG_KEY="${U1}.png"
-[[ "$(qj posts "{\"op\":\"insert\",\"data\":{\"user_id\":\"${U1}\",\"image_key\":\"${IMG_KEY}\"}}" "${J1}")" == "201" ]] \
-  || fail "post insert: $(head -c 200 /tmp/m146-q.json)"
+[[ "$(qj posts "{\"op\":\"insert\",\"data\":{\"user_id\":\"${U1}\",\"image_key\":\"${IMG_KEY}\"}}" "${J1}")" == "201" ]] ||
+  fail "post insert: $(head -c 200 /tmp/m146-q.json)"
 PID="$(python3 -c 'import json;print(json.load(open("/tmp/m146-q.json"))["rows"][0]["id"])')"
 q posts "{\"op\":\"list\",\"filter\":{\"user_id\":{\"\$eq\":\"${U1}\"}}}" >/dev/null
 grep -q "\"image_key\":\"${IMG_KEY}\"" /tmp/m146-q.json || fail "read-back missing image_key"
@@ -192,8 +192,8 @@ ws.addEventListener("message", async (f) => {
 ws.addEventListener("error", () => finish("WSERR"));
 ' 2>/dev/null || true)
 case "${RT_OUT}" in
-  EVENT:*) ok "realtime ${RT_OUT} delivered to a non-writer subscriber" ;;
-  *) fail "no realtime EVENT (got '${RT_OUT}')" ;;
+EVENT:*) ok "realtime ${RT_OUT} delivered to a non-writer subscriber" ;;
+*) fail "no realtime EVENT (got '${RT_OUT}')" ;;
 esac
 
 # ── 9) cross-user reflection (read-after-write by a different user) ───────────
@@ -209,22 +209,22 @@ step "10/10 anti-impersonation: forged user_id coerced; cross-user write denied"
 # U1's profile already exists (step 3, anonymous). U2 needs one, created under
 # U2's OWN JWT but FORGING U1's id — the trigger must bind profiles.id from
 # owner_id `user:U2`, so the forged id is overwritten with U2.
-[[ "$(qj profiles "{\"op\":\"insert\",\"data\":{\"id\":\"${U1}\",\"username\":\"m146_imp_u2_$$\"}}" "${J2}")" == "201" ]] \
-  || fail "U2 profile (authed, forged id) insert: $(head -c 200 /tmp/m146-q.json)"
+[[ "$(qj profiles "{\"op\":\"insert\",\"data\":{\"id\":\"${U1}\",\"username\":\"m146_imp_u2_$$\"}}" "${J2}")" == "201" ]] ||
+  fail "U2 profile (authed, forged id) insert: $(head -c 200 /tmp/m146-q.json)"
 PROF_ID="$(python3 -c 'import json;print(json.load(open("/tmp/m146-q.json"))["rows"][0]["id"])')"
 [[ "${PROF_ID}" == "${U2}" ]] || fail "impersonation HOLE: profile id landed as '${PROF_ID}' (want U2 ${U2:0:8}, NOT U1 ${U1:0:8})"
 ok "forged profile id coerced to the authenticated writer (U2)"
 
 # U2 (authed) creates a post owned by U2.
 V2_KEY="${U2}-victim.png"
-[[ "$(qj posts "{\"op\":\"insert\",\"data\":{\"user_id\":\"${U2}\",\"image_key\":\"${V2_KEY}\"}}" "${J2}")" == "201" ]] \
-  || fail "U2 victim post insert: $(head -c 200 /tmp/m146-q.json)"
+[[ "$(qj posts "{\"op\":\"insert\",\"data\":{\"user_id\":\"${U2}\",\"image_key\":\"${V2_KEY}\"}}" "${J2}")" == "201" ]] ||
+  fail "U2 victim post insert: $(head -c 200 /tmp/m146-q.json)"
 V2_PID="$(python3 -c 'import json;print(json.load(open("/tmp/m146-q.json"))["rows"][0]["id"])')"
 
 # (a) U1, with U1's JWT, FORGES U2's user_id on insert → must be coerced to U1.
 FORGE_KEY="${U1}-forge.png"
-[[ "$(qj posts "{\"op\":\"insert\",\"data\":{\"user_id\":\"${U2}\",\"image_key\":\"${FORGE_KEY}\"}}" "${J1}")" == "201" ]] \
-  || fail "U1 forged-author insert rejected unexpectedly: $(head -c 200 /tmp/m146-q.json)"
+[[ "$(qj posts "{\"op\":\"insert\",\"data\":{\"user_id\":\"${U2}\",\"image_key\":\"${FORGE_KEY}\"}}" "${J1}")" == "201" ]] ||
+  fail "U1 forged-author insert rejected unexpectedly: $(head -c 200 /tmp/m146-q.json)"
 COERCED="$(python3 -c 'import json;print(json.load(open("/tmp/m146-q.json"))["rows"][0]["user_id"])')"
 [[ "${COERCED}" == "${U1}" ]] || fail "impersonation HOLE: forged user_id landed as '${COERCED}' (want U1 ${U1:0:8}, NOT U2 ${U2:0:8})"
 [[ "${COERCED}" != "${U2}" ]] || fail "impersonation HOLE: author bound to victim U2"
@@ -235,8 +235,8 @@ ok "forged user_id coerced to the authenticated writer (U1)"
 # trigger raises — authorship requires authentication, closing the crafted-request
 # impersonation vector the public key would otherwise allow).
 ANON_CODE="$(q posts "{\"op\":\"insert\",\"data\":{\"user_id\":\"${U2}\",\"image_key\":\"${U1}-anon-forge.png\"}}")"
-[[ "${ANON_CODE}" != "201" ]] \
-  || fail "impersonation HOLE: app-key-only (no JWT) write authored a post as U2 (HTTP ${ANON_CODE})"
+[[ "${ANON_CODE}" != "201" ]] ||
+  fail "impersonation HOLE: app-key-only (no JWT) write authored a post as U2 (HTTP ${ANON_CODE})"
 ok "app-key-only write rejected — authorship requires a JWT"
 
 # (b) U1, with U1's JWT, tries to DELETE U2's post → owner-scoped to 0 rows.

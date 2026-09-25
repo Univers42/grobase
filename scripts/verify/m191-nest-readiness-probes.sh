@@ -80,7 +80,8 @@ else
 fi
 
 step "2/2 DYNAMIC — ai-service's configured probe follows MongoDB"
-read -r IMG PORT PROBE < <(python3 - "${WORK}/config.json" <<'PY'
+read -r IMG PORT PROBE < <(
+  python3 - "${WORK}/config.json" <<'PY'
 import json, sys
 s = json.load(open(sys.argv[1]))["services"]["ai-service"]
 env = s.get("environment") or {}
@@ -109,12 +110,24 @@ sys.exit(rc)
 PY
 }
 up=1
-for _ in $(seq 1 30); do run_probe && { up=0; break; }; sleep 2; done
+for _ in $(seq 1 30); do
+  run_probe && {
+    up=0
+    break
+  }
+  sleep 2
+done
 [ "${up}" -eq 0 ] || fail "ai-service's probe never passed with MongoDB up ($(docker logs --tail 2 "${SVC}" 2>&1 | tail -1))"
 ok "MongoDB up: probe passes (${PROBE})"
 docker stop -t 2 "${DB}" >/dev/null
 down=1
-for _ in $(seq 1 15); do run_probe || { down=0; break; }; sleep 2; done
+for _ in $(seq 1 15); do
+  run_probe || {
+    down=0
+    break
+  }
+  sleep 2
+done
 dyn_fail=0
 if [ "${down}" -eq 0 ]; then
   ok "MongoDB stopped: probe fails"

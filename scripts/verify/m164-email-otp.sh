@@ -41,7 +41,10 @@ green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 step() { cyan "[M164] $*"; }
 ok() { green "  ✓ $*"; }
-fail() { red "[M164] FAIL — $*"; exit 1; }
+fail() {
+  red "[M164] FAIL — $*"
+  exit 1
+}
 
 PG_IMAGE="${M164_PG_IMAGE:-postgres:16-alpine}"
 MAILPIT_IMAGE="${M164_MAILPIT_IMAGE:-axllent/mailpit:latest}"
@@ -90,10 +93,16 @@ wait_ready_http() {
   local i
   for i in $(seq 1 60); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2$3" 2>/dev/null)" == "200" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # ── 0) build tenant-control ────────────────────────────────────────────────────
@@ -107,7 +116,10 @@ docker network create "${NET}" >/dev/null
 docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD="${PGPW}" "${PG_IMAGE}" >/dev/null
 for i in $(seq 1 90); do
   docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 && [[ "$(psql_val 'SELECT 1')" == "1" ]] && break
-  [[ $i -eq 90 ]] && { docker logs "${PG}" 2>&1 | tail -20; fail "postgres never ready"; }
+  [[ $i -eq 90 ]] && {
+    docker logs "${PG}" 2>&1 | tail -20
+    fail "postgres never ready"
+  }
   sleep 0.5
 done
 docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 >/dev/null 2>&1 <<'SQL'
@@ -140,20 +152,28 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e ADAPTER_REGISTRY_URL="" -e TENANT_CONTROL_PORT=3020 -e TENANT_CONTROL_PRODUCT_MODE=enabled -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3020" "${TC_IMG}" >/dev/null
 wait_ready_http "${TC_ON}" "${PORT_ON}" /health/live || fail "OTP-ON tenant-control not ready"
-{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "email login OTP enabled" || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "email OTP never reported enabled"; }
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "email login OTP enabled" || {
+  docker logs "${TC_ON}" 2>&1 | tail -20
+  fail "email OTP never reported enabled"
+}
 ok "OTP-ON tenant-control up (/v1/auth/otp/request|verify mounted, SMTP → Mailpit)"
 
 # ── 3) (A) request → emailed code, stored hashed, verify correct → proof ───────
 step "3/6 (A) request emails a 6-digit code (read from Mailpit), stored hashed, verify → proof"
 [[ "$(otp_req "${PORT_ON}" /v1/auth/otp/request "{\"email\":\"${EMAIL}\"}")" == "200" ]] || fail "(A) request expected 200 — $(head -c 200 "${BODY_TMP}")"
 CODE=""
-for i in $(seq 1 20); do CODE="$(mp_latest_code || true)"; [ -n "${CODE}" ] && break; sleep 0.3; done
+for i in $(seq 1 20); do
+  CODE="$(mp_latest_code || true)"
+  [ -n "${CODE}" ] && break
+  sleep 0.3
+done
 [[ "${CODE}" =~ ^[0-9]{6}$ ]] || fail "(A) no 6-digit code arrived in Mailpit (got '${CODE}')"
 [[ "$(psql_val "SELECT count(*) FROM public.login_otps WHERE code_hash='${CODE}'")" == "0" ]] || fail "(A) the cleartext code is stored in the DB — must store ONLY a hash"
 [[ "$(psql_val "SELECT count(*) FROM public.login_otps WHERE email='${EMAIL}'")" == "1" ]] || fail "(A) no login_otps row for the email"
 [[ "$(otp_req "${PORT_ON}" /v1/auth/otp/verify "{\"email\":\"${EMAIL}\",\"code\":\"${CODE}\"}")" == "200" ]] || fail "(A) verify with the correct code expected 200 — $(head -c 200 "${BODY_TMP}")"
 grep -q '"verified":true' "${BODY_TMP}" || fail "(A) verify did not report verified:true"
-PROOF="$(json_str proof)"; [[ "$(printf '%s' "${PROOF}" | grep -c '\.')" -ge 1 ]] && [[ "$(echo "${PROOF}" | tr -cd '.' | wc -c)" == "2" ]] || fail "(A) verify did not return a JWT proof (got '${PROOF:0:16}…')"
+PROOF="$(json_str proof)"
+[[ "$(printf '%s' "${PROOF}" | grep -c '\.')" -ge 1 ]] && [[ "$(echo "${PROOF}" | tr -cd '.' | wc -c)" == "2" ]] || fail "(A) verify did not return a JWT proof (got '${PROOF:0:16}…')"
 ok "(A) code emailed + read from Mailpit; DB stores ONLY the hash; correct code → 200 verified + JWT proof"
 
 # ── 4) (B) single-use · wrong code · attempt cap · expiry ──────────────────────
