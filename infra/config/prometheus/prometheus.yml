@@ -8,72 +8,158 @@ global:
 rule_files:
   - "/etc/prometheus/rules/*.yml"
 
+# Two kinds of target:
+#   - static: services every edition runs (kong, prometheus). A stopped one
+#     stays a target, so `up == 0` pages (TargetDown).
+#   - dns_sd: services that only some editions or packages run. Docker's DNS
+#     answers only for running containers, so a service the edition never
+#     started is simply not a target — no permanent TargetDown for vault on the
+#     max tier. The cost: a stopped container vanishes instead of going down,
+#     which TargetVanished (rules/platform.yml) catches for one hour.
+# Every dns_sd job rewrites `instance` to <dns-name>:<port>, so it survives a
+# container getting a new IP, and the Nest job sets `job` to the service name
+# the Grafana dashboards select on.
+#
+# Ponytail: one target per DNS name is assumed — `docker compose up --scale`
+# yields several A records that relabel to the same instance, and Prometheus
+# keeps only one of them.
 scrape_configs:
   - job_name: "kong"
     static_configs:
       - targets: ["kong:8001"]
     metrics_path: /metrics
 
-  - job_name: "mongo-api"
+  - job_name: "prometheus"
     static_configs:
-      - targets: ["mongo-api:3010"]
-    metrics_path: /metrics
+      - targets: ["localhost:9090"]
 
-  # Go control plane — dependency-free /metrics exposed by internal/shared
+  # NestJS application plane — prom-client /metrics on every service
+  # (mini_baas_http_requests_total{service,method,route,status_code}, counted on
+  # response finish, so guard and middleware rejections are included).
+  - job_name: "nest"
+    metrics_path: /metrics
+    dns_sd_configs:
+      - { names: ["query-router"], type: A, port: 4001, refresh_interval: 15s }
+      - { names: ["mongo-api"], type: A, port: 3010, refresh_interval: 15s }
+      - { names: ["email-service"], type: A, port: 3030, refresh_interval: 15s }
+      - {
+          names: ["storage-router"],
+          type: A,
+          port: 3040,
+          refresh_interval: 15s,
+        }
+      - {
+          names: ["permission-engine"],
+          type: A,
+          port: 3050,
+          refresh_interval: 15s,
+        }
+      - {
+          names: ["schema-service"],
+          type: A,
+          port: 3060,
+          refresh_interval: 15s,
+        }
+      - {
+          names: ["analytics-service"],
+          type: A,
+          port: 3070,
+          refresh_interval: 15s,
+        }
+      - { names: ["gdpr-service"], type: A, port: 3080, refresh_interval: 15s }
+      - {
+          names: ["newsletter-service"],
+          type: A,
+          port: 3090,
+          refresh_interval: 15s,
+        }
+      - { names: ["ai-service"], type: A, port: 3100, refresh_interval: 15s }
+      - { names: ["log-service"], type: A, port: 3110, refresh_interval: 15s }
+      - {
+          names: ["session-service"],
+          type: A,
+          port: 3120,
+          refresh_interval: 15s,
+        }
+      - { names: ["outbox-relay"], type: A, port: 3130, refresh_interval: 15s }
+    relabel_configs:
+      - &stable-instance
+        source_labels: [__meta_dns_name, __address__]
+        regex: "(.+);.+:([0-9]+)"
+        replacement: "$1:$2"
+        target_label: instance
+      - source_labels: [__meta_dns_name]
+        target_label: job
+      - { target_label: plane, replacement: app }
+
+  # Go control plane — dependency-free /metrics
   # (baas_http_requests_total, baas_http_request_duration_ms_avg, baas_service_up,
-  # baas_uptime_seconds). See wiki/05-orchestration-observability-roadmap.md §2.
+  # baas_uptime_seconds, baas_service_token_previous_accepted_total).
   - job_name: "go-control-plane"
     metrics_path: /metrics
-    static_configs:
-      - targets: ["adapter-registry-go:3021"]
-        labels: { plane: "control", service: "adapter-registry" }
-      - targets: ["tenant-control:3022"]
-        labels: { plane: "control", service: "tenant-control" }
-      - targets: ["webhook-dispatcher:3025"]
-        labels: { plane: "control", service: "webhook-dispatcher" }
-
-  # NOTE: query-router HTTP metrics are still collected via Kong's prometheus plugin.
+    dns_sd_configs:
+      - {
+          names: ["adapter-registry-go"],
+          type: A,
+          port: 3021,
+          refresh_interval: 15s,
+        }
+      - {
+          names: ["tenant-control"],
+          type: A,
+          port: 3022,
+          refresh_interval: 15s,
+        }
+      - {
+          names: ["webhook-dispatcher"],
+          type: A,
+          port: 3025,
+          refresh_interval: 15s,
+        }
+    relabel_configs:
+      - *stable-instance
+      - source_labels: [__meta_dns_name]
+        regex: "(.+?)(-go)?"
+        target_label: service
+      - { target_label: plane, replacement: control }
 
   # Rust data plane — dependency-free /metrics: baas_service_up, baas_uptime_seconds,
   # baas_http_requests_total{status}, baas_data_plane_pool_connections{mount,engine,state}.
   - job_name: "rust-data-plane"
     metrics_path: /metrics
-    static_configs:
-      - targets: ["data-plane-router-rust:4011"]
-        labels: { plane: "data", service: "data-plane-router" }
+    dns_sd_configs:
+      - {
+          names: ["data-plane-router-rust"],
+          type: A,
+          port: 4011,
+          refresh_interval: 15s,
+        }
+    relabel_configs:
+      - *stable-instance
+      - { target_label: service, replacement: data-plane-router }
+      - { target_label: plane, replacement: data }
 
-  - job_name: "permission-engine"
-    static_configs:
-      - targets: ["permission-engine:3050"]
+  # Realtime gateway — dependency-free /metrics (Track-2 C4):
+  # baas_realtime_events_dropped_total{reason}, _dispatched_total,
+  # _slow_consumers_disconnected_total.
+  - job_name: "realtime"
     metrics_path: /metrics
-
-  - job_name: "schema-service"
-    static_configs:
-      - targets: ["schema-service:3060"]
-    metrics_path: /metrics
+    dns_sd_configs:
+      - { names: ["realtime"], type: A, port: 4000, refresh_interval: 15s }
+    relabel_configs:
+      - *stable-instance
+      - { target_label: service, replacement: realtime }
+      - { target_label: plane, replacement: realtime }
 
   - job_name: "vault"
     metrics_path: /v1/sys/metrics
     params:
       format: ["prometheus"]
-    scheme: http
-    static_configs:
-      - targets: ["vault:8200"]
+    dns_sd_configs:
+      - { names: ["vault"], type: A, port: 8200, refresh_interval: 15s }
+    relabel_configs:
+      - *stable-instance
 
   # No postgres_exporter service exists in this stack; scraping postgres:5432
   # itself only ever produced EOF (the database speaks the Postgres protocol,
   # not HTTP). Database metrics come from Grafana's direct Postgres datasource.
-
-  # Realtime gateway — dependency-free /metrics (Track-2 C4):
-  # baas_realtime_events_dropped_total{reason}, _dispatched_total,
-  # _slow_consumers_disconnected_total. Opt-in service (profile realtime); a
-  # "down" target is expected when realtime isn't deployed.
-  - job_name: "realtime"
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["realtime:4000"]
-        labels: { plane: "realtime", service: "realtime" }
-
-  - job_name: "prometheus"
-    static_configs:
-      - targets: ["localhost:9090"]
