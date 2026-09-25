@@ -190,7 +190,7 @@ DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg POR
 docker run -d --name "${TC_ON}" --network "${NET}" \
   -e DATABASE_URL="${DB_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
-  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e ORG_MODEL_ENABLED=1 \
   -e RBAC_HIERARCHY_ENABLED=1 \
   -e ENVIRONMENTS_ENABLED=1 \
@@ -286,7 +286,7 @@ GROUPS_BEFORE="$(psql_val "SELECT count(*) FROM public.groups")"
 docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e DATABASE_URL="${DB_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
-  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e ORG_MODEL_ENABLED=1 \
   -e RBAC_HIERARCHY_ENABLED=1 \
   -e TENANT_CONTROL_PORT=3020 \

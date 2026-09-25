@@ -146,7 +146,7 @@ ok "seeded org A, standalone SP (${SP}, org_id NULL), org-bound OP (${OP})"
 step "2/5 boot tenant-control INVITES_ENABLED=1 on 127.0.0.1:${PORT_ON}"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT=3020 -t "${TC_IMG}" "${GO_DIR}" >/dev/null || fail "image build failed"
 docker run -d --name "${TC_ON}" --network "${NET}" \
-  -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e ORG_MODEL_ENABLED=1 -e RBAC_HIERARCHY_ENABLED=1 -e INVITES_ENABLED=1 \
   -e ADAPTER_REGISTRY_URL="" -e TENANT_CONTROL_PORT=3020 -e TENANT_CONTROL_PRODUCT_MODE=enabled -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3020" "${TC_IMG}" >/dev/null
@@ -181,7 +181,7 @@ ok "(B) org-bound 409 · non-owner 403 · missing 404"
 step "5/5 (C · PARITY) INVITES_ENABLED unset -> /v1/projects/{id}/invites 404, no rows"
 INV_BEFORE="$(psql_val "SELECT count(*) FROM public.invites")"
 docker run -d --name "${TC_OFF}" --network "${NET}" \
-  -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e ORG_MODEL_ENABLED=1 -e RBAC_HIERARCHY_ENABLED=1 \
   -e TENANT_CONTROL_PORT=3020 -e TENANT_CONTROL_PRODUCT_MODE=enabled -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3020" "${TC_IMG}" >/dev/null

@@ -75,7 +75,7 @@ ok "migrations applied; login_escrow empty"
 
 echo "[V09] 2/5 boot tenant-control EMAIL_OTP_ENABLED=1"
 docker run -d --name "$TC_ON" --network "$NET" -e DATABASE_URL="$DB_INNET" -e INTERNAL_SERVICE_TOKEN="v09-svc-$$" \
-  -e GOTRUE_JWT_SECRET="$JWT_SECRET" -e EMAIL_OTP_ENABLED=1 -e KEY_HASH_PEPPER="$PEPPER" \
+  -e GOTRUE_JWT_SECRET="$JWT_SECRET" -e JWT_ALLOW_NO_ISSUER=1 -e EMAIL_OTP_ENABLED=1 -e KEY_HASH_PEPPER="$PEPPER" \
   -e SMTP_HOST=localhost -e SMTP_PORT=1025 -e TENANT_CONTROL_PORT=3020 -e TENANT_CONTROL_PRODUCT_MODE=enabled \
   -e ADAPTER_REGISTRY_URL="" -e LOG_LEVEL=warn -p "127.0.0.1:$PORT_ON:3020" "$TC_IMG" >/dev/null
 wait_http "$TC_ON" "$PORT_ON" /health/live || fail "TC not ready"
@@ -100,7 +100,7 @@ ok "missing proof → 401; wrong-email proof → 401 (mailbox control enforced)"
 
 echo "[V09] 5/5 flag OFF → /v1/auth/escrow* 404 (byte-parity)"
 docker run -d --name "$TC_OFF" --network "$NET" -e DATABASE_URL="$DB_INNET" -e INTERNAL_SERVICE_TOKEN="v09-svc-$$" \
-  -e GOTRUE_JWT_SECRET="$JWT_SECRET" -e TENANT_CONTROL_PORT=3020 -e TENANT_CONTROL_PRODUCT_MODE=enabled \
+  -e GOTRUE_JWT_SECRET="$JWT_SECRET" -e JWT_ALLOW_NO_ISSUER=1 -e TENANT_CONTROL_PORT=3020 -e TENANT_CONTROL_PRODUCT_MODE=enabled \
   -e LOG_LEVEL=warn -p "127.0.0.1:$PORT_OFF:3020" "$TC_IMG" >/dev/null
 wait_http "$TC_OFF" "$PORT_OFF" /health/live || fail "TC-OFF not ready"
 [ "$(curl -s -o /dev/null -w '%{http_code}' -X PUT "http://127.0.0.1:$PORT_OFF/v1/auth/escrow" -H 'Content-Type: application/json' -d '{"email":"x","blob":"y"}')" = 404 ] || fail "escrow PUT with flag OFF expected 404"

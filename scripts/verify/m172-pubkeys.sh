@@ -141,7 +141,7 @@ ok "migrations applied — user_pubkeys empty"
 step "2/5 boot tenant-control USER_PUBKEYS_ENABLED=1 on 127.0.0.1:${PORT_ON}"
 DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg PORT=3020 -t "${TC_IMG}" "${GO_DIR}" >/dev/null || fail "image build failed"
 docker run -d --name "${TC_ON}" --network "${NET}" \
-  -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e ORG_MODEL_ENABLED=1 -e RBAC_HIERARCHY_ENABLED=1 -e USER_PUBKEYS_ENABLED=1 \
   -e ADAPTER_REGISTRY_URL="" -e TENANT_CONTROL_PORT=3020 -e TENANT_CONTROL_PRODUCT_MODE=enabled -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3020" "${TC_IMG}" >/dev/null
@@ -198,7 +198,7 @@ step "5/5 (B) non-member 404 · unregistered pubkey 404  ·  (C) flag OFF -> 404
 [[ "$(req GET "${PORT_ON}" "/v1/orgs/${ORG_A}/users/${UOUT}/pubkey" "${JWT_U1}")" == "404" ]] || fail "(B) unregistered pubkey should 404"
 PK_BEFORE="$(psql_val "SELECT count(*) FROM public.user_pubkeys")"
 docker run -d --name "${TC_OFF}" --network "${NET}" \
-  -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e ORG_MODEL_ENABLED=1 -e RBAC_HIERARCHY_ENABLED=1 \
   -e TENANT_CONTROL_PORT=3020 -e TENANT_CONTROL_PRODUCT_MODE=enabled -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3020" "${TC_IMG}" >/dev/null

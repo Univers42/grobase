@@ -135,7 +135,7 @@ DOCKER_BUILDKIT=1 docker build -q --build-arg APP=tenant-control --build-arg POR
 docker run -d --name "${TC}" --network "${NET}" \
   -e DATABASE_URL="postgres://postgres:postgres@${PG}:5432/postgres" \
   -e INTERNAL_SERVICE_TOKEN="e2e-internal-${SUF}" \
-  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e ORG_MODEL_ENABLED=1 -e RBAC_HIERARCHY_ENABLED=1 -e ENVIRONMENTS_ENABLED=1 \
   -e GROUPS_ENABLED=1 -e INVITES_ENABLED=1 -e USER_PUBKEYS_ENABLED=1 -e EMAIL_OTP_ENABLED=1 \
   -e ADAPTER_REGISTRY_URL="" -e TENANT_CONTROL_PORT=3020 -e TENANT_CONTROL_PRODUCT_MODE=enabled -e LOG_LEVEL=debug \
