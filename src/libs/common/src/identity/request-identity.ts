@@ -274,6 +274,11 @@ function readLegacyIdentity(req: HeaderRequest): VerifiedRequestIdentity | undef
  *     controls and are deliberately not read here (see N-12).
  *   - `sub` is required, which is also what rejects the anon and service_role
  *     project keys: they are subject-less tokens signed with the same secret.
+ *   - the issuer must be pinned, for the reason `tenants.RequireIssuer` gives on
+ *     the Go side: `JWT_SECRET` is shared, so other HS256 tokens exist that are
+ *     not user sessions. A cross-app realtime token
+ *     (`appchannels/mint.go:realtimeClaims`) carries a TENANT SLUG as its `sub`
+ *     and would otherwise resolve here to a full identity for that tenant.
  */
 function readBearerJwtIdentity(
   req: HeaderRequest,
@@ -284,7 +289,7 @@ function readBearerJwtIdentity(
   if (mode !== 'strict' && !envFlag('IDENTITY_JWT_BEARER_ENABLED')) return undefined;
   const claims = verifyUserJwt(token, userJwtSecret(), {
     allowNoExp: envFlag('JWT_ALLOW_NO_EXP'),
-    issuers: splitList(process.env['GOTRUE_JWT_ISSUER']),
+    issuers: requiredIssuers(),
   });
   if (!claims?.sub) return undefined;
   const role = claims.role || 'authenticated';
@@ -303,6 +308,24 @@ function readBearerJwtIdentity(
 
 function userJwtSecret(): string {
   return process.env['GOTRUE_JWT_SECRET'] || process.env['JWT_SECRET'] || '';
+}
+
+/**
+ * The issuers a bearer user JWT may carry, refusing to run without one — the TS
+ * half of `tenants.RequireIssuer` (Go) and of realtime's issuer allow-list
+ * (m201). Compose defaults GOTRUE_JWT_ISSUER to API_EXTERNAL_URL on every
+ * service that verifies a user token; JWT_ALLOW_NO_ISSUER=1 is the named
+ * escape hatch, and the only way to accept a token on `iss` alone.
+ *
+ * Throws rather than returning empty so a misconfigured deployment says which
+ * variable is missing instead of 401-ing every JWT caller anonymously.
+ */
+function requiredIssuers(): string[] {
+  const issuers = splitList(process.env['GOTRUE_JWT_ISSUER']);
+  if (issuers.length > 0 || envFlag('JWT_ALLOW_NO_ISSUER')) return issuers;
+  throw new UnauthorizedException(
+    'GOTRUE_JWT_ISSUER is empty: set it (compose defaults it to API_EXTERNAL_URL) or JWT_ALLOW_NO_ISSUER=1 to run without issuer verification',
+  );
 }
 
 function envFlag(name: string): boolean {

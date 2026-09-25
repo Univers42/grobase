@@ -62,6 +62,11 @@ services:
       REALTIME_PUBLISH_URL: ${REALTIME_PUBLISH_URL:-http://realtime:4000/v1/publish}
       REALTIME_PUBLISH_TIMEOUT_MS: ${QUERY_ROUTER_REALTIME_PUBLISH_TIMEOUT_MS:-1500}
       JWT_SECRET: ${JWT_SECRET}
+      # The issuer a bearer user JWT must carry for the identity library to accept
+      # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
+      # deployment minted verifies here; without it the library refuses to run the
+      # bearer rung at all rather than trust any HS256 token signed with JWT_SECRET.
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # ── Rust data-plane cutover (parity proven via parity-probe.sh) ──
@@ -168,6 +173,11 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@mini-baas.local}
       JWT_SECRET: ${JWT_SECRET}
+      # The issuer a bearer user JWT must carry for the identity library to accept
+      # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
+      # deployment minted verifies here; without it the library refuses to run the
+      # bearer rung at all rather than trust any HS256 token signed with JWT_SECRET.
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     healthcheck:
       test:
@@ -196,6 +206,11 @@ services:
       PORT: 3040
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       JWT_SECRET: ${JWT_SECRET}
+      # The issuer a bearer user JWT must carry for the identity library to accept
+      # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
+      # deployment minted verifies here; without it the library refuses to run the
+      # bearer rung at all rather than trust any HS256 token signed with JWT_SECRET.
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       # storage-router authenticates END-USERS via the Kong-verified JWT
       # (Kong's pre-function clears then sets X-User-Id from claims.sub), so it
       # trusts those raw identity headers on the private network (compat mode).
@@ -246,6 +261,11 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
       JWT_SECRET: ${JWT_SECRET}
+      # The issuer a bearer user JWT must carry for the identity library to accept
+      # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
+      # deployment minted verifies here; without it the library refuses to run the
+      # bearer rung at all rather than trust any HS256 token signed with JWT_SECRET.
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       # `abac` (default): role match + JSONB conditions + field masks.
       # `rbac`         : role match only, no masks. Cheaper, simpler — pick
       # this when the product does not need attribute-level decisions.
@@ -291,6 +311,11 @@ services:
       ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
       JWT_SECRET: ${JWT_SECRET}
+      # The issuer a bearer user JWT must carry for the identity library to accept
+      # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
+      # deployment minted verifies here; without it the library refuses to run the
+      # bearer rung at all rather than trust any HS256 token signed with JWT_SECRET.
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       adapter-registry-go:
@@ -327,6 +352,11 @@ services:
       MONGO_DB_NAME: ${ANALYTICS_MONGO_DB:-mini_baas_analytics}
       ANALYTICS_RETENTION_DAYS: ${ANALYTICS_RETENTION_DAYS:-90}
       JWT_SECRET: ${JWT_SECRET}
+      # The issuer a bearer user JWT must carry for the identity library to accept
+      # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
+      # deployment minted verifies here; without it the library refuses to run the
+      # bearer rung at all rather than trust any HS256 token signed with JWT_SECRET.
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       mongo:
@@ -361,6 +391,11 @@ services:
       GDPR_DELETION_WEBHOOK_URL: ${GDPR_DELETION_WEBHOOK_URL:-}
       GDPR_EXPORT_WEBHOOK_URL: ${GDPR_EXPORT_WEBHOOK_URL:-}
       JWT_SECRET: ${JWT_SECRET}
+      # The issuer a bearer user JWT must carry for the identity library to accept
+      # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
+      # deployment minted verifies here; without it the library refuses to run the
+      # bearer rung at all rather than trust any HS256 token signed with JWT_SECRET.
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       db-bootstrap:
@@ -396,6 +431,11 @@ services:
       NEWSLETTER_BASE_URL: ${NEWSLETTER_BASE_URL:-http://localhost:8000/newsletter/v1}
       NEWSLETTER_BATCH_SIZE: ${NEWSLETTER_BATCH_SIZE:-5}
       JWT_SECRET: ${JWT_SECRET}
+      # The issuer a bearer user JWT must carry for the identity library to accept
+      # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
+      # deployment minted verifies here; without it the library refuses to run the
+      # bearer rung at all rather than trust any HS256 token signed with JWT_SECRET.
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       db-bootstrap:
@@ -439,6 +479,11 @@ services:
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
       AI_CONVERSATION_TTL_HOURS: ${AI_CONVERSATION_TTL_HOURS:-24}
       JWT_SECRET: ${JWT_SECRET}
+      # The issuer a bearer user JWT must carry for the identity library to accept
+      # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
+      # deployment minted verifies here; without it the library refuses to run the
+      # bearer rung at all rather than trust any HS256 token signed with JWT_SECRET.
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       mongo:
@@ -472,6 +517,11 @@ services:
       LOG_BUFFER_SIZE: ${LOG_BUFFER_SIZE:-1000}
       LOG_STREAM_TOKEN: ${LOG_STREAM_TOKEN:-}
       JWT_SECRET: ${JWT_SECRET}
+      # The issuer a bearer user JWT must carry for the identity library to accept
+      # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
+      # deployment minted verifies here; without it the library refuses to run the
+      # bearer rung at all rather than trust any HS256 token signed with JWT_SECRET.
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     healthcheck:
       test:
@@ -502,6 +552,11 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-7}
       JWT_SECRET: ${JWT_SECRET}
+      # The issuer a bearer user JWT must carry for the identity library to accept
+      # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
+      # deployment minted verifies here; without it the library refuses to run the
+      # bearer rung at all rather than trust any HS256 token signed with JWT_SECRET.
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       db-bootstrap:
