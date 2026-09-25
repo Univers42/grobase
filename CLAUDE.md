@@ -286,8 +286,9 @@ storage-router process _inside_ the running container (same image, same env, onl
 overridden — the stack stays compat), then shows a real GoTrue session accepted while a raw
 `X-User-Id`, a cross-app realtime token and a wrong-secret token are refused, and that the compat
 instance accepts that same raw header (so the 401 is the mode, not a broken probe). Tokens are signed
-inside the container, so `JWT_SECRET` never reaches the host. It is the gate that licenses flipping
-the prod overlay to strict, and it fails fast on an image built before the bearer-JWT rung.
+inside the container, so `JWT_SECRET` never reaches the host. It is the gate that licensed the prod
+overlay's strict mode (on the 11 identity readers, m195 asserts where; `PROD_IDENTITY_HEADER_MODE=compat`
+reverts it), and it fails fast on an image built before the bearer-JWT rung.
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 
