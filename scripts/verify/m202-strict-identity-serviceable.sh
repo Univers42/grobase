@@ -122,14 +122,14 @@ ok "storage-router carries the rung, a pinned issuer and a JWT secret"
 
 step "1/2 compose — every user-token verifier shares GoTrue's issuer"
 cd "${ROOT}" || exit 1
-RENDERED="$(docker compose --profile adapter-plane --profile auth-api --profile storage config 2>/dev/null)" ||
-  fail "docker compose config failed"
+RENDERED="$(docker compose --profile '*' config 2>/dev/null)" ||
+  fail "docker compose config failed (run: docker compose --profile '*' config)"
 GOTRUE_ISS="$(sed -n 's/^ *GOTRUE_JWT_ISSUER: //p' <<<"${RENDERED}" | sort -u)"
 [ -n "${GOTRUE_ISS}" ] || fail "compose renders no GOTRUE_JWT_ISSUER at all"
 [ "$(wc -l <<<"${GOTRUE_ISS}")" -eq 1 ] ||
   fail "services disagree on GOTRUE_JWT_ISSUER; a token one mints would not verify at another"
 VERIFIERS="$(grep -c '^ *GOTRUE_JWT_ISSUER: ' <<<"${RENDERED}")"
-[ "${VERIFIERS}" -ge 3 ] || fail "only ${VERIFIERS} service(s) carry GOTRUE_JWT_ISSUER; expected the Nest set"
+[ "${VERIFIERS}" -ge 14 ] || fail "only ${VERIFIERS} service(s) carry GOTRUE_JWT_ISSUER; expected the 14 user-token verifiers"
 ok "${VERIFIERS} services share one issuer: ${GOTRUE_ISS}"
 
 step "2/2 live — strict accepts a real session and refuses everything else"
