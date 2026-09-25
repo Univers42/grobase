@@ -205,24 +205,35 @@ async function main(): Promise<void> {
 // Kong sets alongside it, and must stay inert in compat mode unless opted in —
 // that last case is the byte-parity claim the default deployment relies on.
 async function bearerJwtRung(): Promise<void> {
-  process.env['GOTRUE_JWT_SECRET'] = 'm11-jwt-secret';
-  const jwtReq = (token: string, extra: Record<string, string> = {}) => ({
-    method: 'GET',
-    url: '/storage/v1/object/b/k',
-    originalUrl: '/storage/v1/object/b/k',
-    headers: { authorization: `Bearer ${token}`, ...extra },
-  });
-  const token = mintJwt({
-    sub: '00000000-0000-4000-8000-000000000555',
-    exp: Math.floor(Date.now() / 1000) + 600,
-    app_metadata: { tenant_id: '00000000-0000-4000-8000-000000000111' },
-  });
+  process.env['GOTRUE_JWT_SECRET'] = M11_JWT_SECRET;
+  delete process.env['GOTRUE_JWT_ISSUER'];
+  const sub = '00000000-0000-4000-8000-000000000555';
 
-  const resolved = await resolveRequestIdentity(jwtReq(token, { 'x-user-id': 'spoofed' }), true);
+  // The issuer pin is mandatory, not optional: JWT_SECRET is shared, so an
+  // unpinned verifier would accept any HS256 token minted with it.
+  await rejects(
+    () => resolveRequestIdentity(jwtReq(mintJwt({ sub })), true),
+    'GOTRUE_JWT_ISSUER is empty',
+    'the bearer rung ran with no issuer pinned',
+  );
+  process.env['GOTRUE_JWT_ISSUER'] = M11_ISSUER;
+
+  // appchannels/mint.go signs a realtime-only token with the SAME secret whose
+  // `sub` is a TENANT SLUG — unpinned it would become that tenant's identity.
+  await rejects(
+    () => resolveRequestIdentity(jwtReq(mintJwt({ sub: 'victim-tenant', iss: 'grobase-realtime' })), true),
+    'Missing verified identity envelope',
+    'a cross-app realtime token passed as a user session',
+  );
+
+  const resolved = await resolveRequestIdentity(
+    jwtReq(mintJwt({ sub, app_metadata: { tenant_id: identity.tenantId } }), { 'x-user-id': 'spoofed' }),
+    true,
+  );
   if (resolved?.authMethod !== 'jwt' || resolved.tenantId !== identity.tenantId) {
     throw new Error('strict mode did not resolve a bearer GoTrue JWT to a jwt identity');
   }
-  if (resolved.userId !== 'user:00000000-0000-4000-8000-000000000555') {
+  if (resolved.userId !== `user:${sub}`) {
     throw new Error('jwt identity took its user from somewhere other than the signed sub');
   }
   if (resolved.roleNames.join(',') !== 'authenticated' || resolved.scopes.length !== 0) {
@@ -230,7 +241,7 @@ async function bearerJwtRung(): Promise<void> {
   }
 
   await rejects(
-    () => resolveRequestIdentity(jwtReq(mintJwt({ sub: 'u-1', exp: 1 })), true),
+    () => resolveRequestIdentity(jwtReq(mintJwt({ sub, exp: 1 })), true),
     'Missing verified identity envelope',
     'an expired bearer JWT was accepted in strict mode',
   );
@@ -238,17 +249,33 @@ async function bearerJwtRung(): Promise<void> {
   process.env['IDENTITY_HEADER_MODE'] = 'compat';
   delete process.env['IDENTITY_JWT_BEARER_ENABLED'];
   await rejects(
-    () => resolveRequestIdentity(jwtReq(token), true),
+    () => resolveRequestIdentity(jwtReq(mintJwt({ sub })), true),
     'Missing verified identity envelope',
     'compat mode accepted a bearer JWT without IDENTITY_JWT_BEARER_ENABLED (parity break)',
   );
   process.env['IDENTITY_HEADER_MODE'] = 'strict';
 }
 
+function jwtReq(token: string, extra: Record<string, string> = {}) {
+  return {
+    method: 'GET',
+    url: '/storage/v1/object/b/k',
+    originalUrl: '/storage/v1/object/b/k',
+    headers: { authorization: `Bearer ${token}`, ...extra } as Record<string, string>,
+  };
+}
+
+const M11_JWT_SECRET = 'm11-jwt-secret';
+const M11_ISSUER = 'http://localhost:8000/auth/v1';
+
 function mintJwt(claims: Record<string, unknown>): string {
   const enc = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
-  const body = `${enc({ alg: 'HS256', typ: 'JWT' })}.${enc(claims)}`;
-  return `${body}.${createHmac('sha256', 'm11-jwt-secret').update(body).digest('base64url')}`;
+  const body = `${enc({ alg: 'HS256', typ: 'JWT' })}.${enc({
+    exp: Math.floor(Date.now() / 1000) + 600,
+    iss: M11_ISSUER,
+    ...claims,
+  })}`;
+  return `${body}.${createHmac('sha256', M11_JWT_SECRET).update(body).digest('base64url')}`;
 }
 
 async function rejects(call: () => Promise<unknown>, expect: string, onAccept: string): Promise<void> {
