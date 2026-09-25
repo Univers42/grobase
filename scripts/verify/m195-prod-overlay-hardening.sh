@@ -42,7 +42,8 @@
 #          real file is gitignored): both guards =1 on their router only,      #
 #          router env maps merged, and the stub reaches exactly orchestrator,  #
 #          tenant-control and data-plane-router-rust (no STRIPE_* widening);   #
-#          the same functions jail, rendered identical to prod's               #
+#          the same functions jail, rendered identical to prod's; strict      #
+#          identity on the same 11 readers, with the same compat revert        #
 #  DYNAMIC two throwaway Kong containers (--network none, same kong.yml with   #
 #          dummy keys), listener env taken from each render:                   #
 #    base    :8001/key-auths answers 200 (the exposure this closes)            #
@@ -61,8 +62,8 @@
 #  tenant-header HMAC, puts a guard flag on the wrong service, leaves functions-runtime on mini-baas, drops the      #
 #  Worker allowlist, or relays one port more must go red.                      #
 #  M195_CLOUD_OVERLAY=<path> does the same for the cloud overlay: one that     #
-#  drops a guard, hands flags.env.cloud to another service, or lets its        #
-#  functions jail drift from prod's must go red.                               #
+#  drops a guard, hands flags.env.cloud to another service, lets its           #
+#  functions jail drift from prod's, or misses a strict reader must go red.    #
 # **************************************************************************** #
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -214,6 +215,15 @@ static_cloud_jail() {
     as $s | $p[0].services[$s] == $c[0].services[$s]] + [$p[0].networks["functions-jail"] == $c[0].networks["functions-jail"]]
     | all' >/dev/null || fail "cloud and prod render the functions jail differently (the two copies drifted)"
   ok "cloud: functions-runtime, functions-relay and functions-jail render identical to prod"
+}
+
+# static_cloud_identity asserts the cloud overlay makes the same 11 readers
+# strict as prod does, with the same PROD_IDENTITY_HEADER_MODE=compat revert.
+static_cloud_identity() {
+  identity_is "${T}/cloud.json" strict
+  PROD_IDENTITY_HEADER_MODE=compat render_cloud "${T}/cloud-compat.json"
+  identity_is "${T}/cloud-compat.json" compat
+  ok "cloud: IDENTITY_HEADER_MODE=strict on the same 11 readers; PROD_IDENTITY_HEADER_MODE=compat reverts them"
 }
 
 # static_kong asserts no admin port is published, the healthcheck still asks
@@ -477,13 +487,14 @@ step "SECURITY_MODE=max is not undone by a compose default (M-8)"
 static_realtime_mode
 step "functions network jail (m197 proves it live)"
 static_jail "${T}/prod.json"
-step "cloud overlay (make cloud-up): guards on, flags.env.cloud not widened, functions jailed"
+step "cloud overlay (make cloud-up): guards on, flags.env.cloud not widened, functions jailed, strict identity"
 static_cloud
 static_cloud_jail
+static_cloud_identity
 step "parity: base alone is unchanged (OFF by default)"
 static_parity
 step "throwaway Kong: status listener vs admin API"
 KONG_IMG="$(jq -r '.services.kong.image' "${T}/prod.json")"
 docker image inspect "${KONG_IMG}" >/dev/null 2>&1 || fail "kong image ${KONG_IMG} not present locally (make build-svc-kong, or docker pull)"
 dynamic_kong
-printf '\033[0;32m[M195] PASS — prod overlay: signup policy on gotrue, Kong admin off with metrics intact, strict identity on the 11 readers, storage/webhook guards on their routers (prod and cloud), functions jailed behind one relay with the Worker allowlist on (prod and cloud), base unchanged\033[0m\n'
+printf '\033[0;32m[M195] PASS — prod overlay: signup policy on gotrue, Kong admin off with metrics intact, strict identity on the 11 readers, storage/webhook guards on their routers (prod and cloud), functions jailed behind one relay with the Worker allowlist on (prod and cloud), strict identity in cloud too, base unchanged\033[0m\n'
