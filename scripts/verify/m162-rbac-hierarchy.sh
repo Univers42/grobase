@@ -204,7 +204,7 @@ step "2/9 boot tenant-control ORG_MODEL_ENABLED=1 RBAC_HIERARCHY_ENABLED=1 on 12
 docker run -d --name "${TC_ON}" --network "${NET}" \
   -e DATABASE_URL="${DB_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
-  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e ORG_MODEL_ENABLED=1 \
   -e RBAC_HIERARCHY_ENABLED=1 \
   -e ADAPTER_REGISTRY_URL="" \
@@ -331,7 +331,7 @@ TEAMS_BEFORE="$(psql_val "SELECT count(*) FROM public.teams")"
 docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e DATABASE_URL="${DB_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
-  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e ORG_MODEL_ENABLED=1 \
   -e TENANT_CONTROL_PORT=3020 \
   -e TENANT_CONTROL_PRODUCT_MODE=enabled \
