@@ -87,7 +87,10 @@ TC_PORT="$(_lt_host_port mini-baas-tenant-control 3022/tcp)"
 KONG_URL="http://127.0.0.1:${KONG_PORT}"
 TC_URL="http://127.0.0.1:${TC_PORT}"
 SERVICE_TOKEN="$(_lt_env mini-baas-tenant-control INTERNAL_SERVICE_TOKEN)" ||
-  { echo "cannot read INTERNAL_SERVICE_TOKEN from mini-baas-tenant-control (is it running?)" >&2; exit 1; }
+  {
+    echo "cannot read INTERNAL_SERVICE_TOKEN from mini-baas-tenant-control (is it running?)" >&2
+    exit 1
+  }
 export SERVICE_TOKEN
 ANON_KEY="$(_lt_env mini-baas-kong KONG_PUBLIC_API_KEY)"
 SERVICE_KEY="$(_lt_env mini-baas-kong KONG_SERVICE_API_KEY)"
@@ -160,7 +163,10 @@ engine_check() { # $1 dbId -> echoes http code
 router_pools() {
   local p
   p="$(_lt_host_port mini-baas-data-plane-router-rust 4011/tcp)"
-  [[ -n "${p}" ]] || { echo ""; return; }
+  [[ -n "${p}" ]] || {
+    echo ""
+    return
+  }
   curl -s "http://127.0.0.1:${p}/v1/capabilities" 2>/dev/null |
     python3 -c 'import json,sys
 try: print(" ".join(e.get("engine","") for e in json.load(sys.stdin).get("engines",[])))
@@ -195,7 +201,11 @@ seed_sqlite() {
     return 0
   fi
   SQLITE_DB_ID="${REG_ID}"
-  [[ -n "${SQLITE_DB_ID}" ]] || { warn "sqlite: no mount id — skipping"; SQLITE_DB_ID=""; return 0; }
+  [[ -n "${SQLITE_DB_ID}" ]] || {
+    warn "sqlite: no mount id — skipping"
+    SQLITE_DB_ID=""
+    return 0
+  }
 
   local code
   code=$(engine_check "${SQLITE_DB_ID}")
@@ -234,12 +244,30 @@ seed_sqlite() {
   }
   local I='{"name":"id","normalized_type":"integer","nullable":false}'
   local T='{"name":"%s","normalized_type":"text","nullable":true}'
-  ddl restaurant      "[$I,$(printf "$T" name),$(printf "$T" cuisine),$(printf "$T" city)]" '["id"]' || { SQLITE_DB_ID=""; return 0; }
-  ddl menu            "[$I,{\"name\":\"restaurant_id\",\"normalized_type\":\"integer\",\"nullable\":true},$(printf "$T" name)]" '["id"]' || { SQLITE_DB_ID=""; return 0; }
-  ddl dish            "[$I,{\"name\":\"menu_id\",\"normalized_type\":\"integer\",\"nullable\":true},$(printf "$T" name),{\"name\":\"price_cents\",\"normalized_type\":\"integer\",\"nullable\":true}]" '["id"]' || { SQLITE_DB_ID=""; return 0; }
-  ddl restaurant_order "[$I,{\"name\":\"restaurant_id\",\"normalized_type\":\"integer\",\"nullable\":true},{\"name\":\"customer_ref\",\"normalized_type\":\"integer\",\"nullable\":true},$(printf "$T" status),{\"name\":\"total_cents\",\"normalized_type\":\"integer\",\"nullable\":true}]" '["id"]' || { SQLITE_DB_ID=""; return 0; }
-  ddl order_item      "[$I,{\"name\":\"order_id\",\"normalized_type\":\"integer\",\"nullable\":true},{\"name\":\"dish_id\",\"normalized_type\":\"integer\",\"nullable\":true},{\"name\":\"qty\",\"normalized_type\":\"integer\",\"nullable\":true}]" '["id"]' || { SQLITE_DB_ID=""; return 0; }
-  ddl working_hours   "[$I,{\"name\":\"restaurant_id\",\"normalized_type\":\"integer\",\"nullable\":true},{\"name\":\"weekday\",\"normalized_type\":\"integer\",\"nullable\":true},$(printf "$T" opens),$(printf "$T" closes)]" '["id"]' || { SQLITE_DB_ID=""; return 0; }
+  ddl restaurant "[$I,$(printf "$T" name),$(printf "$T" cuisine),$(printf "$T" city)]" '["id"]' || {
+    SQLITE_DB_ID=""
+    return 0
+  }
+  ddl menu "[$I,{\"name\":\"restaurant_id\",\"normalized_type\":\"integer\",\"nullable\":true},$(printf "$T" name)]" '["id"]' || {
+    SQLITE_DB_ID=""
+    return 0
+  }
+  ddl dish "[$I,{\"name\":\"menu_id\",\"normalized_type\":\"integer\",\"nullable\":true},$(printf "$T" name),{\"name\":\"price_cents\",\"normalized_type\":\"integer\",\"nullable\":true}]" '["id"]' || {
+    SQLITE_DB_ID=""
+    return 0
+  }
+  ddl restaurant_order "[$I,{\"name\":\"restaurant_id\",\"normalized_type\":\"integer\",\"nullable\":true},{\"name\":\"customer_ref\",\"normalized_type\":\"integer\",\"nullable\":true},$(printf "$T" status),{\"name\":\"total_cents\",\"normalized_type\":\"integer\",\"nullable\":true}]" '["id"]' || {
+    SQLITE_DB_ID=""
+    return 0
+  }
+  ddl order_item "[$I,{\"name\":\"order_id\",\"normalized_type\":\"integer\",\"nullable\":true},{\"name\":\"dish_id\",\"normalized_type\":\"integer\",\"nullable\":true},{\"name\":\"qty\",\"normalized_type\":\"integer\",\"nullable\":true}]" '["id"]' || {
+    SQLITE_DB_ID=""
+    return 0
+  }
+  ddl working_hours "[$I,{\"name\":\"restaurant_id\",\"normalized_type\":\"integer\",\"nullable\":true},{\"name\":\"weekday\",\"normalized_type\":\"integer\",\"nullable\":true},$(printf "$T" opens),$(printf "$T" closes)]" '["id"]' || {
+    SQLITE_DB_ID=""
+    return 0
+  }
 
   step "sqlite: loading deterministic rows via gateway op=insert (paced, idempotent)"
   # The generator emits one JSON object per line; each is a single-row insert.
@@ -258,10 +286,10 @@ seed_sqlite() {
           -H 'Content-Type: application/json' -d "{\"op\":\"insert\",\"data\":${json}}")
         if [[ "${code}" == "429" ]]; then
           reset="$(sed -n 's/[Rr]ate[Ll]imit-[Rr]eset:[[:space:]]*\([0-9]*\).*/\1/p' /tmp/xeng-hdr.txt | head -1)"
-          sleep "$(( ${reset:-5} > 0 ? ${reset:-5} : 5 ))"
+          sleep "$((${reset:-5} > 0 ? ${reset:-5} : 5))"
           continue
         fi
-        if [[ "${code}" =~ ^(502|503)$ ]] && (( attempt < 5 )); then
+        if [[ "${code}" =~ ^(502|503)$ ]] && ((attempt < 5)); then
           attempt=$((attempt + 1))
           sleep 3
           continue
@@ -283,20 +311,30 @@ seed_mssql() {
     return 0
   fi
   local SA_PASS
-  SA_PASS="$(_lt_env mini-baas-mssql MSSQL_SA_PASSWORD)"; SA_PASS="${SA_PASS:-Mssql_Strong!Pass1}"
+  SA_PASS="$(_lt_env mini-baas-mssql MSSQL_SA_PASSWORD)"
+  SA_PASS="${SA_PASS:-Mssql_Strong!Pass1}"
   local sqlcmd=(docker exec -i mini-baas-mssql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${SA_PASS}" -C -N -b)
 
   step "mssql: waiting for SQL Server to accept connections"
   local ok=0
   for _ in $(seq 1 30); do
-    if "${sqlcmd[@]}" -Q "SELECT 1" >/dev/null 2>&1; then ok=1; break; fi
+    if "${sqlcmd[@]}" -Q "SELECT 1" >/dev/null 2>&1; then
+      ok=1
+      break
+    fi
     sleep 2
   done
-  [[ "${ok}" == "1" ]] || { warn "mssql: server not accepting connections after 60s — skipping"; return 0; }
+  [[ "${ok}" == "1" ]] || {
+    warn "mssql: server not accepting connections after 60s — skipping"
+    return 0
+  }
 
   step "mssql: ensure 'finance' database + schema (idempotent)"
   "${sqlcmd[@]}" -Q "IF DB_ID('finance') IS NULL CREATE DATABASE finance;" >/dev/null 2>&1 ||
-    { warn "mssql: CREATE DATABASE finance failed — skipping"; return 0; }
+    {
+      warn "mssql: CREATE DATABASE finance failed — skipping"
+      return 0
+    }
   # Schema + deterministic bulk rows generated as one T-SQL script.
   if ! MSSQL_OWNER="${OWNER}" python3 "${SCRIPT_DIR}/extra-engines-gen.py" finance |
     "${sqlcmd[@]}" -d finance >/tmp/xeng-mssql.log 2>&1; then
@@ -311,7 +349,11 @@ seed_mssql() {
     return 0
   fi
   MSSQL_DB_ID="${REG_ID}"
-  [[ -n "${MSSQL_DB_ID}" ]] || { warn "mssql: no mount id — skipping"; MSSQL_DB_ID=""; return 0; }
+  [[ -n "${MSSQL_DB_ID}" ]] || {
+    warn "mssql: no mount id — skipping"
+    MSSQL_DB_ID=""
+    return 0
+  }
 
   local code
   code=$(engine_check "${MSSQL_DB_ID}")
@@ -338,7 +380,10 @@ seed_dynamo() {
   local DDB_NET
   DDB_NET="$(docker inspect mini-baas-dynamodb-local \
     --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' 2>/dev/null | head -1)"
-  [[ -n "${DDB_NET}" ]] || { warn "dynamodb: container network not found — skipping"; return 0; }
+  [[ -n "${DDB_NET}" ]] || {
+    warn "dynamodb: container network not found — skipping"
+    return 0
+  }
   ddb_create() { # $1 table
     docker run --rm --network "${DDB_NET}" \
       -e AWS_ACCESS_KEY_ID=fake -e AWS_SECRET_ACCESS_KEY=fake -e AWS_DEFAULT_REGION=us-east-1 \
@@ -382,7 +427,11 @@ seed_dynamo() {
     return 0
   fi
   DYNAMO_DB_ID="${REG_ID}"
-  [[ -n "${DYNAMO_DB_ID}" ]] || { warn "dynamodb: no mount id — skipping"; DYNAMO_DB_ID=""; return 0; }
+  [[ -n "${DYNAMO_DB_ID}" ]] || {
+    warn "dynamodb: no mount id — skipping"
+    DYNAMO_DB_ID=""
+    return 0
+  }
 
   # DynamoDB has no schema introspection (the adapter reports health unknown);
   # CHECK with an owner-scoped list of the devices table instead.
@@ -414,11 +463,14 @@ seed_edges() {
   # block with the rows already interleaved by kind so the bounded overview
   # (EDGE_FANOUT 1000) shows a mix. Empty dbIds drop their edge kind cleanly.
   EDGE_OWNER="${OWNER}" \
-  EDGE_SQLITE="${SQLITE_DB_ID}" EDGE_MSSQL="${MSSQL_DB_ID}" EDGE_DYNAMO="${DYNAMO_DB_ID}" \
-  EDGE_COMMERCE="${COMMERCE_DB_ID}" \
+    EDGE_SQLITE="${SQLITE_DB_ID}" EDGE_MSSQL="${MSSQL_DB_ID}" EDGE_DYNAMO="${DYNAMO_DB_ID}" \
+    EDGE_COMMERCE="${COMMERCE_DB_ID}" \
     python3 "${SCRIPT_DIR}/extra-engines-gen.py" edges |
     pg -d commerce -q -v ON_ERROR_STOP=1 >/dev/null ||
-    { warn "edges: insert failed"; return 0; }
+    {
+      warn "edges: insert failed"
+      return 0
+    }
   pass "edges inserted (interleaved)"
 }
 
@@ -440,9 +492,9 @@ assoc_one() { # $1 dbId, $2 engine, $3 label, $4 tables-array-literal
 
 seed_assoc() {
   step "assoc: associating new mounts with Acme Operations + dev.pro.photo main"
-  assoc_one "${SQLITE_DB_ID}" sqlite   'Restaurant · SQLite' '{restaurant,menu,dish,restaurant_order,order_item,working_hours}'
-  assoc_one "${MSSQL_DB_ID}"  mssql    'Finance · MSSQL'     '{invoices,invoice_lines,payments,gl_accounts,cost_centers}'
-  assoc_one "${DYNAMO_DB_ID}" dynamodb 'IoT · DynamoDB'      '{devices,device_events,alerts}'
+  assoc_one "${SQLITE_DB_ID}" sqlite 'Restaurant · SQLite' '{restaurant,menu,dish,restaurant_order,order_item,working_hours}'
+  assoc_one "${MSSQL_DB_ID}" mssql 'Finance · MSSQL' '{invoices,invoice_lines,payments,gl_accounts,cost_centers}'
+  assoc_one "${DYNAMO_DB_ID}" dynamodb 'IoT · DynamoDB' '{devices,device_events,alerts}'
   pass "associations upserted for wired mounts"
 }
 

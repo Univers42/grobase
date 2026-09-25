@@ -38,16 +38,24 @@ PASS="${ZOO_PASSWORD:-zoo-admin-2024}"
 NET="$(docker inspect mini-baas-kong --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' 2>/dev/null | head -1)"
 
 # mongo mount coordinates (from the savanna tenant provisioning)
-MONGO_DBID=""; APP_KEY=""
-[ -f "$ROOT/.savanna-tenant.env" ] && { . "$ROOT/.savanna-tenant.env"; MONGO_DBID="$SAVANNA_MONGO_DB_ID"; APP_KEY="$SAVANNA_API_KEY"; }
+MONGO_DBID=""
+APP_KEY=""
+[ -f "$ROOT/.savanna-tenant.env" ] && {
+  . "$ROOT/.savanna-tenant.env"
+  MONGO_DBID="$SAVANNA_MONGO_DB_ID"
+  APP_KEY="$SAVANNA_API_KEY"
+}
 
 A_EMAIL="sec-alice@savanna-zoo.com"
 B_EMAIL="sec-bob@savanna-zoo.com"
 SEC_PASS="Visitor#2026"
 MARK="m155-sec"
 
-ok()   { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
-fail() { printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+ok() { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
+fail() {
+  printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2
+  exit 1
+}
 sect() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
 jget() { python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('$1',''))"; }
@@ -79,11 +87,14 @@ ok "valid apikey → 200 (routes to PostgREST)"
 
 # ── (B) GoTrue ───────────────────────────────────────────────
 sect "(B) GoTrue — auth lifecycle"
-sc=$(signup "$A_EMAIL" "$SEC_PASS" visitor); [ "$sc" = "200" ] || [ "$sc" = "422" ] || fail "visitor signup A → $sc"
+sc=$(signup "$A_EMAIL" "$SEC_PASS" visitor)
+[ "$sc" = "200" ] || [ "$sc" = "422" ] || fail "visitor signup A → $sc"
 signup "$B_EMAIL" "$SEC_PASS" visitor >/dev/null
 ok "visitor self-signup ($A_EMAIL) → $sc"
-ATOK=$(login "$A_EMAIL" "$SEC_PASS"); [ -n "$ATOK" ] || fail "visitor A login failed"
-BTOK=$(login "$B_EMAIL" "$SEC_PASS"); [ -n "$BTOK" ] || fail "visitor B login failed"
+ATOK=$(login "$A_EMAIL" "$SEC_PASS")
+[ -n "$ATOK" ] || fail "visitor A login failed"
+BTOK=$(login "$B_EMAIL" "$SEC_PASS")
+[ -n "$BTOK" ] || fail "visitor B login failed"
 ok "login → access_token issued"
 C_BAD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GW/auth/v1/token?grant_type=password" \
   -H "apikey: $ANON" -H 'Content-Type: application/json' -d "{\"email\":\"$A_EMAIL\",\"password\":\"wrong-pw\"}")
@@ -101,16 +112,19 @@ ok "JWT carries user_metadata.role=visitor (UI only; the RLS bypass reads app_me
 C_OUT=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GW/auth/v1/logout" -H "apikey: $ANON" -H "Authorization: Bearer $ATOK")
 [ "$C_OUT" = "204" ] || [ "$C_OUT" = "200" ] || fail "logout → $C_OUT"
 ok "logout → $C_OUT"
-ATOK=$(login "$A_EMAIL" "$SEC_PASS")  # fresh token after logout
+ATOK=$(login "$A_EMAIL" "$SEC_PASS") # fresh token after logout
 
 # ── (C) RLS owner-scoping (PostgREST) ────────────────────────
 sect "(C) RLS — per-user ticket isolation"
-SOPHIE=$(login sophie.laurent@savanna-zoo.com "$PASS"); [ -n "$SOPHIE" ] || fail "admin login failed"
-MARCUS=$(login marcus.osei@savanna-zoo.com "$PASS"); [ -n "$MARCUS" ] || fail "zookeeper login failed"
+SOPHIE=$(login sophie.laurent@savanna-zoo.com "$PASS")
+[ -n "$SOPHIE" ] || fail "admin login failed"
+MARCUS=$(login marcus.osei@savanna-zoo.com "$PASS")
+[ -n "$MARCUS" ] || fail "zookeeper login failed"
 # Clean slate: drop any tickets the test visitors already own (prior runs / a
 # concurrent pentest), so "B sees 0 before A books" is a true isolation check.
 sub_of() { printf '%s' "$1" | cut -d. -f2 | python3 -c "import sys,base64,json;s=sys.stdin.read().strip();s+='='*(-len(s)%4);print(json.loads(base64.urlsafe_b64decode(s)).get('sub',''))"; }
-A_SUB=$(sub_of "$ATOK"); B_SUB=$(sub_of "$BTOK")
+A_SUB=$(sub_of "$ATOK")
+B_SUB=$(sub_of "$BTOK")
 docker exec "$PG" psql -U postgres -d postgres -tAc \
   "DELETE FROM public.tickets WHERE user_id IN ('$A_SUB','$B_SUB') OR visitor_name='$MARK';" >/dev/null 2>&1 || true
 AN=$(curl -s "$GW/rest/v1/animals?select=id" -H "apikey: $ANON" | jlen)
@@ -135,8 +149,8 @@ ADMIN_SEES=$(curl -s "$GW/rest/v1/tickets?select=id" -H "apikey: $ANON" -H "Auth
 [ "$ADMIN_SEES" -gt "$A_SEES" ] || fail "admin should see all tickets ($ADMIN_SEES vs A=$A_SEES)"
 ok "A sees own ($A_SEES) · B sees 0 of A's · admin sees all ($ADMIN_SEES)"
 
-SID=$(curl -s "$GW/rest/v1/staff?select=id&limit=1" -H "apikey: $ANON" -H "Authorization: Bearer $MARCUS" \
-  | python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
+SID=$(curl -s "$GW/rest/v1/staff?select=id&limit=1" -H "apikey: $ANON" -H "Authorization: Bearer $MARCUS" |
+  python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
 DENIED=$(curl -s -X PATCH "$GW/rest/v1/staff?id=eq.$SID" -H "apikey: $ANON" -H "Authorization: Bearer $MARCUS" \
   -H 'Content-Type: application/json' -H 'Prefer: return=representation' -d '{"phone":"HACKED"}' | jlen)
 [ "$DENIED" = "0" ] || fail "zookeeper staff-write should be RLS-blocked (0 rows) — got $DENIED"
@@ -145,15 +159,16 @@ ok "zookeeper staff-write → 0 rows (RLS-blocked)"
 # ── (C2) Privilege escalation closed ─────────────────────────
 sect "(C2) Auth hardening — forged role is inert"
 signup "attacker@evil.com" "Pwn#2026" admin >/dev/null
-EVIL=$(login "attacker@evil.com" "Pwn#2026"); [ -n "$EVIL" ] || fail "attacker login failed"
+EVIL=$(login "attacker@evil.com" "Pwn#2026")
+[ -n "$EVIL" ] || fail "attacker login failed"
 EROLE=$(printf '%s' "$EVIL" | cut -d. -f2 | python3 -c "
 import sys,base64,json;s=sys.stdin.read().strip();s+='='*(-len(s)%4)
 print(json.loads(base64.urlsafe_b64decode(s)).get('user_metadata',{}).get('role',''))")
 [ "$EROLE" = "admin" ] || fail "attacker should carry the forged user_metadata.role=admin (got '$EROLE')"
 EVIL_TIX=$(curl -s "$GW/rest/v1/tickets?select=id" -H "apikey: $ANON" -H "Authorization: Bearer $EVIL" | jlen)
 [ "$EVIL_TIX" = "0" ] || fail "ESCALATION: forged role read $EVIL_TIX tickets — role must come from app_metadata"
-SID0=$(curl -s "$GW/rest/v1/staff?select=id&limit=1" -H "apikey: $ANON" -H "Authorization: Bearer $SOPHIE" \
-  | python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
+SID0=$(curl -s "$GW/rest/v1/staff?select=id&limit=1" -H "apikey: $ANON" -H "Authorization: Bearer $SOPHIE" |
+  python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
 EVIL_W=$(curl -s -X PATCH "$GW/rest/v1/staff?id=eq.$SID0" -H "apikey: $ANON" -H "Authorization: Bearer $EVIL" \
   -H 'Content-Type: application/json' -H 'Prefer: return=representation' -d '{"phone":"PWNED"}' | jlen)
 [ "$EVIL_W" = "0" ] || fail "ESCALATION: forged role wrote $EVIL_W staff rows"
@@ -169,8 +184,8 @@ ok "QR=$QR · visitor_stats(2026-12-24)=$VS (aggregated under a visitor, not adm
 
 # ── (E) Realtime ─────────────────────────────────────────────
 sect "(E) Realtime — live WS event on a write"
-AID=$(curl -s "$GW/rest/v1/animals?select=id,total_feedings&limit=1" -H "apikey: $ANON" \
-  | python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
+AID=$(curl -s "$GW/rest/v1/animals?select=id,total_feedings&limit=1" -H "apikey: $ANON" |
+  python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
 RT=$(docker run --rm --network "$NET" -e TOK="$SOPHIE" -e KEY="$ANON" -e AID="$AID" node:22-alpine node -e '
 const tok=process.env.TOK,key=process.env.KEY,aid=process.env.AID;
 const url=`ws://kong:8000/realtime/v1/ws?apikey=${encodeURIComponent(key)}&access_token=${encodeURIComponent(tok)}`;
@@ -229,8 +244,8 @@ mq() { # body bearer -> raw json
     -H 'Content-Type: application/json' -d "$1"
 }
 INS=$(mq "{\"op\":\"insert\",\"data\":{\"animal\":\"$MARK lion\",\"zone\":\"savannah\",\"note\":\"gate doc\",\"rating\":5,\"tags\":[\"gate\"],\"mark\":\"$MARK\"}}" "$ATOK")
-echo "$INS" | python3 -c "import sys,json;d=json.load(sys.stdin);sys.exit(0 if d.get('rowCount',len(d.get('rows',[])))>=1 else 1)" \
-  || fail "mongo insert (query-router) failed: $(echo "$INS" | head -c 200)"
+echo "$INS" | python3 -c "import sys,json;d=json.load(sys.stdin);sys.exit(0 if d.get('rowCount',len(d.get('rows',[])))>=1 else 1)" ||
+  fail "mongo insert (query-router) failed: $(echo "$INS" | head -c 200)"
 ok "query-router insert into MongoDB mount → ok"
 A_DOCS=$(mq '{"op":"list","limit":100}' "$ATOK" | python3 -c "import sys,json;d=json.load(sys.stdin);print(sum(1 for r in d.get('rows',[]) if r.get('mark')=='$MARK'))")
 [ "$A_DOCS" -ge 1 ] || fail "visitor A cannot read back their own journal doc ($A_DOCS)"

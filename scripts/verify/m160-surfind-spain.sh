@@ -34,8 +34,11 @@ ADMIN_EMAIL="admin@surfind.es"
 ADMIN_PASS="admin1234"
 MARK="m160-surf"
 
-ok()   { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
-fail() { printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+ok() { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
+fail() {
+  printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2
+  exit 1
+}
 sect() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
 jget() { python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('$1','') if isinstance(d,dict) else '')"; }
@@ -77,20 +80,26 @@ ok "anon favorites=$PF (private, owner-scoped)"
 
 # ── (C) auth + owner-scoping ─────────────────────────────────
 sect "(C) AUTH + OWNER-SCOPING — A y B aislados"
-sa=$(signup "$A_EMAIL" "$VIS_PASS" user); [ "$sa" = "200" ] || [ "$sa" = "422" ] || fail "visitor A signup → $sa"
-sb=$(signup "$B_EMAIL" "$VIS_PASS" user); [ "$sb" = "200" ] || [ "$sb" = "422" ] || fail "visitor B signup → $sb"
+sa=$(signup "$A_EMAIL" "$VIS_PASS" user)
+[ "$sa" = "200" ] || [ "$sa" = "422" ] || fail "visitor A signup → $sa"
+sb=$(signup "$B_EMAIL" "$VIS_PASS" user)
+[ "$sb" = "200" ] || [ "$sb" = "422" ] || fail "visitor B signup → $sb"
 ok "self-signup A=$sa · B=$sb"
-ATOK=$(login "$A_EMAIL" "$VIS_PASS"); [ -n "$ATOK" ] || fail "visitor A login failed"
-BTOK=$(login "$B_EMAIL" "$VIS_PASS"); [ -n "$BTOK" ] || fail "visitor B login failed"
-ADMTOK=$(login "$ADMIN_EMAIL" "$ADMIN_PASS"); [ -n "$ADMTOK" ] || fail "admin login failed"
+ATOK=$(login "$A_EMAIL" "$VIS_PASS")
+[ -n "$ATOK" ] || fail "visitor A login failed"
+BTOK=$(login "$B_EMAIL" "$VIS_PASS")
+[ -n "$BTOK" ] || fail "visitor B login failed"
+ADMTOK=$(login "$ADMIN_EMAIL" "$ADMIN_PASS")
+[ -n "$ADMTOK" ] || fail "admin login failed"
 ok "login → tokens issued (A · B · admin)"
 
-A_SUB=$(sub_of "$ATOK"); B_SUB=$(sub_of "$BTOK")
+A_SUB=$(sub_of "$ATOK")
+B_SUB=$(sub_of "$BTOK")
 docker exec "$PG" psql -U postgres -d postgres -tAc \
   "DELETE FROM public.favorites WHERE user_id IN ('$A_SUB','$B_SUB'); DELETE FROM public.comments WHERE content='$MARK comment';" >/dev/null 2>&1 || true
 
-BID=$(curl -s "$GW/rest/v1/beaches?status=eq.published&select=id&limit=1" -H "apikey: $ANON" \
-  | python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
+BID=$(curl -s "$GW/rest/v1/beaches?status=eq.published&select=id&limit=1" -H "apikey: $ANON" |
+  python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
 [ -n "$BID" ] || fail "no published beach id to favorite"
 
 FAV=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GW/rest/v1/favorites" -H "apikey: $ANON" \
@@ -132,13 +141,14 @@ ok "admin reads all comments ($ADMIN_CMTS) · admin delete → $ADMIN_DEL row"
 # ── (D) privilege escalation closed ──────────────────────────
 sect "(D) ESCALATION CLOSED — rol forjado es inerte"
 signup "$MARK-attacker@surfind.es" "$VIS_PASS" admin >/dev/null
-EVIL=$(login "$MARK-attacker@surfind.es" "$VIS_PASS"); [ -n "$EVIL" ] || fail "attacker login failed"
+EVIL=$(login "$MARK-attacker@surfind.es" "$VIS_PASS")
+[ -n "$EVIL" ] || fail "attacker login failed"
 EROLE=$(printf '%s' "$EVIL" | cut -d. -f2 | python3 -c "
 import sys,base64,json;s=sys.stdin.read().strip();s+='='*(-len(s)%4)
 print(json.loads(base64.urlsafe_b64decode(s)).get('user_metadata',{}).get('role',''))")
 [ "$EROLE" = "admin" ] || fail "attacker should carry forged user_metadata.role=admin (got '$EROLE')"
-LID=$(curl -s "$GW/rest/v1/locations?select=id&limit=1" -H "apikey: $ANON" \
-  | python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
+LID=$(curl -s "$GW/rest/v1/locations?select=id&limit=1" -H "apikey: $ANON" |
+  python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
 # A blocked write is either a 4xx RLS rejection (42501) or an empty 2xx — both
 # mean "no beach created". Assert it is NOT a successful create AND no row landed.
 EVIL_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GW/rest/v1/beaches" -H "apikey: $ANON" -H "Authorization: Bearer $EVIL" \

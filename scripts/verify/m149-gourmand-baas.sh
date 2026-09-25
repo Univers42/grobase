@@ -44,11 +44,14 @@ print(json.loads(base64.urlsafe_b64decode(p)).get("sub",""))' "$1" 2>/dev/null |
 
 # ── 1) provision (idempotent) ────────────────────────────────────────────────
 step "1/6 provision the gourmand tenant + owner-scoped mount (idempotent)"
-bash "${BAAS_DIR}/scripts/seed/gourmand-baas.sh" >"${TMP}/seed.log" 2>&1 \
-  || fail "provisioning failed — $(tail -3 "${TMP}/seed.log")"
+bash "${BAAS_DIR}/scripts/seed/gourmand-baas.sh" >"${TMP}/seed.log" 2>&1 ||
+  fail "provisioning failed — $(tail -3 "${TMP}/seed.log")"
 # shellcheck disable=SC1091
 source "${BAAS_DIR}/.gourmand-baas.env"
-KONG="${VG_KONG_URL}"; ANON="${VG_ANON_APIKEY}"; AK="${VG_API_KEY}"; DB="${VG_DB_ID}"
+KONG="${VG_KONG_URL}"
+ANON="${VG_ANON_APIKEY}"
+AK="${VG_API_KEY}"
+DB="${VG_DB_ID}"
 [[ -n "${KONG}" && -n "${AK}" && -n "${DB}" ]] || fail "incomplete provisioning state"
 ok "tenant=${VG_TENANT_SLUG} mount=${DB}"
 
@@ -77,8 +80,8 @@ mk_user() {
 # Insert an app "User" profile under a user JWT → echoes the SERIAL id.
 mk_profile() {
   local email="$1" jwt="$2"
-  [[ "$(q User "{\"op\":\"insert\",\"data\":{\"email\":\"${email}\",\"first_name\":\"M149\"}}" "${jwt}")" == "201" ]] \
-    || fail "User profile insert failed: $(head -c 200 "${TMP}/q.json")"
+  [[ "$(q User "{\"op\":\"insert\",\"data\":{\"email\":\"${email}\",\"first_name\":\"M149\"}}" "${jwt}")" == "201" ]] ||
+    fail "User profile insert failed: $(head -c 200 "${TMP}/q.json")"
   jrow0 "${TMP}/q.json" id
 }
 
@@ -98,10 +101,13 @@ step "3/6 app profiles for A/B + admin sign-in"
 UAID="$(mk_profile "${EA}" "${JA}")"
 UBID="$(mk_profile "${EB}" "${JB}")"
 [[ -n "${UAID}" && -n "${UBID}" ]] || fail "profile ids missing (A=${UAID} B=${UBID})"
-ADMIN_JWT="$(curl -s -X POST "${KONG}/auth/v1/token?grant_type=password" \
-  -H "apikey: ${ANON}" -H 'Content-Type: application/json' \
-  -d "{\"email\":\"${VG_ADMIN_EMAIL}\",\"password\":\"${VG_ADMIN_PASSWORD}\"}" \
-  -o "${TMP}/adm.json" >/dev/null 2>&1; jval "${TMP}/adm.json" access_token)"
+ADMIN_JWT="$(
+  curl -s -X POST "${KONG}/auth/v1/token?grant_type=password" \
+    -H "apikey: ${ANON}" -H 'Content-Type: application/json' \
+    -d "{\"email\":\"${VG_ADMIN_EMAIL}\",\"password\":\"${VG_ADMIN_PASSWORD}\"}" \
+    -o "${TMP}/adm.json" >/dev/null 2>&1
+  jval "${TMP}/adm.json" access_token
+)"
 [[ -n "${ADMIN_JWT}" ]] || fail "admin login failed: $(head -c 200 "${TMP}/adm.json")"
 ok "profiles A=${UAID} B=${UBID}; admin signed in"
 
@@ -124,8 +130,8 @@ ok "admin bypass: admin sees A's Order across owners"
 
 # ── 5) T6 loyalty guard: over-redeem rejected ────────────────────────────────
 step "5/6 T6 loyalty guard: redeem below zero rejected, balance unchanged"
-[[ "$(q LoyaltyAccount "{\"op\":\"insert\",\"data\":{\"user_id\":${UAID},\"balance\":0}}" "${JA}")" == "201" ]] \
-  || fail "LoyaltyAccount insert: $(head -c 200 "${TMP}/q.json")"
+[[ "$(q LoyaltyAccount "{\"op\":\"insert\",\"data\":{\"user_id\":${UAID},\"balance\":0}}" "${JA}")" == "201" ]] ||
+  fail "LoyaltyAccount insert: $(head -c 200 "${TMP}/q.json")"
 LAID="$(jrow0 "${TMP}/q.json" id)"
 redeem="$(q LoyaltyTransaction "{\"op\":\"insert\",\"data\":{\"loyalty_account_id\":${LAID},\"points\":-99999,\"type\":\"redeem\"}}" "${JA}")"
 [[ "${redeem}" != "201" && "${redeem}" != "200" ]] || fail "over-redeem SUCCEEDED (status ${redeem}) — T6 guard did not fire"

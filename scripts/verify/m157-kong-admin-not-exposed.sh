@@ -19,8 +19,11 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 ANON="$(grep -E '^ANON_KEY=' "$ROOT/.env" | cut -d= -f2)"
 KPORT="$(docker port mini-baas-kong 8000/tcp 2>/dev/null | head -1 | sed 's/.*://' || echo 8000)"
 GW="http://localhost:${KPORT:-8000}"
-ok()   { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
-fail() { printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+ok() { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
+fail() {
+  printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2
+  exit 1
+}
 
 printf '\n\033[1mm157 — Kong Admin API not host-exposed\033[0m\n'
 

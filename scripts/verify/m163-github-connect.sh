@@ -112,10 +112,16 @@ wait_ready_http() {
   local i
   for i in $(seq 1 60); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$2$3" 2>/dev/null)" == "200" ]] && return 0
-    docker inspect "$1" >/dev/null 2>&1 || { red "$1 exited early:"; docker logs "$1" 2>&1 | tail -20; return 1; }
+    docker inspect "$1" >/dev/null 2>&1 || {
+      red "$1 exited early:"
+      docker logs "$1" 2>&1 | tail -20
+      return 1
+    }
     sleep 0.5
   done
-  red "$1 never ready:"; docker logs "$1" 2>&1 | tail -20; return 1
+  red "$1 never ready:"
+  docker logs "$1" 2>&1 | tail -20
+  return 1
 }
 
 # A relay header `v1.<ts>.<sig>`: sig = HMAC-SHA256(secret, "v1\n<ts>\n<hex(sha256(body))>").
@@ -174,7 +180,10 @@ docker network create "${NET}" >/dev/null
 docker run -d --name "${PG}" --network "${NET}" -e POSTGRES_PASSWORD="${PGPW}" "${PG_IMAGE}" >/dev/null
 for i in $(seq 1 90); do
   docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 && [[ "$(psql_val 'SELECT 1')" == "1" ]] && break
-  [[ $i -eq 90 ]] && { docker logs "${PG}" 2>&1 | tail -20; fail "postgres never ready"; }
+  [[ $i -eq 90 ]] && {
+    docker logs "${PG}" 2>&1 | tail -20
+    fail "postgres never ready"
+  }
   sleep 0.5
 done
 docker exec -i "${PG}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 >/dev/null 2>&1 <<'SQL'
@@ -212,8 +221,12 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e ADAPTER_REGISTRY_URL="" -e TENANT_CONTROL_PORT=3020 -e TENANT_CONTROL_PRODUCT_MODE=enabled -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3020" "${TC_IMG}" >/dev/null
 wait_ready_http "${TC_ON}" "${PORT_ON}" /health/live || fail "GH-ON tenant-control not ready"
-{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "github connect enabled" || { docker logs "${TC_ON}" 2>&1 | tail -20; fail "github connect never reported enabled"; }
-JWT_U1="$(mint_jwt "${U1}" u1@m163.test)"; [[ -n "${JWT_U1}" ]] || fail "mint U1"
+{ docker logs "${TC_ON}" 2>&1 || true; } | grep -q "github connect enabled" || {
+  docker logs "${TC_ON}" 2>&1 | tail -20
+  fail "github connect never reported enabled"
+}
+JWT_U1="$(mint_jwt "${U1}" u1@m163.test)"
+[[ -n "${JWT_U1}" ]] || fail "mint U1"
 ok "GH-ON tenant-control up (/v1/github/* + /v1/orgs/{id}/github/* mounted)"
 
 # ── 3) (A) device-flow login with NO CALLBACK ─────────────────────────────────
@@ -221,7 +234,8 @@ step "3/8 (A) device-flow login (no callback) → server discards the GitHub tok
 [[ "$(req POST "${PORT_ON}" /v1/github/device/start "" "")" == "200" ]] || fail "(A) device/start expected 200 — $(head -c 200 "${BODY_TMP}")"
 [[ "$(json_str user_code)" == "WXYZ-1234" ]] || fail "(A) device/start did not relay the user_code"
 [[ "$(req POST "${PORT_ON}" /v1/github/device/poll "" '{"device_code":"dc-123"}')" == "200" ]] || fail "(A) device/poll expected 200 — $(head -c 200 "${BODY_TMP}")"
-SESSION="$(json_str access_token)"; [[ -n "${SESSION}" ]] || fail "(A) device/poll returned no minted session token"
+SESSION="$(json_str access_token)"
+[[ -n "${SESSION}" ]] || fail "(A) device/poll returned no minted session token"
 [[ "${SESSION}" == gho_* ]] && fail "(A) the RAW GitHub token was returned — must mint a session, not pass the GitHub token through"
 [[ "$(req GET "${PORT_ON}" /v1/orgs "${SESSION}" "")" == "200" ]] || fail "(A) the minted session JWT is not accepted by the verifier"
 [[ "$(psql_val "SELECT count(*) FROM public.github_user_links WHERE github_user_id=4242")" == "1" ]] || fail "(A) github_user_links did not record the GitHub user"
@@ -230,9 +244,11 @@ ok "(A) device-flow login works with NO callback; GitHub token discarded; sessio
 # ── 4) (B) relay callback — valid HMAC records the installation; bad HMAC → 401 ─
 step "4/8 (B) relay callback authenticated by the X-Github-Relay HMAC"
 [[ "$(req POST "${PORT_ON}" /v1/orgs "${JWT_U1}" "{\"slug\":\"m163-org-$$\",\"name\":\"Org A\"}")" == "201" ]] || fail "create org A"
-ORG_A="$(json_str id)"; [[ -n "${ORG_A}" ]] || fail "org A id missing"
+ORG_A="$(json_str id)"
+[[ -n "${ORG_A}" ]] || fail "org A id missing"
 [[ "$(req POST "${PORT_ON}" "/v1/orgs/${ORG_A}/github/connect/start" "${JWT_U1}" "{}")" == "201" ]] || fail "connect/start — $(head -c 200 "${BODY_TMP}")"
-NONCE="$(json_str nonce)"; [[ -n "${NONCE}" ]] || fail "connect/start returned no nonce"
+NONCE="$(json_str nonce)"
+[[ -n "${NONCE}" ]] || fail "connect/start returned no nonce"
 CB_BODY="{\"installation_id\":555,\"state\":\"${NONCE}\"}"
 # bad HMAC → 401
 [[ "$(curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_ON}/v1/github/callback" -H 'X-Github-Relay: v1.9999999999.deadbeef' -H 'Content-Type: application/json' -d "${CB_BODY}")" == "401" ]] || fail "(B) callback with a BAD relay HMAC was not rejected (401)"

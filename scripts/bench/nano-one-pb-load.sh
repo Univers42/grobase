@@ -152,15 +152,15 @@ curl -s "${PB}/api/collections/bench/records?perPage=30&skipTotal=1" -H "Authori
 declare -A R
 for c in 1 16 64; do
   cyan "[G] c=${c} insert ${DUR} × 3"
-  R[nano,ins,$c]=$(run_ins "${NANO}" "$c")
-  R[one,ins,$c]=$(run_ins "${ONE}" "$c")
-  R[pb,ins,$c]=$(oha -z "${DUR}" -c "${c}" -m POST \
+  R[nano, ins, $c]=$(run_ins "${NANO}" "$c")
+  R[one, ins, $c]=$(run_ins "${ONE}" "$c")
+  R[pb, ins, $c]=$(oha -z "${DUR}" -c "${c}" -m POST \
     -H "Authorization: ${PB_TOKEN}" -H "Content-Type: application/json" \
     -d "${PB_INS_BODY}" "${PB}/api/collections/bench/records" | parse)
   cyan "[G] c=${c} list(30) ${DUR} × 3"
-  R[nano,list,$c]=$(run_list "${NANO}" "$c")
-  R[one,list,$c]=$(run_list "${ONE}" "$c")
-  R[pb,list,$c]=$(oha -z "${DUR}" -c "${c}" \
+  R[nano, list, $c]=$(run_list "${NANO}" "$c")
+  R[one, list, $c]=$(run_list "${ONE}" "$c")
+  R[pb, list, $c]=$(oha -z "${DUR}" -c "${c}" \
     -H "Authorization: ${PB_TOKEN}" \
     "${PB}/api/collections/bench/records?perPage=30&skipTotal=1" | parse)
 done
@@ -214,9 +214,9 @@ PB_BOOT=$(boot_ms g-pb "${PB}/api/health")
 # ── report ───────────────────────────────────────────────────────────────────
 row() { # label op c
   local n o p
-  read -ra n <<<"${R[nano,$2,$3]}"
-  read -ra o <<<"${R[one,$2,$3]}"
-  read -ra p <<<"${R[pb,$2,$3]}"
+  read -ra n <<<"${R[nano, $2, $3]}"
+  read -ra o <<<"${R[one, $2, $3]}"
+  read -ra p <<<"${R[pb, $2, $3]}"
   printf '  %-20s %8s %7s   %8s %7s   %8s %7s\n' \
     "$1" "${n[0]}" "${n[3]}" "${o[0]}" "${o[3]}" "${p[0]}" "${p[3]}"
 }
@@ -240,7 +240,7 @@ python3 - "$PB_VERSION" "$DUR" "$BIG_N" <<EOF >artifacts/nano-one-pb-load.json
 import json, sys, datetime
 R = {
 $(for c in 1 16 64; do for op in ins list; do for s in nano one pb; do
-  echo "  (\"$s\",\"$op\",$c): \"${R[$s,$op,$c]}\","
+  echo "  (\"$s\",\"$op\",$c): \"${R[$s, $op, $c]}\","
 done; done; done)
 }
 def unpack(s):

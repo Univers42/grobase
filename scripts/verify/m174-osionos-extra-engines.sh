@@ -23,8 +23,14 @@ APP_ENV="${APP_ENV_FILE:-$ROOT/../../apps/osionos/app/.env}"
 COMMERCE_DB_ID="59939f19-7e8d-4876-a57f-61b3e7bb37be"
 
 pass() { printf '\033[0;32mPASS\033[0m %s\n' "$*"; }
-fail() { printf '\033[0;31mFAIL\033[0m %s\n' "$*"; exit 1; }
-skip() { printf '\033[0;33mSKIP\033[0m %s\n' "$*"; exit 0; }
+fail() {
+  printf '\033[0;31mFAIL\033[0m %s\n' "$*"
+  exit 1
+}
+skip() {
+  printf '\033[0;33mSKIP\033[0m %s\n' "$*"
+  exit 0
+}
 
 KPORT="$(docker port mini-baas-kong 8000/tcp 2>/dev/null | head -1 | sed 's/.*://')"
 [ -n "$KPORT" ] || skip "kong not up"
@@ -39,13 +45,15 @@ DPORT="$(docker port mini-baas-data-plane-router-rust 4011/tcp 2>/dev/null | hea
 [ -n "$DPORT" ] || skip "data-plane-router not up"
 engines="$(curl -s "http://127.0.0.1:${DPORT}/v1/capabilities" | python3 -c 'import json,sys; print(" ".join(e["engine"] for e in json.load(sys.stdin).get("engines",[])))' 2>/dev/null)"
 for e in sqlite mssql dynamodb; do
-  case " $engines " in *" $e "*) ;; *) skip "router not built with $e (engines: $engines) — rebuild data-plane-router";; esac
+  case " $engines " in *" $e "*) ;; *) skip "router not built with $e (engines: $engines) — rebuild data-plane-router" ;; esac
 done
 pass "(A) router pools include sqlite + mssql + dynamodb"
 
 mount_id() { curl -fsS "$GW/admin/v1/databases" -H "apikey: $SVCKEY" -H "X-Tenant-Id: agency" 2>/dev/null |
   MNT="$1" python3 -c 'import json,sys,os; print(next((r["id"] for r in json.load(sys.stdin) if r["name"]==os.environ["MNT"]),""))'; }
-SQID="$(mount_id osionos-restaurant)"; MSID="$(mount_id osionos-finance)"; DYID="$(mount_id osionos-iot)"
+SQID="$(mount_id osionos-restaurant)"
+MSID="$(mount_id osionos-finance)"
+DYID="$(mount_id osionos-iot)"
 [ -n "$SQID" ] && [ -n "$MSID" ] && [ -n "$DYID" ] || skip "extra-engine mounts not registered — run scripts/seed/osionos-extra-engines.sh"
 
 # (B) owner-scoped list returns rows via the query-router. For sql engines the

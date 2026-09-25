@@ -69,7 +69,10 @@ patch_swift_linux_portability() {
     s/(\} else \{\n)(\s*if let uti = UTTypeCreatePreferredIdentifierForTag.*?return "application\/octet-stream"\n)(\s*\}\n)/$1#if canImport(MobileCoreServices)\n$2#else\n            return "application\/octet-stream"\n#endif\n$3/s;
   ' "${f}"
   grep -q 'canImport(FoundationNetworking)' "${f}" ||
-    { echo "[codegen-polyglot] ERROR: swift Linux patch did not apply to ${f}" >&2; return 1; }
+    {
+      echo "[codegen-polyglot] ERROR: swift Linux patch did not apply to ${f}" >&2
+      return 1
+    }
   echo "[codegen-polyglot] patched swift URLSessionImplementations.swift for Linux build (MobileCoreServices/FoundationNetworking guards)"
 }
 

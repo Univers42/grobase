@@ -353,7 +353,10 @@ if [[ "${SEED_PAGES:-1}" == "1" ]]; then
     for _email in dylan@gmail.com dev.pro.photo@gmail.com; do
       DYLAN="$("${PGX[@]}" psql -U postgres -d postgres -tAc \
         "SELECT id FROM auth.users WHERE email='${_email}'" 2>/dev/null | tr -d '[:space:]')"
-      [[ -n "${DYLAN}" ]] && { DEMO_EMAIL="${_email}"; break; }
+      [[ -n "${DYLAN}" ]] && {
+        DEMO_EMAIL="${_email}"
+        break
+      }
     done
     DYLAN="${DYLAN:-ff284cf3-ab7d-4756-ade3-369257e36b2a}"
     DEMO_EMAIL="${DEMO_EMAIL:-dylan@gmail.com}"

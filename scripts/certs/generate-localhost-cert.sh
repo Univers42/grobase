@@ -34,21 +34,21 @@ WAF_TLS_GID=${MINI_BAAS_WAF_TLS_GID:-101}
 # world-readable. Three rungs, cheapest first; docker is the backstop because it
 # is already a hard prerequisite and its daemon is root.
 grant_waf_read() {
-	if chgrp "$WAF_TLS_GID" "$1" 2>/dev/null; then
-		chmod 640 "$1"
-		return 0
-	fi
-	chmod 600 "$1"
-	if command -v setfacl >/dev/null 2>&1 && setfacl -m "g:$WAF_TLS_GID:r" "$1" 2>/dev/null; then
-		return 0
-	fi
-	docker run --rm -v "$CERT_DIR:/certs" --entrypoint sh busybox:1.37 -c \
-		"chgrp $WAF_TLS_GID /certs/$(basename "$1") && chmod 640 /certs/$(basename "$1")" >/dev/null 2>&1
+  if chgrp "$WAF_TLS_GID" "$1" 2>/dev/null; then
+    chmod 640 "$1"
+    return 0
+  fi
+  chmod 600 "$1"
+  if command -v setfacl >/dev/null 2>&1 && setfacl -m "g:$WAF_TLS_GID:r" "$1" 2>/dev/null; then
+    return 0
+  fi
+  docker run --rm -v "$CERT_DIR:/certs" --entrypoint sh busybox:1.37 -c \
+    "chgrp $WAF_TLS_GID /certs/$(basename "$1") && chmod 640 /certs/$(basename "$1")" >/dev/null 2>&1
 }
 
 mkdir -p "$CERT_DIR"
 
-cat > "$OPENSSL_CONFIG" <<'EOF'
+cat >"$OPENSSL_CONFIG" <<'EOF'
 [req]
 default_bits = 2048
 prompt = no
@@ -72,7 +72,7 @@ IP.1 = 127.0.0.1
 IP.2 = ::1
 EOF
 
-cat > "$SERVER_EXT" <<'EOF'
+cat >"$SERVER_EXT" <<'EOF'
 basicConstraints = critical,CA:FALSE
 keyUsage = critical,digitalSignature,keyEncipherment
 extendedKeyUsage = serverAuth
@@ -106,12 +106,12 @@ fi
 server_needs_regen=1
 if [ "$ca_regenerated" -eq 0 ] && [ -s "$SERVER_KEY" ] && [ -s "$SERVER_CERT" ]; then
   san=$(openssl x509 -in "$SERVER_CERT" -noout -ext subjectAltName 2>/dev/null || true)
-  if openssl verify -CAfile "$CA_CERT" "$SERVER_CERT" >/dev/null 2>&1 \
-    && openssl x509 -checkend 2592000 -noout -in "$SERVER_CERT" >/dev/null 2>&1; then
+  if openssl verify -CAfile "$CA_CERT" "$SERVER_CERT" >/dev/null 2>&1 &&
+    openssl x509 -checkend 2592000 -noout -in "$SERVER_CERT" >/dev/null 2>&1; then
     case "$san" in
-      *DNS:localhost*DNS:host.docker.internal*DNS:local-https-proxy*DNS:track-binocle.test*DNS:\*.track-binocle.test*IP\ Address:127.0.0.1*)
-        server_needs_regen=0
-        ;;
+    *DNS:localhost*DNS:host.docker.internal*DNS:local-https-proxy*DNS:track-binocle.test*DNS:\*.track-binocle.test*IP\ Address:127.0.0.1*)
+      server_needs_regen=0
+      ;;
     esac
   fi
 fi

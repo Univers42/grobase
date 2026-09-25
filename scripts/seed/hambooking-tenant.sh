@@ -68,23 +68,26 @@ RT_JWT_SECRET="$(_lt_env mini-baas-realtime REALTIME_JWT_SECRET)"
 [[ -n "${SERVICE_TOKEN}" && -n "${ANON_KEY}" && -n "${SERVICE_KEY}" ]] || fail "stack secrets not found"
 
 # MariaDB creds from the recovered container (root for DDL, app user for the DSN).
-MY_ROOT_PW="$(_lt_env "${MYSQL_CTN}" MYSQL_ROOT_PASSWORD)"; MY_ROOT_PW="${MY_ROOT_PW:-mysqlroot}"
-MY_APP_USER="$(_lt_env "${MYSQL_CTN}" MYSQL_USER)"; MY_APP_USER="${MY_APP_USER:-mini_baas}"
-MY_APP_PW="$(_lt_env "${MYSQL_CTN}" MYSQL_PASSWORD)"; MY_APP_PW="${MY_APP_PW:-mini_baas_pw}"
+MY_ROOT_PW="$(_lt_env "${MYSQL_CTN}" MYSQL_ROOT_PASSWORD)"
+MY_ROOT_PW="${MY_ROOT_PW:-mysqlroot}"
+MY_APP_USER="$(_lt_env "${MYSQL_CTN}" MYSQL_USER)"
+MY_APP_USER="${MY_APP_USER:-mini_baas}"
+MY_APP_PW="$(_lt_env "${MYSQL_CTN}" MYSQL_PASSWORD)"
+MY_APP_PW="${MY_APP_PW:-mini_baas_pw}"
 
 # ── 1) database + schema (inside the recovered MariaDB, never touch mini_baas/ops) ──
 cyan "ensuring database '${HB_DB}' on ${MYSQL_CTN} (recovered container — only CREATE)"
 docker exec "${MYSQL_CTN}" mariadb -uroot -p"${MY_ROOT_PW}" \
-  -e "CREATE DATABASE IF NOT EXISTS ${HB_DB} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null \
-  || fail "create database ${HB_DB} failed"
+  -e "CREATE DATABASE IF NOT EXISTS ${HB_DB} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null ||
+  fail "create database ${HB_DB} failed"
 cyan "granting app user '${MY_APP_USER}' on ${HB_DB}"
 docker exec "${MYSQL_CTN}" mariadb -uroot -p"${MY_ROOT_PW}" \
-  -e "GRANT ALL PRIVILEGES ON ${HB_DB}.* TO '${MY_APP_USER}'@'%'; FLUSH PRIVILEGES;" 2>/dev/null \
-  || fail "grant on ${HB_DB} failed"
+  -e "GRANT ALL PRIVILEGES ON ${HB_DB}.* TO '${MY_APP_USER}'@'%'; FLUSH PRIVILEGES;" 2>/dev/null ||
+  fail "grant on ${HB_DB} failed"
 [[ -f "${SCHEMA_FILE}" ]] || fail "schema file missing: ${SCHEMA_FILE}"
 cyan "applying schema from $(basename "${SCHEMA_FILE}")"
-docker exec -i "${MYSQL_CTN}" mariadb -uroot -p"${MY_ROOT_PW}" "${HB_DB}" <"${SCHEMA_FILE}" 2>/dev/null \
-  || fail "schema apply failed"
+docker exec -i "${MYSQL_CTN}" mariadb -uroot -p"${MY_ROOT_PW}" "${HB_DB}" <"${SCHEMA_FILE}" 2>/dev/null ||
+  fail "schema apply failed"
 cyan "enabling event scheduler (for evt_reservation_rollover)"
 docker exec "${MYSQL_CTN}" mariadb -uroot -p"${MY_ROOT_PW}" \
   -e "SET GLOBAL event_scheduler=ON;" 2>/dev/null || cyan "WARN: could not enable event_scheduler (non-fatal)"
@@ -113,11 +116,15 @@ code=$(curl -s -o /tmp/hb-ent.json -w '%{http_code}' -X PUT \
 [[ "${code}" == "200" ]] || cyan "WARN: entitlement set returned ${code}: $(head -c 200 /tmp/hb-ent.json) (continuing — tenant is enterprise-tier already)"
 
 # ── 4) API key + mariadb mount with shared_resources — reuse if still valid ───
-API_KEY=""; KEY_ID=""; DB_ID=""
+API_KEY=""
+KEY_ID=""
+DB_ID=""
 if [[ -f "${STATE_ENV}" ]]; then
   # shellcheck disable=SC1090
   source "${STATE_ENV}"
-  API_KEY="${HB_API_KEY:-}"; KEY_ID="${HB_KEY_ID:-}"; DB_ID="${HB_DB_ID:-}"
+  API_KEY="${HB_API_KEY:-}"
+  KEY_ID="${HB_KEY_ID:-}"
+  DB_ID="${HB_DB_ID:-}"
 fi
 key_ok=0
 if [[ -n "${API_KEY}" && -n "${DB_ID}" ]]; then
@@ -181,18 +188,18 @@ try:
 except Exception: print("",0)' 2>/dev/null)"
     ADMIN_SUB="${_res%% *}"
     [[ "${_res##* }" == "0" ]] && break
-    page=$((page+1))
+    page=$((page + 1))
   done
 fi
 [[ -n "${ADMIN_SUB}" ]] || fail "could not create/find GoTrue admin (${code}): $(head -c 200 /tmp/hb-admin.json)"
 cyan "admin sub=${ADMIN_SUB:0:8}…"
 
 cyan "inserting users profile row for the admin (owner_id=user:sub, auth_id=sub, role=ADMIN)"
-docker exec "${MYSQL_CTN}" mariadb -uroot -p"${MY_ROOT_PW}" "${HB_DB}" 2>/dev/null -e "
+docker exec "${MYSQL_CTN}" mariadb -uroot -p"${MY_ROOT_PW}" "${HB_DB}" -e "
 INSERT INTO users (owner_id,auth_id,dni,first_name,last_name,email,phone,role,is_active)
 VALUES ('user:${ADMIN_SUB}','${ADMIN_SUB}','12345678A','System','Administrator','${ADMIN_EMAIL}','600000000','ADMIN',1)
-ON DUPLICATE KEY UPDATE owner_id=VALUES(owner_id), auth_id=VALUES(auth_id), is_active=1;" \
-  || cyan "WARN: admin profile insert returned non-zero (may already exist)"
+ON DUPLICATE KEY UPDATE owner_id=VALUES(owner_id), auth_id=VALUES(auth_id), is_active=1;" 2>/dev/null ||
+  cyan "WARN: admin profile insert returned non-zero (may already exist)"
 
 # ── 6) realtime WS token + frontend config + state ───────────────────────────
 RT_TOKEN=""

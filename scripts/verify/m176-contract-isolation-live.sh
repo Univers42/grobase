@@ -19,8 +19,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CP="${ROOT}/src/control-plane"
 PASS=0
-ok()   { printf '  \033[1;32m✓\033[0m %s\n' "$*"; PASS=$((PASS+1)); }
-fail() { printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+ok() {
+  printf '  \033[1;32m✓\033[0m %s\n' "$*"
+  PASS=$((PASS + 1))
+}
+fail() {
+  printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2
+  exit 1
+}
 
 printf '\033[1m── m176: distinct-DB-per-app isolation ──\033[0m\n'
 
@@ -33,8 +39,8 @@ ok "key→mount resolver gates on tenant_id (foreign key ⇒ 0 rows ⇒ 404)"
 # ── static: the provisioner creates a physical DB per contract ───────────────
 PC="${ROOT}/scripts/provision-contract.sh"
 [ -f "${PC}" ] || fail "provision-contract.sh missing"
-grep -qiE 'create database|ensure_database' "${PC}" \
-  || fail "provisioner does not create a physical database per contract"
+grep -qiE 'create database|ensure_database' "${PC}" ||
+  fail "provisioner does not create a physical database per contract"
 ok "provisioner creates a distinct physical database per contract"
 
 # ── static: both live contracts present ──────────────────────────────────────
@@ -48,7 +54,8 @@ if [ "${BAAS_VERIFY_LIVE:-0}" = "1" ]; then
   command -v curl >/dev/null 2>&1 || fail "curl required for live mode"
   : "${KONG_URL:?set KONG_URL=https://grobase-stack.fly.dev for live mode}"
   : "${WEBSITE_KEY:?set WEBSITE_KEY (website mbk_ key)}"
-  : "${WEBSITE_DBID:?set WEBSITE_DBID}"; : "${VAULT42_DBID:?set VAULT42_DBID}"
+  : "${WEBSITE_DBID:?set WEBSITE_DBID}"
+  : "${VAULT42_DBID:?set VAULT42_DBID}"
   : "${ANON_KEY:?set ANON_KEY}"
   good=$(curl -s -o /dev/null -w '%{http_code}' \
     "${KONG_URL}/query/v1/${WEBSITE_DBID}/tables" \

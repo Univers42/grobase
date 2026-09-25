@@ -72,7 +72,8 @@ ok "PostgREST sessions: ${users} (not superuser, not bypassrls)"
 
 step "4/4 live — a new table nothing granted is not reachable with the anon key (N-3)"
 psql_q "DROP TABLE IF EXISTS public.m200_probe; CREATE TABLE public.m200_probe (id int PRIMARY KEY, secret text); INSERT INTO public.m200_probe VALUES (1, 'm200-secret')" >/dev/null || fail "could not create the probe table"
-psql_q "NOTIFY pgrst, 'reload schema'" >/dev/null; sleep 2
+psql_q "NOTIFY pgrst, 'reload schema'" >/dev/null
+sleep 2
 probe="$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${KP}/rest/v1/m200_probe?select=secret" -H "apikey: ${AK}")"
 psql_q "DROP TABLE IF EXISTS public.m200_probe" >/dev/null
 case "${probe}" in 2*) fail "anon GET on a fresh, never-granted table answered ${probe} — the default privilege still hands new tables to the public key" ;; esac
