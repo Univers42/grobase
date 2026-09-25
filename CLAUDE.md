@@ -281,10 +281,13 @@ hardening, `m196` vault drops privileges on Fly, `m197` functions network jail, 
 no RLS-less `public` table is reachable by anon/authenticated (+ PostgREST logs in as authenticator).
 `m201` realtime accepts only the listed token issuers (`REALTIME_JWT_ISSUER`) and refuses a token
 without `iss` (`REALTIME_JWT_ALLOW_NO_ISSUER=1` opts out). `m202` proves
-`IDENTITY_HEADER_MODE=strict` is serviceable for real traffic (H-19): against a storage-router
-recreated in strict mode, a real GoTrue session is accepted while a raw `X-User-Id`, a cross-app
-realtime token and a wrong-secret token are refused — it fails loudly in `compat`, so it cannot pass
-vacuously, and it is the gate that licenses flipping the prod overlay to strict.
+`IDENTITY_HEADER_MODE=strict` is serviceable for real traffic (H-19): it starts a second, strict
+storage-router process _inside_ the running container (same image, same env, only the mode and port
+overridden — the stack stays compat), then shows a real GoTrue session accepted while a raw
+`X-User-Id`, a cross-app realtime token and a wrong-secret token are refused, and that the compat
+instance accepts that same raw header (so the 401 is the mode, not a broken probe). Tokens are signed
+inside the container, so `JWT_SECRET` never reaches the host. It is the gate that licenses flipping
+the prod overlay to strict, and it fails fast on an image built before the bearer-JWT rung.
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 
