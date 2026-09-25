@@ -18,7 +18,7 @@ port=${POSTGRES_PORT:-5432}
 user=${POSTGRES_USER:-postgres}
 db=${POSTGRES_DB:-postgres}
 marker=${PROJECT_INIT_MARKER:-track_binocle_20260504}
-export PGPASSWORD=${PGPASSWORD:-${POSTGRES_PASSWORD:-postgres}}
+export PGPASSWORD="${PGPASSWORD:-${POSTGRES_PASSWORD:-postgres}}"
 if [ -z "${PGOPTIONS:-}" ]; then
   export PGOPTIONS="-c search_path=public"
 fi
