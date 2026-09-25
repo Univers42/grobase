@@ -3,6 +3,7 @@ import type { Request } from 'express';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { UserContext, VerifiedRequestIdentity } from '../interfaces/user-context.interface';
 import { defaultNonceStore, type NonceStore } from './nonce-store';
+import { bearerToken, verifyUserJwt } from './user-jwt';
 
 type HeaderRequest = Pick<Request, 'headers' | 'method' | 'url' | 'originalUrl'>;
 type IdentityHeaderMode = 'compat' | 'strict';
@@ -15,10 +16,17 @@ interface IdentityKey {
 const DEFAULT_SKEW_MS = 30_000;
 
 /**
- * Resolves the caller's verified identity: a signed envelope first, then (compat
- * mode only) legacy raw headers. `nonceStore` is the replay cache — defaults to
- * the process-wide store selected by IDENTITY_NONCE_STORE. Async: callers MUST
- * await it, since an un-awaited Promise is truthy and would pass any guard.
+ * Resolves the caller's verified identity, in descending order of trust: a
+ * signed HMAC envelope, then (compat mode only) legacy raw headers, then a
+ * bearer GoTrue JWT. `nonceStore` is the replay cache — defaults to the
+ * process-wide store selected by IDENTITY_NONCE_STORE. Async: callers MUST await
+ * it, since an un-awaited Promise is truthy and would pass any guard.
+ *
+ * The legacy rung is tried BEFORE the JWT rung on purpose (H-19): in compat mode
+ * a request carrying both resolves exactly as it did before the JWT path
+ * existed, so the live baseline is byte-identical. In strict mode legacy headers
+ * resolve to nothing, so the JWT is what the request is judged on and the raw
+ * headers Kong sets are simply ignored rather than fatal.
  */
 export async function resolveRequestIdentity(
   req: HeaderRequest,
@@ -31,6 +39,10 @@ export async function resolveRequestIdentity(
   const mode = identityHeaderMode();
   const legacyIdentity = readLegacyIdentity(req);
   if (legacyIdentity && mode === 'compat') return legacyIdentity;
+
+  const jwtIdentity = readBearerJwtIdentity(req, mode);
+  if (jwtIdentity) return jwtIdentity;
+
   if (legacyIdentity && mode === 'strict') {
     throw new UnauthorizedException('Raw identity headers are not trusted in strict mode');
   }
@@ -240,6 +252,61 @@ function readLegacyIdentity(req: HeaderRequest): VerifiedRequestIdentity | undef
     scopes: splitList(header(req, 'x-baas-scopes') ?? header(req, 'x-scopes')),
     authMethod: 'legacy-header',
   };
+}
+
+/**
+ * The identity of a caller presenting an `Authorization: Bearer <GoTrue JWT>`,
+ * or undefined when there is no such token, no secret to verify it with, or the
+ * token does not hold up. This is the signer H-19 was missing: before it, only
+ * the api-key route could produce an identity strict mode accepts, so flipping
+ * strict would have 401'd every JWT caller.
+ *
+ * Active in strict mode unconditionally (strict without it rejects everything),
+ * and in compat mode only under IDENTITY_JWT_BEARER_ENABLED=1, so the default
+ * deployment keeps its exact current accept set while the path is exercised.
+ *
+ * Trust boundaries this path holds:
+ *   - tenant/project come from `app_metadata`, which GoTrue does not let a user
+ *     write, falling back to `sub` (a user is their own tenant) — never from a
+ *     client header.
+ *   - `roleNames`/`scopes` are derived from the token alone. The raw
+ *     x-baas-roles / x-baas-scopes headers are authorization inputs the client
+ *     controls and are deliberately not read here (see N-12).
+ *   - `sub` is required, which is also what rejects the anon and service_role
+ *     project keys: they are subject-less tokens signed with the same secret.
+ */
+function readBearerJwtIdentity(
+  req: HeaderRequest,
+  mode: IdentityHeaderMode,
+): VerifiedRequestIdentity | undefined {
+  const token = bearerToken(header(req, 'authorization'));
+  if (!token) return undefined;
+  if (mode !== 'strict' && !envFlag('IDENTITY_JWT_BEARER_ENABLED')) return undefined;
+  const claims = verifyUserJwt(token, userJwtSecret(), {
+    allowNoExp: envFlag('JWT_ALLOW_NO_EXP'),
+    issuers: splitList(process.env['GOTRUE_JWT_ISSUER']),
+  });
+  if (!claims?.sub) return undefined;
+  const role = claims.role || 'authenticated';
+  const tenantId = claims.app_metadata?.tenant_id || claims.sub;
+  return {
+    tenantId,
+    projectId: claims.app_metadata?.project_id || tenantId,
+    appId: 'jwt',
+    userId: `user:${claims.sub}`,
+    role,
+    roleNames: [role],
+    scopes: [],
+    authMethod: 'jwt',
+  };
+}
+
+function userJwtSecret(): string {
+  return process.env['GOTRUE_JWT_SECRET'] || process.env['JWT_SECRET'] || '';
+}
+
+function envFlag(name: string): boolean {
+  return /^(1|true)$/i.test(String(process.env[name] ?? '').trim());
 }
 
 function header(req: HeaderRequest, name: string): string | undefined {

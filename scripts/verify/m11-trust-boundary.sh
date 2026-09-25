@@ -122,7 +122,7 @@ for prefix in '/functions/' '/query/' '/storage/v1'; do
 done
 pass "Kong clears client identity + authz headers, on all three public prefixes"
 
-step "checking signed envelope positive and forged-header negative paths"
+step "checking envelope + bearer-JWT positive paths and forged-header negative paths"
 ENVELOPE_TS="${BAAS_DIR}/src/.m11-envelope.ts"
 trap 'rm -f "${ENVELOPE_TS}"' EXIT
 cat >"${ENVELOPE_TS}" <<'TS'
@@ -196,6 +196,59 @@ async function main(): Promise<void> {
       `forged ${forged} was accepted on a signed envelope`,
     );
   }
+
+  await bearerJwtRung();
+}
+
+// H-19: the bearer-JWT rung. Strict mode must accept a GoTrue token on its own
+// (otherwise flipping strict 401s every JWT caller), must ignore the raw headers
+// Kong sets alongside it, and must stay inert in compat mode unless opted in —
+// that last case is the byte-parity claim the default deployment relies on.
+async function bearerJwtRung(): Promise<void> {
+  process.env['GOTRUE_JWT_SECRET'] = 'm11-jwt-secret';
+  const jwtReq = (token: string, extra: Record<string, string> = {}) => ({
+    method: 'GET',
+    url: '/storage/v1/object/b/k',
+    originalUrl: '/storage/v1/object/b/k',
+    headers: { authorization: `Bearer ${token}`, ...extra },
+  });
+  const token = mintJwt({
+    sub: '00000000-0000-4000-8000-000000000555',
+    exp: Math.floor(Date.now() / 1000) + 600,
+    app_metadata: { tenant_id: '00000000-0000-4000-8000-000000000111' },
+  });
+
+  const resolved = await resolveRequestIdentity(jwtReq(token, { 'x-user-id': 'spoofed' }), true);
+  if (resolved?.authMethod !== 'jwt' || resolved.tenantId !== identity.tenantId) {
+    throw new Error('strict mode did not resolve a bearer GoTrue JWT to a jwt identity');
+  }
+  if (resolved.userId !== 'user:00000000-0000-4000-8000-000000000555') {
+    throw new Error('jwt identity took its user from somewhere other than the signed sub');
+  }
+  if (resolved.roleNames.join(',') !== 'authenticated' || resolved.scopes.length !== 0) {
+    throw new Error('jwt identity carried roles/scopes it did not derive from the token');
+  }
+
+  await rejects(
+    () => resolveRequestIdentity(jwtReq(mintJwt({ sub: 'u-1', exp: 1 })), true),
+    'Missing verified identity envelope',
+    'an expired bearer JWT was accepted in strict mode',
+  );
+
+  process.env['IDENTITY_HEADER_MODE'] = 'compat';
+  delete process.env['IDENTITY_JWT_BEARER_ENABLED'];
+  await rejects(
+    () => resolveRequestIdentity(jwtReq(token), true),
+    'Missing verified identity envelope',
+    'compat mode accepted a bearer JWT without IDENTITY_JWT_BEARER_ENABLED (parity break)',
+  );
+  process.env['IDENTITY_HEADER_MODE'] = 'strict';
+}
+
+function mintJwt(claims: Record<string, unknown>): string {
+  const enc = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const body = `${enc({ alg: 'HS256', typ: 'JWT' })}.${enc(claims)}`;
+  return `${body}.${createHmac('sha256', 'm11-jwt-secret').update(body).digest('base64url')}`;
 }
 
 async function rejects(call: () => Promise<unknown>, expect: string, onAccept: string): Promise<void> {
@@ -217,7 +270,7 @@ TS
 node_in_src 'npx ts-node -r tsconfig-paths/register --transpile-only .m11-envelope.ts' ||
   fail "signed-envelope round-trip or a forged-header negative case did not hold"
 rm -f "${ENVELOPE_TS}"
-pass "signed envelopes are accepted and forged raw identity is rejected in strict mode"
+pass "signed envelopes + bearer JWTs are accepted, forged raw identity rejected, compat inert"
 
 step "checking TypeScript compiles"
 node_in_src 'npx tsc --noEmit -p tsconfig.json' || fail "TypeScript typecheck failed"
