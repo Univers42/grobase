@@ -18,6 +18,9 @@
 #        is a tenant slug) and a token signed with the wrong secret are all     #
 #        refused — and the same raw header IS accepted by the compat instance,  #
 #        so its 401 is the mode at work, not a broken probe                     #
+#    (3) an object its owner wrote through compat (headers as Kong sets them)   #
+#        is still that owner's in strict, and still no one else's — the flip   #
+#        must not re-key existing data                                         #
 #                                                                              #
 #  The strict instance is a second process started INSIDE the running          #
 #  storage-router container with only IDENTITY_HEADER_MODE and PORT            #
@@ -104,6 +107,27 @@ const claims = (sub, iss) => ({ sub, iss, role: "authenticated", exp: Math.floor
       console.log(`${name} ${port} ${r.status}`);
     }
   }
+  const sub = JSON.parse(Buffer.from(session.split(".")[1], "base64url").toString()).sub;
+  const kong = { ...cases.session, "x-user-id": sub, "x-user-role": "authenticated" };
+  const at = (port, path) => `http://127.0.0.1:${port}/storage/v1/${path}`;
+  await fetch(at("3040", "bucket/m202"), { method: "POST", headers: kong });
+  const put = await fetch(at("3040", "object/m202/continuity.txt"), {
+    method: "PUT", headers: { ...kong, "content-type": "text/plain" }, body: "m202-owned",
+  });
+  console.log(`write 3040 ${put.status}`);
+  const get = await fetch(at(process.env.STRICT_PORT, "object/m202/continuity.txt"), { headers: cases.session });
+  const body = get.ok ? await get.text() : "";
+  console.log(`continuity ${process.env.STRICT_PORT} ${get.status}`);
+  console.log(`continuity-body ${process.env.STRICT_PORT} ${body === "m202-owned" ? "same" : "differs"}`);
+  const other = await fetch("http://gotrue:9999/signup", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: `m202-other-${Date.now()}@grobase.local`, password: "M202-probe#2026" }),
+  });
+  const otherSession = (await other.json()).access_token;
+  const foreign = await fetch(at(process.env.STRICT_PORT, "object/m202/continuity.txt"), {
+    headers: { authorization: `Bearer ${otherSession}` },
+  });
+  console.log(`otheruser ${process.env.STRICT_PORT} ${foreign.status}`);
 })().catch((e) => console.log(`error ${e.message}`));' 2>&1
 }
 
@@ -157,5 +181,15 @@ ok "cross-app realtime token (iss grobase-realtime) → 401"
 [ "$(status wrongsecret "${STRICT_PORT}")" = 401 ] ||
   fail "a token signed with the wrong secret got $(status wrongsecret "${STRICT_PORT}"), expected 401"
 ok "token signed with another secret → 401"
+case "$(status write 3040)" in
+2*) ;;
+*) fail "the compat instance refused an owner-scoped upload ($(status write 3040)); continuity cannot be tested" ;;
+esac
+[ "$(status continuity "${STRICT_PORT}")" = 200 ] && [ "$(status continuity-body "${STRICT_PORT}")" = same ] ||
+  fail "an object written through compat is not readable by its owner in strict ($(status continuity "${STRICT_PORT}")) — the flip would hide existing data"
+case "$(status otheruser "${STRICT_PORT}")" in
+2*) fail "another user read the object in strict ($(status otheruser "${STRICT_PORT}")); continuity above proves nothing" ;;
+esac
+ok "an object written under compat is its owner's in strict, and nobody else's ($(status otheruser "${STRICT_PORT}"))"
 
 printf '\033[0;32m[M202] OK — strict identity mode is serviceable for real traffic\033[0m\n'

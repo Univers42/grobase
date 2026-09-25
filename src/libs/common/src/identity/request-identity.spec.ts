@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import {
   canonicalIdentityString,
+  identityToUserContext,
   resolveRequestIdentity,
   signIdentityEnvelope,
 } from './request-identity';
@@ -490,7 +491,7 @@ describe('bearer-JWT identity path (H-19)', () => {
     );
     const id = await resolveRequestIdentity(req, true);
     expect(id?.authMethod).toBe('jwt');
-    expect(id?.userId).toBe('user:u-9');
+    expect(id?.userId).toBe('u-9');
     expect(id?.tenantId).toBe('t-7');
   });
 
@@ -515,9 +516,26 @@ describe('bearer-JWT identity path (H-19)', () => {
     });
     const id = await resolveRequestIdentity(req, true);
     expect(id?.authMethod).toBe('jwt');
-    expect(id?.userId).toBe('user:u-9');
+    expect(id?.userId).toBe('u-9');
     expect(id?.tenantId).toBe('t-7');
     expect(id?.role).toBe('authenticated');
+  });
+
+  it('gives a Kong-forwarded user the SAME context in strict as in compat', async () => {
+    const sub = randomUUID();
+    const token = mintJwt({ sub, role: 'authenticated', email: 'p@example.test' });
+    const kongHeaders = { 'x-user-id': sub, 'x-user-role': 'authenticated' };
+    process.env.IDENTITY_HEADER_MODE = 'compat';
+    const legacy = await resolveRequestIdentity(bearerReq(token, kongHeaders), true);
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    const jwt = await resolveRequestIdentity(bearerReq(token, kongHeaders), true);
+    const owned = (id: VerifiedRequestIdentity | undefined) => {
+      const { id: userId, tenantId, projectId, appId, role } = identityToUserContext(id!);
+      return { userId, tenantId, projectId, appId, role };
+    };
+    expect(legacy?.authMethod).toBe('legacy-header');
+    expect(jwt?.authMethod).toBe('jwt');
+    expect(owned(jwt)).toEqual(owned(legacy));
   });
 
   it('falls back to sub as the tenant when app_metadata carries none', async () => {
