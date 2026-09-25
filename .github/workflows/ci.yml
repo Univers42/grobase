@@ -95,6 +95,11 @@ jobs:
       - name: preflight-production (m194)
         run: bash scripts/verify/m194-preflight-production.sh
 
+      # promtool (pinned prom image): rules and config validate, and the rule
+      # unit tests fire each alert on its own synthetic series. No stack.
+      - name: alert rules (m52)
+        run: bash scripts/verify/m52-alert-rules.sh
+
   # ─── Job 2: Docker build for each service ──────────────────────
   # Build contexts live under the repo root. NestJS apps build from src/ with
   # an APP build-arg; the Go control plane from src/control-plane/ with APP+PORT;

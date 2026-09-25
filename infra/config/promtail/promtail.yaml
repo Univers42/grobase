@@ -52,10 +52,15 @@ scrape_configs:
             # When neither plane emits the field (TENANT_OBS flags OFF) this
             # expression matches nothing — inert, baseline-safe.
             tenant_id: tenant_id
+            event_type: event_type
+      # event_type (auth_failure | access_denied | rate_limited, set by the Nest
+      # request-metrics middleware) is a label so LogQL can select security
+      # events directly: {event_type="auth_failure"}. Four values at most.
       - labels:
           stream:
           level:
           service:
+          event_type:
       - timestamp:
           source: time
           format: RFC3339Nano
