@@ -27,8 +27,13 @@ set -euo pipefail
 
 BENCH_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BENCH_ROOT="$(cd "${BENCH_LIB_DIR}/../.." && pwd)"
+BENCH_DIR="${BENCH_ROOT}/scripts/bench"
 BENCH_OUT_DIR="${BENCH_ROOT}/artifacts/bench"
-BUDGETS_JSON="${BENCH_LIB_DIR}/budgets.json"
+BUDGETS_JSON="${BENCH_DIR}/budgets.json"
+[ -f "${BUDGETS_JSON}" ] || {
+  printf 'lib-bench: %s missing\n' "${BUDGETS_JSON}" >&2
+  return 2 2>/dev/null || exit 2
+}
 
 # Pinned load generator (METHOD.md rule 2). Override only for an upgrade PR.
 K6_IMAGE="${K6_IMAGE:-grafana/k6:0.57.0}"
@@ -69,7 +74,7 @@ bench_k6() { # $1 script (path under scripts/bench/k6/), $2 out json (under arti
   # -u host uid: the k6 image's default user can't write the bind-mounted
   # artifacts dir (and root would litter it with root-owned files).
   docker run --rm --network host -u "$(id -u):$(id -g)" \
-    -v "${BENCH_LIB_DIR}/k6:/scripts:ro" \
+    -v "${BENCH_DIR}/k6:/scripts:ro" \
     -v "${BENCH_OUT_DIR}:/out" \
     -e "K6_OUT_FILE=/out/$(basename "${out}")" \
     "${K6_IMAGE}" run --quiet "/scripts/$(basename "${script}")" "$@"

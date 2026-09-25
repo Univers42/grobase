@@ -25,7 +25,7 @@ cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 
-RT_DIR="${ROOT}/docker/services/realtime/realtime-agnostic"
+RT_DIR="${ROOT}/infra/docker/services/realtime/realtime-agnostic"
 [[ -d "${RT_DIR}" ]] || {
   red "realtime workspace not found at ${RT_DIR}"
   exit 1
@@ -61,7 +61,7 @@ jq -n --argjson env "$(bench_env_json)" \
   '{
 	  source: "realtime-engine criterion (cargo bench)",
 	  note: $note,
-	  raw_report: "docker/services/realtime/realtime-agnostic/target/criterion/report/index.html",
+	  raw_report: "infra/docker/services/realtime/realtime-agnostic/target/criterion/report/index.html",
 	  baseline_reference: "PERFORMANCE_ANALYSIS.md (filter index O(1) ~3us @10K; router ~542us @10K = ~1.8K routes/s; payload serialize ~617ns/client)",
 	  env: $env
 	}' >"${FINAL}"
