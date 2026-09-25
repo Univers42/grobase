@@ -14,7 +14,11 @@
 #    guards  storage-router STORAGE_ACTIVE_CONTENT_GUARD_ENABLED=1 (L-9),      #
 #            query-router AUTOMATION_WEBHOOK_IP_PIN_ENABLED=1 (L-12); base     #
 #            env maps merged; neither key changes on any other service         #
-#    held    IDENTITY_HEADER_MODE, TENANT_HEADER_IDENTITY_HMAC, SECURITY_MODE, #
+#    identity IDENTITY_HEADER_MODE=strict on exactly the 11 Nest services   #
+#            that read it (H-19, m202 = live), base env maps merged, every     #
+#            other service as the base has it; PROD_IDENTITY_HEADER_MODE=compat #
+#            renders compat on the same 11 (the escape hatch works)            #
+#    held    TENANT_HEADER_IDENTITY_HMAC, SECURITY_MODE,                       #
 #            REALTIME_NAMESPACE_FALLBACK, TENANT_CONTROL_VERIFY_CACHE_TTL_MS   #
 #            identical on every service with and without the overlay (a        #
 #            service only the overlay adds carries none of them)               #
@@ -28,7 +32,9 @@
 #            8000=kong:8000 and the one secrets path, env = its two specs      #
 #            only, runs relay.ts, same profiles as the runtime (m197 = live)   #
 #    parity  base alone keeps today's values (autoconfirm from .env, else      #
-#            false; min length 8; admin 0.0.0.0:8001; guard flags and          #
+#            false; min length 8; admin 0.0.0.0:8001; identity mode as .env    #
+#            has it (storage-router: STORAGE_IDENTITY_HEADER_MODE, else        #
+#            compat); guard flags and                                          #
 #            FUNCTIONS_NET_ALLOWLIST_ENABLED as .env has them, else unset;     #
 #            functions-runtime on mini-baas, no relay, no jail) = OFF          #
 #  CLOUD   base + docker-compose.cloud.yml (make cloud-up) with its            #
@@ -51,8 +57,8 @@
 #  stays in a mode-700 temp dir and only named, non-secret paths are printed.  #
 #                                                                              #
 #  Mutant hook: M195_OVERLAY=<path> checks another overlay; one that drops a   #
-#  value, leaves the admin API on, sets an identity flag, puts a guard flag    #
-#  on the wrong service, leaves functions-runtime on mini-baas, drops the      #
+#  value, leaves the admin API on, misses or widens strict identity, sets the  #
+#  tenant-header HMAC, puts a guard flag on the wrong service, leaves functions-runtime on mini-baas, drops the      #
 #  Worker allowlist, or relays one port more must go red.                      #
 #  M195_CLOUD_OVERLAY=<path> does the same for the cloud overlay: one that     #
 #  drops a guard, hands flags.env.cloud to another service, or lets its        #
@@ -225,22 +231,54 @@ static_kong() {
   ok "no 8001/8002/8444 publish; healthcheck probes :8000; prometheus.yml scrapes kong:8001 = status listener"
 }
 
+# identity_readers prints the 11 Nest services whose code reads
+# IDENTITY_HEADER_MODE (resolveRequestIdentity), as a JSON array.
+identity_readers() {
+  printf '%s' '["ai-service","analytics-service","email-service","gdpr-service","mongo-api",
+    "newsletter-service","permission-engine","query-router","schema-service","session-service","storage-router"]'
+}
+
+# identity_is asserts in rendered file $1 that IDENTITY_HEADER_MODE is $2 on
+# every identity reader, with its base env map merged, and as the base has it
+# on every other service.
+identity_is() {
+  jq -e -n --slurpfile b "${T}/base.json" --slurpfile p "$1" --argjson r "$(identity_readers)" --arg m "$2" '
+    ($r | map(. as $s | $p[0].services[$s].environment.IDENTITY_HEADER_MODE == $m
+      and ((($b[0].services[$s].environment // {}) | keys) - ($p[0].services[$s].environment | keys) | length == 0))
+      | all)
+    and ([$p[0].services | keys[] | select(. as $x | $r | index($x) | not) as $x
+      | select($b[0].services[$x].environment.IDENTITY_HEADER_MODE != $p[0].services[$x].environment.IDENTITY_HEADER_MODE)]
+      | length == 0)' >/dev/null ||
+    fail "${1##*/}: IDENTITY_HEADER_MODE is not '$2' on exactly the 11 identity readers (or a reader lost base env keys)"
+}
+
+# static_identity asserts the prod overlay makes the 11 identity readers strict
+# and nothing else, and that PROD_IDENTITY_HEADER_MODE=compat reverts them.
+static_identity() {
+  jq -e --argjson r "$(identity_readers)" '[$r[] as $s | .services[$s] != null] | all' "${T}/prod.json" >/dev/null ||
+    fail "an identity reader is missing from the prod render — the strict check would be vacuous"
+  identity_is "${T}/prod.json" strict
+  PROD_IDENTITY_HEADER_MODE=compat render "${T}/prod-compat.json" -f docker-compose.yml -f "${OVERLAY}"
+  identity_is "${T}/prod-compat.json" compat
+  ok "IDENTITY_HEADER_MODE=strict on the 11 identity readers only; PROD_IDENTITY_HEADER_MODE=compat reverts them"
+}
+
 # static_held asserts the deferred and blocked vars are identical on every
 # service with and without the overlay (a service only the overlay adds must
-# carry none of them), and the overlay never names the two identity flags
+# carry none of them), and the overlay never names the tenant-header HMAC
 # outside a comment.
 static_held() {
   jq -e -n --slurpfile b "${T}/base.json" --slurpfile p "${T}/prod.json" 'def held: (.environment // {})
-    | {IDENTITY_HEADER_MODE, TENANT_HEADER_IDENTITY_HMAC, SECURITY_MODE,
+    | {TENANT_HEADER_IDENTITY_HMAC, SECURITY_MODE,
        REALTIME_NAMESPACE_FALLBACK, TENANT_CONTROL_VERIFY_CACHE_TTL_MS};
     [$p[0].services | to_entries[] | select((.value | held) != (($b[0].services[.key] // {}) | held))]
     | length == 0' >/dev/null ||
-    fail "the overlay changed a deferred/blocked var (identity, SECURITY_MODE, realtime fallback, verify TTL)"
+    fail "the overlay changed a deferred/blocked var (tenant-header HMAC, SECURITY_MODE, realtime fallback, verify TTL)"
   jq -e '.services.realtime and .services["tenant-control"]' "${T}/prod.json" >/dev/null ||
     fail "realtime/tenant-control not rendered — the held-var check would be vacuous"
-  ! grep -v '^[[:space:]]*#' "${OVERLAY}" | grep -Eq 'IDENTITY_HEADER_MODE|TENANT_HEADER_IDENTITY_HMAC' ||
-    fail "${OVERLAY} sets IDENTITY_HEADER_MODE or TENANT_HEADER_IDENTITY_HMAC (no signer exists: BLOCKED)"
-  ok "identity flags, SECURITY_MODE, realtime fallback, verify-cache TTL untouched on every service"
+  ! grep -v '^[[:space:]]*#' "${OVERLAY}" | grep -q 'TENANT_HEADER_IDENTITY_HMAC' ||
+    fail "${OVERLAY} sets TENANT_HEADER_IDENTITY_HMAC (no signer exists: BLOCKED)"
+  ok "tenant-header HMAC, SECURITY_MODE, realtime fallback, verify-cache TTL untouched on every service"
 }
 
 # static_jail_runtime asserts in rendered file $1 that functions-runtime sits
@@ -299,13 +337,15 @@ static_jail() {
 
 # static_parity asserts the base alone keeps today's values (OFF by default).
 static_parity() {
-  local b="${T}/base.json" ac st gui sg ip fa
+  local b="${T}/base.json" ac st gui sg ip fa im sm
   ac="$(dotenv_get GOTRUE_MAILER_AUTOCONFIRM)"
   st="$(dotenv_get KONG_STATUS_LISTEN)"
   gui="$(dotenv_get KONG_ADMIN_GUI_LISTEN)"
   sg="$(dotenv_get STORAGE_ACTIVE_CONTENT_GUARD_ENABLED)"
   ip="$(dotenv_get AUTOMATION_WEBHOOK_IP_PIN_ENABLED)"
   fa="$(dotenv_get FUNCTIONS_NET_ALLOWLIST_ENABLED)"
+  im="$(dotenv_get IDENTITY_HEADER_MODE)"
+  sm="$(dotenv_get STORAGE_IDENTITY_HEADER_MODE)"
   jq -e '(.services["functions-runtime"].networks | keys == ["mini-baas"]) and .services["functions-relay"] == null
     and .networks["functions-jail"] == null' "${b}" >/dev/null ||
     fail "base alone already jails functions-runtime or adds functions-relay/functions-jail (not OFF by default)"
@@ -317,7 +357,9 @@ static_parity() {
   expect_val "${b}" '.services.kong.environment.KONG_ADMIN_GUI_LISTEN' "${gui:-<unset>}"
   expect_val "${b}" '.services["storage-router"].environment.STORAGE_ACTIVE_CONTENT_GUARD_ENABLED' "${sg:-<unset>}"
   expect_val "${b}" '.services["query-router"].environment.AUTOMATION_WEBHOOK_IP_PIN_ENABLED' "${ip:-<unset>}"
-  ok "base alone: autoconfirm=${ac:-false} (from .env), min_length=8, admin 0.0.0.0:8001, no status/gui override, guards ${sg:-unset}/${ip:-unset}, functions-runtime on mini-baas (no relay, no jail), allowlist ${fa:-unset}"
+  expect_val "${b}" '.services["storage-router"].environment.IDENTITY_HEADER_MODE' "${sm:-compat}"
+  expect_val "${b}" '.services["mongo-api"].environment.IDENTITY_HEADER_MODE' "${im:-<unset>}"
+  ok "base alone: autoconfirm=${ac:-false} (from .env), min_length=8, admin 0.0.0.0:8001, no status/gui override, identity ${im:-unset} (storage-router ${sm:-compat}), guards ${sg:-unset}/${ip:-unset}, functions-runtime on mini-baas (no relay, no jail), allowlist ${fa:-unset}"
 }
 
 # listener_args prints `-e KEY=VALUE` lines for Kong's listener vars in the
@@ -416,7 +458,8 @@ dynamic_kong() {
 command -v jq >/dev/null || fail "jq is required"
 unset GOTRUE_MAILER_AUTOCONFIRM GOTRUE_PASSWORD_MIN_LENGTH KONG_STATUS_LISTEN KONG_ADMIN_LISTEN \
   KONG_ADMIN_GUI_LISTEN REALTIME_NAMESPACE_FALLBACK TENANT_CONTROL_VERIFY_CACHE_TTL_MS \
-  IDENTITY_HEADER_MODE TENANT_HEADER_IDENTITY_HMAC SECURITY_MODE KONG_CORS_ORIGIN_DEV_LIST
+  IDENTITY_HEADER_MODE TENANT_HEADER_IDENTITY_HMAC SECURITY_MODE KONG_CORS_ORIGIN_DEV_LIST \
+  PROD_IDENTITY_HEADER_MODE STORAGE_IDENTITY_HEADER_MODE
 step "render base, base+prod and base+cloud (every profile) to JSON"
 render "${T}/base.json" -f docker-compose.yml
 render "${T}/prod.json" -f docker-compose.yml -f "${OVERLAY}"
@@ -426,6 +469,7 @@ step "overlay values land on the services that read them"
 static_overlay
 static_kong
 static_guards
+static_identity
 static_held
 step "overlay strips the dev ports it lists (H-1)"
 static_ports
@@ -442,4 +486,4 @@ step "throwaway Kong: status listener vs admin API"
 KONG_IMG="$(jq -r '.services.kong.image' "${T}/prod.json")"
 docker image inspect "${KONG_IMG}" >/dev/null 2>&1 || fail "kong image ${KONG_IMG} not present locally (make build-svc-kong, or docker pull)"
 dynamic_kong
-printf '\033[0;32m[M195] PASS — prod overlay: signup policy on gotrue, Kong admin off with metrics intact, storage/webhook guards on their routers (prod and cloud), functions jailed behind one relay with the Worker allowlist on (prod and cloud), base unchanged\033[0m\n'
+printf '\033[0;32m[M195] PASS — prod overlay: signup policy on gotrue, Kong admin off with metrics intact, strict identity on the 11 readers, storage/webhook guards on their routers (prod and cloud), functions jailed behind one relay with the Worker allowlist on (prod and cloud), base unchanged\033[0m\n'
