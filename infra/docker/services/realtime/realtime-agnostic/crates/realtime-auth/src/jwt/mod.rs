@@ -18,6 +18,8 @@
 
 mod auth;
 mod config;
+#[cfg(test)]
+mod issuer_tests;
 
 pub use config::JwtConfig;
 
@@ -107,8 +109,12 @@ fn build_decoding_key(config: &JwtConfig) -> Result<DecodingKey> {
 
 fn build_validation(config: &JwtConfig) -> Validation {
     let mut validation = Validation::new(config.algorithm);
-    if let Some(ref issuer) = config.issuer {
-        validation.set_issuer(&[issuer]);
+    let issuers = config.accepted_issuers();
+    if !issuers.is_empty() {
+        validation.set_issuer(&issuers);
+        if config.require_issuer {
+            validation.set_required_spec_claims(&["exp", "iss"]);
+        }
     }
     if let Some(ref audience) = config.audience {
         validation.set_audience(&[audience]);
