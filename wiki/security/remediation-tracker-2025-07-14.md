@@ -61,6 +61,7 @@ Deployment target: **self-hosted** (`make prod-up` = enforced preflight + prod o
 | L-12 | Webhook DNS rebinding | `2463fd66` (IP-pinned connect-time lookup; the reverted IP-rewrite broke TLS) | `automations.pin.spec.ts` |
 | C-3 | Kong admin API on the flat network | `e92133b1` (prod: admin off, status listener keeps /metrics) | m195 throwaway Kong |
 | C-5 | Vault on fly ran as root | `3368756b` (`VAULT_DROP_PRIVILEGES_ENABLED`) | m196 |
+| L-4 | Verify gates had no timeout: a gate stuck on a port that never opens hung the battery until the CI job limit (180 min for the enterprise set) killed the run with no per-gate summary | `fix/gate-battery-timeout` — `run-gate-battery.sh` bounds each gate by `GATE_TIMEOUT` (default 1800 s, `0` = unbounded): SIGTERM so the gate's EXIT trap still removes its containers, SIGKILL 60 s later, reported as `FAIL … timed out` | a gate that sleeps 600 s: battery still running at 15 s (killed from outside, no summary) → with `GATE_TIMEOUT=5` it FAILs at 5 s, its EXIT trap ran, the next gate (m203) still ran and passed; m157 + m188 pass under the bound |
 
 ## Found during re-verification (not in the audit)
 
