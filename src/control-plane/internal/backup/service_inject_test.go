@@ -22,7 +22,7 @@ import (
 )
 
 // fakeStore is an in-memory ArtifactStore for exercising the Service's
-// store-facing seams (extractTo/replayInto) without a filesystem or MinIO.
+// store-facing seams (extractTo/fetchVerified) without a filesystem or MinIO.
 type fakeStore struct {
 	uploaded map[string][]byte
 	content  []byte
@@ -82,23 +82,23 @@ func TestExtractToDBPerTenantNoDSN(t *testing.T) {
 	}
 }
 
-// TestReplayIntoDeferredIsolation asserts replayInto's default arm returns
+// TestRestorerDeferredIsolation asserts restorer's default arm returns
 // ErrIsolationDeferred without attempting any DDL.
-func TestReplayIntoDeferredIsolation(t *testing.T) {
+func TestRestorerDeferredIsolation(t *testing.T) {
 	s := svcWithStore(newFakeStore())
-	err := s.replayInto(context.Background(), "tenant_owned", "tenant-1", "", "tenant-1/b1", "")
+	_, err := s.restorer("tenant_owned", "tenant-1", "")
 	if !errors.Is(err, ErrIsolationDeferred) {
-		t.Fatalf("replayInto(tenant_owned) = %v, want ErrIsolationDeferred", err)
+		t.Fatalf("restorer(tenant_owned) = %v, want ErrIsolationDeferred", err)
 	}
 }
 
-// TestReplayIntoDBPerTenantNoDSN asserts db_per_tenant restore without a DSN
+// TestRestorerDBPerTenantNoDSN asserts db_per_tenant restore without a DSN
 // errors with the documented guard rather than proceeding.
-func TestReplayIntoDBPerTenantNoDSN(t *testing.T) {
+func TestRestorerDBPerTenantNoDSN(t *testing.T) {
 	s := svcWithStore(newFakeStore())
-	err := s.replayInto(context.Background(), "db_per_tenant", "tenant-1", "", "tenant-1/b1", "")
+	_, err := s.restorer("db_per_tenant", "tenant-1", "")
 	if err == nil {
-		t.Fatalf("replayInto(db_per_tenant, no dsn) = nil error")
+		t.Fatalf("restorer(db_per_tenant, no dsn) = nil error")
 	}
 	if !strings.Contains(err.Error(), "requires a resolved DSN") {
 		t.Fatalf("error = %v, want requires a resolved DSN", err)

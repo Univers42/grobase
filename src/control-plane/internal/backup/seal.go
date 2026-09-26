@@ -1,17 +1,16 @@
 package backup
 
 import (
-	"bufio"
-	"errors"
 	"fmt"
 	"io"
 
 	"filippo.io/age"
 )
 
-// ageHeader opens every age v1 file; restore sniffs it to tell a sealed artifact
-// from a legacy plaintext one.
-const ageHeader = "age-encryption.org/v1\n"
+// sealedSuffix ends the store key (and so the ledger location) of an
+// age-sealed artifact. Restore reads the seal state from the ledger, never from
+// the artifact's bytes, which tenant data can shape.
+const sealedSuffix = ".age"
 
 // ErrPlaintextArtifact refuses a plaintext artifact on a deployment that seals
 // its backups: a swapped-in clear artifact must not restore silently.
@@ -29,11 +28,22 @@ type Sealer struct {
 	allowPlaintext bool
 }
 
+// sealing reports whether new artifacts are sealed.
+func (sl Sealer) sealing() bool { return len(sl.recipients) > 0 }
+
+// artifactKey is the store key of a backup; a sealed artifact carries sealedSuffix.
+func artifactKey(tenantID, backupID string, sealed bool) string {
+	if sealed {
+		return tenantID + "/" + backupID + sealedSuffix
+	}
+	return tenantID + "/" + backupID
+}
+
 // writeTo runs fill against dst, through an age stream when recipients are set.
 // On a fill error the age stream is deliberately NOT closed: closing writes the
 // final chunk, which would authenticate a truncated artifact.
 func (sl Sealer) writeTo(dst io.Writer, fill func(io.Writer) error) error {
-	if len(sl.recipients) == 0 {
+	if !sl.sealing() {
 		return fill(dst)
 	}
 	w, err := age.Encrypt(dst, sl.recipients...)
@@ -51,13 +61,9 @@ func (sl Sealer) writeTo(dst io.Writer, fill func(io.Writer) error) error {
 
 // open reads src to EOF (so a caller hashing src sees every stored byte; age
 // itself refuses bytes after its final chunk) and returns the artifact's
-// plaintext, decrypting a sealed artifact.
-// Ponytail: sealed-vs-plain is sniffed from the age header — a plaintext artifact
-// whose first COPY row starts with that header fails to decrypt, so it is refused
-// (fail-closed), never mis-restored.
-func (sl Sealer) open(src io.Reader) ([]byte, error) {
-	br := bufio.NewReader(src)
-	r, err := sl.reader(br)
+// plaintext. sealed is the ledger's record of how the artifact was written.
+func (sl Sealer) open(src io.Reader, sealed bool) ([]byte, error) {
+	r, err := sl.reader(src, sealed)
 	if err != nil {
 		return nil, err
 	}
@@ -68,23 +74,19 @@ func (sl Sealer) open(src io.Reader) ([]byte, error) {
 	return plain, nil
 }
 
-// reader returns the plaintext view of br: an age decryptor for a sealed
-// artifact, br itself for a plaintext one the policy accepts.
-func (sl Sealer) reader(br *bufio.Reader) (io.Reader, error) {
-	head, err := br.Peek(len(ageHeader))
-	if err != nil && !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("backup: read artifact: %w", err)
-	}
-	if string(head) != ageHeader {
-		if len(sl.recipients) > 0 && !sl.allowPlaintext {
+// reader returns the plaintext view of src: an age decryptor for a sealed
+// artifact, src itself for a plaintext one the policy accepts.
+func (sl Sealer) reader(src io.Reader, sealed bool) (io.Reader, error) {
+	if !sealed {
+		if sl.sealing() && !sl.allowPlaintext {
 			return nil, ErrPlaintextArtifact
 		}
-		return br, nil
+		return src, nil
 	}
 	if len(sl.identities) == 0 {
 		return nil, ErrArtifactSealed
 	}
-	r, err := age.Decrypt(br, sl.identities...)
+	r, err := age.Decrypt(src, sl.identities...)
 	if err != nil {
 		return nil, fmt.Errorf("backup: decrypt artifact: %w", err)
 	}

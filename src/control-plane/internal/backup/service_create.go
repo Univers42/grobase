@@ -58,7 +58,7 @@ func (s *Service) CreateBackup(ctx context.Context, tenantID, mount string) (str
 	if err != nil {
 		return "", err
 	}
-	key := tenantID + "/" + backupID
+	key := artifactKey(tenantID, backupID, s.seal.sealing())
 	location, size, sha, xerr := s.extractTo(ctx, iso, tenantID, dsn, key)
 	if xerr != nil {
 		s.markFailed(ctx, backupID, xerr)

@@ -39,11 +39,13 @@ func (s *Service) restorer(iso, tenantID, dsn string) (func(context.Context, []b
 	}
 }
 
-// fetchVerified downloads the artifact at key, hashes every stored byte while
-// the sealer opens it, and returns the plaintext only when that hash equals the
-// ledger's wantSHA. The download goroutine is always unblocked and awaited.
-func (s *Service) fetchVerified(ctx context.Context, key, wantSHA string) ([]byte, error) {
-	if wantSHA == "" {
+// fetchVerified downloads the artifact of row at key, hashes every stored byte
+// while the sealer opens it, and returns the plaintext only when that hash equals
+// the ledger's sha256. It reads at most size_bytes+1 bytes, so an oversized
+// artifact is refused, never buffered. The download goroutine is always
+// unblocked and awaited.
+func (s *Service) fetchVerified(ctx context.Context, key string, row restoreRow) ([]byte, error) {
+	if row.sha == "" {
 		return nil, ErrArtifactUnverified
 	}
 	pr, pw := io.Pipe()
@@ -53,13 +55,17 @@ func (s *Service) fetchVerified(ctx context.Context, key, wantSHA string) ([]byt
 		close(done)
 	}()
 	h := sha256.New()
-	plain, err := s.seal.open(io.TeeReader(pr, h))
+	stored := &io.LimitedReader{R: pr, N: row.size + 1}
+	plain, err := s.seal.open(io.TeeReader(stored, h), row.sealed())
 	_ = pr.CloseWithError(errRestoreRead)
 	<-done
+	if stored.N == 0 {
+		return nil, ErrArtifactIntegrity
+	}
 	if err != nil {
 		return nil, err
 	}
-	if hex.EncodeToString(h.Sum(nil)) != wantSHA {
+	if hex.EncodeToString(h.Sum(nil)) != row.sha {
 		return nil, ErrArtifactIntegrity
 	}
 	return plain, nil

@@ -590,14 +590,18 @@ sealed_backup() {
 }
 
 # expect_refused asserts restore of backup $2 for tenant $1 on port $3 is a 409
-# naming $4, and that A's marker table still holds $5 rows.
+# naming $4, that A still holds exactly its sentinel row (no TRUNCATE, no COPY
+# ran) and that the refusal left the backup's ledger status as it was.
 expect_refused() {
-  local c
+  local c st
+  st="$(psql_val "SELECT status FROM public.tenant_backups WHERE id='$2'")"
   c="$(admin_req POST "$3" "/v1/tenants/$1/restore/$2")"
   [[ "${c}" == "409" ]] || fail "(E) restore $2 on :$3 got ${c}, want 409 ($4) — $(head -c 300 "${BODY_TMP}")"
   grep -q "$4" "${BODY_TMP}" || fail "(E) 409 body does not name '$4' — $(head -c 300 "${BODY_TMP}")"
-  [[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m87_marker")" == "$5" ]] ||
-    fail "(E) a refused restore changed A's rows (want $5)"
+  [[ "$(psql_val "SELECT string_agg(payload, ',') FROM \"${SCHEMA_A}\".m87_marker")" == "e-sentinel" ]] ||
+    fail "(E) a refused restore changed A's rows (want only the sentinel)"
+  [[ "$(psql_val "SELECT status FROM public.tenant_backups WHERE id='$2'")" == "${st}" ]] ||
+    fail "(E) a refused restore moved backup $2 out of '${st}'"
 }
 
 step "8e/9 (E) a key mismatch refuses to boot"
@@ -614,24 +618,29 @@ step "8e/9 (E) sealing tenant-control on 127.0.0.1:${PORT_SEAL}; backup A is age
 seal_run "${TC_SEAL}" "${PORT_SEAL}" "${KEY_DIR}/id.key" -d >/dev/null
 wait_ready "${TC_SEAL}" "${PORT_SEAL}" || fail "(E) sealing tenant-control not ready"
 SEAL_A="$(sealed_backup "${TENANT_A}" m87-mount-a)"
-SEAL_A_FILE="${ARTIFACT_DIR}/${TENANT_A}/${SEAL_A}"
+SEAL_A_FILE="${ARTIFACT_DIR}/${TENANT_A}/${SEAL_A}.age"
+[[ -f "${SEAL_A_FILE}" && -f "${ARTIFACT_DIR}/${TENANT_A}/${BACKUP_A}" ]] ||
+  fail "(E) want the sealed artifact at <id>.age and the plaintext one at <id>"
+[[ "$(psql_val "SELECT location FROM public.tenant_backups WHERE id='${SEAL_A}'")" == *.age ]] ||
+  fail "(E) the ledger location does not record the seal"
 [[ "$(head -c 21 "${SEAL_A_FILE}")" == "age-encryption.org/v1" ]] || fail "(E) artifact ${SEAL_A_FILE} is not age-sealed"
 ! grep -q 'a-row-' "${SEAL_A_FILE}" || fail "(E) sealed artifact carries plaintext rows"
 [[ "$(sha256sum "${SEAL_A_FILE}" | cut -d' ' -f1)" == "$(psql_val "SELECT sha256 FROM public.tenant_backups WHERE id='${SEAL_A}'")" ]] ||
   fail "(E) ledger sha256 is not the sha of the stored (sealed) bytes"
-ok "(E) artifact starts with the age header, holds no row text, ledger sha256 = sha of the stored bytes"
+ok "(E) artifact <id>.age starts with the age header, holds no row text; ledger location records the seal, sha256 = sha of the stored bytes"
 
 step "8e/9 (E) refusals — plaintext on the sealing router, sealed without identity, B's artifact swapped in for A's"
-psql_q -c "DELETE FROM \"${SCHEMA_A}\".m87_marker;" >/dev/null 2>&1 || fail "(E) could not wipe A"
-expect_refused "${TENANT_A}" "${BACKUP_A}" "${PORT_SEAL}" "not encrypted" 0
-expect_refused "${TENANT_A}" "${SEAL_A}" "${PORT_ON}" "is encrypted" 0
+psql_q -c "DELETE FROM \"${SCHEMA_A}\".m87_marker; INSERT INTO \"${SCHEMA_A}\".m87_marker VALUES (0, 'e-sentinel');" >/dev/null 2>&1 ||
+  fail "(E) could not reset A to its sentinel row"
+expect_refused "${TENANT_A}" "${BACKUP_A}" "${PORT_SEAL}" "not encrypted"
+expect_refused "${TENANT_A}" "${SEAL_A}" "${PORT_ON}" "is encrypted"
 SEAL_B="$(sealed_backup "${TENANT_B}" m87-mount-b)"
 cp "${SEAL_A_FILE}" "${KEY_DIR}/a.orig"
-cp "${ARTIFACT_DIR}/${TENANT_B}/${SEAL_B}" "${SEAL_A_FILE}"
-expect_refused "${TENANT_A}" "${SEAL_A}" "${PORT_SEAL}" "does not match the ledger sha256" 0
+cp "${ARTIFACT_DIR}/${TENANT_B}/${SEAL_B}.age" "${SEAL_A_FILE}"
+expect_refused "${TENANT_A}" "${SEAL_A}" "${PORT_SEAL}" "does not match the ledger sha256"
 cp "${KEY_DIR}/a.orig" "${SEAL_A_FILE}"
 [[ "$(psql_val "${CK_SQL_B}")" == "${BASE_CK_B}" ]] || fail "(E) B changed during the swap"
-ok "(E) 409 for each; A still wiped (no COPY ran), B byte-untouched"
+ok "(E) 409 for each; A keeps exactly its sentinel row (no TRUNCATE, no COPY), ledger status unchanged, B byte-untouched"
 
 step "8e/9 (E) restore the sealed backup → A EXACT"
 C="$(admin_req POST "${PORT_SEAL}" "/v1/tenants/${TENANT_A}/restore/${SEAL_A}")"
@@ -668,7 +677,7 @@ step "summary"
 green "[M87] (A) POSITIVE: backup A (artifact on disk, size>0, sha256 hex, listed completed) → DELETE A → restore A → EXACTLY ${ROWS_A} rows + md5==baseline"
 green "[M87] (B) REJECT:   B byte-untouched throughout (count+md5); cross-tenant restore of A under B → 403/404; shared_rls + db_per_tenant backup → 400 deferred"
 green "[M87] (SAFETY):     forced mid-restore COPY failure rolled back ATOMICALLY — t_aa kept exactly the sentinel, ledger='failed'"
-green "[M87] (E) SEALED:   artifact age-sealed at rest, ledger sha = stored bytes, restores EXACT; key mismatch refuses boot; plaintext / no identity / swapped artifact → 409 before any COPY"
+green "[M87] (E) SEALED:   artifact age-sealed at rest, ledger sha = stored bytes, restores EXACT; key mismatch refuses boot; plaintext / no identity / swapped artifact → 409 before any TRUNCATE or COPY, ledger status unchanged"
 green "[M87] (C) PARITY:   TENANT_BACKUP_ENABLED off → POST /backup 404 (route absent) while base admin GET /v1/tenants/{id} still 200"
 
 # ── emit the gate event via the kernel log helper (best-effort) ─────────────────

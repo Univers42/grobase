@@ -107,8 +107,9 @@ BACKUP_AGE_IDENTITY_FILE=/secure/backup-age.key \
 
 **Per-tenant backups (m87):** tenant-control writes them itself, so it holds
 the private key: it restores through its API. Give it its own key pair, never
-one of `BACKUP_AGE_RECIPIENTS` (the preflight refuses a shared recipient; that
-identity would open every whole-cluster backup).
+one of `BACKUP_AGE_RECIPIENTS`: that identity would open every whole-cluster
+backup, so the preflight refuses a shared recipient and tenant-control refuses to
+boot with an identity whose public key is in `BACKUP_AGE_RECIPIENTS`.
 
 ```sh
 age-keygen -o tenant-backup-age.key            # prints the public key
@@ -120,15 +121,24 @@ TENANT_BACKUP_AGE_IDENTITY_HOST_FILE=/etc/grobase/tenant-backup-age.key
 
 - The file is mounted into tenant-control only. It must be mode 0600, owned by
   the image's uid 65532, and hold a key matching one recipient, or tenant-control
-  refuses to boot.
-- Every restore checks the stored bytes against the ledger's sha256 before
-  anything is written. A missing hash, an altered or swapped artifact, or a
-  plaintext artifact while recipients are set is refused (409).
+  refuses to boot. It also refuses recipients age cannot seal to together (a
+  post-quantum `age1pq1…` key mixed with a classic `age1…` one). A host path that
+  does not exist fails the container start; it is never created as a directory.
+- A sealed artifact is stored as `<tenant>/<backup>.age`, and restore reads that
+  from the ledger's `location`, never from the artifact's bytes.
+- Every restore checks the stored bytes against the ledger's sha256 and size
+  before anything is written or the backup's status changes. A missing hash, an
+  altered, swapped or oversized artifact, or a plaintext artifact while
+  recipients are set is refused (409) and the backup keeps its status.
   `TENANT_BACKUP_ALLOW_PLAINTEXT_RESTORE=1` allows restoring the backups taken
   before you turned encryption on.
 - Rotation: generate a new key and make it the recipient. Keep the old private
   keys in the identity file (one per line) as long as you keep backups sealed to
   them.
+- Break-glass: if the identity file is lost, put the offline key in its place
+  (same owner and mode) and restart tenant-control; restores then go through the
+  API as usual. `age -d -i break-glass.key <backup>.age` also gives the raw
+  artifact (the tables' COPY text followed by a JSON manifest) for inspection.
 - Known limit: that one identity opens every tenant's backups, including those of
   a tenant erased since. Deleting an erased tenant's artifacts is up to you.
 
