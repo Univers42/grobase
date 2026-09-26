@@ -89,14 +89,14 @@ render() {
 # RT_KEYS, and that with ADAPTER_REGISTRY_SERVICE_TOKEN empty its service token
 # is empty, not JWT_SECRET.
 env_scope() {
-  local extra tok
+  local extra tok canary=m197-jwt-canary
   extra="$(jq -r --arg k "${RT_KEYS}" '[$k | splits("\\s+")] as $ok
     | .services["functions-runtime"].environment | keys[] | select(IN($ok[]) | not)' "$1")"
   [ -z "${extra}" ] || fail "functions-runtime gets variables its code never reads: ${extra//$'\n'/ }"
-  printf 'JWT_SECRET=m197-jwt-canary\nADAPTER_REGISTRY_SERVICE_TOKEN=\n' >"${T}/nokey.env"
+  printf 'JWT_SECRET=%s\nADAPTER_REGISTRY_SERVICE_TOKEN=\n' "${canary}" >"${T}/nokey.env"
   render "${T}/nokey.json" --env-file .env --env-file "${T}/nokey.env" -f docker-compose.yml
   tok="$(rt_env "${T}/nokey.json" INTERNAL_SERVICE_TOKEN)"
-  [ -z "${tok}" ] || fail "with ADAPTER_REGISTRY_SERVICE_TOKEN empty, functions-runtime still gets a service token$([ "${tok}" != m197-jwt-canary ] || echo ': JWT_SECRET')"
+  [ -z "${tok}" ] || fail "with ADAPTER_REGISTRY_SERVICE_TOKEN empty, functions-runtime still gets a service token$([ "${tok}" != "${canary}" ] || echo ': JWT_SECRET')"
   ok "functions-runtime gets only the $(wc -w <<<"${RT_KEYS}") variables it reads, and never JWT_SECRET as its service token"
 }
 
