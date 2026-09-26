@@ -153,3 +153,14 @@ exists and is the blocking `security-gate`; the "missing file" was an artifact o
   `scripts/ci/retry-on-429.sh`, never counted as green.
 - **Security** (`mini-baas-security.yml`): gitleaks · trufflehog · semgrep · trivy · cargo-audit +
   govulncheck · ZAP baseline → `security-gate`.
+
+Last green runs on `develop` at `e7706dcc` (2026-09-26, JWT dual-key merge), read through the public
+Actions API:
+
+- CI: [run 36260499658](https://github.com/Univers42/grobase/actions/runs/36260499658) — 60 jobs
+  success, 1 skipped (`Publish data-plane-router (dynamodb)`, main-only).
+- Security: [run 36260499594](https://github.com/Univers42/grobase/actions/runs/36260499594) — 7 of 7
+  jobs success, `security-gate` included.
+
+Main publishes the GHCR images; its runs after a release are the ones to cite for the published
+images.
