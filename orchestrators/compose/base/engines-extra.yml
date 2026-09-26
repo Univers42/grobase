@@ -8,7 +8,11 @@ services:
       dockerfile: Dockerfile
     container_name: mini-baas-mysql
     profiles: [analytics, data-plane, extras]
-    env_file: [.env]
+    # Only its own variables, never the platform .env (JWT_SECRET, service tokens);
+    # operator engine settings (MINIO_*, TZ, …) go in the optional .env.engines.
+    env_file:
+      - path: .env.engines
+        required: false
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-mysqlroot}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-mini_baas}
@@ -51,7 +55,11 @@ services:
       dockerfile: Dockerfile
     container_name: mini-baas-mariadb
     profiles: [engines-extra]
-    env_file: [.env]
+    # Only its own variables, never the platform .env (JWT_SECRET, service tokens);
+    # operator engine settings (MINIO_*, TZ, …) go in the optional .env.engines.
+    env_file:
+      - path: .env.engines
+        required: false
     environment:
       MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-mariaroot}
       MARIADB_DATABASE: ${MARIADB_DATABASE:-mini_baas}
