@@ -21,7 +21,10 @@
 #  401s from other traffic can only make a count larger — the check is ">=",   #
 #  and a real regression still reads 0. (4) needs both 401 series to exist    #
 #  in Prometheus before the burst: a counter born with its value already at    #
-#  N has no earlier sample, so rate() reads 0. One warm-up 401 first.          #
+#  N has no earlier sample, so rate() reads 0. One warm-up 401 first, and     #
+#  every Prometheus query is pinned to service="query-router": another         #
+#  service's old 401 series once satisfied the warm-up before query-router's   #
+#  was scraped, and the rate check then read 0 at random in CI.                #
 #                                                                              #
 # **************************************************************************** #
 set -uo pipefail
@@ -95,7 +98,7 @@ bogus() {
 }
 
 kong_seen() { prom_query 'kong_http_requests_total{code="401",service="query-router"}'; }
-app_seen() { prom_query 'mini_baas_http_requests_total{status_code="401"}'; }
+app_seen() { prom_query 'mini_baas_http_requests_total{status_code="401",service="query-router"}'; }
 
 for c in mini-baas-kong mini-baas-query-router mini-baas-prometheus; do
   running "${c}" || {
@@ -135,8 +138,8 @@ logged="$(docker logs --since "${since}" mini-baas-query-router 2>&1 |
 ok "${logged} lines carry event_type=auth_failure"
 
 step "(4) the alert expressions see the scraped series"
-kong_rate() { prom_query 'sum by (service) (rate(kong_http_requests_total{code="401"}[5m])) > 0'; }
-app_rate() { prom_query 'sum by (service) (rate(mini_baas_http_requests_total{status_code=~"401|403"}[5m])) > 0'; }
+kong_rate() { prom_query 'sum by (service) (rate(kong_http_requests_total{code="401",service="query-router"}[5m])) > 0'; }
+app_rate() { prom_query 'sum by (service) (rate(mini_baas_http_requests_total{status_code=~"401|403",service="query-router"}[5m])) > 0'; }
 [ "$(poll kong_rate)" -ge 1 ] || fail "AuthFailureSpike's expression returns nothing after 45 s"
 ok "AuthFailureSpike expression has data"
 [ "$(poll app_rate)" -ge 1 ] || fail "AppPlaneAuthRejections' expression returns nothing after 45 s (query-router not scraped?)"
