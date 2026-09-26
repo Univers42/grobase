@@ -103,7 +103,7 @@ cargo test                            # zero failures
 shellcheck scripts/**/*.sh            # zero issues (target: re-enable SC2086)
 
 # Security gate
-make audit-deps                       # cargo-audit + govulncheck clean
+make audit-deps                       # cargo-deny + govulncheck clean
 make sonar-coverage && make sonar-scan  # SonarCloud gate green
 ```
 
