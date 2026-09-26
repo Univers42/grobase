@@ -38,6 +38,9 @@
 #                 Any value holding an age private key is refused. m87 tenant  #
 #                 backups on without TENANT_BACKUP_AGE_RECIPIENTS WARN; a      #
 #                 tenant recipient also in BACKUP_AGE_RECIPIENTS is refused.   #
+#    moved        a GOTRUE_/PGRST_/KONG_/PG_META_ key no compose file names   #
+#                 is refused: those services no longer load .env (m212), so    #
+#                 it would silently stop applying. Move it to .env.<service>.  #
 #  The file is PARSED, never sourced, with compose .env rules: `export `       #
 #  prefix, quotes, unquoted ` #` comments, last assignment wins. A value       #
 #  holding `${`, `$(` or an unquoted `$NAME` cannot be resolved here, and      #
@@ -258,6 +261,13 @@ function check_no_new_privileges(   v) {
 	flag("CONTAINER_NO_NEW_PRIVILEGES", "not true: every container may gain privileges through setuid or file caps (CONTAINER_NO_NEW_PRIVILEGES_ACK=1 to accept)")
 }
 
+# check_moved refuses a setting for a service that no longer loads .env: a
+# GOTRUE_/PGRST_/KONG_/PG_META_ key that no compose file mentions (REFS).
+# Ponytail: any mention counts, a name only in a compose comment passes.
+function check_moved(   k) {
+	for (k in VAL) if (k ~ /^(GOTRUE|PGRST|KONG|PG_META)_/ && index(REFS, " " k " ") == 0) flag(k, "no longer reaches its service: gotrue, postgrest, kong and pg-meta do not load .env (m212); move it to .env.gotrue, .env.postgrest, .env.kong or .env.pg-meta")
+}
+
 # check_backups warns when backups are written in clear and refuses the age
 # identity in the service env file (pg-backup refuses to start with it, m209).
 function check_backups(   v) {
@@ -289,6 +299,7 @@ END {
 	check_settings()
 	check_no_new_privileges()
 	check_backups()
+	check_moved()
 	if (bad) {
 		printf "FAIL — %d offender(s); values are never printed.\n", bad
 		print "Engine root credentials apply at first boot only: rotate live volumes with scripts/ops/reconcile-credentials.sh."
@@ -297,6 +308,12 @@ END {
 	print "PASS"
 }
 '
+
+# compose_refs prints, space-framed, every GOTRUE_/PGRST_/KONG_/PG_META_ name
+# the compose files beside this script mention.
+compose_refs() {
+  printf ' %s ' "$(grep -rhoE '(GOTRUE|PGRST|KONG|PG_META)_[A-Z0-9_]+' "$(dirname "$0")/../../orchestrators/compose" 2>/dev/null | sort -u | tr '\n' ' ')"
+}
 
 # usage prints the command line and the exit codes.
 usage() {
@@ -316,7 +333,7 @@ main() {
   printf 'preflight-production: %s\n' "$env_file"
   printf '  scope: this FILE only; host-shell env vars override it during compose interpolation.\n'
   rc=0
-  awk "$PREFLIGHT_AWK" <"$env_file" || rc=$?
+  awk -v REFS="$(compose_refs)" "$PREFLIGHT_AWK" <"$env_file" || rc=$?
   [ "$rc" -le 1 ] && return "$rc"
   printf 'preflight-production: internal error (awk exit %s)\n' "$rc" >&2
   return 2
