@@ -1,4 +1,7 @@
-FROM public.ecr.aws/docker/library/rust:1.89-slim-bookworm AS builder
+# Docker official images; mirror.gcr.io serves Docker Hub's digests without
+# public.ecr.aws's anonymous data cap (public.ecr.aws/docker/library works too).
+ARG BASE_REGISTRY=mirror.gcr.io/library
+FROM ${BASE_REGISTRY}/rust:1.89-slim-bookworm AS builder
 WORKDIR /build
 RUN apt-get update && apt-get install -y --no-install-recommends pkg-config && rm -rf /var/lib/apt/lists/*
 COPY Cargo.toml Cargo.lock ./
@@ -7,7 +10,7 @@ COPY tests/ tests/
 # Build the release binary
 RUN cargo build --release --bin realtime-server
 
-FROM public.ecr.aws/docker/library/debian:bookworm-slim
+FROM ${BASE_REGISTRY}/debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates wget \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd -g 1001 app \

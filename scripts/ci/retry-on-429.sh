@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # retry-on-429.sh — run a command; rerun it when it failed on a registry rate limit.
 #
-# Anonymous public.ecr.aws base-image pulls hit per-runner-IP limits in CI
+# Anonymous base-image pulls (mirror.gcr.io, public.ecr.aws) hit per-runner-IP limits in CI
 # ("toomanyrequests: Data limit exceeded", "429 Too Many Requests"). This reruns
 # the command up to RETRY_429_ATTEMPTS times (default 3), sleeping
 # attempt × RETRY_429_BASE_S seconds (default 60) between attempts. Any other

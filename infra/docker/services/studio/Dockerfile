@@ -28,7 +28,10 @@ ARG PNPM_VERSION=10.24.0
 ARG TURBO_VERSION=2.9.14
 
 # ─── base: node:22-slim + pnpm + the build toolchain (upstream parity) ───
-FROM public.ecr.aws/docker/library/node:${NODE_VERSION}-slim AS base
+# Docker official images; mirror.gcr.io serves Docker Hub's digests without
+# public.ecr.aws's anonymous data cap (public.ecr.aws/docker/library works too).
+ARG BASE_REGISTRY=mirror.gcr.io/library
+FROM ${BASE_REGISTRY}/node:${NODE_VERSION}-slim AS base
 ENV PNPM_HOME="/pnpm" \
     PATH="/pnpm:$PATH"
 # git: fetch the monorepo + build libpg.  python3/build-essential: native deps.
@@ -73,7 +76,7 @@ FROM dev AS builder
 RUN pnpm --filter studio exec next build
 
 # ─── production: minimal runtime — Next.js standalone output only ───
-FROM public.ecr.aws/docker/library/node:${NODE_VERSION}-slim AS production
+FROM ${BASE_REGISTRY}/node:${NODE_VERSION}-slim AS production
 ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000

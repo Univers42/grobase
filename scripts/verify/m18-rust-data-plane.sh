@@ -274,7 +274,7 @@ else
     -v "${REPO_ROOT}/${ROUTER_DIR}:/work" \
     -w /work \
     -u "$(id -u):$(id -g)" \
-    public.ecr.aws/docker/library/rust:1.89-slim-bookworm \
+    mirror.gcr.io/library/rust:1.89-slim-bookworm \
     cargo check --workspace
 fi
 pass "cargo check passed"
@@ -294,7 +294,7 @@ else
     -v "${REPO_ROOT}/${ROUTER_DIR}:/work" \
     -w /work \
     -u "$(id -u):$(id -g)" \
-    public.ecr.aws/docker/library/rust:1.89-slim-bookworm \
+    mirror.gcr.io/library/rust:1.89-slim-bookworm \
     sh -c "cargo test -p data-plane-pool capability_honesty:: && cargo test -p data-plane-core planner:: && cargo test -p data-plane-core plan:: && cargo test -p data-plane-pool credential::"
 fi
 pass "capability descriptors match dispatch reality + G6 routing + G8 credential providers verified"

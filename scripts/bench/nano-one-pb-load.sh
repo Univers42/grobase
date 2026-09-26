@@ -41,7 +41,7 @@ OHA_IMG="ghcr.io/hatoo/oha:latest"
 cleanup() {
   docker rm -fv g-nano g-one g-pb >/dev/null 2>&1 || true
   docker volume rm -f g-nano-data g-one-data >/dev/null 2>&1 || true
-  docker run --rm -v "${WORK}:/w" public.ecr.aws/docker/library/alpine:3.20 \
+  docker run --rm -v "${WORK}:/w" mirror.gcr.io/library/alpine:3.20 \
     sh -c 'rm -rf /w/pb_data /w/pb_migrations' >/dev/null 2>&1 || true
   rm -rf "${WORK}"
 }
@@ -80,7 +80,7 @@ curl -sL -o "${WORK}/pb.zip" \
   "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_linux_amd64.zip"
 (cd "${WORK}" && unzip -oq pb.zip)
 docker run -d --name g-pb -p "${PB_PORT}:8090" -v "${WORK}:/pb" \
-  public.ecr.aws/docker/library/alpine:3.20 \
+  mirror.gcr.io/library/alpine:3.20 \
   /pb/pocketbase serve --http 0.0.0.0:8090 --dir /pb/pb_data >/dev/null
 PB="http://127.0.0.1:${PB_PORT}"
 
@@ -194,8 +194,8 @@ ONE_BIG=$(oha -n "${BIG_N}" -c 64 -m POST -H "X-Baas-Api-Key: ${NK}" -H "Content
   -d "${INS_BODY}" "${ONE}/data/v1/query" | parse)
 PB_BIG=$(oha -n "${BIG_N}" -c 64 -m POST -H "Authorization: ${PB_TOKEN}" -H "Content-Type: application/json" \
   -d "${PB_INS_BODY}" "${PB}/api/collections/bench/records" | parse)
-NANO_DISK=$(docker run --rm -v g-nano-data:/d public.ecr.aws/docker/library/alpine:3.20 du -sk /d | awk '{printf "%.1f MB", $1/1024}')
-ONE_DISK=$(docker run --rm -v g-one-data:/d public.ecr.aws/docker/library/alpine:3.20 du -sk /d | awk '{printf "%.1f MB", $1/1024}')
+NANO_DISK=$(docker run --rm -v g-nano-data:/d mirror.gcr.io/library/alpine:3.20 du -sk /d | awk '{printf "%.1f MB", $1/1024}')
+ONE_DISK=$(docker run --rm -v g-one-data:/d mirror.gcr.io/library/alpine:3.20 du -sk /d | awk '{printf "%.1f MB", $1/1024}')
 PB_DISK=$(docker exec g-pb du -sk /pb/pb_data | awk '{printf "%.1f MB", $1/1024}')
 
 # ── boot-to-first-200 ────────────────────────────────────────────────────────

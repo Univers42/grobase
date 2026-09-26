@@ -13,7 +13,7 @@
 // Run (no host node):
 //   docker run --rm -u "$(id -u):$(id -g)" \
 //     -v "$PWD":/b \
-//     -w /b public.ecr.aws/docker/library/node:22-bookworm \
+//     -w /b mirror.gcr.io/library/node:22-bookworm \
 //     node /b/scripts/report/compliance-posture-report.mjs
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
