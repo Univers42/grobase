@@ -31,6 +31,8 @@
 # **************************************************************************** #
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=scripts/lib/lib-kong-scratch.sh
+. "${ROOT}/scripts/lib/lib-kong-scratch.sh"
 CONF="${M207_WAF_CONF:-${ROOT}/infra/docker/services/waf/conf/nginx.conf}"
 WAF_IMG="${M207_WAF_IMAGE:-ghcr.io/univers42/grobase-waf:latest}"
 NODE_IMG="${M207_NODE_IMAGE:-public.ecr.aws/docker/library/node:20-alpine}"
@@ -115,28 +117,13 @@ start_echo() {
     skip "could not start the echo upstream"
 }
 
-# start_kong runs Kong as "kong" on the app bridge with the repo kong.yml and
-# trusted IPs $1 (none when empty), and waits for its proxy.
+# start_kong runs Kong as "kong" on the app bridge with trusted IPs $1 (none
+# when empty) and waits for its proxy.
 start_kong() {
   local -a trust=()
   [ -z "$1" ] || trust=(-e "KONG_TRUSTED_IPS=$1")
-  docker run -d --name "${TAG}-kong" --network "${TAG}-app" --network-alias kong --memory 1g "${trust[@]}" \
-    -v "${ROOT}/infra/docker/services/kong/conf/kong.yml:/etc/kong/kong.yml.tmpl:ro" \
-    -v "${ROOT}/infra/docker/services/kong/render-kong-config.sh:/etc/kong/render-kong-config.sh:ro" \
-    -e KONG_DATABASE=off -e KONG_DECLARATIVE_CONFIG=/tmp/kong.yml -e KONG_NGINX_WORKER_PROCESSES=1 \
-    -e KONG_MEM_CACHE_SIZE=64m -e KONG_UNTRUSTED_LUA_SANDBOX_REQUIRES=cjson.safe \
-    -e KONG_PUBLIC_API_KEY=m207-anon -e KONG_SERVICE_API_KEY=m207-service -e KONG_CORS_ORIGIN_DEV_LIST= \
-    -e KONG_CORS_ORIGIN_APP=https://app.example -e KONG_CORS_ORIGIN_PLAYGROUND=https://app.example \
-    -e KONG_CORS_ORIGIN_STUDIO=https://app.example -e KONG_CORS_ORIGIN_FRONTEND=https://app.example \
-    -e JWT_SECRET=m207-dummy-jwt-secret-m207-dummy-jwt -e GOTRUE_JWT_ISS=http://localhost:8000/auth/v1 \
-    -e KONG_ANON_UUID=cd4f782c-ac87-5081-b322-b54834d15651 --entrypoint sh "${KONG_IMG}" \
-    -ec 'sh /etc/kong/render-kong-config.sh /etc/kong/kong.yml.tmpl /tmp/kong.yml
-      exec /docker-entrypoint.sh kong docker-start' >/dev/null || skip "could not start kong"
-  for _ in $(seq 1 60); do
-    docker exec "${TAG}-kong" bash -c 'exec 3<>/dev/tcp/127.0.0.1/8000' 2>/dev/null && return
-    sleep 1
-  done
-  skip "kong never served :8000 ($(docker logs "${TAG}-kong" 2>&1 | tail -n2))"
+  kong_scratch_start "${TAG}-kong" "${KONG_IMG}" "${TAG}-app" --network-alias kong "${trust[@]}" || skip "could not start kong"
+  kong_scratch_wait "${TAG}-kong" || skip "kong never served :8000"
 }
 
 # start_waf runs WAF $1 with config $2 on the app bridge, then joins it to the
@@ -168,7 +155,7 @@ send() {
 
 # forged is the header set a client uses to lie about where it came from.
 forged() {
-  printf '%s' '{"apikey":"m207-anon","X-Real-IP":"10.9.9.9","X-Forwarded-For":"10.9.9.9",
+  printf '%s' '{"apikey":"scratch-anon","X-Real-IP":"10.9.9.9","X-Forwarded-For":"10.9.9.9",
     "X-Forwarded-Host":"evil.example","X-Forwarded-Port":"1","X-Forwarded-Path":"/evil","X-Forwarded-Prefix":"/evil"}'
 }
 
