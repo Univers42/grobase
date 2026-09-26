@@ -18,9 +18,7 @@ ignore = [
   { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.101 via tiberius 0.12.3 (latest); external-TLS mssql only" },
   { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101 via tiberius 0.12.3 (latest); external-TLS mssql only" },
   { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile unmaintained; feature-gated external-TLS chain" },
-  { id = "RUSTSEC-2026-0002", reason = "lru 0.12 IterMut unsound; only mysql_async's stmt cache, IterMut never called" },
   { id = "RUSTSEC-2026-0097", reason = "rand 0.7 unsound only with a logger calling rand::rng(); we have none" },
-  { id = "RUSTSEC-2026-0253", reason = "lru 0.12 pop() UAF needs a panicking key; mysql_async stmt-cache keys are plain bytes. Fixed by mysql_async 0.37 (lru ^0.18)" },
 ]
 
 [licenses]
@@ -45,13 +43,6 @@ allow = [
 # Our own crates are publish = false; their licence is the repo's (LICENSING.md).
 [licenses.private]
 ignore = true
-
-# webpki 0.22 (via mysql_async) ships an ISC LICENSE but no SPDX field; the text scores
-# 0.85. The hash pins that exact file, so a changed licence text fails again.
-[[licenses.clarify]]
-crate = "webpki"
-expression = "ISC"
-license-files = [{ path = "LICENSE", hash = 0x001c7e6c }]
 
 [bans]
 multiple-versions = "allow"
