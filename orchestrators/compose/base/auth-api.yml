@@ -9,7 +9,12 @@ services:
       cache_from:
         - ghcr.io/univers42/grobase-gotrue:buildcache
     container_name: mini-baas-gotrue
-    env_file: [.env]
+    # The keys below, never the platform .env. Other GoTrue settings go in the
+    # optional .env.gotrue; preflight-production refuses a GOTRUE_* key left in
+    # .env that no compose file names (gate m212).
+    env_file:
+      - path: .env.gotrue
+        required: false
     environment:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: 9999
@@ -66,6 +71,11 @@ services:
       GOTRUE_EXTERNAL_FORTYTWO_REDIRECT_URI: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}/callback
       GOTRUE_EXTERNAL_FORTYTWO_URL: https://api.intra.42.fr/oauth/authorize
       GOTRUE_EXTERNAL_FORTYTWO_API_URL: https://api.intra.42.fr
+      # Documented knobs pass through from .env or the shell, unset otherwise.
+      GOTRUE_DISABLE_SIGNUP:
+      GOTRUE_JWT_KEYS:
+      GOTRUE_JWT_VALID_METHODS:
+      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -137,7 +147,11 @@ services:
       timeout: 5s
       start_period: 15s
       retries: 3
-    env_file: [.env]
+    # The keys below, never the platform .env; other PGRST_* settings go in the
+    # optional .env.postgrest (gate m212).
+    env_file:
+      - path: .env.postgrest
+        required: false
     environment:
       # PostgREST connects as the dedicated non-superuser `authenticator` role
       # (NOBYPASSRLS), so RLS + FORCE RLS always bind the public REST/GraphQL

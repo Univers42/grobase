@@ -29,7 +29,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-SCOPED="kong studio pg-meta"
+SCOPED="kong studio pg-meta gotrue postgrest"
 MARK="m212-marker-$$"
 WORK="$(mktemp -d)" || exit 1
 TREE="${WORK}/tree"
@@ -48,6 +48,8 @@ needed_key() {
   kong) echo KONG_SERVICE_API_KEY ;;
   studio) echo POSTGRES_DB ;;
   pg-meta) echo PG_META_DB_HOST ;;
+  gotrue) echo GOTRUE_DISABLE_SIGNUP ;;
+  postgrest) echo PGRST_DB_URI ;;
   *) fail "no needed key declared for $1" ;;
   esac
 }
