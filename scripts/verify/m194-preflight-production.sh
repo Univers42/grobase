@@ -161,6 +161,7 @@ write_hardened() {
     printf 'API_EXTERNAL_URL=https://api.example.com/auth/v1\nGOTRUE_SITE_URL=https://app.example.com\n'
     printf 'REALTIME_NAMESPACE_FALLBACK=deny\nSERVICE_TOKEN_MODE=hmac\n'
     printf 'SECURITY_MODE=max\nAPI_KEY_ABAC_ENABLED=1\nDATA_PLANE_RATELIMIT_BACKEND=redis\n'
+    printf 'BACKUP_AGE_RECIPIENTS=age1%s\n' "$(rand 29)"
   } >"${T}/hardened.env"
 }
 
@@ -275,6 +276,17 @@ arm_advisories() {
     grep -q "^  ! ${k} " <<<"${OUT}" || fail "no advisory line for ${k} when unset"
   done
   ok "SECURITY_MODE, API_KEY_ABAC_ENABLED, DATA_PLANE_RATELIMIT_BACKEND: dev value or unset = advisory only (exit 0)"
+}
+
+# arm_backups proves BACKUP_AGE_RECIPIENTS unset only warns and
+# BACKUP_AGE_IDENTITY_FILE set is refused by name.
+arm_backups() {
+  grep -v '^BACKUP_AGE_RECIPIENTS=' "${T}/hardened.env" >"${T}/plain-backups.env"
+  run_pf "${T}/plain-backups.env"
+  [ "${RC}" = 0 ] || fail "BACKUP_AGE_RECIPIENTS unset must only warn — got ${RC}"
+  grep -q '^  ! BACKUP_AGE_RECIPIENTS ' <<<"${OUT}" || fail "no advisory line for BACKUP_AGE_RECIPIENTS unset"
+  expect_fail "$(with_line identity.env 'BACKUP_AGE_IDENTITY_FILE=/secrets/backup-age.key')" BACKUP_AGE_IDENTITY_FILE
+  ok "BACKUP_AGE_RECIPIENTS unset = advisory (exit 0); BACKUP_AGE_IDENTITY_FILE in the env file refused by name"
 }
 
 # arm_no_new_privileges proves CONTAINER_NO_NEW_PRIVILEGES=false is refused by
@@ -399,6 +411,7 @@ arm_parser_fail
 arm_parser_pass
 arm_advisories
 arm_no_new_privileges
+arm_backups
 step "(e) never sourced"
 arm_source
 step "(f) drift against compose defaults"

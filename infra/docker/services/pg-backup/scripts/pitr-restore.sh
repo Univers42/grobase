@@ -24,7 +24,15 @@
 # then start to replay WAL + promote (the gate starts a fresh postgres on it).
 # Gated by PG_BACKUP_PITR; with the flag unset this path is never invoked and
 # restore.sh's logical path is byte-identical to today.
+#
+# Encrypted artifacts (.age, age.sh) are decrypted with BACKUP_AGE_IDENTITY_FILE
+# as they are fetched: the base members in the scratch dir, the WAL segments in
+# the stage, so restore_command still finds each segment under its bare name. A
+# store holding plaintext segments from before encryption was turned on and .age
+# ones after restores both.
 set -euo pipefail
+# shellcheck source=age.sh
+. "$(dirname "$0")/age.sh"
 
 BASE_STAMP="${1:?usage: pitr-restore.sh <base-stamp|latest> <target-time>}"
 TARGET_TIME="${2:?usage: pitr-restore.sh <base-stamp|latest> <target-time>}"
@@ -80,6 +88,7 @@ if [ -n "${LOCAL_STORE}" ]; then
 else
   mc cp --recursive "${BASE_KEY}/" "${TMP_BASE}/" >/dev/null
 fi
+age_open_all "${TMP_BASE}"
 [ -f "${TMP_BASE}/base.tar.gz" ] || {
   echo "[pitr] base.tar.gz missing from ${BASE_KEY}/" >&2
   exit 1
@@ -101,6 +110,7 @@ if [ -n "${LOCAL_STORE}" ]; then
 else
   mc cp --recursive "${WAL_STORE}/" "${WAL_STAGE}/" >/dev/null 2>&1 || true
 fi
+age_open_all "${WAL_STAGE}"
 
 # 3) Write the recovery configuration. PG12+ uses postgresql.auto.conf +
 #    recovery.signal (NOT the legacy recovery.conf). restore_command copies the

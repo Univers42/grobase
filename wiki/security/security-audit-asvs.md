@@ -99,7 +99,7 @@ the code path that implements the control.
 |---|---|---|
 | Tenant data isolation (storage) | `[v]` | storage-router owner-prefixed keys; Kong `pre-function` clears client `X-User-*` then sets them from the verified JWT (anon-path impersonation closed, roadmap A1). |
 | Fine-grained file ABAC (`bucket:read/write`) | `[~]` | Owner-prefix is the only isolation today; bucket-level ABAC not wired (roadmap A1 open item). |
-| Backups exist + restore-tested | `[v]` | Daily `pg_dump -Fc`, 14-day retention → MinIO, optional WAL/PITR, restore-drill (gate m47). Per-tenant + encrypted-at-rest backups are follow-ups (audit solution #11; roadmap B6). |
+| Backups exist + restore-tested | `[v]` | Daily `pg_dump -Fc`, 14-day retention → MinIO, optional WAL/PITR, restore-drill (gate m47). Encrypted at rest when `BACKUP_AGE_RECIPIENTS` is set (age: logical, physical, WAL, engine archives; m209, m188). Per-tenant backups (m87) are not encrypted; roadmap B6. |
 
 ### V9/V13 — Communications & API security (TLS)
 
@@ -129,7 +129,7 @@ A lightweight mapping to the SOC2 TSC families — **posture only**, not an atte
 | **CC7.2** Monitoring | Prometheus/Grafana/Loki/Tempo; mutation + denial audit; opt-in read audit | `[v]`/`[~]` | gate m19; reads audited only with `DATA_PLANE_AUDIT_READS` (m72) — §3 G-ReadAudit |
 | **CC7.2** | Anomaly detection / SIEM shipping | `[~]` | audit solution #6 (recommended) |
 | **CC8.1** Change management | PR + CI gates required to merge; shadow→parity→cutover discipline | `[v]` | repo workflow; CLAUDE.md |
-| **A1.2** Availability / backups | Daily encrypted backups + restore-drill (whole-cluster) | `[v]` | gate m47; per-tenant DR is roadmap B6 |
+| **A1.2** Availability / backups | Daily backups + restore-drill (whole-cluster); encrypted at rest only when `BACKUP_AGE_RECIPIENTS` is set (off by default: there is no key to default to) | `[~]` | gates m47, m209, m188; preflight warns when unset; per-tenant DR is roadmap B6 |
 | **C1 / P** Confidentiality / privacy | Tenant isolation (RLS+ABAC+field masks), GDPR delete path | `[v]` | `isolation.rs`, `abac.rs`, `gdprsvc` |
 | **CC6.1** Secret rotation | Service tokens rotate with an overlap window (`rotate-service-token.sh`, m205, m68); `JWT_SECRET` rotation missing | `[~]` | audit solution #9 — §3 G-Rotate |
 | **CC6.x** Per-tenant resource QoS | Rate (rps/burst), rows per query (`max_rows`, m73) capped per tier, plus the monthly query quota when `QUOTA_ENFORCEMENT` is on (m80); no per-tenant CPU/RAM/timeout QoS | `[~]` | audit solution #12 — §3 G-QoS |
