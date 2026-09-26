@@ -480,6 +480,11 @@ jobs:
       - name: RS256 issuer end to end (m81)
         run: bash scripts/verify/m81-rs256-issuer.sh
       # The postgres and mongo healthchecks ask the network, not the socket.
+      # m183 boots the stack's postgres image with compose's own healthcheck; this
+      # job builds nothing, so it takes the published one (public on GHCR).
+      - name: Pull the postgres image for m183
+        run: bash scripts/ci/retry-on-429.sh docker pull -q ghcr.io/univers42/grobase-postgres:latest
+
       - name: Healthchecks assert network readiness (m183)
         run: bash scripts/verify/m183-healthcheck-network-readiness.sh
 
