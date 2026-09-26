@@ -140,3 +140,41 @@ tests:
       - eval_time: 25m
         alertname: PreviousServiceTokenInUse
         exp_alerts: []
+
+  # 404s fire only on a data service where they are both sustained (>0.5/s) and
+  # most of its traffic: query-router probes; storage-router's 404s are a small
+  # share of a busy service whose 401 burst is not a probe (auth failures have
+  # their own alert); mongo-api's are all of a trickle; ai-service is not a data
+  # service.
+  - interval: 1m
+    input_series:
+      - series: 'mini_baas_http_requests_total{service="query-router", route="/:dbId/tables/:table", status_code="404"}'
+        values: "0+120x40"
+      - series: 'mini_baas_http_requests_total{service="query-router", route="/:dbId/tables/:table", status_code="200"}'
+        values: "0+30x40"
+      - series: 'mini_baas_http_requests_total{service="storage-router", route="/object", status_code="404"}'
+        values: "0+60x40"
+      - series: 'mini_baas_http_requests_total{service="storage-router", route="/object", status_code="200"}'
+        values: "0+600x40"
+      - series: 'mini_baas_http_requests_total{service="storage-router", route="/object", status_code="401"}'
+        values: "0+1800x40"
+      - series: 'mini_baas_http_requests_total{service="mongo-api", route="/:collection", status_code="404"}'
+        values: "0+12x40"
+      - series: 'mini_baas_http_requests_total{service="ai-service", route="/chat", status_code="404"}'
+        values: "0+300x40"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: NotFoundProbe
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: NotFoundProbe
+        exp_alerts:
+          - exp_labels:
+              {
+                severity: warning,
+                event_type: not_found_probe,
+                service: query-router,
+              }
+            exp_annotations:
+              summary: "query-router: most requests are 404s"
+              description: "2/s requests missed for 10m and were most of the traffic: a caller may be enumerating other tenants' ids or scanning paths."
