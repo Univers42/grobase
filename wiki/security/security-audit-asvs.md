@@ -34,7 +34,7 @@ the code path that implements the control.
 | Sole public listener is a hardened gateway (defence in depth) | `[+]` | In-stack OWASP **WAF** = ModSecurity v3 + CRS as the only public ingress (`docker/services/waf`); data plane is behind Kong, server-to-server only. |
 | Restrictive CORS by default (no permissive cross-origin) | `[v]` | Data-plane CORS denies browser cross-origin by default; allow-list via `DATA_PLANE_CORS_ALLOW_ORIGINS` (audit O3, FIXED). |
 | Dependency / supply-chain locking | `[v]` | Frozen lockfiles everywhere; npm `--ignore-scripts` (`src/.npmrc`), pnpm `minimum-release-age=1440` quarantine (`.npmrc`) + `onlyBuiltDependencies` allowlist; digest pinning (`pin-digests.sh`). |
-| SCA in CI (known-CVE gate) | `[v]` | `cargo-audit` (Rust) + `govulncheck` (Go) + `npm/pnpm audit` + Trivy fs/image, all **blocking** in `.github/workflows/mini-baas-security.yml` (`sca-cargo-audit`, `sca-govulncheck`, `sca-npm-audit`, `container-trivy`). |
+| SCA in CI (known-CVE gate) | `[~]` | `cargo-deny` (Rust: advisories, licences, sources, both workspaces) + `govulncheck` (Go) + Trivy fs/image, **blocking** in `.github/workflows/mini-baas-security.yml` (jobs `deps`, `trivy`). `npm/pnpm audit` runs only locally (`make test-scan`), not in CI yet. |
 | SAST in CI | `[v]` | Semgrep (`p/owasp-top-ten` + lang rules), SARIF to the Security tab (`sast-semgrep`). |
 | Secret-scan in CI (blocking) | `[v]` | TruffleHog (`--only-verified --fail`) + gitleaks (working-tree regex/entropy, `--exit-code 1`); `.env`/`.env.local` gitignored and never tracked, `ANON_KEY` runtime-derived from `JWT_SECRET` (no committed secret). |
 | Vault enforced for all secrets | `[~]` | Under `SECURITY_MODE=max` an inline DSN is refused (403) and mounts are Vault `credential_ref`s resolved per request (migration 060, gate m121, nightly). Other tiers keep encrypted-at-rest inline DSNs by design. |
@@ -170,17 +170,18 @@ The gates that keep this map honest over time, all in
 
 | Job | Tool | Scope |
 |---|---|---|
-| `sast-semgrep` | Semgrep | OWASP-top-ten + TS/JS/Docker rules → SARIF |
-| `sca-npm-audit` | npm / pnpm audit | all TS packages |
-| `sca-cargo-audit` | cargo-audit | both Rust workspaces (data-plane-router, realtime-agnostic); 3 tiberius-only rustls-webpki advisories `--ignore`d (no upstream fix — see audit §supply-chain) |
-| `sca-govulncheck` | govulncheck | Go control plane (reachability-based) |
-| `container-trivy` | Trivy | fs + representative image; accepted CVEs in `.trivyignore` |
-| `secret-trufflehog` | TruffleHog | verified secrets, fail |
-| `secret-gitleaks` | gitleaks | working-tree regex/entropy, blocking |
-| `dast-zap` | ZAP baseline | main-only, against the WAF |
+| `semgrep` | Semgrep | OWASP-top-ten + TS/JS/Docker rules → SARIF |
+| `deps` | cargo-deny + govulncheck | `make audit-deps`: both Rust workspaces (data-plane-router, realtime-agnostic) against `scripts/security/deny.toml` (advisories incl. transitive unsoundness, permissive licences only, crates.io only; accepted advisories listed there with reasons); Go control plane (reachability-based) |
+| `trivy` | Trivy | fs + representative image; accepted CVEs in `.trivyignore` |
+| `trufflehog` | TruffleHog | verified secrets, fail |
+| `gitleaks` | gitleaks | working-tree regex/entropy, blocking |
+| `zap` | ZAP baseline | every push/PR to main and develop, against a stack built from the commit |
+
+Not in CI: `npm/pnpm audit` over the TS lockfiles runs only in `make test-scan`
+(`scripts/security/run-security-scans.sh`).
 
 **Still TODO for the full A6 m60 gate:** fuzz (cargo-fuzz on the filter/DDL parsers,
-audit solution #10) — DAST is shipped (`dast-zap`).
+audit solution #10) — DAST is shipped (`zap`).
 
 ---
 

@@ -2,6 +2,7 @@
 name = "data-plane-pool"
 version = { workspace = true }
 edition = { workspace = true }
+publish = false
 rust-version = { workspace = true }
 
 # Engine drivers are FEATURE-GATED so lean builds (nano edition) compile only
