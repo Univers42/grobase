@@ -160,6 +160,24 @@ groups:
           summary: "{{ $labels.service }}: sustained 401/403 inside the service"
           description: "{{ $value | humanize }}/s rejected requests for 5m (includes calls that bypassed Kong)."
 
+      - alert: NotFoundProbe
+        # Owner-scoping answers another tenant's row, mount or bucket with 404,
+        # never 403, so enumeration looks like a service whose traffic is mostly
+        # misses. Needs both volume (>0.5/s) and share (>50%) so one broken
+        # client link does not fire. Ponytail: per service, not per caller
+        # (tenant_id is never a label): a probe under half of a busy service's
+        # traffic stays silent.
+        expr: |
+          sum by (service) (rate(mini_baas_http_requests_total{status_code="404", service=~"query-router|storage-router|mongo-api"}[10m])) > 0.5
+          and
+          sum by (service) (rate(mini_baas_http_requests_total{status_code="404", service=~"query-router|storage-router|mongo-api"}[10m]))
+            / sum by (service) (rate(mini_baas_http_requests_total{service=~"query-router|storage-router|mongo-api"}[10m])) > 0.5
+        for: 10m
+        labels: { severity: warning, event_type: not_found_probe }
+        annotations:
+          summary: "{{ $labels.service }}: most requests are 404s"
+          description: "{{ $value | humanize }}/s requests missed for 10m and were most of the traffic: a caller may be enumerating other tenants' ids or scanning paths."
+
       - alert: PreviousServiceTokenInUse
         # A peer still authenticates with INTERNAL_SERVICE_TOKEN_PREV. Close the
         # rotation window (clear PREV) only once this has stayed quiet. The
