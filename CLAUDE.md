@@ -217,7 +217,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **187 scripts, highest m207** (`m207-edge-client-ip.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **188 scripts, highest m208** (`m208-no-new-privileges.sh`); the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -308,6 +308,10 @@ Kong service points at the `studio` container (N-25: Studio is reached on loopba
 `m207` proves Kong behind the WAF sees the real client (N-23): prod/cloud set `KONG_TRUSTED_IPS`
 (base does not; `PROD_KONG_TRUSTED_IPS=` opts out), and a TEST-NET-3 client → WAF → Kong → echo run shows
 ip-restriction refusing it and no forged `X-Forwarded-*` reaching the upstream (a mutant WAF must leak).
+`m208` proves no container can gain a privilege through exec (N-30): every service of every stack renders
+`no-new-privileges:true` (from `_common.yml`'s `base`; `CONTAINER_NO_NEW_PRIVILEGES=false` opts out and
+preflight-production refuses that without `CONTAINER_NO_NEW_PRIVILEGES_ACK=1`), none is privileged or
+unconfined, five mutants are refused, and on a running stack the kernel reports `NoNewPrivs: 1` for every container.
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 

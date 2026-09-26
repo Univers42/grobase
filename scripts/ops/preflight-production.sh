@@ -30,6 +30,8 @@
 #    advisories   WARN only: SECURITY_MODE not max, API_KEY_ABAC_ENABLED off,  #
 #                 DATA_PLANE_RATELIMIT_BACKEND not redis. Each is an owner     #
 #                 decision with a cost this file cannot check.                 #
+#    containers   CONTAINER_NO_NEW_PRIVILEGES other than true is refused       #
+#                 unless CONTAINER_NO_NEW_PRIVILEGES_ACK=1 (then it warns).    #
 #  The file is PARSED, never sourced, with compose .env rules: `export `       #
 #  prefix, quotes, unquoted ` #` comments, last assignment wins. A value       #
 #  holding `${`, `$(` or an unquoted `$NAME` cannot be resolved here, and      #
@@ -233,11 +235,22 @@ function check_advisories(   v) {
 	if (v != NONE && v != "redis") warn("DATA_PLANE_RATELIMIT_BACKEND", "not redis: each data-plane replica enforces its own copy of a tenant limit")
 }
 
+# check_no_new_privileges refuses CONTAINER_NO_NEW_PRIVILEGES set to anything
+# docker reads as other than true (it turns the setting off on every service,
+# m208) unless CONTAINER_NO_NEW_PRIVILEGES_ACK=1 records that it is deliberate.
+function check_no_new_privileges(   v) {
+	v = setting("CONTAINER_NO_NEW_PRIVILEGES", "true")
+	if (v == NONE || v ~ /^(true|1|t)$/) return
+	if (setting("CONTAINER_NO_NEW_PRIVILEGES_ACK", "0") == "1") return warn("CONTAINER_NO_NEW_PRIVILEGES", "off (acknowledged): setuid binaries and file capabilities work again in every container")
+	flag("CONTAINER_NO_NEW_PRIVILEGES", "not true: every container may gain privileges through setuid or file caps (CONTAINER_NO_NEW_PRIVILEGES_ACK=1 to accept)")
+}
+
 # END runs every check and prints the verdict; the exit code is the result.
 END {
 	for (i = 1; i <= ncred; i++) check_cred(CRED[i])
 	for (i = 1; i <= nopt; i++) check_opt(OPT[i])
 	check_settings()
+	check_no_new_privileges()
 	if (bad) {
 		printf "FAIL — %d offender(s); values are never printed.\n", bad
 		print "Engine root credentials apply at first boot only: rotate live volumes with scripts/ops/reconcile-credentials.sh."
