@@ -38,7 +38,7 @@ the code path that implements the control.
 | SAST in CI | `[v]` | Semgrep (`p/owasp-top-ten` + lang rules), SARIF to the Security tab (`sast-semgrep`). |
 | Secret-scan in CI (blocking) | `[v]` | TruffleHog (`--only-verified --fail`) + gitleaks (working-tree regex/entropy, `--exit-code 1`); `.env`/`.env.local` gitignored and never tracked, `ANON_KEY` runtime-derived from `JWT_SECRET` (no committed secret). |
 | Vault enforced for all secrets | `[~]` | Vault present (`docker/services/vault`); but plaintext DSNs are possible outside `SECURITY_MODE=max` (audit O5). → **gap G-Vault**. |
-| Plane network isolation / NetworkPolicy | `[x]` | Flat single bridge network (`docker-compose.yml`); no per-plane segmentation. → **gap G-Net**. |
+| Plane network isolation / NetworkPolicy | `[~]` | Compose: the netseg overlay takes the engines + vault off the app bridge (`make up NETSEG=1`, default in `prod-up`; gate m66). Helm NetworkPolicy exists, default off. |
 
 ### V2 — Authentication
 
@@ -122,7 +122,7 @@ A lightweight mapping to the SOC2 TSC families — **posture only**, not an atte
 | **CC6.1** | Internal identity-header integrity (opt-in HMAC) | `[~]` | `adapterregistry/identity.go` (flag-gated; default OFF) — §3 G-Hdr |
 | **CC6.1** | Encryption of stored credentials | `[v]` | AES-256-GCM + scrypt (`crypto.go`) |
 | **CC6.6** Boundary protection | In-stack WAF as sole public listener; restrictive CORS | `[v]`/`[+]` | `services/waf`; audit O3 |
-| **CC6.6** | Network segmentation between planes | `[x]` | flat bridge — §3 G-Net |
+| **CC6.6** | Network segmentation between planes | `[~]` | netseg overlay (m66), default in `prod-up`; the dev base stays flat — §3 G-Net |
 | **CC6.7** Data in transit | TLS verify-full per engine (max); SSRF egress guard | `[v]` | audit #1/#2/#4 |
 | **CC6.8** Malicious software / supply chain | Lockfiles, npm quarantine, `--ignore-scripts`, digest pins, SCA gate | `[v]` | `.npmrc`, CI SCA jobs |
 | **CC7.1** Vulnerability management | Blocking SAST/SCA/secret/container scans in CI; tracked accepted residuals | `[v]` | `mini-baas-security.yml`; `.trivyignore`; `audit-deps.sh` |
@@ -146,7 +146,7 @@ Sourced from [security-audit.md](./security-audit.md) §"Open" + the roadmap A6 
 |---|---|---|---|
 | **G-RS256** | JWT **RS256 issuer not flipped** — GoTrue still signs HS256 though the verify side (RS256/JWKS) is ready. | MED | **Deferred (cross-repo, coordinated).** Touches the live login flow + Kong `jwt` plugin; ships as its own change (audit O2). |
 | **G-Vault** | **Vault not enforced** — plaintext / inline-encrypted DSNs possible outside `SECURITY_MODE=max`. | MED | **Deferred (coordinated).** A6: under max require `credential_ref{provider:vault}`; forbid plaintext mounts in prod (audit O5). |
-| **G-Net** | **Flat network / no NetworkPolicy** — single bridge, no per-plane segmentation. | MED | A6 / C2: per-plane network isolation + K8s NetworkPolicy (audit; roadmap A6). |
+| **G-Net** | **Compose half done**: the edge, the scrapers and the functions sandbox share no bridge with an engine or vault in `prod-up` (m66, live-proven on the max tier). Still open: enabling the Helm NetworkPolicy on a real cluster. | MED | A6 / C2: per-plane network isolation + K8s NetworkPolicy (audit; roadmap A6). |
 | **G-Hdr** | **adapter-registry header trust** — `X-Baas-*` identity headers were trusted with no HMAC on a flat bridge. | LOW | **Partially closed this track:** opt-in HMAC verification shipped behind `ADAPTER_REGISTRY_IDENTITY_HMAC` (`internal/adapterregistry/identity.go` + `identity_test.go`, `go test ./...` green). Default OFF (no behavior change) until the issuing gateway is taught to sign the identity tuple — *enabling it stack-wide is the remaining cross-repo step* (the gateway must compute `X-Baas-Identity-Auth` = `ComputeServiceSignature(serviceToken, "IDENTITY", "<user>\n<tenant>", nil, ts)`). mTLS service mesh (audit solution #1) is the longer-term answer. |
 | **G-ReadAudit** | **Reads not audited** — only mutations + denials emit audit events. | LOW | A6: optional max-mode "sensitive-read" audit on flagged resources (audit O8). |
 | **G-QoS** | **No per-tenant resource QoS** — rate (rps) is capped, but rows-per-query / query-timeout / pool-size / storage-per-tenant are not. | LOW | A6 / Track C: per-tenant quotas beyond rate (audit solution #12). |

@@ -920,12 +920,12 @@ jobs:
   # The actual code tests a contributor runs: Go control-plane (go test ./...), the
   # Rust data-plane and realtime workspaces (cargo test), and the NestJS apps + libs
   # (jest). Run in containers (Docker-first), independent so they start immediately.
-  # ─── Security hardening gates (m195 m196 m198) ────────────────
+  # ─── Security hardening gates (m66 m195 m196 m198 m199 m205) ──
   # No running stack: each gate boots its own throwaway containers from images
   # built HERE from this commit (never the published :latest). A missing image or
   # too little disk is a non-zero SKIP (exit 77), never a silent pass.
   security-gates:
-    name: Security gates (m195 m196 m198 m199)
+    name: Security gates (m66 m195 m196 m198 m199 m205)
     runs-on: ubuntu-latest
     needs: [shellcheck]
     timeout-minutes: 30
@@ -958,6 +958,16 @@ jobs:
       # a throwaway Kong proves the admin API is off while /metrics survives.
       - name: Prod overlay hardening (m195)
         run: bash scripts/verify/run-gate-battery.sh m195-prod-overlay-hardening
+
+      # The netseg overlay takes engines + vault off the app bridge: every real
+      # client still shares a bridge with its engine, kong/waf/scrapers do not.
+      - name: Network segmentation overlay (m66)
+        run: bash scripts/verify/run-gate-battery.sh m66-netseg
+
+      # begin → swap → finish on a scratch env file; compose hands the previous
+      # service token to every verifier.
+      - name: Service-token rotation (m205)
+        run: bash scripts/verify/run-gate-battery.sh m205-service-token-rotation
 
       # Builds Dockerfile.fly and boots it --network none: the flag drops Vault
       # to the vault user; unset keeps today's root.
