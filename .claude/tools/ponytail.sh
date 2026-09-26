@@ -121,7 +121,7 @@ else
   limit=40
   [ "$MODE" = summary ] && limit=10
   printf '%s' "$ROWS" | sort -rn | head -"$limit" | while IFS='	' read -r n f l k e; do
-    [ -n "${n:-}" ] && echo "| $n | \`$f:$l\` | $l | $k | \`$(sed 's/|/\\|/g' <<<"$e")\` |"
+    [ -n "${n:-}" ] && echo "| $n | \`$f:$l\` | $l | $k | \`${e//|/\\|}\` |"
   done
 fi
 echo
