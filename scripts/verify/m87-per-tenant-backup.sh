@@ -46,6 +46,12 @@
 #       table is NOT left wiped/partial). A gate that only shows the happy path is
 #       VACUOUS; the B-untouched + cross-tenant-403 + deferred-400 + atomic-rollback
 #       assertions are the load-bearing proof.
+#   (E · SEALED) a third tenant-control with TENANT_BACKUP_AGE_RECIPIENTS and
+#       its identity: the artifact is age-sealed at rest (no row text, ledger
+#       sha256 = the stored bytes) and restores EXACT; a non-matching identity
+#       refuses to boot; a plaintext artifact, a sealed one on a router without
+#       the identity, and B's sealed artifact copied over A's are each 409 with
+#       A untouched (the ledger hash is checked before any COPY).
 #   (C · PARITY) a SECOND tenant-control with TENANT_BACKUP_ENABLED unset: POST
 #       /v1/tenants/{id}/backup -> 404 (route NOT mounted) WHILE the base admin
 #       route GET /v1/tenants/{id} (service token) STILL 200 = byte-parity.
@@ -92,8 +98,11 @@ PG_IMAGE="${M87_PG_IMAGE:-postgres:16-alpine}"
 TC_IMG="m87-tc-$$:scratch"
 NET="m87net-$$"
 PG="m87-pg-$$"
-TC_ON="m87-tc-on-$$"   # TENANT_BACKUP_ENABLED=1  (A · positive / B · reject)
-TC_OFF="m87-tc-off-$$" # TENANT_BACKUP_ENABLED unset (C · parity)
+TC_ON="m87-tc-on-$$"     # TENANT_BACKUP_ENABLED=1  (A · positive / B · reject)
+TC_OFF="m87-tc-off-$$"   # TENANT_BACKUP_ENABLED unset (C · parity)
+TC_SEAL="m87-tc-seal-$$" # TENANT_BACKUP_AGE_RECIPIENTS + identity (E · encrypted)
+PORT_SEAL="${M87_PORT_SEAL:-18990}"
+KEY_DIR="$(mktemp -d)"
 PORT_ON="${M87_PORT_ON:-18988}"
 PORT_OFF="${M87_PORT_OFF:-18989}"
 PGPW="postgres"
@@ -129,7 +138,8 @@ SCHEMA_B="$(tenant_schema "${TENANT_B}")"
 SCHEMA_T="$(tenant_schema "${TENANT_T}")"
 
 cleanup() {
-  docker rm -fv "${TC_ON}" "${TC_OFF}" "${PG}" >/dev/null 2>&1 || true
+  docker rm -fv "${TC_ON}" "${TC_OFF}" "${TC_SEAL}" "${TC_SEAL}-bad" "${PG}" >/dev/null 2>&1 || true
+  rm -rf "${KEY_DIR}" 2>/dev/null || true
   docker network rm "${NET}" >/dev/null 2>&1 || true
   docker image rm -f "${TC_IMG}" >/dev/null 2>&1 || true
   rm -f "${BODY_TMP}" 2>/dev/null || true
@@ -524,6 +534,112 @@ done
   fail "(ATOM) ledger status for the broken restore is not 'failed' — the failure was swallowed (line: T ledger failed)"
 ok "(ATOM) forced mid-restore COPY failure rolled back ATOMICALLY — t_aa kept exactly the sentinel, ledger='failed'; restore is all-or-nothing"
 
+# ── 8e) (E · ENCRYPTED, LOAD-BEARING) TENANT_BACKUP_AGE_RECIPIENTS set: the
+#        artifact is age-sealed at rest, restores exactly, and every restore is
+#        checked against the ledger sha256 BEFORE any COPY. Refused (409, data
+#        untouched): a plaintext artifact on the sealing router, a sealed one on a
+#        router without the identity, and B's sealed artifact swapped in for A's.
+#        A key mismatch refuses to boot. ────────────────────────────────────────
+step "8e/9 (E · ENCRYPTED) age keys (filippo.io/age v1.3.2 age-keygen, the version go.mod pins)"
+for k in id wrong; do
+  docker run --rm -e GOTOOLCHAIN=local -e GOFLAGS=-mod=mod golang:1.25-bookworm \
+    go run filippo.io/age/cmd/age-keygen@v1.3.2 2>/dev/null >"${KEY_DIR}/${k}.key" ||
+    fail "(E) age-keygen failed (line: E keygen)"
+  chmod 600 "${KEY_DIR}/${k}.key"
+done
+RCPT="$(sed -n 's/^# public key: //p' "${KEY_DIR}/id.key")"
+[[ "${RCPT}" == age1* ]] || fail "(E) age-keygen made no recipient (line: E recipient)"
+ok "(E) identity + a wrong identity minted; recipient ${RCPT:0:12}…"
+
+# seal_run starts tenant-control $1 on host port $2, sealing to RCPT with the
+# identity file $3; extra docker args follow.
+seal_run() {
+  local name="$1" port="$2" idf="$3"
+  shift 3
+  docker run --name "${name}" --network "${NET}" --user "$(id -u):$(id -g)" \
+    -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+    -e TENANT_BACKUP_ENABLED=1 -e BACKUP_DATA_DIR=/artifacts \
+    -e TENANT_BACKUP_AGE_RECIPIENTS="${RCPT}" -e TENANT_BACKUP_AGE_IDENTITY_FILE=/run/age.key \
+    -e TENANT_CONTROL_PORT=3020 -e TENANT_CONTROL_PRODUCT_MODE=enabled \
+    -v "${ARTIFACT_DIR}:/artifacts" -v "${idf}:/run/age.key:ro" \
+    -p "127.0.0.1:${port}:3020" "$@" "${TC_IMG}"
+}
+
+# await_backup polls the ledger until backup $1 is completed (fails on failed).
+await_backup() {
+  local st="" i
+  for i in $(seq 1 60); do
+    st="$(psql_val "SELECT status FROM public.tenant_backups WHERE id='$1'")"
+    [[ "${st}" == "completed" ]] && return 0
+    [[ "${st}" == "failed" ]] && fail "(E) backup $1 failed — $(psql_val "SELECT error_message FROM public.tenant_backups WHERE id='$1'")"
+    sleep 0.5
+  done
+  fail "(E) backup $1 never completed (last='${st}')"
+}
+
+# sealed_backup backs tenant $1 (mount $2) up on the sealing router; prints the id.
+sealed_backup() {
+  local c id
+  c="$(admin_req POST "${PORT_SEAL}" "/v1/tenants/$1/backup" "{\"mount\":\"$2\"}")"
+  [[ "${c}" =~ ^20[012]$ ]] || fail "(E) sealed backup of $1 got ${c} — $(head -c 300 "${BODY_TMP}")"
+  id="$(json_str backup_id)"
+  [[ -n "${id}" ]] || id="$(json_str id)"
+  [[ -n "${id}" ]] || fail "(E) sealed backup of $1 returned no id"
+  await_backup "${id}"
+  printf '%s' "${id}"
+}
+
+# expect_refused asserts restore of backup $2 for tenant $1 on port $3 is a 409
+# naming $4, and that A's marker table still holds $5 rows.
+expect_refused() {
+  local c
+  c="$(admin_req POST "$3" "/v1/tenants/$1/restore/$2")"
+  [[ "${c}" == "409" ]] || fail "(E) restore $2 on :$3 got ${c}, want 409 ($4) — $(head -c 300 "${BODY_TMP}")"
+  grep -q "$4" "${BODY_TMP}" || fail "(E) 409 body does not name '$4' — $(head -c 300 "${BODY_TMP}")"
+  [[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m87_marker")" == "$5" ]] ||
+    fail "(E) a refused restore changed A's rows (want $5)"
+}
+
+step "8e/9 (E) a key mismatch refuses to boot"
+seal_run "${TC_SEAL}-bad" "$((PORT_SEAL + 1))" "${KEY_DIR}/wrong.key" -d >/dev/null
+RC_BAD="$(timeout 60 docker wait "${TC_SEAL}-bad")" ||
+  fail "(E) tenant-control still running after 60s with an identity that matches no recipient"
+docker logs "${TC_SEAL}-bad" >"${BODY_TMP}" 2>&1
+[[ "${RC_BAD}" != 0 ]] || fail "(E) tenant-control exited 0 on a key mismatch"
+grep -q 'matches a TENANT_BACKUP_AGE_RECIPIENTS key' "${BODY_TMP}" ||
+  fail "(E) boot refusal did not name the key mismatch — $(tail -c 300 "${BODY_TMP}")"
+ok "(E) recipients without a matching identity: tenant-control refuses to boot"
+
+step "8e/9 (E) sealing tenant-control on 127.0.0.1:${PORT_SEAL}; backup A is age-sealed at rest"
+seal_run "${TC_SEAL}" "${PORT_SEAL}" "${KEY_DIR}/id.key" -d >/dev/null
+wait_ready "${TC_SEAL}" "${PORT_SEAL}" || fail "(E) sealing tenant-control not ready"
+SEAL_A="$(sealed_backup "${TENANT_A}" m87-mount-a)"
+SEAL_A_FILE="${ARTIFACT_DIR}/${TENANT_A}/${SEAL_A}"
+[[ "$(head -c 21 "${SEAL_A_FILE}")" == "age-encryption.org/v1" ]] || fail "(E) artifact ${SEAL_A_FILE} is not age-sealed"
+! grep -q 'a-row-' "${SEAL_A_FILE}" || fail "(E) sealed artifact carries plaintext rows"
+[[ "$(sha256sum "${SEAL_A_FILE}" | cut -d' ' -f1)" == "$(psql_val "SELECT sha256 FROM public.tenant_backups WHERE id='${SEAL_A}'")" ]] ||
+  fail "(E) ledger sha256 is not the sha of the stored (sealed) bytes"
+ok "(E) artifact starts with the age header, holds no row text, ledger sha256 = sha of the stored bytes"
+
+step "8e/9 (E) refusals — plaintext on the sealing router, sealed without identity, B's artifact swapped in for A's"
+psql_q -c "DELETE FROM \"${SCHEMA_A}\".m87_marker;" >/dev/null 2>&1 || fail "(E) could not wipe A"
+expect_refused "${TENANT_A}" "${BACKUP_A}" "${PORT_SEAL}" "not encrypted" 0
+expect_refused "${TENANT_A}" "${SEAL_A}" "${PORT_ON}" "is encrypted" 0
+SEAL_B="$(sealed_backup "${TENANT_B}" m87-mount-b)"
+cp "${SEAL_A_FILE}" "${KEY_DIR}/a.orig"
+cp "${ARTIFACT_DIR}/${TENANT_B}/${SEAL_B}" "${SEAL_A_FILE}"
+expect_refused "${TENANT_A}" "${SEAL_A}" "${PORT_SEAL}" "does not match the ledger sha256" 0
+cp "${KEY_DIR}/a.orig" "${SEAL_A_FILE}"
+[[ "$(psql_val "${CK_SQL_B}")" == "${BASE_CK_B}" ]] || fail "(E) B changed during the swap"
+ok "(E) 409 for each; A still wiped (no COPY ran), B byte-untouched"
+
+step "8e/9 (E) restore the sealed backup → A EXACT"
+C="$(admin_req POST "${PORT_SEAL}" "/v1/tenants/${TENANT_A}/restore/${SEAL_A}")"
+[[ "${C}" =~ ^20[012]$ ]] || fail "(E) sealed restore got ${C} — $(head -c 300 "${BODY_TMP}")"
+[[ "$(psql_val "SELECT count(*) FROM \"${SCHEMA_A}\".m87_marker")" == "${ROWS_A}" && "$(psql_val "${CK_SQL_A}")" == "${BASE_CK_A}" ]] ||
+  fail "(E) sealed restore is not exact"
+ok "(E) sealed backup restores EXACT (count==${ROWS_A}, md5==baseline)"
+
 # ── 9) (C · PARITY) flag OFF → backup routes 404, base admin route still 200 ──
 step "9a/9 (C · PARITY) boot a SECOND tenant-control with TENANT_BACKUP_ENABLED unset on 127.0.0.1:${PORT_OFF}"
 docker run -d --name "${TC_OFF}" --network "${NET}" \
@@ -552,6 +668,7 @@ step "summary"
 green "[M87] (A) POSITIVE: backup A (artifact on disk, size>0, sha256 hex, listed completed) → DELETE A → restore A → EXACTLY ${ROWS_A} rows + md5==baseline"
 green "[M87] (B) REJECT:   B byte-untouched throughout (count+md5); cross-tenant restore of A under B → 403/404; shared_rls + db_per_tenant backup → 400 deferred"
 green "[M87] (SAFETY):     forced mid-restore COPY failure rolled back ATOMICALLY — t_aa kept exactly the sentinel, ledger='failed'"
+green "[M87] (E) SEALED:   artifact age-sealed at rest, ledger sha = stored bytes, restores EXACT; key mismatch refuses boot; plaintext / no identity / swapped artifact → 409 before any COPY"
 green "[M87] (C) PARITY:   TENANT_BACKUP_ENABLED off → POST /backup 404 (route absent) while base admin GET /v1/tenants/{id} still 200"
 
 # ── emit the gate event via the kernel log helper (best-effort) ─────────────────
