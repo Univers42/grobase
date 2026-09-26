@@ -14,11 +14,14 @@
 #    (4) Prometheus scraped them: the AuthFailureSpike and                     #
 #        AppPlaneAuthRejections expressions (rate > 0) return the series       #
 #    (5) Loki can select them by the event_type label (when loki runs)         #
-#  Needs kong + query-router + prometheus running; otherwise prints SKIP.      #
+#  Needs kong + query-router + prometheus running; otherwise prints SKIP, or   #
+#  fails under M204_REQUIRE=1 (CI, where a skip would pass vacuously).         #
 #                                                                              #
 #  Ponytail: (1)–(3) compare before/after on a live stack, so concurrent       #
 #  401s from other traffic can only make a count larger — the check is ">=",   #
-#  and a real regression still reads 0.                                        #
+#  and a real regression still reads 0. (4) needs both 401 series to exist    #
+#  in Prometheus before the burst: a counter born with its value already at    #
+#  N has no earlier sample, so rate() reads 0. One warm-up 401 first.          #
 #                                                                              #
 # **************************************************************************** #
 set -uo pipefail
@@ -84,22 +87,36 @@ poll() {
   printf '%s\n' "${v:-0}"
 }
 
+# bogus sends one request with a bogus API key through Kong to query-router
+# and prints the status code.
+bogus() {
+  in_net -o /dev/null -w '%{http_code}\n' -H "apikey: ${anon}" \
+    -H 'X-Baas-Api-Key: mbk_m204_not_a_key' http://kong:8000/query/v1/m204/tables
+}
+
+kong_seen() { prom_query 'kong_http_requests_total{code="401",service="query-router"}'; }
+app_seen() { prom_query 'mini_baas_http_requests_total{status_code="401"}'; }
+
 for c in mini-baas-kong mini-baas-query-router mini-baas-prometheus; do
   running "${c}" || {
+    [ "${M204_REQUIRE:-0}" = 1 ] && fail "${c} is not running (M204_REQUIRE=1)"
     printf '  SKIP: %s is not running (make up PACKAGE=max)\n' "${c}"
     exit 0
   }
 done
 
-step "send ${N} requests with a bogus API key through Kong"
 anon="$(grep -E '^ANON_KEY=' .env 2>/dev/null | cut -d= -f2-)"
+step "warm up: one rejected request, until Prometheus holds both 401 series"
+[ "$(bogus)" = 401 ] || fail "the warm-up request was not answered 401"
+[ "$(poll kong_seen)" -ge 1 ] || fail "Prometheus holds no kong 401 series for query-router after 45 s (kong not scraped?)"
+[ "$(poll app_seen)" -ge 1 ] || fail "Prometheus holds no query-router 401 series after 45 s (query-router not scraped?)"
+ok "both 401 series are scraped"
+
+step "send ${N} requests with a bogus API key through Kong"
 since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 k0="$(kong_401)"
 r0="$(router_401)"
-codes="$(for _ in $(seq 1 "${N}"); do
-  in_net -o /dev/null -w '%{http_code}\n' -H "apikey: ${anon}" \
-    -H 'X-Baas-Api-Key: mbk_m204_not_a_key' http://kong:8000/query/v1/m204/tables
-done | sort | uniq -c | tr -s ' ' | tr '\n' ';')"
+codes="$(for _ in $(seq 1 "${N}"); do bogus; done | sort | uniq -c | tr -s ' ' | tr '\n' ';')"
 [ "${codes}" = " ${N} 401;" ] || fail "expected ${N}×401, got:${codes}"
 ok "${N} × 401"
 
