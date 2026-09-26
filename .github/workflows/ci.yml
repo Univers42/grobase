@@ -36,6 +36,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - name: Install shellcheck
         run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
@@ -140,6 +143,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
@@ -248,6 +254,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       # Heavy JVM/SQL-Server/Next builds peak at 2–3 GiB; the stock runner has
       # ~14 GiB free. Reclaim the preinstalled Android/.NET/GHC/boost/JVM trees
@@ -347,6 +356,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - name: Free disk space
         run: |
@@ -404,6 +416,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - name: Free disk space
         run: |
@@ -438,6 +453,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
       - name: liveness follows PostgreSQL and MinIO
         run: bash scripts/verify/m192-pg-backup-liveness.sh
 
@@ -452,6 +470,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
       # tenant-control built from the commit verifies RS256 tokens from a JWKS.
       - name: RS256 verifier (m64)
         run: bash scripts/verify/m64-rs256.sh
@@ -474,6 +495,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - name: Generate CI environment
         run: |
@@ -770,6 +794,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
       - name: own ports kept, foreign ports avoided
         run: bash scripts/verify/m193-resolve-ports-own-stack.sh
 
@@ -785,6 +812,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
@@ -823,6 +853,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
       - name: Run isolated RBAC + invites gates
         run: |
@@ -861,6 +894,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       # Python — grobase-sdk
       - if: matrix.sdk == 'python'
@@ -961,6 +997,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
@@ -1005,6 +1044,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
@@ -1038,6 +1080,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - name: Assemble .env
         run: bash scripts/env/assemble-env.sh
@@ -1082,7 +1127,8 @@ jobs:
       # Builds Dockerfile.fly and boots it --network none: the flag drops Vault
       # to the vault user; unset keeps today's root.
       - name: Vault drops privileges (m196)
-        run: bash scripts/verify/run-gate-battery.sh m196-vault-drop-privileges
+        # The vault base image comes from public.ecr.aws: a registry 429 is retried.
+        run: bash scripts/ci/retry-on-429.sh bash scripts/verify/run-gate-battery.sh m196-vault-drop-privileges
 
       # Only Upgrade: websocket reaches Kong; h2c is dropped. A mutant config
       # must relay h2c, proving the probe can see smuggling at all.
@@ -1113,6 +1159,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       # Go — control plane (~30 packages)
       - if: matrix.suite == 'go'
@@ -1174,6 +1223,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
       - name: 40 cold invokes must all answer
         run: bash scripts/verify/m186-functions-cold-invoke.sh
 
@@ -1191,6 +1243,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
       # The toolchain image comes from public.ecr.aws: a registry 429 is retried.
       - name: cargo clippy --workspace --all-targets -D warnings
         run: bash scripts/ci/retry-on-429.sh make test-lint-rust
@@ -1208,6 +1263,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
       # The Rust toolchain image comes from public.ecr.aws: a registry 429 is retried.
       - name: Every language formatted (no writes)
         run: bash scripts/ci/retry-on-429.sh make prettiers-check
