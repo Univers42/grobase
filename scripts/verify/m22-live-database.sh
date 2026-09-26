@@ -565,10 +565,10 @@ WSJS
     "${WS_NODE_IMAGE}" node --experimental-websocket /probe.mjs >/dev/null ||
     fail "could not start the WS subscriber container (${WS_NODE_IMAGE})"
   for _ in $(seq 1 60); do
-    docker logs "${WS_NAME}" 2>&1 | grep -q 'SUBSCRIBED' && break
+    grep -q 'SUBSCRIBED' <<<"$(docker logs "${WS_NAME}" 2>&1)" && break
     sleep 0.5
   done
-  docker logs "${WS_NAME}" 2>&1 | grep -q 'SUBSCRIBED' ||
+  grep -q 'SUBSCRIBED' <<<"$(docker logs "${WS_NAME}" 2>&1)" ||
     fail "WS subscriber never reached SUBSCRIBED: $(docker logs "${WS_NAME}" 2>&1 | tail -3)"
   pass "WS subscriber authenticated (in-band JWT) and subscribed via /realtime/v1/ws"
 
@@ -584,7 +584,7 @@ WSJS
     fail "gateway insert did not report rowCount 1: $(cat /tmp/m22-rt-insert.json)"
   ECHO_OK=0
   for _ in $(seq 1 10); do
-    if docker logs "${WS_NAME}" 2>&1 | grep -q 'ROW_CHANGED'; then
+    if grep -q 'ROW_CHANGED' <<<"$(docker logs "${WS_NAME}" 2>&1)"; then
       ECHO_OK=1
       break
     fi

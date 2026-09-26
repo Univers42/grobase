@@ -52,7 +52,7 @@ docker inspect -f '{{.State.Running}}' "${NODE_NL}" 2>/dev/null | grep -q true |
   skip "${NODE_NL} not running (need the Node side to diff against)"
 
 # Confirm the orchestrator actually mounted newsletter (else the probe 404s).
-docker logs "${ORCH}" 2>&1 | grep -q '"service":"newsletter"' ||
+grep -q '"service":"newsletter"' <<<"$(docker logs "${ORCH}" 2>&1)" ||
   skip "orchestrator is up but newsletter sub-service not mounted (ORCHESTRATOR_SERVICES)"
 
 NODE_PORT="$(docker inspect "${NODE_NL}" --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^PORT=//p' | head -1)"
