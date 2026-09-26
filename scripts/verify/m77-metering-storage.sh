@@ -180,7 +180,7 @@ wait_http() { # $1=container  $2=port  $3=path
 wait_log() { # $1=container  $2=needle  $3=tries
   local i
   for i in $(seq 1 "${3:-40}"); do
-    docker logs "$1" 2>&1 | grep -q "$2" && return 0
+    grep -q "$2" <<<"$(docker logs "$1" 2>&1)" && return 0
     docker inspect "$1" >/dev/null 2>&1 || return 1
     sleep 0.5
   done

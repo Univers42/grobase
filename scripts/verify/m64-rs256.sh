@@ -299,7 +299,7 @@ step "3/8 boot scratch tenant-control with JWT_ALG=RS256 + JWKS_URL (ON arm)"
 boot_tc "${TC_ON}" "${PORT_ON}" "RS256" "${JWKS_INNET}"
 wait_tc "${TC_ON}" "${PORT_ON}" || fail "ON-arm tenant-control not ready (line: wait_tc TC_ON)"
 # Confirm it actually came up in RS256 mode (boot log line names the verifier).
-docker logs "${TC_ON}" 2>&1 | grep -q "jwt verifier enabled" || fail "ON arm did not enable the jwt verifier (line: TC_ON verifier log)"
+grep -q "jwt verifier enabled" <<<"$(docker logs "${TC_ON}" 2>&1)" || fail "ON arm did not enable the jwt verifier (line: TC_ON verifier log)"
 ok "ON-arm tenant-control up (JWT_ALG=RS256) on 127.0.0.1:${PORT_ON}"
 
 # ── 4) ON·ACCEPT: a valid RS256 token verifies via the JWKS -> 201 + a key ─────

@@ -211,7 +211,7 @@ start_ws() { # $1=node  $2=topic  $3=outfile  $4=hold_secs
 wait_substr() { # $1=container  $2=needle  $3=tries
   local i
   for i in $(seq 1 "${3:-40}"); do
-    docker logs "$1" 2>&1 | grep -q "$2" && return 0
+    grep -q "$2" <<<"$(docker logs "$1" 2>&1)" && return 0
     sleep 0.25
   done
   return 1
@@ -266,7 +266,7 @@ done
 wait_http "${RT_A_ON}" "${RT_PORT_A_ON}" "/v1/health" || fail "node A (ON) not ready (line: wait_http RT_A_ON)"
 wait_http "${RT_B_ON}" "${RT_PORT_B_ON}" "/v1/health" || fail "node B (ON) not ready (line: wait_http RT_B_ON)"
 for n in "${RT_A_ON}" "${RT_B_ON}"; do
-  docker logs "${n}" 2>&1 | grep -q "cross-node presence ON" ||
+  grep -q "cross-node presence ON" <<<"$(docker logs "${n}" 2>&1)" ||
     {
       red "${n} logs:"
       docker logs "${n}" 2>&1 | tail -15
@@ -344,7 +344,7 @@ wait_http "${RT_A_OFF}" "${RT_PORT_A_OFF}" "/v1/health" || fail "(P) node A (OFF
 wait_http "${RT_B_OFF}" "${RT_PORT_B_OFF}" "/v1/health" || fail "(P) node B (OFF) not ready (line: wait_http RT_B_OFF)"
 # With the flag OFF the server must NOT announce cross-node presence ON.
 for n in "${RT_A_OFF}" "${RT_B_OFF}"; do
-  docker logs "${n}" 2>&1 | grep -q "cross-node presence ON" &&
+  grep -q "cross-node presence ON" <<<"$(docker logs "${n}" 2>&1)" &&
     fail "(P) ${n} announced cross-node presence ON with the flag UNSET — NOT parity (line: P announce leak)"
 done
 ok "(P) both OFF nodes up, no cross-node announce (A:${RT_PORT_A_OFF}, B:${RT_PORT_B_OFF})"

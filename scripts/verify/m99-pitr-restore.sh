@@ -378,7 +378,7 @@ else
   # Recovery refused to reach a target before consistency: that ALSO proves the
   # target bounds replay (it did not silently restore 'latest'). The cluster never
   # served R1.
-  docker logs "${PG_REC_B}" 2>&1 | grep -qiE 'recovery_target|before consistent|reached|stopping point|FATAL' ||
+  grep -qiE 'recovery_target|before consistent|reached|stopping point|FATAL' <<<"$(docker logs "${PG_REC_B}" 2>&1)" ||
     fail "(B) T0 recovery neither served (R1-absent) nor reported a target-bounded recovery — undefined (line: B undefined)"
   ok "(B) restore-to-T0(before R1): cluster never served R1 (recovery bounded by the early target) — target honored"
 fi
