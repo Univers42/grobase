@@ -15,6 +15,12 @@
 #               header with no credential, so only its callers may reach it —
 #               the routers and tenant-control (net-data/net-vault), prometheus
 #               (net-vault) and kong's /admin/v1 route (here).
+#   net-studio  studio + pg-meta + kong. Studio has no login and pg-meta runs
+#               any SQL as the postgres superuser, so neither sits on the app
+#               bridge; kong stays for its acl-gated /meta/v1 route to pg-meta.
+#   net-meta    pg-meta + postgres (alias db, what Studio's connection string
+#               names). pg-meta leaves net-data, so no engine client that
+#               shares the app bridge can reach it either.
 #
 # Two containers reach each other only if they share a bridge, so a service
 # not joined below — waf, kong, studio, playground, loki, promtail,
@@ -30,7 +36,9 @@
 #
 # Ponytail: the bridges are plain (not `internal: true`): an engine attached
 # only to an internal network cannot publish its dev host port. Egress control
-# is the prod overlay's job, not this file's.
+# is the prod overlay's job, not this file's. Bridges are symmetric, so kong on
+# net-studio also reaches studio's unauthenticated API — no more than its
+# /meta/v1 route to pg-meta already gives it.
 # ============================================================================
 
 networks:
@@ -39,6 +47,10 @@ networks:
   net-vault:
     driver: bridge
   net-registry:
+    driver: bridge
+  net-studio:
+    driver: bridge
+  net-meta:
     driver: bridge
 
 x-app-data: &app-data
@@ -51,6 +63,8 @@ services:
   postgres:
     networks: !override
       net-data:
+        aliases: [db]
+      net-meta:
         aliases: [db]
   mysql:
     networks: !override [net-data]
@@ -84,7 +98,6 @@ services:
   supavisor: *app-data
   gotrue: *app-data
   postgrest: *app-data
-  pg-meta: *app-data
   ai-service: *app-data
   analytics-service: *app-data
   email-service: *app-data
@@ -113,4 +126,10 @@ services:
   prometheus:
     networks: [mini-baas, net-vault]
   kong:
-    networks: [mini-baas, net-registry]
+    networks: [mini-baas, net-registry, net-studio]
+
+  # ── admin UI: its own bridges, off the app bridge and off net-data ─────
+  studio:
+    networks: !override [net-studio]
+  pg-meta:
+    networks: !override [net-meta, net-studio]

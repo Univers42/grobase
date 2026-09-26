@@ -15,7 +15,9 @@
 #        mailpit and minio share no bridge with an engine or vault, and        #
 #        prometheus none with an engine; adapter-registry-go (it trusts an     #
 #        asserted tenant header) is off the app bridge, and net-registry       #
-#        holds only it and kong                                                #
+#        holds only it and kong; studio sits on net-studio alone, pg-meta on   #
+#        net-meta + net-studio, net-studio holds only kong, pg-meta and        #
+#        studio, net-meta only pg-meta and postgres                            #
 #    (4) every client shares a bridge with the engine it dials: each engine    #
 #        host named in a service's own environment/command, plus the edges     #
 #        that live in config files, code defaults or tenant mounts (EDGES)     #
@@ -24,7 +26,9 @@
 #        IP; from query-router's both connect by name; and a sidecar on the    #
 #        bridge lib-netseg.sh's engine_net picks reaches mongo/dynamodb-local  #
 #        while one on the app bridge does not (vault-seed/-restore use it);    #
-#        an app-bridge sidecar cannot open adapter-registry-go, kong can       #
+#        an app-bridge sidecar cannot open adapter-registry-go, kong can;      #
+#        neither an app-bridge sidecar nor query-router opens pg-meta or       #
+#        studio, while a net-studio sidecar and kong do                        #
 #  Otherwise (5) prints SKIP.                                                  #
 #                                                                              #
 #  Renders with a digest-pinned compose (M66_COMPOSE_IMAGE; `host` uses the   #
@@ -51,7 +55,7 @@ REGISTRY="adapter-registry-go"
 REGISTRY_CLIENTS="query-router data-plane-router-rust tenant-control schema-service kong prometheus"
 EDGES="debezium>postgres debezium>redis trino>postgres trino>mysql trino>mongo
 grafana>postgres db-bootstrap>postgres pg-meta>postgres pg-migrate>postgres storage-router>redis
-outbox-relay>redis tenant-control>postgres vault-init>vault prometheus>vault"
+outbox-relay>redis tenant-control>postgres vault-init>vault prometheus>vault studio>pg-meta kong>pg-meta"
 BUSYBOX="busybox:1.36"
 COMPOSE_IMAGE="${M66_COMPOSE_IMAGE:-docker:29-cli@sha256:018edbc908e08fcc9dbf029c812c34251e9b4719e6f71ca0e5eae2a987d014ca}"
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
@@ -149,13 +153,14 @@ parity() {
 # placement checks the engines and vault sit only on their own bridge in $1.
 placement() {
   local e
-  for e in ${ENGINES}; do
+  for e in ${ENGINES/postgres/}; do
     [ "$(nets "${e}" "$1")" = net-data ] || fail "${e} is on '$(nets "${e}" "$1")', want net-data only"
   done
+  [ "$(nets postgres "$1")" = net-data,net-meta ] || fail "postgres is on '$(nets postgres "$1")', want net-data,net-meta"
   [ "$(nets vault "$1")" = net-vault ] || fail "vault is on '$(nets vault "$1")', want net-vault only"
-  jq -e '.services.postgres.networks["net-data"].aliases | index("db")' "$1" >/dev/null ||
-    fail "postgres lost its db alias"
-  ok "(2) engines on net-data only, vault on net-vault only, postgres keeps alias db"
+  jq -e '.services.postgres.networks | (.["net-data"].aliases | index("db")) and (.["net-meta"].aliases | index("db"))' "$1" >/dev/null ||
+    fail "postgres lost its db alias on net-data or net-meta"
+  ok "(2) engines on net-data only (postgres also net-meta), vault on net-vault only, postgres keeps alias db"
 }
 
 # isolation checks no untrusted service shares a bridge with an engine or vault in $1.
@@ -183,6 +188,22 @@ registry() {
   got="$(jq -r '[.services | to_entries[] | select(.value.networks // {} | has("net-registry")) | .key] | sort | join(",")' "$1")"
   [ "${got}" = "${REGISTRY},kong" ] || fail "net-registry holds '${got}', want ${REGISTRY},kong only"
   ok "(3) ${REGISTRY} is off the app bridge; net-registry holds only it and kong"
+  admin_ui "$1"
+}
+
+# members prints the sorted, comma-joined services on network $1 in config $2.
+members() {
+  jq -r --arg n "$1" '[.services | to_entries[] | select(.value.networks // {} | has($n)) | .key] | sort | join(",")' "$2"
+}
+
+# admin_ui checks studio (no login) and pg-meta (superuser SQL) are off the app
+# bridge and net-data, each on a bridge only its callers share, in config $1.
+admin_ui() {
+  [ "$(nets studio "$1")" = net-studio ] || fail "studio is on '$(nets studio "$1")', want net-studio only"
+  [ "$(nets pg-meta "$1")" = net-meta,net-studio ] || fail "pg-meta is on '$(nets pg-meta "$1")', want net-meta,net-studio"
+  [ "$(members net-studio "$1")" = kong,pg-meta,studio ] || fail "net-studio holds '$(members net-studio "$1")', want kong,pg-meta,studio"
+  [ "$(members net-meta "$1")" = pg-meta,postgres ] || fail "net-meta holds '$(members net-meta "$1")', want pg-meta,postgres"
+  ok "(3) studio and pg-meta are off the app bridge and net-data; net-studio = kong,pg-meta,studio; net-meta = pg-meta,postgres"
 }
 
 # reachability checks every client shares a bridge with the engine it dials in $1.
@@ -227,6 +248,25 @@ live() {
   ok "(5) live: kong → postgres${vault:+/vault} refused by IP; query-router → postgres${vault:+/vault} connects"
   sidecars
   live_registry
+  live_admin_ui pg-meta 8080
+  live_admin_ui studio 3000
+}
+
+# live_admin_ui checks admin service $1 (port $2), when running, is refused to an
+# app-bridge sidecar and to query-router (net-data) by IP, and reached by a
+# net-studio sidecar and by kong by name.
+live_admin_ui() {
+  local c="mini-baas-$1" ip
+  docker inspect "${c}" >/dev/null 2>&1 || return 0
+  ip="$(ip_on "${c}" _net-studio)"
+  [ -n "${ip}" ] || fail "${c} is not on net-studio"
+  ! docker run --rm --network mini-baas_mini-baas "${BUSYBOX}" nc -z -w 3 "${ip}" "$2" >/dev/null 2>&1 ||
+    fail "a sidecar on the app bridge reaches ${c} (${ip}:$2)"
+  ! probe mini-baas-query-router "${ip}" "$2" || fail "query-router reaches ${c} (${ip}:$2)"
+  docker run --rm --network mini-baas_net-studio "${BUSYBOX}" nc -z -w 3 "$1" "$2" >/dev/null 2>&1 ||
+    fail "a sidecar on net-studio cannot reach $1:$2 (the refusals above prove nothing)"
+  probe mini-baas-kong "$1" "$2" || fail "kong cannot reach $1:$2"
+  ok "(5) live: an app-bridge sidecar and query-router cannot open $1:$2; a net-studio sidecar and kong reach it"
 }
 
 # live_registry checks a sidecar on the app bridge cannot open adapter-registry-go
