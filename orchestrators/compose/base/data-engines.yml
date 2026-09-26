@@ -13,7 +13,11 @@ services:
       cache_from:
         - ghcr.io/univers42/grobase-postgres:buildcache
     container_name: mini-baas-postgres
-    env_file: [.env]
+    # Only its own variables, never the platform .env (JWT_SECRET, service tokens);
+    # operator engine settings (MINIO_*, TZ, …) go in the optional .env.engines.
+    env_file:
+      - path: .env.engines
+        required: false
     ports:
       - "${ENGINE_BIND_ADDR:-127.0.0.1}:${PG_PORT:-5432}:5432"
     environment:
@@ -151,7 +155,11 @@ services:
       context: ./infra/docker/services/redis
       dockerfile: Dockerfile
     container_name: mini-baas-redis
-    env_file: [.env]
+    # Only its own variables, never the platform .env (JWT_SECRET, service tokens);
+    # operator engine settings (MINIO_*, TZ, …) go in the optional .env.engines.
+    env_file:
+      - path: .env.engines
+        required: false
     ports:
       # Loopback-only publish: protected-mode is off (so docker-network peers —
       # conformance, ratelimit, outbox-relay — can connect), so do NOT expose an
@@ -197,7 +205,11 @@ services:
       dockerfile: Dockerfile
     container_name: mini-baas-mongo
     profiles: [data-plane]
-    env_file: [.env]
+    # Only its own variables, never the platform .env (JWT_SECRET, service tokens);
+    # operator engine settings (MINIO_*, TZ, …) go in the optional .env.engines.
+    env_file:
+      - path: .env.engines
+        required: false
     command:
       [
         "--replSet",
