@@ -68,7 +68,9 @@ nhas() {
 }
 
 PG_IMAGE="${M72_PG_IMAGE:-postgres:16-alpine}"
-SCRATCH_IMG="m72-dpr-$$:scratch"
+# M72_DPR_IMAGE reuses a prebuilt data-plane-router image (same Dockerfile, e.g. the
+# stack's own after `make build`) instead of building one; it is never removed.
+SCRATCH_IMG="${M72_DPR_IMAGE:-m72-dpr-$$:scratch}"
 NET="m72net-$$"
 PG="m72-pg-$$"
 DPR_ON="m72-dpr-on-$$"   # (A) POSITIVE arm router (flag ON)
@@ -85,7 +87,7 @@ BODY_TMP="$(mktemp)"
 cleanup() {
   docker rm -fv "${DPR_ON}" "${DPR_OFF}" "${PG}" >/dev/null 2>&1 || true
   docker network rm "${NET}" >/dev/null 2>&1 || true
-  docker image rm -f "${SCRATCH_IMG}" >/dev/null 2>&1 || true
+  [ -n "${M72_DPR_IMAGE:-}" ] || docker image rm -f "${SCRATCH_IMG}" >/dev/null 2>&1 || true
   rm -f "${BODY_TMP}" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -128,9 +130,13 @@ wait_ready() { # $1=container  $2=port
 
 # ── 0) build the scratch DPR image FROM THE CURRENT (drafted) source ──────────
 step "0/6 build scratch data-plane-router from CURRENT source (contains THE A6 build)"
-DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${DPR_DIR}" >/dev/null ||
+[ -n "${M72_DPR_IMAGE:-}" ] || DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${DPR_DIR}" >/dev/null ||
   fail "scratch DPR image build failed — the gate must exercise the drafted code (line: docker build)"
-ok "scratch image ${SCRATCH_IMG} built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
+if [ -n "${M72_DPR_IMAGE:-}" ]; then
+  ok "image ${SCRATCH_IMG}: prebuilt, revision $(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "${SCRATCH_IMG}" | cut -c1-8)"
+else
+  ok "image ${SCRATCH_IMG}: built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
+fi
 
 # ── 1) isolated network + throwaway postgres with EXACTLY ${ROWS} seeded rows ─
 step "1/6 boot isolated postgres (${PG}) on private net (${NET}); seed ${ROWS} rows"

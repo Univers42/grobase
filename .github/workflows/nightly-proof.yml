@@ -201,15 +201,17 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.yml down -v
 
-  # ─── Job 2a: Vault credential refs (G-Vault, m121) ───────────────────────────
-  # Builds adapter-registry + data-plane-router from this commit and boots them
-  # beside a scratch postgres and dev Vault (the stack's 1.21): a max-tier
+  # ─── Job 2a: scratch data-plane gates (G-Vault m121, G-ReadAudit m72, G-QoS m73)
+  # Builds data-plane-router once from this commit; each gate boots it beside a
+  # scratch postgres. m121 (+ adapter-registry, dev Vault 1.21): a max-tier
   # tenant's inline DSN is refused 403, its credential_ref resolves through Vault
-  # and serves a read, and a baseline tenant's inline DSN still registers.
+  # and serves a read, a baseline tenant's inline DSN still registers. m72: one
+  # read-audit line per read with DATA_PLANE_AUDIT_READS, none without. m73: a
+  # max_rows mask clamps a list, no mask returns every row.
   vault-credref:
-    name: Vault credential refs (m121)
+    name: Scratch data-plane gates (m121, m72, m73)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
@@ -222,8 +224,23 @@ jobs:
                       /usr/lib/jvm "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
           df -h / | tail -1
 
+      - name: Build data-plane-router from this commit
+        run: docker build -q -t dpr-nightly:scratch src/data-plane-router
+
       - name: Credential-ref enforcement (m121)
+        env:
+          M121_DPR_IMAGE: dpr-nightly:scratch
         run: bash scripts/verify/m121-credref-vault-enforce.sh
+
+      - name: Read audit (m72, G-ReadAudit)
+        env:
+          M72_DPR_IMAGE: dpr-nightly:scratch
+        run: bash scripts/verify/m72-read-audit.sh
+
+      - name: Rows-per-query cap (m73, G-QoS)
+        env:
+          M73_DPR_IMAGE: dpr-nightly:scratch
+        run: bash scripts/verify/m73-rows-cap.sh
 
   # ─── Job 2b: Load baseline — the "fast" regression guard ─────────────────────
   # m38: a 60 s k6 run of the canonical CRUD mix through Kong at the essential
