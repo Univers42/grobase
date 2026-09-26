@@ -257,7 +257,7 @@ HAS_TENANTS="$(docker exec -i "${PG}" psql -U postgres -d postgres -tAc \
 ok "postgres up; minimal tenants + tenant_api_keys schema applied"
 
 # ── helper: boot a scratch tenant-control with a given JWT_ALG/JWKS_URL ────────
-boot_tc() { # $1=container  $2=port  $3=JWT_ALG(or "")  $4=JWKS_URL(or "")
+boot_tc() { # $1=container  $2=port  $3=JWT_ALG(or "")  $4=JWKS_URL(or "") — fails unless it runs
   docker run -d --name "$1" --network "${NET}" \
     -e TENANT_CONTROL_HOST=0.0.0.0 -e TENANT_CONTROL_PORT=3022 \
     -e TENANT_CONTROL_PRODUCT_MODE=enabled \
@@ -267,7 +267,10 @@ boot_tc() { # $1=container  $2=port  $3=JWT_ALG(or "")  $4=JWKS_URL(or "")
     -e GOTRUE_JWT_ISSUER="${ISSUER}" \
     -e JWT_ALG="$3" -e JWKS_URL="$4" \
     -e LOG_LEVEL=info \
-    -p "127.0.0.1:$2:3022" "${SCRATCH_IMG}" >/dev/null
+    -p "127.0.0.1:$2:3022" "${SCRATCH_IMG}" >/dev/null 2>"${BODY}.run" ||
+    fail "docker run $1 on 127.0.0.1:$2 failed: $(head -c 300 "${BODY}.run")"
+  [[ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null)" == true ]] ||
+    fail "$1 is not running right after docker run (port $2 taken?)"
 }
 wait_tc() { # $1=container  $2=port  — tenant-control has no /health; probe a known route
   for i in $(seq 1 60); do
@@ -287,6 +290,17 @@ wait_tc() { # $1=container  $2=port  — tenant-control has no /health; probe a 
   docker logs "$1" 2>&1 | tail -20
   return 1
 }
+# logged waits up to 5 s for container $1's log to contain $2: dockerd copies
+# stdout to the log asynchronously, so a line printed just before the port
+# answered can still be in flight.
+logged() {
+  local i
+  for i in $(seq 1 20); do
+    grep -q -- "$2" <<<"$(docker logs "$1" 2>&1)" && return 0
+    sleep 0.25
+  done
+  return 1
+}
 # POST a bootstrap with the given bearer token; echo HTTP status, body->$BODY.
 post_bootstrap() { # $1=port  $2=token
   curl -s -o "${BODY}" -w '%{http_code}' -X POST "http://127.0.0.1:$1/v1/tenants/me/bootstrap" \
@@ -299,7 +313,10 @@ step "3/8 boot scratch tenant-control with JWT_ALG=RS256 + JWKS_URL (ON arm)"
 boot_tc "${TC_ON}" "${PORT_ON}" "RS256" "${JWKS_INNET}"
 wait_tc "${TC_ON}" "${PORT_ON}" || fail "ON-arm tenant-control not ready (line: wait_tc TC_ON)"
 # Confirm it actually came up in RS256 mode (boot log line names the verifier).
-grep -q "jwt verifier enabled" <<<"$(docker logs "${TC_ON}" 2>&1)" || fail "ON arm did not enable the jwt verifier (line: TC_ON verifier log)"
+logged "${TC_ON}" "jwt verifier enabled" || {
+  docker logs "${TC_ON}" 2>&1 | tail -20
+  fail "ON arm did not enable the jwt verifier after 5 s (line: TC_ON verifier log; state $(docker inspect -f '{{.State.Status}}' "${TC_ON}" 2>&1), $(docker logs "${TC_ON}" 2>&1 | wc -l) log lines, last: $(docker logs "${TC_ON}" 2>&1 | tail -n 1 | cut -c1-200))"
+}
 ok "ON-arm tenant-control up (JWT_ALG=RS256) on 127.0.0.1:${PORT_ON}"
 
 # ── 4) ON·ACCEPT: a valid RS256 token verifies via the JWKS -> 201 + a key ─────
