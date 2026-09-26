@@ -227,5 +227,7 @@ production surface for v1.0; the chart is for evaluation.
   in the optional `.env.kong`. Studio, pg-meta, GoTrue and PostgREST likewise load only `.env.studio`, `.env.pg-meta`,
   `.env.gotrue`, `.env.postgrest`. `make prod-up` refuses a `GOTRUE_`/`PGRST_`/`KONG_`/`PG_META_`
   key left in `.env` that no compose file names, and says where to move it.
+- The NestJS services receive by name every variable their code reads (unset stays unset), not the whole
+  `.env`; a setting none of them reads goes in `.env.<service>` (e.g. `.env.query-router`).
 - Vault is OPTIONAL (profile `control-plane`): `make vault-init`, `make vault-rotate GROUP=…`.
 - `make check-secrets` scans the tree for accidental hardcoded secrets.

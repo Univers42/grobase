@@ -325,9 +325,10 @@ vault42 stay single-key), and `rotate-jwt.sh` / `rotate-secrets.sh jwt` refuse w
 debezium minio-iceberg-init) never load the platform `.env`: a sentinel `.env` reaches none of them under base, every
 overlay and fly's override, the optional `.env.engines` does, a postgres-loads-`.env` mutant is caught, and on a running
 stack each engine's runtime env and PID 1 environ hold no `JWT_SECRET`/`SERVICE_ROLE_KEY`/service token.
-`m212` (static + live) does the same for platform services converted off `env_file: [.env]` (kong, studio, pg-meta, gotrue, postgrest so far): each
-lists the keys it reads in `environment`, loads only its optional `.env.<service>`, still receives its needed key
-under every overlay, a kong-loads-`.env` mutant is caught, and a running one holds no `.env` key it does not read.
+`m212` (static + live) does the same for platform services converted off `env_file: [.env]` (kong, studio, pg-meta, gotrue, postgrest and the 13
+NestJS services, which extend `_common.yml`'s `ts-base`): each lists the keys it reads in `environment`, loads only its
+optional `.env.<service>`, still receives its needed key under every overlay, a kong-loads-`.env` mutant is caught, a
+running one holds no `.env` key it does not read, and no running container's unset pass-through unsets an image `ENV`.
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 

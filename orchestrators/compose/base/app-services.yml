@@ -1,7 +1,7 @@
 # app-services plane — query-router, outbox-relay, email-service, storage-router, permission-engine, schema-service, analytics-service, gdpr-service, newsletter-service, ai-service, log-service, session-service
 services:
   query-router:
-    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    extends: { file: orchestrators/compose/base/_common.yml, service: ts-base }
     image: ghcr.io/univers42/grobase-query-router:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -10,8 +10,21 @@ services:
         APP: query-router
     profiles: [adapter-plane]
     container_name: mini-baas-query-router
-    env_file: [.env]
+    # ts-base's variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.query-router (gate m212).
+    env_file:
+      - path: .env.query-router
+        required: false
     environment:
+      ABAC_BYPASS_LOG_INTERVAL_MS:
+      API_KEY_ABAC_ENABLED:
+      AUTOMATION_WEBHOOK_IP_PIN_ENABLED:
+      DATA_PLANE_MOUNTS:
+      OUTBOX_ENABLED:
+      QUERY_ROUTER_CAPS_CACHE_TTL_MS:
+      QUERY_ROUTER_SCHEMA_CACHE_MAX_ENTRIES:
+      QUERY_ROUTER_SCHEMA_CACHE_TTL_MS:
+      QUERY_ROUTER_SQL_RO:
       PORT: 4001
       NODE_OPTIONS: --max-old-space-size=384 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       # Adapter-registry cutover: Go is the primary service now. The TS
@@ -107,7 +120,7 @@ services:
 
   # ─── Rust Data Plane Router (live cutover — see parity-probe.sh) ──
   outbox-relay:
-    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    extends: { file: orchestrators/compose/base/_common.yml, service: ts-base }
     image: ghcr.io/univers42/grobase-outbox-relay:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -116,8 +129,16 @@ services:
         APP: outbox-relay
     profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
     container_name: mini-baas-outbox-relay
-    env_file: [.env]
+    # ts-base's variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.outbox-relay (gate m212).
+    env_file:
+      - path: .env.outbox-relay
+        required: false
     environment:
+      OUTBOX_RELAY_BATCH_SIZE:
+      OUTBOX_RELAY_DEDUPE_TTL_SECONDS:
+      OUTBOX_RELAY_MAX_ATTEMPTS:
+      OUTBOX_RELAY_POLL_MS:
       PORT: 3130
       NODE_OPTIONS: --max-old-space-size=192 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
@@ -156,7 +177,7 @@ services:
 
   # ─── Debezium outbox CDC (M8 coherence — PG outbox → Redis Streams) ──
   email-service:
-    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    extends: { file: orchestrators/compose/base/_common.yml, service: ts-base }
     image: ghcr.io/univers42/grobase-email-service:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -165,7 +186,11 @@ services:
         APP: email-service
     profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
     container_name: mini-baas-email-service
-    env_file: [.env]
+    # ts-base's variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.email-service (gate m212).
+    env_file:
+      - path: .env.email-service
+        required: false
     environment:
       PORT: 3030
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
@@ -196,7 +221,7 @@ services:
 
   # ─── Storage Router (NestJS — presigned URLs) ───────────────────
   storage-router:
-    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    extends: { file: orchestrators/compose/base/_common.yml, service: ts-base }
     image: ghcr.io/univers42/grobase-storage-router:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -205,8 +230,21 @@ services:
         APP: storage-router
     profiles: [storage, extras]
     container_name: mini-baas-storage-router
-    env_file: [.env]
+    # ts-base's variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.storage-router (gate m212).
+    env_file:
+      - path: .env.storage-router
+        required: false
     environment:
+      STORAGE_ACTIVE_CONTENT_GUARD_ENABLED:
+      STORAGE_BUCKET_POLICY:
+      STORAGE_BUCKET_POLICY_ENABLED:
+      STORAGE_MAX_UPLOAD_BYTES:
+      STORAGE_METERING:
+      STORAGE_METERING_FLUSH_MS:
+      STORAGE_METERING_REDIS_URL:
+      STORAGE_METER_TRUST_RAW_TENANT:
+      STORAGE_TRANSFORMS_ENABLED:
       PORT: 3040
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       JWT_SECRET: ${JWT_SECRET}
@@ -250,7 +288,7 @@ services:
 
   # ─── Permission Engine (control plane — ABAC) ─────────────────────
   permission-engine:
-    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    extends: { file: orchestrators/compose/base/_common.yml, service: ts-base }
     image: ghcr.io/univers42/grobase-permission-engine:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -259,8 +297,13 @@ services:
         APP: permission-engine
     profiles: [adapter-plane, control-plane]
     container_name: mini-baas-permission-engine
-    env_file: [.env]
+    # ts-base's variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.permission-engine (gate m212).
+    env_file:
+      - path: .env.permission-engine
+        required: false
     environment:
+      PERMISSION_CONDITIONS_ENABLED:
       PORT: 3050
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
@@ -295,7 +338,7 @@ services:
 
   # ─── Schema Service (control plane — DDL management) ──────────────
   schema-service:
-    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    extends: { file: orchestrators/compose/base/_common.yml, service: ts-base }
     image: ghcr.io/univers42/grobase-schema-service:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -304,7 +347,11 @@ services:
         APP: schema-service
     profiles: [control-plane]
     container_name: mini-baas-schema-service
-    env_file: [.env]
+    # ts-base's variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.schema-service (gate m212).
+    env_file:
+      - path: .env.schema-service
+        required: false
     environment:
       PORT: 3060
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
@@ -342,7 +389,7 @@ services:
 
   # ─── Analytics Service (analytics/background plane) ───────────────
   analytics-service:
-    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    extends: { file: orchestrators/compose/base/_common.yml, service: ts-base }
     image: ghcr.io/univers42/grobase-analytics-service:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -353,7 +400,11 @@ services:
     # and `background` is part of the lean essential set.
     profiles: [analytics]
     container_name: mini-baas-analytics-service
-    env_file: [.env]
+    # ts-base's variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.analytics-service (gate m212).
+    env_file:
+      - path: .env.analytics-service
+        required: false
     environment:
       PORT: 3070
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
@@ -384,7 +435,7 @@ services:
 
   # ─── GDPR Service (background/control plane) ─────────────────────
   gdpr-service:
-    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    extends: { file: orchestrators/compose/base/_common.yml, service: ts-base }
     image: ghcr.io/univers42/grobase-gdpr-service:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -393,7 +444,11 @@ services:
         APP: gdpr-service
     profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
     container_name: mini-baas-gdpr-service
-    env_file: [.env]
+    # ts-base's variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.gdpr-service (gate m212).
+    env_file:
+      - path: .env.gdpr-service
+        required: false
     environment:
       PORT: 3080
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
@@ -424,7 +479,7 @@ services:
 
   # ─── Newsletter Service (background plane) ────────────────────────
   newsletter-service:
-    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    extends: { file: orchestrators/compose/base/_common.yml, service: ts-base }
     image: ghcr.io/univers42/grobase-newsletter-service:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -433,7 +488,11 @@ services:
         APP: newsletter-service
     profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
     container_name: mini-baas-newsletter-service
-    env_file: [.env]
+    # ts-base's variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.newsletter-service (gate m212).
+    env_file:
+      - path: .env.newsletter-service
+        required: false
     environment:
       PORT: 3090
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
@@ -467,7 +526,7 @@ services:
 
   # ─── AI Service (background/data plane) ──────────────────────────
   ai-service:
-    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    extends: { file: orchestrators/compose/base/_common.yml, service: ts-base }
     image: ghcr.io/univers42/grobase-ai-service:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -478,7 +537,11 @@ services:
     # hard-requires mongo, and `background` is part of the lean essential set.
     profiles: [analytics]
     container_name: mini-baas-ai-service
-    env_file: [.env]
+    # ts-base's variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.ai-service (gate m212).
+    env_file:
+      - path: .env.ai-service
+        required: false
     environment:
       PORT: 3100
       NODE_OPTIONS: --max-old-space-size=192 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
@@ -514,7 +577,7 @@ services:
 
   # ─── Log Service (observability/background plane) ────────────────
   log-service:
-    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    extends: { file: orchestrators/compose/base/_common.yml, service: ts-base }
     image: ghcr.io/univers42/grobase-log-service:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -523,8 +586,15 @@ services:
         APP: log-service
     profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
     container_name: mini-baas-log-service
-    env_file: [.env]
+    # ts-base's variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.log-service (gate m212).
+    env_file:
+      - path: .env.log-service
+        required: false
     environment:
+      LOG_SERVICE_LOKI_BATCH_SIZE:
+      LOG_SERVICE_LOKI_FLUSH_MS:
+      LOG_SERVICE_LOKI_URL:
       PORT: 3110
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       LOG_BUFFER_SIZE: ${LOG_BUFFER_SIZE:-1000}
@@ -550,7 +620,7 @@ services:
 
   # ─── Session Service (background plane) ──────────────────────────
   session-service:
-    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    extends: { file: orchestrators/compose/base/_common.yml, service: ts-base }
     image: ghcr.io/univers42/grobase-session-service:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -559,7 +629,11 @@ services:
         APP: session-service
     profiles: [legacy-node] # A4/A5: retired — orchestrator carries this (rollback: start the legacy-node profile)
     container_name: mini-baas-session-service
-    env_file: [.env]
+    # ts-base's variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.session-service (gate m212).
+    env_file:
+      - path: .env.session-service
+        required: false
     environment:
       PORT: 3120
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
