@@ -259,6 +259,33 @@ jobs:
       # build becomes mostly downloads. PRs import it too (best-effort; without
       # a GHCR login the import is a warning and the local cache still applies).
       - name: Build & publish ${{ matrix.service }}
+        id: build
+        continue-on-error: true
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
+        with:
+          context: ${{ matrix.context }}
+          push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+          tags: |
+            ghcr.io/univers42/grobase-${{ matrix.service }}:latest
+            ghcr.io/univers42/grobase-${{ matrix.service }}:sha-${{ github.sha }}
+          cache-from: |
+            type=local,src=/tmp/.buildx-cache/${{ matrix.service }}
+            type=registry,ref=ghcr.io/univers42/grobase-${{ matrix.service }}:buildcache
+          cache-to: |
+            type=local,dest=/tmp/.buildx-cache-new/${{ matrix.service }},mode=max
+            ${{ (github.ref == 'refs/heads/main' && github.event_name == 'push') && format('type=registry,ref=ghcr.io/univers42/grobase-{0}:buildcache,mode=max', matrix.service) || '' }}
+
+      # Anonymous public.ecr.aws base-image pulls hit per-runner-IP limits
+      # ("toomanyrequests: Data limit exceeded"). One retry after a pause; a
+      # second failure is the job's failure.
+      - name: Wait before retrying ${{ matrix.service }}
+        if: steps.build.outcome == 'failure'
+        run: |
+          echo "::warning title=${{ matrix.service }} build::first attempt failed; retrying in 90 s"
+          sleep 90
+
+      - name: Retry build & publish ${{ matrix.service }}
+        if: steps.build.outcome == 'failure'
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: ${{ matrix.context }}
@@ -429,11 +456,19 @@ jobs:
       - name: Build and start core stack
         run: |
           set -euo pipefail
+          exec > >(tee /tmp/stack.log) 2>&1
           # The waf consumes certs/localhost{,-key}.pem as Docker secrets (root
           # compose secrets:). CI has no local certs, so generate them before `up`
           # or the secret bind-mount fails (idempotent; openssl only, no sudo/trust).
           bash scripts/certs/generate-localhost-cert.sh
-          docker compose -f docker-compose.yml build
+          # Anonymous public.ecr.aws base-image pulls hit per-runner-IP limits
+          # ("toomanyrequests: Data limit exceeded"); retry the build before failing.
+          for i in 1 2 3; do
+            docker compose -f docker-compose.yml build && break
+            [ "$i" -lt 3 ] || exit 1
+            echo "::warning title=core stack build::attempt ${i} failed; retrying in $((i * 30)) s"
+            sleep $((i * 30))
+          done
           docker compose -f docker-compose.yml up -d
           # Mongo path for phases 14/15 — start the data-plane mongo services BY NAME.
           # --build forces THIS commit's Dockerfiles: the services carry a ghcr.io
@@ -449,6 +484,14 @@ jobs:
           # refuse anonymous pulls); minio-iceberg-init is the service that builds it.
           docker compose -f docker-compose.yml build minio-iceberg-init
 
+      # A red stack start names its cause in the (public) annotations: the build's
+      # last error lines and every service that is not running or not healthy.
+      - name: Explain a failed stack start
+        if: failure()
+        run: |
+          why=$(grep -E '^ > \[|^ERROR|failed to solve|toomanyrequests|dependency failed|is unhealthy|error(\[|:)|No space left' /tmp/stack.log | tail -n 4 | tr '\n' ' ' | cut -c1-900)
+          bad=$(docker compose -f docker-compose.yml ps -a --format '{{.Service}}={{.State}}/{{.Health}}' | grep -Ev '=running/(healthy|)$' | tr '\n' ' ' | cut -c1-600)
+          echo "::error title=core stack start failed::${why:-no error line matched} | not ready: ${bad:-none}"
       # Realtime is built from THIS commit above. Its health must follow its
       # PostgreSQL change feed: healthy when the LISTEN is attached, 503 and a
       # failing --healthcheck when PostgreSQL is gone, healthy again after.
