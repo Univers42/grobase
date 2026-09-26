@@ -37,7 +37,7 @@ the code path that implements the control.
 | SCA in CI (known-CVE gate) | `[v]` | `cargo-audit` (Rust) + `govulncheck` (Go) + `npm/pnpm audit` + Trivy fs/image, all **blocking** in `.github/workflows/mini-baas-security.yml` (`sca-cargo-audit`, `sca-govulncheck`, `sca-npm-audit`, `container-trivy`). |
 | SAST in CI | `[v]` | Semgrep (`p/owasp-top-ten` + lang rules), SARIF to the Security tab (`sast-semgrep`). |
 | Secret-scan in CI (blocking) | `[v]` | TruffleHog (`--only-verified --fail`) + gitleaks (working-tree regex/entropy, `--exit-code 1`); `.env`/`.env.local` gitignored and never tracked, `ANON_KEY` runtime-derived from `JWT_SECRET` (no committed secret). |
-| Vault enforced for all secrets | `[~]` | Vault present (`docker/services/vault`); but plaintext DSNs are possible outside `SECURITY_MODE=max` (audit O5). → **gap G-Vault**. |
+| Vault enforced for all secrets | `[~]` | Under `SECURITY_MODE=max` an inline DSN is refused (403) and mounts are Vault `credential_ref`s resolved per request (migration 060, gate m121, nightly). Other tiers keep encrypted-at-rest inline DSNs by design. |
 | Plane network isolation / NetworkPolicy | `[~]` | Compose: the netseg overlay takes the engines + vault off the app bridge (`make up NETSEG=1`, default in `prod-up`; gate m66). Helm NetworkPolicy exists, default off. |
 
 ### V2 — Authentication
@@ -145,7 +145,7 @@ Sourced from [security-audit.md](./security-audit.md) §"Open" + the roadmap A6 
 | ID | Gap | Sev | Status / disposition |
 |---|---|---|---|
 | **G-RS256** | JWT **RS256 issuer not flipped** — GoTrue still signs HS256 though the verify side (RS256/JWKS) is ready. | MED | **Deferred (cross-repo, coordinated).** Touches the live login flow + Kong `jwt` plugin; ships as its own change (audit O2). |
-| **G-Vault** | **Vault not enforced** — plaintext / inline-encrypted DSNs possible outside `SECURITY_MODE=max`. | MED | **Deferred (coordinated).** A6: under max require `credential_ref{provider:vault}`; forbid plaintext mounts in prod (audit O5). |
+| **G-Vault** | **Done in code**: max tier refuses inline DSNs and resolves `credential_ref` through Vault per request (migration 060, m121, nightly job `vault-credref`). Non-max tiers keep encrypted-at-rest inline DSNs by design. | MED | Human: move existing max-tier mounts to Vault references. |
 | **G-Net** | **Compose half done**: the edge, the scrapers and the functions sandbox share no bridge with an engine or vault in `prod-up` (m66, live-proven on the max tier). Still open: enabling the Helm NetworkPolicy on a real cluster. | MED | A6 / C2: per-plane network isolation + K8s NetworkPolicy (audit; roadmap A6). |
 | **G-Hdr** | **adapter-registry header trust** — `X-Baas-*` identity headers were trusted with no HMAC on a flat bridge. | LOW | **Partially closed this track:** opt-in HMAC verification shipped behind `ADAPTER_REGISTRY_IDENTITY_HMAC` (`internal/adapterregistry/identity.go` + `identity_test.go`, `go test ./...` green). Default OFF (no behavior change) until the issuing gateway is taught to sign the identity tuple — *enabling it stack-wide is the remaining cross-repo step* (the gateway must compute `X-Baas-Identity-Auth` = `ComputeServiceSignature(serviceToken, "IDENTITY", "<user>\n<tenant>", nil, ts)`). mTLS service mesh (audit solution #1) is the longer-term answer. |
 | **G-ReadAudit** | **Reads not audited** — only mutations + denials emit audit events. | LOW | A6: optional max-mode "sensitive-read" audit on flagged resources (audit O8). |

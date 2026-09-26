@@ -21,7 +21,7 @@
 | **G-Hdr** | LOW | Effective only when flipped on the live mount-resolution hot path | An unsigned caller → instant 401s, wedged live queries |
 | **G-Rotate** | LOW | JWT half is cross-repo + touches live login | A bug is a stack-wide auth outage |
 
-Priority order for the human waves: **G-RS256** (highest value, headline) → **G-Vault** → **G-Net (compose done; Helm policies to enable on a cluster)** → **G-Hdr** → **G-Rotate (JWT half; the service-token half is done)**. The cross-repo/live-login halves of Net/Hdr/Rotate are lowest priority (LOW value, highest risk).
+Priority order for the human waves: **G-RS256** (highest value, headline) → **G-Vault (code done, m121 nightly; move max-tier mounts to Vault refs)** → **G-Net (compose done; Helm policies to enable on a cluster)** → **G-Hdr** → **G-Rotate (JWT half; the service-token half is done)**. The cross-repo/live-login halves of Net/Hdr/Rotate are lowest priority (LOW value, highest risk).
 
 ---
 
@@ -123,29 +123,18 @@ isolated gate + a coordinated cross-repo flip remain.
 
 ## G-Vault — enforce Vault-backed credentials at `SECURITY_MODE=max`
 
-**Why deferred:** not purely additive — it changes the mount-register request contract **and** the DB
-schema (new `credential_ref` columns) and requires the data plane's per-mount Vault-provider resolve
-path (today env-only via `DATA_PLANE_VAULT_*`) to be driven from the registry. Shipping the *negative*
-(reject inline plaintext under max) without the *positive* vault-resolve path would lock max-tier
-tenants out of registering **any** mount.
+**Done in code — the plan below had already shipped; this entry was stale.** Migration `060` adds
+`cred_provider`/`cred_reference`/`cred_version` with an exactly-one-of CHECK. `RegisterDatabaseRequest`
+takes `credential_ref`. Under a `security_mode=max` package, `register.go` refuses an inline DSN with
+`ErrPlaintextDsnForbidden` (403). The Rust `VaultProvider` resolves a ref-backed mount's DSN at query
+time. Non-max tiers keep today's encrypt-at-rest path.
 
-1. Add nullable `cred_provider`/`cred_reference`/`cred_version` columns to `public.tenant_databases` via
-   a new `models/` migration; keep `connection_enc` nullable (a row is EITHER inline-encrypted OR a vault
-   ref).
-2. Extend `RegisterDatabaseRequest` (`internal/adapterregistry/models.go`) with optional
-   `credential_ref`; in `Validate()` require EXACTLY one of `{connection_string, credential_ref}`.
-3. In `Service.Register`, read effective `security_mode` from `packageForTenant` (already loaded,
-   `packages.go SecurityMode`); if `max` → reject inline plaintext with a new `ErrPlaintextDsnForbidden`
-   + require `credential_ref{provider:vault}`; else preserve today's encrypt path. Map the error to 403
-   in `handler.go`.
-4. Wire `GetConnection` to return provider/reference for ref-backed mounts so the data plane's existing
-   `VaultProvider` (`credential.rs`, `resolver.rs from_env`) resolves it; configure `DATA_PLANE_VAULT_*`.
-5. Author `scripts/verify/mNN-vault-enforce.sh` on a SCRATCH compose project: NEGATIVE (max tenant +
-   inline plaintext → 4xx, 0 rows inserted); POSITIVE (same tenant + `credential_ref{provider:vault}` →
-   201, data plane resolves the DSN from a scratch dev-mode Vault, real query succeeds); PARITY
-   (baseline-tier inline plaintext still 201). Also run `make baas-verify`.
-6. Keep enforcement OFF for non-max tiers; document the flip in `security-audit-asvs.md`.
-7. Only after gates PASS, request the human push (kernel rule #9).
+- Gate `m121`: max + inline → 403, 0 rows; max + `credential_ref` → 201, then the data plane reads
+  through the DSN it resolved from Vault (200); baseline + inline → 201, encrypted at rest.
+  2026-09-26: green on Vault 2.1.1 (`:latest`), then green on the pinned 1.21 (the stack's version).
+- It now runs nightly (`nightly-proof.yml` job `vault-credref`), building both services from the
+  commit. Before, nothing ran it. `M121_AR_IMAGE`/`M121_DPR_IMAGE` reuse prebuilt images locally.
+- Left to a human: pointing real max-tier tenants' mounts at Vault paths (their DSNs live with them).
 
 ## G-Net — per-plane network segmentation
 
