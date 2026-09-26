@@ -217,7 +217,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **185 scripts, highest m205** (`m205-service-token-rotation.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **186 scripts, highest m206** (`m206-kong-admin-acl.sh`); the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -302,6 +302,8 @@ vault only on `net-vault`, kong/waf/scrapers/functions sharing no bridge with th
 client→engine edges intact, and adapter-registry-go off the app bridge (`net-registry` = it + kong only). It probes a running `NETSEG=1` stack too.
 `m205` proves `scripts/ops/rotate-service-token.sh` (begin → swap → finish on `.env.secrets`, never
 printing a token) and that compose hands the previous token to every verifier; no stack needed.
+`m206` runs a throwaway Kong on the repo `kong.yml` and requires `acl baas-admin` on every
+ip-restricted route but `/studio`: the anon key gets the acl's 403, the service key passes (N-24).
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 
