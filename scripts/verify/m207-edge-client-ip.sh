@@ -17,9 +17,9 @@
 #    live    a client on a public-range bridge (TEST-NET-3) → the WAF image    #
 #            with the repo config → Kong on a private bridge (repo kong.yml,   #
 #            trusted IPs from the prod render) → a header-echo "postgrest":    #
-#            /studio (ip-restricted) answers 403, and the upstream sees the    #
-#            client's IP in X-Real-IP and first in X-Forwarded-For, and none   #
-#            of its forged X-Forwarded-* values                                #
+#            /admin/v1/keys (ip-restricted) refuses the service key with 403,  #
+#            and the upstream sees the client's IP in X-Real-IP and first in   #
+#            X-Forwarded-For, and none of its forged X-Forwarded-* values      #
 #    mutant  the pre-fix WAF header lines MUST leak the forged values, else    #
 #            the probe is blind and the gate fails                             #
 #  Ponytail: the client reaches the WAF on a bridge, so docker keeps its IP.   #
@@ -174,10 +174,10 @@ leaks() {
 live_edge() {
   local cip out
   cip="$(docker inspect -f "{{(index .NetworkSettings.Networks \"${TAG}-edge\").IPAddress}}" "${TAG}-cli")"
-  out="$(send "$1" /studio '{"X-Real-IP":"10.0.0.1","X-Forwarded-For":"10.0.0.1"}')"
+  out="$(send "$1" /admin/v1/keys '{"apikey":"scratch-service","X-Real-IP":"10.0.0.1","X-Forwarded-For":"10.0.0.1"}')"
   case "${out}" in
-    "403 "*"not allowed"*) ok "/studio from ${cip}: 403 from ip-restriction despite a forged private X-Real-IP" ;;
-    *) bad "/studio from public ${cip} got '${out:0:90}' — ip-restriction saw a private address" ;;
+    "403 "*"not allowed"*) ok "/admin/v1/keys (service key) from ${cip}: 403 from ip-restriction despite a forged private X-Real-IP" ;;
+    *) bad "/admin/v1/keys (service key) from public ${cip} got '${out:0:90}' — ip-restriction saw a private address" ;;
   esac
   out="$(send "$1" /rest/v1/m207 "$(forged)")"
   [ "${out%% *}" = 200 ] || bad "/rest/v1 through the edge got '${out:0:90}'"

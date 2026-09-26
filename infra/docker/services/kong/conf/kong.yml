@@ -13,7 +13,7 @@ consumers:
     keyauth_credentials:
       - key: __KONG_SERVICE_API_KEY__
     # SECURITY: only the service_role key is in the baas-admin group; every
-    # ip-restricted route but the /studio UI ACLs on it (m206), so the public
+    # ip-restricted route ACLs on it (m206), so the public
     # anon key opens no admin surface — ip-restriction alone is one proxy hop
     # from useless, since behind the WAF every client has a private IP.
     acls:
@@ -927,22 +927,11 @@ services:
               minute: 60
               hour: 1000
 
-  - name: admin-studio
-    url: http://studio:3000
-    routes:
-      - name: studio-routes
-        paths: [/studio]
-        strip_path: false
-        plugins:
-          - name: ip-restriction
-            config:
-              allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1]
-          - name: rate-limiting
-            config:
-              policy: local
-              limit_by: ip
-              minute: 300
-              hour: 5000
+  # No /studio route. Studio is built without a basePath, so it only serves
+  # at /, and it holds the service_role key with no login of its own. Reach it
+  # on 127.0.0.1:${STUDIO_PORT:-3000} in dev or through an SSH tunnel in prod
+  # (infra/docker/services/studio/README.md). m206 keeps any route from
+  # pointing at it again.
 
   - name: email
     url: http://orchestrator:3026          # A4 cutover (was email-service:3030)

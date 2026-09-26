@@ -56,7 +56,6 @@ There is no database behind Kong. Changes to routing, plugins, or consumers requ
 | `/realtime/v1` | Realtime | `http://realtime:4000` | key-auth, rate-limiting |
 | `/storage/v1` | MinIO | `http://minio:9000` | key-auth, rate-limiting, request-size-limiting |
 | `/meta/v1` | pg-meta | `http://pg-meta:8080` | key-auth |
-| `/studio` | Studio | `http://studio:3000` | key-auth |
 
 All routes also inherit the **global CORS plugin**.
 
