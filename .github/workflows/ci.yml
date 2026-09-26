@@ -419,11 +419,32 @@ jobs:
       - name: liveness follows PostgreSQL and MinIO
         run: bash scripts/verify/m192-pg-backup-liveness.sh
 
+  # ─── Standalone gates (m64 m81 m183) ──────────────────────────
+  # Each builds or starts its own throwaway containers; no stack needed.
+  standalone-gates:
+    name: Standalone gates (m64 m81 m183)
+    runs-on: ubuntu-latest
+    needs: [shellcheck]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # tenant-control built from the commit verifies RS256 tokens from a JWKS.
+      - name: RS256 verifier (m64)
+        run: bash scripts/verify/m64-rs256.sh
+      # A real RS256 issuer's token passes Kong's jwt plugin and tenant-control.
+      - name: RS256 issuer end to end (m81)
+        run: bash scripts/verify/m81-rs256-issuer.sh
+      # The postgres and mongo healthchecks ask the network, not the socket.
+      - name: Healthchecks assert network readiness (m183)
+        run: bash scripts/verify/m183-healthcheck-network-readiness.sh
+
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: [shellcheck, docker-build]
-    timeout-minutes: 35
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: .
@@ -650,6 +671,24 @@ jobs:
       # implements /health/ready must probe it.
       - name: Nest readiness probes (m191)
         run: bash scripts/verify/m191-nest-readiness-probes.sh
+
+      # query-router and tenant-control from this commit; their other
+      # dependencies come from the ghcr pull-fallback images.
+      - name: Start query-router, tenant-control and prometheus
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.yml build query-router tenant-control prometheus
+          docker compose -f docker-compose.yml up -d --wait query-router tenant-control prometheus
+
+      # A rejected credential shows in Kong, query-router, Prometheus and the logs.
+      - name: Security events end to end (m204)
+        env:
+          M204_REQUIRE: "1"
+        run: bash scripts/verify/m204-security-events.sh
+
+      # The generic contract provisioner creates, seeds and keys an app from JSON.
+      - name: Contract provisioning (m165)
+        run: bash scripts/verify/m165-contract-provision.sh
 
       - name: Gateway query-path regression gate (m102)
         env:
@@ -1080,6 +1119,12 @@ jobs:
           docker run --rm -e CARGO_NET_RETRY=10 -e CARGO_HTTP_MULTIPLEXING=false \
             -v "$PWD/infra/docker/services/realtime/realtime-agnostic:/src" -w /src \
             rust:1-bookworm cargo test --workspace
+
+      # The PostgreSQL LISTEN re-attaches after its backend is killed (m184).
+      - if: matrix.suite == 'rust-realtime'
+        env:
+          M184_TOOLCHAIN: rust:1-bookworm
+        run: bash scripts/verify/m184-realtime-listen-reconnect.sh
 
       # NestJS — apps + libs (jest)
       - if: matrix.suite == 'nestjs'
