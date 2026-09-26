@@ -36,6 +36,13 @@ LINT_KINDS := test-lint-shell test-lint-rust test-lint-go test-lint-ts test-lint
 SHELLCHECK_IMG := koalaman/shellcheck:v0.11.0
 GOLANGCI_IMG   := golangci/golangci-lint:v2.13.2
 ACTIONLINT_IMG := rhysd/actionlint:1.7.12
+# Ponytail: hadolint v2.14.0, not v2.15.1. 2.15 adds DL3025 on HEALTHCHECK (23 shell-form checks,
+# harmless: exec'd through sh -c, not PID 1), DL3066 (non-numeric USER, info), and DL3064/DL3067
+# (false positives here: CATALOG_*/PATH env; the FROM-scratch layer flatten). Upgrading means
+# deciding those four first; the pin keeps every other rule failing.
+HADOLINT_IMG   := hadolint/hadolint:v2.14.0
+# yamllint 1.32.0: cytopia publishes no 1.32 tag, so the digest pins it.
+YAMLLINT_IMG   := cytopia/yamllint@sha256:3e9eb827ab2b12a5ea5f49d4257bb3aca94bba9f1ba427c8bc7f2456385a5204
 SH_FILES        = $(shell git ls-files '*.sh' 2>/dev/null | grep -vE '(^|/)(node_modules|vendor)/')
 # ponytail: track-binocle overlay skipped — carried-over monorepo overlay needs a pg-meta service this repo never defines; delete it or add pg-meta, then drop the skip
 COMPOSE_LINT_SKIP := docker-compose.track-binocle.yml
@@ -66,14 +73,14 @@ test-lint-ts: ## Lint TypeScript — eslint over apps/libs (in Docker)
 		&& echo -e "$(_G)✓ ts eslint$(_0)"
 
 test-lint-yaml: ## Lint YAML — yamllint (.yamllint policy) + actionlint over .github/workflows (warnings fail, in Docker)
-	@docker run --rm -v "$(CURDIR)":/d -w /d cytopia/yamllint:latest -c .yamllint \
+	@docker run --rm -v "$(CURDIR)":/d -w /d $(YAMLLINT_IMG) -c .yamllint \
 		orchestrators/compose infra/config docker-compose.yml \
 		&& docker run --rm -v "$(CURDIR)":/repo -w /repo $(ACTIONLINT_IMG) \
 		&& echo -e "$(_G)✓ yaml + actionlint$(_0)"
 
 test-lint-docker: ## Lint Dockerfiles — hadolint with the committed .hadolint.yaml policy (warnings fail, in Docker)
 	@rc=0; for df in $$(git ls-files '*Dockerfile*' 2>/dev/null | grep -vE 'node_modules|(^|/)vendor/'); do \
-		docker run --rm -i -v "$(CURDIR)/.hadolint.yaml":/cfg.yaml hadolint/hadolint hadolint --config /cfg.yaml - < "$$df" \
+		docker run --rm -i -v "$(CURDIR)/.hadolint.yaml":/cfg.yaml $(HADOLINT_IMG) hadolint --config /cfg.yaml - < "$$df" \
 			|| { echo -e "$(_R)  $$df$(_0)"; rc=1; }; done; \
 	[ $$rc -eq 0 ] && echo -e "$(_G)✓ dockerfiles$(_0)" || exit 1
 
