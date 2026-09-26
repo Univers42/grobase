@@ -166,5 +166,11 @@ production surface for v1.0; the chart is for evaluation.
   frontend key stops working). Only tenant-control, the TS services and realtime accept
   `JWT_SECRET_PREV` so far (m210). The service token rotates without an outage:
   `scripts/ops/rotate-service-token.sh` (m205).
+- `ADAPTER_REGISTRY_SERVICE_TOKEN` must be set: compose no longer falls back to `JWT_SECRET`, and
+  the control plane refuses to boot without it (`make env` mints one).
+- Engines (postgres, redis, mongo, mysql, mariadb, minio, trino, iceberg-rest, debezium) do not
+  load `.env`, so they never hold `JWT_SECRET` or the service tokens (m211). Engine settings you
+  set in `.env` before (`MINIO_*`, `TZ`, `MARIADB_AUTO_UPGRADE`, …) now go in the optional
+  `.env.engines`, which every engine loads.
 - Vault is OPTIONAL (profile `control-plane`): `make vault-init`, `make vault-rotate GROUP=…`.
 - `make check-secrets` scans the tree for accidental hardcoded secrets.
