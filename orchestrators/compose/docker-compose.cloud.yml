@@ -133,6 +133,7 @@ services:
     profiles: [functions, extras]
     container_name: mini-baas-functions-relay
     restart: unless-stopped
+    security_opt: ["no-new-privileges:${CONTAINER_NO_NEW_PRIVILEGES:-true}"] # no extends: base's, by hand
     entrypoint:
       [
         "deno",
@@ -173,6 +174,7 @@ services:
     image: node:20-alpine
     command: ["node", "/srv/server.mjs"]
     container_name: mini-baas-stripe-mock
+    security_opt: ["no-new-privileges:${CONTAINER_NO_NEW_PRIVILEGES:-true}"] # no extends: base's, by hand
     profiles: [cloud]
     environment:
       PORT: "8080"
