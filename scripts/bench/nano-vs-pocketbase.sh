@@ -38,7 +38,7 @@ cleanup() {
   # -v: binocle-nano declares VOLUME /data — drop its anonymous volume too.
   docker rm -fv bench-nano bench-pb >/dev/null 2>&1 || true
   # pb_data is written by root inside the PB container — remove it the same way.
-  docker run --rm -v "${WORK}:/w" public.ecr.aws/docker/library/alpine:3.20 \
+  docker run --rm -v "${WORK}:/w" mirror.gcr.io/library/alpine:3.20 \
     sh -c 'rm -rf /w/pb_data /w/pb_migrations' >/dev/null 2>&1 || true
   rm -rf "${WORK}"
 }
@@ -63,7 +63,7 @@ if [[ ! -x "${WORK}/pocketbase" ]]; then
 fi
 PB_BIN_BYTES=$(stat -c%s "${WORK}/pocketbase")
 docker run -d --name bench-pb -p "${PB_PORT}:8090" -v "${WORK}:/pb" \
-  public.ecr.aws/docker/library/alpine:3.20 \
+  mirror.gcr.io/library/alpine:3.20 \
   /pb/pocketbase serve --http 0.0.0.0:8090 --dir /pb/pb_data >/dev/null
 PB="http://127.0.0.1:${PB_PORT}"
 

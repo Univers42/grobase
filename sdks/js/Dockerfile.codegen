@@ -9,7 +9,7 @@
 # The image is intentionally fat (full node:20-alpine + curl + jq + bash)
 # because it is built once, used briefly, and discarded after every run.
 
-FROM public.ecr.aws/docker/library/node:20-alpine
+FROM mirror.gcr.io/library/node:20-alpine
 
 RUN apk add --no-cache bash curl jq
 

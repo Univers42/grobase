@@ -161,7 +161,7 @@ run_npm_audit() {
       if ! docker run --rm \
         -v "${REPO_ROOT}/${dir}:/work:ro" \
         -w /work \
-        public.ecr.aws/docker/library/node:20-alpine \
+        mirror.gcr.io/library/node:20-alpine \
         npm audit --audit-level="${level}" --no-fund 2>&1 | tee -a "${out}"; then
         rc=$((rc + 1))
       fi
@@ -170,7 +170,7 @@ run_npm_audit() {
       if ! docker run --rm \
         -v "${REPO_ROOT}/${dir}:/work:ro" \
         -w /work \
-        public.ecr.aws/docker/library/node:20-alpine \
+        mirror.gcr.io/library/node:20-alpine \
         sh -ec 'corepack enable >/dev/null 2>&1 && pnpm audit --prod --audit-level='"${level}" 2>&1 | tee -a "${out}"; then
         rc=$((rc + 1))
       fi

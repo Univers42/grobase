@@ -169,9 +169,9 @@ jobs:
           cache-from: type=local,src=/tmp/.buildx-cache/${{ matrix.service }}
           cache-to: type=local,dest=/tmp/.buildx-cache-new/${{ matrix.service }},mode=max
 
-      # Anonymous public.ecr.aws base-image pulls hit per-runner-IP limits
-      # ("toomanyrequests: Data limit exceeded"). One retry after a pause; a
-      # second failure is the job's failure.
+      # Base images come from mirror.gcr.io (BASE_REGISTRY); a registry limit
+      # ("toomanyrequests") is retried once, after a pause, from the other
+      # mirror of the same digests, public.ecr.aws. A second failure fails the job.
       - name: Wait before retrying ${{ matrix.service }}
         if: steps.build.outcome == 'failure'
         run: |
@@ -183,7 +183,9 @@ jobs:
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: ${{ matrix.context }}
-          build-args: ${{ matrix.build-args }}
+          build-args: |
+            ${{ matrix.build-args }}
+            BASE_REGISTRY=public.ecr.aws/docker/library
           push: false
           tags: mini-baas/${{ matrix.service }}:ci-${{ github.sha }}
           cache-from: type=local,src=/tmp/.buildx-cache/${{ matrix.service }}
@@ -306,9 +308,9 @@ jobs:
             type=local,dest=/tmp/.buildx-cache-new/${{ matrix.service }},mode=max
             ${{ (github.ref == 'refs/heads/main' && github.event_name == 'push') && format('type=registry,ref=ghcr.io/univers42/grobase-{0}:buildcache,mode=max', matrix.service) || '' }}
 
-      # Anonymous public.ecr.aws base-image pulls hit per-runner-IP limits
-      # ("toomanyrequests: Data limit exceeded"). One retry after a pause; a
-      # second failure is the job's failure.
+      # Base images come from mirror.gcr.io (BASE_REGISTRY); a registry limit
+      # ("toomanyrequests") is retried once, after a pause, from the other
+      # mirror of the same digests, public.ecr.aws. A second failure fails the job.
       - name: Wait before retrying ${{ matrix.service }}
         if: steps.build.outcome == 'failure'
         run: |
@@ -320,6 +322,7 @@ jobs:
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: ${{ matrix.context }}
+          build-args: BASE_REGISTRY=public.ecr.aws/docker/library
           push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
           tags: |
             ghcr.io/univers42/grobase-${{ matrix.service }}:latest
@@ -533,10 +536,12 @@ jobs:
           # compose secrets:). CI has no local certs, so generate them before `up`
           # or the secret bind-mount fails (idempotent; openssl only, no sudo/trust).
           bash scripts/certs/generate-localhost-cert.sh
-          # Anonymous public.ecr.aws base-image pulls hit per-runner-IP limits
-          # ("toomanyrequests: Data limit exceeded"); retry the build before failing.
+          # A registry limit on the base images ("toomanyrequests") is retried,
+          # the later attempts from the other mirror of the same digests.
+          reg=()
           for i in 1 2 3; do
-            docker compose -f docker-compose.yml build && break
+            docker compose -f docker-compose.yml build "${reg[@]}" && break
+            reg=(--build-arg BASE_REGISTRY=public.ecr.aws/docker/library)
             [ "$i" -lt 3 ] || exit 1
             echo "::warning title=core stack build::attempt ${i} failed; retrying in $((i * 30)) s"
             sleep $((i * 30))
@@ -1019,7 +1024,7 @@ jobs:
         env:
           OFFER_RUN: ${{ matrix.run }}
           RETRY_429_LOG: /tmp/offer.log
-        # A registry 429 (public.ecr.aws anonymous pulls) is retried twice with
+        # A registry 429 (anonymous base-image pulls) is retried twice with
         # backoff; any other failure fails at once.
         run: bash scripts/ci/retry-on-429.sh bash -c "$OFFER_RUN"
 
@@ -1102,14 +1107,14 @@ jobs:
       - name: Build kong + waf from this commit
         run: docker compose -f docker-compose.yml build kong waf
 
-      # m198's echo upstream. Anonymous public.ecr.aws pulls are rate-limited per
+      # m198's echo upstream. Anonymous registry pulls are rate-limited per
       # runner IP, so retry, then fall back to Docker Hub and point the gate at it.
       - name: Pull node:20-alpine for m198
         run: |
           set -uo pipefail
-          img=public.ecr.aws/docker/library/node:20-alpine
+          img=mirror.gcr.io/library/node:20-alpine
           for i in 1 2 3; do docker pull -q "$img" && exit 0; sleep $((i * 10)); done
-          echo "::warning title=m198 node image::public.ecr.aws pull failed 3x; using docker.io node:20-alpine"
+          echo "::warning title=m198 node image::mirror.gcr.io pull failed 3x; using docker.io node:20-alpine"
           docker pull -q node:20-alpine
           echo "M198_NODE_IMAGE=node:20-alpine" >> "$GITHUB_ENV"
 
@@ -1153,7 +1158,7 @@ jobs:
       # the client, and no client-forged X-Forwarded-* reaches an upstream.
       - name: Kong behind the WAF sees the real client (m207)
         env:
-          M207_NODE_IMAGE: ${{ env.M198_NODE_IMAGE || 'public.ecr.aws/docker/library/node:20-alpine' }}
+          M207_NODE_IMAGE: ${{ env.M198_NODE_IMAGE || 'mirror.gcr.io/library/node:20-alpine' }}
         run: bash scripts/verify/run-gate-battery.sh m207-edge-client-ip
 
       # Throwaway vault + init-vault.sh: the unseal-key file is 600, and a lost key
@@ -1260,7 +1265,7 @@ jobs:
       # A gate's "[MNN] FAIL — why" line becomes a public annotation.
       - name: Annotate gate failures
         run: echo "::add-matcher::.github/gate-matcher.json"
-      # The toolchain image comes from public.ecr.aws: a registry 429 is retried.
+      # The toolchain image comes from mirror.gcr.io: a registry 429 is retried.
       - name: cargo clippy --workspace --all-targets -D warnings
         run: bash scripts/ci/retry-on-429.sh make test-lint-rust
 
@@ -1280,6 +1285,6 @@ jobs:
       # A gate's "[MNN] FAIL — why" line becomes a public annotation.
       - name: Annotate gate failures
         run: echo "::add-matcher::.github/gate-matcher.json"
-      # The Rust toolchain image comes from public.ecr.aws: a registry 429 is retried.
+      # The Rust toolchain image comes from mirror.gcr.io: a registry 429 is retried.
       - name: Every language formatted (no writes)
         run: bash scripts/ci/retry-on-429.sh make prettiers-check

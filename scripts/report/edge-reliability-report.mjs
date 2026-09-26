@@ -5,7 +5,7 @@
 // Run (in-container, no host node):
 //   docker run --rm -u "$(id -u):$(id -g)" \
 //     -v "$PWD":/b -w /b \
-//     public.ecr.aws/docker/library/node:22-bookworm \
+//     mirror.gcr.io/library/node:22-bookworm \
 //     node /b/scripts/report/edge-reliability-report.mjs
 //
 // MEASURED, NOT CLAIMED — every number below is derived from edge-run.json (+ the corpus

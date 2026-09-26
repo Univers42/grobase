@@ -7,7 +7,10 @@ ARG NODE_VERSION=20
 ARG APP=adapter-registry
 
 # ─── Stage 1: Install ALL dependencies (dev + prod) ──────────────
-FROM public.ecr.aws/docker/library/node:${NODE_VERSION}-alpine AS deps
+# Docker official images; mirror.gcr.io serves Docker Hub's digests without
+# public.ecr.aws's anonymous data cap (public.ecr.aws/docker/library works too).
+ARG BASE_REGISTRY=mirror.gcr.io/library
+FROM ${BASE_REGISTRY}/node:${NODE_VERSION}-alpine AS deps
 WORKDIR /app
 COPY --link package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
@@ -30,7 +33,7 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
 # APP-independent layers FIRST (ARG APP/ENV comes after them): all app images
 # share one apk-upgrade/user/npm-strip/node_modules layer chain instead of
 # re-running them per app.
-FROM public.ecr.aws/docker/library/node:${NODE_VERSION}-alpine AS runtime
+FROM ${BASE_REGISTRY}/node:${NODE_VERSION}-alpine AS runtime
 
 # Patch base OS packages (openssl/musl/zlib) to the latest alpine fixes — clears
 # scanner HIGH/CRITICAL CVEs the node:alpine base ships with between base bumps.

@@ -22,7 +22,10 @@ ARG NODE_VERSION=20
 ARG PG_META_VERSION=v0.91.0
 
 # ─── Stage 1: clone source + install ALL deps (dev + prod) ───────
-FROM public.ecr.aws/docker/library/node:${NODE_VERSION}-slim AS deps
+# Docker official images; mirror.gcr.io serves Docker Hub's digests without
+# public.ecr.aws's anonymous data cap (public.ecr.aws/docker/library works too).
+ARG BASE_REGISTRY=mirror.gcr.io/library
+FROM ${BASE_REGISTRY}/node:${NODE_VERSION}-slim AS deps
 ARG PG_META_VERSION
 # git: shallow-clone the tag.  python3/make/g++: node-gyp compiles libpg-query's
 # bundled C parser from source.  All of this toolchain lives ONLY in the build
@@ -47,7 +50,7 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
   npm prune --omit=dev --no-audit --no-fund
 
 # ─── Stage 4: production runtime ─────────────────────────────────
-FROM public.ecr.aws/docker/library/node:${NODE_VERSION}-slim AS runtime
+FROM ${BASE_REGISTRY}/node:${NODE_VERSION}-slim AS runtime
 ENV NODE_ENV=production \
     PG_META_PORT=8080
 WORKDIR /app
