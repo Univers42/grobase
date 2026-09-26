@@ -1,0 +1,64 @@
+# cargo-deny policy for both Rust workspaces (src/data-plane-router and the vendored
+# realtime-agnostic), run by audit-deps.sh. One file so the two workspaces cannot drift.
+#
+# Why licenses matter here: the core is AGPL-3.0-only and is also sold under a commercial
+# licence (CLA.md dual-licensing). A dependency under a copyleft or unknown licence would
+# block the commercial half, so only permissive licences are allowed; anything else fails
+# until someone decides it.
+
+[graph]
+all-features = true
+
+[advisories]
+unsound = "all"
+# "all": unsoundness anywhere in the graph fails, not only in direct deps (cargo-deny's
+# default), so nothing cargo-audit reported is dropped. Accepted transitive advisories:
+ignore = [
+  { id = "RUSTSEC-2026-0098", reason = "rustls-webpki 0.101 via tiberius 0.12.3 (latest); external-TLS mssql only" },
+  { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.101 via tiberius 0.12.3 (latest); external-TLS mssql only" },
+  { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101 via tiberius 0.12.3 (latest); external-TLS mssql only" },
+  { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile unmaintained; feature-gated external-TLS chain" },
+  { id = "RUSTSEC-2026-0002", reason = "lru 0.12 IterMut unsound; only mysql_async's stmt cache, IterMut never called" },
+  { id = "RUSTSEC-2026-0097", reason = "rand 0.7 unsound only with a logger calling rand::rng(); we have none" },
+  { id = "RUSTSEC-2026-0253", reason = "lru 0.12 pop() UAF needs a panicking key; mysql_async stmt-cache keys are plain bytes. Fixed by mysql_async 0.37 (lru ^0.18)" },
+]
+
+[licenses]
+confidence-threshold = 0.93
+allow = [
+  "MIT",
+  "MIT-0",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "ISC",
+  "0BSD",
+  "Zlib",
+  "Unicode-3.0",
+  "CC0-1.0",
+  "Unlicense",
+  "CDLA-Permissive-2.0",
+]
+
+# Our own crates are publish = false; their licence is the repo's (LICENSING.md).
+[licenses.private]
+ignore = true
+
+# webpki 0.22 (via mysql_async) ships an ISC LICENSE but no SPDX field; the text scores
+# 0.85. The hash pins that exact file, so a changed licence text fails again.
+[[licenses.clarify]]
+crate = "webpki"
+expression = "ISC"
+license-files = [{ path = "LICENSE", hash = 0x001c7e6c }]
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

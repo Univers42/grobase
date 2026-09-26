@@ -174,7 +174,7 @@ make clean | fclean | re      # PROJECT-SCOPED, data-safe: clean = this project'
 make build                    # build all edition images   (build-svc-<svc> = one image)
 make migrate / migrate-status / migrate-all / migrate-mongo / migrate-mysql
 make bench-load|bench-capacity|bench-footprint|bench-mem|bench-startup
-make audit-deps               # supply-chain CVE scan: cargo-audit (Rust) + govulncheck (Go)
+make audit-deps               # supply-chain scan: cargo-deny (Rust, both workspaces) + govulncheck (Go)
 make nano-up|one-up           # product editions: binocle-nano (:8090) / binocle-one (:8091)
 make cloud-up                 # managed-cloud overlay (turns cloud/enterprise flags ON — NOT a default)
 make conformance | conformance-<engine> | parity | parity-suite
@@ -355,7 +355,7 @@ ts eslint · yaml (yamllint + actionlint) · docker (hadolint) · make · **comp
 `docker-compose.*.yml` overlay must render; `track-binocle` is skipped — it needs a `pg-meta` service
 this repo never defines). `make test-scan` = `check-secrets` (grep patterns **plus gitleaks over the
 whole tree, docs and untracked files included**, policy `.gitleaks.toml`) + semgrep/trivy/npm audit.
-`make audit-deps` = cargo-audit + govulncheck. First results: `artifacts/quality/baseline-2026-09-23.md`.
+`make audit-deps` = cargo-deny (policy `scripts/security/deny.toml`) + govulncheck. First results: `artifacts/quality/baseline-2026-09-23.md`.
 
 **Code quality (SonarCloud).** `sonar-project.properties` (repo root; org `univers42`, projectKey
 `Univers42_grobase`) defines the scope — sources `docker/services, scripts, config, src/apps,
