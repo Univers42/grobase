@@ -234,8 +234,8 @@ loads it by default; `make cloud-up` does not.
 
 ### Step 5: P1 security items (work through the tracker)
 
-For each item in `wiki/security/remediation-tracker-2025-07-14.md` marked 🔲 with
-P1 priority:
+For each item in `wiki/security/remediation-tracker-2025-07-14.md` still open
+(📌, the "Open, tracked" section — the tracker has no 🔲 marker or P1 column):
 
 1. Use `write-test` skill to write a failing test first
 2. Use `builder` agent to implement the minimum fix
@@ -244,8 +244,18 @@ P1 priority:
 5. Use `reviewer` agent for pre-merge review
 6. Update the tracker to ✅
 
-Start with: H-5 (ABAC default) → H-7 (Kong rate limit on key verify) → H-15 (CORS
-pre-flight) → H-20 (ShellCheck SC2086).
+The four items this list used to start with are no longer open — per the tracker
+(re-verified 2026-09-24):
+- H-5 (ABAC default) — ➖ by design, awaiting a product decision; m139 asserts
+  `API_KEY_ABAC_ENABLED` defaults off, and the bypass is now logged (H-5a, ✅).
+- H-7 (Kong rate limit on key verify) — ⚪ mitigated: verify needs the service token;
+  fast hash for new keys.
+- H-15 (CORS pre-flight) — ✅ fixed in `abeeea71`; proof: m195 CORS preflight
+  (prod-allowed `localhost:5180` → refused), phase 13 13/13.
+- H-20 (ShellCheck SC2086) — ✅ fixed on `fix/sec-h20-quoting`; proof: the CI
+  shellcheck step *Quoting (SC2086) on untrusted-input scripts* (red before, green after).
+
+Pick the next item from the tracker's "Open, tracked" section.
 
 ### Step 6: CI consolidation
 

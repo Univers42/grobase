@@ -7,7 +7,7 @@ This file provides guidance to agents when working with code in this repository.
 - **Docker-first, always.** Never run `node`/`cargo`/`go` on the host for lifecycle tasks — all toolchain invocations run inside Docker via root `Makefile` targets.
 - **GHCR pull-fallback trap:** `docker compose up` pulls prebuilt `:latest` images for every compose service with a `# pull-fallback` line (`grep -rc pull-fallback orchestrators/compose/base`), not local source. Always `make build` before testing local changes.
 - **TS SDK uses `node:test`, not jest/vitest** — `sdks/js/` tests run with `node --test tests/<name>.test.mjs`.
-- **16 TS spec files are spread across `src/apps/` (12) and `src/libs/common/` (4)** — single-test invocation needs the exact spec path.
+- **30 TS spec files are spread across `src/apps/` (22) and `src/libs/common/` (8)** — single-test invocation needs the exact spec path (`find src/apps src/libs -name '*.spec.ts'` for the current set).
 - **`sdks/js/src/generated/` is gitignored except `engines.ts`** — regenerate with `cd sdks/js && npm run codegen:all` after any API change; `engines.ts` is committed as the SDK's contract.
 - **Minimalism markers are required:** deliberate shortcuts → `// ponytail: <what> — <upgrade path>`; perf overrides → `// perf: <why>`. These are the ONLY in-body comments tolerated (plus `// SAFETY:` for Rust unsafe).
 - **No in-body prose comments** — all commentary belongs in the doc comment ABOVE the declaration.
@@ -28,4 +28,4 @@ This file provides guidance to agents when working with code in this repository.
 
 ## The `.claude/` agent config and the submodule
 
-The `.claude/` config's upstream is the external upstream repo [`Univers42/claude-deal-with-the-devil`](https://github.com/Univers42/claude-deal-with-the-devil) (not vendored here — no submodule). Its tools, hooks, extra agents (`builder`, `forger`, `innovator`), skills and rules are **merged into `.claude/`** (grobase's own versions of the files both trees share were kept). Run `bash .claude/tools/selfcheck.sh --summary` after editing `.claude/`; hooks live in `.claude/settings.json`, MCP servers are declared in the upstream's `.mcp.json` (copy it locally to opt in; none is committed here).
+The `.claude/` config's upstream is the external upstream repo [`Univers42/claude-deal-with-the-devil`](https://github.com/Univers42/claude-deal-with-the-devil) (not vendored here — no submodule). Its tools, hooks, extra agents (`builder`, `forger`, `innovator`), skills and rules are **merged into `.claude/`** (grobase's own versions of the files both trees share were kept). Run `bash .claude/tools/selfcheck.sh --summary` after editing `.claude/`; hooks live in `.claude/hooks/` (`scripts/hooks.py` + `config/hooks-config.json`; not wired yet — the committed `.claude/settings.json` is `{}`), MCP servers are declared in the upstream's `.mcp.json` (copy it locally to opt in; none is committed here).

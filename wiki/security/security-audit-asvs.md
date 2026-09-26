@@ -38,7 +38,7 @@ the code path that implements the control.
 | SAST in CI | `[v]` | Semgrep (`p/owasp-top-ten` + lang rules), SARIF to the Security tab (`sast-semgrep`). |
 | Secret-scan in CI (blocking) | `[v]` | TruffleHog (`--only-verified --fail`) + gitleaks (working-tree regex/entropy, `--exit-code 1`); `.env`/`.env.local` gitignored and never tracked, `ANON_KEY` runtime-derived from `JWT_SECRET` (no committed secret). |
 | Vault enforced for all secrets | `[~]` | Under `SECURITY_MODE=max` an inline DSN is refused (403) and mounts are Vault `credential_ref`s resolved per request (migration 060, gate m121, nightly). Other tiers keep encrypted-at-rest inline DSNs by design. |
-| Plane network isolation / NetworkPolicy | `[~]` | Compose: the netseg overlay takes the engines + vault off the app bridge (`make up NETSEG=1`, default in `prod-up`; gate m66). Helm NetworkPolicy exists, default off. |
+| Plane network isolation / NetworkPolicy | `[~]` | Compose: the netseg overlay takes the engines + vault off the app bridge (`make up NETSEG=1`, default in `prod-up`; gate m66). Helm NetworkPolicy exists and defaults on (off in `values-dev.yaml`); unproven on a real cluster. |
 
 ### V2 — Authentication
 
