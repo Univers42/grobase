@@ -88,8 +88,11 @@ PREFIX="postgres"
 # Shared per-run artifact root on the big disk (kernel: Docker work on
 # /mnt/storage), user-owned bench base so we can mkdir without sudo. It holds the
 # WAL archive + base backup in the run-backup.sh store layout, and the recovery
-# PGDATA dirs. Overridable via M99_WORK_DIR.
-WORK_DIR="${M99_WORK_DIR:-/mnt/storage/bench/m99-pitr-$$}"
+# PGDATA dirs (~150 MB). Without /mnt/storage/bench it falls back to $TMPDIR.
+# Overridable via M99_WORK_DIR.
+BENCH_DIR=/mnt/storage/bench
+[ -d "${BENCH_DIR}" ] || BENCH_DIR="${TMPDIR:-/tmp}"
+WORK_DIR="${M99_WORK_DIR:-${BENCH_DIR}/m99-pitr-$$}"
 STORE_DIR="${WORK_DIR}/store" # <- ${STORE_DIR}/${PREFIX}/{physical,wal}
 WAL_ARCHIVE="${STORE_DIR}/${PREFIX}/wal"
 PHYS_DIR="${STORE_DIR}/${PREFIX}/physical"
@@ -98,9 +101,12 @@ REC_A_WAL="${WORK_DIR}/rec-a/wal"
 REC_B_DATA="${WORK_DIR}/rec-b/pgdata"
 REC_B_WAL="${WORK_DIR}/rec-b/wal"
 
+# cleanup removes the containers, network and image, then the work dir; the
+# recovered PGDATA is owned by the containers' uids, so a root container empties it.
 cleanup() {
   docker rm -fv "${PG}" "${PG_REC_A}" "${PG_REC_B}" "${PG_OFF}" >/dev/null 2>&1 || true
   docker network rm "${NET}" >/dev/null 2>&1 || true
+  docker run --rm -u 0 -v "${WORK_DIR}:/w" "${PG_IMAGE}" find /w -mindepth 1 -delete >/dev/null 2>&1 || true
   docker image rm -f "${PGB_IMG}" >/dev/null 2>&1 || true
   rm -rf "${WORK_DIR}" 2>/dev/null || true
 }
@@ -152,9 +158,11 @@ for f in wal-archive.sh pitr-restore.sh; do
   [[ -f "${PGB_DIR}/scripts/${f}" ]] || fail "missing C4b script scripts/${f} (line: ${f} exists)"
   bash -n "${PGB_DIR}/scripts/${f}" || fail "scripts/${f} has a syntax error (line: ${f} bash -n)"
 done
-docker run --rm "${PGB_IMG}" liveness >/dev/null 2>&1 ||
-  { DATABASE_URL="x" docker run --rm -e DATABASE_URL=x "${PGB_IMG}" liveness >/dev/null 2>&1 ||
-    fail "pg-backup liveness mode broke (line: image liveness)"; }
+# liveness now asks PostgreSQL and MinIO (m192), so it cannot pass here; an
+# unknown mode proves the entrypoint runs and lists the PITR modes.
+modes="$(docker run --rm "${PGB_IMG}" m99-no-such-mode 2>&1 || true)"
+grep -q 'archive-wal' <<<"${modes}" && grep -q 'pitr-restore' <<<"${modes}" ||
+  fail "pg-backup entrypoint does not run or lists no PITR mode: ${modes:0:200} (line: image boots)"
 ok "wal-archive.sh + pitr-restore.sh present and parse; image boots"
 
 # ── 0c) (B · REJECT) the PITR modes REFUSE to run with PG_BACKUP_PITR unset ─────
@@ -170,7 +178,7 @@ ok "both PITR modes exit non-zero with PG_BACKUP_PITR unset — OFF is inert"
 # ── 1) shared work dirs + isolated network ─────────────────────────────────────
 step "1/10 create shared work dirs under ${WORK_DIR} + isolated net (${NET})"
 mkdir -p "${WAL_ARCHIVE}" "${PHYS_DIR}" "${REC_A_DATA}" "${REC_A_WAL}" "${REC_B_DATA}" "${REC_B_WAL}" 2>/dev/null ||
-  fail "could not create work dirs (run once: sudo install -d -o \$USER /mnt/storage/bench) (line: work mkdir)"
+  fail "could not create work dirs under ${WORK_DIR} (set M99_WORK_DIR to a writable dir) (line: work mkdir)"
 # postgres in the container runs as uid 70 (alpine) / 999 (debian); make the
 # archive + recovery dirs world-writable so the container's postgres user can
 # write WAL into the bind mount + own the recovered PGDATA. Ephemeral ($$),
