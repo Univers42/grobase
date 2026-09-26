@@ -77,7 +77,7 @@ func TestSplitArtifactRoundTrip(t *testing.T) {
 	}
 	artifact, want := makeArtifact(t, tables, "USERS\n", "ORD\n")
 
-	body, got, err := splitArtifact(bytes.NewReader(artifact))
+	body, got, err := splitArtifact(artifact)
 	if err != nil {
 		t.Fatalf("splitArtifact: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestSplitArtifactRoundTrip(t *testing.T) {
 // TestSplitArtifactMissingFooter asserts an artifact with no sentinel is rejected
 // (a corrupt/truncated artifact must not parse as an empty manifest).
 func TestSplitArtifactMissingFooter(t *testing.T) {
-	_, _, err := splitArtifact(strings.NewReader("just a copy body, no footer"))
+	_, _, err := splitArtifact([]byte("just a copy body, no footer"))
 	if err == nil {
 		t.Fatalf("splitArtifact(no footer) = nil error")
 	}
@@ -108,7 +108,7 @@ func TestSplitArtifactMissingFooter(t *testing.T) {
 // reported as a parse error, not silently dropped.
 func TestSplitArtifactBadManifestJSON(t *testing.T) {
 	bad := []byte("body" + manifestSentinel + "{not json")
-	_, _, err := splitArtifact(bytes.NewReader(bad))
+	_, _, err := splitArtifact(bad)
 	if err == nil {
 		t.Fatalf("splitArtifact(bad json) = nil error")
 	}

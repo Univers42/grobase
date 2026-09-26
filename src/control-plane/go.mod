@@ -3,17 +3,20 @@ module github.com/dlesieur/mini-baas/control-plane
 go 1.25.0
 
 require (
+	filippo.io/age v1.3.2
 	github.com/go-webauthn/webauthn v0.17.4
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/redis/go-redis/v9 v9.20.0
 	go.mongodb.org/mongo-driver v1.17.7
+	go.uber.org/goleak v1.3.0
 	golang.org/x/crypto v0.55.0
 	golang.org/x/sync v0.22.0
 )
 
 require (
+	filippo.io/hpke v0.4.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
