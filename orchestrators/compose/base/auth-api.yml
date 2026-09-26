@@ -189,7 +189,7 @@ services:
       PG_META_DB_PORT: ${PG_META_DB_PORT:-5432}
       PG_META_DB_NAME: ${PG_META_DB_NAME:-postgres}
       PG_META_DB_USER: ${PG_META_DB_USER:-postgres}
-      PG_META_DB_PASSWORD: ${PG_META_DB_PASSWORD:-postgres}
+      PG_META_DB_PASSWORD: ${PG_META_DB_PASSWORD:-${POSTGRES_PASSWORD:-postgres}} # same role as postgres, so its password by default
     depends_on:
       postgres:
         condition: service_healthy
