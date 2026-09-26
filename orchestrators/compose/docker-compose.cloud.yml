@@ -38,11 +38,18 @@
 #   5. IDENTITY_HEADER_MODE=strict on the 11 Nest services that read it, as
 #      docker-compose.prod.yml does (the rationale lives there; gates m195 +
 #      m202). PROD_IDENTITY_HEADER_MODE=compat in .env reverts both overlays.
+#   6. KONG_TRUSTED_IPS = the private ranges, as docker-compose.prod.yml does, so
+#      Kong behind the WAF sees the real client (N-23, gate m207).
+#      PROD_KONG_TRUSTED_IPS= in .env opts both overlays out.
 # It adds NO new app images and changes NO default-stack value.
 
 x-strict-identity: &strict-identity ${PROD_IDENTITY_HEADER_MODE:-strict}
 
 services:
+  kong:
+    environment:
+      KONG_TRUSTED_IPS: ${PROD_KONG_TRUSTED_IPS-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+
   # ── orchestrator — hosts metering-ingest, quota-guard, billing-reporter, spend-cap.
   #    The cloud flags it reads: METERING_ENABLED / METERING_INGEST, QUOTA_ENFORCEMENT,
   #    BILLING_ENABLED + STRIPE_* + BILLING_METER_*, SPEND_CAPS_ENABLED + SPEND_RATE_*.
