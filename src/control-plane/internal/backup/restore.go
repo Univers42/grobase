@@ -17,7 +17,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -35,14 +34,10 @@ func guardIsolation(iso string) error {
 	}
 }
 
-// splitArtifact reads the full artifact, splits the concatenated COPY bodies
-// from the trailing JSON manifest at the sentinel, and parses the manifest. The
+// splitArtifact splits the concatenated COPY bodies of a whole artifact from
+// the trailing JSON manifest at the sentinel, and parses the manifest. The
 // returned body is re-sliced per table by the manifest's recorded byte lengths.
-func splitArtifact(r io.Reader) ([]byte, manifest, error) {
-	all, err := io.ReadAll(r)
-	if err != nil {
-		return nil, manifest{}, fmt.Errorf("backup: read artifact: %w", err)
-	}
+func splitArtifact(all []byte) ([]byte, manifest, error) {
 	idx := bytes.LastIndex(all, []byte(manifestSentinel))
 	if idx < 0 {
 		return nil, manifest{}, fmt.Errorf("backup: artifact missing manifest footer")

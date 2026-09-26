@@ -475,10 +475,10 @@ jobs:
       - name: liveness follows PostgreSQL and MinIO
         run: bash scripts/verify/m192-pg-backup-liveness.sh
 
-  # ─── Standalone gates (m64 m81 m183 m209) ─────────────────────
+  # ─── Standalone gates (m64 m81 m87 m183 m209) ─────────────────
   # Each builds or starts its own throwaway containers; no stack needed.
   standalone-gates:
-    name: Standalone gates (m64 m81 m183 m209)
+    name: Standalone gates (m64 m81 m87 m183 m209)
     runs-on: ubuntu-latest
     needs: [shellcheck]
     timeout-minutes: 30
@@ -512,6 +512,14 @@ jobs:
           bash scripts/ci/retry-on-429.sh docker pull -q ghcr.io/univers42/grobase-minio:latest
       - name: Backups encrypted at rest (m209)
         run: bash scripts/verify/m209-backup-encryption.sh
+
+      # tenant-control built from the commit: per-tenant backup/restore, sealed
+      # with age, every restore checked against the ledger sha256 (scratch postgres).
+      - name: Per-tenant backups, sealed and verified (m87)
+        env:
+          M87_PG_IMAGE: mirror.gcr.io/library/postgres:16-alpine
+          M87_ARTIFACT_DIR: ${{ runner.temp }}/m87-artifacts
+        run: bash scripts/verify/m87-per-tenant-backup.sh
 
   integration-tests:
     name: Integration Tests

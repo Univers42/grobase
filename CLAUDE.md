@@ -450,7 +450,7 @@ Mongo/MySQL migrations are separate and tiny
 | billing/Stripe (m82)        | `BILLING_ENABLED`                                      | `041_tenant_billing.sql`                                                                   |
 | tenant self-serve (m83–m84) | `TENANT_SELFSERVE_ENABLED`                             | — (`/v1/tenants/me*`, tenant from credential — no `{id}`, no cross-tenant by construction) |
 | per-tenant obs (m85)        | `TENANT_OBS_ENABLED`, `DATA_PLANE_TENANT_OBS`          | — (tenant_id as a log _field_, never a Prometheus label)                                   |
-| backup/restore (m87)        | `TENANT_BACKUP_ENABLED`                                | `042_tenant_backups.sql`                                                                   |
+| backup/restore (m87)        | `TENANT_BACKUP_ENABLED` (+ `TENANT_BACKUP_AGE_RECIPIENTS`: age-sealed artifacts) | `042_tenant_backups.sql`                                                     |
 
 **Track-D enterprise · Track-E parity · dynamic-builder / ABAC:**
 

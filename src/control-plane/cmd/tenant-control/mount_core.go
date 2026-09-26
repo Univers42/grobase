@@ -84,7 +84,12 @@ func (b *bootCtx) mountBackup() {
 		b.log.Error("backup: artifact store init failed", "err", err)
 		os.Exit(1)
 	}
-	bsvc := backup.NewService(b.db, store, b.log)
+	sealer, err := backup.NewSealerFromEnv()
+	if err != nil {
+		b.log.Error("backup: artifact encryption config refused", "err", err)
+		os.Exit(1)
+	}
+	bsvc := backup.NewService(b.db, store, b.log).WithSealer(sealer)
 	backup.Mount(b.mux, bsvc, b.cfg.ServiceToken)
 	if config.EnvBool("TENANT_BACKUP_SELFSERVE_ENABLED") {
 		backup.MountSelfServe(b.mux, bsvc, b.svc)

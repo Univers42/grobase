@@ -35,6 +35,9 @@
 #    backups      BACKUP_AGE_RECIPIENTS unset WARNS (backups stay plaintext);  #
 #                 BACKUP_AGE_IDENTITY_FILE set is refused: the key that        #
 #                 decrypts every backup belongs to a one-off restore run.      #
+#                 Any value holding an age private key is refused. m87 tenant  #
+#                 backups on without TENANT_BACKUP_AGE_RECIPIENTS WARN; a      #
+#                 tenant recipient also in BACKUP_AGE_RECIPIENTS is refused.   #
 #  The file is PARSED, never sourced, with compose .env rules: `export `       #
 #  prefix, quotes, unquoted ` #` comments, last assignment wins. A value       #
 #  holding `${`, `$(` or an unquoted `$NAME` cannot be resolved here, and      #
@@ -261,6 +264,21 @@ function check_backups(   v) {
 	v = setting("BACKUP_AGE_RECIPIENTS", "")
 	if (v == "") warn("BACKUP_AGE_RECIPIENTS", "unset: pg-backup and engine-backup write plaintext backups")
 	if (setting("BACKUP_AGE_IDENTITY_FILE", "") != "") flag("BACKUP_AGE_IDENTITY_FILE", "set: the age identity belongs to a one-off restore run, never the service env file")
+	for (k in VAL) if (toupper(VAL[k]) ~ /AGE-SECRET-KEY-/) flag(k, "holds an age private key: identities live in a 0600 file, never the env file")
+	check_tenant_backups()
+}
+
+# check_tenant_backups warns when per-tenant backups (m87) are on but written in
+# clear, and refuses a tenant recipient that pg-backup also encrypts to: the
+# identity tenant-control holds would then open every whole-cluster backup. The
+# identity FILES cannot coincide: BACKUP_AGE_IDENTITY_FILE set is refused above.
+function check_tenant_backups(   v, n, i, a, pg) {
+	v = setting("TENANT_BACKUP_ENABLED", "0")
+	if (v ~ /^(1|true|yes|on)$/ && setting("TENANT_BACKUP_AGE_RECIPIENTS", "") == "") warn("TENANT_BACKUP_AGE_RECIPIENTS", "unset: per-tenant backups are written in clear")
+	n = split(VAL["BACKUP_AGE_RECIPIENTS"], a, /[[:space:],]+/)
+	for (i = 1; i <= n; i++) if (a[i] != "") pg[a[i]] = 1
+	n = split(VAL["TENANT_BACKUP_AGE_RECIPIENTS"], a, /[[:space:],]+/)
+	for (i = 1; i <= n; i++) if (a[i] in pg) return flag("TENANT_BACKUP_AGE_RECIPIENTS", "shares a key with BACKUP_AGE_RECIPIENTS: the identity tenant-control holds would open every whole-cluster backup")
 }
 
 # END runs every check and prints the verdict; the exit code is the result.
