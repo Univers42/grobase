@@ -31,7 +31,7 @@ CREATE POLICY projects_owner_crud ON public.projects
   FOR ALL USING (auth.uid()::text = owner_id)
   WITH CHECK (auth.uid()::text = owner_id);
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.projects TO authenticated;
+-- No anon/authenticated grant: control table, served by the control plane only (N-36, 090).
 
 INSERT INTO public.schema_migrations (version, name) VALUES (3, '003_add_projects')
   ON CONFLICT (version) DO NOTHING;
