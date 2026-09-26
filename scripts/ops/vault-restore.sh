@@ -71,6 +71,7 @@ PROJECT="${PROJECT:-groot}"
 EDITION="${EDITION:-devlean}"
 ENGINES="${ENGINES:-postgres mysql mongo redis minio}"
 NET="${NET:-mini-baas_mini-baas}"
+. "$SCRIPT_DIR/../lib/lib-netseg.sh"
 # Where pre-restore backups and failed-replay logs go. NEVER inside SEED_DIR: at the
 # superproject root SEED_DIR is ./secrets, and 42ctl takes EVERY regular file under a
 # directory named secrets/ — so a backup written there rides the next `make vault42-push-all`
@@ -419,7 +420,7 @@ restore_mongo() {
   # Without it --drop replaces the root user mid-restore with the source machine's password;
   # the connection that authenticated at the start then fails, and the stack is locked out.
   err=$(mktemp)
-  docker run --rm -i --network "$NET" -e MU -e MP --entrypoint sh "$MONGO_IMAGE" -c \
+  docker run --rm -i --network "$(engine_net mini-baas-mongo "$NET")" -e MU -e MP --entrypoint sh "$MONGO_IMAGE" -c \
     'mongorestore --host mini-baas-mongo --port 27017 --username "$MU" --password "$MP" \
 		 --authenticationDatabase admin --archive --gzip --drop \
 		 --nsExclude "admin.system.users" --nsExclude "admin.system.version"' \
@@ -516,7 +517,7 @@ restore_dynamodb() {
 	        json.dump({s["TableName"]: [{"PutRequest": {"Item": it}} for it in items[i:i + 25]]},
 	                  open(os.path.join(d, "%s.batch.%05d" % (t, i // 25)), "w"))
 	PY
-  aws="docker run --rm --network $NET -v $stage:/work:ro -e AWS_ACCESS_KEY_ID=local -e AWS_SECRET_ACCESS_KEY=local -e AWS_DEFAULT_REGION=us-east-1 amazon/aws-cli --endpoint-url http://mini-baas-dynamodb-local:8000 dynamodb"
+  aws="docker run --rm --network $(engine_net mini-baas-dynamodb-local "$NET") -v $stage:/work:ro -e AWS_ACCESS_KEY_ID=local -e AWS_SECRET_ACCESS_KEY=local -e AWS_DEFAULT_REGION=us-east-1 amazon/aws-cli --endpoint-url http://mini-baas-dynamodb-local:8000 dynamodb"
   for c in "$stage"/*.create; do
     [ -f "$c" ] || continue
     t=$(basename "$c" .create)

@@ -181,9 +181,10 @@ step "loading mysql ops ($(count_of mysql tasks) tasks / $(count_of mysql ticket
 step "loading mongo activity ($(count_of mongo events) events / $(count_of mongo product_reviews) reviews)"
 # Sibling container, NOT `exec` into mini-baas-mongo: mongosh is a Node app
 # and parsing the multi-MB seed script inside mongod's 512MB cgroup OOM-kills
-# the database container. Same image (version-matched mongosh), stack network.
-STACK_NET="$(docker inspect mini-baas-kong \
-  --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' | head -1)"
+# the database container. Same image (version-matched mongosh), on mongo's bridge.
+# shellcheck source=scripts/lib/lib-netseg.sh
+. "${SCRIPT_DIR}/../lib/lib-netseg.sh"
+STACK_NET="$(engine_net mini-baas-mongo mini-baas_mini-baas)"
 MONGO_IMAGE="$(docker inspect mini-baas-mongo --format '{{.Config.Image}}')"
 docker run --rm --network "${STACK_NET}" \
   -v "${OUT_DIR}/mongo-activity.js:/seed.js:ro" "${MONGO_IMAGE}" \
