@@ -154,6 +154,8 @@ engine or vault. minio stays reachable because kong proxies presigned URLs to it
 - Live proof, 2026-09-26, `make up PACKAGE=max NETSEG=1`: 34/34 healthchecks healthy (as before),
   13/13 Prometheus targets up, no alert firing. kong → postgres is refused by IP and query-router
   connects. m27 passes for all 8 engines; m52, m68, m204, m101-quota-realtenant and m120 are green.
+- adapter-registry-go is off the app bridge too (N-22): its register/list trust an asserted tenant, so only
+  its callers reach it (routers and tenant-control on net-data/net-vault, kong on `net-registry`).
 - Helm: `networkPolicy.enabled` (default false) renders 8 policies in `grobase` and 4 in `mini-baas`.
   Enabling it on a cluster is a human step.
 

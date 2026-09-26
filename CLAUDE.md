@@ -299,7 +299,7 @@ Kong show in Kong's and query-router's 401 counters, as `event_type=auth_failure
 unit tests in `infra/config/prometheus/tests/`) needs no stack and runs in CI's lint job.
 `m66` renders every service with the netseg overlay (dev and prod stacks): engines only on `net-data`,
 vault only on `net-vault`, kong/waf/scrapers/functions sharing no bridge with them, and each of the 64
-client→engine edges intact. It probes a running `NETSEG=1` stack too.
+client→engine edges intact, and adapter-registry-go off the app bridge (`net-registry` = it + kong only). It probes a running `NETSEG=1` stack too.
 `m205` proves `scripts/ops/rotate-service-token.sh` (begin → swap → finish on `.env.secrets`, never
 printing a token) and that compose hands the previous token to every verifier; no stack needed.
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
