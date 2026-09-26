@@ -11,9 +11,9 @@
 /* ************************************************************************** */
 
 // Package pubkeys — the member X25519 public-key registry + the grant-fulfilment seam between
-// the control plane (WHO may access) and the vault42 zero-knowledge crypto plane (WHO CAN
+// the control plane (WHO may access) and a zero-knowledge client (WHO CAN
 // decrypt). NO PRIVATE KEYS are stored. The control plane owns the QUESTION ("is this grant
-// provisioned to its members?", GET .../fulfilled); vault42 (or the admin's sync-keys) records
+// provisioned to its members?", GET .../fulfilled); that client (or the admin's sync-keys) records
 // the ANSWER (POST .../wraps) after it wraps an environment scope key to a member.
 // CONTROL-PLANE ONLY; flag-gated by USER_PUBKEYS_ENABLED.
 package pubkeys
