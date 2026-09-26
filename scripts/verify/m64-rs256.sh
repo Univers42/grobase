@@ -82,7 +82,7 @@ JWT_SECRET="m64-shared-hs256-secret-$$-deterministic"
 ISSUER="https://m64-issuer.test/auth/v1"
 DSN_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 JWKS_INNET="http://${SIGNER}:8080/.well-known/jwks.json"
-SCRATCH="/mnt/storage/bench/m64-$$" # host-side temp on the BIG disk only
+SCRATCH="${M64_SCRATCH:-${TMPDIR:-/tmp}/m64-$$}"
 BODY="${SCRATCH}/body.json"
 
 cleanup() {
@@ -93,7 +93,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "${SCRATCH}" || fail "cannot create scratch ${SCRATCH} on /mnt/storage (line: mkdir SCRATCH)"
+mkdir -p "${SCRATCH}" || fail "cannot create scratch ${SCRATCH} (M64_SCRATCH picks another dir)"
 
 # ── the inline RSA signer + JWKS endpoint (node:22-alpine, zero npm deps) ──────
 # It generates ONE RSA keypair (kid=m64-key-1) + a SECOND unrelated key, serves
