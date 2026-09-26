@@ -44,7 +44,12 @@ services:
       context: ./infra/docker/services/kong
       dockerfile: Dockerfile
     container_name: mini-baas-kong
-    env_file: [.env]
+    # Only what render-kong-config.sh and Kong read, never the whole platform .env
+    # (service tokens, engine passwords). Kong tuning (KONG_LOG_LEVEL, KONG_NGINX_*,
+    # …) goes in the optional .env.kong (gate m212).
+    env_file:
+      - path: .env.kong
+        required: false
     ports:
       # Kong is now internal — WAF is the public entrypoint.
       # Keep 8000 exposed on localhost for direct dev access.
@@ -71,6 +76,12 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       GOTRUE_JWT_ISS: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}
       KONG_ANON_UUID: ${KONG_ANON_UUID:-cd4f782c-ac87-5081-b322-b54834d15651}
+      KONG_PUBLIC_API_KEY: ${KONG_PUBLIC_API_KEY:-}
+      KONG_SERVICE_API_KEY: ${KONG_SERVICE_API_KEY:-}
+      KONG_CORS_ORIGIN_APP: ${KONG_CORS_ORIGIN_APP:-}
+      KONG_CORS_ORIGIN_PLAYGROUND: ${KONG_CORS_ORIGIN_PLAYGROUND:-}
+      KONG_CORS_ORIGIN_STUDIO: ${KONG_CORS_ORIGIN_STUDIO:-}
+      KONG_CORS_ORIGIN_FRONTEND: ${KONG_CORS_ORIGIN_FRONTEND:-}
       # Local dev CORS origins (vite :5173/:5180, osionos :3001), comma-separated.
       # `-` not `:-`: UNSET keeps the dev list (an .env assembled before this line
       # existed behaves as it did); SET-but-empty — prod overlay, fly — adds none (H-15).

@@ -222,5 +222,8 @@ production surface for v1.0; the chart is for evaluation.
   load `.env`, so they never hold `JWT_SECRET` or the service tokens (m211). Engine settings you
   set in `.env` before (`MINIO_*`, `TZ`, `MARIADB_AUTO_UPGRADE`, …) now go in the optional
   `.env.engines`, which every engine loads.
+- Kong does not load `.env` either: it gets `JWT_SECRET`, the two API keys and the CORS origins
+  by name (m212). Kong settings you set in `.env` (`KONG_LOG_LEVEL`, `KONG_NGINX_*`, …) now go
+  in the optional `.env.kong`.
 - Vault is OPTIONAL (profile `control-plane`): `make vault-init`, `make vault-rotate GROUP=…`.
 - `make check-secrets` scans the tree for accidental hardcoded secrets.
