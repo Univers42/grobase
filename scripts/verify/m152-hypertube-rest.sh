@@ -51,25 +51,28 @@ KONG="http://127.0.0.1:${KPORT}"
 ANON="$(_lt_env mini-baas-kong KONG_PUBLIC_API_KEY)"
 [[ -n "${ANON}" ]] || skip "anon key not found on mini-baas-kong"
 # A reachable health/oauth route on /api means the service is up; otherwise SKIP.
-if ! curl -fsS -o /dev/null --max-time 5 "${KONG}/api/health" -H "apikey: ${ANON}" 2>/dev/null \
-  && [[ "$(code -X POST "${KONG}/api/oauth/token" -H "apikey: ${ANON}" -H 'Content-Type: application/json' -d '{}')" == "000" ]]; then
+if ! curl -fsS -o /dev/null --max-time 5 "${KONG}/api/health" -H "apikey: ${ANON}" 2>/dev/null &&
+  [[ "$(code -X POST "${KONG}/api/oauth/token" -H "apikey: ${ANON}" -H 'Content-Type: application/json' -d '{}')" == "000" ]]; then
   skip "hypertube-api not reachable on ${KONG}/api (start the hypertube profile)"
 fi
 ok "gateway ${KONG}/api"
 
 # ── 1) provision + demo users for the authz checks ───────────────────────────
 step "1/6 provision (idempotent) + demo subs"
-bash "${BAAS_DIR}/scripts/seed/hypertube-tenant.sh" >"${TMP}/seed.log" 2>&1 \
-  || fail "provisioning failed — $(tail -3 "${TMP}/seed.log")"
+bash "${BAAS_DIR}/scripts/seed/hypertube-tenant.sh" >"${TMP}/seed.log" 2>&1 ||
+  fail "provisioning failed — $(tail -3 "${TMP}/seed.log")"
 # shellcheck disable=SC1091
 source "${BAAS_DIR}/.hypertube-baas.env"
-ALICE="${HT_ALICE_SUB:-}"; BOB="${HT_BOB_SUB:-}"
+ALICE="${HT_ALICE_SUB:-}"
+BOB="${HT_BOB_SUB:-}"
 [[ -n "${ALICE}" && -n "${BOB}" ]] || skip "demo subs not seeded (HT_ALICE_SUB/HT_BOB_SUB empty)"
 # OAuth2 client credentials: the API issues an app token via client_credentials.
 # The client id/secret come from the service env (never hardcoded); read from the
 # running container, falling back to the seeded api key as the client secret.
-CID="$(_lt_env mini-baas-hypertube-api API_OAUTH_CLIENT_ID)"; CID="${CID:-hypertube}"
-CSEC="$(_lt_env mini-baas-hypertube-api API_OAUTH_CLIENT_SECRET)"; CSEC="${CSEC:-${HT_API_KEY:-}}"
+CID="$(_lt_env mini-baas-hypertube-api API_OAUTH_CLIENT_ID)"
+CID="${CID:-hypertube}"
+CSEC="$(_lt_env mini-baas-hypertube-api API_OAUTH_CLIENT_SECRET)"
+CSEC="${CSEC:-${HT_API_KEY:-}}"
 [[ -n "${CSEC}" ]] || skip "no OAuth client secret available (service env + state both empty)"
 ok "client_id=${CID}"
 

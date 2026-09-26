@@ -80,12 +80,15 @@ bench-mem: _require-compose ## RSS under sustained load: peak + drift slope (PAC
 	@PACKAGE="$(if $(PACKAGE),$(PACKAGE),essential)" DURATION="$(if $(DURATION),$(DURATION),30m)" \
 		RATE="$(RATE)" bash scripts/bench/mem-under-load.sh
 
+bench-verify-hash: ## Cost of ONE api-key verify per hash scheme — the H-4 input for the verify-cache TTLs (BENCHTIME=2s; no stack needed)
+	@bash scripts/bench/verify-hash.sh $(if $(BENCHTIME),$(BENCHTIME),2s)
+
 bench-compare: ## Competitive graph report from scripts/bench/compare-data.json → artifacts/bench/compare/ (zero-dep SVG, no host node) (DATA= OUT=)
 	@mkdir -p artifacts/bench/compare
 	@docker run --rm -u "$(shell id -u):$(shell id -g)" \
 		-v "$(CURDIR)/scripts/bench":/b \
 		-v "$(CURDIR)/artifacts":/b/artifacts \
-		-w /b public.ecr.aws/docker/library/node:22-bookworm \
+		-w /b mirror.gcr.io/library/node:22-bookworm \
 		node compare-report.mjs \
 			--data "$(if $(DATA),$(DATA),/b/compare-data.json)" \
 			--out "$(if $(OUT),$(OUT),/b/artifacts/bench/compare)"
@@ -93,7 +96,7 @@ bench-compare: ## Competitive graph report from scripts/bench/compare-data.json 
 
 master-report: ## ONE detailed HTML comparison report (perf + offers + matrix + edge) → wiki/reports/comparison-report.html (zero-dep, no host node)
 	@docker run --rm -u "$(shell id -u):$(shell id -g)" \
-		-v "$(CURDIR)":/b -w /b public.ecr.aws/docker/library/node:22-bookworm \
+		-v "$(CURDIR)":/b -w /b mirror.gcr.io/library/node:22-bookworm \
 		node /b/scripts/report/master-report.mjs \
 			--infra /b --out /b/wiki/reports/comparison-report.html
 	@echo -e "$(_G)$(_W)✓ comparison report → wiki/reports/comparison-report.html$(_0)"
@@ -107,11 +110,11 @@ reports: master-report ## Regenerate EVERY HTML report (comparison + supabase-ve
 	@for g in $(REPORT_GENS); do \
 		echo "  → $$g"; \
 		docker run --rm -u "$(shell id -u):$(shell id -g)" \
-			-v "$(CURDIR)":/b -w /b public.ecr.aws/docker/library/node:22-bookworm \
+			-v "$(CURDIR)":/b -w /b mirror.gcr.io/library/node:22-bookworm \
 			node /b/scripts/report/$$g.mjs || exit 1; \
 	done
 	@docker run --rm -u "$(shell id -u):$(shell id -g)" \
-		-v "$(CURDIR)":/b -w /b public.ecr.aws/docker/library/node:22-bookworm \
+		-v "$(CURDIR)":/b -w /b mirror.gcr.io/library/node:22-bookworm \
 		node /b/scripts/report/portal.mjs \
 			--data /b/scripts/bench/offers-compare-data.json \
 			--out /b/wiki/reports/index.html \
@@ -151,7 +154,7 @@ scale-teardown: _require-compose ## Soft-delete every tenant in artifacts/scale/
 		go run ./cmd/scale-seed -teardown -base "http://127.0.0.1:$$TC_PORT" -token "$$TOKEN" \
 		-out "/artifacts/scale/tenants-$$SCALE.jsonl"
 
-audit-deps: ## Supply-chain CVE scan — cargo-audit (Rust) + govulncheck (Go)
+audit-deps: _rust-toolchain ## Supply-chain CVE scan — cargo-audit (Rust) + govulncheck (Go)
 	@bash scripts/security/audit-deps.sh
 
 # ── image provenance (issue #19, gate m190) ─────────────────────────────────

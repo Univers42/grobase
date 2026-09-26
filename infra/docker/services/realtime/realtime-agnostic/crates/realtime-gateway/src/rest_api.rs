@@ -28,8 +28,7 @@ use axum::{
 use bytes::Bytes;
 use realtime_core::{
     BatchPublishRequest, BatchPublishResponse, EventEnvelope, HealthResponse, PresenceMember,
-    ProducerHealth,
-    PublishRequest, PublishResponse, TopicPath,
+    ProducerHealth, PublishRequest, PublishResponse, TopicPath,
 };
 use serde::Deserialize;
 use tracing::{debug, error};

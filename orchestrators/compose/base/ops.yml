@@ -19,6 +19,7 @@ services:
       PG_BACKUP_PREFIX: ${PG_BACKUP_PREFIX:-postgres}
       PG_BACKUP_RETAIN_DAYS: ${PG_BACKUP_RETAIN_DAYS:-14}
       PG_BACKUP_PHYSICAL: ${PG_BACKUP_PHYSICAL:-0}
+      BACKUP_AGE_RECIPIENTS: ${BACKUP_AGE_RECIPIENTS:-}
     depends_on:
       postgres:
         condition: service_healthy

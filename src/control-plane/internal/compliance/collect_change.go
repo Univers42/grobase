@@ -48,7 +48,7 @@ func (c *Collector) collectChangeMgmt() (json.RawMessage, error) {
 		}
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	commits, err = scanCommitTrail(f)
 	if err != nil {
 		return nil, err

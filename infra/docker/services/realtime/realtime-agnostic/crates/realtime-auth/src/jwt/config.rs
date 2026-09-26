@@ -20,10 +20,15 @@ use jsonwebtoken::Algorithm;
 pub struct JwtConfig {
     /// HMAC secret string or RSA PEM-encoded public key.
     pub secret: String,
+    /// The HMAC secret being rotated out: a token it signed is still accepted.
+    /// Ignored for RSA and when equal to `secret`.
+    pub previous_secret: Option<String>,
     /// JWT algorithm (default: HS256).
     pub algorithm: Algorithm,
-    /// Expected `iss` claim (optional).
+    /// Accepted `iss` values, comma-separated (optional). Blank entries are ignored.
     pub issuer: Option<String>,
+    /// With a non-empty issuer list, reject tokens that carry no `iss` at all.
+    pub require_issuer: bool,
     /// Expected `aud` claim (optional).
     pub audience: Option<String>,
 }
@@ -33,9 +38,22 @@ impl JwtConfig {
     pub fn hmac(secret: impl Into<String>) -> Self {
         Self {
             secret: secret.into(),
+            previous_secret: None,
             algorithm: Algorithm::HS256,
             issuer: None,
+            require_issuer: true,
             audience: None,
         }
+    }
+
+    /// Returns the accepted `iss` values: the comma-separated `issuer` list,
+    /// trimmed, blanks dropped. Empty means no issuer check.
+    pub fn accepted_issuers(&self) -> Vec<&str> {
+        self.issuer.as_deref().map_or_else(Vec::new, |raw| {
+            raw.split(',')
+                .map(str::trim)
+                .filter(|i| !i.is_empty())
+                .collect()
+        })
     }
 }

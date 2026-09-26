@@ -53,7 +53,8 @@ done
 pass "Kong adds HSTS / X-Content-Type-Options / X-Frame-Options / Referrer-Policy"
 
 step "checking Vault wiring for JWT_SECRET"
-grep -qE "JWT_SECRET" "${COMPOSE_FILE}" ||
+# The root compose file only include:s the plane files; the services are defined there.
+grep -qE "JWT_SECRET" "${BAAS_DIR}"/orchestrators/compose/base/*.yml ||
   fail "compose does not propagate JWT_SECRET to services"
 [[ -d "${BAAS_DIR}/infra/docker/services/vault" ]] || fail "vault service dir missing"
 pass "JWT_SECRET propagated via compose, vault service present"

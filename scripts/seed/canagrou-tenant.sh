@@ -79,8 +79,10 @@ STORAGE_JWT_SECRET="$(_lt_env mini-baas-gotrue GOTRUE_JWT_SECRET)"
 [[ -n "${SERVICE_TOKEN}" && -n "${ANON_KEY}" && -n "${SERVICE_KEY}" ]] || fail "stack secrets not found"
 [[ -n "${RT_JWT_SECRET}" ]] || fail "REALTIME_JWT_SECRET not found on mini-baas-realtime"
 [[ -n "${STORAGE_JWT_SECRET}" ]] || fail "GOTRUE_JWT_SECRET not found (storage identity)"
-PG_USER="$(_lt_env "${PG_CTN}" POSTGRES_USER)"; PG_USER="${PG_USER:-postgres}"
-PG_PASS="$(_lt_env "${PG_CTN}" POSTGRES_PASSWORD)"; PG_PASS="${PG_PASS:-postgres}"
+PG_USER="$(_lt_env "${PG_CTN}" POSTGRES_USER)"
+PG_USER="${PG_USER:-postgres}"
+PG_PASS="$(_lt_env "${PG_CTN}" POSTGRES_PASSWORD)"
+PG_PASS="${PG_PASS:-postgres}"
 
 # ── 1) dedicated database ─────────────────────────────────────────────────────
 cyan "ensuring database '${CANAGROU_DB}' on ${PG_CTN}"
@@ -103,11 +105,15 @@ curl -s -o /dev/null -X PATCH "${TC_URL}/v1/tenants/${TENANT_SLUG}" \
   "${SVC_AUTH[@]}" -H 'Content-Type: application/json' -d "${pbody}" || true
 
 # ── 3) API key — reuse a still-valid key from a previous run ──────────────────
-API_KEY=""; KEY_ID=""; DB_ID=""
+API_KEY=""
+KEY_ID=""
+DB_ID=""
 if [[ -f "${STATE_ENV}" ]]; then
   # shellcheck disable=SC1090
   source "${STATE_ENV}"
-  API_KEY="${CANAGROU_API_KEY:-}"; KEY_ID="${CANAGROU_KEY_ID:-}"; DB_ID="${CANAGROU_DB_ID:-}"
+  API_KEY="${CANAGROU_API_KEY:-}"
+  KEY_ID="${CANAGROU_KEY_ID:-}"
+  DB_ID="${CANAGROU_DB_ID:-}"
 fi
 key_ok=0
 if [[ -n "${API_KEY}" && -n "${DB_ID}" ]]; then
@@ -148,8 +154,8 @@ fi
 # ── 4) schema (psql — FK + UNIQUE + identity the DDL contract can't express) ──
 cyan "applying schema from $(basename "${SCHEMA_FILE}")"
 [[ -f "${SCHEMA_FILE}" ]] || fail "schema file missing: ${SCHEMA_FILE}"
-docker exec -i "${PG_CTN}" psql -U "${PG_USER}" -d "${CANAGROU_DB}" -v ON_ERROR_STOP=1 -q <"${SCHEMA_FILE}" \
-  || fail "schema apply failed"
+docker exec -i "${PG_CTN}" psql -U "${PG_USER}" -d "${CANAGROU_DB}" -v ON_ERROR_STOP=1 -q <"${SCHEMA_FILE}" ||
+  fail "schema apply failed"
 
 # ── 5) shared storage identity + bucket for composed photos ──────────────────
 cyan "minting shared storage token (sub=canagrou-app)"
@@ -161,8 +167,8 @@ code=$(curl -s -o /tmp/canagrou-bucket.json -w '%{http_code}' -X POST \
   "${KONG_URL}/storage/v1/bucket/${BUCKET}" \
   -H "apikey: ${ANON_KEY}" -H "Authorization: Bearer ${BUCKET_ADMIN_TOKEN}" \
   -H 'Content-Type: application/json' -d '{"public":true}')
-[[ "${code}" == "200" || "${code}" == "201" || "${code}" == "409" ]] \
-  || fail "bucket create (${code}): $(cat /tmp/canagrou-bucket.json)"
+[[ "${code}" == "200" || "${code}" == "201" || "${code}" == "409" ]] ||
+  fail "bucket create (${code}): $(cat /tmp/canagrou-bucket.json)"
 
 # ── 6) realtime WS token (HS256, 30 days) ────────────────────────────────────
 cyan "minting realtime WS token"

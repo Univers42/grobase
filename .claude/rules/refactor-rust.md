@@ -1,6 +1,6 @@
 ---
-globs: ["**/*.rs"]
-description: Rust refactoring rules
+paths:
+  - "**/*.rs"
 ---
 
 # Rust Refactoring

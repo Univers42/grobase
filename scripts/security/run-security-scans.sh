@@ -24,16 +24,20 @@
 #   bash scripts/security/run-security-scans.sh
 #   bash scripts/security/run-security-scans.sh --only=semgrep,trivy
 #   bash scripts/security/run-security-scans.sh --skip=trufflehog
+#   bash scripts/security/run-security-scans.sh --list-images
+#     prints the images the Trivy image leg would scan, then exits (1 if none)
 #
 # Environment knobs:
 #   SECURITY_FAIL_LEVEL    high|critical (default: high) — npm audit threshold
 #   SECURITY_TRIVY_SEVERITY HIGH,CRITICAL (default)
 #   SECURITY_SEMGREP_CONFIG p/owasp-top-ten,p/typescript,p/dockerfile,p/nodejs (default)
 #   SECURITY_ARTIFACTS_DIR  artifacts/security (default)
-#   SKIP_BUILD              1 to skip baas image build before Trivy scan
+#   SECURITY_TRIVY_IMAGE_PARALLELISM  concurrent image scans (default: 4)
+#   SKIP_BUILD              1 to skip the Trivy image leg (filesystem scan only)
 #
 # Exit code: 0 only when every enabled scanner returns no findings at or above
-# the configured severity threshold.
+# the configured severity threshold. The Trivy image leg fails when it selects
+# zero images, so an empty host never reads as a clean scan.
 
 set -euo pipefail
 
@@ -44,6 +48,9 @@ cd "${REPO_ROOT}"
 BAAS_DIR="."
 ARTIFACTS_DIR="${SECURITY_ARTIFACTS_DIR:-${BAAS_DIR}/artifacts/security}"
 mkdir -p "${ARTIFACTS_DIR}"
+# Absolute from here on: the scanners mount it into containers, and a relative-vs-
+# absolute mix used to send an absolute SECURITY_ARTIFACTS_DIR's reports elsewhere.
+ARTIFACTS_DIR="$(cd "${ARTIFACTS_DIR}" && pwd)"
 
 # ── colour helpers ───────────────────────────────────────────────────────────
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
@@ -58,10 +65,12 @@ ok() { green "[sec] OK:   $*"; }
 # ── argument parsing ─────────────────────────────────────────────────────────
 ONLY=""
 SKIP=""
+LIST_IMAGES=0
 for arg in "$@"; do
   case "${arg}" in
   --only=*) ONLY="${arg#--only=}" ;;
   --skip=*) SKIP="${arg#--skip=}" ;;
+  --list-images) LIST_IMAGES=1 ;;
   --help | -h)
     sed -n '/^# Usage:/,/^# Exit code:/p' "$0" | sed 's/^# \?//'
     exit 0
@@ -87,7 +96,7 @@ run_semgrep() {
 
   if ! docker run --rm \
     -v "${REPO_ROOT}:/src:ro" \
-    -v "${REPO_ROOT}/${ARTIFACTS_DIR}:/out" \
+    -v "${ARTIFACTS_DIR}:/out" \
     -w /src \
     returntocorp/semgrep:latest \
     semgrep scan \
@@ -101,6 +110,8 @@ run_semgrep() {
     --exclude='**/playwright-report' \
     --exclude='**/test-results' \
     --exclude='vendor' \
+    --exclude='infra/docker/services/realtime/realtime-agnostic/.github' \
+    --exclude='sdks/python/.github' \
     --json-output=/out/semgrep.json \
     --metrics=off \
     --no-rewrite-rule-ids \
@@ -110,8 +121,12 @@ run_semgrep() {
   fi
 
   local errors warnings
-  errors=$(jq -r '[.results[]? | select(.extra.severity == "ERROR")] | length' "${out}" 2>/dev/null || echo 0)
-  warnings=$(jq -r '[.results[]? | select(.extra.severity == "WARNING")] | length' "${out}" 2>/dev/null || echo 0)
+  # A report that is missing or unreadable is a failure, never "0 findings".
+  errors=$(jq -er '[.results[]? | select(.extra.severity == "ERROR")] | length' "${out}" 2>/dev/null) || {
+    fail "Semgrep wrote no readable report at ${out}"
+    return 1
+  }
+  warnings=$(jq -r '[.results[]? | select(.extra.severity == "WARNING")] | length' "${out}")
 
   if [[ "${errors}" -gt 0 ]]; then
     fail "Semgrep: ${errors} ERROR + ${warnings} WARNING findings (report: ${out})"
@@ -146,7 +161,7 @@ run_npm_audit() {
       if ! docker run --rm \
         -v "${REPO_ROOT}/${dir}:/work:ro" \
         -w /work \
-        public.ecr.aws/docker/library/node:20-alpine \
+        mirror.gcr.io/library/node:20-alpine \
         npm audit --audit-level="${level}" --no-fund 2>&1 | tee -a "${out}"; then
         rc=$((rc + 1))
       fi
@@ -155,7 +170,7 @@ run_npm_audit() {
       if ! docker run --rm \
         -v "${REPO_ROOT}/${dir}:/work:ro" \
         -w /work \
-        public.ecr.aws/docker/library/node:20-alpine \
+        mirror.gcr.io/library/node:20-alpine \
         sh -ec 'corepack enable >/dev/null 2>&1 && pnpm audit --prod --audit-level='"${level}" 2>&1 | tee -a "${out}"; then
         rc=$((rc + 1))
       fi
@@ -168,6 +183,33 @@ run_npm_audit() {
   fi
   ok "npm/pnpm audit: every workspace clean at >=${level}"
   return 0
+}
+
+# select_images prints the stack's shipped runtime images present on the host,
+# one per line, sorted. That is the ghcr.io/univers42/grobase-<svc> tag every
+# compose service carries as its pull-fallback (a local build is tagged the
+# same), plus bare mini-baas-*/grobase-* and dlesieur/realtime tags. The newman
+# edge-test runner and the build toolchains are never deployed, so they are
+# dropped. Prints nothing when nothing matches or the docker daemon is down.
+select_images() {
+  docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null |
+    grep -E '^(ghcr\.io/univers42/)?(mini-baas|grobase)|^dlesieur/realtime' |
+    grep -vE '<none>|newman|rust-toolchain|node-build|go-build|toolchain' |
+    sort -u || true
+}
+
+# list_images prints select_images' result on stdout and exits: 0 with at least
+# one image, 1 (with the reason on stderr) when the image leg would scan nothing.
+list_images() {
+  local images
+  images=$(select_images)
+  if [[ -z "${images}" ]]; then
+    fail "zero stack images selected on this host" >&2
+    exit 1
+  fi
+  printf '%s\n' "${images}"
+  step "$(printf '%s\n' "${images}" | wc -l) image(s) selected" >&2
+  exit 0
 }
 
 run_trivy() {
@@ -185,9 +227,9 @@ run_trivy() {
   step "  Trivy filesystem scan"
   if ! docker run --rm \
     -v "${REPO_ROOT}/${BAAS_DIR}:/src:ro" \
-    -v "${REPO_ROOT}/${out_dir}:/out" \
-    -v "${REPO_ROOT}/${cache_dir}:/root/.cache/trivy" \
-    aquasec/trivy:latest \
+    -v "${out_dir}:/out" \
+    -v "${cache_dir}:/root/.cache/trivy" \
+    aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
     fs --quiet \
     --severity "${severity}" \
     --ignore-unfixed \
@@ -201,20 +243,17 @@ run_trivy() {
     return 1
   fi
 
-  # Container image scan — only if SKIP_BUILD!=1 and the BaaS image exists.
-  if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
+  if [[ "${SKIP_BUILD:-0}" == "1" ]]; then
+    warn "  image scan skipped (SKIP_BUILD=1) — the verdict covers the filesystem scan only"
+  else
     step "  Trivy image scan (shipped runtime images on host)"
-    # Scan SHIPPED runtime images only — the newman edge-test runner and the
-    # rust/node build toolchains are never deployed, so their base CVEs aren't
-    # part of the product's attack surface.
     local images
-    images=$(docker images --format '{{.Repository}}:{{.Tag}}' |
-      grep -E '^mini-baas|^grobase|^dlesieur/realtime' |
-      grep -vE '<none>|newman|rust-toolchain|node-build|go-build|toolchain' |
-      head -20 || true)
+    images=$(select_images)
     if [[ -z "${images}" ]]; then
-      warn "  no mini-baas images on host — run \`make baas-up\` first to scan images"
+      fail "  image scan selected 0 images (ghcr.io/univers42/grobase-*, mini-baas-*, grobase-*) — pull or build the stack first (make up / make build), or set SKIP_BUILD=1 to skip this leg on purpose"
+      return 1
     else
+      step "  $(printf '%s\n' "${images}" | wc -l) image(s) selected: ${images//$'\n'/ }"
       local image_list="${out_dir}/.trivy-images.txt"
       local parallelism="${SECURITY_TRIVY_IMAGE_PARALLELISM:-4}"
       local img_rc=0
@@ -235,7 +274,7 @@ run_trivy() {
           -v "${repo_root}/${out_dir}:/out" \
           -v "${repo_root}/${ignore_file}:/trivyignore:ro" \
           -v "${cache_root}/db:/root/.cache/trivy/db:ro" \
-          aquasec/trivy:latest \
+          aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
           image --quiet \
                 --skip-db-update \
                 --skip-java-db-update \
@@ -249,19 +288,19 @@ run_trivy() {
         img_rc=1
       fi
       if [[ ${img_rc} -gt 0 ]]; then
-        warn "  one or more image scans failed (reports in ${out_dir})"
+        fail "  one or more image scans failed (reports in ${out_dir})"
         return 1
       fi
     fi
   fi
 
   # Verdict: aggregate fs vulns + image vulns.
-  local total=0
-  if [[ -f "${out_dir}/trivy-fs.json" ]]; then
-    local n
-    n=$(jq -r '[.Results[]?.Vulnerabilities[]?] | length' "${out_dir}/trivy-fs.json" 2>/dev/null || echo 0)
-    total=$((total + n))
-  fi
+  local total=0 n
+  n=$(jq -er '[.Results[]?.Vulnerabilities[]?] | length' "${out_dir}/trivy-fs.json" 2>/dev/null) || {
+    fail "Trivy wrote no readable filesystem report at ${out_dir}/trivy-fs.json"
+    return 1
+  }
+  total=$((total + n))
   for f in "${out_dir}"/trivy-image-*.json; do
     [[ -f "$f" ]] || continue
     local n
@@ -277,6 +316,17 @@ run_trivy() {
   return 0
 }
 
+# trufflehog_open prints the findings of report $1 that no unexpired
+# .trufflehog-accepted entry (commit file detector expiry) covers.
+trufflehog_open() {
+  local accepted
+  accepted="$(awk -v today="$(date -u +%F)" '!/^#/ && NF >= 4 && $4 >= today { print $1 " " $2 " " $3 }' \
+    "${REPO_ROOT}/.trufflehog-accepted" 2>/dev/null || true)"
+  jq -c --arg acc "${accepted}" '($acc | split("\n") | map(select(length > 0))) as $a
+    | select(([.SourceMetadata.Data.Git.commit, .SourceMetadata.Data.Git.file, .DetectorName] | join(" ")) as $k
+      | $a | index($k) | not)' "$1"
+}
+
 run_trufflehog() {
   step "TruffleHog — secret scan on git history + working tree"
   local out="${ARTIFACTS_DIR}/trufflehog.json"
@@ -290,26 +340,38 @@ run_trufflehog() {
     --no-update \
     --only-verified \
     --json \
-    >"${out}" 2>/dev/null; then
-    # TruffleHog returns non-zero when it finds secrets; capture+parse below.
-    :
+    >"${out}" 2>"${ARTIFACTS_DIR}/trufflehog.err"; then
+    # Without --fail, trufflehog exits 0 whether or not it finds secrets (counted
+    # below); non-zero means it did not scan, which must not read as "clean".
+    fail "TruffleHog did not complete a scan: $(tail -n 2 "${ARTIFACTS_DIR}/trufflehog.err")"
+    return 1
   fi
 
-  local count
-  count=$(wc -l <"${out}" 2>/dev/null || echo 0)
-  count=$(echo "${count}" | tr -d ' ')
+  local open_out="${ARTIFACTS_DIR}/trufflehog-open.json" count accepted
+  trufflehog_open "${out}" >"${open_out}" || {
+    fail "TruffleHog: could not apply .trufflehog-accepted"
+    return 1
+  }
+  count=$(grep -c . "${open_out}" || true)
+  accepted=$(($(grep -c . "${out}" || true) - count))
+  if [[ "${accepted}" -gt 0 ]]; then
+    warn "TruffleHog: ${accepted} verified secret(s) accepted until their .trufflehog-accepted expiry — still LIVE, revoke at the issuer"
+    echo "::warning title=trufflehog::${accepted} live secret(s) accepted by .trufflehog-accepted until expiry; revoke them"
+  fi
 
   if [[ "${count}" -gt 0 ]]; then
     fail "TruffleHog: ${count} verified secret(s) found in git history (report: ${out})"
-    head -5 "${out}" | jq -r '.SourceMetadata.Data.Git.repository + " :: " + .SourceMetadata.Data.Git.file + ":" + (.SourceMetadata.Data.Git.line|tostring) + " :: " + .DetectorName' 2>/dev/null || true
+    head -5 "${open_out}" | jq -r '.SourceMetadata.Data.Git.repository + " :: " + .SourceMetadata.Data.Git.file + ":" + (.SourceMetadata.Data.Git.line|tostring) + " :: " + .DetectorName' 2>/dev/null || true
     return 1
   fi
-  ok "TruffleHog: no verified secrets in git history"
+  ok "TruffleHog: no verified secrets in git history outside .trufflehog-accepted"
   return 0
 }
 
 # ── orchestration ────────────────────────────────────────────────────────────
 fail_count=0
+
+if [[ "${LIST_IMAGES}" == "1" ]]; then list_images; fi
 
 step "Security scan suite started ($(date -u +%FT%TZ))"
 step "Artifacts will land under ${ARTIFACTS_DIR}"

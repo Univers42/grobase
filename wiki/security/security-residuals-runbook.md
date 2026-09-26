@@ -6,22 +6,25 @@
 >
 > **Two residuals were closed autonomously** (additive, flag-gated **OFF** = byte-parity baseline,
 > provable by isolated scratch gates): **G-ReadAudit** (`DATA_PLANE_AUDIT_READS`, gate `m72`) and
-> **G-QoS slice A** rows-per-query cap (`max_rows`, gate `m73`). See [[../.claude/memory/decisions.md]].
+> **G-QoS slice A** rows-per-query cap (`max_rows`, gate `m73`). See the tracker ([`remediation-tracker-2025-07-14.md`](./remediation-tracker-2025-07-14.md)).
 >
-> **The five below are deferred to human-supervised waves** — each is **cross-repo** and/or **touches
-> the live login flow** or would **re-network the shared stack**, which kernel rule #9 forbids touching
-> unsupervised. Each runbook is *prove-on-an-isolated-scratch-scope first, flip the live thing last*.
-> Run each with the security-review skill.
+> **The five below were deferred to human-supervised waves** — each is **cross-repo** and/or **touches
+> the live login flow** or would **re-network the shared stack**. Each runbook is *prove-on-an-isolated-
+> scratch-scope first, flip the live thing last*. Run each with the security-review skill.
+>
+> **Status 2026-09-26:** G-Vault and G-Net are done in the repo, and the service-token half of
+> G-Rotate is done. Their sections below say what remains, all of it an operator step. G-ReadAudit
+> (m72) and G-QoS slice A (m73) now run nightly.
 
-| Residual | ASVS value | Why deferred | Blast radius if rushed |
+| Residual | ASVS value | State | What is left |
 |---|---|---|---|
-| **G-RS256** | MED | Cross-repo (vendored gotrue + Kong) + global login property | Partial flip 401s **every** authenticated request stack-wide |
-| **G-Vault** | MED | New register contract + DB schema + data-plane resolve path | Wrong order locks max-tier tenants out of registering any mount |
-| **G-Net** | MED | Value-bearing half re-networks ~50 live services | One wrong edge wedges inter-service DNS/comms |
-| **G-Hdr** | LOW | Effective only when flipped on the live mount-resolution hot path | An unsigned caller → instant 401s, wedged live queries |
-| **G-Rotate** | LOW | JWT half is cross-repo + touches live login | A bug is a stack-wide auth outage |
+| **G-RS256** | MED | Verify side shipped, m81 proves a real RS256 issuer | The coordinated issuer + Kong + verifier flip (human, live login) |
+| **G-Vault** | MED | Done in code (m121, nightly) | Move existing max-tier mounts to Vault refs (operator) |
+| **G-Net** | MED | Done for compose, default in `make prod-up` (m66) | Enable the Helm NetworkPolicies on a real cluster |
+| **G-Hdr** | LOW | Verifier shipped, flag off | Signers in every caller, then the live flip |
+| **G-Rotate** | LOW | Service-token half done (m205, m68); JWT half PARTIAL: tenant-control, the TS services and realtime accept `JWT_SECRET_PREV` (m210), both rotation scripts refuse without `ROTATE_JWT_FORCE=1` | `JWT_SECRET` half: Kong, gotrue + PostgREST dual key, staging first |
 
-Priority order for the human waves: **G-RS256** (highest value, headline) → **G-Vault** → **G-Net (safe Helm half)** → **G-Hdr** → **G-Rotate (service-token half)**. The cross-repo/live-login halves of Net/Hdr/Rotate are lowest priority (LOW value, highest risk).
+Priority order for what is left: **G-RS256** (highest value, headline) → the G-Vault mount move → the G-Net Helm policies → **G-Hdr** → **G-Rotate (JWT half)**. The cross-repo/live-login halves of Net/Hdr/Rotate are lowest priority (LOW value, highest risk).
 
 ---
 
@@ -33,13 +36,14 @@ validates (~21 jwt-plugin routes), and tenant-control all share `JWT_SECRET`/HS2
 isolated gate + a coordinated cross-repo flip remain.
 
 1. **PROVE-FIRST (isolated):** author `scripts/verify/mNN-rs256-issuer-isolated.sh` under
-   `COMPOSE_PROJECT_NAME=rs256-probe` (throwaway network/volumes on /mnt/storage). Bring up a gotrue/IdP
+   `COMPOSE_PROJECT_NAME=rs256-probe` (throwaway network/volumes). Bring up a gotrue/IdP
    that signs RS256 + publishes `.well-known/jwks.json`, a Kong configured RS256 (`rsa_public_key` from
    that JWKS), and tenant-control with `JWT_ALG=RS256` + `JWKS_URL`. Assert: token header `alg=RS256`;
    the token validates through Kong on a real protected route (200 + correct `X-User-Id`); an HS256
    forgery signed with the RSA modulus → 401; unknown-kid → 401. **Must PASS before touching real config.**
-2. **ISSUER (cross-repo/vendored):** bump `docker/services/gotrue/Dockerfile` (currently
-   `supabase/gotrue:v2.188.1`, HS256-only, no RS256/JWKS env) to an image supporting asymmetric JWT +
+2. **ISSUER (cross-repo/vendored):** bump `infra/docker/services/gotrue/Dockerfile` (currently
+   a from-source build of Supabase Auth, `ARG AUTH_VERSION=2.188.1`, run with HS256; the binary carries signing-key support: it has the
+   "no signing key found" / "only 1 signing key is supported" paths) and configure asymmetric JWT +
    JWKS, or put a small JWKS-publishing signer in front; supply the private key via Vault; confirm
    `GET <issuer>/.well-known/jwks.json` returns an RSA `sig` key with a stable `kid`.
 3. **KONG (`kong.yml`):** change the `authenticated` consumer `jwt_secrets` from
@@ -64,7 +68,7 @@ isolated gate + a coordinated cross-repo flip remain.
 > end-to-end** — a service that genuinely *signs* RS256 + serves a JWKS, validated *through Kong's
 > RS256 jwt-plugin on a protected route* and then tenant-control's JWKS verifier. The live issuer
 > cutover (steps 2–6) is now a **known, low-risk operation**. Gate:
-> [`scripts/verify/m81-rs256-issuer.sh`](../../mini-baas-infra/scripts/verify/m81-rs256-issuer.sh)
+> [`scripts/verify/m81-rs256-issuer.sh`](../../scripts/verify/m81-rs256-issuer.sh)
 > (`bash scripts/verify/m81-rs256-issuer.sh`, exit 0 = PASS; scratch-only, never touches the live
 > stack). Logged `m81=PASS` (PROVE).
 
@@ -82,8 +86,8 @@ isolated gate + a coordinated cross-repo flip remain.
 **EXACT config the live cutover needs (proven by m81):**
 
 1. **ISSUER (pick ONE):**
-   - **(a) bump vendored gotrue** — `docker/services/gotrue/Dockerfile` `FROM supabase/gotrue:v2.188.1`
-     is **HS256-only**. Asymmetric signing landed in supabase-auth's **"JWT signing keys" release
+   - **(a) bump vendored gotrue** — `infra/docker/services/gotrue/Dockerfile` `ARG AUTH_VERSION=2.188.1` (a from-source build)
+     runs **HS256** today. Asymmetric signing landed in supabase-auth's **"JWT signing keys" release
      (2025-07-17)**; a self-hosted gotrue at/after that tag signs RS256 when given a JWK *signing-key
      set* via **`GOTRUE_JWT_KEYS`** (a JSON array of JWKs incl. the RSA private key) +
      **`GOTRUE_JWT_VALID_METHODS`** including `RS256`, and serves the public half at
@@ -96,7 +100,7 @@ isolated gate + a coordinated cross-repo flip remain.
    - **(b) front-signer** — if the gotrue bump is undesirable, put a tiny JWKS-publishing RS256 signer
      in front (the shape m81 uses: real RSA-2048 key, `/.well-known/jwks.json`, SPKI PEM). This is the
      lower-coupling option but adds a service to operate + secure (its private key is the kingdom).
-2. **KONG (`docker/services/kong/conf/kong.yml`):** in the `authenticated` consumer's `jwt_secrets`,
+2. **KONG (`infra/docker/services/kong/conf/kong.yml`):** in the `authenticated` consumer's `jwt_secrets`,
    change the two `algorithm: HS256 / secret: __JWT_SECRET__` entries to `algorithm: RS256` +
    `rsa_public_key: |` `<SPKI PEM>` (one per `iss` key — the GoTrue `iss` and `supabase`). Add a
    `__JWT_RS256_PUBKEY__` substitution token and teach the entrypoint `sed` block
@@ -123,53 +127,38 @@ isolated gate + a coordinated cross-repo flip remain.
 
 ## G-Vault — enforce Vault-backed credentials at `SECURITY_MODE=max`
 
-**Why deferred:** not purely additive — it changes the mount-register request contract **and** the DB
-schema (new `credential_ref` columns) and requires the data plane's per-mount Vault-provider resolve
-path (today env-only via `DATA_PLANE_VAULT_*`) to be driven from the registry. Shipping the *negative*
-(reject inline plaintext under max) without the *positive* vault-resolve path would lock max-tier
-tenants out of registering **any** mount.
+**Done in code — the plan below had already shipped; this entry was stale.** Migration `060` adds
+`cred_provider`/`cred_reference`/`cred_version` with an exactly-one-of CHECK. `RegisterDatabaseRequest`
+takes `credential_ref`. Under a `security_mode=max` package, `register.go` refuses an inline DSN with
+`ErrPlaintextDsnForbidden` (403). The Rust `VaultProvider` resolves a ref-backed mount's DSN at query
+time. Non-max tiers keep today's encrypt-at-rest path.
 
-1. Add nullable `cred_provider`/`cred_reference`/`cred_version` columns to `public.tenant_databases` via
-   a new `models/` migration; keep `connection_enc` nullable (a row is EITHER inline-encrypted OR a vault
-   ref).
-2. Extend `RegisterDatabaseRequest` (`internal/adapterregistry/models.go`) with optional
-   `credential_ref`; in `Validate()` require EXACTLY one of `{connection_string, credential_ref}`.
-3. In `Service.Register`, read effective `security_mode` from `packageForTenant` (already loaded,
-   `packages.go SecurityMode`); if `max` → reject inline plaintext with a new `ErrPlaintextDsnForbidden`
-   + require `credential_ref{provider:vault}`; else preserve today's encrypt path. Map the error to 403
-   in `handler.go`.
-4. Wire `GetConnection` to return provider/reference for ref-backed mounts so the data plane's existing
-   `VaultProvider` (`credential.rs`, `resolver.rs from_env`) resolves it; configure `DATA_PLANE_VAULT_*`.
-5. Author `scripts/verify/mNN-vault-enforce.sh` on a SCRATCH compose project: NEGATIVE (max tenant +
-   inline plaintext → 4xx, 0 rows inserted); POSITIVE (same tenant + `credential_ref{provider:vault}` →
-   201, data plane resolves the DSN from a scratch dev-mode Vault, real query succeeds); PARITY
-   (baseline-tier inline plaintext still 201). Also run `make baas-verify`.
-6. Keep enforcement OFF for non-max tiers; document the flip in `security-audit-asvs.md`.
-7. Only after gates PASS, request the human push (kernel rule #9).
+- Gate `m121`: max + inline → 403, 0 rows; max + `credential_ref` → 201, then the data plane reads
+  through the DSN it resolved from Vault (200); baseline + inline → 201, encrypted at rest.
+  2026-09-26: green on Vault 2.1.1 (`:latest`), then green on the pinned 1.21 (the stack's version).
+- It now runs nightly (`nightly-proof.yml` job `vault-credref`), building both services from the
+  commit. Before, nothing ran it. `M121_AR_IMAGE`/`M121_DPR_IMAGE` reuse prebuilt images locally.
+- Left to a human: pointing real max-tier tenants' mounts at Vault paths (their DSNs live with them).
 
 ## G-Net — per-plane network segmentation
 
-**Safe half first (agent under review):**
-1. Add `deploy/helm/mini-baas/templates/networkpolicy.yaml` gated on `.Values.networkPolicy.enabled`
-   (default false) + a component→plane map + allowlist in `values.yaml`; reuse
-   `mini-baas.selectorLabels`.
-2. Prove: `helm template … --set networkPolicy.enabled=false | grep -c NetworkPolicy` → 0 (baseline
-   parity); `--set networkPolicy.enabled=true` → default-deny + allowlist edges; run `helm lint` +
-   `kubeconform`.
+**Done (`feat/g-net-segmentation`, gate `m66`).** `orchestrators/compose/docker-compose.netseg.yml`
+takes the engines (postgres mysql mariadb cockroach mssql mongo redis dynamodb-local) off the app bridge
+onto `net-data`, and vault onto `net-vault`, with `networks: !override`. Every backend that dials an
+engine joins `net-data`; the routers, the Go control plane and prometheus join `net-vault`. waf, kong,
+studio, playground, loki, promtail, functions-runtime, mailpit and minio share no bridge with an
+engine or vault. minio stays reachable because kong proxies presigned URLs to it.
 
-**Unsafe half (human-driven — re-networks the live docker stack):**
-3. Author a SEPARATE overlay `docker-compose.netseg.yml` (do NOT edit the base `networks:` block)
-   defining app/control/data/observability bridges and dual-attaching kong, query-router,
-   adapter-registry-go, data-plane-router-rust + every engine/redis/vault/prometheus edge.
-4. Enumerate every talking pair first: `grep -niE 'http://|:[0-9]{4}|_URL' docker-compose.yml` so no
-   edge is dropped.
-5. Bring up ISOLATED: `docker compose -p netseg-probe -f docker-compose.yml -f docker-compose.netseg.yml
-   up -d` (NOT the shared default stack).
-6. POSITIVE probe: exec query-router, curl a real `/query` resolving a mount via
-   `adapter-registry-go:3021` → 200. NEGATIVE probe: exec an observability container,
-   `nc -z postgres 5432` → refused/timeout.
-7. `docker compose -p netseg-probe down -v`. Only after both probes pass, decide whether the overlay
-   becomes documented prod topology; never fold it into the base compose the live stack runs.
+- Dev: `make up NETSEG=1`. Prod: `make prod-up` composes it by default; `PROD_NETSEG=0` drops it.
+- `m66` renders every service (all profiles) on the dev and prod stacks. It checks the placement, the
+  isolation and 64 client→engine/vault edges, and probes a running segmented stack.
+- Live proof, 2026-09-26, `make up PACKAGE=max NETSEG=1`: 34/34 healthchecks healthy (as before),
+  13/13 Prometheus targets up, no alert firing. kong → postgres is refused by IP and query-router
+  connects. m27 passes for all 8 engines; m52, m68, m204, m101-quota-realtenant and m120 are green.
+- adapter-registry-go is off the app bridge too (N-22): its register/list trust an asserted tenant, so only
+  its callers reach it (routers and tenant-control on net-data/net-vault, kong on `net-registry`).
+- Helm: `networkPolicy.enabled` defaults to `true` in both charts (`values-dev.yaml` turns it off) and
+  renders 8 policies in `grobase` and 3 in `mini-baas`. Proving them on a real cluster is a human step.
 
 ## G-Hdr — enable adapter-registry identity HMAC stack-wide
 
@@ -202,22 +191,33 @@ Value is LOW (defense-in-depth on a path already protected by `SERVICE_TOKEN_MOD
 > Note: DSN/credential rotation already ships (`registry.rs drain_pool_key` + `/v1/admin/rotate`). This
 > residual is specifically `JWT_SECRET` + service-token rotation-without-restart.
 
-**Service-token half (in-repo, do first, low blast radius):**
-1. Add optional `INTERNAL_SERVICE_TOKEN_PREV` to Go `shared.VerifyServiceRequest` (`shared/token.go`):
-   verify against expected; on fail AND prev non-empty, verify against prev (constant-time both).
-2. Mirror in the Rust caller/bypass (`service_auth.rs`; `routes.rs` verify ~L1076/L1180) reading an
-   optional prev, default-empty.
-3. Author `scripts/verify/mNN-rotate.sh` on a SCRATCH compose project: old-token-accepted-during-window;
-   third-unrelated-token-rejected (401); old-rejected-after-window-cleared. Run `make baas-verify`.
-4. Document the swap: set `PREV=current`, set primary=new, roll peers one at a time, clear `PREV` after
-   grace.
+**Service-token half — DONE (`feat/g-rotate-service-token`, gate `m205`, live gate `m68`):**
+The Go verifiers (`serviceauth`, static and hmac) and the TS `ServiceTokenGuard` accept
+`INTERNAL_SERVICE_TOKEN_PREV` / `ADAPTER_REGISTRY_SERVICE_TOKEN_PREV` besides the current token, in
+constant time, and count each such use in `baas_service_token_previous_accepted_total` (alert
+`PreviousServiceTokenInUse`). The Rust data plane only sends the token, so it has nothing to verify.
+Compose maps the one source key `ADAPTER_REGISTRY_SERVICE_TOKEN_PREV` onto every holder. The procedure
+(each step is dry run without `--apply`, prints token lengths only):
+1. `bash scripts/ops/rotate-service-token.sh status` — expect "no rotation window".
+2. `... begin --apply`, then `make up` with the running PACKAGE/EDITION. The new token is accepted
+   everywhere; senders still send the old one.
+3. `... swap --apply`, then `make up`. Senders send the new token; the old one is still accepted from
+   any container not yet recreated.
+4. Wait until `PreviousServiceTokenInUse` is quiet for 15 min, then `... finish --apply` and `make up`.
+Limits: each `make up` recreates the containers that load `.env` (a short restart per phase, no 401s);
+a token held in Vault (`SECURITY_MODE=max`) is rotated at its source, not by this script.
 
-**JWT half (cross-repo, human + careful):**
+**JWT half — PARTIAL (`feat/jwt-dual-key-verify`, gate `m210`):** tenant-control, the TS identity
+library and realtime accept `JWT_SECRET_PREV` (realtime reads `REALTIME_JWT_SECRET_PREV`; compose maps
+both from `JWT_SECRET_PREV`). Kong (one secret per issuer), PostgREST, GoTrue, vault42, the loginotp
+escrow check and the `ANON_KEY`/`SERVICE_ROLE_KEY` signed with the secret do not, so `rotate-jwt.sh`
+and `rotate-secrets.sh jwt` refuse unless `ROTATE_JWT_FORCE=1` (a planned outage: every session and
+every frontend key stops working). What remains:
 5. Confirm vendored gotrue can sign under `JWT_SECRET` while PostgREST accepts `JWT_SECRET` + a secondary
    key (a vendored-gotrue + postgrest config change, NOT this repo's Rust/Go).
 6. Stand up STAGING gotrue+postgrest (never the shared live stack); prove a session minted under the new
    secret AND one under the old both validate during the grace window, then old rejected after.
-7. Wire `vault-rotate-approles`-style orchestration to bump `JWT_SECRET` + `PREV_JWT_SECRET` and trigger
+7. Wire `vault-rotate-approles`-style orchestration to bump `JWT_SECRET` + `JWT_SECRET_PREV` and trigger
    gotrue re-sign WITHOUT a hard restart — only after staging proof.
 8. Update `security-audit-asvs.md` G-Rotate once both halves are gated. Do NOT run the JWT half against the
    live login flow unsupervised (kernel rule #9).

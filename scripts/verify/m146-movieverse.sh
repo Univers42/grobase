@@ -36,9 +36,15 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_DIR"
 
-RED=$'\033[31m'; GRN=$'\033[32m'; YEL=$'\033[33m'; RST=$'\033[0m'
+RED=$'\033[31m'
+GRN=$'\033[32m'
+YEL=$'\033[33m'
+RST=$'\033[0m'
 pass() { printf '%s  PASS%s %s\n' "$GRN" "$RST" "$1"; }
-fail() { printf '%s  FAIL%s %s\n' "$RED" "$RST" "$1"; FAILED=1; }
+fail() {
+  printf '%s  FAIL%s %s\n' "$RED" "$RST" "$1"
+  FAILED=1
+}
 info() { printf '%s  ··%s   %s\n' "$YEL" "$RST" "$1"; }
 FAILED=0
 
@@ -59,10 +65,10 @@ TM="$RANDOM$RANDOM"
 MEDIA="$((900000 + (RANDOM % 90000)))"
 
 # ── (A) catalog: anon apikey, no JWT ─────────────────────────────────────────
-[ "$(code "$GW/tmdb/v1/health" -H "apikey: $ANON")" = 200 ] \
-  && pass "tmdb /health reachable with anon key (no JWT)" || fail "tmdb /health"
-[ "$(code "$GW/tmdb/v1/discover/movie?page=1" -H "apikey: $ANON")" = 200 ] \
-  && pass "tmdb /discover/movie reachable (anon, degrades to [] without TMDB key)" || fail "tmdb /discover/movie"
+[ "$(code "$GW/tmdb/v1/health" -H "apikey: $ANON")" = 200 ] &&
+  pass "tmdb /health reachable with anon key (no JWT)" || fail "tmdb /health"
+[ "$(code "$GW/tmdb/v1/discover/movie?page=1" -H "apikey: $ANON")" = 200 ] &&
+  pass "tmdb /discover/movie reachable (anon, degrades to [] without TMDB key)" || fail "tmdb /discover/movie"
 
 # ── (B) public like_count RPC ────────────────────────────────────────────────
 LC0="$(curl -s -X POST "$GW/rest/v1/rpc/like_count" -H "apikey: $ANON" -H 'Content-Type: application/json' \
@@ -81,7 +87,9 @@ signup() { # $1=tag -> echoes "<access_token> <user_id>"
 read -r ATOK AID <<<"$(signup a)"
 read -r BTOK BID <<<"$(signup b)"
 if [ -z "$ATOK" ] || [ -z "$AID" ] || [ -z "$BTOK" ] || [ -z "$BID" ]; then
-  fail "signup did not return tokens (autoconfirm off?)"; printf '\n'; exit 1
+  fail "signup did not return tokens (autoconfirm off?)"
+  printf '\n'
+  exit 1
 fi
 pass "two users signed up (A=$AID B=$BID)"
 
@@ -106,10 +114,15 @@ ANON_REV="$(curl -s "$GW/rest/v1/reviews?media_id=eq.$MEDIA&select=id" -H "apike
 [ "$ANON_REV" = 1 ] && pass "reviews are world-readable (anon sees A's review)" || fail "review not public ($ANON_REV)"
 
 # ── cleanup test rows (A owns them) ──────────────────────────────────────────
-curl -s -o /dev/null -X DELETE "$GW/rest/v1/likes?media_id=eq.$MEDIA"   -H "apikey: $ANON" -H "Authorization: Bearer $ATOK" || true
+curl -s -o /dev/null -X DELETE "$GW/rest/v1/likes?media_id=eq.$MEDIA" -H "apikey: $ANON" -H "Authorization: Bearer $ATOK" || true
 curl -s -o /dev/null -X DELETE "$GW/rest/v1/reviews?media_id=eq.$MEDIA" -H "apikey: $ANON" -H "Authorization: Bearer $ATOK" || true
 info "cleaned test rows for media $MEDIA"
 
 printf '\n'
-if [ "$FAILED" = 0 ]; then printf '%sm146 PASS%s — MovieVerse data model + catalog verified live\n' "$GRN" "$RST"; exit 0
-else printf '%sm146 FAIL%s\n' "$RED" "$RST"; exit 1; fi
+if [ "$FAILED" = 0 ]; then
+  printf '%sm146 PASS%s — MovieVerse data model + catalog verified live\n' "$GRN" "$RST"
+  exit 0
+else
+  printf '%sm146 FAIL%s\n' "$RED" "$RST"
+  exit 1
+fi

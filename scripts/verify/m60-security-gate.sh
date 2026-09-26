@@ -63,9 +63,9 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # …/apps/baas/mini-baas-infra
-BAAS_ROOT="$(cd "${BAAS_DIR}/.." && pwd)"     # …/apps/baas (wiki + .github live here)
-REPO_ROOT="$(cd "${BAAS_ROOT}/../.." && pwd)" # repo root (the other .github)
+BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # the standalone grobase repo root
+BAAS_ROOT="${BAAS_DIR}"                       # wiki/ + .github/ live at the root now
+REPO_ROOT="${BAAS_DIR}"                       # (was apps/baas in the monorepo)
 
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
@@ -91,8 +91,8 @@ for c in \
     break
   }
 done
-ASVS="${BAAS_ROOT}/wiki/security-audit-asvs.md"
-AUDIT="${BAAS_ROOT}/wiki/security-audit.md"
+ASVS="${BAAS_ROOT}/wiki/security/security-audit-asvs.md"
+AUDIT="${BAAS_ROOT}/wiki/security/security-audit.md"
 
 TMP="$(mktemp -d)"
 SLUG="m60$(date +%s)$$"
@@ -116,7 +116,7 @@ cleanup() {
   if [[ -n "${TBL}" && -n "${A_DB}" && -n "${KONG}" && -n "${A_KEY}" ]]; then
     curl -s -o /dev/null -X POST "${KONG}/query/v1/${A_DB}/schema/ddl" \
       -H "apikey: ${ANON}" -H "X-Baas-Api-Key: ${A_KEY}" \
-      -H 'Content-Type: application/json' -d "{\"op\":\"drop_table\",\"table\":\"${TBL}\"}" 2>/dev/null || true
+      -H 'Content-Type: application/json' -d "{\"op\":\"drop_table\",\"table\":\"${TBL}\",\"confirm\":true}" 2>/dev/null || true
   fi
   # foreign tenant B (lib LIVE_* currently hold B after its provision, but be explicit).
   [[ -n "${B_SLUG}" ]] && { LIVE_TENANT_SLUG="${B_SLUG}" LIVE_TENANT_KEY_ID="${B_KEY_ID}" LIVE_TENANT_DB_ID="${B_DB}" live_tenant_cleanup 2>/dev/null || true; }
@@ -136,7 +136,7 @@ declare -A CORE=(
   [trufflehog]='trufflehog'
   [semgrep]='semgrep'
   [trivy]='trivy'
-  [cargo - audit]='cargo[ -]audit'
+  ['cargo-audit']='cargo[ -]audit'
   [govulncheck]='govulncheck'
   [zap]='zap'
 )

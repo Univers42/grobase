@@ -22,14 +22,17 @@ byte-parity with the OSS edition (flag tables below).
 
 The **lean (flattened) layout IS the layout** — the restructure is **done and committed to
 `origin/main`**. `mini-baas-infra/` no longer exists; its contents were hoisted to the repo root
-(`src/`, `infra/`, `sdks/`, `orchestrators/`, `scripts/`) under a **thin ~74-line root `Makefile`**
-that `include`s **12** `orchestrators/makes/*.mk` fragments (the old 735-line monolith survives only
+(`src/`, `infra/`, `sdks/`, `orchestrators/`, `scripts/`) under a **thin ~71-line root `Makefile`**
+that `include`s **13** `orchestrators/makes/*.mk` fragments (`00-config` … `99-help`, incl. `85-fly.mk` and `prettier.mk`) (the old 735-line monolith survives only
 as `Makefile.bak`). A fresh clone gets this layout — **there is no dual-layout situation anymore** and
 no `mini-baas-infra/` prefix to re-map. (Sanity check: `ls mini-baas-infra` → "No such file".) The
 SDK-codegen chain and CI (`.github/workflows/ci.yml`) were repointed to lean paths in the same
 restructure and are on `main` too.
 
-The active branch is **`main`** (HEAD `e8cb34d2`); the vendor re-platform commits (Canagrou · HamBooking ·
+**Branching is git-flow:** `develop` is the integration branch (rebuilt clean on top of `main` on
+2026-09-24; the pre-rebuild tip is kept as tag `backup/develop-2026-09-23`). Each problem gets its own
+`fix/*` / `feat/*` branch off `develop`, merged back with `--no-ff` and pushed over SSH; `main` receives
+releases. On `main`, the vendor re-platform commits (Canagrou · HamBooking ·
 Nimbus · MovieVerse · vite-gourmand · surfind-spain · hypertube) plus the per-table-isolation +
 query-router-JWT data-plane work, the websites playground, and the per-mount `read_scoped` data-plane
 feature (migration `070`) all **landed on `main`** earlier. Since then `main` has advanced through the
@@ -39,12 +42,13 @@ production" below). Most recently `main` has advanced again through the **contra
 self-serve / cross-app** band (gates `m173`–`m180`): a new **red-tetris** vendor re-platform, strict
 self-serve app creation (`APPS_SELFSERVE_ENABLED`), cross-app `xapp:` messaging channels
 (`APP_CHANNELS_ENABLED`, migration `085`), and the website same-origin Vercel rewrite. The working tree
-is largely **clean**: the AppFlowy clone is committed as **plain tracked files** (nested `.git` removed,
-~2880 files); the old in-repo `vendor/java-dam-baas/` stale snapshot was **removed** in `a0bfc38`. The
+is largely **clean**: the AppFlowy clone was **removed** from `vendor/` (`897c56db`, last files
+`112757ac`); the old in-repo `vendor/java-dam-baas/` stale snapshot was **removed** in `4bcc957`. The
 former `vendor/twenty/` orphan gitlink and the `vendor/vault42/` nested checkout are **both gone from
-disk now** — there are **no `160000` gitlinks tracked** anywhere (`git ls-files -s vendor/ | grep
-160000` is empty), and vault42 is consumed as a **published image** via the `vault42` compose plane, not
-a clone. (Sanity check: `ls vendor/` → **11** dirs, no `twenty`/`vault42`.)
+disk now** — there are **no `160000` gitlinks under `vendor/`** (`git ls-files -s vendor/ | grep
+160000` is empty), and none anywhere else either (`git ls-files -s | grep ^160000` is empty; there is
+no `.gitmodules`). vault42 is consumed as a **published image** via the `vault42` compose plane, not
+a clone. (Sanity check: `ls vendor/` → **10** dirs, no `twenty`/`vault42`/`AppFlowy`.)
 
 ## Code generation
 
@@ -95,10 +99,9 @@ The `make legacy-*` target is **gone** (the monolith survives only as `Makefile.
 └── vendor/                    # playground apps re-platformed onto / mounted into the BaaS — see "vendor/" below
 ```
 
-Other on-disk artifacts to know: `certs/` and `infra/docker/services/realtime/realtime-agnostic`
-are **untracked** in the working tree (the realtime workspace is vendored plain files, ~163 source
-files, no nested `.git`). `.gitmodules` has been **removed** (committed to `main` — it declared 6
-dead submodules, none ever initialized); the orphan nested `grobase/` gitlink was de-tracked in
+Other on-disk artifacts to know: `certs/` is **untracked** (local TLS material). The realtime workspace
+`infra/docker/services/realtime/realtime-agnostic` is vendored as plain **tracked** files (no nested
+`.git`). The old `.gitmodules` (6 dead submodules, never initialized) was **removed** on `main` and none exists now. The orphan nested `grobase/` gitlink was de-tracked in
 `3396baf`. There is **no `site/`** (marketing site) in this repo, on any
 ref. `coverage/` HTML under `src/` will pollute `grep` hits — exclude it.
 
@@ -106,8 +109,8 @@ ref. `coverage/` HTML under `src/` will pollute `grep` hits — exclude it.
 `SECURITY.md` (threat model / hardening / reporting), `RELEASE.md` (how a version ships),
 `HUMAN-ATOMS.md` (the GA human/money/account checklist), and the open-core licensing set —
 `LICENSING.md` · `LICENSE` (AGPLv3) · `LICENSE-ENTERPRISE.md` · `CLA.md` (see **Licensing** below).
-`DEVDOC.md`/`USERDOC.md` are dev/user guides; `prompt.md` is a design-rationale scratch note (origin
-of the minimalism-ladder rule), not operational. Builds can also go through `docker-bake.hcl` (buildx
+`DEVDOC.md`/`USERDOC.md` are dev/user guides; `prompt.md` is the short start-here briefing for any
+agent (it points back here and deliberately carries no counts). Builds can also go through `docker-bake.hcl` (buildx
 bake groups `apps`/`infra`).
 
 ## Three-language plane layout (lean paths)
@@ -175,6 +178,18 @@ make audit-deps               # supply-chain CVE scan: cargo-audit (Rust) + govu
 make nano-up|one-up           # product editions: binocle-nano (:8090) / binocle-one (:8091)
 make cloud-up                 # managed-cloud overlay (turns cloud/enterprise flags ON — NOT a default)
 make conformance | conformance-<engine> | parity | parity-suite
+make tests                    # the WHOLE matrix (100-test.mk), green/red summary; or one kind:
+                              #   test-go test-rust test-nestjs test-sdk test-lint (-shell -rust -go -ts
+                              #   -yaml -docker -make) test-deps test-scan test-scripts test-postman
+                              #   test-waf test-gates test-conformance test-mutants  (live group needs `make up`)
+make prettiers | prettiers-check   # every language's canonical formatter in Docker (gofumpt, cargo fmt,
+                              #   prettier, shfmt -i 2); -check is the CI no-write variant
+make prod-up | prod-down      # SELF-HOSTED production (the live target): preflight-production refuses a
+                              #   dev .env, then EDITION/PACKAGE + docker-compose.prod.yml + the netseg
+                              #   overlay (PROD_NETSEG=0 drops it; no resolve-ports)
+make up NETSEG=1              # dev stack with engines + vault off the app bridge (netseg overlay, m66)
+make fly-status|fly-logs|fly-deploy|fly-ssh|fly-backup   # fly.io — RETIRED, kept (85-fly.mk);
+                              #   fly-destroy / vercel-remove need CONFIRM=1 — irreversible, ask first
 ```
 
 **Two orthogonal stack-shaping dimensions** exist, not one: **EDITIONS** (a named set of planes) and
@@ -202,7 +217,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **160 scripts, highest m180** (`m180-frontend-vercel-rewrite.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **190 scripts, highest m210** (`m210-jwt-dual-key.sh`); the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -254,6 +269,60 @@ on its OWN fresh `CREATE DATABASE` + scoped key), `m179` cross-app messaging cha
 app-tenants over the protected `xapp:<channel_id>` namespace), `m180` website same-origin Vercel rewrite
 (browser → fly only same-origin, realtime the one direct `wss://` exception). `m177`/`m179`/`m180` are
 the load-bearing proof of [`.claude/rules/service-boundaries.md`](.claude/rules/service-boundaries.md).
+The newest band **m181–m188** is **operational hardening** (not flag-gated): `m181` DDL
+autoincrement PK, `m182` query-router raw read-only SQL, `m183` healthchecks assert real network
+readiness, `m184` realtime `LISTEN` survives a Postgres restart, `m185` Node V8 heap sized under the
+cgroup limit, `m186` functions cold-invoke latency, `m187` Kong/WAF probes go through the proxy itself,
+`m188` MongoDB / CockroachDB / SQL Server backup + restore (`scripts/ops/engine-backup.sh`), `m189`
+realtime producer health, `m190` image provenance (built images stamped with their commit; refuses one
+older than its source), `m191` Nest readiness probes, `m192` pg-backup liveness, `m193` resolve-ports keeps
+a live stack's own ports. The band **m194–m198** is the **security-audit hardening** set (see
+`wiki/security/`): `m194` preflight-production (`scripts/ops/preflight-production.sh`), `m195` prod-overlay
+hardening, `m196` vault drops privileges on Fly, `m197` functions network jail, `m198` WAF upgrade allowlist.
+`m199` vault-init keeps the unseal key 0600 and never wipes storage on a lost key file, `m200`
+no RLS-less `public` table is reachable by anon/authenticated (+ PostgREST logs in as authenticator).
+`m201` realtime accepts only the listed token issuers (`REALTIME_JWT_ISSUER`) and refuses a token
+without `iss` (`REALTIME_JWT_ALLOW_NO_ISSUER=1` opts out). `m202` proves
+`IDENTITY_HEADER_MODE=strict` is serviceable for real traffic (H-19): it starts a second, strict
+storage-router process _inside_ the running container (same image, same env, only the mode and port
+overridden — the stack stays compat), then shows a real GoTrue session accepted while a raw
+`X-User-Id`, a cross-app realtime token and a wrong-secret token are refused, and that the compat
+instance accepts that same raw header (so the 401 is the mode, not a broken probe). Tokens are signed
+inside the container, so `JWT_SECRET` never reaches the host. It is the gate that licensed the prod
+overlay's strict mode (on the 11 identity readers, m195 asserts where; `PROD_IDENTITY_HEADER_MODE=compat`
+reverts it), and it fails fast on an image built before the bearer-JWT rung.
+`m203` asserts every PostgreSQL migration records its own version in `schema_migrations` (numbers
+unique, 035 the one historical group), so `make migrate-status` shows what a deployment ran.
+`m204` proves a rejected credential is visible end to end on a live stack: bogus-key requests through
+Kong show in Kong's and query-router's 401 counters, as `event_type=auth_failure` log lines, in the
+`platform-security` alert expressions and as a Loki label. `m52` (promtool rules + config + the rule
+unit tests in `infra/config/prometheus/tests/`) needs no stack and runs in CI's lint job.
+`m66` renders every service with the netseg overlay (dev and prod stacks): engines only on `net-data`,
+vault only on `net-vault`, kong/waf/scrapers/functions sharing no bridge with them, and each of the 64
+client→engine edges intact, and adapter-registry-go off the app bridge (`net-registry` = it + kong only). It probes a running `NETSEG=1` stack too.
+`m205` proves `scripts/ops/rotate-service-token.sh` (begin → swap → finish on `.env.secrets`, never
+printing a token) and that compose hands the previous token to every verifier; no stack needed.
+`m206` runs a throwaway Kong on the repo `kong.yml` and requires `acl baas-admin` on every
+ip-restricted route: the anon key gets the acl's 403, the service key passes (N-24). It also fails if any
+Kong service points at the `studio` container (N-25: Studio is reached on loopback or an SSH tunnel only).
+`m207` proves Kong behind the WAF sees the real client (N-23): prod/cloud set `KONG_TRUSTED_IPS`
+(base does not; `PROD_KONG_TRUSTED_IPS=` opts out), and a TEST-NET-3 client → WAF → Kong → echo run shows
+ip-restriction refusing it and no forged `X-Forwarded-*` reaching the upstream (a mutant WAF must leak).
+`m208` proves no container can gain a privilege through exec (N-30): every service of every stack renders
+`no-new-privileges:true` (from `_common.yml`'s `base`; `CONTAINER_NO_NEW_PRIVILEGES=false` opts out and
+preflight-production refuses that without `CONTAINER_NO_NEW_PRIVILEGES_ACK=1`), none is privileged or
+unconfined, five mutants are refused, and on a running stack the kernel reports `NoNewPrivs: 1` for every container.
+`m209` proves backups are encrypted at rest when `BACKUP_AGE_RECIPIENTS` (age public keys) is set: hermetic
+(scratch postgres + MinIO + pg-backup built from source), it checks logical `.dump.age` (no plaintext copy), a bad
+recipient uploading nothing, restore refused without or with the wrong `BACKUP_AGE_IDENTITY_FILE`, unknown artifacts
+refused, a restore.sh mutant caught, backup modes refusing the identity, and sealed physical members, WAL and PITR
+staging. Unset = plaintext, as before; m188's encrypted leg covers `engine-backup.sh`.
+`m210` (static, no stack) proves the verify side of JWT rotation: tenant-control, the TS identity library and
+realtime accept `JWT_SECRET_PREV` (realtime: `REALTIME_JWT_SECRET_PREV`), compose passes it to exactly those 14
+services (empty when unset), every other JWT secret holder and source read is classified (Kong/PostgREST/GoTrue/
+vault42 stay single-key), and `rotate-jwt.sh` / `rotate-secrets.sh jwt` refuse without `ROTATE_JWT_FORCE=1`.
+The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
+Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 
 ### Build, lint & test (per plane) — including how to run ONE test
 
@@ -266,7 +335,7 @@ skip `make`.
 
 | Plane                               | Whole suite (Docker wrapper)                                                                                       | One test                                                                                                                                                                                                                                                                                                                                                             |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **TS app** (NestJS · Jest)          | `make nestjs-ci` = `tsc --noEmit` + eslint + `jest --passWithNoTests`; `make nestjs-build-<app>`                   | from repo root: `docker run --rm -v "$PWD/src":/app -w /app -v mini-baas-src-node-modules:/app/node_modules node:20-alpine npx jest <spec> -t '<case>'`. There are **16** spec files (12 under `src/apps`: schema-service, analytics-service, mongo-api, log-service, query-router's proxy/graph/query/dto; 4 under `src/libs/common`) — **not** confined to one dir |
+| **TS app** (NestJS · Jest)          | `make nestjs-ci` = `tsc --noEmit` + eslint + `jest --passWithNoTests`; `make nestjs-build-<app>`                   | from repo root: `docker run --rm -v "$PWD/src":/app -w /app -v mini-baas-src-node-modules:/app/node_modules node:20-alpine npx jest <spec> -t '<case>'`. There are **30** spec files (22 under `src/apps`, 8 under `src/libs/common`; `find src/apps src/libs -name '*.spec.ts'` lists them) — **not** confined to one dir |
 | **Go control**                      | `make go-control-plane-check` (`go vet ./... && go test ./...`); `make go-control-plane-build` (compose build)     | from `src/control-plane/`: `docker run --rm -v "$PWD":/src -w /src golang:1.25-bookworm go test ./internal/<pkg> -run TestX -v` (1.25 — `go.mod` says `go 1.25.0`; `-check` pins `golang:1.25-bookworm`)                                                                                                                                                          |
 | **Rust data**                       | `make rust-data-plane-check` / `-test` / `-build` (a `-test` target **does** exist now = `cargo test --workspace`) | `make _rust-toolchain` once, then `cargo test -p data-plane-core <name>` via the data-plane CARGO wrapper; engine integration = `make conformance` / `conformance-<engine>` (the m27 gate)                                                                                                                                                                           |
 | **Rust realtime**                   | `make rust-realtime-check \| -test \| -build`                                                                      | `cargo test -p realtime-core <name>` via the realtime CARGO wrapper                                                                                                                                                                                                                                                                                                  |
@@ -278,6 +347,15 @@ Notes: the data-plane crate's produced binary is **`data-plane-router`** (packag
 is **gitignored** (except the committed curated `engines.ts`) — regenerate with `cd sdks/js && npm run codegen:all` (the `openapi:collect` link in
 that chain was repointed to `../../scripts/ops/openapi-collect.sh` in the flatten). All SDKs derive
 from one spec: `infra/config/openapi/grobase-public.json` (polyglot via `bash sdks/js/scripts/codegen-polyglot.sh`).
+
+**Lint / scan / audit matrix** (`orchestrators/makes/100-test.mk`, all Docker, images pinned):
+`make test-lint` runs shell (shellcheck, host binary else `koalaman/shellcheck`, `vendor/` excluded) ·
+rust clippy · go (vet + gofmt, then golangci-lint + gofumpt per `src/control-plane/.golangci.yml`) ·
+ts eslint · yaml (yamllint + actionlint) · docker (hadolint) · make · **compose** (base + every
+`docker-compose.*.yml` overlay must render; `track-binocle` is skipped — it needs a `pg-meta` service
+this repo never defines). `make test-scan` = `check-secrets` (grep patterns **plus gitleaks over the
+whole tree, docs and untracked files included**, policy `.gitleaks.toml`) + semgrep/trivy/npm audit.
+`make audit-deps` = cargo-audit + govulncheck. First results: `artifacts/quality/baseline-2026-09-23.md`.
 
 **Code quality (SonarCloud).** `sonar-project.properties` (repo root; org `univers42`, projectKey
 `Univers42_grobase`) defines the scope — sources `docker/services, scripts, config, src/apps,
@@ -307,14 +385,14 @@ old single-file monolith was split into these. Beyond that base, additive overla
 | `docker-compose.cloud.yml`         | Managed-cloud: turns Track-B feature flags **ON** (`make cloud-up`) |
 | `docker-compose.pooler.yml`        | Connection pooler (supavisor) — Track-C / C1                        |
 | `docker-compose.scale.yml`         | 10K-tenant scale experiment (raises `max_connections` — costly)     |
-| `docker-compose.netseg.yml`        | Per-plane network segmentation                                      |
+| `docker-compose.netseg.yml`        | Engines + vault off the app bridge (`NETSEG=1`, default in prod-up) |
 | `docker-compose.graphql.yml`       | GraphQL edition (A5)                                                |
 | `docker-compose.prod.yml`          | Production: no dev ports, resource limits                           |
 | `docker-compose.ci.yml`            | CI shape                                                            |
 | `docker-compose.track-binocle.yml` | Carried-over monorepo-integration overlay                           |
 | `docker-compose.monolith.yml`      | Preserved pre-split single-file compose (all services inline; uses stale `./docker/services/` paths) |
 
-**Gotcha — GHCR pull-fallback.** **54** services across the `orchestrators/compose/base/*.yml` plane
+**Gotcha — GHCR pull-fallback.** **56** services across the `orchestrators/compose/base/*.yml` plane
 files (included by the thin root `docker-compose.yml`) carry an
 `image: ghcr.io/univers42/grobase-<svc>:latest` line above their `build:` block (annotated
 `# pull-fallback`), so a plain `docker compose up` **pulls the prebuilt `:latest` image instead of
@@ -335,8 +413,8 @@ planes, e.g. metering = `METERING_ENABLED` (Go control) AND `DATA_PLANE_METERING
 `PERMISSION_CONDITIONS_ENABLED` / `API_KEY_ABAC_ENABLED` (m135–m139, ABAC) are _not_ Go `envBool`
 route-mount gates — they gate at the **TS / data-plane PDP**, so grep them in
 `src/apps/permission-engine` & `src/apps/query-router`, not the Go control plane. SQL migrations live
-in **`scripts/migrations/postgresql/`**; the numeric set now runs **001–085** (74 files; sequence is
-non-contiguous, gaps include **057–059**: `056` jumps to `060`; highest is `085_app_channels.sql`). The
+in **`scripts/migrations/postgresql/`**; the numeric set now runs **001–089** (78 files; sequence is
+non-contiguous, gaps include **057–059**: `056` jumps to `060`; highest is `089_default_privileges_revoke.sql`; `088`/`089` close the anon-readable `schema_registry` and the blanket anon/authenticated default privilege on `public` — see `wiki/security/`). The
 cloud/enterprise/parity flag slice runs **040–065**; **066–070** are vendor/infra, not flag-gated
 (`066`/`067` MovieVerse schema + like-counts, `068` per-mount shared_resources, `069` DynamoDB engine
 CHECK, `070` per-mount `read_scoped` read-owner-scoping). The newest band **071–076** backs the
@@ -352,7 +430,9 @@ m166/m168/m170/m172; live cross-repo proof `scripts/test/e2e-rbac-scope-keys-liv
 migration **`085_app_channels.sql`** backs cross-app secure messaging (`APP_CHANNELS_ENABLED`, gate
 `m179`): a consented bidirectional realtime link between two app-tenants over the protected
 `xapp:<channel_id>` namespace — control-plane-only (`internal/appchannels`, served over the admin pool,
-never an RLS GUC), flag-gated OFF = parity.
+never an RLS GUC), flag-gated OFF = parity. After it come two infra migrations, neither flag-gated:
+`086` caps the size of the realtime `NOTIFY` payload, and `087` exposes the `graphql_public` schema
+so Kong's `/graphql/v1` → PostgREST `/rpc/graphql` actually serves requests, the Supabase way.
 Mongo/MySQL migrations are separate and tiny
 (`scripts/migrations/{mongodb,mysql}/`, via `make migrate-mongo` / `migrate-mysql`, which need the
 `data-plane` profile up).
@@ -436,20 +516,24 @@ codegen now resolves against the lean tree.
   otherwise it renders offline via `helm template`. `deploy/` also holds `helm/` (`grobase` +
   `mini-baas` charts), `kustomize/`, `ha/`, and `github-relay/` (the P5 Vercel relay for GitHub-App
   connect).
-- **The full backend is LIVE on fly.io** as the single Machine app **`grobase-stack`** (`deploy/fly/`).
-  It is a **Docker-in-Docker compose** deploy: `deploy/fly/Dockerfile` + `compose.override.yml` bring
-  the stack up inside one Machine, with Kong exposed publicly; `deploy/fly/boot.sh` is the turnkey
-  entrypoint that **auto-migrates and auto-provisions** the registered contracts on boot (`ensure_gateway`
-  force-starts mongo-init→realtime→kong so a reboot doesn't strand Kong). Backup rotation:
-  `deploy/fly/BACKUP-ROTATION.md`. Two non-merging Postgres DBs (website + vault42) prove per-user
-  `read_scoped` isolation over public HTTPS.
+- **Production is SELF-HOSTED** on the owner's own server: `make prod-up` (optionally
+  `EDITION=`/`PACKAGE=`) runs `scripts/ops/preflight-production.sh .env` — it refuses dev credentials /
+  dev security values (gate `m194`) — then brings the stack up with
+  `orchestrators/compose/docker-compose.prod.yml` (no dev ports, prod security values, gate `m195`).
+  Migrations/contract provisioning are run by hand (`make migrate`, `scripts/provision-contract.sh`).
+- **fly.io is RETIRED (2026-09, cost) but KEPT** — do **not** delete `deploy/fly/` or `85-fly.mk`; they
+  are the way back. It was a single-Machine **Docker-in-Docker compose** app `grobase-stack`:
+  `deploy/fly/Dockerfile` + `compose.override.yml`, `deploy/fly/boot.sh` auto-migrated + auto-provisioned
+  the contracts on boot (`ensure_gateway` force-started mongo-init→realtime→kong), backup rotation in
+  `deploy/fly/BACKUP-ROTATION.md`.
 - **grobase is a generic contract-driven factory, not an app host.** It contains **zero app-specific
   code**; each app is a declarative **provisioning contract** at `infra/config/contracts/<app>.json`
   (+ a `<app>.schema.sql`) that the generic provisioner consumes to create an isolated DB, seed it,
   mint keys, and emit the frontend's `PUBLIC_*` config (gate `m165`). Stateless frontends live on
-  Vercel; **grobase (fly) owns all state** (DB/auth/OTP/realtime/files). This boundary is **binding** —
-  see [`.claude/rules/service-boundaries.md`](.claude/rules/service-boundaries.md). Live contracts today:
-  `website.json` and `vault42.json`.
+  Vercel; **grobase (the backend server) owns all state** (DB/auth/OTP/realtime/files). This boundary is **binding** —
+  see [`.claude/rules/service-boundaries.md`](.claude/rules/service-boundaries.md). Contracts in
+  `infra/config/contracts/`: `website`, `vault42`, `red-tetris` (plus a `_smoke` fixture); the
+  provisioner is `scripts/provision-contract.sh`.
 
 ## Licensing (open-core)
 
@@ -491,15 +575,32 @@ package across the open-core line, add/remove its directory `LICENSE` and update
 
 Unlike the monorepo's `apps/baas/.claude/` (a three-layer agent-OS *kernel*), this repo's `.claude/`
 is deliberately **lean and kernel-less** — see [`.claude/AGENTS.md`](.claude/AGENTS.md): fan out
-subagents per task, converge, discard the scaffolding; don't rebuild half a kernel. It holds
-`settings.json` + `settings.local.json` (the latter disables the `osionos` MCP server); `rules/` (the
-binding code-gen rules — `minimalism-ladder`, `minimalism-markers`, `comments`, `no-globals`,
-`go-package-design`, per-language `refactor-{c,go,rust,typescript,shell,common}`, `api-convention`,
-and the binding **`service-boundaries`** rule — grobase owns all state, Vercel hosts only stateless
-frontends, apps are contracts not code); `agents/` (8 single-purpose
-specialists: architect · benchmarker · compat-tester · devil · documenter · norminette · reviewer ·
-security); `skills/` (api-endpoint · debug · doc · incident · new-module · pr-review · release ·
-write-test); `commands/`; `workflows/`; and `plugins/`. There is **no** kernel
+subagents per task, converge, discard the scaffolding; don't rebuild half a kernel. Its toolchain is
+merged from the external upstream repo **`Univers42/claude-deal-with-the-devil`** (not vendored, no
+submodule; grobase's own versions of files both trees
+share were kept; `bash .claude/tools/selfcheck.sh --summary` must report 0 failed after any edit):
+
+- `hooks/` — `hooks/scripts/hooks.py` + `hooks/config/hooks-config.json` (PreToolUse denies/asks on
+  destructive or irreversible commands, PostToolUse lints the edited file, SessionStart injects
+  `tools/digest.sh`, PreCompact). **Not wired yet:** the committed `settings.json` is `{}`; wiring the
+  hooks (and an empty `attribution`, binding rule 1) is a human action.
+- `rules/` — always-on: `minimalism-ladder`, `minimalism-markers`, `comments`, `no-globals`,
+  `refactor-common`, **`service-boundaries`**, plus the devil set (`risk`, `quality-bar`,
+  `run-safely`, `library-first`, …). Lazy via `paths:`: `refactor-{c,go,rust,shell,typescript}`,
+  `go-package-design`, `api-convention`.
+- `agents/` — architect · benchmarker · builder · compat-tester · devil · documenter · forger ·
+  innovator · norminette · reviewer · security. `skills/` — `ls .claude/skills`.
+- `commands/` — incl. `/prompt`, `/quality`; `commands/workflow/*.md` are symlinks to `workflows/`,
+  which is what makes `/workflow:<name>` resolve.
+- `tools/*.sh` — digest · facts · preflight · codemap · untested · dupes · quality · watch ·
+  selfcheck · context · ponytail · scripts (grobase copy fixes SIGPIPE-under-pipefail and skips
+  `vendor/`). Shared shell lib `tools/lib/common.sh` (un-ignored in `.gitignore` — a broad `lib/`
+  rule once hid it). Local cache in `.claude/cache/` (gitignored).
+- **MCP:** no `.mcp.json` is committed (opt-in, local). The upstream's declares `grafana` + `postgres`
+  (read-only views of the local stack via `scripts/ops/mcp-server.sh`), `playwright`, `context7`,
+  `deepwiki`, `supermemory` (external — never store secrets there).
+
+There is **no** kernel
 (`CLAUDE.md`/`instructions.md`/`objectives/`) and **no** `/baas-wave` skill — references to "the
 kernel" or `make -C ../.. baas-*` in carried-over docs belong to the monorepo, not this repo.
 
@@ -544,16 +645,16 @@ the default build/CI (the exceptions are opt-in `movieverse` + `gourmand` compos
 | **MovieVerse**                    | Java/Spring/Thymeleaf/MySQL movie community  | ✅ re-platformed → static `dist/` + `@grobase/js` + Go TMDB proxy; PostgREST + RLS, zero app server | `m146-movieverse.sh`            |
 | **saas** (Nimbus)                 | React/Vite SaaS admin console (no backend)   | ✅ built native — dual-engine PG **+** Mongo, ACID `/query/v1/txn` money model, realtime           | `m148-nimbus-roundtrip.sh`      |
 | **savanna-zoo**                   | React/Vite zoo-management (no backend)       | ✅ built native — PostgREST + GoTrue RBAC + SSE realtime + storage                                 | _(none)_                        |
-| **java-dam-baas** (HamBooking)    | Java/Spring/JavaFX ham-carver booking        | ✅ re-platformed — **but the migrated client lives in an external clone `~/Documents/java-dam-baas` (branch `feature/grobase-baas-migration`)**, not here; the old in-repo `vendor/java-dam-baas/` stale snapshot was **removed** in `a0bfc38` (no longer on disk). What IS in-repo: the MariaDB mount + `owner_id` schema + per-table-isolation flags + green gate | `m147-hambooking-isolation.sh` |
+| **java-dam-baas** (HamBooking)    | Java/Spring/JavaFX ham-carver booking        | ✅ re-platformed — **but the migrated client lives in an external clone `~/Documents/java-dam-baas` (branch `feature/grobase-baas-migration`)**, not here; the old in-repo `vendor/java-dam-baas/` stale snapshot was **removed** in `4bcc957` (no longer on disk). What IS in-repo: the MariaDB mount + `owner_id` schema + per-table-isolation flags + green gate | `m147-hambooking-isolation.sh` |
 | **vite-gourmand**                 | React/NestJS/Prisma/Supabase restaurant ordering | ✅ **re-platformed** — static React SPA on a **local owner-scoped Postgres mount** (GoTrue auth, business logic re-homed to PG triggers); needed the **F1/F2 authz model ported from MySQL to the Postgres adapter**. The older `m24` `tenant_owned` osionos-observability mount still coexists (separate dbId) | `m149-gourmand-baas.sh` (+ `m24-gourmand*`) |
 | **music-room**                    | React-Native/NestJS/Mongo music collab       | ⬜ untouched playground — zero BaaS wiring                                                          | —                               |
 | **surfind-spain**                 | Laravel 12/Livewire/MySQL Spanish surf directory | ✅ re-platformed — **server-rendered (no SPA), so the frontend was REBUILT from scratch** as a React/Vite/Leaflet SPA (`web/`) on PostgREST+GoTrue; role RLS via `app_metadata`, owner-scoped favorites/comments, 16 beaches seeded; Laravel/MySQL backend removed; serve `:5183` | `m160-surfind-spain.sh`         |
 | **red-tetris**                    | 42 multiplayer Tetris (React + Socket.IO server) | ✅ re-platformed — backend **entirely Grobase** (GoTrue auth + data + the **multiplayer realtime bus** — the original Socket.IO server is gone); static SPA served with a **same-origin reverse proxy** to Kong (`grobase/serve.mjs`, no CORS), `red-tetris` compose profile (`:5178`). Contract `red-tetris.json`; needs `npm run build` + `scripts/provision-contract.sh` + `scripts/seed/red-tetris-tenant.sh` | `m173-red-tetris.sh`            |
 | **hypertube**                     | 42 BitTorrent video search+stream subject    | ✅ re-platformed — backend **entirely Grobase** (GoTrue auth + **MongoDB** catalog/comments/profiles + **DynamoDB** watch_state + realtime) plus **4 custom services** under `vendor/hypertube/grobase/`: a **new Rust `hypertube-stream` engine** (axum/reqwest range-proxy → archive.org HTTP `206` partial-content, YouTube-style fast buffer, H.264+AAC audio, `X-Accel-Buffering:no`), `hypertube-media` (torrent→Range/206 + ffmpeg transcode), `hypertube-search` (archive.org + TMDb), `hypertube-api` (RESTful OAuth2) + a YouTube-style React/Vite SPA (`View/`, same-origin via `grobase/serve.mjs`). **~1848 real archive.org films** bulk-seeded (`hypertube-catalog-bulk`, throttled), **8 user profiles + comments** (`hypertube-users`). **Forced real Grobase fixes: the 8th engine DynamoDB end-to-end (build-arg `--features dynamodb` + `DYNAMODB_ENGINE_ENABLED` + migration `069` + registry `ensureSchemaDDL` engine-CHECK + `RUST_DATA_PLANE_FORWARD_ENGINES` + `dynamodb-local`), Mongo `shared_resources` cross-owner reads, and seed idempotency (control-plane key-reuse, GoTrue pagination, persisted secrets).** Known data-plane limits: pool loses `shared_resources` after a provision (restart `data-plane-router`); mongo `upsert` not idempotent. | `m150`–`m154` |
-| **AppFlowy**                      | OSS Notion-alternative — Flutter UI + Rust `flowy-*` core (AGPL-3.0) | ⬜ now committed in-repo as **plain tracked files** (nested `.git` removed in `a0bfc38`, ~2880 files; upstream was `AppFlowy-IO/AppFlowy.git` HEAD `4af02cdc`), still **zero BaaS wiring**; its own backend (AppFlowy-Cloud = PG + GoTrue + storage + collab) mirrors Grobase → a prime future re-platform target. See the **AppFlowy** note below the table | —                               |
+| **AppFlowy**                      | OSS Notion-alternative — Flutter UI + Rust `flowy-*` core (AGPL-3.0) | ⬜ **removed from `vendor/`** (`897c56db`, last files `112757ac`); was committed as plain tracked files (nested `.git` removed in `4bcc957`, ~2880 files; upstream was `AppFlowy-IO/AppFlowy.git` HEAD `4af02cdc`), still **zero BaaS wiring**; its own backend (AppFlowy-Cloud = PG + GoTrue + storage + collab) mirrors Grobase → a prime future re-platform target. See the **AppFlowy** note below the table | —                               |
 | **twenty** _(removed from disk)_  | TypeScript CRM — twentyhq/twenty (NestJS + GraphQL + TypeORM/Postgres) | ⬜ the orphan gitlink (mode 160000, HEAD `705caab2`) is **no longer on disk or tracked** — `git ls-files -s vendor/ \| grep 160000` is now empty. Documented only so a pre-flatten ref reads correctly; its NestJS + Postgres + GraphQL backend still mirrors Grobase → a future re-platform candidate | —                               |
 | **vault42** _(no longer in `vendor/`)_ | _(separate product, own repo `Univers42/vault42`)_ — zero-knowledge secrets vault (Rust) | ✅ built **native on Grobase** — uses grobase as its store (**GrobaseStore**): per-user ZK envelope blobs in a dedicated `vault42` DB via `/query/v1` with per-user JWT-minting → `read_scoped` owner-scoping (proven: user B sees 0 rows of A). Driven by the **42ctl** umbrella CLI (separate repo `Univers42/42ctl`). **Now consumed as a published image** via the `vault42` compose plane (`make vault42-up`), not a vendor checkout. Substrate migration `071`; OTP-login `075` + escrow `076` | `m162`–`m165` (rbac/github/otp/contract) |
-| **claude-deal-with-the-devil**    | _(not an app)_                               | n/a — a Claude Code framework (rules/agents/skills/tools), **misfiled** here; not a migration target | —                               |
+| **claude-deal-with-the-devil**    | _(not an app)_                               | n/a — a Claude Code framework (rules/agents/skills/tools). It is no longer in this repo at all: it lives in its own repo `Univers42/claude-deal-with-the-devil`, the upstream of `.claude/` (content merged, no submodule). Not a migration target | —                               |
 
 **Gotchas:** Canagrou carries heavy uncommitted/untracked changes on the current branch
 (`feature/grobase-hambooking-baas`). MovieVerse opts into the stack with
@@ -567,10 +668,13 @@ data-plane work that backs it is flag-gated (`DATA_PLANE_PER_TABLE_ISOLATION`, `
 default OFF). `scripts/seed/agency-tenant.sh` provisions a permanent "agency" demo tenant (not tied to
 one `vendor/` app).
 
-### AppFlowy (`vendor/AppFlowy`) — untouched upstream, un-integrated
+### AppFlowy (formerly `vendor/AppFlowy`) — removed, kept here as re-platform notes
+
+No longer on disk: removed in `897c56db` (last files `112757ac`). The notes below describe the
+checkout as it was, so a future re-platform starts from facts.
 
 A checkout of **AppFlowy-IO/AppFlowy** (the AGPL-3.0 OSS Notion alternative), originally upstream HEAD
-`4af02cdc`, **now committed in-repo as plain tracked files** (its nested `.git` was removed in `a0bfc38`,
+`4af02cdc`, **now committed in-repo as plain tracked files** (its nested `.git` was removed in `4bcc957`,
 ~2880 files — the same vendoring shape as the realtime workspace) and with **zero grobase references on
 disk**. It is **not** wired to the BaaS and **not** in grobase's build/CI — an unintegrated playground
 (it shares `music-room`'s zero-wiring state, though `music-room` stays untracked). Documented here only
@@ -602,15 +706,15 @@ full dev build `cargo make --profile development-linux-x86_64 appflowy-dev`; cod
 `cargo make flutter_test '<path>' --name '<case>'`. The in-repo `docker-compose` builds only the
 X11-forwarded **desktop client**, not a backend.
 
-> **One on-disk `vendor/` dir is absent from the table above** (there are now **11** on-disk dirs; the
-> table covers **10** of them — and additionally keeps `java-dam-baas` / `twenty` / `vault42` /
+> **One on-disk `vendor/` dir is absent from the table above** (there are now **10** on-disk dirs; the
+> table covers **9** of them — and additionally keeps `java-dam-baas` / `twenty` / `vault42` /
 > `claude-deal-with-the-devil` rows that are **no longer on disk**, documented only so a pre-flatten ref
 > reads right): the uncovered on-disk dir is
 > **`grobase-website`** — *not* an external app but a nested checkout whose remote is
-> `Univers42/grobase.git` itself (HEAD `a0bfc38`, an Astro site in its tree); the canonical
+> `Univers42/grobase.git` itself (HEAD `4bcc957`, an Astro site in its tree); the canonical
 > marketing/login portal is the **separate** `Univers42/grobase-website` repo (cloned at
 > `~/Documents/grobase-website`, wired to binocle-one), so it is deliberately not given a re-platform row.
-> (**AppFlowy** *is* in the table now — its deep-dive note is the section directly above this line.)
+> (**AppFlowy** keeps a table row and a deep-dive note above, but is no longer on disk.)
 
 ## Appendix — historical note (pre-flatten layout)
 

@@ -1,0 +1,14 @@
+{
+  "problemMatcher": [
+    {
+      "owner": "grobase-gate",
+      "pattern": [
+        {
+          "regexp": "^(?:\\u001b\\[[0-9;]*m)?\\[(M\\d+[A-Za-z]?)\\] FAIL — (.*?)(?:\\u001b\\[0m)?$",
+          "code": 1,
+          "message": 2
+        }
+      ]
+    }
+  ]
+}

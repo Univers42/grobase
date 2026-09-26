@@ -100,7 +100,7 @@ func provisionOne(client *http.Client, base, token string, spec provisionSpec) r
 	if err != nil {
 		return record{Slug: spec.slug, Status: "error", Error: err.Error()}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		return record{

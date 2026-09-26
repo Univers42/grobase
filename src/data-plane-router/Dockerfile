@@ -8,7 +8,14 @@
 # The registry/git mounts are sharing=shared (cargo does its own file locking)
 # so this build and the realtime workspace compile CONCURRENTLY instead of
 # serializing on the mount lock; only the per-workspace target dir stays locked.
-FROM public.ecr.aws/docker/library/rust:1.96-slim-bookworm@sha256:e18a79fc84dfcfc3ab5ba72290398a644c135c97eaa881447fddc354ee4701a3 AS deps
+# Docker official images; mirror.gcr.io serves Docker Hub's digests without
+# public.ecr.aws's anonymous data cap (public.ecr.aws/docker/library works too).
+ARG BASE_REGISTRY=mirror.gcr.io/library
+FROM ${BASE_REGISTRY}/rust:1.96-slim-bookworm@sha256:e18a79fc84dfcfc3ab5ba72290398a644c135c97eaa881447fddc354ee4701a3 AS deps
+# crates.io downloads flake in CI ("Error in the HTTP2 framing layer"); HTTP/1.1 plus
+# retries is the same mitigation ci.yml's rust unit-test job uses. Build stage only.
+ENV CARGO_NET_RETRY=10 \
+    CARGO_HTTP_MULTIPLEXING=false
 WORKDIR /build
 # Opt-in extra cargo features for THIS deployment (e.g. "--features dynamodb").
 # Default empty → byte-parity with the shipped 7-engine build.
@@ -23,8 +30,8 @@ COPY crates/data-plane-server/Cargo.toml crates/data-plane-server/Cargo.toml
 # the bin build, so a stub lib is enough — its deps are never compiled here.
 COPY crates/engine-conformance/Cargo.toml crates/engine-conformance/Cargo.toml
 
-RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=shared \
-    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=shared \
+RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=dpr-target,target=/build/target,sharing=locked \
     for dir in crates/data-plane-core crates/data-plane-pool crates/data-plane-server crates/engine-conformance; do \
       mkdir -p "$dir/src"; \
@@ -37,8 +44,8 @@ RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharin
 FROM deps AS builder
 ARG DATA_PLANE_FEATURES=""
 COPY crates/ crates/
-RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=shared \
-    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=shared \
+RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=dpr-target,target=/build/target,sharing=locked \
     cargo build --release ${DATA_PLANE_FEATURES} --bin data-plane-router && \
     cp /build/target/release/data-plane-router /data-plane-router

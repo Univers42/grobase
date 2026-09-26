@@ -1,8 +1,3 @@
----
-description: Minimalism markers and documentation rules
-alwaysApply: true
----
-
 # Minimalism markers
 
 When you take a deliberate shortcut on the ladder, mark it:

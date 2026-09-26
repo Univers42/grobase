@@ -37,8 +37,7 @@ type fakeConn struct {
 // connection can hold it at a time. unlock clears it.
 type lockState struct {
 	held    bool
-	heldBy  int // conn id holding it
-	key     string
+	heldBy  int         // conn id holding it
 	acquire func() bool // returns true if THIS conn took the lock
 }
 

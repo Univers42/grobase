@@ -191,7 +191,7 @@ wait_http() { # $1=container  $2=port  $3=path
 wait_log() { # $1=container  $2=needle  $3=tries
   local i
   for i in $(seq 1 "${3:-40}"); do
-    docker logs "$1" 2>&1 | grep -q "$2" && return 0
+    grep -q "$2" <<<"$(docker logs "$1" 2>&1)" && return 0
     docker inspect "$1" >/dev/null 2>&1 || return 1
     sleep 0.5
   done
@@ -464,7 +464,7 @@ wait_log "${ORCH_OFF}" "metering ingest disabled" 40 ||
     docker logs "${ORCH_OFF}" 2>&1 | tail -20
     fail "(C1) consumer did not report itself disabled with METERING_INGEST unset (line: C1 disabled log)"
   }
-docker logs "${ORCH_OFF}" 2>&1 | grep -q "metering ingest connected" &&
+grep -q "metering ingest connected" <<<"$(docker logs "${ORCH_OFF}" 2>&1)" &&
   fail "(C1) consumer SUBSCRIBED with METERING_INGEST unset — NOT parity! (line: C1 connected leak)"
 ok "(C1) consumer reports disabled; never created a consumer group"
 

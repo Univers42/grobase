@@ -31,6 +31,12 @@ pub enum AuthConfig {
         issuer: Option<String>,
         #[serde(default)]
         audience: Option<String>,
+        /// Accept tokens with no `iss` even when `issuer` lists values (opt-out).
+        #[serde(default)]
+        allow_no_issuer: bool,
+        /// The secret being rotated out (`REALTIME_JWT_SECRET_PREV`), still accepted.
+        #[serde(default)]
+        previous_secret: Option<String>,
     },
 }
 
@@ -41,12 +47,21 @@ impl std::fmt::Debug for AuthConfig {
         match self {
             Self::NoAuth => write!(f, "NoAuth"),
             Self::Jwt {
-                issuer, audience, ..
+                issuer,
+                audience,
+                allow_no_issuer,
+                previous_secret,
+                ..
             } => f
                 .debug_struct("Jwt")
                 .field("secret", &"<redacted>")
+                .field(
+                    "previous_secret",
+                    &previous_secret.as_ref().map(|_| "<redacted>"),
+                )
                 .field("issuer", issuer)
                 .field("audience", audience)
+                .field("allow_no_issuer", allow_no_issuer)
                 .finish(),
         }
     }

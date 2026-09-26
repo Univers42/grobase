@@ -78,12 +78,12 @@ for _ in $(seq 1 40); do
   fi
   sleep 3
 done
-[[ "${got_206}" == "1" ]] \
-  || skip "torrent did not seed the first MiB in the window (external archive.org) — health proven, stream best-effort"
-grep -qiE '^Content-Range:[[:space:]]*bytes ' "${TMP}/hdr.txt" \
-  || fail "206 returned without a Content-Range header — not a real partial-content response"
-grep -qiE '^X-Accel-Buffering:[[:space:]]*no' "${TMP}/hdr.txt" \
-  || fail "missing 'X-Accel-Buffering: no' — proxy buffering not disabled, progressive playback would stall"
+[[ "${got_206}" == "1" ]] ||
+  skip "torrent did not seed the first MiB in the window (external archive.org) — health proven, stream best-effort"
+grep -qiE '^Content-Range:[[:space:]]*bytes ' "${TMP}/hdr.txt" ||
+  fail "206 returned without a Content-Range header — not a real partial-content response"
+grep -qiE '^X-Accel-Buffering:[[:space:]]*no' "${TMP}/hdr.txt" ||
+  fail "missing 'X-Accel-Buffering: no' — proxy buffering not disabled, progressive playback would stall"
 ok "stream is 206 Partial Content with Content-Range + X-Accel-Buffering:no (progressive)"
 
 printf '\033[0;32m[M153] ALL GATES GREEN — Hypertube media: /health 200 · range stream 206 + Content-Range + X-Accel-Buffering:no (progressive)\033[0m\n'

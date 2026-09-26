@@ -17,6 +17,7 @@ import (
 	"net/http"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 const msgNotFound = "database not found"
@@ -25,6 +26,7 @@ const msgNotFound = "database not found"
 type routes struct {
 	svc          *Service
 	serviceToken string
+	rotation     *serviceauth.RotationNotice
 }
 
 // Mount registers adapter-registry routes onto the shared mux.
@@ -40,8 +42,11 @@ type routes struct {
 // the SQL, so a mount UUID is NEVER a bearer capability — a tenant can only
 // delete its OWN mount. It is service-token gated like /connect (the trust
 // boundary forwards the asserted tenant header).
-func Mount(mux *http.ServeMux, svc *Service, serviceToken string) {
-	rt := &routes{svc: svc, serviceToken: serviceToken}
+//
+// rotation (may be nil) signals requests still authenticated by the previous
+// service token (INTERNAL_SERVICE_TOKEN_PREV) — see serviceauth.RotationNotice.
+func Mount(mux *http.ServeMux, svc *Service, serviceToken string, rotation *serviceauth.RotationNotice) {
+	rt := &routes{svc: svc, serviceToken: serviceToken, rotation: rotation}
 	mux.HandleFunc("POST /databases", rt.register)
 	mux.HandleFunc("GET /databases", rt.list)
 	mux.HandleFunc("GET /databases/{id}", rt.findOne)
@@ -98,7 +103,7 @@ func (rt *routes) findOne(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *routes) connect(w http.ResponseWriter, r *http.Request) {
-	if !validServiceToken(r, rt.serviceToken) {
+	if !rt.validServiceToken(r) {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
 		return
 	}

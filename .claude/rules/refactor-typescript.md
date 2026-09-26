@@ -1,6 +1,7 @@
 ---
-globs: ["**/*.ts", "**/*.tsx"]
-description: TypeScript refactoring rules
+paths:
+  - "**/*.ts"
+  - "**/*.tsx"
 ---
 
 # TypeScript Refactoring

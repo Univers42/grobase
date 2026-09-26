@@ -13,7 +13,7 @@ COPY conf/vault.hcl    /vault/config/vault.hcl
 COPY policies/          /vault/policies/
 COPY scripts/           /vault/scripts/
 
-RUN chmod +x /vault/scripts/*.sh 2>/dev/null || true
+RUN chmod 0755 /vault/scripts/*.sh
 
 EXPOSE 8200
 USER vault

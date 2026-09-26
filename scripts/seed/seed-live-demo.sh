@@ -181,9 +181,10 @@ step "loading mysql ops ($(count_of mysql tasks) tasks / $(count_of mysql ticket
 step "loading mongo activity ($(count_of mongo events) events / $(count_of mongo product_reviews) reviews)"
 # Sibling container, NOT `exec` into mini-baas-mongo: mongosh is a Node app
 # and parsing the multi-MB seed script inside mongod's 512MB cgroup OOM-kills
-# the database container. Same image (version-matched mongosh), stack network.
-STACK_NET="$(docker inspect mini-baas-kong \
-  --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' | head -1)"
+# the database container. Same image (version-matched mongosh), on mongo's bridge.
+# shellcheck source=scripts/lib/lib-netseg.sh
+. "${SCRIPT_DIR}/../lib/lib-netseg.sh"
+STACK_NET="$(engine_net mini-baas-mongo mini-baas_mini-baas)"
 MONGO_IMAGE="$(docker inspect mini-baas-mongo --format '{{.Config.Image}}')"
 docker run --rm --network "${STACK_NET}" \
   -v "${OUT_DIR}/mongo-activity.js:/seed.js:ro" "${MONGO_IMAGE}" \
@@ -219,7 +220,7 @@ RT_TOKEN="$(docker run --rm --network none -e RT_JWT_SECRET="${RT_JWT_SECRET}" "
 const { createHmac } = require("node:crypto");
 const b64u = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const head = b64u({ alg: "HS256", typ: "JWT" });
-const body = b64u({ sub: "osionos-live-demo", exp: Math.floor(Date.now() / 1000) + 30 * 86400 });
+const body = b64u({ iss: "grobase-realtime", sub: "osionos-live-demo", exp: Math.floor(Date.now() / 1000) + 30 * 86400 });
 const sig = createHmac("sha256", process.env.RT_JWT_SECRET).update(`${head}.${body}`).digest("base64url");
 console.log(`${head}.${body}.${sig}`);')"
 [[ -n "${RT_TOKEN}" ]] || fail "realtime token mint failed"
@@ -353,7 +354,10 @@ if [[ "${SEED_PAGES:-1}" == "1" ]]; then
     for _email in dylan@gmail.com dev.pro.photo@gmail.com; do
       DYLAN="$("${PGX[@]}" psql -U postgres -d postgres -tAc \
         "SELECT id FROM auth.users WHERE email='${_email}'" 2>/dev/null | tr -d '[:space:]')"
-      [[ -n "${DYLAN}" ]] && { DEMO_EMAIL="${_email}"; break; }
+      [[ -n "${DYLAN}" ]] && {
+        DEMO_EMAIL="${_email}"
+        break
+      }
     done
     DYLAN="${DYLAN:-ff284cf3-ab7d-4756-ade3-369257e36b2a}"
     DEMO_EMAIL="${DEMO_EMAIL:-dylan@gmail.com}"

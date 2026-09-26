@@ -13,6 +13,7 @@
 package tenants
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -64,7 +65,8 @@ func (ss *selfServe) containScopes(w http.ResponseWriter, req *IssueKeyRequest, 
 
 // revokeKey revokes one of the caller's own keys by id. The RevokeKey SQL binds
 // BOTH the key id AND the tenant slug, so a caller can never revoke another
-// tenant's key even if it guessed the uuid. [scope: write or admin]
+// tenant's key even if it guessed the uuid. [scope: write or admin, and at
+// least every scope the target key holds — see canRevoke]
 func (ss *selfServe) revokeKey(w http.ResponseWriter, r *http.Request) {
 	tenantID, scopes, ok := ss.selfAuth(w, r)
 	if !ok {
@@ -73,8 +75,36 @@ func (ss *selfServe) revokeKey(w http.ResponseWriter, r *http.Request) {
 	if !ss.requireScope(w, scopes, "write") {
 		return
 	}
-	if ss.handleLookup(w, ss.svc.RevokeKey(r.Context(), tenantID, r.PathValue("keyId"))) {
+	keyID := r.PathValue("keyId")
+	if !ss.canRevoke(r.Context(), w, tenantID, keyID, scopes) {
+		return
+	}
+	if ss.handleLookup(w, ss.svc.RevokeKey(r.Context(), tenantID, keyID)) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]bool{"revoked": true})
+}
+
+// canRevoke applies scope containment to revocation (H-13), as containScopes does
+// to issuance: the caller must hold every scope of the target key (admin covers
+// all), so a write key cannot revoke — lock out — the tenant's admin keys. It
+// writes the 403/500 and returns false; an unknown key id passes through to
+// RevokeKey's 404.
+func (ss *selfServe) canRevoke(ctx context.Context, w http.ResponseWriter, tenantID, keyID string, held []string) bool {
+	keys, err := ss.svc.ListKeys(ctx, tenantID)
+	if err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", "could not load keys")
+		return false
+	}
+	for _, k := range keys {
+		if k.ID != keyID {
+			continue
+		}
+		if _, ok := scopesWithinCaller(k.Scopes, held); !ok {
+			httpx.WriteError(w, http.StatusForbidden, "forbidden",
+				"cannot revoke a key with scopes broader than your own credential")
+			return false
+		}
+	}
+	return true
 }

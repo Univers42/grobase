@@ -35,8 +35,10 @@ RUN curl -fSL "${TRINO_TARBALL}" -o trino.tar.gz \
  && rm trino.tar.gz \
  # The CLI is not needed inside the server image; drop the bundled JDK the
  # tarball does NOT ship (it expects an external JRE), keep bin/ (launcher +
- # libjvmkill.so) and the plugin/lib trees.
- && rm -rf /opt/trino/bin/*.jdk 2>/dev/null || true
+ # libjvmkill.so) and the plugin/lib trees. No `|| true`: it bound to the
+ # whole chain, so a 404 or a disk-full tar built green with no server.
+ && rm -rf /opt/trino/bin/*.jdk \
+ && test -x /opt/trino/bin/launcher
 
 # ── runtime: Java 23 JRE on Alpine ──────────────────────────────────────────
 FROM eclipse-temurin:25-jre-alpine

@@ -29,6 +29,7 @@ import { AuthGuard, CurrentUser, UserContext } from '@mini-baas/common';
 import { StorageService } from './storage.service';
 import { PresignDto } from './dto/presign.dto';
 import { parseTransform } from './image-transform';
+import { activeContentHeaders } from './active-content';
 import type { PolicyPrincipal } from './bucket-policy';
 import type { Request, Response } from 'express';
 
@@ -58,7 +59,7 @@ export class StorageController {
     @Req() req: Request,
     @Body() dto: PresignDto,
   ) {
-    return this.service.presign(bucket, this.wildcard(req), user.id, dto);
+    return this.service.presign(bucket, this.wildcard(req), user.id, dto, principalOf(user));
   }
 
   // ── proxied object I/O (works with the internal minio endpoint) ──────────
@@ -71,8 +72,8 @@ export class StorageController {
   ) {
     const body = await this.readRawBody(req);
     const contentType = (req.headers['content-type'] as string) || 'application/octet-stream';
-    // Pass the authenticated tenant so the write is metered on the tenant
-    // dimension (Track-B B1d storage.bytes); falls back to user.id server-side.
+    // Pass the VERIFIED tenant so the write is metered on the tenant dimension
+    // (Track-B B1d storage.bytes); falls back to user.id server-side.
     // The principal (A1) is consulted by the bucket-policy ONLY when that flag is
     // ON — otherwise it is inert and the call is byte-parity.
     return this.service.putObject(
@@ -81,7 +82,7 @@ export class StorageController {
       user.id,
       body,
       contentType,
-      user.tenantId,
+      meteredTenant(user),
       principalOf(user),
     );
   }
@@ -109,6 +110,9 @@ export class StorageController {
     );
     res.setHeader('Content-Type', obj.contentType);
     res.setHeader('Content-Length', String(obj.size));
+    for (const [name, value] of Object.entries(activeContentHeaders(obj.contentType))) {
+      res.setHeader(name, value);
+    }
     await new Promise<void>((resolve) => res.end(obj.body, () => resolve()));
   }
 
@@ -191,4 +195,22 @@ function safeDecode(segment: string): string {
  *  Inert unless STORAGE_BUCKET_POLICY_ENABLED is ON (policy is then undefined). */
 function principalOf(user: UserContext): PolicyPrincipal {
   return { userId: user.id, role: user.role ?? 'authenticated' };
+}
+
+/**
+ * The tenant an upload is metered against, or undefined to fall back to the
+ * owner id. A `legacy-header` identity took its tenant from a raw
+ * X-Baas-Tenant-Id, which Kong strips only on /functions/ and /query/ — on
+ * /storage/v1 any authenticated caller could name someone else's tenant and
+ * charge them the bytes (and, under QUOTA_ENFORCEMENT, exhaust their quota).
+ * Only a cryptographically verified identity may set the dimension.
+ *
+ * STORAGE_METER_TRUST_RAW_TENANT=1 restores the old behavior for a deployment
+ * that fronts storage-router with its own trusted header-setting proxy.
+ */
+function meteredTenant(user: UserContext): string | undefined {
+  if (user.authMethod !== 'legacy-header') return user.tenantId;
+  return /^(1|true)$/i.test(String(process.env['STORAGE_METER_TRUST_RAW_TENANT'] ?? '').trim())
+    ? user.tenantId
+    : undefined;
 }

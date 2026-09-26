@@ -31,16 +31,24 @@ KPORT="$(docker port mini-baas-kong 8000/tcp 2>/dev/null | head -1 | sed 's/.*:/
 GW="http://localhost:${KPORT:-8000}"
 
 # mongo mount coordinates (from the surfind tenant provisioning)
-MONGO_DBID=""; APP_KEY=""
-[ -f "$ROOT/.surfind-tenant.env" ] && { . "$ROOT/.surfind-tenant.env"; MONGO_DBID="$SURFIND_MONGO_DB_ID"; APP_KEY="$SURFIND_API_KEY"; }
+MONGO_DBID=""
+APP_KEY=""
+[ -f "$ROOT/.surfind-tenant.env" ] && {
+  . "$ROOT/.surfind-tenant.env"
+  MONGO_DBID="$SURFIND_MONGO_DB_ID"
+  APP_KEY="$SURFIND_API_KEY"
+}
 
 A_EMAIL="deep-a@surfind.es"
 B_EMAIL="deep-b@surfind.es"
 VIS_PASS="surf-1234"
 MARK="m161-deep"
 
-ok()   { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
-fail() { printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+ok() { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
+fail() {
+  printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2
+  exit 1
+}
 sect() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
 jget() { python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('$1','') if isinstance(d,dict) else '')"; }
@@ -83,19 +91,24 @@ ok "anon articles=$ART · guías por playa (guia-*)=$GUIA"
 
 # ── (C) auth + surf reports ──────────────────────────────────
 sect "(C) PARTES EN VIVO — feed público, autoría protegida"
-sa=$(signup "$A_EMAIL" "$VIS_PASS"); [ "$sa" = "200" ] || [ "$sa" = "422" ] || fail "visitor A signup → $sa"
-sb=$(signup "$B_EMAIL" "$VIS_PASS"); [ "$sb" = "200" ] || [ "$sb" = "422" ] || fail "visitor B signup → $sb"
+sa=$(signup "$A_EMAIL" "$VIS_PASS")
+[ "$sa" = "200" ] || [ "$sa" = "422" ] || fail "visitor A signup → $sa"
+sb=$(signup "$B_EMAIL" "$VIS_PASS")
+[ "$sb" = "200" ] || [ "$sb" = "422" ] || fail "visitor B signup → $sb"
 ok "self-signup A=$sa · B=$sb"
-ATOK=$(login "$A_EMAIL" "$VIS_PASS"); [ -n "$ATOK" ] || fail "visitor A login failed"
-BTOK=$(login "$B_EMAIL" "$VIS_PASS"); [ -n "$BTOK" ] || fail "visitor B login failed"
-A_SUB=$(sub_of "$ATOK"); B_SUB=$(sub_of "$BTOK")
+ATOK=$(login "$A_EMAIL" "$VIS_PASS")
+[ -n "$ATOK" ] || fail "visitor A login failed"
+BTOK=$(login "$B_EMAIL" "$VIS_PASS")
+[ -n "$BTOK" ] || fail "visitor B login failed"
+A_SUB=$(sub_of "$ATOK")
+B_SUB=$(sub_of "$BTOK")
 ok "login → tokens issued (A · B)"
 
 docker exec "$PG" psql -U postgres -d postgres -tAc \
   "DELETE FROM public.surf_reports WHERE comment='$MARK report'; DELETE FROM public.beach_ratings WHERE user_id IN ('$A_SUB','$B_SUB');" >/dev/null 2>&1 || true
 
-BID=$(curl -s "$GW/rest/v1/beaches?select=id&limit=1" -H "apikey: $ANON" \
-  | python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
+BID=$(curl -s "$GW/rest/v1/beaches?select=id&limit=1" -H "apikey: $ANON" |
+  python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
 [ -n "$BID" ] || fail "no beach id to report on"
 
 RPT=$(curl -s -X POST "$GW/rest/v1/surf_reports" -H "apikey: $ANON" -H "Authorization: Bearer $ATOK" \
@@ -128,8 +141,8 @@ AVG=$(docker exec "$PG" psql -U postgres -d postgres -tAc \
 CNT=$(docker exec "$PG" psql -U postgres -d postgres -tAc \
   "SELECT rating_count FROM public.beaches WHERE id=$BID;" | tr -d ' ')
 [ "${CNT:-0}" -ge 1 ] || fail "trigger did not bump beaches.rating_count for beach $BID (got '$CNT')"
-echo "$AVG" | python3 -c "import sys;v=float(sys.stdin.read().strip() or 0);sys.exit(0 if v>0 else 1)" \
-  || fail "trigger did not set beaches.rating_avg (>0) for beach $BID (got '$AVG')"
+echo "$AVG" | python3 -c "import sys;v=float(sys.stdin.read().strip() or 0);sys.exit(0 if v>0 else 1)" ||
+  fail "trigger did not set beaches.rating_avg (>0) for beach $BID (got '$AVG')"
 ok "A rates beach $BID 5★ → trigger recomputed rating_avg=$AVG rating_count=$CNT"
 
 # ── (E) MongoDB bitácora (owner-scoped) ──────────────────────
@@ -143,8 +156,8 @@ mq() { # body bearer -> raw json
     -H 'Content-Type: application/json' -d "$1"
 }
 INS=$(mq "{\"op\":\"insert\",\"data\":{\"beach_name\":\"$MARK Mundaka\",\"date\":\"2026-06-15\",\"duration_min\":80,\"waves\":\"huecas\",\"board\":\"5'10\",\"swell_m\":2.0,\"wind\":\"offshore\",\"water_temp_c\":\"18\",\"rating\":5,\"tags\":[\"gate\"],\"notes\":\"gate session\",\"mark\":\"$MARK\"}}" "$ATOK")
-echo "$INS" | python3 -c "import sys,json;d=json.load(sys.stdin);sys.exit(0 if d.get('rowCount',len(d.get('rows',[])))>=1 else 1)" \
-  || fail "mongo insert (query-router) failed: $(echo "$INS" | head -c 200)"
+echo "$INS" | python3 -c "import sys,json;d=json.load(sys.stdin);sys.exit(0 if d.get('rowCount',len(d.get('rows',[])))>=1 else 1)" ||
+  fail "mongo insert (query-router) failed: $(echo "$INS" | head -c 200)"
 ok "query-router insert into MongoDB surf_sessions mount → ok"
 A_DOCS=$(mq '{"op":"list","limit":100}' "$ATOK" | python3 -c "import sys,json;d=json.load(sys.stdin);print(sum(1 for r in d.get('rows',[]) if r.get('mark')=='$MARK'))")
 [ "$A_DOCS" -ge 1 ] || fail "visitor A cannot read back their own bitácora doc ($A_DOCS)"

@@ -37,18 +37,21 @@ POOL="${ROOT}/src/data-plane-router/crates/data-plane-pool/src"
 CORE="${ROOT}/src/data-plane-router/crates/data-plane-core/src"
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$*"; }
-fail() { printf '  \033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+fail() {
+  printf '  \033[31m✗ %s\033[0m\n' "$*" >&2
+  exit 1
+}
 step() { printf '\033[1m• %s\033[0m\n' "$*"; }
 
 # need: assert a regex is present in a file, or fail with a clear message.
 need() {
-	grep -Eq "$2" "$1" || fail "$3 (expected /$2/ in ${1#"$ROOT"/})"
+  grep -Eq "$2" "$1" || fail "$3 (expected /$2/ in ${1#"$ROOT"/})"
 }
 
 step "static: engine-agnostic auto_increment_pk selector"
 need "${CORE}/schema_ddl.rs" 'pub fn auto_increment_pk' "auto_increment_pk not defined"
 need "${CORE}/schema_ddl.rs" 'normalized_type == NormalizedType::Integer && c\.default\.is_none\(\)' \
-	"auto_increment_pk must require a default-less integer column"
+  "auto_increment_pk must require a default-less integer column"
 need "${CORE}/lib.rs" 'auto_increment_pk' "auto_increment_pk not re-exported from the crate root"
 pass "auto_increment_pk defined + exported"
 
@@ -64,13 +67,13 @@ pass "postgres IDENTITY · mysql AUTO_INCREMENT · sqlite inline INTEGER PRIMARY
 step "static: guard unit tests present"
 need "${POOL}/postgres/ddl.rs" 'fn pg_ddl_create_table_identity_guards' "postgres identity-guard test missing"
 need "${CORE}/schema_ddl.rs" 'fn auto_increment_pk_fires_only_for_a_single_default_less_int_pk' \
-	"auto_increment_pk unit test missing"
+  "auto_increment_pk unit test missing"
 pass "guard tests present (explicit default / composite / text PK → no auto-increment)"
 
 if [ "${BAAS_VERIFY_LIVE:-0}" != "1" ]; then
-	printf '\n\033[33m! live smoke skipped (set BAAS_VERIFY_LIVE=1)\033[0m\n'
-	printf '\033[32mm181 static checks passed\033[0m\n'
-	exit 0
+  printf '\n\033[33m! live smoke skipped (set BAAS_VERIFY_LIVE=1)\033[0m\n'
+  printf '\033[32mm181 static checks passed\033[0m\n'
+  exit 0
 fi
 
 step "live: id-less insert into a freshly created integer-PK table"
@@ -79,21 +82,24 @@ DBID="${BAAS_SCHEMA_DB_ID:-${AGENCY_DB_ID:-}}"
 KEY="${BAAS_API_KEY:-${AGENCY_SERVICE_APIKEY:-${AGENCY_API_KEY:-}}}"
 KONG="${BAAS_KONG_URL:-${AGENCY_KONG_URL:-http://127.0.0.1:8000}}"
 ANON="${BAAS_ANON_KEY:-${AGENCY_ANON_APIKEY:-}}"
-[ -n "${DBID}" ] && [ -n "${KEY}" ] || { printf '\033[33m! no live mount creds (DBID/KEY) — skipped\033[0m\n'; exit 0; }
+[ -n "${DBID}" ] && [ -n "${KEY}" ] || {
+  printf '\033[33m! no live mount creds (DBID/KEY) — skipped\033[0m\n'
+  exit 0
+}
 
 T="m181_probe_$$"
 hdr=(-H "X-Baas-Api-Key: ${KEY}" -H "Content-Type: application/json")
 [ -n "${ANON}" ] && hdr+=(-H "apikey: ${ANON}")
 
 curl -fsS -X POST "${KONG}/query/v1/${DBID}/schema/ddl" "${hdr[@]}" \
-	-d "{\"op\":\"create_table\",\"table\":\"${T}\",\"columns\":[{\"name\":\"id\",\"normalized_type\":\"integer\",\"nullable\":false,\"default\":null,\"enum_values\":null},{\"name\":\"label\",\"normalized_type\":\"text\",\"nullable\":true,\"default\":null,\"enum_values\":null}],\"primary_key\":[\"id\"]}" \
-	| grep -q '"status":"applied"' || fail "create_table ${T} did not apply"
+  -d "{\"op\":\"create_table\",\"table\":\"${T}\",\"columns\":[{\"name\":\"id\",\"normalized_type\":\"integer\",\"nullable\":false,\"default\":null,\"enum_values\":null},{\"name\":\"label\",\"normalized_type\":\"text\",\"nullable\":true,\"default\":null,\"enum_values\":null}],\"primary_key\":[\"id\"]}" |
+  grep -q '"status":"applied"' || fail "create_table ${T} did not apply"
 
 code=$(curl -s -o /tmp/m181-ins.json -w '%{http_code}' -X POST "${KONG}/query/v1/${DBID}/tables/${T}" "${hdr[@]}" \
-	-d "{\"op\":\"insert\",\"data\":{\"label\":\"auto\"},\"idempotencyKey\":\"m181-${RANDOM}\"}")
+  -d "{\"op\":\"insert\",\"data\":{\"label\":\"auto\"},\"idempotencyKey\":\"m181-${RANDOM}\"}")
 
 curl -fsS -X POST "${KONG}/query/v1/${DBID}/schema/ddl" "${hdr[@]}" \
-	-d "{\"op\":\"drop_table\",\"table\":\"${T}\"}" >/dev/null || true
+  -d "{\"op\":\"drop_table\",\"table\":\"${T}\"}" >/dev/null || true
 
 [ "${code}" = "201" ] || [ "${code}" = "200" ] || fail "id-less insert returned ${code} (expected 201): $(cat /tmp/m181-ins.json)"
 grep -Eq '"id"[[:space:]]*:[[:space:]]*[0-9]+' /tmp/m181-ins.json || fail "insert did not return a generated numeric id: $(cat /tmp/m181-ins.json)"

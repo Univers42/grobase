@@ -135,10 +135,14 @@ fn build_auth_provider(config: &ServerConfig) -> anyhow::Result<Arc<dyn AuthProv
             secret,
             issuer,
             audience,
+            allow_no_issuer,
+            previous_secret,
         } => {
             let mut jwt = realtime_auth::JwtConfig::hmac(secret.clone());
+            jwt.previous_secret.clone_from(previous_secret);
             jwt.issuer.clone_from(issuer);
             jwt.audience.clone_from(audience);
+            jwt.require_issuer = !allow_no_issuer;
             Ok(Arc::new(realtime_auth::JwtAuthProvider::new(&jwt)?))
         }
     }

@@ -15,10 +15,10 @@
 This doc is the **control-matrix half** of the trust story. Its companions:
 [`security-audit-asvs.md`](../security/security-audit-asvs.md) (the full ASVS L1/L2 map + open
 residuals), [`trust-center.md`](../security/trust-center.md) (the public posture page), and the
-**machine-readable** [`config/trust/posture.json`](../../mini-baas-infra/config/trust/posture.json)
+**machine-readable** [`config/trust/posture.json`](../../infra/config/trust/posture.json)
 served at `GET /v1/trust`. If this page and the JSON disagree, **the JSON is canonical.**
 
-**Gate:** [`scripts/verify/m141-compliance-posture.sh`](../../mini-baas-infra/scripts/verify/m141-compliance-posture.sh)
+**Gate:** [`scripts/verify/m141-compliance-posture.sh`](../../scripts/verify/m141-compliance-posture.sh)
 runs this matrix's load-bearing checks live (see §6).
 
 ---
@@ -50,7 +50,7 @@ Status: **`[v]` implemented & gate/CI-proven · `[~]` partial (real, with a name
 
 | Control | ASVS | SOC 2 TSC | GDPR | Status | In-repo evidence |
 |---|---|---|---|---|---|
-| Customer owns deployment + data location (self-host) | V1.1 (SDLC), V14 | CC1.x, **C1.1** | **Art. 28** (processor), **Art. 44–46** (transfers) | `[+]` | Single-binary / Docker self-host; no Grobase-operated subprocessor sees data — `mini-baas-infra/Makefile` editions; `wiki/02-layer-edition-model.md`. Supabase cannot offer customer-owned residency. |
+| Customer owns deployment + data location (self-host) | V1.1 (SDLC), V14 | CC1.x, **C1.1** | **Art. 28** (processor), **Art. 44–46** (transfers) | `[+]` | Single-binary / Docker self-host; no Grobase-operated subprocessor sees data — `orchestrators/makes/00-config.mk` editions; `wiki/architecture/02-layer-edition-model.md`. Supabase cannot offer customer-owned residency. |
 | Single hardened public listener (defence in depth) | V1.14, V14.4 | **CC6.6** | Art. 32 | `[+]` | In-stack **OWASP ModSecurity v3 + CRS** as sole public ingress (`docker/services/waf/Dockerfile`); data plane is server-to-server only. |
 | Per-plane network segmentation | V1.14 | **CC6.6** | Art. 32 | `[v]` | `docker-compose.netseg.yml` isolates the planes onto separate networks (opt-in overlay) — Supabase ships no in-stack segmentation. |
 
@@ -171,9 +171,11 @@ Carried verbatim from [`security-audit-asvs.md`](../security/security-audit-asvs
 never overclaims:
 
 - **G-RS256** — RS256 issuer not flipped (verify side ready; GoTrue still signs HS256). MED, deferred cross-repo.
-- **G-Vault** — Vault not *enforced*; plaintext DSNs possible outside `max`. MED.
-- **G-ReadAudit** — only mutations + denials audited; sensitive reads not yet. LOW.
-- **G-Rotate** — no atomic (no-restart) key-rotation primitive. LOW.
+- **G-Vault** — enforced at `max` (inline DSNs refused, `credential_ref` resolved through Vault, m121); other tiers keep encrypted-at-rest inline DSNs by design. Existing max-tier mounts still need moving to Vault refs (operator). MED.
+- **G-Net** — engines and vault off the app bridge in `make prod-up` (m66); the dev base stays flat; the Helm NetworkPolicies are off until enabled on a cluster. MED.
+- **G-ReadAudit** — reads are audited only when `DATA_PLANE_AUDIT_READS` is on (m72); off by default. LOW.
+- **G-Rotate** — service tokens rotate with an overlap window (m205); `JWT_SECRET` rotation is not built. LOW.
+- **G-Hdr** — adapter-registry identity-header HMAC ships verify-only (flag off); no service signs yet. LOW.
 - **Encryption-at-rest per-tenant**, **public status page / security.txt**, **SIEM shipping** — planned.
 - **No external attestation** (SOC 2 / ISO / HIPAA) — §3.
 
@@ -181,7 +183,7 @@ never overclaims:
 
 ## 6. The gate — how this matrix is kept non-vacuous
 
-[`scripts/verify/m141-compliance-posture.sh`](../../mini-baas-infra/scripts/verify/m141-compliance-posture.sh)
+[`scripts/verify/m141-compliance-posture.sh`](../../scripts/verify/m141-compliance-posture.sh)
 runs the load-bearing checks against a tenant-control built from current source on an
 isolated, throwaway database (it never touches the shared stack):
 
@@ -199,11 +201,11 @@ isolated, throwaway database (it never touches the shared stack):
 Run it:
 
 ```bash
-bash apps/baas/mini-baas-infra/scripts/verify/m141-compliance-posture.sh
+bash scripts/verify/m141-compliance-posture.sh
 ```
 
 > **Naming note.** This gate is `m141-compliance-posture.sh`, the posture-level sibling of
-> [`m104-audit-chain.sh`](../../mini-baas-infra/scripts/verify/m104-audit-chain.sh) (which proves
+> [`m104-audit-chain.sh`](../../scripts/verify/m104-audit-chain.sh) (which proves
 > the chain in depth). m104-audit-chain is the cryptographic spine; m141-compliance-posture
 > proves the **whole posture** — docs + standards mapping + the spine + the GDPR rights surface.
 
@@ -221,5 +223,5 @@ bash apps/baas/mini-baas-infra/scripts/verify/m141-compliance-posture.sh
 - [`security-audit-asvs.md`](../security/security-audit-asvs.md) — full ASVS L1/L2 map + open residuals
 - [`trust-center.md`](../security/trust-center.md) — the public, human-readable posture page
 - [`security-audit.md`](../security/security-audit.md) — the underlying HIGH/MED/LOW findings
-- [`config/trust/posture.json`](../../mini-baas-infra/config/trust/posture.json) — canonical machine-readable posture (`GET /v1/trust`)
+- [`config/trust/posture.json`](../../infra/config/trust/posture.json) — canonical machine-readable posture (`GET /v1/trust`)
 - [`competitive-matrix.md`](../competitive/competitive-matrix.md) — rows 72–76 (the compliance/security cluster)

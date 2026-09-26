@@ -27,13 +27,13 @@ import (
 // do NOT cover.
 func TestExtraBlockedV4_ExactSet(t *testing.T) {
 	wantCIDRs := []string{
-		"100.64.0.0/10",      // CGNAT
-		"192.0.0.0/24",       // IETF protocol assignments
-		"192.0.2.0/24",       // TEST-NET-1
-		"198.18.0.0/15",      // benchmarking
-		"198.51.100.0/24",    // TEST-NET-2
-		"203.0.113.0/24",     // TEST-NET-3
-		"255.255.255.255/32", // limited broadcast
+		"100.64.0.0/10",   // CGNAT
+		"192.0.0.0/24",    // IETF protocol assignments
+		"192.0.2.0/24",    // TEST-NET-1
+		"198.18.0.0/15",   // benchmarking
+		"198.51.100.0/24", // TEST-NET-2
+		"203.0.113.0/24",  // TEST-NET-3
+		"240.0.0.0/4",     // class E, incl. limited broadcast
 	}
 	got := extraBlockedV4()
 	if len(got) != len(wantCIDRs) {
@@ -48,13 +48,13 @@ func TestExtraBlockedV4_ExactSet(t *testing.T) {
 
 	// A sample IP inside each range must be matched by the SSRF predicate.
 	sampleInRange := map[string]string{
-		"100.64.0.0/10":      "100.64.0.1",
-		"192.0.0.0/24":       "192.0.0.5",
-		"192.0.2.0/24":       "192.0.2.10",
-		"198.18.0.0/15":      "198.19.0.1",
-		"198.51.100.0/24":    "198.51.100.7",
-		"203.0.113.0/24":     "203.0.113.42",
-		"255.255.255.255/32": "255.255.255.255",
+		"100.64.0.0/10":   "100.64.0.1",
+		"192.0.0.0/24":    "192.0.0.5",
+		"192.0.2.0/24":    "192.0.2.10",
+		"198.18.0.0/15":   "198.19.0.1",
+		"198.51.100.0/24": "198.51.100.7",
+		"203.0.113.0/24":  "203.0.113.42",
+		"240.0.0.0/4":     "255.255.255.255",
 	}
 	for cidr, sample := range sampleInRange {
 		ip := net.ParseIP(sample)

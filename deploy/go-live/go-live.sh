@@ -23,7 +23,7 @@
 #   0. VALIDATE every REQUIRED env var is present (fail-fast, names the exact one).
 #   1. helm upgrade --install grobase  — the production chart
 #      (deploy/helm/grobase), images/domain/TLS/SMTP/secrets wired from env.
-#   2. FLIP the B-track cloud flags ON  — by projecting config/cloud/flags.env.cloud's
+#   2. FLIP the B-track cloud flags ON  — by projecting infra/config/cloud/flags.env.cloud's
 #      flag NAMES (with the LIVE Stripe key substituted) into the release's env
 #      ConfigMap/Secret. OFF-by-default in code stays the committed baseline; this
 #      turns them ON only for THIS live release.
@@ -56,9 +56,9 @@ set -euo pipefail
 
 # ── locate the repo so the script is runnable from anywhere ──────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # mini-baas-infra
+INFRA_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # repo root
 CHART_DIR="${INFRA_DIR}/deploy/helm/grobase"
-CLOUD_FLAGS="${INFRA_DIR}/config/cloud/flags.env.cloud"
+CLOUD_FLAGS="${INFRA_DIR}/infra/config/cloud/flags.env.cloud"
 
 # ── presentation ─────────────────────────────────────────────────────────────
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
@@ -124,7 +124,7 @@ fi
 [[ -f "${CHART_DIR}/Chart.yaml" ]] ||
   die "production chart not found at ${CHART_DIR} (expected deploy/helm/grobase/Chart.yaml)."
 [[ -f "${CLOUD_FLAGS}" ]] ||
-  die "cloud flags manifest not found at ${CLOUD_FLAGS} (expected config/cloud/flags.env.cloud)."
+  die "cloud flags manifest not found at ${CLOUD_FLAGS} (expected infra/config/cloud/flags.env.cloud)."
 # RS256_PRIVATE_KEY may be a PEM blob or a path to one — accept either, normalise.
 if [[ -f "${RS256_PRIVATE_KEY}" ]]; then RS256_PRIVATE_KEY="$(cat "${RS256_PRIVATE_KEY}")"; fi
 [[ "${RS256_PRIVATE_KEY}" == *"PRIVATE KEY"* || "${RS256_PRIVATE_KEY}" == *'"kty"'* ]] ||
@@ -162,7 +162,7 @@ kubectl_do() { # all args forwarded
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Build the cloud flag overrides from config/cloud/flags.env.cloud.
+# Build the cloud flag overrides from infra/config/cloud/flags.env.cloud.
 #   • Take every FLAG NAME from the committed manifest (the single source of
 #     truth for which flags exist) and project it as a ConfigMap value.
 #   • The secret-bearing values are overridden from the LIVE env:
@@ -221,7 +221,7 @@ declare -a SET_FLAGS=(
 )
 # Cross-check: every cloud-flag NAME we set ON must EXIST in the committed manifest,
 # so this list cannot silently drift from the single source of truth. (A flag with no
-# manifest entry would be a parity lie — kernel rule 4 / config/cloud/README.md.)
+# manifest entry would be a parity lie — kernel rule 4 / infra/config/cloud/README.md.)
 verify_flag_names_match_manifest() {
   local missing=0 name
   for kv in "${SET_FLAGS[@]}"; do
@@ -335,7 +335,7 @@ fi
 #    (A distinct, named step so the runbook maps 1:1 to the launch checklist.)
 # ──────────────────────────────────────────────────────────────────────────────
 step "2/4 cloud B-track flags ON for THIS release (B1 metering · B2 quota[${GO_LIVE_QUOTA_STAGE:-warn}] · B3 billing→LIVE Stripe · B4 self-serve · B5 obs · B6 backup · B7 spend/abuse)"
-note "flags live in the release ConfigMap (${RELEASE}-env) + Secret (${RELEASE}-secrets); the COMMITTED baseline stays OFF/byte-parity (config/cloud/README.md parity statement)."
+note "flags live in the release ConfigMap (${RELEASE}-env) + Secret (${RELEASE}-secrets); the COMMITTED baseline stays OFF/byte-parity (infra/config/cloud/README.md parity statement)."
 note "B2 quota ships at QUOTA_STAGE=${GO_LIVE_QUOTA_STAGE:-warn} (NO 402) — promote to enforce only after it has shadowed (README ladder R4→R5):"
 note "    GO_LIVE_QUOTA_STAGE=enforce GO_LIVE_QUOTA_ENFORCEMENT=1 GO_LIVE_APPLY=1 bash deploy/go-live/go-live.sh"
 ok "cloud flags ON (release-scoped)"

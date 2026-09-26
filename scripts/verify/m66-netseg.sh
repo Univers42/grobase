@@ -1,272 +1,328 @@
 #!/usr/bin/env bash
 # **************************************************************************** #
 #                                                                              #
-#                                                         :::      ::::::::    #
-#    m66-netseg.sh                                      :+:      :+:    :+:    #
-#                                                     +:+ +:+         +:+      #
-#    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
-#                                                 +#+#+#+#+#+   +#+            #
-#    Created: 2026/06/14 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/06/14 00:00:00 by dlesieur         ###   ########.fr        #
+#  m66-netseg.sh — the network-segmentation overlay (G-Net) keeps the public   #
+#  edge and the scrapers away from the engines and vault, and every real       #
+#  engine client can still reach its engine.                                   #
+#                                                                              #
+#  Renders the real services (every profile), no stack needed:                 #
+#    (1) parity: the base alone puts every service on `mini-baas` only         #
+#    (2) with the overlay — on the dev stack and on the prod stack (base +     #
+#        prod overlay + this one, what `make prod-up` runs) — the engines sit  #
+#        on net-data only, vault on net-vault only, postgres keeps alias db;   #
+#        (3) and (4) run on both stacks too                                    #
+#    (3) waf, kong, studio, playground, loki, promtail, functions-runtime,     #
+#        mailpit and minio share no bridge with an engine or vault, and        #
+#        prometheus none with an engine; adapter-registry-go (it trusts an     #
+#        asserted tenant header) is off the app bridge, and net-registry       #
+#        holds only it and kong; studio sits on net-studio alone, pg-meta on   #
+#        net-meta + net-studio, net-studio holds only kong, pg-meta and        #
+#        studio, net-meta only pg-meta and postgres                            #
+#    (4) every client shares a bridge with the engine it dials: each engine    #
+#        host named in a service's own environment/command, plus the edges     #
+#        that live in config files, code defaults or tenant mounts (EDGES)     #
+#  Live, when the running stack was started with the overlay (NETSEG=1):       #
+#    (5) from kong's network namespace postgres and vault are unreachable by   #
+#        IP; from query-router's both connect by name; and a sidecar on the    #
+#        bridge lib-netseg.sh's engine_net picks reaches mongo/dynamodb-local  #
+#        while one on the app bridge does not (vault-seed/-restore use it);    #
+#        an app-bridge sidecar cannot open adapter-registry-go, kong can;      #
+#        neither an app-bridge sidecar nor query-router opens pg-meta or       #
+#        studio, while a net-studio sidecar and kong do                        #
+#  Otherwise (5) prints SKIP.                                                  #
+#                                                                              #
+#  Renders with a digest-pinned compose (M66_COMPOSE_IMAGE; `host` uses the   #
+#  host's, with a warning): compose v2 copies env_file values into            #
+#  .environment and v5 does not, so (4) must see one version to give one       #
+#  verdict. The host compose must still agree on every service's networks.     #
+#  The pinned render sees only the repo's .env, not the shell's environment.   #
+#                                                                              #
+#  Ponytail: (4) finds env/command edges by hostname, so an engine reached     #
+#  through a variable only .env sets (env_file) or a code default is seen      #
+#  only if EDGES lists it — a new such client must be added there. The live    #
+#  stack is the backstop: a missed edge shows as an unhealthy service.         #
 #                                                                              #
 # **************************************************************************** #
-#
-# M66 — per-plane NETWORK SEGMENTATION gate (SLICE A6-net / residual G-Net).
-#
-# WHAT IT PROVES (both arms; the REJECT arm is load-bearing):
-#
-#   (ON / segmented)  Stand up — in an ISOLATED $$-scratch with a UNIQUE compose
-#     project + uniquely-named bridges on /mnt/storage — the EXACT plane
-#     topology docker-compose.netseg.yml encodes: net-edge (public), net-control,
-#     net-data (engines, internal-only), net-observ. Lightweight alpine:3.20
-#     stand-ins sit on the same bridges the overlay assigns to the real services
-#     (the network wiring IS the security control under test; the engine binary
-#     behind the socket is irrelevant to whether a bridge permits the packet).
-#       · REJECT (must FAIL): a container on net-edge (the public WAF/kong slot)
-#         opens a raw TCP socket to the data-plane engine postgres:5432 →
-#         REFUSED/timeout (real `nc -z` non-zero). Same for an net-observ
-#         container → postgres:5432. The public edge CANNOT reach internal data.
-#       · ALLOW (must SUCCEED): the query-router stand-in — dual-attached to
-#         edge+control+data, the one legal front-door — reaches BOTH
-#         adapter-registry-go:3021 (control) AND postgres:5432 (data). The legal
-#         path still connects.
-#     A gate that only proved the ALLOW arm would be VACUOUS — the whole point is
-#     that a connection that SHOULD be blocked is REFUSED. We read the real
-#     socket exit codes, never a self-reported value.
-#
-#   (OFF / PARITY)  The live default topology is UNTOUCHED. `docker compose
-#     config` of the base ALONE still renders exactly ONE network `mini-baas`
-#     and every service attached to it; composing the overlay only ADDS the
-#     net-* bridges (strict superset) and never removes `mini-baas`. off-is-
-#     parity: not composing the overlay => byte-identical live boot/topology.
-#
-# Docker-first, self-contained: pinned alpine:3.20 (no host tools), scratch on
-# /mnt/storage, UNIQUE project/network names suffixed with $$ (NEVER mini-baas-*),
-# EXIT-trap teardown. Does NOT touch the live mini-baas-* stack. NO co-author.
-
-set -euo pipefail
-
+set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)" # apps/baas/mini-baas-infra
-ROOT_DIR="$(cd "${BAAS_DIR}/.." && pwd)"      # apps/baas
-CLAUDE_DIR="$(cd "${ROOT_DIR}/.claude" && pwd)"
-BASE_COMPOSE="${BAAS_DIR}/docker-compose.yml"
-NETSEG_COMPOSE="${BAAS_DIR}/docker-compose.netseg.yml"
-
+ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+OVERLAY="${M66_OVERLAY:-${ROOT}/orchestrators/compose/docker-compose.netseg.yml}"
+PROD="${ROOT}/orchestrators/compose/docker-compose.prod.yml"
+ENGINES="postgres mysql mariadb cockroach mssql mongo redis dynamodb-local"
+UNTRUSTED="waf kong studio playground loki promtail functions-runtime mailpit minio"
+ROUTERS="query-router data-plane-router-rust adapter-registry-go"
+REGISTRY="adapter-registry-go"
+REGISTRY_CLIENTS="query-router data-plane-router-rust tenant-control schema-service kong prometheus"
+EDGES="debezium>postgres debezium>redis trino>postgres trino>mysql trino>mongo
+grafana>postgres db-bootstrap>postgres pg-meta>postgres pg-migrate>postgres storage-router>redis
+outbox-relay>redis tenant-control>postgres vault-init>vault prometheus>vault studio>pg-meta kong>pg-meta"
+BUSYBOX="busybox:1.36"
+COMPOSE_IMAGE="${M66_COMPOSE_IMAGE:-docker:29-cli@sha256:018edbc908e08fcc9dbf029c812c34251e9b4719e6f71ca0e5eae2a987d014ca}"
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
-green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
-red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
-yellow() { printf '\033[0;33m%s\033[0m\n' "$*"; }
 step() { cyan "[M66] $*"; }
-ok() { green "  ✓ $*"; }
+ok() { printf '\033[0;32m  ✓ %s\033[0m\n' "$*"; }
 fail() {
-  red "[M66] FAIL — $*"
+  printf '\033[0;31m[M66] FAIL — %s\033[0m\n' "$*" >&2
   exit 1
 }
 
-PINNED_IMG="alpine:3.20"
+WORK="$(mktemp -d)"
+trap 'rm -rf "${WORK}"' EXIT
 
-# ── unique, collision-proof identifiers (NEVER mini-baas-*) ─────────────────
-SUFFIX="$$-$(date +%s)"
-PROJECT="m66netseg-${SUFFIX}"
-PREFIX="m66ns-${SUFFIX}"
-SCRATCH_BASE="${NETSEG_SCRATCH_BASE:-/mnt/storage/bench}"
-SCRATCH="${SCRATCH_BASE}/m66-netseg-${SUFFIX}"
-SCRATCH_COMPOSE="${SCRATCH}/docker-compose.scratch.yml"
-
-# ── EXIT-trap cleanup (always) ──────────────────────────────────────────────
-cleanup() {
-  set +e
-  [[ -f "${SCRATCH_COMPOSE}" ]] &&
-    docker compose -p "${PROJECT}" -f "${SCRATCH_COMPOSE}" down -v --remove-orphans \
-      --timeout 5 >/dev/null 2>&1
-  # belt-and-braces: kill anything still carrying our unique project label
-  docker ps -aq --filter "label=com.docker.compose.project=${PROJECT}" 2>/dev/null |
-    xargs -r docker rm -f >/dev/null 2>&1
-  docker network ls -q --filter "name=${PREFIX}-" 2>/dev/null |
-    xargs -r docker network rm >/dev/null 2>&1
-  rm -rf "${SCRATCH}" 2>/dev/null
-}
-trap cleanup EXIT INT TERM
-
-# ── preflight ───────────────────────────────────────────────────────────────
-step "preflight"
-command -v docker >/dev/null 2>&1 || fail "docker not on PATH"
-docker info >/dev/null 2>&1 || fail "docker daemon unreachable"
-[[ -f "${BASE_COMPOSE}" ]] || fail "base compose missing: ${BASE_COMPOSE}"
-[[ -f "${NETSEG_COMPOSE}" ]] || fail "overlay missing: ${NETSEG_COMPOSE}"
-docker image inspect "${PINNED_IMG}" >/dev/null 2>&1 ||
-  docker pull "${PINNED_IMG}" >/dev/null 2>&1 ||
-  fail "pinned image ${PINNED_IMG} unavailable (offline?)"
-mkdir -p "${SCRATCH}" || fail "cannot create scratch ${SCRATCH} (run: sudo install -d -o \$USER ${SCRATCH_BASE})"
-ok "docker up · base+overlay present · ${PINNED_IMG} present · scratch ${SCRATCH}"
-
-# ═════════════════════════════════════════════════════════════════════════════
-# ARM 1 — OFF / PARITY: the live default topology is byte-untouched
-# ═════════════════════════════════════════════════════════════════════════════
-step "ARM 1 (OFF/PARITY) — base compose default network is unchanged"
-
-# The base, on its own, must render exactly one network: mini-baas. We render
-# with the observability profile ON so the net-observ-bearing services are in
-# scope for the SUPERSET check below (compose config only emits networks that an
-# in-scope service references); the base still must show ONLY mini-baas.
-BASE_NETS="$(COMPOSE_PROFILES=observability docker compose -f "${BASE_COMPOSE}" config 2>/dev/null |
-  awk '/^networks:/{f=1;next} f&&/^[a-z]/{f=0} f&&/^  [a-z]/{gsub(/:/,"");print $1}' |
-  sort -u)"
-[[ -n "${BASE_NETS}" ]] || fail "could not read base networks (compose config failed)"
-if [[ "$(printf '%s\n' "${BASE_NETS}")" != "mini-baas" ]]; then
-  red "base networks rendered: ${BASE_NETS//$'\n'/ }"
-  fail "base compose no longer renders ONLY 'mini-baas' — parity broken"
-fi
-ok "base renders exactly ONE network: mini-baas (live topology intact)"
-
-# Composing the overlay must be a strict SUPERSET: mini-baas still present, plus
-# the four net-* bridges. The overlay must NOT remove the flat bridge.
-MERGED_NETS="$(COMPOSE_PROFILES=observability docker compose -f "${BASE_COMPOSE}" -f "${NETSEG_COMPOSE}" config 2>/dev/null |
-  awk '/^networks:/{f=1;next} f&&/^[a-z]/{f=0} f&&/^  [a-z]/{gsub(/:/,"");print $1}' |
-  sort -u)"
-echo "${MERGED_NETS}" | grep -qx "mini-baas" || fail "overlay DROPPED mini-baas (would break parity)"
-echo "${MERGED_NETS}" | grep -qx "net-edge" || fail "overlay missing net-edge bridge"
-echo "${MERGED_NETS}" | grep -qx "net-control" || fail "overlay missing net-control bridge"
-echo "${MERGED_NETS}" | grep -qx "net-data" || fail "overlay missing net-data bridge"
-echo "${MERGED_NETS}" | grep -qx "net-observ" || fail "overlay missing net-observ bridge"
-ok "overlay is additive: mini-baas kept + net-{edge,control,data,observ} added"
-
-# The internal-only data/control bridges must be declared internal:true so the
-# engines have NO host/WAN egress under segmentation.
-grep -A3 'net-data:' "${NETSEG_COMPOSE}" | grep -q 'internal: true' || fail "net-data not internal:true"
-grep -A3 'net-control:' "${NETSEG_COMPOSE}" | grep -q 'internal: true' || fail "net-control not internal:true"
-ok "net-data + net-control declared internal:true (no engine WAN egress)"
-
-# ═════════════════════════════════════════════════════════════════════════════
-# Build the ISOLATED scratch topology (the overlay's plane wiring, no escape net)
-# ═════════════════════════════════════════════════════════════════════════════
-step "ARM 2 (ON) — stand up the segmented plane topology on isolated bridges"
-
-# Idle-but-listening engine stand-ins: a TCP listener on the engine's real port
-# (postgres 5432, adapter-registry 3021) proves a SOCKET either opens or is
-# refused PURELY because of bridge membership — the segmentation control under
-# test. nc -lk keeps the socket alive for repeat probes.
-cat >"${SCRATCH_COMPOSE}" <<YAML
-# generated by m66-netseg.sh — throwaway; mirrors docker-compose.netseg.yml planes
-name: ${PROJECT}
-
-networks:
-  net-edge:
-    driver: bridge
-    name: ${PREFIX}-edge
-  net-control:
-    driver: bridge
-    name: ${PREFIX}-control
-    internal: true
-  net-data:
-    driver: bridge
-    name: ${PREFIX}-data
-    internal: true
-  net-observ:
-    driver: bridge
-    name: ${PREFIX}-observ
-    internal: true
-
-services:
-  # ── data plane (internal-only): engine stand-ins listening on real ports ──
-  postgres:
-    image: ${PINNED_IMG}
-    command: ["sh","-c","exec nc -lk -p 5432 -e /bin/true"]
-    networks: [net-data]
-  adapter-registry-go:
-    image: ${PINNED_IMG}
-    command: ["sh","-c","exec nc -lk -p 3021 -e /bin/true"]
-    networks: [net-control, net-data]   # control svc that fronts the engines
-
-  # ── front-door router: the ONLY legal edge→data path (dual-attached) ──────
-  query-router:
-    image: ${PINNED_IMG}
-    command: ["sh","-c","sleep 600"]
-    networks: [net-edge, net-control, net-data]
-
-  # ── public edge (must NOT reach the engines) ──────────────────────────────
-  kong:
-    image: ${PINNED_IMG}
-    command: ["sh","-c","sleep 600"]
-    networks: [net-edge]
-
-  # ── observability (scrape-only dead-end; must NOT reach the engines) ───────
-  prometheus:
-    image: ${PINNED_IMG}
-    command: ["sh","-c","sleep 600"]
-    networks: [net-observ]
-YAML
-
-docker compose -p "${PROJECT}" -f "${SCRATCH_COMPOSE}" up -d >/dev/null 2>&1 ||
-  fail "scratch topology failed to come up"
-# let the nc listeners bind
-for _ in 1 2 3 4 5 6 7 8 9 10; do
-  if docker compose -p "${PROJECT}" -f "${SCRATCH_COMPOSE}" exec -T query-router \
-    nc -z -w 1 postgres 5432 >/dev/null 2>&1; then break; fi
-  sleep 1
-done
-ok "segmented topology up (project ${PROJECT}, bridges ${PREFIX}-{edge,control,data,observ})"
-
-# helper: run a TCP probe FROM a service container; returns nc's real exit code
-probe() { # <from-svc> <host> <port>
-  docker compose -p "${PROJECT}" -f "${SCRATCH_COMPOSE}" exec -T "$1" \
-    nc -z -w 3 "$2" "$3" >/dev/null 2>&1
+# compose runs `docker compose $@` from COMPOSE_IMAGE with ROOT mounted read-only
+# at its own path, or from the host when COMPOSE_IMAGE is `host`.
+compose() {
+  if [ "${COMPOSE_IMAGE}" = host ]; then
+    docker compose "$@"
+    return
+  fi
+  docker run --rm -v "${ROOT}:${ROOT}:ro" -w "${ROOT}" "${COMPOSE_IMAGE}" docker compose "$@"
 }
 
-# ── ALLOW arm: the legal front-door connects to control AND data ─────────────
-step "ARM 2a (ALLOW) — query-router (edge+control+data) reaches control & data"
-probe query-router adapter-registry-go 3021 ||
-  fail "ALLOW arm broken: query-router CANNOT reach adapter-registry-go:3021"
-ok "query-router → adapter-registry-go:3021 CONNECTS (legal control edge)"
-probe query-router postgres 5432 ||
-  fail "ALLOW arm broken: query-router CANNOT reach postgres:5432"
-ok "query-router → postgres:5432 CONNECTS (legal data edge via front-door)"
+# render writes the merged config of the compose files $@ to stdout as JSON,
+# and the tail of compose's stderr to ours when it fails. The pinned compose
+# sees only ROOT, so a file outside it is refused.
+render() {
+  local files=() f
+  for f in "$@"; do
+    f="$(realpath -e "${f}")" || fail "compose file $f does not exist"
+    [ "${COMPOSE_IMAGE}" = host ] || [ "${f#"${ROOT}"/}" != "${f}" ] ||
+      fail "${f} is outside ${ROOT}; the pinned compose only sees the repo (M66_COMPOSE_IMAGE=host renders it)"
+    files+=(-f "${f}")
+  done
+  compose "${files[@]}" --profile '*' config --no-env-resolution --format json 2>"${WORK}/render.err" && return
+  tail -n 5 "${WORK}/render.err" | sed 's/^/    /' >&2
+  return 1
+}
 
-# ── REJECT arm (LOAD-BEARING): public edge & observ CANNOT reach the engine ──
-step "ARM 2b (REJECT) — public edge & observability are REFUSED at the data plane"
-if probe kong postgres 5432; then
-  fail "SEGMENTATION FAILED: public-edge 'kong' OPENED a socket to postgres:5432 (must be refused)"
+# networks prints each service's networks and aliases from config $1, sorted.
+networks() {
+  jq -S '.services | map_values(.networks // {} | map_values((. // {}).aliases // [] | sort))' "$1"
+}
+
+# same_networks re-renders compose files $2… with the host's compose and checks
+# every service lands on the same networks as in the pinned render $1. The
+# network placement (2)-(3) does not depend on which compose renders it; only
+# the env scan (4) does.
+same_networks() {
+  local pinned="$1" v
+  shift
+  [ "${COMPOSE_IMAGE}" != host ] || return 0
+  v="$(docker compose version --short 2>/dev/null)"
+  COMPOSE_IMAGE=host render "$@" >"${WORK}/host.json" 2>/dev/null || {
+    printf '  SKIP: the host compose %s cannot render these files\n' "${v:-(none)}"
+    return 0
+  }
+  [ "$(networks "${pinned}")" = "$(networks "${WORK}/host.json")" ] ||
+    fail "the host compose ${v} places services on other networks than ${COMPOSE_IMAGE}"
+  ok "the host compose ${v} puts every service on the same networks"
+}
+
+# nets prints the sorted, comma-joined networks of service $1 in config $2.
+nets() {
+  jq -r --arg s "$1" '.services[$s].networks // {} | keys | sort | join(",")' "$2"
+}
+
+# share reports whether services $1 and $2 have a network in common in $3.
+share() {
+  jq -e --arg a "$1" --arg b "$2" '(.services[$a].networks // {} | keys) as $x
+    | (.services[$b].networks // {} | keys) | any(. as $n | $x | index($n))' "$3" >/dev/null
+}
+
+# declared_edges prints "client>engine" for every engine host (or container
+# name) that a service's own environment, command or entrypoint names as a URL
+# host (//host, @host) or as host:port.
+declared_edges() {
+  jq -r --arg e "${ENGINES} vault" '($e | split(" ")) as $eng
+    | .services as $s | [$s | to_entries[] | {k: .key, n: (.value.container_name // .key)}] as $names
+    | $s | to_entries[] | .key as $c
+    | ([(.value.environment // {})[] | tostring] + [.value.command // "", .value.entrypoint // "" | tostring] | join(" ")) as $t
+    | $names[] | select((.k | IN($eng[])) and .k != $c)
+    | "(//|@)(\(.k)|\(.n))([:/]|$)|(^|[ ,=\"])(\(.k)|\(.n)):[0-9]+" as $re | select($t | test($re)) | "\($c)>\(.k)"' "$1" | sort -u
+}
+
+parity() {
+  local bad
+  render "${ROOT}/docker-compose.yml" >"${WORK}/base.json" || fail "base compose does not render"
+  bad="$(jq -r '.services | to_entries[] | select((.value.networks // {} | keys) != ["mini-baas"]) | .key' "${WORK}/base.json")"
+  [ -z "${bad}" ] || fail "base puts these services off the flat bridge: ${bad//$'\n'/ }"
+  [ "$(jq -r '.networks | keys | join(",")' "${WORK}/base.json")" = mini-baas ] || fail "base defines networks besides mini-baas"
+  ok "(1) base alone: $(jq '.services | length' "${WORK}/base.json") services, all on mini-baas only"
+}
+
+# placement checks the engines and vault sit only on their own bridge in $1.
+placement() {
+  local e
+  for e in ${ENGINES/postgres/}; do
+    [ "$(nets "${e}" "$1")" = net-data ] || fail "${e} is on '$(nets "${e}" "$1")', want net-data only"
+  done
+  [ "$(nets postgres "$1")" = net-data,net-meta ] || fail "postgres is on '$(nets postgres "$1")', want net-data,net-meta"
+  [ "$(nets vault "$1")" = net-vault ] || fail "vault is on '$(nets vault "$1")', want net-vault only"
+  jq -e '.services.postgres.networks | (.["net-data"].aliases | index("db")) and (.["net-meta"].aliases | index("db"))' "$1" >/dev/null ||
+    fail "postgres lost its db alias on net-data or net-meta"
+  ok "(2) engines on net-data only (postgres also net-meta), vault on net-vault only, postgres keeps alias db"
+}
+
+# isolation checks no untrusted service shares a bridge with an engine or vault in $1.
+isolation() {
+  local u e
+  for u in ${UNTRUSTED}; do
+    for e in ${ENGINES} vault; do
+      ! share "${u}" "${e}" "$1" || fail "${u} shares a bridge with ${e}"
+    done
+  done
+  for e in ${ENGINES}; do
+    ! share prometheus "${e}" "$1" || fail "prometheus shares a bridge with ${e}"
+  done
+  ok "(3) $(wc -w <<<"${UNTRUSTED}") edge/observability/sandbox services reach no engine or vault; prometheus no engine"
+  registry "$1"
+}
+
+# registry checks adapter-registry-go (unauthenticated mount register/list for
+# any asserted tenant) is off the app bridge and that net-registry holds only it
+# and kong, so a service joined to mini-baas alone can never reach it.
+registry() {
+  local got
+  got="$(nets "${REGISTRY}" "$1")"
+  [ "${got}" = net-data,net-registry,net-vault ] || fail "${REGISTRY} is on '${got}', want net-data,net-registry,net-vault"
+  got="$(jq -r '[.services | to_entries[] | select(.value.networks // {} | has("net-registry")) | .key] | sort | join(",")' "$1")"
+  [ "${got}" = "${REGISTRY},kong" ] || fail "net-registry holds '${got}', want ${REGISTRY},kong only"
+  ok "(3) ${REGISTRY} is off the app bridge; net-registry holds only it and kong"
+  admin_ui "$1"
+}
+
+# members prints the sorted, comma-joined services on network $1 in config $2.
+members() {
+  jq -r --arg n "$1" '[.services | to_entries[] | select(.value.networks // {} | has($n)) | .key] | sort | join(",")' "$2"
+}
+
+# admin_ui checks studio (no login) and pg-meta (superuser SQL) are off the app
+# bridge and net-data, each on a bridge only its callers share, in config $1.
+admin_ui() {
+  [ "$(nets studio "$1")" = net-studio ] || fail "studio is on '$(nets studio "$1")', want net-studio only"
+  [ "$(nets pg-meta "$1")" = net-meta,net-studio ] || fail "pg-meta is on '$(nets pg-meta "$1")', want net-meta,net-studio"
+  [ "$(members net-studio "$1")" = kong,pg-meta,studio ] || fail "net-studio holds '$(members net-studio "$1")', want kong,pg-meta,studio"
+  [ "$(members net-meta "$1")" = pg-meta,postgres ] || fail "net-meta holds '$(members net-meta "$1")', want pg-meta,postgres"
+  ok "(3) studio and pg-meta are off the app bridge and net-data; net-studio = kong,pg-meta,studio; net-meta = pg-meta,postgres"
+}
+
+# reachability checks every client shares a bridge with the engine it dials in $1.
+reachability() {
+  local n=0 r e c
+  {
+    declared_edges "$1"
+    printf '%s\n' ${EDGES}
+    for r in ${ROUTERS}; do for e in ${ENGINES} vault; do echo "${r}>${e}"; done; done
+    for c in ${REGISTRY_CLIENTS}; do echo "${c}>${REGISTRY}"; done
+  } | sort -u >"${WORK}/edges" || fail "edge scan failed"
+  [ "$(declared_edges "$1" | wc -l)" -ge 20 ] || fail "env/command scan found under 20 edges — broken?"
+  while IFS='>' read -r c e; do
+    share "${c}" "${e}" "$1" || fail "${c} dials ${e} but shares no bridge with it"
+    n=$((n + 1))
+  done <"${WORK}/edges"
+  ok "(4) all ${n} client→engine/vault edges share a bridge"
+}
+
+# probe runs nc -z from the network namespace of container $1 to $2:$3.
+probe() {
+  docker run --rm --net "container:$1" "${BUSYBOX}" nc -z -w 3 "$2" "$3" >/dev/null 2>&1
+}
+
+# ip_on prints container $1's address on the network whose name ends in $2.
+ip_on() {
+  docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{$v.IPAddress}}{{"\n"}}{{end}}' "$1" 2>/dev/null |
+    awk -v n="$2" '$1 ~ (n "$") { print $2 }'
+}
+
+live() {
+  local pg vault
+  docker inspect mini-baas-postgres >/dev/null 2>&1 && pg="$(ip_on mini-baas-postgres _net-data)" && [ -n "${pg}" ] || {
+    printf '  SKIP (5): no running stack started with the overlay (make up NETSEG=1)\n'
+    return 0
+  }
+  vault="$(ip_on mini-baas-vault _net-vault)"
+  ! probe mini-baas-kong "${pg}" 5432 || fail "kong reaches postgres (${pg}:5432)"
+  [ -z "${vault}" ] || ! probe mini-baas-kong "${vault}" 8200 || fail "kong reaches vault (${vault}:8200)"
+  probe mini-baas-query-router postgres 5432 || fail "query-router cannot reach postgres:5432"
+  [ -z "${vault}" ] || probe mini-baas-query-router vault 8200 || fail "query-router cannot reach vault:8200"
+  ok "(5) live: kong → postgres${vault:+/vault} refused by IP; query-router → postgres${vault:+/vault} connects"
+  sidecars
+  live_registry
+  live_admin_ui pg-meta 8080
+  live_admin_ui studio 3000
+}
+
+# live_admin_ui checks admin service $1 (port $2), when running, is refused to an
+# app-bridge sidecar and to query-router (net-data) by IP, and reached by a
+# net-studio sidecar and by kong by name.
+live_admin_ui() {
+  local c="mini-baas-$1" ip
+  docker inspect "${c}" >/dev/null 2>&1 || return 0
+  ip="$(ip_on "${c}" _net-studio)"
+  [ -n "${ip}" ] || fail "${c} is not on net-studio"
+  ! docker run --rm --network mini-baas_mini-baas "${BUSYBOX}" nc -z -w 3 "${ip}" "$2" >/dev/null 2>&1 ||
+    fail "a sidecar on the app bridge reaches ${c} (${ip}:$2)"
+  ! probe mini-baas-query-router "${ip}" "$2" || fail "query-router reaches ${c} (${ip}:$2)"
+  docker run --rm --network mini-baas_net-studio "${BUSYBOX}" nc -z -w 3 "$1" "$2" >/dev/null 2>&1 ||
+    fail "a sidecar on net-studio cannot reach $1:$2 (the refusals above prove nothing)"
+  probe mini-baas-kong "$1" "$2" || fail "kong cannot reach $1:$2"
+  ok "(5) live: an app-bridge sidecar and query-router cannot open $1:$2; a net-studio sidecar and kong reach it"
+}
+
+# live_registry checks a sidecar on the app bridge cannot open adapter-registry-go
+# by IP while kong and query-router reach it by name (when it is running).
+live_registry() {
+  local c="mini-baas-${REGISTRY}" ip
+  docker inspect "${c}" >/dev/null 2>&1 || return 0
+  ip="$(ip_on "${c}" _net-registry)"
+  [ -n "${ip}" ] || fail "${c} is not on net-registry"
+  ! docker run --rm --network mini-baas_mini-baas "${BUSYBOX}" nc -z -w 3 "${ip}" 3021 >/dev/null 2>&1 ||
+    fail "a sidecar on the app bridge reaches ${c} (${ip}:3021)"
+  probe mini-baas-kong "${REGISTRY}" 3021 || fail "kong cannot reach ${REGISTRY}:3021"
+  probe mini-baas-query-router "${REGISTRY}" 3021 || fail "query-router cannot reach ${REGISTRY}:3021"
+  ok "(5) live: an app-bridge sidecar cannot open ${REGISTRY}:3021; kong and query-router reach it"
+}
+
+# sidecars checks engine_net sends an engine sidecar to a bridge that reaches
+# mongo and dynamodb-local (when running) and that the app bridge does not.
+sidecars() {
+  local spec c port net
+  . "${ROOT}/scripts/lib/lib-netseg.sh"
+  for spec in mongo:27017 dynamodb-local:8000; do
+    c="mini-baas-${spec%%:*}" port="${spec##*:}"
+    docker inspect "${c}" >/dev/null 2>&1 || continue
+    net="$(engine_net "${c}" mini-baas_mini-baas)"
+    docker run --rm --network "${net}" "${BUSYBOX}" nc -z -w 3 "${c}" "${port}" >/dev/null 2>&1 ||
+      fail "a sidecar on ${net} (engine_net) cannot reach ${c}:${port}"
+    ! docker run --rm --network mini-baas_mini-baas "${BUSYBOX}" nc -z -w 3 "${c}" "${port}" >/dev/null 2>&1 ||
+      fail "${c} is still reachable from the app bridge"
+    ok "(5) engine_net sends ${c} sidecars to ${net}; the app bridge cannot reach it"
+  done
+}
+
+# segmented renders compose files $2… to $1 and runs (2)–(4) on it.
+segmented() {
+  local out="$1"
+  shift
+  render "$@" >"${out}" || fail "$* does not render"
+  same_networks "${out}" "$@"
+  placement "${out}"
+  isolation "${out}"
+  reachability "${out}"
+}
+
+if [ "${COMPOSE_IMAGE}" = host ]; then
+  printf '\033[0;33m[M66] WARN — rendering with the host compose %s: (4) scans env_file values on compose v2, not on v5\033[0m\n' \
+    "$(docker compose version --short 2>/dev/null)" >&2
+else
+  step "rendering with compose $(compose version --short) from ${COMPOSE_IMAGE%@*}"
 fi
-ok "kong (net-edge) → postgres:5432 REFUSED/timeout (public edge cannot reach data)"
-
-if probe prometheus postgres 5432; then
-  fail "SEGMENTATION FAILED: observability 'prometheus' OPENED a socket to postgres:5432 (must be refused)"
-fi
-ok "prometheus (net-observ) → postgres:5432 REFUSED/timeout (observ cannot reach data)"
-
-# negative control: kong also cannot reach the control plane registry it has no
-# bridge to — confirms the refusal is bridge membership, not a dead listener.
-if probe kong adapter-registry-go 3021; then
-  fail "SEGMENTATION FAILED: kong (net-edge) reached adapter-registry-go:3021 (control plane)"
-fi
-ok "kong (net-edge) → adapter-registry-go:3021 REFUSED (edge ↛ control)"
-
-# sanity: prove the postgres listener IS alive (so the REJECTs above are
-# segmentation, not a dead socket) — already proven by the ALLOW arm connecting.
-ok "REJECTs are segmentation (listener proven live by the ALLOW arm) — not a dead socket"
-
-# ═════════════════════════════════════════════════════════════════════════════
-# VERDICT
-# ═════════════════════════════════════════════════════════════════════════════
-step "verdict"
-green "[M66] ALL GATES GREEN — per-plane network segmentation PROVEN:"
-green "  · OFF/PARITY: base renders ONLY 'mini-baas'; overlay is additive superset (live topology byte-untouched)"
-green "  · ON/ALLOW : query-router front-door reaches control (adapter-registry-go:3021) + data (postgres:5432)"
-green "  · ON/REJECT: public edge (kong) AND observability (prometheus) are REFUSED at postgres:5432 — internal data unreachable from the public edge"
-
-# ── log PASS via the team helper (JSONL, never hand-rolled) ──────────────────
-if [[ -f "${CLAUDE_DIR}/lib/log.sh" ]]; then
-  (
-    cd "${CLAUDE_DIR}" &&
-      AGENT_RUN="m66-${SUFFIX}" AGENT_TASK="a6-net-segmentation" \
-        AGENT_ROLE="tester" AGENT_PHASE="PROVE" \
-        bash -c 'source lib/log.sh
-         log_event REPORT --outcome PASS --gate m66=PASS \
-           --msg "per-plane netseg proven: public-edge/observ REFUSED at postgres:5432, query-router front-door ALLOWED; base topology byte-parity (off-is-parity)" \
-           --data "{\"reject\":[\"kong->postgres:5432\",\"prometheus->postgres:5432\",\"kong->adapter-registry-go:3021\"],\"allow\":[\"query-router->adapter-registry-go:3021\",\"query-router->postgres:5432\"],\"parity\":\"base=mini-baas only; overlay additive\"}"'
-  ) >/dev/null 2>&1 || yellow "  · log.sh emit skipped (non-fatal)"
-fi
-
-green "[M66] PASS"
-exit 0
+step "static: the real services' networks with and without the overlay"
+parity
+step "dev stack: base + overlay"
+segmented "${WORK}/dev.json" "${ROOT}/docker-compose.yml" "${OVERLAY}"
+step "prod stack: base + prod overlay + overlay (make prod-up)"
+segmented "${WORK}/prod.json" "${ROOT}/docker-compose.yml" "${PROD}" "${OVERLAY}"
+step "live: the running stack, if segmented"
+live
+printf '\033[0;32m[M66] OK — engines and vault are off the app bridge; every client still reaches them, the edge does not\033[0m\n'

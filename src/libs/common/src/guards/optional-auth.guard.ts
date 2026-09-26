@@ -20,9 +20,9 @@ import { identityToUserContext, resolveRequestIdentity } from '../identity/reque
  */
 @Injectable()
 export class OptionalAuthGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<Request>();
-    const identity = resolveRequestIdentity(req, false);
+    const identity = await resolveRequestIdentity(req, false);
     if (!identity) {
       req.identity = undefined;
       req.user = undefined;

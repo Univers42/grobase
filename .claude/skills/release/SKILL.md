@@ -3,7 +3,6 @@ name: release
 description: >
   Cut a release. Auto-triggers on: "release", "cut a version",
   "publish", "tag a release"
-tools: Read, Write, Bash
 ---
 
 # Release

@@ -285,7 +285,7 @@ step "2/9 boot tenant-control ORG_MODEL_ENABLED=1 on 127.0.0.1:${PORT_ON} (A · 
 docker run -d --name "${TC_ON}" --network "${NET}" \
   -e DATABASE_URL="${DB_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
-  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e ORG_MODEL_ENABLED=1 \
   -e ADAPTER_REGISTRY_URL="" \
   -e TENANT_CONTROL_PORT=3020 \
@@ -444,7 +444,7 @@ step "8/9 (C · PARITY) flag-OFF routes 404 + base admin 200 + the CRITICAL data
 docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e DATABASE_URL="${DB_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
-  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e TENANT_CONTROL_PORT=3020 \
   -e TENANT_CONTROL_PRODUCT_MODE=enabled \
   -e LOG_LEVEL=debug \

@@ -1,0 +1,147 @@
+# File: .github/workflows/mini-baas-security.yml
+# Security scanning — every job reuses the repo's own scanner scripts, so a local
+# `make test-scan` / `make audit-deps` and CI give the same verdict. The
+# `security-gate` job aggregates them: any scanner that is not green fails it.
+name: Security
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 1'
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Hardcoded secrets in the working tree: grep patterns + gitleaks (.gitleaks.toml).
+  gitleaks:
+    name: Secrets in the tree (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - run: bash scripts/ci/check-secrets.sh
+
+  # LIVE credentials anywhere in git history. Only verified (still-valid) secrets
+  # count, so this stays red until a leaked credential is revoked at its issuer.
+  trufflehog:
+    name: Verified secrets in git history (trufflehog)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: bash scripts/security/run-security-scans.sh --only=trufflehog
+
+  # SAST: fails on any ERROR-severity finding; WARNINGs are reported, not fatal.
+  semgrep:
+    name: SAST (semgrep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - run: bash scripts/security/run-security-scans.sh --only=semgrep
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: semgrep-${{ github.run_id }}
+          path: artifacts/security/semgrep.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # SCA over the lockfiles: HIGH/CRITICAL with a fix available (.trivyignore holds
+  # the one dated residual).
+  trivy:
+    name: Dependency CVEs in lockfiles (trivy fs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - run: bash scripts/security/run-security-scans.sh --only=trivy
+        env:
+          SKIP_BUILD: '1'
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: trivy-fs-${{ github.run_id }}
+          path: artifacts/security/trivy/trivy-fs.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Rust (cargo-audit, data-plane-router Cargo.lock) + Go (govulncheck, reachability).
+  deps:
+    name: Dependency advisories (cargo-audit + govulncheck)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - run: make audit-deps
+
+  # DAST: ZAP's passive baseline against the gateway of a stack built from this
+  # commit. FAIL-level alerts fail the job; WARN-level ones are reported (-I).
+  zap:
+    name: DAST baseline (zap)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Boot the core stack from this commit
+        run: |
+          set -euo pipefail
+          bash scripts/env/assemble-env.sh
+          bash scripts/certs/generate-localhost-cert.sh
+          docker compose -f docker-compose.yml up -d --build
+          for _ in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/auth/v1/health \
+              -H "apikey: $(grep '^KONG_PUBLIC_API_KEY=' .env | cut -d= -f2-)" || echo 000)
+            [ "$code" = 200 ] && exit 0
+            sleep 5
+          done
+          echo "::error title=zap::gateway never became healthy"; exit 1
+      - name: ZAP baseline scan
+        run: |
+          mkdir -p zap && chmod 777 zap
+          docker run --rm --network host -v "$PWD/zap:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t http://localhost:8000/ -I -m 2 -J zap.json -r zap.html
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: zap-${{ github.run_id }}
+          path: zap/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The blocking aggregate: red unless every scanner above is green.
+  security-gate:
+    name: security-gate
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [gitleaks, trufflehog, semgrep, trivy, deps, zap]
+    steps:
+      - name: Every scanner green
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          bad=$(echo "$RESULTS" | jq -r '[to_entries[] | select(.value.result != "success") | .key] | join(" ")')
+          [ -z "$bad" ] || { echo "::error title=security-gate::not green: $bad"; exit 1; }

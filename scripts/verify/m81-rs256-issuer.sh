@@ -85,11 +85,20 @@ ISSUER="https://m81-issuer.test/auth/v1"
 DSN_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 JWKS_INNET="http://${SIGNER}:8080/.well-known/jwks.json"
 TC_INNET="http://${TC}:3022"
-SCRATCH="/mnt/storage/bench/m81-$$" # host-side temp on the BIG disk only
+SCRATCH="${M81_SCRATCH:-${TMPDIR:-/tmp}/m81-$$}"
 BODY="${SCRATCH}/body.json"
 HDRS="${SCRATCH}/hdrs.txt"
 KONG_YML="${SCRATCH}/kong.yml"
 SIGNER_JS="${SCRIPT_DIR}/m81-front-signer/signer.mjs"
+
+# tc_logged reports whether tenant-control's log holds pattern $1. It reads the
+# whole log first: `docker logs | grep -q` fails under pipefail when grep quits
+# early and docker logs dies of SIGPIPE.
+tc_logged() {
+  local logs
+  logs="$(docker logs "${TC}" 2>&1)"
+  grep -q "$1" <<<"${logs}"
+}
 
 cleanup() {
   docker rm -fv "${KONG}" "${TC}" "${PG}" "${SIGNER}" >/dev/null 2>&1 || true
@@ -99,7 +108,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "${SCRATCH}" || fail "cannot create scratch ${SCRATCH} on /mnt/storage (line: mkdir SCRATCH)"
+mkdir -p "${SCRATCH}" || fail "cannot create scratch ${SCRATCH} (M81_SCRATCH picks another dir)"
 [[ -f "${SIGNER_JS}" ]] || fail "front-signer ${SIGNER_JS} missing — the gate needs the real RS256 issuer (line: SIGNER_JS check)"
 
 # ── 0) build the scratch tenant-control image FROM CURRENT SOURCE ──────────────
@@ -234,7 +243,7 @@ docker run -d --name "${TC}" --network "${NET}" \
 # not just the port, so we never race ahead of a crash.
 TC_READY=""
 for i in $(seq 1 80); do
-  if docker logs "${TC}" 2>&1 | grep -q '"msg":"listening"'; then
+  if tc_logged '"msg":"listening"'; then
     TC_READY=1
     break
   fi
@@ -251,7 +260,7 @@ for i in $(seq 1 80); do
 done
 [[ -n "${TC_READY}" ]] || fail "tenant-control readiness not confirmed (line: TC_READY)"
 # It must have come up in RS256 mode — the verifier-enabled line names the issuer.
-docker logs "${TC}" 2>&1 | grep -q '"msg":"jwt verifier enabled"' || {
+tc_logged '"msg":"jwt verifier enabled"' || {
   docker logs "${TC}" 2>&1 | tail -20
   fail "tenant-control did not enable the jwt verifier (line: TC verifier log)"
 }

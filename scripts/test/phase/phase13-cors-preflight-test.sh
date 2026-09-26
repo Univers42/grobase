@@ -62,19 +62,6 @@ fail() {
   return 0
 }
 
-check_header() {
-  local name="$1"
-  local header="$2"
-  local response="$3"
-
-  if echo "$response" | grep -qi "^$header:"; then
-    pass "$name"
-  else
-    fail "$name" "$MSG_HDR_NOT_FOUND"
-  fi
-  return 0
-}
-
 ui_banner "Phase 13 Test Suite" "CORS Preflight and Cross-Origin Requests"
 ui_kv "Gateway URL" "$BASE_URL"
 ui_kv "Test focus" "CORS headers and preflight handling"

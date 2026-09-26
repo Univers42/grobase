@@ -23,9 +23,9 @@
 import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response, NextFunction } from 'express';
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import * as http from 'node:http';
 import { signIdentityEnvelope } from '../identity/request-identity';
+import { bearerToken, verifyUserJwt } from '../identity/user-jwt';
 import { serviceAuthHeaders } from '../security/service-auth';
 
 interface VerifyResponse {
@@ -65,6 +65,9 @@ export class ApiKeyMiddleware implements NestMiddleware {
   // GoTrue HS256 secret — verifies a user Bearer JWT for per-user owner-scoping.
   // Empty (unset) → the user-JWT branch is inert and the app key stays the owner.
   private readonly jwtSecret: string;
+  private readonly jwtSecretPrev: string;
+  // JWT_ALLOW_NO_EXP=1 is the opt-out that re-admits a user JWT with no `exp` (M-3).
+  private readonly allowNoExp: boolean;
 
   constructor(config: ConfigService) {
     // internal/loopback only — not externally exposed
@@ -79,7 +82,9 @@ export class ApiKeyMiddleware implements NestMiddleware {
     this.cacheTtlMs = Number(config.get('API_KEY_VERIFY_CACHE_TTL_MS', '30000'));
     this.jwtSecret =
       config.get<string>('GOTRUE_JWT_SECRET', '') || config.get<string>('JWT_SECRET', '');
+    this.jwtSecretPrev = config.get<string>('JWT_SECRET_PREV', '');
     this.agent = new http.Agent({ keepAlive: false });
+    this.allowNoExp = /^(1|true)$/i.test(String(config.get('JWT_ALLOW_NO_EXP', '')).trim());
   }
 
   async use(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -173,33 +178,14 @@ export class ApiKeyMiddleware implements NestMiddleware {
       userId: `api-key:${verify.key_id ?? ''}`,
       role: 'authenticated',
     };
-    const auth = pickHeader(req, 'authorization');
-    if (!auth || !auth.toLowerCase().startsWith('bearer ') || !this.jwtSecret) return fallback;
-    const claims = this.verifyUserJwt(auth.slice(7).trim());
+    const token = bearerToken(pickHeader(req, 'authorization'));
+    if (!token) return fallback;
+    const claims = verifyUserJwt(token, this.jwtSecret, {
+      allowNoExp: this.allowNoExp,
+      previousSecret: this.jwtSecretPrev,
+    });
     if (!claims?.sub) return fallback;
     return { userId: `user:${claims.sub}`, role: claims.role || 'authenticated' };
-  }
-
-  /**
-   * Verify a GoTrue HS256 JWT against jwtSecret and return its claims, or null
-   * if the signature/format is invalid or the token is expired. Stdlib-only
-   * (HMAC-SHA256 + constant-time compare) — no jsonwebtoken dependency.
-   */
-  private verifyUserJwt(token: string): { sub?: string; role?: string } | null {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const [h, p, sig] = parts;
-    const expected = createHmac('sha256', this.jwtSecret).update(`${h}.${p}`).digest('base64url');
-    const a = Buffer.from(sig);
-    const b = Buffer.from(expected);
-    if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-    try {
-      const claims = JSON.parse(Buffer.from(p, 'base64url').toString('utf8'));
-      if (typeof claims.exp === 'number' && claims.exp * 1000 < Date.now()) return null;
-      return claims;
-    } catch {
-      return null;
-    }
   }
 
   /**

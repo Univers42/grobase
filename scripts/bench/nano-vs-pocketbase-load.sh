@@ -41,7 +41,7 @@ OHA_IMG="ghcr.io/hatoo/oha:latest"
 cleanup() {
   docker rm -fv load-nano load-pb >/dev/null 2>&1 || true
   docker volume rm -f load-nano-data >/dev/null 2>&1 || true
-  docker run --rm -v "${WORK}:/w" public.ecr.aws/docker/library/alpine:3.20 \
+  docker run --rm -v "${WORK}:/w" mirror.gcr.io/library/alpine:3.20 \
     sh -c 'rm -rf /w/pb_data /w/pb_migrations' >/dev/null 2>&1 || true
   rm -rf "${WORK}"
 }
@@ -75,7 +75,7 @@ curl -sL -o "${WORK}/pb.zip" \
   "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_linux_amd64.zip"
 (cd "${WORK}" && unzip -oq pb.zip)
 docker run -d --name load-pb -p "${PB_PORT}:8090" -v "${WORK}:/pb" \
-  public.ecr.aws/docker/library/alpine:3.20 \
+  mirror.gcr.io/library/alpine:3.20 \
   /pb/pocketbase serve --http 0.0.0.0:8090 --dir /pb/pb_data >/dev/null
 PB="http://127.0.0.1:${PB_PORT}"
 
@@ -111,17 +111,17 @@ PB_INS_BODY='{"title":"load"}'
 declare -A R # R[system,op,c] = "rps p50 p95 p99"
 for c in 1 16 64; do
   cyan "[load] c=${c} insert ${DUR} each"
-  R[nano,ins,$c]=$(oha -z "${DUR}" -c "${c}" -m POST \
+  R[nano, ins, $c]=$(oha -z "${DUR}" -c "${c}" -m POST \
     -H "X-Baas-Api-Key: ${NK}" -H "Content-Type: application/json" \
     -d "${NANO_INS_BODY}" "${NANO}/data/v1/query" | parse)
-  R[pb,ins,$c]=$(oha -z "${DUR}" -c "${c}" -m POST \
+  R[pb, ins, $c]=$(oha -z "${DUR}" -c "${c}" -m POST \
     -H "Authorization: ${PB_TOKEN}" -H "Content-Type: application/json" \
     -d "${PB_INS_BODY}" "${PB}/api/collections/bench/records" | parse)
   cyan "[load] c=${c} list(30) ${DUR} each"
-  R[nano,list,$c]=$(oha -z "${DUR}" -c "${c}" -m POST \
+  R[nano, list, $c]=$(oha -z "${DUR}" -c "${c}" -m POST \
     -H "X-Baas-Api-Key: ${NK}" -H "Content-Type: application/json" \
     -d "${NANO_LIST_BODY}" "${NANO}/data/v1/query" | parse)
-  R[pb,list,$c]=$(oha -z "${DUR}" -c "${c}" \
+  R[pb, list, $c]=$(oha -z "${DUR}" -c "${c}" \
     -H "Authorization: ${PB_TOKEN}" \
     "${PB}/api/collections/bench/records?perPage=30&skipTotal=1" | parse)
 done
@@ -149,7 +149,7 @@ NANO_BIG=$(oha -n "${BIG_N}" -c 64 -m POST -H "X-Baas-Api-Key: ${NK}" -H "Conten
   -d "${NANO_INS_BODY}" "${NANO}/data/v1/query" | parse)
 PB_BIG=$(oha -n "${BIG_N}" -c 64 -m POST -H "Authorization: ${PB_TOKEN}" -H "Content-Type: application/json" \
   -d "${PB_INS_BODY}" "${PB}/api/collections/bench/records" | parse)
-NANO_DISK=$(docker run --rm -v load-nano-data:/d public.ecr.aws/docker/library/alpine:3.20 du -sk /d | awk '{printf "%.1f MB", $1/1024}')
+NANO_DISK=$(docker run --rm -v load-nano-data:/d mirror.gcr.io/library/alpine:3.20 du -sk /d | awk '{printf "%.1f MB", $1/1024}')
 PB_DISK=$(docker exec load-pb du -sk /pb/pb_data | awk '{printf "%.1f MB", $1/1024}')
 
 # ── boot-to-first-200 ────────────────────────────────────────────────────────
@@ -167,8 +167,8 @@ PB_BOOT=$(boot_ms load-pb "${PB}/api/health")
 # ── report ───────────────────────────────────────────────────────────────────
 row() { # label key
   local n p
-  read -ra n <<<"${R[nano,$2,$3]}"
-  read -ra p <<<"${R[pb,$2,$3]}"
+  read -ra n <<<"${R[nano, $2, $3]}"
+  read -ra p <<<"${R[pb, $2, $3]}"
   printf '  %-22s %9s %7s %7s %7s   %9s %7s %7s %7s\n' \
     "$1" "${n[0]}" "${n[1]}" "${n[2]}" "${n[3]}" "${p[0]}" "${p[1]}" "${p[2]}" "${p[3]}"
 }
@@ -191,8 +191,8 @@ python3 - "$PB_VERSION" "$DUR" "$BIG_N" <<EOF >artifacts/nano-vs-pocketbase-load
 import json, sys, datetime
 R = {
 $(for c in 1 16 64; do for op in ins list; do
-  echo "  (\"nano\",\"$op\",$c): \"${R[nano,$op,$c]}\","
-  echo "  (\"pb\",\"$op\",$c): \"${R[pb,$op,$c]}\","
+  echo "  (\"nano\",\"$op\",$c): \"${R[nano, $op, $c]}\","
+  echo "  (\"pb\",\"$op\",$c): \"${R[pb, $op, $c]}\","
 done; done)
 }
 def unpack(s):

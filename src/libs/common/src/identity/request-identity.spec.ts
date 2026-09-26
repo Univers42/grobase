@@ -1,14 +1,20 @@
 // `@jest/globals` (bundled with jest) provides the typings — the monorepo does
 // not ship `@types/jest`, so the globals must be imported explicitly.
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
-import { UnauthorizedException } from '@nestjs/common';
+import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import {
   canonicalIdentityString,
+  identityToUserContext,
   resolveRequestIdentity,
   signIdentityEnvelope,
 } from './request-identity';
 import type { VerifiedRequestIdentity } from '../interfaces/user-context.interface';
+import { AuthGuard } from '../guards/auth.guard';
+import { OptionalAuthGuard } from '../guards/optional-auth.guard';
+import { ServiceTokenGuard } from '../guards/service-token.guard';
+import { NonceSetClient, RedisNonceStore } from './nonce-store';
 
 // Security harness for the signed identity envelope — the trust boundary that
 // lets strict-mode services accept a caller's tenant/user/role. We exercise:
@@ -72,7 +78,7 @@ afterEach(() => {
 });
 
 describe('signIdentityEnvelope + resolveRequestIdentity (round-trip)', () => {
-  it('a freshly signed envelope verifies and yields the stamped identity', () => {
+  it('a freshly signed envelope verifies and yields the stamped identity', async () => {
     const req = reqWith({});
     const headers = signIdentityEnvelope(req, {
       tenantId: 't-1',
@@ -82,7 +88,7 @@ describe('signIdentityEnvelope + resolveRequestIdentity (round-trip)', () => {
       scopes: ['read', 'write'],
     });
     const verifyReq = reqWith(headers);
-    const identity = resolveRequestIdentity(verifyReq, true);
+    const identity = await resolveRequestIdentity(verifyReq, true);
     expect(identity).toBeDefined();
     expect(identity?.tenantId).toBe('t-1');
     expect(identity?.userId).toBe('api-key:abc');
@@ -105,7 +111,7 @@ describe('signIdentityEnvelope + resolveRequestIdentity (round-trip)', () => {
   });
 
   // signature is bound to method+path: replaying it on a different route fails.
-  it('an envelope signed for one path does not verify on another (path binding)', () => {
+  it('an envelope signed for one path does not verify on another (path binding)', async () => {
     const signed = signIdentityEnvelope(reqWith({}), {
       tenantId: 't-1',
       userId: 'u',
@@ -118,7 +124,31 @@ describe('signIdentityEnvelope + resolveRequestIdentity (round-trip)', () => {
       url: '/query/v1/db-1/OTHER',
       originalUrl: '/query/v1/db-1/OTHER',
     };
-    expect(() => resolveRequestIdentity(otherPath, true)).toThrow(UnauthorizedException);
+    await expect(resolveRequestIdentity(otherPath, true)).rejects.toThrow(UnauthorizedException);
+  });
+
+  // Privilege escalation: ApiKeyMiddleware signs an envelope for whoever presents
+  // a valid api key and assigns it onto the SAME req the client controlled, so any
+  // header the envelope does not overwrite survives into the verified identity.
+  // roleNames reaches RolesGuard + the ABAC PDP; scopes reaches the api-key admin
+  // short-circuit — neither may be client-supplied.
+  it('a client-supplied x-baas-roles / x-baas-scopes cannot survive envelope signing', async () => {
+    const req = reqWith({
+      'x-baas-roles': 'service_role',
+      'x-baas-scopes': 'admin',
+    });
+    const envelope = signIdentityEnvelope(req, {
+      tenantId: 't-1',
+      userId: 'api-key:abc',
+      role: 'authenticated',
+      appId: 'api-key',
+      scopes: [],
+    });
+    for (const [name, value] of Object.entries(envelope)) req.headers[name] = value;
+
+    const identity = await resolveRequestIdentity(req, true);
+    expect(identity?.roleNames).toEqual(['authenticated']);
+    expect(identity?.scopes).toEqual([]);
   });
 });
 
@@ -148,9 +178,9 @@ function signedHeaders(
 }
 
 describe('signed-envelope integrity (HMAC tamper detection)', () => {
-  it('accepts a correctly-signed envelope', () => {
+  it('accepts a correctly-signed envelope', async () => {
     const req = reqWith({});
-    const id = resolveRequestIdentity(reqWith(signedHeaders(req)), true);
+    const id = await resolveRequestIdentity(reqWith(signedHeaders(req)), true);
     expect(id?.tenantId).toBe('t-1');
   });
 
@@ -163,11 +193,17 @@ describe('signed-envelope integrity (HMAC tamper detection)', () => {
     ['x-baas-issued-at', String(Date.now() + 5)],
     ['x-baas-nonce', randomUUID()],
     ['x-baas-project-id', 'other-project'],
+    // authorization inputs, not just identity: roleNames feeds RolesGuard and the
+    // ABAC PDP, scopes feeds the api-key admin short-circuit in query.service.
+    ['x-baas-scopes', 'admin'],
+    ['x-baas-roles', 'service_role'],
   ];
-  it.each(tamperFields)('rejects envelope with tampered %s', (field, value) => {
+  it.each(tamperFields)('rejects envelope with tampered %s', async (field, value) => {
     const req = reqWith({});
     const headers = signedHeaders(req, { [field]: value });
-    expect(() => resolveRequestIdentity(reqWith(headers), true)).toThrow(UnauthorizedException);
+    await expect(resolveRequestIdentity(reqWith(headers), true)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   // forged / malformed signatures
@@ -183,19 +219,23 @@ describe('signed-envelope integrity (HMAC tamper detection)', () => {
     'v1=' + 'a'.repeat(63), // 63 chars (odd length)
     'v1=' + 'a'.repeat(128), // overlong
   ];
-  it.each(badSignatures)('rejects malformed/forged signature %p', (sig) => {
+  it.each(badSignatures)('rejects malformed/forged signature %p', async (sig) => {
     const headers = signedHeaders(reqWith({}), { 'x-baas-signature': sig });
-    expect(() => resolveRequestIdentity(reqWith(headers), true)).toThrow(UnauthorizedException);
+    await expect(resolveRequestIdentity(reqWith(headers), true)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
-  it('rejects when no signing key is configured server-side', () => {
+  it('rejects when no signing key is configured server-side', async () => {
     const headers = signedHeaders(reqWith({}));
     delete process.env.INTERNAL_IDENTITY_HMAC_KEYS;
     delete process.env.INTERNAL_IDENTITY_HMAC_SECRET;
-    expect(() => resolveRequestIdentity(reqWith(headers), true)).toThrow(UnauthorizedException);
+    await expect(resolveRequestIdentity(reqWith(headers), true)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
-  it('a signature from an UNKNOWN key is rejected', () => {
+  it('a signature from an UNKNOWN key is rejected', async () => {
     const req = reqWith({});
     const iat = String(Date.now());
     const nonce = randomUUID();
@@ -208,12 +248,35 @@ describe('signed-envelope integrity (HMAC tamper detection)', () => {
       'x-baas-nonce': nonce,
       'x-baas-signature': `v1=${sig}`,
     };
-    expect(() => resolveRequestIdentity(reqWith(headers), true)).toThrow(UnauthorizedException);
+    await expect(resolveRequestIdentity(reqWith(headers), true)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 });
 
 describe('signed-envelope freshness & replay protection', () => {
-  it('rejects a stale issued-at outside the skew window', () => {
+  it.each(['abc', '-5', 'Infinity'])(
+    'a malformed skew %p falls back to the default window, never disables it',
+    async (skew) => {
+      process.env.INTERNAL_IDENTITY_MAX_SKEW_MS = skew;
+      const req = reqWith({});
+      const iat = String(Date.now() - 3_600_000);
+      const nonce = randomUUID();
+      const canonical = canonicalIdentityString(req, baseIdentity(), iat, nonce);
+      const sig = createHmac('sha256', SECRET).update(canonical).digest('hex');
+      const headers = {
+        ...signedHeaders(req),
+        'x-baas-issued-at': iat,
+        'x-baas-nonce': nonce,
+        'x-baas-signature': `v1=${sig}`,
+      };
+      await expect(resolveRequestIdentity(reqWith(headers), true)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    },
+  );
+
+  it('rejects a stale issued-at outside the skew window', async () => {
     process.env.INTERNAL_IDENTITY_MAX_SKEW_MS = '1000';
     const req = reqWith({});
     const id = baseIdentity();
@@ -227,11 +290,13 @@ describe('signed-envelope freshness & replay protection', () => {
       'x-baas-nonce': nonce,
       'x-baas-signature': `v1=${sig}`,
     };
-    expect(() => resolveRequestIdentity(reqWith(headers), true)).toThrow(UnauthorizedException);
+    await expect(resolveRequestIdentity(reqWith(headers), true)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   const badIat = ['not-a-number', '', 'NaN', 'Infinity', '1e999'];
-  it.each(badIat)('rejects non-finite issued-at %p', (iat) => {
+  it.each(badIat)('rejects non-finite issued-at %p', async (iat) => {
     const req = reqWith({});
     const id = baseIdentity();
     const nonce = randomUUID();
@@ -243,16 +308,18 @@ describe('signed-envelope freshness & replay protection', () => {
       'x-baas-nonce': nonce,
       'x-baas-signature': `v1=${sig}`,
     };
-    expect(() => resolveRequestIdentity(reqWith(headers), true)).toThrow(UnauthorizedException);
+    await expect(resolveRequestIdentity(reqWith(headers), true)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
-  it('rejects a replayed nonce (same envelope cannot be used twice)', () => {
+  it('rejects a replayed nonce (same envelope cannot be used twice)', async () => {
     const req = reqWith({});
     const headers = signedHeaders(req);
     // first use succeeds
-    expect(resolveRequestIdentity(reqWith(headers), true)?.tenantId).toBe('t-1');
+    expect((await resolveRequestIdentity(reqWith(headers), true))?.tenantId).toBe('t-1');
     // identical headers again → replay
-    expect(() => resolveRequestIdentity(reqWith({ ...headers }), true)).toThrow(
+    await expect(resolveRequestIdentity(reqWith({ ...headers }), true)).rejects.toThrow(
       UnauthorizedException,
     );
   });
@@ -267,47 +334,292 @@ describe('signed-envelope required-header enforcement', () => {
     'x-baas-issued-at',
     'x-baas-nonce',
   ];
-  it.each(requiredHeaders)('rejects an envelope missing %s', (missing) => {
+  it.each(requiredHeaders)('rejects an envelope missing %s', async (missing) => {
     const headers = signedHeaders(reqWith({}));
     delete headers[missing];
-    expect(() => resolveRequestIdentity(reqWith(headers), true)).toThrow(UnauthorizedException);
+    await expect(resolveRequestIdentity(reqWith(headers), true)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 });
 
 describe('raw (unsigned) identity headers — strict vs compat', () => {
-  it('STRICT mode rejects raw x-user-id headers (no signature)', () => {
+  it('STRICT mode rejects raw x-user-id headers (no signature)', async () => {
     process.env.IDENTITY_HEADER_MODE = 'strict';
     const req = reqWith({ 'x-user-id': 'u-1', 'x-baas-tenant-id': 't-1' });
-    expect(() => resolveRequestIdentity(req, true)).toThrow(UnauthorizedException);
+    await expect(resolveRequestIdentity(req, true)).rejects.toThrow(UnauthorizedException);
   });
 
-  it('COMPAT mode accepts raw x-user-id headers (legacy path)', () => {
+  it('COMPAT mode accepts raw x-user-id headers (legacy path)', async () => {
     process.env.IDENTITY_HEADER_MODE = 'compat';
     const req = reqWith({
       'x-user-id': 'u-1',
       'x-baas-tenant-id': 't-1',
       'x-user-role': 'authenticated',
     });
-    const id = resolveRequestIdentity(req, true);
+    const id = await resolveRequestIdentity(req, true);
     expect(id?.userId).toBe('u-1');
     expect(id?.tenantId).toBe('t-1');
     expect(id?.authMethod).toBe('legacy-header');
   });
 
-  it('production defaults to strict (NODE_ENV=production, no explicit mode)', () => {
+  it('production defaults to strict (NODE_ENV=production, no explicit mode)', async () => {
     delete process.env.IDENTITY_HEADER_MODE;
     process.env.NODE_ENV = 'production';
     const req = reqWith({ 'x-user-id': 'u-1', 'x-baas-tenant-id': 't-1' });
-    expect(() => resolveRequestIdentity(req, true)).toThrow(UnauthorizedException);
+    await expect(resolveRequestIdentity(req, true)).rejects.toThrow(UnauthorizedException);
   });
 
-  it('throws when identity is required but entirely absent', () => {
+  it('throws when identity is required but entirely absent', async () => {
     process.env.IDENTITY_HEADER_MODE = 'strict';
-    expect(() => resolveRequestIdentity(reqWith({}), true)).toThrow(UnauthorizedException);
+    await expect(resolveRequestIdentity(reqWith({}), true)).rejects.toThrow(UnauthorizedException);
   });
 
-  it('returns undefined when identity is optional and absent (no throw)', () => {
+  it('returns undefined when identity is optional and absent (no throw)', async () => {
     process.env.IDENTITY_HEADER_MODE = 'strict';
-    expect(resolveRequestIdentity(reqWith({}), false)).toBeUndefined();
+    await expect(resolveRequestIdentity(reqWith({}), false)).resolves.toBeUndefined();
+  });
+});
+
+// H-14: the replay cache is a NonceStore port. A Redis-backed store is shared by
+// every replica, so an envelope accepted by one replica is a replay on another.
+function sharedRedis(): NonceSetClient {
+  const keys = new Set<string>();
+  return {
+    set: async (key) => {
+      if (keys.has(key)) return null;
+      keys.add(key);
+      return 'OK';
+    },
+  };
+}
+
+describe('signed-envelope replay across replicas (shared NonceStore)', () => {
+  it('a nonce accepted by replica A is rejected by replica B', async () => {
+    const client = sharedRedis();
+    const replicaA = new RedisNonceStore(client);
+    const replicaB = new RedisNonceStore(client);
+    const headers = signedHeaders(reqWith({}));
+    const first = await resolveRequestIdentity(reqWith(headers), true, replicaA);
+    expect(first?.tenantId).toBe('t-1');
+    await expect(resolveRequestIdentity(reqWith({ ...headers }), true, replicaB)).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('fails CLOSED (401) when the nonce store errors', async () => {
+    const broken = new RedisNonceStore({
+      set: async () => {
+        throw new Error('ECONNREFUSED');
+      },
+    });
+    const headers = signedHeaders(reqWith({}));
+    await expect(resolveRequestIdentity(reqWith(headers), true, broken)).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+});
+
+function httpContext(req: FakeReq): ExecutionContext {
+  return { switchToHttp: () => ({ getRequest: () => req }) } as unknown as ExecutionContext;
+}
+
+function noServiceToken(): ConfigService {
+  return { get: () => undefined } as unknown as ConfigService;
+}
+
+describe('guards reject a replayed envelope (no missed await)', () => {
+  const guards: Array<[string, () => { canActivate(ctx: ExecutionContext): unknown }]> = [
+    ['AuthGuard', () => new AuthGuard()],
+    ['OptionalAuthGuard', () => new OptionalAuthGuard()],
+    ['ServiceTokenGuard', () => new ServiceTokenGuard(noServiceToken())],
+  ];
+  it.each(guards)('%s.canActivate: first use passes, replay is 401', async (_name, make) => {
+    const guard = make();
+    const headers = signedHeaders(reqWith({}));
+    const firstReq = reqWith(headers);
+    await expect(Promise.resolve(guard.canActivate(httpContext(firstReq)))).resolves.toBe(true);
+    expect((firstReq as FakeReq & { identity?: VerifiedRequestIdentity }).identity?.tenantId).toBe(
+      't-1',
+    );
+    const replay = Promise.resolve().then(() => guard.canActivate(httpContext(reqWith(headers))));
+    await expect(replay).rejects.toThrow(UnauthorizedException);
+  });
+});
+
+// H-19: the bearer-JWT identity path. Until it existed, only the api-key route
+// had a signer, so strict mode would have 401'd every JWT caller — the reason
+// production stayed on compat. These tests pin BOTH halves: that the new path
+// verifies a GoTrue token cryptographically, and that it stays inert in compat
+// mode unless opted in, so today's baseline is byte-identical.
+const JWT_SECRET = randomBytes(24).toString('hex');
+const ISSUER = 'https://localhost:8443/auth/v1';
+
+function mintJwt(claims: Record<string, unknown>, secret: string = JWT_SECRET): string {
+  const part = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const body = `${part({ alg: 'HS256', typ: 'JWT' })}.${part({
+    exp: Math.floor(Date.now() / 1000) + 600,
+    iss: ISSUER,
+    ...claims,
+  })}`;
+  return `${body}.${createHmac('sha256', secret).update(body).digest('base64url')}`;
+}
+
+function bearerReq(token: string, extra: Record<string, string> = {}): FakeReq {
+  return reqWith({ authorization: `Bearer ${token}`, ...extra });
+}
+
+describe('bearer-JWT identity path (H-19)', () => {
+  beforeEach(() => {
+    process.env.GOTRUE_JWT_SECRET = JWT_SECRET;
+    process.env.GOTRUE_JWT_ISSUER = ISSUER;
+    delete process.env.IDENTITY_JWT_BEARER_ENABLED;
+    delete process.env.JWT_ALLOW_NO_ISSUER;
+  });
+
+  it('COMPAT mode ignores a bearer JWT unless opted in (byte-parity default)', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'compat';
+    const req = bearerReq(mintJwt({ sub: 'u-9', role: 'authenticated' }));
+    await expect(resolveRequestIdentity(req, true)).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('COMPAT + IDENTITY_JWT_BEARER_ENABLED accepts a verified bearer JWT', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'compat';
+    process.env.IDENTITY_JWT_BEARER_ENABLED = '1';
+    const req = bearerReq(
+      mintJwt({ sub: 'u-9', role: 'authenticated', app_metadata: { tenant_id: 't-7' } }),
+    );
+    const id = await resolveRequestIdentity(req, true);
+    expect(id?.authMethod).toBe('jwt');
+    expect(id?.userId).toBe('u-9');
+    expect(id?.tenantId).toBe('t-7');
+  });
+
+  it('COMPAT keeps legacy headers winning, so existing traffic is unchanged', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'compat';
+    process.env.IDENTITY_JWT_BEARER_ENABLED = '1';
+    const req = bearerReq(mintJwt({ sub: 'u-9', app_metadata: { tenant_id: 't-7' } }), {
+      'x-user-id': 'u-1',
+      'x-baas-tenant-id': 't-1',
+    });
+    const id = await resolveRequestIdentity(req, true);
+    expect(id?.authMethod).toBe('legacy-header');
+    expect(id?.tenantId).toBe('t-1');
+  });
+
+  it('STRICT mode accepts the JWT and IGNORES the raw headers Kong sets', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    const req = bearerReq(mintJwt({ sub: 'u-9', app_metadata: { tenant_id: 't-7' } }), {
+      'x-user-id': 'spoofed',
+      'x-baas-tenant-id': 'other-tenant',
+      'x-user-role': 'service_role',
+    });
+    const id = await resolveRequestIdentity(req, true);
+    expect(id?.authMethod).toBe('jwt');
+    expect(id?.userId).toBe('u-9');
+    expect(id?.tenantId).toBe('t-7');
+    expect(id?.role).toBe('authenticated');
+  });
+
+  it('gives a Kong-forwarded user the SAME context in strict as in compat', async () => {
+    const sub = randomUUID();
+    const token = mintJwt({ sub, role: 'authenticated', email: 'p@example.test' });
+    const kongHeaders = { 'x-user-id': sub, 'x-user-role': 'authenticated' };
+    process.env.IDENTITY_HEADER_MODE = 'compat';
+    const legacy = await resolveRequestIdentity(bearerReq(token, kongHeaders), true);
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    const jwt = await resolveRequestIdentity(bearerReq(token, kongHeaders), true);
+    const owned = (id: VerifiedRequestIdentity | undefined) => {
+      const { id: userId, tenantId, projectId, appId, role } = identityToUserContext(id!);
+      return { userId, tenantId, projectId, appId, role };
+    };
+    expect(legacy?.authMethod).toBe('legacy-header');
+    expect(jwt?.authMethod).toBe('jwt');
+    expect(owned(jwt)).toEqual(owned(legacy));
+  });
+
+  it('falls back to sub as the tenant when app_metadata carries none', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    const id = await resolveRequestIdentity(bearerReq(mintJwt({ sub: 'u-9' })), true);
+    expect(id?.tenantId).toBe('u-9');
+    expect(id?.projectId).toBe('u-9');
+  });
+
+  it('a client-supplied x-baas-roles / x-baas-scopes never reaches a jwt identity', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    const req = bearerReq(mintJwt({ sub: 'u-9' }), {
+      'x-baas-roles': 'service_role',
+      'x-baas-scopes': 'admin',
+    });
+    const id = await resolveRequestIdentity(req, true);
+    expect(id?.roleNames).toEqual(['authenticated']);
+    expect(id?.scopes).toEqual([]);
+  });
+
+  const rejected: Array<[string, () => string]> = [
+    ['signed with an unknown secret', () => mintJwt({ sub: 'u-9' }, WRONG_SECRET)],
+    ['expired', () => mintJwt({ sub: 'u-9', exp: Math.floor(Date.now() / 1000) - 10 })],
+    ['carrying no exp', () => mintJwt({ sub: 'u-9', exp: undefined })],
+    ['carrying no sub', () => mintJwt({ role: 'authenticated' })],
+    ['malformed', () => 'not.a.jwt'],
+  ];
+  it.each(rejected)('STRICT mode rejects a bearer JWT %s', async (_name, mint) => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    await expect(resolveRequestIdentity(bearerReq(mint()), true)).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('rejects a foreign issuer once GOTRUE_JWT_ISSUER pins one (M-4)', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    await expect(
+      resolveRequestIdentity(bearerReq(mintJwt({ sub: 'u-9' })), true),
+    ).resolves.toMatchObject({
+      authMethod: 'jwt',
+    });
+    const theirs = mintJwt({ sub: 'u-9', iss: 'https://evil.example/auth/v1' });
+    await expect(resolveRequestIdentity(bearerReq(theirs), true)).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  // The concrete token that makes the issuer pin load-bearing rather than
+  // decorative: appchannels/mint.go signs a realtime-only token with the SAME
+  // JWT_SECRET whose `sub` is a TENANT SLUG. Unpinned, it would resolve here to
+  // a full data-plane identity for that tenant.
+  it('refuses a cross-app realtime token whose sub is a tenant slug', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    const xapp = mintJwt({
+      sub: 'victim-tenant',
+      iss: 'grobase-realtime',
+      namespaces: ['xapp:ch-1'],
+      can_publish: true,
+    });
+    await expect(resolveRequestIdentity(bearerReq(xapp), true)).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('refuses to run at all when no issuer is pinned, naming the variable', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    delete process.env.GOTRUE_JWT_ISSUER;
+    await expect(resolveRequestIdentity(bearerReq(mintJwt({ sub: 'u-9' })), true)).rejects.toThrow(
+      /GOTRUE_JWT_ISSUER is empty/,
+    );
+  });
+
+  it('JWT_ALLOW_NO_ISSUER=1 is the escape hatch for a deployment without one', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    delete process.env.GOTRUE_JWT_ISSUER;
+    process.env.JWT_ALLOW_NO_ISSUER = '1';
+    const id = await resolveRequestIdentity(bearerReq(mintJwt({ sub: 'u-9' })), true);
+    expect(id?.authMethod).toBe('jwt');
+  });
+
+  it('is inert when no JWT secret is configured (cannot verify, must not trust)', async () => {
+    process.env.IDENTITY_HEADER_MODE = 'strict';
+    delete process.env.GOTRUE_JWT_SECRET;
+    const req = bearerReq(mintJwt({ sub: 'u-9' }));
+    await expect(resolveRequestIdentity(req, true)).rejects.toThrow(UnauthorizedException);
   });
 });

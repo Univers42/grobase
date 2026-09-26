@@ -13,8 +13,8 @@
 #!/usr/bin/env sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-REPO_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+REPO_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)
 CA_DIR=${TRACK_BINOCLE_CERT_DIR:-"$REPO_DIR/certs"}
 CA_CERT="$CA_DIR/track-binocle-local-ca.pem"
 

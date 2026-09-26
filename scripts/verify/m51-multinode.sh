@@ -58,7 +58,7 @@ docker run --rm --network "${NET}" \
   -v mini-baas-cargo-registry:/usr/local/cargo/registry \
   -v mini-baas-cargo-git:/usr/local/cargo/git \
   -v mini-baas-dpr-target:/work/target \
-  public.ecr.aws/docker/library/rust:1.89-slim-bookworm \
+  mirror.gcr.io/library/rust:1.89-slim-bookworm \
   cargo test -p data-plane-server --features ratelimit-redis \
   redis_backend_is_one_global_bucket_across_instances -- --nocapture \
   >"${OUT}" 2>&1
