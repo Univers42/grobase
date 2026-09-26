@@ -13,6 +13,7 @@
 
 # ── builder: fetch + verify the static binary ────────────────────────────────
 FROM alpine:3.21 AS build
+SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
 ARG MINIO_RELEASE=RELEASE.2025-09-07T16-13-09Z
 # dl.min.io answers 410 for every release path now, so the binary comes from the
 # project's own GitHub release. The published .sha256sum names a different file, so

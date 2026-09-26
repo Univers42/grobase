@@ -115,6 +115,7 @@ HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
 # clang-21). rustfmt is what pgrx's bindgen shells out to. Kong's /graphql/v1
 # route and migration 087 (graphql_public.graphql()) are what serve it.
 FROM postgres_runtime AS pg_graphql_builder
+SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
 ARG PG_GRAPHQL_VERSION=v1.6.2
 RUN apk add --no-cache rust cargo rustfmt git clang21 clang21-dev llvm21-dev build-base \
       openssl-dev musl-dev pkgconf readline-dev zlib-dev bison flex perl icu-dev \
@@ -126,9 +127,9 @@ ENV CARGO_BUILD_JOBS=4 \
 RUN git clone --depth 1 -b ${PG_GRAPHQL_VERSION} https://github.com/supabase/pg_graphql /tmp/pg_graphql \
  && v=$(grep -m1 -E '^pgrx\s*=' /tmp/pg_graphql/Cargo.toml | sed -E 's/.*"=?([0-9][0-9.]*)".*/\1/') \
  && cargo install cargo-pgrx --version "$v" --locked \
- && cargo pgrx init --pg16 "$(which pg_config)" \
- && cd /tmp/pg_graphql \
- && cargo pgrx install --release --pg-config "$(which pg_config)" \
+ && cargo pgrx init --pg16 "$(which pg_config)"
+WORKDIR /tmp/pg_graphql
+RUN cargo pgrx install --release --pg-config "$(which pg_config)" \
  && test -f /usr/local/lib/postgresql/pg_graphql.so
 
 FROM scratch
