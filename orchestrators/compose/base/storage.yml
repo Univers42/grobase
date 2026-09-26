@@ -42,7 +42,8 @@ services:
       dockerfile: Dockerfile
     profiles: [functions, extras]
     container_name: mini-baas-functions
-    env_file: [.env]
+    # No env_file: this process hosts tenant code, so it gets only the
+    # variables server.ts reads (m197 holds it to that list).
     healthcheck:
       # deno-based image (no curl/wget) — probe the /health/live route with deno itself
       test:
@@ -64,8 +65,23 @@ services:
       # A2: resolve per-function secrets from the Go secret store at invoke time
       # (set on the webhook-dispatcher's /internal route). Empty => no secrets.
       FUNCTION_SECRETS_URL: ${FUNCTION_SECRETS_URL:-http://webhook-dispatcher:3025/internal/v1/function-secrets/resolve}
-      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      # Never JWT_SECRET: unset, secrets do not resolve rather than hand the
+      # user-token signing key to the tenant-code host.
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
+      # The optional knobs pass through from .env or the shell, unset otherwise,
+      # so the code's own defaults apply.
+      FUNCTION_METERING:
+      FUNCTION_METERING_FLUSH_MS:
+      FUNCTION_METERING_REDIS_URL:
+      REDIS_URL:
+      FUNCTIONS_WARM_POOL:
+      FUNCTIONS_WARM_POOL_MAX:
+      FUNCTIONS_WARM_IDLE_MS:
+      FUNCTIONS_MEM_LIMIT_MB:
+      FUNCTIONS_MEM_POLL_MS:
+      FUNCTIONS_NET_ALLOWLIST_ENABLED:
+      FUNCTIONS_NET_ALLOW:
     ports:
       - "127.0.0.1:${FUNCTIONS_PORT:-3060}:3060"
     volumes:
