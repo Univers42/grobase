@@ -26,7 +26,7 @@ what it is best at, and they meet at one load-bearing seam (§4).
 | **Functions** | `functions-runtime` | — | Edge functions; secrets resolved via `webhook-dispatcher` |
 | **Lakehouse** | `trino` | — | Federated SQL (`/sql`) |
 | **Observability** | `prometheus` · `grafana` · `loki` | — | Metrics, dashboards, logs |
-| **Studio** | `studio` | — | Admin UI (`/studio`) |
+| **Studio** | `studio` | — | Admin UI — no gateway route; `127.0.0.1:3000` in dev, SSH tunnel in prod |
 | **Dev mail** | `mailpit` | — | Local SMTP catch-all |
 | **SDKs** | `@grobase/js` (hand-written) + python · kotlin · swift · dart (OpenAPI-gen) | poly | One spec → 5 clients |
 | **Deploy** | `fly.io` (single Machine, DinD compose) + `Vercel` (stateless frontends) | — | grobase owns ALL state; Vercel hosts pure clients |
@@ -105,7 +105,7 @@ flowchart TB
     subgraph EXTRA["Functions · Lakehouse · Studio · Observability"]
         FN["functions-runtime"]
         TRINO["trino (/sql)"]
-        STUDIO["studio (/studio)"]
+        STUDIO["studio (no gateway route)"]
         OBS["prometheus · grafana · loki"]
     end
 
@@ -132,7 +132,6 @@ flowchart TB
     KONG -->|"/admin/v1 migrate·rotate"| DPR
     KONG -->|"/email/v1"| ORCH
     KONG -->|"/sql"| TRINO
-    KONG -->|"/studio"| STUDIO
 
     %% ===== the load-bearing seam (highlighted) =====
     QR ==>|"forward (RUST_DATA_PLANE_FORWARD)"| DPR
@@ -456,7 +455,6 @@ flowchart LR
 | `/admin/v1/{migrate,rotate}` | data-plane-router:4011 | Rust data |
 | `/email/v1` | orchestrator:3026 | Go control |
 | `/sql` | trino:8080 | lakehouse |
-| `/studio` | studio:3000 | admin UI |
 
 ---
 

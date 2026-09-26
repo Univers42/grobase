@@ -303,7 +303,8 @@ client→engine edges intact, and adapter-registry-go off the app bridge (`net-r
 `m205` proves `scripts/ops/rotate-service-token.sh` (begin → swap → finish on `.env.secrets`, never
 printing a token) and that compose hands the previous token to every verifier; no stack needed.
 `m206` runs a throwaway Kong on the repo `kong.yml` and requires `acl baas-admin` on every
-ip-restricted route but `/studio`: the anon key gets the acl's 403, the service key passes (N-24).
+ip-restricted route: the anon key gets the acl's 403, the service key passes (N-24). It also fails if any
+Kong service points at the `studio` container (N-25: Studio is reached on loopback or an SSH tunnel only).
 `m207` proves Kong behind the WAF sees the real client (N-23): prod/cloud set `KONG_TRUSTED_IPS`
 (base does not; `PROD_KONG_TRUSTED_IPS=` opts out), and a TEST-NET-3 client → WAF → Kong → echo run shows
 ip-restriction refusing it and no forged `X-Forwarded-*` reaching the upstream (a mutant WAF must leak).
