@@ -10,6 +10,11 @@
 #               dynamodb-local) + every backend that dials one.
 #   net-vault   vault + the services that read secrets from it + prometheus
 #               (it scrapes vault's metrics).
+#   net-registry  adapter-registry-go + kong. adapter-registry-go leaves the
+#               app bridge: its register/list routes trust an asserted tenant
+#               header with no credential, so only its callers may reach it —
+#               the routers and tenant-control (net-data/net-vault), prometheus
+#               (net-vault) and kong's /admin/v1 route (here).
 #
 # Two containers reach each other only if they share a bridge, so a service
 # not joined below — waf, kong, studio, playground, loki, promtail,
@@ -32,6 +37,8 @@ networks:
   net-data:
     driver: bridge
   net-vault:
+    driver: bridge
+  net-registry:
     driver: bridge
 
 x-app-data: &app-data
@@ -65,7 +72,8 @@ services:
   # ── routers + control plane: engines and vault ──────────────────────────
   query-router: *app-data-vault
   data-plane-router-rust: *app-data-vault
-  adapter-registry-go: *app-data-vault
+  adapter-registry-go:
+    networks: !override [net-data, net-vault, net-registry]
   tenant-control: *app-data-vault
   orchestrator: *app-data-vault
   webhook-dispatcher: *app-data-vault
@@ -104,3 +112,5 @@ services:
     networks: [mini-baas, net-vault]
   prometheus:
     networks: [mini-baas, net-vault]
+  kong:
+    networks: [mini-baas, net-registry]

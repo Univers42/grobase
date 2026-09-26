@@ -276,6 +276,7 @@ services:
 
   # ── tier enforcement (Track-2 F1) ──────────────────────────────────────────
   adapter-registry-go:
+    ports: !reset [] # its register/list trust an asserted tenant header; callers are in-network
     environment:
       # Default OFF — a single-operator self-host should not gate its own
       # tenant. A SaaS operator SELLING tiers turns this ON to enforce the
