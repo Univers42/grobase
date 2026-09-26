@@ -27,6 +27,12 @@
 #        an app-bridge sidecar cannot open adapter-registry-go, kong can       #
 #  Otherwise (5) prints SKIP.                                                  #
 #                                                                              #
+#  Renders with a digest-pinned compose (M66_COMPOSE_IMAGE; `host` uses the   #
+#  host's, with a warning): compose v2 copies env_file values into            #
+#  .environment and v5 does not, so (4) must see one version to give one       #
+#  verdict. The host compose must still agree on every service's networks.     #
+#  The pinned render sees only the repo's .env, not the shell's environment.   #
+#                                                                              #
 #  Ponytail: (4) finds env/command edges by hostname, so an engine reached     #
 #  through a variable only .env sets (env_file) or a code default is seen      #
 #  only if EDGES lists it — a new such client must be added there. The live    #
@@ -47,6 +53,7 @@ EDGES="debezium>postgres debezium>redis trino>postgres trino>mysql trino>mongo
 grafana>postgres db-bootstrap>postgres pg-meta>postgres pg-migrate>postgres storage-router>redis
 outbox-relay>redis tenant-control>postgres vault-init>vault prometheus>vault"
 BUSYBOX="busybox:1.36"
+COMPOSE_IMAGE="${M66_COMPOSE_IMAGE:-docker:29-cli@sha256:018edbc908e08fcc9dbf029c812c34251e9b4719e6f71ca0e5eae2a987d014ca}"
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 step() { cyan "[M66] $*"; }
 ok() { printf '\033[0;32m  ✓ %s\033[0m\n' "$*"; }
@@ -58,11 +65,53 @@ fail() {
 WORK="$(mktemp -d)"
 trap 'rm -rf "${WORK}"' EXIT
 
-# render writes the merged config of the compose files $@ to stdout as JSON.
+# compose runs `docker compose $@` from COMPOSE_IMAGE with ROOT mounted read-only
+# at its own path, or from the host when COMPOSE_IMAGE is `host`.
+compose() {
+  if [ "${COMPOSE_IMAGE}" = host ]; then
+    docker compose "$@"
+    return
+  fi
+  docker run --rm -v "${ROOT}:${ROOT}:ro" -w "${ROOT}" "${COMPOSE_IMAGE}" docker compose "$@"
+}
+
+# render writes the merged config of the compose files $@ to stdout as JSON,
+# and the tail of compose's stderr to ours when it fails. The pinned compose
+# sees only ROOT, so a file outside it is refused.
 render() {
-  local files=()
-  for f in "$@"; do files+=(-f "${f}"); done
-  docker compose "${files[@]}" --profile '*' config --no-env-resolution --format json 2>/dev/null
+  local files=() f
+  for f in "$@"; do
+    f="$(realpath -e "${f}")" || fail "compose file $f does not exist"
+    [ "${COMPOSE_IMAGE}" = host ] || [ "${f#"${ROOT}"/}" != "${f}" ] ||
+      fail "${f} is outside ${ROOT}; the pinned compose only sees the repo (M66_COMPOSE_IMAGE=host renders it)"
+    files+=(-f "${f}")
+  done
+  compose "${files[@]}" --profile '*' config --no-env-resolution --format json 2>"${WORK}/render.err" && return
+  tail -n 5 "${WORK}/render.err" | sed 's/^/    /' >&2
+  return 1
+}
+
+# networks prints each service's networks and aliases from config $1, sorted.
+networks() {
+  jq -S '.services | map_values(.networks // {} | map_values((. // {}).aliases // [] | sort))' "$1"
+}
+
+# same_networks re-renders compose files $2… with the host's compose and checks
+# every service lands on the same networks as in the pinned render $1. The
+# network placement (2)-(3) does not depend on which compose renders it; only
+# the env scan (4) does.
+same_networks() {
+  local pinned="$1" v
+  shift
+  [ "${COMPOSE_IMAGE}" != host ] || return 0
+  v="$(docker compose version --short 2>/dev/null)"
+  COMPOSE_IMAGE=host render "$@" >"${WORK}/host.json" 2>/dev/null || {
+    printf '  SKIP: the host compose %s cannot render these files\n' "${v:-(none)}"
+    return 0
+  }
+  [ "$(networks "${pinned}")" = "$(networks "${WORK}/host.json")" ] ||
+    fail "the host compose ${v} places services on other networks than ${COMPOSE_IMAGE}"
+  ok "the host compose ${v} puts every service on the same networks"
 }
 
 # nets prints the sorted, comma-joined networks of service $1 in config $2.
@@ -216,11 +265,18 @@ segmented() {
   local out="$1"
   shift
   render "$@" >"${out}" || fail "$* does not render"
+  same_networks "${out}" "$@"
   placement "${out}"
   isolation "${out}"
   reachability "${out}"
 }
 
+if [ "${COMPOSE_IMAGE}" = host ]; then
+  printf '\033[0;33m[M66] WARN — rendering with the host compose %s: (4) scans env_file values on compose v2, not on v5\033[0m\n' \
+    "$(docker compose version --short 2>/dev/null)" >&2
+else
+  step "rendering with compose $(compose version --short) from ${COMPOSE_IMAGE%@*}"
+fi
 step "static: the real services' networks with and without the overlay"
 parity
 step "dev stack: base + overlay"
