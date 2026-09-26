@@ -6,11 +6,13 @@
 #                                                                              #
 #    A throwaway Kong (no network, the repo kong.yml rendered by the repo's    #
 #    render-kong-config.sh from dummy keys) is asked, over its own admin API,  #
-#    which routes carry ip-restriction; each of them except the browser UI    #
-#    /studio must also carry acl allow [baas-admin]. Then, from 127.0.0.1     #
-#    (inside every ip-restriction allowlist), each such route answers the     #
-#    anon key with the acl 403 and lets the service key through (the         #
-#    upstream is absent, so "through" is any answer but that 403).           #
+#    which routes carry ip-restriction; each must also carry acl allow        #
+#    [baas-admin]. Then, from 127.0.0.1 (inside every ip-restriction          #
+#    allowlist), each such route answers the anon key with the acl 403 and    #
+#    lets the service key through (the upstream is absent, so "through" is    #
+#    any answer but that 403). No service may point at the studio container:  #
+#    Studio holds the service_role key, has no login, and is reached on       #
+#    127.0.0.1:3000 or an SSH tunnel, never through the gateway (N-25).       #
 #  Why: ip-restriction alone is one proxy hop from useless — behind the WAF   #
 #  every client arrives from a private bridge IP (N-23).                      #
 #  No stack needed; needs the kong image locally (M206_KONG_IMAGE overrides). #
@@ -64,12 +66,19 @@ status() { kong_scratch_status "${K}" 8000 "$1" "apikey: $2"; }
 # body_of prints the proxy's raw answer to GET $1 with apikey $2.
 body_of() { kong_scratch_get "${K}" 8000 "$1" "apikey: $2"; }
 
-# assert_acl proves every ip-restricted route but studio is acl-gated, statically
+# assert_no_studio fails when any Kong service targets the studio container.
+assert_no_studio() {
+  local hit
+  hit="$(kbody '/services?size=1000' | jq -r '[.data[] | select(.host == "studio") | .name] | join(" ")')"
+  [ -z "${hit}" ] || fail "Kong service(s) ${hit} route to studio — an unauthenticated console holding the service key"
+  ok "no Kong service routes to the studio container"
+}
+
+# assert_acl proves every ip-restricted route is acl-gated, statically
 # and by probing it with both keys.
 assert_acl() {
   local name path acl n=0
   while read -r name path acl; do
-    [ "${name}" != studio-routes ] || continue
     [ "${acl}" = true ] || fail "route ${name} (${path}) is ip-restricted but not acl baas-admin — the public anon key passes it"
     [ "$(status "${path}" scratch-anon)" = 403 ] || fail "${path}: anon key not refused with 403"
     body_of "${path}" scratch-anon | grep -q 'cannot consume this service' || fail "${path}: the 403 is not the acl's"
@@ -87,6 +96,6 @@ docker image inspect "${IMG}" >/dev/null 2>&1 || fail "kong image ${IMG} not pre
 kong_scratch_start "${K}" "${IMG}" none || fail "could not start throwaway kong"
 kong_scratch_wait "${K}" || fail "throwaway kong never served :8000"
 gated_routes >"${T}/gated"
-grep -q '^studio-routes ' "${T}/gated" || fail "studio-routes lost its ip-restriction"
+assert_no_studio
 assert_acl
 printf '\033[0;32m[M206] PASS — no internal-only Kong route is open to the public anon key\033[0m\n'
