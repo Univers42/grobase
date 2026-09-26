@@ -214,7 +214,7 @@ services:
 
   # ─── Realtime / WebSocket ────────────────────────────────────────
   mongo-api:
-    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    extends: { file: orchestrators/compose/base/_common.yml, service: ts-base }
     image: ghcr.io/univers42/grobase-mongo-api:latest # pull-fallback (built from ./build context below)
     build:
       context: ./src
@@ -223,8 +223,13 @@ services:
         APP: mongo-api
     profiles: [data-plane]
     container_name: mini-baas-mongo-api
-    env_file: [.env]
+    # ts-base's variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.mongo-api (gate m212).
+    env_file:
+      - path: .env.mongo-api
+        required: false
     environment:
+      MONGO_MOCK_COLLECTION:
       PORT: 3010
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017

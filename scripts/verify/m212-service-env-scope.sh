@@ -29,7 +29,8 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-SCOPED="kong studio pg-meta gotrue postgrest"
+TS_SERVICES="ai-service analytics-service email-service gdpr-service log-service mongo-api newsletter-service outbox-relay permission-engine query-router schema-service session-service storage-router"
+SCOPED="kong studio pg-meta gotrue postgrest ${TS_SERVICES}"
 MARK="m212-marker-$$"
 WORK="$(mktemp -d)" || exit 1
 TREE="${WORK}/tree"
@@ -50,6 +51,7 @@ needed_key() {
   pg-meta) echo PG_META_DB_HOST ;;
   gotrue) echo GOTRUE_DISABLE_SIGNUP ;;
   postgrest) echo PGRST_DB_URI ;;
+  *-service | mongo-api | outbox-relay | permission-engine | query-router | storage-router) echo INTERNAL_IDENTITY_HMAC_KEYS ;;
   *) fail "no needed key declared for $1" ;;
   esac
 }
@@ -155,6 +157,21 @@ live_arm() {
     return 0
   }
   ok "live runtime env:${seen} — only the .env keys the service reads"
+  live_image_env
+}
+
+# live_image_env fails when a running container of the project carries a bare
+# env name (a pass-through left unset) that its image sets: Docker then unsets
+# the image's value (APP_NAME, NODE_ENV), which a valueless compose key must never do.
+live_image_env() {
+  local c bare img bad=""
+  for c in $(docker ps -q --filter label=com.docker.compose.project=mini-baas); do
+    bare="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "${c}" | grep -v '=' | grep .)" || continue
+    img="$(docker image inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$(docker inspect -f '{{.Image}}' "${c}")" | cut -d= -f1)"
+    bad="${bad}$(grep -Fxf <(printf '%s\n' "${img}") <<<"${bare}" | sed "s|^|$(docker inspect -f '{{.Name}}' "${c}"):|" | tr '\n' ' ')"
+  done
+  [ -z "${bad}" ] || fail "live: an unset pass-through unsets the image's own variable: ${bad}"
+  ok "live: no pass-through unsets an image variable (every running container)"
 }
 
 command -v jq >/dev/null || fail "jq is required"
