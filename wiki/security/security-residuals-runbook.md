@@ -6,22 +6,25 @@
 >
 > **Two residuals were closed autonomously** (additive, flag-gated **OFF** = byte-parity baseline,
 > provable by isolated scratch gates): **G-ReadAudit** (`DATA_PLANE_AUDIT_READS`, gate `m72`) and
-> **G-QoS slice A** rows-per-query cap (`max_rows`, gate `m73`). See [[../.claude/memory/decisions.md]].
+> **G-QoS slice A** rows-per-query cap (`max_rows`, gate `m73`). See the tracker ([`remediation-tracker-2025-07-14.md`](./remediation-tracker-2025-07-14.md)).
 >
-> **The five below are deferred to human-supervised waves** — each is **cross-repo** and/or **touches
-> the live login flow** or would **re-network the shared stack**, which kernel rule #9 forbids touching
-> unsupervised. Each runbook is *prove-on-an-isolated-scratch-scope first, flip the live thing last*.
-> Run each with the security-review skill.
+> **The five below were deferred to human-supervised waves** — each is **cross-repo** and/or **touches
+> the live login flow** or would **re-network the shared stack**. Each runbook is *prove-on-an-isolated-
+> scratch-scope first, flip the live thing last*. Run each with the security-review skill.
+>
+> **Status 2026-09-26:** G-Vault and G-Net are done in the repo, and the service-token half of
+> G-Rotate is done. Their sections below say what remains, all of it an operator step. G-ReadAudit
+> (m72) and G-QoS slice A (m73) now run nightly.
 
-| Residual | ASVS value | Why deferred | Blast radius if rushed |
+| Residual | ASVS value | State | What is left |
 |---|---|---|---|
-| **G-RS256** | MED | Cross-repo (vendored gotrue + Kong) + global login property | Partial flip 401s **every** authenticated request stack-wide |
-| **G-Vault** | MED | New register contract + DB schema + data-plane resolve path | Wrong order locks max-tier tenants out of registering any mount |
-| **G-Net** | MED | Value-bearing half re-networks ~50 live services | One wrong edge wedges inter-service DNS/comms |
-| **G-Hdr** | LOW | Effective only when flipped on the live mount-resolution hot path | An unsigned caller → instant 401s, wedged live queries |
-| **G-Rotate** | LOW | JWT half is cross-repo + touches live login | A bug is a stack-wide auth outage |
+| **G-RS256** | MED | Verify side shipped, m81 proves a real RS256 issuer | The coordinated issuer + Kong + verifier flip (human, live login) |
+| **G-Vault** | MED | Done in code (m121, nightly) | Move existing max-tier mounts to Vault refs (operator) |
+| **G-Net** | MED | Done for compose, default in `make prod-up` (m66) | Enable the Helm NetworkPolicies on a real cluster |
+| **G-Hdr** | LOW | Verifier shipped, flag off | Signers in every caller, then the live flip |
+| **G-Rotate** | LOW | Service-token half done (m205, m68) | `JWT_SECRET` half: gotrue + PostgREST dual key, staging first |
 
-Priority order for the human waves: **G-RS256** (highest value, headline) → **G-Vault (code done, m121 nightly; move max-tier mounts to Vault refs)** → **G-Net (compose done; Helm policies to enable on a cluster)** → **G-Hdr** → **G-Rotate (JWT half; the service-token half is done)**. The cross-repo/live-login halves of Net/Hdr/Rotate are lowest priority (LOW value, highest risk).
+Priority order for what is left: **G-RS256** (highest value, headline) → the G-Vault mount move → the G-Net Helm policies → **G-Hdr** → **G-Rotate (JWT half)**. The cross-repo/live-login halves of Net/Hdr/Rotate are lowest priority (LOW value, highest risk).
 
 ---
 
@@ -64,7 +67,7 @@ isolated gate + a coordinated cross-repo flip remain.
 > end-to-end** — a service that genuinely *signs* RS256 + serves a JWKS, validated *through Kong's
 > RS256 jwt-plugin on a protected route* and then tenant-control's JWKS verifier. The live issuer
 > cutover (steps 2–6) is now a **known, low-risk operation**. Gate:
-> [`scripts/verify/m81-rs256-issuer.sh`](../../mini-baas-infra/scripts/verify/m81-rs256-issuer.sh)
+> [`scripts/verify/m81-rs256-issuer.sh`](../../scripts/verify/m81-rs256-issuer.sh)
 > (`bash scripts/verify/m81-rs256-issuer.sh`, exit 0 = PASS; scratch-only, never touches the live
 > stack). Logged `m81=PASS` (PROVE).
 
