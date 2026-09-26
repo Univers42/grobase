@@ -158,9 +158,11 @@ jobs:
         run: bash scripts/env/assemble-env.sh
 
       - name: Boot query edition
+        env:
+          RETRY_429_LOG: /tmp/build.log
         run: |
           set -euo pipefail
-          make build EDITION=query
+          bash scripts/ci/retry-on-429.sh make build EDITION=query
           make up EDITION=query
           # Give containers a moment to register with docker stats before measuring.
           sleep 20
@@ -170,6 +172,16 @@ jobs:
       # exact-shape RAM proof is the `make bench-*` artifacts reproduced on a
       # controlled host; here we just want the number recorded + an alarm if the
       # query edition balloons past a clearly-broken bound.
+      # A red boot names its cause in the (public) annotations: the build's last
+      # error lines, every service not running or not healthy, and the disk.
+      - name: Explain a failed boot
+        if: failure()
+        run: |
+          why=$(grep -E '^ > \[|^ERROR|failed to solve|toomanyrequests|dependency failed|is unhealthy|error(\[|:)|No space left' /tmp/build.log 2>/dev/null | tail -n 4 | tr '\n' ' ' | cut -c1-900)
+          bad=$(docker compose -f docker-compose.yml ps -a --format '{{.Name}}|{{.State}}|{{.Health}}|{{.ExitCode}}' 2>/dev/null | awk -F'|' '!($2 == "exited" && $4 == "0") && ($2 != "running" || ($3 != "" && $3 != "healthy"))' | tr '\n' ';' | cut -c1-600)
+          disk=$(df -h / | awk 'NR==2 {print $4 " free of " $2}')
+          echo "::error title=query edition boot failed::${why:-no build error line} | not healthy: ${bad:-none} | disk: ${disk}"
+
       - name: Measure footprint (records artifact; non-fatal on hosted-runner noise)
         id: footprint
         continue-on-error: true
@@ -270,10 +282,22 @@ jobs:
         run: bash scripts/env/assemble-env.sh
 
       - name: Boot query edition
+        env:
+          RETRY_429_LOG: /tmp/build.log
         run: |
           set -euo pipefail
-          make build EDITION=query
+          bash scripts/ci/retry-on-429.sh make build EDITION=query
           make up EDITION=query
+
+      # A red boot names its cause in the (public) annotations: the build's last
+      # error lines, every service not running or not healthy, and the disk.
+      - name: Explain a failed boot
+        if: failure()
+        run: |
+          why=$(grep -E '^ > \[|^ERROR|failed to solve|toomanyrequests|dependency failed|is unhealthy|error(\[|:)|No space left' /tmp/build.log 2>/dev/null | tail -n 4 | tr '\n' ' ' | cut -c1-900)
+          bad=$(docker compose -f docker-compose.yml ps -a --format '{{.Name}}|{{.State}}|{{.Health}}|{{.ExitCode}}' 2>/dev/null | awk -F'|' '!($2 == "exited" && $4 == "0") && ($2 != "running" || ($3 != "" && $3 != "healthy"))' | tr '\n' ';' | cut -c1-600)
+          disk=$(df -h / | awk 'NR==2 {print $4 " free of " $2}')
+          echo "::error title=query edition boot failed::${why:-no build error line} | not healthy: ${bad:-none} | disk: ${disk}"
 
       - name: Load smoke against budgets.json (m38)
         run: PACKAGE=essential M38_REQUIRE_STACK=1 bash scripts/verify/m38-load.sh
@@ -336,6 +360,8 @@ jobs:
         run: bash scripts/env/assemble-env.sh
 
       - name: Boot query edition (+ mysql/mongo for the cross-engine probe)
+        env:
+          RETRY_429_LOG: /tmp/build.log
         run: |
           set -euo pipefail
           # m46 runs with SHARE_POOLS_EXPECT=1 (assert pool COLLAPSE), which is only
@@ -345,7 +371,7 @@ jobs:
           # "4 pools held, expected 2". Turn the feature ON for this probe (the gate
           # is the whole point of the job); it stays default-OFF everywhere else.
           echo "DATA_PLANE_SHARE_POOLS=true" >> .env
-          make build EDITION=query
+          bash scripts/ci/retry-on-429.sh make build EDITION=query
           make up EDITION=query
           # m46 + conformance need live mysql + mongo on the mini-baas network.
           docker compose -f docker-compose.yml up -d --build \
@@ -357,6 +383,16 @@ jobs:
       # tenant-control are healthy — so SHARE_POOLS_PROBE=1 forces the REAL probe.
       # continue-on-error keeps a flaky live boot from masking the conformance leg;
       # the verdict is in the uploaded share-pools artifact + the step status.
+      # A red boot names its cause in the (public) annotations: the build's last
+      # error lines, every service not running or not healthy, and the disk.
+      - name: Explain a failed boot
+        if: failure()
+        run: |
+          why=$(grep -E '^ > \[|^ERROR|failed to solve|toomanyrequests|dependency failed|is unhealthy|error(\[|:)|No space left' /tmp/build.log 2>/dev/null | tail -n 4 | tr '\n' ' ' | cut -c1-900)
+          bad=$(docker compose -f docker-compose.yml ps -a --format '{{.Name}}|{{.State}}|{{.Health}}|{{.ExitCode}}' 2>/dev/null | awk -F'|' '!($2 == "exited" && $4 == "0") && ($2 != "running" || ($3 != "" && $3 != "healthy"))' | tr '\n' ';' | cut -c1-600)
+          disk=$(df -h / | awk 'NR==2 {print $4 " free of " $2}')
+          echo "::error title=query edition boot failed::${why:-no build error line} | not healthy: ${bad:-none} | disk: ${disk}"
+
       - name: SHARE_POOLS cross-engine isolation gate (m46)
         id: m46
         continue-on-error: true
@@ -484,6 +520,14 @@ jobs:
         env:
           FORCE_COLORS: "0"
         run: bash scripts/test/mutants/run.sh
+
+      # A red mutation run names its SURVIVED / BASELINE / UNKNOWN rows in the
+      # (public) annotations; the report artifact needs a token to download.
+      - name: Explain a failed mutation run
+        if: failure() && steps.mutants.outcome == 'failure'
+        run: |
+          rows=$(grep -E '\| (SURVIVED|BASELINE|UNKNOWN|SKIPPED) \|' artifacts/test/mutants.md 2>/dev/null | cut -d'|' -f2-4 | tr -d '`' | tr '\n' ';' | cut -c1-900)
+          echo "::error title=mutation run failed::${rows:-no report row; the run died before its verdicts}"
 
       - name: Upload mutation report
         if: always()
