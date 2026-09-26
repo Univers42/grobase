@@ -29,6 +29,9 @@
 #   VAULT_ADDR           Vault address (default: http://localhost:8200)
 #   VAULT_TOKEN          Root/admin token (reads from .vault-keys.json if unset)
 #   GRACE_SECONDS        Dual-key grace period for JWT (default: 300)
+#   ROTATE_JWT_FORCE     Set to "1" to rotate the JWT secret anyway. Without it the
+#                        jwt group refuses and `all` skips it: the rotation is not
+#                        zero-downtime yet (see jwt_refusal)
 #   DRY_RUN              Set to "1" to preview without applying (default: 0)
 #
 # Prerequisites:
@@ -139,7 +142,16 @@ update_env_var() {
 }
 
 # ─── JWT Rotation (with dual-key grace period) ───────────────────
+# jwt_refusal prints why the JWT secret is not rotated without ROTATE_JWT_FORCE=1.
+jwt_refusal() {
+  echo "JWT rotation refused: it is not zero-downtime yet. Kong keeps one secret per issuer, PostgREST and GoTrue read one secret, and ANON_KEY/SERVICE_ROLE_KEY are signed with it, so a swap logs every user out and breaks every frontend key. Only tenant-control, the TS services and realtime accept JWT_SECRET_PREV (G-Rotate, wiki/security/remediation-tracker-2025-07-14.md). ROTATE_JWT_FORCE=1 rotates anyway, as a planned outage."
+}
+
 rotate_jwt() {
+  [[ "${ROTATE_JWT_FORCE:-0}" == "1" ]] || {
+    err "$(jwt_refusal)"
+    return 1
+  }
   step "Rotating JWT secret"
 
   local old_jwt new_jwt
@@ -154,11 +166,11 @@ rotate_jwt() {
     adapter_registry_service_token="$(vault_get secret/mini-baas/core adapter_registry_service_token)"
 
   update_env_var "JWT_SECRET" "$new_jwt"
-  update_env_var "PREV_JWT_SECRET" "$old_jwt"
+  update_env_var "JWT_SECRET_PREV" "$old_jwt"
 
   restart_services kong gotrue postgrest mongo-api adapter-registry query-router
   log "JWT rotated — dual-key active for ${GRACE_SECONDS}s"
-  log "After grace period, remove PREV_JWT_SECRET from .env"
+  log "After grace period, remove JWT_SECRET_PREV from .env"
   return 0
 }
 
@@ -343,7 +355,7 @@ kong) rotate_kong ;;
 smtp) rotate_smtp ;;
 approles) rotate_approles ;;
 all)
-  rotate_jwt
+  if [[ "${ROTATE_JWT_FORCE:-0}" == "1" ]]; then rotate_jwt; else warn "jwt skipped. $(jwt_refusal)"; fi
   rotate_postgres
   rotate_mongo
   rotate_minio
