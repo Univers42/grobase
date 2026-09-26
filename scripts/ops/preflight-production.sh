@@ -27,6 +27,9 @@
 #                 REALTIME_NAMESPACE_FALLBACK other than deny only WARNS: deny #
 #                 closes realtime to GoTrue-session clients until a namespace  #
 #                 minting path exists.                                         #
+#    advisories   WARN only: SECURITY_MODE not max, API_KEY_ABAC_ENABLED off,  #
+#                 DATA_PLANE_RATELIMIT_BACKEND not redis. Each is an owner     #
+#                 decision with a cost this file cannot check.                 #
 #  The file is PARSED, never sourced, with compose .env rules: `export `       #
 #  prefix, quotes, unquoted ` #` comments, last assignment wins. A value       #
 #  holding `${`, `$(` or an unquoted `$NAME` cannot be resolved here, and      #
@@ -215,6 +218,19 @@ function check_settings(   v) {
 	if (v != NONE && v != "hmac") flag("SERVICE_TOKEN_MODE", "must be hmac (per-request signed service auth)")
 	v = setting("REALTIME_NAMESPACE_FALLBACK", "permissive")
 	if (v != NONE && v != "deny") warn("REALTIME_NAMESPACE_FALLBACK", "not deny, so namespace-less tokens get all-access (advisory until GoTrue sessions carry namespaces)")
+	check_advisories()
+}
+
+# check_advisories warns on the hardening an owner opts into: each needs
+# something this file cannot see (Vault-backed credentials and engine TLS for
+# max, ABAC roles for api keys, redis for more than one data-plane replica).
+function check_advisories(   v) {
+	v = setting("SECURITY_MODE", "baseline")
+	if (v != NONE && v != "max") warn("SECURITY_MODE", "not max: engine TLS and Vault-backed credentials are not required")
+	v = setting("API_KEY_ABAC_ENABLED", "0")
+	if (v != NONE && v !~ /^(1|true|yes|on)$/) warn("API_KEY_ABAC_ENABLED", "off: an api key with admin scope bypasses ABAC masks and conditions")
+	v = setting("DATA_PLANE_RATELIMIT_BACKEND", "memory")
+	if (v != NONE && v != "redis") warn("DATA_PLANE_RATELIMIT_BACKEND", "not redis: each data-plane replica enforces its own copy of a tenant limit")
 }
 
 # END runs every check and prints the verdict; the exit code is the result.
