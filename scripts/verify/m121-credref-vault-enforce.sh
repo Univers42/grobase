@@ -71,7 +71,7 @@ fail() {
 }
 
 PG_IMAGE="${M121_PG_IMAGE:-postgres:16-alpine}"
-VAULT_IMAGE="${M121_VAULT_IMAGE:-public.ecr.aws/hashicorp/vault:1.21}"
+VAULT_IMAGE="${M121_VAULT_IMAGE:-mirror.gcr.io/hashicorp/vault:1.21}"
 AR_IMG="${M121_AR_IMAGE:-m121-ar-$$:scratch}"
 DPR_IMG="${M121_DPR_IMAGE:-m121-dpr-$$:scratch}"
 NET="m121net-$$"
