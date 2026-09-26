@@ -21,7 +21,7 @@
 | **G-Hdr** | LOW | Effective only when flipped on the live mount-resolution hot path | An unsigned caller → instant 401s, wedged live queries |
 | **G-Rotate** | LOW | JWT half is cross-repo + touches live login | A bug is a stack-wide auth outage |
 
-Priority order for the human waves: **G-RS256** (highest value, headline) → **G-Vault** → **G-Net (safe Helm half)** → **G-Hdr** → **G-Rotate (JWT half; the service-token half is done)**. The cross-repo/live-login halves of Net/Hdr/Rotate are lowest priority (LOW value, highest risk).
+Priority order for the human waves: **G-RS256** (highest value, headline) → **G-Vault** → **G-Net (compose done; Helm policies to enable on a cluster)** → **G-Hdr** → **G-Rotate (JWT half; the service-token half is done)**. The cross-repo/live-login halves of Net/Hdr/Rotate are lowest priority (LOW value, highest risk).
 
 ---
 
@@ -149,27 +149,21 @@ tenants out of registering **any** mount.
 
 ## G-Net — per-plane network segmentation
 
-**Safe half first (agent under review):**
-1. Add `deploy/helm/mini-baas/templates/networkpolicy.yaml` gated on `.Values.networkPolicy.enabled`
-   (default false) + a component→plane map + allowlist in `values.yaml`; reuse
-   `mini-baas.selectorLabels`.
-2. Prove: `helm template … --set networkPolicy.enabled=false | grep -c NetworkPolicy` → 0 (baseline
-   parity); `--set networkPolicy.enabled=true` → default-deny + allowlist edges; run `helm lint` +
-   `kubeconform`.
+**Done (`feat/g-net-segmentation`, gate `m66`).** `orchestrators/compose/docker-compose.netseg.yml`
+takes the engines (postgres mysql mariadb cockroach mssql mongo redis dynamodb-local) off the app bridge
+onto `net-data`, and vault onto `net-vault`, with `networks: !override`. Every backend that dials an
+engine joins `net-data`; the routers, the Go control plane and prometheus join `net-vault`. waf, kong,
+studio, playground, loki, promtail, functions-runtime, mailpit and minio share no bridge with an
+engine or vault. minio stays reachable because kong proxies presigned URLs to it.
 
-**Unsafe half (human-driven — re-networks the live docker stack):**
-3. Author a SEPARATE overlay `docker-compose.netseg.yml` (do NOT edit the base `networks:` block)
-   defining app/control/data/observability bridges and dual-attaching kong, query-router,
-   adapter-registry-go, data-plane-router-rust + every engine/redis/vault/prometheus edge.
-4. Enumerate every talking pair first: `grep -niE 'http://|:[0-9]{4}|_URL' docker-compose.yml` so no
-   edge is dropped.
-5. Bring up ISOLATED: `docker compose -p netseg-probe -f docker-compose.yml -f docker-compose.netseg.yml
-   up -d` (NOT the shared default stack).
-6. POSITIVE probe: exec query-router, curl a real `/query` resolving a mount via
-   `adapter-registry-go:3021` → 200. NEGATIVE probe: exec an observability container,
-   `nc -z postgres 5432` → refused/timeout.
-7. `docker compose -p netseg-probe down -v`. Only after both probes pass, decide whether the overlay
-   becomes documented prod topology; never fold it into the base compose the live stack runs.
+- Dev: `make up NETSEG=1`. Prod: `make prod-up` composes it by default; `PROD_NETSEG=0` drops it.
+- `m66` renders every service (all profiles) on the dev and prod stacks. It checks the placement, the
+  isolation and 64 client→engine/vault edges, and probes a running segmented stack.
+- Live proof, 2026-09-26, `make up PACKAGE=max NETSEG=1`: 34/34 healthchecks healthy (as before),
+  13/13 Prometheus targets up, no alert firing. kong → postgres is refused by IP and query-router
+  connects. m27 passes for all 8 engines; m52, m68, m204, m101-quota-realtenant and m120 are green.
+- Helm: `networkPolicy.enabled` (default false) renders 8 policies in `grobase` and 4 in `mini-baas`.
+  Enabling it on a cluster is a human step.
 
 ## G-Hdr — enable adapter-registry identity HMAC stack-wide
 
