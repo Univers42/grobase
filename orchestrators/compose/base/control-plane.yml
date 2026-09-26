@@ -111,6 +111,7 @@ services:
       # Role/policy SEEDING works without this (direct SQL); only Decide() needs it.
       PERMISSION_ENGINE_URL: ${PERMISSION_ENGINE_URL:-http://permission-engine:3050}
       GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # Argon2id concurrency bound (keys.go argon2Slots). Each hash allocates

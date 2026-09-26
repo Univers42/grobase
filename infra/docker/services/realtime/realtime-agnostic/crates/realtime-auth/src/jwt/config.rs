@@ -20,6 +20,9 @@ use jsonwebtoken::Algorithm;
 pub struct JwtConfig {
     /// HMAC secret string or RSA PEM-encoded public key.
     pub secret: String,
+    /// The HMAC secret being rotated out: a token it signed is still accepted.
+    /// Ignored for RSA and when equal to `secret`.
+    pub previous_secret: Option<String>,
     /// JWT algorithm (default: HS256).
     pub algorithm: Algorithm,
     /// Accepted `iss` values, comma-separated (optional). Blank entries are ignored.
@@ -35,6 +38,7 @@ impl JwtConfig {
     pub fn hmac(secret: impl Into<String>) -> Self {
         Self {
             secret: secret.into(),
+            previous_secret: None,
             algorithm: Algorithm::HS256,
             issuer: None,
             require_issuer: true,

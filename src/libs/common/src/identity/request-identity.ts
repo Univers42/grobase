@@ -295,6 +295,7 @@ function readBearerJwtIdentity(
   const claims = verifyUserJwt(token, userJwtSecret(), {
     allowNoExp: envFlag('JWT_ALLOW_NO_EXP'),
     issuers: requiredIssuers(),
+    previousSecret: process.env['JWT_SECRET_PREV'],
   });
   if (!claims?.sub) return undefined;
   const role = claims.role || 'authenticated';

@@ -1095,7 +1095,7 @@ jobs:
   # built HERE from this commit (never the published :latest). A missing image or
   # too little disk is a non-zero SKIP (exit 77), never a silent pass.
   security-gates:
-    name: Security gates (m66 m195 m196 m198 m199 m205 m206 m207 m208)
+    name: Security gates (m66 m195 m196 m198 m199 m205 m206 m207 m208 m210)
     runs-on: ubuntu-latest
     needs: [shellcheck]
     timeout-minutes: 30
@@ -1146,6 +1146,11 @@ jobs:
       # privileged or unconfined; five mutants must be refused. Static here.
       - name: No new privileges (m208)
         run: bash scripts/verify/run-gate-battery.sh m208-no-new-privileges
+
+      # Every JWT verifier that accepts JWT_SECRET_PREV gets it, every other JWT
+      # secret site is classified, and the rotation scripts refuse without force.
+      - name: JWT dual-key verify (m210)
+        run: bash scripts/verify/run-gate-battery.sh m210-jwt-dual-key
 
       # begin → swap → finish on a scratch env file; compose hands the previous
       # service token to every verifier.

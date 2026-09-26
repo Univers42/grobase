@@ -32,14 +32,17 @@ import (
 type JWTVerifier struct {
 	alg    string      // "HS256" (default) or "RS256"
 	secret []byte      // HS256 mode
+	prev   []byte      // HS256 mode: the previous secret, accepted during a rotation
 	keys   *jwksKeyset // RS256 mode
 	issuer string      // optional; if set, `iss` claim must match
 	parser *jwt.Parser // pinned alg + time-claim rules, built once (newJWTParser)
 }
 
-// NewJWTVerifier builds a verifier. HS256 (default) uses `secret`; RS256
-// (`JWT_ALG=RS256`) ignores `secret` and resolves keys from `JWKS_URL`. If
-// issuer is non-empty, the JWT's `iss` claim must match it exactly.
+// NewJWTVerifier builds a verifier. HS256 (default) uses `secret`, and also
+// accepts tokens signed with `JWT_SECRET_PREV` when that is set, so a secret
+// rotation does not log everyone out; RS256 (`JWT_ALG=RS256`) ignores both and
+// resolves keys from `JWKS_URL`. If issuer is non-empty, the JWT's `iss` claim
+// must match it exactly.
 func NewJWTVerifier(secret, issuer string) (*JWTVerifier, error) {
 	alg := strings.ToUpper(strings.TrimSpace(os.Getenv("JWT_ALG")))
 	if alg == "" {
@@ -52,6 +55,9 @@ func NewJWTVerifier(secret, issuer string) (*JWTVerifier, error) {
 			return nil, errors.New("jwt secret is required")
 		}
 		v.secret = []byte(secret)
+		if prev := os.Getenv("JWT_SECRET_PREV"); prev != "" && prev != secret {
+			v.prev = []byte(prev)
+		}
 	case "RS256":
 		jwksURL := strings.TrimSpace(os.Getenv("JWKS_URL"))
 		if jwksURL == "" {
@@ -99,7 +105,8 @@ func (v *JWTVerifier) Verify(raw string) (VerifiedIdentity, error) {
 
 // keyFunc resolves the verification key, pinning to the ONE configured algorithm
 // — anything else (incl. `none` or an HS/RS swap) is rejected. This is the
-// algorithm-confusion guard.
+// algorithm-confusion guard. With a previous HS256 secret it returns both keys,
+// and the parser accepts a signature by either.
 func (v *JWTVerifier) keyFunc(t *jwt.Token) (any, error) {
 	if t.Method.Alg() != v.alg {
 		return nil, fmt.Errorf("unexpected signing method: %s (want %s)", t.Method.Alg(), v.alg)
@@ -107,6 +114,9 @@ func (v *JWTVerifier) keyFunc(t *jwt.Token) (any, error) {
 	if v.alg == "RS256" {
 		kid, _ := t.Header["kid"].(string)
 		return v.keys.publicKey(kid)
+	}
+	if v.prev != nil {
+		return jwt.VerificationKeySet{Keys: []jwt.VerificationKey{v.secret, v.prev}}, nil
 	}
 	return v.secret, nil
 }

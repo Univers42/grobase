@@ -24,6 +24,11 @@ export interface UserJwtOptions {
   allowNoExp?: boolean;
   /** When non-empty, `iss` must equal one of these (M-4). */
   issuers?: string[];
+  /**
+   * The secret being rotated out (JWT_SECRET_PREV): a token it signed is still
+   * accepted, so a rotation does not log every session out. Ignored when empty.
+   */
+  previousSecret?: string;
 }
 
 /**
@@ -34,6 +39,7 @@ export interface UserJwtOptions {
  *
  * An empty `secret` always returns null: a deployment that configured no secret
  * cannot verify anything, and must not be talked into trusting an unsigned token.
+ * `options.previousSecret` is accepted alongside `secret`, never instead of it.
  */
 export function verifyUserJwt(
   token: string,
@@ -44,16 +50,23 @@ export function verifyUserJwt(
   const parts = token.split('.');
   if (parts.length !== 3) return null;
   const [h, p, sig] = parts;
-  const expected = createHmac('sha256', secret).update(`${h}.${p}`).digest('base64url');
-  const a = Buffer.from(sig);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  const prev = options.previousSecret;
+  if (!signedBy(`${h}.${p}`, sig, secret) && !(prev && signedBy(`${h}.${p}`, sig, prev))) {
+    return null;
+  }
   try {
     const claims = JSON.parse(Buffer.from(p, 'base64url').toString('utf8')) as UserJwtClaims;
     return claimsHold(claims, options) ? claims : null;
   } catch {
     return null;
   }
+}
+
+/** True iff `sig` is the base64url HMAC-SHA256 of `data` under `key`, compared in constant time. */
+function signedBy(data: string, sig: string, key: string): boolean {
+  const a = Buffer.from(sig);
+  const b = Buffer.from(createHmac('sha256', key).update(data).digest('base64url'));
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 /**

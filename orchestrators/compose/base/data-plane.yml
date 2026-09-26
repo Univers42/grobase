@@ -131,6 +131,7 @@ services:
       REALTIME_HOST: 0.0.0.0
       REALTIME_PORT: 4000
       REALTIME_JWT_SECRET: ${JWT_SECRET}
+      REALTIME_JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       REALTIME_JWT_AUDIENCE: ""
       # Accepted `iss` values (M-4); a token without `iss` is refused unless
       # REALTIME_JWT_ALLOW_NO_ISSUER=1. GoTrue sessions (same expression as

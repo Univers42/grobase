@@ -63,6 +63,7 @@ services:
       REALTIME_PUBLISH_URL: ${REALTIME_PUBLISH_URL:-http://realtime:4000/v1/publish}
       REALTIME_PUBLISH_TIMEOUT_MS: ${QUERY_ROUTER_REALTIME_PUBLISH_TIMEOUT_MS:-1500}
       JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
       # deployment minted verifies here; without it the library refuses to run the
@@ -175,6 +176,7 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@mini-baas.local}
       JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
       # deployment minted verifies here; without it the library refuses to run the
@@ -208,6 +210,7 @@ services:
       PORT: 3040
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
       # deployment minted verifies here; without it the library refuses to run the
@@ -264,6 +267,7 @@ services:
       ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
       ADAPTER_REGISTRY_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
       # deployment minted verifies here; without it the library refuses to run the
@@ -315,6 +319,7 @@ services:
       ADAPTER_REGISTRY_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
       JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
       # deployment minted verifies here; without it the library refuses to run the
@@ -356,6 +361,7 @@ services:
       MONGO_DB_NAME: ${ANALYTICS_MONGO_DB:-mini_baas_analytics}
       ANALYTICS_RETENTION_DAYS: ${ANALYTICS_RETENTION_DAYS:-90}
       JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
       # deployment minted verifies here; without it the library refuses to run the
@@ -395,6 +401,7 @@ services:
       GDPR_DELETION_WEBHOOK_URL: ${GDPR_DELETION_WEBHOOK_URL:-}
       GDPR_EXPORT_WEBHOOK_URL: ${GDPR_EXPORT_WEBHOOK_URL:-}
       JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
       # deployment minted verifies here; without it the library refuses to run the
@@ -435,6 +442,7 @@ services:
       NEWSLETTER_BASE_URL: ${NEWSLETTER_BASE_URL:-http://localhost:8000/newsletter/v1}
       NEWSLETTER_BATCH_SIZE: ${NEWSLETTER_BATCH_SIZE:-5}
       JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
       # deployment minted verifies here; without it the library refuses to run the
@@ -483,6 +491,7 @@ services:
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
       AI_CONVERSATION_TTL_HOURS: ${AI_CONVERSATION_TTL_HOURS:-24}
       JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
       # deployment minted verifies here; without it the library refuses to run the
@@ -521,6 +530,7 @@ services:
       LOG_BUFFER_SIZE: ${LOG_BUFFER_SIZE:-1000}
       LOG_STREAM_TOKEN: ${LOG_STREAM_TOKEN:-}
       JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
       # deployment minted verifies here; without it the library refuses to run the
@@ -556,6 +566,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-7}
       JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
       # deployment minted verifies here; without it the library refuses to run the
