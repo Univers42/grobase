@@ -1126,6 +1126,10 @@ jobs:
       - name: Localhost certs (m198's WAF mounts them)
         run: bash scripts/certs/generate-localhost-cert.sh
 
+      # Base and every overlay render, with default profiles and with all of them.
+      - name: Compose renders (make test-lint-compose)
+        run: make test-lint-compose
+
       - name: Build kong + waf from this commit
         run: docker compose -f docker-compose.yml build kong waf
 

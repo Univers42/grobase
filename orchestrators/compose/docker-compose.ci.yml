@@ -12,16 +12,12 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
 
-  mongo:
-    tmpfs:
-      - /data/db
+  # mongo and minio keep their named volumes (mongo also mounts its keyfile);
+  # the volumes below are tmpfs-backed, so a second tmpfs at the same target
+  # would only collide with them.
 
   redis:
     volumes: !reset []
-    tmpfs:
-      - /data
-
-  minio:
     tmpfs:
       - /data
 
