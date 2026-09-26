@@ -40,6 +40,7 @@ set -eu
 
 SEED_DIR="${SEED_DIR:-./secrets}"
 NET="${NET:-mini-baas_mini-baas}"
+. "$(CDPATH='' cd -- "$(dirname -- "$0")/../lib" && pwd)/lib-netseg.sh"
 MONGO_IMAGE="${MONGO_IMAGE:-mongo:7}"
 MC_IMAGE="${MC_IMAGE:-ghcr.io/univers42/grobase-mc:latest}"
 AWS_IMAGE="${AWS_IMAGE:-amazon/aws-cli}"
@@ -140,7 +141,7 @@ seed_mongo() {
   MP="$(docker exec mini-baas-mongo printenv MONGO_INITDB_ROOT_PASSWORD)"
   export MU MP
   t="$SEED_DIR/.mongo.archive.gz.tmp"
-  docker run --rm --network "$NET" -e MU -e MP --entrypoint sh "$MONGO_IMAGE" -c \
+  docker run --rm --network "$(engine_net mini-baas-mongo "$NET")" -e MU -e MP --entrypoint sh "$MONGO_IMAGE" -c \
     'mongodump --host mini-baas-mongo --port 27017 --username "$MU" --password "$MP" \
 		 --authenticationDatabase admin --archive --gzip' 2>/dev/null >"$t" || true
   commit_if_ok mongo "$t" "$SEED_DIR/mongo.archive.gz"
@@ -223,16 +224,16 @@ seed_dynamodb() {
   }
   ep=http://mini-baas-dynamodb-local:8000
   stage="$(mktemp -d)"
-  tables=$(docker run --rm --network "$NET" -e AWS_ACCESS_KEY_ID=local -e AWS_SECRET_ACCESS_KEY=local \
+  tables=$(docker run --rm --network "$(engine_net mini-baas-dynamodb-local "$NET")" -e AWS_ACCESS_KEY_ID=local -e AWS_SECRET_ACCESS_KEY=local \
     -e AWS_DEFAULT_REGION=us-east-1 "$AWS_IMAGE" dynamodb list-tables --endpoint-url "$ep" \
     --output text --query 'TableNames[]' 2>/dev/null || true)
   for tb in $tables; do
     [ -n "$tb" ] || continue
-    docker run --rm --network "$NET" -e AWS_ACCESS_KEY_ID=local -e AWS_SECRET_ACCESS_KEY=local \
+    docker run --rm --network "$(engine_net mini-baas-dynamodb-local "$NET")" -e AWS_ACCESS_KEY_ID=local -e AWS_SECRET_ACCESS_KEY=local \
       -e AWS_DEFAULT_REGION=us-east-1 "$AWS_IMAGE" dynamodb describe-table --table-name "$tb" \
       --endpoint-url "$ep" --query 'Table.{TableName:TableName,KeySchema:KeySchema,AttributeDefinitions:AttributeDefinitions}' \
       --output json >"$stage/$tb.schema.json" 2>/dev/null || true
-    docker run --rm --network "$NET" -e AWS_ACCESS_KEY_ID=local -e AWS_SECRET_ACCESS_KEY=local \
+    docker run --rm --network "$(engine_net mini-baas-dynamodb-local "$NET")" -e AWS_ACCESS_KEY_ID=local -e AWS_SECRET_ACCESS_KEY=local \
       -e AWS_DEFAULT_REGION=us-east-1 "$AWS_IMAGE" dynamodb scan --table-name "$tb" \
       --endpoint-url "$ep" --output json >"$stage/$tb.items.json" 2>/dev/null || true
   done
