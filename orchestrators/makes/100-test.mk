@@ -106,7 +106,7 @@ test-lint: ## Lint EVERYTHING (shell·rust·go·ts·yaml·docker·make·compose)
 	echo -e "\n$(_W)lint matrix: $$pass clean / $$fail with errors$(_0)"; \
 	[ $$fail -eq 0 ] && echo -e "$(_G)✓ ALL LINTERS CLEAN$(_0)" || { echo -e "$(_R)✗ lint errors:$$failed$(_0)"; exit 1; }
 
-test-deps: ## Dependencies: supply-chain CVE scan (cargo-audit + govulncheck)
+test-deps: ## Dependencies: supply-chain scan (cargo-deny + govulncheck)
 	@$(MAKE) --no-print-directory audit-deps
 
 test-scan: ## Security scanning: hardcoded-secret scan + security battery (semgrep/etc.)
