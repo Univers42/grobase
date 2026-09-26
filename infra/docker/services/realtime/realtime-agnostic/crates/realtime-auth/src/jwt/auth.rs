@@ -13,7 +13,7 @@
 //! [`AuthProvider`] trait implementation for JWT verification.
 
 use async_trait::async_trait;
-use jsonwebtoken::decode;
+use jsonwebtoken::{decode, errors::ErrorKind, TokenData};
 use realtime_core::{
     AuthClaims, AuthContext, AuthProvider, RealtimeError, Result, TopicPath, TopicPattern,
 };
@@ -25,11 +25,10 @@ use super::{JwtAuthProvider, JwtClaims};
 impl AuthProvider for JwtAuthProvider {
     async fn verify(&self, token: &str, _context: &AuthContext) -> Result<AuthClaims> {
         let token = token.strip_prefix("Bearer ").unwrap_or(token);
-        let token_data =
-            decode::<JwtClaims>(token, &self.decoding_key, &self.validation).map_err(|e| {
-                warn!("JWT verification failed: {}", e);
-                RealtimeError::AuthFailed(format!("Invalid token: {e}"))
-            })?;
+        let token_data = self.decode(token).map_err(|e| {
+            warn!("JWT verification failed: {}", e);
+            RealtimeError::AuthFailed(format!("Invalid token: {e}"))
+        })?;
         let claims = token_data.claims;
         debug!(sub = %claims.sub, "JWT verified successfully");
         Ok(build_auth_claims(claims))
@@ -52,6 +51,22 @@ impl AuthProvider for JwtAuthProvider {
             Err(RealtimeError::AuthorizationDenied(format!(
                 "Not authorized to publish to {topic}"
             )))
+        }
+    }
+}
+
+impl JwtAuthProvider {
+    /// Decodes `token` with the current key and, only when that key rejects the
+    /// signature, with the previous one. Any other error (expiry, issuer,
+    /// algorithm) is final: the previous key never widens those checks.
+    fn decode(&self, token: &str) -> jsonwebtoken::errors::Result<TokenData<JwtClaims>> {
+        match decode::<JwtClaims>(token, &self.decoding_key, &self.validation) {
+            Err(e) if *e.kind() == ErrorKind::InvalidSignature => {
+                self.previous_key.as_ref().map_or(Err(e), |prev| {
+                    decode::<JwtClaims>(token, prev, &self.validation)
+                })
+            }
+            other => other,
         }
     }
 }

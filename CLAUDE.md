@@ -217,7 +217,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **189 scripts, highest m209** (`m209-backup-encryption.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **190 scripts, highest m210** (`m210-jwt-dual-key.sh`); the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -317,6 +317,10 @@ unconfined, five mutants are refused, and on a running stack the kernel reports 
 recipient uploading nothing, restore refused without or with the wrong `BACKUP_AGE_IDENTITY_FILE`, unknown artifacts
 refused, a restore.sh mutant caught, backup modes refusing the identity, and sealed physical members, WAL and PITR
 staging. Unset = plaintext, as before; m188's encrypted leg covers `engine-backup.sh`.
+`m210` (static, no stack) proves the verify side of JWT rotation: tenant-control, the TS identity library and
+realtime accept `JWT_SECRET_PREV` (realtime: `REALTIME_JWT_SECRET_PREV`), compose passes it to exactly those 14
+services (empty when unset), every other JWT secret holder and source read is classified (Kong/PostgREST/GoTrue/
+vault42 stay single-key), and `rotate-jwt.sh` / `rotate-secrets.sh jwt` refuse without `ROTATE_JWT_FORCE=1`.
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 

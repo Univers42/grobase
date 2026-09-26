@@ -65,6 +65,7 @@ export class ApiKeyMiddleware implements NestMiddleware {
   // GoTrue HS256 secret — verifies a user Bearer JWT for per-user owner-scoping.
   // Empty (unset) → the user-JWT branch is inert and the app key stays the owner.
   private readonly jwtSecret: string;
+  private readonly jwtSecretPrev: string;
   // JWT_ALLOW_NO_EXP=1 is the opt-out that re-admits a user JWT with no `exp` (M-3).
   private readonly allowNoExp: boolean;
 
@@ -81,6 +82,7 @@ export class ApiKeyMiddleware implements NestMiddleware {
     this.cacheTtlMs = Number(config.get('API_KEY_VERIFY_CACHE_TTL_MS', '30000'));
     this.jwtSecret =
       config.get<string>('GOTRUE_JWT_SECRET', '') || config.get<string>('JWT_SECRET', '');
+    this.jwtSecretPrev = config.get<string>('JWT_SECRET_PREV', '');
     this.agent = new http.Agent({ keepAlive: false });
     this.allowNoExp = /^(1|true)$/i.test(String(config.get('JWT_ALLOW_NO_EXP', '')).trim());
   }
@@ -178,7 +180,10 @@ export class ApiKeyMiddleware implements NestMiddleware {
     };
     const token = bearerToken(pickHeader(req, 'authorization'));
     if (!token) return fallback;
-    const claims = verifyUserJwt(token, this.jwtSecret, { allowNoExp: this.allowNoExp });
+    const claims = verifyUserJwt(token, this.jwtSecret, {
+      allowNoExp: this.allowNoExp,
+      previousSecret: this.jwtSecretPrev,
+    });
     if (!claims?.sub) return fallback;
     return { userId: `user:${claims.sub}`, role: claims.role || 'authenticated' };
   }

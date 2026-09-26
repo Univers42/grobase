@@ -22,7 +22,7 @@
 | **G-Vault** | MED | Done in code (m121, nightly) | Move existing max-tier mounts to Vault refs (operator) |
 | **G-Net** | MED | Done for compose, default in `make prod-up` (m66) | Enable the Helm NetworkPolicies on a real cluster |
 | **G-Hdr** | LOW | Verifier shipped, flag off | Signers in every caller, then the live flip |
-| **G-Rotate** | LOW | Service-token half done (m205, m68) | `JWT_SECRET` half: gotrue + PostgREST dual key, staging first |
+| **G-Rotate** | LOW | Service-token half done (m205, m68); JWT half PARTIAL: tenant-control, the TS services and realtime accept `JWT_SECRET_PREV` (m210), both rotation scripts refuse without `ROTATE_JWT_FORCE=1` | `JWT_SECRET` half: Kong, gotrue + PostgREST dual key, staging first |
 
 Priority order for what is left: **G-RS256** (highest value, headline) → the G-Vault mount move → the G-Net Helm policies → **G-Hdr** → **G-Rotate (JWT half)**. The cross-repo/live-login halves of Net/Hdr/Rotate are lowest priority (LOW value, highest risk).
 
@@ -207,12 +207,17 @@ Compose maps the one source key `ADAPTER_REGISTRY_SERVICE_TOKEN_PREV` onto every
 Limits: each `make up` recreates the containers that load `.env` (a short restart per phase, no 401s);
 a token held in Vault (`SECURITY_MODE=max`) is rotated at its source, not by this script.
 
-**JWT half (cross-repo, human + careful):**
+**JWT half — PARTIAL (`feat/jwt-dual-key-verify`, gate `m210`):** tenant-control, the TS identity
+library and realtime accept `JWT_SECRET_PREV` (realtime reads `REALTIME_JWT_SECRET_PREV`; compose maps
+both from `JWT_SECRET_PREV`). Kong (one secret per issuer), PostgREST, GoTrue, vault42, the loginotp
+escrow check and the `ANON_KEY`/`SERVICE_ROLE_KEY` signed with the secret do not, so `rotate-jwt.sh`
+and `rotate-secrets.sh jwt` refuse unless `ROTATE_JWT_FORCE=1` (a planned outage: every session and
+every frontend key stops working). What remains:
 5. Confirm vendored gotrue can sign under `JWT_SECRET` while PostgREST accepts `JWT_SECRET` + a secondary
    key (a vendored-gotrue + postgrest config change, NOT this repo's Rust/Go).
 6. Stand up STAGING gotrue+postgrest (never the shared live stack); prove a session minted under the new
    secret AND one under the old both validate during the grace window, then old rejected after.
-7. Wire `vault-rotate-approles`-style orchestration to bump `JWT_SECRET` + `PREV_JWT_SECRET` and trigger
+7. Wire `vault-rotate-approles`-style orchestration to bump `JWT_SECRET` + `JWT_SECRET_PREV` and trigger
    gotrue re-sign WITHOUT a hard restart — only after staging proof.
 8. Update `security-audit-asvs.md` G-Rotate once both halves are gated. Do NOT run the JWT half against the
    live login flow unsupervised (kernel rule #9).
