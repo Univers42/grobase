@@ -201,6 +201,30 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.yml down -v
 
+  # ─── Job 2a: Vault credential refs (G-Vault, m121) ───────────────────────────
+  # Builds adapter-registry + data-plane-router from this commit and boots them
+  # beside a scratch postgres and dev Vault (the stack's 1.21): a max-tier
+  # tenant's inline DSN is refused 403, its credential_ref resolves through Vault
+  # and serves a read, and a baseline tenant's inline DSN still registers.
+  vault-credref:
+    name: Vault credential refs (m121)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+                      /usr/local/share/boost /usr/local/share/powershell \
+                      /usr/lib/jvm "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
+          df -h / | tail -1
+
+      - name: Credential-ref enforcement (m121)
+        run: bash scripts/verify/m121-credref-vault-enforce.sh
+
   # ─── Job 2b: Load baseline — the "fast" regression guard ─────────────────────
   # m38: a 60 s k6 run of the canonical CRUD mix through Kong at the essential
   # tier's rate must stay inside scripts/bench/budgets.json (p95 and error %).
