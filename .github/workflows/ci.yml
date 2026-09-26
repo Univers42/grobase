@@ -462,10 +462,10 @@ jobs:
       - name: liveness follows PostgreSQL and MinIO
         run: bash scripts/verify/m192-pg-backup-liveness.sh
 
-  # ─── Standalone gates (m64 m81 m183) ──────────────────────────
+  # ─── Standalone gates (m64 m81 m183 m209) ─────────────────────
   # Each builds or starts its own throwaway containers; no stack needed.
   standalone-gates:
-    name: Standalone gates (m64 m81 m183)
+    name: Standalone gates (m64 m81 m183 m209)
     runs-on: ubuntu-latest
     needs: [shellcheck]
     timeout-minutes: 30
@@ -490,6 +490,15 @@ jobs:
 
       - name: Healthchecks assert network readiness (m183)
         run: bash scripts/verify/m183-healthcheck-network-readiness.sh
+
+      # pg-backup built from the commit encrypts every artifact with age, and a
+      # restore needs the identity (scratch postgres + MinIO, no stack).
+      - name: Pull the images for m209
+        run: |
+          bash scripts/ci/retry-on-429.sh docker pull -q mirror.gcr.io/library/postgres:16-alpine
+          bash scripts/ci/retry-on-429.sh docker pull -q ghcr.io/univers42/grobase-minio:latest
+      - name: Backups encrypted at rest (m209)
+        run: bash scripts/verify/m209-backup-encryption.sh
 
   integration-tests:
     name: Integration Tests
