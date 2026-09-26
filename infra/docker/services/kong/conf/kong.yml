@@ -12,9 +12,10 @@ consumers:
   - username: service_role
     keyauth_credentials:
       - key: __KONG_SERVICE_API_KEY__
-    # SECURITY: only the service_role key is in the baas-admin group; the
-    # adapter-registry admin route ACLs on it so the public anon key can no
-    # longer enumerate other tenants' DB mounts via a forged X-Baas-Tenant-Id.
+    # SECURITY: only the service_role key is in the baas-admin group; every
+    # ip-restricted route but the /studio UI ACLs on it (m206), so the public
+    # anon key opens no admin surface — ip-restriction alone is one proxy hop
+    # from useless, since behind the WAF every client has a private IP.
     acls:
       - group: baas-admin
   # JWT consumer — matches GoTrue-issued tokens via the "iss" claim.
@@ -477,6 +478,10 @@ services:
           - name: ip-restriction
             config:
               allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1]
+          - name: acl
+            config:
+              allow: [baas-admin]
+              hide_groups_header: true
           - name: rate-limiting
             config:
               policy: local
@@ -529,6 +534,10 @@ services:
           - name: ip-restriction
             config:
               allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1]
+          - name: acl
+            config:
+              allow: [baas-admin]
+              hide_groups_header: true
           - name: request-size-limiting
             config:
               allowed_payload_size: 64
@@ -544,7 +553,7 @@ services:
   # control plane. Each route is MORE specific than the /admin/v1 catch-all below
   # (Kong matches longest path first), strip_path leaves the upstream's own path
   # (carried in the service url), and all are internal-only via ip-restriction +
-  # the upstream's own service-token. service_role apikey + internal network only.
+  # acl baas-admin + the upstream's own service-token. service_role apikey only.
   - name: admin-tenants
     url: http://tenant-control:3022/v1/tenants
     routes:
@@ -556,6 +565,8 @@ services:
             config: { key_names: [apikey], hide_credentials: false }
           - name: ip-restriction
             config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: request-size-limiting
             config: { allowed_payload_size: 64, size_unit: kilobytes }
           - name: rate-limiting
@@ -645,6 +656,8 @@ services:
             config: { key_names: [apikey], hide_credentials: false }
           - name: ip-restriction
             config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: request-size-limiting
             config: { allowed_payload_size: 64, size_unit: kilobytes }
           - name: rate-limiting
@@ -661,6 +674,8 @@ services:
             config: { key_names: [apikey], hide_credentials: false }
           - name: ip-restriction
             config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: request-size-limiting
             config: { allowed_payload_size: 64, size_unit: kilobytes }
           - name: rate-limiting
@@ -681,6 +696,8 @@ services:
             config: { key_names: [apikey], hide_credentials: false }
           - name: ip-restriction
             config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: request-size-limiting
             config: { allowed_payload_size: 64, size_unit: kilobytes }
           - name: rate-limiting
@@ -697,6 +714,8 @@ services:
             config: { key_names: [apikey], hide_credentials: false }
           - name: ip-restriction
             config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: request-size-limiting
             config: { allowed_payload_size: 64, size_unit: kilobytes }
           - name: rate-limiting
@@ -713,6 +732,8 @@ services:
             config: { key_names: [apikey], hide_credentials: false }
           - name: ip-restriction
             config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: request-size-limiting
             config: { allowed_payload_size: 64, size_unit: kilobytes }
           - name: rate-limiting
@@ -729,6 +750,8 @@ services:
             config: { key_names: [apikey], hide_credentials: false }
           - name: ip-restriction
             config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: request-size-limiting
             config: { allowed_payload_size: 256, size_unit: kilobytes }
           - name: rate-limiting
@@ -747,6 +770,8 @@ services:
             config: { key_names: [apikey], hide_credentials: false }
           - name: ip-restriction
             config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: request-size-limiting
             config: { allowed_payload_size: 256, size_unit: kilobytes }
           - name: rate-limiting
