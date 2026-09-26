@@ -96,16 +96,19 @@ func hostAllowlisted(host string) bool {
 
 // isBlockedIP reports whether ip is in a range we must never POST to from the
 // control plane: loopback, link-local (incl. 169.254.0.0/16 — the cloud
-// metadata range), private RFC1918/ULA, unspecified, and — via extraBlockedV4,
-// the additional reserved IPv4 ranges the net.IP helpers do not cover — the
-// carrier-grade-NAT / benchmarking / documentation ranges that should never be
-// a legitimate public push endpoint.
+// metadata range), private RFC1918/ULA, unspecified, multicast, and — via
+// extraBlockedV4/V6, the reserved ranges the net.IP helpers do not cover — the
+// carrier-grade-NAT / benchmarking / documentation / class-E / local NAT64
+// ranges. A 6to4 or NAT64 address is also judged by the IPv4 it embeds.
 func isBlockedIP(ip net.IP) bool {
 	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
 		ip.IsPrivate() || ip.IsUnspecified() || ip.IsMulticast() {
 		return true
 	}
-	for _, cidr := range extraBlockedV4() {
+	if v4 := embeddedV4(ip); v4 != nil && isBlockedIP(v4) {
+		return true
+	}
+	for _, cidr := range append(extraBlockedV4(), extraBlockedV6()...) {
 		if cidr.Contains(ip) {
 			return true
 		}

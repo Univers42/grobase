@@ -1,8 +1,3 @@
----
-description: Universal refactoring rules — applies to all technologies
-alwaysApply: true
----
-
 # Refactoring — Common Ground (42 philosophy)
 
 ## Structural invariants

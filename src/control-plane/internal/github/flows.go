@@ -75,7 +75,7 @@ func (s *Service) DeviceLogin(ctx context.Context, deviceCode string) (string, e
 	return s.mintSession(subject)
 }
 
-// Link associates a GitHub org login with a vault42 org (idempotent). ErrNotFound if
+// Link associates a GitHub org login with an org (idempotent). ErrNotFound if
 // no installation exists for that login (connect first).
 func (s *Service) Link(ctx context.Context, orgID, githubLogin, userID string) error {
 	installID, err := s.installationForOrgLogin(ctx, githubLogin)

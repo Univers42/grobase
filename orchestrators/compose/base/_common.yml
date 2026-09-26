@@ -15,8 +15,19 @@
 # healthy, so `depends_on: condition: service_healthy` gating is exactly as
 # fast as before — the 30s applies only to the steady state, where nothing is
 # waiting on the answer. Requires Docker >= 25.
+#
+# no-new-privileges (N-30, gate m208): no process in any container can gain a
+# privilege through exec — setuid/setgid bits (su, passwd, mount … ship in
+# mssql, kong, waf, studio, pg-meta, mongo, cockroach, dynamodb-local, mysql,
+# mariadb) and file capabilities are ignored. Dropping privileges still works
+# (postgres su-exec, vault SKIP_SETCAP + disable_mlock). A service that
+# redefines security_opt must keep this entry; CONTAINER_NO_NEW_PRIVILEGES=false
+# turns it off everywhere, and preflight-production refuses that without
+# CONTAINER_NO_NEW_PRIVILEGES_ACK=1.
 services:
   base:
     networks:
       - mini-baas
     restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:${CONTAINER_NO_NEW_PRIVILEGES:-true}"

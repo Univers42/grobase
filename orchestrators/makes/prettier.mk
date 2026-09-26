@@ -16,6 +16,10 @@ PRETTIER_KINDS := prettier-go prettier-rust prettier-ts prettier-shell prettier-
 # image is golang:1.25-bookworm with GOTOOLCHAIN=local, so @latest fails to
 # install. v0.8.0 is the newest that builds under Go 1.25. Bump both together.
 GOFUMPT_VERSION ?= v0.8.0
+# Pinned so a new shfmt release cannot turn CI red on an unchanged tree.
+SHFMT_IMG ?= mvdan/shfmt:v3.10.0
+# The repo's own shell: vendor/ is third-party code in its authors' style.
+SH_OWN = $$(git ls-files '*.sh' ':!:vendor/**')
 
 prettiers: ## Format EVERY technology in place (gofumpt · rustfmt · prettier · shfmt)
 	@for t in $(PRETTIER_KINDS); do \
@@ -39,8 +43,8 @@ prettier-ts: ## Format TypeScript — prettier via src/.prettierrc (apps/libs, i
 	@$(NODE_RUN) sh -c 'npm ci --ignore-scripts --prefer-offline --no-audit --no-fund >/dev/null 2>&1 && npm run format' \
 		&& echo -e "$(_G)✓ ts (prettier)$(_0)"
 
-prettier-shell: ## Format shell — shfmt, 2-space (the repo's dominant style, in Docker)
-	@docker run --rm -v "$(CURDIR)":/d -w /d mvdan/shfmt:latest -w -i 2 $$(git ls-files '*.sh') \
+prettier-shell: ## Format shell — shfmt, 2-space (the repo's dominant style; vendor/ excluded, in Docker)
+	@docker run --rm -v "$(CURDIR)":/d -w /d $(SHFMT_IMG) -w -i 2 $(SH_OWN) \
 		&& echo -e "$(_G)✓ shell (shfmt)$(_0)"
 
 prettier-yaml: ## Format YAML — prettier (compose + config, in Docker)
@@ -59,7 +63,7 @@ prettiers-check: _rust-toolchain ## Verify every technology is formatted (no wri
 	echo -e "$(_B)── ts ──$(_0)"; \
 	$(NODE_RUN) sh -c 'npm ci --ignore-scripts --prefer-offline --no-audit --no-fund >/dev/null 2>&1; npx prettier --check "apps/**/*.ts" "libs/**/*.ts"' || rc=1; \
 	echo -e "$(_B)── shell ──$(_0)"; \
-	o=$$(docker run --rm -v "$(CURDIR)":/d -w /d mvdan/shfmt:latest -l -i 2 $$(git ls-files '*.sh')); [ -z "$$o" ] || { echo "$$o"; rc=1; }; \
+	o=$$(docker run --rm -v "$(CURDIR)":/d -w /d $(SHFMT_IMG) -l -i 2 $(SH_OWN)); [ -z "$$o" ] || { echo "$$o"; rc=1; }; \
 	echo -e "$(_B)── yaml ──$(_0)"; \
 	docker run --rm -v "$(CURDIR)":/repo -w /repo -v mini-baas-npm-cache:/root/.npm $(NODE_IMAGE) \
 		sh -c 'npx --yes prettier@3.4.2 --check "orchestrators/compose/**/*.yml" "infra/config/**/*.{yml,yaml}" docker-compose.yml' || rc=1; \

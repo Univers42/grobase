@@ -15,6 +15,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -59,7 +60,7 @@ func loadDone(out string, resume bool) map[string]bool {
 	if err != nil {
 		return done
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 1<<20), 1<<20)
 	for sc.Scan() {
@@ -82,23 +83,33 @@ func openSink(out string, resume bool) (*os.File, error) {
 	return os.OpenFile(out, mode, 0o600)
 }
 
-// seed runs the bulk provision and streams JSONL records to the out file. On a
-// failing run (errs > 0) it exits non-zero, but os.Exit skips deferred
-// functions, so the JSONL is flushed explicitly first — error records (the
-// diagnosis) are never lost.
+// seed runs the bulk provision and streams JSONL records to the out file. The
+// sink is flushed and closed before any exit so error records (the diagnosis)
+// are never lost; a failed flush/close is returned rather than dropped. A run
+// with provision errors (errs > 0) exits non-zero once the sink is durable.
 func seed(client *http.Client, cfg seedConfig) error {
 	done := loadDone(*cfg.out, *cfg.resume)
 	sink, err := openSink(*cfg.out, *cfg.resume)
 	if err != nil {
 		return fmt.Errorf("open out: %w", err)
 	}
-	defer sink.Close()
 	w := bufio.NewWriter(sink)
-	defer w.Flush()
-	if errs := runWorkers(client, cfg, done, w); errs > 0 {
-		_ = w.Flush()
-		_ = sink.Close()
+	errs := runWorkers(client, cfg, done, w)
+	if err := closeSink(w, sink); err != nil {
+		return err
+	}
+	if errs > 0 {
 		os.Exit(1)
+	}
+	return nil
+}
+
+// closeSink flushes the buffered JSONL writer, then closes its file. Both run
+// even if the flush fails (the fd must not leak); either error means records
+// may be missing from the out file, so it is returned wrapped.
+func closeSink(w *bufio.Writer, sink *os.File) error {
+	if err := errors.Join(w.Flush(), sink.Close()); err != nil {
+		return fmt.Errorf("write out: %w", err)
 	}
 	return nil
 }

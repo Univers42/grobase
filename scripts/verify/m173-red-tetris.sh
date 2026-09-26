@@ -30,14 +30,21 @@ GW="http://localhost:${KPORT:-8000}"
 NODE_IMG="node:22-alpine"
 PASS="Tetris#2026"
 
-ok()   { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
-fail() { printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+ok() { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
+fail() {
+  printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2
+  exit 1
+}
 sect() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
 [ -f "$CFG" ] || fail "no baas-config.js — run: bash scripts/seed/red-tetris-tenant.sh"
 cfg() { grep -oE "$1"': *"[^"]*"' "$CFG" | head -1 | sed -E 's/.*"([^"]*)"/\1/'; }
-ANON="$(cfg anonKey)"; APIKEY="$(cfg apiKey)"; PGDB="$(cfg pgDbId)"
-RT="$(cfg realtimeToken)"; MONGO="$(cfg mongoDbId)"; REDIS="$(cfg redisDbId)"
+ANON="$(cfg anonKey)"
+APIKEY="$(cfg apiKey)"
+PGDB="$(cfg pgDbId)"
+RT="$(cfg realtimeToken)"
+MONGO="$(cfg mongoDbId)"
+REDIS="$(cfg redisDbId)"
 [ -n "$ANON" ] && [ -n "$PGDB" ] && [ -n "$RT" ] || fail "baas-config.js missing fields"
 
 jpy() { python3 -c "$1"; }
@@ -61,7 +68,8 @@ tiers="$(q "$PGDB" league_tiers '{"op":"list","limit":20}' | jpy 'import sys,jso
 
 # ── (B) AUTH ─────────────────────────────────────────────────────────────────
 sect "(B) auth — two distinct players"
-GA="$(login alice@tetris.local)"; GB="$(login bob@tetris.local)"
+GA="$(login alice@tetris.local)"
+GB="$(login bob@tetris.local)"
 TA="$(printf '%s' "$GA" | jpy 'import sys,json;print(json.load(sys.stdin).get("access_token",""))')"
 TB="$(printf '%s' "$GB" | jpy 'import sys,json;print(json.load(sys.stdin).get("access_token",""))')"
 SA="$(printf '%s' "$GA" | jpy 'import sys,json;print(json.load(sys.stdin).get("user",{}).get("id",""))')"
@@ -70,10 +78,11 @@ SB="$(printf '%s' "$GB" | jpy 'import sys,json;print(json.load(sys.stdin).get("u
 
 # ── (C) PERSIST + (D) LIVE row_changed ───────────────────────────────────────
 sect "(C/D) persist a game → stats/ELO update + live CDC"
-before="$(q "$PGDB" player_stats "{\"op\":\"list\",\"filter\":{\"player_id\":\"$SA\"},\"limit\":1}" \
-  | jpy 'import sys,json;r=json.load(sys.stdin).get("rows",[]);print(r[0]["total_games"] if r else 0)')"
-TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
-cat > "$TMP/cdc.mjs" <<'EOF'
+before="$(q "$PGDB" player_stats "{\"op\":\"list\",\"filter\":{\"player_id\":\"$SA\"},\"limit\":1}" |
+  jpy 'import sys,json;r=json.load(sys.stdin).get("rows",[]);print(r[0]["total_games"] if r else 0)')"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+cat >"$TMP/cdc.mjs" <<'EOF'
 const ws=new WebSocket(process.env.WSURL); let got=false;
 const to=setTimeout(()=>{console.log(got?'CDC_OK':'CDC_FAIL');process.exit(got?0:1);},9000);
 ws.addEventListener('open',()=>ws.send(JSON.stringify({type:'AUTH',token:process.env.TOK})));
@@ -81,28 +90,28 @@ ws.addEventListener('message',e=>{let m;try{m=JSON.parse(e.data.toString())}catc
   if(m.type==='AUTH_OK')ws.send(JSON.stringify({type:'SUBSCRIBE',sub_id:'c',topic:process.env.TOPIC}));
   if(m.type==='EVENT'&&m.event&&m.event.event_type==='row_changed'){got=true;clearTimeout(to);console.log('CDC_OK');process.exit(0);}});
 EOF
-( docker run --rm --network host -e WSURL="ws://127.0.0.1:${KPORT}/realtime/v1/ws" -e TOK="$RT" \
-    -e TOPIC="table:${PGDB}:games" -v "$TMP":/t:ro "$NODE_IMG" node /t/cdc.mjs > "$TMP/cdc.out" 2>/dev/null ) &
+(docker run --rm --network host -e WSURL="ws://127.0.0.1:${KPORT}/realtime/v1/ws" -e TOK="$RT" \
+  -e TOPIC="table:${PGDB}:games" -v "$TMP":/t:ro "$NODE_IMG" node /t/cdc.mjs >"$TMP/cdc.out" 2>/dev/null) &
 CDCPID=$!
 sleep 2
 q "$PGDB" games "{\"op\":\"insert\",\"data\":{\"player_id\":\"$SA\",\"mode\":\"solo\",\"score\":6543,\"lines\":21,\"won\":false}}" "$TA" >/dev/null
 wait $CDCPID || true
 grep -q CDC_OK "$TMP/cdc.out" && ok "games insert emitted realtime row_changed (live leaderboard)" || fail "no row_changed on games CDC topic"
-after="$(q "$PGDB" player_stats "{\"op\":\"list\",\"filter\":{\"player_id\":\"$SA\"},\"limit\":1}" \
-  | jpy 'import sys,json;r=json.load(sys.stdin).get("rows",[]);print(r[0]["total_games"] if r else 0)')"
+after="$(q "$PGDB" player_stats "{\"op\":\"list\",\"filter\":{\"player_id\":\"$SA\"},\"limit\":1}" |
+  jpy 'import sys,json;r=json.load(sys.stdin).get("rows",[]);print(r[0]["total_games"] if r else 0)')"
 [ "${after:-0}" -gt "${before:-0}" ] && ok "apply_game_result trigger updated stats ($before→$after games)" || fail "stats not updated by trigger"
 
 # ── (E) ISOLATION vs shared ──────────────────────────────────────────────────
 sect "(E) isolation — games owner-scoped, leaderboard world-readable"
-aliceLeak="$(q "$PGDB" games '{"op":"list","limit":200}' \
-  | jpy "import sys,json;rows=json.load(sys.stdin).get('rows',[]);print(sum(1 for r in rows if r.get('owner_id')=='user:$SA'))")"
+aliceLeak="$(q "$PGDB" games '{"op":"list","limit":200}' |
+  jpy "import sys,json;rows=json.load(sys.stdin).get('rows',[]);print(sum(1 for r in rows if r.get('owner_id')=='user:$SA'))")"
 [ "${aliceLeak:-1}" -eq 0 ] && ok "alice's user-owned games are hidden from the app key (read_scoped)" || fail "alice's games leaked to app key ($aliceLeak rows)"
 lb="$(q "$PGDB" games_leaderboard '{"op":"list","limit":50}' | jpy 'import sys,json;print(len(json.load(sys.stdin).get("rows",[])))')"
 [ "${lb:-0}" -ge 2 ] && ok "leaderboard is world-readable ($lb players)" || fail "leaderboard not shared ($lb)"
 
 # ── (F) MULTIPLAYER — presence + broadcast across two peers ──────────────────
 sect "(F) multiplayer — presence fan-out + broadcast B→A on a room topic"
-cat > "$TMP/duo.mjs" <<'EOF'
+cat >"$TMP/duo.mjs" <<'EOF'
 const url=process.env.WSURL,T=process.env.TOK,topic='tetris/room/m173';
 const res={presence:false,broadcast:false};
 const a=new WebSocket(url),b=new WebSocket(url);let aReady=false;

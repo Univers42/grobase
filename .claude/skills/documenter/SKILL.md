@@ -1,5 +1,5 @@
 ---
-name: documentation-wiki
+name: documenter
 description: >-
   Turn sprawling, redundant, jargon-heavy technical writing into a navigable wiki that a
   competent outsider can actually read. Use this whenever the user wants to write, restructure,

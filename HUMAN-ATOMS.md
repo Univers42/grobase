@@ -8,7 +8,7 @@
 > **Targets:** (1) **OSS self-host** · (2) **Managed cloud** (a stranger can BUY) ·
 > (3) **Enterprise** (a company can PROCURE).
 >
-> **Preflight:** `bash mini-baas-infra/deploy/go-live/go-live.sh` prints READY/MISSING
+> **Preflight:** `bash deploy/go-live/go-live.sh` prints READY/MISSING
 > for each atom below and the exact command for each (read-only; it never pushes,
 > deploys, publishes, or flips a flag — *confirm-the-irreversible*).
 >
@@ -18,8 +18,8 @@
 >
 > **Legend:** 🔵 web-UI / account (only a human can) · ⚪ command (human runs, or paste
 > here prefixed `!`) · 📌 irreversible — held · 💰 costs money.
-> Paths are relative to `apps/baas/` unless absolute. Run ⚪ commands from
-> `apps/baas/mini-baas-infra/` unless noted.
+> Paths are relative to the repo root unless absolute. Run ⚪ commands from
+> the repo root (`<repo>`) unless noted.
 
 ---
 
@@ -27,7 +27,7 @@
 
 | # | Atom | Target | Unblocks (scorecard line) | Kind |
 |---|------|--------|---------------------------|------|
-| 1 | npm SDK publish `@mini-baas/js` v0.2.0 | cloud + OSS | DX / "client SDK on a public registry" | 🔵🔵🔵 + ⚪📌 |
+| 1 | npm SDK publish `@grobase/js` v0.2.0 | cloud + OSS | DX / "client SDK on a public registry" | 🔵🔵🔵 + ⚪📌 |
 | 2 | Repo version tag `baas-v1.4.0` | all | "released, versioned product" | ⚪📌 |
 | 3 | Stripe live account + keys + meters | cloud | Billing bar / "stranger can BUY → Stripe-billed" | 🔵🔵🔵 💰 + ⚪ |
 | 4 | Domain + DNS + TLS | cloud | Cloud-ready / "hosted at api.\<domain\>" | 🔵🔵 💰 + ⚪ |
@@ -40,7 +40,11 @@
 | 11 | Lawyer review + DPO / EU representative | cloud + ent | Procurement / "TOS·DPA·SLA·privacy + RoPA/DPIA" | 🔵 💰 |
 | 12 | Live IdP for SSO (OIDC) + SCIM | enterprise | Enterprise auth / "real-IdP SSO+SCIM" | 🔵 💰 |
 | 13 | Cloud KMS backend for CMEK (Vault Transit works today; m123 ✅) | enterprise | Compliance / "customer-managed encryption" | ✅ code · 🔵 💰 cloud-KMS optional |
-| 14 | Remove the two `*.rootowned-stale` dirs | housekeeping | Repo hygiene / "no dead duplicates" | ⚪ (`git rm`; sudo only if root-owned) |
+| 14 | ~~Remove the two `*.rootowned-stale` dirs~~ | housekeeping | Repo hygiene / "no dead duplicates" | ✅ done (`f1efaf38`) |
+| 15 | Revoke the leaked GitHub PAT (`GH_PAT` in `.env.local`) | all | Security / "no live credential ever pasted into a doc" | 🔵 **urgent** |
+| 16 | Bring the prod-overlay hardening to the live fly stack | cloud | Security / "prod runs the hardened shape, not the dev one" | ⚪📌 deploy |
+| 17 | Fly Vault: drop root, rotate the on-disk root token, leave EOL 1.16 | cloud | Security / "no root process holding the root token" | ⚪📌 deploy |
+| 18 | Vault base image 1.21 → 2.x (self-host image) | OSS + cloud | Supply chain / "image scan green" | ⚪ + upgrade review |
 
 > "PENDING measurement" = honestly **not yet measured** (the 100K is *projected*;
 > failover is *unbuilt*). Do not quote an availability % or a 100K-load number until
@@ -50,26 +54,29 @@
 
 # Group 1 — Publish / release
 
-## 1 · npm SDK publish — `@mini-baas/js` v0.2.0  📌
+## 1 · npm SDK publish — `@grobase/js` v0.2.0  📌
 
 **Unblocks:** managed-cloud + OSS DX scorecard line *"official client SDK on a public
 registry"*. The publish workflow is held — nothing reaches npm without your tag.
 Workflow: `.github/workflows/baas-cli-publish.yml` (fires on `baas-cli-v*`).
+> ⚠ **Not in this repo:** `baas-cli-publish.yml` was a monorepo workflow and was never carried
+> over (`.github/workflows/` holds only `ci.yml`, `mini-baas-security.yml`, `nightly-proof.yml`;
+> gate `m61` still expects it). Until it is re-added here, the step-d tag push fires nothing.
 
-- 🔵 **a. Create the npm org.** npmjs.com → avatar → **Add Organization** → name `mini-baas` → Free.
-      *(Already own an org? Skip — rename the scope in `apps/baas/sdk/package.json`, then do b–d only.)*
+- 🔵 **a. Create the npm org.** npmjs.com → avatar → **Add Organization** → name `grobase` → Free.
+      *(Already own an org? Skip — rename the scope in `sdks/js/package.json`, then do b–d only.)*
 - 🔵 **b. Create an automation token.** npmjs.com → avatar → **Access Tokens** → Generate →
-      **Granular Access Token** (read/write on scope `@mini-baas`) **or Classic Automation**
+      **Granular Access Token** (read/write on scope `@grobase`) **or Classic Automation**
       (bypasses the 2FA OTP CI can't enter) → copy `npm_…`.
 - 🔵 **c. Add the GitHub secret.** github.com/Univers42/grobase → Settings → Secrets and
       variables → Actions → **New repository secret** → name `NPM_TOKEN`, value = the token.
 - ⚪📌 **d. Publish** (the tag fires the held `publish` job → `npm publish --provenance --access public`):
   ```bash
-  cd /home/dlesieur/Documents/ft_transcendence
+  cd <repo>
   git tag baas-cli-v0.2.0 && git push origin baas-cli-v0.2.0
   ```
   *(The workflow asserts the tag matches `package.json` version `0.2.0`; bump the file or retag if they drift.)*
-- ⚪ **e. Verify:** `npm view @mini-baas/js version`   → expect `0.2.0`.
+- ⚪ **e. Verify:** `npm view @grobase/js version`   → expect `0.2.0`.
 
 **Irreversible?** YES — an npm version is immutable (unpublish only within 72h). Held 📌.
 
@@ -81,15 +88,18 @@ Workflow: `.github/workflows/baas-cli-publish.yml` (fires on `baas-cli-v*`).
 `baas-v1.3.0` (`git tag | grep ^baas-v`); the GA-night work is the next minor.
 This tag drives `.github/workflows/baas-release.yml` (Docker-image release —
 namespace `baas-v*`, **separate** from `baas-cli-v*` so neither fires the other).
+> ⚠ **Not in this repo:** there is no `baas-release.yml` here and no `baas-v*` tag
+> (`git tag` → `backup/develop-2026-09-23`, `v0.0.1`); both belonged to the monorepo. Images are
+> published to GHCR by `ci.yml` on `main` pushes instead.
 
 - ⚪ **a. Sanity (safe, run anywhere):** confirm the tree is green & the worklog committed.
 - ⚪📌 **b. Cut the tag** (only after the GA-night branch has merged / is the intended ref):
   ```bash
-  cd /home/dlesieur/Documents/ft_transcendence
+  cd <repo>
   git tag baas-v1.4.0 && git push origin baas-v1.4.0
   ```
 - ⚪ **c. Bump the Helm `appVersion`** to match (currently `appVersion: "1.2.0"` in
-  `mini-baas-infra/deploy/helm/grobase/Chart.yaml`) so the chart and the image release agree.
+  `deploy/helm/grobase/Chart.yaml`) so the chart and the image release agree.
 
 **Irreversible?** A pushed tag + the release CI publishing images = effectively irreversible. Held 📌.
 
@@ -100,7 +110,7 @@ namespace `baas-v*`, **separate** from `baas-cli-v*` so neither fires the other)
 > All of §3–§7 are the managed-cloud "a stranger can BUY" target. The cloud features
 > (B1–B6) are built + gate-proven and **flag-gated OFF = byte-parity** today; go-live
 > = providing the external accounts and promoting flags **one rung at a time** via the
-> ladder in `mini-baas-infra/config/cloud/README.md` (R0→R7). **Never enable enforcement
+> ladder in `infra/config/cloud/README.md` (R0→R7). **Never enable enforcement
 > (402s / spend caps / suspends) before it has shadowed + warned.**
 
 ## 3 · Stripe live billing (B3)  💰
@@ -113,21 +123,21 @@ needs a real account. Reporter refuses to start with `BILLING_ENABLED=1` but no 
 - 🔵 **a.** Create + activate a Stripe account (stripe.com). 💰
 - 🔵 **b.** Stripe → **Billing → Meters**, create meters matching the reporter's event names:
   `grobase_query_count`, `grobase_write_rows` (add `storage_bytes` / `realtime_minutes` /
-  `function_invocations` meters if you bill them — see `config/cloud/flags.env.example`
+  `function_invocations` meters if you bill them — see `infra/config/cloud/flags.env.example`
   `BILLING_METER_*`).
 - 🔵 **c.** Developers → API keys → copy the Secret key (`sk_test_…` to rehearse, `sk_live_…` for real).
 - ⚪ **d.** Wire it (secrets stay OUT of git) and promote via the ladder — **R1 observe first,
   then R6 billing**, never jump to enforce:
   ```bash
-  cd /home/dlesieur/Documents/ft_transcendence/apps/baas/mini-baas-infra
-  cp config/cloud/flags.env.example config/cloud/flags.prod.env
+  cd <repo>
+  cp infra/config/cloud/flags.env.example infra/config/cloud/flags.prod.env
   # edit flags.prod.env — R1: METERING_ENABLED=1 METERING_INGEST=1 DATA_PLANE_METERING=1
   #                       R6 (later rung): BILLING_ENABLED=1
   # secrets via your secrets tool (NEVER a committed file):
   #   STRIPE_API_KEY=sk_live_xxx
   #   BILLING_METER_QUERY_COUNT=grobase_query_count
   #   BILLING_METER_WRITE_ROWS=grobase_write_rows
-  cat config/cloud/flags.prod.env >> .env        # flags.<env>.env is gitignored
+  cat infra/config/cloud/flags.prod.env >> .env   # NOT gitignored (only flags.env.cloud is) — keep secrets out of it
   make up EDITION=prod
   ```
 - ⚪ **e.** Each billable tenant needs a `tenant_billing` row mapping it to its Stripe `cus_…`.
@@ -151,13 +161,13 @@ automatically once DNS points at the ingress.
 ## 5 · Managed k8s cluster — `helm install` (Track-C C3)  💰
 
 **Unblocks:** Operational-ready / *"HA topology deployed"*. Chart is lint-clean at
-`mini-baas-infra/deploy/helm/grobase` (2× data-plane / control / adapter / kong with HPA;
+`deploy/helm/grobase` (2× data-plane / control / adapter / kong with HPA;
 StatefulSet PG+Redis; deny-by-default NetworkPolicy; optional Vault-CSI).
 
 - 🔵 **a.** A managed Kubernetes cluster (GKE / EKS / DO / …) — your cloud account + bill. 💰
 - ⚪ **b.** Install (once `kubectl` points at the cluster):
   ```bash
-  cd /home/dlesieur/Documents/ft_transcendence/apps/baas/mini-baas-infra
+  cd <repo>
   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
   helm install grobase deploy/helm/grobase --namespace grobase --create-namespace \
     --set ingress.hosts[0].host=api.<yourdomain> \
@@ -183,18 +193,19 @@ StatefulSet PG+Redis; deny-by-default NetworkPolicy; optional Vault-CSI).
 ## 7 · RS256 live-auth flip (security headline)  📌
 
 **Unblocks:** Security bar / *"asymmetric JWT signing + JWKS rotation"*. Runbook:
-`wiki/security-residuals-runbook.md` §G-RS256. Gate m81 (`m81-rs256-issuer.sh`) **already
+`wiki/security/security-residuals-runbook.md` §G-RS256. Gate m81 (`m81-rs256-issuer.sh`) **already
 proves a real RS256 issuer end-to-end through Kong + the tenant-control JWKS verifier** —
 the in-repo verifier (`jwt.go`/`jwks.go`) is shipped + unit-proven. The **only** blocker is
-the issuer: vendored gotrue `v2.188.1` signs **HS256 only**.
+the issuer: gotrue `v2.188.1` (built from source) is run **HS256 only** by this stack.
 
 - ⚪ **a. Re-confirm the proof (safe, scratch-only, run anywhere incl. `!` here):**
   ```bash
-  bash /home/dlesieur/Documents/ft_transcendence/apps/baas/mini-baas-infra/scripts/verify/m81-rs256-issuer.sh
+  bash <repo>/scripts/verify/m81-rs256-issuer.sh
   ```
 - ⚪📌 **b. Live cutover (runbook steps 2–6, this is the global-login property):**
-  1. Bump `docker/services/gotrue/Dockerfile` to a gotrue/auth image with asymmetric JWT
-     signing (Supabase auth ≥ 2025-07 "JWT signing keys") **or** front a JWKS signer.
+  1. `infra/docker/services/gotrue/Dockerfile` builds gotrue from source (`ARG AUTH_VERSION=2.188.1`);
+     its binary carries the signing-key code paths — enable asymmetric JWT signing (Supabase auth
+     "JWT signing keys"; bump `AUTH_VERSION` if needed) **or** front a JWKS signer.
   2. Private key → Vault.  3. Swap Kong `jwt_secrets` HS256 → RS256 (`rsa_public_key`).
   4. Set `JWT_ALG=RS256` + `JWKS_URL=<issuer>/.well-known/jwks.json` on tenant-control.
   5. `make all && make playground` — must stay **200 across /rest /query /data /storage**.
@@ -216,10 +227,10 @@ that IS measured: 24,887 live tenants @ 2.6 MiB at rest
 
 - ⚪ **a.** On any **idle** machine with Docker (data-root on a big disk), after cloning:
   ```bash
-  cd <repo>/apps/baas/mini-baas-infra
-  docker compose -f docker-compose.yml -f docker-compose.scale.yml up -d   # PG max_connections=2000, SHARE_POOLS=1
+  cd <repo>
+  docker compose -f docker-compose.yml -f orchestrators/compose/docker-compose.scale.yml up -d   # PG max_connections=2000, SHARE_POOLS=1
   SCALE=100000 RATE=20 DURATION=60s DIST=zipf PREFIX=scale-100k \
-    bash scripts/scale/load-100k.sh
+    bash scripts/bench/scale/load-100k.sh
   ```
   Seed is resumable (~50 min Argon2id wall). Result → `artifacts/scale/load-100k-100000.json`.
 - ⚪ **b.** Record it:
@@ -266,7 +277,7 @@ collected, audit-ready"*, **NOT a certificate** — a certificate requires an ex
 - ⚪ **b.** Run the evidence: `SOC2_EVIDENCE_ENABLED=1` (optionally `SOC2_EVIDENCE_SCHEDULE=24h` to
   accumulate the Type II observation-window population), `POST /v1/compliance/collect`, export
   `GET /v1/compliance/evidence`; re-run `scripts/verify/run-gate-battery.sh --enterprise`. Trust-center
-  posture is gate m112 (`config/trust/posture.json`).
+  posture is gate m112 (`infra/config/trust/posture.json`).
 - 🔵 **c.** Commission an external **penetration test** (the strongest single due-diligence artifact)
   and attach the report. 💰
 - ⚪ **d.** Stand up the **C7 uptime probe** (atom 8/9) so the Availability criterion + SLA carry a
@@ -324,24 +335,68 @@ distinct KEKs are schema-supported (`cmek_kms_key_id` per row).
 
 # Group 5 — Housekeeping
 
-## 14 · Remove the two `*.rootowned-stale` dirs
+## 14 · Remove the two `*.rootowned-stale` dirs — ✅ done
 
-**Unblocks:** repo hygiene / *"no dead root-owned duplicates"*. These are dead duplicates of
-`sdk-dart/` and `sdk-python/` (never edit them; use the un-suffixed dirs). They are still
-git-tracked (≈81 + 133 files). On the maintainer's own checkout they are owned by the user and
-removable directly; on a checkout where they landed root-owned, removal needs `sudo`. Left as a
-**deliberate manual cleanup** (not auto-deleted by docs work — it removes hundreds of tracked SDK
-files and overlaps the SDK story, so it stays a human-triggered step).
-
-- ⚪ **a.** Remove them (the `git rm` works without sudo where the files are user-owned; fall back to
-  `sudo rm -rf` first only if they are root-owned on your checkout):
-  ```bash
-  cd /home/dlesieur/Documents/ft_transcendence/apps/baas/grobase
-  git rm -r sdk-dart.rootowned-stale sdk-python.rootowned-stale   # or: sudo rm -rf … && git add -A
-  git commit -m "chore(baas): remove dead stale SDK duplicates"
-  ```
+**Unblocks:** repo hygiene / *"no dead root-owned duplicates"*. These were dead duplicates of
+`sdk-dart/` and `sdk-python/` (≈81 + 133 tracked files; the live SDKs are now `sdks/dart/` and
+`sdks/python/`). **Done:** removed by `git rm` in `f1efaf38` (*chore(layout): remove stale
+migration cruft*, 2026-06-17); `git ls-files | grep -c rootowned` → `0`. Nothing left to run.
 
 **Irreversible?** A delete, but recoverable from git history — low risk.
+
+---
+
+# Group 6 — Security follow-through (from the 2026-09-23 hardening pass)
+
+The code for each of these is written, flag-gated OFF and gate-proven in the repo; what is
+left needs an account or a deploy. Status of every finding: `wiki/security/remediation-tracker-2025-07-14.md`.
+
+## 15 · Revoke the leaked GitHub PAT  🔵 urgent
+
+A live `ghp_` token from `.env.local` (`GH_PAT`) was pasted into four docs by an AI-generated
+report. The copies are redacted and never reached git history, but the token also sits in local
+agent transcripts, so only revocation closes it.
+
+- 🔵 **a.** github.com → Settings → Developer settings → Personal access tokens → revoke it.
+- ⚪ **b.** Mint a replacement only if something still needs one; put it in `.env.local` only.
+- ⚪ **c.** `make check-secrets` — gitleaks now scans docs too; it must stay green.
+
+## 16 · Prod-overlay hardening on the live fly stack  📌
+
+`deploy/fly/boot.sh` does not load `orchestrators/compose/docker-compose.prod.yml`, so the live
+`grobase-stack` runs none of: Kong admin/Manager off (`KONG_ADMIN_LISTEN=off`,
+`KONG_ADMIN_GUI_LISTEN=off`, `KONG_STATUS_LISTEN=0.0.0.0:8001` so Prometheus keeps `/metrics`),
+the GoTrue signup policy, `STORAGE_ACTIVE_CONTENT_GUARD_ENABLED=1` (storage-router),
+`AUTOMATION_WEBHOOK_IP_PIN_ENABLED=1` (query-router). `deploy/go-live/go-live.sh`'s `SET_FLAGS`
+(Helm path) also lacks the two guard flags.
+
+- ⚪ **a.** Decide per value, then add it to `deploy/fly/compose.override.yml` (and `SET_FLAGS`).
+- ⚪ **b.** Render check: `docker compose -f docker-compose.yml -f deploy/fly/compose.override.yml config --quiet`.
+- ⚪📌 **c.** Deploy, then prove on the live host: `curl -s kong:8001/key-auths` from a peer
+  container must fail; `bash scripts/verify/m195-prod-overlay-hardening.sh` documents the values.
+
+## 17 · Fly Vault (`track-binocle-vault`)  📌
+
+It runs as root (`Dockerfile.fly` replaces the base entrypoint that would drop privileges), the
+root token and the single unseal key sit in plaintext in `/vault/data/.vault-keys.json`, and the
+image is `vault:1.16` (end of life).
+
+- ⚪📌 **a.** Snapshot the `vault_data` volume, set `VAULT_DROP_PRIVILEGES_ENABLED=1` under `[env]`
+  in `infra/docker/services/vault/fly.toml`, redeploy. First boot chowns the volume to `vault`.
+  Proof of the mechanism: `bash scripts/verify/m196-vault-drop-privileges.sh`.
+- ⚪📌 **b.** Rotate the root token and move to Shamir shares or auto-unseal; delete the keys file.
+- ⚪📌 **c.** Bump `Dockerfile.fly` off 1.16 (re-run m196 after).
+
+## 18 · Vault base image 1.21 → 2.x  ⚪
+
+`infra/docker/services/vault/Dockerfile` floats on `hashicorp/vault:1.21` (= 1.21.4). Trivy is red
+on it with or without the old `.trivyignore` entries (25 of the 26 formerly suppressed CVEs are
+still present); 2.1.1 contains none of them. A plain `.trivyignore` entry would also hide the same
+IDs in gotrue/loki/mc, so suppression is not the fix.
+
+- ⚪ **a.** Read the 1.x → 2.x upgrade notes, pin an exact 2.x tag, `make build-svc-vault`.
+- ⚪ **b.** `bash scripts/security/run-security-scans.sh --only=trivy` (on < 5 GB free:
+  `SECURITY_TRIVY_IMAGE_PARALLELISM=1`) must show the vault image green.
 
 ---
 
@@ -353,4 +408,4 @@ HS256 rollback window). Everything in Groups 3–4 gates on real money / externa
 the genuine remaining distance to 10/10 — not code we still have to write.
 
 > Run the preflight any time to re-check status:
-> `bash mini-baas-infra/deploy/go-live/go-live.sh`
+> `bash deploy/go-live/go-live.sh`

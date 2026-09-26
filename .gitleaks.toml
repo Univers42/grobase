@@ -62,6 +62,8 @@ regexes = [
   '''\$\{?[A-Z_]*TOKEN\}?''',
   '''your-super-secret-and-long-postgres-password''',
   '''ci-jwt-secret-min-32-chars-long-xx''',
+  '''m195-dummy-jwt-secret-m195-dummy-jwt''',
+  '''jwt-test-secret-at-least-32-characters-long''',
   '''ci-adapter-token''',
   '''minioadmin''',
   '''(?i)changeme''',

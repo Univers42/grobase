@@ -37,8 +37,8 @@ the code path that implements the control.
 | SCA in CI (known-CVE gate) | `[v]` | `cargo-audit` (Rust) + `govulncheck` (Go) + `npm/pnpm audit` + Trivy fs/image, all **blocking** in `.github/workflows/mini-baas-security.yml` (`sca-cargo-audit`, `sca-govulncheck`, `sca-npm-audit`, `container-trivy`). |
 | SAST in CI | `[v]` | Semgrep (`p/owasp-top-ten` + lang rules), SARIF to the Security tab (`sast-semgrep`). |
 | Secret-scan in CI (blocking) | `[v]` | TruffleHog (`--only-verified --fail`) + gitleaks (working-tree regex/entropy, `--exit-code 1`); `.env`/`.env.local` gitignored and never tracked, `ANON_KEY` runtime-derived from `JWT_SECRET` (no committed secret). |
-| Vault enforced for all secrets | `[~]` | Vault present (`docker/services/vault`); but plaintext DSNs are possible outside `SECURITY_MODE=max` (audit O5). → **gap G-Vault**. |
-| Plane network isolation / NetworkPolicy | `[x]` | Flat single bridge network (`docker-compose.yml`); no per-plane segmentation. → **gap G-Net**. |
+| Vault enforced for all secrets | `[~]` | Under `SECURITY_MODE=max` an inline DSN is refused (403) and mounts are Vault `credential_ref`s resolved per request (migration 060, gate m121, nightly). Other tiers keep encrypted-at-rest inline DSNs by design. |
+| Plane network isolation / NetworkPolicy | `[~]` | Compose: the netseg overlay takes the engines + vault off the app bridge (`make up NETSEG=1`, default in `prod-up`; gate m66). Helm NetworkPolicy exists and defaults on (off in `values-dev.yaml`); unproven on a real cluster. |
 
 ### V2 — Authentication
 
@@ -89,7 +89,7 @@ the code path that implements the control.
 | Control | Status | Evidence |
 |---|---|---|
 | Structured audit of mutations + denials | `[v]` | Writes and denials emit an `audit` tracing target. |
-| Sensitive-read auditing | `[x]` | Reads are not audited (audit O8). → **gap G-ReadAudit**. |
+| Sensitive-read auditing | `[~]` | Opt-in: `DATA_PLANE_AUDIT_READS=true` emits one `event="read"` audit line per served read with its row count (gate m72, nightly); default OFF. |
 | No sensitive data in error responses | `[v]` | Errors return typed codes (`shared.WriteError`); integrity violations map to 409, not raw driver text (`project-baas-constraint-409`). |
 | Audit → SIEM + anomaly detection | `[~]` | Observability fully wired (Prometheus/Grafana/Loki/Tempo, gate m19); SIEM shipping + cross-tenant-404 anomaly alerts are recommended (audit solution #6). |
 
@@ -99,7 +99,7 @@ the code path that implements the control.
 |---|---|---|
 | Tenant data isolation (storage) | `[v]` | storage-router owner-prefixed keys; Kong `pre-function` clears client `X-User-*` then sets them from the verified JWT (anon-path impersonation closed, roadmap A1). |
 | Fine-grained file ABAC (`bucket:read/write`) | `[~]` | Owner-prefix is the only isolation today; bucket-level ABAC not wired (roadmap A1 open item). |
-| Backups exist + restore-tested | `[v]` | Daily `pg_dump -Fc`, 14-day retention → MinIO, optional WAL/PITR, restore-drill (gate m47). Per-tenant + encrypted-at-rest backups are follow-ups (audit solution #11; roadmap B6). |
+| Backups exist + restore-tested | `[v]` | Daily `pg_dump -Fc`, 14-day retention → MinIO, optional WAL/PITR, restore-drill (gate m47). Encrypted at rest when `BACKUP_AGE_RECIPIENTS` is set (age: logical, physical, WAL, engine archives; m209, m188). Per-tenant backups (m87) are not encrypted; roadmap B6. |
 
 ### V9/V13 — Communications & API security (TLS)
 
@@ -122,17 +122,17 @@ A lightweight mapping to the SOC2 TSC families — **posture only**, not an atte
 | **CC6.1** | Internal identity-header integrity (opt-in HMAC) | `[~]` | `adapterregistry/identity.go` (flag-gated; default OFF) — §3 G-Hdr |
 | **CC6.1** | Encryption of stored credentials | `[v]` | AES-256-GCM + scrypt (`crypto.go`) |
 | **CC6.6** Boundary protection | In-stack WAF as sole public listener; restrictive CORS | `[v]`/`[+]` | `services/waf`; audit O3 |
-| **CC6.6** | Network segmentation between planes | `[x]` | flat bridge — §3 G-Net |
+| **CC6.6** | Network segmentation between planes | `[~]` | netseg overlay (m66), default in `prod-up`; the dev base stays flat — §3 G-Net |
 | **CC6.7** Data in transit | TLS verify-full per engine (max); SSRF egress guard | `[v]` | audit #1/#2/#4 |
 | **CC6.8** Malicious software / supply chain | Lockfiles, npm quarantine, `--ignore-scripts`, digest pins, SCA gate | `[v]` | `.npmrc`, CI SCA jobs |
 | **CC7.1** Vulnerability management | Blocking SAST/SCA/secret/container scans in CI; tracked accepted residuals | `[v]` | `mini-baas-security.yml`; `.trivyignore`; `audit-deps.sh` |
-| **CC7.2** Monitoring | Prometheus/Grafana/Loki/Tempo; mutation + denial audit | `[v]`/`[~]` | gate m19; reads unaudited — §3 G-ReadAudit |
+| **CC7.2** Monitoring | Prometheus/Grafana/Loki/Tempo; mutation + denial audit; opt-in read audit | `[v]`/`[~]` | gate m19; reads audited only with `DATA_PLANE_AUDIT_READS` (m72) — §3 G-ReadAudit |
 | **CC7.2** | Anomaly detection / SIEM shipping | `[~]` | audit solution #6 (recommended) |
 | **CC8.1** Change management | PR + CI gates required to merge; shadow→parity→cutover discipline | `[v]` | repo workflow; CLAUDE.md |
-| **A1.2** Availability / backups | Daily encrypted backups + restore-drill (whole-cluster) | `[v]` | gate m47; per-tenant DR is roadmap B6 |
+| **A1.2** Availability / backups | Daily backups + restore-drill (whole-cluster); encrypted at rest only when `BACKUP_AGE_RECIPIENTS` is set (off by default: there is no key to default to) | `[~]` | gates m47, m209, m188; preflight warns when unset; per-tenant DR is roadmap B6 |
 | **C1 / P** Confidentiality / privacy | Tenant isolation (RLS+ABAC+field masks), GDPR delete path | `[v]` | `isolation.rs`, `abac.rs`, `gdprsvc` |
-| **CC6.1** Secret rotation | `vault-rotate-approles` exists; atomic key-rotation primitive missing | `[~]` | audit solution #9 — §3 G-Rotate |
-| **CC6.x** Per-tenant resource QoS | Rate (rps) capped; no per-tenant CPU/RAM/row/timeout QoS | `[x]` | audit solution #12 — §3 G-QoS |
+| **CC6.1** Secret rotation | Service tokens rotate with an overlap window (`rotate-service-token.sh`, m205, m68); `JWT_SECRET` rotation missing | `[~]` | audit solution #9 — §3 G-Rotate |
+| **CC6.x** Per-tenant resource QoS | Rate (rps/burst), rows per query (`max_rows`, m73) capped per tier, plus the monthly query quota when `QUOTA_ENFORCEMENT` is on (m80); no per-tenant CPU/RAM/timeout QoS | `[~]` | audit solution #12 — §3 G-QoS |
 
 ---
 
@@ -145,12 +145,12 @@ Sourced from [security-audit.md](./security-audit.md) §"Open" + the roadmap A6 
 | ID | Gap | Sev | Status / disposition |
 |---|---|---|---|
 | **G-RS256** | JWT **RS256 issuer not flipped** — GoTrue still signs HS256 though the verify side (RS256/JWKS) is ready. | MED | **Deferred (cross-repo, coordinated).** Touches the live login flow + Kong `jwt` plugin; ships as its own change (audit O2). |
-| **G-Vault** | **Vault not enforced** — plaintext / inline-encrypted DSNs possible outside `SECURITY_MODE=max`. | MED | **Deferred (coordinated).** A6: under max require `credential_ref{provider:vault}`; forbid plaintext mounts in prod (audit O5). |
-| **G-Net** | **Flat network / no NetworkPolicy** — single bridge, no per-plane segmentation. | MED | A6 / C2: per-plane network isolation + K8s NetworkPolicy (audit; roadmap A6). |
+| **G-Vault** | **Done in code**: max tier refuses inline DSNs and resolves `credential_ref` through Vault per request (migration 060, m121, nightly job `vault-credref`). Non-max tiers keep encrypted-at-rest inline DSNs by design. | MED | Human: move existing max-tier mounts to Vault references. |
+| **G-Net** | **Compose half done**: the edge, the scrapers and the functions sandbox share no bridge with an engine or vault in `prod-up` (m66, live-proven on the max tier). Still open: enabling the Helm NetworkPolicy on a real cluster. | MED | A6 / C2: per-plane network isolation + K8s NetworkPolicy (audit; roadmap A6). |
 | **G-Hdr** | **adapter-registry header trust** — `X-Baas-*` identity headers were trusted with no HMAC on a flat bridge. | LOW | **Partially closed this track:** opt-in HMAC verification shipped behind `ADAPTER_REGISTRY_IDENTITY_HMAC` (`internal/adapterregistry/identity.go` + `identity_test.go`, `go test ./...` green). Default OFF (no behavior change) until the issuing gateway is taught to sign the identity tuple — *enabling it stack-wide is the remaining cross-repo step* (the gateway must compute `X-Baas-Identity-Auth` = `ComputeServiceSignature(serviceToken, "IDENTITY", "<user>\n<tenant>", nil, ts)`). mTLS service mesh (audit solution #1) is the longer-term answer. |
-| **G-ReadAudit** | **Reads not audited** — only mutations + denials emit audit events. | LOW | A6: optional max-mode "sensitive-read" audit on flagged resources (audit O8). |
-| **G-QoS** | **No per-tenant resource QoS** — rate (rps) is capped, but rows-per-query / query-timeout / pool-size / storage-per-tenant are not. | LOW | A6 / Track C: per-tenant quotas beyond rate (audit solution #12). |
-| **G-Rotate** | **No atomic key-rotation primitive** — `vault-rotate-approles` exists but rotation-without-restart for `JWT_SECRET`/service token is not wired. | LOW | A6: atomic rotation (needs O1/O2 done first) (audit solution #9). |
+| **G-ReadAudit** | **Closed, opt-in:** `DATA_PLANE_AUDIT_READS=true` audits every served read (tenant, engine, op, resource, row count); OFF emits nothing (gate m72, nightly since 2026-09-26). | LOW | Operator choice per deployment. Per-resource "sensitive only" selection is not built. |
+| **G-QoS** | **Partly closed:** each tier caps rps/burst, rows per query (`max_rows` in `packages.json`, gate m73, nightly), and monthly queries when `QUOTA_ENFORCEMENT` is on (m80). Still open: per-tenant query timeout, pool size and storage. | LOW | A6 / Track C: per-tenant quotas beyond rate and rows (audit solution #12). |
+| **G-Rotate** | **Service-token half done** (`scripts/ops/rotate-service-token.sh`, gates m68 + m205: begin → swap → finish with both tokens accepted in the window). Still open: `JWT_SECRET` rotation, which needs gotrue + PostgREST dual-key support. | LOW | A6: atomic rotation (needs O1/O2 done first) (audit solution #9). |
 | **G-RLS-DiD** | Native Postgres RLS policies as belt-and-suspenders on top of owner predicates. | LOW | Hardening, not a hole — recommended (audit solution #7). |
 
 **Explicitly out of scope (decision D4):** formal **SOC2 Type 2 / HIPAA**

@@ -62,7 +62,7 @@ func (s *Service) push(batch []Entry) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		return &lokiError{status: resp.StatusCode}
 	}

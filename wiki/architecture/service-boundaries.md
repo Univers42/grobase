@@ -5,6 +5,10 @@ app built on grobase (the website portal, vault42, and any future app). The shor
 all state on fly.io; frontends are stateless clients on Vercel; each app is a declarative *provisioning
 contract* + a frontend; grobase itself contains zero app-specific code.**
 
+> **Host note (2026-09):** fly.io is retired (cost) and production is self-hosted (`make prod-up`).
+> Read every "fly" below as "the grobase backend server"; the boundaries are host-agnostic.
+> `deploy/fly/` is kept for a possible return.
+
 ## Stack topology
 
 ```

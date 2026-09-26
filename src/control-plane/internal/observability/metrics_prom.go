@@ -20,7 +20,10 @@ import (
 	"time"
 )
 
-// WriteProm emits the Prometheus text exposition format (v0.0.4).
+// WriteProm emits the Prometheus text exposition format (v0.0.4). Write errors
+// on w are deliberately discarded by every emitter below: they only mean the
+// scraper hung up mid-response, the 200 status is already sent, and the next
+// scrape re-reads the same in-memory counters — nothing is lost or retryable.
 func (m *Metrics) WriteProm(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	svc := m.service
@@ -31,36 +34,39 @@ func (m *Metrics) WriteProm(w http.ResponseWriter) {
 	m.writeDomainCounters(w, svc)
 }
 
-// writeServiceGauges emits the up + uptime gauges.
+// writeServiceGauges emits the up + uptime gauges (write errors discarded, see
+// WriteProm).
 func (m *Metrics) writeServiceGauges(w http.ResponseWriter, svc string) {
-	fmt.Fprintf(w, "# HELP baas_service_up 1 while the service is serving\n")
-	fmt.Fprintf(w, "# TYPE baas_service_up gauge\n")
-	fmt.Fprintf(w, "baas_service_up{service=%q} 1\n", svc)
-	fmt.Fprintf(w, "# HELP baas_uptime_seconds Seconds since process start\n")
-	fmt.Fprintf(w, "# TYPE baas_uptime_seconds gauge\n")
-	fmt.Fprintf(w, "baas_uptime_seconds{service=%q} %.0f\n", svc, time.Since(m.start).Seconds())
+	_, _ = fmt.Fprintf(w, "# HELP baas_service_up 1 while the service is serving\n")
+	_, _ = fmt.Fprintf(w, "# TYPE baas_service_up gauge\n")
+	_, _ = fmt.Fprintf(w, "baas_service_up{service=%q} 1\n", svc)
+	_, _ = fmt.Fprintf(w, "# HELP baas_uptime_seconds Seconds since process start\n")
+	_, _ = fmt.Fprintf(w, "# TYPE baas_uptime_seconds gauge\n")
+	_, _ = fmt.Fprintf(w, "baas_uptime_seconds{service=%q} %.0f\n", svc, time.Since(m.start).Seconds())
 }
 
-// writeHTTPCounts emits baas_http_requests_total by method and status class.
+// writeHTTPCounts emits baas_http_requests_total by method and status class
+// (write errors discarded, see WriteProm).
 func (m *Metrics) writeHTTPCounts(w http.ResponseWriter, svc string) {
-	fmt.Fprintf(w, "# HELP baas_http_requests_total HTTP requests by method and status class\n")
-	fmt.Fprintf(w, "# TYPE baas_http_requests_total counter\n")
+	_, _ = fmt.Fprintf(w, "# HELP baas_http_requests_total HTTP requests by method and status class\n")
+	_, _ = fmt.Fprintf(w, "# TYPE baas_http_requests_total counter\n")
 	m.counts.Range(func(k, v any) bool {
 		parts := strings.SplitN(k.(string), ":", 2)
-		fmt.Fprintf(w, "baas_http_requests_total{service=%q,method=%q,status=%q} %d\n",
+		_, _ = fmt.Fprintf(w, "baas_http_requests_total{service=%q,method=%q,status=%q} %d\n",
 			svc, parts[0], parts[1], atomic.LoadInt64(v.(*int64)))
 		return true
 	})
 }
 
-// writeDurationAvg emits the mean request-duration gauge in milliseconds.
+// writeDurationAvg emits the mean request-duration gauge in milliseconds (write
+// errors discarded, see WriteProm).
 func (m *Metrics) writeDurationAvg(w http.ResponseWriter, svc string) {
 	n := atomic.LoadInt64(&m.sumCount)
 	avg := 0.0
 	if n > 0 {
 		avg = float64(atomic.LoadInt64(&m.sumNs)) / float64(n) / 1e6
 	}
-	fmt.Fprintf(w, "# HELP baas_http_request_duration_ms_avg Mean request duration in milliseconds\n")
-	fmt.Fprintf(w, "# TYPE baas_http_request_duration_ms_avg gauge\n")
-	fmt.Fprintf(w, "baas_http_request_duration_ms_avg{service=%q} %.3f\n", svc, avg)
+	_, _ = fmt.Fprintf(w, "# HELP baas_http_request_duration_ms_avg Mean request duration in milliseconds\n")
+	_, _ = fmt.Fprintf(w, "# TYPE baas_http_request_duration_ms_avg gauge\n")
+	_, _ = fmt.Fprintf(w, "baas_http_request_duration_ms_avg{service=%q} %.3f\n", svc, avg)
 }

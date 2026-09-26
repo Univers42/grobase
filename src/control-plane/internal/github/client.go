@@ -49,7 +49,7 @@ func (s *Service) ghJSON(ctx context.Context, method, endpoint, auth, accept str
 	if err != nil {
 		return ErrUpstream
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode/100 != 2 {
 		return ErrUpstream
 	}

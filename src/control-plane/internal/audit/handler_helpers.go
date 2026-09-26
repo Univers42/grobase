@@ -20,12 +20,15 @@ import (
 	"time"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/identity"
 	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // tokenOrSelf authorises by either a control-plane service token (admin, any
 // tenant) or a matching X-Baas-Tenant-Id / X-Tenant-Id header (a tenant acting
-// on its OWN id) — byte-identical to metering.readRoutes.tokenOrSelf. The
+// on its OWN id), through identity.TenantSelfMatch like metering.readRoutes.tokenOrSelf: with
+// TENANT_HEADER_IDENTITY_HMAC set the header must carry a valid identity signature
+// (C-2); unset, it is the raw header match it always was. The
 // isolation guarantee is enforced twice: here at the edge (a tenant can only ASK
 // for its own id) and again in the SQL (tenant_id is always bound), atop the RLS
 // policy on tenant_audit_log.
@@ -33,7 +36,7 @@ func (rt *routes) tokenOrSelf(w http.ResponseWriter, r *http.Request, id string)
 	if serviceauth.VerifyServiceRequest(r, rt.serviceToken) {
 		return true
 	}
-	if id != "" && (r.Header.Get("X-Baas-Tenant-Id") == id || r.Header.Get("X-Tenant-Id") == id) {
+	if identity.TenantSelfMatch(r, rt.serviceToken, id) {
 		return true
 	}
 	httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",

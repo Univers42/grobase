@@ -1,8 +1,3 @@
----
-globs: ["**/*.go", "**/*.ts", "**/*.tsx", "**/*.rs", "**/*.c", "**/*.h", "**/*.sh"]
-description: Global mutable state is banned in every technology
----
-
 # No Global Variables (all technologies)
 
 Global mutable state is banned. A package-level / file-level / module-level

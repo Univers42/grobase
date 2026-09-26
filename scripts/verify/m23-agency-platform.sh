@@ -127,7 +127,7 @@ cat >"${WS_PROBE}" <<'WSJS'
 import { createHmac } from 'node:crypto';
 const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const head = b64u({ alg: 'HS256', typ: 'JWT' });
-const body = b64u({ sub: 'm23p-verify', exp: Math.floor(Date.now() / 1000) + 300 });
+const body = b64u({ iss: 'grobase-realtime', sub: 'm23p-verify', exp: Math.floor(Date.now() / 1000) + 300 });
 const sig = createHmac('sha256', process.env.RT_JWT_SECRET)
   .update(`${head}.${body}`).digest('base64url');
 const ws = new WebSocket(process.env.RT_WS_URL);
@@ -160,10 +160,10 @@ docker run -d --name "${WS_NAME}" --network "${STACK_NET}" \
   "${WS_NODE_IMAGE}" node /probe.mjs >/dev/null ||
   fail "could not start the WS subscriber container (${WS_NODE_IMAGE})"
 for _ in $(seq 1 40); do
-  docker logs "${WS_NAME}" 2>&1 | grep -q 'SUBSCRIBED' && break
+  grep -q 'SUBSCRIBED' <<<"$(docker logs "${WS_NAME}" 2>&1)" && break
   sleep 0.5
 done
-docker logs "${WS_NAME}" 2>&1 | grep -q 'SUBSCRIBED' ||
+grep -q 'SUBSCRIBED' <<<"$(docker logs "${WS_NAME}" 2>&1)" ||
   fail "WS subscriber never reached SUBSCRIBED: $(docker logs "${WS_NAME}" 2>&1 | tail -3)"
 
 MSG_TEXT="m23p chat roundtrip ${PROBE_RUN}"
@@ -176,7 +176,7 @@ MSG_TEXT="m23p chat roundtrip ${PROBE_RUN}"
   fail "analyst does not see the owner's message"
 ECHO_OK=0
 for _ in $(seq 1 10); do
-  if docker logs "${WS_NAME}" 2>&1 | grep -q 'MESSAGE_CREATED'; then
+  if grep -q 'MESSAGE_CREATED' <<<"$(docker logs "${WS_NAME}" 2>&1)"; then
     ECHO_OK=1
     break
   fi

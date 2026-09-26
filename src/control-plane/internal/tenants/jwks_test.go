@@ -78,7 +78,7 @@ func TestJWTVerifier_RS256_ViaJWKS(t *testing.T) {
 	hs := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub": "attacker", "exp": time.Now().Add(time.Hour).Unix(),
 	})
-	hsSigned, _ := hs.SignedString(key.PublicKey.N.Bytes())
+	hsSigned, _ := hs.SignedString(key.N.Bytes())
 	if _, err := v.Verify(hsSigned); err == nil {
 		t.Fatal("RS256 verifier accepted an HS256 token (algorithm-confusion hole)")
 	}

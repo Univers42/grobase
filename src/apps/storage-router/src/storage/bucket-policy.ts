@@ -41,6 +41,8 @@
 // the flag on with an empty/partial map is still effectively-parity for unlisted
 // buckets, never a surprise lock-out of the whole plane.
 
+import { isTruthy } from './feature-flag';
+
 export type BucketAction = 'read' | 'write';
 
 /** The authz subject the policy is evaluated against (a subset of UserContext). */
@@ -87,9 +89,14 @@ export class BucketPolicy {
     return new BucketPolicy(parsed as PolicyMap);
   }
 
-  /** True iff `principal` may perform `action` on `bucket`. */
+  /**
+   * True iff `principal` may perform `action` on `bucket`. Rules are looked up as
+   * OWN properties only: a bucket named `constructor`, `toString` or `__proto__`
+   * must fall through to the "*" rule, not resolve to an Object.prototype member
+   * that carries no deny list (M-12).
+   */
   allows(bucket: string, action: BucketAction, principal: PolicyPrincipal): boolean {
-    const rule = this.rules[bucket] ?? this.rules['*'];
+    const rule = this.ownRule(bucket) ?? this.ownRule('*');
     if (!rule) return true; // no rule for this bucket → owner-scope governs alone
 
     const tokens = principalTokens(principal);
@@ -98,6 +105,10 @@ export class BucketPolicy {
     const allow = action === 'read' ? rule.read : rule.write;
     if (!allow || allow.length === 0) return true; // action not restricted by this rule
     return matchesAny(allow, tokens);
+  }
+
+  private ownRule(bucket: string): BucketRule | undefined {
+    return Object.hasOwn(this.rules, bucket) ? this.rules[bucket] : undefined;
   }
 
   /** Number of buckets with an explicit rule — a gauge a gate can read. */
@@ -114,9 +125,4 @@ function principalTokens(p: PolicyPrincipal): Set<string> {
 function matchesAny(list: string[] | undefined, tokens: Set<string>): boolean {
   if (!list || list.length === 0) return false;
   return list.some((entry) => tokens.has(entry.trim()));
-}
-
-function isTruthy(value: string | undefined): boolean {
-  if (!value) return false;
-  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
 }

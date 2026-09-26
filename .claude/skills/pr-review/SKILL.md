@@ -3,7 +3,6 @@ name: pr-review
 description: >
   Full quality audit before a PR/merge. Auto-triggers on:
   "review this PR", "is this ready to merge", "pre-merge check"
-tools: Read, Bash, Grep, Glob
 ---
 
 # PR Review

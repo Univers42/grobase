@@ -36,3 +36,8 @@ DROP TRIGGER IF EXISTS outbox_events_realtime_trigger ON public.outbox_events;
 
 -- DOWN
 -- (intentionally not recreated — a realtime trigger on the relay ledger is a bug)
+
+-- Record it (the body above re-runs on every boot; this keeps migrate-status honest).
+INSERT INTO public.schema_migrations (version, name)
+SELECT 38, '038_outbox_events_no_realtime'
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = 38);

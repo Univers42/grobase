@@ -2,7 +2,11 @@
 #
 # Tenants POST TypeScript/JavaScript source to /v1/functions. Code is persisted
 # to /data/<tenant_id>/<name>.ts. Invocation spawns a fresh Deno Worker with a
-# minimal permission set (no FS, no env, network only to allow-listed hosts).
+# minimal permission set (no FS, no env). Network is inherited unless
+# FUNCTIONS_NET_ALLOWLIST_ENABLED=1 limits it to FUNCTIONS_NET_ALLOW
+# (src/net-policy.ts); the prod/cloud compose overlays set that AND jail the
+# container on its own network behind functions-relay — this same image running
+# src/relay.ts (gate m197).
 #
 # Limitations (documented honestly in wiki/back/08):
 #   - per-invocation worker startup is ~20-40ms (no warm pool yet)

@@ -1,6 +1,7 @@
 ---
-globs: ["**/*.c", "**/*.h"]
-description: C refactoring rules — 42 norminette compliance
+paths:
+  - "**/*.c"
+  - "**/*.h"
 ---
 
 # C Refactoring — Norminette Strict

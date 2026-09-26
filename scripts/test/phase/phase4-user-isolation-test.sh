@@ -53,21 +53,6 @@ test_case() {
   return 0
 }
 
-test_contains() {
-  local name="$1"
-  local haystack="$2"
-  local needle="$3"
-
-  if [[ "$haystack" == *"$needle"* ]]; then
-    echo -e "${GREEN}✓${NC} $name"
-    ((++TESTS_PASSED))
-  else
-    echo -e "${RED}✗${NC} $name (expected to contain: $needle)"
-    ((++TESTS_FAILED))
-  fi
-  return 0
-}
-
 create_test_user() {
   local email="$1"
   local password="$2"

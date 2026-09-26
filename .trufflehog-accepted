@@ -1,0 +1,7 @@
+# Verified (LIVE) secrets in git history that are accepted for a LIMITED time
+# while their revocation is pending at the issuer. One finding per line:
+#   <commit sha> <file> <detector> <expires YYYY-MM-DD>
+# Matched exactly on commit + file + detector. An accepted finding is still
+# printed as a warning; on its expiry date the trufflehog job goes red again.
+# The finding stays OPEN in wiki/security/remediation-tracker-2025-07-14.md.
+# Empty: N-2 (Unsplash) was purged from history on 2026-09-25 instead.

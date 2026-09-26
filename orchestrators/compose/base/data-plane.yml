@@ -68,6 +68,7 @@ services:
       DATA_PLANE_BYPASS_ENABLED: ${DATA_PLANE_BYPASS_ENABLED:-1}
       TENANT_CONTROL_URL: ${TENANT_CONTROL_URL:-http://tenant-control:3022}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
       # Phase 7d: system Postgres holding public.outbox_events. On the bypass
       # write path the data plane emits the row-change event itself (the
@@ -130,13 +131,23 @@ services:
       REALTIME_HOST: 0.0.0.0
       REALTIME_PORT: 4000
       REALTIME_JWT_SECRET: ${JWT_SECRET}
+      REALTIME_JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       REALTIME_JWT_AUDIENCE: ""
+      # Accepted `iss` values (M-4); a token without `iss` is refused unless
+      # REALTIME_JWT_ALLOW_NO_ISSUER=1. GoTrue sessions (same expression as
+      # auth-api.yml), the anon/service-role keys and seed tokens (`supabase`),
+      # and realtime-only tokens such as xapp channel tokens (`grobase-realtime`,
+      # which tenant-control's user-session verifier does not accept).
+      REALTIME_JWT_ISSUER: ${REALTIME_JWT_ISSUER:-${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}},supabase,grobase-realtime}
+      REALTIME_JWT_ALLOW_NO_ISSUER: ${REALTIME_JWT_ALLOW_NO_ISSUER:-}
       # Phase 5/6 security mode. `baseline` keeps the one-release PERMISSIVE
       # namespace fallback (a namespace-less JWT → all-access, logged as
       # deprecated); `max` denies it AND refuses the NoAuth provider. Override
       # the fallback directly with REALTIME_NAMESPACE_FALLBACK=permissive|deny.
+      # Unset stays EMPTY so the mode decides: a `permissive` default here used
+      # to override `max`, so max mode never denied (M-8).
       SECURITY_MODE: ${SECURITY_MODE:-baseline}
-      REALTIME_NAMESPACE_FALLBACK: ${REALTIME_NAMESPACE_FALLBACK:-permissive}
+      REALTIME_NAMESPACE_FALLBACK: ${REALTIME_NAMESPACE_FALLBACK:-}
       # Namespace prefixes the `["*"]` wildcard must NOT cover — a subscriber
       # needs the EXACT namespace to reach them (so a wildcard/namespace-less
       # token can't read a `collab:` space it was not explicitly granted).

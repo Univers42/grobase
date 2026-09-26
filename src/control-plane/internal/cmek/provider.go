@@ -139,7 +139,7 @@ func (p *VaultTransitProvider) call(ctx context.Context, op, keyID string, body 
 	if err != nil {
 		return fmt.Errorf("cmek: vault transit %s request failed: %w", op, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	rb, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("cmek: vault transit %s key=%q -> HTTP %d: %s", op, keyID, resp.StatusCode, strings.TrimSpace(string(rb)))
@@ -148,13 +148,4 @@ func (p *VaultTransitProvider) call(ctx context.Context, op, keyID string, body 
 		return fmt.Errorf("cmek: vault transit %s: decode response: %w", op, err)
 	}
 	return nil
-}
-
-// assertProviders is the compile-time check that both providers satisfy
-// KMSProvider. Kept as a function body (not a package-level var) so the package
-// declares no global; the assignments still fail to compile if an interface
-// method drifts. It is never called.
-func assertProviders() {
-	var _ KMSProvider = (*VaultTransitProvider)(nil)
-	var _ KMSProvider = (*LocalKMSProvider)(nil)
 }

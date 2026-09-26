@@ -57,7 +57,9 @@ fail() {
 }
 
 PG_IMAGE="${M73_PG_IMAGE:-postgres:16-alpine}"
-SCRATCH_IMG="m73-dpr-$$:scratch"
+# M73_DPR_IMAGE reuses a prebuilt data-plane-router image (same Dockerfile, e.g. the
+# stack's own after `make build`) instead of building one; it is never removed.
+SCRATCH_IMG="${M73_DPR_IMAGE:-m73-dpr-$$:scratch}"
 NET="m73net-$$"
 PG="m73-pg-$$"
 DPR="m73-dpr-$$"
@@ -72,7 +74,7 @@ COUNT=25 # seeded rows (> CAP, and < the server's 100 default list cap)
 cleanup() {
   docker rm -fv "${DPR}" "${PG}" >/dev/null 2>&1 || true
   docker network rm "${NET}" >/dev/null 2>&1 || true
-  docker image rm -f "${SCRATCH_IMG}" >/dev/null 2>&1 || true
+  [ -n "${M73_DPR_IMAGE:-}" ] || docker image rm -f "${SCRATCH_IMG}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
@@ -112,9 +114,13 @@ ok "max_rows key present in BOTH copies in lock-step (${N_CFG} == ${N_EMB} occur
 
 # ── 1) build the scratch DPR image FROM THE CURRENT (modified) source ─────────
 step "1/6 build scratch data-plane-router from CURRENT source (contains THIS build)"
-DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${DPR_DIR}" >/dev/null ||
+[ -n "${M73_DPR_IMAGE:-}" ] || DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${SCRATCH_IMG}" "${DPR_DIR}" >/dev/null ||
   fail "scratch DPR image build failed — the gate must exercise the new code"
-ok "scratch image ${SCRATCH_IMG} built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?')"
+if [ -n "${M73_DPR_IMAGE:-}" ]; then
+  ok "image ${SCRATCH_IMG}: prebuilt, revision $(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "${SCRATCH_IMG}" | cut -c1-8)"
+else
+  ok "image ${SCRATCH_IMG}: built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?')"
+fi
 
 # ── 2) isolated net + throwaway postgres seeded with COUNT (>CAP) rows ─────────
 step "2/6 boot isolated postgres (${PG}) on private net (${NET}), seed ${COUNT} rows"

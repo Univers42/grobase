@@ -15,7 +15,14 @@
 # replays a base + the WAL up to a target time. ALL of it is gated by
 # PG_BACKUP_PITR — when unset this script is never wired into postgres at all, so
 # the live baseline (whole-cluster logical pg_dump) is byte-identical.
+#
+# With BACKUP_AGE_RECIPIENTS set (age.sh) the segment is stored encrypted as
+# wal/<seg>.age; if it cannot be encrypted, nothing is stored and postgres retries.
+# This script needs age wherever it runs: that is the pg-backup image, not the
+# postgres image, so an archive_command must run it in a pg-backup container.
 set -euo pipefail
+# shellcheck source=age.sh
+. "$(dirname "$0")/age.sh"
 
 SRC_PATH="${1:?usage: wal-archive.sh <%p source-path> <%f segment-name>}"
 SEG_NAME="${2:?usage: wal-archive.sh <%p source-path> <%f segment-name>}"
@@ -47,9 +54,20 @@ fi
 # Idempotent: if the segment is already stored (postgres retried a previously
 # succeeded archive after a crash), treat it as success — re-uploading identical
 # WAL is harmless and postgres must not loop.
-if mc stat "${DEST_KEY}" >/dev/null 2>&1; then
+if mc stat "${DEST_KEY}" >/dev/null 2>&1 || mc stat "${DEST_KEY}.age" >/dev/null 2>&1; then
   echo "[wal-archive] ${SEG_NAME} already stored — ok"
   exit 0
+fi
+
+if age_on; then
+  SEALED="$(mktemp -d)"
+  trap 'rm -rf "${SEALED}"' EXIT
+  age_encrypt -o "${SEALED}/${SEG_NAME}.age" "${SRC_PATH}" || {
+    echo "[wal-archive] FAILED to encrypt ${SEG_NAME}; nothing stored" >&2
+    exit 1
+  }
+  SRC_PATH="${SEALED}/${SEG_NAME}.age"
+  DEST_KEY="${DEST_KEY}.age"
 fi
 
 # `mc cp` is atomic per-object on MinIO; only exit 0 once it returns success so

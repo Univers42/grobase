@@ -35,7 +35,10 @@ cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 step() { cyan "[M174] $*"; }
 ok() { printf '\033[0;32m  ✓ %s\033[0m\n' "$*"; }
 warn() { printf '\033[0;33m  ! %s\033[0m\n' "$*" >&2; }
-fail() { printf '\033[0;31m[M174] FAIL — %s\033[0m\n' "$*" >&2; exit 1; }
+fail() {
+  printf '\033[0;31m[M174] FAIL — %s\033[0m\n' "$*" >&2
+  exit 1
+}
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
@@ -50,8 +53,8 @@ for ctn in "${BRIDGE_CTN}" "${QR_CTN}" "${PG_CTN}"; do
 done
 AK="$(dexec "${BRIDGE_CTN}" sh -c 'printenv OSIONOS_BAAS_API_KEY || printenv BAAS_API_KEY || printenv VITE_BAAS_API_KEY' 2>/dev/null || true)"
 [[ -n "${AK}" ]] || fail "no owner API key in the bridge container (OSIONOS_BAAS_API_KEY)"
-[[ -n "$(dexec "${BRIDGE_CTN}" sh -c 'printenv OSIONOS_APP_SESSION_SECRET' 2>/dev/null || true)" ]] \
-  || fail "OSIONOS_APP_SESSION_SECRET is not set in the bridge container"
+[[ -n "$(dexec "${BRIDGE_CTN}" sh -c 'printenv OSIONOS_APP_SESSION_SECRET' 2>/dev/null || true)" ]] ||
+  fail "OSIONOS_APP_SESSION_SECRET is not set in the bridge container"
 ok "stack up; owner key ${AK:0:8}… + app-session secret present"
 
 # ── 1) DISCOVER the mounts linked to the dev workspace ───────────────────────
@@ -91,12 +94,14 @@ for (let attempt = 0; attempt < 3; attempt += 1) {
 }
 process.stdout.write(`${out.status} ${out.rows}`);
 NODE
-dexec -i "${QR_CTN}" sh -c 'cat > /tmp/m174-qr.mjs' < "${TMP}/qr.mjs"
-HEALTHY=0; DOWN_ENGINES=""
+dexec -i "${QR_CTN}" sh -c 'cat > /tmp/m174-qr.mjs' <"${TMP}/qr.mjs"
+HEALTHY=0
+DOWN_ENGINES=""
 while IFS='|' read -r db engine table; do
   [[ -n "${db}" && -n "${table}" ]] || continue
   out="$(dexec "${QR_CTN}" node /tmp/m174-qr.mjs "${AK}" "${db}" "${table}" 2>/dev/null || echo "0 0")"
-  http="${out%% *}"; rows="${out##* }"
+  http="${out%% *}"
+  rows="${out##* }"
   if { [[ "${http}" == "200" || "${http}" == "201" ]] && [[ "${rows}" -ge 1 ]]; }; then
     HEALTHY=$((HEALTHY + 1))
     ok "${engine} ${db:0:8}… '${table}' → ${rows} owner-scoped row(s) (HTTP ${http})"
@@ -107,11 +112,11 @@ while IFS='|' read -r db engine table; do
     DOWN_ENGINES="${DOWN_ENGINES}${engine} "
     warn "${engine} ${db:0:8}… '${table}' DOWN — HTTP ${http}, rowCount ${rows} (data-plane forward failed)"
   fi
-done < "${TMP}/mounts.txt"
+done <"${TMP}/mounts.txt"
 [[ "${HEALTHY}" -ge 3 ]] || fail "only ${HEALTHY} mount(s) served owner-scoped rows (need >=3); down: ${DOWN_ENGINES:-none}"
-[[ -z "${DOWN_ENGINES}" ]] \
-  && ok "all ${HEALTHY} discovered mounts serve owner-scoped rows" \
-  || ok "${HEALTHY} mounts healthy (>=3 OK); transiently down: ${DOWN_ENGINES}"
+[[ -z "${DOWN_ENGINES}" ]] &&
+  ok "all ${HEALTHY} discovered mounts serve owner-scoped rows" ||
+  ok "${HEALTHY} mounts healthy (>=3 OK); transiently down: ${DOWN_ENGINES}"
 
 # ── 3) GRAPH — dev session token → /api/graph/data?scope=account ─────────────
 step "3/5 graph: >=3 distinct record mounts + cross-engine edges (scope=account)"
@@ -151,7 +156,7 @@ for (let attempt = 0; !isDave && attempt < 2 && (snap.recordMounts < 3 || snap.c
 }
 process.stdout.write(JSON.stringify(snap));
 NODE
-dexec -i "${BRIDGE_CTN}" sh -c 'cat > /tmp/m174-graph.mjs' < "${TMP}/graph.mjs"
+dexec -i "${BRIDGE_CTN}" sh -c 'cat > /tmp/m174-graph.mjs' <"${TMP}/graph.mjs"
 G="$(dexec "${BRIDGE_CTN}" node /tmp/m174-graph.mjs "${DEV_USER}" "${DEV_WS}" 2>/dev/null || echo '{}')"
 gstatus="$(printf '%s' "${G}" | sed -n 's/.*"status":\([0-9]*\).*/\1/p')"
 gmounts="$(printf '%s' "${G}" | sed -n 's/.*"recordMounts":\([0-9]*\).*/\1/p')"
@@ -183,7 +188,7 @@ const rj = await rd.json().catch(() => ({}));
 process.stdout.write(JSON.stringify({ s1: a.status, id1: a.id, s2: b.status, id2: b.id,
   same: a.id && a.id === b.id, readStatus: rd.status, row: !!rj.row }));
 NODE
-dexec -i "${BRIDGE_CTN}" sh -c 'cat > /tmp/m174-record.mjs' < "${TMP}/record.mjs"
+dexec -i "${BRIDGE_CTN}" sh -c 'cat > /tmp/m174-record.mjs' <"${TMP}/record.mjs"
 R="$(dexec "${BRIDGE_CTN}" node /tmp/m174-record.mjs "${DEV_USER}" "${DEV_WS}" "${PG_MOUNT}" orders "${PG_ORDER_PK}" 2>/dev/null || echo '{}')"
 r_s1="$(printf '%s' "${R}" | sed -n 's/.*"s1":\([0-9]*\).*/\1/p')"
 r_s2="$(printf '%s' "${R}" | sed -n 's/.*"s2":\([0-9]*\).*/\1/p')"

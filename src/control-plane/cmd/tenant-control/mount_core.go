@@ -20,14 +20,18 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/entitlements"
 	"github.com/dlesieur/mini-baas/control-plane/internal/metering"
 	"github.com/dlesieur/mini-baas/control-plane/internal/packages"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 	"github.com/dlesieur/mini-baas/control-plane/internal/tenants"
 )
 
 // mountCore registers the always-on tenant routes plus the metering read-back
 // API (the READ path is unflagged — empty aggregates when metering is OFF).
+// The tenant service-token guard carries a RotationNotice so a request still
+// authenticated by INTERNAL_SERVICE_TOKEN_PREV is counted and warned once.
 func (b *bootCtx) mountCore() {
 	tenants.Mount(b.mux, tenants.Deps{
 		Svc: b.svc, ServiceToken: b.cfg.ServiceToken, JWT: b.jwtVerifier, Reconciler: b.reconciler,
+		Rotation: serviceauth.NewRotationNotice(b.log, b.m),
 	})
 	metering.Mount(b.mux, b.db, b.cfg.ServiceToken)
 }

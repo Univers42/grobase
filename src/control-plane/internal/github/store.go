@@ -97,7 +97,7 @@ func (s *Service) installationForOrgLogin(ctx context.Context, login string) (in
 	return id, nil
 }
 
-// upsertLink links a vault42 org to an installation (idempotent).
+// upsertLink links an org to an installation (idempotent).
 func (s *Service) upsertLink(ctx context.Context, orgID string, installID int64, linkedBy string) error {
 	return s.db.AdminExec(ctx, `
 		INSERT INTO public.github_links (org_id, installation_id, linked_by)
@@ -106,7 +106,7 @@ func (s *Service) upsertLink(ctx context.Context, orgID string, installID int64,
 		orgID, installID, linkedBy)
 }
 
-// linkInstallation resolves the installation linked to a vault42 org.
+// linkInstallation resolves the installation linked to an org.
 func (s *Service) linkInstallation(ctx context.Context, orgID string) (int64, error) {
 	rows, err := s.db.AdminQuery(ctx,
 		`SELECT installation_id FROM public.github_links WHERE org_id::text=$1 LIMIT 1`, orgID)

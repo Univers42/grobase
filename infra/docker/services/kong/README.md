@@ -34,7 +34,6 @@ docker compose up kong
 | `/admin/v1/databases` | adapter-registry | Database credential management |
 | `/query/v1` | query-router | Universal query gateway |
 | `/sql` | Trino | Distributed SQL engine |
-| `/studio` | Studio | Admin dashboard |
 
 ## Plugins
 

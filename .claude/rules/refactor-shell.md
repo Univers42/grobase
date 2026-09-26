@@ -1,6 +1,6 @@
 ---
-globs: ["**/*.sh"]
-description: POSIX shell refactoring rules
+paths:
+  - "**/*.sh"
 ---
 
 # POSIX Shell Refactoring

@@ -139,14 +139,6 @@ wait_dpr() {
   return 1
 }
 
-# Apply a postgresql migration that may carry a 42-school '#'-banner header. '#'
-# is NOT a psql comment (only '--' is), so strip leading '#' lines on apply under
-# ON_ERROR_STOP=1 (learned in m121). Unused here (we create the probe table bare,
-# no adapterregistry) but kept ready per the spec's banner-strip discipline.
-apply_mig() { # $1=container  $2=migration-file
-  grep -v '^#' "${MIGRATIONS}/$2" | docker exec -i "$1" psql -U postgres -d postgres -v ON_ERROR_STOP=1 >/dev/null 2>&1
-}
-
 # ── 0) build scratch data-plane-router FROM CURRENT source (the S8 code) ───────
 step "0/7 build scratch data-plane-router from CURRENT source (the S8 routing code)"
 DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${DPR_IMG}" "${DPR_DIR}" >/dev/null ||

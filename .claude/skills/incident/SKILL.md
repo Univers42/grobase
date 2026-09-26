@@ -3,7 +3,6 @@ name: incident
 description: >
   Bug investigation and post-mortem. Auto-triggers on:
   "post-mortem", "incident", "production issue", "outage"
-tools: Read, Bash, Grep, Glob
 ---
 
 # Incident Investigation

@@ -17,12 +17,14 @@ import {
   OnApplicationShutdown,
   BadRequestException,
   NotFoundException,
+  UnprocessableEntityException,
   ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   DeleteObjectCommand,
   ListObjectsV2Command,
@@ -36,6 +38,8 @@ import { PresignDto } from './dto/presign.dto';
 import { UsageMeter } from './usage-meter';
 import { BucketPolicy, type BucketAction, type PolicyPrincipal } from './bucket-policy';
 import { applyTransform, isTransformableType, type TransformSpec } from './image-transform';
+import { activeContentHeaders } from './active-content';
+import { isTruthy } from './feature-flag';
 
 export interface StorageObject {
   key: string;
@@ -128,6 +132,27 @@ export class StorageService implements OnModuleInit, OnApplicationShutdown {
    * never learns whether the object exists (no leak beyond the deny decision).
    * The owner-prefix isolation is independent and always applies on top.
    */
+  /**
+   * The active-content guard for a presigned GET (M-17/L-9): the proxied download
+   * gets sandbox + attachment headers, but a presigned URL is served by S3 itself,
+   * which cannot send a CSP. So when STORAGE_ACTIVE_CONTENT_GUARD_ENABLED is ON the
+   * object's stored type is read (HEAD) and an active one — or one that cannot be
+   * read — is signed with ResponseContentDisposition: attachment: opening the URL
+   * downloads it instead of rendering it on a browsable origin. OFF → `{}`, no HEAD.
+   */
+  private async presignGuard(
+    bucket: string,
+    key: string,
+  ): Promise<{ ResponseContentDisposition?: string }> {
+    if (!isTruthy(process.env['STORAGE_ACTIVE_CONTENT_GUARD_ENABLED'])) return {};
+    const head = await this.s3
+      .send(new HeadObjectCommand({ Bucket: bucket, Key: key }))
+      .catch(() => undefined);
+    const active =
+      !head?.ContentType || Boolean(activeContentHeaders(head.ContentType)['Content-Disposition']);
+    return active ? { ResponseContentDisposition: 'attachment' } : {};
+  }
+
   private assertBucketAllowed(
     bucket: string,
     action: BucketAction,
@@ -139,13 +164,29 @@ export class StorageService implements OnModuleInit, OnApplicationShutdown {
     }
   }
 
-  async presign(bucket: string, objectPath: string, userId: string, dto: PresignDto) {
+  /**
+   * Presign a GET (read) or PUT (write) on the caller's own key. The bucket policy
+   * is checked first, exactly as the proxied routes do: a URL is a capability, so
+   * a denied principal must not be able to mint one (M-12).
+   */
+  async presign(
+    bucket: string,
+    objectPath: string,
+    userId: string,
+    dto: PresignDto,
+    principal?: PolicyPrincipal,
+  ) {
+    this.assertBucketAllowed(bucket, dto.method === 'GET' ? 'read' : 'write', principal);
     const key = this.ownedKey(userId, objectPath);
     const expiresIn = Math.min(Math.max(dto.expiresIn ?? this.defaultExpires, 60), 86400);
 
     const command =
       dto.method === 'GET'
-        ? new GetObjectCommand({ Bucket: bucket, Key: key })
+        ? new GetObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            ...(await this.presignGuard(bucket, key)),
+          })
         : new PutObjectCommand({
             Bucket: bucket,
             Key: key,
@@ -239,7 +280,9 @@ export class StorageService implements OnModuleInit, OnApplicationShutdown {
       const contentType = out.ContentType ?? 'application/octet-stream';
 
       if (transform && isTransformableType(contentType)) {
-        const variant = await applyTransform(original, transform, contentType);
+        const variant = await applyTransform(original, transform, contentType).catch(() => {
+          throw new UnprocessableEntityException('image cannot be transformed');
+        });
         return {
           body: variant.body,
           contentType: variant.contentType,

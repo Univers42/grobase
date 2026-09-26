@@ -46,7 +46,7 @@ func (ar *AdapterRegistry) findMountID(ctx context.Context, tenantScope, name st
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("list databases: %d", resp.StatusCode)
 	}
@@ -79,7 +79,7 @@ func (ar *AdapterRegistry) listMounts(ctx context.Context, tenantScope string) (
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return nil, fmt.Errorf("list databases: %d: %s", resp.StatusCode, httpx.RedactDSN(strings.TrimSpace(string(b))))
@@ -105,7 +105,7 @@ func (ar *AdapterRegistry) deleteMount(ctx context.Context, tenantScope, id stri
 	if err != nil {
 		return false, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	switch resp.StatusCode {
 	case http.StatusOK:
 		return true, nil

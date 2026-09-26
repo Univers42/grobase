@@ -26,7 +26,7 @@ func deleteTenant(client *http.Client, base, token, slug string) {
 	serviceHeaders(req, token, "")
 	if resp, err := client.Do(req); err == nil {
 		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 }
 
@@ -35,7 +35,7 @@ func teardown(client *http.Client, base, token, outPath string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 1<<20), 1<<20)
 	n := 0

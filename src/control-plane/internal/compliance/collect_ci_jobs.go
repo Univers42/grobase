@@ -37,7 +37,7 @@ func (c *Collector) parseCIJobs() ([]string, error) {
 		}
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	jobKeyRe := regexp.MustCompile(`^  ([A-Za-z0-9_-]+):\s*$`)
 	jobs, err := scanWorkflowJobs(f, jobKeyRe)
 	if err != nil {

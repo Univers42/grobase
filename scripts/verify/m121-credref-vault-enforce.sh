@@ -47,6 +47,9 @@
 # EVERYTHING. It NEVER touches a mini-baas-* container/network/image/volume and
 # NEVER edits the live docker-compose.yml. No host ports for the data path —
 # only loopback-bound publish for the two probes.
+# M121_AR_IMAGE / M121_DPR_IMAGE reuse prebuilt images (same Dockerfiles and
+# args, e.g. the stack's own after `make build`) instead of building; they are
+# never removed. M121_VAULT_IMAGE defaults to the stack's Vault (1.21).
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -68,9 +71,9 @@ fail() {
 }
 
 PG_IMAGE="${M121_PG_IMAGE:-postgres:16-alpine}"
-VAULT_IMAGE="${M121_VAULT_IMAGE:-hashicorp/vault:latest}"
-AR_IMG="m121-ar-$$:scratch"
-DPR_IMG="m121-dpr-$$:scratch"
+VAULT_IMAGE="${M121_VAULT_IMAGE:-public.ecr.aws/hashicorp/vault:1.21}"
+AR_IMG="${M121_AR_IMAGE:-m121-ar-$$:scratch}"
+DPR_IMG="${M121_DPR_IMAGE:-m121-dpr-$$:scratch}"
 NET="m121net-$$"
 PG="m121-pg-$$"
 VAULT="m121-vault-$$"
@@ -102,7 +105,8 @@ BODY_TMP="$(mktemp)"
 cleanup() {
   docker rm -fv "${DPR}" "${AR}" "${VAULT}" "${PG}" >/dev/null 2>&1 || true
   docker network rm "${NET}" >/dev/null 2>&1 || true
-  docker image rm -f "${AR_IMG}" "${DPR_IMG}" >/dev/null 2>&1 || true
+  [ -n "${M121_AR_IMAGE:-}" ] || docker image rm -f "${AR_IMG}" >/dev/null 2>&1 || true
+  [ -n "${M121_DPR_IMAGE:-}" ] || docker image rm -f "${DPR_IMG}" >/dev/null 2>&1 || true
   rm -f "${BODY_TMP}" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -167,14 +171,26 @@ wait_dpr() {
 }
 
 # ── 0) build scratch adapter-registry + data-plane-router FROM CURRENT source ──
-step "0/8 build scratch adapter-registry + data-plane-router from CURRENT source (the S2 code)"
-DOCKER_BUILDKIT=1 docker build -q \
-  --build-arg APP=adapter-registry --build-arg PORT=3021 \
-  -f "${CP_DIR}/Dockerfile" -t "${AR_IMG}" "${CP_DIR}" >/dev/null ||
-  fail "scratch adapter-registry image build failed (line: docker build AR)"
-DOCKER_BUILDKIT=1 docker build -q -f "${DPR_DIR}/Dockerfile" -t "${DPR_IMG}" "${DPR_DIR}" >/dev/null ||
-  fail "scratch data-plane-router image build failed (line: docker build DPR)"
-ok "both scratch images built from $(git -C "${BAAS_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree"
+# build_scratch builds image $1 from Dockerfile dir $2 (extra docker build args
+# after), unless the caller supplied it prebuilt via M121_AR_IMAGE/M121_DPR_IMAGE.
+build_scratch() {
+  local img="$1" dir="$2"
+  shift 2
+  case "${img}" in
+  m121-*:scratch) ;;
+  *)
+    docker image inspect "${img}" >/dev/null 2>&1 || fail "prebuilt image ${img} not found"
+    return 0
+    ;;
+  esac
+  DOCKER_BUILDKIT=1 docker build -q "$@" -f "${dir}/Dockerfile" -t "${img}" "${dir}" >/dev/null ||
+    fail "scratch image build failed: ${img} (${dir})"
+}
+
+step "0/8 adapter-registry + data-plane-router from CURRENT source (the S2 code)"
+build_scratch "${AR_IMG}" "${CP_DIR}" --build-arg APP=adapter-registry --build-arg PORT=3021
+build_scratch "${DPR_IMG}" "${DPR_DIR}"
+ok "images ${AR_IMG} + ${DPR_IMG} ($(git -C "${INFRA_DIR}" rev-parse --short HEAD 2>/dev/null || echo '?') + working tree)"
 
 # ── 1) isolated net + postgres + dev Vault ────────────────────────────────────
 step "1/8 boot isolated net (${NET}): postgres + dev Vault"

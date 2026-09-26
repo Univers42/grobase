@@ -66,10 +66,14 @@ GOTRUE_SERVICE_ROLE="$(_lt_env mini-baas-gotrue SERVICE_ROLE_KEY)"
 [[ -n "${GOTRUE_SERVICE_ROLE}" ]] || GOTRUE_SERVICE_ROLE="${SERVICE_KEY}"
 [[ -n "${SERVICE_TOKEN}" && -n "${ANON_KEY}" && -n "${SERVICE_KEY}" ]] || fail "stack secrets not found"
 
-PG_USER="$(_lt_env "${PG_CTN}" POSTGRES_USER)"; PG_USER="${PG_USER:-postgres}"
-PG_PASS="$(_lt_env "${PG_CTN}" POSTGRES_PASSWORD)"; PG_PASS="${PG_PASS:-postgres}"
-MONGO_USER="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_USERNAME)"; MONGO_USER="${MONGO_USER:-mongo}"
-MONGO_PASS="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_PASSWORD)"; MONGO_PASS="${MONGO_PASS:-mongo}"
+PG_USER="$(_lt_env "${PG_CTN}" POSTGRES_USER)"
+PG_USER="${PG_USER:-postgres}"
+PG_PASS="$(_lt_env "${PG_CTN}" POSTGRES_PASSWORD)"
+PG_PASS="${PG_PASS:-postgres}"
+MONGO_USER="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_USERNAME)"
+MONGO_USER="${MONGO_USER:-mongo}"
+MONGO_PASS="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_PASSWORD)"
+MONGO_PASS="${MONGO_PASS:-mongo}"
 
 # ── 1) dedicated PostgreSQL database ─────────────────────────────────────────
 cyan "ensuring PostgreSQL database '${NIMBUS_DB}' on ${PG_CTN}"
@@ -102,12 +106,17 @@ code=$(curl -s -o /tmp/nimbus-ent.json -w '%{http_code}' -X PUT \
 [[ "${code}" == "200" ]] || cyan "WARN: entitlement set returned ${code}: $(head -c 200 /tmp/nimbus-ent.json) (continuing — tenant is enterprise-tier, which unlocks both engines + txns)"
 
 # ── 4) API key + BOTH mounts — reuse if still valid ──────────────────────────
-API_KEY=""; KEY_ID=""; PG_DB_ID=""; MONGO_DB_ID=""
+API_KEY=""
+KEY_ID=""
+PG_DB_ID=""
+MONGO_DB_ID=""
 if [[ -f "${STATE_ENV}" ]]; then
   # shellcheck disable=SC1090
   source "${STATE_ENV}"
-  API_KEY="${NIMBUS_API_KEY:-}"; KEY_ID="${NIMBUS_KEY_ID:-}"
-  PG_DB_ID="${NIMBUS_PG_DB_ID:-}"; MONGO_DB_ID="${NIMBUS_MONGO_DB_ID:-}"
+  API_KEY="${NIMBUS_API_KEY:-}"
+  KEY_ID="${NIMBUS_KEY_ID:-}"
+  PG_DB_ID="${NIMBUS_PG_DB_ID:-}"
+  MONGO_DB_ID="${NIMBUS_MONGO_DB_ID:-}"
 fi
 key_ok=0
 if [[ -n "${API_KEY}" && -n "${PG_DB_ID}" && -n "${MONGO_DB_ID}" ]]; then
@@ -179,7 +188,8 @@ cyan "mounts: pg=${PG_DB_ID} mongo=${MONGO_DB_ID}"
 # psql error. The data plane caches read_scoped at open_pool, so the orchestrator
 # restarts data-plane-router after this flips (see the runbook).
 cyan "flipping read_scoped=true on the nimbus PG mount (id=${PG_DB_ID})"
-RS_OUT="$(docker exec "${PG_CTN}" psql -U "${PG_USER}" -d postgres -tA -v ON_ERROR_STOP=1 <<SQL 2>&1 || true
+RS_OUT="$(
+  docker exec "${PG_CTN}" psql -U "${PG_USER}" -d postgres -tA -v ON_ERROR_STOP=1 <<SQL 2>&1 || true
 DO \$\$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
@@ -195,19 +205,22 @@ END \$\$;
 SQL
 )"
 case "${RS_OUT}" in
-  *NO_READ_SCOPED_COLUMN*)
-    cyan "WARN: tenant_databases.read_scoped column absent — run migrations first (068 sibling), then re-run. App-key isolation will NOT be enforced until then." ;;
-  *READ_SCOPED_SET*)
-    cyan "read_scoped=true on nimbus PG mount — restart data-plane-router for it to take effect" ;;
-  *)
-    cyan "WARN: read_scoped UPDATE produced: ${RS_OUT}" ;;
+*NO_READ_SCOPED_COLUMN*)
+  cyan "WARN: tenant_databases.read_scoped column absent — run migrations first (068 sibling), then re-run. App-key isolation will NOT be enforced until then."
+  ;;
+*READ_SCOPED_SET*)
+  cyan "read_scoped=true on nimbus PG mount — restart data-plane-router for it to take effect"
+  ;;
+*)
+  cyan "WARN: read_scoped UPDATE produced: ${RS_OUT}"
+  ;;
 esac
 
 # ── 5) apply the PostgreSQL schema (idempotent) ──────────────────────────────
 cyan "applying schema from $(basename "${SCHEMA_FILE}")"
 [[ -f "${SCHEMA_FILE}" ]] || fail "schema file missing: ${SCHEMA_FILE}"
-docker exec -i "${PG_CTN}" psql -U "${PG_USER}" -d "${NIMBUS_DB}" -v ON_ERROR_STOP=1 -q <"${SCHEMA_FILE}" \
-  || fail "schema apply failed"
+docker exec -i "${PG_CTN}" psql -U "${PG_USER}" -d "${NIMBUS_DB}" -v ON_ERROR_STOP=1 -q <"${SCHEMA_FILE}" ||
+  fail "schema apply failed"
 
 # ── 6) GoTrue admin user (role=admin) + an app_users row ─────────────────────
 cyan "ensuring GoTrue admin '${ADMIN_EMAIL}' (role=admin)"
@@ -234,7 +247,10 @@ except Exception:
   print("|0"); sys.exit()
 hit=next((u.get("id","") for u in users if u.get("email")==sys.argv[1]), "")
 print(f"{hit}|{len(users)}")' "${ADMIN_EMAIL}" 2>/dev/null)"
-    [[ "${sub%%|*}" != "" ]] && { printf '%s' "${sub%%|*}"; return 0; }
+    [[ "${sub%%|*}" != "" ]] && {
+      printf '%s' "${sub%%|*}"
+      return 0
+    }
     [[ "${sub##*|}" -lt 200 ]] && break
     page=$((page + 1))
   done
@@ -299,8 +315,7 @@ gw_q "${PG_DB_ID}" app_users \
 # already has psql to ${NIMBUS_DB}); the data plane never blocks an owner rewrite
 # it doesn't see (the rows belong to the platform, not a tenant user).
 cyan "re-owning seeded business rows → system:nimbus (api-key:% → system:nimbus)"
-docker exec -i "${PG_CTN}" psql -U "${PG_USER}" -d "${NIMBUS_DB}" -q -v ON_ERROR_STOP=1 <<'SQL' >/dev/null \
-  || fail "re-own to system:nimbus failed"
+docker exec -i "${PG_CTN}" psql -U "${PG_USER}" -d "${NIMBUS_DB}" -q -v ON_ERROR_STOP=1 <<'SQL' >/dev/null ||
 UPDATE public.app_users      SET owner_id = 'system:nimbus' WHERE owner_id LIKE 'api-key:%';
 UPDATE public.accounts       SET owner_id = 'system:nimbus' WHERE owner_id LIKE 'api-key:%';
 UPDATE public.txns           SET owner_id = 'system:nimbus' WHERE owner_id LIKE 'api-key:%';
@@ -308,6 +323,7 @@ UPDATE public.ledger_entries SET owner_id = 'system:nimbus' WHERE owner_id LIKE 
 UPDATE public.subscriptions  SET owner_id = 'system:nimbus' WHERE owner_id LIKE 'api-key:%';
 UPDATE public.invoices       SET owner_id = 'system:nimbus' WHERE owner_id LIKE 'api-key:%';
 SQL
+  fail "re-own to system:nimbus failed"
 
 cyan "loading MongoDB collections (drop + insert, owner-stamped)"
 STACK_NET="$(docker inspect "${MONGO_CTN}" \

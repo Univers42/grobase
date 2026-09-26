@@ -108,7 +108,7 @@ func (dp *DataPlane) postAdmin(ctx context.Context, path string, envelope map[st
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return dataPlaneRespErr(resp, errLabel, redact)
 }
 

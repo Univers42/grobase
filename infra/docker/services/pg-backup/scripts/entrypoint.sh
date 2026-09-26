@@ -25,6 +25,15 @@ ensure_bucket() {
   mc mb -p "baas/${PG_BACKUP_BUCKET}" 2>/dev/null || true
 }
 
+# refuse_identity exits when BACKUP_AGE_IDENTITY_FILE is set: the private key
+# that decrypts every backup belongs to a one-off restore run, never to a mode
+# that writes backups or stays up.
+refuse_identity() {
+  [ -z "${BACKUP_AGE_IDENTITY_FILE:-}" ] && return 0
+  echo "BACKUP_AGE_IDENTITY_FILE is set: the age identity belongs to a one-off restore run, never to the '${MODE}' mode"
+  exit 1
+}
+
 case "$MODE" in
 liveness)
   # "Could I take a backup right now?" -- not "is my config non-empty". The
@@ -51,6 +60,7 @@ liveness)
   ;;
 
 once)
+  refuse_identity
   mc_alias
   ensure_bucket
   exec /opt/pg-backup/run-backup.sh
@@ -78,6 +88,7 @@ archive-wal)
     echo "archive-wal requires PG_BACKUP_PITR=1"
     exit 1
   }
+  refuse_identity
   mc_alias
   exec /opt/pg-backup/wal-archive.sh "$@"
   ;;
@@ -98,6 +109,7 @@ pitr-restore)
   ;;
 
 loop)
+  refuse_identity
   mc_alias
   ensure_bucket
 

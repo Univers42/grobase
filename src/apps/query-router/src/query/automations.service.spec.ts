@@ -21,12 +21,9 @@ import { ConfigService } from '@nestjs/config';
 jest.mock('node:dns/promises', () => ({
   lookup: async () => [{ address: '10.0.0.7', family: 4 }],
 }));
-import {
-  AutomationsService,
-  evaluateCondition,
-  isPrivateAddress,
-  type AutomationWriteEvent,
-} from './automations.service';
+import { evaluateCondition } from './automation-condition';
+import { AutomationsService, type AutomationWriteEvent } from './automations.service';
+import { isPrivateAddress } from './webhook-ssrf';
 import type { AutomationRuleDto } from './dto/automations.dto';
 
 function makeService(rules: AutomationRuleDto[]): AutomationsService {
@@ -115,6 +112,29 @@ describe('AutomationsService.runForWrite', () => {
       jest.fn(async () => undefined),
     );
     expect(execute).toHaveBeenCalledWith('orders', { flag: 'on' }, { id: 7 });
+  });
+
+  it('a failing action logs one line: a CR/LF in the rule name or error cannot forge log lines (M-16)', async () => {
+    const service = makeService([
+      rule({
+        name: 'x\nFAKE 2026-01-01 ERROR admin login ok',
+        actions: [{ type: 'set_property', column: 'flag', value: 'on' }],
+      }),
+    ]);
+    const warn = jest
+      .spyOn((service as unknown as { logger: { warn: (m: string) => void } }).logger, 'warn')
+      .mockImplementation(() => undefined);
+    await service.runForWrite(
+      event(),
+      jest.fn(async () => {
+        throw new Error('boom\r\nFAKE second line');
+      }),
+      jest.fn(async () => undefined),
+    );
+    expect(warn).toHaveBeenCalledTimes(1);
+    const line = String(warn.mock.calls[0][0]);
+    expect(line).not.toMatch(/[\r\n]/);
+    expect(line).toContain('r1');
   });
 
   it('upsert satisfies both row_added and row_updated triggers', async () => {

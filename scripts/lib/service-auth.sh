@@ -35,12 +35,15 @@ _svc_token() {
 # SERVICE_TOKEN_MODE wins; else read it off the running tenant-control container
 # (docker-first gates); else static. Cached after first resolve.
 _svc_mode() {
-  if [ -n "${_SVC_MODE_CACHE:-}" ]; then printf '%s' "${_SVC_MODE_CACHE}"; return; fi
+  if [ -n "${_SVC_MODE_CACHE:-}" ]; then
+    printf '%s' "${_SVC_MODE_CACHE}"
+    return
+  fi
   local m="${SERVICE_TOKEN_MODE:-}"
   if [ -z "${m}" ]; then
     m=$(docker inspect mini-baas-tenant-control \
-      --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
-      | sed -n 's/^SERVICE_TOKEN_MODE=//p' | head -1)
+      --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null |
+      sed -n 's/^SERVICE_TOKEN_MODE=//p' | head -1)
   fi
   _SVC_MODE_CACHE="${m:-static}"
   printf '%s' "${_SVC_MODE_CACHE}"
@@ -79,5 +82,7 @@ if [ "${1:-}" = "--selftest" ]; then
   got=$(svc_compute_signature "test-token" "POST" "/v1/keys/verify" '{"key":"abc"}' 1700000000)
   want="v1.1700000000.b2e684210cc7e80998388c89afe88d2fbd4fd9a7492289724f7fd3f15075189e"
   if [ "${got}" = "${want}" ]; then echo "service-auth.sh golden vector OK"; else
-    echo "MISMATCH: got ${got} want ${want}" >&2; exit 1; fi
+    echo "MISMATCH: got ${got} want ${want}" >&2
+    exit 1
+  fi
 fi

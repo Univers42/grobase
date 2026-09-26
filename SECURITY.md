@@ -38,8 +38,9 @@ Set these before exposing a deployment (see [DEPLOYMENT.md](DEPLOYMENT.md) for c
       mongo, redis, gotrue, postgrest, studio) and adds restart policies/limits.
 - [ ] **Replace MinIO defaults** (`MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`) —
       `make env` generates a random password; never ship `minioadmin`.
-- [ ] **Rotate on schedule**: `make secrets-rotate GROUP=jwt` (JWT family),
-      `make vault-rotate GROUP=…` when running the Vault profile.
+- [ ] **Rotate on schedule**: the service token with `scripts/ops/rotate-service-token.sh`
+      (no outage), `make vault-rotate GROUP=…` when running the Vault profile. JWT secret
+      rotation is still a planned outage (`ROTATE_JWT_FORCE=1 make secrets-rotate`, see G-Rotate).
 - [ ] **TLS at the edge**: terminate HTTPS in front of the WAF (your LB or a
       reverse proxy). The in-stack hop is HTTP on an isolated Docker network.
 - [ ] **Backups proven**: run `make verify-m47` once (dump→restore round-trip),

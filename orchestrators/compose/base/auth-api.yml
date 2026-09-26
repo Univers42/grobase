@@ -32,16 +32,20 @@ services:
       GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
       GOTRUE_JWT_SECRET: ${JWT_SECRET}
       GOTRUE_JWT_EXP: 3600
-      GOTRUE_JWT_ISSUER: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}
+      # Same expression as control-plane.yml's verifier: a GOTRUE_JWT_ISSUER override must
+      # reach the minter AND the verifier, or every session is rejected (M-4).
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       # MFA / 2FA (TOTP)
       GOTRUE_MFA_ENABLED: "true"
       GOTRUE_SECURITY_MFA_MAX_ENROLLED_FACTORS: 5
       GOTRUE_SECURITY_MFA_MAX_VERIFIED_FACTORS: 5
       # Refresh token security
       GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: "true"
-      GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: 10
+      # 10 s absorbs a retried refresh over a slow link; override per deployment (L-5).
+      GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: ${GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL:-10}
       # Password policy
-      GOTRUE_PASSWORD_MIN_LENGTH: 8
+      # dev default; docker-compose.prod.yml sets 12 (M-13). Overridable from .env.
+      GOTRUE_PASSWORD_MIN_LENGTH: ${GOTRUE_PASSWORD_MIN_LENGTH:-8}
       # Rate limiting (per-IP) — raised for E2E test suite
       GOTRUE_RATE_LIMIT_HEADER: X-Real-IP
       GOTRUE_RATE_LIMIT_EMAIL_SENT: ${GOTRUE_RATE_LIMIT_EMAIL_SENT:-100}
@@ -117,7 +121,18 @@ services:
     # 127.0.0.1, not localhost: PostgREST binds IPv4 only and localhost
     # resolves to ::1 first → the image's own HEALTHCHECK false-negatives.
     healthcheck:
-      test: ["CMD", "/bin/busybox", "wget", "-q", "-O", "/dev/null", "-T", "4", "http://127.0.0.1:3000/"]
+      test:
+        [
+          "CMD",
+          "/bin/busybox",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "-T",
+          "4",
+          "http://127.0.0.1:3000/",
+        ]
       interval: 30s
       timeout: 5s
       start_period: 15s
@@ -174,7 +189,7 @@ services:
       PG_META_DB_PORT: ${PG_META_DB_PORT:-5432}
       PG_META_DB_NAME: ${PG_META_DB_NAME:-postgres}
       PG_META_DB_USER: ${PG_META_DB_USER:-postgres}
-      PG_META_DB_PASSWORD: ${PG_META_DB_PASSWORD:-postgres}
+      PG_META_DB_PASSWORD: ${PG_META_DB_PASSWORD:-${POSTGRES_PASSWORD:-postgres}} # same role as postgres, so its password by default
     depends_on:
       postgres:
         condition: service_healthy
@@ -197,6 +212,12 @@ services:
       MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017
       MONGO_DB_NAME: ${MONGO_DB_NAME:-mini_baas}
       JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
+      # The issuer a bearer user JWT must carry for the identity library to accept
+      # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
+      # deployment minted verifies here; without it the library refuses to run the
+      # bearer rung at all rather than trust any HS256 token signed with JWT_SECRET.
+      GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       mongo:

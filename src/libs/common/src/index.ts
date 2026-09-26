@@ -21,7 +21,7 @@ export * from './filters/all-exceptions.filter';
 export * from './interceptors/correlation-id.interceptor';
 export * from './interceptors/transform.interceptor';
 export * from './observability/logger';
-export * from './observability/metrics.interceptor';
+export * from './observability/request-metrics.middleware';
 export * from './observability/observability.module';
 export * from './tracing/otel.bootstrap';
 export * from './security/security.middleware';

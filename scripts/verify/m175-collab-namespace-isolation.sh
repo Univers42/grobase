@@ -22,8 +22,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RT="$ROOT/infra/docker/services/realtime/realtime-agnostic"
 IMG="mini-baas-rust-toolchain"
-ok()   { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
-fail() { printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+ok() { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
+fail() {
+  printf '  \033[1;31m✗ %s\033[0m\n' "$*" >&2
+  exit 1
+}
 
 printf '\033[1m── m175: protected-namespace isolation (collab:) ──\033[0m\n'
 
@@ -34,12 +37,12 @@ CARGO="docker run --rm -v $RT:/work -w /work \
   -v mini-baas-cargo-git:/usr/local/cargo/git \
   -v mini-baas-realtime-target:/work/target $IMG cargo"
 
-$CARGO test -p realtime-core protected_namespace_excludes_wildcard 2>&1 | tail -3 \
-  | grep -qE '1 passed' || fail "protected-prefix wildcard exclusion test failed"
+$CARGO test -p realtime-core protected_namespace_excludes_wildcard 2>&1 | tail -3 |
+  grep -qE '1 passed' || fail "protected-prefix wildcard exclusion test failed"
 ok "wildcard token cannot reach a protected collab: namespace; exact grant still can"
 
-$CARGO test -p realtime-core auth_claims 2>&1 | tail -3 \
-  | grep -qE '[2-9] passed|[0-9]{2,} passed' || fail "byte-parity auth_claims tests regressed"
+$CARGO test -p realtime-core auth_claims 2>&1 | tail -3 |
+  grep -qE '[2-9] passed|[0-9]{2,} passed' || fail "byte-parity auth_claims tests regressed"
 ok "empty protected list is byte-parity (existing subscribe/deny semantics unchanged)"
 
 printf '\033[1;32mm175 PASS\033[0m — collab: spaces are isolated from wildcard tokens (flag-gated, default OFF)\n'

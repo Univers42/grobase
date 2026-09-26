@@ -27,8 +27,14 @@ The names in `flags.env.example` are exactly the env vars the services read.
 Verify before trusting this doc (a flag with no consumer is a parity lie):
 
 ```bash
-grep -rn 'METERING_ENABLED\|QUOTA_ENFORCEMENT\|BILLING_ENABLED\|TENANT_SELFSERVE_ENABLED\|TENANT_OBS_ENABLED\|TENANT_BACKUP_ENABLED' go/control-plane
+grep -rn 'METERING_ENABLED\|QUOTA_ENFORCEMENT\|BILLING_ENABLED\|TENANT_SELFSERVE_ENABLED\|TENANT_OBS_ENABLED\|TENANT_BACKUP_ENABLED' src/control-plane
 ```
+
+The **APP-PLANE GUARDS** section of `flags.env.example` is the exception: its consumers are
+TypeScript, not the control plane — `STORAGE_ACTIVE_CONTENT_GUARD_ENABLED` in
+`src/apps/storage-router/src/storage/active-content.ts` and `AUTOMATION_WEBHOOK_IP_PIN_ENABLED`
+in `src/apps/query-router/src/query/automations.service.ts`. The cloud and prod overlays set
+them per service (`environment:`), never by handing `flags.env.cloud` to the routers.
 
 `SPEND_CAPS_ENABLED` and `ABUSE_GUARD_ENABLED` are **fully built and
 gate-proven** (B7.8 → `internal/spendcap` wired in `cmd/orchestrator`, gate m89;

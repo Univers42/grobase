@@ -4,7 +4,6 @@ description: >
   Scaffold a new module, package, service, or adapter in the hexagonal
   architecture. Auto-triggers on: "create a new module", "add a new service",
   "scaffold", "new package"
-tools: Read, Write, Bash
 ---
 
 # New Module

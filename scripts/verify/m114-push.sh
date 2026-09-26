@@ -289,7 +289,7 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3090" "${TC_IMG}" >/dev/null
 wait_ready "${TC_ON}" "${PORT_ON}" || fail "push-ON tenant-control not ready (line: wait_ready TC_ON)"
-docker logs "${TC_ON}" 2>&1 | grep -qi "push .* enabled" ||
+grep -qi "push .* enabled" <<<"$(docker logs "${TC_ON}" 2>&1)" ||
   {
     docker logs "${TC_ON}" 2>&1 | tail -20
     fail "push never reported enabled (line: TC_ON enabled log)"
@@ -421,7 +421,7 @@ docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_OFF}:3090" "${TC_IMG}" >/dev/null
 wait_ready "${TC_OFF}" "${PORT_OFF}" || fail "push-OFF tenant-control not ready (line: wait_ready TC_OFF)"
-docker logs "${TC_OFF}" 2>&1 | grep -qi "push .* disabled" ||
+grep -qi "push .* disabled" <<<"$(docker logs "${TC_OFF}" 2>&1)" ||
   {
     docker logs "${TC_OFF}" 2>&1 | tail -20
     fail "OFF tenant-control did not report push disabled (flag default not OFF?) (line: TC_OFF disabled log)"

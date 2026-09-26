@@ -65,7 +65,7 @@ func fetchJWKS(ctx context.Context, jwksURL string) (jwksDoc, error) {
 	if err != nil {
 		return jwksDoc{}, fmt.Errorf("jwks fetch: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return jwksDoc{}, fmt.Errorf("jwks fetch status %d", resp.StatusCode)
 	}

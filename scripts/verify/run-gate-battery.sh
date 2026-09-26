@@ -40,6 +40,11 @@
 # Each gate's own stdout/stderr is teed to LOG_DIR/<gate>.log (default
 # ./artifacts/gate-battery/), so CI can upload per-gate logs as artifacts even
 # when an earlier gate already failed the run.
+#
+# Each gate is bounded by GATE_TIMEOUT seconds (default 1800; 0 = unbounded).
+# A gate that overruns gets SIGTERM, so its EXIT trap still cleans up, then
+# SIGKILL 60 s later; it is reported as FAIL with "timed out", not left to
+# hang until the CI job's own limit kills the run with no summary.
 
 set -uo pipefail
 
@@ -64,36 +69,49 @@ red() { printf '%s%s%s\n' "$C_R" "$*" "$C_0"; }
 yellow() { printf '%s%s%s\n' "$C_Y" "$*" "$C_0"; }
 blue() { printf '%s%s%s\n' "$C_B" "$*" "$C_0"; }
 
+# gha_gate_error NAME RC LOG — a GitHub Actions ::error annotation naming the failed
+# gate and its first failure line, so a red battery is readable from the run summary
+# (annotations are public; job logs are not).
+gha_gate_error() {
+  local why
+  why=$(sed 's/\x1b\[[0-9;]*m//g' "$3" | grep -m1 -E 'FAIL|✗|fail' | tr -d '\r' | cut -c1-300)
+  printf '::error title=gate %s failed (rc=%s)::%s\n' "$1" "$2" "${why:-see ${3}}"
+}
+
 # ── curated sets (single source of truth — keep CI in sync with these) ─────────
 # Full enterprise + data-plane battery, in dependency-free order. m102 is NOT
 # here: it needs a LIVE Kong gateway and is already gated in CI's per-PR
 # integration-tests job, not in this self-contained battery.
 ENTERPRISE_BATTERY=(
-  m101-quota-realtenant # quota-truth (real-tenant billing gate; supersedes the vacuous m80)
-  m103                  # orgs / RBAC
-  m104                  # tamper-evident audit chain
-  m105                  # hard-erase (GDPR right-to-be-forgotten)
-  m106                  # IP allowlist
-  m107                  # passkeys / WebAuthn
-  m108                  # SOC2-lite evidence (audit-ready, NOT certified)
-  m109                  # tenant data export
-  m110                  # SSO via OIDC
-  m111                  # SCIM user provisioning
-  m112                  # trust-center / legal templates
-  m120                  # data-plane spend-cap + abuse-suspend enforcement
-  m121                  # vault credential-ref enforcement
-  m122                  # read-replica routing
-  m135                  # fine-grained ABAC: column masking applied (the highest-value mask proof)
-  m136                  # fine-grained ABAC: stored conditions evaluate (ip_cidr/time_window; deny>allow; flag-OFF parity)
-  m137                  # fine-grained ABAC: per-table + per-instance granularity (table/instance overrides)
-  m139                  # fine-grained ABAC: api-key callers under the PDP (same mask as JWT; flag-OFF byte-parity)
-  m141                  # compliance posture honest+provable (audit-chain spine + GDPR routes + no dangling evidence)
-  m143                  # framework cross-walks complete+honest (SOC2 CC1-9 + GDPR articles + all 93 ISO Annex A controls)
-  m162-rbac-hierarchy   # org -> team/project-grants RBAC hierarchy (effective=MAX, non-escalating tokens)
+  m101-quota-realtenant    # quota-truth (real-tenant billing gate; supersedes the vacuous m80)
+  m103                     # orgs / RBAC
+  m104                     # tamper-evident audit chain
+  m105                     # hard-erase (GDPR right-to-be-forgotten)
+  m106                     # IP allowlist
+  m107                     # passkeys / WebAuthn
+  m108                     # SOC2-lite evidence (audit-ready, NOT certified)
+  m109                     # tenant data export
+  m110                     # SSO via OIDC
+  m111                     # SCIM user provisioning
+  m112                     # trust-center / legal templates
+  m120                     # data-plane spend-cap + abuse-suspend enforcement
+  m121                     # vault credential-ref enforcement
+  m122                     # read-replica routing
+  m135                     # fine-grained ABAC: column masking applied (the highest-value mask proof)
+  m136                     # fine-grained ABAC: stored conditions evaluate (ip_cidr/time_window; deny>allow; flag-OFF parity)
+  m137                     # fine-grained ABAC: per-table + per-instance granularity (table/instance overrides)
+  m139                     # fine-grained ABAC: api-key callers under the PDP (same mask as JWT; flag-OFF byte-parity)
+  m141                     # compliance posture honest+provable (audit-chain spine + GDPR routes + no dangling evidence)
+  m143                     # framework cross-walks complete+honest (SOC2 CC1-9 + GDPR articles + all 93 ISO Annex A controls)
+  m162-rbac-hierarchy      # org -> team/project-grants RBAC hierarchy (effective=MAX, non-escalating tokens)
   m166-groups-environments # per-project environments + project-scoped groups + per-env grant isolation
-  m168-invites          # generalized team/group invitations (single-use, expiry, flag-OFF parity)
-  m170-standalone-invites # standalone-project direct invites + org-guard (409 invite-via-a-team)
-  m172-pubkeys          # member pubkey registry + grant-fulfilment seam (vault42 crypto bridge)
+  m168-invites             # generalized team/group invitations (single-use, expiry, flag-OFF parity)
+  m170-standalone-invites  # standalone-project direct invites + org-guard (409 invite-via-a-team)
+  m172-pubkeys             # member pubkey registry + grant-fulfilment seam (vault42 crypto bridge)
+  # m194–m199 (security hardening) are NOT here: they need an assembled .env, certs
+  # and images built from the commit, which this job does not have. CI runs them in
+  # their own jobs — m194 with shellcheck, m195/m196/m198/m199/m206/m207 in security-gates, m197
+  # in integration-tests against the live stack.
   # m144 (trust-page parity) and m145 (cost-model artifact lockstep) are intentionally
   # NOT in the CI battery: they validate the marketing site (site/ — gitignored in this
   # repo) and the measured bench artifacts (mini-baas-infra/artifacts/ — produced by
@@ -191,7 +209,7 @@ for i in "${!SCRIPTS[@]}"; do
   blue "─── [$((i + 1))/${#SCRIPTS[@]}] ${name} ───"
   g_start=$(date +%s)
   # tee so the gate's output is visible live AND captured per-gate for artifacts.
-  if FORCE_COLORS=0 bash "$path" 2>&1 | tee "$log"; then
+  if FORCE_COLORS=0 timeout --kill-after=60 "${GATE_TIMEOUT:-1800}" bash "$path" 2>&1 | tee "$log"; then
     rc=0
   else
     rc=${PIPESTATUS[0]}
@@ -201,8 +219,13 @@ for i in "${!SCRIPTS[@]}"; do
     green "    PASS ${name} (${g_dur}s)"
     RESULTS+=("PASS  ${name}  ${g_dur}s")
   else
-    red "    FAIL ${name} (rc=${rc}, ${g_dur}s) — log: ${log}"
-    RESULTS+=("FAIL  ${name}  ${g_dur}s  rc=${rc}")
+    why="rc=${rc}"
+    if [ "$rc" -eq 124 ] || { [ "$rc" -eq 137 ] && [ "$g_dur" -ge "${GATE_TIMEOUT:-1800}" ]; }; then
+      why="rc=${rc}, timed out after GATE_TIMEOUT=${GATE_TIMEOUT:-1800}s"
+    fi
+    red "    FAIL ${name} (${why}, ${g_dur}s) — log: ${log}"
+    RESULTS+=("FAIL  ${name}  ${g_dur}s  ${why}")
+    [ "${GITHUB_ACTIONS:-}" = "true" ] && gha_gate_error "$name" "$rc" "$log"
     overall_rc=$rc
     if [ "${BATTERY_KEEP_GOING:-0}" != "1" ]; then
       # fail-fast (default): record the remaining gates as SKIPPED and stop.

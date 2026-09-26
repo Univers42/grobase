@@ -1,8 +1,8 @@
-cold-baseline-pre-opt	1062s	edition=devlean	74ea5a57	2026-07-27T21:01:42Z	# R1: locked cache mounts, serial rust deps
-noop-post-edit	34s	edition=devlean	74ea5a57	2026-07-27T21:04:12Z	# R2: full-edition rebuild, nothing changed (bake, cache-hit floor)
-incr-rust	172s	edition=devlean	74ea5a57	2026-07-27T21:07:04Z
-incr-ts	19s	edition=devlean	74ea5a57	2026-07-27T21:07:23Z
-absorb-fingerprint-fix	386s	edition=devlean	74ea5a57	2026-07-27T21:19:27Z	# both rust workspaces FULL recompile CONCURRENTLY (364s+272s packed in 386s wall)
-incr-rust	109s	edition=devlean	74ea5a57	2026-07-27T21:21:16Z	# R6: per-crate rebuild (server+LTO link only) after fingerprint fix — was 172s whole-workspace
-clean-then-build	22s	edition=devlean	74ea5a57	2026-07-27T21:24:52Z	# R8: make clean now KEEPS caches — this path was the 1062s cold before
-cold	1313s	edition=devlean	74ea5a57	2026-07-28T08:16:38Z	# CONTAMINATED: stack up (mongo cgroup OOM 10:02) + manual container stops 10:07/10:16 during the timed run — rerun on a quiet machine
+cold-baseline-pre-opt	1062s	edition=devlean	f04a2f64	2026-07-27T21:01:42Z	# R1: locked cache mounts, serial rust deps
+noop-post-edit	34s	edition=devlean	f04a2f64	2026-07-27T21:04:12Z	# R2: full-edition rebuild, nothing changed (bake, cache-hit floor)
+incr-rust	172s	edition=devlean	f04a2f64	2026-07-27T21:07:04Z
+incr-ts	19s	edition=devlean	f04a2f64	2026-07-27T21:07:23Z
+absorb-fingerprint-fix	386s	edition=devlean	f04a2f64	2026-07-27T21:19:27Z	# both rust workspaces FULL recompile CONCURRENTLY (364s+272s packed in 386s wall)
+incr-rust	109s	edition=devlean	f04a2f64	2026-07-27T21:21:16Z	# R6: per-crate rebuild (server+LTO link only) after fingerprint fix — was 172s whole-workspace
+clean-then-build	22s	edition=devlean	f04a2f64	2026-07-27T21:24:52Z	# R8: make clean now KEEPS caches — this path was the 1062s cold before
+cold	1313s	edition=devlean	f04a2f64	2026-07-28T08:16:38Z	# CONTAMINATED: stack up (mongo cgroup OOM 10:02) + manual container stops 10:07/10:16 during the timed run — rerun on a quiet machine

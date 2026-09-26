@@ -16,8 +16,57 @@ export VAULT_ADDR="${VAULT_LOCAL_ADDR:-http://127.0.0.1:8200}"
 VAULT_CONFIG_FILE="${VAULT_CONFIG_FILE:-/vault/config/vault.hcl}"
 VAULT_KEYS_FILE="${VAULT_KEYS_FILE:-/vault/data/.vault-keys.json}"
 
-mkdir -p /vault/data
-chown -R vault:vault /vault/data
+# privilege_drop_enabled succeeds when VAULT_DROP_PRIVILEGES_ENABLED is truthy.
+# Unset (the default) keeps the legacy behaviour: the whole script and Vault run as root.
+privilege_drop_enabled() {
+  case "${VAULT_DROP_PRIVILEGES_ENABLED:-}" in 1 | true | TRUE | yes | on) return 0 ;; *) return 1 ;; esac
+}
+
+# drop_privileges, as root, hands /vault/data (the volume) to the vault user and takes /vault and
+# the config/policy/script dirs back from it (the image leaves them vault-owned), so the dropped uid
+# cannot rewrite what root runs; then re-executes this script as vault under the same PID, so the
+# Fly kill_signal and the shutdown trap still reach it. Exits non-zero when su-exec is missing.
+# @param $@ the script's original arguments, passed through unchanged.
+drop_privileges() {
+  if ! command -v su-exec >/dev/null 2>&1; then
+    echo '[vault-fly] VAULT_DROP_PRIVILEGES_ENABLED is on but su-exec is missing; refusing to run as root' >&2
+    exit 1
+  fi
+  mkdir -p /vault/data
+  chown -R vault:vault /vault/data
+  chown root:root /vault
+  chown -R root:root /vault/config /vault/policies /vault/scripts
+  exec su-exec vault "$0" "$@"
+}
+
+# require_keys_file_access exits before Vault starts unless the current user can create or read
+# VAULT_KEYS_FILE, so `vault operator init` never runs without a place to keep the unseal key.
+# The message names the one obstacle found: a missing dir, an unwritable dir, or an unreadable file.
+require_keys_file_access() {
+  local keys_dir problem=''
+  keys_dir="$(dirname "${VAULT_KEYS_FILE}")"
+  if [[ ! -d "${keys_dir}" ]]; then
+    problem="directory ${keys_dir} does not exist; create it before boot or point VAULT_KEYS_FILE at an existing directory"
+  elif [[ ! -w "${keys_dir}" ]]; then
+    problem="uid ${EUID} cannot write directory ${keys_dir}; keep VAULT_KEYS_FILE under /vault/data, the one tree handed to the vault user"
+  elif [[ -e "${VAULT_KEYS_FILE}" && ! -r "${VAULT_KEYS_FILE}" ]]; then
+    problem="uid ${EUID} cannot read ${VAULT_KEYS_FILE}"
+  fi
+  if [[ -n "${problem}" ]]; then
+    echo "[vault-fly] VAULT_DROP_PRIVILEGES_ENABLED is on and ${problem}; refusing to start Vault" >&2
+    exit 1
+  fi
+}
+
+if privilege_drop_enabled; then
+  if [[ "${EUID}" == 0 ]]; then
+    drop_privileges "$@"
+  fi
+  require_keys_file_access
+else
+  mkdir -p /vault/data
+  chown -R vault:vault /vault/data
+fi
 
 vault server -config="${VAULT_CONFIG_FILE}" &
 vault_pid=$!

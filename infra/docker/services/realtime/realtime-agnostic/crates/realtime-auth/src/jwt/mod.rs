@@ -18,6 +18,10 @@
 
 mod auth;
 mod config;
+#[cfg(test)]
+mod issuer_tests;
+#[cfg(test)]
+mod previous_secret_tests;
 
 pub use config::JwtConfig;
 
@@ -33,6 +37,9 @@ use serde::{Deserialize, Serialize};
 /// extracts [`AuthClaims`] for namespace-based authorization.
 pub struct JwtAuthProvider {
     pub(crate) decoding_key: DecodingKey,
+    /// The key of `JwtConfig::previous_secret`, tried only when `decoding_key`
+    /// rejects the signature. `None` = byte-parity.
+    pub(crate) previous_key: Option<DecodingKey>,
     pub(crate) validation: Validation,
     /// Namespace prefixes the `"*"` wildcard must NOT cover (resolved once at
     /// construction from `REALTIME_PROTECTED_NAMESPACES`). Empty = byte-parity.
@@ -72,6 +79,7 @@ impl JwtAuthProvider {
         let validation = build_validation(config);
         Ok(Self {
             decoding_key,
+            previous_key: build_previous_key(config),
             validation,
             protected_namespaces: protected_namespaces_from_env(),
         })
@@ -105,10 +113,26 @@ fn build_decoding_key(config: &JwtConfig) -> Result<DecodingKey> {
     }
 }
 
+/// The HMAC key of `config.previous_secret`, or `None` when it is unset, empty,
+/// equal to the current secret, or the algorithm is not HMAC.
+fn build_previous_key(config: &JwtConfig) -> Option<DecodingKey> {
+    let prev = config.previous_secret.as_deref()?;
+    let hmac = matches!(
+        config.algorithm,
+        Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512
+    );
+    (hmac && !prev.is_empty() && prev != config.secret)
+        .then(|| DecodingKey::from_secret(prev.as_bytes()))
+}
+
 fn build_validation(config: &JwtConfig) -> Validation {
     let mut validation = Validation::new(config.algorithm);
-    if let Some(ref issuer) = config.issuer {
-        validation.set_issuer(&[issuer]);
+    let issuers = config.accepted_issuers();
+    if !issuers.is_empty() {
+        validation.set_issuer(&issuers);
+        if config.require_issuer {
+            validation.set_required_spec_claims(&["exp", "iss"]);
+        }
     }
     if let Some(ref audience) = config.audience {
         validation.set_audience(&[audience]);

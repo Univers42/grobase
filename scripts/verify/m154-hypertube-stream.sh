@@ -63,12 +63,12 @@ step "2/4 GET /stream/v1/movies/${MOVIE_ID} Range:${RANGE} → 206 + ranges"
 mid_enc="${MOVIE_ID//:/%3A}"
 curl -s -D "${TMP}/hdr.txt" -o /dev/null --max-time 40 \
   "${KONG}/stream/v1/movies/${mid_enc}?apikey=${ANON}" -H "Range: ${RANGE}" 2>/dev/null || true
-grep -qiE '^HTTP/[0-9.]+ 206' "${TMP}/hdr.txt" 2>/dev/null \
-  || skip "no 206 from archive.org source in the window (external) — health proven, stream best-effort"
-grep -qiE '^Content-Range:[[:space:]]*bytes ' "${TMP}/hdr.txt" \
-  || fail "206 without a Content-Range header — not a real partial-content response"
-grep -qiE '^Accept-Ranges:[[:space:]]*bytes' "${TMP}/hdr.txt" \
-  || fail "missing 'Accept-Ranges: bytes' — the player cannot seek"
+grep -qiE '^HTTP/[0-9.]+ 206' "${TMP}/hdr.txt" 2>/dev/null ||
+  skip "no 206 from archive.org source in the window (external) — health proven, stream best-effort"
+grep -qiE '^Content-Range:[[:space:]]*bytes ' "${TMP}/hdr.txt" ||
+  fail "206 without a Content-Range header — not a real partial-content response"
+grep -qiE '^Accept-Ranges:[[:space:]]*bytes' "${TMP}/hdr.txt" ||
+  fail "missing 'Accept-Ranges: bytes' — the player cannot seek"
 ok "Kong 206 Partial Content + Content-Range + Accept-Ranges"
 
 # ── 3) unbuffering directive: assert at the SERVICE, not the client ──────────
@@ -81,8 +81,8 @@ docker run --rm --network "${NET}" curlimages/curl:latest \
   -s -D - -o /dev/null --max-time 40 \
   "http://mini-baas-hypertube-stream:3083/stream/v1/movies/${mid_enc}" -H "Range: ${RANGE}" \
   >"${TMP}/direct.txt" 2>/dev/null || true
-grep -qiE '^x-accel-buffering:[[:space:]]*no' "${TMP}/direct.txt" \
-  || fail "stream engine did not emit 'X-Accel-Buffering: no' — Kong would buffer and stall playback"
+grep -qiE '^x-accel-buffering:[[:space:]]*no' "${TMP}/direct.txt" ||
+  fail "stream engine did not emit 'X-Accel-Buffering: no' — Kong would buffer and stall playback"
 ok "engine emits X-Accel-Buffering:no (Kong honors + consumes it)"
 
 # ── 4) audio guard: ffprobe the stream → a Video AND an Audio track ──────────

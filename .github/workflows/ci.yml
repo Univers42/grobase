@@ -4,9 +4,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   # Manual trigger + nightly sweep for the heavy enterprise battery (gates-full).
   # The per-PR path stays fast; the full m103..m145 suite runs once a day + on demand.
   workflow_dispatch:
@@ -16,6 +16,12 @@ on:
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+
+# Least privilege by default (H-9): every job reads the repo and nothing else.
+# The three publish jobs re-grant packages: write for themselves; their push
+# steps only fire on a push to main.
+permissions:
+  contents: read
 
 env:
   DOCKER_BUILDKIT: 1
@@ -28,6 +34,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - name: Install shellcheck
         run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
@@ -59,6 +70,19 @@ jobs:
           printf '%s\0' "${shfiles[@]}" | xargs -0 shellcheck -S error -e SC1091 -e SC2034 -e SC1128
           echo "shellcheck passed on ${#shfiles[@]} files"
 
+      # H-20: SC2086 (unquoted expansion) is off repo-wide in .shellcheckrc but
+      # enforced where input is untrusted: container entrypoints, deploy, and the
+      # ops/db/env/secrets/vault scripts. --norc so the global disable cannot apply.
+      - name: Quoting (SC2086) on untrusted-input scripts
+        run: |
+          set -euo pipefail
+          mapfile -t qfiles < <(git ls-files 'infra/docker/services/*.sh' 'deploy/*.sh' \
+            'scripts/ops/*.sh' 'scripts/db/*.sh' 'scripts/env/*.sh' 'scripts/vault/*.sh' \
+            'scripts/secrets/*.sh' 'scripts/lib/*.sh' 'scripts/migrations/*.sh' \
+            'scripts/provision-contract.sh' | grep -v realtime-agnostic)
+          shellcheck --norc -S style -i SC2086 "${qfiles[@]}"
+          echo "SC2086 clean on ${#qfiles[@]} files"
+
       # `make env` must never carry a GitHub token into .env: every container
       # reads .env. A scratch-tree test, no stack needed, so it rides with lint.
       - name: env assembly withholds GitHub tokens
@@ -68,6 +92,16 @@ jobs:
       # built before its source last changed must be refused before `up`.
       - name: image provenance (m190)
         run: bash scripts/verify/m190-image-provenance.sh
+
+      # Throwaway env files only: dev credentials refused, hardened ones pass,
+      # no value ever printed. No Docker, no stack.
+      - name: preflight-production (m194)
+        run: bash scripts/verify/m194-preflight-production.sh
+
+      # promtool (pinned prom image): rules and config validate, and the rule
+      # unit tests fire each alert on its own synthetic series. No stack.
+      - name: alert rules (m52)
+        run: bash scripts/verify/m52-alert-rules.sh
 
   # ─── Job 2: Docker build for each service ──────────────────────
   # Build contexts live under the repo root. NestJS apps build from src/ with
@@ -107,6 +141,11 @@ jobs:
             build-args: ""
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
@@ -119,10 +158,34 @@ jobs:
             buildx-${{ matrix.service }}-
 
       - name: Build ${{ matrix.service }}
+        id: build
+        continue-on-error: true
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: ${{ matrix.context }}
           build-args: ${{ matrix.build-args }}
+          push: false
+          tags: mini-baas/${{ matrix.service }}:ci-${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache/${{ matrix.service }}
+          cache-to: type=local,dest=/tmp/.buildx-cache-new/${{ matrix.service }},mode=max
+
+      # Base images come from mirror.gcr.io (BASE_REGISTRY); a registry limit
+      # ("toomanyrequests") is retried once, after a pause, from the other
+      # mirror of the same digests, public.ecr.aws. A second failure fails the job.
+      - name: Wait before retrying ${{ matrix.service }}
+        if: steps.build.outcome == 'failure'
+        run: |
+          echo "::warning title=${{ matrix.service }} build::first attempt failed; retrying in 90 s"
+          sleep 90
+
+      - name: Retry build ${{ matrix.service }}
+        if: steps.build.outcome == 'failure'
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
+        with:
+          context: ${{ matrix.context }}
+          build-args: |
+            ${{ matrix.build-args }}
+            BASE_REGISTRY=public.ecr.aws/docker/library
           push: false
           tags: mini-baas/${{ matrix.service }}:ci-${{ github.sha }}
           cache-from: type=local,src=/tmp/.buildx-cache/${{ matrix.service }}
@@ -191,6 +254,11 @@ jobs:
           - { service: realtime,     context: infra/docker/services/realtime/realtime-agnostic }
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       # Heavy JVM/SQL-Server/Next builds peak at 2–3 GiB; the stock runner has
       # ~14 GiB free. Reclaim the preinstalled Android/.NET/GHC/boost/JVM trees
@@ -224,9 +292,37 @@ jobs:
       # build becomes mostly downloads. PRs import it too (best-effort; without
       # a GHCR login the import is a warning and the local cache still applies).
       - name: Build & publish ${{ matrix.service }}
+        id: build
+        continue-on-error: true
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: ${{ matrix.context }}
+          push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+          tags: |
+            ghcr.io/univers42/grobase-${{ matrix.service }}:latest
+            ghcr.io/univers42/grobase-${{ matrix.service }}:sha-${{ github.sha }}
+          cache-from: |
+            type=local,src=/tmp/.buildx-cache/${{ matrix.service }}
+            type=registry,ref=ghcr.io/univers42/grobase-${{ matrix.service }}:buildcache
+          cache-to: |
+            type=local,dest=/tmp/.buildx-cache-new/${{ matrix.service }},mode=max
+            ${{ (github.ref == 'refs/heads/main' && github.event_name == 'push') && format('type=registry,ref=ghcr.io/univers42/grobase-{0}:buildcache,mode=max', matrix.service) || '' }}
+
+      # Base images come from mirror.gcr.io (BASE_REGISTRY); a registry limit
+      # ("toomanyrequests") is retried once, after a pause, from the other
+      # mirror of the same digests, public.ecr.aws. A second failure fails the job.
+      - name: Wait before retrying ${{ matrix.service }}
+        if: steps.build.outcome == 'failure'
+        run: |
+          echo "::warning title=${{ matrix.service }} build::first attempt failed; retrying in 90 s"
+          sleep 90
+
+      - name: Retry build & publish ${{ matrix.service }}
+        if: steps.build.outcome == 'failure'
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
+        with:
+          context: ${{ matrix.context }}
+          build-args: BASE_REGISTRY=public.ecr.aws/docker/library
           push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
           tags: |
             ghcr.io/univers42/grobase-${{ matrix.service }}:latest
@@ -261,6 +357,11 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - name: Free disk space
         run: |
@@ -316,6 +417,11 @@ jobs:
         working-directory: .
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - name: Free disk space
         run: |
@@ -326,13 +432,29 @@ jobs:
         run: FORCE=1 bash scripts/env/generate-env.sh .env
 
       - name: Build app images (validates the lightweight layer)
-        run: docker compose -f docker-compose.yml build $APP_SVCS
+        id: appbuild
+        env:
+          RETRY_429_LOG: /tmp/app-build.log
+        # A registry 429 (anonymous base-image pulls) is retried twice with
+        # backoff; any other failure fails at once.
+        run: |
+          read -ra svcs <<<"$APP_SVCS"
+          bash scripts/ci/retry-on-429.sh docker compose -f docker-compose.yml build "${svcs[@]}"
+
+      # A red build names its cause in the (public) annotations.
+      - name: Explain a failed app-image build
+        if: failure() && steps.appbuild.outcome == 'failure'
+        run: |
+          why=$(grep -E '^ > \[|^ERROR|failed to solve|toomanyrequests|error(\[|:)|No space left|timed out' /tmp/app-build.log | tail -n 4 | tr '\n' ' ' | cut -c1-900)
+          disk=$(df -h / | awk 'NR==2 {print $4 " free of " $2}')
+          echo "::error title=app image build failed::${why:-no error line matched; see log} | disk: ${disk}"
 
       - name: Log in to GHCR + push (main only)
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker compose -f docker-compose.yml push $APP_SVCS
+          read -ra svcs <<<"$APP_SVCS"
+          docker compose -f docker-compose.yml push "${svcs[@]}"
 
   # ─── Job 3: Integration tests ──────────────────────────────────
   # ─── pg-backup liveness (m192) ────────────────────────────────
@@ -345,19 +467,67 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
       - name: liveness follows PostgreSQL and MinIO
         run: bash scripts/verify/m192-pg-backup-liveness.sh
+
+  # ─── Standalone gates (m64 m81 m183 m209) ─────────────────────
+  # Each builds or starts its own throwaway containers; no stack needed.
+  standalone-gates:
+    name: Standalone gates (m64 m81 m183 m209)
+    runs-on: ubuntu-latest
+    needs: [shellcheck]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
+      # tenant-control built from the commit verifies RS256 tokens from a JWKS.
+      - name: RS256 verifier (m64)
+        run: bash scripts/verify/m64-rs256.sh
+      # A real RS256 issuer's token passes Kong's jwt plugin and tenant-control.
+      - name: RS256 issuer end to end (m81)
+        run: bash scripts/verify/m81-rs256-issuer.sh
+      # The postgres and mongo healthchecks ask the network, not the socket.
+      # m183 boots the stack's postgres image with compose's own healthcheck; this
+      # job builds nothing, so it takes the published one (public on GHCR).
+      - name: Pull the postgres image for m183
+        run: bash scripts/ci/retry-on-429.sh docker pull -q ghcr.io/univers42/grobase-postgres:latest
+
+      - name: Healthchecks assert network readiness (m183)
+        run: bash scripts/verify/m183-healthcheck-network-readiness.sh
+
+      # pg-backup built from the commit encrypts every artifact with age, and a
+      # restore needs the identity (scratch postgres + MinIO, no stack).
+      - name: Pull the images for m209
+        run: |
+          bash scripts/ci/retry-on-429.sh docker pull -q mirror.gcr.io/library/postgres:16-alpine
+          bash scripts/ci/retry-on-429.sh docker pull -q ghcr.io/univers42/grobase-minio:latest
+      - name: Backups encrypted at rest (m209)
+        run: bash scripts/verify/m209-backup-encryption.sh
 
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: [shellcheck, docker-build]
-    timeout-minutes: 25
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: .
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - name: Generate CI environment
         run: |
@@ -383,11 +553,21 @@ jobs:
       - name: Build and start core stack
         run: |
           set -euo pipefail
+          exec > >(tee /tmp/stack.log) 2>&1
           # The waf consumes certs/localhost{,-key}.pem as Docker secrets (root
           # compose secrets:). CI has no local certs, so generate them before `up`
           # or the secret bind-mount fails (idempotent; openssl only, no sudo/trust).
           bash scripts/certs/generate-localhost-cert.sh
-          docker compose -f docker-compose.yml build
+          # A registry limit on the base images ("toomanyrequests") is retried,
+          # the later attempts from the other mirror of the same digests.
+          reg=()
+          for i in 1 2 3; do
+            docker compose -f docker-compose.yml build "${reg[@]}" && break
+            reg=(--build-arg BASE_REGISTRY=public.ecr.aws/docker/library)
+            [ "$i" -lt 3 ] || exit 1
+            echo "::warning title=core stack build::attempt ${i} failed; retrying in $((i * 30)) s"
+            sleep $((i * 30))
+          done
           docker compose -f docker-compose.yml up -d
           # Mongo path for phases 14/15 — start the data-plane mongo services BY NAME.
           # --build forces THIS commit's Dockerfiles: the services carry a ghcr.io
@@ -403,6 +583,14 @@ jobs:
           # refuse anonymous pulls); minio-iceberg-init is the service that builds it.
           docker compose -f docker-compose.yml build minio-iceberg-init
 
+      # A red stack start names its cause in the (public) annotations: the build's
+      # last error lines and every service that is not running or not healthy.
+      - name: Explain a failed stack start
+        if: failure()
+        run: |
+          why=$(grep -E '^ > \[|^ERROR|failed to solve|toomanyrequests|dependency failed|is unhealthy|error(\[|:)|No space left' /tmp/stack.log | tail -n 4 | tr '\n' ' ' | cut -c1-900)
+          bad=$(docker compose -f docker-compose.yml ps -a --format '{{.Service}}={{.State}}/{{.Health}}' | grep -Ev '=running/(healthy|)$' | tr '\n' ' ' | cut -c1-600)
+          echo "::error title=core stack start failed::${why:-no error line matched} | not ready: ${bad:-none}"
       # Realtime is built from THIS commit above. Its health must follow its
       # PostgreSQL change feed: healthy when the LISTEN is attached, 503 and a
       # failing --healthcheck when PostgreSQL is gone, healthy again after.
@@ -417,7 +605,8 @@ jobs:
           # db-bootstrap only seeds tenant_databases/schema_registry, so apply the
           # numbered migrations the way `make migrate` does (strip # comment lines).
           until docker compose -f docker-compose.yml exec -T postgres pg_isready -U postgres -d postgres >/dev/null 2>&1; do sleep 2; done
-          for f in $(ls -1 scripts/migrations/postgresql/*.sql 2>/dev/null | sort); do
+          shopt -s nullglob
+          for f in scripts/migrations/postgresql/*.sql; do
             echo "Applying: $f"
             sed '/^#/d' "$f" | docker compose -f docker-compose.yml exec -T postgres \
               psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f -
@@ -488,15 +677,23 @@ jobs:
           #   12,13 rate-limit + CORS -> only ever needed Kong; they were grouped
           #         under "realtime" in the old comment and skipped for no reason.
           for phase in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do
-            script=$(ls scripts/test/phase/phase${phase}-*.sh scripts/test/phase/phase${phase}-*.py 2>/dev/null | head -1 || true)
+            script=""
+            for c in scripts/test/phase/phase"${phase}"-*.sh scripts/test/phase/phase"${phase}"-*.py; do
+              if [ -e "$c" ]; then script=$c; break; fi
+            done
             if [ -z "$script" ]; then
               echo "No test script for phase ${phase}, skipping"; continue
             fi
             echo "=== Running: $script ==="
+            rc=0
             case "$script" in
-              *.py) python3 "$script" || rc_all=1 ;;
-              *)    bash    "$script" || rc_all=1 ;;
+              *.py) python3 "$script" || rc=$? ;;
+              *)    bash    "$script" || rc=$? ;;
             esac
+            if [ "$rc" -ne 0 ]; then
+              rc_all=1
+              echo "::error title=test phase ${phase} failed::${script} exited ${rc}"
+            fi
             sleep 1
           done
           [ "$rc_all" -eq 0 ] || { echo "Some test phases failed"; exit 1; }
@@ -506,14 +703,74 @@ jobs:
       # this proves the image carries mongodump/mongorestore and that a scratch
       # database survives backup -> drop -> restore. Cockroach and MSSQL are
       # not in this stack: the gate names them skipped and still requires one.
+      # All migrations applied above: nothing in `public` that anon/authenticated
+      # can touch lacks RLS, and the anon key cannot read or write schema_registry.
+      # The Kong admin API (key-auths, JWT secrets) is not published to the host,
+      # live or in the rendered compose config.
+      - name: Kong admin API not host-exposed (m157)
+        run: bash scripts/verify/run-gate-battery.sh m157-kong-admin-not-exposed
+
+      - name: Public tables behind RLS (m200)
+        run: bash scripts/verify/run-gate-battery.sh m200-public-tables-rls
+
+      # Realtime (built above from this commit) accepts only the listed token
+      # issuers and refuses a token without `iss` (M-4).
+      - name: Realtime token issuers (m201)
+        run: bash scripts/verify/run-gate-battery.sh m201-realtime-issuer
+
+      # storage-router (built above from this commit) served in strict identity
+      # mode by a second in-container process: a real GoTrue session is accepted,
+      # forged raw headers and foreign tokens are refused (H-19). The stack stays
+      # compat; this is the evidence the prod strict flip is gated on.
+      - name: Strict identity mode is serviceable (m202)
+        run: bash scripts/verify/run-gate-battery.sh m202-strict-identity-serviceable
+
+      - name: Every migration records itself (m203)
+        run: bash scripts/verify/run-gate-battery.sh m203-migrations-recorded
+
       - name: Engine backup round trip (m188)
         run: bash scripts/verify/m188-engine-backup-restore.sh
+
+      # Against the running stack's network: tenant functions reach neither the
+      # internals (kong:8001, postgres, vault…) under the jail nor under the Worker
+      # allowlist alone. Built from THIS commit, not the published :latest.
+      - name: Functions network jail (m197)
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.yml build functions-runtime
+          # m197's overlay leg proves the runtime reaches the secrets resolve through
+          # the relay, which webhook-dispatcher answers; the core stack does not
+          # start it (profile control-plane), so start it by name from this commit.
+          docker compose -f docker-compose.yml up -d --build --wait webhook-dispatcher
+          bash scripts/verify/m197-functions-net-jail.sh
 
       # Throwaway MongoDB + throwaway ai-service (pulled): the CONFIGURED probe
       # must fail once MongoDB stops. Statically, every Nest service that
       # implements /health/ready must probe it.
       - name: Nest readiness probes (m191)
         run: bash scripts/verify/m191-nest-readiness-probes.sh
+
+      # query-router and tenant-control from this commit; their other
+      # dependencies come from the ghcr pull-fallback images.
+      - name: Start query-router, tenant-control and prometheus
+        run: |
+          set -euo pipefail
+          bash scripts/ci/retry-on-429.sh docker compose -f docker-compose.yml build query-router tenant-control prometheus
+          docker compose -f docker-compose.yml up -d --wait query-router tenant-control prometheus
+
+      # A rejected credential shows in Kong, query-router, Prometheus and the logs.
+      - name: Security events end to end (m204)
+        env:
+          M204_REQUIRE: "1"
+        run: bash scripts/verify/m204-security-events.sh
+
+      # The kernel reports NoNewPrivs: 1 for every container of the booted stack.
+      - name: No new privileges, live (m208)
+        run: bash scripts/verify/m208-no-new-privileges.sh
+
+      # The generic contract provisioner creates, seeds and keys an app from JSON.
+      - name: Contract provisioning (m165)
+        run: bash scripts/verify/m165-contract-provision.sh
 
       - name: Gateway query-path regression gate (m102)
         env:
@@ -543,7 +800,7 @@ jobs:
 
       - name: Upload test artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: test-artifacts-${{ github.run_id }}
           path: artifacts/
@@ -571,11 +828,16 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
       - name: own ports kept, foreign ports avoided
         run: bash scripts/verify/m193-resolve-ports-own-stack.sh
 
   cloud-gates:
-    name: Cloud gates (m101 m89 m90 m91 m94 m120)
+    name: Cloud gates (m101 m89 m90 m91 m94 m83 m120)
     runs-on: ubuntu-latest
     needs: [shellcheck]
     timeout-minutes: 50
@@ -584,6 +846,11 @@ jobs:
         working-directory: .
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
@@ -592,11 +859,11 @@ jobs:
           set -uo pipefail
           rc_all=0
           # m101 first — its data-plane-router build warms the layer cache for the rest.
-          for gate in m101-quota-realtenant m89-spend-caps m90-abuse-guard m91-api-version-contract m94-cloud-funnel; do
+          for gate in m101-quota-realtenant m89-spend-caps m90-abuse-guard m91-api-version-contract m94-cloud-funnel m83-selfserve; do
             script="scripts/verify/${gate}.sh"
             [ -f "$script" ] || { echo "missing $script — skipping"; continue; }
             echo "=== Running: $script ==="
-            bash "$script" || { echo "$gate FAILED"; rc_all=1; }
+            bash "$script" || { echo "::error title=gate ${gate} failed::${script} exited non-zero"; rc_all=1; }
           done
           [ "$rc_all" -eq 0 ] || { echo "Some cloud gates failed"; exit 1; }
           echo "All cloud gates passed"
@@ -620,6 +887,11 @@ jobs:
         working-directory: .
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
       - name: Run isolated RBAC + invites gates
         run: |
@@ -656,10 +928,15 @@ jobs:
           - { sdk: swift,  os: macos-latest }
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       # Python — grobase-sdk
       - if: matrix.sdk == 'python'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.11'
       - if: matrix.sdk == 'python'
@@ -672,7 +949,7 @@ jobs:
 
       # Kotlin — com.grobase:grobase-sdk (gradle wrapper is committed)
       - if: matrix.sdk == 'kotlin'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
         with:
           distribution: temurin
           java-version: '21'
@@ -681,7 +958,7 @@ jobs:
       # GitHub's release host, and one HTTP 500 there failed the job in 12 s
       # (PR #20, 2026-09-23) for a reason unrelated to the code under test.
       - if: matrix.sdk == 'kotlin'
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
       - if: matrix.sdk == 'kotlin'
         working-directory: sdks/kotlin
         run: |
@@ -701,7 +978,7 @@ jobs:
       # committed OpenAPI spec (same generator the committed tests came from), then
       # analyze + test the regenerated package.
       - if: matrix.sdk == 'dart'
-        uses: dart-lang/setup-dart@v1
+        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d
         with:
           sdk: stable
       - if: matrix.sdk == 'dart'
@@ -754,6 +1031,11 @@ jobs:
           - { offer: tier-gating,      run: "docker run --rm -v $PWD/src/control-plane:/src -w /src golang:1.25-bookworm go test ./internal/packages/" }
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
@@ -761,7 +1043,24 @@ jobs:
         run: FORCE=1 bash scripts/env/generate-env.sh .env
 
       - name: Compile/enforce ${{ matrix.offer }}
-        run: ${{ matrix.run }}
+        env:
+          OFFER_RUN: ${{ matrix.run }}
+          RETRY_429_LOG: /tmp/offer.log
+        # A registry 429 (anonymous base-image pulls) is retried twice with
+        # backoff; any other failure fails at once.
+        run: bash scripts/ci/retry-on-429.sh bash -c "$OFFER_RUN"
+
+      # A red offer names its cause in the (public) annotations: the first error
+      # lines of the build and the runner's disk headroom.
+      - name: Explain a failed offer
+        if: failure()
+        run: |
+          # BuildKit prints the failing stage (' > [svc stage n/m] RUN …') and the cause
+          # ('ERROR: … failed to solve …') at the END of the log; the first line that
+          # merely mentions 'error' is often a harmless RUN line (e.g. errors.c).
+          why=$(grep -E '^ > \[|^ERROR|failed to solve|error(\[|:)|No space left|timed out' /tmp/offer.log | tail -n 4 | tr '\n' ' ' | cut -c1-900)
+          disk=$(df -h / | awk 'NR==2 {print $4 " free of " $2}')
+          echo "::error title=offer ${{ matrix.offer }} failed::${why:-no error line matched; see log} | disk: ${disk}"
 
   # ─── Job 7: Full enterprise gate battery (nightly + manual) ─────
   # The heavy enterprise + parity suite (m103..m145): orgs/RBAC, audit chain,
@@ -779,6 +1078,11 @@ jobs:
         working-directory: .
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
@@ -789,7 +1093,7 @@ jobs:
 
       - name: Upload per-gate logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: gate-battery-logs-${{ github.run_id }}
           path: artifacts/gate-battery/
@@ -799,6 +1103,96 @@ jobs:
   # The actual code tests a contributor runs: Go control-plane (go test ./...), the
   # Rust data-plane and realtime workspaces (cargo test), and the NestJS apps + libs
   # (jest). Run in containers (Docker-first), independent so they start immediately.
+  # ─── Security hardening gates (m66 m195 m196 m198 m199 m205 m206 m207) ──
+  # No running stack: each gate boots its own throwaway containers from images
+  # built HERE from this commit (never the published :latest). A missing image or
+  # too little disk is a non-zero SKIP (exit 77), never a silent pass.
+  security-gates:
+    name: Security gates (m66 m195 m196 m198 m199 m205 m206 m207 m208 m210)
+    runs-on: ubuntu-latest
+    needs: [shellcheck]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
+
+      - name: Assemble .env
+        run: bash scripts/env/assemble-env.sh
+
+      - name: Localhost certs (m198's WAF mounts them)
+        run: bash scripts/certs/generate-localhost-cert.sh
+
+      - name: Build kong + waf from this commit
+        run: docker compose -f docker-compose.yml build kong waf
+
+      # m198's echo upstream. Anonymous registry pulls are rate-limited per
+      # runner IP, so retry, then fall back to Docker Hub and point the gate at it.
+      - name: Pull node:20-alpine for m198
+        run: |
+          set -uo pipefail
+          img=mirror.gcr.io/library/node:20-alpine
+          for i in 1 2 3; do docker pull -q "$img" && exit 0; sleep $((i * 10)); done
+          echo "::warning title=m198 node image::mirror.gcr.io pull failed 3x; using docker.io node:20-alpine"
+          docker pull -q node:20-alpine
+          echo "M198_NODE_IMAGE=node:20-alpine" >> "$GITHUB_ENV"
+
+      # Prod/cloud overlays render the security values on the right services;
+      # a throwaway Kong proves the admin API is off while /metrics survives.
+      - name: Prod overlay hardening (m195)
+        run: bash scripts/verify/run-gate-battery.sh m195-prod-overlay-hardening
+
+      # A throwaway Kong on the repo kong.yml: every ip-restricted route but the
+      # /studio UI needs the service_role key; the anon key gets the acl's 403.
+      - name: Internal-only Kong routes need the service key (m206)
+        run: bash scripts/verify/run-gate-battery.sh m206-kong-admin-acl
+
+      # The netseg overlay takes engines + vault off the app bridge: every real
+      # client still shares a bridge with its engine, kong/waf/scrapers do not.
+      - name: Network segmentation overlay (m66)
+        run: bash scripts/verify/run-gate-battery.sh m66-netseg
+
+      # Every service of every stack renders with no-new-privileges:true, none
+      # privileged or unconfined; five mutants must be refused. Static here.
+      - name: No new privileges (m208)
+        run: bash scripts/verify/run-gate-battery.sh m208-no-new-privileges
+
+      # Every JWT verifier that accepts JWT_SECRET_PREV gets it, every other JWT
+      # secret site is classified, and the rotation scripts refuse without force.
+      - name: JWT dual-key verify (m210)
+        run: bash scripts/verify/run-gate-battery.sh m210-jwt-dual-key
+
+      # begin → swap → finish on a scratch env file; compose hands the previous
+      # service token to every verifier.
+      - name: Service-token rotation (m205)
+        run: bash scripts/verify/run-gate-battery.sh m205-service-token-rotation
+
+      # Builds Dockerfile.fly and boots it --network none: the flag drops Vault
+      # to the vault user; unset keeps today's root.
+      - name: Vault drops privileges (m196)
+        # The vault base image comes from public.ecr.aws: a registry 429 is retried.
+        run: bash scripts/ci/retry-on-429.sh bash scripts/verify/run-gate-battery.sh m196-vault-drop-privileges
+
+      # Only Upgrade: websocket reaches Kong; h2c is dropped. A mutant config
+      # must relay h2c, proving the probe can see smuggling at all.
+      - name: WAF upgrade allowlist (m198)
+        run: bash scripts/verify/run-gate-battery.sh m198-waf-upgrade-allowlist
+
+      # Public-range client → WAF → Kong → header echo: Kong's ip-restriction sees
+      # the client, and no client-forged X-Forwarded-* reaches an upstream.
+      - name: Kong behind the WAF sees the real client (m207)
+        env:
+          M207_NODE_IMAGE: ${{ env.M198_NODE_IMAGE || 'mirror.gcr.io/library/node:20-alpine' }}
+        run: bash scripts/verify/run-gate-battery.sh m207-edge-client-ip
+
+      # Throwaway vault + init-vault.sh: the unseal-key file is 600, and a lost key
+      # file is refused instead of wiping Vault's storage.
+      - name: Vault init keeps its keys private and its storage intact (m199)
+        run: bash scripts/verify/run-gate-battery.sh m199-vault-init-keys
+
   unit-tests:
     name: Unit tests (${{ matrix.suite }})
     runs-on: ubuntu-latest
@@ -806,9 +1200,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [go, rust-data-plane, rust-realtime, nestjs]
+        suite: [go, rust-data-plane, rust-realtime, nestjs, functions-runtime]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       # Go — control plane (~30 packages)
       - if: matrix.suite == 'go'
@@ -832,9 +1231,15 @@ jobs:
             -v "$PWD/infra/docker/services/realtime/realtime-agnostic:/src" -w /src \
             rust:1-bookworm cargo test --workspace
 
+      # The PostgreSQL LISTEN re-attaches after its backend is killed (m184).
+      - if: matrix.suite == 'rust-realtime'
+        env:
+          M184_TOOLCHAIN: rust:1-bookworm
+        run: bash scripts/verify/m184-realtime-listen-reconnect.sh
+
       # NestJS — apps + libs (jest)
       - if: matrix.suite == 'nestjs'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '20'
       - if: matrix.suite == 'nestjs'
@@ -842,6 +1247,14 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npx jest
+
+      # Deno — functions runtime (net policy, relay, usage meter). Same image and
+      # --unstable-worker-options flag as the runtime's ENTRYPOINT.
+      - if: matrix.suite == 'functions-runtime'
+        run: |
+          docker run --rm -v "$PWD/infra/docker/services/functions-runtime:/app" -w /app \
+            denoland/deno:alpine-2.1.4 \
+            deno test --unstable-worker-options --allow-net --allow-env --allow-read src/
 
   # ─── Functions cold-invoke gate (m186) ─────────────────────────
   # Builds only the functions runtime and runs 40 cold deploy+invoke cycles
@@ -854,6 +1267,11 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
       - name: 40 cold invokes must all answer
         run: bash scripts/verify/m186-functions-cold-invoke.sh
 
@@ -869,5 +1287,31 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
+      # The toolchain image comes from mirror.gcr.io: a registry 429 is retried.
       - name: cargo clippy --workspace --all-targets -D warnings
-        run: make test-lint-rust
+        run: bash scripts/ci/retry-on-429.sh make test-lint-rust
+
+  # ─── Formatters (check only) ───────────────────────────────────
+  # gofumpt · cargo fmt (both workspaces) · prettier (TS, YAML) · shfmt, each
+  # pinned and in Docker, the same `make prettiers-check` a laptop runs. vendor/
+  # is excluded; the tree was brought to zero drift before this job landed.
+  formatters:
+    name: Formatters (make prettiers-check)
+    runs-on: ubuntu-latest
+    needs: [shellcheck]
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
+      # The Rust toolchain image comes from mirror.gcr.io: a registry 429 is retried.
+      - name: Every language formatted (no writes)
+        run: bash scripts/ci/retry-on-429.sh make prettiers-check

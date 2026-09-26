@@ -12,9 +12,10 @@ consumers:
   - username: service_role
     keyauth_credentials:
       - key: __KONG_SERVICE_API_KEY__
-    # SECURITY: only the service_role key is in the baas-admin group; the
-    # adapter-registry admin route ACLs on it so the public anon key can no
-    # longer enumerate other tenants' DB mounts via a forged X-Baas-Tenant-Id.
+    # SECURITY: only the service_role key is in the baas-admin group; every
+    # ip-restricted route ACLs on it (m206), so the public
+    # anon key opens no admin surface — ip-restriction alone is one proxy hop
+    # from useless, since behind the WAF every client has a private IP.
     acls:
       - group: baas-admin
   # JWT consumer — matches GoTrue-issued tokens via the "iss" claim.
@@ -37,13 +38,10 @@ plugins:
         - __KONG_CORS_ORIGIN_PLAYGROUND__
         - __KONG_CORS_ORIGIN_STUDIO__
         - __KONG_CORS_ORIGIN_FRONTEND__
-        - http://127.0.0.1:5180
-        - http://localhost:5180
-        - http://127.0.0.1:5173
-        # osionos second-brain Vite dev server — plain http in dev (no TLS).
-        # Lets the in-browser BaaS graph mode call /query/v1/* across origins.
-        - http://localhost:3001
-        - http://127.0.0.1:3001
+        # Local dev servers (vite :5173/:5180, the osionos second-brain on :3001):
+        # KONG_CORS_ORIGIN_DEV_LIST (gateway.yml default), one origin per comma.
+        # Empty in prod and on fly, so no localhost origin gets credentialed CORS.
+        - __KONG_CORS_ORIGIN_DEV_LIST__
       methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
       headers:
         # X-Baas-Tenant-Id: the in-browser mount catalog (osionos
@@ -122,11 +120,25 @@ plugins:
           -- Strip the forgeable namespace headers on both (admin/* routes are
           -- service-role + ip-restricted and the internal dispatcher invoke
           -- bypasses Kong, so neither legitimate path is affected).
+          -- X-Baas-Roles / X-Baas-Scopes go with them: they are authorization
+          -- inputs (roleNames -> RolesGuard + ABAC PDP, scopes -> the api-key
+          -- admin short-circuit) that only the signed envelope minted by
+          -- ApiKeyMiddleware may set. A signed internal caller cannot use these
+          -- prefixes anyway -- X-Baas-Tenant-Id is already cleared here.
+          --  * /storage/v1 : storage-router runs in compat mode and meters the
+          --    bytes written against the raw X-Baas-Tenant-Id, so a forged one
+          --    bills another tenant (and under QUOTA_ENFORCEMENT exhausts their
+          --    quota). Owner scoping there is by the JWT-derived X-User-Id and
+          --    is unaffected. /admin/v1 keeps the header on purpose: it is
+          --    service-role + ip-restricted and the in-browser mount catalog
+          --    scopes by it (see the CORS allow-list above).
           local _p = kong.request.get_path()
-          if _p and (_p:sub(1, 11) == "/functions/" or _p:sub(1, 7) == "/query/") then
+          if _p and (_p:sub(1, 11) == "/functions/" or _p:sub(1, 7) == "/query/" or _p:sub(1, 11) == "/storage/v1") then
             kong.service.request.clear_header("X-Baas-Tenant-Id")
             kong.service.request.clear_header("X-Baas-User-Id")
             kong.service.request.clear_header("X-Tenant-Id")
+            kong.service.request.clear_header("X-Baas-Roles")
+            kong.service.request.clear_header("X-Baas-Scopes")
           end
           local auth = kong.request.get_header("authorization")
           if not auth then return end
@@ -466,6 +478,10 @@ services:
           - name: ip-restriction
             config:
               allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1]
+          - name: acl
+            config:
+              allow: [baas-admin]
+              hide_groups_header: true
           - name: rate-limiting
             config:
               policy: local
@@ -518,6 +534,10 @@ services:
           - name: ip-restriction
             config:
               allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1]
+          - name: acl
+            config:
+              allow: [baas-admin]
+              hide_groups_header: true
           - name: request-size-limiting
             config:
               allowed_payload_size: 64
@@ -533,7 +553,7 @@ services:
   # control plane. Each route is MORE specific than the /admin/v1 catch-all below
   # (Kong matches longest path first), strip_path leaves the upstream's own path
   # (carried in the service url), and all are internal-only via ip-restriction +
-  # the upstream's own service-token. service_role apikey + internal network only.
+  # acl baas-admin + the upstream's own service-token. service_role apikey only.
   - name: admin-tenants
     url: http://tenant-control:3022/v1/tenants
     routes:
@@ -545,6 +565,8 @@ services:
             config: { key_names: [apikey], hide_credentials: false }
           - name: ip-restriction
             config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: request-size-limiting
             config: { allowed_payload_size: 64, size_unit: kilobytes }
           - name: rate-limiting
@@ -634,6 +656,8 @@ services:
             config: { key_names: [apikey], hide_credentials: false }
           - name: ip-restriction
             config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: request-size-limiting
             config: { allowed_payload_size: 64, size_unit: kilobytes }
           - name: rate-limiting
@@ -650,6 +674,8 @@ services:
             config: { key_names: [apikey], hide_credentials: false }
           - name: ip-restriction
             config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: request-size-limiting
             config: { allowed_payload_size: 64, size_unit: kilobytes }
           - name: rate-limiting
@@ -670,6 +696,8 @@ services:
             config: { key_names: [apikey], hide_credentials: false }
           - name: ip-restriction
             config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: request-size-limiting
             config: { allowed_payload_size: 64, size_unit: kilobytes }
           - name: rate-limiting
@@ -686,6 +714,8 @@ services:
             config: { key_names: [apikey], hide_credentials: false }
           - name: ip-restriction
             config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: request-size-limiting
             config: { allowed_payload_size: 64, size_unit: kilobytes }
           - name: rate-limiting
@@ -702,6 +732,8 @@ services:
             config: { key_names: [apikey], hide_credentials: false }
           - name: ip-restriction
             config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: request-size-limiting
             config: { allowed_payload_size: 64, size_unit: kilobytes }
           - name: rate-limiting
@@ -718,6 +750,8 @@ services:
             config: { key_names: [apikey], hide_credentials: false }
           - name: ip-restriction
             config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: request-size-limiting
             config: { allowed_payload_size: 256, size_unit: kilobytes }
           - name: rate-limiting
@@ -736,6 +770,8 @@ services:
             config: { key_names: [apikey], hide_credentials: false }
           - name: ip-restriction
             config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: request-size-limiting
             config: { allowed_payload_size: 256, size_unit: kilobytes }
           - name: rate-limiting
@@ -891,22 +927,11 @@ services:
               minute: 60
               hour: 1000
 
-  - name: admin-studio
-    url: http://studio:3000
-    routes:
-      - name: studio-routes
-        paths: [/studio]
-        strip_path: false
-        plugins:
-          - name: ip-restriction
-            config:
-              allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1]
-          - name: rate-limiting
-            config:
-              policy: local
-              limit_by: ip
-              minute: 300
-              hour: 5000
+  # No /studio route. Studio is built without a basePath, so it only serves
+  # at /, and it holds the service_role key with no login of its own. Reach it
+  # on 127.0.0.1:${STUDIO_PORT:-3000} in dev or through an SSH tunnel in prod
+  # (infra/docker/services/studio/README.md). m206 keeps any route from
+  # pointing at it again.
 
   - name: email
     url: http://orchestrator:3026          # A4 cutover (was email-service:3030)

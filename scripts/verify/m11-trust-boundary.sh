@@ -21,6 +21,22 @@ fail() {
 step() { cyan "[M11] ${*}"; }
 pass() { green "[M11] PASS: ${*}"; }
 
+NODE_IMAGE="mirror.gcr.io/library/node:20-alpine"
+
+# node_in_src runs a node/npx command inside src/ through the same Docker image +
+# node_modules volume as `make nestjs-ci`, so the gate needs no host toolchain
+# (Docker-first). Falls back to the host when npx is on PATH.
+node_in_src() {
+  if command -v npx >/dev/null 2>&1; then
+    (cd "${BAAS_DIR}/src" && sh -c "$1")
+    return
+  fi
+  docker run --rm -v "${REPO_ROOT}/src":/app -w /app \
+    -v mini-baas-src-node-modules:/app/node_modules \
+    -v mini-baas-npm-cache:/root/.npm \
+    "${NODE_IMAGE}" sh -c "$1"
+}
+
 LIVE=0
 for arg in "$@"; do [[ "${arg}" == "--live" ]] && LIVE=1; done
 
@@ -90,9 +106,26 @@ grep -rq "JWT_SECRET" "${BAAS_DIR}/orchestrators/compose/base/" || fail "compose
 grep -q "pre-function" "${BAAS_DIR}/infra/docker/services/kong/conf/kong.yml" || fail "Kong identity pre-function missing"
 pass "gateway path remains present while strict upstream verification can be enabled"
 
-step "checking signed envelope positive and forged-header negative paths"
-(
-  cd "${BAAS_DIR}/src" && npx ts-node -r tsconfig-paths/register --transpile-only <<'TS'
+step "checking Kong strips forgeable identity headers on every public app prefix"
+KONG_CONF="${BAAS_DIR}/infra/docker/services/kong/conf/kong.yml"
+for hdr in X-User-Id X-User-Email X-User-Role \
+  X-Baas-Tenant-Id X-Baas-User-Id X-Tenant-Id X-Baas-Roles X-Baas-Scopes; do
+  grep -q "clear_header(\"${hdr}\")" "${KONG_CONF}" ||
+    fail "Kong pre-function must clear ${hdr} (client-supplied identity/authz input)"
+done
+# The prefix guard must cover every public route that reaches a service acting on
+# the tenant: /functions/ (namespace), /query/ (compat identity), /storage/v1
+# (usage-meter dimension, N-13). /admin/v1 is deliberately NOT in the list.
+for prefix in '/functions/' '/query/' '/storage/v1'; do
+  grep -q "== \"${prefix}\"" "${KONG_CONF}" ||
+    fail "Kong pre-function must clear the forgeable tenant headers on ${prefix}"
+done
+pass "Kong clears client identity + authz headers, on all three public prefixes"
+
+step "checking envelope + bearer-JWT positive paths and forged-header negative paths"
+ENVELOPE_TS="${BAAS_DIR}/src/.m11-envelope.ts"
+trap 'rm -f "${ENVELOPE_TS}"' EXIT
+cat >"${ENVELOPE_TS}" <<'TS'
 import { createHmac } from 'node:crypto';
 import { canonicalIdentityString, resolveRequestIdentity, type VerifiedRequestIdentity } from '@mini-baas/common';
 
@@ -127,26 +160,147 @@ const req = {
     'x-baas-key-id': 'm11-secret',
   },
 };
-const canonical = canonicalIdentityString(req, identity, issuedAt, 'm11-nonce');
-req.headers['x-baas-signature'] = `v1=${createHmac('sha256', 'super-secret').update(canonical).digest('hex')}`;
-const resolved = resolveRequestIdentity(req, true);
-if (resolved?.tenantId !== identity.tenantId || resolved.projectId !== identity.projectId) {
-  throw new Error('signed identity did not resolve to expected tenant/project');
+const sign = (r: typeof req, id: VerifiedRequestIdentity, iat: string, nonce: string) =>
+  `v1=${createHmac('sha256', 'super-secret').update(canonicalIdentityString(r, id, iat, nonce)).digest('hex')}`;
+req.headers['x-baas-signature'] = sign(req, identity, issuedAt, 'm11-nonce');
+
+// resolveRequestIdentity is async (the nonce replay store is a port) — every
+// call below MUST be awaited: an un-awaited Promise is truthy and would pass.
+async function main(): Promise<void> {
+  const resolved = await resolveRequestIdentity(req, true);
+  if (resolved?.tenantId !== identity.tenantId || resolved.projectId !== identity.projectId) {
+    throw new Error('signed identity did not resolve to expected tenant/project');
+  }
+  if (resolved.scopes.join(',') !== identity.scopes.join(',')) {
+    throw new Error('signed identity did not carry the signed scopes');
+  }
+
+  await rejects(
+    () => resolveRequestIdentity({ method: 'GET', url: '/query/x/tables', originalUrl: '/query/x/tables', headers: { 'x-user-id': 'victim' } }, true),
+    'Raw identity headers are not trusted',
+    'forged raw X-User-Id was accepted in strict mode',
+  );
+
+  // roles/scopes are signed: injecting either onto an otherwise valid envelope
+  // must break the signature, never silently grant the grant.
+  for (const forged of ['x-baas-roles', 'x-baas-scopes']) {
+    const iat = String(Date.now());
+    const nonce = `m11-nonce-${forged}`;
+    const headers = { ...req.headers, 'x-baas-issued-at': iat, 'x-baas-nonce': nonce };
+    const tampered = { ...req, headers };
+    tampered.headers['x-baas-signature'] = sign(tampered, identity, iat, nonce);
+    tampered.headers[forged] = 'service_role,admin';
+    await rejects(
+      () => resolveRequestIdentity(tampered, true),
+      'Invalid identity envelope signature',
+      `forged ${forged} was accepted on a signed envelope`,
+    );
+  }
+
+  await bearerJwtRung();
 }
 
-try {
-  resolveRequestIdentity({ method: 'GET', url: '/query/x/tables', originalUrl: '/query/x/tables', headers: { 'x-user-id': 'victim' } }, true);
-  throw new Error('forged raw X-User-Id was accepted in strict mode');
-} catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
-  if (!message.includes('Raw identity headers are not trusted')) throw error;
+// H-19: the bearer-JWT rung. Strict mode must accept a GoTrue token on its own
+// (otherwise flipping strict 401s every JWT caller), must ignore the raw headers
+// Kong sets alongside it, and must stay inert in compat mode unless opted in —
+// that last case is the byte-parity claim the default deployment relies on.
+async function bearerJwtRung(): Promise<void> {
+  process.env['GOTRUE_JWT_SECRET'] = M11_JWT_SECRET;
+  delete process.env['GOTRUE_JWT_ISSUER'];
+  const sub = '00000000-0000-4000-8000-000000000555';
+
+  // The issuer pin is mandatory, not optional: JWT_SECRET is shared, so an
+  // unpinned verifier would accept any HS256 token minted with it.
+  await rejects(
+    () => resolveRequestIdentity(jwtReq(mintJwt({ sub })), true),
+    'GOTRUE_JWT_ISSUER is empty',
+    'the bearer rung ran with no issuer pinned',
+  );
+  process.env['GOTRUE_JWT_ISSUER'] = M11_ISSUER;
+
+  // appchannels/mint.go signs a realtime-only token with the SAME secret whose
+  // `sub` is a TENANT SLUG — unpinned it would become that tenant's identity.
+  await rejects(
+    () => resolveRequestIdentity(jwtReq(mintJwt({ sub: 'victim-tenant', iss: 'grobase-realtime' })), true),
+    'Missing verified identity envelope',
+    'a cross-app realtime token passed as a user session',
+  );
+
+  const resolved = await resolveRequestIdentity(
+    jwtReq(mintJwt({ sub, app_metadata: { tenant_id: identity.tenantId } }), { 'x-user-id': 'spoofed' }),
+    true,
+  );
+  if (resolved?.authMethod !== 'jwt' || resolved.tenantId !== identity.tenantId) {
+    throw new Error('strict mode did not resolve a bearer GoTrue JWT to a jwt identity');
+  }
+  if (resolved.userId !== sub) {
+    throw new Error('jwt identity took its user from somewhere other than the signed sub');
+  }
+  if (resolved.roleNames.join(',') !== 'authenticated' || resolved.scopes.length !== 0) {
+    throw new Error('jwt identity carried roles/scopes it did not derive from the token');
+  }
+
+  await rejects(
+    () => resolveRequestIdentity(jwtReq(mintJwt({ sub, exp: 1 })), true),
+    'Missing verified identity envelope',
+    'an expired bearer JWT was accepted in strict mode',
+  );
+
+  process.env['IDENTITY_HEADER_MODE'] = 'compat';
+  delete process.env['IDENTITY_JWT_BEARER_ENABLED'];
+  await rejects(
+    () => resolveRequestIdentity(jwtReq(mintJwt({ sub })), true),
+    'Missing verified identity envelope',
+    'compat mode accepted a bearer JWT without IDENTITY_JWT_BEARER_ENABLED (parity break)',
+  );
+  process.env['IDENTITY_HEADER_MODE'] = 'strict';
 }
+
+function jwtReq(token: string, extra: Record<string, string> = {}) {
+  return {
+    method: 'GET',
+    url: '/storage/v1/object/b/k',
+    originalUrl: '/storage/v1/object/b/k',
+    headers: { authorization: `Bearer ${token}`, ...extra } as Record<string, string>,
+  };
+}
+
+const M11_JWT_SECRET = 'm11-jwt-secret';
+const M11_ISSUER = 'http://localhost:8000/auth/v1';
+
+function mintJwt(claims: Record<string, unknown>): string {
+  const enc = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const body = `${enc({ alg: 'HS256', typ: 'JWT' })}.${enc({
+    exp: Math.floor(Date.now() / 1000) + 600,
+    iss: M11_ISSUER,
+    ...claims,
+  })}`;
+  return `${body}.${createHmac('sha256', M11_JWT_SECRET).update(body).digest('base64url')}`;
+}
+
+async function rejects(call: () => Promise<unknown>, expect: string, onAccept: string): Promise<void> {
+  try {
+    await call();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes(expect)) throw error;
+    return;
+  }
+  throw new Error(onAccept);
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+});
 TS
-)
-pass "signed envelopes are accepted and forged raw identity is rejected in strict mode"
+node_in_src 'npx ts-node -r tsconfig-paths/register --transpile-only .m11-envelope.ts' ||
+  fail "signed-envelope round-trip or a forged-header negative case did not hold"
+rm -f "${ENVELOPE_TS}"
+pass "signed envelopes + bearer JWTs are accepted, forged raw identity rejected, compat inert"
 
 step "checking TypeScript compiles"
-(cd "${BAAS_DIR}/src" && npx tsc --noEmit -p tsconfig.json)
+node_in_src 'npx tsc --noEmit -p tsconfig.json' || fail "TypeScript typecheck failed"
 pass "TypeScript typecheck passed"
 
 if [[ ${LIVE} -eq 1 ]]; then

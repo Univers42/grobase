@@ -61,8 +61,10 @@ SERVICE_TOKEN="$(_lt_env mini-baas-tenant-control INTERNAL_SERVICE_TOKEN)"
 ANON_KEY="$(_lt_env mini-baas-kong KONG_PUBLIC_API_KEY)"
 SERVICE_KEY="$(_lt_env mini-baas-kong KONG_SERVICE_API_KEY)"
 [[ -n "${ANON_KEY}" && -n "${SERVICE_KEY}" ]] || fail "stack secrets not found (anon/service key)"
-MONGO_USER="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_USERNAME)"; MONGO_USER="${MONGO_USER:-mongo}"
-MONGO_PASS="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_PASSWORD)"; MONGO_PASS="${MONGO_PASS:-mongo}"
+MONGO_USER="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_USERNAME)"
+MONGO_USER="${MONGO_USER:-mongo}"
+MONGO_PASS="$(_lt_env "${MONGO_CTN}" MONGO_INITDB_ROOT_PASSWORD)"
+MONGO_PASS="${MONGO_PASS:-mongo}"
 
 # ── 1) tenant + enterprise plan (unlocks both engines) ───────────────────────
 cyan "ensuring tenant '${TENANT_SLUG}'"
@@ -85,11 +87,15 @@ curl -s -o /tmp/surfind-ent.json -w '%{http_code}' -X PUT \
   "${SVC_AUTH[@]}" -H 'Content-Type: application/json' -d "${ebody}" >/dev/null || true
 
 # ── 2) API key + mongo mount — reuse if still valid ──────────────────────────
-API_KEY=""; KEY_ID=""; MONGO_DB_ID=""
+API_KEY=""
+KEY_ID=""
+MONGO_DB_ID=""
 if [[ -f "${STATE_ENV}" ]]; then
   # shellcheck disable=SC1090
   source "${STATE_ENV}"
-  API_KEY="${SURFIND_API_KEY:-}"; KEY_ID="${SURFIND_KEY_ID:-}"; MONGO_DB_ID="${SURFIND_MONGO_DB_ID:-}"
+  API_KEY="${SURFIND_API_KEY:-}"
+  KEY_ID="${SURFIND_KEY_ID:-}"
+  MONGO_DB_ID="${SURFIND_MONGO_DB_ID:-}"
 fi
 key_ok=0
 if [[ -n "${API_KEY}" && -n "${MONGO_DB_ID}" ]]; then
@@ -142,8 +148,8 @@ cyan "mount: mongo=${MONGO_DB_ID}"
 cyan "logging in demo visitor '${DEMO_EMAIL}' for owner-scoped seed"
 DEMO_TOK="$(curl -s -X POST "${KONG_URL}/auth/v1/token?grant_type=password" \
   -H "apikey: ${ANON_KEY}" -H 'Content-Type: application/json' \
-  -d "{\"email\":\"${DEMO_EMAIL}\",\"password\":\"${DEMO_PASSWORD}\"}" \
-  | python3 -c "import sys,json;print(json.load(sys.stdin).get('access_token',''))")"
+  -d "{\"email\":\"${DEMO_EMAIL}\",\"password\":\"${DEMO_PASSWORD}\"}" |
+  python3 -c "import sys,json;print(json.load(sys.stdin).get('access_token',''))")"
 [[ -n "${DEMO_TOK}" ]] || cyan "WARN: demo visitor login failed — bitácora seed skipped (run infra/init.sh first)"
 
 if [[ -n "${DEMO_TOK}" ]]; then
@@ -154,9 +160,9 @@ if [[ -n "${DEMO_TOK}" ]]; then
       "{\"op\":\"insert\",\"data\":{\"beach_name\":\"$1\",\"date\":\"$2\",\"duration_min\":$3,\"waves\":\"$4\",\"board\":\"$5\",\"swell_m\":$6,\"wind\":\"$7\",\"water_temp_c\":\"$8\",\"rating\":$9,\"tags\":${10},\"notes\":\"${11}\",\"seed\":true,\"created_at\":\"${12}\"}}" \
       "${DEMO_TOK}" >/dev/null || cyan "WARN: seed insert '$1' returned non-2xx ($(head -c 160 /tmp/surfind-q.json))"
   }
-  seed_session "Mundaka"       "2026-06-10" 95  "limpias y huecas" "5'10 shortboard" 2.1 "offshore SE" "18" 5 '["izquierda","tubo"]'    "Sesión épica al amanecer, glassy total."  "2026-06-10T07:30:00Z"
-  seed_session "El Palmar"     "2026-06-12" 70  "constantes"       "6'2 funboard"    1.4 "flojo NW"    "20" 4 '["beach-break","verano"]'  "Olas suaves, perfectas para coger ritmo." "2026-06-12T10:15:00Z"
-  seed_session "Playa de Somo" "2026-06-14" 110 "largas y abiertas" "7'0 minimalibu" 1.0 "sin viento"  "19" 4 '["longboard","crucero"]'   "Mañana tranquila haciendo noseriding."    "2026-06-14T09:00:00Z"
+  seed_session "Mundaka" "2026-06-10" 95 "limpias y huecas" "5'10 shortboard" 2.1 "offshore SE" "18" 5 '["izquierda","tubo"]' "Sesión épica al amanecer, glassy total." "2026-06-10T07:30:00Z"
+  seed_session "El Palmar" "2026-06-12" 70 "constantes" "6'2 funboard" 1.4 "flojo NW" "20" 4 '["beach-break","verano"]' "Olas suaves, perfectas para coger ritmo." "2026-06-12T10:15:00Z"
+  seed_session "Playa de Somo" "2026-06-14" 110 "largas y abiertas" "7'0 minimalibu" 1.0 "sin viento" "19" 4 '["longboard","crucero"]' "Mañana tranquila haciendo noseriding." "2026-06-14T09:00:00Z"
   sess_count="$(python3 -c 'import json;d=json.load(open("/tmp/surfind-q.json"));print(d.get("rowCount", len(d.get("rows",[]))))' 2>/dev/null || echo '?')"
   cyan "demo bitácora seeded (last insert rowCount=${sess_count})"
 fi

@@ -105,7 +105,7 @@ docker run -d --name "${NAME}" --network "${NAME}-net" --network-alias postgres 
   -v "${NAME}-data":/var/lib/postgresql/data "${PG_IMAGE}" >/dev/null
 
 deadline=$((SECONDS + 180))
-until docker logs "${NAME}" 2>&1 | grep -q 'listening on IPv4'; do
+until grep -q 'listening on IPv4' <<<"$(docker logs "${NAME}" 2>&1)"; do
   [ "${SECONDS}" -lt "${deadline}" ] || fail "postgres never reached a TCP listener within 180s"
   sleep 0.5
 done

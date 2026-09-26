@@ -530,7 +530,7 @@ step "2/12 boot tenant-control PASSKEYS_ENABLED=1 on 127.0.0.1:${PORT_ON} (A · 
 docker run -d --name "${TC_ON}" --network "${NET}" \
   -e DATABASE_URL="${DB_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
-  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e PASSKEYS_ENABLED=1 \
   -e PASSKEYS_RP_ID="${RP_ID}" \
   -e PASSKEYS_RP_ORIGINS="${RP_ORIGIN}" \
@@ -692,7 +692,7 @@ CRED_BEFORE="$(psql_val "SELECT count(*) FROM public.webauthn_credentials")"
 docker run -d --name "${TC_OFF}" --network "${NET}" \
   -e DATABASE_URL="${DB_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
-  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" \
+  -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e TENANT_CONTROL_PORT=3070 \
   -e TENANT_CONTROL_PRODUCT_MODE=enabled \
   -e LOG_LEVEL=debug \

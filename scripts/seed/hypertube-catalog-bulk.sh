@@ -6,7 +6,10 @@
 # (so it reaches Kong at mini-baas-kong:8000, not the host loopback). Idempotent.
 set -eu
 
-REPO_DIR="$(unset CDPATH; cd -- "$(dirname -- "$0")/../.." && pwd)"
+REPO_DIR="$(
+  unset CDPATH
+  cd -- "$(dirname -- "$0")/../.." && pwd
+)"
 STATE_ENV="${REPO_DIR}/.hypertube-baas.env"
 NET="${HT_DOCKER_NET:-mini-baas_mini-baas}"
 KONG_IN_NET="${HT_KONG_IN_NET:-http://mini-baas-kong:8000}"

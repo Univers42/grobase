@@ -46,3 +46,8 @@ $$;
 
 -- PostgREST: pick up the new schema without a restart
 NOTIFY pgrst, 'reload schema';
+
+-- Record it (the body above re-runs on every boot; this keeps migrate-status honest).
+INSERT INTO public.schema_migrations (version, name)
+SELECT 87, '087_graphql_public'
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = 87);

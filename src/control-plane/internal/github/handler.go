@@ -139,7 +139,7 @@ func (rt *routes) connectStart(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusCreated, map[string]string{"nonce": nonce, "install_url": installURL})
 }
 
-// link associates a GitHub org login with this vault42 org (CapOrgUpdate).
+// link associates a GitHub org login with this org (CapOrgUpdate).
 func (rt *routes) link(w http.ResponseWriter, r *http.Request) {
 	orgID := r.PathValue("orgId")
 	userID, _, ok := rt.auth.RequireCapability(w, r, orgID, orgs.CapOrgUpdate)
@@ -159,7 +159,7 @@ func (rt *routes) link(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]bool{"linked": true})
 }
 
-// sync runs the GitHub→vault42 org sync (CapProjectCreate).
+// sync runs the GitHub→org sync (CapProjectCreate).
 func (rt *routes) sync(w http.ResponseWriter, r *http.Request) {
 	orgID := r.PathValue("orgId")
 	if _, _, ok := rt.auth.RequireCapability(w, r, orgID, orgs.CapProjectCreate); !ok {

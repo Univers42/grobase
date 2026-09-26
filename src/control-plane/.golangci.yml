@@ -1,0 +1,12 @@
+# golangci-lint v2 policy for the Go control plane (`make test-lint-go`).
+# Default linters (errcheck · govet · ineffassign · staticcheck · unused) plus the
+# gofumpt formatter that .claude/rules/refactor-go.md requires.
+version: "2"
+formatters:
+  enable:
+    - gofumpt
+# Report every finding: the defaults (3 per message, 50 per linter) silently
+# truncate a baseline, which then under-counts what is left to fix.
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -9,7 +9,10 @@
 # NOTE: every workspace member's Cargo.toml must be COPY'd below — add new
 # crates here or the stub build cannot resolve the workspace graph.
 # ─────────────────────────────────────────────────────────────────────────────
-FROM public.ecr.aws/docker/library/rust:1.96-slim-bookworm@sha256:e18a79fc84dfcfc3ab5ba72290398a644c135c97eaa881447fddc354ee4701a3 AS deps
+# Docker official images; mirror.gcr.io serves Docker Hub's digests without
+# public.ecr.aws's anonymous data cap (public.ecr.aws/docker/library works too).
+ARG BASE_REGISTRY=mirror.gcr.io/library
+FROM ${BASE_REGISTRY}/rust:1.96-slim-bookworm@sha256:e18a79fc84dfcfc3ab5ba72290398a644c135c97eaa881447fddc354ee4701a3 AS deps
 WORKDIR /build
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -34,8 +37,8 @@ COPY tests/integration/Cargo.toml             tests/integration/Cargo.toml
 
 # Stub every crate so Cargo can resolve the graph, then pre-compile all
 # dependencies (the slow step — cached until the manifests change).
-RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=shared \
-    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=shared \
+RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=realtime-target,target=/build/target,sharing=locked \
     for dir in \
         crates/realtime-core \
@@ -70,8 +73,8 @@ COPY tests/  tests/
 # Stub fingerprints were retro-dated in the deps stage, so real sources (any
 # mtime) read as newer → cargo rebuilds exactly the crates whose files changed.
 # The binary is copied OUT of the cache mount so it lands in the layer.
-RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=shared \
-    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=shared \
+RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=realtime-target,target=/build/target,sharing=locked \
     cargo build --release --bin realtime-server && \
     cp /build/target/release/realtime-server /realtime-server

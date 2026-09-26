@@ -4,7 +4,6 @@ description: >
   Structured debugging protocol. Auto-triggers on:
   "this is broken", "bug", "not working", "segfault",
   "panic", "crash", "failing test"
-tools: Read, Bash, Grep, Glob
 ---
 
 # Debug Protocol

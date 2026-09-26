@@ -149,14 +149,21 @@ func TestMessageBytesSingleRepresentation(t *testing.T) {
 	}
 }
 
+// TestNewMessageIDUsesFromDomain pins the <hex@domain> shape (domain taken from
+// the sender) and uniqueness: a batch of mints from ONE sender must all differ,
+// which fails on a constant or low-entropy id, not only on an adjacent repeat.
 func TestNewMessageIDUsesFromDomain(t *testing.T) {
 	id := newMessageID("noreply@mail.grobase.io")
 	if !strings.HasSuffix(id, "@mail.grobase.io>") || !strings.HasPrefix(id, "<") {
 		t.Errorf("messageID = %q, want <hex@mail.grobase.io>", id)
 	}
-	// Two mints must differ (uniqueness).
-	if newMessageID("a@b.c") == newMessageID("a@b.c") {
-		t.Errorf("message IDs must be unique")
+	const mints = 64
+	seen := make(map[string]bool, mints)
+	for range mints {
+		seen[newMessageID("a@b.c")] = true
+	}
+	if len(seen) != mints {
+		t.Errorf("minted %d message IDs, only %d unique — ids must never repeat", mints, len(seen))
 	}
 }
 
