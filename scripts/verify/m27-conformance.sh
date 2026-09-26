@@ -136,8 +136,10 @@ dsn_for() {
   esac
 }
 
-# Network the engines share (discovered, not assumed).
-NET="$(docker inspect mini-baas-postgres --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' 2>/dev/null | head -1)"
+# Network the engines share (discovered, not assumed). Under the netseg overlay postgres
+# is on net-data and net-meta; net-data is where every engine and its clients meet.
+NET="$(docker inspect mini-baas-postgres --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' 2>/dev/null |
+  awk 'NF && !f {f = $0} /net-data$/ {d = $0} END {print (d != "" ? d : f)}')"
 [[ -n "${NET}" ]] || fail "mini-baas network not found — is the stack up? (make up EDITION=query)"
 
 ensure_toolchain() {
