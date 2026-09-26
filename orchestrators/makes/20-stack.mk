@@ -88,7 +88,7 @@ bench-compare: ## Competitive graph report from scripts/bench/compare-data.json 
 	@docker run --rm -u "$(shell id -u):$(shell id -g)" \
 		-v "$(CURDIR)/scripts/bench":/b \
 		-v "$(CURDIR)/artifacts":/b/artifacts \
-		-w /b public.ecr.aws/docker/library/node:22-bookworm \
+		-w /b mirror.gcr.io/library/node:22-bookworm \
 		node compare-report.mjs \
 			--data "$(if $(DATA),$(DATA),/b/compare-data.json)" \
 			--out "$(if $(OUT),$(OUT),/b/artifacts/bench/compare)"
@@ -96,7 +96,7 @@ bench-compare: ## Competitive graph report from scripts/bench/compare-data.json 
 
 master-report: ## ONE detailed HTML comparison report (perf + offers + matrix + edge) → wiki/reports/comparison-report.html (zero-dep, no host node)
 	@docker run --rm -u "$(shell id -u):$(shell id -g)" \
-		-v "$(CURDIR)":/b -w /b public.ecr.aws/docker/library/node:22-bookworm \
+		-v "$(CURDIR)":/b -w /b mirror.gcr.io/library/node:22-bookworm \
 		node /b/scripts/report/master-report.mjs \
 			--infra /b --out /b/wiki/reports/comparison-report.html
 	@echo -e "$(_G)$(_W)✓ comparison report → wiki/reports/comparison-report.html$(_0)"
@@ -110,11 +110,11 @@ reports: master-report ## Regenerate EVERY HTML report (comparison + supabase-ve
 	@for g in $(REPORT_GENS); do \
 		echo "  → $$g"; \
 		docker run --rm -u "$(shell id -u):$(shell id -g)" \
-			-v "$(CURDIR)":/b -w /b public.ecr.aws/docker/library/node:22-bookworm \
+			-v "$(CURDIR)":/b -w /b mirror.gcr.io/library/node:22-bookworm \
 			node /b/scripts/report/$$g.mjs || exit 1; \
 	done
 	@docker run --rm -u "$(shell id -u):$(shell id -g)" \
-		-v "$(CURDIR)":/b -w /b public.ecr.aws/docker/library/node:22-bookworm \
+		-v "$(CURDIR)":/b -w /b mirror.gcr.io/library/node:22-bookworm \
 		node /b/scripts/report/portal.mjs \
 			--data /b/scripts/bench/offers-compare-data.json \
 			--out /b/wiki/reports/index.html \

@@ -46,7 +46,7 @@ CARGO_RUN = docker run --rm -v "$(CURDIR)":/work -w /work \
 	-v mini-baas-realtime-target:/work/target $(RUST_TOOLCHAIN_IMG)
 
 _toolchain:
-	@printf 'FROM public.ecr.aws/docker/library/rust:1.89-slim-bookworm\nRUN apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*\n' \
+	@printf 'FROM mirror.gcr.io/library/rust:1.89-slim-bookworm\nRUN apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*\n' \
 		| docker build -q -t $(RUST_TOOLCHAIN_IMG) - >/dev/null
 
 build: _toolchain ## Build the Rust workspace (release, in Docker)

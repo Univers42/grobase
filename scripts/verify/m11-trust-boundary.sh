@@ -21,7 +21,7 @@ fail() {
 step() { cyan "[M11] ${*}"; }
 pass() { green "[M11] PASS: ${*}"; }
 
-NODE_IMAGE="public.ecr.aws/docker/library/node:20-alpine"
+NODE_IMAGE="mirror.gcr.io/library/node:20-alpine"
 
 # node_in_src runs a node/npx command inside src/ through the same Docker image +
 # node_modules volume as `make nestjs-ci`, so the gate needs no host toolchain
