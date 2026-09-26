@@ -22,7 +22,7 @@ import (
 // grants.go — project-role grants (User|Team|Group → Project, optionally env-scoped), all
 // org-bounded. A re-grant of the same (project, grantee, env) UPDATEs the role (idempotent,
 // via the env-aware partial unique index on revoked_at IS NULL). The GitHub-sync path never
-// overwrites a `manual` grant ("manual wins"), keeping vault42 the final RBAC authority.
+// overwrites a `manual` grant ("manual wins"), keeping the org's own grants the final RBAC authority.
 
 const selectGrant = `
   SELECT id::text, project_id::text, COALESCE(org_id::text,''), grantee_kind, grantee_id,
