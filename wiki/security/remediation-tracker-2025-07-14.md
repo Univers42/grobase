@@ -162,5 +162,8 @@ Actions API:
 - Security: [run 36260499594](https://github.com/Univers42/grobase/actions/runs/36260499594) — 7 of 7
   jobs success, `security-gate` included.
 
-Main publishes the GHCR images; its runs after a release are the ones to cite for the published
-images.
+Release `50ff29e6` (develop → main, 2026-09-26), which published the GHCR images:
+
+- CI: [run 36265605276](https://github.com/Univers42/grobase/actions/runs/36265605276) — 61 of 61
+  jobs success, both publish jobs and `Offer nano-binary` included.
+- Security: [run 36265605274](https://github.com/Univers42/grobase/actions/runs/36265605274) — success.
