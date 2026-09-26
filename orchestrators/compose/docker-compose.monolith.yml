@@ -996,7 +996,7 @@ services:
       # @mini-baas/common calls /v1/keys/verify on this URL with
       # INTERNAL_SERVICE_TOKEN to translate X-Baas-Api-Key -> tenant headers.
       TENANT_CONTROL_URL: ${TENANT_CONTROL_URL:-http://tenant-control:3022}
-      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
       API_KEY_VERIFY_TIMEOUT_MS: ${API_KEY_VERIFY_TIMEOUT_MS:-8000}
       API_KEY_VERIFY_CACHE_TTL_MS: ${API_KEY_VERIFY_CACHE_TTL_MS:-30000}
@@ -1032,7 +1032,7 @@ services:
       REALTIME_PUBLISH_URL: ${REALTIME_PUBLISH_URL:-http://realtime:4000/v1/publish}
       REALTIME_PUBLISH_TIMEOUT_MS: ${QUERY_ROUTER_REALTIME_PUBLISH_TIMEOUT_MS:-1500}
       JWT_SECRET: ${JWT_SECRET}
-      ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # ── Rust data-plane cutover (parity proven via parity-probe.sh) ──
       # All five R2/R3/R7/R8 engines now forward to the Rust pool registry
@@ -1104,7 +1104,7 @@ services:
       # + resolves mounts via adapter-registry, both HMAC-signed (SERVICE_TOKEN_MODE).
       DATA_PLANE_BYPASS_ENABLED: ${DATA_PLANE_BYPASS_ENABLED:-1}
       TENANT_CONTROL_URL: ${TENANT_CONTROL_URL:-http://tenant-control:3022}
-      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
       # Phase 7d: system Postgres holding public.outbox_events. On the bypass
       # write path the data plane emits the row-change event itself (the
@@ -1154,7 +1154,7 @@ services:
       ADAPTER_REGISTRY_PRODUCT_MODE: ${ADAPTER_REGISTRY_GO_PRODUCT_MODE:-enabled}
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       VAULT_ENC_KEY: ${VAULT_ENC_KEY:-0123456789abcdef0123456789abcdef}
-      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
       # Phase 4 tiering kill switch. Default 0 (OFF) so enabling tiering never
       # retroactively gates existing `free` tenants — flip to 1 once tenant
@@ -1213,7 +1213,7 @@ services:
       # the production control plane (m12, m28, the B3/m50 revoke drill).
       TENANT_CONTROL_PRODUCT_MODE: ${TENANT_CONTROL_PRODUCT_MODE:-enabled}
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
-      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
       # User-JWT verification (audit O2). Default HS256 with JWT_SECRET. Set
       # JWT_ALG=RS256 + JWKS_URL (e.g. GoTrue's .well-known/jwks.json once it
@@ -1302,7 +1302,7 @@ services:
       FUNCTION_TRIGGER_CONSUMER: ${FUNCTION_TRIGGER_CONSUMER:-function-dispatcher-0}
       FUNCTIONS_RUNTIME_URL: ${FUNCTIONS_RUNTIME_URL:-http://functions-runtime:3060}
       VAULT_ENC_KEY: ${VAULT_ENC_KEY:-}
-      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
       - "127.0.0.1:${WEBHOOK_DISPATCHER_PORT:-3025}:3025"
@@ -1353,7 +1353,7 @@ services:
       # runs the full six; override to a subset only for shadow experiments.
       ORCHESTRATOR_SERVICES: ${ORCHESTRATOR_SERVICES:-}
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
-      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       LOG_SERVICE_LOKI_URL: ${LOG_SERVICE_LOKI_URL:-http://loki:3100/loki/api/v1/push}
       # email sub-service SMTP (parity with email-service defaults → Mailpit)
       SMTP_HOST: ${SMTP_HOST:-mailpit}
@@ -1425,7 +1425,7 @@ services:
       FUNCTION_SCHEDULER_TICK_SECONDS: ${FUNCTION_SCHEDULER_TICK_SECONDS:-10}
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       FUNCTIONS_RUNTIME_URL: ${FUNCTIONS_RUNTIME_URL:-http://functions-runtime:3060}
-      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
       - "127.0.0.1:${FUNCTION_SCHEDULER_PORT:-3027}:3027"
@@ -1534,7 +1534,7 @@ services:
     environment:
       PORT: 3050
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
-      ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       JWT_SECRET: ${JWT_SECRET}
       # `abac` (default): role match + JSONB conditions + field masks.
       # `rbac`         : role match only, no masks. Cheaper, simpler — pick
@@ -1578,7 +1578,7 @@ services:
       # Override `ADAPTER_REGISTRY_URL` if you need to point at the legacy
       # TS service (only useful during the deprecation window).
       ADAPTER_REGISTRY_URL: ${ADAPTER_REGISTRY_URL:-http://adapter-registry-go:3021}
-      ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
       JWT_SECRET: ${JWT_SECRET}
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -1875,7 +1875,7 @@ services:
       # A2: resolve per-function secrets from the Go secret store at invoke time
       # (set on the webhook-dispatcher's /internal route). Empty => no secrets.
       FUNCTION_SECRETS_URL: ${FUNCTION_SECRETS_URL:-http://webhook-dispatcher:3025/internal/v1/function-secrets/resolve}
-      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
     ports:
       - "127.0.0.1:${FUNCTIONS_PORT:-3060}:3060"
     volumes:

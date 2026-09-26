@@ -188,6 +188,13 @@ function check_cred(k,   v) {
 	if ((k in MINLEN) && length(v) < MINLEN[k]) flag(k, "shorter than " MINLEN[k] " characters")
 }
 
+# check_distinct refuses a service token equal to JWT_SECRET: whoever learns the
+# JWT signing key would also pass every internal service-token check.
+function check_distinct(   t) {
+	t = VAL["ADAPTER_REGISTRY_SERVICE_TOKEN"]
+	if (t != "" && t == VAL["JWT_SECRET"]) flag("ADAPTER_REGISTRY_SERVICE_TOKEN", "equals JWT_SECRET (the service token must be its own secret)")
+}
+
 # check_opt runs check_cred on an optional DSN only when it is set and
 # non-empty; otherwise compose falls back to a required key checked above.
 function check_opt(k) {
@@ -260,6 +267,7 @@ function check_backups(   v) {
 END {
 	for (i = 1; i <= ncred; i++) check_cred(CRED[i])
 	for (i = 1; i <= nopt; i++) check_opt(OPT[i])
+	check_distinct()
 	check_settings()
 	check_no_new_privileges()
 	check_backups()
