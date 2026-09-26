@@ -57,8 +57,7 @@ END $$;
 ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tenant_api_keys ENABLE ROW LEVEL SECURITY;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.tenants TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.tenant_api_keys TO authenticated;
+-- No anon/authenticated grant: control table, served by the control plane only (N-36, 090).
 
 INSERT INTO public.schema_migrations (version, name) VALUES (5, '005_add_tenant_table')
   ON CONFLICT (version) DO NOTHING;
