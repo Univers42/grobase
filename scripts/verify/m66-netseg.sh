@@ -13,7 +13,9 @@
 #        (3) and (4) run on both stacks too                                    #
 #    (3) waf, kong, studio, playground, loki, promtail, functions-runtime,     #
 #        mailpit and minio share no bridge with an engine or vault, and        #
-#        prometheus none with an engine                                        #
+#        prometheus none with an engine; adapter-registry-go (it trusts an     #
+#        asserted tenant header) is off the app bridge, and net-registry       #
+#        holds only it and kong                                                #
 #    (4) every client shares a bridge with the engine it dials: each engine    #
 #        host named in a service's own environment/command, plus the edges     #
 #        that live in config files, code defaults or tenant mounts (EDGES)     #
@@ -21,7 +23,8 @@
 #    (5) from kong's network namespace postgres and vault are unreachable by   #
 #        IP; from query-router's both connect by name; and a sidecar on the    #
 #        bridge lib-netseg.sh's engine_net picks reaches mongo/dynamodb-local  #
-#        while one on the app bridge does not (vault-seed/-restore use it)     #
+#        while one on the app bridge does not (vault-seed/-restore use it);    #
+#        an app-bridge sidecar cannot open adapter-registry-go, kong can       #
 #  Otherwise (5) prints SKIP.                                                  #
 #                                                                              #
 #  Ponytail: (4) finds env/command edges by hostname, so an engine reached     #
@@ -38,6 +41,8 @@ PROD="${ROOT}/orchestrators/compose/docker-compose.prod.yml"
 ENGINES="postgres mysql mariadb cockroach mssql mongo redis dynamodb-local"
 UNTRUSTED="waf kong studio playground loki promtail functions-runtime mailpit minio"
 ROUTERS="query-router data-plane-router-rust adapter-registry-go"
+REGISTRY="adapter-registry-go"
+REGISTRY_CLIENTS="query-router data-plane-router-rust tenant-control schema-service kong prometheus"
 EDGES="debezium>postgres debezium>redis trino>postgres trino>mysql trino>mongo
 grafana>postgres db-bootstrap>postgres pg-meta>postgres pg-migrate>postgres storage-router>redis
 outbox-relay>redis tenant-control>postgres vault-init>vault prometheus>vault"
@@ -116,6 +121,19 @@ isolation() {
     ! share prometheus "${e}" "$1" || fail "prometheus shares a bridge with ${e}"
   done
   ok "(3) $(wc -w <<<"${UNTRUSTED}") edge/observability/sandbox services reach no engine or vault; prometheus no engine"
+  registry "$1"
+}
+
+# registry checks adapter-registry-go (unauthenticated mount register/list for
+# any asserted tenant) is off the app bridge and that net-registry holds only it
+# and kong, so a service joined to mini-baas alone can never reach it.
+registry() {
+  local got
+  got="$(nets "${REGISTRY}" "$1")"
+  [ "${got}" = net-data,net-registry,net-vault ] || fail "${REGISTRY} is on '${got}', want net-data,net-registry,net-vault"
+  got="$(jq -r '[.services | to_entries[] | select(.value.networks // {} | has("net-registry")) | .key] | sort | join(",")' "$1")"
+  [ "${got}" = "${REGISTRY},kong" ] || fail "net-registry holds '${got}', want ${REGISTRY},kong only"
+  ok "(3) ${REGISTRY} is off the app bridge; net-registry holds only it and kong"
 }
 
 # reachability checks every client shares a bridge with the engine it dials in $1.
@@ -125,6 +143,7 @@ reachability() {
     declared_edges "$1"
     printf '%s\n' ${EDGES}
     for r in ${ROUTERS}; do for e in ${ENGINES} vault; do echo "${r}>${e}"; done; done
+    for c in ${REGISTRY_CLIENTS}; do echo "${c}>${REGISTRY}"; done
   } | sort -u >"${WORK}/edges" || fail "edge scan failed"
   [ "$(declared_edges "$1" | wc -l)" -ge 20 ] || fail "env/command scan found under 20 edges — broken?"
   while IFS='>' read -r c e; do
@@ -158,6 +177,21 @@ live() {
   [ -z "${vault}" ] || probe mini-baas-query-router vault 8200 || fail "query-router cannot reach vault:8200"
   ok "(5) live: kong → postgres${vault:+/vault} refused by IP; query-router → postgres${vault:+/vault} connects"
   sidecars
+  live_registry
+}
+
+# live_registry checks a sidecar on the app bridge cannot open adapter-registry-go
+# by IP while kong and query-router reach it by name (when it is running).
+live_registry() {
+  local c="mini-baas-${REGISTRY}" ip
+  docker inspect "${c}" >/dev/null 2>&1 || return 0
+  ip="$(ip_on "${c}" _net-registry)"
+  [ -n "${ip}" ] || fail "${c} is not on net-registry"
+  ! docker run --rm --network mini-baas_mini-baas "${BUSYBOX}" nc -z -w 3 "${ip}" 3021 >/dev/null 2>&1 ||
+    fail "a sidecar on the app bridge reaches ${c} (${ip}:3021)"
+  probe mini-baas-kong "${REGISTRY}" 3021 || fail "kong cannot reach ${REGISTRY}:3021"
+  probe mini-baas-query-router "${REGISTRY}" 3021 || fail "query-router cannot reach ${REGISTRY}:3021"
+  ok "(5) live: an app-bridge sidecar cannot open ${REGISTRY}:3021; kong and query-router reach it"
 }
 
 # sidecars checks engine_net sends an engine sidecar to a bridge that reaches
