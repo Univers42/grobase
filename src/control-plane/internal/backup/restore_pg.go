@@ -15,7 +15,6 @@ package backup
 import (
 	"context"
 	"fmt"
-	"io"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
 	"github.com/jackc/pgx/v5"
@@ -34,8 +33,8 @@ import (
 // DDL-snapshot restore (column/type recreation) is a documented B6b follow-up;
 // for the two MVP-clean isolation models the data-replay restore is exact for an
 // unchanged table shape, which is the gate's round-trip contract.
-func restoreSchema(ctx context.Context, db *pg.Postgres, schema string, r io.Reader) error {
-	body, m, err := splitArtifact(r)
+func restoreSchema(ctx context.Context, db *pg.Postgres, schema string, artifact []byte) error {
+	body, m, err := splitArtifact(artifact)
 	if err != nil {
 		return err
 	}
@@ -90,8 +89,8 @@ func restoreTx(ctx context.Context, conn *pgx.Conn, body []byte, m manifest, qua
 // NEVER the shared control-plane DB; NEVER a shared object. Atomic — rollback on
 // any error. Manifest names are already schema-qualified + pgx.Identifier-sanitized
 // at extract time, so the qualify step is identity.
-func restoreDatabase(ctx context.Context, dsn string, r io.Reader) error {
-	body, m, err := splitArtifact(r)
+func restoreDatabase(ctx context.Context, dsn string, artifact []byte) error {
+	body, m, err := splitArtifact(artifact)
 	if err != nil {
 		return err
 	}

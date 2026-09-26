@@ -86,7 +86,7 @@ func TestExtractToDBPerTenantNoDSN(t *testing.T) {
 // ErrIsolationDeferred without attempting any DDL.
 func TestReplayIntoDeferredIsolation(t *testing.T) {
 	s := svcWithStore(newFakeStore())
-	err := s.replayInto(context.Background(), "tenant_owned", "tenant-1", "", "tenant-1/b1")
+	err := s.replayInto(context.Background(), "tenant_owned", "tenant-1", "", "tenant-1/b1", "")
 	if !errors.Is(err, ErrIsolationDeferred) {
 		t.Fatalf("replayInto(tenant_owned) = %v, want ErrIsolationDeferred", err)
 	}
@@ -96,7 +96,7 @@ func TestReplayIntoDeferredIsolation(t *testing.T) {
 // errors with the documented guard rather than proceeding.
 func TestReplayIntoDBPerTenantNoDSN(t *testing.T) {
 	s := svcWithStore(newFakeStore())
-	err := s.replayInto(context.Background(), "db_per_tenant", "tenant-1", "", "tenant-1/b1")
+	err := s.replayInto(context.Background(), "db_per_tenant", "tenant-1", "", "tenant-1/b1", "")
 	if err == nil {
 		t.Fatalf("replayInto(db_per_tenant, no dsn) = nil error")
 	}

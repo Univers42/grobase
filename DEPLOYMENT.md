@@ -100,10 +100,37 @@ BACKUP_AGE_IDENTITY_FILE=/secure/backup-age.key \
 - **Prove a restore before `PG_BACKUP_RETAIN_DAYS` has pruned the last
   plaintext dump.** Restores read `.dump` and `.dump.age` alike, so the
   changeover needs no migration.
-- Not covered: the per-tenant backups of `TENANT_BACKUP_ENABLED` (m87, a
-  separate Go path) are not encrypted by this setting.
+- Per-tenant backups (`TENANT_BACKUP_ENABLED`, m87) have their own keys; see
+  below.
 - Proof: `scripts/verify/m209-backup-encryption.sh` (pg-backup) and the
   encrypted leg of `m188-engine-backup-restore.sh`.
+
+**Per-tenant backups (m87):** tenant-control writes them itself, so it holds
+the private key: it restores through its API. Give it its own key pair, never
+one of `BACKUP_AGE_RECIPIENTS` (the preflight refuses a shared recipient; that
+identity would open every whole-cluster backup).
+
+```sh
+age-keygen -o tenant-backup-age.key            # prints the public key
+sudo install -o 65532 -g 65532 -m 0600 tenant-backup-age.key /etc/grobase/
+# .env
+TENANT_BACKUP_AGE_RECIPIENTS=age1…,age1…         # yours + an offline break-glass key
+TENANT_BACKUP_AGE_IDENTITY_HOST_FILE=/etc/grobase/tenant-backup-age.key
+```
+
+- The file is mounted into tenant-control only. It must be mode 0600, owned by
+  the image's uid 65532, and hold a key matching one recipient, or tenant-control
+  refuses to boot.
+- Every restore checks the stored bytes against the ledger's sha256 before
+  anything is written. A missing hash, an altered or swapped artifact, or a
+  plaintext artifact while recipients are set is refused (409).
+  `TENANT_BACKUP_ALLOW_PLAINTEXT_RESTORE=1` allows restoring the backups taken
+  before you turned encryption on.
+- Rotation: generate a new key and make it the recipient. Keep the old private
+  keys in the identity file (one per line) as long as you keep backups sealed to
+  them.
+- Known limit: that one identity opens every tenant's backups, including those of
+  a tenant erased since. Deleting an erased tenant's artifacts is up to you.
 
 **Connection pooling (D4):** `supavisor` (profiles `pooler`/`extras`, opt-in —
 NOT default) is the transaction pooler for **managed/external Postgres** or very

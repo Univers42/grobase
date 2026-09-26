@@ -15,7 +15,6 @@ package backup
 import (
 	"context"
 	"fmt"
-	"io"
 )
 
 // ListBackups returns the tenant's backups, most-recent-first. tenant_id is a
@@ -50,34 +49,34 @@ func (s *Service) ListBackups(ctx context.Context, tenantID string) ([]BackupRow
 // guards isolation, downloads the artifact, and replays into A's OWN schema/db.
 // Status flips restoring->restored (or 'failed').
 func (s *Service) Restore(ctx context.Context, tenantID, backupID string) error {
-	iso, mount, found, err := s.loadRestoreRow(ctx, tenantID, backupID)
+	row, found, err := s.loadRestoreRow(ctx, tenantID, backupID)
 	if err != nil {
 		return err
 	}
 	if !found {
 		return ErrNotOwned
 	}
-	if err := guardIsolation(iso); err != nil {
+	if err := guardIsolation(row.iso); err != nil {
 		return err
 	}
-	return s.runRestore(ctx, tenantID, backupID, iso, mount)
+	return s.runRestore(ctx, tenantID, backupID, row)
 }
 
 // runRestore performs the DDL half of a restore once the caller==owner + isolation
 // gates have passed: flip status to 'restoring', resolve the (db_per_tenant) DSN,
 // replay into the tenant's OWN scope, then finalize 'restored' (or 'failed').
-func (s *Service) runRestore(ctx context.Context, tenantID, backupID, iso, mount string) error {
+func (s *Service) runRestore(ctx context.Context, tenantID, backupID string, row restoreRow) error {
 	if err := s.db.AdminExec(ctx,
 		`UPDATE public.tenant_backups SET status='restoring' WHERE id=$1 AND tenant_id=$2`,
 		backupID, tenantID); err != nil {
 		return err
 	}
-	_, dsn, rerr := s.isolationFor(ctx, tenantID, mount)
+	_, dsn, rerr := s.isolationFor(ctx, tenantID, row.mount)
 	if rerr != nil {
 		return rerr
 	}
 	key := tenantID + "/" + backupID
-	if err := s.replayInto(ctx, iso, tenantID, dsn, key); err != nil {
+	if err := s.replayInto(ctx, row.iso, tenantID, dsn, key, row.sha); err != nil {
 		s.markFailed(ctx, backupID, err)
 		return err
 	}
@@ -86,47 +85,46 @@ func (s *Service) runRestore(ctx context.Context, tenantID, backupID, iso, mount
 		backupID, tenantID)
 }
 
-// loadRestoreRow fetches a backup's isolation+mount by (id, tenant_id) — the
-// load-bearing caller==owner bind. found=false means the row is not the caller's
-// (or does not exist), which Restore maps to ErrNotOwned BEFORE any DDL.
-func (s *Service) loadRestoreRow(ctx context.Context, tenantID, backupID string) (iso, mount string, found bool, err error) {
-	rows, qerr := s.db.AdminQuery(ctx,
-		`SELECT isolation, COALESCE(mount,'')
+// restoreRow is the ledger slice a restore needs: isolation, mount and the
+// sha256 of the stored artifact.
+type restoreRow struct{ iso, mount, sha string }
+
+// loadRestoreRow fetches a backup's isolation, mount and sha256 by (id, tenant_id)
+// — the load-bearing caller==owner bind. found=false means the row is not the
+// caller's (or does not exist), which Restore maps to ErrNotOwned BEFORE any DDL.
+func (s *Service) loadRestoreRow(ctx context.Context, tenantID, backupID string) (restoreRow, bool, error) {
+	var row restoreRow
+	rows, err := s.db.AdminQuery(ctx,
+		`SELECT isolation, COALESCE(mount,''), COALESCE(sha256,'')
 		   FROM public.tenant_backups
 		  WHERE id = $1 AND tenant_id = $2`, backupID, tenantID)
-	if qerr != nil {
-		return "", "", false, fmt.Errorf("backup: load row: %w", qerr)
+	if err != nil {
+		return row, false, fmt.Errorf("backup: load row: %w", err)
 	}
 	defer rows.Close()
-	if rows.Next() {
-		if scanErr := rows.Scan(&iso, &mount); scanErr != nil {
-			return "", "", false, fmt.Errorf("backup: scan row: %w", scanErr)
+	found := rows.Next()
+	if found {
+		if err := rows.Scan(&row.iso, &row.mount, &row.sha); err != nil {
+			return row, false, fmt.Errorf("backup: scan row: %w", err)
 		}
-		found = true
 	}
-	if rerr := rows.Err(); rerr != nil {
-		return "", "", false, fmt.Errorf("backup: load row: %w", rerr)
+	if err := rows.Err(); err != nil {
+		return row, false, fmt.Errorf("backup: load row: %w", err)
 	}
-	return iso, mount, found, nil
+	return row, found, nil
 }
 
-// replayInto downloads the artifact and replays it into the tenant's OWN scope.
-func (s *Service) replayInto(ctx context.Context, iso, tenantID, dsn, key string) error {
-	pr, pw := io.Pipe()
-	go func() { _ = pw.CloseWithError(s.store.Download(ctx, key, pw)) }()
-	switch iso {
-	case "schema_per_tenant":
-		schema := s.schemaFor(tenantID)
-		if schema == "" {
-			return fmt.Errorf("backup: tenant id %q sanitizes to empty schema", tenantID)
-		}
-		return restoreSchema(ctx, s.db, schema, pr)
-	case "db_per_tenant":
-		if dsn == "" {
-			return fmt.Errorf("backup: db_per_tenant restore requires a resolved DSN (no resolver wired)")
-		}
-		return restoreDatabase(ctx, dsn, pr)
-	default:
-		return ErrIsolationDeferred
+// replayInto checks the restore scope, fetches the artifact verified against
+// the ledger's sha256, and replays it into the tenant's OWN schema or database.
+// Nothing is written before the artifact is verified.
+func (s *Service) replayInto(ctx context.Context, iso, tenantID, dsn, key, wantSHA string) error {
+	apply, err := s.restorer(iso, tenantID, dsn)
+	if err != nil {
+		return err
 	}
+	body, err := s.fetchVerified(ctx, key, wantSHA)
+	if err != nil {
+		return err
+	}
+	return apply(ctx, body)
 }
