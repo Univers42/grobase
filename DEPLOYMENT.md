@@ -171,6 +171,19 @@ make health && make verify-all
 
 Migrations are idempotent and applied by `db-bootstrap` on start.
 
+**Upgrading past migration 090 (N-36).** Until 090, any signed-up user could create a
+`tenants` row and tenant-keyed control rows (SSO, SCIM, entitlements, billing) through
+`/rest/v1` or `/graphql/v1`. 090 removes that access, but it cannot remove rows created
+before it. On an install that served `/rest/v1` before 090, run the read-only detector
+once after upgrading:
+
+```sh
+docker exec -i mini-baas-postgres psql -U postgres -d postgres -q < scripts/security/detect-forged-tenants.sql
+```
+
+It lists every affected table and ends with `forged rows: N`. If N is above 0, inspect
+the listed rows and delete them, including the forger's tenant, as the database owner.
+
 ## 5. Image pin policy
 
 - **First-party images** (the 16 suite images, binocle): exact version pins
