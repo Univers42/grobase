@@ -16,8 +16,10 @@
 #  stack that is down proves nothing). Throwaway runtime/relay containers run  #
 #  this tree's src/ on the local runtime image and are attached exactly as     #
 #  the overlay render says (mini-baas = the live network, with NO alias, so    #
-#  no live name is shadowed; any other network = a throwaway bridge). A probe  #
-#  function deploys and runs in each leg and TCP-connects to every target:     #
+#  no live name is shadowed; under NETSEG=1 also the engines' net-data, so a   #
+#  refused engine is the jail's doing; any other network = a throwaway         #
+#  bridge). A probe function deploys and runs in each leg and TCP-connects     #
+#  to every target:                                                            #
 #    base      the base render (today): kong:8001, Kong's raw IP, a hostile    #
 #              DNS name for Kong's IP, postgres, mongo MUST be open — else     #
 #              the gate is vacuous — and the jail check MUST fail here         #
@@ -103,10 +105,12 @@ env_scope() {
 # rt_env prints functions-runtime's env var $2 in render file $1 (empty when unset).
 rt_env() { jq -r --arg k "$2" '.services["functions-runtime"].environment[$k] // ""' "$1"; }
 
-# live_stack sets LIVE_NET (the running stack's network) and KONG_IP (its
-# Kong's address there), failing when the stack is not up.
+# live_stack sets LIVE_NET (the running stack's network), KONG_IP (its Kong's
+# address there) and ENGINE_NET (the engines' network when postgres is not on
+# LIVE_NET: NETSEG=1 puts every engine on net-data only; else empty), failing
+# when the stack is not up.
 live_stack() {
-  local kong
+  local kong pg
   LIVE_NET="$(jq -r '.networks["mini-baas"].name' "${T}/base.json")"
   docker network inspect "${LIVE_NET}" >/dev/null 2>&1 ||
     fail "network ${LIVE_NET} absent — bring the stack up (make up): refusals from a down stack are vacuous"
@@ -114,6 +118,11 @@ live_stack() {
   [ -n "${kong}" ] || fail "no running kong on ${LIVE_NET} (make up)"
   KONG_IP="$(docker inspect -f "{{(index .NetworkSettings.Networks \"${LIVE_NET}\").IPAddress}}" "${kong}")"
   [ -n "${KONG_IP}" ] || fail "could not read kong's address on ${LIVE_NET}"
+  pg="$(docker ps -q --filter "label=com.docker.compose.project=$(jq -r .name "${T}/base.json")" \
+    --filter label=com.docker.compose.service=postgres | head -n1)"
+  [ -n "${pg}" ] || fail "no running postgres in the live stack (make up)"
+  ENGINE_NET="$(docker inspect "${pg}" --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' |
+    awk -v live="${LIVE_NET}" '$0 == live {on = 1} /net-data$/ {d = $0} END {if (!on) print d}')"
 }
 
 # ensure_net sets NET to the docker network for render network key $1: the
@@ -137,12 +146,14 @@ alias_flags() {
 }
 
 # launch creates container $1 as render service $2, attached to that service's
-# networks in render file $3, then starts it; the remaining args are docker
-# create args ending with the image and its command.
+# networks in render file $3 (on the live network also to ENGINE_NET, so an
+# engine refusal is the jail's, not netseg's), then starts it; the remaining
+# args are docker create args ending with the image and its command.
 launch() {
-  local c="$1" svc="$2" f="$3" key aliases first=1
+  local c="$1" svc="$2" f="$3" key aliases first=1 live=0
   shift 3
   while read -r key aliases; do
+    [ "${key}" != mini-baas ] || live=1
     ensure_net "${key}"
     if [ "${first}" = 1 ]; then
       alias_flags --network-alias "${svc}" "${key}" "${aliases}"
@@ -155,6 +166,8 @@ launch() {
   done < <(jq -r --arg s "${svc}" '.services[$s].networks | to_entries[]
     | "\(.key) \((.value.aliases // []) | join(","))"' "${f}")
   [ "${first}" = 0 ] || fail "render ${f##*/} has no networks for ${svc}"
+  [ "${live}" = 0 ] || [ -z "${ENGINE_NET}" ] ||
+    docker network connect "${ENGINE_NET}" "${c}" || fail "connect ${c} to ${ENGINE_NET}"
   docker start "${c}" >/dev/null || fail "docker start ${c}: $(docker logs "${c}" 2>&1 | tail -n3)"
 }
 
@@ -374,7 +387,7 @@ export default async function (input) {
   return { status: 200, body: out };
 }
 EOF
-ok "live network ${LIVE_NET}, kong at ${KONG_IP}; image ${IMG} running this tree's src/"
+ok "live network ${LIVE_NET}${ENGINE_NET:+ + engines on ${ENGINE_NET}}, kong at ${KONG_IP}; image ${IMG} running this tree's src/"
 step "leg base — today's attachment (non-vacuity + negative)"
 leg_base
 relay_up "${T}/prod.json"
