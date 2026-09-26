@@ -80,7 +80,10 @@ func guardResolvedHost(host string) error {
 // in-cluster delivery. Default empty => always false => the SSRF guard applies
 // unchanged (byte-parity). This is the deliberate, opt-in operator escape hatch
 // for delivering to a known private endpoint without weakening the guard for any
-// other target; only an exact (case-insensitive) host match is trusted.
+// other target; only an exact (case-insensitive) host match is trusted. An entry
+// opens EVERY port on that host to EVERY tenant with push enabled (a Docker API or
+// an admin port there becomes a target), so name a host that serves only the
+// sink. Metadata addresses stay refused even for an entry (allowlistedDialControl).
 func hostAllowlisted(host string) bool {
 	raw := strings.TrimSpace(os.Getenv("PUSH_SSRF_ALLOW_HOSTS"))
 	if raw == "" {
