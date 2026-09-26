@@ -34,7 +34,7 @@ CREATE POLICY tenant_databases_owner_crud ON public.tenant_databases
   FOR ALL USING (auth.uid()::text = tenant_id::text)
   WITH CHECK (auth.uid()::text = tenant_id::text);
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.tenant_databases TO authenticated;
+-- No anon/authenticated grant: control table, served by the control plane only (N-36, 090).
 
 INSERT INTO public.schema_migrations (version, name) VALUES (4, '004_add_adapter_registry')
   ON CONFLICT (version) DO NOTHING;
