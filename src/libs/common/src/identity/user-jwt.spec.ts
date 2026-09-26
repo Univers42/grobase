@@ -93,6 +93,44 @@ describe('verifyUserJwt issuer pinning (M-4)', () => {
   });
 });
 
+describe('verifyUserJwt previous secret (JWT_SECRET_PREV)', () => {
+  const PREV = randomBytes(24).toString('hex');
+  const claims = () => ({ sub: 'u1', exp: NOW() + 600 });
+
+  it('accepts a token the previous secret signed', () => {
+    expect(verify(mint(claims(), PREV), { previousSecret: PREV })?.sub).toBe('u1');
+  });
+
+  it('still accepts a token the current secret signed', () => {
+    expect(verify(mint(claims()), { previousSecret: PREV })?.sub).toBe('u1');
+  });
+
+  it('rejects the previous secret when none is configured (today)', () => {
+    expect(verify(mint(claims(), PREV))).toBeNull();
+    expect(verify(mint(claims(), PREV), { previousSecret: '' })).toBeNull();
+  });
+
+  it('rejects an unrelated secret while a previous one is configured', () => {
+    const other = randomBytes(24).toString('hex');
+    expect(verify(mint(claims(), other), { previousSecret: PREV })).toBeNull();
+  });
+
+  it('is harmless when the previous secret equals the current one', () => {
+    expect(verify(mint(claims()), { previousSecret: SECRET })?.sub).toBe('u1');
+  });
+
+  it('rejects an HS384 signature by the previous secret', () => {
+    const enc = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
+    const body = `${enc({ alg: 'HS384', typ: 'JWT' })}.${enc(claims())}`;
+    const t = `${body}.${createHmac('sha384', PREV).update(body).digest('base64url')}`;
+    expect(verify(t, { previousSecret: PREV })).toBeNull();
+  });
+
+  it('never accepts the previous secret alone when no current secret is set', () => {
+    expect(verifyUserJwt(mint(claims(), PREV), '', { previousSecret: PREV })).toBeNull();
+  });
+});
+
 describe('bearerToken', () => {
   const cases: Array<[string, string | undefined, string | undefined]> = [
     ['a bearer token', 'Bearer abc.def.ghi', 'abc.def.ghi'],

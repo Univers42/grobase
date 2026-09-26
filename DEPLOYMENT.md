@@ -161,6 +161,10 @@ production surface for v1.0; the chart is for evaluation.
 ## 7. Secrets lifecycle
 
 - `make env` generates `.env` (chmod 600, never committed; `FORCE=1` to regenerate).
-- `make secrets-rotate GROUP=jwt|tenant-dsn|all` rotates the JWT secret family.
+- `make secrets-rotate` rotates the JWT secret, and refuses unless `ROTATE_JWT_FORCE=1`: Kong, PostgREST,
+  GoTrue and the anon/service keys take one secret, so it is a planned outage (every session and
+  frontend key stops working). Only tenant-control, the TS services and realtime accept
+  `JWT_SECRET_PREV` so far (m210). The service token rotates without an outage:
+  `scripts/ops/rotate-service-token.sh` (m205).
 - Vault is OPTIONAL (profile `control-plane`): `make vault-init`, `make vault-rotate GROUP=…`.
 - `make check-secrets` scans the tree for accidental hardcoded secrets.

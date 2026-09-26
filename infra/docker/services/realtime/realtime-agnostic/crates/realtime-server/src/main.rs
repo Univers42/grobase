@@ -151,6 +151,9 @@ fn apply_env_overrides(config: &mut ServerConfig) {
             audience: std::env::var("REALTIME_JWT_AUDIENCE").ok(),
             allow_no_issuer: std::env::var("REALTIME_JWT_ALLOW_NO_ISSUER")
                 .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true")),
+            previous_secret: std::env::var("REALTIME_JWT_SECRET_PREV")
+                .ok()
+                .filter(|s| !s.is_empty()),
         };
     }
 }
