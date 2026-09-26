@@ -301,7 +301,7 @@ unit tests in `infra/config/prometheus/tests/`) needs no stack and runs in CI's 
 vault only on `net-vault`, kong/waf/scrapers/functions sharing no bridge with them, and each of the 64
 client→engine edges intact, and adapter-registry-go off the app bridge (`net-registry` = it + kong only). It probes a running `NETSEG=1` stack too.
 `m205` proves `scripts/ops/rotate-service-token.sh` (begin → swap → finish on `.env.secrets`, never
-printing a token) that compose hands the previous token to every verifier, and that the token never falls back to `JWT_SECRET`; no stack needed.
+printing a token), that compose hands the previous token to every verifier, and that the token never falls back to `JWT_SECRET`; no stack needed.
 `m206` runs a throwaway Kong on the repo `kong.yml` and requires `acl baas-admin` on every
 ip-restricted route: the anon key gets the acl's 403, the service key passes (N-24). It also fails if any
 Kong service points at the `studio` container (N-25: Studio is reached on loopback or an SSH tunnel only).
@@ -352,7 +352,7 @@ from one spec: `infra/config/openapi/grobase-public.json` (polyglot via `bash sd
 `make test-lint` runs shell (shellcheck, host binary else `koalaman/shellcheck`, `vendor/` excluded) ·
 rust clippy · go (vet + gofmt, then golangci-lint + gofumpt per `src/control-plane/.golangci.yml`) ·
 ts eslint · yaml (yamllint + actionlint) · docker (hadolint) · make · **compose** (base + every
-`docker-compose.*.yml` overlay must render; `track-binocle` is skipped — it needs a `pg-meta` service
+`docker-compose.*.yml` overlay must render, with default profiles and with `--profile '*'` — CI runs it in the security-gates job; the cloud overlay's all-profiles render is skipped without the gitignored `flags.env.cloud`, and `track-binocle` is skipped — it needs a `pg-meta` service
 this repo never defines). `make test-scan` = `check-secrets` (grep patterns **plus gitleaks over the
 whole tree, docs and untracked files included**, policy `.gitleaks.toml`) + semgrep/trivy/npm audit.
 `make audit-deps` = cargo-deny (policy `scripts/security/deny.toml`) + govulncheck. First results: `artifacts/quality/baseline-2026-09-23.md`.
