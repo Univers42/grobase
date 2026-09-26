@@ -90,12 +90,17 @@ test-lint-make: ## Lint Makefiles — parse-validate (make + every fragment must
 		else rm -f /tmp/mk-lint.$$$$; echo -e "$(_G)✓ make (parses clean, no warnings)$(_0)"; fi; \
 	else cat /tmp/mk-lint.$$$$; rm -f /tmp/mk-lint.$$$$; echo -e "$(_R)  Makefile parse error$(_0)"; exit 1; fi
 
-test-lint-compose: ## Lint compose — the base file and every overlay on top of it must render (`docker compose config --quiet`)
-	@rc=0; docker compose -f docker-compose.yml config --quiet || { echo -e "$(_R)  base$(_0)"; rc=1; }; \
+test-lint-compose: ## Lint compose — the base file and every overlay on top of it must render (`docker compose config --quiet`), default profiles and all profiles
+	@rc=0; for p in "" "*"; do \
+		docker compose -f docker-compose.yml $${p:+--profile "$$p"} config --quiet || { echo -e "$(_R)  base $${p:+(all profiles)}$(_0)"; rc=1; }; \
+	done; \
 	for o in orchestrators/compose/docker-compose.*.yml; do \
 		case " $(COMPOSE_LINT_SKIP) " in *" $${o##*/} "*) echo -e "$(_D)  skip $$o$(_0)"; continue;; esac; \
-		docker compose -f docker-compose.yml -f "$$o" config --quiet || { echo -e "$(_R)  $$o$(_0)"; rc=1; }; done; \
-	[ $$rc -eq 0 ] && echo -e "$(_G)✓ compose (base + overlays)$(_0)" || exit 1
+		docker compose -f docker-compose.yml -f "$$o" config --quiet || { echo -e "$(_R)  $$o$(_0)"; rc=1; }; \
+		case "$$o" in *cloud.yml) [ -f infra/config/cloud/flags.env.cloud ] || { \
+			echo -e "$(_D)  skip $$o (all profiles): needs the gitignored infra/config/cloud/flags.env.cloud$(_0)"; continue; };; esac; \
+		docker compose -f docker-compose.yml -f "$$o" --profile '*' config --quiet || { echo -e "$(_R)  $$o (all profiles)$(_0)"; rc=1; }; done; \
+	[ $$rc -eq 0 ] && echo -e "$(_G)✓ compose (base + overlays, default and all profiles)$(_0)" || exit 1
 
 test-lint: ## Lint EVERYTHING (shell·rust·go·ts·yaml·docker·make·compose) — runs all, shows each, summary
 	@pass=0; fail=0; failed=""; \
