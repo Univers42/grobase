@@ -27,9 +27,6 @@
 #  Ponytail: SOURCE is a regex over the usual env-read forms (Getenv, envFirst, #
 #  process.env, config.get, env::var, ${VAR}). A secret read through a        #
 #  computed name or a config file slips past it (under-reports).              #
-#  Ponytail: the service-token fallback to JWT_SECRET is not classified here:  #
-#  the render sets ADAPTER_REGISTRY_SERVICE_TOKEN as generate-env.sh does. A   #
-#  .env without it rotates the service token along with JWT_SECRET.           #
 #                                                                              #
 # **************************************************************************** #
 set -uo pipefail

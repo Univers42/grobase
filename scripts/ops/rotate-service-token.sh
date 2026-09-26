@@ -77,7 +77,7 @@ plan() {
   local cmd="$1" file="$2" apply="$3" cur prev new
   cur="$(value "${KEY}" "${file}")"
   prev="$(value "${PREV_KEY}" "${file}")"
-  [ -n "${cur}" ] || refuse "${KEY} is not set in ${file} — the stack falls back to JWT_SECRET; set it first"
+  [ -n "${cur}" ] || refuse "${KEY} is not set in ${file} — the control plane refuses to boot without it; set it first (make env)"
   case "${cmd}" in
   begin)
     [ -z "${prev}" ] || refuse "a rotation is already open in ${file} (run swap or finish)"
