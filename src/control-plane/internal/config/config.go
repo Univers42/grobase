@@ -19,10 +19,10 @@ import (
 	"os"
 )
 
-// weakServiceToken is the compose default-of-last-resort. A service must NOT
-// boot with it (or an empty token): the internal service-token guard would then
-// trust a publicly-known value, defeating control-plane auth. The real fallback
-// is JWT_SECRET (a strong secret), which is accepted.
+// weakServiceToken is the placeholder older compose files defaulted to. A service
+// must NOT boot with it (or an empty token): the internal service-token guard
+// would then trust a publicly-known value, defeating control-plane auth. Compose
+// no longer falls back to JWT_SECRET either: the token is its own secret.
 const weakServiceToken = "dev-service-token-change-me"
 
 // securityModeMax is the strict production posture. At this mode the control
@@ -69,7 +69,7 @@ func LoadConfig(prefix string) (Config, error) {
 	if cfg.ServiceToken == "" || cfg.ServiceToken == weakServiceToken {
 		return Config{}, fmt.Errorf(
 			"INTERNAL_SERVICE_TOKEN must be set to a strong value (refusing empty or the placeholder %q); "+
-				"the live stack derives it from JWT_SECRET — set JWT_SECRET or ADAPTER_REGISTRY_SERVICE_TOKEN",
+				"compose passes ADAPTER_REGISTRY_SERVICE_TOKEN — set it in .env.secrets (make env generates one)",
 			weakServiceToken,
 		)
 	}

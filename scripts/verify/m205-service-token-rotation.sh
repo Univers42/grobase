@@ -14,6 +14,9 @@
 #        every service that holds INTERNAL_SERVICE_TOKEN (Go/Rust name) or     #
 #        sets ADAPTER_REGISTRY_SERVICE_TOKEN itself (TS name) gets the         #
 #        matching _PREV equal to it; without one, it is empty                  #
+#    (3) compose: with the service token unset, JWT_SECRET reaches only the    #
+#        JWT verifiers' variables, never a service token (no fallback). Helm   #
+#        is not rendered: its secret keys are explicit, it has no fallback     #
 #  The verifiers' dual-accept is proven elsewhere: Go by m68 (live, static     #
 #  and hmac), TS by service-token.guard.spec.ts. The Rust data plane only      #
 #  sends the token (it verifies none), so it just follows the swap.           #
@@ -88,7 +91,7 @@ static_phases() {
 static_refusals_and_secrecy() {
   printf 'JWT_SECRET=m205jwt\n' >"${ENVF}"
   expect_refused begin --apply
-  ok "a file without ADAPTER_REGISTRY_SERVICE_TOKEN is refused (it would fall back to JWT_SECRET)"
+  ok "a file without ADAPTER_REGISTRY_SERVICE_TOKEN is refused (nothing to rotate)"
   rot status || fail "status failed"
   if grep -qF -e "${OLD}" -e "${NEW}" -e m205jwt "${OUT}"; then
     fail "the script printed a token value"
@@ -139,9 +142,27 @@ compose_mapping() {
   check_window ADAPTER_REGISTRY_SERVICE_TOKEN 3
 }
 
+# no_jwt_fallback renders with JWT_SECRET set to a canary and the service token
+# empty, and fails when the canary reaches any variable other than the four the
+# JWT verifiers read: the service token never defaults to the JWT secret.
+no_jwt_fallback() {
+  local files=() leaks
+  [ -f "${ROOT}/.env" ] && files+=(--env-file "${ROOT}/.env")
+  printf 'JWT_SECRET=m205canary\nADAPTER_REGISTRY_SERVICE_TOKEN=\nADAPTER_REGISTRY_SERVICE_TOKEN_PREV=\n' >"${WORK}/nokey.env"
+  leaks="$(docker compose -f "${ROOT}/docker-compose.yml" "${files[@]}" --env-file "${WORK}/nokey.env" --profile '*' \
+    config --format json 2>/dev/null | jq -r '.services | to_entries[] | .key as $s | (.value.environment // {})
+      | to_entries[] | select((.value | tostring) | contains("m205canary"))
+      | select(.key | IN("JWT_SECRET", "GOTRUE_JWT_SECRET", "PGRST_JWT_SECRET", "REALTIME_JWT_SECRET") | not)
+      | "\($s):\(.key)"' | tr '\n' ' ')" || fail "compose render failed"
+  [ -z "${leaks}" ] || fail "JWT_SECRET reaches non-JWT variables when the service token is unset: ${leaks}"
+  ok "with ADAPTER_REGISTRY_SERVICE_TOKEN unset, JWT_SECRET reaches only the 4 JWT-verifier variables"
+}
+
 step "(1) rotation procedure on a scratch file"
 static_phases
 static_refusals_and_secrecy
 step "(2) compose delivers the previous token to every verifier"
 compose_mapping
+step "(3) the service token never falls back to JWT_SECRET"
+no_jwt_fallback
 printf '\033[0;32m[M205] OK — begin → swap → finish rotates the service token and every holder sees the window\033[0m\n'
