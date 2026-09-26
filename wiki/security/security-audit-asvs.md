@@ -89,7 +89,7 @@ the code path that implements the control.
 | Control | Status | Evidence |
 |---|---|---|
 | Structured audit of mutations + denials | `[v]` | Writes and denials emit an `audit` tracing target. |
-| Sensitive-read auditing | `[x]` | Reads are not audited (audit O8). → **gap G-ReadAudit**. |
+| Sensitive-read auditing | `[~]` | Opt-in: `DATA_PLANE_AUDIT_READS=true` emits one `event="read"` audit line per served read with its row count (gate m72, nightly); default OFF. |
 | No sensitive data in error responses | `[v]` | Errors return typed codes (`shared.WriteError`); integrity violations map to 409, not raw driver text (`project-baas-constraint-409`). |
 | Audit → SIEM + anomaly detection | `[~]` | Observability fully wired (Prometheus/Grafana/Loki/Tempo, gate m19); SIEM shipping + cross-tenant-404 anomaly alerts are recommended (audit solution #6). |
 
@@ -126,13 +126,13 @@ A lightweight mapping to the SOC2 TSC families — **posture only**, not an atte
 | **CC6.7** Data in transit | TLS verify-full per engine (max); SSRF egress guard | `[v]` | audit #1/#2/#4 |
 | **CC6.8** Malicious software / supply chain | Lockfiles, npm quarantine, `--ignore-scripts`, digest pins, SCA gate | `[v]` | `.npmrc`, CI SCA jobs |
 | **CC7.1** Vulnerability management | Blocking SAST/SCA/secret/container scans in CI; tracked accepted residuals | `[v]` | `mini-baas-security.yml`; `.trivyignore`; `audit-deps.sh` |
-| **CC7.2** Monitoring | Prometheus/Grafana/Loki/Tempo; mutation + denial audit | `[v]`/`[~]` | gate m19; reads unaudited — §3 G-ReadAudit |
+| **CC7.2** Monitoring | Prometheus/Grafana/Loki/Tempo; mutation + denial audit; opt-in read audit | `[v]`/`[~]` | gate m19; reads audited only with `DATA_PLANE_AUDIT_READS` (m72) — §3 G-ReadAudit |
 | **CC7.2** | Anomaly detection / SIEM shipping | `[~]` | audit solution #6 (recommended) |
 | **CC8.1** Change management | PR + CI gates required to merge; shadow→parity→cutover discipline | `[v]` | repo workflow; CLAUDE.md |
 | **A1.2** Availability / backups | Daily encrypted backups + restore-drill (whole-cluster) | `[v]` | gate m47; per-tenant DR is roadmap B6 |
 | **C1 / P** Confidentiality / privacy | Tenant isolation (RLS+ABAC+field masks), GDPR delete path | `[v]` | `isolation.rs`, `abac.rs`, `gdprsvc` |
-| **CC6.1** Secret rotation | `vault-rotate-approles` exists; atomic key-rotation primitive missing | `[~]` | audit solution #9 — §3 G-Rotate |
-| **CC6.x** Per-tenant resource QoS | Rate (rps) capped; no per-tenant CPU/RAM/row/timeout QoS | `[x]` | audit solution #12 — §3 G-QoS |
+| **CC6.1** Secret rotation | Service tokens rotate with an overlap window (`rotate-service-token.sh`, m205, m68); `JWT_SECRET` rotation missing | `[~]` | audit solution #9 — §3 G-Rotate |
+| **CC6.x** Per-tenant resource QoS | Rate (rps/burst), rows per query (`max_rows`, m73) capped per tier, plus the monthly query quota when `QUOTA_ENFORCEMENT` is on (m80); no per-tenant CPU/RAM/timeout QoS | `[~]` | audit solution #12 — §3 G-QoS |
 
 ---
 
@@ -148,8 +148,8 @@ Sourced from [security-audit.md](./security-audit.md) §"Open" + the roadmap A6 
 | **G-Vault** | **Done in code**: max tier refuses inline DSNs and resolves `credential_ref` through Vault per request (migration 060, m121, nightly job `vault-credref`). Non-max tiers keep encrypted-at-rest inline DSNs by design. | MED | Human: move existing max-tier mounts to Vault references. |
 | **G-Net** | **Compose half done**: the edge, the scrapers and the functions sandbox share no bridge with an engine or vault in `prod-up` (m66, live-proven on the max tier). Still open: enabling the Helm NetworkPolicy on a real cluster. | MED | A6 / C2: per-plane network isolation + K8s NetworkPolicy (audit; roadmap A6). |
 | **G-Hdr** | **adapter-registry header trust** — `X-Baas-*` identity headers were trusted with no HMAC on a flat bridge. | LOW | **Partially closed this track:** opt-in HMAC verification shipped behind `ADAPTER_REGISTRY_IDENTITY_HMAC` (`internal/adapterregistry/identity.go` + `identity_test.go`, `go test ./...` green). Default OFF (no behavior change) until the issuing gateway is taught to sign the identity tuple — *enabling it stack-wide is the remaining cross-repo step* (the gateway must compute `X-Baas-Identity-Auth` = `ComputeServiceSignature(serviceToken, "IDENTITY", "<user>\n<tenant>", nil, ts)`). mTLS service mesh (audit solution #1) is the longer-term answer. |
-| **G-ReadAudit** | **Reads not audited** — only mutations + denials emit audit events. | LOW | A6: optional max-mode "sensitive-read" audit on flagged resources (audit O8). |
-| **G-QoS** | **No per-tenant resource QoS** — rate (rps) is capped, but rows-per-query / query-timeout / pool-size / storage-per-tenant are not. | LOW | A6 / Track C: per-tenant quotas beyond rate (audit solution #12). |
+| **G-ReadAudit** | **Closed, opt-in:** `DATA_PLANE_AUDIT_READS=true` audits every served read (tenant, engine, op, resource, row count); OFF emits nothing (gate m72, nightly since 2026-09-26). | LOW | Operator choice per deployment. Per-resource "sensitive only" selection is not built. |
+| **G-QoS** | **Partly closed:** each tier caps rps/burst, rows per query (`max_rows` in `packages.json`, gate m73, nightly), and monthly queries when `QUOTA_ENFORCEMENT` is on (m80). Still open: per-tenant query timeout, pool size and storage. | LOW | A6 / Track C: per-tenant quotas beyond rate and rows (audit solution #12). |
 | **G-Rotate** | **Service-token half done** (`scripts/ops/rotate-service-token.sh`, gates m68 + m205: begin → swap → finish with both tokens accepted in the window). Still open: `JWT_SECRET` rotation, which needs gotrue + PostgREST dual-key support. | LOW | A6: atomic rotation (needs O1/O2 done first) (audit solution #9). |
 | **G-RLS-DiD** | Native Postgres RLS policies as belt-and-suspenders on top of owner predicates. | LOW | Hardening, not a hole — recommended (audit solution #7). |
 
