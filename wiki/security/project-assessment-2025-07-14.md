@@ -162,14 +162,14 @@ no longer on the dev machine or in git history; only the issuer-side revocation 
 **Security:**
 - [ ] H-5: Enable `API_KEY_ABAC_ENABLED=1` by default in prod overlay — open, a product decision; the admin short-circuit is now logged (H-5a)
 - [x] H-7: Add Kong rate-limiting plugin to `POST /v1/keys/verify` — not needed: verify requires the service token (see [tracker](remediation-tracker-2025-07-14.md))
-- [x] H-11: Add SHA256 checksum verification to `infra/docker/services/supavisor/Dockerfile` — `7bc2c04f`
-- [x] H-13: Add delegation depth limit in `src/control-plane/internal/tenants/selfserve_keys.go` — a key can no longer revoke a wider one, `78c9db31` (m83)
-- [x] H-15: Kong CORS pre-flight check in entrypoint — `3211e86c` (m195)
+- [x] H-11: Add SHA256 checksum verification to `infra/docker/services/supavisor/Dockerfile` — `660a3233`
+- [x] H-13: Add delegation depth limit in `src/control-plane/internal/tenants/selfserve_keys.go` — a key can no longer revoke a wider one, `7c8af1c5` (m83)
+- [x] H-15: Kong CORS pre-flight check in entrypoint — `abeeea71` (m195)
 - [x] H-20: Re-enable ShellCheck SC2086; fix root causes — CI quoting step over 58 scripts
 
 **Code quality:**
 - [x] M-2: Tighten API key payload — not needed: the hash comparison is length-independent (see [tracker](remediation-tracker-2025-07-14.md))
-- [x] M-3: Add JWT `iat` claim validation in `api-key.middleware.ts:198` — `910727f8` (TS + Go)
+- [x] M-3: Add JWT `iat` claim validation in `api-key.middleware.ts:198` — `e215b475` (TS + Go)
 - [x] M-4: Require `GOTRUE_JWT_ISSUER` to be set; add startup check — realtime issuer check (m201), tenant-control refuses an empty issuer
 - [x] M-13: Raise `GOTRUE_PASSWORD_MIN_LENGTH=12` in prod overlay — m195 asserts 12
 
@@ -181,7 +181,7 @@ no longer on the dev machine or in git history; only the issuer-side revocation 
 ### P2 — This month
 
 **CI/CD hardening:**
-- [x] H-8/H-9: Migrate CI to OIDC — H-8 not needed (`GITHUB_TOKEN` is per-job and masked); H-9 least privilege `a51ffad2`
+- [x] H-8/H-9: Migrate CI to OIDC — H-8 not needed (`GITHUB_TOKEN` is per-job and masked); H-9 least privilege `56ed5e9d`
 - [x] L-8: Add `::add-mask::` for dynamically-generated tokens in CI — already masked
 - [ ] L-11: Require signed commits on `main` branch (GitHub repo settings) — open, repository setting
 - [x] L-14: `chmod 600` on `.env.secrets` in all CI steps — already everywhere
@@ -192,8 +192,8 @@ no longer on the dev machine or in git history; only the issuer-side revocation 
 - [x] M-15: `DATA_PLANE_RATELIMIT_BACKEND=redis` in prod overlay — not needed while production runs one replica
 
 **Storage:**
-- [x] M-17: Add `X-Content-Type-Options: nosniff` to all storage responses — `5807534a`, `a47f906a`
-- [x] L-6: Log when Sharp encounters errors — pixel limit + 422, `f3dc5cfc`
+- [x] M-17: Add `X-Content-Type-Options: nosniff` to all storage responses — `f89a354a`, `8eae9aeb`
+- [x] L-6: Log when Sharp encounters errors — pixel limit + 422, `280b8b25`
 - [x] L-7: Document + deny-list validation for `PUSH_SSRF_ALLOW_HOSTS` — not needed: applies to push only (see [tracker](remediation-tracker-2025-07-14.md))
 
 ### P3 — Architecture (before enterprise / SOC2 milestone)
@@ -204,7 +204,7 @@ no longer on the dev machine or in git history; only the issuer-side revocation 
 - [~] `G-Rotate`: Per-deployment key rotation primitive + rotation runbook — service tokens done (m205 + runbook); `JWT_SECRET` open
 - [x] H-2/H-3: Control/data-plane internal bind — not needed: container-internal binds
 - [x] H-6: Audit logging for service token current/previous usage — `RotationNotice` + `baas_service_token_previous_accepted_total`
-- [x] H-13: Key delegation depth limit + audit trail — H-13 + M-11 (`12ccee2b`)
+- [x] H-13: Key delegation depth limit + audit trail — H-13 + M-11 (`3db64f09`)
 
 ---
 
