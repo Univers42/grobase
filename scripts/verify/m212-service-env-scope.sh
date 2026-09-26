@@ -29,7 +29,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-SCOPED="kong"
+SCOPED="kong studio pg-meta"
 MARK="m212-marker-$$"
 WORK="$(mktemp -d)" || exit 1
 TREE="${WORK}/tree"
@@ -46,6 +46,8 @@ fail() {
 needed_key() {
   case "$1" in
   kong) echo KONG_SERVICE_API_KEY ;;
+  studio) echo POSTGRES_DB ;;
+  pg-meta) echo PG_META_DB_HOST ;;
   *) fail "no needed key declared for $1" ;;
   esac
 }

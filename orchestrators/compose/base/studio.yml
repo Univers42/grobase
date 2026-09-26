@@ -8,8 +8,13 @@ services:
       dockerfile: Dockerfile
     container_name: mini-baas-studio
     profiles: [studio, extras]
-    env_file: [.env]
+    # Only what Studio's server reads (POSTGRES_DB below), never the platform .env;
+    # Studio settings go in the optional .env.studio (gate m212).
+    env_file:
+      - path: .env.studio
+        required: false
     environment:
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
       NODE_OPTIONS: --max-old-space-size=288 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       HOSTNAME: 0.0.0.0
       STUDIO_PG_META_URL: http://pg-meta:8080

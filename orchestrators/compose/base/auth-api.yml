@@ -182,7 +182,11 @@ services:
       retries: 5
     container_name: mini-baas-pg-meta
     profiles: [studio, extras]
-    env_file: [.env]
+    # Its PG_META_* settings below, never the platform .env; other pg-meta
+    # settings (PG_META_DB_SSL_MODE, …) go in the optional .env.pg-meta (m212).
+    env_file:
+      - path: .env.pg-meta
+        required: false
     environment:
       PG_META_PORT: 8080
       PG_META_DB_HOST: ${PG_META_DB_HOST:-postgres}
