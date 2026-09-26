@@ -1,152 +1,106 @@
-# docker-compose.netseg.yml — ADDITIVE per-plane network segmentation overlay
+# docker-compose.netseg.yml — per-plane network segmentation (G-Net)
 # ============================================================================
-# SLICE A6-net / residual G-Net (apps/baas/wiki/security-residuals-runbook.md
-# §G-Net "Unsafe half"). This file is a STANDALONE OVERLAY: it is NEVER folded
-# into the base docker-compose.yml the live stack runs. The base keeps its
-# single flat `mini-baas` bridge UNCHANGED (byte-parity). This overlay is OFF
-# by default — it only takes effect when explicitly composed:
+# Without this overlay every container shares the one `mini-baas` bridge, so
+# the public edge (waf, kong), the scrapers and the user-code sandbox can open
+# a raw socket to postgres:5432, redis:6379 or vault:8200. With it:
 #
-#     docker compose -p netseg-probe \
-#       -f docker-compose.yml -f docker-compose.netseg.yml up -d
+#   mini-baas   the app bridge — every service keeps it EXCEPT the engines and
+#               vault, which `!override` takes them off.
+#   net-data    the engines (postgres mysql mariadb cockroach mssql mongo redis
+#               dynamodb-local) + every backend that dials one.
+#   net-vault   vault + the services that read secrets from it + prometheus
+#               (it scrapes vault's metrics).
 #
-# (use a THROWAWAY project name + isolated volumes/networks; NEVER the live
-# default stack — and note the base hard-codes `container_name: mini-baas-*`,
-# so it must be brought up on a host where the live mini-baas-* stack is down.)
+# Two containers reach each other only if they share a bridge, so a service
+# not joined below — waf, kong, studio, playground, loki, promtail,
+# functions-runtime, mailpit, minio, the vendor frontends — cannot reach an
+# engine or vault at all. minio stays on the app bridge on purpose: kong
+# proxies presigned object URLs straight to it (S3 signatures guard it).
 #
-# ----------------------------------------------------------------------------
-# THE SEGMENTATION MODEL — four plane bridges + a default-deny posture
-# ----------------------------------------------------------------------------
-# Today everything shares ONE bridge, so the public edge (waf/kong) can open a
-# raw TCP socket straight to postgres:5432, vault:8200, redis:6379, etc. The
-# threat: a compromised edge container reaches the data plane directly,
-# bypassing the query-router / data-plane-router / permission-engine ABAC PDP.
+# Opt in:  make up NETSEG=1  (or add -f to any docker compose command).
+# Proof:   scripts/verify/m66-netseg.sh — renders every service's networks,
+#          checks each engine client shares a bridge with its engine and no
+#          edge/observability service does, and probes a running segmented
+#          stack from kong (refused) and query-router (connects).
 #
-# This overlay places each service on the bridge(s) for the planes it must
-# talk on, and ONLY those. Two containers can reach each other IFF they share
-# at least one bridge. The planes:
-#
-#   net-edge     public entry (waf, kong, studio, playground) + the auth/REST
-#                surfaces kong proxies (gotrue, postgrest, realtime). The edge
-#                reaches the data plane ONLY through the query-router/dp-router
-#                fronts that are dual-attached to edge+data — never the engines.
-#   net-control  control plane: adapter-registry-go, tenant-control,
-#                orchestrator, permission-engine, schema-service,
-#                webhook-dispatcher, function-scheduler, vault. Mount
-#                resolution + tenancy + secrets live here, off the edge.
-#   net-data     data plane: query-router, data-plane-router-rust + every
-#                engine (postgres, mysql, mongo, redis, cockroach, mssql,
-#                mariadb, minio). The engines are reachable ONLY from the two
-#                routers, NEVER from the edge or observability.
-#   net-observ   prometheus/grafana/loki/promtail — scrape-only; a dead-end
-#                that can be reached BY scrape targets but cannot itself open
-#                sockets into the data plane (its scrape model is pull, but the
-#                bridge edge proves the negative: observ ↛ postgres).
-#
-# Dual-attached "front-door" services (the only legal cross-plane edges):
-#   kong                   net-edge + net-control (admin/route to control svcs)
-#   query-router           net-edge + net-control + net-data (the read/write
-#                          front: edge calls it, it resolves mounts via control
-#                          + executes on data)
-#   data-plane-router-rust net-edge + net-control + net-data (same role, Rust)
-#   adapter-registry-go    net-control + net-data (resolves DSNs, needs engines)
-#   tenant-control         net-control + net-data (provisions tenant schemas)
-#
-# Everything NOT named below keeps ONLY its base `mini-baas` attachment under
-# this overlay — but for the PROVEN segmented topology the gate stands up a
-# clean scratch with NO `mini-baas` escape bridge, so the negative edge is
-# real. See scripts/verify/m66-netseg.sh for the enforced proof.
-#
-# PARITY NOTE: Compose MERGES the `networks:` list of an override onto the base
-# service, it cannot REMOVE the base `mini-baas` entry. So composing this
-# overlay over the base ADDS the plane bridges while keeping `mini-baas` — i.e.
-# connectivity is a strict SUPERSET of today (nothing that worked stops
-# working). The hard isolation (dropping the flat bridge) is the documented
-# prod-cutover step the gate proves SAFE on scratch; it is NOT applied to the
-# base here. OFF (this file not composed) => the live topology is byte-identical.
+# Ponytail: the bridges are plain (not `internal: true`): an engine attached
+# only to an internal network cannot publish its dev host port. Egress control
+# is the prod overlay's job, not this file's.
 # ============================================================================
 
 networks:
-  net-edge:
-    driver: bridge
-    name: ${NETSEG_PREFIX:-netseg}-edge
-  net-control:
-    driver: bridge
-    name: ${NETSEG_PREFIX:-netseg}-control
-    internal: true # control plane has no host/WAN egress
   net-data:
     driver: bridge
-    name: ${NETSEG_PREFIX:-netseg}-data
-    internal: true # engines are internal-only: no host/WAN egress
-  net-observ:
+  net-vault:
     driver: bridge
-    name: ${NETSEG_PREFIX:-netseg}-observ
-    internal: true
+
+x-app-data: &app-data
+  networks: [mini-baas, net-data]
+x-app-data-vault: &app-data-vault
+  networks: [mini-baas, net-data, net-vault]
 
 services:
-  # ── public edge ──────────────────────────────────────────────────────────
-  waf:
-    networks: [net-edge]
-  kong:
-    networks: [net-edge, net-control]
-  studio:
-    networks: [net-edge, net-control]
-  playground:
-    networks: [net-edge]
-  gotrue:
-    networks: [net-edge]
-  postgrest:
-    networks: [net-edge, net-data] # postgrest binds straight to postgres
-  realtime:
-    networks: [net-edge, net-data]
-
-  # ── front-door routers (the ONLY legal edge→data path) ───────────────────
-  query-router:
-    networks: [net-edge, net-control, net-data]
-  data-plane-router-rust:
-    networks: [net-edge, net-control, net-data]
-
-  # ── control plane ────────────────────────────────────────────────────────
-  adapter-registry-go:
-    networks: [net-control, net-data]
-  tenant-control:
-    networks: [net-control, net-data]
-  orchestrator:
-    networks: [net-control]
-  permission-engine:
-    networks: [net-control]
-  schema-service:
-    networks: [net-control, net-data]
-  webhook-dispatcher:
-    networks: [net-control]
-  function-scheduler:
-    networks: [net-control]
-  vault:
-    networks: [net-control]
-
-  # ── data plane (engines: internal-only, reachable from routers only) ─────
+  # ── engines: off the app bridge ─────────────────────────────────────────
   postgres:
-    networks: [net-data]
+    networks: !override
+      net-data:
+        aliases: [db]
   mysql:
-    networks: [net-data]
+    networks: !override [net-data]
   mariadb:
-    networks: [net-data]
+    networks: !override [net-data]
   cockroach:
-    networks: [net-data]
+    networks: !override [net-data]
   mssql:
-    networks: [net-data]
+    networks: !override [net-data]
   mongo:
-    networks: [net-data]
+    networks: !override [net-data]
   redis:
-    networks: [net-data]
-  minio:
-    networks: [net-data]
+    networks: !override [net-data]
+  dynamodb-local:
+    networks: !override [net-data]
+  vault:
+    networks: !override [net-vault]
 
-  # ── observability (scrape-only dead-end) ─────────────────────────────────
+  # ── routers + control plane: engines and vault ──────────────────────────
+  query-router: *app-data-vault
+  data-plane-router-rust: *app-data-vault
+  adapter-registry-go: *app-data-vault
+  tenant-control: *app-data-vault
+  orchestrator: *app-data-vault
+  webhook-dispatcher: *app-data-vault
+  function-scheduler: *app-data-vault
+
+  # ── backends that dial an engine ────────────────────────────────────────
+  realtime: *app-data
+  supavisor: *app-data
+  gotrue: *app-data
+  postgrest: *app-data
+  pg-meta: *app-data
+  ai-service: *app-data
+  analytics-service: *app-data
+  email-service: *app-data
+  gdpr-service: *app-data
+  log-service: *app-data
+  mongo-api: *app-data
+  newsletter-service: *app-data
+  outbox-relay: *app-data
+  permission-engine: *app-data
+  schema-service: *app-data
+  session-service: *app-data
+  storage-router: *app-data
+  debezium: *app-data
+  trino: *app-data
+  grafana: *app-data # the Postgres-Usage datasource (read-capable role)
+
+  # ── one-shot init / ops jobs ────────────────────────────────────────────
+  db-bootstrap: *app-data
+  pg-migrate: *app-data
+  pg-backup: *app-data
+  mongo-init: *app-data
+
+  # ── vault clients outside the backends ──────────────────────────────────
+  vault-init:
+    networks: [mini-baas, net-vault]
   prometheus:
-    networks: [net-observ]
-  grafana:
-    networks: [net-observ, net-edge] # grafana UI reachable from the edge
-  loki:
-    networks: [net-observ]
-  promtail:
-    networks: [net-observ]
+    networks: [mini-baas, net-vault]
