@@ -167,7 +167,7 @@ wait_http() { # $1=container  $2=port  $3=path
 wait_log() { # $1=container  $2=needle  $3=tries
   local i
   for i in $(seq 1 "${3:-40}"); do
-    docker logs "$1" 2>&1 | grep -q "$2" && return 0
+    grep -q "$2" <<<"$(docker logs "$1" 2>&1)" && return 0
     docker inspect "$1" >/dev/null 2>&1 || return 1
     sleep 0.5
   done
@@ -257,7 +257,7 @@ docker run -d --name "${FN_ON}" --network "${NET}" \
   -e FUNCTIONS_INVOKE_TIMEOUT_MS="${INVOKE_TIMEOUT_MS}" \
   -p "127.0.0.1:${PORT_ON}:3060" "${FN_IMG}" >/dev/null
 wait_http "${FN_ON}" "${PORT_ON}" "/health/live" || fail "POSITIVE runtime not ready (line: wait_http FN_ON)"
-docker logs "${FN_ON}" 2>&1 | grep -q "metering ON" ||
+grep -q "metering ON" <<<"$(docker logs "${FN_ON}" 2>&1)" ||
   fail "POSITIVE runtime did not log 'metering ON' with FUNCTION_METERING=1 (line: FN_ON metering log)"
 ok "POSITIVE runtime up (metering ON) on 127.0.0.1:${PORT_ON}"
 
@@ -348,7 +348,7 @@ docker run -d --name "${FN_OFF}" --network "${NET}" \
   -e FUNCTIONS_INVOKE_TIMEOUT_MS="${INVOKE_TIMEOUT_MS}" \
   -p "127.0.0.1:${PORT_OFF}:3060" "${FN_IMG}" >/dev/null
 wait_http "${FN_OFF}" "${PORT_OFF}" "/health/live" || fail "(B) PARITY runtime not ready (line: B wait_http)"
-docker logs "${FN_OFF}" 2>&1 | grep -q "metering ON" &&
+grep -q "metering ON" <<<"$(docker logs "${FN_OFF}" 2>&1)" &&
   fail "(B) runtime logged 'metering ON' with FUNCTION_METERING unset — NOT parity (line: B metering leak)"
 
 # Identical traffic: same upload + warm-up + N invokes. The invoke path must still

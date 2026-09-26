@@ -228,7 +228,7 @@ wait_http() { # $1=container  $2=port  $3=path
 wait_log() { # $1=container  $2=needle  $3=tries
   local i
   for i in $(seq 1 "${3:-40}"); do
-    docker logs "$1" 2>&1 | grep -q "$2" && return 0
+    grep -q "$2" <<<"$(docker logs "$1" 2>&1)" && return 0
     docker inspect "$1" >/dev/null 2>&1 || return 1
     sleep 0.5
   done
@@ -321,7 +321,7 @@ docker run -d --name "${RT_ON}" --network "${NET}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${RT_PORT_ON}:4000" "${RT_IMG}" >/dev/null
 wait_http "${RT_ON}" "${RT_PORT_ON}" "/v1/health" || fail "POSITIVE realtime-server not ready (line: wait_http RT_ON)"
-docker logs "${RT_ON}" 2>&1 | grep -q "realtime metering ON" ||
+grep -q "realtime metering ON" <<<"$(docker logs "${RT_ON}" 2>&1)" ||
   {
     red "RT_ON logs:"
     docker logs "${RT_ON}" 2>&1 | tail -15
@@ -393,7 +393,7 @@ docker run -d --name "${RT_OFF}" --network "${NET}" \
   -p "127.0.0.1:${RT_PORT_OFF}:4000" "${RT_IMG}" >/dev/null
 wait_http "${RT_OFF}" "${RT_PORT_OFF}" "/v1/health" || fail "(B) PARITY realtime-server not ready (line: wait_http RT_OFF)"
 # With the sub-flag OFF the server must NOT announce metering ON.
-docker logs "${RT_OFF}" 2>&1 | grep -q "realtime metering ON" &&
+grep -q "realtime metering ON" <<<"$(docker logs "${RT_OFF}" 2>&1)" &&
   fail "(B) realtime-server announced metering ON with REALTIME_METERING unset — NOT parity (line: B metering-on leak)"
 ok "(B) realtime-server up with REALTIME_METERING unset (no metering announce) on 127.0.0.1:${RT_PORT_OFF}"
 
