@@ -217,7 +217,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **191 scripts, highest m211** (`m211-engine-env-scope.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **191 scripts, highest m212** (`m212-service-env-scope.sh`); the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -325,6 +325,9 @@ vault42 stay single-key), and `rotate-jwt.sh` / `rotate-secrets.sh jwt` refuse w
 debezium minio-iceberg-init) never load the platform `.env`: a sentinel `.env` reaches none of them under base, every
 overlay and fly's override, the optional `.env.engines` does, a postgres-loads-`.env` mutant is caught, and on a running
 stack each engine's runtime env and PID 1 environ hold no `JWT_SECRET`/`SERVICE_ROLE_KEY`/service token.
+`m212` (static + live) does the same for platform services converted off `env_file: [.env]` (kong so far): each
+lists the keys it reads in `environment`, loads only its optional `.env.<service>`, still receives its needed key
+under every overlay, a kong-loads-`.env` mutant is caught, and a running one holds no `.env` key it does not read.
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 
