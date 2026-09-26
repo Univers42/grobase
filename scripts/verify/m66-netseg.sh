@@ -19,7 +19,9 @@
 #        that live in config files, code defaults or tenant mounts (EDGES)     #
 #  Live, when the running stack was started with the overlay (NETSEG=1):       #
 #    (5) from kong's network namespace postgres and vault are unreachable by   #
-#        IP; from query-router's both connect by name                          #
+#        IP; from query-router's both connect by name; and a sidecar on the    #
+#        bridge lib-netseg.sh's engine_net picks reaches mongo/dynamodb-local  #
+#        while one on the app bridge does not (vault-seed/-restore use it)     #
 #  Otherwise (5) prints SKIP.                                                  #
 #                                                                              #
 #  Ponytail: (4) finds env/command edges by hostname, so an engine reached     #
@@ -155,6 +157,24 @@ live() {
   probe mini-baas-query-router postgres 5432 || fail "query-router cannot reach postgres:5432"
   [ -z "${vault}" ] || probe mini-baas-query-router vault 8200 || fail "query-router cannot reach vault:8200"
   ok "(5) live: kong → postgres${vault:+/vault} refused by IP; query-router → postgres${vault:+/vault} connects"
+  sidecars
+}
+
+# sidecars checks engine_net sends an engine sidecar to a bridge that reaches
+# mongo and dynamodb-local (when running) and that the app bridge does not.
+sidecars() {
+  local spec c port net
+  . "${ROOT}/scripts/lib/lib-netseg.sh"
+  for spec in mongo:27017 dynamodb-local:8000; do
+    c="mini-baas-${spec%%:*}" port="${spec##*:}"
+    docker inspect "${c}" >/dev/null 2>&1 || continue
+    net="$(engine_net "${c}" mini-baas_mini-baas)"
+    docker run --rm --network "${net}" "${BUSYBOX}" nc -z -w 3 "${c}" "${port}" >/dev/null 2>&1 ||
+      fail "a sidecar on ${net} (engine_net) cannot reach ${c}:${port}"
+    ! docker run --rm --network mini-baas_mini-baas "${BUSYBOX}" nc -z -w 3 "${c}" "${port}" >/dev/null 2>&1 ||
+      fail "${c} is still reachable from the app bridge"
+    ok "(5) engine_net sends ${c} sidecars to ${net}; the app bridge cannot reach it"
+  done
 }
 
 # segmented renders compose files $2… to $1 and runs (2)–(4) on it.
