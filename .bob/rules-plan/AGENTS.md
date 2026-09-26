@@ -16,7 +16,7 @@ This file provides guidance to agents when working with code in this repository.
 - **`docker compose up` pulls prebuilt GHCR images** for every service marked `# pull-fallback` — plan for explicit `make build` steps when local source changes need to take effect.
 - **Enterprise packages are commercially licensed** — the 12 Track-D packages under `src/control-plane/internal/{orgs,sso,scim,passkeys,ipguard,audit,compliance,erase,export,telemetryexport,trust,cmek}` each carry a `LICENSE` pointer. Moving code across the open-core line requires updating `LICENSING.md` and the directory `LICENSE`.
 - **grobase is a generic contract factory** — zero app-specific code. Apps are declarative contracts at `infra/config/contracts/<app>.json`. Any plan that adds app-specific logic to grobase violates the service boundary.
-- **WebSocket must go browser → fly directly** — never plan Vercel WebSocket proxying.
+- **WebSocket must go browser → the grobase server directly** — never plan Vercel WebSocket proxying.
 - **Verify gates are the unit of "done"** — every feature needs a `scripts/verify/m<NN>-*.sh` gate. `ls scripts/verify` for the next free number. Plan gate numbering and include gate work in every milestone.
 - **Go control plane: hexagonal architecture** — ports in domain packages, adapters implement ports, domain never imports infrastructure types. No `utils`/`shared`/`common` packages.
 - **Shadow → parity → cutover → delete** for the TS→Rust migration — no legacy TS deletion unless m18 + shadow-parity + CI-forward all PASS. UNKNOWN = FAIL.

@@ -36,13 +36,14 @@ validates (~21 jwt-plugin routes), and tenant-control all share `JWT_SECRET`/HS2
 isolated gate + a coordinated cross-repo flip remain.
 
 1. **PROVE-FIRST (isolated):** author `scripts/verify/mNN-rs256-issuer-isolated.sh` under
-   `COMPOSE_PROJECT_NAME=rs256-probe` (throwaway network/volumes on /mnt/storage). Bring up a gotrue/IdP
+   `COMPOSE_PROJECT_NAME=rs256-probe` (throwaway network/volumes). Bring up a gotrue/IdP
    that signs RS256 + publishes `.well-known/jwks.json`, a Kong configured RS256 (`rsa_public_key` from
    that JWKS), and tenant-control with `JWT_ALG=RS256` + `JWKS_URL`. Assert: token header `alg=RS256`;
    the token validates through Kong on a real protected route (200 + correct `X-User-Id`); an HS256
    forgery signed with the RSA modulus → 401; unknown-kid → 401. **Must PASS before touching real config.**
-2. **ISSUER (cross-repo/vendored):** bump `docker/services/gotrue/Dockerfile` (currently
-   `supabase/gotrue:v2.188.1`, HS256-only, no RS256/JWKS env) to an image supporting asymmetric JWT +
+2. **ISSUER (cross-repo/vendored):** bump `infra/docker/services/gotrue/Dockerfile` (currently
+   a from-source build of Supabase Auth, `ARG AUTH_VERSION=2.188.1`, run with HS256; the binary carries signing-key support: it has the
+   "no signing key found" / "only 1 signing key is supported" paths) and configure asymmetric JWT +
    JWKS, or put a small JWKS-publishing signer in front; supply the private key via Vault; confirm
    `GET <issuer>/.well-known/jwks.json` returns an RSA `sig` key with a stable `kid`.
 3. **KONG (`kong.yml`):** change the `authenticated` consumer `jwt_secrets` from
@@ -85,8 +86,8 @@ isolated gate + a coordinated cross-repo flip remain.
 **EXACT config the live cutover needs (proven by m81):**
 
 1. **ISSUER (pick ONE):**
-   - **(a) bump vendored gotrue** — `docker/services/gotrue/Dockerfile` `FROM supabase/gotrue:v2.188.1`
-     is **HS256-only**. Asymmetric signing landed in supabase-auth's **"JWT signing keys" release
+   - **(a) bump vendored gotrue** — `infra/docker/services/gotrue/Dockerfile` `ARG AUTH_VERSION=2.188.1` (a from-source build)
+     runs **HS256** today. Asymmetric signing landed in supabase-auth's **"JWT signing keys" release
      (2025-07-17)**; a self-hosted gotrue at/after that tag signs RS256 when given a JWK *signing-key
      set* via **`GOTRUE_JWT_KEYS`** (a JSON array of JWKs incl. the RSA private key) +
      **`GOTRUE_JWT_VALID_METHODS`** including `RS256`, and serves the public half at
@@ -99,7 +100,7 @@ isolated gate + a coordinated cross-repo flip remain.
    - **(b) front-signer** — if the gotrue bump is undesirable, put a tiny JWKS-publishing RS256 signer
      in front (the shape m81 uses: real RSA-2048 key, `/.well-known/jwks.json`, SPKI PEM). This is the
      lower-coupling option but adds a service to operate + secure (its private key is the kingdom).
-2. **KONG (`docker/services/kong/conf/kong.yml`):** in the `authenticated` consumer's `jwt_secrets`,
+2. **KONG (`infra/docker/services/kong/conf/kong.yml`):** in the `authenticated` consumer's `jwt_secrets`,
    change the two `algorithm: HS256 / secret: __JWT_SECRET__` entries to `algorithm: RS256` +
    `rsa_public_key: |` `<SPKI PEM>` (one per `iss` key — the GoTrue `iss` and `supabase`). Add a
    `__JWT_RS256_PUBKEY__` substitution token and teach the entrypoint `sed` block
@@ -156,8 +157,8 @@ engine or vault. minio stays reachable because kong proxies presigned URLs to it
   connects. m27 passes for all 8 engines; m52, m68, m204, m101-quota-realtenant and m120 are green.
 - adapter-registry-go is off the app bridge too (N-22): its register/list trust an asserted tenant, so only
   its callers reach it (routers and tenant-control on net-data/net-vault, kong on `net-registry`).
-- Helm: `networkPolicy.enabled` (default false) renders 8 policies in `grobase` and 4 in `mini-baas`.
-  Enabling it on a cluster is a human step.
+- Helm: `networkPolicy.enabled` defaults to `true` in both charts (`values-dev.yaml` turns it off) and
+  renders 8 policies in `grobase` and 3 in `mini-baas`. Proving them on a real cluster is a human step.
 
 ## G-Hdr — enable adapter-registry identity HMAC stack-wide
 
