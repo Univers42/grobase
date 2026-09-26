@@ -65,14 +65,30 @@ C_0=$'\033[0m'
 # which would have left a service stopped with nothing tracking it.
 STOPPED=""
 # Services a `recreate` mutant re-created with an override; restored by
-# re-creating them from the compose files alone, and waited on until healthy
+# re-creating them from the compose files they were created from, and waited on until healthy
 # so the next mutant's baseline run does not inherit a half-started service.
 RECREATED=""
 
-# The compose files as `make up` sees them, every profile active so any one
+# Compose files each service's running container was created from, captured
+# before a mutant override can join them.
+declare -A ORIGIN_FILES=()
+
+# compose_for runs docker compose for <service> with the files its container
+# was created from (the config_files label), so an overlay the stack was
+# started with, such as NETSEG=1's netseg file, survives a re-create; plain
+# docker-compose.yml when the label is absent. Host ports come from
+# resolve-ports.sh, as under `make up`. Every profile is active so any one
 # service can be addressed by name; --no-deps keeps the rest untouched.
-compose_one() {
-  docker compose -f docker-compose.yml --profile '*' "$@"
+compose_for() { # <service> <compose args...>
+  local svc="$1" f files args=()
+  shift
+  [ -n "${ORIGIN_FILES[$svc]:-}" ] || ORIGIN_FILES[$svc]=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project.config_files"}}' "mini-baas-$svc" 2>/dev/null || true)
+  IFS=, read -ra files <<<"${ORIGIN_FILES[$svc]:-docker-compose.yml}"
+  for f in "${files[@]}"; do args+=(-f "$f"); done
+  (
+    eval "$(bash scripts/ops/resolve-ports.sh 2>/dev/null || true)"
+    docker compose "${args[@]}" --profile '*' "$@"
+  )
 }
 
 wait_healthy() { # <container> [seconds]
@@ -93,7 +109,7 @@ restore_services() {
   done
   STOPPED=""
   for c in $RECREATED; do
-    compose_one up -d --no-deps --force-recreate "$c" >/dev/null 2>&1 || true
+    compose_for "$c" up -d --no-deps --force-recreate "$c" >/dev/null 2>&1 || true
     wait_healthy "mini-baas-$c" || printf 'warning: %s did not report healthy after restore\n' "$c" >&2
   done
   RECREATED=""
@@ -184,7 +200,7 @@ mutant_recreate() { # <id>
   esac
   docker ps --format '{{.Names}}' | grep -qx "mini-baas-$svc" || return 3
   printf 'services:\n  %s:\n    environment:\n      %s: "%s"\n' "$svc" "$key" "$value" >"$TMP/mutant-override.yml"
-  compose_one -f "$TMP/mutant-override.yml" up -d --no-deps --force-recreate "$svc" >/dev/null 2>&1 || return 3
+  compose_for "$svc" -f "$TMP/mutant-override.yml" up -d --no-deps --force-recreate "$svc" >/dev/null 2>&1 || return 3
   RECREATED="$RECREATED $svc"
   wait_healthy "mini-baas-$svc" || return 3
 }
