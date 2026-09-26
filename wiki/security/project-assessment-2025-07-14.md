@@ -69,13 +69,20 @@ override". Comments are not enforcement. The current posture:
 | `API_KEY_ABAC_ENABLED` | off | on | Admin scope bypasses ABAC |
 | `DATA_PLANE_RATELIMIT_BACKEND` | memory | redis | Per-replica rate limit bypass |
 
-**Fixed so far:** All of the above are now set in `docker-compose.prod.yml`.  
-**Remaining gap:** The prod overlay must be actively used. There is no startup
-validator that refuses to run without it.
+**Status (re-checked 2026-09-26 against `docker-compose.prod.yml`):** two of the
+eight are set there: `GOTRUE_MAILER_AUTOCONFIRM=false` and `IDENTITY_HEADER_MODE=strict`
+on the 11 services that read it (gate m195). The other six are deliberately not set,
+each for a stated reason in the overlay's header or the tracker:
+`TENANT_HEADER_IDENTITY_HMAC` (no signer exists, it would 401 legitimate traffic),
+`REALTIME_NAMESPACE_FALLBACK=deny` (GoTrue tokens carry no `namespaces` claim, so it
+closes every topic to browsers), `SECURITY_MODE`, `SMTP_SECURE` (depends on the SMTP
+provider), `API_KEY_ABAC_ENABLED` (H-5, an owner decision) and
+`DATA_PLANE_RATELIMIT_BACKEND=redis` (needed only with more than one data-plane replica;
+commented in the overlay).
 
-**What needs to happen:** A `make preflight-production` script that checks every
-security-critical env var is set to its production value and exits 1 if not. This
-is more valuable than any single code fix.
+**The startup validator exists:** `make prod-up` runs
+`scripts/ops/preflight-production.sh`, which refuses dev credentials and dev security
+values (gate m194). It does not yet cover all six settings above.
 
 ### 3.2 The TS→Rust migration is in-flight
 

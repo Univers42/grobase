@@ -42,13 +42,13 @@ production" below). Most recently `main` has advanced again through the **contra
 self-serve / cross-app** band (gates `m173`–`m180`): a new **red-tetris** vendor re-platform, strict
 self-serve app creation (`APPS_SELFSERVE_ENABLED`), cross-app `xapp:` messaging channels
 (`APP_CHANNELS_ENABLED`, migration `085`), and the website same-origin Vercel rewrite. The working tree
-is largely **clean**: the AppFlowy clone is committed as **plain tracked files** (nested `.git` removed,
-~2880 files); the old in-repo `vendor/java-dam-baas/` stale snapshot was **removed** in `4bcc957`. The
+is largely **clean**: the AppFlowy clone was **removed** from `vendor/` (`897c56db`, last files
+`112757ac`); the old in-repo `vendor/java-dam-baas/` stale snapshot was **removed** in `4bcc957`. The
 former `vendor/twenty/` orphan gitlink and the `vendor/vault42/` nested checkout are **both gone from
 disk now** — there are **no `160000` gitlinks under `vendor/`** (`git ls-files -s vendor/ | grep
 160000` is empty), and none anywhere else either (`git ls-files -s | grep ^160000` is empty; there is
 no `.gitmodules`). vault42 is consumed as a **published image** via the `vault42` compose plane, not
-a clone. (Sanity check: `ls vendor/` → **11** dirs, no `twenty`/`vault42`.)
+a clone. (Sanity check: `ls vendor/` → **10** dirs, no `twenty`/`vault42`/`AppFlowy`.)
 
 ## Code generation
 
@@ -322,7 +322,7 @@ skip `make`.
 
 | Plane                               | Whole suite (Docker wrapper)                                                                                       | One test                                                                                                                                                                                                                                                                                                                                                             |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **TS app** (NestJS · Jest)          | `make nestjs-ci` = `tsc --noEmit` + eslint + `jest --passWithNoTests`; `make nestjs-build-<app>`                   | from repo root: `docker run --rm -v "$PWD/src":/app -w /app -v mini-baas-src-node-modules:/app/node_modules node:20-alpine npx jest <spec> -t '<case>'`. There are **16** spec files (12 under `src/apps`: schema-service, analytics-service, mongo-api, log-service, query-router's proxy/graph/query/dto; 4 under `src/libs/common`) — **not** confined to one dir |
+| **TS app** (NestJS · Jest)          | `make nestjs-ci` = `tsc --noEmit` + eslint + `jest --passWithNoTests`; `make nestjs-build-<app>`                   | from repo root: `docker run --rm -v "$PWD/src":/app -w /app -v mini-baas-src-node-modules:/app/node_modules node:20-alpine npx jest <spec> -t '<case>'`. There are **30** spec files (22 under `src/apps`, 8 under `src/libs/common`; `find src/apps src/libs -name '*.spec.ts'` lists them) — **not** confined to one dir |
 | **Go control**                      | `make go-control-plane-check` (`go vet ./... && go test ./...`); `make go-control-plane-build` (compose build)     | from `src/control-plane/`: `docker run --rm -v "$PWD":/src -w /src golang:1.25-bookworm go test ./internal/<pkg> -run TestX -v` (1.25 — `go.mod` says `go 1.25.0`; `-check` pins `golang:1.25-bookworm`)                                                                                                                                                          |
 | **Rust data**                       | `make rust-data-plane-check` / `-test` / `-build` (a `-test` target **does** exist now = `cargo test --workspace`) | `make _rust-toolchain` once, then `cargo test -p data-plane-core <name>` via the data-plane CARGO wrapper; engine integration = `make conformance` / `conformance-<engine>` (the m27 gate)                                                                                                                                                                           |
 | **Rust realtime**                   | `make rust-realtime-check \| -test \| -build`                                                                      | `cargo test -p realtime-core <name>` via the realtime CARGO wrapper                                                                                                                                                                                                                                                                                                  |
@@ -638,7 +638,7 @@ the default build/CI (the exceptions are opt-in `movieverse` + `gourmand` compos
 | **surfind-spain**                 | Laravel 12/Livewire/MySQL Spanish surf directory | ✅ re-platformed — **server-rendered (no SPA), so the frontend was REBUILT from scratch** as a React/Vite/Leaflet SPA (`web/`) on PostgREST+GoTrue; role RLS via `app_metadata`, owner-scoped favorites/comments, 16 beaches seeded; Laravel/MySQL backend removed; serve `:5183` | `m160-surfind-spain.sh`         |
 | **red-tetris**                    | 42 multiplayer Tetris (React + Socket.IO server) | ✅ re-platformed — backend **entirely Grobase** (GoTrue auth + data + the **multiplayer realtime bus** — the original Socket.IO server is gone); static SPA served with a **same-origin reverse proxy** to Kong (`grobase/serve.mjs`, no CORS), `red-tetris` compose profile (`:5178`). Contract `red-tetris.json`; needs `npm run build` + `scripts/provision-contract.sh` + `scripts/seed/red-tetris-tenant.sh` | `m173-red-tetris.sh`            |
 | **hypertube**                     | 42 BitTorrent video search+stream subject    | ✅ re-platformed — backend **entirely Grobase** (GoTrue auth + **MongoDB** catalog/comments/profiles + **DynamoDB** watch_state + realtime) plus **4 custom services** under `vendor/hypertube/grobase/`: a **new Rust `hypertube-stream` engine** (axum/reqwest range-proxy → archive.org HTTP `206` partial-content, YouTube-style fast buffer, H.264+AAC audio, `X-Accel-Buffering:no`), `hypertube-media` (torrent→Range/206 + ffmpeg transcode), `hypertube-search` (archive.org + TMDb), `hypertube-api` (RESTful OAuth2) + a YouTube-style React/Vite SPA (`View/`, same-origin via `grobase/serve.mjs`). **~1848 real archive.org films** bulk-seeded (`hypertube-catalog-bulk`, throttled), **8 user profiles + comments** (`hypertube-users`). **Forced real Grobase fixes: the 8th engine DynamoDB end-to-end (build-arg `--features dynamodb` + `DYNAMODB_ENGINE_ENABLED` + migration `069` + registry `ensureSchemaDDL` engine-CHECK + `RUST_DATA_PLANE_FORWARD_ENGINES` + `dynamodb-local`), Mongo `shared_resources` cross-owner reads, and seed idempotency (control-plane key-reuse, GoTrue pagination, persisted secrets).** Known data-plane limits: pool loses `shared_resources` after a provision (restart `data-plane-router`); mongo `upsert` not idempotent. | `m150`–`m154` |
-| **AppFlowy**                      | OSS Notion-alternative — Flutter UI + Rust `flowy-*` core (AGPL-3.0) | ⬜ now committed in-repo as **plain tracked files** (nested `.git` removed in `4bcc957`, ~2880 files; upstream was `AppFlowy-IO/AppFlowy.git` HEAD `4af02cdc`), still **zero BaaS wiring**; its own backend (AppFlowy-Cloud = PG + GoTrue + storage + collab) mirrors Grobase → a prime future re-platform target. See the **AppFlowy** note below the table | —                               |
+| **AppFlowy**                      | OSS Notion-alternative — Flutter UI + Rust `flowy-*` core (AGPL-3.0) | ⬜ **removed from `vendor/`** (`897c56db`, last files `112757ac`); was committed as plain tracked files (nested `.git` removed in `4bcc957`, ~2880 files; upstream was `AppFlowy-IO/AppFlowy.git` HEAD `4af02cdc`), still **zero BaaS wiring**; its own backend (AppFlowy-Cloud = PG + GoTrue + storage + collab) mirrors Grobase → a prime future re-platform target. See the **AppFlowy** note below the table | —                               |
 | **twenty** _(removed from disk)_  | TypeScript CRM — twentyhq/twenty (NestJS + GraphQL + TypeORM/Postgres) | ⬜ the orphan gitlink (mode 160000, HEAD `705caab2`) is **no longer on disk or tracked** — `git ls-files -s vendor/ \| grep 160000` is now empty. Documented only so a pre-flatten ref reads correctly; its NestJS + Postgres + GraphQL backend still mirrors Grobase → a future re-platform candidate | —                               |
 | **vault42** _(no longer in `vendor/`)_ | _(separate product, own repo `Univers42/vault42`)_ — zero-knowledge secrets vault (Rust) | ✅ built **native on Grobase** — uses grobase as its store (**GrobaseStore**): per-user ZK envelope blobs in a dedicated `vault42` DB via `/query/v1` with per-user JWT-minting → `read_scoped` owner-scoping (proven: user B sees 0 rows of A). Driven by the **42ctl** umbrella CLI (separate repo `Univers42/42ctl`). **Now consumed as a published image** via the `vault42` compose plane (`make vault42-up`), not a vendor checkout. Substrate migration `071`; OTP-login `075` + escrow `076` | `m162`–`m165` (rbac/github/otp/contract) |
 | **claude-deal-with-the-devil**    | _(not an app)_                               | n/a — a Claude Code framework (rules/agents/skills/tools). It is no longer in this repo at all: it lives in its own repo `Univers42/claude-deal-with-the-devil`, the upstream of `.claude/` (content merged, no submodule). Not a migration target | —                               |
@@ -655,7 +655,10 @@ data-plane work that backs it is flag-gated (`DATA_PLANE_PER_TABLE_ISOLATION`, `
 default OFF). `scripts/seed/agency-tenant.sh` provisions a permanent "agency" demo tenant (not tied to
 one `vendor/` app).
 
-### AppFlowy (`vendor/AppFlowy`) — untouched upstream, un-integrated
+### AppFlowy (formerly `vendor/AppFlowy`) — removed, kept here as re-platform notes
+
+No longer on disk: removed in `897c56db` (last files `112757ac`). The notes below describe the
+checkout as it was, so a future re-platform starts from facts.
 
 A checkout of **AppFlowy-IO/AppFlowy** (the AGPL-3.0 OSS Notion alternative), originally upstream HEAD
 `4af02cdc`, **now committed in-repo as plain tracked files** (its nested `.git` was removed in `4bcc957`,
@@ -690,15 +693,15 @@ full dev build `cargo make --profile development-linux-x86_64 appflowy-dev`; cod
 `cargo make flutter_test '<path>' --name '<case>'`. The in-repo `docker-compose` builds only the
 X11-forwarded **desktop client**, not a backend.
 
-> **One on-disk `vendor/` dir is absent from the table above** (there are now **11** on-disk dirs; the
-> table covers **10** of them — and additionally keeps `java-dam-baas` / `twenty` / `vault42` /
+> **One on-disk `vendor/` dir is absent from the table above** (there are now **10** on-disk dirs; the
+> table covers **9** of them — and additionally keeps `java-dam-baas` / `twenty` / `vault42` /
 > `claude-deal-with-the-devil` rows that are **no longer on disk**, documented only so a pre-flatten ref
 > reads right): the uncovered on-disk dir is
 > **`grobase-website`** — *not* an external app but a nested checkout whose remote is
 > `Univers42/grobase.git` itself (HEAD `4bcc957`, an Astro site in its tree); the canonical
 > marketing/login portal is the **separate** `Univers42/grobase-website` repo (cloned at
 > `~/Documents/grobase-website`, wired to binocle-one), so it is deliberately not given a re-platform row.
-> (**AppFlowy** *is* in the table now — its deep-dive note is the section directly above this line.)
+> (**AppFlowy** keeps a table row and a deep-dive note above, but is no longer on disk.)
 
 ## Appendix — historical note (pre-flatten layout)
 
