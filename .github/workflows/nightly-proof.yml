@@ -72,6 +72,9 @@ jobs:
         working-directory: .
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
@@ -137,6 +140,9 @@ jobs:
         working-directory: .
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
@@ -228,6 +234,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - name: Free disk space
         run: |
@@ -268,6 +277,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
@@ -344,6 +356,9 @@ jobs:
         working-directory: .
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
@@ -467,6 +482,9 @@ jobs:
         working-directory: .
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
 
       - name: Generate CI environment
         run: |

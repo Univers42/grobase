@@ -90,7 +90,7 @@ build_image() {
   DOCKER_BUILDKIT=0 docker build --no-cache --force-rm -f "${T}/ctx/Dockerfile.fly" -t "${TAG}" "${T}/ctx" \
     >"${T}/build.log" 2>&1 || {
     tail -n 20 "${T}/build.log" >&2
-    fail "docker build of Dockerfile.fly failed"
+    fail "docker build of Dockerfile.fly failed: $(grep -m1 -iE 'toomanyrequests|error|denied|not found' "${T}/build.log" | cut -c1-200)"
   }
 }
 
