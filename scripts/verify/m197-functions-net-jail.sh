@@ -33,6 +33,10 @@
 #              reaches the secrets resolve (dispatcher's own answer) and only  #
 #              that path (relay 404)                                           #
 #                                                                              #
+#  Static, first: functions-runtime gets only the variables its code reads    #
+#  (RT_KEYS: no env_file .env, so no engine URL or platform secret reaches     #
+#  the tenant-code host) and its service token never falls back to JWT_SECRET. #
+#                                                                              #
 #  Needs .env (compose render), jq, the functions-runtime image locally, and   #
 #  the stack up with kong/postgres/mongo. Missing any = FAIL.                  #
 #  Mutant hooks: M197_OVERLAY=<path> checks another overlay; one that leaves   #
@@ -51,6 +55,10 @@ SRC="${M197_SRC:-${ROOT}/infra/docker/services/functions-runtime/src}"
 P="m197-$$"
 TENANT="m197t$$"
 TOKEN="m197-dummy-service-token"
+RT_KEYS="FUNCTIONS_HOST FUNCTIONS_PORT FUNCTIONS_DATA_DIR FUNCTIONS_INVOKE_TIMEOUT_MS FUNCTION_SECRETS_URL
+INTERNAL_SERVICE_TOKEN INTERNAL_SERVICE_TOKEN_PREV FUNCTION_METERING FUNCTION_METERING_FLUSH_MS
+FUNCTION_METERING_REDIS_URL REDIS_URL FUNCTIONS_WARM_POOL FUNCTIONS_WARM_POOL_MAX FUNCTIONS_WARM_IDLE_MS
+FUNCTIONS_MEM_LIMIT_MB FUNCTIONS_MEM_POLL_MS FUNCTIONS_NET_ALLOWLIST_ENABLED FUNCTIONS_NET_ALLOW"
 T="$(mktemp -d)" || exit 1
 chmod 700 "${T}"
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
@@ -75,6 +83,21 @@ render() {
   shift
   docker compose "$@" --profile '*' config --format json >"${out}" 2>"${T}/render.err" ||
     fail "compose render failed ($*): $(head -c 400 "${T}/render.err")"
+}
+
+# env_scope checks functions-runtime's environment in render $1 holds only
+# RT_KEYS, and that with ADAPTER_REGISTRY_SERVICE_TOKEN empty its service token
+# is empty, not JWT_SECRET.
+env_scope() {
+  local extra tok
+  extra="$(jq -r --arg k "${RT_KEYS}" '[$k | splits("\\s+")] as $ok
+    | .services["functions-runtime"].environment | keys[] | select(IN($ok[]) | not)' "$1")"
+  [ -z "${extra}" ] || fail "functions-runtime gets variables its code never reads: ${extra//$'\n'/ }"
+  printf 'JWT_SECRET=m197-jwt-canary\nADAPTER_REGISTRY_SERVICE_TOKEN=\n' >"${T}/nokey.env"
+  render "${T}/nokey.json" --env-file .env --env-file "${T}/nokey.env" -f docker-compose.yml
+  tok="$(rt_env "${T}/nokey.json" INTERNAL_SERVICE_TOKEN)"
+  [ -z "${tok}" ] || fail "with ADAPTER_REGISTRY_SERVICE_TOKEN empty, functions-runtime still gets a service token$([ "${tok}" != m197-jwt-canary ] || echo ': JWT_SECRET')"
+  ok "functions-runtime gets only the $(wc -w <<<"${RT_KEYS}") variables it reads, and never JWT_SECRET as its service token"
 }
 
 # rt_env prints functions-runtime's env var $2 in render file $1 (empty when unset).
@@ -312,6 +335,8 @@ command -v jq >/dev/null || fail "jq is required"
 step "render base and base+overlay (${OVERLAY##*/})"
 render "${T}/base.json" -f docker-compose.yml
 render "${T}/prod.json" -f docker-compose.yml -f "${OVERLAY}"
+env_scope "${T}/base.json"
+env_scope "${T}/prod.json"
 IMG="${M197_IMAGE:-$(jq -r '.services["functions-runtime"].image' "${T}/prod.json")}"
 docker image inspect "${IMG}" >/dev/null 2>&1 || fail "image ${IMG} not present locally (make build-svc-functions-runtime, or M197_IMAGE=<tag>)"
 live_stack
