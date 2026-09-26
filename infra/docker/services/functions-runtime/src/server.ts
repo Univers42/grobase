@@ -13,6 +13,7 @@ import { dirname, join } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { ensureDir } from "https://deno.land/std@0.224.0/fs/ensure_dir.ts";
 import { FUNCTION_INVOCATIONS_METRIC, UsageMeter } from "./usage-meter.ts";
 import { workerNet } from "./net-policy.ts";
+import { workerEnv } from "./worker-env.ts";
 
 const PORT = Number(Deno.env.get("FUNCTIONS_PORT") ?? "3060");
 const HOST = Deno.env.get("FUNCTIONS_HOST") ?? "0.0.0.0";
@@ -382,11 +383,11 @@ function invokeInWorker(
   secrets: Record<string, string> = {},
 ): Promise<InvokeResult> {
   return new Promise((resolve) => {
-    const secretKeys = Object.keys(secrets);
-    // The worker imports the handler dynamically AFTER seeding Deno.env so the
-    // handler reads its secrets via the normal Deno.env.get(...) API. env
-    // permission is scoped to exactly the whitelisted keys (least privilege);
-    // when there are no secrets, env stays disabled.
+    const env = workerEnv(secrets);
+    // The worker imports the handler dynamically AFTER workerEnv replaces
+    // Deno.env with a private map of its secrets, so the handler reads them via
+    // the normal Deno.env.get(...) API while the real env permission stays off
+    // (N-26: the process environment is shared by every tenant's Worker).
     //
     // onmessage is wired BEFORE the import resolves, and awaits it. The host
     // posts the input the moment the worker exists; when that message was
@@ -398,11 +399,7 @@ function invokeInWorker(
     // its __ready handshake; this path never had one. The .catch marks the
     // promise handled so an import failure surfaces through onmessage's catch
     // as a function_error, not as an unhandled rejection.
-    const workerSource = `${memWatchdogPreamble()}
-      const __secrets = ${JSON.stringify(secrets)};
-      for (const [k, v] of Object.entries(__secrets)) {
-        try { Deno.env.set(k, v); } catch (_) { /* env not permitted */ }
-      }
+    const workerSource = `${memWatchdogPreamble()}${env.preamble}
       const __handler = import("file://${codePath}").then((m) => m.default);
       __handler.catch(() => {});
       self.onmessage = async (ev) => {
@@ -425,8 +422,7 @@ function invokeInWorker(
         permissions: {
           read: [codePath],
           net: workerNet(NET_ALLOWLIST, NET_ALLOW),
-          // Scope env to exactly the whitelisted secret keys, else disable.
-          env: secretKeys.length > 0 ? secretKeys : false,
+          env: env.permission,
           run: false,
           write: false,
           ffi: false,
@@ -497,11 +493,7 @@ class WarmPool {
       }, ${MEM_POLL_MS});`
       : "";
     return `
-      let __cur = null;${wd}
-      const __secrets = ${JSON.stringify(secrets)};
-      for (const [k, v] of Object.entries(__secrets)) {
-        try { Deno.env.set(k, v); } catch (_) { /* env not permitted */ }
-      }
+      let __cur = null;${wd}${workerEnv(secrets).preamble}
       const { default: handler } = await import("file://${codePath}");
       self.onmessage = async (ev) => {
         const { id, input } = ev.data;
@@ -522,7 +514,6 @@ class WarmPool {
   }
 
   private spawn(key: string, codePath: string, secrets: Record<string, string>): WarmWorker {
-    const secretKeys = Object.keys(secrets);
     const source = this.buildPersistentSource(codePath, secrets);
     const blob = new Blob([source], { type: "application/typescript" });
     const url = URL.createObjectURL(blob);
@@ -532,7 +523,7 @@ class WarmPool {
         permissions: {
           read: [codePath],
           net: workerNet(NET_ALLOWLIST, NET_ALLOW),
-          env: secretKeys.length > 0 ? secretKeys : false,
+          env: workerEnv(secrets).permission,
           run: false,
           write: false,
           ffi: false,
