@@ -332,6 +332,16 @@ arm_no_new_privileges() {
   ok "CONTAINER_NO_NEW_PRIVILEGES: false refused, false + ACK=1 warns, true silent (m208)"
 }
 
+# arm_moved proves a GOTRUE_/PGRST_ key no compose file names is refused by name
+# (gotrue and postgrest no longer load .env, m212) and a named one passes.
+arm_moved() {
+  expect_fail "$(with_line mv-gotrue.env 'GOTRUE_SMS_PROVIDER=twilio')" GOTRUE_SMS_PROVIDER
+  expect_fail "$(with_line mv-pgrst.env 'export PGRST_LOG_LEVEL=info')" PGRST_LOG_LEVEL
+  run_pf "$(with_line mv-named.env 'GOTRUE_DISABLE_SIGNUP=true')"
+  [ "${RC}" = 0 ] || fail "GOTRUE_DISABLE_SIGNUP (named in compose) must pass — got ${RC}: ${OUT}"
+  ok "a GOTRUE_/PGRST_ key no compose file names is refused (export prefix too); a named one passes"
+}
+
 # arm_parser_pass proves last-wins, single-quoted literals, inline comments
 # and a non-deny realtime fallback do not fail a hardened env.
 arm_parser_pass() {
@@ -441,6 +451,7 @@ arm_parser_fail
 arm_parser_pass
 arm_advisories
 arm_no_new_privileges
+arm_moved
 arm_backups
 arm_tenant_backups
 step "(e) never sourced"
