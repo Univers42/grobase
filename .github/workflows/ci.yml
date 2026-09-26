@@ -152,6 +152,28 @@ jobs:
             buildx-${{ matrix.service }}-
 
       - name: Build ${{ matrix.service }}
+        id: build
+        continue-on-error: true
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
+        with:
+          context: ${{ matrix.context }}
+          build-args: ${{ matrix.build-args }}
+          push: false
+          tags: mini-baas/${{ matrix.service }}:ci-${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache/${{ matrix.service }}
+          cache-to: type=local,dest=/tmp/.buildx-cache-new/${{ matrix.service }},mode=max
+
+      # Anonymous public.ecr.aws base-image pulls hit per-runner-IP limits
+      # ("toomanyrequests: Data limit exceeded"). One retry after a pause; a
+      # second failure is the job's failure.
+      - name: Wait before retrying ${{ matrix.service }}
+        if: steps.build.outcome == 'failure'
+        run: |
+          echo "::warning title=${{ matrix.service }} build::first attempt failed; retrying in 90 s"
+          sleep 90
+
+      - name: Retry build ${{ matrix.service }}
+        if: steps.build.outcome == 'failure'
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: ${{ matrix.context }}
@@ -677,7 +699,7 @@ jobs:
       - name: Start query-router, tenant-control and prometheus
         run: |
           set -euo pipefail
-          docker compose -f docker-compose.yml build query-router tenant-control prometheus
+          bash scripts/ci/retry-on-429.sh docker compose -f docker-compose.yml build query-router tenant-control prometheus
           docker compose -f docker-compose.yml up -d --wait query-router tenant-control prometheus
 
       # A rejected credential shows in Kong, query-router, Prometheus and the logs.
@@ -948,16 +970,10 @@ jobs:
       - name: Compile/enforce ${{ matrix.offer }}
         env:
           OFFER_RUN: ${{ matrix.run }}
+          RETRY_429_LOG: /tmp/offer.log
         # A registry 429 (public.ecr.aws anonymous pulls) is retried twice with
         # backoff; any other failure fails at once.
-        run: |
-          set -o pipefail
-          for attempt in 1 2 3; do
-            bash -c "$OFFER_RUN" 2>&1 | tee /tmp/offer.log && exit 0
-            grep -qE '429 Too Many Requests|toomanyrequests' /tmp/offer.log && [ "$attempt" -lt 3 ] || exit 1
-            echo "::warning title=registry rate limit::offer attempt ${attempt} hit a 429; retrying in $((attempt * 60))s"
-            sleep $((attempt * 60))
-          done
+        run: bash scripts/ci/retry-on-429.sh bash -c "$OFFER_RUN"
 
       # A red offer names its cause in the (public) annotations: the first error
       # lines of the build and the runner's disk headroom.
@@ -1175,8 +1191,9 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # The toolchain image comes from public.ecr.aws: a registry 429 is retried.
       - name: cargo clippy --workspace --all-targets -D warnings
-        run: make test-lint-rust
+        run: bash scripts/ci/retry-on-429.sh make test-lint-rust
 
   # ─── Formatters (check only) ───────────────────────────────────
   # gofumpt · cargo fmt (both workspaces) · prettier (TS, YAML) · shfmt, each
@@ -1191,5 +1208,6 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
+      # The Rust toolchain image comes from public.ecr.aws: a registry 429 is retried.
       - name: Every language formatted (no writes)
-        run: make prettiers-check
+        run: bash scripts/ci/retry-on-429.sh make prettiers-check
