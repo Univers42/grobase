@@ -14,6 +14,8 @@
 #    missing  hardened minus JWT_SECRET         -> exit 1, only JWT_SECRET     #
 #    parser   export / quotes / ` #` / CRLF / URL-encoded or @-split DSN       #
 #             passwords / last-wins / ${..} = UNKNOWN / realtime warn-only     #
+#    advisory SECURITY_MODE / API_KEY_ABAC_ENABLED / DATA_PLANE_RATELIMIT_     #
+#             BACKEND at dev values or unset -> exit 0 + one `!` line each     #
 #    source   `$(touch ...)` in a value is never executed                      #
 #    drift    every credential `:-literal` fallback in compose/base/*.yml,     #
 #             set as its literal or left unset, is named -> the denylist       #
@@ -156,6 +158,7 @@ write_hardened() {
     printf 'GOTRUE_MAILER_AUTOCONFIRM=false\nSMTP_HOST=smtp.example.com\n'
     printf 'API_EXTERNAL_URL=https://api.example.com/auth/v1\nGOTRUE_SITE_URL=https://app.example.com\n'
     printf 'REALTIME_NAMESPACE_FALLBACK=deny\nSERVICE_TOKEN_MODE=hmac\n'
+    printf 'SECURITY_MODE=max\nAPI_KEY_ABAC_ENABLED=1\nDATA_PLANE_RATELIMIT_BACKEND=redis\n'
   } >"${T}/hardened.env"
 }
 
@@ -194,6 +197,7 @@ arm_hardened() {
     [ "${RC}" = 0 ] || fail "${sh_}: hardened env expected exit 0, got ${RC}"
     grep -qx 'PASS' <<<"${OUT}" || fail "${sh_}: no PASS line"
     ! grep -q '^  ✗ ' <<<"${OUT}" || fail "${sh_}: hardened env produced an offender"
+    ! grep -q '^  ! ' <<<"${OUT}" || fail "${sh_}: hardened env produced an advisory"
     ! grep -qF -e "${jwt}" -e "${pg}" <<<"${OUT}" || {
       OUT=""
       fail "${sh_}: a hardened value leaked"
@@ -249,6 +253,26 @@ arm_parser_fail() {
   expect_fail "$(with_line unknown.env 'JWT_SECRET=${JWT_FROM_VAULT}')" JWT_SECRET
   grep -q 'JWT_SECRET — unresolvable.*UNKNOWN = FAIL' <<<"${OUT}" || fail "\${...} not reported as UNKNOWN"
   ok "${i} bad forms caught: export, quotes, inline #, CRLF, case, \${..}/\$NAME, %XX, @-split, no-password DSN, short, wildcard bind"
+}
+
+# arm_advisories proves SECURITY_MODE, API_KEY_ABAC_ENABLED and
+# DATA_PLANE_RATELIMIT_BACKEND at their dev values, or unset, each print an
+# advisory line and still pass.
+arm_advisories() {
+  local f k
+  run_pf "$(with_line advisory.env "$(printf 'SECURITY_MODE=baseline\nAPI_KEY_ABAC_ENABLED=0\nDATA_PLANE_RATELIMIT_BACKEND=memory')")"
+  [ "${RC}" = 0 ] || fail "dev advisory values must only warn — got ${RC}"
+  for k in SECURITY_MODE API_KEY_ABAC_ENABLED DATA_PLANE_RATELIMIT_BACKEND; do
+    grep -q "^  ! ${k} " <<<"${OUT}" || fail "no advisory line for ${k} at its dev value"
+  done
+  f="${T}/unset.env"
+  grep -vE '^(SECURITY_MODE|API_KEY_ABAC_ENABLED|DATA_PLANE_RATELIMIT_BACKEND)=' "${T}/hardened.env" >"${f}"
+  run_pf "${f}"
+  [ "${RC}" = 0 ] || fail "unset advisory keys must only warn — got ${RC}"
+  for k in SECURITY_MODE API_KEY_ABAC_ENABLED DATA_PLANE_RATELIMIT_BACKEND; do
+    grep -q "^  ! ${k} " <<<"${OUT}" || fail "no advisory line for ${k} when unset"
+  done
+  ok "SECURITY_MODE, API_KEY_ABAC_ENABLED, DATA_PLANE_RATELIMIT_BACKEND: dev value or unset = advisory only (exit 0)"
 }
 
 # arm_parser_pass proves last-wins, single-quoted literals, inline comments
@@ -357,6 +381,7 @@ arm_missing
 step "(d) parser semantics"
 arm_parser_fail
 arm_parser_pass
+arm_advisories
 step "(e) never sourced"
 arm_source
 step "(f) drift against compose defaults"
