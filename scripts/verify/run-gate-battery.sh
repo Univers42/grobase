@@ -110,7 +110,7 @@ ENTERPRISE_BATTERY=(
   m172-pubkeys             # member pubkey registry + grant-fulfilment seam (vault42 crypto bridge)
   # m194–m199 (security hardening) are NOT here: they need an assembled .env, certs
   # and images built from the commit, which this job does not have. CI runs them in
-  # their own jobs — m194 with shellcheck, m195/m196/m198/m199/m206 in security-gates, m197
+  # their own jobs — m194 with shellcheck, m195/m196/m198/m199/m206/m207 in security-gates, m197
   # in integration-tests against the live stack.
   # m144 (trust-page parity) and m145 (cost-model artifact lockstep) are intentionally
   # NOT in the CI battery: they validate the marketing site (site/ — gitignored in this
