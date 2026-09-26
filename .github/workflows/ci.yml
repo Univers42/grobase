@@ -1182,7 +1182,7 @@ jobs:
       - name: Engine env scope (m211)
         run: bash scripts/verify/run-gate-battery.sh m211-engine-env-scope
 
-      # Scoped platform services (kong so far) get only the .env keys they read
+      # Scoped platform services (kong, studio, pg-meta so far) get only the .env keys they read
       # and their optional .env.<service>, under every overlay.
       - name: Service env scope (m212)
         run: bash scripts/verify/run-gate-battery.sh m212-service-env-scope
