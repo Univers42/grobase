@@ -217,6 +217,15 @@ arm_missing() {
   ok "hardened minus JWT_SECRET: exit 1, JWT_SECRET is the only offender"
 }
 
+# arm_distinct proves a service token equal to JWT_SECRET fails, named alone.
+arm_distinct() {
+  local jwt
+  jwt="$(sed -n 's/^JWT_SECRET=//p' "${T}/hardened.env" | tail -n1)"
+  expect_fail "$(with_line same.env "ADAPTER_REGISTRY_SERVICE_TOKEN=${jwt}")" ADAPTER_REGISTRY_SERVICE_TOKEN
+  [ "$(grep -c '^  ✗ ' <<<"${OUT}")" = 1 ] || fail "same.env: expected exactly one offender"
+  ok "service token equal to JWT_SECRET: exit 1, ADAPTER_REGISTRY_SERVICE_TOKEN the only offender"
+}
+
 # parser_cases prints one "EXPECTED_VAR|line appended to the hardened env" per
 # bad compose .env form (CRLF last, via printf).
 parser_cases() {
@@ -404,8 +413,9 @@ step "(a) dev-default env and value leak"
 arm_dev
 step "(b) hardened env"
 arm_hardened
-step "(c) one missing secret"
+step "(c) one missing secret, one shared secret"
 arm_missing
+arm_distinct
 step "(d) parser semantics"
 arm_parser_fail
 arm_parser_pass
