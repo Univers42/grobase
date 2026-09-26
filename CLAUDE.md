@@ -217,7 +217,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **188 scripts, highest m208** (`m208-no-new-privileges.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **189 scripts, highest m209** (`m209-backup-encryption.sh`); the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -312,6 +312,11 @@ ip-restriction refusing it and no forged `X-Forwarded-*` reaching the upstream (
 `no-new-privileges:true` (from `_common.yml`'s `base`; `CONTAINER_NO_NEW_PRIVILEGES=false` opts out and
 preflight-production refuses that without `CONTAINER_NO_NEW_PRIVILEGES_ACK=1`), none is privileged or
 unconfined, five mutants are refused, and on a running stack the kernel reports `NoNewPrivs: 1` for every container.
+`m209` proves backups are encrypted at rest when `BACKUP_AGE_RECIPIENTS` (age public keys) is set: hermetic
+(scratch postgres + MinIO + pg-backup built from source), it checks logical `.dump.age` (no plaintext copy), a bad
+recipient uploading nothing, restore refused without or with the wrong `BACKUP_AGE_IDENTITY_FILE`, unknown artifacts
+refused, a restore.sh mutant caught, backup modes refusing the identity, and sealed physical members, WAL and PITR
+staging. Unset = plaintext, as before; m188's encrypted leg covers `engine-backup.sh`.
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 

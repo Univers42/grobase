@@ -51,6 +51,17 @@
 #    it in a UTF-8 locale, or tar escapes a non-ASCII name and that database   #
 #    fails to restore.                                                         #
 #                                                                              #
+#  ENCRYPTION (age; unset = plaintext archives, as before)                    #
+#    BACKUP_AGE_RECIPIENTS  age public keys, comma or space separated: dump    #
+#                  streams the archive through age, so no plaintext copy is    #
+#                  written; the file starts with the age header. A recipient   #
+#                  age refuses fails the dump before anything is written.      #
+#    BACKUP_AGE_IDENTITY_FILE  restore of an encrypted archive needs it; it    #
+#                  decrypts to a 0600 temp file removed on exit.               #
+#    age is the host's, else the one in ENGINE_BACKUP_AGE_IMAGE (default the   #
+#    local pg-backup image, never pulled: a pulled one may predate age). With  #
+#    neither, dump refuses; it never falls back to a plaintext archive.        #
+#                                                                              #
 #  USAGE                                                                       #
 #    engine-backup.sh dump    <mongo|cockroach|mssql> <file> [--db NAME]...   #
 #    engine-backup.sh restore <mongo|cockroach|mssql> <file> [--db NAME]...   #
@@ -59,10 +70,11 @@
 #    ENGINE_BACKUP_PREFIX (default mini-baas) names the containers.            #
 #                                                                              #
 #  Proven by scripts/verify/m188-engine-backup-restore.sh (round trip of a     #
-#  scratch database per engine, checksums compared).                          #
+#  scratch database per engine, checksums compared; an encrypted round trip).  #
 # **************************************************************************** #
 set -euo pipefail
 PREFIX="${ENGINE_BACKUP_PREFIX:-mini-baas}"
+AGE_IMAGE="${ENGINE_BACKUP_AGE_IMAGE:-ghcr.io/univers42/grobase-pg-backup:latest}"
 
 die() {
   echo "engine-backup: $*" >&2
@@ -102,6 +114,62 @@ for d in "${DBS[@]}"; do
 done
 STAMP="eb$(date +%s)$$"
 
+# ── encryption ────────────────────────────────────────────────────────────────
+# age_run ARG...: age with ARGs, stdin to stdout: the host's, else the one in the
+# local AGE_IMAGE (never pulled, no network), the identity mounted read-only.
+age_run() {
+  local mount=()
+  if command -v age >/dev/null; then
+    age "$@"
+    return
+  fi
+  [ -z "${BACKUP_AGE_IDENTITY_FILE:-}" ] || mount=(-v "$(realpath "$BACKUP_AGE_IDENTITY_FILE"):/run/age-identity:ro")
+  docker run --rm -i --pull=never --network none --security-opt no-new-privileges \
+    "${mount[@]}" --entrypoint age "$AGE_IMAGE" "$@"
+}
+# seal: stdin to stdout, age-encrypted to every BACKUP_AGE_RECIPIENTS key, or
+# unchanged when none is set.
+seal() {
+  local keys r args=()
+  [ -n "${BACKUP_AGE_RECIPIENTS:-}" ] || {
+    cat
+    return
+  }
+  IFS=', ' read -r -a keys <<<"$BACKUP_AGE_RECIPIENTS"
+  for r in "${keys[@]}"; do [ -z "$r" ] || args+=(-r "$r"); done
+  age_run -e "${args[@]}"
+}
+# seal_ready: die unless an age is reachable and takes every recipient.
+seal_ready() {
+  [ -n "${BACKUP_AGE_RECIPIENTS:-}" ] || return 0
+  command -v age >/dev/null || docker image inspect "$AGE_IMAGE" >/dev/null 2>&1 ||
+    die "BACKUP_AGE_RECIPIENTS is set, but there is no age on this host and no local image $AGE_IMAGE (docker compose build pg-backup, or set ENGINE_BACKUP_AGE_IMAGE): refusing to write a plaintext archive"
+  age_run --version >/dev/null 2>&1 || die "$AGE_IMAGE has no age (it predates it: docker compose build pg-backup): refusing to write a plaintext archive"
+  seal </dev/null >/dev/null || die "age refuses a recipient in BACKUP_AGE_RECIPIENTS: nothing written"
+}
+# sealed: succeed when $FILE starts with the age header.
+sealed() { LC_ALL=C head -c 21 "$FILE" | LC_ALL=C grep -qax 'age-encryption.org/v1'; }
+# unseal: stdin to stdout, decrypted with BACKUP_AGE_IDENTITY_FILE.
+unseal() {
+  local id="${BACKUP_AGE_IDENTITY_FILE:-}"
+  [ -n "$id" ] && [ -r "$id" ] || die "$FILE is age-encrypted: set BACKUP_AGE_IDENTITY_FILE to a readable age identity file to restore it"
+  command -v age >/dev/null || id=/run/age-identity
+  age_run -d -i "$id"
+}
+# dump_to FN: run dump function FN (archive on stdout) through seal into $FILE;
+# die, removing $FILE, when FN fails or writes nothing.
+dump_to() {
+  local n
+  n=$({ "$1" | tee /dev/fd/3 | seal >"$FILE"; } 3>&1 | wc -c) || {
+    rm -f "$FILE"
+    die "dump of ${ENGINE} failed"
+  }
+  [ "$n" -gt 0 ] || {
+    rm -f "$FILE"
+    die "dump of ${ENGINE} produced nothing"
+  }
+}
+
 # archive_id ENGINE TAIL: print the eb<N> id of the tar $FILE; die unless every
 # member is a plain file or directory <id>/ + TAIL (an ERE) with no `..` part,
 # so unpacking stays in <id>/. awk drains each listing (`| head -n1` let tar die
@@ -128,7 +196,7 @@ mongo_dump() {
   local sel=""
   [ "${#DBS[@]}" -le 1 ] || die "mongo: one --db per dump (mongodump archives a single database)"
   [ "${#DBS[@]}" -eq 0 ] || sel=" --db=${DBS[0]}"
-  docker exec "$C" sh -c "mongodump --quiet --archive --gzip $mongo_auth$sel" >"$FILE"
+  docker exec "$C" sh -c "mongodump --quiet --archive --gzip $mongo_auth$sel"
 }
 mongo_restore() {
   docker exec "$C" sh -c 'command -v mongorestore >/dev/null' ||
@@ -160,7 +228,7 @@ crdb_dump() {
   [ "${#dbs[@]}" -gt 0 ] || mapfile -d '' -t dbs < <(crdb_names "SELECT encode(database_name::BYTES, 'hex') FROM [SHOW DATABASES] WHERE database_name NOT IN ('system','defaultdb','postgres')")
   [ "${#dbs[@]}" -gt 0 ] || die "cockroach has no user database to back up"
   crdb_sql "BACKUP DATABASE $(crdb_list "${dbs[@]}") INTO 'nodelocal://1/engine-backup/${STAMP}'" >/dev/null
-  docker exec "$C" tar -C /cockroach/cockroach-data/extern/engine-backup -cf - "$STAMP" >"$FILE"
+  docker exec "$C" tar -C /cockroach/cockroach-data/extern/engine-backup -cf - "$STAMP"
   docker exec "$C" rm -rf "/cockroach/cockroach-data/extern/engine-backup/${STAMP}"
 }
 crdb_restore() {
@@ -214,7 +282,7 @@ mssql_dump() {
   for d in "${dbs[@]}"; do
     mssql_sql "BACKUP DATABASE $(sql_ident "$d") TO DISK = $(sql_lit "${MSSQL_DIR}/${STAMP}/${d}.bak") WITH COPY_ONLY, INIT, FORMAT" >/dev/null
   done
-  docker exec "$C" tar -C "$MSSQL_DIR" -cf - "$STAMP" >"$FILE"
+  docker exec "$C" tar -C "$MSSQL_DIR" -cf - "$STAMP"
   docker exec "$C" rm -rf "${MSSQL_DIR:?}/${STAMP}"
 }
 # mssql_refuse_system NAME: die when NAME is master, model, msdb or tempdb in
@@ -244,14 +312,23 @@ mssql_restore() {
   return "$rc"
 }
 
+ARCHIVE="$FILE"
+if [ "$ACTION" = dump ]; then
+  seal_ready
+elif sealed; then
+  PLAIN=$(mktemp)
+  trap 'rm -f "$PLAIN"' EXIT
+  unseal <"$FILE" >"$PLAIN" || die "could not decrypt $FILE with BACKUP_AGE_IDENTITY_FILE (wrong identity?); nothing restored"
+  FILE="$PLAIN"
+fi
 case "${ENGINE}:${ACTION}" in
-mongo:dump) mongo_dump ;;
+mongo:dump) dump_to mongo_dump ;;
 mongo:restore) mongo_restore ;;
-cockroach:dump) crdb_dump ;;
+cockroach:dump) dump_to crdb_dump ;;
 cockroach:restore) crdb_restore ;;
-mssql:dump) mssql_dump ;;
+mssql:dump) dump_to mssql_dump ;;
 mssql:restore) mssql_restore ;;
 *) usage ;;
 esac
-[ "$ACTION" = restore ] || [ -s "$FILE" ] || die "dump of ${ENGINE} produced an empty ${FILE}"
-echo "engine-backup: ${ACTION} ${ENGINE} ${FILE}${DBS[*]:+ (${DBS[*]})}$([ "$DRY" = 1 ] && echo ' [dry-run]')"
+FILE="$ARCHIVE"
+echo "engine-backup: ${ACTION} ${ENGINE} ${FILE}${DBS[*]:+ (${DBS[*]})}$(sealed && echo ' [age]')$([ "$DRY" = 1 ] && echo ' [dry-run]')"

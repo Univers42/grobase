@@ -1,11 +1,21 @@
 #!/bin/bash
 # Take a backup and upload it to MinIO. Idempotent — each run uses a unique
 # timestamp-keyed object; old objects beyond PG_BACKUP_RETAIN_DAYS are pruned.
+# With BACKUP_AGE_RECIPIENTS set every artifact is age-encrypted first (age.sh):
+# the logical dump is piped through age and never reaches disk in the clear.
+#
+# Ponytail: the physical base is sealed only after pg_basebackup has written it,
+# so while a physical backup runs its plaintext tars sit in this container's
+# /tmp (Docker's overlay on the host). Mount a tmpfs at /tmp to keep them off disk.
 set -euo pipefail
+# shellcheck source=age.sh
+. "$(dirname "$0")/age.sh"
 
 : "${DATABASE_URL:?required}"
 : "${PG_BACKUP_BUCKET:?required}"
 : "${PG_BACKUP_PREFIX:?required}"
+
+if age_on; then age_ready; fi
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 TMP="$(mktemp -d)"
@@ -16,13 +26,19 @@ LOGICAL_FILE="${TMP}/postgres-${STAMP}.dump"
 echo "[pg-backup] $(date -u +%F\ %T) starting logical backup -> ${LOGICAL_FILE}"
 
 # Custom format (-Fc) is compressed and supports parallel restore.
-pg_dump --no-owner --no-privileges --format=custom \
-  --file="$LOGICAL_FILE" \
-  "$DATABASE_URL"
+if age_on; then
+  LOGICAL_FILE="${LOGICAL_FILE}.age"
+  pg_dump --no-owner --no-privileges --format=custom "$DATABASE_URL" |
+    age_encrypt -o "$LOGICAL_FILE"
+else
+  pg_dump --no-owner --no-privileges --format=custom \
+    --file="$LOGICAL_FILE" \
+    "$DATABASE_URL"
+fi
 
 echo "[pg-backup] dump complete ($(du -h "$LOGICAL_FILE" | cut -f1))"
 
-DEST_KEY="baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/logical/postgres-${STAMP}.dump"
+DEST_KEY="baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/logical/$(basename "$LOGICAL_FILE")"
 mc cp "$LOGICAL_FILE" "$DEST_KEY"
 echo "[pg-backup] uploaded to ${DEST_KEY}"
 
@@ -41,6 +57,9 @@ if [ "${PG_BACKUP_PHYSICAL:-0}" = "1" ]; then
 
   pg_basebackup -D "$PHYS_DIR" --format=tar --gzip --checkpoint=fast \
     --progress --no-password
+  if age_on; then
+    for f in "$PHYS_DIR"/*; do age_seal "$f"; done
+  fi
   for f in "$PHYS_DIR"/*; do
     mc cp "$f" "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/physical/base-${STAMP}/$(basename "$f")"
   done
