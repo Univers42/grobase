@@ -909,9 +909,16 @@ jobs:
       - name: Compile/enforce ${{ matrix.offer }}
         env:
           OFFER_RUN: ${{ matrix.run }}
+        # A registry 429 (public.ecr.aws anonymous pulls) is retried twice with
+        # backoff; any other failure fails at once.
         run: |
           set -o pipefail
-          bash -c "$OFFER_RUN" 2>&1 | tee /tmp/offer.log
+          for attempt in 1 2 3; do
+            bash -c "$OFFER_RUN" 2>&1 | tee /tmp/offer.log && exit 0
+            grep -qE '429 Too Many Requests|toomanyrequests' /tmp/offer.log && [ "$attempt" -lt 3 ] || exit 1
+            echo "::warning title=registry rate limit::offer attempt ${attempt} hit a 429; retrying in $((attempt * 60))s"
+            sleep $((attempt * 60))
+          done
 
       # A red offer names its cause in the (public) annotations: the first error
       # lines of the build and the runner's disk headroom.
