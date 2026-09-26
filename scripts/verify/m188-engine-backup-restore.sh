@@ -40,6 +40,13 @@
 #    cockroach: a database named  M188_<pid> "user"<TAB>x'y  backed up by      #
 #      hand and restored WITHOUT --db must come back under exactly that name.  #
 #                                                                              #
+#  Encrypted (age), on the first running engine: a dump with                   #
+#  BACKUP_AGE_RECIPIENTS starts with the age header; restoring it with no       #
+#  identity or the wrong one is refused and leaves the database absent; the    #
+#  right one brings the checksum back. Without a host age, a dump whose         #
+#  ENGINE_BACKUP_AGE_IMAGE does not exist must refuse and write no file. Needs #
+#  age on the host or in the local pg-backup image, else SKIPPED by name.       #
+#                                                                              #
 #  Mutant: M188_RESTORE_ARGS=--dry-run (manifest row engine-restore-dry)       #
 #  validates the archive and applies nothing: the restore "succeeds", the      #
 #  data is not there, and this gate must go red on the checksum.               #
@@ -51,6 +58,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 TOOL="${ROOT}/scripts/ops/engine-backup.sh"
 PREFIX="${ENGINE_BACKUP_PREFIX:-mini-baas}"
+AGE_IMAGE="${ENGINE_BACKUP_AGE_IMAGE:-ghcr.io/univers42/grobase-pg-backup:latest}"
 DB="m188_$$"
 HID="eb188$$"
 PROBE="m188probe_$$"
@@ -237,6 +245,80 @@ crdb_name_leg() {
   ok "cockroach: $(printf '%q' "${CRNAME}") restored without --db under exactly that name"
 }
 
+# age_keygen FILE: write a new age identity to FILE (host age-keygen, else the
+# image's); print its recipient.
+age_keygen() {
+  if command -v age-keygen >/dev/null; then
+    age-keygen -o "$1" 2>/dev/null
+  else
+    docker run --rm --pull=never --entrypoint age-keygen "${AGE_IMAGE}" 2>/dev/null >"$1"
+  fi
+  grep -o 'age1[0-9a-z]*' "$1" | head -n1
+}
+# age_restore_refused WANT FILE [ENV...]: restore FILE with ENV set; pass when it
+# fails saying WANT and the scratch database is still absent.
+age_restore_refused() {
+  local want="$1" file="$2" e="$3"
+  shift 3
+  if env "$@" bash "${TOOL}" restore "${e}" "${file}" --db "${DB}" >"${WORK}/age.log" 2>&1; then
+    bad "${e} encrypted: restore with $* succeeded"
+    return 1
+  fi
+  grep -qF -- "${want}" "${WORK}/age.log" || {
+    bad "${e} encrypted, $*: not refused by name — $(tail -n1 "${WORK}/age.log")"
+    return 1
+  }
+  case "$("${e}_sum" || true)" in 50\ *)
+    bad "${e} encrypted, $*: data landed anyway"
+    return 1
+    ;;
+  esac
+}
+# age_leg ENGINE: the encrypted round trip on ENGINE (see the header).
+age_leg() {
+  local e="$1" file="${WORK}/age.archive" rcpt before after
+  if ! command -v age >/dev/null && ! docker run --rm --pull=never --entrypoint age "${AGE_IMAGE}" --version >/dev/null 2>&1; then
+    skip "age: none on this host and no local ${AGE_IMAGE} with age — encrypted round trip skipped"
+    return 0
+  fi
+  rcpt=$(age_keygen "${WORK}/age-id.txt") && age_keygen "${WORK}/age-wrong.txt" >/dev/null && [ -n "${rcpt}" ] || {
+    bad "age-keygen failed"
+    return 1
+  }
+  "${e}_drop"
+  "${e}_seed" && before=$("${e}_sum") || {
+    bad "${e} encrypted: seed failed"
+    return 1
+  }
+  BACKUP_AGE_RECIPIENTS="${rcpt}" bash "${TOOL}" dump "${e}" "${file}" --db "${DB}" >"${WORK}/age.log" 2>&1 ||
+    {
+      bad "${e} encrypted: dump failed — $(tail -n1 "${WORK}/age.log")"
+      return 1
+    }
+  [ "$(head -c 21 "${file}")" = age-encryption.org/v1 ] || {
+    bad "${e} encrypted: the archive has no age header"
+    return 1
+  }
+  "${e}_drop"
+  age_restore_refused "is age-encrypted" "${file}" "${e}" BACKUP_AGE_IDENTITY_FILE= || return 1
+  age_restore_refused "could not decrypt" "${file}" "${e}" BACKUP_AGE_IDENTITY_FILE="${WORK}/age-wrong.txt" || return 1
+  BACKUP_AGE_IDENTITY_FILE="${WORK}/age-id.txt" bash "${TOOL}" restore "${e}" "${file}" --db "${DB}" >"${WORK}/age.log" 2>&1 || true
+  after=$("${e}_sum" || true)
+  [ "${after}" = "${before}" ] || {
+    bad "${e} encrypted: restored data differs — '${after:-<no data>}' — $(tail -n1 "${WORK}/age.log")"
+    return 1
+  }
+  ok "${e} encrypted: age header, refused without / with the wrong identity, the right one restores the checksum"
+  command -v age >/dev/null && return 0
+  rm -f "${file}"
+  if ENGINE_BACKUP_AGE_IMAGE=m188-no-such-image:none BACKUP_AGE_RECIPIENTS="${rcpt}" bash "${TOOL}" dump "${e}" "${file}" --db "${DB}" >"${WORK}/age.log" 2>&1 ||
+    [ -e "${file}" ] || ! grep -qF 'refusing to write a plaintext archive' "${WORK}/age.log"; then
+    bad "${e} encrypted: with no age reachable the dump did not refuse cleanly — $(tail -n1 "${WORK}/age.log")"
+    return 1
+  fi
+  ok "${e} encrypted: no age reachable, the dump refuses and writes no file"
+}
+
 step "0/3 preconditions"
 command -v docker >/dev/null 2>&1 || fail "docker is required"
 [ -x "${TOOL}" ] || [ -f "${TOOL}" ] || fail "${TOOL} not found"
@@ -290,6 +372,12 @@ for engine in mongo cockroach mssql; do
     bad "${engine}: restored data differs — before '${before}', after '${after:-<no data>}'"
     broken=$((broken + 1))
   fi
+done
+
+for engine in mongo cockroach mssql; do
+  running "${engine}" || continue
+  age_leg "${engine}" || broken=$((broken + 1))
+  break
 done
 
 step "2/3 hostile archives (id ${HID}, probe database ${PROBE})"

@@ -54,7 +54,8 @@ to MinIO/S3:
 | `PG_BACKUP_SCHEDULE` | `0 3 * * *` | cron — daily 03:00 |
 | `PG_BACKUP_BUCKET` / `PG_BACKUP_PREFIX` | `backups` / `postgres` | destination |
 | `PG_BACKUP_RETAIN_DAYS` | `14` | retention window |
-| `PG_BACKUP_PHYSICAL` | `0` | `1` = physical/WAL-based instead of `pg_dump` |
+| `PG_BACKUP_PHYSICAL` | `0` | `1` = also a physical `pg_basebackup` next to the `pg_dump` |
+| `BACKUP_AGE_RECIPIENTS` | unset | age public keys (comma separated): encrypt every artifact |
 
 ```sh
 # enable scheduled backups
@@ -72,10 +73,37 @@ Manual path (no MinIO): `docker/services/postgres/tools/backup.sh` (pg_dump -Fc)
 and `restore.sh`. `make restore-verify` runs the m47 gate, so "is my backup
 actually restorable" is a one-command answer you can put on a schedule.
 
-**Physical / WAL backups (D2):** `PG_BACKUP_PHYSICAL=1` switches to
-`pg_basebackup` + WAL instead of logical dumps — the base Postgres already runs
+**Physical / WAL backups (D2):** `PG_BACKUP_PHYSICAL=1` adds a
+`pg_basebackup` (+ WAL with `PG_BACKUP_PITR=1`) next to the logical dump — the base Postgres already runs
 `wal_level=logical` (the outbox slot needs it), which qualifies. Use it when
 restore-time beats portability; logical dumps stay the cross-version-safe default.
+
+**Encryption at rest:** set `BACKUP_AGE_RECIPIENTS` to one or more
+[age](https://age-encryption.org) public keys (`age-keygen` prints one) and
+pg-backup encrypts every artifact before it leaves the container — logical
+`*.dump.age` (streamed, never on disk in clear), each physical member, and WAL
+segments. `scripts/ops/engine-backup.sh` does the same for MongoDB, CockroachDB
+and SQL Server archives. Unset, backups stay plaintext and
+`preflight-production.sh` warns. Restoring needs the private key:
+
+```sh
+docker compose run --rm -v /secure/backup-age.key:/run/age.key:ro \
+  -e BACKUP_AGE_IDENTITY_FILE=/run/age.key pg-backup restore <key>.dump.age
+BACKUP_AGE_IDENTITY_FILE=/secure/backup-age.key \
+  scripts/ops/engine-backup.sh restore mongo mongo.archive
+```
+
+- Use **two recipients**: the one you restore with, and a break-glass key kept
+  offline. Lose every private key and every encrypted backup is gone.
+- The identity never goes in `.env`: pg-backup's backup modes refuse to start
+  with `BACKUP_AGE_IDENTITY_FILE` set, and the preflight refuses it (m194).
+- **Prove a restore before `PG_BACKUP_RETAIN_DAYS` has pruned the last
+  plaintext dump.** Restores read `.dump` and `.dump.age` alike, so the
+  changeover needs no migration.
+- Not covered: the per-tenant backups of `TENANT_BACKUP_ENABLED` (m87, a
+  separate Go path) are not encrypted by this setting.
+- Proof: `scripts/verify/m209-backup-encryption.sh` (pg-backup) and the
+  encrypted leg of `m188-engine-backup-restore.sh`.
 
 **Connection pooling (D4):** `supavisor` (profiles `pooler`/`extras`, opt-in —
 NOT default) is the transaction pooler for **managed/external Postgres** or very

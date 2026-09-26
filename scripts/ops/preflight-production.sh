@@ -32,6 +32,9 @@
 #                 decision with a cost this file cannot check.                 #
 #    containers   CONTAINER_NO_NEW_PRIVILEGES other than true is refused       #
 #                 unless CONTAINER_NO_NEW_PRIVILEGES_ACK=1 (then it warns).    #
+#    backups      BACKUP_AGE_RECIPIENTS unset WARNS (backups stay plaintext);  #
+#                 BACKUP_AGE_IDENTITY_FILE set is refused: the key that        #
+#                 decrypts every backup belongs to a one-off restore run.      #
 #  The file is PARSED, never sourced, with compose .env rules: `export `       #
 #  prefix, quotes, unquoted ` #` comments, last assignment wins. A value       #
 #  holding `${`, `$(` or an unquoted `$NAME` cannot be resolved here, and      #
@@ -245,12 +248,21 @@ function check_no_new_privileges(   v) {
 	flag("CONTAINER_NO_NEW_PRIVILEGES", "not true: every container may gain privileges through setuid or file caps (CONTAINER_NO_NEW_PRIVILEGES_ACK=1 to accept)")
 }
 
+# check_backups warns when backups are written in clear and refuses the age
+# identity in the service env file (pg-backup refuses to start with it, m209).
+function check_backups(   v) {
+	v = setting("BACKUP_AGE_RECIPIENTS", "")
+	if (v == "") warn("BACKUP_AGE_RECIPIENTS", "unset: pg-backup and engine-backup write plaintext backups")
+	if (setting("BACKUP_AGE_IDENTITY_FILE", "") != "") flag("BACKUP_AGE_IDENTITY_FILE", "set: the age identity belongs to a one-off restore run, never the service env file")
+}
+
 # END runs every check and prints the verdict; the exit code is the result.
 END {
 	for (i = 1; i <= ncred; i++) check_cred(CRED[i])
 	for (i = 1; i <= nopt; i++) check_opt(OPT[i])
 	check_settings()
 	check_no_new_privileges()
+	check_backups()
 	if (bad) {
 		printf "FAIL — %d offender(s); values are never printed.\n", bad
 		print "Engine root credentials apply at first boot only: rotate live volumes with scripts/ops/reconcile-credentials.sh."
