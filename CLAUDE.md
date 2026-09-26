@@ -217,7 +217,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **186 scripts, highest m206** (`m206-kong-admin-acl.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **187 scripts, highest m207** (`m207-edge-client-ip.sh`); the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -304,6 +304,9 @@ client→engine edges intact, and adapter-registry-go off the app bridge (`net-r
 printing a token) and that compose hands the previous token to every verifier; no stack needed.
 `m206` runs a throwaway Kong on the repo `kong.yml` and requires `acl baas-admin` on every
 ip-restricted route but `/studio`: the anon key gets the acl's 403, the service key passes (N-24).
+`m207` proves Kong behind the WAF sees the real client (N-23): prod/cloud set `KONG_TRUSTED_IPS`
+(base does not; `PROD_KONG_TRUSTED_IPS=` opts out), and a TEST-NET-3 client → WAF → Kong → echo run shows
+ip-restriction refusing it and no forged `X-Forwarded-*` reaching the upstream (a mutant WAF must leak).
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 

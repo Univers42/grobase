@@ -124,6 +124,13 @@ services:
       KONG_ADMIN_LISTEN: "off"
       KONG_ADMIN_GUI_LISTEN: "off"
       KONG_CORS_ORIGIN_DEV_LIST: "" # no localhost dev origin gets credentialed CORS (H-15)
+      # The WAF is the only public listener, so every client reaches Kong from a
+      # private bridge IP. Trusting those peers makes Kong take X-Real-IP (which
+      # the WAF sets from its own $remote_addr) as the client for ip-restriction
+      # and every limit_by: ip counter (N-23, gate m207). PROD_KONG_TRUSTED_IPS=
+      # opts out. A proxy in front of the WAF, or IPv6 through docker's userland
+      # proxy, makes the WAF see a private gateway IP: put real_ip in the WAF first.
+      KONG_TRUSTED_IPS: ${PROD_KONG_TRUSTED_IPS-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
 
   # ── app-plane guards: default OFF in the base, ON in production ────────────
   storage-router:
