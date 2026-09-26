@@ -138,6 +138,8 @@ services:
       # The identity file (0600, owned by uid 65532) is mounted into this service
       # only; unset, /dev/null is mounted and no identity is read.
       TENANT_BACKUP_AGE_IDENTITY_FILE: ${TENANT_BACKUP_AGE_IDENTITY_HOST_FILE:+/run/secrets/tenant-backup-age.key}
+      # Read at boot only to refuse an identity that opens the whole-cluster backups.
+      BACKUP_AGE_RECIPIENTS: ${BACKUP_AGE_RECIPIENTS:-}
       # Dynamic builder (BUILDER_ENABLED) — mounts the self-serve /v1/tenants/me*
       # builder routes AND the operator routes (PATCH /v1/tenants/{id}/ceiling,
       # PUT /v1/tenants/{id}/entitlement). OFF by default = byte-parity (routes 404,
@@ -146,7 +148,13 @@ services:
     ports:
       - "127.0.0.1:${TENANT_CONTROL_PORT:-3022}:3022"
     volumes:
-      - ${TENANT_BACKUP_AGE_IDENTITY_HOST_FILE:-/dev/null}:/run/secrets/tenant-backup-age.key:ro
+      # Long syntax so a mistyped host path fails instead of becoming an empty directory.
+      - type: bind
+        source: ${TENANT_BACKUP_AGE_IDENTITY_HOST_FILE:-/dev/null}
+        target: /run/secrets/tenant-backup-age.key
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       pg-migrate:
         condition: service_completed_successfully

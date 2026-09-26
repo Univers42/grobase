@@ -299,7 +299,7 @@ arm_backups() {
 }
 
 # arm_tenant_backups proves m87 tenant backups in clear only warn, a tenant
-# recipient shared with pg-backup's is refused, and an age private key in any
+# recipient shared with pg-backup's is refused (comma or tab separated), and an age private key in any
 # value is refused by name without being printed.
 arm_tenant_backups() {
   local pg sk
@@ -311,10 +311,11 @@ arm_tenant_backups() {
 TENANT_BACKUP_AGE_RECIPIENTS=age1$(rand 29)")"
   [ "${RC}" = 0 ] || fail "a distinct tenant recipient must pass — got ${RC}: ${OUT}"
   expect_fail "$(with_line tb-shared.env "TENANT_BACKUP_AGE_RECIPIENTS=age1$(rand 29), ${pg}")" TENANT_BACKUP_AGE_RECIPIENTS
+  expect_fail "$(with_line tb-shared-tab.env "TENANT_BACKUP_AGE_RECIPIENTS=age1$(rand 29)$(printf '\t')${pg}")" TENANT_BACKUP_AGE_RECIPIENTS
   sk="AGE-SECRET-KEY-1$(rand 20)"
   expect_fail "$(with_line tb-secret.env "M194_NOTE=${sk}")" M194_NOTE
   ! grep -qF "${sk}" <<<"${OUT}" || fail "the preflight printed an age private key"
-  ok "tenant backups in clear = advisory; a recipient shared with BACKUP_AGE_RECIPIENTS and an age private key in .env refused by name (key not printed)"
+  ok "tenant backups in clear = advisory; a recipient shared with BACKUP_AGE_RECIPIENTS (comma or tab) and an age private key in .env refused by name (key not printed)"
 }
 
 # arm_no_new_privileges proves CONTAINER_NO_NEW_PRIVILEGES=false is refused by

@@ -275,9 +275,9 @@ function check_backups(   v) {
 function check_tenant_backups(   v, n, i, a, pg) {
 	v = setting("TENANT_BACKUP_ENABLED", "0")
 	if (v ~ /^(1|true|yes|on)$/ && setting("TENANT_BACKUP_AGE_RECIPIENTS", "") == "") warn("TENANT_BACKUP_AGE_RECIPIENTS", "unset: per-tenant backups are written in clear")
-	n = split(VAL["BACKUP_AGE_RECIPIENTS"], a, /[ ,]+/)
+	n = split(VAL["BACKUP_AGE_RECIPIENTS"], a, /[[:space:],]+/)
 	for (i = 1; i <= n; i++) if (a[i] != "") pg[a[i]] = 1
-	n = split(VAL["TENANT_BACKUP_AGE_RECIPIENTS"], a, /[ ,]+/)
+	n = split(VAL["TENANT_BACKUP_AGE_RECIPIENTS"], a, /[[:space:],]+/)
 	for (i = 1; i <= n; i++) if (a[i] in pg) return flag("TENANT_BACKUP_AGE_RECIPIENTS", "shares a key with BACKUP_AGE_RECIPIENTS: the identity tenant-control holds would open every whole-cluster backup")
 }
 

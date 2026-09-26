@@ -26,29 +26,38 @@ func sealingService(t *testing.T, store ArtifactStore) *Service {
 	return &Service{store: store, seal: Sealer{recipients: []age.Recipient{rcpt}, identities: []age.Identity{id}}}
 }
 
-// TestFetchVerified: the ledger sha256 of the STORED bytes gates every restore —
-// missing, mismatched and swapped artifacts are refused; the match opens.
+// sealedRow is a completed ledger row for a sealed artifact holding stored.
+func sealedRow(stored []byte) restoreRow {
+	return restoreRow{location: "fake://t/b" + sealedSuffix, sha: shaHex(stored), size: int64(len(stored))}
+}
+
+// TestFetchVerified: the ledger sha256 and size of the STORED bytes gate every
+// restore — missing, mismatched, swapped and oversized artifacts are refused;
+// the match opens.
 func TestFetchVerified(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	store := newFakeStore()
 	s := sealingService(t, store)
 	own := sealWith(t, s.seal, []byte("own-rows"))
 	other := sealWith(t, s.seal, []byte("another-tenant-rows"))
+	unverified := sealedRow(own)
+	unverified.sha = ""
 	cases := []struct {
 		name    string
 		content []byte
-		want    string
+		row     restoreRow
 		err     error
 	}{
-		{"match", own, shaHex(own), nil},
-		{"no ledger sha", own, "", ErrArtifactUnverified},
-		{"tampered", append(bytes.Clone(own[:len(own)-1]), own[len(own)-1]^1), shaHex(own), nil},
-		{"swapped for another sealed artifact", other, shaHex(own), ErrArtifactIntegrity},
+		{"match", own, sealedRow(own), nil},
+		{"no ledger sha", own, unverified, ErrArtifactUnverified},
+		{"tampered", append(bytes.Clone(own[:len(own)-1]), own[len(own)-1]^1), sealedRow(own), nil},
+		{"swapped for another sealed artifact", other, sealedRow(own), ErrArtifactIntegrity},
+		{"longer than the ledger size", append(bytes.Clone(own), 'x'), sealedRow(own), ErrArtifactIntegrity},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			store.content = tc.content
-			got, err := s.fetchVerified(context.Background(), "k", tc.want)
+			got, err := s.fetchVerified(context.Background(), "k", tc.row)
 			switch {
 			case tc.name == "tampered":
 				if err == nil {
@@ -63,6 +72,34 @@ func TestFetchVerified(t *testing.T) {
 	}
 }
 
+// endlessStore serves an artifact that never ends.
+type endlessStore struct{ earlyStore }
+
+func (endlessStore) Download(_ context.Context, _ string, w io.Writer) error {
+	_, err := io.Copy(w, zeroReader{})
+	return err
+}
+
+// zeroReader yields zero bytes forever.
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) { clear(p); return len(p), nil }
+
+// TestFetchVerifiedBoundedRead: an artifact far past its ledger size is refused
+// after size+1 bytes instead of being buffered, on parity and sealing services.
+func TestFetchVerifiedBoundedRead(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	for _, s := range []*Service{{store: endlessStore{}}, sealingService(t, endlessStore{})} {
+		row := restoreRow{location: "fake://t/b", sha: shaHex(nil), size: 1 << 10}
+		if s.seal.sealing() {
+			row.location += sealedSuffix
+		}
+		if _, err := s.fetchVerified(context.Background(), "k", row); !errors.Is(err, ErrArtifactIntegrity) {
+			t.Fatalf("fetchVerified(endless, sealed=%v) = %v, want ErrArtifactIntegrity", row.sealed(), err)
+		}
+	}
+}
+
 // TestFetchVerifiedEarlyRefusalNoLeak: a refusal before the artifact is read
 // through must still unblock and await the download goroutine.
 func TestFetchVerifiedEarlyRefusalNoLeak(t *testing.T) {
@@ -70,7 +107,8 @@ func TestFetchVerifiedEarlyRefusalNoLeak(t *testing.T) {
 	store := newFakeStore()
 	store.content = bytes.Repeat([]byte("p"), 1<<20)
 	s := sealingService(t, store)
-	if _, err := s.fetchVerified(context.Background(), "k", shaHex(store.content)); !errors.Is(err, ErrPlaintextArtifact) {
+	row := restoreRow{location: "fake://t/b", sha: shaHex(store.content), size: int64(len(store.content))}
+	if _, err := s.fetchVerified(context.Background(), "k", row); !errors.Is(err, ErrPlaintextArtifact) {
 		t.Fatalf("fetchVerified = %v, want ErrPlaintextArtifact", err)
 	}
 }
