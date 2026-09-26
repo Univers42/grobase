@@ -209,6 +209,7 @@ impl EngineAdapter for MysqlEngineAdapter {
         let opts: Opts = OptsBuilder::from_opts(base_opts)
             .pool_opts(pool_opts)
             .into();
+        crate::tls::ensure_crypto_provider();
         let pool = Pool::new(opts);
 
         // schema_per_tenant: the engine-neutral scope directive selects a
