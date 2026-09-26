@@ -53,9 +53,29 @@ pub(crate) fn reject_insecure_tls(
     Ok(())
 }
 
+/// Install ring as rustls's process-wide crypto provider (idempotent: `Err` means one is
+/// already installed). A build linking both ring and aws-lc-rs (`--features dynamodb`)
+/// leaves rustls no default, so a driver calling `ClientConfig::builder()` (mysql_async
+/// 0.37, on a TLS mount) panics on connect. Every other TLS path passes its provider.
+#[cfg(feature = "mysql")]
+pub(crate) fn ensure_crypto_provider() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The exact call mysql_async makes for a TLS mount. Only a `--features dynamodb`
+    /// build (ring + aws-lc-rs) panics without `ensure_crypto_provider`.
+    #[cfg(feature = "mysql")]
+    #[test]
+    fn tls_client_config_builds_once_provider_is_installed() {
+        ensure_crypto_provider();
+        let _ = rustls::ClientConfig::builder()
+            .with_root_certificates(rustls::RootCertStore::empty())
+            .with_no_client_auth();
+    }
 
     const MONGO_BAD: &[&str] = &["tlsinsecure=true", "tlsallowinvalidcertificates=true"];
 
