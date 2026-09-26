@@ -29,6 +29,7 @@
 
 # ── builder: fetch + verify the static binary + stage busybox/CA/home ────────
 FROM alpine:3.21 AS build
+SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
 ARG MC_RELEASE=RELEASE.2025-04-08T15-39-49Z
 # dl.min.io answers 410 for every release path now — see the minio image for the
 # same change. Pinned and checksum-verified from the project's GitHub release.
