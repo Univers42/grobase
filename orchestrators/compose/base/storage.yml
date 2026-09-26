@@ -18,7 +18,11 @@ services:
       start_period: 15s
       retries: 5
     profiles: [storage, extras]
-    env_file: [.env]
+    # Only its own variables, never the platform .env (JWT_SECRET, service tokens);
+    # operator engine settings (MINIO_*, TZ, …) go in the optional .env.engines.
+    env_file:
+      - path: .env.engines
+        required: false
     command: server /data --console-address ":9001"
     ports:
       - "${ENGINE_BIND_ADDR:-127.0.0.1}:${MINIO_API_PORT:-9000}:9000"
