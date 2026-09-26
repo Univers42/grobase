@@ -14,8 +14,8 @@
 // sync — the fly token-exchange side of the Vercel-relay topology. It holds the App
 // private key (a runtime secret), mints short-lived installation tokens JUST IN TIME
 // (never persisted), and stores ONLY the org↔installation↔user linkage. It maps a
-// GitHub org's repos/teams/members into the vault42 org/RBAC model (delegating to
-// orgs + teams), with GitHub the source of truth for structure and vault42 the final
+// GitHub org's repos/teams/members into the org/RBAC model (delegating to
+// orgs + teams), with GitHub the source of truth for structure and the org's own grants the final
 // authority.
 //
 // CONTROL-PLANE ONLY (never enters the data plane). FLAG-GATED OFF = PARITY: the
@@ -121,7 +121,7 @@ type DeviceStart struct {
 	Interval        int    `json:"interval"`
 }
 
-// SyncSummary reports what a github sync mapped into the vault42 model.
+// SyncSummary reports what a github sync mapped into the org/RBAC model.
 type SyncSummary struct {
 	Teams       int `json:"teams"`
 	Members     int `json:"members"`

@@ -18,9 +18,9 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/teams"
 )
 
-// sync.go — map a GitHub org's structure into the vault42 model: members → org
+// sync.go — map a GitHub org's structure into the org/RBAC model: members → org
 // members, teams → teams, team membership → team membership. GitHub is the source of
-// truth for STRUCTURE; vault42 owns the final RBAC. Every write is idempotent (re-sync
+// truth for STRUCTURE; the org's own grants are the final RBAC. Every write is idempotent (re-sync
 // converges). A member's GoTrue subject is the deterministic githubSubject(id), so a
 // later `auth login --github` resolves to the SAME subject.
 //

@@ -21,7 +21,7 @@ import (
 )
 
 // mountPubkeys mounts the member X25519 pubkey registry + the grant-fulfilment seam
-// (USER_PUBKEYS_ENABLED) — the bridge to the vault42 zero-knowledge crypto plane. It needs
+// (USER_PUBKEYS_ENABLED) — the bridge to a zero-knowledge client that holds the keys. It needs
 // orgs (membership) + RBAC hierarchy (grants), so it requires RBAC_HIERARCHY_ENABLED +
 // ORG_MODEL_ENABLED. OFF ⇒ no /v1/orgs/{id}/pubkey, /users/{id}/pubkey, /grants/{id}/wraps,
 // or /grants/{id}/fulfilled routes (404 = byte-parity).

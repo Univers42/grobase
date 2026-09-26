@@ -89,7 +89,7 @@ func (s *Service) DeleteEnvironment(ctx context.Context, projectID, envID string
 	return nil
 }
 
-// SetScopeKey publishes (or rotates) the env's vault42 scope PUBLIC key + epoch (ErrNotFound
+// SetScopeKey publishes (or rotates) the env's X25519 scope PUBLIC key + epoch (ErrNotFound
 // when the env is absent in projectID).
 func (s *Service) SetScopeKey(ctx context.Context, projectID, envID, pubkey string, epoch int) (Environment, error) {
 	var e Environment
