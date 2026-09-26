@@ -185,7 +185,9 @@ make tests                    # the WHOLE matrix (100-test.mk), green/red summar
 make prettiers | prettiers-check   # every language's canonical formatter in Docker (gofumpt, cargo fmt,
                               #   prettier, shfmt -i 2); -check is the CI no-write variant
 make prod-up | prod-down      # SELF-HOSTED production (the live target): preflight-production refuses a
-                              #   dev .env, then EDITION/PACKAGE + docker-compose.prod.yml (no resolve-ports)
+                              #   dev .env, then EDITION/PACKAGE + docker-compose.prod.yml + the netseg
+                              #   overlay (PROD_NETSEG=0 drops it; no resolve-ports)
+make up NETSEG=1              # dev stack with engines + vault off the app bridge (netseg overlay, m66)
 make fly-status|fly-logs|fly-deploy|fly-ssh|fly-backup   # fly.io — RETIRED, kept (85-fly.mk);
                               #   fly-destroy / vercel-remove need CONFIRM=1 — irreversible, ask first
 ```
@@ -295,6 +297,9 @@ unique, 035 the one historical group), so `make migrate-status` shows what a dep
 Kong show in Kong's and query-router's 401 counters, as `event_type=auth_failure` log lines, in the
 `platform-security` alert expressions and as a Loki label. `m52` (promtool rules + config + the rule
 unit tests in `infra/config/prometheus/tests/`) needs no stack and runs in CI's lint job.
+`m66` renders every service with the netseg overlay (dev and prod stacks): engines only on `net-data`,
+vault only on `net-vault`, kong/waf/scrapers/functions sharing no bridge with them, and each of the 64
+client→engine edges intact. It probes a running `NETSEG=1` stack too.
 `m205` proves `scripts/ops/rotate-service-token.sh` (begin → swap → finish on `.env.secrets`, never
 printing a token) and that compose hands the previous token to every verifier; no stack needed.
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
@@ -361,7 +366,7 @@ old single-file monolith was split into these. Beyond that base, additive overla
 | `docker-compose.cloud.yml`         | Managed-cloud: turns Track-B feature flags **ON** (`make cloud-up`) |
 | `docker-compose.pooler.yml`        | Connection pooler (supavisor) — Track-C / C1                        |
 | `docker-compose.scale.yml`         | 10K-tenant scale experiment (raises `max_connections` — costly)     |
-| `docker-compose.netseg.yml`        | Per-plane network segmentation                                      |
+| `docker-compose.netseg.yml`        | Engines + vault off the app bridge (`NETSEG=1`, default in prod-up) |
 | `docker-compose.graphql.yml`       | GraphQL edition (A5)                                                |
 | `docker-compose.prod.yml`          | Production: no dev ports, resource limits                           |
 | `docker-compose.ci.yml`            | CI shape                                                            |

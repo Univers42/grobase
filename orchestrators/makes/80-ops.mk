@@ -86,7 +86,10 @@ cloud-down: _require-compose _require-cloud-flags ## Stop the cloud edition (ove
 # Self-hosted production: the selected EDITION/PACKAGE with the prod overlay on top
 # (no dev ports, prod security values). The preflight refuses an .env that still
 # carries dev credentials; no resolve-ports — a taken port must fail, not move.
-PROD_FILES := -f $(COMPOSE_FILE) -f orchestrators/compose/docker-compose.prod.yml
+# The netseg overlay (engines + vault off the app bridge, m66) is on by default;
+# PROD_NETSEG=0 drops it.
+PROD_NETSEG ?= 1
+PROD_FILES := -f $(COMPOSE_FILE) -f orchestrators/compose/docker-compose.prod.yml$(if $(filter 1,$(PROD_NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)
 
 prod-up: _require-compose ## Self-hosted production: preflight the .env (refuse dev creds), then up with the prod overlay
 	@[ -f .env ] || { echo -e "$(_R)✗ .env missing$(_0) — run $(_C)make env$(_0), then replace every secret before a production bring-up."; exit 1; }

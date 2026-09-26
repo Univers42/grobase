@@ -20,7 +20,10 @@ IMAGE_TAG      ?= latest
 REGISTRY       ?= localhost:5000
 SERVICE        ?=
 STEPS          ?= 1
-DC             := docker compose -f $(COMPOSE_FILE)
+# NETSEG=1 composes the network-segmentation overlay (engines + vault off the
+# app bridge; proof: scripts/verify/m66-netseg.sh).
+NETSEG         ?=
+DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)
 
 # Colors
 _B := \033[0;34m
