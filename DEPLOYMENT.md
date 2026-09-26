@@ -224,6 +224,6 @@ production surface for v1.0; the chart is for evaluation.
   `.env.engines`, which every engine loads.
 - Kong does not load `.env` either: it gets `JWT_SECRET`, the two API keys and the CORS origins
   by name (m212). Kong settings you set in `.env` (`KONG_LOG_LEVEL`, `KONG_NGINX_*`, …) now go
-  in the optional `.env.kong`.
+  in the optional `.env.kong`. Studio and pg-meta likewise load only `.env.studio` / `.env.pg-meta`.
 - Vault is OPTIONAL (profile `control-plane`): `make vault-init`, `make vault-rotate GROUP=…`.
 - `make check-secrets` scans the tree for accidental hardcoded secrets.
