@@ -432,9 +432,22 @@ jobs:
         run: FORCE=1 bash scripts/env/generate-env.sh .env
 
       - name: Build app images (validates the lightweight layer)
+        id: appbuild
+        env:
+          RETRY_429_LOG: /tmp/app-build.log
+        # A registry 429 (anonymous base-image pulls) is retried twice with
+        # backoff; any other failure fails at once.
         run: |
           read -ra svcs <<<"$APP_SVCS"
-          docker compose -f docker-compose.yml build "${svcs[@]}"
+          bash scripts/ci/retry-on-429.sh docker compose -f docker-compose.yml build "${svcs[@]}"
+
+      # A red build names its cause in the (public) annotations.
+      - name: Explain a failed app-image build
+        if: failure() && steps.appbuild.outcome == 'failure'
+        run: |
+          why=$(grep -E '^ > \[|^ERROR|failed to solve|toomanyrequests|error(\[|:)|No space left|timed out' /tmp/app-build.log | tail -n 4 | tr '\n' ' ' | cut -c1-900)
+          disk=$(df -h / | awk 'NR==2 {print $4 " free of " $2}')
+          echo "::error title=app image build failed::${why:-no error line matched; see log} | disk: ${disk}"
 
       - name: Log in to GHCR + push (main only)
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
