@@ -9,7 +9,10 @@
 # NOTE: every workspace member's Cargo.toml must be COPY'd below — add new
 # crates here or the stub build cannot resolve the workspace graph.
 # ─────────────────────────────────────────────────────────────────────────────
-FROM public.ecr.aws/docker/library/rust:1.96-slim-bookworm@sha256:e18a79fc84dfcfc3ab5ba72290398a644c135c97eaa881447fddc354ee4701a3 AS deps
+# Docker official images; mirror.gcr.io serves Docker Hub's digests without
+# public.ecr.aws's anonymous data cap (public.ecr.aws/docker/library works too).
+ARG BASE_REGISTRY=mirror.gcr.io/library
+FROM ${BASE_REGISTRY}/rust:1.96-slim-bookworm@sha256:e18a79fc84dfcfc3ab5ba72290398a644c135c97eaa881447fddc354ee4701a3 AS deps
 WORKDIR /build
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

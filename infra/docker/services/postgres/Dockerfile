@@ -2,7 +2,10 @@
 # File: docker/services/postgres/Dockerfile
 # PostgreSQL 16 Alpine with pg_net extension (required by GoTrue webhooks / Supabase).
 
-FROM public.ecr.aws/docker/library/postgres:16-alpine AS pg_net_builder
+# Docker official images; mirror.gcr.io serves Docker Hub's digests without
+# public.ecr.aws's anonymous data cap (public.ecr.aws/docker/library works too).
+ARG BASE_REGISTRY=mirror.gcr.io/library
+FROM ${BASE_REGISTRY}/postgres:16-alpine AS pg_net_builder
 
 ARG PG_NET_VERSION=0.14.0
 ARG MYSQL_FDW_VERSION=2_9_2
@@ -52,7 +55,7 @@ RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
   && apk del .pgvector-build-deps \
   && rm -rf /tmp/pgvector* /var/cache/apk/*
 
-FROM public.ecr.aws/docker/library/postgres:16-alpine AS postgres_runtime
+FROM ${BASE_REGISTRY}/postgres:16-alpine AS postgres_runtime
 
 ARG MYSQL_FDW_VERSION=2_9_2
 ARG MONGO_FDW_VERSION=5_5_1

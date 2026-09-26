@@ -39,7 +39,7 @@ Direct (no make) — same container, useful for a custom fixture:
 ```bash
 docker run --rm -u "$(id -u):$(id -g)" \
   -v "$PWD/scripts/bench":/b -v "$PWD/artifacts":/b/artifacts \
-  -w /b public.ecr.aws/docker/library/node:22-bookworm \
+  -w /b mirror.gcr.io/library/node:22-bookworm \
   node compare-report.mjs --data /b/compare-data.json --out /b/artifacts/bench/compare
 ```
 
@@ -156,7 +156,7 @@ cat > /tmp/sample.json <<'EOF'
       "grobase-nano": { "y": [2.1,2.3,2.6], "source": "modeled", "note": "extrapolation" } } } ] }
 EOF
 docker run --rm -v "$PWD/scripts/bench":/b -v /tmp:/tmp -w /b \
-  public.ecr.aws/docker/library/node:22-bookworm \
+  mirror.gcr.io/library/node:22-bookworm \
   node compare-report.mjs --data /tmp/sample.json --out /tmp/cmpout
 # expect: exit 0, /tmp/cmpout/{index.html,report.md,charts/*.svg}
 ```

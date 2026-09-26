@@ -125,7 +125,7 @@ if ! docker run --rm \
   -v "${REPO_ROOT}/${SDK_DIR}:/work" \
   -w /work \
   -u "$(id -u):$(id -g)" \
-  public.ecr.aws/docker/library/node:22-alpine \
+  mirror.gcr.io/library/node:22-alpine \
   sh -ec 'npx --yes -p typescript@5.8.3 tsc -p tsconfig.typecheck.json' >/dev/null 2>&1; then
   fail "tsc --noEmit failed — either a real type error, or a @ts-expect-error line that no longer errors"
 fi

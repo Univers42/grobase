@@ -24,6 +24,9 @@ ARG ALPINE_VERSION=3.21
 ARG SUPAVISOR_VERSION=v2.7.4
 
 # ─── Stage 1: build the Elixir release ───────────────────────────
+# Docker official images; mirror.gcr.io serves Docker Hub's digests without
+# public.ecr.aws's anonymous data cap (public.ecr.aws/docker/library works too).
+ARG BASE_REGISTRY=mirror.gcr.io/library
 FROM ${ELIXIR_IMAGE} AS build
 ARG SUPAVISOR_VERSION
 ENV MIX_ENV=prod
@@ -84,7 +87,7 @@ RUN --mount=type=cache,target=/root/.cargo,sharing=locked \
 RUN mix release supavisor
 
 # ─── Stage 2: minimal Alpine runtime ─────────────────────────────
-FROM public.ecr.aws/docker/library/alpine:${ALPINE_VERSION} AS runtime
+FROM ${BASE_REGISTRY}/alpine:${ALPINE_VERSION} AS runtime
 # The BEAM release ships its own ERTS; it only needs these C shared libs.
 # bash: the limits wrapper uses it (upstream limits.sh is a bash script).
 RUN apk add --no-cache ncurses-libs libstdc++ libgcc openssl bash
