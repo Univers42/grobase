@@ -16,6 +16,8 @@
 #             passwords / last-wins / ${..} = UNKNOWN / realtime warn-only     #
 #    advisory SECURITY_MODE / API_KEY_ABAC_ENABLED / DATA_PLANE_RATELIMIT_     #
 #             BACKEND at dev values or unset -> exit 0 + one `!` line each     #
+#    nnp      CONTAINER_NO_NEW_PRIVILEGES=false -> exit 1 named; with          #
+#             CONTAINER_NO_NEW_PRIVILEGES_ACK=1 -> exit 0 + `!` line (m208)    #
 #    source   `$(touch ...)` in a value is never executed                      #
 #    drift    every credential `:-literal` fallback in compose/base/*.yml,     #
 #             set as its literal or left unset, is named -> the denylist       #
@@ -275,6 +277,20 @@ arm_advisories() {
   ok "SECURITY_MODE, API_KEY_ABAC_ENABLED, DATA_PLANE_RATELIMIT_BACKEND: dev value or unset = advisory only (exit 0)"
 }
 
+# arm_no_new_privileges proves CONTAINER_NO_NEW_PRIVILEGES=false is refused by
+# name, accepted with a warning under CONTAINER_NO_NEW_PRIVILEGES_ACK=1, and
+# that true (or unset, in hardened.env) passes silently.
+arm_no_new_privileges() {
+  expect_fail "$(with_line nnp-off.env 'CONTAINER_NO_NEW_PRIVILEGES=false')" CONTAINER_NO_NEW_PRIVILEGES
+  run_pf "$(with_line nnp-ack.env "$(printf 'CONTAINER_NO_NEW_PRIVILEGES=false\nCONTAINER_NO_NEW_PRIVILEGES_ACK=1')")"
+  [ "${RC}" = 0 ] || fail "an acknowledged CONTAINER_NO_NEW_PRIVILEGES=false must only warn — got ${RC}"
+  grep -q '^  ! CONTAINER_NO_NEW_PRIVILEGES ' <<<"${OUT}" || fail "no warning line for an acknowledged opt-out"
+  run_pf "$(with_line nnp-on.env 'CONTAINER_NO_NEW_PRIVILEGES=true')"
+  [ "${RC}" = 0 ] || fail "CONTAINER_NO_NEW_PRIVILEGES=true must pass — got ${RC}"
+  ! grep -q 'CONTAINER_NO_NEW_PRIVILEGES' <<<"${OUT}" || fail "CONTAINER_NO_NEW_PRIVILEGES=true must not be mentioned"
+  ok "CONTAINER_NO_NEW_PRIVILEGES: false refused, false + ACK=1 warns, true silent (m208)"
+}
+
 # arm_parser_pass proves last-wins, single-quoted literals, inline comments
 # and a non-deny realtime fallback do not fail a hardened env.
 arm_parser_pass() {
@@ -382,6 +398,7 @@ step "(d) parser semantics"
 arm_parser_fail
 arm_parser_pass
 arm_advisories
+arm_no_new_privileges
 step "(e) never sourced"
 arm_source
 step "(f) drift against compose defaults"

@@ -205,6 +205,7 @@ services:
     profiles: [functions, extras]
     container_name: mini-baas-functions-relay
     restart: unless-stopped
+    security_opt: ["no-new-privileges:${CONTAINER_NO_NEW_PRIVILEGES:-true}"] # no extends: base's, by hand
     entrypoint:
       [
         "deno",
