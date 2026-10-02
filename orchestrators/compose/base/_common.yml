@@ -38,7 +38,9 @@ services:
   # applies. The NestJS services extend it and list their own reads instead of
   # loading the whole .env (gate m212 holds them to it). Never list a name the
   # image sets (APP_NAME, NODE_ENV): an unset pass-through UNSETS the image's
-  # ENV of that name, and m212 refuses that on a running stack.
+  # ENV of that name, and m212 refuses that on a running stack. JWT_SECRET and
+  # JWT_SECRET_PREV are not here: each service that verifies tokens lists them
+  # itself, so a service that never verifies one holds no signing key (m210).
   ts-base:
     extends: { service: base }
     environment:
@@ -63,8 +65,6 @@ services:
       INTERNAL_SERVICE_TOKEN:
       JWT_ALLOW_NO_EXP:
       JWT_ALLOW_NO_ISSUER:
-      JWT_SECRET:
-      JWT_SECRET_PREV:
       LOG_LEVEL:
       LOG_SERVICE_URL:
       MONGO_DB_NAME:
