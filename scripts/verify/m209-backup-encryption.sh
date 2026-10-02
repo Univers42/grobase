@@ -78,7 +78,9 @@ marker() { psql_pg 'SELECT v FROM m209_marker' m209_target 2>/dev/null; }
 reset_target() { psql_pg 'DROP DATABASE IF EXISTS m209_target' >/dev/null 2>&1 && psql_pg 'CREATE DATABASE m209_target' >/dev/null; }
 
 # boot builds the image and starts postgres (replication allowed, a marker row)
-# and MinIO, and makes the age identities.
+# and MinIO, and makes the age identities. Postgres readiness is probed over TCP:
+# the image's temporary init server answers the unix socket but not TCP, and a
+# query that lands on it fails once it shuts down to restart (seen in CI).
 boot() {
   step "0 ${IMG} (built from current source unless M209_IMAGE names one); scratch postgres + MinIO"
   [ -n "${M209_IMAGE:-}" ] || docker build -q -t "${IMG}" "${PGB}" >/dev/null || fail "pg-backup image build failed"
@@ -88,7 +90,10 @@ boot() {
     -c wal_level=replica >/dev/null || fail "postgres did not start"
   docker run -d --name "${N}-minio" --network "${N}" -e MINIO_ROOT_USER=m209 -e MINIO_ROOT_PASSWORD="${PW}" \
     "${MINIO_IMAGE}" server /tmp/m209 >/dev/null || fail "minio did not start"
-  for _ in $(seq 60); do psql_pg 'SELECT 1' >/dev/null 2>&1 && break || sleep 1; done
+  for _ in $(seq 60); do
+    docker exec "${N}-pg" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1 &&
+      [ "$(psql_pg 'SELECT 1' 2>/dev/null)" = 1 ] && break || sleep 1
+  done
   psql_pg "CREATE TABLE m209_marker (v text); INSERT INTO m209_marker VALUES ('m209-$$')" >/dev/null || fail "seed failed"
   docker exec "${N}-pg" sh -c 'echo "host replication all all scram-sha-256" >>"$PGDATA/pg_hba.conf"' &&
     psql_pg 'SELECT pg_reload_conf()' >/dev/null || fail "pg_hba replication line"
