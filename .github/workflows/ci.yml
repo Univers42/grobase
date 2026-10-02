@@ -111,6 +111,9 @@ jobs:
   docker-build:
     name: Build ${{ matrix.service }}
     runs-on: ubuntu-latest
+    # Measured 0.5–1.2 min warm; a cold data-plane-router build is ~7.4 min. A lost
+    # runner otherwise burns the 45-min default before the job fails (2026-10-02).
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
