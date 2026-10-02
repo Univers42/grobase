@@ -45,9 +45,14 @@ docker restart mini-baas-minio mini-baas-realtime
 ```
 
 The restore is idempotent (drop-and-replace) and only touches the engines whose
-containers are running. The primary osionos login is **dev.pro.photo /
-`Osionos123!`**; other tenants' accounts come from the same datasets (agency,
-gourmand, red-tetris, …) — see `../scripts/seed/` for the generators.
+containers are running. The primary osionos login is **dev.pro.photo@gmail.com**;
+other tenants' accounts come from the same datasets (agency, gourmand, red-tetris, …)
+— see `../scripts/seed/` for the generators.
+
+The password inside the snapshot is an old, published one. In the groot monorepo, `make all`
+replaces it with a per-machine `DEMO_LOGIN_PASSWORD` (generated into
+`./.env.local`) right after the restore; `make demo-login` prints it. After a manual
+restore, run `make demo-login-ensure` from the groot root to apply it.
 
 ## Regenerate the snapshot (after changing the data)
 
