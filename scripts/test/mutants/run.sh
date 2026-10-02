@@ -240,6 +240,7 @@ while IFS=$'\t' read -r id kind suite means <&3; do
   if ! run_suite "$suite"; then
     baseline=$((baseline + 1))
     printf '%sBASELINE%s %s — the suite was already failing; the mutant proves nothing\n' "$C_Y" "$C_0" "$id"
+    tail -n 20 "$TMP/out" | sed 's/^/    | /'
     printf '%s\t%s\t%s\tBASELINE\t%s\n' "$id" "$kind" "$suite" "$means" >>"$TMP/rows"
     continue
   fi
