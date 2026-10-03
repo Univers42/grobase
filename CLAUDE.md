@@ -219,7 +219,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **192 scripts, highest m212** (`m212-service-env-scope.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **193 scripts, highest m213** (`m213-query-execute-route.sh`); the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -331,6 +331,9 @@ stack each engine's runtime env and PID 1 environ hold no `JWT_SECRET`/`SERVICE_
 NestJS services, which extend `_common.yml`'s `ts-base`): each lists the keys it reads in `environment`, loads only its
 optional `.env.<service>`, still receives its needed key under every overlay, a kong-loads-`.env` mutant is caught, a
 running one holds no `.env` key it does not read, and no running container's unset pass-through unsets an image `ENV`.
+`m213` proves the public spec's `POST /query/v1/execute` (`queryExecute`, what every SDK's query call
+posts) is served through Kong: an unknown sibling path answers 404, the route answers its AuthGuard's 401
+(static leg + live leg under `M213_REQUIRE=1` in CI). It answered 404 until 2026-10-03.
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 
