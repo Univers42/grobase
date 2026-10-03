@@ -71,8 +71,9 @@ Other planes' single-test forms are in `CLAUDE.md`. A gate that passes vacuously
 - **Agents:** `devil` (risk verdict before risky work), `architect`, `security`,
   `reviewer`, `builder`, `forger`, `innovator`, `benchmarker`, `compat-tester`,
   `norminette`, `documenter`.
-- **MCP servers** (opt-in: no `.mcp.json` is committed; the upstream `Univers42/claude-deal-with-the-devil` declares them): `grafana` and `postgres` are read-only views of the
-  **local** stack (Prometheus/Loki queries, schema/EXPLAIN) via `scripts/ops/mcp-server.sh`;
+- **MCP servers** (the root `.mcp.json` is committed; four come from the kit's `templates/mcp.json`,
+  two are grobase's own): `grafana` and `postgres` are read-only views of the
+  **running local** stack (Prometheus/Loki queries, schema/EXPLAIN) via `scripts/ops/mcp-server.sh`;
   `playwright` drives a browser; `context7`/`deepwiki` fetch library docs;
   `supermemory` sends what you store to supermemory.ai — never store secrets there.
 
@@ -93,5 +94,6 @@ Other planes' single-test forms are in `CLAUDE.md`. A gate that passes vacuously
 - In a Claude Code shell, `grep` is a wrapper that **skips gitignored files**; use
   `/usr/bin/grep` when you need to search `.env*`, `artifacts/` or other ignored paths.
 - `src/coverage/` is generated HTML — exclude it from searches.
-- Hooks and permissions live in `.claude/settings.json`; changes there are applied by a
+- Permissions, the empty commit/PR `attribution` and the `devil` plugin live in `.claude/settings.json`
+  (seeded by the kit's `setup`); changes there are applied by a
   human, not by an agent.
