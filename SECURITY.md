@@ -10,13 +10,13 @@ production-grade. Layered design: **if one layer fails, the next still holds.**
 | Layer | Mechanism | Where |
 |---|---|---|
 | **Perimeter** | nginx + ModSecurity + OWASP CRS WAF filters before anything else | `waf` service |
-| **Gateway** | Kong (DB-less, config in Git): key-auth, JWT validation (HS256, algorithm pinned), per-route rate limits, CORS, `X-Request-ID`, security headers (HSTS 2y, X-Frame-Options DENY) | `docker/services/kong/conf/kong.yml` |
+| **Gateway** | Kong (DB-less, config in Git): key-auth, JWT validation (HS256, algorithm pinned), per-route rate limits, CORS, `X-Request-ID`, security headers (HSTS 2y, X-Frame-Options DENY) | `infra/docker/services/kong/conf/kong.yml` |
 | **Identity** | GoTrue issues JWTs; refresh tokens live in `HttpOnly; Secure; SameSite=Lax` cookies at the app gateway; WebAuthn/passkeys supported | `gotrue` |
-| **Service trust** | Internal calls carry `INTERNAL_SERVICE_TOKEN`; the Go control plane **refuses to boot** on an empty/known-weak token | `go/control-plane/internal/shared/config.go` |
-| **API keys** | 160-bit random keys, stored as salted SHA-256 (HMAC-peppered with `KEY_HASH_PEPPER`); legacy Argon2id hashes verify and lazy-upgrade | `go/control-plane/internal/tenants/keys.go` |
+| **Service trust** | Internal calls carry `INTERNAL_SERVICE_TOKEN`; the Go control plane **refuses to boot** on an empty/known-weak token | `src/control-plane/internal/config/config.go` |
+| **API keys** | 160-bit random keys, stored as salted SHA-256 (HMAC-peppered with `KEY_HASH_PEPPER`); legacy Argon2id hashes verify and lazy-upgrade | `src/control-plane/internal/tenants/keys.go` · `src/control-plane/internal/tenants/keys_hash.go` |
 | **Data** | Postgres **RLS** (`auth.uid() = owner_id`) has the last word; every engine adapter stamps owner/tenant scope per request (proven cross-engine by gate m46); parameterized queries everywhere | migrations + Rust data plane |
 | **At rest** | Tenant-supplied DB credentials encrypted **AES-256-GCM** (scrypt KDF) | adapter-registry (Go) |
-| **Secrets** | Generated `.env` (chmod 600, gitignored); optional HashiCorp Vault profile; `make check-secrets` scans for leaks | `scripts/generate-env.sh` |
+| **Secrets** | Generated `.env` (chmod 600, gitignored); optional HashiCorp Vault profile; `make check-secrets` scans for leaks | `scripts/env/generate-env.sh` |
 
 ## 2. Production checklist
 
@@ -34,8 +34,10 @@ Set these before exposing a deployment (see [DEPLOYMENT.md](DEPLOYMENT.md) for c
 - [ ] **`PACKAGE_ENFORCEMENT=1`** — tier engine-allowlists, capability masks and
       rate limits are enforced (default 0 to avoid retroactively gating existing
       tenants; assign plans first).
-- [ ] **Apply `docker-compose.prod.yml`** — strips direct DB ports (postgres,
-      mongo, redis, gotrue, postgrest, studio) and adds restart policies/limits.
+- [ ] **Apply `orchestrators/compose/docker-compose.prod.yml`** (`make prod-up` does it,
+      after `scripts/ops/preflight-production.sh` refuses a dev `.env`) — strips direct DB
+      ports (postgres, mongo, redis, gotrue, postgrest, studio) and adds restart
+      policies/limits.
 - [ ] **Replace MinIO defaults** (`MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`) —
       `make env` generates a random password; never ship `minioadmin`.
 - [ ] **Rotate on schedule**: the service token with `scripts/ops/rotate-service-token.sh`
@@ -57,7 +59,7 @@ Set these before exposing a deployment (see [DEPLOYMENT.md](DEPLOYMENT.md) for c
 ## 4. What the test suite enforces
 
 `make verify-all` runs 46+ milestone gates; the security-relevant ones:
-isolation (m4/m46 cross-tenant, cross-engine), auth fail-closed (m37: bogus key
+isolation (m12/m46 cross-tenant, cross-engine), auth fail-closed (m37: bogus key
 401, missing key 401), capability masks (m25/m26: 0 violations), packages parity
 (m28), footprint budgets (m32). CI additionally runs Semgrep SAST, dependency
 audit (npm/pnpm), and Trivy filesystem scans on every PR.
