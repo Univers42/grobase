@@ -87,3 +87,36 @@ impl RealtimeClientBuilder {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    #[test]
+    fn test_client_builder_defaults() {
+        let client = RealtimeClientBuilder::new("ws://127.0.0.1:9090/ws")
+            .build()
+            .unwrap();
+
+        assert_eq!(client.url, "ws://127.0.0.1:9090/ws");
+        assert_eq!(client.token, "");
+        assert!(client.reconnect_enabled);
+        assert_eq!(client.max_reconnect_delay, Duration::from_secs(30));
+    }
+
+    #[test]
+    fn test_client_builder_custom() {
+        let client = RealtimeClientBuilder::new("ws://localhost:8080/ws")
+            .token("jwt-token-abc")
+            .reconnect(false)
+            .max_reconnect_delay(Duration::from_secs(10))
+            .build()
+            .unwrap();
+
+        assert_eq!(client.url, "ws://localhost:8080/ws");
+        assert_eq!(client.token, "jwt-token-abc");
+        assert!(!client.reconnect_enabled);
+        assert_eq!(client.max_reconnect_delay, Duration::from_secs(10));
+    }
+}
