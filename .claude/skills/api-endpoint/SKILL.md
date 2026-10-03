@@ -11,7 +11,7 @@ DO NOT add a route before reading the nearest existing handler and `.claude/rule
 
 ## 1. Locate
 
-- Which plane owns it: Go control-plane (`src/go/control-plane/internal/`), TS query/permission (`src/apps/*`), or the Rust data-plane.
+- Which plane owns it: Go control-plane (`src/control-plane/internal/`), TS query/permission (`src/apps/*`), or the Rust data-plane.
 - Find the closest existing endpoint; mirror its file, registration, and owner-scoping pattern.
 
 ## 2. Design

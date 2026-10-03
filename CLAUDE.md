@@ -101,7 +101,9 @@ The `make legacy-*` target is **gone** (the monolith survives only as `Makefile.
 
 Other on-disk artifacts to know: `certs/` is **untracked** (local TLS material). The realtime workspace
 `infra/docker/services/realtime/realtime-agnostic` is vendored as plain **tracked** files (no nested
-`.git`). The old `.gitmodules` (6 dead submodules, never initialized) was **removed** on `main` and none exists now. The orphan nested `grobase/` gitlink was de-tracked in
+`.git`), kept **identical** to `Univers42/realtime-agnostic` `develop` (synced both ways 2026-10-03)
+except each repo's own `.github/` and the base-image registry lines (`mirror.gcr.io` here,
+`public.ecr.aws` upstream) — a realtime fix lands in both, or `diff -rq` says which side is behind. The old `.gitmodules` (6 dead submodules, never initialized) was **removed** on `main` and none exists now. The orphan nested `grobase/` gitlink was de-tracked in
 `3396baf`. There is **no `site/`** (marketing site) in this repo, on any
 ref. `coverage/` HTML under `src/` will pollute `grep` hits — exclude it.
 
@@ -217,7 +219,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **191 scripts, highest m212** (`m212-service-env-scope.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **192 scripts, highest m212** (`m212-service-env-scope.sh`); the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -590,8 +592,20 @@ share were kept; `bash .claude/tools/selfcheck.sh --summary` must report 0 faile
 
 - `hooks/` — `hooks/scripts/hooks.py` + `hooks/config/hooks-config.json` (PreToolUse denies/asks on
   destructive or irreversible commands, PostToolUse lints the edited file, SessionStart injects
-  `tools/digest.sh`, PreCompact). **Not wired yet:** the committed `settings.json` is `{}`; wiring the
-  hooks (and an empty `attribution`, binding rule 1) is a human action.
+  `tools/digest.sh`, PreCompact). This local copy is not wired in `settings.json`; the `devil`
+  plugin's own `hooks/hooks.json` runs instead whenever the plugin is enabled (below).
+- **`settings.json`** (seeded by the kit's `setup`, 2026-10-03) — the kit's permission lists
+  (read-only tools allowed; `rm`, `git push`, `docker`, `npm`, `curl`, … ask), **`attribution`
+  `commit`/`pr` set to empty strings** (binding rule 1 enforced by the harness, not by memory),
+  `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=80`, and the plugin enablement below. Re-check with
+  `devil setup --check --skip rules --skip claude-md --seed-mcp` from the kit.
+- **The `devil` plugin** — `enabledPlugins: devil@univers42` + `extraKnownMarketplaces.univers42`
+  (`Univers42/claude-deal-with-the-devil`), written by `claude plugin install devil@univers42 --scope
+  project`. It brings upstream's commands/skills namespaced `/devil:*` (`handoff`, `retro`, `grill`,
+  `prototype`, `caveat`, `wayfinder`, `to-tickets`, `guide`, `setup`, …) and its hooks; the GitHub
+  tracker adapter it needs is `.claude/devil/tracker.md`. The kit's `rules` and `claude-md` setup
+  stages are deliberately **not** applied: grobase's own `.claude/rules/` are the always-on set, and
+  seeding the kit's 12 again would load both every session.
 - `rules/` — always-on: `minimalism-ladder`, `minimalism-markers`, `comments`, `no-globals`,
   `refactor-common`, **`service-boundaries`**, plus the devil set (`risk`, `quality-bar`,
   `run-safely`, `library-first`, …). Lazy via `paths:`: `refactor-{c,go,rust,shell,typescript}`,
@@ -604,9 +618,11 @@ share were kept; `bash .claude/tools/selfcheck.sh --summary` must report 0 faile
   selfcheck · context · ponytail · scripts (grobase copy fixes SIGPIPE-under-pipefail and skips
   `vendor/`). Shared shell lib `tools/lib/common.sh` (un-ignored in `.gitignore` — a broad `lib/`
   rule once hid it). Local cache in `.claude/cache/` (gitignored).
-- **MCP:** no `.mcp.json` is committed (opt-in, local). The upstream's declares `grafana` + `postgres`
-  (read-only views of the local stack via `scripts/ops/mcp-server.sh`), `playwright`, `context7`,
-  `deepwiki`, `supermemory` (external — never store secrets there).
+- **MCP:** the root `.mcp.json` is committed and declares six servers: `playwright`, `context7`,
+  `deepwiki`, `supermemory` (from the kit's `templates/mcp.json`, all via `npx`) and grobase's own
+  `grafana` + `postgres` (read-only views of the **running** local stack via
+  `scripts/ops/mcp-server.sh`; they fail to start when no stack is up). `supermemory` sends what you
+  store to supermemory.ai — never store a secret, a credential or client data there.
 
 There is **no** kernel
 (`CLAUDE.md`/`instructions.md`/`objectives/`) and **no** `/baas-wave` skill — references to "the

@@ -10,7 +10,7 @@ Change: $ARGUMENTS
 
 ## 1. Design
 
-- Pick the next sequential number in `scripts/migrations/postgresql/` (highest is 065; respect the 057–059 gap).
+- Pick the next free number in `scripts/migrations/postgresql/` (`ls scripts/migrations/postgresql | tail -1` — 090 today; numbering is non-contiguous).
 - Decide engines: postgres (`postgresql/`), mongo (`mongodb/`), mysql (`mysql/`).
 - If it backs a cloud/enterprise feature, the table is OFF by default (master + sub-flag AND pattern).
 
