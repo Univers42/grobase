@@ -52,7 +52,7 @@ _toolchain:
 build: _toolchain ## Build the Rust workspace (release, in Docker)
 	$(CARGO_RUN) cargo build --release --workspace
 
-test: _toolchain ## Run all tests (78 unit + integration, in Docker)
+test: _toolchain ## Run all tests (unit + integration + doc-tests, in Docker)
 	$(CARGO_RUN) cargo test --workspace
 
 # --quiet prints only warnings/errors AND keeps cargo's exit code (the old
