@@ -1,1 +1,110 @@
-{}
+{
+  "respectGitignore": true,
+  "env": {
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "80"
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "permissions": {
+    "allow": [
+      "Bash(cargo clippy:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(devil:*)",
+      "Bash(eslint:*)",
+      "Bash(fd:*)",
+      "Bash(file:*)",
+      "Bash(git branch:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git show:*)",
+      "Bash(git status:*)",
+      "Bash(go vet:*)",
+      "Bash(gofmt:*)",
+      "Bash(head:*)",
+      "Bash(jq:*)",
+      "Bash(ls:*)",
+      "Bash(markdownlint:*)",
+      "Bash(prettier --check:*)",
+      "Bash(rg:*)",
+      "Bash(ruff:*)",
+      "Bash(shellcheck:*)",
+      "Bash(shfmt:*)",
+      "Bash(tail:*)",
+      "Bash(tsc --noEmit:*)",
+      "Bash(wc:*)",
+      "Glob(*)",
+      "Grep(*)",
+      "Read(*)",
+      "WebSearch",
+      "mcp__context7__*",
+      "mcp__deepwiki__*",
+      "mcp__playwright__*"
+    ],
+    "deny": [],
+    "ask": [
+      "Bash(apt-get:*)",
+      "Bash(apt:*)",
+      "Bash(aws:*)",
+      "Bash(brew:*)",
+      "Bash(cargo install:*)",
+      "Bash(chmod:*)",
+      "Bash(chown:*)",
+      "Bash(curl:*)",
+      "Bash(dd:*)",
+      "Bash(devil orch:*)",
+      "Bash(docker:*)",
+      "Bash(fdisk:*)",
+      "Bash(gcloud:*)",
+      "Bash(gh release:*)",
+      "Bash(gh repo:*)",
+      "Bash(git clean:*)",
+      "Bash(git push:*)",
+      "Bash(git rebase:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(go install:*)",
+      "Bash(helm:*)",
+      "Bash(kill:*)",
+      "Bash(killall:*)",
+      "Bash(kubectl:*)",
+      "Bash(mkfs:*)",
+      "Bash(mount:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(pip3:*)",
+      "Bash(pip:*)",
+      "Bash(pkill:*)",
+      "Bash(pnpm:*)",
+      "Bash(rm:*)",
+      "Bash(rmdir:*)",
+      "Bash(shred:*)",
+      "Bash(sudo:*)",
+      "Bash(terraform:*)",
+      "Bash(unlink:*)",
+      "Bash(wget:*)",
+      "Bash(yarn:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "disableAllHooks": false,
+  "statusLine": {
+    "type": "command",
+    "command": "printf '%s' \"$(basename \"$PWD\") · $(git branch --show-current 2>/dev/null || echo no-git)\"",
+    "padding": 0
+  },
+  "extraKnownMarketplaces": {
+    "univers42": {
+      "source": {
+        "source": "github",
+        "repo": "Univers42/claude-deal-with-the-devil"
+      }
+    }
+  },
+  "outputStyle": "default",
+  "spinnerTipsEnabled": true,
+  "enabledPlugins": {
+    "devil@univers42": true
+  }
+}

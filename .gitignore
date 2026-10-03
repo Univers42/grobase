@@ -479,3 +479,5 @@ vendor/twenty/
 .claude/hooks/config/hooks-config.local.json
 .claude/hooks/sounds/*/
 .claude/**/__pycache__/
+.claude/devil.env
+.scratch/
