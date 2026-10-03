@@ -28,9 +28,11 @@ import {
   CurrentUser,
   UserContext,
   VerifiedRequestIdentity,
+  createValidationPipe,
 } from '@mini-baas/common';
 import { QueryService } from './query.service';
 import { ExecuteQueryDto } from './dto/query.dto';
+import { QueryRequestDto, toExecuteQueryBody } from './dto/query-request.dto';
 import type { Request } from 'express';
 
 /**
@@ -52,7 +54,39 @@ function clientIp(req: Request): string | undefined {
 @Controller()
 @UseGuards(AuthGuard)
 export class QueryController {
+  private readonly bodyPipe = createValidationPipe();
+
   constructor(private readonly service: QueryService) {}
+
+  /**
+   * POST /query/v1/execute — the public spec's `queryExecute`, which every SDK
+   * calls. The request is mapped onto ExecuteQueryDto and validated by the same
+   * pipe as the per-table route, then executed through that route's handler, so
+   * both share auth, owner-scoping, idempotency and audit.
+   */
+  @Post('execute')
+  @ApiOperation({ summary: 'Run one engine-agnostic data operation against a mount' })
+  async executeRequest(
+    @CurrentUser() user: UserContext,
+    @CurrentIdentity() identity: VerifiedRequestIdentity,
+    @Body() request: QueryRequestDto,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Req() req: Request,
+  ) {
+    const dto = (await this.bodyPipe.transform(toExecuteQueryBody(request), {
+      type: 'body',
+      metatype: ExecuteQueryDto,
+    })) as ExecuteQueryDto;
+    return this.execute(
+      user,
+      identity,
+      request.database_id,
+      request.resource,
+      dto,
+      idempotencyKey,
+      req,
+    );
+  }
 
   @Post(':dbId/tables/:table')
   @ApiParam({ name: 'dbId', type: 'string', format: 'uuid' })
