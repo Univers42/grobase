@@ -1,7 +1,7 @@
 # Deployment — running Grobase BaaS in production
 
 Operator guide for self-hosting. Companion docs: [QUICKSTART.md](QUICKSTART.md),
-[SECURITY.md](SECURITY.md), [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+[SECURITY.md](SECURITY.md); for a service that does not start, `make doctor` and `make logs`.
 
 ---
 

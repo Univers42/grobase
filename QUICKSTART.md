@@ -3,8 +3,8 @@
 Two ways in. **Path A** is a single static binary (no Docker, no root). **Path B** is the
 full self-hosted stack via Docker Compose. Pick one.
 
-> This is the buildable heart of the standalone `grobase` repo: the directory is
-> `grobase/mini-baas-infra/` and there is no root Makefile. All commands below run from here.
+> This is the standalone `grobase` repo: the root `Makefile` drives the whole stack, and every
+> command below runs from the repo root.
 
 ---
 
@@ -19,14 +19,18 @@ zero dependencies.
 | **binocle-nano** | headless data plane: CRUD + schema + graph + scoped API keys + SSE | 5.1 MB image / ~2.0 MiB idle RSS |
 
 ```sh
-# install (verifies sha256; BINOCLE_EDITION=nano for headless)
-curl -fsSL https://github.com/Univers42/grobase/releases/download/baas-v1.0.0/install.sh | sh
+# build both binaries from this checkout (Docker) → artifacts/release/ + sha256
+# (the headless edition is artifacts/release/binocle-nano)
+make release-binaries
 
-./binocle-one
+./artifacts/release/binocle-one
 #  → admin key printed on FIRST boot only — save it
 #  → admin UI: http://localhost:8090/_/
 #  → data API: http://localhost:8090/data/v1   (data lives in ./data)
 ```
+
+This repo publishes no GitHub Release assets (no `baas-v*` tag exists here), so there is no
+`curl … | sh` installer URL under `Univers42/grobase`.
 
 Prefer Docker? The same editions are images:
 
@@ -52,7 +56,7 @@ for the default tier.
 
 ```sh
 git clone https://github.com/Univers42/grobase.git
-cd grobase/mini-baas-infra
+cd grobase
 
 make quickstart                  # .env (generated, chmod 600) → stack up → health
 # or pick a tier explicitly:
@@ -79,21 +83,19 @@ involved; distribution is Docker Hub + this repo by design):
 
 ```sh
 # as a file dependency from a checkout
-npm install ./sdk
-# or straight from git
-npm install git+https://github.com/Univers42/grobase.git#main:sdk
+npm install ./sdks/js
 ```
 
 ```ts
-import { createClient } from '@mini-baas/js';
+import { createClient } from '@grobase/js';
 const client = createClient({ url: 'http://localhost:8000', anonKey: process.env.BAAS_ANON_KEY });
 const data = await client.from('todos').query().select('*').limit(10);
 ```
 
 > Coming from Supabase? The SDK is Supabase-shaped — see
-> **[migrate-from-supabase](../wiki/migrate-from-supabase.md)** (mostly a
+> **[migrate-from-supabase](wiki/guides/migrate-from-supabase.md)** (mostly a
 > dependency swap). From Firebase? See
-> **[migrate-from-firebase](../wiki/migrate-from-firebase.md)**.
+> **[migrate-from-firebase](wiki/guides/migrate-from-firebase.md)**.
 
 ### Choosing your size
 
@@ -114,5 +116,5 @@ Add-ons compose: `make up PACKAGE=basic ADDONS="realtime"`.
 
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** — production overlay, hardware sizing, backups/restore, upgrades
 - **[SECURITY.md](SECURITY.md)** — the security model + the production checklist
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** — when something doesn't start
+- `make doctor` · `make logs` — when something doesn't start
 - `make help` — every operation the stack supports

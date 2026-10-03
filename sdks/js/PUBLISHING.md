@@ -1,4 +1,4 @@
-# Publishing `@mini-baas/js`
+# Publishing `@grobase/js`
 
 This package is **publish-ready but intentionally NOT auto-published**. Pushing to the public npm
 registry is an irreversible, money/identity-bearing action, so it is left as a deliberate human
@@ -6,7 +6,7 @@ step. CI does not run `npm publish`.
 
 ## The one human step
 
-From the `sdk/` directory, authenticated against npm as a maintainer of the `@mini-baas` scope:
+From the `sdks/js/` directory, authenticated against npm as a maintainer of the `@grobase` scope:
 
 ```sh
 npm publish --access public
@@ -40,7 +40,7 @@ The tarball should contain only `dist/` (JS + `.d.ts` types + the `baas` CLI bin
 
 - [ ] `version` in `package.json` bumped (semver) and a matching entry added to `CHANGELOG.md`.
 - [ ] `npm pack --dry-run` tarball contents look sane (see above).
-- [ ] Logged in to npm with publish rights to the `@mini-baas` scope (`npm whoami`).
+- [ ] Logged in to npm with publish rights to the `@grobase` scope (`npm whoami`).
 - [ ] You intend to publish — this is public and not easily undone (`npm unpublish` is restricted).
 
 ## Notes
