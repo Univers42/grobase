@@ -775,6 +775,13 @@ jobs:
           M204_REQUIRE: "1"
         run: bash scripts/verify/m204-security-events.sh
 
+      # Every SDK posts to /query/v1/execute (the spec's queryExecute); it is served
+      # (its guard answers 401), not a 404 behind Kong.
+      - name: SDK query route served through Kong (m213)
+        env:
+          M213_REQUIRE: "1"
+        run: bash scripts/verify/m213-query-execute-route.sh
+
       # The kernel reports NoNewPrivs: 1 for every container of the booted stack.
       - name: No new privileges, live (m208)
         run: bash scripts/verify/m208-no-new-privileges.sh
