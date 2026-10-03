@@ -48,10 +48,34 @@ fn topic_pattern_glob() {
     let p1 = TopicPattern::Glob(smol_str::SmolStr::new("orders/*"));
     assert!(p1.matches(&TopicPath::new("orders/created")));
     assert!(!p1.matches(&TopicPath::new("users/anything")));
+    // Single * must NOT match multiple segments
+    assert!(!p1.matches(&TopicPath::new("orders/created/details")));
 
     let p2 = TopicPattern::Glob(smol_str::SmolStr::new("*/created"));
     assert!(p2.matches(&TopicPath::new("orders/created")));
     assert!(!p2.matches(&TopicPath::new("users/deleted")));
+    assert!(!p2.matches(&TopicPath::new("orders/123/created")));
+
+    // Recursive wildcard ** matches any remaining segments
+    let p3 = TopicPattern::Glob(smol_str::SmolStr::new("orders/**"));
+    assert!(p3.matches(&TopicPath::new("orders/created")));
+    assert!(p3.matches(&TopicPath::new("orders/123/items/456")));
+    assert!(!p3.matches(&TopicPath::new("users/123")));
+}
+
+#[test]
+fn topic_pattern_display_and_as_str() {
+    let exact = TopicPattern::Exact(TopicPath::new("orders/created"));
+    assert_eq!(exact.as_str(), "orders/created");
+    assert_eq!(format!("{exact}"), "orders/created");
+
+    let prefix = TopicPattern::Prefix(smol_str::SmolStr::new("orders/"));
+    assert_eq!(prefix.as_str(), "orders/");
+    assert_eq!(format!("{prefix}"), "orders/");
+
+    let glob = TopicPattern::Glob(smol_str::SmolStr::new("orders/*"));
+    assert_eq!(glob.as_str(), "orders/*");
+    assert_eq!(format!("{glob}"), "orders/*");
 }
 
 #[test]

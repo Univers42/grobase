@@ -155,13 +155,14 @@ realtime-agnostic/
 │   ├── realtime-engine/    ← Registry, router, sequence gen, filter index
 │   ├── realtime-gateway/   ← WS handler, connection manager, fan-out, REST
 │   ├── realtime-bus-inprocess/  ← In-memory event bus (tokio broadcast)
+│   ├── realtime-bus-irc/   ← Multi-node event bus bridged over IRC (per-user sessions)
 │   ├── realtime-auth/      ← JWT + NoAuth providers
 │   ├── realtime-db-postgres/   ← PostgreSQL LISTEN/NOTIFY adapter
 │   ├── realtime-db-mongodb/    ← MongoDB Change Streams adapter
 │   ├── realtime-client/    ← Rust client SDK with reconnect + dedup
 │   └── realtime-server/    ← Binary that assembles everything
 └── tests/
-    └── integration/        ← 24 end-to-end tests
+    └── integration/        ← 33 end-to-end tests
 ```
 
 ### Dependency Graph
@@ -170,7 +171,7 @@ realtime-agnostic/
                     realtime-core  (zero external coupling)
                    ╱       │       ╲
                   ╱        │        ╲
-    realtime-engine   realtime-auth   realtime-bus-inprocess
+    realtime-engine   realtime-auth   realtime-bus-inprocess / realtime-bus-irc
          │                 │
     realtime-gateway       │
          │                 │
@@ -186,20 +187,24 @@ realtime-agnostic/
 
 ### What Each Crate Does
 
+Line counts are `src/**/*.rs` per crate (inline unit tests and file headers
+included), measured on 2026-10-02 with `find crates/<crate>/src -name '*.rs' | xargs cat | wc -l`.
+
 | Crate | Lines | Purpose | Key Types |
 |-------|-------|---------|-----------|
-| `realtime-core` | ~1,160 | Shared types, trait contracts, wire protocol, error types, filter expressions | `EventEnvelope`, `TopicPattern`, `ProducerFactory`, `DatabaseProducer`, `EventBus`, `AuthProvider`, `ClientMessage`, `ServerMessage`, `FilterExpr` |
-| `realtime-engine` | ~1,020 | Subscription registry, event router, sequence generator, bitmap filter index | `SubscriptionRegistry`, `EventRouter`, `SequenceGenerator`, `FilterIndex`, `ProducerRegistry` |
-| `realtime-gateway` | ~930 | WebSocket handling, connection lifecycle, fan-out, REST publish API | `ConnectionManager`, `FanOutWorkerPool`, `AppState`, `ws_upgrade()`, `publish_event()` |
-| `realtime-bus-inprocess` | ~200 | In-process event bus backed by `tokio::broadcast` | `InProcessBus`, `InProcessPublisher`, `InProcessSubscriber` |
-| `realtime-auth` | ~290 | JWT verification and no-auth passthrough | `JwtAuthProvider`, `NoAuthProvider`, `JwtConfig` |
-| `realtime-db-postgres` | ~490 | PostgreSQL CDC via `LISTEN/NOTIFY` | `PostgresProducer`, `PostgresConfig`, `PostgresFactory` |
-| `realtime-db-mongodb` | ~480 | MongoDB CDC via Change Streams | `MongoProducer`, `MongoConfig`, `MongoFactory` |
-| `realtime-client` | ~360 | Client SDK with auto-reconnect and dedup | `RealtimeClient`, `RealtimeClientBuilder`, `ClientSubscription` |
-| `realtime-server` | ~430 | Binary entrypoint, config loading, full assembly | `ServerConfig`, `run()`, `default_producer_registry()` |
-| `tests/integration` | ~870 | 24 end-to-end tests | `start_test_server()`, `connect_and_auth()` |
+| `realtime-core` | ~2,500 | Shared types, trait contracts, wire protocol, error types, filter expressions | `EventEnvelope`, `TopicPattern`, `ProducerFactory`, `DatabaseProducer`, `EventBus`, `AuthProvider`, `ClientMessage`, `ServerMessage`, `FilterExpr` |
+| `realtime-engine` | ~3,100 | Subscription registry, event router, sequence generator, bitmap filter index | `SubscriptionRegistry`, `EventRouter`, `SequenceGenerator`, `FilterIndex`, `ProducerRegistry` |
+| `realtime-gateway` | ~3,070 | WebSocket handling, connection lifecycle, fan-out, REST publish API | `ConnectionManager`, `FanOutWorkerPool`, `AppState`, `ws_upgrade()`, `publish_event()` |
+| `realtime-bus-inprocess` | ~310 | In-process event bus backed by `tokio::broadcast` | `InProcessBus`, `InProcessPublisher`, `InProcessSubscriber` |
+| `realtime-bus-irc` | ~980 | Multi-node event bus bridged over IRC, one session per platform user | `IrcBus`, `IrcBusConfig` |
+| `realtime-auth` | ~750 | JWT verification and no-auth passthrough | `JwtAuthProvider`, `NoAuthProvider`, `JwtConfig` |
+| `realtime-db-postgres` | ~710 | PostgreSQL CDC via `LISTEN/NOTIFY` | `PostgresProducer`, `PostgresConfig`, `PostgresFactory` |
+| `realtime-db-mongodb` | ~520 | MongoDB CDC via Change Streams | `MongoProducer`, `MongoConfig`, `MongoFactory` |
+| `realtime-client` | ~600 | Client SDK with auto-reconnect and dedup | `RealtimeClient`, `RealtimeClientBuilder`, `ClientSubscription` |
+| `realtime-server` | ~1,040 | Binary entrypoint, config loading, full assembly | `ServerConfig`, `run()`, `default_producer_registry()` |
+| `tests/integration` | ~1,430 | 33 end-to-end tests | `start_test_server()`, `connect_and_auth()` |
 
-**Total**: ~6,230 lines of Rust (excluding tests) + 870 lines of integration tests.
+**Total**: ~13,580 lines of Rust across the ten crates + ~1,430 lines of integration tests.
 
 ---
 
@@ -1147,25 +1152,33 @@ The database adapters (`realtime-db-postgres`, `realtime-db-mongodb`) depend **o
 
 ### 18.3 The Test Proof
 
-78 tests cover every layer:
+`cargo test --workspace` (measured 2026-10-02, Rust 1.97): **162 pass, 4 ignored** —
+158 unit + integration tests and 4 doc-tests. The ignored four are three illustrative
+doc examples and the PostgreSQL reconnect proof, which needs a real server.
 
 | Layer | Tests | What They Verify |
 |-------|-------|-----------------|
-| Core types | 9 | EventId uniqueness, TopicPath parsing, pattern matching, payload limits, auth claims |
-| Core filters | 5 | Eq/Ne/In evaluation, AND composition, JSON parsing |
-| Engine registry | 6 | Subscribe, unsubscribe, glob matching, filter matching, multi-connection |
-| Engine filter index | 4 | Bitmap creation, filtered/unfiltered evaluation, removal |
+| Core types | 12 | EventId generation, TopicPath parsing, exact/prefix/glob patterns, pattern display, payload limits, deny-by-default and protected-namespace auth claims |
+| Core filters | 11 | Eq/Ne/In/Not evaluation, AND/OR composition, JSON parsing, cached and payload/source field getters |
+| Engine registry | 9 | Subscribe, unsubscribe, glob and filter matching, multi-connection, per-connection limit, exposed stats |
+| Engine filter index | 10 | Bitmap creation, filtered/unfiltered/In evaluation, removal, capacity limits, stats |
 | Engine router | 4 | Single/multi subscriber routing, no-match handling, sequence incrementing |
 | Engine sequence | 3 | Monotonic ordering, per-topic isolation, current read |
 | Engine producer registry | 2 | Register/create, unknown adapter error |
+| Engine presence | 6 | Track/untrack, in-place refresh, connection cleanup, empty-topic pruning |
 | Bus in-process | 4 | Publish/subscribe, multi-subscriber, batch, health check |
-| Auth JWT | 4 | Valid token, invalid token, Bearer prefix, namespace authorization |
+| Bus IRC | 11 | Nick derivation (deterministic, sanitized, capped), topic↔channel mapping, idle-session reaper |
+| Auth JWT | 17 | Valid/invalid token, Bearer prefix, namespace authorization, issuer allow-list, previous-secret rotation, namespace fallback policy |
 | Auth NoAuth | 1 | Accepts everything |
-| PG adapter | 5 | Notification parsing (INSERT/UPDATE/DELETE), invalid JSON, trigger SQL generation |
+| PG adapter | 5 | Notification parsing (INSERT/UPDATE/DELETE), invalid JSON, trigger SQL generation (+1 ignored live reconnect proof) |
 | Mongo adapter | 4 | Change event parsing (insert/update/delete), BSON→JSON conversion |
 | Gateway connection | 4 | Registration, removal, try_send, nonexistent connection |
-| Gateway fan-out | 1 | End-to-end dispatch delivery |
-| **E2E integration** | **24** | Full stack: WS connect+auth, subscribe+receive, unsubscribe, REST publish→WS delivery, batch subscribe, 100-connection throughput, concurrent connections |
+| Gateway fan-out | 2 | Single and batch dispatch delivery |
+| Gateway writer | 3 | Serialize-once frames are byte-identical to serde and cached per envelope |
+| Gateway origin / metrics | 4 | WebSocket Origin allow-list, Prometheus exposition |
+| Gateway presence (shared) / usage | 11 | Redis presence key layout, connection-seconds metering windows and idempotency keys |
+| Client builder | 2 | Builder defaults and overrides |
+| **E2E integration** | **33** | Full stack: WS connect+auth, subscribe+receive, unsubscribe, REST publish→WS delivery, batch subscribe, client publish, namespace-scoped publish, unauthenticated rejection, filtered subscription, client SDK, broadcast, presence, AUTH_FAILED before close, throughput, concurrent connections |
 
 ---
 

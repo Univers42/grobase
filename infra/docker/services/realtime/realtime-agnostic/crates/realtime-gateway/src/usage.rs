@@ -400,7 +400,7 @@ mod tests {
         let agg = UsageAggregate::new();
         agg.record("t1", CONNECTION_SECONDS, 0);
         assert_eq!(agg.tracked(), 0);
-        assert!(agg.drain().is_empty());
+        assert_eq!(agg.drain(), Vec::new());
     }
 
     #[test]

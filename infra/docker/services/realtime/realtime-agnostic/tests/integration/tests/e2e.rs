@@ -10,7 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 //! End-to-end integration tests for the realtime engine.
 //!
@@ -252,7 +252,7 @@ async fn test_websocket_connect_and_auth() {
 
     let url = format!("ws://{addr}/ws");
     let (ws_stream, _) = connect_async(&url).await.expect("Failed to connect");
-    let (mut write, _read) = ws_stream.split();
+    let (mut write, mut read) = ws_stream.split();
 
     // Send auth
     let auth_msg = json!({ "type": "AUTH", "token": "hello" });
@@ -261,8 +261,20 @@ async fn test_websocket_connect_and_auth() {
         .await
         .unwrap();
 
-    // If we get here without error, auth succeeded (NoAuth mode)
-    tokio::time::sleep(Duration::from_millis(50)).await;
+    let resp = tokio::time::timeout(Duration::from_secs(2), read.next())
+        .await
+        .expect("Timeout waiting for auth response")
+        .expect("Stream closed unexpectedly")
+        .expect("WebSocket read error");
+
+    if let Message::Text(text) = resp {
+        let parsed: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(parsed["type"], "AUTH_OK");
+        assert!(parsed["conn_id"].as_str().is_some());
+        assert!(parsed["server_time"].as_str().is_some());
+    } else {
+        panic!("Expected text message for AUTH_OK");
+    }
 }
 
 #[tokio::test]
@@ -324,7 +336,21 @@ async fn test_websocket_unsubscribe_stops_delivery() {
         .send(Message::Text(unsub_msg.to_string()))
         .await
         .unwrap();
-    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    // Verify UNSUBSCRIBED confirmation is received
+    let unsub_ack = tokio::time::timeout(Duration::from_secs(2), async {
+        while let Some(Ok(Message::Text(text))) = read.next().await {
+            let p: serde_json::Value = serde_json::from_str(&text).unwrap();
+            if p.get("type").and_then(|t| t.as_str()) == Some("UNSUBSCRIBED") {
+                return Some(p);
+            }
+        }
+        None
+    })
+    .await
+    .expect("Timeout waiting for unsub ack")
+    .expect("No UNSUBSCRIBED ack received");
+    assert_eq!(unsub_ack["sub_id"], "sub-unsub");
 
     // Publish after unsubscribe
     let event = EventEnvelope::new(
@@ -847,9 +873,9 @@ async fn test_high_throughput_publish() {
         f64::from(received) / elapsed.as_secs_f64()
     );
 
-    assert!(
-        received >= event_count / 2,
-        "Should have received at least half of {event_count} events, got {received}"
+    assert_eq!(
+        received, event_count,
+        "Should have received all {event_count} events, got {received}"
     );
 }
 
@@ -858,12 +884,30 @@ async fn test_websocket_ping() {
     let (addr, _pub, _bus) = start_test_server().await;
 
     let ws = connect_and_auth(&addr).await;
-    let (mut write, _read) = ws.split();
+    let (mut write, mut read) = ws.split();
 
     // Send ping
     let ping_msg = json!({ "type": "PING" });
-    let result = write.send(Message::Text(ping_msg.to_string())).await;
-    assert!(result.is_ok(), "Ping should succeed");
+    write
+        .send(Message::Text(ping_msg.to_string()))
+        .await
+        .unwrap();
+
+    let pong = tokio::time::timeout(Duration::from_secs(2), async {
+        while let Some(Ok(Message::Text(text))) = read.next().await {
+            let p: serde_json::Value = serde_json::from_str(&text).unwrap();
+            if p.get("type").and_then(|t| t.as_str()) == Some("PONG") {
+                return Some(p);
+            }
+        }
+        None
+    })
+    .await
+    .expect("Timeout waiting for PONG")
+    .expect("No PONG received");
+
+    assert_eq!(pong["type"], "PONG");
+    assert!(pong["server_time"].as_str().is_some());
 }
 
 #[tokio::test]
@@ -887,29 +931,45 @@ async fn test_subscribe_batch() {
         .unwrap();
     tokio::time::sleep(Duration::from_millis(50)).await;
 
-    // Publish to topic-b
-    let event = EventEnvelope::new(
-        TopicPath::new("topic-b"),
-        "test",
-        Bytes::from(r#"{"from":"batch"}"#),
+    // Publish to topic-a
+    let event_a = EventEnvelope::new(
+        TopicPath::new("topic-a"),
+        "test_a",
+        Bytes::from(r#"{"from":"batch_a"}"#),
     );
-    publisher.publish("topic-b", &event).await.unwrap();
+    publisher.publish("topic-a", &event_a).await.unwrap();
 
-    let received = tokio::time::timeout(Duration::from_secs(3), async {
+    // Publish to topic-b
+    let event_b = EventEnvelope::new(
+        TopicPath::new("topic-b"),
+        "test_b",
+        Bytes::from(r#"{"from":"batch_b"}"#),
+    );
+    publisher.publish("topic-b", &event_b).await.unwrap();
+
+    let mut received_a = false;
+    let mut received_b = false;
+
+    let _ = tokio::time::timeout(Duration::from_secs(3), async {
         while let Some(Ok(Message::Text(text))) = read.next().await {
             let p: serde_json::Value = serde_json::from_str(&text).unwrap();
             if p.get("type").and_then(|t| t.as_str()) == Some("EVENT") {
-                return true;
+                if p["sub_id"] == "batch-1" {
+                    received_a = true;
+                }
+                if p["sub_id"] == "batch-2" {
+                    received_b = true;
+                }
+                if received_a && received_b {
+                    break;
+                }
             }
         }
-        false
     })
     .await;
 
-    assert!(
-        received.unwrap_or(false),
-        "Should receive event from batch subscription"
-    );
+    assert!(received_a, "Should receive event for batch-1 on topic-a");
+    assert!(received_b, "Should receive event for batch-2 on topic-b");
 }
 
 #[tokio::test]
@@ -970,7 +1030,7 @@ async fn test_multiple_concurrent_connections() {
     );
     publisher.publish("concurrent/test", &event).await.unwrap();
 
-    // Check that most clients received the event
+    // Check that all clients received the event
     let mut received_count = 0;
     for handle in handles {
         if handle.await.unwrap_or(false) {
@@ -978,11 +1038,203 @@ async fn test_multiple_concurrent_connections() {
         }
     }
 
-    println!("Concurrent test: {received_count}/{num_clients} clients received event");
-    assert!(
-        received_count >= num_clients / 2,
-        "At least half of {num_clients} clients should receive event, got {received_count}"
+    assert_eq!(
+        received_count, num_clients,
+        "All {num_clients} clients should receive event, got {received_count}"
     );
+}
+
+#[tokio::test]
+async fn test_websocket_client_publish() {
+    let (addr, _pub, _bus) = start_test_server().await;
+
+    // Client A subscribes
+    let ws_a = connect_and_auth(&addr).await;
+    let (mut write_a, mut read_a) = ws_a.split();
+    ws_subscribe(&mut write_a, "sub-ws-pub", "chat/general").await;
+
+    // Client B publishes via WebSocket
+    let ws_b = connect_and_auth(&addr).await;
+    let (mut write_b, _read_b) = ws_b.split();
+
+    let pub_msg = json!({
+        "type": "PUBLISH",
+        "topic": "chat/general",
+        "event_type": "message",
+        "payload": { "text": "hello from ws client b" }
+    });
+    write_b
+        .send(Message::Text(pub_msg.to_string()))
+        .await
+        .unwrap();
+
+    // Client A should receive the event
+    let received = tokio::time::timeout(Duration::from_secs(3), async {
+        while let Some(Ok(Message::Text(text))) = read_a.next().await {
+            let p: serde_json::Value = serde_json::from_str(&text).unwrap();
+            if p.get("type").and_then(|t| t.as_str()) == Some("EVENT") {
+                return Some(p);
+            }
+        }
+        None
+    })
+    .await
+    .expect("Timeout waiting for event published via WebSocket")
+    .expect("No event received");
+
+    assert_eq!(received["event"]["topic"], "chat/general");
+    assert_eq!(received["event"]["event_type"], "message");
+    assert_eq!(
+        received["event"]["payload"]["text"],
+        "hello from ws client b"
+    );
+}
+
+#[tokio::test]
+async fn test_websocket_unauthenticated_actions_rejected() {
+    let (addr, publisher, _bus) = start_test_server().await;
+
+    let url = format!("ws://{addr}/ws");
+    let (ws_stream, _) = connect_async(&url).await.expect("Failed to connect");
+    let (mut write, mut read) = ws_stream.split();
+
+    // Send SUBSCRIBE without prior AUTH
+    let sub_msg = json!({
+        "type": "SUBSCRIBE",
+        "sub_id": "unauth-sub",
+        "topic": "secure/data"
+    });
+    write
+        .send(Message::Text(sub_msg.to_string()))
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    // Publish to the topic
+    let event = EventEnvelope::new(
+        TopicPath::new("secure/data"),
+        "leak",
+        Bytes::from(r#"{"secret":true}"#),
+    );
+    publisher.publish("secure/data", &event).await.unwrap();
+
+    // Should NOT receive any event
+    let received = tokio::time::timeout(Duration::from_millis(400), async {
+        while let Some(Ok(Message::Text(text))) = read.next().await {
+            let p: serde_json::Value = serde_json::from_str(&text).unwrap();
+            if p.get("type").and_then(|t| t.as_str()) == Some("EVENT") {
+                return true;
+            }
+        }
+        false
+    })
+    .await;
+
+    assert!(
+        !received.unwrap_or(false),
+        "Unauthenticated client must not receive events"
+    );
+}
+
+#[tokio::test]
+async fn test_websocket_filtered_subscription_e2e() {
+    let (addr, publisher, _bus) = start_test_server().await;
+
+    let ws = connect_and_auth(&addr).await;
+    let (mut write, mut read) = ws.split();
+
+    // Subscribe with a filter on event_type == "urgent"
+    let sub_msg = json!({
+        "type": "SUBSCRIBE",
+        "sub_id": "filtered-urgent",
+        "topic": "alerts/*",
+        "filter": {
+            "event_type": { "eq": "urgent" }
+        }
+    });
+    write
+        .send(Message::Text(sub_msg.to_string()))
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    // Publish non-matching event
+    let event_info = EventEnvelope::new(
+        TopicPath::new("alerts/cpu"),
+        "info",
+        Bytes::from(r#"{"level":"low"}"#),
+    );
+    publisher.publish("alerts/cpu", &event_info).await.unwrap();
+
+    // Publish matching event
+    let event_urgent = EventEnvelope::new(
+        TopicPath::new("alerts/disk"),
+        "urgent",
+        Bytes::from(r#"{"level":"critical"}"#),
+    );
+    publisher
+        .publish("alerts/disk", &event_urgent)
+        .await
+        .unwrap();
+
+    // Only the urgent event should be received
+    let received = tokio::time::timeout(Duration::from_secs(3), async {
+        while let Some(Ok(Message::Text(text))) = read.next().await {
+            let p: serde_json::Value = serde_json::from_str(&text).unwrap();
+            if p.get("type").and_then(|t| t.as_str()) == Some("EVENT") {
+                return Some(p);
+            }
+        }
+        None
+    })
+    .await
+    .expect("Timeout waiting for filtered event")
+    .expect("No event received");
+
+    assert_eq!(received["event"]["event_type"], "urgent");
+    assert_eq!(received["event"]["topic"], "alerts/disk");
+}
+
+#[tokio::test]
+async fn test_realtime_client_sdk_e2e() {
+    use realtime_client::RealtimeClient;
+
+    let (addr, publisher, _bus) = start_test_server().await;
+    let ws_url = format!("ws://{addr}/ws");
+
+    let client = RealtimeClient::builder(&ws_url)
+        .token("test-sdk-token")
+        .reconnect(false)
+        .build()
+        .unwrap();
+
+    let mut event_rx = client.connect().unwrap();
+
+    // Wait for client to connect
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    client
+        .subscribe("sdk-sub-1", "sdk/topic", None)
+        .await
+        .unwrap();
+
+    // Wait a brief moment for subscription propagation
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    let event = EventEnvelope::new(
+        TopicPath::new("sdk/topic"),
+        "sdk_event",
+        Bytes::from(r#"{"msg":"hello from sdk test"}"#),
+    );
+    publisher.publish("sdk/topic", &event).await.unwrap();
+
+    let received = tokio::time::timeout(Duration::from_secs(3), event_rx.recv())
+        .await
+        .expect("Timeout waiting for SDK event")
+        .expect("SDK event channel closed");
+
+    assert_eq!(received.topic.as_str(), "sdk/topic");
+    assert_eq!(received.event_type, "sdk_event");
 }
 
 // ═══════════════════════════════════════════════════════════
