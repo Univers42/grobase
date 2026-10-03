@@ -10,7 +10,6 @@ realtime-core = { path = "../realtime-core" }
 tokio = { workspace = true }
 async-trait = { workspace = true }
 tracing = { workspace = true }
-anyhow = { workspace = true }
 
 [dev-dependencies]
 bytes = { workspace = true }
