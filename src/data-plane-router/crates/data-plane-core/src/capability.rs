@@ -346,7 +346,7 @@ impl EngineCapabilities {
             max_batch_size: 100,
             cost: CostCapabilities {
                 latency_class: LatencyClass::Native,
-                pattern_search: PatternSearchCapability::Scan,
+                pattern_search: PatternSearchCapability::None, // lists a key prefix; no filter
                 joins: JoinCapability::None,
             },
         }
@@ -401,7 +401,7 @@ impl EngineCapabilities {
             max_batch_size: 25,     // BatchWriteItem hard limit (NOT the 100-item transact limit)
             cost: CostCapabilities {
                 latency_class: LatencyClass::Native, // first-class driver, not an FDW
-                pattern_search: PatternSearchCapability::Indexed, // Query indexed; Scan fallback
+                pattern_search: PatternSearchCapability::None, // lists a partition; no filter
                 joins: JoinCapability::None,         // KV/document — no joins (like redis/http)
             },
         }
