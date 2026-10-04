@@ -68,6 +68,8 @@ pub struct AppState {
     /// Every database producer the server started, so `/v1/health` can say
     /// whether change events can still flow. Empty when none is configured.
     pub producers: Arc<Vec<ProducerHandle>>,
+    /// When the server started serving, for `/v1/health`'s `uptime_seconds`.
+    pub started_at: std::time::Instant,
 }
 
 /// A started database producer, as `/v1/health` sees it.
