@@ -262,11 +262,16 @@ fn transactions_flag_matches_each_engine() {
 
 #[test]
 fn savepoints_flag_matches_each_engine() {
-    assert!(EngineCapabilities::postgresql().savepoints);
-    assert!(EngineCapabilities::mysql().savepoints);
-    assert!(!EngineCapabilities::mongodb().savepoints);
-    assert!(!EngineCapabilities::dynamodb().savepoints);
-    assert!(!EngineCapabilities::sqlite().savepoints);
+    // TxHandle exposes no savepoint operation, so no engine advertises one.
+    for caps in [
+        EngineCapabilities::postgresql(),
+        EngineCapabilities::mysql(),
+        EngineCapabilities::mongodb(),
+        EngineCapabilities::dynamodb(),
+        EngineCapabilities::sqlite(),
+    ] {
+        assert!(!caps.savepoints);
+    }
 }
 
 #[test]
