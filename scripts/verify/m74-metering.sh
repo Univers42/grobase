@@ -16,7 +16,7 @@
 # counters in the Rust data plane — and that the LIVE BASELINE is byte-identical
 # when OFF.
 #
-# The metered hooks (data-plane-server/src/routes.rs run_query, siblings of the
+# The metered hooks (data-plane-server/src/routes/ run_query, siblings of the
 # audit emits at :905 / :935):
 #     if state.config.metering && is_mutation {
 #         state.usage.record(&audit_tenant, "write.rows", result.affected_rows);
