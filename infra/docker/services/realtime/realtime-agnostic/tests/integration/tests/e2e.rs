@@ -50,7 +50,9 @@ async fn start_test_server() -> (String, Arc<dyn EventBusPublisher>, Arc<dyn Eve
     start_test_server_with(Arc::new(NoAuthProvider::new())).await
 }
 
-/// Start the test server with a given auth provider.
+/// Start the test server with a given auth provider. Its clock reads one
+/// minute of uptime from the start, so `/v1/health` can be told apart from a
+/// hard-coded zero.
 async fn start_test_server_with(
     auth_provider: Arc<dyn AuthProvider>,
 ) -> (String, Arc<dyn EventBusPublisher>, Arc<dyn EventBus>) {
@@ -91,6 +93,9 @@ async fn start_test_server_with(
         usage: None,
         allowed_origins: None,
         producers: Arc::new(Vec::new()),
+        started_at: std::time::Instant::now()
+            .checked_sub(Duration::from_secs(60))
+            .unwrap(),
     };
 
     let app = Router::new()
@@ -178,6 +183,19 @@ async fn test_health_endpoint() {
     assert_eq!(resp.status(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["status"], "ok");
+    let uptime = body["uptime_seconds"].as_u64().unwrap();
+    assert!((60..3600).contains(&uptime), "uptime_seconds = {uptime}");
+    for counter in [
+        "events_dispatched",
+        "events_dropped_overflow",
+        "events_connection_gone",
+        "slow_consumers_disconnected",
+    ] {
+        assert!(
+            body["dispatch"][counter].is_u64(),
+            "dispatch.{counter} missing: {body}"
+        );
+    }
 }
 
 #[tokio::test]

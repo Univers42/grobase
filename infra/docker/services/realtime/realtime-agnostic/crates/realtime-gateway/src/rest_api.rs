@@ -192,9 +192,9 @@ pub async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
         status: status.to_string(),
         connections: state.conn_manager.connection_count() as u64,
         subscriptions: state.registry.subscription_count() as u64,
-        uptime_seconds: 0,
+        uptime_seconds: state.started_at.elapsed().as_secs(),
         filter_index: serde_json::to_value(&filter_snapshot).ok(),
-        dispatch: None,
+        dispatch: serde_json::to_value(crate::metrics::metrics().snapshot()).ok(),
         producers,
     };
     let code = if detached {

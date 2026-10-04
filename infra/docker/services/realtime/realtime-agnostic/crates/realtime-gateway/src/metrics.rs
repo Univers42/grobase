@@ -59,6 +59,31 @@ impl Metrics {
     pub fn inc_slow_disconnected(&self) {
         self.slow_disconnected.fetch_add(1, Ordering::Relaxed);
     }
+
+    /// The counters as they stand now, for `/v1/health`'s `dispatch` field.
+    #[must_use]
+    pub fn snapshot(&self) -> DispatchSnapshot {
+        DispatchSnapshot {
+            events_dispatched: self.dispatched.load(Ordering::Relaxed),
+            events_dropped_overflow: self.dropped_overflow.load(Ordering::Relaxed),
+            events_connection_gone: self.connection_gone.load(Ordering::Relaxed),
+            slow_consumers_disconnected: self.slow_disconnected.load(Ordering::Relaxed),
+        }
+    }
+}
+
+/// The fan-out counters since the process started, named like their
+/// `baas_realtime_*` Prometheus series.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub struct DispatchSnapshot {
+    /// Events written to a connection's send queue.
+    pub events_dispatched: u64,
+    /// Events dropped because a slow consumer's queue was full.
+    pub events_dropped_overflow: u64,
+    /// Events not delivered because the connection was already gone.
+    pub events_connection_gone: u64,
+    /// Consumers disconnected for being persistently too slow.
+    pub slow_consumers_disconnected: u64,
 }
 
 /// Prometheus text exposition (v0.0.4). `baas_realtime_*` to match the suite.
@@ -130,5 +155,28 @@ mod tests {
         }
         // counters are monotonic — at least what we just added.
         assert!(out.contains("reason=\"overflow\"} 2") || out.contains("reason=\"overflow\"} "));
+    }
+
+    #[test]
+    fn snapshot_reads_each_counter_into_its_own_field() {
+        let m = Metrics::default();
+        m.inc_dispatched();
+        m.inc_dropped_overflow();
+        m.inc_dropped_overflow();
+        m.inc_connection_gone();
+        m.inc_connection_gone();
+        m.inc_connection_gone();
+        for _ in 0..4 {
+            m.inc_slow_disconnected();
+        }
+        assert_eq!(
+            m.snapshot(),
+            DispatchSnapshot {
+                events_dispatched: 1,
+                events_dropped_overflow: 2,
+                events_connection_gone: 3,
+                slow_consumers_disconnected: 4,
+            }
+        );
     }
 }

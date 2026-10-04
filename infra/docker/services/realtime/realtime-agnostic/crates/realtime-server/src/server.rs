@@ -236,6 +236,7 @@ fn build_http_router(
         usage: build_usage(),
         allowed_origins: realtime_gateway::origin::OriginPolicy::from_env().map(Arc::new),
         producers,
+        started_at: std::time::Instant::now(),
     };
     Router::new()
         .route("/ws", get(ws_handler::ws_upgrade))
