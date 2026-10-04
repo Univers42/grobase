@@ -1272,7 +1272,10 @@ jobs:
         run: |
           # CARGO_HTTP_MULTIPLEXING=false forces HTTP/1.1 (avoids the intermittent
           # crates.io "Error in the HTTP2 framing layer" flake); NET_RETRY rides out blips.
+          # GROBASE_REQUIRE_SDK_CATALOG=1: data-plane-core's sdk_engine_catalog test
+          # fails instead of skipping when sdks/js is missing from the mount.
           docker run --rm -e CARGO_NET_RETRY=10 -e CARGO_HTTP_MULTIPLEXING=false \
+            -e GROBASE_REQUIRE_SDK_CATALOG=1 \
             -v "$PWD:/repo" -w /repo/src/data-plane-router \
             rust:1-bookworm sh -c 'cargo test --workspace &&
               cargo test -p data-plane-pool --features dynamodb &&
