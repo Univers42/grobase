@@ -129,7 +129,7 @@ export class AuthClient {
 
   async updateUser(input: UpdateUserInput, accessToken?: string): Promise<User> {
     return this.http.request<User>(routes.auth.user, {
-      method: 'POST',
+      method: 'PUT',
       body: input,
       bearerToken: accessToken,
     });
@@ -151,7 +151,7 @@ export class AuthAdminClient {
   }
 
   async updateUser(id: string, input: AdminUpdateUserInput): Promise<User> {
-    return this.request<User>(routes.auth.adminUser(id), 'PATCH', input);
+    return this.request<User>(routes.auth.adminUser(id), 'PUT', input);
   }
 
   async generateLink(input: AdminGenerateLinkInput): Promise<Record<string, unknown>> {
