@@ -154,7 +154,7 @@ A `DataOperation` arrives at `data-plane-server` with a resolved `DatabaseMount`
 
 **2. A `$ilike` filter against an engine that can only do it remotely.**
 A `List` carries `filter = {"name": {"$ilike": "ab%"}}`. Phase 1 passes (`read` is true everywhere). In Phase 2, `filter_has_pattern_search` flags `OpShape::requires_pattern_search = true`. The `ShapeReq::PatternSearch` cost rule fires; its `satisfied_by` predicate inspects `caps.cost.pattern_search`:
-- `redis` is `Scan` → satisfied → `Plan::Native` (it serves `$like` locally).
+- `redis` and `dynamodb` are `None` → not satisfied, not remote → `Plan::Reject(UnsupportedCapability{pattern_search})`: they list a key space and evaluate no filter. A `Scan`-class engine would be satisfied → `Plan::Native`.
 - `http` is `Remote` → not satisfied; the rule's `can_federate` predicate is true → `Verdict::FederateOrReject` resolves to `Plan::Federate{target:"analytics"}`. With federation OFF (default), `resolve_federation` lowers that to `Plan::Reject(NotImplemented)` — the workload never silently succeeds. Flip `federation_enabled` and the same op resolves to `Federate{analytics}`.
 
 A grouped `Aggregate` (`group_by` non-empty) follows the analogous `JoinOrAnalytical` rule: an engine with `joins: None` (and `aggregate` somehow enabled) federates → `NotImplemented` while OFF, while Postgres (`joins: Native`) stays `Native`.
