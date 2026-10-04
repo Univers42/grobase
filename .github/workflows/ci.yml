@@ -103,6 +103,13 @@ jobs:
       - name: alert rules (m52)
         run: bash scripts/verify/m52-alert-rules.sh
 
+      # Parsed from source, no stack: every adapter's SUPPORTED_OPS equals its
+      # descriptor (m25), and the Rust cutover's static surface is intact (m2).
+      - name: dispatch matrix and federation surface (m25, m2)
+        run: |
+          bash scripts/verify/m25-oltp-matrix.sh
+          bash scripts/verify/m2-federation.sh
+
   # ─── Job 2: Docker build for each service ──────────────────────
   # Build contexts live under the repo root. NestJS apps build from src/ with
   # an APP build-arg; the Go control plane from src/control-plane/ with APP+PORT;
@@ -940,6 +947,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - { sdk: js,     os: ubuntu-latest }
           - { sdk: python, os: ubuntu-latest }
           - { sdk: kotlin, os: ubuntu-latest }
           - { sdk: dart,   os: ubuntu-latest }
@@ -951,6 +959,15 @@ jobs:
       # A gate's "[MNN] FAIL — why" line becomes a public annotation.
       - name: Annotate gate failures
         run: echo "::add-matcher::.github/gate-matcher.json"
+
+      # JS — @grobase/js, the hand-written reference client every app uses
+      - if: matrix.sdk == 'js'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '20'
+      - if: matrix.sdk == 'js'
+        working-directory: sdks/js
+        run: npm ci && npm run build && npm run typecheck && npm test
 
       # Python — grobase-sdk
       - if: matrix.sdk == 'python'
@@ -1247,14 +1264,19 @@ jobs:
           docker run --rm -v "$PWD/src/control-plane:/src" -w /src \
             golang:1.25-bookworm go test ./...
 
-      # Rust — data-plane workspace (data-plane-core/pool/server + engine-conformance)
+      # Rust — data-plane workspace (data-plane-core/pool/server + engine-conformance),
+      # then the opt-in dynamodb adapter's tests (the default build leaves the
+      # feature off, so --workspace never compiles them), then m18's static leg
+      # on the same warm target: the cutover gate binding rule 2 relies on.
       - if: matrix.suite == 'rust-data-plane'
         run: |
           # CARGO_HTTP_MULTIPLEXING=false forces HTTP/1.1 (avoids the intermittent
           # crates.io "Error in the HTTP2 framing layer" flake); NET_RETRY rides out blips.
           docker run --rm -e CARGO_NET_RETRY=10 -e CARGO_HTTP_MULTIPLEXING=false \
-            -v "$PWD/src/data-plane-router:/src" -w /src \
-            rust:1-bookworm cargo test --workspace
+            -v "$PWD:/repo" -w /repo/src/data-plane-router \
+            rust:1-bookworm sh -c 'cargo test --workspace &&
+              cargo test -p data-plane-pool --features dynamodb &&
+              bash /repo/scripts/verify/m18-rust-data-plane.sh'
 
       # Rust — realtime workspace (event bus + IRC bridge)
       - if: matrix.suite == 'rust-realtime'
