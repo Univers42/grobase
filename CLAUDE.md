@@ -332,8 +332,10 @@ NestJS services, which extend `_common.yml`'s `ts-base`): each lists the keys it
 optional `.env.<service>`, still receives its needed key under every overlay, a kong-loads-`.env` mutant is caught, a
 running one holds no `.env` key it does not read, and no running container's unset pass-through unsets an image `ENV`.
 `m213` proves the public spec's `POST /query/v1/execute` (`queryExecute`, what every SDK's query call
-posts) is served through Kong: an unknown sibling path answers 404, the route answers its AuthGuard's 401
-(static leg + live leg under `M213_REQUIRE=1` in CI). It answered 404 until 2026-10-03.
+posts) is served: query-router, called directly with no credential, answers an unknown sibling path
+404 and the route its AuthGuard's 401, and through Kong the route reaches query-router (its api-key
+middleware refuses the anon key, as on every `/query/v1` path). Static leg + live legs under
+`M213_REQUIRE=1` in CI. It answered 404 until 2026-10-03.
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 
