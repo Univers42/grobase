@@ -158,7 +158,7 @@ impl EngineCapabilities {
             stream: true,
             ddl: true,
             transactions: true,
-            savepoints: true,
+            savepoints: false, // TxHandle has no savepoint operation
             isolation_levels: vec![
                 IsolationLevel::ReadCommitted,
                 IsolationLevel::RepeatableRead,
@@ -233,7 +233,7 @@ impl EngineCapabilities {
             stream: false,
             ddl: true,
             transactions: true,
-            savepoints: true,
+            savepoints: false, // TxHandle has no savepoint operation
             isolation_levels: vec![
                 IsolationLevel::ReadCommitted,
                 IsolationLevel::RepeatableRead,
