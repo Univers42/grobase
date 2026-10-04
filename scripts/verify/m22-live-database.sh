@@ -94,18 +94,18 @@ for symbol in \
   "pub struct ForeignKeyRef" \
   "pub enum NormalizedType" \
   'rename_all = "snake_case"'; do
-  grep -q "${symbol}" "${SCHEMA_RS}" || fail "${SCHEMA_RS} missing: ${symbol}"
+  grep -rq "${symbol}" "${SCHEMA_RS}" || fail "${SCHEMA_RS} missing: ${symbol}"
 done
-grep -q "pub use schema::" "${ROUTER_DIR}/crates/data-plane-core/src/lib.rs" ||
+grep -rq "pub use schema::" "${ROUTER_DIR}/crates/data-plane-core/src/lib.rs" ||
   fail "data-plane-core lib.rs does not re-export the schema contract"
-grep -q "async fn describe_schema" "${ROUTER_DIR}/crates/data-plane-core/src/ports.rs" ||
+grep -rq "async fn describe_schema" "${ROUTER_DIR}/crates/data-plane-core/src/ports.rs" ||
   fail "EnginePool::describe_schema port missing (NotImplemented default)"
 pass "SchemaDescriptor contract + describe_schema port exist"
 
 # ── 2) Capability flag: introspect is a route capability ─────────────────────
 step "checking the introspect capability flag"
 CAP_RS="${ROUTER_DIR}/crates/data-plane-core/src/capability.rs"
-grep -q "pub introspect: bool" "${CAP_RS}" ||
+grep -rq "pub introspect: bool" "${CAP_RS}" ||
   fail "EngineCapabilities.introspect missing"
 grep -B2 "pub introspect: bool" "${CAP_RS}" | grep -q "serde(default)" ||
   fail "introspect must be #[serde(default)] for wire back-compat"
@@ -113,73 +113,73 @@ pass "EngineCapabilities.introspect declared with wire back-compat default"
 
 # ── 3) Route: POST /v1/schema, identity/mount + capability gated ─────────────
 step "checking the Rust /v1/schema route"
-ROUTES="${ROUTER_DIR}/crates/data-plane-server/src/routes.rs"
-grep -q '"/v1/schema"' "${ROUTES}" || fail "POST /v1/schema route missing"
-grep -q "struct DescribeSchemaRequest" "${ROUTES}" ||
+ROUTES="${ROUTER_DIR}/crates/data-plane-server/src/routes"
+grep -rq '"/v1/schema"' "${ROUTES}" || fail "POST /v1/schema route missing"
+grep -rq "struct DescribeSchemaRequest" "${ROUTES}" ||
   fail "DescribeSchemaRequest envelope missing"
-grep -q "async fn describe_schema" "${ROUTES}" || fail "describe_schema handler missing"
+grep -rq "async fn describe_schema" "${ROUTES}" || fail "describe_schema handler missing"
 # The gating moved into run_describe_schema, the core shared by the /v1/schema
 # envelope handler and the /data/v1/schema api-key bypass — assert it there
 # (falling back to the handler itself for older layouts).
 SCHEMA_CORE="async fn run_describe_schema"
-grep -q "${SCHEMA_CORE}" "${ROUTES}" || SCHEMA_CORE="async fn describe_schema"
-grep -A8 "${SCHEMA_CORE}" "${ROUTES}" | grep -q "validate_identity_mount" ||
+grep -rq "${SCHEMA_CORE}" "${ROUTES}" || SCHEMA_CORE="async fn describe_schema"
+grep -rh -A8 "${SCHEMA_CORE}" "${ROUTES}" | grep -q "validate_identity_mount" ||
   fail "describe_schema must validate identity/mount (begin_transaction-style gating)"
-grep -A14 "${SCHEMA_CORE}" "${ROUTES}" | grep -q '"introspect"' ||
+grep -rh -A14 "${SCHEMA_CORE}" "${ROUTES}" | grep -q '"introspect"' ||
   fail "describe_schema must gate on the introspect capability"
-grep -A14 "${SCHEMA_CORE}" "${ROUTES}" | grep -q "is_admin" &&
+grep -rh -A14 "${SCHEMA_CORE}" "${ROUTES}" | grep -q "is_admin" &&
   fail "/v1/schema must NOT be admin-gated (any authenticated identity reads its own mount)"
 pass "/v1/schema mounted: validate_identity_mount + introspect capability gate, no admin gate"
 
 # ── 4) Engine implementations + pure normalizers + SharedPool delegation ─────
 step "checking engine describe_schema implementations"
-grep -q "async fn describe_schema" "${ROUTER_DIR}/crates/data-plane-pool/src/postgres.rs" ||
+grep -rq "async fn describe_schema" "${ROUTER_DIR}/crates/data-plane-pool/src/postgres" ||
   fail "postgres describe_schema missing"
-grep -q "fn normalize_pg_type" "${ROUTER_DIR}/crates/data-plane-pool/src/postgres.rs" ||
+grep -rq "fn normalize_pg_type" "${ROUTER_DIR}/crates/data-plane-pool/src/postgres" ||
   fail "postgres normalize_pg_type (pure) missing"
-grep -q "async fn describe_schema" "${ROUTER_DIR}/crates/data-plane-pool/src/mysql.rs" ||
+grep -rq "async fn describe_schema" "${ROUTER_DIR}/crates/data-plane-pool/src/mysql" ||
   fail "mysql describe_schema missing"
-grep -q "fn normalize_mysql_type" "${ROUTER_DIR}/crates/data-plane-pool/src/mysql.rs" ||
+grep -rq "fn normalize_mysql_type" "${ROUTER_DIR}/crates/data-plane-pool/src/mysql" ||
   fail "mysql normalize_mysql_type (pure) missing"
-grep -q "async fn describe_schema" "${ROUTER_DIR}/crates/data-plane-pool/src/mongo.rs" ||
+grep -rq "async fn describe_schema" "${ROUTER_DIR}/crates/data-plane-pool/src/mongo" ||
   fail "mongo describe_schema missing"
-grep -q "fn jsonschema_to_columns" "${ROUTER_DIR}/crates/data-plane-pool/src/mongo.rs" ||
+grep -rq "fn jsonschema_to_columns" "${ROUTER_DIR}/crates/data-plane-pool/src/mongo" ||
   fail "mongo jsonschema_to_columns (pure) missing"
-grep -q "fn infer_columns_from_samples" "${ROUTER_DIR}/crates/data-plane-pool/src/mongo.rs" ||
+grep -rq "fn infer_columns_from_samples" "${ROUTER_DIR}/crates/data-plane-pool/src/mongo" ||
   fail "mongo infer_columns_from_samples (pure) missing"
-grep -q '_baas_migrations' "${ROUTER_DIR}/crates/data-plane-pool/src/postgres.rs" ||
+grep -rq '_baas_migrations' "${ROUTER_DIR}/crates/data-plane-pool/src/postgres" ||
   fail "postgres introspection must exclude _baas_migrations"
-grep -q "self.0.describe_schema" "${ROUTER_DIR}/crates/data-plane-pool/src/registry.rs" ||
+grep -rq "self.0.describe_schema" "${ROUTER_DIR}/crates/data-plane-pool/src/registry.rs" ||
   fail "SharedPool must delegate describe_schema to the underlying engine"
 pass "postgres + mysql + mongo implement describe_schema; SharedPool delegates"
 
 # ── 5) query-router surface: GET /:dbId/schema ────────────────────────────────
 step "checking query-router schema surface"
 PROXY_TS="${QR_DIR}/proxy/rust-data-plane.proxy.ts"
-grep -q "describeSchema" "${PROXY_TS}" ||
+grep -rq "describeSchema" "${PROXY_TS}" ||
   fail "${PROXY_TS} missing describeSchema method"
-grep -q "'/v1/schema'" "${PROXY_TS}" ||
+grep -rq "'/v1/schema'" "${PROXY_TS}" ||
   fail "${PROXY_TS} does not POST to /v1/schema"
 SCHEMA_SVC="${QR_DIR}/query/schema.service.ts"
 [[ -f "${SCHEMA_SVC}" ]] || fail "missing ${SCHEMA_SVC}"
-grep -q "resolveConnection" "${SCHEMA_SVC}" ||
+grep -rq "resolveConnection" "${SCHEMA_SVC}" ||
   fail "SchemaService must resolve the mount via QueryService.resolveConnection"
-grep -q "describeSchema" "${SCHEMA_SVC}" ||
+grep -rq "describeSchema" "${SCHEMA_SVC}" ||
   fail "SchemaService never calls rustProxy.describeSchema"
-grep -q "QUERY_ROUTER_SCHEMA_CACHE_TTL_MS" "${SCHEMA_SVC}" ||
+grep -rq "QUERY_ROUTER_SCHEMA_CACHE_TTL_MS" "${SCHEMA_SVC}" ||
   fail "SchemaService missing the TTL cache"
 SCHEMA_CTRL="${QR_DIR}/query/schema.controller.ts"
 [[ -f "${SCHEMA_CTRL}" ]] || fail "missing ${SCHEMA_CTRL}"
-grep -q "':dbId/schema'" "${SCHEMA_CTRL}" ||
+grep -rq "':dbId/schema'" "${SCHEMA_CTRL}" ||
   fail "SchemaController does not serve GET /:dbId/schema"
-grep -q "AuthGuard" "${SCHEMA_CTRL}" ||
+grep -rq "AuthGuard" "${SCHEMA_CTRL}" ||
   fail "SchemaController is not guarded (AuthGuard missing)"
 QUERY_MOD="${QR_DIR}/query/query.module.ts"
-grep -q "SchemaController" "${QUERY_MOD}" ||
+grep -rq "SchemaController" "${QUERY_MOD}" ||
   fail "QueryModule does not register SchemaController"
-grep -q "SchemaService" "${QUERY_MOD}" ||
+grep -rq "SchemaService" "${QUERY_MOD}" ||
   fail "QueryModule does not register SchemaService"
-grep -q "resolveConnection" "${QR_DIR}/query/query.service.ts" ||
+grep -rq "resolveConnection" "${QR_DIR}/query/query.service.ts" ||
   fail "QueryService.resolveConnection (public wrapper) missing"
 pass "GET /query/v1/:dbId/schema wired: proxy + service (TTL cache) + guarded controller"
 
@@ -193,13 +193,13 @@ for symbol in \
   "pub struct DdlColumnDef" \
   "pub enum SchemaDdlOp" \
   "pub fn validate_default_expr"; do
-  grep -q "${symbol}" "${DDL_RS}" || fail "${DDL_RS} missing: ${symbol}"
+  grep -rq "${symbol}" "${DDL_RS}" || fail "${DDL_RS} missing: ${symbol}"
 done
-grep -q "pub use schema_ddl::" "${ROUTER_DIR}/crates/data-plane-core/src/lib.rs" ||
+grep -rq "pub use schema_ddl::" "${ROUTER_DIR}/crates/data-plane-core/src/lib.rs" ||
   fail "data-plane-core lib.rs does not re-export the schema DDL contract"
-grep -q "async fn apply_schema_ddl" "${ROUTER_DIR}/crates/data-plane-core/src/ports.rs" ||
+grep -rq "async fn apply_schema_ddl" "${ROUTER_DIR}/crates/data-plane-core/src/ports.rs" ||
   fail "EnginePool::apply_schema_ddl port missing (NotImplemented default)"
-grep -q "pub schema_ddl: bool" "${CAP_RS}" ||
+grep -rq "pub schema_ddl: bool" "${CAP_RS}" ||
   fail "EngineCapabilities.schema_ddl missing"
 grep -B2 "pub schema_ddl: bool" "${CAP_RS}" | grep -q "serde(default)" ||
   fail "schema_ddl must be #[serde(default)] for wire back-compat"
@@ -207,57 +207,57 @@ pass "SchemaDdlRequest contract + apply_schema_ddl port + schema_ddl capability 
 
 # ── 7) Route: POST /v1/schema/ddl, identity/mount + schema_ddl gated ─────────
 step "checking the Rust /v1/schema/ddl route"
-grep -q '"/v1/schema/ddl"' "${ROUTES}" || fail "POST /v1/schema/ddl route missing"
-grep -q "struct SchemaDdlEnvelope" "${ROUTES}" || fail "SchemaDdlEnvelope missing"
+grep -rq '"/v1/schema/ddl"' "${ROUTES}" || fail "POST /v1/schema/ddl route missing"
+grep -rq "struct SchemaDdlEnvelope" "${ROUTES}" || fail "SchemaDdlEnvelope missing"
 # Gating lives in run_apply_schema_ddl, the core shared by the envelope handler
 # and the /data/v1 api-key bypass (fall back to the handler for older layouts).
 DDL_CORE="async fn run_apply_schema_ddl"
-grep -q "${DDL_CORE}" "${ROUTES}" || DDL_CORE="async fn apply_schema_ddl"
-grep -A8 "${DDL_CORE}" "${ROUTES}" | grep -q "validate_identity_mount" ||
+grep -rq "${DDL_CORE}" "${ROUTES}" || DDL_CORE="async fn apply_schema_ddl"
+grep -rh -A8 "${DDL_CORE}" "${ROUTES}" | grep -q "validate_identity_mount" ||
   fail "apply_schema_ddl must validate identity/mount"
-grep -A16 "${DDL_CORE}" "${ROUTES}" | grep -q '"schema_ddl"' ||
+grep -rh -A16 "${DDL_CORE}" "${ROUTES}" | grep -q '"schema_ddl"' ||
   fail "apply_schema_ddl must gate on the schema_ddl capability"
-grep -A16 "${DDL_CORE}" "${ROUTES}" | grep -q "is_admin" &&
+grep -rh -A16 "${DDL_CORE}" "${ROUTES}" | grep -q "is_admin" &&
   fail "/v1/schema/ddl must NOT be admin-gated (same trust model as /v1/query writes)"
 pass "/v1/schema/ddl mounted: validate_identity_mount + schema_ddl capability gate, no admin gate"
 
 # ── 8) Engine apply_schema_ddl implementations + SharedPool delegation ───────
 step "checking engine apply_schema_ddl implementations"
-grep -q "async fn apply_schema_ddl" "${ROUTER_DIR}/crates/data-plane-pool/src/postgres.rs" ||
+grep -rq "async fn apply_schema_ddl" "${ROUTER_DIR}/crates/data-plane-pool/src/postgres" ||
   fail "postgres apply_schema_ddl missing"
-grep -q "fn pg_sql_type" "${ROUTER_DIR}/crates/data-plane-pool/src/postgres.rs" ||
+grep -rq "fn pg_sql_type" "${ROUTER_DIR}/crates/data-plane-pool/src/postgres" ||
   fail "postgres pg_sql_type (pure reverse mapper) missing"
-grep -q "fn build_pg_ddl" "${ROUTER_DIR}/crates/data-plane-pool/src/postgres.rs" ||
+grep -rq "fn build_pg_ddl" "${ROUTER_DIR}/crates/data-plane-pool/src/postgres" ||
   fail "postgres build_pg_ddl (pure statement builder) missing"
-grep -q "async fn apply_schema_ddl" "${ROUTER_DIR}/crates/data-plane-pool/src/mysql.rs" ||
+grep -rq "async fn apply_schema_ddl" "${ROUTER_DIR}/crates/data-plane-pool/src/mysql" ||
   fail "mysql apply_schema_ddl missing"
-grep -q "fn mysql_sql_type" "${ROUTER_DIR}/crates/data-plane-pool/src/mysql.rs" ||
+grep -rq "fn mysql_sql_type" "${ROUTER_DIR}/crates/data-plane-pool/src/mysql" ||
   fail "mysql mysql_sql_type (pure reverse mapper) missing"
-grep -q "fn build_mysql_ddl" "${ROUTER_DIR}/crates/data-plane-pool/src/mysql.rs" ||
+grep -rq "fn build_mysql_ddl" "${ROUTER_DIR}/crates/data-plane-pool/src/mysql" ||
   fail "mysql build_mysql_ddl (pure statement builder) missing"
-grep -q "async fn apply_schema_ddl" "${ROUTER_DIR}/crates/data-plane-pool/src/mongo.rs" ||
+grep -rq "async fn apply_schema_ddl" "${ROUTER_DIR}/crates/data-plane-pool/src/mongo" ||
   fail "mongo apply_schema_ddl missing"
-grep -q "fn columns_to_jsonschema" "${ROUTER_DIR}/crates/data-plane-pool/src/mongo.rs" ||
+grep -rq "fn columns_to_jsonschema" "${ROUTER_DIR}/crates/data-plane-pool/src/mongo" ||
   fail "mongo columns_to_jsonschema (pure) missing"
-grep -q "fn jsonschema_with_column_set" "${ROUTER_DIR}/crates/data-plane-pool/src/mongo.rs" ||
+grep -rq "fn jsonschema_with_column_set" "${ROUTER_DIR}/crates/data-plane-pool/src/mongo" ||
   fail "mongo jsonschema_with_column_set (pure transform) missing"
-grep -q "self.0.apply_schema_ddl" "${ROUTER_DIR}/crates/data-plane-pool/src/registry.rs" ||
+grep -rq "self.0.apply_schema_ddl" "${ROUTER_DIR}/crates/data-plane-pool/src/registry.rs" ||
   fail "SharedPool must delegate apply_schema_ddl to the underlying engine"
 pass "postgres + mysql + mongo implement apply_schema_ddl; SharedPool delegates"
 
 # ── 9) query-router surface: POST /:dbId/schema/ddl ──────────────────────────
 step "checking query-router schema DDL surface"
-grep -q "applySchemaDdl" "${PROXY_TS}" ||
+grep -rq "applySchemaDdl" "${PROXY_TS}" ||
   fail "${PROXY_TS} missing applySchemaDdl method"
-grep -q "'/v1/schema/ddl'" "${PROXY_TS}" ||
+grep -rq "'/v1/schema/ddl'" "${PROXY_TS}" ||
   fail "${PROXY_TS} does not POST to /v1/schema/ddl"
 [[ -f "${QR_DIR}/query/dto/schema-ddl.dto.ts" ]] || fail "missing schema-ddl.dto.ts"
-grep -q "applyDdl" "${SCHEMA_SVC}" || fail "SchemaService.applyDdl missing"
-grep -q "confirm" "${SCHEMA_SVC}" ||
+grep -rq "applyDdl" "${SCHEMA_SVC}" || fail "SchemaService.applyDdl missing"
+grep -rq "confirm" "${SCHEMA_SVC}" ||
   fail "SchemaService.applyDdl missing the destructive-op confirm gate"
-grep -q "cache.delete" "${SCHEMA_SVC}" ||
+grep -rq "cache.delete" "${SCHEMA_SVC}" ||
   fail "SchemaService.applyDdl must bust the schema cache after DDL"
-grep -q "':dbId/schema/ddl'" "${SCHEMA_CTRL}" ||
+grep -rq "':dbId/schema/ddl'" "${SCHEMA_CTRL}" ||
   fail "SchemaController does not serve POST /:dbId/schema/ddl"
 pass "POST /query/v1/:dbId/schema/ddl wired: proxy + confirm gate + cache bust + DTO"
 
@@ -324,7 +324,7 @@ JSON
     -H 'Content-Type: application/json' \
     -d "$(envelope redis "redis://redis:6379")")
   [[ "${code}" == "422" ]] || fail "redis schema must be 422, got ${code}"
-  grep -q "unsupported_capability" /tmp/m22-redis-schema.json ||
+  grep -rq "unsupported_capability" /tmp/m22-redis-schema.json ||
     fail "redis schema 422 must carry error=unsupported_capability"
   pass "redis mount rejected with 422 unsupported_capability"
 
@@ -397,7 +397,7 @@ JSON
       \"column\": { \"name\": \"note\", \"normalized_type\": \"integer\", \"nullable\": true, \"default\": null, \"enum_values\": null }
     }")")
   [[ "${code}" == "409" ]] || fail "text→integer over 'abc' must be 409, got ${code}: $(cat /tmp/m22-ddl-409.json)"
-  grep -q '"error":"conflict"' /tmp/m22-ddl-409.json ||
+  grep -rq '"error":"conflict"' /tmp/m22-ddl-409.json ||
     fail "DDL 409 must carry error=conflict"
   pass "incompatible alter_column_type rejected with 409 conflict (data preserved)"
 
@@ -422,7 +422,7 @@ JSON
     -H 'Content-Type: application/json' \
     -d "$(ddl_envelope redis "redis://redis:6379" "{ \"op\": \"drop_table\", \"table\": \"t\" }")")
   [[ "${code}" == "422" ]] || fail "redis DDL must be 422, got ${code}"
-  grep -q "unsupported_capability" /tmp/m22-redis-ddl.json ||
+  grep -rq "unsupported_capability" /tmp/m22-redis-ddl.json ||
     fail "redis DDL 422 must carry error=unsupported_capability"
   pass "redis DDL rejected with 422 unsupported_capability"
 
@@ -513,7 +513,7 @@ JSON
     }")
   [[ "${code}" == "200" || "${code}" == "201" ]] ||
     fail "gateway create_table failed (${code}): $(cat /tmp/m22-rt-ddl.json)"
-  grep -q '"status":"applied"' /tmp/m22-rt-ddl.json ||
+  grep -rq '"status":"applied"' /tmp/m22-rt-ddl.json ||
     fail "gateway create_table did not apply: $(cat /tmp/m22-rt-ddl.json)"
   pass "gateway DDL created ${RT_TABLE}"
 
@@ -580,7 +580,7 @@ WSJS
     -d '{ "op": "insert", "data": { "id": 1, "note": "m22 realtime echo" } }')
   [[ "${code}" == "200" || "${code}" == "201" ]] ||
     fail "gateway insert failed (${code}): $(cat /tmp/m22-rt-insert.json)"
-  grep -q '"rowCount":1' /tmp/m22-rt-insert.json ||
+  grep -rq '"rowCount":1' /tmp/m22-rt-insert.json ||
     fail "gateway insert did not report rowCount 1: $(cat /tmp/m22-rt-insert.json)"
   ECHO_OK=0
   for _ in $(seq 1 10); do

@@ -44,9 +44,9 @@ pass() { green "[M21] PASS: ${*}"; }
 command -v python3 >/dev/null 2>&1 || fail "python3 required"
 
 step "structural: generator, targets, and chart present"
-[[ -f "${BAAS_DIR}/scripts/gen-deploy.py" ]] || fail "missing scripts/gen-deploy.py"
-grep -qE '^deploy-gen:' "${BAAS_DIR}/Makefile" || fail "Makefile missing deploy-gen target"
-grep -qE '^deploy-template:' "${BAAS_DIR}/Makefile" || fail "Makefile missing deploy-template target"
+[[ -f "${BAAS_DIR}/scripts/deploy/gen-deploy.py" ]] || fail "missing scripts/deploy/gen-deploy.py"
+grep -qE '^deploy-gen:' "${BAAS_DIR}"/orchestrators/makes/*.mk || fail "no make fragment defines deploy-gen"
+grep -qE '^deploy-template:' "${BAAS_DIR}"/orchestrators/makes/*.mk || fail "no make fragment defines deploy-template"
 for f in Chart.yaml values.yaml templates/deployment.yaml templates/service.yaml templates/_helpers.tpl; do
   [[ -f "${HELM}/${f}" ]] || fail "missing chart file ${f}"
 done
@@ -54,7 +54,7 @@ done
 pass "gen-deploy.py + deploy-gen/deploy-template + chart skeleton present"
 
 step "freshness: generator re-runs clean and produces the manifest"
-(cd "${BAAS_DIR}" && python3 scripts/gen-deploy.py >/dev/null) || fail "gen-deploy.py exited non-zero"
+(cd "${BAAS_DIR}" && python3 scripts/deploy/gen-deploy.py >/dev/null) || fail "gen-deploy.py exited non-zero"
 [[ -f "${MANIFEST}" ]] || fail "generator did not produce ${MANIFEST}"
 python3 -c "import yaml;yaml.safe_load(open('${MANIFEST}'))" || fail "edition-manifest.yaml is not valid YAML"
 pass "generator regenerates the manifest cleanly"
@@ -63,9 +63,9 @@ step "consistency: manifest editions/planes match the Makefile MANIFEST"
 python3 - "$REPO_ROOT/$BAAS_DIR" <<'PY' || fail "manifest drifted from the Makefile"
 import sys, os, re, yaml
 base = sys.argv[1]
-sys.path.insert(0, os.path.join(base, "scripts"))
+sys.path.insert(0, os.path.join(base, "scripts", "deploy"))
 import importlib.util
-spec = importlib.util.spec_from_file_location("gd", os.path.join(base, "scripts", "gen-deploy.py"))
+spec = importlib.util.spec_from_file_location("gd", os.path.join(base, "scripts", "deploy", "gen-deploy.py"))
 gd = importlib.util.module_from_spec(spec); spec.loader.exec_module(gd)
 profiles, editions = gd.parse_makefile()
 man = yaml.safe_load(open(os.path.join(base, "deploy", "edition-manifest.yaml")))
