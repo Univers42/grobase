@@ -65,7 +65,7 @@ make up
 
 # 4. Check health
 make health
-# Expected: {"status":"ok","connections":0,"subscriptions":0,"uptime_seconds":0}
+# Expected: {"status":"ok","connections":0,"subscriptions":0,"uptime_seconds":<seconds since start>,...}
 
 # 5. Open the SyncSpace demo
 #    Open two browser tabs to: http://localhost:4002
@@ -484,16 +484,25 @@ REALTIME_CONFIG=/path/to/config.json cargo run --bin realtime-server
 curl -s http://localhost:4002/v1/health | python3 -m json.tool
 ```
 
-**Expected:**
+**Expected** (abridged — `filter_index` follows, and `producers` when a database producer is configured):
 
 ```json
 {
     "status": "ok",
     "connections": 0,
     "subscriptions": 0,
-    "uptime_seconds": 0
+    "uptime_seconds": 42,
+    "dispatch": {
+        "events_dispatched": 0,
+        "events_dropped_overflow": 0,
+        "events_connection_gone": 0,
+        "slow_consumers_disconnected": 0
+    }
 }
 ```
+
+`uptime_seconds` counts from the moment the server started serving; `dispatch`
+holds the same counters `/metrics` exports as `baas_realtime_*`.
 
 ### Step 2: Publish a Test Event
 
