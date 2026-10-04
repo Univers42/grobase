@@ -531,7 +531,7 @@ open class AuthApi(basePath: kotlin.String = defaultBasePath, client: Call.Facto
     }
 
     /**
-     * POST /auth/v1/user
+     * PUT /auth/v1/user
      * Update the authenticated user (email / password / metadata).
      * 
      * @param updateUserRequest 
@@ -563,7 +563,7 @@ open class AuthApi(basePath: kotlin.String = defaultBasePath, client: Call.Facto
     }
 
     /**
-     * POST /auth/v1/user
+     * PUT /auth/v1/user
      * Update the authenticated user (email / password / metadata).
      * 
      * @param updateUserRequest 
@@ -595,7 +595,7 @@ open class AuthApi(basePath: kotlin.String = defaultBasePath, client: Call.Facto
         localVariableHeaders["Accept"] = "application/json"
 
         return RequestConfig(
-            method = RequestMethod.POST,
+            method = RequestMethod.PUT,
             path = "/auth/v1/user",
             query = localVariableQuery,
             headers = localVariableHeaders,
