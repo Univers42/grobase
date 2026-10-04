@@ -84,6 +84,7 @@ impl RedisPool {
         identity: &RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
         validate_resource(&operation.resource)?;
+        crate::kv_scope::refuse_ignored_predicates("redis", operation)?;
         let mut conn = self.manager.clone();
         let prefix = self.key_prefix(&operation.resource, identity);
         match operation.op {
