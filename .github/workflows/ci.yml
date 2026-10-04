@@ -775,8 +775,8 @@ jobs:
           M204_REQUIRE: "1"
         run: bash scripts/verify/m204-security-events.sh
 
-      # Every SDK posts to /query/v1/execute (the spec's queryExecute); it is served
-      # (its guard answers 401), not a 404 behind Kong.
+      # Every SDK posts to /query/v1/execute (the spec's queryExecute): query-router
+      # serves it behind its AuthGuard (401, not 404) and Kong forwards it there.
       - name: SDK query route served through Kong (m213)
         env:
           M213_REQUIRE: "1"
