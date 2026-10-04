@@ -1920,7 +1920,7 @@ class AuthApi:
         ]
 
         return self.api_client.param_serialize(
-            method='POST',
+            method='PUT',
             resource_path='/auth/v1/user',
             path_params=_path_params,
             query_params=_query_params,

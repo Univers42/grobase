@@ -10,7 +10,7 @@ Method | HTTP request | Description
 [**auth_recover**](AuthApi.md#auth_recover) | **POST** /auth/v1/recover | Send a password-recovery email.
 [**auth_sign_up**](AuthApi.md#auth_sign_up) | **POST** /auth/v1/signup | Register a new user (email + password).
 [**auth_token**](AuthApi.md#auth_token) | **POST** /auth/v1/token | Exchange credentials for a session (password or refresh_token grant).
-[**auth_update_user**](AuthApi.md#auth_update_user) | **POST** /auth/v1/user | Update the authenticated user (email / password / metadata).
+[**auth_update_user**](AuthApi.md#auth_update_user) | **PUT** /auth/v1/user | Update the authenticated user (email / password / metadata).
 [**auth_verify**](AuthApi.md#auth_verify) | **POST** /auth/v1/verify | Verify a signup/recovery/magiclink token.
 [**mfa_challenge**](AuthApi.md#mfa_challenge) | **POST** /auth/v1/factors/{factorId}/challenge | Open a verification challenge for an enrolled factor.
 [**mfa_enroll**](AuthApi.md#mfa_enroll) | **POST** /auth/v1/factors | Enroll an MFA factor (TOTP or phone).
