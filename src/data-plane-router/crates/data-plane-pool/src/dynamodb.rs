@@ -278,6 +278,7 @@ impl DynamoPool {
         identity: &RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
         validate_resource(&op.resource)?;
+        crate::kv_scope::refuse_ignored_predicates("dynamodb", op)?;
         let owner_pk = self.owner_pk(identity);
         match op.op {
             DataOperationKind::Get => self.run_get(&op.resource, &owner_pk, op).await,
@@ -706,6 +707,7 @@ impl TxHandle for DynamoTxHandle {
         _identity: RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
         validate_resource(&operation.resource)?;
+        crate::kv_scope::refuse_ignored_predicates("dynamodb", &operation)?;
         let table = operation.resource.clone();
         match operation.op {
             DataOperationKind::Insert => {

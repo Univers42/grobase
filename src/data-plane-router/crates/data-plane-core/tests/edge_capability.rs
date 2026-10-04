@@ -369,7 +369,11 @@ fn cost_pattern_search_per_engine() {
     );
     assert_eq!(
         EngineCapabilities::redis().cost.pattern_search,
-        PatternSearchCapability::Scan
+        PatternSearchCapability::None
+    );
+    assert_eq!(
+        EngineCapabilities::dynamodb().cost.pattern_search,
+        PatternSearchCapability::None
     );
     assert_eq!(
         EngineCapabilities::http().cost.pattern_search,

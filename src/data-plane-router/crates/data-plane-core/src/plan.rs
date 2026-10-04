@@ -530,21 +530,50 @@ mod tests {
         assert!(matches!(d.plan, Plan::Native));
     }
 
-    // ── $like → redis (Scan) = Native (can serve locally). ────────────────────
+    // ── $like → a Scan-class engine = Native (can serve locally). ─────────────
     #[test]
     fn pattern_search_on_scan_engine_is_native() {
         let f = json!({ "name": { "$like": "ab%" } });
+        let mut caps = EngineCapabilities::redis();
+        caps.cost.pattern_search = PatternSearchCapability::Scan;
         let d = plan(
             &op(DataOperationKind::List, Some(f)),
-            "redis",
-            &EngineCapabilities::redis(),
+            "scan-engine",
+            &caps,
             &NO_CTX,
             false,
         );
         assert!(
             matches!(d.plan, Plan::Native),
-            "redis Scan serves $like locally"
+            "a Scan engine serves $like locally"
         );
+    }
+
+    // ── $like → redis / dynamodb = Reject: they list a key space, no filter. ──
+    #[test]
+    fn pattern_search_on_key_addressed_engines_is_rejected() {
+        let f = json!({ "name": { "$like": "ab%" } });
+        for (engine, caps) in [
+            ("redis", EngineCapabilities::redis()),
+            ("dynamodb", EngineCapabilities::dynamodb()),
+        ] {
+            let d = plan(
+                &op(DataOperationKind::List, Some(f.clone())),
+                engine,
+                &caps,
+                &NO_CTX,
+                false,
+            );
+            assert!(
+                matches!(
+                    d.plan,
+                    Plan::Reject(DataPlaneError::UnsupportedCapability { ref capability, .. })
+                        if capability == "pattern_search"
+                ),
+                "{engine} must reject $like: {:?}",
+                d.plan
+            );
+        }
     }
 
     // ── $like → http (Remote) = Federate, which (OFF) lowers to NotImplemented. ─
