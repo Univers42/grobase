@@ -81,7 +81,7 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**authRecover**](doc//AuthApi.md#authrecover) | **POST** /auth/v1/recover | Send a password-recovery email.
 *AuthApi* | [**authSignUp**](doc//AuthApi.md#authsignup) | **POST** /auth/v1/signup | Register a new user (email + password).
 *AuthApi* | [**authToken**](doc//AuthApi.md#authtoken) | **POST** /auth/v1/token | Exchange credentials for a session (password or refresh_token grant).
-*AuthApi* | [**authUpdateUser**](doc//AuthApi.md#authupdateuser) | **POST** /auth/v1/user | Update the authenticated user (email / password / metadata).
+*AuthApi* | [**authUpdateUser**](doc//AuthApi.md#authupdateuser) | **PUT** /auth/v1/user | Update the authenticated user (email / password / metadata).
 *AuthApi* | [**authVerify**](doc//AuthApi.md#authverify) | **POST** /auth/v1/verify | Verify a signup/recovery/magiclink token.
 *AuthApi* | [**mfaChallenge**](doc//AuthApi.md#mfachallenge) | **POST** /auth/v1/factors/{factorId}/challenge | Open a verification challenge for an enrolled factor.
 *AuthApi* | [**mfaEnroll**](doc//AuthApi.md#mfaenroll) | **POST** /auth/v1/factors | Enroll an MFA factor (TOTP or phone).

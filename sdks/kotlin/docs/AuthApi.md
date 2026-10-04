@@ -10,7 +10,7 @@ All URIs are relative to *http://127.0.0.1:8002*
 | [**authRecover**](AuthApi.md#authRecover) | **POST** /auth/v1/recover | Send a password-recovery email. |
 | [**authSignUp**](AuthApi.md#authSignUp) | **POST** /auth/v1/signup | Register a new user (email + password). |
 | [**authToken**](AuthApi.md#authToken) | **POST** /auth/v1/token | Exchange credentials for a session (password or refresh_token grant). |
-| [**authUpdateUser**](AuthApi.md#authUpdateUser) | **POST** /auth/v1/user | Update the authenticated user (email / password / metadata). |
+| [**authUpdateUser**](AuthApi.md#authUpdateUser) | **PUT** /auth/v1/user | Update the authenticated user (email / password / metadata). |
 | [**authVerify**](AuthApi.md#authVerify) | **POST** /auth/v1/verify | Verify a signup/recovery/magiclink token. |
 | [**mfaChallenge**](AuthApi.md#mfaChallenge) | **POST** /auth/v1/factors/{factorId}/challenge | Open a verification challenge for an enrolled factor. |
 | [**mfaEnroll**](AuthApi.md#mfaEnroll) | **POST** /auth/v1/factors | Enroll an MFA factor (TOTP or phone). |

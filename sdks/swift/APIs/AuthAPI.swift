@@ -290,7 +290,7 @@ open class AuthAPI {
 
     /**
      Update the authenticated user (email / password / metadata).
-     - POST /auth/v1/user
+     - PUT /auth/v1/user
      - API Key:
        - type: apiKey apikey (HEADER)
        - name: apiKey
@@ -315,7 +315,7 @@ open class AuthAPI {
 
         let localVariableRequestBuilder: RequestBuilder<User>.Type = GrobaseAPI.requestBuilderFactory.getBuilder()
 
-        return localVariableRequestBuilder.init(method: "POST", URLString: (localVariableUrlComponents?.string ?? localVariableURLString), parameters: localVariableParameters, headers: localVariableHeaderParameters, requiresAuthentication: true)
+        return localVariableRequestBuilder.init(method: "PUT", URLString: (localVariableUrlComponents?.string ?? localVariableURLString), parameters: localVariableParameters, headers: localVariableHeaderParameters, requiresAuthentication: true)
     }
 
     /**
