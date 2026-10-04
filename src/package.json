@@ -2,7 +2,7 @@
   "name": "mini-baas",
   "version": "1.0.0",
   "private": true,
-  "description": "Mini BaaS \u2014 NestJS monorepo",
+  "description": "Mini BaaS — NestJS monorepo",
   "license": "MIT",
   "scripts": {
     "prebuild": "rimraf dist",
@@ -65,7 +65,7 @@
     "mongodb": "^6.15.0",
     "mysql2": "^3.11.5",
     "nestjs-pino": "^4.2.0",
-    "nodemailer": "^9.0.1",
+    "nodemailer": "^10.0.14",
     "pg": "^8.13.1",
     "pino-http": "^10.4.0",
     "pino-pretty": "^13.0.0",
