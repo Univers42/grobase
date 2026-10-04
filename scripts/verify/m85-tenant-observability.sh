@@ -17,7 +17,7 @@
 # BASELINE is byte-identical when every B5 flag is OFF (kernel rule #5):
 #
 #   PILLAR 1 — tenant_id as a STRUCTURED LOG FIELD (Loki field, never a label).
-#     data-plane-server/src/routes.rs run_query wraps the handler in a tracing
+#     data-plane-server/src/routes/ run_query wraps the handler in a tracing
 #     span `request{tenant_id=…}` gated by config.tenant_obs ← DATA_PLANE_TENANT_OBS.
 #     The default text formatter (main.rs `tracing_subscriber::fmt()…with_target`)
 #     renders that span field as the literal token `tenant_id=<value>` on the
