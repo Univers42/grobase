@@ -20,15 +20,15 @@
 // Example:
 //
 //   const pg    = client.engine<'postgresql', User>(dbId, 'users');
-//   const mongo = client.engine<'mongodb',    User>(dbId, 'users');
+//   const redis = client.engine<'redis',      User>(dbId, 'users');
 //
 //   await pg.list();              // ✅ pg.caps.read    === true
 //   await pg.transaction(...);    // ✅ pg.caps.txIntra === true
-//   await pg.upsert(...);         // ❌ COMPILE ERROR — postgresql.caps.upsert === false
-//   await pg.subscribe(...);      // ❌ COMPILE ERROR — postgresql.caps.stream === false
+//   await pg.subscribe(...);      // ✅ pg.caps.stream  === true
 //
-//   await mongo.subscribe((doc) => console.log(doc));  // ✅ mongodb.caps.stream === true
-//   await mongo.transaction(...); // ❌ COMPILE ERROR — mongodb.caps.txIntra === false
+//   await redis.upsert(...);      // ✅ redis.caps.upsert === true
+//   await redis.transaction(...); // ❌ COMPILE ERROR — redis.caps.txIntra === false
+//   await redis.subscribe(...);   // ❌ COMPILE ERROR — redis.caps.stream  === false
 
 import { routes } from '../core/routes.js';
 import type { HttpClient } from '../core/http.js';
