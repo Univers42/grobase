@@ -78,10 +78,22 @@ src_of() {
   esac
 }
 
+# adapter_source prints an adapter's source: its one file, or every file of
+# its module directory (the larger adapters are split into submodules).
+adapter_source() { # $1 engine
+  local stem
+  stem="$(src_of "$1")"
+  if [[ -d "${POOL_DIR}/${stem}" ]]; then
+    find "${POOL_DIR}/${stem}" -name '*.rs' -exec cat {} +
+  else
+    cat "${POOL_DIR}/${stem}.rs"
+  fi
+}
+
 # ── 1) static: SUPPORTED_OPS (dispatch surface) per adapter, from source ─────
 ops_from_source() { # $1 engine
-  sed -n '/SUPPORTED_OPS: &\[DataOperationKind\]/,/];/p' \
-    "${POOL_DIR}/$(src_of "$1").rs" |
+  adapter_source "$1" |
+    sed -n '/SUPPORTED_OPS: &\[DataOperationKind\]/,/];/p' |
     grep -o 'DataOperationKind::[A-Za-z]*' |
     sed 's/DataOperationKind:://' | tr '[:upper:]' '[:lower:]' | sort -u
 }
@@ -101,7 +113,7 @@ ops_from_descriptor() { # $1 engine
 }
 
 step "static: dispatch surface (SUPPORTED_OPS) must equal descriptor promise"
-ENGINES="postgresql mysql mongodb redis http"
+ENGINES="postgresql mysql mongodb sqlite mssql redis dynamodb http"
 declare -A EXPECTED # engine -> space-joined sorted op list
 for engine in ${ENGINES}; do
   dispatch="$(ops_from_source "${engine}")"
@@ -115,12 +127,12 @@ for engine in ${ENGINES}; do
   EXPECTED[${engine}]="$(tr '\n' ' ' <<<"${promised}" | sed 's/ $//')"
   echo "  ${engine}: ${EXPECTED[${engine}]}"
 done
-pass "all 5 engines: descriptor flags == SUPPORTED_OPS (parsed from source)"
+pass "all 8 adapters: descriptor flags == SUPPORTED_OPS (parsed from source)"
 
 step "static: boot-time honesty assertion is still wired"
-grep -q "assert_capability_honesty" \
-  "${ROUTER_DIR}/crates/data-plane-server/src/routes.rs" ||
-  fail "routes.rs no longer calls assert_capability_honesty at boot"
+grep -rq "assert_capability_honesty(&adapters)" \
+  "${ROUTER_DIR}/crates/data-plane-server/src/routes" ||
+  fail "the server no longer calls assert_capability_honesty at boot"
 pass "assert_capability_honesty still guards AppState::new"
 
 # ── 3) live: probe the full gateway path per engine ─────────────────────────
