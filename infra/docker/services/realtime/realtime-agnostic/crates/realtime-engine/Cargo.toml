@@ -25,5 +25,17 @@ criterion = { version = "0.5", features = ["html_reports"] }
 name = "engine_bench"
 harness = false
 
+[[bench]]
+name = "bench_micro"
+harness = false
+
+[[bench]]
+name = "bench_filter"
+harness = false
+
+[[bench]]
+name = "bench_registry"
+harness = false
+
 [lints]
 workspace = true
