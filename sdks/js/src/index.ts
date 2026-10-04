@@ -301,7 +301,8 @@ export class MiniBaasClient {
    *   const pg = client.engine<'postgresql', User>(dbId, 'users');
    *   await pg.list({ filter: { active: true } });
    *   await pg.transaction(async (tx) => tx.insert({ name: 'Alice' }));
-   *   await pg.upsert({ id: 1 });   // ❌ compile error
+   *   const kv = client.engine<'redis', User>(dbId, 'users');
+   *   await kv.transaction(async () => {});   // ❌ compile error: redis.caps.txIntra === false
    */
   engine<E extends EngineId, Row = Record<string, unknown>>(
     engine: E,

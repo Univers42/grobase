@@ -359,7 +359,7 @@ skip `make`.
 
 Notes: the data-plane crate's produced binary is **`data-plane-router`** (package `data-plane-server`,
 `[[bin]] name = "data-plane-router"`); realtime's is `realtime-server`. The SDK `src/generated/` tree
-is **gitignored** (except the committed curated `engines.ts`) — regenerate with `cd sdks/js && npm run codegen:all` (the `openapi:collect` link in
+is **gitignored** (except the committed `engines.ts`) — regenerate with `cd sdks/js && npm run codegen:all` (the `openapi:collect` link in
 that chain was repointed to `../../scripts/ops/openapi-collect.sh` in the flatten). All SDKs derive
 from one spec: `infra/config/openapi/grobase-public.json` (polyglot via `bash sdks/js/scripts/codegen-polyglot.sh`).
 
@@ -506,9 +506,10 @@ key); `APP_CHANNELS_ENABLED` (m179, cross-app `xapp:` messaging channels, migrat
 The TS SDK is **`sdks/js/`** (package **`@grobase/js`**, renamed from `@mini-baas/js` during the
 `sdks/` consolidation, commit `ca6aaf8`) — a hand-written reference client, layout
 `src/{core,domains,generated,bin,__type_tests__}` + `index.ts`/`types.ts`, tested with **`node:test`**
-(not jest/vitest). Its `src/generated/` is **gitignored EXCEPT the curated `engines.ts`** — the engine
-capability catalog is the SDK's contract (pinned by `__type_tests__/engines.test-d.ts`) and is committed
-as the source of truth (`codegen-engines.mjs` only diffs it vs a live `/engines`); the rest is reproduced.
+(not jest/vitest). Its `src/generated/` is **gitignored EXCEPT `engines.ts`** — the engine capability catalog
+the SDK's types derive from (pinned by `__type_tests__/engines.test-d.ts`). It is what live `/engines`
+returns for the 9 engines compose forwards (`codegen-engines.mjs` regenerates it; `--strict` diffs it),
+and data-plane-core's `sdk_engine_catalog` test fails when it drifts from the Rust descriptors; the rest is reproduced.
 The polyglot SDKs (`sdks/python/`, `sdks/kotlin/`, `sdks/swift/`, `sdks/dart/`) are
 **OpenAPI-generated** from `infra/config/openapi/grobase-public.json` via
 `bash sdks/js/scripts/codegen-polyglot.sh` (package identities: python `grobase`, dart `grobase`,

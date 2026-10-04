@@ -18,7 +18,7 @@
 // compiles, the type narrowing is broken and the SDK lies to its users.
 //
 // To verify locally:
-//   cd apps/baas/sdk && npx tsc --noEmit -p tsconfig.json
+//   cd sdks/js && npm run typecheck
 
 import type { EngineClient, StreamableEngine, TransactionalEngine, UpsertableEngine } from '../index.js';
 
@@ -27,6 +27,8 @@ declare const pg: EngineClient<'postgresql', { id: string; name: string }>;
 declare const mongo: EngineClient<'mongodb', { _id: string; amount: number }>;
 declare const redis: EngineClient<'redis', { id: string; value: string }>;
 declare const http: EngineClient<'http', { id: string; payload: unknown }>;
+declare const sqlite: EngineClient<'sqlite', { id: number; title: string }>;
+declare const cockroach: EngineClient<'cockroachdb', { id: string }>;
 
 // All five base ops exist on every engine — these must type-check.
 pg.list satisfies unknown;
@@ -37,25 +39,24 @@ pg.delete satisfies unknown;
 mongo.list satisfies unknown;
 redis.list satisfies unknown;
 http.list satisfies unknown;
+sqlite.list satisfies unknown;
 
 // ── 2) Capability narrowing — POSITIVE cases (must compile) ──────────────────
-// postgresql.caps.txIntra === true  → transaction() exists
+// postgresql: txIntra, upsert (ON CONFLICT) and stream (LISTEN/NOTIFY) are true
 pg.transaction satisfies unknown;
-// postgresql.caps.upsert === false  → upsert is absent (positive: redis has it)
-redis.upsert satisfies unknown;
-// mongodb.caps.stream === true      → subscribe() exists
+pg.upsert satisfies unknown;
+pg.subscribe satisfies unknown;
+// mongodb.caps.stream === true, upsert === true
 mongo.subscribe satisfies unknown;
-// http.caps.upsert === true         → upsert() exists
+mongo.upsert satisfies unknown;
+// every engine the data plane serves upserts
+redis.upsert satisfies unknown;
 http.upsert satisfies unknown;
+sqlite.upsert satisfies unknown;
+cockroach.transaction satisfies unknown;
 
 // ── 3) Capability narrowing — NEGATIVE cases (must FAIL to compile) ─────────
 // If any of these lines silently compile, the type narrowing is broken.
-
-// @ts-expect-error postgresql.caps.upsert === false → no .upsert()
-pg.upsert satisfies unknown;
-
-// @ts-expect-error postgresql.caps.stream === false → no .subscribe()
-pg.subscribe satisfies unknown;
 
 // @ts-expect-error mongodb.caps.txIntra === false → no .transaction()
 mongo.transaction satisfies unknown;
@@ -72,30 +73,41 @@ http.transaction satisfies unknown;
 // @ts-expect-error http.caps.stream === false → no .subscribe()
 http.subscribe satisfies unknown;
 
+// @ts-expect-error sqlite.caps.txIntra === false → no .transaction()
+sqlite.transaction satisfies unknown;
+
+// @ts-expect-error cockroachdb.caps.stream === false → no .subscribe()
+cockroach.subscribe satisfies unknown;
+
 // ── 4) Discriminated-union helpers ──────────────────────────────────────────
-// `StreamableEngine` should equal exactly the engines whose caps.stream===true.
-// Post-audit: the 6 stub engines (jdbc/cassandra/neo4j/elasticsearch/qdrant/
-// influx) were dropped from ENGINE_CAPS, so they no longer appear in these
-// derived union types. Tests check the 5 real engines only.
-const streamables: StreamableEngine[] = ['mongodb'];
+// Each union equals exactly the engines whose cap is true in ENGINE_CAPS.
+const streamables: StreamableEngine[] = ['postgresql', 'mongodb'];
 streamables satisfies unknown;
 
-// @ts-expect-error postgresql.caps.stream === false → not a StreamableEngine
-const wrongStream: StreamableEngine = 'postgresql';
+// @ts-expect-error mysql.caps.stream === false → not a StreamableEngine
+const wrongStream: StreamableEngine = 'mysql';
 wrongStream satisfies unknown;
 
-// `TransactionalEngine` should equal exactly engines with txIntra===true.
-const tx: TransactionalEngine[] = ['postgresql', 'mysql'];
+const tx: TransactionalEngine[] = ['postgresql', 'cockroachdb', 'mysql', 'mariadb'];
 tx satisfies unknown;
 
 // @ts-expect-error mongodb.caps.txIntra === false → not a TransactionalEngine
 const wrongTx: TransactionalEngine = 'mongodb';
 wrongTx satisfies unknown;
 
-// `UpsertableEngine` excludes postgresql (caps.upsert === false).
-const upsertable: UpsertableEngine[] = ['mysql', 'redis', 'http'];
+const upsertable: UpsertableEngine[] = [
+  'postgresql',
+  'cockroachdb',
+  'mongodb',
+  'mysql',
+  'mariadb',
+  'redis',
+  'sqlite',
+  'mssql',
+  'http',
+];
 upsertable satisfies unknown;
 
-// @ts-expect-error postgresql.caps.upsert === false → not an UpsertableEngine
-const wrongUpsert: UpsertableEngine = 'postgresql';
+// @ts-expect-error 'oracle' is not an engine the data plane serves
+const wrongUpsert: UpsertableEngine = 'oracle';
 wrongUpsert satisfies unknown;
