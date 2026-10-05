@@ -14,7 +14,7 @@
 # M72 — G-ReadAudit (A6) live gate. Proves DATA_PLANE_AUDIT_READS does EXACTLY
 # what it advertises, and that the LIVE BASELINE is byte-identical when OFF.
 #
-# The audited hook (data-plane-server/src/routes.rs run_query):
+# The audited hook (data-plane-server/src/routes/ run_query):
 #     if !is_mutation && state.config.audit_reads {
 #         tracing::info!(target: "audit", event = "read", tenant=…, engine=…,
 #                        op=…, resource=…, returned_rows = result.rows.len());

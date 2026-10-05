@@ -6,25 +6,29 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/01 12:00:00 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/17 12:00:00 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/04 00:00:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 //
-// **Curated** engine catalog (M10) — the SDK's capability CONTRACT, not a raw
-// mirror of the live data-plane. The data plane may technically support more
-// (e.g. postgres ON CONFLICT, logical-replication streaming), but the SDK
-// deliberately exposes only the capabilities it models generically. The
-// compile-time assertions in src/__type_tests__/engines.test-d.ts pin this
-// matrix; codegen-engines.mjs can diff it against a live /engines response.
+// **Generated** engine catalog (M10): what GET /query/v1/engines returns for
+// the engines compose forwards to the Rust data plane by default — each Rust
+// descriptor mapped by toEngineCaps in
+// src/apps/query-router/src/query/engines.controller.ts.
 //
-// The 5 Rust-backed engines are the only real catalog (the 6 former TS stubs
-// were dropped post-audit).
+// Regenerate from a live stack:  cd sdks/js && node ./scripts/codegen-engines.mjs
+// data-plane-core's sdk_engine_catalog test fails when this drifts from the
+// Rust descriptors.
+
 export const ENGINE_CAPS = {
-  postgresql: { read: true, write: true, upsert: false, txIntra: true, stream: false, semantic: { joins: 'native', patternSearch: 'native', ddl: true, migrationVersioning: true, latencyClass: 'native' } },
-  mongodb: { read: true, write: true, upsert: false, txIntra: false, stream: true, semantic: { joins: 'limited', patternSearch: 'indexed', ddl: true, migrationVersioning: true, latencyClass: 'native' } },
-  mysql: { read: true, write: true, upsert: true, txIntra: true, stream: false, semantic: { joins: 'native', patternSearch: 'native', ddl: true, migrationVersioning: true, latencyClass: 'native' } },
-  redis: { read: true, write: true, upsert: true, txIntra: false, stream: false, semantic: { joins: 'none', patternSearch: 'none', ddl: false, migrationVersioning: false, latencyClass: 'adapter' } },
-  http: { read: true, write: true, upsert: true, txIntra: false, stream: false, semantic: { joins: 'none', patternSearch: 'none', ddl: false, migrationVersioning: false, latencyClass: 'adapter' } },
+  postgresql: { read: true, write: true, upsert: true, txIntra: true, stream: true, semantic: { joins: 'native', patternSearch: 'native', ddl: true, migrationVersioning: true, latencyClass: 'native' } },
+  cockroachdb: { read: true, write: true, upsert: true, txIntra: true, stream: false, semantic: { joins: 'native', patternSearch: 'native', ddl: true, migrationVersioning: true, latencyClass: 'native' } },
+  mongodb: { read: true, write: true, upsert: true, txIntra: false, stream: true, semantic: { joins: 'limited', patternSearch: 'indexed', ddl: false, migrationVersioning: false, latencyClass: 'native' } },
+  mysql: { read: true, write: true, upsert: true, txIntra: true, stream: false, semantic: { joins: 'native', patternSearch: 'indexed', ddl: true, migrationVersioning: true, latencyClass: 'native' } },
+  mariadb: { read: true, write: true, upsert: true, txIntra: true, stream: false, semantic: { joins: 'native', patternSearch: 'indexed', ddl: true, migrationVersioning: true, latencyClass: 'native' } },
+  redis: { read: true, write: true, upsert: true, txIntra: false, stream: false, semantic: { joins: 'none', patternSearch: 'none', ddl: false, migrationVersioning: false, latencyClass: 'native' } },
+  sqlite: { read: true, write: true, upsert: true, txIntra: false, stream: false, semantic: { joins: 'native', patternSearch: 'indexed', ddl: false, migrationVersioning: false, latencyClass: 'native' } },
+  mssql: { read: true, write: true, upsert: true, txIntra: false, stream: false, semantic: { joins: 'native', patternSearch: 'indexed', ddl: false, migrationVersioning: false, latencyClass: 'native' } },
+  http: { read: true, write: true, upsert: true, txIntra: false, stream: false, semantic: { joins: 'none', patternSearch: 'remote', ddl: false, migrationVersioning: false, latencyClass: 'remote' } },
 } as const;
 
 export type EngineId = keyof typeof ENGINE_CAPS;

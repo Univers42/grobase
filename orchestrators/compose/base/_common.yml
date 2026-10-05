@@ -31,3 +31,50 @@ services:
     restart: unless-stopped
     security_opt:
       - "no-new-privileges:${CONTAINER_NO_NEW_PRIVILEGES:-true}"
+
+  # ts-base is base plus every variable src/libs reads (identity, JWT, Postgres,
+  # Mongo, service token, logging, OTEL) as a pass-through: set in .env or the
+  # shell, it reaches the service; unset, it stays unset and the code default
+  # applies. The NestJS services extend it and list their own reads instead of
+  # loading the whole .env (gate m212 holds them to it). Never list a name the
+  # image sets (APP_NAME, NODE_ENV): an unset pass-through UNSETS the image's
+  # ENV of that name, and m212 refuses that on a running stack. JWT_SECRET and
+  # JWT_SECRET_PREV are not here: each service that verifies tokens lists them
+  # itself, so a service that never verifies one holds no signing key (m210).
+  ts-base:
+    extends: { service: base }
+    environment:
+      ADAPTER_REGISTRY_DB_USER:
+      ADAPTER_REGISTRY_SERVICE_TOKEN:
+      ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:
+      API_KEY_VERIFY_CACHE_TTL_MS:
+      API_KEY_VERIFY_TIMEOUT_MS:
+      AUDIT_DATABASE_URL:
+      DATABASE_URL:
+      GOTRUE_JWT_ISSUER:
+      GOTRUE_JWT_SECRET:
+      IDEMPOTENCY_REDIS_URL:
+      IDEMPOTENCY_TTL_SECONDS:
+      IDENTITY_HEADER_MODE:
+      IDENTITY_JWT_BEARER_ENABLED:
+      IDENTITY_NONCE_REDIS_URL:
+      IDENTITY_NONCE_STORE:
+      INTERNAL_IDENTITY_HMAC_KEYS:
+      INTERNAL_IDENTITY_HMAC_SECRET:
+      INTERNAL_IDENTITY_MAX_SKEW_MS:
+      INTERNAL_SERVICE_TOKEN:
+      JWT_ALLOW_NO_EXP:
+      JWT_ALLOW_NO_ISSUER:
+      LOG_LEVEL:
+      LOG_SERVICE_URL:
+      MONGO_DB_NAME:
+      MONGO_MAX_POOL_SIZE:
+      MONGO_MIN_POOL_SIZE:
+      MONGO_OPTIONAL:
+      MONGO_URI:
+      OTEL_EXPORTER_OTLP_ENDPOINT:
+      OTEL_SDK_DISABLED:
+      OTEL_SERVICE_NAME:
+      REDIS_URL:
+      SERVICE_TOKEN_MODE:
+      UV_THREADPOOL_SIZE:

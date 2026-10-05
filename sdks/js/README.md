@@ -1,25 +1,27 @@
-# @mini-baas/js
+# @grobase/js
 
 Product SDK for consuming mini-BaaS through the public gateway.
 
 The SDK is intentionally designed as the public product API. Application code calls domain methods such as `auth.signIn()`, `from("users").select()`, `storage.presign()`, and `analytics.track()`; gateway routes and service endpoint details stay private inside the SDK.
 
-The surface is **Supabase-shaped** on purpose — same `createClient`, `.from(...)`, `.auth`, `.storage.from(bucket)`, `.rpc()`. Coming from another BaaS? See the migration guides: [migrate-from-supabase](../wiki/migrate-from-supabase.md) (mostly a dependency swap) and [migrate-from-firebase](../wiki/migrate-from-firebase.md) (cross-paradigm).
+The surface is **Supabase-shaped** on purpose — same `createClient`, `.from(...)`, `.auth`, `.storage.from(bucket)`, `.rpc()`. Coming from another BaaS? See the migration guides: [migrate-from-supabase](../../wiki/guides/migrate-from-supabase.md) (mostly a dependency swap) and [migrate-from-firebase](../../wiki/guides/migrate-from-firebase.md) (cross-paradigm).
 
 ## Use In This Workspace
 
-This workspace uses the SDK through Docker-managed dependency volumes. Do not install it on the host for local development. Start the root stack instead:
+This workspace uses the SDK through Docker-managed dependency volumes. Do not install it on the host for local development. Start the stack from the repo root instead:
 
 ```sh
-docker compose up -d --build
+make up
 ```
 
-External applications can consume the package from the registry using their normal package manager.
+`@grobase/js` is not published to the npm registry yet (the publish is a held human step, see
+[`HUMAN-ATOMS.md`](../../HUMAN-ATOMS.md)). External applications consume it as a file dependency from a
+checkout of this repo: `npm install /path/to/grobase/sdks/js`.
 
 ## Create a client
 
 ```ts
-import { createClient } from "@mini-baas/js";
+import { createClient } from "@grobase/js";
 
 const baas = createClient({
   url: "https://api.example.com",

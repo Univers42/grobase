@@ -74,7 +74,7 @@ its flag-off parity.
   members, invites, and roles; `m103-orgs-rbac.sh`. Org scoping stays control-plane,
   preserving the shared-pool density story.
 - **Supply chain (`supply-chain`).** Frozen lockfiles; `npm ci --ignore-scripts`; pnpm
-  `minimum-release-age` + `onlyBuiltDependencies` allowlist; cargo-audit on both Rust
+  `minimum-release-age` + `onlyBuiltDependencies` allowlist; cargo-deny (advisories, licences, sources) on both Rust
   workspaces; `make baas-security-scan` (SEMGREP + npm audit). See `security-audit.md`.
 
 ---

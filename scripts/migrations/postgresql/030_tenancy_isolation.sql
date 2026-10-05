@@ -117,7 +117,7 @@ CREATE POLICY tenants_self_isolation ON public.tenants
   WITH CHECK (id::text = auth.current_tenant_id()::text);
 
 -- 6) Grants for new table
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.apps TO authenticated;
+-- No anon/authenticated grant: control table, served by the control plane only (N-36, 090).
 
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'adapter_registry_role') THEN

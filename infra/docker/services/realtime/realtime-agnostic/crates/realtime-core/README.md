@@ -16,7 +16,7 @@ It interacts with core components such as `realtime-core` for shared types and t
 // realtime-core = { path = "../realtime-core" }
 
 // Example usage
-// use realtime-core::*;
+// use realtime_core::*;
 ```
 
 ## Context of use

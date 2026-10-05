@@ -24,8 +24,14 @@ services:
     # JVM size itself for the local analytics workload instead.
     mem_limit: 2g
     cpus: 2.0
-    env_file: [.env]
+    # Only its own variables, never the platform .env (JWT_SECRET, service tokens);
+    # operator engine settings (MINIO_*, TZ, …) go in the optional .env.engines.
+    env_file:
+      - path: .env.engines
+        required: false
     environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       MYSQL_USER: ${MYSQL_USER:-mini_baas}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-mini_baas_pw}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
@@ -65,7 +71,11 @@ services:
       retries: 5
     container_name: mini-baas-iceberg-rest
     profiles: [analytics, extras]
-    env_file: [.env]
+    # Only its own variables, never the platform .env (JWT_SECRET, service tokens);
+    # operator engine settings (MINIO_*, TZ, …) go in the optional .env.engines.
+    env_file:
+      - path: .env.engines
+        required: false
     environment:
       CATALOG_WAREHOUSE: s3://iceberg/
       CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
@@ -101,7 +111,11 @@ services:
       retries: 5
     container_name: mini-baas-debezium
     profiles: [analytics]
-    env_file: [.env]
+    # Only its own variables, never the platform .env (JWT_SECRET, service tokens);
+    # operator engine settings (MINIO_*, TZ, …) go in the optional .env.engines.
+    env_file:
+      - path: .env.engines
+        required: false
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -125,7 +139,11 @@ services:
       dockerfile: Dockerfile
     container_name: mini-baas-minio-iceberg-init
     profiles: [analytics, extras, storage]
-    env_file: [.env]
+    # Only its own variables, never the platform .env (JWT_SECRET, service tokens);
+    # operator engine settings (MINIO_*, TZ, …) go in the optional .env.engines.
+    env_file:
+      - path: .env.engines
+        required: false
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}

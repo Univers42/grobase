@@ -2,6 +2,8 @@
 name = "realtime-auth"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+publish = false
 
 [dependencies]
 realtime-core = { path = "../realtime-core" }
@@ -12,7 +14,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 chrono = { workspace = true }
-anyhow = { workspace = true }
 
 [lints]
 workspace = true

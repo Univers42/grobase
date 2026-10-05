@@ -6,7 +6,7 @@ This file provides guidance to agents when working with code in this repository.
 
 Grobase (`github.com/Univers42/grobase`) — a self-hostable BaaS. **Three-language stack:** TypeScript/NestJS (`src/apps/` + `src/libs/`), Go 1.25 (`src/control-plane/`), Rust (`src/data-plane-router/`; realtime at `infra/docker/services/realtime/realtime-agnostic/`).
 
-The `.claude/` config's upstream is the external upstream repo [`Univers42/claude-deal-with-the-devil`](https://github.com/Univers42/claude-deal-with-the-devil) (not vendored here — no submodule). Its tools, hooks, extra agents (`builder`, `forger`, `innovator`), skills and rules are **merged into `.claude/`** (grobase's own versions of the files both trees share were kept). Run `bash .claude/tools/selfcheck.sh --summary` after editing `.claude/`; hooks live in `.claude/settings.json`, MCP servers are declared in the upstream's `.mcp.json` (copy it locally to opt in; none is committed here).
+The `.claude/` config's upstream is the external upstream repo [`Univers42/claude-deal-with-the-devil`](https://github.com/Univers42/claude-deal-with-the-devil) (not vendored here — no submodule). Its tools, hooks, extra agents (`builder`, `forger`, `innovator`), skills and rules are **merged into `.claude/`** (grobase's own versions of the files both trees share were kept). Run `bash .claude/tools/selfcheck.sh --summary` after editing `.claude/`; permissions, the empty commit attribution and the `devil` plugin (upstream's `/devil:*` commands and hooks) are enabled in `.claude/settings.json`; MCP servers are declared in the committed root `.mcp.json`.
 
 ## Build/Run — Docker-first (no host toolchains)
 
@@ -25,7 +25,7 @@ make doctor / make health / make ps
 
 | Plane | Suite | Single test |
 |---|---|---|
-| **TS app** (NestJS · Jest; 16 spec files across `src/apps/` + `src/libs/`) | `make nestjs-ci` = `tsc --noEmit` + eslint + jest | `docker run --rm -v "$PWD/src":/app -w /app -v mini-baas-src-node-modules:/app/node_modules node:20-alpine npx jest <spec> -t '<case>'` |
+| **TS app** (NestJS · Jest; 30 spec files across `src/apps/` + `src/libs/`) | `make nestjs-ci` = `tsc --noEmit` + eslint + jest | `docker run --rm -v "$PWD/src":/app -w /app -v mini-baas-src-node-modules:/app/node_modules node:20-alpine npx jest <spec> -t '<case>'` |
 | **Go control** | `make go-control-plane-check` | from `src/control-plane/`: `docker run --rm -v "$PWD":/src -w /src golang:1.25-bookworm go test ./internal/<pkg> -run TestX -v` |
 | **Rust data** | `make rust-data-plane-test` | `cargo test -p data-plane-core <name>` via the data-plane CARGO wrapper |
 | **Rust realtime** | `make rust-realtime-test` | `cargo test -p realtime-core <name>` via realtime CARGO wrapper |
@@ -80,9 +80,9 @@ After any API change: update `infra/config/openapi/grobase-public.json` and rege
 
 ## Service boundaries (binding)
 
-- **grobase (fly.io) owns ALL state** — DB, auth, OTP, realtime, files
+- **grobase (the self-hosted backend server; fly.io retired) owns ALL state** — DB, auth, OTP, realtime, files
 - **Vercel hosts only stateless frontends** + optional same-origin rewrite (never a BFF)
-- **WebSocket: browser → fly directly** — never through Vercel
+- **WebSocket: browser → the grobase server directly** — never through Vercel
 - **grobase contains zero app-specific code** — apps are declarative contracts at `infra/config/contracts/<app>.json`
 - **Never co-author commits** (no `Co-Authored-By` / "Generated with" trailers)
 - **Confirm the irreversible** (pushes, deploys, deletions, npm publish, RS256 cutover) — explicit human trigger

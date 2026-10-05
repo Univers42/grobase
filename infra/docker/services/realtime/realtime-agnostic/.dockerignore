@@ -9,7 +9,6 @@ target/
 *.sh
 *.py
 bench_parallel.sh
-update_readmes.py
 make_commits.sh
 
 # ── Documentation ──────────────────────────────────────────────────────────

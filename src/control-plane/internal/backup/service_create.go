@@ -58,7 +58,7 @@ func (s *Service) CreateBackup(ctx context.Context, tenantID, mount string) (str
 	if err != nil {
 		return "", err
 	}
-	key := tenantID + "/" + backupID
+	key := artifactKey(tenantID, backupID, s.seal.sealing())
 	location, size, sha, xerr := s.extractTo(ctx, iso, tenantID, dsn, key)
 	if xerr != nil {
 		s.markFailed(ctx, backupID, xerr)
@@ -86,31 +86,49 @@ func (s *Service) markCompleted(ctx context.Context, backupID, location string, 
 	return nil
 }
 
-// extractTo streams the right export into the store under key and returns the
-// resolved location/size/sha. It uses an io.Pipe so the COPY stream flows
-// straight into Upload without a full-artifact buffer.
+// errUploadEnded unblocks the extract goroutine once Upload has returned.
+const errUploadEnded backupErr = "backup: artifact upload ended"
+
+// extractTo streams the tenant's export, sealed when recipients are set, into
+// the store under key and returns the location/size/sha of the STORED bytes. An
+// io.Pipe carries the stream (no full-artifact buffer); its read end is closed
+// once Upload returns so the writer never blocks, and the writer is awaited, so
+// a source failure fails the backup even when the store reported success.
 func (s *Service) extractTo(ctx context.Context, iso, tenantID, dsn, key string) (string, int64, string, error) {
 	pr, pw := io.Pipe()
+	done := make(chan error, 1)
 	go func() {
-		var werr error
-		switch iso {
-		case "schema_per_tenant":
-			schema := s.schemaFor(tenantID)
-			if schema == "" {
-				werr = fmt.Errorf("backup: tenant id %q sanitizes to empty schema", tenantID)
-			} else {
-				werr = extractSchema(ctx, s.db, schema, pw)
-			}
-		case "db_per_tenant":
-			if dsn == "" {
-				werr = fmt.Errorf("backup: db_per_tenant requires a resolved DSN (no resolver wired)")
-			} else {
-				werr = extractDatabase(ctx, dsn, pw)
-			}
-		default:
-			werr = ErrIsolationDeferred
-		}
-		_ = pw.CloseWithError(werr)
+		err := s.seal.writeTo(pw, func(w io.Writer) error { return s.extract(ctx, iso, tenantID, dsn, w) })
+		_ = pw.CloseWithError(err)
+		done <- err
 	}()
-	return s.store.Upload(ctx, key, pr)
+	location, size, sha, uerr := s.store.Upload(ctx, key, pr)
+	_ = pr.CloseWithError(errUploadEnded)
+	werr := <-done
+	if uerr != nil {
+		return "", 0, "", uerr
+	}
+	if werr != nil {
+		return "", 0, "", werr
+	}
+	return location, size, sha, nil
+}
+
+// extract writes the export for the tenant's isolation model to w.
+func (s *Service) extract(ctx context.Context, iso, tenantID, dsn string, w io.Writer) error {
+	switch iso {
+	case "schema_per_tenant":
+		schema := s.schemaFor(tenantID)
+		if schema == "" {
+			return fmt.Errorf("backup: tenant id %q sanitizes to empty schema", tenantID)
+		}
+		return extractSchema(ctx, s.db, schema, w)
+	case "db_per_tenant":
+		if dsn == "" {
+			return fmt.Errorf("backup: db_per_tenant requires a resolved DSN (no resolver wired)")
+		}
+		return extractDatabase(ctx, dsn, w)
+	default:
+		return ErrIsolationDeferred
+	}
 }

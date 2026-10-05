@@ -73,7 +73,7 @@ CARGO_REALTIME       = docker run --rm -v "$(CURDIR)/infra/docker/services/realt
 
 # (internal, hidden from help) cargo-in-docker image: rust + pkg-config/libssl (layer-cached)
 _rust-toolchain:
-	@printf 'FROM $(RUST_IMAGE)\nRUN rustup component add clippy rustfmt && apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*\n' \
+	@printf 'FROM $(RUST_IMAGE)\nRUN rustup component add clippy rustfmt && apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev git && rm -rf /var/lib/apt/lists/*\n' \
 		| docker build -q -t $(RUST_TOOLCHAIN_IMG) - >/dev/null
 
 rust-data-plane-check: _rust-toolchain ## Rust: cargo check the data-plane workspace (in Docker)

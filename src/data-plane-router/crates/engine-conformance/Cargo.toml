@@ -2,6 +2,7 @@
 name = "engine-conformance"
 version = { workspace = true }
 edition = { workspace = true }
+publish = false
 rust-version = { workspace = true }
 
 # The reusable conformance battery every EngineAdapter must pass. It exercises

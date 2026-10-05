@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1.7
 # File: docker/services/vault/Dockerfile
-FROM public.ecr.aws/hashicorp/vault:1.21
+# mirror.gcr.io serves the same hashicorp/vault digest as public.ecr.aws without
+# its anonymous data cap (CI hit "429 Data limit exceeded" there).
+ARG BASE_REGISTRY=mirror.gcr.io/hashicorp
+FROM ${BASE_REGISTRY}/vault:1.21
 
 # Alpine-based image: add bash + jq for init script and prepare Vault data.
 RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \

@@ -515,6 +515,19 @@ jobs:
             psql -U postgres -d postgres -c "NOTIFY pgrst, 'reload schema';"
           sleep 3
 
+      # The offers suite (mutant offers-no-identity) calls /admin/v1, /query/v1,
+      # /functions/v1 and tenant-control's own port; the core stack starts none of
+      # them (profiles control-plane, adapter-plane, functions), so its baseline was
+      # red every night from 2026-09-26. After the migrations: tenant-control and
+      # adapter-registry refuse to boot without public.tenants.
+      - name: Start the services the offers suite calls
+        run: |
+          set -euo pipefail
+          bash scripts/ci/retry-on-429.sh docker compose -f docker-compose.yml build \
+            tenant-control adapter-registry-go permission-engine query-router data-plane-router-rust functions-runtime
+          docker compose -f docker-compose.yml up -d --wait \
+            tenant-control adapter-registry-go permission-engine query-router data-plane-router-rust functions-runtime
+
       - name: Wait for gateway + mongo-api health (max 150s each)
         run: |
           set -euo pipefail

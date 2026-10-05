@@ -30,7 +30,7 @@
 
 | Tool | Version | Check Command | Install |
 |------|---------|---------------|---------|
-| **Rust** | ≥1.75 (1.89 tested) | `rustc --version` | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
+| **Rust** | ≥1.89 (the MSRV; 1.89 and 1.97 tested) | `rustc --version` | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
 | **Cargo** | (comes with Rust) | `cargo --version` | (comes with Rust) |
 | **Docker** | ≥24.0 | `docker --version` | [docs.docker.com](https://docs.docker.com/get-docker/) |
 | **Docker Compose** | ≥2.20 (v2 plugin) | `docker compose version` | (comes with Docker Desktop) |
@@ -57,7 +57,7 @@ cd /home/dlesieur/Documents/realtime-agnostic
 
 # 2. Run all tests (no Docker needed)
 make test
-# Expected output: "test result: ok. 80 passed; 0 failed; 1 ignored"
+# Expected: every "test result:" line reads ok — 162 passed, 4 ignored in total
 
 # 3. Start the full stack (PostgreSQL + MongoDB + Rust server)
 make up
@@ -65,7 +65,7 @@ make up
 
 # 4. Check health
 make health
-# Expected: {"status":"ok","connections":0,"subscriptions":0,"uptime_seconds":0}
+# Expected: {"status":"ok","connections":0,"subscriptions":0,"uptime_seconds":<seconds since start>,...}
 
 # 5. Open the SyncSpace demo
 #    Open two browser tabs to: http://localhost:4002
@@ -99,7 +99,7 @@ psql            Open psql shell to the database
 restart         Restart the server (rebuild)
 seed            Re-seed databases (requires running containers)
 status          Show running containers
-test            Run all tests (78 unit + integration)
+test            Run all tests (unit + integration + doc-tests, in Docker)
 test-publish    Publish a test event via REST API
 test-ws         Quick WebSocket test (requires websocat)
 up              Start databases + server via Docker Compose
@@ -155,25 +155,27 @@ cargo test --workspace
 make test
 ```
 
-**Expected output:**
+**Expected output** — cargo prints one `test result:` line per test binary; these are
+the counts measured on 2026-10-02 (Rust 1.97), summarized per binary:
 
 ```
-running 9 tests (realtime-core types)     ... ok
-running 5 tests (realtime-core filter)    ... ok
-running 6 tests (realtime-engine registry)... ok
-running 4 tests (realtime-engine filter)  ... ok
-running 4 tests (realtime-engine router)  ... ok
-running 3 tests (realtime-engine sequence)... ok
-running 2 tests (realtime-engine producer)... ok
-running 4 tests (realtime-bus-inprocess)  ... ok
-running 5 tests (realtime-auth)           ... ok
-running 5 tests (realtime-db-postgres)    ... ok
-running 4 tests (realtime-db-mongodb)     ... ok
-running 5 tests (realtime-gateway)        ... ok
-running 24 tests (integration e2e)        ... ok
-
-test result: ok. 80 passed; 0 failed; 1 ignored; 0 measured
+realtime-auth                 test result: ok. 18 passed; 0 failed; 0 ignored
+realtime-bus-inprocess        test result: ok. 4 passed; 0 failed; 0 ignored
+realtime-bus-irc              test result: ok. 11 passed; 0 failed; 0 ignored
+realtime-client               test result: ok. 2 passed; 0 failed; 0 ignored
+realtime-core                 test result: ok. 23 passed; 0 failed; 0 ignored
+realtime-db-mongodb           test result: ok. 4 passed; 0 failed; 0 ignored
+realtime-db-postgres          test result: ok. 5 passed; 0 failed; 0 ignored
+realtime-db-postgres reconnect test result: ok. 0 passed; 0 failed; 1 ignored
+realtime-engine               test result: ok. 34 passed; 0 failed; 0 ignored
+realtime-gateway              test result: ok. 24 passed; 0 failed; 0 ignored
+integration (tests/e2e.rs)    test result: ok. 33 passed; 0 failed; 0 ignored
+doc-tests (all crates)        4 passed; 0 failed; 3 ignored
 ```
+
+Total: **162 passed, 0 failed, 4 ignored**. The ignored PostgreSQL reconnect proof
+(`crates/realtime-db-postgres/tests/reconnect.rs`) needs a real server it may terminate
+backends on: export `REALTIME_PG_TEST_DSN` and run it with `--ignored`.
 
 ### Run Tests for a Single Crate
 
@@ -482,16 +484,25 @@ REALTIME_CONFIG=/path/to/config.json cargo run --bin realtime-server
 curl -s http://localhost:4002/v1/health | python3 -m json.tool
 ```
 
-**Expected:**
+**Expected** (abridged — `filter_index` follows, and `producers` when a database producer is configured):
 
 ```json
 {
     "status": "ok",
     "connections": 0,
     "subscriptions": 0,
-    "uptime_seconds": 0
+    "uptime_seconds": 42,
+    "dispatch": {
+        "events_dispatched": 0,
+        "events_dropped_overflow": 0,
+        "events_connection_gone": 0,
+        "slow_consumers_disconnected": 0
+    }
 }
 ```
+
+`uptime_seconds` counts from the moment the server started serving; `dispatch`
+holds the same counters `/metrics` exports as `baas_realtime_*`.
 
 ### Step 2: Publish a Test Event
 

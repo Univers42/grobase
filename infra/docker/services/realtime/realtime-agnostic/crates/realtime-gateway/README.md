@@ -16,7 +16,7 @@ It interacts with core components such as `realtime-core` for shared types and t
 // realtime-gateway = { path = "../realtime-gateway" }
 
 // Example usage
-// use realtime-gateway::*;
+// use realtime_gateway::*;
 ```
 
 ## Context of use

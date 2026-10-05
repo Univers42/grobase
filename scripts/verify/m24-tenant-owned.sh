@@ -51,25 +51,25 @@ pass() { green "[M24] PASS: ${*}"; }
 # ── 1) isolation core: the 4th mode + the owner_scoped predicate ─────────────
 step "checking the Isolation::TenantOwned contract"
 ISO_RS="${ROUTER_DIR}/crates/data-plane-core/src/isolation.rs"
-grep -q "TenantOwned" "${ISO_RS}" || fail "Isolation::TenantOwned missing"
-grep -q 'Some("tenant_owned") => Self::TenantOwned' "${ISO_RS}" ||
+grep -rq "TenantOwned" "${ISO_RS}" || fail "Isolation::TenantOwned missing"
+grep -rq 'Some("tenant_owned") => Self::TenantOwned' "${ISO_RS}" ||
   fail "from_mount does not parse tenant_owned"
-grep -q "pub fn owner_scoped" "${ISO_RS}" || fail "owner_scoped() predicate missing"
-grep -q "_ => Self::SharedRls" "${ISO_RS}" ||
+grep -rq "pub fn owner_scoped" "${ISO_RS}" || fail "owner_scoped() predicate missing"
+grep -rq "_ => Self::SharedRls" "${ISO_RS}" ||
   fail "unknown isolation must STILL degrade to SharedRls (parity invariant)"
 pass "TenantOwned parsed, owner_scoped() declared, unknown→SharedRls preserved"
 
 # ── 2) postgres: every owner site gated; mysql/mongo fail closed ────────────
 step "checking the engine owner-scoping gates"
-PG_RS="${ROUTER_DIR}/crates/data-plane-pool/src/postgres.rs"
-grep -q "fn owner_predicate" "${PG_RS}" || fail "pg owner_predicate helper missing"
-grep -q "owner: Option<&str>" "${PG_RS}" || fail "pg builders must take Option<&str> owner"
-grep -q "owner_scoped.then_some" "${PG_RS}" || fail "pg runners must derive owner from owner_scoped"
-grep -q "owner_scoped && !has_owner" "${PG_RS}" || fail "pg DDL owner synthesis must be gated"
-grep -q "self.isolation.owner_scoped()" "${PG_RS}" || fail "pg execute/txn must consult the pool isolation"
+PG_RS="${ROUTER_DIR}/crates/data-plane-pool/src/postgres"
+grep -rq "fn owner_predicate" "${PG_RS}" || fail "pg owner_predicate helper missing"
+grep -rq "owner: Option<&str>" "${PG_RS}" || fail "pg builders must take Option<&str> owner"
+grep -rq "owner_scoped.then_some" "${PG_RS}" || fail "pg runners must derive owner from owner_scoped"
+grep -rq "owner_scoped && !has_owner" "${PG_RS}" || fail "pg DDL owner synthesis must be gated"
+grep -rq "self.isolation.owner_scoped()" "${PG_RS}" || fail "pg execute/txn must consult the pool isolation"
 for engine in mysql mongo; do
-  grep -q "tenant_owned isolation on this engine" \
-    "${ROUTER_DIR}/crates/data-plane-pool/src/${engine}.rs" ||
+  grep -rq "tenant_owned isolation on this engine" \
+    "${ROUTER_DIR}/crates/data-plane-pool/src/${engine}" ||
     fail "${engine} must fail closed on tenant_owned (NotImplemented)"
 done
 pass "pg writes/DDL/txn gated on owner_scoped(); mysql/mongo fail closed"
@@ -78,19 +78,20 @@ pass "pg writes/DDL/txn gated on owner_scoped(); mysql/mongo fail closed"
 step "checking the Postgres TLS connector"
 # dsn_wants_tls evolved into effective_tls_mode (adds the SECURITY_MODE=max
 # require→verify upgrade); either name proves the sslmode parser is present.
-grep -qE "fn (dsn_wants_tls|effective_tls_mode)" "${PG_RS}" || fail "sslmode parser (effective_tls_mode) missing"
-grep -q "fn rustls_connector" "${PG_RS}" || fail "rustls_connector missing"
-grep -q "tokio_postgres_rustls::MakeRustlsConnect" "${PG_RS}" || fail "MakeRustlsConnect not used"
-grep -q "cfg.create_pool(Some(Runtime::Tokio1), NoTls)" "${PG_RS}" ||
+grep -rqE "fn (dsn_wants_tls|effective_tls_mode)" "${PG_RS}" || fail "sslmode parser (effective_tls_mode) missing"
+grep -rq "fn rustls_connector" "${PG_RS}" || fail "rustls_connector missing"
+grep -rq "tokio_postgres_rustls::MakeRustlsConnect" "${PG_RS}" || fail "MakeRustlsConnect not used"
+grep -rq "cfg.create_pool(Some(Runtime::Tokio1), NoTls)" "${PG_RS}" ||
   fail "the NoTls branch must remain for local mounts"
-grep -q 'tokio-postgres-rustls' "${ROUTER_DIR}/Cargo.toml" || fail "workspace dep missing"
+grep -rq 'tokio-postgres-rustls' "${ROUTER_DIR}/Cargo.toml" || fail "workspace dep missing"
 pass "sslmode-gated rustls connector present; NoTls branch intact"
 
 # ── 4) control plane: registry accepts tenant_owned, CHECK widened ───────────
 step "checking the Go adapter-registry"
-grep -q '"tenant_owned": true' "${GO_DIR}/internal/adapterregistry/models.go" ||
-  fail "allowedIsolation must accept tenant_owned"
-grep -q "DROP CONSTRAINT IF EXISTS tenant_databases_isolation_check" \
+grep -A3 'func isAllowedIsolation' "${GO_DIR}/internal/adapterregistry/models.go" |
+  grep -qE 'case .*"tenant_owned"' ||
+  fail "isAllowedIsolation must accept tenant_owned"
+grep -rq "DROP CONSTRAINT IF EXISTS tenant_databases_isolation_check" \
   "${GO_DIR}/internal/adapterregistry/schema.go" ||
   fail "EnsureSchema must widen the isolation CHECK idempotently"
 pass "registry accepts tenant_owned; CHECK constraint widened idempotently"
@@ -102,14 +103,14 @@ pass "registry accepts tenant_owned; CHECK constraint widened idempotently"
 # planner test under CI memory pressure. Sequential = deterministic; both
 # suites still gate.
 step "running cargo + go test suites"
-docker run --rm -v "${PWD}/${ROUTER_DIR}":/work -w /work rust:1.89-slim \
+docker run --rm -v "${PWD}/${ROUTER_DIR}":/work -w /work rust:1-bookworm \
   sh -c 'cargo test -p data-plane-core 2>&1 | tail -8 && echo "===POOL===" && cargo test -p data-plane-pool 2>&1 | tail -12' \
   >/tmp/m24-cargo.log 2>&1 || fail "cargo tests failed: $(grep -E 'FAILED|error' /tmp/m24-cargo.log | head -3)"
-grep -q "test result: FAILED" /tmp/m24-cargo.log && fail "cargo test failures: $(tail -5 /tmp/m24-cargo.log)"
+grep -rq "test result: FAILED" /tmp/m24-cargo.log && fail "cargo test failures: $(tail -5 /tmp/m24-cargo.log)"
 docker run --rm -v "${PWD}/${GO_DIR}":/work -w /work golang:1.25-bookworm \
   sh -c 'go test ./internal/adapterregistry/ 2>&1 | tail -3' \
   >/tmp/m24-go.log 2>&1 || fail "go tests failed: $(tail -3 /tmp/m24-go.log)"
-grep -q '^ok' /tmp/m24-go.log || fail "go test did not report ok: $(cat /tmp/m24-go.log)"
+grep -rq '^ok' /tmp/m24-go.log || fail "go test did not report ok: $(cat /tmp/m24-go.log)"
 pass "cargo (core+pool) and go (adapterregistry) suites green"
 
 green "[M24] OK — tenant_owned isolation + Postgres TLS verified"

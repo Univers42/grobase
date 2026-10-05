@@ -63,6 +63,7 @@ type Service struct {
 	store ArtifactStore
 	res   ConnResolver
 	keys  *tenants.Service // optional: credential resolution for the self-serve read route
+	seal  Sealer
 	log   *slog.Logger
 }
 
@@ -76,6 +77,10 @@ func NewService(db *pg.Postgres, store ArtifactStore, log *slog.Logger) *Service
 // WithResolver wires the db_per_tenant DSN resolver (called from main.go after
 // the adapter-registry client is available).
 func (s *Service) WithResolver(r ConnResolver) *Service { s.res = r; return s }
+
+// WithSealer sets the age sealer artifacts are written and read through
+// (the zero Sealer, the default, writes plaintext).
+func (s *Service) WithSealer(sl Sealer) *Service { s.seal = sl; return s }
 
 // WithTenants wires the tenants.Service used ONLY by the optional, default-OFF
 // self-serve read route (/v1/tenants/me/backups) to resolve a credential to its

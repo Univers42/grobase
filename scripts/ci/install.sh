@@ -76,5 +76,5 @@ else
 fi
 say "  Data lives in: ./data (override: NANO_DATA_DIR)"
 say ""
-say "  Full platform (Docker, all engines + realtime): git clone https://github.com/${REPO} && cd groot && make all-local"
-say "  Docs:          https://github.com/${REPO}/tree/main/apps/baas/mini-baas-infra"
+say "  Full platform (Docker, all engines + realtime): git clone https://github.com/Univers42/grobase && cd grobase && make quickstart"
+say "  Docs:          https://github.com/Univers42/grobase"

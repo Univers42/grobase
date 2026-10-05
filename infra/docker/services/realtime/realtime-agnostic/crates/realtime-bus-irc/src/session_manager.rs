@@ -159,3 +159,65 @@ impl SessionManager {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #![allow(
+        clippy::similar_names,
+        clippy::unchecked_time_subtraction,
+        clippy::unwrap_used
+    )]
+    use super::*;
+    use tokio::sync::broadcast;
+
+    #[tokio::test]
+    async fn test_reap_idle_removes_stale_sessions() {
+        let (tx, _rx) = broadcast::channel(16);
+        let mgr = SessionManager::new(
+            "localhost".to_string(),
+            6667,
+            String::new(),
+            "bot".to_string(),
+            "Realtime Bot".to_string(),
+            "chat".to_string(),
+            9,
+            tx,
+        );
+
+        let (cmd_tx1, mut cmd_rx1) = mpsc::channel(16);
+        let (cmd_tx2, _cmd_rx2) = mpsc::channel(16);
+
+        // Session 1: old (idle)
+        mgr.users.insert(
+            "stale-user".to_string(),
+            Arc::new(UserHandle {
+                cmd_tx: cmd_tx1,
+                joined: Mutex::new(HashSet::new()),
+                last_active: Mutex::new(Instant::now() - Duration::from_secs(100)),
+            }),
+        );
+
+        // Session 2: recent (active)
+        mgr.users.insert(
+            "active-user".to_string(),
+            Arc::new(UserHandle {
+                cmd_tx: cmd_tx2,
+                joined: Mutex::new(HashSet::new()),
+                last_active: Mutex::new(Instant::now()),
+            }),
+        );
+
+        assert_eq!(mgr.users.len(), 2);
+
+        // Reap with max_idle = 10s
+        mgr.reap_idle(Duration::from_secs(10)).await;
+
+        assert_eq!(mgr.users.len(), 1);
+        assert!(mgr.users.contains_key("active-user"));
+        assert!(!mgr.users.contains_key("stale-user"));
+
+        // Stale session should receive QUIT command
+        let quit_cmd = cmd_rx1.recv().await;
+        assert_eq!(quit_cmd, Some("QUIT :idle".to_string()));
+    }
+}

@@ -18,7 +18,7 @@ members = [
 pedantic    = { level = "warn", priority = -1 }
 nursery     = { level = "warn", priority = -1 }
 # nursery, new in clippy 1.96, and not MSRV-aware: it suggests
-# Duration::from_mins, which postdates this workspace's rust-version (1.75).
+# Duration::from_mins, which postdates this workspace's rust-version (1.89).
 # Following it would break the declared minimum; the lint is what yields.
 duration_suboptimal_units = "allow"
 unwrap_used = "deny"
@@ -29,7 +29,7 @@ panic       = "deny"
 version = "0.2.0"
 edition = "2021"
 license = "MIT"
-rust-version = "1.75"
+rust-version = "1.89"
 
 [workspace.dependencies]
 # Async runtime
@@ -46,10 +46,6 @@ axum-extra = "0.9"
 tokio-tungstenite = "0.24"
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "trace", "fs"] }
-
-# gRPC
-tonic = "0.12"
-prost = "0.13"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

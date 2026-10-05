@@ -103,6 +103,13 @@ jobs:
       - name: alert rules (m52)
         run: bash scripts/verify/m52-alert-rules.sh
 
+      # Parsed from source, no stack: every adapter's SUPPORTED_OPS equals its
+      # descriptor (m25), and the Rust cutover's static surface is intact (m2).
+      - name: dispatch matrix and federation surface (m25, m2)
+        run: |
+          bash scripts/verify/m25-oltp-matrix.sh
+          bash scripts/verify/m2-federation.sh
+
   # ─── Job 2: Docker build for each service ──────────────────────
   # Build contexts live under the repo root. NestJS apps build from src/ with
   # an APP build-arg; the Go control plane from src/control-plane/ with APP+PORT;
@@ -111,6 +118,9 @@ jobs:
   docker-build:
     name: Build ${{ matrix.service }}
     runs-on: ubuntu-latest
+    # Measured 0.5–1.2 min warm; a cold data-plane-router build is ~7.4 min. A lost
+    # runner otherwise burns the 45-min default before the job fails (2026-10-02).
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -475,10 +485,10 @@ jobs:
       - name: liveness follows PostgreSQL and MinIO
         run: bash scripts/verify/m192-pg-backup-liveness.sh
 
-  # ─── Standalone gates (m64 m81 m183 m209) ─────────────────────
+  # ─── Standalone gates (m64 m81 m87 m183 m209) ─────────────────
   # Each builds or starts its own throwaway containers; no stack needed.
   standalone-gates:
-    name: Standalone gates (m64 m81 m183 m209)
+    name: Standalone gates (m64 m81 m87 m183 m209)
     runs-on: ubuntu-latest
     needs: [shellcheck]
     timeout-minutes: 30
@@ -512,6 +522,14 @@ jobs:
           bash scripts/ci/retry-on-429.sh docker pull -q ghcr.io/univers42/grobase-minio:latest
       - name: Backups encrypted at rest (m209)
         run: bash scripts/verify/m209-backup-encryption.sh
+
+      # tenant-control built from the commit: per-tenant backup/restore, sealed
+      # with age, every restore checked against the ledger sha256 (scratch postgres).
+      - name: Per-tenant backups, sealed and verified (m87)
+        env:
+          M87_PG_IMAGE: mirror.gcr.io/library/postgres:16-alpine
+          M87_ARTIFACT_DIR: ${{ runner.temp }}/m87-artifacts
+        run: bash scripts/verify/m87-per-tenant-backup.sh
 
   integration-tests:
     name: Integration Tests
@@ -764,6 +782,13 @@ jobs:
           M204_REQUIRE: "1"
         run: bash scripts/verify/m204-security-events.sh
 
+      # Every SDK posts to /query/v1/execute (the spec's queryExecute): query-router
+      # serves it behind its AuthGuard (401, not 404) and Kong forwards it there.
+      - name: SDK query route served through Kong (m213)
+        env:
+          M213_REQUIRE: "1"
+        run: bash scripts/verify/m213-query-execute-route.sh
+
       # The kernel reports NoNewPrivs: 1 for every container of the booted stack.
       - name: No new privileges, live (m208)
         run: bash scripts/verify/m208-no-new-privileges.sh
@@ -922,6 +947,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - { sdk: js,     os: ubuntu-latest }
           - { sdk: python, os: ubuntu-latest }
           - { sdk: kotlin, os: ubuntu-latest }
           - { sdk: dart,   os: ubuntu-latest }
@@ -933,6 +959,15 @@ jobs:
       # A gate's "[MNN] FAIL — why" line becomes a public annotation.
       - name: Annotate gate failures
         run: echo "::add-matcher::.github/gate-matcher.json"
+
+      # JS — @grobase/js, the hand-written reference client every app uses
+      - if: matrix.sdk == 'js'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '20'
+      - if: matrix.sdk == 'js'
+        working-directory: sdks/js
+        run: npm ci && npm run build && npm run typecheck && npm test
 
       # Python — grobase-sdk
       - if: matrix.sdk == 'python'
@@ -1108,7 +1143,7 @@ jobs:
   # built HERE from this commit (never the published :latest). A missing image or
   # too little disk is a non-zero SKIP (exit 77), never a silent pass.
   security-gates:
-    name: Security gates (m66 m195 m196 m198 m199 m205 m206 m207 m208 m210)
+    name: Security gates (m66 m195 m196 m198 m199 m205 m206 m207 m208 m210 m211 m212)
     runs-on: ubuntu-latest
     needs: [shellcheck]
     timeout-minutes: 30
@@ -1125,6 +1160,10 @@ jobs:
 
       - name: Localhost certs (m198's WAF mounts them)
         run: bash scripts/certs/generate-localhost-cert.sh
+
+      # Base and every overlay render, with default profiles and with all of them.
+      - name: Compose renders (make test-lint-compose)
+        run: make test-lint-compose
 
       - name: Build kong + waf from this commit
         run: docker compose -f docker-compose.yml build kong waf
@@ -1164,6 +1203,16 @@ jobs:
       # secret site is classified, and the rotation scripts refuse without force.
       - name: JWT dual-key verify (m210)
         run: bash scripts/verify/run-gate-battery.sh m210-jwt-dual-key
+
+      # Engines load only their own variables and .env.engines, never the
+      # platform .env, under every overlay (the live leg SKIPs: no stack here).
+      - name: Engine env scope (m211)
+        run: bash scripts/verify/run-gate-battery.sh m211-engine-env-scope
+
+      # Scoped platform services (kong, studio, pg-meta, gotrue, postgrest, the NestJS services) get only the .env keys they read
+      # and their optional .env.<service>, under every overlay.
+      - name: Service env scope (m212)
+        run: bash scripts/verify/run-gate-battery.sh m212-service-env-scope
 
       # begin → swap → finish on a scratch env file; compose hands the previous
       # service token to every verifier.
@@ -1215,14 +1264,22 @@ jobs:
           docker run --rm -v "$PWD/src/control-plane:/src" -w /src \
             golang:1.25-bookworm go test ./...
 
-      # Rust — data-plane workspace (data-plane-core/pool/server + engine-conformance)
+      # Rust — data-plane workspace (data-plane-core/pool/server + engine-conformance),
+      # then the opt-in dynamodb adapter's tests (the default build leaves the
+      # feature off, so --workspace never compiles them), then m18's static leg
+      # on the same warm target: the cutover gate binding rule 2 relies on.
       - if: matrix.suite == 'rust-data-plane'
         run: |
           # CARGO_HTTP_MULTIPLEXING=false forces HTTP/1.1 (avoids the intermittent
           # crates.io "Error in the HTTP2 framing layer" flake); NET_RETRY rides out blips.
+          # GROBASE_REQUIRE_SDK_CATALOG=1: data-plane-core's sdk_engine_catalog test
+          # fails instead of skipping when sdks/js is missing from the mount.
           docker run --rm -e CARGO_NET_RETRY=10 -e CARGO_HTTP_MULTIPLEXING=false \
-            -v "$PWD/src/data-plane-router:/src" -w /src \
-            rust:1-bookworm cargo test --workspace
+            -e GROBASE_REQUIRE_SDK_CATALOG=1 \
+            -v "$PWD:/repo" -w /repo/src/data-plane-router \
+            rust:1-bookworm sh -c 'cargo test --workspace &&
+              cargo test -p data-plane-pool --features dynamodb &&
+              bash /repo/scripts/verify/m18-rust-data-plane.sh'
 
       # Rust — realtime workspace (event bus + IRC bridge)
       - if: matrix.suite == 'rust-realtime'

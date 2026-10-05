@@ -61,11 +61,12 @@ machine.
 It persists across sessions **and across projects and tools**, which native agent memory
 does not. That is the reason to want it.
 
-It is declared in `.mcp.json` and **disabled by default** in
+In grobase it is declared in the root `.mcp.json` and **enabled** (owner decision, 2026-10-03;
+`settings.json` sets `enableAllProjectMcpServers`). To turn it off on your machine, list it in
 `settings.local.json`:
 
 ```jsonc
-// .mcp.json — declared, so it is one toggle away
+// .mcp.json — declared and enabled
 "supermemory": {
   "command": "npx",
   "args": ["-y", "mcp-remote@latest", "https://mcp.supermemory.ai/mcp"]
@@ -73,7 +74,7 @@ It is declared in `.mcp.json` and **disabled by default** in
 ```
 
 ```jsonc
-// settings.local.json — off until you decide otherwise
+// settings.local.json — your local opt-out
 "disabledMcpjsonServers": ["supermemory"]
 ```
 

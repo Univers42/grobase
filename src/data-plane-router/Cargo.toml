@@ -92,7 +92,7 @@ aws-sdk-dynamodb = { version = "=1.104.0", default-features = false, features = 
 aws-config = { version = "=1.8.13", features = ["behavior-version-latest"] }
 # R7: MySQL adapter. `default-rustls` selects rustls (matches the tls posture
 # of the rest of the workspace; avoids dragging in openssl).
-mysql_async = { version = "0.34", default-features = false, features = ["minimal-rust", "rustls-tls"] }
+mysql_async = { version = "0.37", default-features = false, features = ["minimal-rust", "rustls-tls"] }
 # R8: Redis adapter (KV/Hash). `tokio-comp` provides async runtime hooks;
 # `connection-manager` gives us an auto-reconnecting Arc-cheap pool handle.
 redis = { version = "0.27", default-features = false, features = ["tokio-comp", "connection-manager"] }
