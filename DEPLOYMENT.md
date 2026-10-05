@@ -1,7 +1,7 @@
 # Deployment — running Grobase BaaS in production
 
 Operator guide for self-hosting. Companion docs: [QUICKSTART.md](QUICKSTART.md),
-[SECURITY.md](SECURITY.md), [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+[SECURITY.md](SECURITY.md); for a service that does not start, `make doctor` and `make logs`.
 
 ---
 
@@ -100,10 +100,47 @@ BACKUP_AGE_IDENTITY_FILE=/secure/backup-age.key \
 - **Prove a restore before `PG_BACKUP_RETAIN_DAYS` has pruned the last
   plaintext dump.** Restores read `.dump` and `.dump.age` alike, so the
   changeover needs no migration.
-- Not covered: the per-tenant backups of `TENANT_BACKUP_ENABLED` (m87, a
-  separate Go path) are not encrypted by this setting.
+- Per-tenant backups (`TENANT_BACKUP_ENABLED`, m87) have their own keys; see
+  below.
 - Proof: `scripts/verify/m209-backup-encryption.sh` (pg-backup) and the
   encrypted leg of `m188-engine-backup-restore.sh`.
+
+**Per-tenant backups (m87):** tenant-control writes them itself, so it holds
+the private key: it restores through its API. Give it its own key pair, never
+one of `BACKUP_AGE_RECIPIENTS`: that identity would open every whole-cluster
+backup, so the preflight refuses a shared recipient and tenant-control refuses to
+boot with an identity whose public key is in `BACKUP_AGE_RECIPIENTS`.
+
+```sh
+age-keygen -o tenant-backup-age.key            # prints the public key
+sudo install -o 65532 -g 65532 -m 0600 tenant-backup-age.key /etc/grobase/
+# .env
+TENANT_BACKUP_AGE_RECIPIENTS=age1…,age1…         # yours + an offline break-glass key
+TENANT_BACKUP_AGE_IDENTITY_HOST_FILE=/etc/grobase/tenant-backup-age.key
+```
+
+- The file is mounted into tenant-control only. It must be mode 0600, owned by
+  the image's uid 65532, and hold a key matching one recipient, or tenant-control
+  refuses to boot. It also refuses recipients age cannot seal to together (a
+  post-quantum `age1pq1…` key mixed with a classic `age1…` one). A host path that
+  does not exist fails the container start; it is never created as a directory.
+- A sealed artifact is stored as `<tenant>/<backup>.age`, and restore reads that
+  from the ledger's `location`, never from the artifact's bytes.
+- Every restore checks the stored bytes against the ledger's sha256 and size
+  before anything is written or the backup's status changes. A missing hash, an
+  altered, swapped or oversized artifact, or a plaintext artifact while
+  recipients are set is refused (409) and the backup keeps its status.
+  `TENANT_BACKUP_ALLOW_PLAINTEXT_RESTORE=1` allows restoring the backups taken
+  before you turned encryption on.
+- Rotation: generate a new key and make it the recipient. Keep the old private
+  keys in the identity file (one per line) as long as you keep backups sealed to
+  them.
+- Break-glass: if the identity file is lost, put the offline key in its place
+  (same owner and mode) and restart tenant-control; restores then go through the
+  API as usual. `age -d -i break-glass.key <backup>.age` also gives the raw
+  artifact (the tables' COPY text followed by a JSON manifest) for inspection.
+- Known limit: that one identity opens every tenant's backups, including those of
+  a tenant erased since. Deleting an erased tenant's artifacts is up to you.
 
 **Connection pooling (D4):** `supavisor` (profiles `pooler`/`extras`, opt-in —
 NOT default) is the transaction pooler for **managed/external Postgres** or very
@@ -133,6 +170,19 @@ make health && make verify-all
 ```
 
 Migrations are idempotent and applied by `db-bootstrap` on start.
+
+**Upgrading past migration 090 (N-36).** Until 090, any signed-up user could create a
+`tenants` row and tenant-keyed control rows (SSO, SCIM, entitlements, billing) through
+`/rest/v1` or `/graphql/v1`. 090 removes that access, but it cannot remove rows created
+before it. On an install that served `/rest/v1` before 090, run the read-only detector
+once after upgrading:
+
+```sh
+docker exec -i mini-baas-postgres psql -U postgres -d postgres -q < scripts/security/detect-forged-tenants.sql
+```
+
+It lists every affected table and ends with `forged rows: N`. If N is above 0, inspect
+the listed rows and delete them, including the forger's tenant, as the database owner.
 
 ## 5. Image pin policy
 
@@ -166,5 +216,18 @@ production surface for v1.0; the chart is for evaluation.
   frontend key stops working). Only tenant-control, the TS services and realtime accept
   `JWT_SECRET_PREV` so far (m210). The service token rotates without an outage:
   `scripts/ops/rotate-service-token.sh` (m205).
+- `ADAPTER_REGISTRY_SERVICE_TOKEN` must be set: compose no longer falls back to `JWT_SECRET`, and
+  the control plane refuses to boot without it (`make env` mints one).
+- Engines (postgres, redis, mongo, mysql, mariadb, minio, trino, iceberg-rest, debezium) do not
+  load `.env`, so they never hold `JWT_SECRET` or the service tokens (m211). Engine settings you
+  set in `.env` before (`MINIO_*`, `TZ`, `MARIADB_AUTO_UPGRADE`, …) now go in the optional
+  `.env.engines`, which every engine loads.
+- Kong does not load `.env` either: it gets `JWT_SECRET`, the two API keys and the CORS origins
+  by name (m212). Kong settings you set in `.env` (`KONG_LOG_LEVEL`, `KONG_NGINX_*`, …) now go
+  in the optional `.env.kong`. Studio, pg-meta, GoTrue and PostgREST likewise load only `.env.studio`, `.env.pg-meta`,
+  `.env.gotrue`, `.env.postgrest`. `make prod-up` refuses a `GOTRUE_`/`PGRST_`/`KONG_`/`PG_META_`
+  key left in `.env` that no compose file names, and says where to move it.
+- The NestJS services receive by name every variable their code reads (unset stays unset), not the whole
+  `.env`; a setting none of them reads goes in `.env.<service>` (e.g. `.env.query-router`).
 - Vault is OPTIONAL (profile `control-plane`): `make vault-init`, `make vault-rotate GROUP=…`.
 - `make check-secrets` scans the tree for accidental hardcoded secrets.

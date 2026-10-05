@@ -1,23 +1,33 @@
 # RELEASE — how a Grobase BaaS version ships
 
-Maintainer doc. The pipeline is `.github/workflows/baas-release.yml` (monorepo
-root); these are the human steps around it.
+Maintainer doc. The release pipeline it was written around,
+`.github/workflows/baas-release.yml`, belonged to the Track-Binocle monorepo and
+**does not exist in this repo** (`.github/workflows/` holds `ci.yml`,
+`mini-baas-security.yml` and `nightly-proof.yml`; `HUMAN-ATOMS.md` §2 records the
+same). Sections that describe that pipeline are marked as monorepo history; the
+rest are the steps that work here.
 
 ## Versioning
 
 - **One umbrella version** for the suite: the 16 bake images + binocle-nano/one
   images and binaries all carry the same `X.Y.Z`.
-- **Distribution is Docker Hub only** (decision 2026-06-13): images live under
-  `docker.io/dlesieur/*` — public by default on push, no registry-visibility
-  step. The buildx layer cache rides GHCR internally (CI-only). Binary
-  tarballs + install.sh stay GitHub Release assets.
-- **SDK** (`@mini-baas/js`) ships IN-REPO (`apps/baas/sdk`) — consumed as a
-  file/git dependency; **not published to npm** (same decision).
-- **realtime-agnostic** versions independently (it's an upstream we pin, like
-  `kong:3.8`). Bump procedure below.
-- **Tag namespace**: `baas-vX.Y.Z` in the monorepo (bare `v*` belongs to other
-  products). Pre-releases: `baas-vX.Y.Z-rc.N` — the workflow marks them
-  prerelease and skips the `latest` tags.
+- **Release images go to Docker Hub** (monorepo decision 2026-06-13): versioned
+  images live under `docker.io/dlesieur/*` (the `REGISTRY` default in
+  `docker-bake.hcl`) — public by default on push, no registry-visibility step.
+  The buildx layer cache rides GHCR. Binary tarballs + install.sh were GitHub
+  Release assets of the monorepo; none are published from this repo.
+- **Per-commit images go to GHCR from this repo**: `.github/workflows/ci.yml`
+  pushes `ghcr.io/univers42/grobase-<svc>:latest` and `:sha-<commit>` on pushes
+  to `main` (the pull-fallback the compose files reference).
+- **SDK** (`@grobase/js`) ships IN-REPO (`sdks/js`) — consumed as a
+  file dependency; **not published to npm** (the publish is a held human step,
+  `HUMAN-ATOMS.md` §1).
+- **realtime-agnostic** is vendored in-repo as plain tracked files
+  (`infra/docker/services/realtime/realtime-agnostic/`), not an upstream image
+  pin any more. Update procedure below.
+- **Tag namespace** (monorepo history): `baas-vX.Y.Z` (bare `v*` belonged to
+  other products), pre-releases `baas-vX.Y.Z-rc.N`. **This repo has no `baas-v*`
+  tag** — `git tag` shows only `v0.0.1` and `backup/develop-2026-09-23`.
 - **Scope (v1.0)**: images and binaries are **linux/amd64** only (the binocle
   Dockerfiles target x86_64-musl). arm64 is a v1.1 item.
 
@@ -30,7 +40,7 @@ make verify-all               # all milestone gates — hard floor:
                               #   m32 (footprint budgets) · m37 (nano)
                               #   m40–m45 (one) · m46 (share-pools isolation)
 make check-secrets            # no hardcoded secrets
-# CI green on the release commit · SDK: npm run build && npm test (apps/baas/sdk)
+# CI green on the release commit · SDK: npm run build && npm test (sdks/js)
 # git status clean · .env untracked
 ```
 
@@ -44,7 +54,10 @@ Gate context notes (learned 2026-06-13):
 - **m39** runs on the scale shape only (`DATA_PLANE_SHARE_POOLS=1`); on the
   base per-tenant-pool shape it SKIPs by design.
 
-## Cut the release
+## Cut the release (monorepo pipeline — not wired in this repo)
+
+Pushing these tags fires nothing here until a `baas-release.yml` equivalent is
+re-added (see the standalone-repo note below). In the monorepo:
 
 ```sh
 # 1. rc first — proves the whole pipeline end-to-end
@@ -55,16 +68,21 @@ git tag -a baas-v1.0.0-rc.1 -m "Grobase BaaS v1.0.0-rc.1" && git push origin baa
 git tag -a baas-v1.0.0 -m "Grobase BaaS v1.0.0" && git push origin baas-v1.0.0
 ```
 
+The manual pieces that do exist here (a push is irreversible — human trigger):
+`make release-binaries` (binocle binaries + sha256 → `artifacts/release/`) and
+`make release-images VERSION=X.Y.Z` (bake + push every suite image).
+
 ## Post-publish checklist
 
-- [ ] `monitor` job green — it pulls the published binocle-one **anonymously**
-      from Docker Hub (public by default on push; the probe IS the visibility
-      check) and waits for the container healthcheck.
+- [ ] `monitor` job green (monorepo pipeline) — it pulls the published binocle-one
+      **anonymously** from Docker Hub (public by default on push; the probe IS the
+      visibility check) and waits for the container healthcheck.
 - [ ] **Clean-VM smoke** (~20 min, fresh Ubuntu with only git/curl/make/docker):
-      Path A `curl …/baas-vX.Y.Z/install.sh | sh` → run → CRUD via curl
-      (or pure-Docker: `docker run -d -p 8090:8090 dlesieur/binocle-one:X.Y.Z`);
+      Path A `docker run -d -p 8090:8090 dlesieur/binocle-one:X.Y.Z` → CRUD via curl
+      (the `install.sh` tarball path needs GitHub Release assets, which this repo
+      does not publish);
       Path B clone → `make quickstart` → `make health` green →
-      `bash scripts/phase1-smoke-test.sh`. Save the transcript to `artifacts/`.
+      `bash scripts/test/phase/phase1-smoke-test.sh`. Save the transcript to `artifacts/`.
 - [ ] Release notes: lead with the SKU table below; numbers cite their artifact.
 
 ## SKU lineup (release-notes template)
@@ -72,29 +90,35 @@ git tag -a baas-v1.0.0 -m "Grobase BaaS v1.0.0" && git push origin baas-v1.0.0
 | SKU | One line | Measured |
 |---|---|---|
 | **binocle-one** | Your PocketBase, smaller — accounts/OAuth2-PKCE/TOTP MFA/files/SSE/admin `/_/` in one static binary | 6.41 MB · ~2.2 MiB RSS · gates m40–m45 |
-| **binocle-nano** | Headless embedded data plane (SQLite, CRUD+graph+keys+SSE) | 5.1 MB · 2.0 MiB RSS vs PocketBase 30.1 MB · 13.1 MiB (`artifacts/nano-vs-pocketbase.json`) |
+| **binocle-nano** | Headless embedded data plane (SQLite, CRUD+graph+keys+SSE) | 5.1 MB · 2.0 MiB RSS vs PocketBase 30.1 MB · 13.1 MiB (`artifacts/nano-vs-pocketbase.json`, written by `scripts/bench/nano-vs-pocketbase.sh`; `artifacts/` is gitignored) |
 | **self-host basic** | Node-free Pi-class CRUD (Rust `/data/v1`) | ~460 MiB · 11 svc |
 | **self-host essential** | The default: full product, aggregates | ~660 MiB · 13 svc |
 | **self-host pro** | Multi-engine + realtime + storage + txns | ~1.4 GiB · 28 svc |
 | **self-host max** | Everything incl. DDL + analytics | ~3.5 GiB · 41 svc |
 
-## Bumping the realtime pin
+## Updating the realtime service
 
-1. Tag `vX.Y.Z` in `Univers42/realtime-agnostic` → its release workflow builds
-   the binary + GitHub Release, then publishes `dlesieur/realtime-agnostic:X.Y.Z`
-   (+ GHCR mirror).
-   **Gotcha (bit v0.2.0 and v0.2.1):** the publish job needs repo secrets
-   `DOCKER_HUB_USERNAME` / `DOCKER_HUB_TOKEN` — without them the binary/Release
-   jobs go green but the image job fails at login. Add the secrets
-   (`gh secret set … --repo Univers42/realtime-agnostic`), then re-run just the
-   failed job: `gh run rerun <run-id> --failed`.
-2. Bump the pin in `docker-compose.yml` (`image: dlesieur/realtime-agnostic:…`).
-   The service keeps its `build:` context, so local stacks build from source
-   regardless of the pin — the pin only governs pull-only deployments.
-3. Re-verify: `make verify-m44` (SSE) + `bash scripts/phase11-realtime-websocket-test.sh`.
+The `realtime` service in `orchestrators/compose/base/data-plane.yml` builds from
+the vendored `infra/docker/services/realtime/realtime-agnostic/` and falls back
+to `ghcr.io/univers42/grobase-realtime:latest`, which `ci.yml` publishes from
+`main`. There is no upstream image pin to bump.
+
+1. Change the vendored source (or re-vendor a newer upstream release over it).
+2. `docker compose build realtime` — local stacks build from source; pull-only
+   deployments get the new image once CI has published it from `main`.
+3. Re-verify: `make verify-m44` (SSE) + `bash scripts/test/phase/phase11-realtime-websocket-test.sh`.
+
+Monorepo history: the pin was `dlesieur/realtime-agnostic:X.Y.Z`, published by
+tagging `vX.Y.Z` in `Univers42/realtime-agnostic`. **Gotcha (bit v0.2.0 and
+v0.2.1):** that publish job needs repo secrets `DOCKER_HUB_USERNAME` /
+`DOCKER_HUB_TOKEN` — without them the binary/Release jobs go green but the
+image job fails at login.
 
 ## Standalone-repo note
 
-`Univers42/mini-baas-infra` (the standalone product repo) is currently a stale
-sync target; v1.0 ships from the monorepo (`baas-v*` tags). Syncing the
-standalone repo and moving the release home there is a v1.1 item.
+This repo (`Univers42/grobase`) is the standalone product repo, extracted from
+the Track-Binocle monorepo; the older standalone sync target (history:
+`Univers42/mini-baas-infra`) is superseded. v1.0 shipped from the monorepo
+(`baas-v*` tags). Moving the release home here (a `baas-release.yml`
+equivalent, `baas-v*` tags, GitHub Release assets) is still open — see
+`HUMAN-ATOMS.md` §2.

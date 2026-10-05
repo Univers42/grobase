@@ -217,6 +217,15 @@ arm_missing() {
   ok "hardened minus JWT_SECRET: exit 1, JWT_SECRET is the only offender"
 }
 
+# arm_distinct proves a service token equal to JWT_SECRET fails, named alone.
+arm_distinct() {
+  local jwt
+  jwt="$(sed -n 's/^JWT_SECRET=//p' "${T}/hardened.env" | tail -n1)"
+  expect_fail "$(with_line same.env "ADAPTER_REGISTRY_SERVICE_TOKEN=${jwt}")" ADAPTER_REGISTRY_SERVICE_TOKEN
+  [ "$(grep -c '^  ✗ ' <<<"${OUT}")" = 1 ] || fail "same.env: expected exactly one offender"
+  ok "service token equal to JWT_SECRET: exit 1, ADAPTER_REGISTRY_SERVICE_TOKEN the only offender"
+}
+
 # parser_cases prints one "EXPECTED_VAR|line appended to the hardened env" per
 # bad compose .env form (CRLF last, via printf).
 parser_cases() {
@@ -289,6 +298,26 @@ arm_backups() {
   ok "BACKUP_AGE_RECIPIENTS unset = advisory (exit 0); BACKUP_AGE_IDENTITY_FILE in the env file refused by name"
 }
 
+# arm_tenant_backups proves m87 tenant backups in clear only warn, a tenant
+# recipient shared with pg-backup's is refused (comma or tab separated), and an age private key in any
+# value is refused by name without being printed.
+arm_tenant_backups() {
+  local pg sk
+  pg="$(sed -n 's/^BACKUP_AGE_RECIPIENTS=//p' "${T}/hardened.env")"
+  run_pf "$(with_line tb-clear.env 'TENANT_BACKUP_ENABLED=1')"
+  [ "${RC}" = 0 ] || fail "TENANT_BACKUP_ENABLED=1 without recipients must only warn — got ${RC}"
+  grep -q '^  ! TENANT_BACKUP_AGE_RECIPIENTS ' <<<"${OUT}" || fail "no advisory line for clear tenant backups"
+  run_pf "$(with_line tb-own.env "TENANT_BACKUP_ENABLED=1
+TENANT_BACKUP_AGE_RECIPIENTS=age1$(rand 29)")"
+  [ "${RC}" = 0 ] || fail "a distinct tenant recipient must pass — got ${RC}: ${OUT}"
+  expect_fail "$(with_line tb-shared.env "TENANT_BACKUP_AGE_RECIPIENTS=age1$(rand 29), ${pg}")" TENANT_BACKUP_AGE_RECIPIENTS
+  expect_fail "$(with_line tb-shared-tab.env "TENANT_BACKUP_AGE_RECIPIENTS=age1$(rand 29)$(printf '\t')${pg}")" TENANT_BACKUP_AGE_RECIPIENTS
+  sk="AGE-SECRET-KEY-1$(rand 20)"
+  expect_fail "$(with_line tb-secret.env "M194_NOTE=${sk}")" M194_NOTE
+  ! grep -qF "${sk}" <<<"${OUT}" || fail "the preflight printed an age private key"
+  ok "tenant backups in clear = advisory; a recipient shared with BACKUP_AGE_RECIPIENTS (comma or tab) and an age private key in .env refused by name (key not printed)"
+}
+
 # arm_no_new_privileges proves CONTAINER_NO_NEW_PRIVILEGES=false is refused by
 # name, accepted with a warning under CONTAINER_NO_NEW_PRIVILEGES_ACK=1, and
 # that true (or unset, in hardened.env) passes silently.
@@ -301,6 +330,16 @@ arm_no_new_privileges() {
   [ "${RC}" = 0 ] || fail "CONTAINER_NO_NEW_PRIVILEGES=true must pass — got ${RC}"
   ! grep -q 'CONTAINER_NO_NEW_PRIVILEGES' <<<"${OUT}" || fail "CONTAINER_NO_NEW_PRIVILEGES=true must not be mentioned"
   ok "CONTAINER_NO_NEW_PRIVILEGES: false refused, false + ACK=1 warns, true silent (m208)"
+}
+
+# arm_moved proves a GOTRUE_/PGRST_ key no compose file names is refused by name
+# (gotrue and postgrest no longer load .env, m212) and a named one passes.
+arm_moved() {
+  expect_fail "$(with_line mv-gotrue.env 'GOTRUE_SMS_PROVIDER=twilio')" GOTRUE_SMS_PROVIDER
+  expect_fail "$(with_line mv-pgrst.env 'export PGRST_LOG_LEVEL=info')" PGRST_LOG_LEVEL
+  run_pf "$(with_line mv-named.env 'GOTRUE_DISABLE_SIGNUP=true')"
+  [ "${RC}" = 0 ] || fail "GOTRUE_DISABLE_SIGNUP (named in compose) must pass — got ${RC}: ${OUT}"
+  ok "a GOTRUE_/PGRST_ key no compose file names is refused (export prefix too); a named one passes"
 }
 
 # arm_parser_pass proves last-wins, single-quoted literals, inline comments
@@ -404,14 +443,17 @@ step "(a) dev-default env and value leak"
 arm_dev
 step "(b) hardened env"
 arm_hardened
-step "(c) one missing secret"
+step "(c) one missing secret, one shared secret"
 arm_missing
+arm_distinct
 step "(d) parser semantics"
 arm_parser_fail
 arm_parser_pass
 arm_advisories
 arm_no_new_privileges
+arm_moved
 arm_backups
+arm_tenant_backups
 step "(e) never sourced"
 arm_source
 step "(f) drift against compose defaults"

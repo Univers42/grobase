@@ -26,7 +26,7 @@
 use std::sync::Arc;
 
 use data_plane_core::{
-    CredentialRef, DataOperation, DataOperationKind, DatabaseMount, EngineAdapter,
+    CredentialRef, DataOperation, DataOperationKind, DataPlaneError, DatabaseMount, EngineAdapter,
     EngineCapabilities, EnginePool, IdentitySource, PoolPolicy, RawStatement, RequestIdentity,
     ReturningMode, TxBeginRequest,
 };
@@ -373,6 +373,25 @@ async fn check_aggregate(pool: &dyn EnginePool, id: &RequestIdentity) -> Result<
     Ok(())
 }
 
+/// A filtered list on an engine without rich queries must either honor the
+/// filter or refuse it with `UnsupportedCapability`; returning the unfiltered
+/// rows hands the caller data it excluded.
+async fn filter_honored_or_refused(
+    pool: &dyn EnginePool,
+    id: &RequestIdentity,
+    listed: DataOperation,
+) -> Result<(), String> {
+    match pool.execute(listed, id.clone()).await {
+        Err(DataPlaneError::UnsupportedCapability { .. }) => Ok(()),
+        Err(e) => Err(format!("filtered list: {e}")),
+        Ok(r) if r.rows.len() == 1 => expect_field(&r.rows[0], "name", "beta"),
+        Ok(r) => Err(format!(
+            "filtered list ignored its filter: {} rows instead of 1 or a refusal",
+            r.rows.len()
+        )),
+    }
+}
+
 async fn check_filtering(
     pool: &dyn EnginePool,
     id: &RequestIdentity,
@@ -404,6 +423,7 @@ async fn check_filtering(
         if r.rows.len() < 3 {
             return Err(format!("list returned {} rows, expected ≥3", r.rows.len()));
         }
+        filter_honored_or_refused(pool, id, listed).await?;
     } else {
         let r = pool
             .execute(listed, id.clone())

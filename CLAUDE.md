@@ -101,7 +101,9 @@ The `make legacy-*` target is **gone** (the monolith survives only as `Makefile.
 
 Other on-disk artifacts to know: `certs/` is **untracked** (local TLS material). The realtime workspace
 `infra/docker/services/realtime/realtime-agnostic` is vendored as plain **tracked** files (no nested
-`.git`). The old `.gitmodules` (6 dead submodules, never initialized) was **removed** on `main` and none exists now. The orphan nested `grobase/` gitlink was de-tracked in
+`.git`), kept **identical** to `Univers42/realtime-agnostic` `develop` (synced both ways 2026-10-03)
+except each repo's own `.github/` and the base-image registry lines (`mirror.gcr.io` here,
+`public.ecr.aws` upstream) — a realtime fix lands in both, or `diff -rq` says which side is behind. The old `.gitmodules` (6 dead submodules, never initialized) was **removed** on `main` and none exists now. The orphan nested `grobase/` gitlink was de-tracked in
 `3396baf`. There is **no `site/`** (marketing site) in this repo, on any
 ref. `coverage/` HTML under `src/` will pollute `grep` hits — exclude it.
 
@@ -174,7 +176,7 @@ make clean | fclean | re      # PROJECT-SCOPED, data-safe: clean = this project'
 make build                    # build all edition images   (build-svc-<svc> = one image)
 make migrate / migrate-status / migrate-all / migrate-mongo / migrate-mysql
 make bench-load|bench-capacity|bench-footprint|bench-mem|bench-startup
-make audit-deps               # supply-chain CVE scan: cargo-audit (Rust) + govulncheck (Go)
+make audit-deps               # supply-chain scan: cargo-deny (Rust, both workspaces) + govulncheck (Go)
 make nano-up|one-up           # product editions: binocle-nano (:8090) / binocle-one (:8091)
 make cloud-up                 # managed-cloud overlay (turns cloud/enterprise flags ON — NOT a default)
 make conformance | conformance-<engine> | parity | parity-suite
@@ -217,7 +219,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **190 scripts, highest m210** (`m210-jwt-dual-key.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (currently **193 scripts, highest m213** (`m213-query-execute-route.sh`); the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -301,7 +303,7 @@ unit tests in `infra/config/prometheus/tests/`) needs no stack and runs in CI's 
 vault only on `net-vault`, kong/waf/scrapers/functions sharing no bridge with them, and each of the 64
 client→engine edges intact, and adapter-registry-go off the app bridge (`net-registry` = it + kong only). It probes a running `NETSEG=1` stack too.
 `m205` proves `scripts/ops/rotate-service-token.sh` (begin → swap → finish on `.env.secrets`, never
-printing a token) and that compose hands the previous token to every verifier; no stack needed.
+printing a token), that compose hands the previous token to every verifier, and that the token never falls back to `JWT_SECRET`; no stack needed.
 `m206` runs a throwaway Kong on the repo `kong.yml` and requires `acl baas-admin` on every
 ip-restricted route: the anon key gets the acl's 403, the service key passes (N-24). It also fails if any
 Kong service points at the `studio` container (N-25: Studio is reached on loopback or an SSH tunnel only).
@@ -321,6 +323,19 @@ staging. Unset = plaintext, as before; m188's encrypted leg covers `engine-backu
 realtime accept `JWT_SECRET_PREV` (realtime: `REALTIME_JWT_SECRET_PREV`), compose passes it to exactly those 14
 services (empty when unset), every other JWT secret holder and source read is classified (Kong/PostgREST/GoTrue/
 vault42 stay single-key), and `rotate-jwt.sh` / `rotate-secrets.sh jwt` refuse without `ROTATE_JWT_FORCE=1`.
+`m211` (static + live) proves the ten engine services (postgres redis mongo mysql mariadb minio trino iceberg-rest
+debezium minio-iceberg-init) never load the platform `.env`: a sentinel `.env` reaches none of them under base, every
+overlay and fly's override, the optional `.env.engines` does, a postgres-loads-`.env` mutant is caught, and on a running
+stack each engine's runtime env and PID 1 environ hold no `JWT_SECRET`/`SERVICE_ROLE_KEY`/service token.
+`m212` (static + live) does the same for platform services converted off `env_file: [.env]` (kong, studio, pg-meta, gotrue, postgrest and the 13
+NestJS services, which extend `_common.yml`'s `ts-base`): each lists the keys it reads in `environment`, loads only its
+optional `.env.<service>`, still receives its needed key under every overlay, a kong-loads-`.env` mutant is caught, a
+running one holds no `.env` key it does not read, and no running container's unset pass-through unsets an image `ENV`.
+`m213` proves the public spec's `POST /query/v1/execute` (`queryExecute`, what every SDK's query call
+posts) is served: query-router, called directly with no credential, answers an unknown sibling path
+404 and the route its AuthGuard's 401, and through Kong the route reaches query-router (its api-key
+middleware refuses the anon key, as on every `/query/v1` path). Static leg + live legs under
+`M213_REQUIRE=1` in CI. It answered 404 until 2026-10-03.
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 
@@ -344,7 +359,7 @@ skip `make`.
 
 Notes: the data-plane crate's produced binary is **`data-plane-router`** (package `data-plane-server`,
 `[[bin]] name = "data-plane-router"`); realtime's is `realtime-server`. The SDK `src/generated/` tree
-is **gitignored** (except the committed curated `engines.ts`) — regenerate with `cd sdks/js && npm run codegen:all` (the `openapi:collect` link in
+is **gitignored** (except the committed `engines.ts`) — regenerate with `cd sdks/js && npm run codegen:all` (the `openapi:collect` link in
 that chain was repointed to `../../scripts/ops/openapi-collect.sh` in the flatten). All SDKs derive
 from one spec: `infra/config/openapi/grobase-public.json` (polyglot via `bash sdks/js/scripts/codegen-polyglot.sh`).
 
@@ -352,10 +367,10 @@ from one spec: `infra/config/openapi/grobase-public.json` (polyglot via `bash sd
 `make test-lint` runs shell (shellcheck, host binary else `koalaman/shellcheck`, `vendor/` excluded) ·
 rust clippy · go (vet + gofmt, then golangci-lint + gofumpt per `src/control-plane/.golangci.yml`) ·
 ts eslint · yaml (yamllint + actionlint) · docker (hadolint) · make · **compose** (base + every
-`docker-compose.*.yml` overlay must render; `track-binocle` is skipped — it needs a `pg-meta` service
+`docker-compose.*.yml` overlay must render, with default profiles and with `--profile '*'` — CI runs it in the security-gates job; the cloud overlay's all-profiles render is skipped without the gitignored `flags.env.cloud`, and `track-binocle` is skipped — it needs a `pg-meta` service
 this repo never defines). `make test-scan` = `check-secrets` (grep patterns **plus gitleaks over the
 whole tree, docs and untracked files included**, policy `.gitleaks.toml`) + semgrep/trivy/npm audit.
-`make audit-deps` = cargo-audit + govulncheck. First results: `artifacts/quality/baseline-2026-09-23.md`.
+`make audit-deps` = cargo-deny (policy `scripts/security/deny.toml`) + govulncheck. First results: `artifacts/quality/baseline-2026-09-23.md`.
 
 **Code quality (SonarCloud).** `sonar-project.properties` (repo root; org `univers42`, projectKey
 `Univers42_grobase`) defines the scope — sources `docker/services, scripts, config, src/apps,
@@ -413,8 +428,8 @@ planes, e.g. metering = `METERING_ENABLED` (Go control) AND `DATA_PLANE_METERING
 `PERMISSION_CONDITIONS_ENABLED` / `API_KEY_ABAC_ENABLED` (m135–m139, ABAC) are _not_ Go `envBool`
 route-mount gates — they gate at the **TS / data-plane PDP**, so grep them in
 `src/apps/permission-engine` & `src/apps/query-router`, not the Go control plane. SQL migrations live
-in **`scripts/migrations/postgresql/`**; the numeric set now runs **001–089** (78 files; sequence is
-non-contiguous, gaps include **057–059**: `056` jumps to `060`; highest is `089_default_privileges_revoke.sql`; `088`/`089` close the anon-readable `schema_registry` and the blanket anon/authenticated default privilege on `public` — see `wiki/security/`). The
+in **`scripts/migrations/postgresql/`**; the numeric set now runs **001–090** (79 files; sequence is
+non-contiguous, gaps include **057–059**: `056` jumps to `060`; highest is `090_control_tables_rest_readonly.sql`; `088`/`089` close the anon-readable `schema_registry` and the blanket anon/authenticated default privilege on `public`, and `090` takes every tenant-keyed control table off `/rest/v1` + `/graphql/v1` (N-36, gate m200) — see `wiki/security/`). The
 cloud/enterprise/parity flag slice runs **040–065**; **066–070** are vendor/infra, not flag-gated
 (`066`/`067` MovieVerse schema + like-counts, `068` per-mount shared_resources, `069` DynamoDB engine
 CHECK, `070` per-mount `read_scoped` read-owner-scoping). The newest band **071–076** backs the
@@ -446,7 +461,7 @@ Mongo/MySQL migrations are separate and tiny
 | billing/Stripe (m82)        | `BILLING_ENABLED`                                      | `041_tenant_billing.sql`                                                                   |
 | tenant self-serve (m83–m84) | `TENANT_SELFSERVE_ENABLED`                             | — (`/v1/tenants/me*`, tenant from credential — no `{id}`, no cross-tenant by construction) |
 | per-tenant obs (m85)        | `TENANT_OBS_ENABLED`, `DATA_PLANE_TENANT_OBS`          | — (tenant_id as a log _field_, never a Prometheus label)                                   |
-| backup/restore (m87)        | `TENANT_BACKUP_ENABLED`                                | `042_tenant_backups.sql`                                                                   |
+| backup/restore (m87)        | `TENANT_BACKUP_ENABLED` (+ `TENANT_BACKUP_AGE_RECIPIENTS`: age-sealed artifacts) | `042_tenant_backups.sql`                                                     |
 
 **Track-D enterprise · Track-E parity · dynamic-builder / ABAC:**
 
@@ -491,9 +506,10 @@ key); `APP_CHANNELS_ENABLED` (m179, cross-app `xapp:` messaging channels, migrat
 The TS SDK is **`sdks/js/`** (package **`@grobase/js`**, renamed from `@mini-baas/js` during the
 `sdks/` consolidation, commit `ca6aaf8`) — a hand-written reference client, layout
 `src/{core,domains,generated,bin,__type_tests__}` + `index.ts`/`types.ts`, tested with **`node:test`**
-(not jest/vitest). Its `src/generated/` is **gitignored EXCEPT the curated `engines.ts`** — the engine
-capability catalog is the SDK's contract (pinned by `__type_tests__/engines.test-d.ts`) and is committed
-as the source of truth (`codegen-engines.mjs` only diffs it vs a live `/engines`); the rest is reproduced.
+(not jest/vitest). Its `src/generated/` is **gitignored EXCEPT `engines.ts`** — the engine capability catalog
+the SDK's types derive from (pinned by `__type_tests__/engines.test-d.ts`). It is what live `/engines`
+returns for the 9 engines compose forwards (`codegen-engines.mjs` regenerates it; `--strict` diffs it),
+and data-plane-core's `sdk_engine_catalog` test fails when it drifts from the Rust descriptors; the rest is reproduced.
 The polyglot SDKs (`sdks/python/`, `sdks/kotlin/`, `sdks/swift/`, `sdks/dart/`) are
 **OpenAPI-generated** from `infra/config/openapi/grobase-public.json` via
 `bash sdks/js/scripts/codegen-polyglot.sh` (package identities: python `grobase`, dart `grobase`,
@@ -582,8 +598,20 @@ share were kept; `bash .claude/tools/selfcheck.sh --summary` must report 0 faile
 
 - `hooks/` — `hooks/scripts/hooks.py` + `hooks/config/hooks-config.json` (PreToolUse denies/asks on
   destructive or irreversible commands, PostToolUse lints the edited file, SessionStart injects
-  `tools/digest.sh`, PreCompact). **Not wired yet:** the committed `settings.json` is `{}`; wiring the
-  hooks (and an empty `attribution`, binding rule 1) is a human action.
+  `tools/digest.sh`, PreCompact). This local copy is not wired in `settings.json`; the `devil`
+  plugin's own `hooks/hooks.json` runs instead whenever the plugin is enabled (below).
+- **`settings.json`** (seeded by the kit's `setup`, 2026-10-03) — the kit's permission lists
+  (read-only tools allowed; `rm`, `git push`, `docker`, `npm`, `curl`, … ask), **`attribution`
+  `commit`/`pr` set to empty strings** (binding rule 1 enforced by the harness, not by memory),
+  `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=80`, and the plugin enablement below. Re-check with
+  `devil setup --check --skip rules --skip claude-md --seed-mcp` from the kit.
+- **The `devil` plugin** — `enabledPlugins: devil@univers42` + `extraKnownMarketplaces.univers42`
+  (`Univers42/claude-deal-with-the-devil`), written by `claude plugin install devil@univers42 --scope
+  project`. It brings upstream's commands/skills namespaced `/devil:*` (`handoff`, `retro`, `grill`,
+  `prototype`, `caveat`, `wayfinder`, `to-tickets`, `guide`, `setup`, …) and its hooks; the GitHub
+  tracker adapter it needs is `.claude/devil/tracker.md`. The kit's `rules` and `claude-md` setup
+  stages are deliberately **not** applied: grobase's own `.claude/rules/` are the always-on set, and
+  seeding the kit's 12 again would load both every session.
 - `rules/` — always-on: `minimalism-ladder`, `minimalism-markers`, `comments`, `no-globals`,
   `refactor-common`, **`service-boundaries`**, plus the devil set (`risk`, `quality-bar`,
   `run-safely`, `library-first`, …). Lazy via `paths:`: `refactor-{c,go,rust,shell,typescript}`,
@@ -596,9 +624,11 @@ share were kept; `bash .claude/tools/selfcheck.sh --summary` must report 0 faile
   selfcheck · context · ponytail · scripts (grobase copy fixes SIGPIPE-under-pipefail and skips
   `vendor/`). Shared shell lib `tools/lib/common.sh` (un-ignored in `.gitignore` — a broad `lib/`
   rule once hid it). Local cache in `.claude/cache/` (gitignored).
-- **MCP:** no `.mcp.json` is committed (opt-in, local). The upstream's declares `grafana` + `postgres`
-  (read-only views of the local stack via `scripts/ops/mcp-server.sh`), `playwright`, `context7`,
-  `deepwiki`, `supermemory` (external — never store secrets there).
+- **MCP:** the root `.mcp.json` is committed and declares six servers: `playwright`, `context7`,
+  `deepwiki`, `supermemory` (from the kit's `templates/mcp.json`, all via `npx`) and grobase's own
+  `grafana` + `postgres` (read-only views of the **running** local stack via
+  `scripts/ops/mcp-server.sh`; they fail to start when no stack is up). `supermemory` sends what you
+  store to supermemory.ai — never store a secret, a credential or client data there.
 
 There is **no** kernel
 (`CLAUDE.md`/`instructions.md`/`objectives/`) and **no** `/baas-wave` skill — references to "the

@@ -34,7 +34,7 @@ the code path that implements the control.
 | Sole public listener is a hardened gateway (defence in depth) | `[+]` | In-stack OWASP **WAF** = ModSecurity v3 + CRS as the only public ingress (`docker/services/waf`); data plane is behind Kong, server-to-server only. |
 | Restrictive CORS by default (no permissive cross-origin) | `[v]` | Data-plane CORS denies browser cross-origin by default; allow-list via `DATA_PLANE_CORS_ALLOW_ORIGINS` (audit O3, FIXED). |
 | Dependency / supply-chain locking | `[v]` | Frozen lockfiles everywhere; npm `--ignore-scripts` (`src/.npmrc`), pnpm `minimum-release-age=1440` quarantine (`.npmrc`) + `onlyBuiltDependencies` allowlist; digest pinning (`pin-digests.sh`). |
-| SCA in CI (known-CVE gate) | `[v]` | `cargo-audit` (Rust) + `govulncheck` (Go) + `npm/pnpm audit` + Trivy fs/image, all **blocking** in `.github/workflows/mini-baas-security.yml` (`sca-cargo-audit`, `sca-govulncheck`, `sca-npm-audit`, `container-trivy`). |
+| SCA in CI (known-CVE gate) | `[~]` | `cargo-deny` (Rust: advisories, licences, sources, both workspaces) + `govulncheck` (Go) + Trivy fs/image, **blocking** in `.github/workflows/mini-baas-security.yml` (jobs `deps`, `trivy`). `npm/pnpm audit` runs only locally (`make test-scan`), not in CI yet. |
 | SAST in CI | `[v]` | Semgrep (`p/owasp-top-ten` + lang rules), SARIF to the Security tab (`sast-semgrep`). |
 | Secret-scan in CI (blocking) | `[v]` | TruffleHog (`--only-verified --fail`) + gitleaks (working-tree regex/entropy, `--exit-code 1`); `.env`/`.env.local` gitignored and never tracked, `ANON_KEY` runtime-derived from `JWT_SECRET` (no committed secret). |
 | Vault enforced for all secrets | `[~]` | Under `SECURITY_MODE=max` an inline DSN is refused (403) and mounts are Vault `credential_ref`s resolved per request (migration 060, gate m121, nightly). Other tiers keep encrypted-at-rest inline DSNs by design. |
@@ -99,7 +99,7 @@ the code path that implements the control.
 |---|---|---|
 | Tenant data isolation (storage) | `[v]` | storage-router owner-prefixed keys; Kong `pre-function` clears client `X-User-*` then sets them from the verified JWT (anon-path impersonation closed, roadmap A1). |
 | Fine-grained file ABAC (`bucket:read/write`) | `[~]` | Owner-prefix is the only isolation today; bucket-level ABAC not wired (roadmap A1 open item). |
-| Backups exist + restore-tested | `[v]` | Daily `pg_dump -Fc`, 14-day retention → MinIO, optional WAL/PITR, restore-drill (gate m47). Encrypted at rest when `BACKUP_AGE_RECIPIENTS` is set (age: logical, physical, WAL, engine archives; m209, m188). Per-tenant backups (m87) are not encrypted; roadmap B6. |
+| Backups exist + restore-tested | `[v]` | Daily `pg_dump -Fc`, 14-day retention → MinIO, optional WAL/PITR, restore-drill (gate m47). Encrypted at rest when `BACKUP_AGE_RECIPIENTS` is set (age: logical, physical, WAL, engine archives; m209, m188). Per-tenant backups (m87) are sealed when `TENANT_BACKUP_AGE_RECIPIENTS` is set, and every restore is checked against the ledger sha256. |
 
 ### V9/V13 — Communications & API security (TLS)
 
@@ -129,7 +129,7 @@ A lightweight mapping to the SOC2 TSC families — **posture only**, not an atte
 | **CC7.2** Monitoring | Prometheus/Grafana/Loki/Tempo; mutation + denial audit; opt-in read audit | `[v]`/`[~]` | gate m19; reads audited only with `DATA_PLANE_AUDIT_READS` (m72) — §3 G-ReadAudit |
 | **CC7.2** | Anomaly detection / SIEM shipping | `[~]` | audit solution #6 (recommended) |
 | **CC8.1** Change management | PR + CI gates required to merge; shadow→parity→cutover discipline | `[v]` | repo workflow; CLAUDE.md |
-| **A1.2** Availability / backups | Daily backups + restore-drill (whole-cluster); encrypted at rest only when `BACKUP_AGE_RECIPIENTS` is set (off by default: there is no key to default to) | `[~]` | gates m47, m209, m188; preflight warns when unset; per-tenant DR is roadmap B6 |
+| **A1.2** Availability / backups | Daily backups + restore-drill (whole-cluster); encrypted at rest only when `BACKUP_AGE_RECIPIENTS` is set (off by default: there is no key to default to) | `[~]` | gates m47, m209, m188, m87 (per-tenant, `TENANT_BACKUP_AGE_RECIPIENTS`); preflight warns when unset |
 | **C1 / P** Confidentiality / privacy | Tenant isolation (RLS+ABAC+field masks), GDPR delete path | `[v]` | `isolation.rs`, `abac.rs`, `gdprsvc` |
 | **CC6.1** Secret rotation | Service tokens rotate with an overlap window (`rotate-service-token.sh`, m205, m68); `JWT_SECRET` rotation missing | `[~]` | audit solution #9 — §3 G-Rotate |
 | **CC6.x** Per-tenant resource QoS | Rate (rps/burst), rows per query (`max_rows`, m73) capped per tier, plus the monthly query quota when `QUOTA_ENFORCEMENT` is on (m80); no per-tenant CPU/RAM/timeout QoS | `[~]` | audit solution #12 — §3 G-QoS |
@@ -170,17 +170,18 @@ The gates that keep this map honest over time, all in
 
 | Job | Tool | Scope |
 |---|---|---|
-| `sast-semgrep` | Semgrep | OWASP-top-ten + TS/JS/Docker rules → SARIF |
-| `sca-npm-audit` | npm / pnpm audit | all TS packages |
-| `sca-cargo-audit` | cargo-audit | both Rust workspaces (data-plane-router, realtime-agnostic); 3 tiberius-only rustls-webpki advisories `--ignore`d (no upstream fix — see audit §supply-chain) |
-| `sca-govulncheck` | govulncheck | Go control plane (reachability-based) |
-| `container-trivy` | Trivy | fs + representative image; accepted CVEs in `.trivyignore` |
-| `secret-trufflehog` | TruffleHog | verified secrets, fail |
-| `secret-gitleaks` | gitleaks | working-tree regex/entropy, blocking |
-| `dast-zap` | ZAP baseline | main-only, against the WAF |
+| `semgrep` | Semgrep | OWASP-top-ten + TS/JS/Docker rules → SARIF |
+| `deps` | cargo-deny + govulncheck | `make audit-deps`: both Rust workspaces (data-plane-router, realtime-agnostic) against `scripts/security/deny.toml` (advisories incl. transitive unsoundness, permissive licences only, crates.io only; accepted advisories listed there with reasons); Go control plane (reachability-based) |
+| `trivy` | Trivy | fs + representative image; accepted CVEs in `.trivyignore` |
+| `trufflehog` | TruffleHog | verified secrets, fail |
+| `gitleaks` | gitleaks | working-tree regex/entropy, blocking |
+| `zap` | ZAP baseline | every push/PR to main and develop, against a stack built from the commit |
+
+Not in CI: `npm/pnpm audit` over the TS lockfiles runs only in `make test-scan`
+(`scripts/security/run-security-scans.sh`).
 
 **Still TODO for the full A6 m60 gate:** fuzz (cargo-fuzz on the filter/DDL parsers,
-audit solution #10) — DAST is shipped (`dast-zap`).
+audit solution #10) — DAST is shipped (`zap`).
 
 ---
 

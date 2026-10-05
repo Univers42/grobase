@@ -16,7 +16,7 @@ It interacts with core components such as `realtime-core` for shared types and t
 // realtime-db-mongodb = { path = "../realtime-db-mongodb" }
 
 // Example usage
-// use realtime-db-mongodb::*;
+// use realtime_db_mongodb::*;
 ```
 
 ## Context of use

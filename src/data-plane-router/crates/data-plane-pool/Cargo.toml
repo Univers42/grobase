@@ -2,6 +2,7 @@
 name = "data-plane-pool"
 version = { workspace = true }
 edition = { workspace = true }
+publish = false
 rust-version = { workspace = true }
 
 # Engine drivers are FEATURE-GATED so lean builds (nano edition) compile only
@@ -20,7 +21,7 @@ postgres = [
     "dep:bytes",
 ]
 mongodb = ["dep:mongodb", "dep:bson"]
-mysql = ["dep:mysql_async"]
+mysql = ["dep:mysql_async", "dep:rustls"]
 redis = ["dep:redis"]
 sqlite = ["dep:rusqlite", "dep:deadpool-sqlite"]
 mssql = ["dep:tiberius", "dep:bb8", "dep:bb8-tiberius", "dep:tokio-util"]

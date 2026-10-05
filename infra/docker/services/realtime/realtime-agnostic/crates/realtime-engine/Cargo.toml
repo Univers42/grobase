@@ -2,25 +2,20 @@
 name = "realtime-engine"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+publish = false
 
 [dependencies]
 realtime-core = { path = "../realtime-core" }
 tokio = { workspace = true }
-tokio-stream = { workspace = true }
-futures = { workspace = true }
 async-trait = { workspace = true }
 dashmap = { workspace = true }
 roaring = { workspace = true }
-arc-swap = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 bytes = { workspace = true }
-ahash = { workspace = true }
 smol_str = { workspace = true }
-thiserror = { workspace = true }
-anyhow = { workspace = true }
-chrono = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
@@ -28,6 +23,18 @@ criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bench]]
 name = "engine_bench"
+harness = false
+
+[[bench]]
+name = "bench_micro"
+harness = false
+
+[[bench]]
+name = "bench_filter"
+harness = false
+
+[[bench]]
+name = "bench_registry"
 harness = false
 
 [lints]

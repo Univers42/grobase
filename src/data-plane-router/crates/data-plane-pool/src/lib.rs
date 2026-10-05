@@ -47,6 +47,8 @@ mod dynamodb;
 #[cfg(feature = "http")]
 mod http;
 mod ident;
+#[cfg(any(feature = "redis", feature = "dynamodb"))]
+mod kv_scope;
 #[cfg(feature = "mongodb")]
 mod mongo;
 #[cfg(feature = "mssql")]

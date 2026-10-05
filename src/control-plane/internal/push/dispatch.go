@@ -20,7 +20,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"syscall"
 	"time"
 )
 
@@ -57,34 +56,25 @@ type dispatcher struct {
 // the register→send window, not the resolve→connect window.
 //
 // @par Remediation
-// The client's dialer carries a net.Dialer.Control hook (pinnedDialControl) that
-// runs AFTER name resolution with the concrete ip:port the kernel is about to
-// connect to, and re-applies isBlockedIP to that exact address — so the IP
+// The client's dialers carry a net.Dialer.Control hook that runs AFTER name
+// resolution with the concrete ip:port the kernel is about to connect to.
+// pinnedDialControl re-applies isBlockedIP to that exact address, so the IP
 // validated is the IP connected to, closing the within-call rebinding window for
-// both the send and register-then-trigger paths.
+// both the send and register-then-trigger paths. A host the operator named in
+// PUSH_SSRF_ALLOW_HOSTS goes through allowlistedDialControl instead, which lets
+// it reach private space but never a metadata address (see dialFor). The
+// transport ignores HTTP(S)_PROXY: through a proxy the dial guard would only see
+// the proxy, which then connects wherever the target resolves.
 //
 // @see https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
 // @see https://cwe.mitre.org/data/definitions/918.html
 func newDispatcher() *dispatcher {
-	dialer := &net.Dialer{Timeout: deliverTimeout, Control: pinnedDialControl}
+	pinned := &net.Dialer{Timeout: deliverTimeout, Control: pinnedDialControl}
+	allowlisted := &net.Dialer{Timeout: deliverTimeout, Control: allowlistedDialControl}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.DialContext = dialer.DialContext
+	transport.Proxy = nil
+	transport.DialContext = dialFor(pinned, allowlisted)
 	return &dispatcher{client: &http.Client{Timeout: deliverTimeout, Transport: transport}}
-}
-
-// pinnedDialControl is the dial-time half of the SSRF guard: it receives the
-// concrete post-resolution address the kernel is about to connect to and refuses
-// any private/loopback/link-local/metadata IP, so a rebinding DNS name cannot
-// slip an internal address past guardTarget's earlier lookup.
-func pinnedDialControl(_, address string, _ syscall.RawConn) error {
-	host, _, err := net.SplitHostPort(address)
-	if err != nil {
-		return err
-	}
-	if ip := net.ParseIP(host); ip != nil && isBlockedIP(ip) {
-		return fmt.Errorf("%w: refusing to dial blocked address %s", ErrBlockedTarget, host)
-	}
-	return nil
 }
 
 // notification is the JSON payload POSTed to a subscription. It is FCM-shaped

@@ -1,11 +1,11 @@
 # query-router
 
-**Port interne** : `4001` · **Container** : `mini-baas-query-router` · **Profile** : `data-plane`
+**Port interne** : `4001` · **Container** : `mini-baas-query-router` · **Profile** : `adapter-plane`
 
 Le **cœur** du backend agnostique. Dispatcher unique pour toutes les opérations
 de lecture / écriture, peu importe le moteur cible (PostgreSQL, MongoDB, MySQL,
 Redis, HTTP). Implémente la couche `IDatabaseAdapter` documentée dans
-`apps/baas/mini-baas-infra/src/libs/database/`.
+`src/libs/database/`.
 
 ## Ce qu'il fait
 
@@ -38,28 +38,29 @@ Redis, HTTP). Implémente la couche `IDatabaseAdapter` documentée dans
 ### Via le SDK (recommandé pour code applicatif)
 
 ```ts
-import { MiniBaasClient } from '@mini-baas/js';
+import { createClient } from '@grobase/js';
 
-const client = new MiniBaasClient({ baseUrl: 'https://localhost:18443', token: jwt });
-const rows = await client.query(dbId).table('users').list({ filter: { active: true }, limit: 10 });
-const inserted = await client.query(dbId).table('users').insert({ name: 'Alice' });
+const baas = createClient({ url: 'http://localhost:8000', anonKey, defaultDatabaseId: dbId });
+const rows = await baas.query.from('users').select({ active: true });
+const inserted = await baas.query.from('users').insert({ name: 'Alice' });
 ```
 
 ### Via Kong (production / depuis le navigateur)
 
 ```bash
 curl -ksS -X POST \
+  -H "apikey: $ANON_KEY" \
   -H "Authorization: Bearer $JWT" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: $(uuidgen)" \
-  "https://localhost:18443/query/$DB_ID/tables/users" \
+  "https://localhost:8443/query/v1/$DB_ID/tables/users" \
   -d '{"op":"insert","data":{"name":"Alice"}}'
 ```
 
 ### Via `docker compose exec` (debug)
 
 ```bash
-docker compose -f apps/baas/mini-baas-infra/docker-compose.yml exec -T query-router \
+docker compose exec -T query-router \
   node --input-type=module -e "
     const r = await fetch('http://127.0.0.1:4001/query/$DB_ID/tables/users', {
       method: 'POST',
@@ -73,15 +74,15 @@ docker compose -f apps/baas/mini-baas-infra/docker-compose.yml exec -T query-rou
 ### Via make + verify scripts
 
 ```bash
-make baas-verify-m1   # vérifie statique : dispatch Map + ExecuteQueryDto + audit
-make baas-verify-m2   # vérifie statique : 5 engines wired
-BAAS_VERIFY_LIVE=1 make baas-verify-m2   # roundtrips insert/select mysql/redis/http
+make verify-m1   # vérifie statique : dispatch Map + ExecuteQueryDto + audit
+make verify-m2   # vérifie statique : 5 engines wired
+bash scripts/verify/m2-federation.sh --live   # roundtrips insert/select mysql/redis/http
 ```
 
 ## Dépendances
 
 - **Postgres** : connection pool partagé, source des migrations (`schema_migrations`)
-- **adapter-registry** : résolution `dbId → (engine, connection_string)`
+- **adapter-registry** (service Go `adapter-registry-go`, port 3021) : résolution `dbId → (engine, connection_string)`
 - **permission-engine** : décisions ABAC (fail-closed)
 - **Redis** : cache idempotency (`IdempotencyMiddleware`)
 - **Tous les engines** (`postgresql`, `mongodb`, `mysql`, `redis`, `http`) sont des dépendances **runtime** (uniquement contactés à la demande, pas au boot)
@@ -99,7 +100,7 @@ BAAS_VERIFY_LIVE=1 make baas-verify-m2   # roundtrips insert/select mysql/redis/
 |---|---|
 | `PORT` | Port d'écoute (default 4001) |
 | `DATABASE_URL` | Pool PG pour audit_log + outbox_events |
-| `ADAPTER_REGISTRY_URL` | URL du adapter-registry (default `http://adapter-registry:3020`) |
+| `ADAPTER_REGISTRY_URL` | URL du adapter-registry (default `http://adapter-registry-go:3021`) |
 | `PERMISSION_ENGINE_URL` | URL du permission-engine (default `http://permission-engine:3050`) |
 | `IDEMPOTENCY_REDIS_URL` | URL Redis pour le cache idempotency |
 | `ADAPTER_REGISTRY_SERVICE_TOKEN` | Token partagé pour appeler permission-engine |

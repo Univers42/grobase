@@ -34,6 +34,9 @@ COPY crates/realtime-db-mongodb/Cargo.toml    crates/realtime-db-mongodb/Cargo.t
 COPY crates/realtime-server/Cargo.toml        crates/realtime-server/Cargo.toml
 COPY crates/realtime-client/Cargo.toml        crates/realtime-client/Cargo.toml
 COPY tests/integration/Cargo.toml             tests/integration/Cargo.toml
+# The engine manifest names each [[bench]] target, and cargo refuses a manifest
+# whose named target file is missing — so the bench sources come in with it.
+COPY crates/realtime-engine/benches/          crates/realtime-engine/benches/
 
 # Stub every crate so Cargo can resolve the graph, then pre-compile all
 # dependencies (the slow step — cached until the manifests change).
@@ -56,8 +59,6 @@ RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry,sharin
     done && \
     mkdir -p crates/realtime-server/src && \
     echo "fn main() {}" > crates/realtime-server/src/main.rs && \
-    mkdir -p crates/realtime-engine/benches && \
-    echo "fn main() {}" > crates/realtime-engine/benches/engine_bench.rs && \
     cargo build --release --bin realtime-server 2>&1 | tail -5 && \
     find /build/target -path '*/.fingerprint/*' -type f -exec touch -t 200001010000 {} +
 

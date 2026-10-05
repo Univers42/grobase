@@ -16,7 +16,7 @@ It interacts with core components such as `realtime-core` for shared types and t
 // realtime-db-postgres = { path = "../realtime-db-postgres" }
 
 // Example usage
-// use realtime-db-postgres::*;
+// use realtime_db_postgres::*;
 ```
 
 ## Context of use

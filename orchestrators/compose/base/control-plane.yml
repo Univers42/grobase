@@ -21,7 +21,7 @@ services:
       ADAPTER_REGISTRY_PRODUCT_MODE: ${ADAPTER_REGISTRY_GO_PRODUCT_MODE:-enabled}
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       VAULT_ENC_KEY: ${VAULT_ENC_KEY:-0123456789abcdef0123456789abcdef}
-      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
       # DynamoDB mount registration. isAllowedEngine() refuses `dynamodb` unless
@@ -93,7 +93,7 @@ services:
       # the production control plane (m12, m28, the B3/m50 revoke drill).
       TENANT_CONTROL_PRODUCT_MODE: ${TENANT_CONTROL_PRODUCT_MODE:-enabled}
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
-      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
       # User-JWT verification (audit O2). Default HS256 with JWT_SECRET. Set
@@ -134,6 +134,12 @@ services:
       # exact pre-B4a behavior (the public Kong route then 404/401s at the upstream =
       # harmless). Gate: scripts/verify/m84-selfserve-kong.sh (ON + OFF parity arms).
       TENANT_SELFSERVE_ENABLED: ${TENANT_SELFSERVE_ENABLED:-1}
+      # m87 per-tenant backups are age-sealed when TENANT_BACKUP_AGE_RECIPIENTS is set.
+      # The identity file (0600, owned by uid 65532) is mounted into this service
+      # only; unset, /dev/null is mounted and no identity is read.
+      TENANT_BACKUP_AGE_IDENTITY_FILE: ${TENANT_BACKUP_AGE_IDENTITY_HOST_FILE:+/run/secrets/tenant-backup-age.key}
+      # Read at boot only to refuse an identity that opens the whole-cluster backups.
+      BACKUP_AGE_RECIPIENTS: ${BACKUP_AGE_RECIPIENTS:-}
       # Dynamic builder (BUILDER_ENABLED) — mounts the self-serve /v1/tenants/me*
       # builder routes AND the operator routes (PATCH /v1/tenants/{id}/ceiling,
       # PUT /v1/tenants/{id}/entitlement). OFF by default = byte-parity (routes 404,
@@ -141,6 +147,14 @@ services:
       BUILDER_ENABLED: ${BUILDER_ENABLED:-0}
     ports:
       - "127.0.0.1:${TENANT_CONTROL_PORT:-3022}:3022"
+    volumes:
+      # Long syntax so a mistyped host path fails instead of becoming an empty directory.
+      - type: bind
+        source: ${TENANT_BACKUP_AGE_IDENTITY_HOST_FILE:-/dev/null}
+        target: /run/secrets/tenant-backup-age.key
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       pg-migrate:
         condition: service_completed_successfully
@@ -188,7 +202,7 @@ services:
       FUNCTION_TRIGGER_CONSUMER: ${FUNCTION_TRIGGER_CONSUMER:-function-dispatcher-0}
       FUNCTIONS_RUNTIME_URL: ${FUNCTIONS_RUNTIME_URL:-http://functions-runtime:3060}
       VAULT_ENC_KEY: ${VAULT_ENC_KEY:-}
-      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
@@ -239,7 +253,7 @@ services:
       # runs the full six; override to a subset only for shadow experiments.
       ORCHESTRATOR_SERVICES: ${ORCHESTRATOR_SERVICES:-}
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
-      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       LOG_SERVICE_LOKI_URL: ${LOG_SERVICE_LOKI_URL:-http://loki:3100/loki/api/v1/push}
       # email sub-service SMTP (parity with email-service defaults → Mailpit)
@@ -314,7 +328,7 @@ services:
       FUNCTION_SCHEDULER_TICK_SECONDS: ${FUNCTION_SCHEDULER_TICK_SECONDS:-10}
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       FUNCTIONS_RUNTIME_URL: ${FUNCTIONS_RUNTIME_URL:-http://functions-runtime:3060}
-      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-${JWT_SECRET:-dev-service-token-change-me}}
+      INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:

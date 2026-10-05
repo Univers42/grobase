@@ -26,6 +26,8 @@ import (
 //	ErrNotOwned          -> 404 (backup.tenant_id != request tenant; load-bearing —
 //	                            the module slice returns this for an unknown backup
 //	                            too, since the lookup binds (id, tenant_id))
+//	ErrArtifactUnverified, ErrArtifactIntegrity, ErrPlaintextArtifact,
+//	ErrArtifactSealed    -> 409 (the artifact failed verification; nothing restored)
 //	anything else        -> 500
 //
 // ErrNotOwned is mapped 404 (not 403) so the existence of another tenant's backup
@@ -42,8 +44,16 @@ func (rt *routes) handleBackupErr(w http.ResponseWriter, err error) bool {
 			"isolation not supported for backup/restore (deferred)")
 	case errors.Is(err, ErrNotOwned):
 		httpx.WriteError(w, http.StatusNotFound, "not_found", "backup not found")
+	case isRestoreRefusal(err):
+		httpx.WriteError(w, http.StatusConflict, "restore_refused", err.Error())
 	default:
 		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 	}
 	return true
+}
+
+// isRestoreRefusal reports whether err is a refusal of the artifact itself.
+func isRestoreRefusal(err error) bool {
+	return errors.Is(err, ErrArtifactUnverified) || errors.Is(err, ErrArtifactIntegrity) ||
+		errors.Is(err, ErrPlaintextArtifact) || errors.Is(err, ErrArtifactSealed)
 }

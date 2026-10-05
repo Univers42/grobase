@@ -127,6 +127,19 @@ fn transaction_flag_matches_begin_implementation() {
     );
 }
 
+#[test]
+fn savepoints_are_advertised_nowhere() {
+    // TxHandle (data-plane-core ports.rs) offers execute/commit/rollback/
+    // prepare and no savepoint, so no engine can serve one to a caller. The
+    // sqlite writer's internal per-job SAVEPOINT is not an exposed operation.
+    for engine in ENGINES {
+        assert!(
+            !descriptor(engine).savepoints,
+            "{engine} advertises savepoints but TxHandle exposes none"
+        );
+    }
+}
+
 // The 8th adapter (OFF by default). This block compiles ONLY under
 // `--features dynamodb`, so the default test battery is byte-identical to the
 // 9-engine matrix above. The descriptor↔SUPPORTED_OPS binding for dynamodb is

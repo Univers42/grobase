@@ -35,6 +35,12 @@
 #    backups      BACKUP_AGE_RECIPIENTS unset WARNS (backups stay plaintext);  #
 #                 BACKUP_AGE_IDENTITY_FILE set is refused: the key that        #
 #                 decrypts every backup belongs to a one-off restore run.      #
+#                 Any value holding an age private key is refused. m87 tenant  #
+#                 backups on without TENANT_BACKUP_AGE_RECIPIENTS WARN; a      #
+#                 tenant recipient also in BACKUP_AGE_RECIPIENTS is refused.   #
+#    moved        a GOTRUE_/PGRST_/KONG_/PG_META_ key no compose file names   #
+#                 is refused: those services no longer load .env (m212), so    #
+#                 it would silently stop applying. Move it to .env.<service>.  #
 #  The file is PARSED, never sourced, with compose .env rules: `export `       #
 #  prefix, quotes, unquoted ` #` comments, last assignment wins. A value       #
 #  holding `${`, `$(` or an unquoted `$NAME` cannot be resolved here, and      #
@@ -188,6 +194,13 @@ function check_cred(k,   v) {
 	if ((k in MINLEN) && length(v) < MINLEN[k]) flag(k, "shorter than " MINLEN[k] " characters")
 }
 
+# check_distinct refuses a service token equal to JWT_SECRET: whoever learns the
+# JWT signing key would also pass every internal service-token check.
+function check_distinct(   t) {
+	t = VAL["ADAPTER_REGISTRY_SERVICE_TOKEN"]
+	if (t != "" && t == VAL["JWT_SECRET"]) flag("ADAPTER_REGISTRY_SERVICE_TOKEN", "equals JWT_SECRET (the service token must be its own secret)")
+}
+
 # check_opt runs check_cred on an optional DSN only when it is set and
 # non-empty; otherwise compose falls back to a required key checked above.
 function check_opt(k) {
@@ -248,21 +261,45 @@ function check_no_new_privileges(   v) {
 	flag("CONTAINER_NO_NEW_PRIVILEGES", "not true: every container may gain privileges through setuid or file caps (CONTAINER_NO_NEW_PRIVILEGES_ACK=1 to accept)")
 }
 
+# check_moved refuses a setting for a service that no longer loads .env: a
+# GOTRUE_/PGRST_/KONG_/PG_META_ key that no compose file mentions (REFS).
+# Ponytail: any mention counts, a name only in a compose comment passes.
+function check_moved(   k) {
+	for (k in VAL) if (k ~ /^(GOTRUE|PGRST|KONG|PG_META)_/ && index(REFS, " " k " ") == 0) flag(k, "no longer reaches its service: gotrue, postgrest, kong and pg-meta do not load .env (m212); move it to .env.gotrue, .env.postgrest, .env.kong or .env.pg-meta")
+}
+
 # check_backups warns when backups are written in clear and refuses the age
 # identity in the service env file (pg-backup refuses to start with it, m209).
 function check_backups(   v) {
 	v = setting("BACKUP_AGE_RECIPIENTS", "")
 	if (v == "") warn("BACKUP_AGE_RECIPIENTS", "unset: pg-backup and engine-backup write plaintext backups")
 	if (setting("BACKUP_AGE_IDENTITY_FILE", "") != "") flag("BACKUP_AGE_IDENTITY_FILE", "set: the age identity belongs to a one-off restore run, never the service env file")
+	for (k in VAL) if (toupper(VAL[k]) ~ /AGE-SECRET-KEY-/) flag(k, "holds an age private key: identities live in a 0600 file, never the env file")
+	check_tenant_backups()
+}
+
+# check_tenant_backups warns when per-tenant backups (m87) are on but written in
+# clear, and refuses a tenant recipient that pg-backup also encrypts to: the
+# identity tenant-control holds would then open every whole-cluster backup. The
+# identity FILES cannot coincide: BACKUP_AGE_IDENTITY_FILE set is refused above.
+function check_tenant_backups(   v, n, i, a, pg) {
+	v = setting("TENANT_BACKUP_ENABLED", "0")
+	if (v ~ /^(1|true|yes|on)$/ && setting("TENANT_BACKUP_AGE_RECIPIENTS", "") == "") warn("TENANT_BACKUP_AGE_RECIPIENTS", "unset: per-tenant backups are written in clear")
+	n = split(VAL["BACKUP_AGE_RECIPIENTS"], a, /[[:space:],]+/)
+	for (i = 1; i <= n; i++) if (a[i] != "") pg[a[i]] = 1
+	n = split(VAL["TENANT_BACKUP_AGE_RECIPIENTS"], a, /[[:space:],]+/)
+	for (i = 1; i <= n; i++) if (a[i] in pg) return flag("TENANT_BACKUP_AGE_RECIPIENTS", "shares a key with BACKUP_AGE_RECIPIENTS: the identity tenant-control holds would open every whole-cluster backup")
 }
 
 # END runs every check and prints the verdict; the exit code is the result.
 END {
 	for (i = 1; i <= ncred; i++) check_cred(CRED[i])
 	for (i = 1; i <= nopt; i++) check_opt(OPT[i])
+	check_distinct()
 	check_settings()
 	check_no_new_privileges()
 	check_backups()
+	check_moved()
 	if (bad) {
 		printf "FAIL — %d offender(s); values are never printed.\n", bad
 		print "Engine root credentials apply at first boot only: rotate live volumes with scripts/ops/reconcile-credentials.sh."
@@ -271,6 +308,12 @@ END {
 	print "PASS"
 }
 '
+
+# compose_refs prints, space-framed, every GOTRUE_/PGRST_/KONG_/PG_META_ name
+# the compose files beside this script mention.
+compose_refs() {
+  printf ' %s ' "$(grep -rhoE '(GOTRUE|PGRST|KONG|PG_META)_[A-Z0-9_]+' "$(dirname "$0")/../../orchestrators/compose" 2>/dev/null | sort -u | tr '\n' ' ')"
+}
 
 # usage prints the command line and the exit codes.
 usage() {
@@ -290,7 +333,7 @@ main() {
   printf 'preflight-production: %s\n' "$env_file"
   printf '  scope: this FILE only; host-shell env vars override it during compose interpolation.\n'
   rc=0
-  awk "$PREFLIGHT_AWK" <"$env_file" || rc=$?
+  awk -v REFS="$(compose_refs)" "$PREFLIGHT_AWK" <"$env_file" || rc=$?
   [ "$rc" -le 1 ] && return "$rc"
   printf 'preflight-production: internal error (awk exit %s)\n' "$rc" >&2
   return 2

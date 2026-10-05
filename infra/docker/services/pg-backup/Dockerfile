@@ -25,6 +25,7 @@
 # public.ecr.aws's anonymous data cap (public.ecr.aws/docker/library works too).
 ARG BASE_REGISTRY=mirror.gcr.io/library
 FROM ${BASE_REGISTRY}/debian:bookworm-slim
+SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
 
 # Pinned to the same release the mc image uses, so the two cannot drift apart.
 ARG MC_RELEASE=RELEASE.2025-04-08T15-39-49Z

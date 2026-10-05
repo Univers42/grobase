@@ -16,7 +16,7 @@ It interacts with core components such as `realtime-core` for shared types and t
 // realtime-bus-inprocess = { path = "../realtime-bus-inprocess" }
 
 // Example usage
-// use realtime-bus-inprocess::*;
+// use realtime_bus_inprocess::*;
 ```
 
 ## Context of use

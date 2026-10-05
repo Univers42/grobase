@@ -1,6 +1,6 @@
 # permission-engine
 
-**Port interne** : `3050` · **Container** : `mini-baas-permission-engine` · **Profile** : `control-plane`
+**Port interne** : `3050` · **Container** : `mini-baas-permission-engine` · **Profiles** : `adapter-plane`, `control-plane`
 
 **Le cerveau ABAC** (Attribute-Based Access Control). Centralise toutes les
 décisions « cet utilisateur a-t-il le droit de faire cette op sur cette
@@ -70,9 +70,10 @@ const safe = decision.mask?.length
 
 ```bash
 curl -ksS -X POST \
+  -H "apikey: $ANON_KEY" \
   -H "Authorization: Bearer $ADMIN_JWT" \
   -H "Content-Type: application/json" \
-  "https://localhost:18443/permissions/decide" \
+  "https://localhost:8443/permissions/v1/decide" \
   -d '{
     "user": { "id": "00000000-0000-4000-8000-000000000001" },
     "resource_type": "postgresql",
@@ -84,7 +85,7 @@ curl -ksS -X POST \
 ### Via `docker compose exec` (debug — appel direct service-to-service)
 
 ```bash
-docker compose -f apps/baas/mini-baas-infra/docker-compose.yml exec -T permission-engine \
+docker compose exec -T permission-engine \
   node --input-type=module -e "
     const r = await fetch('http://127.0.0.1:3050/permissions/decide', {
       method: 'POST',
@@ -106,7 +107,7 @@ docker compose -f apps/baas/mini-baas-infra/docker-compose.yml exec -T permissio
 ## Dépendances
 
 - **Postgres** : tables `roles`, `user_roles`, `resource_policies` (migration 007), fonction `public.has_permission(user_id, type, name, op)`
-- **Vault** : `PERMISSION_ENGINE_SERVICE_TOKEN` (partagé avec query-router, mongo-api, storage-router)
+- **Token de service** : `ADAPTER_REGISTRY_SERVICE_TOKEN` (partagé avec query-router, mongo-api, storage-router)
 
 ## Gates qui le couvrent
 
@@ -118,5 +119,5 @@ docker compose -f apps/baas/mini-baas-infra/docker-compose.yml exec -T permissio
 |---|---|
 | `PORT` | 3050 |
 | `DATABASE_URL` | Pool PG |
-| `PERMISSION_ENGINE_SERVICE_TOKEN` | Vérifié sur `/permissions/decide` (header `X-Service-Token`) |
-| `ADAPTER_REGISTRY_SERVICE_TOKEN` | Idem (rétro-compat) |
+| `ADAPTER_REGISTRY_SERVICE_TOKEN` | Vérifié sur `/permissions/decide` (header `X-Service-Token`) |
+| `ADAPTER_REGISTRY_SERVICE_TOKEN_PREV` | Ancien token, accepté pendant une rotation |

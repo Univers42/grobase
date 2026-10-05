@@ -34,6 +34,7 @@ cd "${REPO_ROOT}"
 
 BAAS_DIR="."
 COMPOSE_FILE="${BAAS_DIR}/docker-compose.yml"
+COMPOSE_SRC="${BAAS_DIR}/orchestrators/compose/base"
 
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
@@ -55,11 +56,11 @@ for engine in mysql redis http; do
   [[ -f "$f" ]] && fail "${f} should be deleted post-cutover (parity proven)"
 done
 for rust_src in \
-  "${ROUTER_DIR}/crates/data-plane-pool/src/mysql.rs" \
-  "${ROUTER_DIR}/crates/data-plane-pool/src/redis.rs" \
-  "${ROUTER_DIR}/crates/data-plane-pool/src/http.rs"; do
-  [[ -f "${rust_src}" ]] || fail "${rust_src} (Rust replacement) missing"
-  grep -q "impl EngineAdapter" "${rust_src}" ||
+  "${ROUTER_DIR}/crates/data-plane-pool/src/mysql" \
+  "${ROUTER_DIR}/crates/data-plane-pool/src/redis" \
+  "${ROUTER_DIR}/crates/data-plane-pool/src/http"; do
+  [[ -d "${rust_src}" ]] || fail "${rust_src} (Rust replacement) missing"
+  grep -rq "impl EngineAdapter" "${rust_src}" ||
     fail "${rust_src} does not implement EngineAdapter"
 done
 pass "mysql / redis / http now Rust-only (TS engines deleted, Rust adapters present)"
@@ -101,21 +102,21 @@ pass "mysql + iceberg Trino catalogs declared"
 # ── 5) Compose services for mysql + iceberg-rest ──────────────────────────────
 step "checking docker-compose declarations"
 for service in "^  mysql:" "^  iceberg-rest:" "^  minio-iceberg-init:"; do
-  grep -qE "${service}" "${COMPOSE_FILE}" ||
+  grep -rqE "${service}" "${COMPOSE_SRC}" ||
     fail "compose missing service ${service//\^  /}"
 done
-grep -qE "mysql.properties:/etc/trino/catalog/mysql.properties" "${COMPOSE_FILE}" ||
+grep -rqE "mysql.properties:/etc/trino/catalog/mysql.properties" "${COMPOSE_SRC}" ||
   fail "compose does not mount mysql.properties into trino"
-grep -qE "iceberg.properties:/etc/trino/catalog/iceberg.properties" "${COMPOSE_FILE}" ||
+grep -rqE "iceberg.properties:/etc/trino/catalog/iceberg.properties" "${COMPOSE_SRC}" ||
   fail "compose does not mount iceberg.properties into trino"
 pass "mysql + iceberg-rest + minio-iceberg-init declared & trino mounts updated"
 
 # ── 6) SDK codegen pipeline ───────────────────────────────────────────────────
 step "checking SDK codegen pipeline"
-[[ -x "${BAAS_DIR}/scripts/openapi-collect.sh" ]] || fail "openapi-collect.sh missing or not executable"
-[[ -f sdk/scripts/codegen.mjs ]] || fail "codegen.mjs missing"
-grep -q '"codegen"' sdk/package.json || fail "SDK package.json missing codegen script"
-grep -q 'openapi-typescript-codegen' sdk/package.json || fail "SDK package.json missing openapi-typescript-codegen dep"
+[[ -x "${BAAS_DIR}/scripts/ops/openapi-collect.sh" ]] || fail "openapi-collect.sh missing or not executable"
+[[ -f sdks/js/scripts/codegen.mjs ]] || fail "codegen.mjs missing"
+grep -q '"codegen"' sdks/js/package.json || fail "SDK package.json missing codegen script"
+grep -q 'openapi-typescript-codegen' sdks/js/package.json || fail "SDK package.json missing openapi-typescript-codegen dep"
 pass "openapi-collect + codegen + dep present"
 
 # ── 7) Live probes (only with --live) ─────────────────────────────────────────

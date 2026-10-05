@@ -127,9 +127,17 @@ These 10 bottlenecks + 3 correctness bugs were fixed in the prior engine overhau
 
 ## Remaining Performance Improvement Opportunities
 
+> **Status, checked against the code on 2026-10-02:** C1, C3, H1 and H2 below are
+> implemented and C2 is partly implemented (v0.2.0 perf wave). Their entries are kept as
+> the design record, each with a **Status** line saying where the code does it.
+
 ### CRITICAL — Must Fix for Production
 
-#### C1. Fan-out `Arc<Mutex<mpsc::Receiver>>` Serialization Bottleneck
+#### C1. Fan-out `Arc<Mutex<mpsc::Receiver>>` Serialization Bottleneck — DONE
+**Status:** implemented in `crates/realtime-gateway/src/fanout.rs` (option C): one
+dispatcher task owns the receiver and round-robins to a per-worker channel, so no
+worker waits on a shared mutex.
+
 **File:** `crates/realtime-gateway/src/fanout.rs`  
 **Impact:** All N fan-out workers contend on a **single Mutex** to dequeue dispatch instructions.  
 **Problem:**
@@ -150,7 +158,14 @@ Only one worker can dequeue at a time. With 10K events/sec and 4 workers, the Mu
 
 ---
 
-#### C2. `try_send` Silently Drops Events Under Backpressure
+#### C2. `try_send` Silently Drops Events Under Backpressure — PARTLY DONE
+**Status:** drops are no longer silent. A failed router hand-off is counted in
+`DispatchStats::dispatch_failures` (`crates/realtime-engine/src/router.rs`; counted, not
+yet exported — `/v1/health` sends `dispatch: null`), and per-connection overflow drops are
+exported on `/metrics` as `baas_realtime_events_dropped_total`. The dispatcher→worker hop
+applies back-pressure with `send().await`; the router→fan-out hop is still `try_send`,
+so delivery there remains lossy under sustained overload.
+
 **File:** `crates/realtime-engine/src/router.rs` (line ~152)  
 **Impact:** When the dispatch channel is full, events are **silently dropped** with only a warn log.  
 **Problem:**
@@ -168,7 +183,10 @@ No retry, no backpressure signal, no metric counter. Under sustained load, clien
 
 ---
 
-#### C3. `run_with_subscriber` Clones Every Event
+#### C3. `run_with_subscriber` Clones Every Event — DONE
+**Status:** implemented — `run_with_subscriber` moves the event into `route_event` and
+acks with a clone of its `event_id` only (`crates/realtime-engine/src/router.rs`).
+
 **File:** `crates/realtime-engine/src/router.rs` (line ~171)  
 **Problem:**
 ```rust
@@ -185,7 +203,13 @@ while let Some(event) = subscriber.next_event().await {
 
 ### HIGH PRIORITY
 
-#### H1. Writer `serialize_event` Re-Parses + Re-Serializes the Payload
+#### H1. Writer `serialize_event` Re-Parses + Re-Serializes the Payload — DONE
+**Status:** implemented as serialize-once rather than `RawValue`:
+`EventEnvelope::rendered_payload_json` renders the payload once per envelope
+(`Arc<OnceLock<String>>`, `crates/realtime-core/src/types/envelope.rs`) and the writer
+splices it into the frame; `serialize_once_is_byte_identical_to_serde` pins the output
+(`crates/realtime-gateway/src/ws_handler/writer.rs`).
+
 **File:** `crates/realtime-gateway/src/ws_handler/writer.rs`  
 **Problem:** `EventPayload::from_envelope()` calls `serde_json::from_slice(&event.payload)` to parse bytes into `Value`, then `serde_json::to_string(&msg)` re-serializes. Per 10K connections × 100 events/sec = 1M parse+serialize ops/sec.
 
@@ -195,7 +219,10 @@ while let Some(event) = subscriber.next_event().await {
 
 ---
 
-#### H2. `sub_id: String::new()` in Writer (Always Empty)
+#### H2. `sub_id: String::new()` in Writer (Always Empty) — FIXED
+**Status:** fixed — the per-connection channel carries `(sub_id, Arc<EventEnvelope>)` and
+`serialize_event(sub_id, …)` writes the matching subscription's id.
+
 **File:** `crates/realtime-gateway/src/ws_handler/writer.rs` line 22  
 **Problem:**
 ```rust
@@ -378,12 +405,12 @@ codegen-units = 1
 
 | Priority | Fix | Effort | Impact |
 |----------|-----|--------|--------|
-| 1 | **C1** Fan-out Mutex → MPMC | Medium | 2-5× fan-out throughput |
-| 2 | **H1** Writer: RawValue for payload | Low | 400-800 ns/event |
+| 1 | ~~**C1** Fan-out Mutex → MPMC~~ (done) | Medium | 2-5× fan-out throughput |
+| 2 | ~~**H1** Writer: RawValue for payload~~ (done, serialize-once) | Low | 400-800 ns/event |
 | 3 | **M1** glob_match iterator (no Vec alloc) | Low | 2× glob matching |
-| 4 | **C3** Eliminate event clone in router | Low | ~200 ns/event |
-| 5 | **H2** Fix empty sub_id bug in writer | Trivial | Correctness |
-| 6 | **C2** Add drop counter / backpressure for try_send | Low | Observability |
+| 4 | ~~**C3** Eliminate event clone in router~~ (done) | Low | ~200 ns/event |
+| 5 | ~~**H2** Fix empty sub_id bug in writer~~ (done) | Trivial | Correctness |
+| 6 | **C2** Add drop counter / backpressure for try_send (partly done) | Low | Observability |
 | 7 | **M4** event_type → SmolStr | Low | 1 heap alloc saved/event |
 | 8 | **M7** bytes_serde → RawValue | Medium | 2 JSON passes saved/deser |
 | 9 | **M3** SeqCst → Relaxed | Trivial | ~5 ns/op (ARM) |

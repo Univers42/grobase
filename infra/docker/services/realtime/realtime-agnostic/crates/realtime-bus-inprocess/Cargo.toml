@@ -2,13 +2,14 @@
 name = "realtime-bus-inprocess"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+publish = false
 
 [dependencies]
 realtime-core = { path = "../realtime-core" }
 tokio = { workspace = true }
 async-trait = { workspace = true }
 tracing = { workspace = true }
-anyhow = { workspace = true }
 
 [dev-dependencies]
 bytes = { workspace = true }

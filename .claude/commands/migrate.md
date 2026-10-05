@@ -12,7 +12,7 @@ AUTHOR a new migration use `/workflow:migrate-db`.
 ### Phase 1 — Inspect
 
 - `make migrate-status` — applied vs pending.
-- Postgres migrations live in `scripts/migrations/postgresql/` (001–065; note the 057–059 gap).
+- Postgres migrations live in `scripts/migrations/postgresql/` (001–090, 79 files; numbering is non-contiguous, e.g. 057–059 are unused).
 
 ### Phase 2 — Apply (confirm first — DB writes are irreversible)
 
