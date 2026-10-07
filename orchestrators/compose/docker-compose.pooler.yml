@@ -34,7 +34,7 @@ services:
   # ── Supavisor: full config (the base service is a bare stub) ──────────────
   # Transaction-mode pooler in front of the system Postgres. Health-gated; the
   # data plane waits for it. SECRET_KEY_BASE / VAULT_ENC_KEY come from .env in
-  # a real deploy — the inline defaults keep a dev bring-up working.
+  # a real deploy — these are required now (compose error-if-unset), so a bring-up needs a generated .env (make env).
   supavisor:
     # `extras`/`control-plane` profiles on the base stub would keep it out of a
     # default `up`; this overlay drops the profile gate so the pooler comes up

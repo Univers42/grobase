@@ -5,11 +5,13 @@
 #  dev credentials or dev security settings                                    #
 #                                                                              #
 #  WHY                                                                         #
-#    Base compose keeps well-known dev fallbacks (POSTGRES_PASSWORD:-postgres, #
-#    MINIO_ROOT_PASSWORD:-minioadmin, VAULT_ENC_KEY:-0123..., ...) so a fresh  #
-#    clone renders and boots without a generated .env (byte-parity). Nothing   #
-#    checked an env file before a production bring-up. An absent or empty key  #
-#    is not safe either: compose's `:-` then falls back to the dev default.    #
+#    Base compose no longer ships credential fallbacks: every secret-bearing     #
+#    entry is ${KEY:?}, so a stack cannot boot on a value published in this      #
+#    repo and an absent key fails the render by name (gate m214). What this      #
+#    file still owns is the question compose cannot ask: whether a key that IS   #
+#    set holds a dev default, a shared value, or the wrong environment entirely  #
+#    (GROBASE_ENV). The historical fallbacks remain in its DEV list because a    #
+#    pasted env file can still carry them.                                      #
 #                                                                              #
 #  WHAT IT CHECKS (names only; no value is printed, not even under sh -x:      #
 #  values live inside awk and never enter a shell variable)                    #

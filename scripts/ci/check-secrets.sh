@@ -69,9 +69,9 @@ stage_visible_tree() {
 run_gitleaks() {
   local tree="$1"
   if command -v gitleaks >/dev/null 2>&1; then
-    (cd "$tree" && gitleaks dir . --config "$OLDPWD/.gitleaks.toml" --redact --no-banner --exit-code 1)
+    (cd "$tree" && gitleaks dir . --config "${REPO_ROOT}/.gitleaks.toml" --redact --no-banner --exit-code 1)
   elif command -v docker >/dev/null 2>&1; then
-    docker run --rm -v "$tree":/repo:ro -v "$PWD/.gitleaks.toml":/cfg/.gitleaks.toml:ro -w /repo \
+    docker run --rm -v "$tree":/repo:ro -v "${REPO_ROOT}/.gitleaks.toml":/cfg/.gitleaks.toml:ro -w /repo \
       "$GITLEAKS_IMG" dir . --config /cfg/.gitleaks.toml --redact --no-banner --exit-code 1
   else
     echo "✗ gitleaks unavailable (no binary, no docker) — install one; this gate cannot pass unscanned"
@@ -79,6 +79,7 @@ run_gitleaks() {
   fi
 }
 
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 GITLEAKS_IMG="zricethezav/gitleaks:v8.30.1"
 SCAN_TREE="$(mktemp -d)"
 trap 'rm -rf "$SCAN_TREE"' EXIT

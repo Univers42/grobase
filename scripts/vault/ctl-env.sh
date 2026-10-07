@@ -27,8 +27,28 @@ PROJECT="${VAULT_ENV_PROJECT:-grobase}"
 # (infra/config/env/schema.json .vault42) and the environment identity GROBASE_ENV,
 # so `make vault-pull-env` on a teammate machine resolves the right environment with
 # no flags. Set VAULT_ENV_PERSONAL=1 for the old sealed-to-me-alone behaviour.
+# resolve_grobase_env reads the environment identity the way the stack does, because
+# an exported GROBASE_ENV is NOT how it is normally set: it lives in config.env and is
+# overridden per machine in .env.local, and make passes neither into this script. Taking
+# only $GROBASE_ENV meant every push and pull silently acted on `local` — on a production
+# host that seals the PROD tree into the environment the team has write on, and a pull
+# with --force overwrites prod secrets with dev ones.
+#
+# .env is the assembled result of config.env < .env.secrets < .env.local, so reading it
+# gives the documented precedence for free; config.env is the fallback before `make env`
+# has ever run.
+resolve_grobase_env() {
+  _v="${GROBASE_ENV:-}"
+  if [ -z "$_v" ] && [ -f "$REPO_DIR/.env" ]; then
+    _v=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}GROBASE_ENV=//p' "$REPO_DIR/.env" | tail -1)
+  fi
+  if [ -z "$_v" ] && [ -f "$REPO_DIR/config.env" ]; then
+    _v=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}GROBASE_ENV=//p' "$REPO_DIR/config.env" | tail -1)
+  fi
+  printf '%s' "${_v:-local}"
+}
 ORG="${VAULT_ENV_ORG:-univers-42}"
-ENVNAME="${VAULT_ENV_NAME:-${GROBASE_ENV:-local}}"
+ENVNAME="${VAULT_ENV_NAME:-$(resolve_grobase_env)}"
 if [ "${VAULT_ENV_PERSONAL:-0}" = 1 ]; then
   ORG=""
   ENVNAME=""

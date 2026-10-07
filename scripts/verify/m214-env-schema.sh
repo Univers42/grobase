@@ -99,10 +99,20 @@ literal_defaults() {
     echo "SCHEMA:0 no-secret-keys-in-schema"
     return
   }
+  # A key with a regex metacharacter would silently break the alternation below, so
+  # the shape is asserted rather than assumed.
+  printf '%s\n' "${keys}" | tr '|' '\n' | grep -qvE '^[A-Z][A-Z0-9_]*$' &&
+    echo "SCHEMA:0 secret-key-name-is-not-A-Z0-9_"
   re="\\\$\\{(${keys}):-[^}\$][^}]*\\}"
   grep -rnoE "${re}" "${tree}/orchestrators/compose/base/" "${tree}/orchestrators/compose/" 2>/dev/null |
     grep -vE ':-[^}]*\$\{' |
     sed -E 's#^.*/([^/]+\.yml):([0-9]+):\$\{([A-Z_0-9]+):-.*#\1:\2 \3#' | sort -u
+  # A nested default hides the same defect one level down: ${OUTER:-${SECRET:-hunter2}}
+  # publishes hunter2 while the outer match above skips it (its default starts with $).
+  # This form is already idiomatic in the tree, so it is the one a reader will copy.
+  grep -rnoE "\\\$\\{[A-Z_0-9]+:-\\\$\\{(${keys}):-[^}\$][^}]*\\}" \
+    "${tree}/orchestrators/compose/base/" "${tree}/orchestrators/compose/" 2>/dev/null |
+    sed -E 's#^.*/([^/]+\.yml):([0-9]+):.*\$\{([A-Z_0-9]+):-\$\{([A-Z_0-9]+):-.*#\1:\2 \4(nested)#' | sort -u
 }
 
 compose_arm() {
@@ -123,17 +133,58 @@ compose_arm() {
   unknown="$(required_env_keys "${ROOT}" | while IFS= read -r k; do
     jq -e --arg k "${k}" '.keys[$k]' "${SCHEMA}" >/dev/null 2>&1 || printf '%s ' "${k}"
   done)"
+  # schema.compose_required is a CLAIM about the tree; verify it both ways or it rots
+  # into decoration, which is what every unverified metadata field eventually does.
+  local wrong req_now k claimed
+  req_now="$(required_env_keys "${ROOT}")"
+  wrong=""
+  while IFS= read -r k; do
+    [ -n "${k}" ] || continue
+    claimed="$(jq -r --arg k "${k}" '.keys[$k].compose_required // false' "${SCHEMA}")"
+    if grep -qx "${k}" <<<"${req_now}"; then
+      [ "${claimed}" = true ] || wrong="${wrong}${k}(required,claims-false) "
+    else
+      [ "${claimed}" = false ] || wrong="${wrong}${k}(not-required,claims-true) "
+    fi
+  done < <(jq -r '.keys | keys[]' "${SCHEMA}")
+  [ -z "${wrong}" ] && ok "schema compose_required matches the tree for every key" ||
+    fail "schema compose_required disagrees with compose: ${wrong}"
   [ -z "${unknown}" ] && ok "every compose-required key is classified ($(required_env_keys "${ROOT}" | wc -l | tr -d ' ') required)" ||
     fail "compose requires an unclassified key: ${unknown}"
 }
 
+# ── SOURCEABLE ───────────────────────────────────────────────────────────────
+# Every key the compose tree REQUIRES must have somewhere to come from: either
+# generate-env.sh mints it into .env.secrets, or config.env ships it. A required key
+# with neither is unrenderable the moment someone regenerates their env — which is
+# exactly what shipping ${MYSQL_ROOT_PASSWORD:?} without teaching generate-env.sh to
+# mint it did: `make up` failed, and the error told the reader to run `make env`,
+# which re-read the same stale file and changed nothing.
+sourceable_arm() {
+  step "SOURCEABLE — every required key can be produced"
+  local k orphan minted
+  minted="$(grep -oE '^[A-Z_][A-Z0-9_]*=' "${ROOT}/scripts/env/generate-env.sh" |
+    tr -d '=' | sort -u)"
+  orphan=""
+  while IFS= read -r k; do
+    [ -n "${k}" ] || continue
+    grep -qx "${k}" <<<"${minted}" && continue
+    grep -qE "^[[:space:]]*(export[[:space:]]+)?${k}=" "${ROOT}/config.env" && continue
+    orphan="${orphan}${k} "
+  done < <(required_env_keys "${ROOT}")
+  [ -z "${orphan}" ] &&
+    ok "all $(required_env_keys "${ROOT}" | wc -l | tr -d ' ') required keys are minted by generate-env.sh or shipped in config.env" ||
+    fail "required but nothing produces it (a fresh env cannot render): ${orphan}"
+}
+
 # ── COMMITTED ────────────────────────────────────────────────────────────────
 committed_arm() {
+  local root="${1:-${ROOT}}"
   step "COMMITTED — no SECRET value in a tracked file"
   local leaked k v
   leaked=""
   while IFS= read -r k; do
-    v="$(sed -n "s/^[[:space:]]*${k}=//p" "${ROOT}/config.env" 2>/dev/null | head -1)"
+    v="$(sed -n "s/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}${k}=//p" "${root}/config.env" 2>/dev/null | head -1)"
     [ -n "${v}" ] || continue
     # Interpolations carry no value, so strip them before judging.
     local bare="${v//\$\{*\}/}"
@@ -152,8 +203,8 @@ committed_arm() {
 
   local f bad
   for f in .env.example .env.local.example; do
-    [ -f "${ROOT}/${f}" ] || continue
-    bad="$(grep -E '^[A-Z_][A-Z0-9_]*=.+' "${ROOT}/${f}" |
+    [ -f "${root}/${f}" ] || continue
+    bad="$(grep -E '^[A-Z_][A-Z0-9_]*=.+' "${root}/${f}" |
       grep -vEi '=(CHANGE_ME|example|your-|<|\$\{|placeholder|local|localhost|3000|development)' | head -3)"
     [ -z "${bad}" ] && ok "${f}: values are empty or placeholders" ||
       fail "${f} carries a real-looking value: $(cut -d= -f1 <<<"${bad}" | tr '\n' ' ')"
@@ -162,10 +213,11 @@ committed_arm() {
 
 # ── PUBLIC ───────────────────────────────────────────────────────────────────
 public_arm() {
+  local schema="${1:-${SCHEMA}}"
   step "PUBLIC — no SECRET under a browser-facing name"
   local bad
   bad="$(jq -r '.keys | to_entries[] | select(.value.category=="SECRET")
-    | select(.key | test("^(PUBLIC_|VITE_|NEXT_PUBLIC_)")) | .key' "${SCHEMA}")"
+    | select(.key | test("^(PUBLIC_|VITE_|NEXT_PUBLIC_)")) | .key' "${schema}")"
   [ -z "${bad}" ] && ok "no schema SECRET is named PUBLIC_*/VITE_*/NEXT_PUBLIC_*" ||
     fail "SECRET exposed under a public name: $(tr '\n' ' ' <<<"${bad}")"
   # A contract emits the frontend's config: it may reference only PUBLIC material.
@@ -204,6 +256,25 @@ environ_arm() {
 # ── MUTANTS ──────────────────────────────────────────────────────────────────
 # Each mutant is applied to a COPY of the tree; a check that does not go red is
 # a check that is not doing anything.
+
+# arm_fails is TRUE when the named arm reports a defect against a mutated input. It
+# matches the arm's own FAIL line rather than its exit status, because the arms report
+# through the shared rc: running one in a command substitution keeps that write inside
+# the subshell, so a mutant cannot redden the real verdict.
+#
+# The output is captured before matching, NOT piped into `grep -q`: under `pipefail`
+# grep exits at the first match, the arm dies of SIGPIPE mid-write, and the pipeline
+# returns 141 — so every mutant silently read as "survived".
+#
+# The ARM is invoked, never a re-implementation of its check — a mutant that re-greps
+# for the same thing stays green with the arm deleted, which is how the `export KEY=`
+# blind spot survived review.
+arm_fails() {
+  local out
+  out="$("$@" 2>&1)"
+  case "${out}" in *FAIL*) return 0 ;; *) return 1 ;; esac
+}
+
 mutants_arm() {
   step "MUTANTS — each check refuses the way back in"
   local work tree
@@ -221,26 +292,34 @@ mutants_arm() {
     ok "refused: POSTGRES_PASSWORD given a literal default again" ||
     fail "mutant survived: a literal SECRET default is not caught"
 
-  # 2. a SECRET assigned in the committed CONFIG layer
-  local probe
-  probe="${work}/config.env"
-  printf 'JWT_SECRET=aaaabbbbccccddddeeeeffff00001111\n' >"${probe}"
-  grep -qE '^[[:space:]]*JWT_SECRET=.+' "${probe}" &&
-    ok "refused: a SECRET assigned in config.env is detectable" ||
-    fail "mutant survived: the committed-SECRET check cannot see an assignment"
+  # 2. a SECRET assigned in the committed CONFIG layer — and as `export KEY=`, the
+  #    form compose honours, preflight strips, and this arm used to miss. The mutant
+  #    calls the REAL committed_arm against the copy: a self-test that re-implements
+  #    the check would stay green with the arm deleted, which is how the export blind
+  #    spot survived in the first place.
+  cp "${ROOT}/config.env" "${tree}/config.env"
+  cp "${ROOT}/.env.example" "${tree}/.env.example" 2>/dev/null || true
+  cp "${ROOT}/.env.local.example" "${tree}/.env.local.example" 2>/dev/null || true
+  printf 'export JWT_SECRET=aaaabbbbccccddddeeeeffff00001111\n' >>"${tree}/config.env"
+  if arm_fails committed_arm "${tree}"; then
+    ok "refused: a SECRET assigned in config.env as 'export KEY=' (the real arm)"
+  else
+    fail "mutant survived: committed_arm misses export KEY="
+  fi
 
-  # 3. a SECRET renamed into the browser namespace
+  # 3. a SECRET renamed into the browser namespace — again through the real arm.
   jq '.keys["VITE_JWT_SECRET"] = {"category":"SECRET","format":"hex64","required_in":[],"vault42_path":"core/x","consumers":[]}' \
-    "${SCHEMA}" >"${tree}/infra/config/env/schema.json"
-  [ -n "$(jq -r '.keys | to_entries[] | select(.value.category=="SECRET")
-      | select(.key | test("^(PUBLIC_|VITE_|NEXT_PUBLIC_)")) | .key' \
-    "${tree}/infra/config/env/schema.json")" ] &&
-    ok "refused: a SECRET named VITE_* is caught" ||
-    fail "mutant survived: a browser-named SECRET is not caught"
+    "${SCHEMA}" >"${tree}/schema.json"
+  if arm_fails public_arm "${tree}/schema.json"; then
+    ok "refused: a SECRET named VITE_* (the real arm)"
+  else
+    fail "mutant survived: public_arm misses a browser-named SECRET"
+  fi
 }
 
 schema_arm
 compose_arm
+sourceable_arm
 committed_arm
 public_arm
 environ_arm
