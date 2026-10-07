@@ -53,6 +53,9 @@ shift
 # must be OUR deployments. vault42.fly.dev and grobase-nano.fly.dev are NOT: they are
 # unrelated apps owned by other people that happen to hold the names we wanted. A
 # fresh machine seeded with those authenticates against a stranger's authority.
+# `grobase` is EMPTY on purpose: it overrides only the email-code and escrow routes and
+# defaults to the authority, which serves them. Seeding grobase-stack.fly.dev (dead) sent
+# a fresh machine `keys escrow`/`keys recover` to a host that no longer answers.
 # `blobs` is part of the profile because files above the 4 MiB transport ceiling are
 # stored as chunks in the object store — without it a pull silently restores only the
 # small files. The credential for it stays OUT of here; it is fetched from the vault
@@ -64,7 +67,7 @@ ensure_profile() {
 	{"current":"default","profiles":{"default":{
 	  "server":"https://vault42-server.fly.dev",
 	  "authority":"https://vault42-authority.fly.dev",
-	  "grobase":"https://grobase-stack.fly.dev",
+	  "grobase":"",
 	  "blobs":{"endpoint":"https://fly.storage.tigris.dev","bucket":"vault42-seeds","region":"auto"}
 	}}}
 	JSON
