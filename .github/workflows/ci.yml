@@ -465,6 +465,14 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           read -ra svcs <<<"$APP_SVCS"
           docker compose -f docker-compose.yml push "${svcs[@]}"
+          # The per-commit tag the infra matrix already gives its images:
+          # :latest moves under anyone who pins, and Hub mirror copies a
+          # commit's images by sha-<commit> (compose push sent :latest only).
+          for svc in "${svcs[@]}"; do
+            img="ghcr.io/univers42/grobase-$svc"
+            docker tag "$img:latest" "$img:sha-$GITHUB_SHA"
+            docker push -q "$img:sha-$GITHUB_SHA"
+          done
 
   # ─── Job 3: Integration tests ──────────────────────────────────
   # ─── pg-backup liveness (m192) ────────────────────────────────
