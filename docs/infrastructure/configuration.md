@@ -115,7 +115,15 @@ unreadable by teammates whatever their role, which is why the team path is the d
 (`VAULT_ENV_PERSONAL=1` opts out).
 
 `vendor/` holds other apps' credentials and is sealed to the pusher alone even on a team
-push. Each vendor app gets its own vault42 project.
+push. Each vendor app has its **own vault42 project** (`make vault-app-projects`, `dev`
+only — none has a staging or prod deployment), so two apps' secrets can never share an
+environment.
+
+Those projects are currently **empty, by construction**: no vendor app has a real env
+file on disk, only `.example` templates. Each app's `scripts/seed/<app>-tenant.sh` emits
+a gitignored `*-tenant.env` when provisioned, and that is what belongs in its project —
+pushed from the app's own tree, not swept into grobase's. The boundary exists before the
+secrets do, which is the right order.
 
 ---
 

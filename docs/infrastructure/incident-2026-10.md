@@ -19,14 +19,15 @@ detect → revoke → generate replacement → update vault42 → update consume
 
 | # | Credential | Where | Since | Status |
 |---|---|---|---|---|
-| 1 | Supabase pooler DSN password (project `zcnlwipvjmwbofawoqit`) | `vendor/vite-gourmand/wiki/history.md` ×9, `FIX_SUPPABASE.md` ×1 | `92da41b0`, 2026-06-18 | **redacted in tree, NOT rotated** |
-| 2 | MongoDB Atlas DSN password (user `devprophoto_db_user`, cluster `vite-gourmand`) | `vendor/vite-gourmand/wiki/history.md` | `92da41b0`, 2026-06-18 | **redacted in tree, NOT rotated** |
+| 1 | Supabase pooler DSN password (project `zcnlwipvjmwbofawoqit`) | `vendor/vite-gourmand/wiki/history.md` ×9, `FIX_SUPPABASE.md` ×1 | `92da41b0`, 2026-06-18 | **redacted in tree, still live — delete the project** |
+| 2 | MongoDB Atlas DSN password (user `devprophoto_db_user`, cluster `vite-gourmand`) | `vendor/vite-gourmand/wiki/history.md` | `92da41b0`, 2026-06-18 | **redacted in tree, still live — delete the user** |
 | 3 | `GH_PAT` GitHub token | `.env.local` (gitignored, never committed) — but `HUMAN-ATOMS.md:356-360` records it was pasted into AI-generated docs and agent transcripts | — | **needs revoking** |
 | 4 | Google account `dev.pro.photo@gmail.com` credentials | 42ctl GitHub Pages history (`Univers42/42ctl`, `gh-pages`), per the owner | unknown | **owner action** |
 | 5 | vault42 contents prior to 2026-10-07 | reachable by whoever held item 4 | — | superseded: new account, new org, new scope keys |
 
-Item 1 and 2 are the urgent ones: both are live hosted databases reachable from the
-internet, and the passwords are high-entropy real values, not placeholders.
+Items 1 and 2 are the urgent ones: both are live hosted databases reachable from the
+internet with high-entropy real passwords. Neither is used by anything in this repo
+(see §1-2 below), so they can be deleted outright rather than rotated.
 
 ### Why the gate did not catch 1 and 2
 
@@ -41,22 +42,29 @@ in `vendor/` and a fake `mbk_` key in `scripts/seed/` are both caught — pre-co
 
 ## Remediation
 
-### 1. Supabase (owner action)
+### 1 and 2. Supabase and MongoDB Atlas — DELETE rather than rotate (owner action)
 
-Dashboard → project `zcnlwipvjmwbofawoqit` → Settings → Database → **Reset database
-password**. The console mints the new value; the old one stops working on save. Knowing
-the old password is not an input to this.
+**Nothing in grobase uses either one.** Established by grep, not assumption:
 
-Then update consumers — `vendor/vite-gourmand` reads it from its own env, and
-`scripts/db/connect.sh` / `scripts/supabase/setup-supabase.sh` take it from the
-environment, so no in-repo value changes.
+- `vendor/vite-gourmand/GROBASE.md:4` — the app runs "entirely on a local Grobase BaaS
+  — no NestJS server, **no Supabase**". It was re-platformed onto an owner-scoped local
+  Postgres mount; gate `m149-gourmand-baas.sh` talks to Kong, never to Supabase.
+- The only callers of the legacy tooling (`scripts/supabase/setup-supabase.sh`,
+  `scripts/db/connect.sh`) are vite-gourmand's own `mk_extensions/*.mk`, which nothing
+  in grobase's build, CI or gates invokes.
+- `scripts/seed/gourmand-tenant.sh:114` only *detects* a Supabase DSN if an operator
+  supplies one; it embeds no credential.
+- `scripts/report/portal.mjs:348` is a link to supabase.com/pricing.
 
-Verify: connecting with the old password fails.
+So these are leftovers of the pre-grobase backend, and the strongest remediation is also
+the cheapest: **delete the Supabase project and the Atlas database user (or the whole
+cluster)**. A deleted resource cannot be reached with a leaked password at all, and
+there is nothing left to keep in step.
 
-### 2. MongoDB Atlas (owner action)
-
-Atlas → Database Access → user `devprophoto_db_user` → Edit → **Edit password** →
-Autogenerate. Same reasoning.
+If the data is still wanted: Supabase → Settings → Database → **Reset database
+password**; Atlas → Database Access → user `devprophoto_db_user` → **Edit password** →
+Autogenerate. Either way the old value stops working on save, and knowing it is not an
+input. Nothing in this repo needs updating afterwards — no in-repo file holds the value.
 
 ### 3. GitHub token (owner action)
 
