@@ -189,21 +189,39 @@ ctl: ## Run 42ctl from its image — make ctl ARGS="org create --slug x --name X
 		-v "$(CURDIR)/.42ctl:/cfg" $(CTL_IMAGE) $(ARGS)
 
 # ── 42ctl against the REMOTE fly stack — no clone, no cargo, no local stack ───
-# Runs the published image on the DEFAULT bridge (so it reaches vault42.fly.dev),
-# auto-writes the profile if absent, persists identity in ~/.config/42ctl, and mounts
-# THIS repo as the workdir so `pull` materializes the *.env tree here. Pass the keystore
-# passphrase via the FT_PASSPHRASE env (forwarded into the container). E.g. a fresh PC:
-#   FT_PASSPHRASE=… make ctl-remote ARGS="keys recover --email you@example.com"
-#   FT_PASSPHRASE=… make ctl-remote ARGS="auth login --email you@example.com --tenant grobase-secrets --token <TOKEN>"
-#   make ctl-remote ARGS="pull --project grobase --apply"
-CTL_CFG_DIR := $(HOME)/.config/42ctl
-ctl-remote: ## 42ctl from its image vs the REMOTE fly stack — make ctl-remote ARGS="pull --project grobase --apply"
-	@mkdir -p $(CTL_CFG_DIR)
-	@[ -f $(CTL_CFG_DIR)/config.json ] || printf '%s\n' '{"current":"default","profiles":{"default":{"server":"https://vault42.fly.dev","authority":"https://grobase-nano.fly.dev","grobase":"https://grobase-stack.fly.dev"}}}' > $(CTL_CFG_DIR)/config.json
-	@docker run --rm -it --user "$$(id -u):$$(id -g)" \
-		-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 -e FT_PASSPHRASE \
+# Runs the published image on the DEFAULT bridge (so it reaches the fly hosts), seeds
+# the profile if absent, keeps the identity in ./.42ctl (same state `make ctl` uses, so
+# a login is shared between the two), and mounts THIS repo as the workdir so `env pull`
+# materializes the *.env tree here.
+#
+# Endpoints: the LIVE apps are vault42-server (the gRPC store) and vault42-authority
+# (accounts / orgs / teams / projects / contracts, and the email-OTP + escrow routes).
+# vault42.fly.dev, grobase-nano.fly.dev and grobase-stack.fly.dev are DEAD — the first
+# two are also other people's apps, so a profile seeded with them authenticates a fresh
+# machine against a stranger's authority. Override with CTL_SERVER / CTL_AUTHORITY.
+#
+# The keystore passphrase comes from secrets/vault42-admin.env when present (so no
+# prompt), else from a FT_PASSPHRASE you export. -it is kept: `keys escrow` / `keys
+# recover` read an emailed OTP from the terminal.
+#   make ctl42 ARGS="keys escrow --email you@example.com"
+#   make ctl42 ARGS="env pull --org univers-42 --project grobase --env local --apply"
+CTL_CFG_DIR  := $(CURDIR)/.42ctl
+CTL_SERVER    ?= https://vault42-server.fly.dev
+CTL_AUTHORITY ?= https://vault42-authority.fly.dev
+CTL_SECRETS   := secrets/vault42-admin.env
+
+ctl42: ## 42ctl vs the LIVE fly vault42 — make ctl42 ARGS="keys escrow --email you@…"
+	@mkdir -p $(CTL_CFG_DIR) && chmod 700 $(CTL_CFG_DIR)
+	@[ -f $(CTL_CFG_DIR)/config.json ] || printf '%s\n' '{"current":"default","profiles":{"default":{"server":"$(CTL_SERVER)","authority":"$(CTL_AUTHORITY)","grobase":""}}}' > $(CTL_CFG_DIR)/config.json
+	@pass="$${FT_PASSPHRASE:-$$(sed -n 's/^VAULT42_KEYSTORE_PASSPHRASE=//p' $(CTL_SECRETS) 2>/dev/null | head -1)}"; \
+	 pw="$${FT_PASSWORD:-$$(sed -n 's/^VAULT42_ADMIN_PASSWORD=//p' $(CTL_SECRETS) 2>/dev/null | head -1)}"; \
+	 docker run --rm -it --user "$$(id -u):$$(id -g)" \
+		-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 \
+		-e FT_PASSPHRASE="$$pass" -e FT_PASSWORD="$$pw" \
 		-v "$(CTL_CFG_DIR):/cfg" -v "$(CURDIR):/work" -w /work \
 		$(CTL_IMAGE) $(ARGS)
+
+ctl-remote: ctl42 ## Deprecated alias for ctl42 (the old target seeded dead/foreign hosts)
 
 # ── one-shot *.env tree sync to/from vault42 (passphrase read HIDDEN, no prompt-hang) ─
 # These wrap the recover→login→push/pull flow so you never fight the interactive
