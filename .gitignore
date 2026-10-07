@@ -481,3 +481,19 @@ vendor/twenty/
 .claude/**/__pycache__/
 .claude/devil.env
 .scratch/
+
+# ── Secret material (category SECRET) — never tracked ─────────────────────────
+# `make secrets`/`vault-seed` write here, and vault42 admin credentials land here.
+/secrets/
+# private keys / keystores / credential bundles, anywhere in the tree
+*.p12
+*.pfx
+*.jks
+id_rsa*
+*-key.pem
+credentials*.json
+service-account*.json
+keystore.v42
+# 42ctl local identity + state (mounted into the CLI image)
+.42ctl/
+.env.bak-preflags
