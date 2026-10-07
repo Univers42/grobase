@@ -22,7 +22,7 @@ services:
       GOTRUE_SITE_URL: ${GOTRUE_SITE_URL:-http://localhost:5173}
       GOTRUE_URI_ALLOW_LIST: ${GOTRUE_URI_ALLOW_LIST:-http://localhost:5173/**,http://localhost:3000,http://localhost:3001,http://localhost:3100}
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      GOTRUE_DB_DATABASE_URL: ${DATABASE_URL:?unset - run make env}
       # Email
       GOTRUE_MAILER_AUTOCONFIRM: ${GOTRUE_MAILER_AUTOCONFIRM:-false}
       GOTRUE_SMTP_HOST: ${SMTP_HOST:-mailpit}
@@ -35,7 +35,7 @@ services:
       GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/verify
       # JWT
       GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
-      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       GOTRUE_JWT_EXP: 3600
       # Same expression as control-plane.yml's verifier: a GOTRUE_JWT_ISSUER override must
       # reach the minter AND the verifier, or every session is rejected (M-4).
@@ -158,10 +158,10 @@ services:
       # surface. The superuser DSN is NEVER used here (a superuser bypasses RLS
       # unconditionally). The fallback below mirrors the .env that
       # scripts/env/generate-env.sh writes; it still uses the authenticator role.
-      PGRST_DB_URI: ${PGRST_DB_URI:-postgres://authenticator:${AUTHENTICATOR_PASSWORD:-authenticator}@postgres:5432/postgres}
+      PGRST_DB_URI: ${PGRST_DB_URI:-postgres://authenticator:${AUTHENTICATOR_PASSWORD:?unset - run make env}@postgres:5432/postgres}
       PGRST_DB_SCHEMA: ${PGRST_DB_SCHEMA:-public}
       PGRST_SERVER_PORT: 3000
-      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       # graphql_public: the schema Kong's /graphql/v1 route targets (Content-Profile);
       # migration 087 creates it around pg_graphql when the server carries it.
       PGRST_DB_SCHEMAS: public, graphql_public
@@ -207,7 +207,7 @@ services:
       PG_META_DB_PORT: ${PG_META_DB_PORT:-5432}
       PG_META_DB_NAME: ${PG_META_DB_NAME:-postgres}
       PG_META_DB_USER: ${PG_META_DB_USER:-postgres}
-      PG_META_DB_PASSWORD: ${PG_META_DB_PASSWORD:-${POSTGRES_PASSWORD:-postgres}} # same role as postgres, so its password by default
+      PG_META_DB_PASSWORD: ${PG_META_DB_PASSWORD:-${POSTGRES_PASSWORD:?unset - run make env}} # same role as postgres, so its password by default
     depends_on:
       postgres:
         condition: service_healthy
@@ -232,9 +232,9 @@ services:
       MONGO_MOCK_COLLECTION:
       PORT: 3010
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
-      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017
+      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:?unset - run make env}@mongo:27017
       MONGO_DB_NAME: ${MONGO_DB_NAME:-mini_baas}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this

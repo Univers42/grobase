@@ -20,11 +20,23 @@ import { PoliciesModule } from './policies/policies.module';
 import { DecisionsModule } from './decisions/decisions.module';
 import { BundlesModule } from './bundles/bundles.module';
 import { HealthController } from './health.controller';
-import { AuditModule, ObservabilityModule, createPinoHttpOptions } from '@mini-baas/common';
+import {
+  AuditModule,
+  IDENTITY_SECRETS,
+  ObservabilityModule,
+  createPinoHttpOptions,
+  validateEnv,
+} from '@mini-baas/common';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv({
+        service: 'permission-engine',
+        secrets: [...IDENTITY_SECRETS, 'ADAPTER_REGISTRY_SERVICE_TOKEN', 'DATABASE_URL'],
+      }),
+    }),
     LoggerModule.forRoot({ pinoHttp: createPinoHttpOptions('permission-engine') }),
     ObservabilityModule,
     TerminusModule,

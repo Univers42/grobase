@@ -14,10 +14,7 @@
 // config loading, structured logging, the Postgres pool, and HTTP middleware.
 package config
 
-import (
-	"fmt"
-	"os"
-)
+import "os"
 
 // weakServiceToken is the placeholder older compose files defaulted to. A service
 // must NOT boot with it (or an empty token): the internal service-token guard
@@ -44,10 +41,19 @@ type Config struct {
 	// "max" activates the Vault-required fail-closed enforcement; every other
 	// value keeps the boot path byte-identical to the live baseline.
 	SecurityMode string
+	// Environment is the GROBASE_ENV identity (default Local). In a Strict
+	// environment (Staging, Prod) a missing required secret refuses to boot.
+	Environment Environment
 }
 
 // LoadConfig reads <PREFIX>_HOST / <PREFIX>_PORT and shared DATABASE_URL.
 // Example prefix: "ADAPTER_REGISTRY".
+//
+// GROBASE_ENV (default local) selects how strictly required secrets are
+// enforced. An unknown value fails with ErrUnknownEnvironment. DATABASE_URL and
+// INTERNAL_SERVICE_TOKEN are required in every environment; in staging and prod
+// the prefix's own secrets are required too (requiredSecrets). Every missing key
+// is reported together in one ErrMissingConfig error that names keys, never values.
 //
 // G-Vault (A6): at SECURITY_MODE=max the control plane REQUIRES a Vault-backed
 // master credential and FAILS CLOSED here (a LoadConfig error → main() os.Exit(1))
@@ -55,23 +61,21 @@ type Config struct {
 // short-circuits in requireVaultBackedCredentials, so the boot path stays
 // byte-identical to today.
 func LoadConfig(prefix string) (Config, error) {
+	env, err := ParseEnvironment(os.Getenv(environmentKey))
+	if err != nil {
+		return Config{}, err
+	}
 	cfg := Config{
 		Host:         EnvStr(prefix+"_HOST", "0.0.0.0"),
 		Port:         EnvStr(prefix+"_PORT", "3021"),
 		DatabaseURL:  os.Getenv("DATABASE_URL"),
-		ServiceToken: os.Getenv("INTERNAL_SERVICE_TOKEN"),
+		ServiceToken: os.Getenv(serviceTokenKey),
 		ProductMode:  EnvStr(prefix+"_PRODUCT_MODE", "shadow"),
 		SecurityMode: EnvStr("SECURITY_MODE", "baseline"),
+		Environment:  env,
 	}
-	if cfg.DatabaseURL == "" {
-		return Config{}, fmt.Errorf("DATABASE_URL is required")
-	}
-	if cfg.ServiceToken == "" || cfg.ServiceToken == weakServiceToken {
-		return Config{}, fmt.Errorf(
-			"INTERNAL_SERVICE_TOKEN must be set to a strong value (refusing empty or the placeholder %q); "+
-				"compose passes ADAPTER_REGISTRY_SERVICE_TOKEN — set it in .env.secrets (make env generates one)",
-			weakServiceToken,
-		)
+	if err := cfg.requireConfigured(prefix); err != nil {
+		return Config{}, err
 	}
 	if err := requireVaultBackedCredentials(cfg.SecurityMode); err != nil {
 		return Config{}, err

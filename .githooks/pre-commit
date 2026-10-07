@@ -1,0 +1,47 @@
+#!/bin/sh
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    pre-commit                                         :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2026/10/07 by dlesieur                   #+#    #+#              #
+#    Updated: 2026/10/07 by dlesieur                  ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
+# Pre-commit hook: scan staged changes for secrets using gitleaks.
+# Blocks the commit if secrets are detected.
+# Bypass in an emergency with: git commit --no-verify
+#
+# The hook prefers a host gitleaks binary if available, else falls back to
+# the pinned Docker image. If neither is available, it warns and permits the
+# commit (CI is the blocking layer).
+
+set -eu
+
+# Try host gitleaks first
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact --no-banner --config .gitleaks.toml
+  exit $?
+fi
+
+# Fall back to Docker
+if command -v docker >/dev/null 2>&1; then
+  docker run --rm \
+    -v "$(git rev-parse --show-toplevel):/repo:ro" \
+    -w /repo \
+    zricethezav/gitleaks:v8.30.1 \
+    protect --staged --redact --no-banner --config .gitleaks.toml
+  exit $?
+fi
+
+# Neither available — warn and permit (CI is the real gate)
+cat >&2 <<'EOF'
+⚠  gitleaks not found (neither host binary nor Docker).
+   Secret scanning is DISABLED for this commit.
+   Install gitleaks locally or Docker to enable pre-commit scanning.
+   CI will still block secrets — this is a local-dev convenience only.
+EOF
+exit 0

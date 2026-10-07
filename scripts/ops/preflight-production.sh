@@ -5,11 +5,13 @@
 #  dev credentials or dev security settings                                    #
 #                                                                              #
 #  WHY                                                                         #
-#    Base compose keeps well-known dev fallbacks (POSTGRES_PASSWORD:-postgres, #
-#    MINIO_ROOT_PASSWORD:-minioadmin, VAULT_ENC_KEY:-0123..., ...) so a fresh  #
-#    clone renders and boots without a generated .env (byte-parity). Nothing   #
-#    checked an env file before a production bring-up. An absent or empty key  #
-#    is not safe either: compose's `:-` then falls back to the dev default.    #
+#    Base compose no longer ships credential fallbacks: every secret-bearing     #
+#    entry is ${KEY:?}, so a stack cannot boot on a value published in this      #
+#    repo and an absent key fails the render by name (gate m214). What this      #
+#    file still owns is the question compose cannot ask: whether a key that IS   #
+#    set holds a dev default, a shared value, or the wrong environment entirely  #
+#    (GROBASE_ENV). The historical fallbacks remain in its DEV list because a    #
+#    pasted env file can still carry them.                                      #
 #                                                                              #
 #  WHAT IT CHECKS (names only; no value is printed, not even under sh -x:      #
 #  values live inside awk and never enter a shell variable)                    #
@@ -236,7 +238,19 @@ function check_settings(   v) {
 	if (v != NONE && v != "hmac") flag("SERVICE_TOKEN_MODE", "must be hmac (per-request signed service auth)")
 	v = setting("REALTIME_NAMESPACE_FALLBACK", "permissive")
 	if (v != NONE && v != "deny") warn("REALTIME_NAMESPACE_FALLBACK", "not deny, so namespace-less tokens get all-access (advisory until GoTrue sessions carry namespaces)")
+	check_environment()
 	check_advisories()
+}
+
+# check_environment refuses a production bring-up whose env file still says it is
+# a local or dev deployment. GROBASE_ENV is the identity that keeps the two sets of
+# credentials apart: everything else here checks that a VALUE is not a dev default,
+# which cannot catch a .env that is simply the wrong environment file: every
+# value in it is a perfectly strong dev secret.
+function check_environment(   v) {
+	v = setting("GROBASE_ENV", "")
+	if (v == NONE || v == "") flag("GROBASE_ENV", "unset: set it to staging or prod so this deployment states which environment it is")
+	else if (v != "staging" && v != "prod") flag("GROBASE_ENV", "is \"" v "\": a production bring-up needs staging or prod (a dev env file is never a prod one)")
 }
 
 # check_advisories warns on the hardening an owner opts into: each needs

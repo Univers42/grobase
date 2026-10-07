@@ -27,6 +27,7 @@ pub mod auth;
 #[cfg(feature = "control-pg")]
 pub mod automations;
 pub mod config;
+pub mod environment;
 pub mod graph;
 pub mod metrics;
 #[cfg(feature = "nano")]

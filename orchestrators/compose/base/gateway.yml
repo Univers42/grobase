@@ -73,7 +73,7 @@ services:
       KONG_NGINX_WORKER_PROCESSES: "1"
       KONG_MEM_CACHE_SIZE: "64m"
       KONG_UNTRUSTED_LUA_SANDBOX_REQUIRES: "cjson.safe"
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       GOTRUE_JWT_ISS: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}
       KONG_ANON_UUID: ${KONG_ANON_UUID:-cd4f782c-ac87-5081-b322-b54834d15651}
       KONG_PUBLIC_API_KEY: ${KONG_PUBLIC_API_KEY:-}

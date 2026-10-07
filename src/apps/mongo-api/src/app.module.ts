@@ -21,14 +21,22 @@ import { AdminModule } from './admin/admin.module';
 import { HealthController } from './health.controller';
 import {
   AuditModule,
+  IDENTITY_SECRETS,
   IdempotencyMiddleware,
   ObservabilityModule,
   createPinoHttpOptions,
+  validateEnv,
 } from '@mini-baas/common';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv({
+        service: 'mongo-api',
+        secrets: [...IDENTITY_SECRETS, 'DATABASE_URL'],
+      }),
+    }),
     LoggerModule.forRoot({ pinoHttp: createPinoHttpOptions('mongo-api') }),
     ObservabilityModule,
     TerminusModule,

@@ -18,13 +18,13 @@ services:
       NODE_OPTIONS: --max-old-space-size=288 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       HOSTNAME: 0.0.0.0
       STUDIO_PG_META_URL: http://pg-meta:8080
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?unset - run make env}
       DEFAULT_ORGANIZATION_NAME: ${STUDIO_DEFAULT_ORG_NAME:-Mini BaaS Dev}
       DEFAULT_PROJECT_NAME: ${STUDIO_DEFAULT_PROJECT_NAME:-mini-baas}
       SUPABASE_URL: ${SUPABASE_URL:-http://kong:8000}
       SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL:-http://localhost:8000}
-      SUPABASE_ANON_KEY: ${ANON_KEY:-anon-key-placeholder}
-      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY:-service-key-placeholder}
+      SUPABASE_ANON_KEY: ${ANON_KEY:?unset - run make env}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY:?unset - run make env}
       LOGFLARE_API_KEY: ${STUDIO_LOGFLARE_API_KEY:-}
       LOGFLARE_URL: ${STUDIO_LOGFLARE_URL:-}
       NEXT_PUBLIC_ENABLE_LOGS: "false"

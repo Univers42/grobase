@@ -22,7 +22,7 @@ services:
       - "${ENGINE_BIND_ADDR:-127.0.0.1}:${PG_PORT:-5432}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?unset - run make env}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
       POSTGRES_HOST_AUTH_METHOD: scram-sha-256
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
@@ -87,13 +87,13 @@ services:
     env_file: [.env]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?unset - run make env}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
       REALTIME_DB_NAME: realtime
-      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?unset - run make env}
       # Password for the non-superuser PostgREST `authenticator` role created by
       # db-bootstrap.psql (see migration 065 — safe-by-construction REST isolation).
-      AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD:-}
+      AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD:?unset - run make env}
     # Logic in scripts/db/db-bootstrap.sh. It waits on a real authenticated query rather
     # than pg_isready, which answers "is the server accepting connections" and exits 0 on a
     # password rejection — so the old inline `until pg_isready` passed instantly and the
@@ -124,9 +124,9 @@ services:
     env_file: [.env]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?unset - run make env}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
-      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?unset - run make env}
     command: >
       sh -ec '
         until pg_isready -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"; do sleep 1; done;
@@ -225,7 +225,7 @@ services:
       - "${ENGINE_BIND_ADDR:-127.0.0.1}:${MONGO_PORT:-27017}:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-mongo}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-mongo}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:?unset - run make env}
     volumes:
       - mongo-data:/data/db
       - mongo-keyfile:/etc/mongo
@@ -299,7 +299,7 @@ services:
     restart: "no"
     environment:
       MONGO_USER: ${MONGO_INITDB_ROOT_USERNAME:-mongo}
-      MONGO_PASS: ${MONGO_INITDB_ROOT_PASSWORD:-mongo}
+      MONGO_PASS: ${MONGO_INITDB_ROOT_PASSWORD:?unset - run make env}
     entrypoint:
       - bash
       - -c

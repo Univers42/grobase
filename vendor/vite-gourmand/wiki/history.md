@@ -3988,13 +3988,13 @@ cd ..
 ps aux
 docker ps
 clear
-psql "postgresql://postgres.zcnlwipvjmwbofawoqit:MO3848seven_36@aws-1-eu-central-1.pooler.supabase.com:5432/postgres" -c "\\dt"
+psql "postgresql://postgres.zcnlwipvjmwbofawoqit:<redacted>@aws-1-eu-central-1.pooler.supabase.com:5432/postgres" -c "\\dt"
 sudo apt-get update && sudo apt-get install -y postgresql-client
-which psql && psql "postgresql://postgres.zcnlwipvjmwbofawoqit:MO3848seven_36@aws-1-eu-central-1.pooler.supabase.com:5432/postgres" -c "\\dt"
-psql "postgresql://postgres.zcnlwipvjmwbofawoqit:MO3848seven_36@aws-1-eu-central-1.pooler.supabase.com:5432/postgres" -c 'SELECT id, email, "firstName", "lastName", "roleId", "createdAt" FROM "User";'
-psql "postgresql://postgres.zcnlwipvjmwbofawoqit:MO3848seven_36@aws-1-eu-central-1.pooler.supabase.com:5432/postgres" -c 'SELECT id, email, first_name, last_name, role_id, created_at FROM "User";'
-psql "postgresql://postgres.zcnlwipvjmwbofawoqit:MO3848seven_36@aws-1-eu-central-1.pooler.supabase.com:5432/postgres" -c '\\d "User"'
-psql "postgresql://postgres.zcnlwipvjmwbofawoqit:MO3848seven_36@aws-1-eu-central-1.pooler.supabase.com:5432/postgres" -c 'SELECT id, email, first_name, city, "roleId", "createdAt" FROM "User";'
+which psql && psql "postgresql://postgres.zcnlwipvjmwbofawoqit:<redacted>@aws-1-eu-central-1.pooler.supabase.com:5432/postgres" -c "\\dt"
+psql "postgresql://postgres.zcnlwipvjmwbofawoqit:<redacted>@aws-1-eu-central-1.pooler.supabase.com:5432/postgres" -c 'SELECT id, email, "firstName", "lastName", "roleId", "createdAt" FROM "User";'
+psql "postgresql://postgres.zcnlwipvjmwbofawoqit:<redacted>@aws-1-eu-central-1.pooler.supabase.com:5432/postgres" -c 'SELECT id, email, first_name, last_name, role_id, created_at FROM "User";'
+psql "postgresql://postgres.zcnlwipvjmwbofawoqit:<redacted>@aws-1-eu-central-1.pooler.supabase.com:5432/postgres" -c '\\d "User"'
+psql "postgresql://postgres.zcnlwipvjmwbofawoqit:<redacted>@aws-1-eu-central-1.pooler.supabase.com:5432/postgres" -c 'SELECT id, email, first_name, city, "roleId", "createdAt" FROM "User";'
 cd /home/dlesieur/Documents/studi/vite-gourmand/backend && pkill -f "nest start" 2>/dev/null; sleep 1 && npm run start:dev &
 git add .
 git commit
@@ -4019,9 +4019,9 @@ flyctl
 cd /home/dlesieur/Documents/studi/vite-gourmand && cat << 'EOF'\
 # Run these commands to set your secrets on Fly.io:\
 \
-fly secrets set DATABASE_URL="postgresql://postgres.zcnlwipvjmwbofawoqit:MO3848seven_36@aws-1-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"\
-fly secrets set DIRECT_URL="postgresql://postgres.zcnlwipvjmwbofawoqit:MO3848seven_36@aws-1-eu-central-1.pooler.supabase.com:5432/postgres"\
-fly secrets set MONGODB_URI="mongodb+srv://devprophoto_db_user:fHRNaVJavaUPklgf@vite-gourmand.ntguzwp.mongodb.net/vite_gourmand?retryWrites=true&w=majority&appName=vite-gourmand"\
+fly secrets set DATABASE_URL="postgresql://postgres.zcnlwipvjmwbofawoqit:<redacted>@aws-1-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"\
+fly secrets set DIRECT_URL="postgresql://postgres.zcnlwipvjmwbofawoqit:<redacted>@aws-1-eu-central-1.pooler.supabase.com:5432/postgres"\
+fly secrets set MONGODB_URI="mongodb+srv://devprophoto_db_user:<redacted>@vite-gourmand.ntguzwp.mongodb.net/vite_gourmand?retryWrites=true&w=majority&appName=vite-gourmand"\
 fly secrets set JWT_SECRET="your-super-secret-jwt-key-change-in-production"\
 fly secrets set JWT_REFRESH_SECRET="your-super-secret-refresh-key-change-in-production"\
 fly secrets set TITAN_EMAIL="devfast@archicode.codes"\

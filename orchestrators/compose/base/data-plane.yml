@@ -73,7 +73,7 @@ services:
       # Phase 7d: system Postgres holding public.outbox_events. On the bypass
       # write path the data plane emits the row-change event itself (the
       # query-router is out of the path), so realtime/webhooks keep firing.
-      DATA_PLANE_OUTBOX_DSN: ${DATA_PLANE_OUTBOX_DSN:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}}
+      DATA_PLANE_OUTBOX_DSN: ${DATA_PLANE_OUTBOX_DSN:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?unset - run make env}@postgres:5432/${POSTGRES_DB:-postgres}}
       # Automation `notify` actions publish here (same contract as outbox-relay;
       # empty/absent disables — notify is a no-op in realtime-less tiers).
       REALTIME_PUBLISH_URL: ${REALTIME_PUBLISH_URL:-http://realtime:4000/v1/publish}
@@ -130,7 +130,7 @@ services:
     environment:
       REALTIME_HOST: 0.0.0.0
       REALTIME_PORT: 4000
-      REALTIME_JWT_SECRET: ${JWT_SECRET}
+      REALTIME_JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       REALTIME_JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       REALTIME_JWT_AUDIENCE: ""
       # Accepted `iss` values (M-4); a token without `iss` is refused unless
@@ -162,11 +162,11 @@ services:
       # gateway allows to close the door on other websites. A handshake with no
       # Origin header (a server-side client) is always allowed.
       REALTIME_ALLOWED_ORIGINS: ${REALTIME_ALLOWED_ORIGINS:-}
-      REALTIME_PG_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      REALTIME_PG_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?unset - run make env}@postgres:5432/${POSTGRES_DB:-postgres}
       REALTIME_PG_CHANNEL: realtime_events
       # Mongo change-streams producer (M10.b — close the realtime fan-out gap).
       # Requires Mongo to run as a replica set, which mongo-init already ensures.
-      REALTIME_MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017/?replicaSet=${MONGO_REPLICA_SET_NAME:-rs0}&authSource=admin
+      REALTIME_MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:?unset - run make env}@mongo:27017/?replicaSet=${MONGO_REPLICA_SET_NAME:-rs0}&authSource=admin
       REALTIME_MONGO_DB: ${MONGO_DB_NAME:-mini_baas}
       RUST_LOG: ${RUST_LOG:-info}
     volumes:

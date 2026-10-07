@@ -20,8 +20,58 @@ PROJECT="${VAULT_ENV_PROJECT:-grobase}"
 # ALONE and readable by nobody else). That distinction is the whole ballgame: a
 # teammate pulling a tree pushed the personal way gets "no manifest for project X"
 # no matter what org role they hold, because it is encryption, not RBAC.
-ORG="${VAULT_ENV_ORG:-}"
-ENVNAME="${VAULT_ENV_NAME:-}"
+# The TEAM path is the DEFAULT. It used to be the personal one, which meant a push
+# looked like it had shared the tree while being sealed to one person: a teammate
+# pulling it got "no manifest for project X" whatever org role they held, because it
+# is encryption, not RBAC. Defaults come from the provisioned structure
+# (infra/config/env/schema.json .vault42) and the environment identity GROBASE_ENV,
+# so `make vault-pull-env` on a teammate machine resolves the right environment with
+# no flags. Set VAULT_ENV_PERSONAL=1 for the old sealed-to-me-alone behaviour.
+# resolve_grobase_env reads the environment identity the way the stack does, because
+# an exported GROBASE_ENV is NOT how it is normally set: it lives in config.env and is
+# overridden per machine in .env.local, and make passes neither into this script. Taking
+# only $GROBASE_ENV meant every push and pull silently acted on `local` — on a production
+# host that seals the PROD tree into the environment the team has write on, and a pull
+# with --force overwrites prod secrets with dev ones.
+#
+# .env is the assembled result of config.env < .env.secrets < .env.local, so reading it
+# gives the documented precedence for free; config.env is the fallback before `make env`
+# has ever run.
+resolve_grobase_env() {
+  _v="${GROBASE_ENV:-}"
+  if [ -z "$_v" ] && [ -f "$REPO_DIR/.env" ]; then
+    _v=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}GROBASE_ENV=//p' "$REPO_DIR/.env" | tail -1)
+  fi
+  if [ -z "$_v" ] && [ -f "$REPO_DIR/config.env" ]; then
+    _v=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}GROBASE_ENV=//p' "$REPO_DIR/config.env" | tail -1)
+  fi
+  printf '%s' "${_v:-local}"
+}
+ORG="${VAULT_ENV_ORG:-univers-42}"
+ENVNAME="${VAULT_ENV_NAME:-$(resolve_grobase_env)}"
+if [ "${VAULT_ENV_PERSONAL:-0}" = 1 ]; then
+  ORG=""
+  ENVNAME=""
+fi
+# vendor/ holds OTHER apps credentials (gourmand, canagrou, hypertube, …). Those do
+# not belong to grobase team members, so they are sealed to the pusher alone even on
+# a team push. Each app gets its own vault42 project; until a tree is moved there this
+# keeps it out of the shared environment.
+# Ponytail: --private marks files private, it does not exclude them from the upload —
+# the bytes still travel, sealed to you. It bounds WHO can read them, not whether they
+# are stored. Removing them entirely means pushing from the app project instead.
+VENDOR_PRIVATE="vendor/*"
+# Files that must NEVER reach a teammate, even in a shared environment:
+#   secrets/*  — the vault42 ADMIN credentials (account password, register token,
+#                keystore passphrase). Sharing them hands every member of a
+#                write-granted environment the keys to the authority itself, and it
+#                is circular besides: the passphrase that opens the vault has no
+#                business living inside it.
+#   *.local    — 42ctl already forces these private, flag or not; listed so the
+#                intent is readable here rather than implied by the CLI.
+# Ponytail: these are --private, i.e. sealed to the pusher, NOT excluded. The bytes
+# still travel. Nothing in the current CLI can exclude a path the scanner finds.
+ALWAYS_PRIVATE="secrets/* *.local"
 
 [ "$#" -ge 1 ] || {
   printf 'usage: ctl-env.sh push|pull [flags]\n' >&2
@@ -34,6 +84,9 @@ shift
 # must be OUR deployments. vault42.fly.dev and grobase-nano.fly.dev are NOT: they are
 # unrelated apps owned by other people that happen to hold the names we wanted. A
 # fresh machine seeded with those authenticates against a stranger's authority.
+# `grobase` is EMPTY on purpose: it overrides only the email-code and escrow routes and
+# defaults to the authority, which serves them. Seeding grobase-stack.fly.dev (dead) sent
+# a fresh machine `keys escrow`/`keys recover` to a host that no longer answers.
 # `blobs` is part of the profile because files above the 4 MiB transport ceiling are
 # stored as chunks in the object store — without it a pull silently restores only the
 # small files. The credential for it stays OUT of here; it is fetched from the vault
@@ -45,7 +98,7 @@ ensure_profile() {
 	{"current":"default","profiles":{"default":{
 	  "server":"https://vault42-server.fly.dev",
 	  "authority":"https://vault42-authority.fly.dev",
-	  "grobase":"https://grobase-stack.fly.dev",
+	  "grobase":"",
 	  "blobs":{"endpoint":"https://fly.storage.tigris.dev","bucket":"vault42-seeds","region":"auto"}
 	}}}
 	JSON
@@ -207,6 +260,15 @@ if [ -n "$ORG" ] && [ -n "$ENVNAME" ]; then
   printf '[vault42] mode: SHARED environment %s/%s/%s — sealed to the env key\n' \
     "$ORG" "$PROJECT" "$ENVNAME" >&2
   set -- env "$verb" --org "$ORG" --project "$PROJECT" --env "$ENVNAME" "$@"
+  # Only a push can classify files; `env pull` has no --private.
+  if [ "$verb" = push ]; then
+    printf '[vault42] sealed to you alone: vendor/ (other apps credentials), %s\n' \
+      "$ALWAYS_PRIVATE" >&2
+    set -- "$@" --private "$VENDOR_PRIVATE"
+    for _p in $ALWAYS_PRIVATE; do
+      set -- "$@" --private "$_p"
+    done
+  fi
 elif [ -n "$_prune" ]; then
   printf '[vault42] mode: PERSONAL project %s — sealed to you alone\n' "$PROJECT" >&2
   set -- "$verb" --project "$PROJECT" "$_prune" "$@"

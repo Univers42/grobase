@@ -19,10 +19,18 @@ import { ChatModule } from './chat/chat.module';
 import { PromptsModule } from './prompts/prompts.module';
 import { HealthController } from './health.controller';
 
-import { ObservabilityModule, createPinoHttpOptions } from '@mini-baas/common';
+import {
+  IDENTITY_SECRETS,
+  ObservabilityModule,
+  createPinoHttpOptions,
+  validateEnv,
+} from '@mini-baas/common';
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv({ service: 'ai-service', secrets: IDENTITY_SECRETS }),
+    }),
     LoggerModule.forRoot({ pinoHttp: createPinoHttpOptions('ai-service') }),
     ObservabilityModule,
     TerminusModule,
