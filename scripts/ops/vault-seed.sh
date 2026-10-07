@@ -7,8 +7,8 @@
 # There was a restore path and no capture path. The seeds in ./secrets were produced by
 # hand: `grep -rl postgres-all.sql.gz` across the whole monorepo matches only the two
 # scripts that READ them. A restore source nobody can regenerate goes stale exactly the way
-# the committed snapshot did — apps/grobase/data-snapshots/archives is dated 2026-07-28 and
-# still carries engines whose coverage no longer matches what a default `make all` runs.
+# the committed snapshot did — data-snapshots/archives, dated 2026-07-28 and deleted on
+# 2026-10-07, carried engines whose coverage no longer matched what a default `make all` ran.
 # Unreproducible backups are how you end up with two divergent sources of truth and no way
 # to tell which one is right.
 #

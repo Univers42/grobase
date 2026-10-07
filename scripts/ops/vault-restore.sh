@@ -537,7 +537,7 @@ restore_dynamodb() {
 
 # mssql_restore_one DB — RESTORE one database from /tmp/DB.bak inside the container. Logical
 # file names differ per backup, so each is MOVEd to the container's data dir by the names
-# RESTORE FILELISTONLY reports (the same approach as data-snapshots/restore-databases.sh).
+# RESTORE FILELISTONLY reports.
 mssql_restore_one() {
   sqlcmd='/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -h-1 -W'
   moves=$(docker exec mini-baas-mssql sh -lc "$sqlcmd -Q \"SET NOCOUNT ON; RESTORE FILELISTONLY FROM DISK='/tmp/$1.bak'\"" 2>/dev/null |
