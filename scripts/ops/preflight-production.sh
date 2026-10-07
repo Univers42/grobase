@@ -236,7 +236,19 @@ function check_settings(   v) {
 	if (v != NONE && v != "hmac") flag("SERVICE_TOKEN_MODE", "must be hmac (per-request signed service auth)")
 	v = setting("REALTIME_NAMESPACE_FALLBACK", "permissive")
 	if (v != NONE && v != "deny") warn("REALTIME_NAMESPACE_FALLBACK", "not deny, so namespace-less tokens get all-access (advisory until GoTrue sessions carry namespaces)")
+	check_environment()
 	check_advisories()
+}
+
+# check_environment refuses a production bring-up whose env file still says it is
+# a local or dev deployment. GROBASE_ENV is the identity that keeps the two sets of
+# credentials apart: everything else here checks that a VALUE is not a dev default,
+# which cannot catch a .env that is simply the wrong environment file: every
+# value in it is a perfectly strong dev secret.
+function check_environment(   v) {
+	v = setting("GROBASE_ENV", "")
+	if (v == NONE || v == "") flag("GROBASE_ENV", "unset: set it to staging or prod so this deployment states which environment it is")
+	else if (v != "staging" && v != "prod") flag("GROBASE_ENV", "is \"" v "\": a production bring-up needs staging or prod (a dev env file is never a prod one)")
 }
 
 # check_advisories warns on the hardening an owner opts into: each needs

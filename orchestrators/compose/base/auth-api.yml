@@ -22,7 +22,7 @@ services:
       GOTRUE_SITE_URL: ${GOTRUE_SITE_URL:-http://localhost:5173}
       GOTRUE_URI_ALLOW_LIST: ${GOTRUE_URI_ALLOW_LIST:-http://localhost:5173/**,http://localhost:3000,http://localhost:3001,http://localhost:3100}
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      GOTRUE_DB_DATABASE_URL: ${DATABASE_URL:?unset - run make env}
       # Email
       GOTRUE_MAILER_AUTOCONFIRM: ${GOTRUE_MAILER_AUTOCONFIRM:-false}
       GOTRUE_SMTP_HOST: ${SMTP_HOST:-mailpit}
@@ -158,7 +158,7 @@ services:
       # surface. The superuser DSN is NEVER used here (a superuser bypasses RLS
       # unconditionally). The fallback below mirrors the .env that
       # scripts/env/generate-env.sh writes; it still uses the authenticator role.
-      PGRST_DB_URI: ${PGRST_DB_URI:-postgres://authenticator:${AUTHENTICATOR_PASSWORD:?unset - run make env}@postgres:5432/postgres}
+      PGRST_DB_URI: ${PGRST_DB_URI:?unset - run make env}@postgres:5432/postgres}
       PGRST_DB_SCHEMA: ${PGRST_DB_SCHEMA:-public}
       PGRST_SERVER_PORT: 3000
       PGRST_JWT_SECRET: ${JWT_SECRET:?unset - run make env}

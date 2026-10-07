@@ -141,7 +141,7 @@ services:
       OUTBOX_RELAY_POLL_MS:
       PORT: 3130
       NODE_OPTIONS: --max-old-space-size=192 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
-      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      DATABASE_URL: ${DATABASE_URL:?unset - run make env}
       OUTBOX_REDIS_URL: ${OUTBOX_REDIS_URL:-redis://redis:6379}
       OUTBOX_MONGO_URL: ${OUTBOX_MONGO_URL:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:?unset - run make env}@mongo:27017/mini_baas?authSource=admin}
       MONGO_URI: ${OUTBOX_MONGO_URL:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:?unset - run make env}@mongo:27017/mini_baas?authSource=admin}
@@ -306,7 +306,7 @@ services:
       PERMISSION_CONDITIONS_ENABLED:
       PORT: 3050
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
-      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      DATABASE_URL: ${DATABASE_URL:?unset - run make env}
       ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       ADAPTER_REGISTRY_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       JWT_SECRET: ${JWT_SECRET:?unset - run make env}
@@ -355,7 +355,7 @@ services:
     environment:
       PORT: 3060
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
-      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      DATABASE_URL: ${DATABASE_URL:?unset - run make env}
       # Adapter-registry cutover: Go is the primary service now. The TS
       # adapter-registry was retired after parity-probe.sh proved the Go
       # implementation byte-compatible (same AES-GCM scheme, same RLS).
@@ -452,7 +452,7 @@ services:
     environment:
       PORT: 3080
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
-      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      DATABASE_URL: ${DATABASE_URL:?unset - run make env}
       GDPR_DELETION_WEBHOOK_URL: ${GDPR_DELETION_WEBHOOK_URL:-}
       GDPR_EXPORT_WEBHOOK_URL: ${GDPR_EXPORT_WEBHOOK_URL:-}
       JWT_SECRET: ${JWT_SECRET:?unset - run make env}
@@ -496,7 +496,7 @@ services:
     environment:
       PORT: 3090
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
-      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      DATABASE_URL: ${DATABASE_URL:?unset - run make env}
       EMAIL_SERVICE_URL: http://email-service:3030
       NEWSLETTER_BASE_URL: ${NEWSLETTER_BASE_URL:-http://localhost:8000/newsletter/v1}
       NEWSLETTER_BATCH_SIZE: ${NEWSLETTER_BATCH_SIZE:-5}
@@ -637,7 +637,7 @@ services:
     environment:
       PORT: 3120
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
-      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      DATABASE_URL: ${DATABASE_URL:?unset - run make env}
       SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-7}
       JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
