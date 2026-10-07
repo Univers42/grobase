@@ -226,7 +226,7 @@ planes:
   realtime:
     enabled: true
     kind: Deployment
-    image: dlesieur/realtime-agnostic:0.2.1
+    image: dlesieur/realtime-agnostic:0.2.2
     port: 4000
     replicas: 2
     autoscaling:
