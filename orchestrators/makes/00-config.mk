@@ -90,11 +90,11 @@ EDITION_migrate   := $(filter-out analytics observability ops studio functions p
 # plane + realtime, so no osionos feature is lost. The extra DB engines stay one
 # flag away via `make all GROBASE_EDITION=migrate` (or `=full`).
 EDITION_devlean   := $(filter-out engines analytics observability ops studio functions playground,$(PLANES))
-# `tetris` — the maximal red-tetris game edition: relational data + control + rust
+# `tetris` — a maximal game-shaped edition: relational data + control + rust
 # data plane + adapter + background, plus realtime (the multiplayer game bus + live
 # leaderboard CDC), storage (avatars), functions (scheduled league recompute),
-# analytics (game stats) and observability. The `red-tetris` SPA-serving compose
-# profile is opted into separately by `make red-tetris` (like gourmand/hypertube).
+# analytics (game stats) and observability. Kept as a named plane set; the app that
+# motivated it lived in vendor/ and has been removed.
 EDITION_tetris    := data go rust adapter background realtime storage functions analytics observability
 
 # Which edition `make up` / `make down` operate on by default.

@@ -1,1 +1,0 @@
-UML : Unified modeling language (UML) Diagrams

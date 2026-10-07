@@ -236,25 +236,12 @@ ctl-remote: ctl42 ## Deprecated alias for ctl42 (the old target seeded dead/fore
 # stops it, because an org or project may hold another member's data and a
 # zero-knowledge deletion cannot be undone.
 #
-# VENDOR_APPS get their OWN project each: an app's credentials are not grobase team
-# material, and two apps' secrets must never share an environment. `dev` only — no
-# vendor app has a staging or prod deployment.
-VENDOR_APPS ?= vite-gourmand canagrou hypertube movieverse nimbus savanna-zoo surfind-spain red-tetris
-
 vault-team-setup: ## vault42: provision org/team/project/envs/grants for grobase (idempotent)
 	@FT_PASSPHRASE="$${FT_PASSPHRASE:-$$(sed -n 's/^VAULT42_KEYSTORE_PASSPHRASE=//p' $(CTL_SECRETS) 2>/dev/null | head -1)}" \
 	 FT_PASSWORD="$${FT_PASSWORD:-$$(sed -n 's/^VAULT42_ADMIN_PASSWORD=//p' $(CTL_SECRETS) 2>/dev/null | head -1)}" \
 	 CTL_IMAGE="$(CTL_IMAGE)" CTL_CFG_DIR="$(CTL_CFG_DIR)" REPO_DIR="$(CURDIR)" \
 	 sh scripts/vault/grobase-team-setup.sh $(ARGS)
 
-vault-app-projects: ## vault42: one project per vendor app (dev only), so no two apps share an environment
-	@for app in $(VENDOR_APPS); do \
-		echo "── $$app"; \
-		FT_PASSPHRASE="$${FT_PASSPHRASE:-$$(sed -n 's/^VAULT42_KEYSTORE_PASSPHRASE=//p' $(CTL_SECRETS) 2>/dev/null | head -1)}" \
-		FT_PASSWORD="$${FT_PASSWORD:-$$(sed -n 's/^VAULT42_ADMIN_PASSWORD=//p' $(CTL_SECRETS) 2>/dev/null | head -1)}" \
-		CTL_IMAGE="$(CTL_IMAGE)" CTL_CFG_DIR="$(CTL_CFG_DIR)" REPO_DIR="$(CURDIR)" \
-		sh scripts/vault/grobase-team-setup.sh --project "$$app" --envs dev || exit 1; \
-	done
 
 # ── one-shot *.env tree sync to/from vault42 (passphrase read HIDDEN, no prompt-hang) ─
 # These wrap the recover→login→push/pull flow so you never fight the interactive

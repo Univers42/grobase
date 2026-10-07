@@ -32,23 +32,18 @@ restructure and are on `main` too.
 **Branching is git-flow:** `develop` is the integration branch (rebuilt clean on top of `main` on
 2026-09-24; the pre-rebuild tip is kept as tag `backup/develop-2026-09-23`). Each problem gets its own
 `fix/*` / `feat/*` branch off `develop`, merged back with `--no-ff` and pushed over SSH; `main` receives
-releases. On `main`, the vendor re-platform commits (Canagrou · HamBooking ·
-Nimbus · MovieVerse · vite-gourmand · surfind-spain · hypertube) plus the per-table-isolation +
-query-router-JWT data-plane work, the websites playground, and the per-mount `read_scoped` data-plane
-feature (migration `070`) all **landed on `main`** earlier. Since then `main` has advanced through the
+releases. On `main`, the per-table-isolation + query-router-JWT data-plane work and the per-mount
+`read_scoped` feature (migration `070`) landed earlier. Since then `main` has advanced through the
 **vault42/42ctl Increment-3** work (RBAC hierarchy `m162` · GitHub-connect `m163` · email-OTP login `m164`
 · multi-device escrow) and the **contract-factory + fly.io production deploy** (`m165`, see "Going to
 production" below). Most recently `main` has advanced again through the **contract-factory /
-self-serve / cross-app** band (gates `m173`–`m180`): a new **red-tetris** vendor re-platform, strict
-self-serve app creation (`APPS_SELFSERVE_ENABLED`), cross-app `xapp:` messaging channels
-(`APP_CHANNELS_ENABLED`, migration `085`), and the website same-origin Vercel rewrite. The working tree
-is largely **clean**: the AppFlowy clone was **removed** from `vendor/` (`897c56db`, last files
-`112757ac`); the old in-repo `vendor/java-dam-baas/` stale snapshot was **removed** in `4bcc957`. The
-former `vendor/twenty/` orphan gitlink and the `vendor/vault42/` nested checkout are **both gone from
-disk now** — there are **no `160000` gitlinks under `vendor/`** (`git ls-files -s vendor/ | grep
+self-serve / cross-app** band (gates `m174`–`m180`): strict self-serve app creation
+(`APPS_SELFSERVE_ENABLED`), cross-app `xapp:` messaging channels (`APP_CHANNELS_ENABLED`, migration
+`085`), and the website same-origin Vercel rewrite. The working tree
+is **clean**: there are **no `160000` gitlinks under `vendor/`** (`git ls-files -s vendor/ | grep
 160000` is empty), and none anywhere else either (`git ls-files -s | grep ^160000` is empty; there is
 no `.gitmodules`). vault42 is consumed as a **published image** via the `vault42` compose plane, not
-a clone. (Sanity check: `ls vendor/` → **10** dirs, no `twenty`/`vault42`/`AppFlowy`.)
+a clone. **There is no `vendor/` directory at all** — see "No `vendor/`" below.
 
 ## Code generation
 
@@ -244,11 +239,8 @@ has its own gate (e.g. `m103-orgs-rbac.sh`, `m110-sso-oidc.sh`, `m123-cmek-envel
 band **m140–m145** is _not_ feature-flagged (hence absent from the flag tables): `m140`
 network-controls + WAF, `m141` compliance-posture, `m142` edge-error-mapping, `m143`
 compliance-matrices, `m144` trust-page-parity, `m145` cost-model integrity. Beyond that, the
-**m146–m154 + m160–m161** band is the **vendor re-platform proof set** (`m146-canagrou-roundtrip`,
-`m146-movieverse`, `m147-hambooking-isolation`, `m148-nimbus-roundtrip`, `m149-gourmand-baas`,
-`m150`…`m154` hypertube, `m154-savanna-zoo` + `m155-savanna-security`, `m160-surfind-spain` +
-`m161-surfind-deep`) — see the `vendor/` section; these need the stack up + each app's seed script run
-first. The **m156–m159** band is a separate **core platform-hardening** set (security fixes to the OSS
+**m146–m161** vendor re-platform proof set was **removed with `vendor/` on 2026-10-07** (15 gates);
+the service-boundary proof that survives is listed under "No `vendor/`". The **m156–m159** band is a separate **core platform-hardening** set (security fixes to the OSS
 core, not vendor): `m156` recover-no-enumeration, `m157` kong-admin-not-exposed, `m158`
 admin-tenant-scope, `m159` storage-bucket-scope (the last flag-gated via `STORAGE_BUCKET_SCOPE_ENABLED`).
 The band **m162–m165** is the **vault42/42ctl Increment-3 + deploy** set: `m162` rbac-hierarchy
@@ -260,7 +252,7 @@ invites, `m170` standalone-project direct invites + the 409 org-guard, `m172` me
 grant-fulfilment seam (all control-plane-only, flag-gated OFF). Its cross-repo crypto half is proven by
 vault42 `v14`/`v15` + the self-contained live harness `scripts/test/e2e-rbac-scope-keys-live.sh`. The
 newest band **m173–m180** is the **contract-factory / self-serve / cross-app** set proving the
-service-boundary thesis live: `m173` red-tetris (newest vendor re-platform — see the table), `m174`
+service-boundary thesis live: `m174`
 osionos multi-engine graph (two scripts: `-multiengine` pg/mysql/mongo + `-extra-engines`
 sqlite/mssql/dynamodb on one app key), `m175` collab protected-namespace isolation (a wildcard token
 can't subscribe to a `collab:<spaceId>` it wasn't added to), `m176` distinct-database-per-app
@@ -387,9 +379,7 @@ scanner; token from `SONAR_TOKEN`/`TOK_SONARCLOUD`). Pull the live issue list wi
 An **edition** = a named set of planes. The **root `docker-compose.yml` is now a thin orchestrator** —
 it `include:`s **21** base files under **`orchestrators/compose/base/*.yml`** (gateway, secrets,
 data-engines, auth-api, engines-extra, lakehouse, control-plane, data-plane, app-services, storage,
-observability, ops, studio, playground, plus the vendor-app profiles **movieverse** + **gourmand** +
-**hypertube** + **savanna** + **surfind** + **red-tetris**, and the **vault42** plane — all
-profile-gated, not default planes; `vault42.yml` runs vault42-server as its **published image**, not a
+observability, ops, studio, playground, and the **vault42** plane — profile-gated, not a default plane; `vault42.yml` runs vault42-server as its **published image**, not a
 clone, so `vendor/vault42` need not exist); a 22nd file
 `_common.yml` holds shared YAML anchors. The
 old single-file monolith was split into these. Beyond that base, additive overlays under
@@ -472,8 +462,8 @@ route-mount gates — they gate at the **TS / data-plane PDP**, so grep them in
 in **`scripts/migrations/postgresql/`**; the numeric set now runs **001–090** (79 files; sequence is
 non-contiguous, gaps include **057–059**: `056` jumps to `060`; highest is `090_control_tables_rest_readonly.sql`; `088`/`089` close the anon-readable `schema_registry` and the blanket anon/authenticated default privilege on `public`, and `090` takes every tenant-keyed control table off `/rest/v1` + `/graphql/v1` (N-36, gate m200) — see `wiki/security/`). The
 cloud/enterprise/parity flag slice runs **040–065**; **066–070** are vendor/infra, not flag-gated
-(`066`/`067` MovieVerse schema + like-counts, `068` per-mount shared_resources, `069` DynamoDB engine
-CHECK, `070` per-mount `read_scoped` read-owner-scoping). The newest band **071–076** backs the
+(`068` per-mount shared_resources, `069` DynamoDB engine CHECK, `070` per-mount `read_scoped`
+read-owner-scoping; `066`/`067` held MovieVerse's own tables and were removed with `vendor/`). The newest band **071–076** backs the
 vault42/Increment-3 + deploy work: `071` vault42 zero-knowledge blob substrate, `072` teams, `073`
 project-grants (both Track-D RBAC hierarchy, control-plane-only — never enter the RLS GUCs), `074`
 GitHub-connect linkage (`GITHUB_CONNECT_ENABLED`, zero-token columns), `075` email login-OTP, `076`
@@ -589,7 +579,7 @@ codegen now resolves against the lean tree.
   mint keys, and emit the frontend's `PUBLIC_*` config (gate `m165`). Stateless frontends live on
   Vercel; **grobase (the backend server) owns all state** (DB/auth/OTP/realtime/files). This boundary is **binding** —
   see [`.claude/rules/service-boundaries.md`](.claude/rules/service-boundaries.md). Contracts in
-  `infra/config/contracts/`: `website`, `vault42`, `red-tetris` (plus a `_smoke` fixture); the
+  `infra/config/contracts/`: `website`, `vault42` (plus a `_smoke` fixture); the
   provisioner is `scripts/provision-contract.sh`.
 
 ## Licensing (open-core)
@@ -675,117 +665,44 @@ There is **no** kernel
 (`CLAUDE.md`/`instructions.md`/`objectives/`) and **no** `/baas-wave` skill — references to "the
 kernel" or `make -C ../.. baas-*` in carried-over docs belong to the monorepo, not this repo.
 
-## `vendor/` — playground apps that connect to the BaaS
+## No `vendor/` — grobase holds zero app code
 
-`vendor/` is the **proving ground**: real third-party apps re-platformed onto Grobase (or built
-native on it) that demonstrate the product thesis — _one backend, any frontend, no per-project server
-code_. They are **plain tracked directories** (no submodules, no `.gitmodules`), are **not** part of
-the default build/CI (the exceptions are opt-in `movieverse` + `gourmand` compose profiles in
-`orchestrators/compose/base/{movieverse,gourmand}.yml`), and each carries its own per-app migration note
-(`GROBASE.md` / `GROBASE-MIGRATION.md`; there is **no** top-level `vendor/` doc). The canonical
-"migrate an external app onto nano" procedure is the **`.claude/workflows/onboard-app.md`** playbook
-(recon → schema → rewire frontend → validate → report).
+**There is no `vendor/` directory.** It held ten re-platformed playground apps
+(vite-gourmand, Canagrou, hypertube, MovieVerse, Nimbus, savanna-zoo, surfind-spain,
+red-tetris, music-room, plus a stray nested checkout of this repo called
+`grobase-website`) — 2575 tracked files, 40 MB — and all of it was **removed on
+2026-10-07**. With it went: the six app compose planes
+(`base/{gourmand,hypertube,movieverse,red-tetris,savanna,surfind}.yml`) and their
+`include:` lines, ~19 per-app seed scripts, the `red-tetris` contract, migrations
+`066`/`067` (MovieVerse's own tables), the 11 `make` targets that drove them
+(`gourmand`, `red-tetris*`, `movieverse*`, `hypertube*`), five Kong services
+(`tmdb-proxy`, `hypertube-{media,stream,search,api}`), and 15 verify gates.
 
-**Two integration shapes — don't conflate them:**
+Do not re-add an app here. **grobase contains zero app-specific code** — an app is a
+declarative contract (`infra/config/contracts/<app>.json`) plus a frontend that lives in
+its own repo. Gate **`m165`** enforces this by failing if an app name appears anywhere in
+`src/`.
 
-- **Re-platformed / native** — the app's own backend is replaced by Grobase; the frontend talks
-  _only_ to the Kong gateway (Canagrou, MovieVerse, Nimbus, savanna-zoo, HamBooking, **vite-gourmand**).
-- **External-DB mount** — the app keeps its own backend untouched and Grobase **mounts its live
-  database** (`tenant_owned` isolation) so the platform can introspect/read/write it. vite-gourmand
-  _also_ exposes such a mount (`m24`, consumed by osionos dashboards) **in addition to** its
-  re-platform — the two are separate dbIds over the same DB and don't interfere.
+**What survived, and why it matters:** the service-boundary proof set does *not* depend on
+app checkouts, because those gates drive contracts and tenants rather than vendored code:
 
-**Per-app conventions** (uniform across the migrated apps):
+| Gate | Proves |
+| --- | --- |
+| `m174-osionos-multiengine` · `m174-osionos-extra-engines` | one app key over pg/mysql/mongo, then sqlite/mssql/dynamodb (seeded by `scripts/seed/osionos-extra-engines.sh`, a generic engine seeder) |
+| `m175-collab-namespace-isolation` | a wildcard token cannot subscribe to a `collab:` space it was not added to |
+| `m176-contract-isolation-live` | each provisioned contract gets its OWN physical database — a foreign key resolves 0 rows, never a cross-app read |
+| `m177-selfserve-apps` | `POST /v1/tenants/me/apps` → a new app-tenant on a fresh `CREATE DATABASE` |
+| `m179-app-channel` | consented cross-app `xapp:` messaging (migration `085`) |
+| `m180-frontend-vercel-rewrite` | browser → fly same-origin only; **SKIPs** unless `WEBSITE_DIR` points at the separate `Univers42/grobase-website` clone |
 
-- **Provisioning** — an idempotent `scripts/seed/<app>-tenant.sh` creates the tenant, mints an API key
-  (`mbk_*`), registers a per-app DB **mount** with its connection string, applies the schema, mints
-  tokens, and emits the frontend config (`baas-config.js` → `window.__BAAS__`, `VITE_BAAS_*`, or
-  `baas.properties`). Re-running converges.
-- **Connection** — mostly **hand-rolled REST clients** over Kong routes (`/auth/v1` GoTrue,
-  `/query/v1/{dbId}/tables` or PostgREST `/rest/v1`, `/query/v1/txn` for ACID, `/storage/v1`,
-  `/realtime/v1/ws` or SSE) with `apikey` + `X-Baas-Api-Key` + Bearer-JWT headers. Only **MovieVerse**
-  uses the `@grobase/js` SDK (via a `grobase-client.js` wrapper).
-- **Owner model** — a dedicated per-app mount, owner-scoped per request. Variants: RLS keyed to
-  `auth.users` (MovieVerse, vite-gourmand), `owner_id` stamping + `role=admin` bypass (HamBooking), or
-  a single shared app-key identity for a public wall (Canagrou, Nimbus).
-- **Proof** — each migration lands behind a numbered verify gate that exercises the round-trip live.
+Migrations `068` (per-mount `shared_resources`), `069` (DynamoDB engine CHECK), `070`
+(per-mount `read_scoped`) and `085` (app channels) also stay: apps *motivated* them, but
+they are data-plane features. The 8th engine adapter is grobase's, not hypertube's.
 
-| App (`vendor/`)                   | Was                                          | BaaS state                                                                                        | Gate                            |
-| --------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------- |
-| **Canagrou**                      | PHP/MariaDB photo-share SPA + Flutter mobile | ✅ re-platformed (web **and** mobile) — dedicated PG mount, GoTrue, `post-images` bucket, realtime | `m146-canagrou-roundtrip.sh`    |
-| **MovieVerse**                    | Java/Spring/Thymeleaf/MySQL movie community  | ✅ re-platformed → static `dist/` + `@grobase/js` + Go TMDB proxy; PostgREST + RLS, zero app server | `m146-movieverse.sh`            |
-| **saas** (Nimbus)                 | React/Vite SaaS admin console (no backend)   | ✅ built native — dual-engine PG **+** Mongo, ACID `/query/v1/txn` money model, realtime           | `m148-nimbus-roundtrip.sh`      |
-| **savanna-zoo**                   | React/Vite zoo-management (no backend)       | ✅ built native — PostgREST + GoTrue RBAC + SSE realtime + storage                                 | _(none)_                        |
-| **java-dam-baas** (HamBooking)    | Java/Spring/JavaFX ham-carver booking        | ✅ re-platformed — **but the migrated client lives in an external clone `~/Documents/java-dam-baas` (branch `feature/grobase-baas-migration`)**, not here; the old in-repo `vendor/java-dam-baas/` stale snapshot was **removed** in `4bcc957` (no longer on disk). What IS in-repo: the MariaDB mount + `owner_id` schema + per-table-isolation flags + green gate | `m147-hambooking-isolation.sh` |
-| **vite-gourmand**                 | React/NestJS/Prisma/Supabase restaurant ordering | ✅ **re-platformed** — static React SPA on a **local owner-scoped Postgres mount** (GoTrue auth, business logic re-homed to PG triggers); needed the **F1/F2 authz model ported from MySQL to the Postgres adapter**. The older `m24` `tenant_owned` osionos-observability mount still coexists (separate dbId) | `m149-gourmand-baas.sh` (+ `m24-gourmand*`) |
-| **music-room**                    | React-Native/NestJS/Mongo music collab       | ⬜ untouched playground — zero BaaS wiring                                                          | —                               |
-| **surfind-spain**                 | Laravel 12/Livewire/MySQL Spanish surf directory | ✅ re-platformed — **server-rendered (no SPA), so the frontend was REBUILT from scratch** as a React/Vite/Leaflet SPA (`web/`) on PostgREST+GoTrue; role RLS via `app_metadata`, owner-scoped favorites/comments, 16 beaches seeded; Laravel/MySQL backend removed; serve `:5183` | `m160-surfind-spain.sh`         |
-| **red-tetris**                    | 42 multiplayer Tetris (React + Socket.IO server) | ✅ re-platformed — backend **entirely Grobase** (GoTrue auth + data + the **multiplayer realtime bus** — the original Socket.IO server is gone); static SPA served with a **same-origin reverse proxy** to Kong (`grobase/serve.mjs`, no CORS), `red-tetris` compose profile (`:5178`). Contract `red-tetris.json`; needs `npm run build` + `scripts/provision-contract.sh` + `scripts/seed/red-tetris-tenant.sh` | `m173-red-tetris.sh`            |
-| **hypertube**                     | 42 BitTorrent video search+stream subject    | ✅ re-platformed — backend **entirely Grobase** (GoTrue auth + **MongoDB** catalog/comments/profiles + **DynamoDB** watch_state + realtime) plus **4 custom services** under `vendor/hypertube/grobase/`: a **new Rust `hypertube-stream` engine** (axum/reqwest range-proxy → archive.org HTTP `206` partial-content, YouTube-style fast buffer, H.264+AAC audio, `X-Accel-Buffering:no`), `hypertube-media` (torrent→Range/206 + ffmpeg transcode), `hypertube-search` (archive.org + TMDb), `hypertube-api` (RESTful OAuth2) + a YouTube-style React/Vite SPA (`View/`, same-origin via `grobase/serve.mjs`). **~1848 real archive.org films** bulk-seeded (`hypertube-catalog-bulk`, throttled), **8 user profiles + comments** (`hypertube-users`). **Forced real Grobase fixes: the 8th engine DynamoDB end-to-end (build-arg `--features dynamodb` + `DYNAMODB_ENGINE_ENABLED` + migration `069` + registry `ensureSchemaDDL` engine-CHECK + `RUST_DATA_PLANE_FORWARD_ENGINES` + `dynamodb-local`), Mongo `shared_resources` cross-owner reads, and seed idempotency (control-plane key-reuse, GoTrue pagination, persisted secrets).** Known data-plane limits: pool loses `shared_resources` after a provision (restart `data-plane-router`); mongo `upsert` not idempotent. | `m150`–`m154` |
-| **AppFlowy**                      | OSS Notion-alternative — Flutter UI + Rust `flowy-*` core (AGPL-3.0) | ⬜ **removed from `vendor/`** (`897c56db`, last files `112757ac`); was committed as plain tracked files (nested `.git` removed in `4bcc957`, ~2880 files; upstream was `AppFlowy-IO/AppFlowy.git` HEAD `4af02cdc`), still **zero BaaS wiring**; its own backend (AppFlowy-Cloud = PG + GoTrue + storage + collab) mirrors Grobase → a prime future re-platform target. See the **AppFlowy** note below the table | —                               |
-| **twenty** _(removed from disk)_  | TypeScript CRM — twentyhq/twenty (NestJS + GraphQL + TypeORM/Postgres) | ⬜ the orphan gitlink (mode 160000, HEAD `705caab2`) is **no longer on disk or tracked** — `git ls-files -s vendor/ \| grep 160000` is now empty. Documented only so a pre-flatten ref reads correctly; its NestJS + Postgres + GraphQL backend still mirrors Grobase → a future re-platform candidate | —                               |
-| **vault42** _(no longer in `vendor/`)_ | _(separate product, own repo `Univers42/vault42`)_ — zero-knowledge secrets vault (Rust) | ✅ built **native on Grobase** — uses grobase as its store (**GrobaseStore**): per-user ZK envelope blobs in a dedicated `vault42` DB via `/query/v1` with per-user JWT-minting → `read_scoped` owner-scoping (proven: user B sees 0 rows of A). Driven by the **42ctl** umbrella CLI (separate repo `Univers42/42ctl`). **Now consumed as a published image** via the `vault42` compose plane (`make vault42-up`), not a vendor checkout. Substrate migration `071`; OTP-login `075` + escrow `076` | `m162`–`m165` (rbac/github/otp/contract) |
-| **claude-deal-with-the-devil**    | _(not an app)_                               | n/a — a Claude Code framework (rules/agents/skills/tools). It is no longer in this repo at all: it lives in its own repo `Univers42/claude-deal-with-the-devil`, the upstream of `.claude/` (content merged, no submodule). Not a migration target | —                               |
-
-**Gotchas:** Canagrou carries heavy uncommitted/untracked changes on the current branch
-(`feature/grobase-hambooking-baas`). MovieVerse opts into the stack with
-`docker compose --profile movieverse up -d` before its gate; the others bring the stack up with
-`make up`, then run their `scripts/seed/<app>-tenant.sh` + gate by hand. The HamBooking gate proves
-isolation over **REST** (F1 shared-catalog read, F2a owner-scope, F2b admin bypass, caps trigger)
-against the MariaDB mount — it exercises the Grobase side, independent of any JavaFX client; the
-actually-rewired desktop client is the **external** `~/Documents/java-dam-baas` clone; the in-repo
-`vendor/java-dam-baas/` snapshot has since been **removed** (no stale `ApiClient` left here to mislead). The per-table-isolation + admin-bypass
-data-plane work that backs it is flag-gated (`DATA_PLANE_PER_TABLE_ISOLATION`, `DATA_PLANE_ADMIN_BYPASS`,
-default OFF). `scripts/seed/agency-tenant.sh` provisions a permanent "agency" demo tenant (not tied to
-one `vendor/` app).
-
-### AppFlowy (formerly `vendor/AppFlowy`) — removed, kept here as re-platform notes
-
-No longer on disk: removed in `897c56db` (last files `112757ac`). The notes below describe the
-checkout as it was, so a future re-platform starts from facts.
-
-A checkout of **AppFlowy-IO/AppFlowy** (the AGPL-3.0 OSS Notion alternative), originally upstream HEAD
-`4af02cdc`, **now committed in-repo as plain tracked files** (its nested `.git` was removed in `4bcc957`,
-~2880 files — the same vendoring shape as the realtime workspace) and with **zero grobase references on
-disk**. It is **not** wired to the BaaS and **not** in grobase's build/CI — an unintegrated playground
-(it shares `music-room`'s zero-wiring state, though `music-room` stays untracked). Documented here only
-so a future re-platform starts from facts instead of a re-scan; unlike the other apps it builds **on the
-host** (Flutter + cargo-make), not through grobase's Docker stack.
-
-**Architecture (one codebase, two languages — under `frontend/`):** a **Flutter** UI (`appflowy_flutter`,
-app `appflowy` v0.11.4, Flutter ≥3.27.4 / Dart ≥3.3.0; `flutter_bloc` + `get_it` + `go_router`, plugin
-system under `lib/plugins/`) embeds a **Rust** core (`rust-lib`, a **31-member** cargo workspace, Rust
-1.85) over `dart:ffi`. The `dart-ffi` crate compiles to `libdart_ffi` and bridges Dart↔Rust across the
-`lib-dispatch` protobuf **event bus** (FFI symbols `init_sdk` / `async_event` / `sync_event` /
-`set_stream_port`); `flowy-core::AppFlowyCore` is the composition root wiring the feature managers
-(`flowy-folder` / `-document` / `-database2` / `-user` / `-ai` / `-search` / `-storage`). Each feature
-crate is paired with a thin **`*-pub` port crate** that declares its cloud-service trait, and the
-**backend is chosen at runtime by `AuthType`** (`Local`=0 offline vs `AppFlowyCloud`=2, see
-`flowy-core/src/server_layer.rs`) — `flowy-server` ships both `local_server` and `af_cloud` impls.
-Offline-first sync is the external **AppFlowy-Collab** CRDT crates (rev `4dfccef`, **yrs 0.21** = the Rust
-Yjs port) glued in via `collab-integrate` (+ RocksDB local persistence). The hosted backend is the
-**separate `AppFlowy-IO/AppFlowy-Cloud`** project (client-api git deps at rev `592f644` in
-`rust-lib/Cargo.toml`) — **Postgres + GoTrue + object storage + a collab/realtime server**, i.e. the same
-shape Grobase provides, which is exactly why AppFlowy is a strong (but large) future re-platform candidate.
-
-**Build (cargo-make is the entry point):** the driver is `frontend/Makefile.toml` (it `extend`s **10**
-`scripts/makefile/*.toml` fragments). Protobuf + `dart_event` bindings are generated **FROM the Rust** at
-build time (`dart-ffi`'s `build.rs` → `flowy_codegen`); Dart-side `freezed`/`json`/`envied` via
-`build_runner`. Key invocations (run in `frontend/`): bootstrap `bash scripts/install_dev_env/install_linux.sh`;
-full dev build `cargo make --profile development-linux-x86_64 appflowy-dev`; codegen
-`cargo make code_generation`; tests `cargo make rust_lib_unit_test` / `dart_unit_test`; one Flutter case
-`cargo make flutter_test '<path>' --name '<case>'`. The in-repo `docker-compose` builds only the
-X11-forwarded **desktop client**, not a backend.
-
-> **One on-disk `vendor/` dir is absent from the table above** (there are now **10** on-disk dirs; the
-> table covers **9** of them — and additionally keeps `java-dam-baas` / `twenty` / `vault42` /
-> `claude-deal-with-the-devil` rows that are **no longer on disk**, documented only so a pre-flatten ref
-> reads right): the uncovered on-disk dir is
-> **`grobase-website`** — *not* an external app but a nested checkout whose remote is
-> `Univers42/grobase.git` itself (HEAD `4bcc957`, an Astro site in its tree); the canonical
-> marketing/login portal is the **separate** `Univers42/grobase-website` repo (cloned at
-> `~/Documents/grobase-website`, wired to binocle-one), so it is deliberately not given a re-platform row.
-> (**AppFlowy** keeps a table row and a deep-dive note above, but is no longer on disk.)
+`scripts/seed/` keeps only platform seeders: `agency-tenant.sh` (a permanent demo
+tenant), `seed-live-demo.sh` + `live-demo-*`, `osionos-*`, `seed-mongo.sh`,
+`analytics-dashboards.py`, `extra-engines-gen.py`. Contracts keep `website`, `vault42`
+and the `_smoke` fixture — infrastructure, not apps.
 
 ## Appendix — historical note (pre-flatten layout)
 

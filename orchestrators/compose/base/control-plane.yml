@@ -1,4 +1,25 @@
 # control-plane plane — adapter-registry-go, tenant-control, webhook-dispatcher, orchestrator, function-scheduler
+
+# Variables every Go control-plane binary reads through the shared packages
+# (config.LoadConfig, observability, the SECURITY_MODE=max vault check), as
+# pass-throughs: set in .env or the shell, it reaches the service; unset, it stays
+# unset and the code default applies. Each service merges this and lists its own
+# reads instead of loading the whole .env (gate m212). VAULT_ENC_KEY is here only
+# because LoadConfig validates it in EVERY binary at SECURITY_MODE=max
+# (internal/config/vaultcreds.go); adapter-registry-go and webhook-dispatcher, which
+# use it to encrypt, restate it. Never list a name the image sets (APP, PATH,
+# SSL_CERT_FILE): an unset pass-through UNSETS the image's ENV of that name.
+# An anchor, not a shared base service: `extends` re-adds a base's keys after an
+# overlay's `!reset` ran (docker-compose.cloud.yml), so flags.env.cloud never arrived.
+x-go-env: &go-env
+  GROBASE_ENV:
+  SECURITY_MODE:
+  TENANT_OBS_COUNTER:
+  TENANT_OBS_ENABLED:
+  VAULT_ADDR:
+  VAULT_CREDENTIAL_SOURCE:
+  VAULT_ENC_KEY:
+
 services:
   adapter-registry-go:
     extends: { file: orchestrators/compose/base/_common.yml, service: base }
@@ -11,8 +32,22 @@ services:
         PORT: 3021
     profiles: [control-plane, go-control-plane]
     container_name: mini-baas-adapter-registry-go
-    env_file: [.env]
+    # The go-env variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.adapter-registry-go (gate m212).
+    env_file:
+      - path: .env.adapter-registry-go
+        required: false
     environment:
+      <<: *go-env
+      ADAPTER_REGISTRY_IDENTITY_HMAC:
+      BUILDER_ENABLED:
+      CMEK_ENABLED:
+      CMEK_KMS_PROVIDER:
+      CMEK_LOCAL_KEK_SEED:
+      CMEK_VAULT_TRANSIT_KEY:
+      SERVICE_AUTH_SKEW_SECS:
+      VAULT_TOKEN:
+      VAULT_TRANSIT_MOUNT:
       ADAPTER_REGISTRY_HOST: 0.0.0.0
       ADAPTER_REGISTRY_PORT: 3021
       # enabled: adapter-registry-go is the live mount-resolution path (the
@@ -85,8 +120,118 @@ services:
         PORT: 3022
     profiles: [control-plane, go-control-plane]
     container_name: mini-baas-tenant-control
-    env_file: [.env]
+    # The go-env variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.tenant-control (gate m212).
+    env_file:
+      - path: .env.tenant-control
+        required: false
     environment:
+      <<: *go-env
+      ABUSE_AUTO_SUSPEND:
+      ABUSE_GUARD_ENABLED:
+      ABUSE_REQUIRE_BASIC:
+      ABUSE_REQUIRE_ENTERPRISE:
+      ABUSE_REQUIRE_ESSENTIAL:
+      ABUSE_REQUIRE_FREE:
+      ABUSE_REQUIRE_MAX:
+      ABUSE_REQUIRE_NANO:
+      ABUSE_REQUIRE_PRO:
+      ABUSE_VELOCITY_MAX:
+      ABUSE_VELOCITY_WINDOW_MS:
+      APPS_SELFSERVE_ENABLED:
+      APP_CHANNELS_ENABLED:
+      BACKUP_DATA_DIR:
+      BACKUP_RETENTION:
+      BILLING_ENABLED:
+      BILLING_METER_FUNCTION_INVOCATIONS:
+      BILLING_METER_QUERY_COUNT:
+      BILLING_METER_QUERY_ROWS:
+      BILLING_METER_REALTIME_MINUTES:
+      BILLING_METER_STORAGE_BYTES:
+      BILLING_METER_WRITE_ROWS:
+      BILLING_PERIOD:
+      BILLING_REPORT_INTERVAL_MS:
+      BILLING_REPORT_LOOKBACK_MS:
+      BILLING_SEND_WINDOW_TIMESTAMP:
+      CMEK_ENABLED:
+      DB_BRANCHING_ENABLED:
+      EMAIL_FROM:
+      EMAIL_OTP_ENABLED:
+      EMAIL_OTP_MAX_ATTEMPTS:
+      EMAIL_OTP_TTL_SECS:
+      ENVIRONMENTS_ENABLED:
+      EXPORT_DATA_DIR:
+      GITHUB_API_BASE:
+      GITHUB_APP_CLIENT_ID:
+      GITHUB_APP_CLIENT_SECRET:
+      GITHUB_APP_ID:
+      GITHUB_APP_PRIVATE_KEY:
+      GITHUB_CONNECT_ENABLED:
+      GITHUB_OAUTH_BASE:
+      GITHUB_RELAY_SECRET:
+      GITHUB_SYNC_DEFAULT_ROLE:
+      GROUPS_ENABLED:
+      HARD_ERASE_ENABLED:
+      INVITES_ENABLED:
+      JWT_ALLOW_NO_EXP:
+      JWT_ALLOW_NO_ISSUER:
+      KEY_HASH_LEGACY_ARGON2:
+      KEY_HASH_PEPPER:
+      KEY_HASH_UPGRADE:
+      MAIL_PRO:
+      METERING_ENABLED:
+      METERING_INGEST:
+      METERING_INGEST_BATCH:
+      METERING_INGEST_BLOCK_MS:
+      MINIO_ENDPOINT:
+      MINIO_REGION:
+      MINIO_ROOT_PASSWORD:
+      MINIO_ROOT_USER:
+      ORG_MODEL_ENABLED:
+      OUTBOX_REDIS_URL:
+      PASSKEYS_ENABLED:
+      PASSKEYS_RP_DISPLAY_NAME:
+      PASSKEYS_RP_ID:
+      PASSKEYS_RP_ORIGINS:
+      PG_BACKUP_PITR:
+      PG_BACKUP_RETENTION:
+      PUSH_ENABLED:
+      PUSH_SECRET_KEY:
+      PUSH_SSRF_ALLOW_HOSTS:
+      QUOTA_ENFORCEMENT:
+      QUOTA_ENFORCEMENT_INTERVAL_MS:
+      QUOTA_ENFORCEMENT_METRIC:
+      RBAC_HIERARCHY_ENABLED:
+      REDIS_URL:
+      SCIM_ENABLED:
+      SERVICE_AUTH_SKEW_SECS:
+      SMTP_HOST:
+      SMTP_PASS:
+      SMTP_PORT:
+      SMTP_SECURE:
+      SMTP_USER:
+      SOC2_EVIDENCE_CI_WORKFLOW:
+      SOC2_EVIDENCE_ENABLED:
+      SOC2_EVIDENCE_GATES_DIR:
+      SOC2_EVIDENCE_GITLOG:
+      SOC2_EVIDENCE_SCHEDULE:
+      SSO_ENABLED:
+      SSO_SECRET_KEY:
+      STRIPE_API_BASE:
+      STRIPE_API_KEY:
+      TENANT_AUDIT_ENABLED:
+      TENANT_BACKUP_AGE_RECIPIENTS:
+      TENANT_BACKUP_ALLOW_PLAINTEXT_RESTORE:
+      TENANT_BACKUP_ENABLED:
+      TENANT_BACKUP_SELFSERVE_ENABLED:
+      TENANT_EXPORT_ENABLED:
+      TENANT_HEADER_IDENTITY_HMAC:
+      TENANT_IP_ALLOWLIST_ENABLED:
+      TRUST_CENTER_ENABLED:
+      TRUST_MANIFEST:
+      USER_PUBKEYS_ENABLED:
+      WEBAUTHN_RP_ID:
+      WEBAUTHN_RP_ORIGINS:
       TENANT_CONTROL_HOST: 0.0.0.0
       TENANT_CONTROL_PORT: 3022
       # enabled: tenant-control is the ONLY auth/key/tenant path — not shadow,
@@ -185,8 +330,20 @@ services:
         PORT: 3025
     profiles: [control-plane, background, go-control-plane]
     container_name: mini-baas-webhook-dispatcher
-    env_file: [.env]
+    # The go-env variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.webhook-dispatcher (gate m212).
+    env_file:
+      - path: .env.webhook-dispatcher
+        required: false
     environment:
+      <<: *go-env
+      ADAPTER_REGISTRY_IDENTITY_HMAC:
+      DYNAMODB_ENGINE_ENABLED:
+      OUTBOX_REDIS_URL:
+      PACKAGE_ENFORCEMENT:
+      SCRYPT_MAX_CONCURRENT:
+      SERVICE_AUTH_SKEW_SECS:
+      SERVICE_TOKEN_MODE:
       WEBHOOK_DISPATCHER_HOST: 0.0.0.0
       WEBHOOK_DISPATCHER_PORT: 3025
       # enabled: the dispatcher delivers webhooks live (m29 automations, the F2
@@ -238,8 +395,55 @@ services:
         PORT: 3026
     profiles: [control-plane, background, go-control-plane]
     container_name: mini-baas-orchestrator
-    env_file: [.env]
+    # The go-env variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.orchestrator (gate m212).
+    env_file:
+      - path: .env.orchestrator
+        required: false
     environment:
+      <<: *go-env
+      BILLING_ENABLED:
+      BILLING_METER_FUNCTION_INVOCATIONS:
+      BILLING_METER_QUERY_COUNT:
+      BILLING_METER_QUERY_ROWS:
+      BILLING_METER_REALTIME_MINUTES:
+      BILLING_METER_STORAGE_BYTES:
+      BILLING_METER_WRITE_ROWS:
+      BILLING_PERIOD:
+      BILLING_REPORT_INTERVAL_MS:
+      BILLING_REPORT_LOOKBACK_MS:
+      BILLING_SEND_WINDOW_TIMESTAMP:
+      BUILDER_ENABLED:
+      CONTROL_PLANE_PPROF_ADDR:
+      CONTROL_PLANE_PPROF_ENABLED:
+      LOG_SERVICE_LOKI_BATCH_SIZE:
+      LOG_SERVICE_LOKI_FLUSH_MS:
+      METERING_ENABLED:
+      METERING_INGEST:
+      METERING_INGEST_BATCH:
+      METERING_INGEST_BLOCK_MS:
+      QUOTA_ENFORCEMENT:
+      QUOTA_ENFORCEMENT_INTERVAL_MS:
+      QUOTA_ENFORCEMENT_METRIC:
+      REDIS_URL:
+      SERVICE_AUTH_SKEW_SECS:
+      SERVICE_TOKEN_MODE:
+      SPEND_CAPS_ALERT_PCT:
+      SPEND_CAPS_ENABLED:
+      SPEND_CAPS_INTERVAL_MS:
+      SPEND_RATE_FUNCTION_INVOCATIONS:
+      SPEND_RATE_QUERY_COUNT:
+      SPEND_RATE_QUERY_ROWS:
+      SPEND_RATE_REALTIME_MINUTES:
+      SPEND_RATE_STORAGE_BYTES:
+      SPEND_RATE_WRITE_ROWS:
+      STRIPE_API_BASE:
+      STRIPE_API_KEY:
+      TENANT_HEADER_IDENTITY_HMAC:
+      TENANT_TELEMETRY_EXPORT_BATCH_ROWS:
+      TENANT_TELEMETRY_EXPORT_ENABLED:
+      TENANT_TELEMETRY_EXPORT_INTERVAL_MS:
+      TENANT_TELEMETRY_EXPORT_TIMEOUT_MS:
       ORCHESTRATOR_HOST: 0.0.0.0
       ORCHESTRATOR_PORT: 3026
       # A4 cutover (2026-06-13): the orchestrator is now the LIVE path — Kong
@@ -320,8 +524,14 @@ services:
         PORT: 3027
     profiles: [functions]
     container_name: mini-baas-function-scheduler
-    env_file: [.env]
+    # The go-env variables plus its own below, never the whole .env; other
+    # settings go in the optional .env.function-scheduler (gate m212).
+    env_file:
+      - path: .env.function-scheduler
+        required: false
     environment:
+      <<: *go-env
+      FUNCTIONS_CRON_ENABLED:
       FUNCTION_SCHEDULER_HOST: 0.0.0.0
       FUNCTION_SCHEDULER_PORT: 3027
       FUNCTION_SCHEDULER_PRODUCT_MODE: ${FUNCTION_SCHEDULER_PRODUCT_MODE:-shadow}

@@ -155,3 +155,52 @@ services:
     cpus: 1.0
 
   # ─── Iceberg REST Catalog (M2 federation) ────────────────────────
+
+  dynamodb-local:
+    extends: { file: orchestrators/compose/base/_common.yml, service: base }
+    image: amazon/dynamodb-local:latest
+    container_name: mini-baas-dynamodb-local
+    # The 8th engine's backing store. It was defined in the (now removed) hypertube
+    # app plane, which made an engine look like app infrastructure — it is not: the
+    # engines-extra profile brings it up with mysql/mariadb/mssql, DynamoDB is an
+    # opt-in cargo feature of the data plane, and migration 069's engine CHECK plus
+    # engines-extra workspace databases both depend on it. Public image.
+    profiles: ["engines-extra"]
+    user: root
+    command:
+      [
+        "-jar",
+        "DynamoDBLocal.jar",
+        "-sharedDb",
+        "-dbPath",
+        "/home/dynamodblocal/data",
+      ]
+    # The only engine here with no liveness probe, so `docker ps` reported no
+    # health for it at all and "every container healthy" could not be asserted
+    # for the tier. A bare GET is answered 400 -- DynamoDB Local wants a signed
+    # POST -- so curl runs WITHOUT -f: connecting is the signal, the status code
+    # is not. Measured in the running container: 0 when up, 7 when the port is
+    # dead. The image carries /usr/bin/curl.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/usr/bin/curl",
+          "-s",
+          "-o",
+          "/dev/null",
+          "http://localhost:8000/",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    volumes:
+      - dynamodb-data:/home/dynamodblocal/data
+    # Loopback only, like every other engine here. It was published on 0.0.0.0 —
+    # an unauthenticated database reachable from the whole LAN.
+    ports:
+      - "127.0.0.1:${DYNAMODB_LOCAL_PORT:-8500}:8000"
+
+volumes:
+  dynamodb-data:

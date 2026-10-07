@@ -84,8 +84,16 @@ services:
       context: ./infra/docker/services/db-bootstrap
       dockerfile: Dockerfile
     container_name: mini-baas-db-bootstrap
-    env_file: [.env]
+    # Only the variables scripts/db/db-bootstrap.sh and db-bootstrap.psql read, never the
+    # whole .env; other settings (libpq's PG* included) go in the optional
+    # .env.db-bootstrap (gate m212).
+    env_file:
+      - path: .env.db-bootstrap
+        required: false
     environment:
+      BOOTSTRAP_SQL:
+      PGHOST_NAME:
+      WAIT_SECONDS:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?unset - run make env}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
@@ -121,7 +129,11 @@ services:
     # or bake exports the same tag twice concurrently and races ("already exists").
     image: ghcr.io/univers42/grobase-db-bootstrap:latest # pull-fallback (shares the db-bootstrap client image)
     container_name: mini-baas-pg-migrate
-    env_file: [.env]
+    # Only the variables its command and psql read, never the whole .env; other
+    # settings (libpq's PG* included) go in the optional .env.pg-migrate (gate m212).
+    env_file:
+      - path: .env.pg-migrate
+        required: false
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?unset - run make env}

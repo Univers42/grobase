@@ -13,7 +13,7 @@
 #
 # Gate for milestone M24 step 1: the `tenant_owned` isolation mode + Postgres
 # TLS — the two platform capabilities that let an EXTERNAL client database
-# (vite-gourmand's Supabase project) be mounted live:
+# (a tenant's own pre-existing database, hosted anywhere) be mounted live:
 #
 #   tenant_owned   the mount is wholly one tenant's pre-existing database:
 #                  writes skip the owner_id inject/filter, DDL skips the

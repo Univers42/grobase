@@ -69,8 +69,6 @@ paths = [
   '''^src/control-plane/internal/config/vaultcreds_test\.go$''',
   '''^src/control-plane/internal/tenants/validate_fuzz_test\.go$''',
   '''^src/control-plane/internal/tenants/verifycache_test\.go$''',
-  # CircleCI status-badge token (read-only badge, not a credential)
-  '''^vendor/music-room/back/README\.md$''',
   # Kong admin-API docs: ALL_CAPS header placeholders, not key material. File-scoped
   # on purpose — an ALL_CAPS *regex* would hide every upper-case secret repo-wide.
   '''^infra/docker/services/kong/README\.md$''',

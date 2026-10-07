@@ -71,20 +71,6 @@ docker run -d --name gw-serve --network mini-baas_mini-baas -p 5190:5190 \
   -v ~/Documents/grobase-website:/app -w /app node:22-alpine node scripts/serve.mjs   # → :5190
 ```
 
-**vite-gourmand** (`vendor/vite-gourmand`, React/Vite):
-```bash
-bash scripts/seed/gourmand-baas.sh                 # tenant + mbk_ key + demo users + View config
-docker run --rm -v "$PWD/vendor/vite-gourmand/View":/app -w /app -v vg-nm:/app/node_modules \
-  node:20-alpine sh -c 'npm ci && npx vite build'
-GOURMAND_PORT=5180 docker compose --profile gourmand up -d --no-deps gourmand   # → :5180
-```
-Owner-scoped reads need `read_scoped:true` on the mount (the contract/seed set it) — or global
-`DATA_PLANE_PG_READ_PREDICATE=1` (already in the fetched `.env`); restart the data-plane after.
-Demo login: `admin@gourmand.local` / `Gourmand#2026`.
-
-Verified working: grobase-website signup/login + owner-scoped data; vite-gourmand shared catalog +
-admin-bypass + per-user owner-scoping.
-
 ## Reset
 ```bash
 make clean              # this project's images/containers/caches — KEEPS data + other projects

@@ -1,5 +1,0 @@
-{
-  "back/**/*.ts": ["prettier --write", "eslint --fix"],
-  "front/**/*.{ts,tsx}": ["prettier --write", "eslint --fix"],
-  "**/*.{json,md,yml,yaml}": ["prettier --write"]
-}

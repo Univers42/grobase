@@ -1,6 +1,0 @@
-node_modules
-.expo
-dist
-web-build
-coverage
-*.d.ts
