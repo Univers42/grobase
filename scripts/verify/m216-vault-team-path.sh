@@ -102,7 +102,17 @@ scope_arm() {
   grep -qiE '^# Ponytail:.*(private marks|does not exclude)' "${CTL}" ||
     grep -qiE 'private bounds WHO|does not exclude them from the upload' "${CTL}" ||
     fail "the vendor seal has no ponytail note stating it marks rather than excludes"
-  [ "${arm_rc}" -eq 0 ] && ok "vendor/ sealed to the pusher on a team push, limitation documented"
+  # The admin credential file must never be shared: a team member granted a
+  # write environment would otherwise read the account password, the register token
+  # and the keystore passphrase — the keys to the authority itself. This regressed
+  # once already: a push that sealed only vendor/ shipped secrets/vault42-admin.env
+  # to the shared environment.
+  grep -q 'ALWAYS_PRIVATE=' "${CTL}" || fail "ctl-env.sh defines no ALWAYS_PRIVATE set"
+  grep -qE '^ALWAYS_PRIVATE="[^"]*secrets/\*' "${CTL}" ||
+    fail "ALWAYS_PRIVATE does not cover secrets/* (admin credentials would be team-readable)"
+  awk '/if \[ "\$verb" = push \]; then/,/fi/' "${CTL}" | grep -q 'ALWAYS_PRIVATE' ||
+    fail "ALWAYS_PRIVATE is never passed on a push"
+  [ "${arm_rc}" -eq 0 ] && ok "vendor/ and secrets/* sealed to the pusher on a team push, limitation documented"
 }
 
 hosts_arm() {
@@ -150,6 +160,11 @@ mutants_arm() {
   grep -qE '^ORG="\$\{VAULT_ENV_ORG:-[a-z0-9-]+\}"' "${ctl}" &&
     fail "mutant survived: a blank default org is not caught" ||
     ok "refused: the org default emptied (every push silently personal)"
+
+  sed 's#^ALWAYS_PRIVATE="secrets/\* \*\.local"#ALWAYS_PRIVATE="*.local"#' "${CTL}" >"${ctl}"
+  grep -qE '^ALWAYS_PRIVATE="[^"]*secrets/\*' "${ctl}" &&
+    fail "mutant survived: secrets/* dropped from ALWAYS_PRIVATE is not caught" ||
+    ok "refused: secrets/* dropped from ALWAYS_PRIVATE (admin creds would be shared)"
 
   sed 's#--private "\$VENDOR_PRIVATE"##' "${CTL}" >"${ctl}"
   grep -qE -- '--private "\$VENDOR_PRIVATE"' "${ctl}" &&
