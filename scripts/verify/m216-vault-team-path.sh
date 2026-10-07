@@ -140,10 +140,17 @@ keystore_arm() {
   local tracked
   tracked="$(git -C "${ROOT}" ls-files | grep -E '(^|/)(keystore\.v42|\.42ctl/)' || true)"
   [ -z "${tracked}" ] || fail "42ctl identity material is tracked: $(tr '\n' ' ' <<<"${tracked}")"
-  git -C "${ROOT}" check-ignore -q .42ctl 2>/dev/null ||
-    fail ".42ctl is not gitignored"
+  # Probe a FILE inside the directory, not the directory itself: `.42ctl/` is a
+  # directory pattern, and git cannot match it against a path that does not exist on
+  # disk — so asking about `.42ctl` passed here (where it happens to exist) and failed
+  # on a clean clone. A gate whose answer depends on local filesystem state is not a
+  # gate. Found by running this on a fresh clone.
+  git -C "${ROOT}" check-ignore -q .42ctl/config.json 2>/dev/null ||
+    fail ".42ctl/ is not gitignored (42ctl identity would be committable)"
+  git -C "${ROOT}" check-ignore -q .42ctl/keystore.v42 2>/dev/null ||
+    fail ".42ctl/keystore.v42 is not gitignored"
   git -C "${ROOT}" check-ignore -q keystore.v42 2>/dev/null ||
-    fail "keystore.v42 is not gitignored"
+    fail "a bare keystore.v42 is not gitignored"
   [ "${arm_rc}" -eq 0 ] && ok "identity under \$HOME, nothing tracked, .42ctl and keystore.v42 ignored"
 }
 
