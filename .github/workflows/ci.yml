@@ -98,6 +98,17 @@ jobs:
       - name: preflight-production (m194)
         run: bash scripts/verify/m194-preflight-production.sh
 
+      # Static, no stack: infra/config/env/schema.json classifies every env key, no
+      # SECRET carries a literal compose default, none is assigned in a committed file
+      # or exposed under a browser-facing name, and GROBASE_ENV is enforced.
+      - name: env schema / secret separation (m214)
+        run: bash scripts/verify/m214-env-schema.sh
+
+      # Static, no network: the vault42 env tree is shared with the team by default and
+      # no seeded 42ctl profile points at a dead or foreign authority.
+      - name: vault42 team path (m216)
+        run: bash scripts/verify/m216-vault-team-path.sh
+
       # promtool (pinned prom image): rules and config validate, and the rule
       # unit tests fire each alert on its own synthetic series. No stack.
       - name: alert rules (m52)

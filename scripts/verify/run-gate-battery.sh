@@ -126,6 +126,8 @@ ENTERPRISE_BATTERY=(
 FAST_SUBSET=(
   m101-quota-realtenant # quota-truth — billing correctness; a silent break loses real money
   m120                  # spend/suspend enforcement on the request path
+  m214-env-schema       # config/secret separation: no SECRET boots from a published default
+  m216-vault-team-path  # no seeded profile points at a dead/foreign vault42 authority
 )
 
 # ── resolve a gate token (m103 | m103-orgs-rbac | m103-orgs-rbac.sh | path) ────
