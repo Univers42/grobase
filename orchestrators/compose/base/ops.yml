@@ -10,10 +10,10 @@ services:
     container_name: mini-baas-pg-backup
     env_file: [.env]
     environment:
-      DATABASE_URL: ${PG_BACKUP_DATABASE_URL:-${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}}
+      DATABASE_URL: ${PG_BACKUP_DATABASE_URL:-${DATABASE_URL:?unset - run make env}}
       MINIO_ENDPOINT: ${PG_BACKUP_MINIO_ENDPOINT:-http://minio:9000}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?unset - run make env}
       PG_BACKUP_SCHEDULE: ${PG_BACKUP_SCHEDULE:-0 3 * * *}
       PG_BACKUP_BUCKET: ${PG_BACKUP_BUCKET:-backups}
       PG_BACKUP_PREFIX: ${PG_BACKUP_PREFIX:-postgres}
@@ -57,9 +57,9 @@ services:
     profiles: [ops, extras]
     env_file: [.env]
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-super-secret-key-base}
-      VAULT_ENC_KEY: ${VAULT_ENC_KEY:-0123456789abcdef0123456789abcdef}
+      DATABASE_URL: ${DATABASE_URL:?unset - run make env}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?unset - run make env}
+      VAULT_ENC_KEY: ${VAULT_ENC_KEY:?unset - run make env}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

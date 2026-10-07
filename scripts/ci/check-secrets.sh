@@ -55,15 +55,36 @@ hits="$(grep -rEn 'Bearer[[:space:]]+[A-Za-z0-9_.-]{20,}' \
   FOUND=1
 }
 
-# gitleaks: provider-token rules over the whole working tree, docs and untracked
-# files included (the patterns above only see assignments in code/yaml).
+# stage_visible_tree copies the GIT-VISIBLE files (tracked + untracked-not-ignored)
+# into $1, so gitleaks sees exactly what could be committed: docs and new files
+# included, gitignored local secrets (.env, .env.secrets, certs/) excluded.
+stage_visible_tree() {
+  git ls-files -z -co --exclude-standard |
+    while IFS= read -r -d '' f; do [[ -f "$f" ]] && printf '%s\0' "$f"; done |
+    tar --null -T - -cf - | tar -xf - -C "$1"
+}
+
+# run_gitleaks scans the staged tree with the repo policy. A scanner that cannot
+# run is a FAILURE, never a skip (rules/quality-bar.md: skipped ≠ passed).
+run_gitleaks() {
+  local tree="$1"
+  if command -v gitleaks >/dev/null 2>&1; then
+    (cd "$tree" && gitleaks dir . --config "${REPO_ROOT}/.gitleaks.toml" --redact --no-banner --exit-code 1)
+  elif command -v docker >/dev/null 2>&1; then
+    docker run --rm -v "$tree":/repo:ro -v "${REPO_ROOT}/.gitleaks.toml":/cfg/.gitleaks.toml:ro -w /repo \
+      "$GITLEAKS_IMG" dir . --config /cfg/.gitleaks.toml --redact --no-banner --exit-code 1
+  else
+    echo "✗ gitleaks unavailable (no binary, no docker) — install one; this gate cannot pass unscanned"
+    return 1
+  fi
+}
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 GITLEAKS_IMG="zricethezav/gitleaks:v8.30.1"
-if command -v docker >/dev/null 2>&1; then
-  docker run --rm -v "$PWD":/repo:ro "$GITLEAKS_IMG" dir /repo \
-    --config /repo/.gitleaks.toml --redact --no-banner --exit-code 1 || FOUND=1
-else
-  echo "(docker absent — gitleaks pass skipped)"
-fi
+SCAN_TREE="$(mktemp -d)"
+trap 'rm -rf "$SCAN_TREE"' EXIT
+stage_visible_tree "$SCAN_TREE"
+run_gitleaks "$SCAN_TREE" || FOUND=1
 
 if [[ "$FOUND" -eq 1 ]]; then
   echo ""

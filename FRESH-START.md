@@ -11,26 +11,35 @@ git clone https://github.com/Univers42/grobase && cd grobase
 ```
 
 ## 1. Fetch ALL secrets from vault42 (remote, any depth)
-Every `*.env`/`*.secrets` (root **and** nested: `build/website.env`, every `vendor/*/.env`,
-`.gourmand-baas.env`, …) is stored path-aware in **vault42.fly.dev** under your keypair. Three commands
-restore the whole tree byte-exact on any machine — proven: **24 files pushed → wiped → pulled back
-identical** at every depth.
+Every `*.env`/`*.secrets` (root **and** nested) is stored path-aware in **vault42** under the
+environment's scope key, so every member the authority granted can read it. Three commands restore
+the tree byte-exact on any machine — proven: **11 files pushed → pulled into a scratch tree →
+byte-identical, modes preserved**.
 
-`make ctl-remote` runs the published 42ctl image against the live fly stack (no clone, no cargo). On
-first use it writes the `~/.config/42ctl/config.json` profile for you and mounts this repo so `pull`
-lands the tree here:
+`make ctl42` runs the published 42ctl image against the live fly stack (no clone, no cargo). On first
+use it writes the `~/.config/42ctl/config.json` profile for you and mounts this repo so a pull lands
+the tree here. A host binary works too: install the SHA256-verified release from
+`Univers42/42ctl` and call `42ctl` directly.
 
 ```bash
-FT_PASSPHRASE='<passphrase>' make ctl-remote ARGS="keys recover --email <you@example.com>"            # OTP → your keypair
-make ctl-remote ARGS="auth login --email <you@example.com> --tenant grobase-secrets --token <TOKEN>"  # OTP → contract
-make ctl-remote ARGS="pull --project grobase --apply"                                                 # restores the WHOLE env tree byte-exact
+FT_PASSPHRASE='<passphrase>' make ctl42 ARGS="keys recover --email <you@example.com>"   # emailed code → your keypair
+make ctl42 ARGS="auth login --password --email <you@example.com>"                       # session
+make ctl42 ARGS="auth login --tenant grobase"                                           # contract (the gRPC store needs one)
+make vault-pull-env APPLY=1                                                             # restores the tree for this GROBASE_ENV
 ```
-- The **passphrase** unlocks your escrowed keystore; the **register token** is the vault42 invite gate
-  (both shared out-of-band — never committed). Identity persists in `~/.config/42ctl`.
-- The profile it writes: `server=vault42.fly.dev` (vault) · `authority=grobase-nano.fly.dev`
-  (`/v1/register`) · `grobase=grobase-stack.fly.dev` (email-OTP + escrow).
-- To (re)populate vault42, push from the repo root: `make ctl-remote ARGS="push --project grobase"`
-  (scans `*.env*`/`*.secrets` recursively).
+- The **passphrase** unlocks your escrowed keystore. `keys escrow` must have been run once on the
+  machine that owns it, or there is nothing to recover — zero-knowledge means no reset exists.
+  Identity persists in `~/.config/42ctl`, deliberately **outside** the worktree.
+- The profile it writes: `server=vault42-server.fly.dev` (the gRPC store) ·
+  `authority=vault42-authority.fly.dev` (accounts, orgs, teams, projects, contracts, and the
+  email-code + escrow routes) · `grobase=` empty, so those routes default to the authority.
+  **`vault42.fly.dev`, `grobase-nano.fly.dev` and `grobase-stack.fly.dev` are dead**, and the first
+  two are other people's apps — a profile seeded with them authenticates you against a stranger's
+  authority. Gate `m216` keeps them out of every seeded profile.
+- `make vault-pull-env` / `vault-push-env` use the **team** path by default (org `univers-42`,
+  project `grobase`, environment from `GROBASE_ENV`). Sharing is encryption, not RBAC: a tree pushed
+  the personal way (`VAULT_ENV_PERSONAL=1`) is unreadable by teammates whatever their org role.
+- A team push seals `vendor/` to you alone — those are other apps' credentials.
 
 If you have no vault42 account yet, `make env` generates a fresh local secret set instead.
 

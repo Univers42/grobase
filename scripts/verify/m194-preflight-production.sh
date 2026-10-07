@@ -160,6 +160,9 @@ write_hardened() {
     printf 'GOTRUE_MAILER_AUTOCONFIRM=false\nSMTP_HOST=smtp.example.com\n'
     printf 'API_EXTERNAL_URL=https://api.example.com/auth/v1\nGOTRUE_SITE_URL=https://app.example.com\n'
     printf 'REALTIME_NAMESPACE_FALLBACK=deny\nSERVICE_TOKEN_MODE=hmac\n'
+    # The deployment must state WHICH environment it is: preflight refuses local/dev,
+    # because a dev env file full of strong dev secrets passes every value check.
+    printf 'GROBASE_ENV=prod\n'
     printf 'SECURITY_MODE=max\nAPI_KEY_ABAC_ENABLED=1\nDATA_PLANE_RATELIMIT_BACKEND=redis\n'
     printf 'BACKUP_AGE_RECIPIENTS=age1%s\n' "$(rand 29)"
   } >"${T}/hardened.env"
@@ -264,6 +267,10 @@ arm_parser_fail() {
   done
   expect_fail "$(with_line unknown.env 'JWT_SECRET=${JWT_FROM_VAULT}')" JWT_SECRET
   grep -q 'JWT_SECRET — unresolvable.*UNKNOWN = FAIL' <<<"${OUT}" || fail "\${...} not reported as UNKNOWN"
+  # A dev env file is never a prod one, however strong its values: the environment
+  # identity is refused on its own, with every other setting hardened.
+  expect_fail "$(with_line devenv.env 'GROBASE_ENV=local')" GROBASE_ENV
+  expect_fail "$(with_line noenv.env 'GROBASE_ENV=')" GROBASE_ENV
   ok "${i} bad forms caught: export, quotes, inline #, CRLF, case, \${..}/\$NAME, %XX, @-split, no-password DSN, short, wildcard bind"
 }
 
@@ -378,7 +385,7 @@ arm_source() {
 arm_drift() {
   local n name lit
   n="$(wc -l <"${T}/fallbacks")"
-  [ "${n}" -ge 10 ] || fail "only ${n} credential fallbacks extracted from compose/base — the extraction broke"
+  [ "${n}" -ge 1 ] || fail "no credential dev-default to drift-test — historical list is empty too"
   while IFS=$'\t' read -r name lit; do
     case "${lit}" in *"'"*) fail "${name} fallback holds a quote; cannot encode it" ;; esac
     expect_fail "$(with_line drift.env "${name}='${lit}'")" "${name}"
@@ -394,9 +401,7 @@ arm_drift() {
 arm_dsn_drift() {
   local n name dsn src
   n="$(wc -l <"${T}/dsns")"
-  [ "${n}" -ge 5 ] || fail "only ${n} DSN fallbacks extracted from compose/base — the extraction broke"
-  grep -q $'^PG_BACKUP_DATABASE_URL\tpostgres://postgres:postgres@[^\t]*\tDATABASE_URL$' "${T}/dsns" ||
-    fail "ops.yml PG_BACKUP_DATABASE_URL -> DATABASE_URL chain not extracted"
+  [ "${n}" -ge 1 ] || fail "no DSN dev-default to drift-test — historical list is empty too"
   while IFS=$'\t' read -r name dsn src; do
     case "${dsn}" in *"'"*) fail "${name} DSN fallback holds a quote; cannot encode it" ;; esac
     expect_fail "$(with_line "dsn-${name}.env" "${name}='${dsn}'")" "${name}"
@@ -438,6 +443,50 @@ command -v od >/dev/null || fail "od is required"
 step "extract credential fallbacks from orchestrators/compose/base/*.yml"
 compose_fallbacks >"${T}/fallbacks" || fail "fallback extraction failed"
 compose_dsn_fallbacks >"${T}/dsns" || fail "DSN fallback extraction failed"
+
+# Compose no longer SHIPS a credential fallback: every secret-bearing entry is
+# ${KEY:?...}, so a stack cannot boot on a published default at all. That is the
+# stronger state, and it leaves the extraction above empty — so the drift arms fall
+# back to the historical defaults, which are still dangerous in a pasted env file and
+# are exactly what preflight DEV knows. Keep the two lists in step: a value dropped
+# from preflight DEV should be dropped here too.
+hist_fallbacks() {
+  while IFS=' ' read -r k v; do
+    [ -n "${k}" ] && printf '%s\t%s\n' "${k}" "${v}"
+  done <<'HIST'
+
+POSTGRES_PASSWORD postgres
+AUTHENTICATOR_PASSWORD authenticator
+MINIO_ROOT_PASSWORD minioadmin
+MONGO_INITDB_ROOT_PASSWORD mongo
+MYSQL_ROOT_PASSWORD mysqlroot
+MYSQL_PASSWORD mini_baas_pw
+MARIADB_ROOT_PASSWORD mariaroot
+MARIADB_PASSWORD mini_baas_pw
+MSSQL_SA_PASSWORD mssql_strong!pass1
+VAULT_ENC_KEY 0123456789abcdef0123456789abcdef
+ADAPTER_REGISTRY_SERVICE_TOKEN dev-service-token-change-me
+SECRET_KEY_BASE super-secret-key-base
+HIST
+}
+
+# hist_dsns: the 3rd field names the key a DSN inherits its password from. An
+# OPTIONAL DSN (preflight OPT: PG_BACKUP_DATABASE_URL) is safe when unset because
+# compose rebuilds it, so the unset case must name its SOURCE, not itself.
+hist_dsns() {
+  printf 'DATABASE_URL\tpostgres://postgres:postgres@postgres:5432/postgres\t\n'
+  printf 'PGRST_DB_URI\tpostgres://authenticator:authenticator@postgres:5432/postgres\t\n'
+  printf 'ADAPTER_REGISTRY_DATABASE_URL\tpostgres://postgres:postgres@postgres:5432/postgres\t\n'
+  printf 'PG_BACKUP_DATABASE_URL\tpostgres://postgres:postgres@postgres:5432/postgres\tDATABASE_URL\n'
+}
+
+# Merge (extracted first, historical for keys compose no longer defaults), one row
+# per key: the drift coverage must not shrink just because compose got stricter.
+merge_rows() {
+  awk -F'\t' '!seen[$1]++' "$1" -
+}
+hist_fallbacks | merge_rows "${T}/fallbacks" >"${T}/fallbacks.merged" && mv "${T}/fallbacks.merged" "${T}/fallbacks"
+hist_dsns | merge_rows "${T}/dsns" >"${T}/dsns.merged" && mv "${T}/dsns.merged" "${T}/dsns"
 write_hardened
 step "(a) dev-default env and value leak"
 arm_dev

@@ -19,8 +19,8 @@ services:
       # scrypt-convoy fix m39, isolation m46, enforcement m53 all run against
       # it). ProductMode is an informational label; this just makes status honest.
       ADAPTER_REGISTRY_PRODUCT_MODE: ${ADAPTER_REGISTRY_GO_PRODUCT_MODE:-enabled}
-      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
-      VAULT_ENC_KEY: ${VAULT_ENC_KEY:-0123456789abcdef0123456789abcdef}
+      DATABASE_URL: ${DATABASE_URL:?unset - run make env}
+      VAULT_ENC_KEY: ${VAULT_ENC_KEY:?unset - run make env}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
@@ -92,7 +92,7 @@ services:
       # enabled: tenant-control is the ONLY auth/key/tenant path — not shadow,
       # the production control plane (m12, m28, the B3/m50 revoke drill).
       TENANT_CONTROL_PRODUCT_MODE: ${TENANT_CONTROL_PRODUCT_MODE:-enabled}
-      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      DATABASE_URL: ${DATABASE_URL:?unset - run make env}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
@@ -110,7 +110,7 @@ services:
       # via permission-engine's POST /permissions/decide (service-token gated).
       # Role/policy SEEDING works without this (direct SQL); only Decide() needs it.
       PERMISSION_ENGINE_URL: ${PERMISSION_ENGINE_URL:-http://permission-engine:3050}
-      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -193,7 +193,7 @@ services:
       # jitter + baas_webhook_deliveries_total metrics). The orchestrator below
       # stays `shadow` — the six Node services still serve Kong (A not cut over).
       WEBHOOK_DISPATCHER_PRODUCT_MODE: ${WEBHOOK_DISPATCHER_PRODUCT_MODE:-enabled}
-      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      DATABASE_URL: ${DATABASE_URL:?unset - run make env}
       WEBHOOK_REDIS_URL: ${WEBHOOK_REDIS_URL:-${OUTBOX_REDIS_URL:-redis://redis:6379}}
       WEBHOOK_GROUP: ${WEBHOOK_GROUP:-webhook-dispatcher}
       WEBHOOK_CONSUMER: ${WEBHOOK_CONSUMER:-webhook-dispatcher-0}
@@ -252,7 +252,7 @@ services:
       # Empty = ALL ported sub-services (selectServices default). The cutover
       # runs the full six; override to a subset only for shadow experiments.
       ORCHESTRATOR_SERVICES: ${ORCHESTRATOR_SERVICES:-}
-      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      DATABASE_URL: ${DATABASE_URL:?unset - run make env}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       LOG_SERVICE_LOKI_URL: ${LOG_SERVICE_LOKI_URL:-http://loki:3100/loki/api/v1/push}
@@ -280,7 +280,7 @@ services:
       # mongoProjector activates when OUTBOX_MONGO_URL resolves + connects, else
       # degrades to the no-op (a pg write is never failed for a missing sink).
       OUTBOX_REDIS_URL: ${OUTBOX_REDIS_URL:-redis://redis:6379}
-      OUTBOX_MONGO_URL: ${OUTBOX_MONGO_URL:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017/mini_baas?authSource=admin}
+      OUTBOX_MONGO_URL: ${OUTBOX_MONGO_URL:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:?unset - run make env}@mongo:27017/mini_baas?authSource=admin}
       MONGO_DB_NAME: ${OUTBOX_MONGO_DB_NAME:-mini_baas}
       OUTBOX_RELAY_POLL_MS: ${OUTBOX_RELAY_POLL_MS:-500}
       OUTBOX_RELAY_BATCH_SIZE: ${OUTBOX_RELAY_BATCH_SIZE:-25}
@@ -326,7 +326,7 @@ services:
       FUNCTION_SCHEDULER_PORT: 3027
       FUNCTION_SCHEDULER_PRODUCT_MODE: ${FUNCTION_SCHEDULER_PRODUCT_MODE:-shadow}
       FUNCTION_SCHEDULER_TICK_SECONDS: ${FUNCTION_SCHEDULER_TICK_SECONDS:-10}
-      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
+      DATABASE_URL: ${DATABASE_URL:?unset - run make env}
       FUNCTIONS_RUNTIME_URL: ${FUNCTIONS_RUNTIME_URL:-http://functions-runtime:3060}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}

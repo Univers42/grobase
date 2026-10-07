@@ -1,0 +1,37 @@
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+secrets/
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Go build artifacts and caches
+vendor/
+.cargo/
+target/
+*.o
+*.so
+*.so.*
+
+# IDE and editor files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Test and coverage files
+*_test.go
+.coverage
+coverage/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci

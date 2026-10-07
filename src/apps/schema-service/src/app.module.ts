@@ -16,13 +16,24 @@ import { HttpModule } from '@nestjs/axios';
 import { LoggerModule } from 'nestjs-pino';
 import { TerminusModule } from '@nestjs/terminus';
 import { PostgresModule } from '@mini-baas/database';
-import { ObservabilityModule, createPinoHttpOptions } from '@mini-baas/common';
+import {
+  IDENTITY_SECRETS,
+  ObservabilityModule,
+  createPinoHttpOptions,
+  validateEnv,
+} from '@mini-baas/common';
 import { SchemasModule } from './schemas/schemas.module';
 import { HealthController } from './health.controller';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv({
+        service: 'schema-service',
+        secrets: [...IDENTITY_SECRETS, 'ADAPTER_REGISTRY_SERVICE_TOKEN', 'DATABASE_URL'],
+      }),
+    }),
     LoggerModule.forRoot({ pinoHttp: createPinoHttpOptions('schema-service') }),
     ObservabilityModule,
     TerminusModule,

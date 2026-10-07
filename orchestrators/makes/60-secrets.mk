@@ -11,10 +11,6 @@
 # **************************************************************************** #
 
 ##@ Secrets, .env assembly, TLS certs & Vault
-secrets: ## Generate all secrets → .env
-	@bash scripts/secrets/generate-secrets.sh
-secrets-validate: ## Validate required secrets exist
-	@bash scripts/secrets/validate-secrets.sh
 secrets-rotate: ## Rotate JWT secret (GROUP=jwt|tenant-dsn|all)
 	@bash scripts/secrets/rotate-jwt.sh
 check-secrets: ## Scan source for hardcoded secrets
@@ -27,6 +23,8 @@ env-check: ## Verify mandatory secrets present + enabled features have their key
 	@bash scripts/env/check-env.sh
 env-test: ## Prove `make env` withholds GitHub tokens from .env (no live stack needed)
 	@bash scripts/test/assemble-env-test.sh
+env-example-check: ## Verify .env.example matches infra/config/env/schema.json (fix: bash scripts/env/render-example.sh --write)
+	@bash scripts/env/render-example.sh --check
 certs: ## Generate localhost TLS cert/key into certs (idempotent; the waf reads them as Docker secrets)
 	@bash scripts/certs/generate-localhost-cert.sh
 vault-init: _require-compose ## Run Vault init/unseal/seed

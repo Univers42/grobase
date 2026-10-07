@@ -18,14 +18,22 @@ import { StorageModule } from './storage/storage.module';
 import { HealthController } from './health.controller';
 import {
   AuditModule,
+  IDENTITY_SECRETS,
   IdempotencyMiddleware,
   ObservabilityModule,
   createPinoHttpOptions,
+  validateEnv,
 } from '@mini-baas/common';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv({
+        service: 'storage-router',
+        secrets: [...IDENTITY_SECRETS, 'DATABASE_URL'],
+      }),
+    }),
     LoggerModule.forRoot({ pinoHttp: createPinoHttpOptions('storage-router') }),
     ObservabilityModule,
     TerminusModule,

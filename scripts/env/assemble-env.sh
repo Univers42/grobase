@@ -42,6 +42,19 @@ if [ ! -f "$SECRETS" ]; then
   else
     bash scripts/env/generate-env.sh "$SECRETS"
   fi
+else
+  # The file exists but may predate a newly-required key: compose entries are
+  # ${KEY:?}, so a stale secrets file renders nothing and the error tells the
+  # reader to run `make env` — which, before this, re-concatenated the same stale
+  # file and changed nothing. Top-up adds ONLY what is absent and rotates nothing,
+  # so an initialized Postgres/Mongo volume keeps working.
+  bash scripts/env/generate-env.sh --topup "$SECRETS"
+fi
+
+# The legacy-.env migration above lifts only $SECRET_KEYS, which predates several
+# generated keys; top it up the same way rather than leaving an unrenderable tree.
+if [ -f "$SECRETS" ]; then
+  bash scripts/env/generate-env.sh --topup "$SECRETS" >/dev/null
 fi
 
 # ── 2. optional local layer ──────────────────────────────────────────────────

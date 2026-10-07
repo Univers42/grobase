@@ -28,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
         .with_target(true)
         .init();
 
-    let config = ServerConfig::from_env();
+    let config = ServerConfig::try_from_env()?;
 
     // binocle-one ("our PocketBase"): nano + user accounts/JWT — the superset
     // single-binary edition. Checked FIRST because `one` implies `nano`.

@@ -32,6 +32,8 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck source=../lib/lib-required-env.sh
+. "${SCRIPT_DIR}/../lib/lib-required-env.sh"
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 step() { cyan "[M210] $*"; }
 ok() { printf '\033[0;32m  ✓ %s\033[0m\n' "$*"; }
@@ -132,7 +134,14 @@ setup() {
   cp "${ROOT}/docker-compose.yml" "${TREE}/"
   cp -r "${ROOT}/orchestrators/compose" "${TREE}/orchestrators/"
   printf 'JWT_SECRET=m210-file\n' >"${TREE}/.env"
+  # Secret-bearing compose entries are ${KEY:?...}: every render needs the whole
+  # required floor present, or it fails for a reason unrelated to JWT rotation.
+  # The filler differs from the m210-* markers this gate greps for.
+  floor="$(required_env_floor m210-floor "${TREE}" "${TREE}/.env")"
+  [ -z "${floor}" ] || printf '%s\n' "${floor}" >>"${TREE}/.env"
   printf 'JWT_SECRET=m210-cur\nADAPTER_REGISTRY_SERVICE_TOKEN=m210-svc\n' >"${WORK}/no-prev.env"
+  floor="$(required_env_floor m210-floor "${TREE}" "${WORK}/no-prev.env")"
+  [ -z "${floor}" ] || printf '%s\n' "${floor}" >>"${WORK}/no-prev.env"
   { cat "${WORK}/no-prev.env" && echo 'JWT_SECRET_PREV=m210-prev'; } >"${WORK}/with-prev.env"
 }
 
