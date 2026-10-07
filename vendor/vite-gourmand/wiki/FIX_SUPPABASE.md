@@ -15,7 +15,7 @@ Now let's run this SQL directly on your Supabase database. First, let me check i
 
 Let me run the migration using the direct URL (non-pooled, port 5432) which supports DDL statements:
 
-psql "postgresql://postgres.zcnlwipvjmwbofawoqit:MO3848seven_36@aws-1-eu-central-1.pooler.supabase.com:5432/postgres" -f Back/src/Model/sql/schemas/security_rls.sql 2>&1
+psql "postgresql://postgres.zcnlwipvjmwbofawoqit:<redacted>@aws-1-eu-central-1.pooler.supabase.com:5432/postgres" -f Back/src/Model/sql/schemas/security_rls.sql 2>&1
  Enable shell integration to improve command detection
 
 The shell is hellish (a custom shell). Let me use bash explicitly:

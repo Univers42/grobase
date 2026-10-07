@@ -1,87 +1,94 @@
-# gitleaks config for mini-baas (Grobase) — complements the TruffleHog CI gate
-# (mini-baas-security.yml secret-trufflehog) with regex/entropy scanning of the
-# working tree. Phase 0 / P0.3 of roadmap-to-market.md.
+# gitleaks config for Grobase — complements the TruffleHog CI gate
+# (mini-baas-security.yml) with regex/entropy scanning.
 #
-# NOTE: the BaaS keeps NO live secrets in git. `.env` / `.env.local` are
-# gitignored and runtime-generated (scripts/generate-env.sh), and the benchmark
-# `artifacts/` + local `certs/` are gitignored too — none exist in a clean CI
-# checkout. The allowlist below covers those generated paths (so local runs are
-# also clean) plus the deliberate PLACEHOLDERS / test fixtures in tracked files,
-# so the gate stays green and meaningful (a real key trips it; a documented
-# placeholder or an "invalid" test token does not).
+# What is scanned: scripts/ci/check-secrets.sh feeds gitleaks the GIT-VISIBLE tree
+# (tracked + untracked-not-ignored), and .githooks/pre-commit feeds it the staged diff.
+# Gitignored local secret files (.env, .env.secrets, .env.local, *-tenant.env, certs/)
+# are therefore never scanned and never need an allowlist entry — and the moment one
+# is force-added it is staged, so the pre-commit pass sees it.
+#
+# Allowlist policy: FILES, not directories. vendor/ and scripts/seed/ are scanned —
+# a whole-tree allowlist is how live Supabase/Atlas DSNs sat in vendor/ unseen
+# (docs/infrastructure/incident-2026-10.md). Add a fixture by its exact path.
 
-title = "mini-baas gitleaks config"
+title = "grobase gitleaks config"
 
 [extend]
 useDefault = true
 
-[allowlist]
-description = "Allowlisted paths and documented placeholders (no live secrets)"
+[[rules]]
+id = "grobase-api-key"
+description = "Grobase tenant API key (mbk_…)"
+regex = '''\bmbk_[A-Za-z0-9_-]{24,}'''
+keywords = ["mbk_"]
+
+[[rules]]
+id = "credentialed-dsn"
+description = "Connection string with an embedded password"
+regex = '''(?i)\b(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|rediss?|amqps?|sqlserver)://[^:/@\s'"`]+:([^@\s'"`$<{}]{8,})@[^\s'"`]+'''
+secretGroup = 1
+entropy = 3.0
+keywords = ["://"]
+
+[[allowlists]]
+description = "Build output, lockfiles, named fixture files, and known non-secret values"
 
 paths = [
-  # generated / gitignored (absent in a clean checkout; skip for local runs too)
-  '''(.*/)?\.env(\..+)?$''',
-  '''(.*/)?[a-z0-9-]+-tenant\.env$''',
-  '''(.*/)?artifacts/''',
-  '''(.*/)?certs/''',
-  '''(.*/)?playground/''',
-  '''(.*/)?\.parity/''',
-  # vendored / build output / lockfiles
-  '''(.*/)?node_modules/''',
-  '''(.*/)?dist(-local|-native)?/''',
-  '''(.*/)?vendor/''',
-  '''(.*/)?target/''',
-  '''(.*/)?\.git/''',
-  '''(.*/)?package-lock\.json$''',
-  '''(.*/)?pnpm-lock\.yaml$''',
-  '''(.*/)?Cargo\.lock$''',
-  '''(.*/)?openapi/.*\.json$''',
-  # example/sample env templates carry placeholders by design
-  '''(.*/)?\.env\.example$''',
-  '''(.*/)?\.env\.sample$''',
-  # SonarQube issue-tracking exports (issue UUIDs, not credentials)
-  '''(.*/)?infra/config/audit/issues-.*\.json$''',
-  # deterministic demo/seed data generators + Go test fixtures (example keys, no live secrets)
-  '''(.*/)?scripts/seed/''',
-  '''(.*/)?[^/]+_test\.go$''',
-  # portable demo-DB snapshots (throwaway local-stack data: demo bcrypt hashes +
-  # default container connection strings; vault42 ZK secrets are NOT included)
-  '''(.*/)?data-snapshots/archives/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)dist(-local|-native)?/''',
+  '''(^|/)target/''',
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)pnpm-lock\.yaml$''',
+  '''(^|/)Cargo\.lock$''',
+  '''(^|/)infra/config/openapi/.*\.json$''',
+  '''(^|/)infra/config/audit/issues-.*\.json$''',
+  '''(^|/)src/coverage/''',
+  # committed templates: values are empty or CHANGE_ME by construction (m214 asserts it)
+  '''^\.env\.example$''',
+  '''^\.env\.local\.example$''',
+  '''^infra/config/cloud/flags\.env\.example$''',
+  # deliberately fake tokens that exercise assemble-env's GitHub-token filter
+  '''^scripts/test/assemble-env-test\.sh$''',
+  # test code: deterministic fixtures by design. These are OUR test trees only —
+  # vendor/ and scripts/seed/ stay scanned.
+  '''^src/control-plane/.*_test\.go$''',
+  '''^scripts/verify/m[0-9]+-[^/]+\.sh$''',
+  '''^scripts/test/phase/phase[0-9]+-[^/]+\.sh$''',
+  # CircleCI status-badge token (read-only badge, not a credential)
+  '''^vendor/music-room/back/README\.md$''',
+  # Kong admin-API docs: ALL_CAPS header placeholders, not key material. File-scoped
+  # on purpose — an ALL_CAPS *regex* would hide every upper-case secret repo-wide.
+  '''^infra/docker/services/kong/README\.md$''',
 ]
 
-# Documented non-secret placeholders, shell-var refs and deliberately-invalid
-# test fixtures that appear in tracked config/compose/docs/test-scripts/CI.
-# None are live credentials.
+# regexes below are matched against the SECRET only (regexTarget default). Each entry names one known non-secret value;
+# no bare words that a real credential could contain.
 regexes = [
-  '''replace-with-[a-z0-9-]+''',
-  '''anon-key-placeholder''',
-  '''(?i)public-anon-key''',
-  '''(?i)your[_-][a-z_]*key''',
-  '''(?i)invalid[._-][a-z0-9._-]*''',
-  '''(?i)not\.a\.valid\.jwt''',
-  '''\$\{?[A-Z_]*TOKEN\}?''',
-  '''your-super-secret-and-long-postgres-password''',
-  '''ci-jwt-secret-min-32-chars-long-xx''',
-  '''m195-dummy-jwt-secret-m195-dummy-jwt''',
-  '''jwt-test-secret-at-least-32-characters-long''',
-  '''ci-adapter-token''',
-  '''minioadmin''',
-  '''(?i)changeme''',
-  '''(?i)example\.com''',
-  '''POSTGRES_PASSWORD=postgres\b''',
-  # deterministic test fixtures in verify gate scripts + seed data (no live secrets)
-  '''m[0-9]+-[a-z]+-key-[0-9a-f]+''',
-  '''0123456789abcdef''',
-  '''api-key:[0-9a-f][0-9a-f-]*''',
-  '''X25519SCOPE[A-Z]+''',
+  '''^replace-with-[a-z0-9-]+$''',
+  '''^anon-key-placeholder$''',
+  '''(?i)^public-anon-key$''',
+  '''^\$\{?[A-Z_]+\}?$''',
+  '''^your-super-secret-and-long-postgres-password$''',
+  '''^ci-jwt-secret-min-32-chars-long-xx$''',
+  '''^m195-dummy-jwt-secret-m195-dummy-jwt$''',
+  '''^jwt-test-secret-at-least-32-characters-long$''',
+  '''^ci-adapter-token$''',
+  '''^minioadmin$''',
+  '''(?i)^change[-_]?me''',
+  '''^<redacted>$''',
+  '''^m[0-9]+-[a-z]+-key-[0-9a-f]+$''',
+  '''^X25519SCOPE[A-Z]+$''',
+  # shell/env references, never values: "${SONAR_TOKEN}:", $TOKEN
+  '''^["']?\$\{?[A-Za-z_][A-Za-z0-9_]*\}?:?["']?$''',
+  # Supabase PUBLISHABLE key: browser-public by design (category PUBLIC)
+  '''^sb_publishable_[A-Za-z0-9_-]+$''',
+  # SQL upsert column reference picked up by generic-api-key
+  '''(?i)^[a-z_]+=excluded\.[a-z_]+$''',
 ]
 
-stopwords = [
-  "placeholder",
-  "example",
-  "changeme",
-  "sample",
-  "your-super-secret",
-  "replace-with",
-  "invalid",
-]
+# Line-scoped: the secret here is a bare UUID, and allowlisting UUIDs repo-wide would
+# hide real UUID-shaped keys. Only the "api-key:<uuid>" owner-identity form is exempt.
+[[allowlists]]
+description = "api-key:<uuid> owner identity strings (a key ID, not key material)"
+regexTarget = "line"
+regexes = ['''"api-key:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"''']
