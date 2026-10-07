@@ -44,50 +44,6 @@
 # It adds NO new app images and changes NO default-stack value.
 
 x-strict-identity: &strict-identity ${PROD_IDENTITY_HEADER_MODE:-strict}
-# Cloud flags the three services below receive from flags.env.cloud. Each service lists
-# its reads as bare pass-through keys in its base file, and a bare key in `environment`
-# beats an `env_file` value of the same name even when unset (it renders null), so a flag
-# set only in flags.env.cloud would never arrive. `!reset` drops those entries; a key a
-# service does not list is untouched. Keep this list equal to flags.env.example, less
-# the keys a base file pins with a `${KEY:-default}` value (TENANT_SELFSERVE_ENABLED):
-# those are NOT reset, so they still win over flags.env.cloud as they always did.
-# Gate m212 fails on a flag this list misses.
-x-cloud-flags: &cloud-flags
-  METERING_ENABLED: !reset null
-  METERING_INGEST: !reset null
-  DATA_PLANE_METERING: !reset null
-  DATA_PLANE_METERING_FLUSH_MS: !reset null
-  QUOTA_STAGE: !reset null
-  QUOTA_ENFORCEMENT: !reset null
-  QUOTA_ENFORCEMENT_INTERVAL_MS: !reset null
-  QUOTA_ENFORCEMENT_METRIC: !reset null
-  DATA_PLANE_QUOTA_ENFORCEMENT: !reset null
-  DATA_PLANE_QUOTA_REFRESH_MS: !reset null
-  BILLING_ENABLED: !reset null
-  BILLING_REPORT_INTERVAL_MS: !reset null
-  STRIPE_API_BASE: !reset null
-  STRIPE_API_KEY: !reset null
-  BILLING_METER_QUERY_COUNT: !reset null
-  BILLING_METER_QUERY_ROWS: !reset null
-  BILLING_METER_WRITE_ROWS: !reset null
-  BILLING_METER_STORAGE_BYTES: !reset null
-  BILLING_METER_REALTIME_MINUTES: !reset null
-  BILLING_METER_FUNCTION_INVOCATIONS: !reset null
-  TENANT_OBS_ENABLED: !reset null
-  DATA_PLANE_TENANT_OBS: !reset null
-  TENANT_BACKUP_ENABLED: !reset null
-  TENANT_BACKUP_SELFSERVE_ENABLED: !reset null
-  SPEND_CAPS_ENABLED: !reset null
-  SPEND_CAPS_INTERVAL_MS: !reset null
-  SPEND_CAPS_ALERT_PCT: !reset null
-  SPEND_RATE_QUERY_COUNT: !reset null
-  SPEND_RATE_WRITE_ROWS: !reset null
-  ABUSE_GUARD_ENABLED: !reset null
-  ABUSE_VELOCITY_MAX: !reset null
-  ABUSE_VELOCITY_WINDOW_MS: !reset null
-  ABUSE_AUTO_SUSPEND: !reset null
-  STORAGE_ACTIVE_CONTENT_GUARD_ENABLED: !reset null
-  AUTOMATION_WEBHOOK_IP_PIN_ENABLED: !reset null
 
 services:
   kong:
@@ -100,8 +56,6 @@ services:
   orchestrator:
     env_file:
       - infra/config/cloud/flags.env.cloud
-    environment:
-      <<: *cloud-flags
 
   # ── tenant-control — hosts /v1/tenants/me* (self-serve), backup/restore, /v1/abuse/*.
   #    Cloud flags: TENANT_SELFSERVE_ENABLED, TENANT_BACKUP_ENABLED + *_SELFSERVE,
@@ -109,8 +63,6 @@ services:
   tenant-control:
     env_file:
       - infra/config/cloud/flags.env.cloud
-    environment:
-      <<: *cloud-flags
 
   # ── data-plane-router-rust — the metering producer + the quota-402 reject + B5 obs.
   #    Cloud flags: DATA_PLANE_METERING (+_FLUSH_MS), DATA_PLANE_QUOTA_ENFORCEMENT
@@ -118,8 +70,6 @@ services:
   data-plane-router-rust:
     env_file:
       - infra/config/cloud/flags.env.cloud
-    environment:
-      <<: *cloud-flags
 
   # ── app-plane guards (L-9, L-12): per-service environment, NOT flags.env.cloud.
   #    storage-router: nosniff on downloads + CSP sandbox/attachment on active types.

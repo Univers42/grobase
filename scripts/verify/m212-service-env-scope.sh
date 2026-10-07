@@ -185,15 +185,25 @@ cloud_arm() {
 }
 
 # cloud_mutant_arm drops the cloud overlay's `!reset` merge; cloud_check must catch it.
+# cloud_mutant_arm re-adds a cloud flag as a bare pass-through in base, which is the
+# exact defect this arm exists for: a bare `KEY:` in `environment:` beats the same key
+# from a per-service env_file and renders NULL, so the flag silently never arrives. It
+# is how all 36 flags were missing before, and how one (TENANT_OBS_ENABLED) came back
+# through a shared anchor afterwards.
 cloud_mutant_arm() {
-  local f="${TREE}/orchestrators/compose/docker-compose.cloud.yml"
-  cp "${f}" "${WORK}/cloud.yml"
-  sed 's|^      <<: \*cloud-flags$|      M212_NOOP: "1"|' "${WORK}/cloud.yml" >"${f}"
-  cmp -s "${f}" "${WORK}/cloud.yml" && fail "mutant: could not drop the cloud-flags merge"
+  local f="${TREE}/orchestrators/compose/base/control-plane.yml" key=METERING_ENABLED
+  cp "${f}" "${WORK}/cp.yml"
+  awk -v k="${key}" '
+    /^  orchestrator:$/ { inorch = 1 }
+    inorch && /^    environment:$/ { print; print "      " k ":"; inorch = 0; next }
+    { print }
+  ' "${WORK}/cp.yml" >"${f}"
+  cmp -s "${f}" "${WORK}/cp.yml" && fail "mutant: could not re-add ${key} as a bare pass-through"
   cloud_render "${WORK}/cloud-mutant.json"
-  cp "${WORK}/cloud.yml" "${f}"
-  (cloud_check "${WORK}/cloud-mutant.json") >/dev/null 2>&1 && fail "mutant: the cloud overlay without its !reset merge passed — the check is vacuous"
-  ok "mutant: the cloud overlay without its !reset merge is caught"
+  cp "${WORK}/cp.yml" "${f}"
+  (cloud_check "${WORK}/cloud-mutant.json") >/dev/null 2>&1 &&
+    fail "mutant: a bare cloud-flag pass-through in base passed — the check is vacuous"
+  ok "mutant: a cloud flag re-added as a bare pass-through in base is caught"
 }
 
 # mutant_arm gives kong env_file .env again; the check must catch it.
@@ -259,7 +269,7 @@ step "escape hatch — .env.<service>"
 hatch_arm
 step "cloud — flags.env.cloud still reaches the three services that read it"
 cloud_arm
-step "mutant — kong loads .env again; cloud overlay loses its merge"
+step "mutant — kong loads .env again; a cloud flag becomes a bare pass-through"
 mutant_arm
 cloud_mutant_arm
 step "live — running scoped services"
