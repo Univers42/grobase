@@ -17,11 +17,23 @@ import { TerminusModule } from '@nestjs/terminus';
 import { PostgresModule } from '@mini-baas/database';
 import { SessionModule } from './session/session.module';
 import { HealthController } from './health.controller';
-import { AuditModule, ObservabilityModule, createPinoHttpOptions } from '@mini-baas/common';
+import {
+  AuditModule,
+  IDENTITY_SECRETS,
+  ObservabilityModule,
+  createPinoHttpOptions,
+  validateEnv,
+} from '@mini-baas/common';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv({
+        service: 'session-service',
+        secrets: [...IDENTITY_SECRETS, 'DATABASE_URL'],
+      }),
+    }),
     LoggerModule.forRoot({ pinoHttp: createPinoHttpOptions('session-service') }),
     ObservabilityModule,
     TerminusModule,

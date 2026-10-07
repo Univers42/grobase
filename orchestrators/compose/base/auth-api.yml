@@ -158,7 +158,7 @@ services:
       # surface. The superuser DSN is NEVER used here (a superuser bypasses RLS
       # unconditionally). The fallback below mirrors the .env that
       # scripts/env/generate-env.sh writes; it still uses the authenticator role.
-      PGRST_DB_URI: ${PGRST_DB_URI:?unset - run make env}@postgres:5432/postgres}
+      PGRST_DB_URI: ${PGRST_DB_URI:-postgres://authenticator:${AUTHENTICATOR_PASSWORD:?unset - run make env}@postgres:5432/postgres}
       PGRST_DB_SCHEMA: ${PGRST_DB_SCHEMA:-public}
       PGRST_SERVER_PORT: 3000
       PGRST_JWT_SECRET: ${JWT_SECRET:?unset - run make env}

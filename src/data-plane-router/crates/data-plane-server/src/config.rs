@@ -10,6 +10,8 @@
 /*                                                                            */
 /* ************************************************************************** */
 
+use crate::environment::{ConfigError, Environment, ENVIRONMENT_KEY};
+
 #[derive(Clone)]
 pub struct ServerConfig {
     pub host: String,
@@ -216,6 +218,75 @@ impl ServerConfig {
 }
 
 impl ServerConfig {
+    /// Build the config from the process environment and refuse to start on an
+    /// unknown `GROBASE_ENV`, or, in staging and prod, on a missing secret. This
+    /// is the entry point the binaries use; local and dev only ever fail on an
+    /// unknown `GROBASE_ENV`.
+    ///
+    /// Control-plane builds (everything but the `nano`/`one` editions) must hold
+    /// the secrets listed on [`ServerConfig::missing_secrets`]; the standalone
+    /// editions talk to no control plane and require none.
+    ///
+    /// # Errors
+    /// `ConfigError::UnknownEnvironment`, or `ConfigError::MissingSecrets` naming
+    /// every missing key (never a value).
+    pub fn try_from_env() -> Result<Self, ConfigError> {
+        let environment = Environment::parse(&read_env(ENVIRONMENT_KEY, ""))?;
+        let config = Self::from_env();
+        config.require_secrets(environment, cfg!(not(feature = "nano")))?;
+        Ok(config)
+    }
+
+    /// `Ok` unless `environment` is strict (staging, prod) and a required secret
+    /// is missing, in which case every missing key is reported together.
+    ///
+    /// # Errors
+    /// `ConfigError::MissingSecrets`.
+    pub fn require_secrets(
+        &self,
+        environment: Environment,
+        control_plane: bool,
+    ) -> Result<(), ConfigError> {
+        if !environment.is_strict() {
+            return Ok(());
+        }
+        let keys = self.missing_secrets(control_plane);
+        if keys.is_empty() {
+            return Ok(());
+        }
+        Err(ConfigError::MissingSecrets { environment, keys })
+    }
+
+    /// The env keys a control-plane build cannot serve without, by name only:
+    /// - `INTERNAL_SERVICE_TOKEN`: authenticates every call to tenant-control and
+    ///   adapter-registry (`routes/bypass_auth.rs`, `routes/state.rs`); empty, the
+    ///   bypass path answers 503 `bypass_misconfigured` and the control plane refuses
+    ///   the unsigned call.
+    /// - `DATA_PLANE_VAULT_TOKEN`, only when `DATA_PLANE_VAULT_ADDR` is set: the
+    ///   Vault provider registers only with both (`data-plane-pool` `credential.rs`),
+    ///   so a lone address silently falls back to the next credential source.
+    ///
+    /// Empty means unset or whitespace only. Presence is all this checks: strength
+    /// and placeholder values are `SECURITY_MODE=max` / preflight-production's job.
+    /// `control_plane = false` (nano/one) yields no keys.
+    #[must_use]
+    pub fn missing_secrets(&self, control_plane: bool) -> Vec<&'static str> {
+        let mut missing = Vec::new();
+        if !control_plane {
+            return missing;
+        }
+        if self.internal_service_token.trim().is_empty() {
+            missing.push("INTERNAL_SERVICE_TOKEN");
+        }
+        if !self.vault_addr.trim().is_empty() && self.vault_token.trim().is_empty() {
+            missing.push("DATA_PLANE_VAULT_TOKEN");
+        }
+        missing
+    }
+
+    /// Build the config from the process environment WITHOUT validating it: every
+    /// knob falls back to a default, an empty service token included. For tests
+    /// and embedders; the binaries call [`ServerConfig::try_from_env`].
     #[must_use]
     pub fn from_env() -> Self {
         Self {
@@ -537,5 +608,117 @@ mod tests {
             "DATA_PLANE_READ_REPLICA=1 must enable read-replica routing"
         );
         std::env::remove_var("DATA_PLANE_READ_REPLICA");
+    }
+
+    fn config_with(token: &str, vault_addr: &str, vault_token: &str) -> ServerConfig {
+        let mut cfg = ServerConfig::from_env();
+        cfg.internal_service_token = token.to_string();
+        cfg.vault_addr = vault_addr.to_string();
+        cfg.vault_token = vault_token.to_string();
+        cfg
+    }
+
+    fn missing(cfg: &ServerConfig, environment: Environment) -> Option<Vec<&'static str>> {
+        match cfg.require_secrets(environment, true) {
+            Err(ConfigError::MissingSecrets { keys, .. }) => Some(keys),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn local_and_dev_tolerate_missing_secrets() {
+        let cfg = config_with("", "http://vault.internal", "");
+        assert_eq!(cfg.require_secrets(Environment::Local, true), Ok(()));
+        assert_eq!(cfg.require_secrets(Environment::Dev, true), Ok(()));
+    }
+
+    #[test]
+    fn staging_and_prod_refuse_an_empty_service_token() {
+        let cfg = config_with("", "", "");
+        for environment in [Environment::Staging, Environment::Prod] {
+            assert_eq!(
+                cfg.require_secrets(environment, true),
+                Err(ConfigError::MissingSecrets {
+                    environment,
+                    keys: vec!["INTERNAL_SERVICE_TOKEN"],
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn a_whitespace_only_token_counts_as_empty() {
+        let cfg = config_with("  \t", "", "");
+        assert_eq!(
+            missing(&cfg, Environment::Prod),
+            Some(vec!["INTERNAL_SERVICE_TOKEN"])
+        );
+    }
+
+    #[test]
+    fn a_set_token_satisfies_staging_and_prod() {
+        let cfg = config_with("svc-token", "", "");
+        assert_eq!(cfg.require_secrets(Environment::Staging, true), Ok(()));
+        assert_eq!(cfg.require_secrets(Environment::Prod, true), Ok(()));
+    }
+
+    #[test]
+    fn a_vault_address_without_a_token_is_refused_in_strict_environments() {
+        let cfg = config_with("svc-token", "http://vault.internal", "");
+        assert_eq!(
+            missing(&cfg, Environment::Prod),
+            Some(vec!["DATA_PLANE_VAULT_TOKEN"])
+        );
+        let paired = config_with("svc-token", "http://vault.internal", "s.vault-token");
+        assert_eq!(paired.require_secrets(Environment::Prod, true), Ok(()));
+    }
+
+    #[test]
+    fn every_missing_secret_is_reported_together() {
+        let cfg = config_with("", "http://vault.internal", "");
+        assert_eq!(
+            missing(&cfg, Environment::Staging),
+            Some(vec!["INTERNAL_SERVICE_TOKEN", "DATA_PLANE_VAULT_TOKEN"])
+        );
+    }
+
+    #[test]
+    fn standalone_editions_require_no_control_plane_secrets() {
+        let cfg = config_with("", "http://vault.internal", "");
+        assert!(cfg.missing_secrets(false).is_empty());
+        assert_eq!(cfg.require_secrets(Environment::Prod, false), Ok(()));
+    }
+
+    #[test]
+    fn the_refusal_names_keys_and_never_values() {
+        let cfg = config_with("", "http://SECRET-vault-addr.internal", "");
+        let err = cfg.require_secrets(Environment::Prod, true).unwrap_err();
+        for rendered in [err.to_string(), format!("{err:?}")] {
+            assert!(rendered.contains("DATA_PLANE_VAULT_TOKEN"), "{rendered}");
+            assert!(!rendered.contains("SECRET-vault-addr"), "{rendered}");
+        }
+    }
+
+    #[test]
+    fn try_from_env_applies_grobase_env() {
+        std::env::remove_var("INTERNAL_SERVICE_TOKEN");
+        std::env::remove_var("DATA_PLANE_VAULT_ADDR");
+        std::env::remove_var(ENVIRONMENT_KEY);
+        assert!(ServerConfig::try_from_env().is_ok(), "unset => local");
+        std::env::set_var(ENVIRONMENT_KEY, "dev");
+        assert!(ServerConfig::try_from_env().is_ok(), "dev tolerates it");
+        std::env::set_var(ENVIRONMENT_KEY, "production");
+        assert_eq!(
+            ServerConfig::try_from_env().err(),
+            Some(ConfigError::UnknownEnvironment)
+        );
+        std::env::set_var(ENVIRONMENT_KEY, "prod");
+        let refused = ServerConfig::try_from_env().err();
+        let want = (!cfg!(feature = "nano")).then(|| ConfigError::MissingSecrets {
+            environment: Environment::Prod,
+            keys: vec!["INTERNAL_SERVICE_TOKEN"],
+        });
+        assert_eq!(refused, want);
+        std::env::remove_var(ENVIRONMENT_KEY);
     }
 }

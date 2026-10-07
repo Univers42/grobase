@@ -18,11 +18,23 @@ import { PostgresModule } from '@mini-baas/database';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { CampaignModule } from './campaign/campaign.module';
 import { HealthController } from './health.controller';
-import { AuditModule, ObservabilityModule, createPinoHttpOptions } from '@mini-baas/common';
+import {
+  AuditModule,
+  IDENTITY_SECRETS,
+  ObservabilityModule,
+  createPinoHttpOptions,
+  validateEnv,
+} from '@mini-baas/common';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv({
+        service: 'newsletter-service',
+        secrets: [...IDENTITY_SECRETS, 'DATABASE_URL'],
+      }),
+    }),
     LoggerModule.forRoot({ pinoHttp: createPinoHttpOptions('newsletter-service') }),
     ObservabilityModule,
     TerminusModule,

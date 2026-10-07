@@ -17,10 +17,18 @@ import { TerminusModule } from '@nestjs/terminus';
 import { MailModule } from './mail/mail.module';
 import { HealthController } from './health.controller';
 
-import { ObservabilityModule, createPinoHttpOptions } from '@mini-baas/common';
+import {
+  IDENTITY_SECRETS,
+  ObservabilityModule,
+  createPinoHttpOptions,
+  validateEnv,
+} from '@mini-baas/common';
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv({ service: 'email-service', secrets: IDENTITY_SECRETS }),
+    }),
     LoggerModule.forRoot({ pinoHttp: createPinoHttpOptions('email-service') }),
     ObservabilityModule,
     TerminusModule,

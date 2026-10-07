@@ -14,13 +14,16 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { TerminusModule } from '@nestjs/terminus';
-import { ObservabilityModule, createPinoHttpOptions } from '@mini-baas/common';
+import { ObservabilityModule, createPinoHttpOptions, validateEnv } from '@mini-baas/common';
 import { LogsModule } from './logs/logs.module';
 import { HealthController } from './health.controller';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv({ service: 'log-service', secrets: [] }),
+    }),
     LoggerModule.forRoot({ pinoHttp: createPinoHttpOptions('log-service') }),
     ObservabilityModule,
     TerminusModule,
