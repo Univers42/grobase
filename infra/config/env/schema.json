@@ -278,6 +278,15 @@
         "webhook-dispatcher"
       ]
     },
+    "GITHUB_APP_PRIVATE_KEY": {
+      "category": "SECRET",
+      "format": "opaque",
+      "required_in": [],
+      "compose_required": false,
+      "vault42_path": "github/GITHUB_APP_PRIVATE_KEY",
+      "$comment": "Read by the Go control plane (internal/github/github.go:73). Optional: the feature is flag-gated OFF by default (GITHUB_CONNECT_ENABLED), and its mount fails closed when the flag is on without it \u2014 requiring it in prod would break the OFF-by-default parity rule.",
+      "consumers": []
+    },
     "GITHUB_CLIENT_ID": {
       "category": "PUBLIC",
       "format": "opaque",
@@ -507,6 +516,15 @@
         "vault42",
         "webhook-dispatcher"
       ]
+    },
+    "KEY_HASH_PEPPER": {
+      "category": "SECRET",
+      "format": "opaque",
+      "required_in": [],
+      "compose_required": false,
+      "vault42_path": "core/KEY_HASH_PEPPER",
+      "$comment": "Read by the Go control plane (internal/loginotp/loginotp.go:80). Optional: the feature is flag-gated OFF by default (email login-OTP), and its mount fails closed when the flag is on without it \u2014 requiring it in prod would break the OFF-by-default parity rule.",
+      "consumers": []
     },
     "KONG_PUBLIC_API_KEY": {
       "category": "PUBLIC",
@@ -844,6 +862,15 @@
         "webhook-dispatcher"
       ]
     },
+    "PUSH_SECRET_KEY": {
+      "category": "SECRET",
+      "format": "opaque",
+      "required_in": [],
+      "compose_required": false,
+      "vault42_path": "push/PUSH_SECRET_KEY",
+      "$comment": "Read by the Go control plane (internal/push/crypto.go:46). Optional: the feature is flag-gated OFF by default (PUSH_ENABLED), and its mount fails closed when the flag is on without it \u2014 requiring it in prod would break the OFF-by-default parity rule.",
+      "consumers": []
+    },
     "S3_ACCESS_KEY": {
       "category": "SECRET",
       "format": "opaque",
@@ -932,6 +959,15 @@
         "vault-init",
         "webhook-dispatcher"
       ]
+    },
+    "SSO_SECRET_KEY": {
+      "category": "SECRET",
+      "format": "opaque",
+      "required_in": [],
+      "compose_required": false,
+      "vault42_path": "sso/SSO_SECRET_KEY",
+      "$comment": "Read by the Go control plane (internal/sso/crypto.go:42). Optional: the feature is flag-gated OFF by default (SSO_ENABLED), and its mount fails closed when the flag is on without it \u2014 requiring it in prod would break the OFF-by-default parity rule.",
+      "consumers": []
     },
     "STRIPE_API_KEY": {
       "category": "SECRET",

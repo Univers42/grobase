@@ -127,6 +127,7 @@ FAST_SUBSET=(
   m101-quota-realtenant # quota-truth — billing correctness; a silent break loses real money
   m120                  # spend/suspend enforcement on the request path
   m214-env-schema       # config/secret separation: no SECRET boots from a published default
+  m215-config-validation # every plane refuses to start on an incomplete environment
   m216-vault-team-path  # no seeded profile points at a dead/foreign vault42 authority
 )
 
