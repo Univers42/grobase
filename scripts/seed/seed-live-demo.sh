@@ -39,7 +39,6 @@
 #
 # Usage:  make seed-live-demo            # from apps/baas/mini-baas-infra
 #         RESEED=1 make seed-live-demo   # drop + reload from scratch
-#         SEED_PAGES=0 ...               # skip the osionos workspace pages
 # Env:    BAAS_API_KEY (defaults to VITE_BAAS_API_KEY from the app .env),
 #         APP_ENV_FILE, SEED_SCALE, SKIP_ENV_WRITE=1
 
@@ -333,72 +332,5 @@ code=$(gw -X POST "${KONG_URL}/query/v1/${PG_DB_ID}/tables/orders" \
 [[ "${code}" == "200" || "${code}" == "201" ]] && grep -q '"rowCount":1' /tmp/seed-gw.json ||
   fail "pg update order#1 failed (${code}): $(cat /tmp/seed-gw.json)"
 pass "in-place edits land on exactly one row (pg + mongo), realtime publish fired"
-
-# ── 8) osionos workspace pages (optional — needs the osionos pages postgres) ─
-# The pages tables live in the grobase postgres (mini-baas-postgres) since the
-# backend split; older monorepo layouts had a root-compose `postgres` service.
-# Support both, and resolve the demo account by email instead of a fixed uuid
-# (the uuid differs per stack — no-vault stacks mint their own users).
-if [[ "${SEED_PAGES:-1}" == "1" ]]; then
-  ROOT_DC=(docker compose -f "${REPO_ROOT}/docker-compose.yml")
-  if [[ -n "$("${ROOT_DC[@]}" ps -q postgres 2>/dev/null)" ]]; then
-    PGX=("${ROOT_DC[@]}" exec -T postgres)
-  elif [[ -n "$(docker ps -q -f name=mini-baas-postgres 2>/dev/null)" ]]; then
-    PGX=(docker exec -i mini-baas-postgres)
-  else
-    PGX=()
-  fi
-  if [[ ${#PGX[@]} -gt 0 ]]; then
-    step "seeding the 'Live Databases' pages into the demo account's osionos workspace"
-    DYLAN=""
-    for _email in dylan@gmail.com dev.pro.photo@gmail.com; do
-      DYLAN="$("${PGX[@]}" psql -U postgres -d postgres -tAc \
-        "SELECT id FROM auth.users WHERE email='${_email}'" 2>/dev/null | tr -d '[:space:]')"
-      [[ -n "${DYLAN}" ]] && {
-        DEMO_EMAIL="${_email}"
-        break
-      }
-    done
-    DYLAN="${DYLAN:-ff284cf3-ab7d-4756-ade3-369257e36b2a}"
-    DEMO_EMAIL="${DEMO_EMAIL:-dylan@gmail.com}"
-    WS="$("${PGX[@]}" psql -U postgres -d postgres -tAc \
-      "SELECT workspace_id FROM public.osionos_pages WHERE owner_id='${DYLAN}' GROUP BY 1 ORDER BY count(*) DESC LIMIT 1" |
-      tr -d '[:space:]')"
-    WS="${WS:-0ea96910-277a-49d6-901c-524b147cc009}"
-    python3 "${SCRIPT_DIR}/live-demo-pages.py" \
-      "${WS}" "${DYLAN}" "${PG_DB_ID}" "${MY_DB_ID}" "${MG_DB_ID}" |
-      "${PGX[@]}" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 >/dev/null ||
-      fail "workspace page seed failed"
-    step "seeding the 'Analytics' dashboard pages (curated chart/dashboard views)"
-    python3 "${SCRIPT_DIR}/analytics-dashboards.py" \
-      "${WS}" "${DYLAN}" "${PG_DB_ID}" "${MY_DB_ID}" "${MG_DB_ID}" |
-      "${PGX[@]}" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 >/dev/null ||
-      fail "analytics page seed failed"
-    # The demo account must also SEE the shared agency wiki (26 pages,
-    # visibility=shared, seeded by tools/seeds/seed_agency_wiki.py into the org
-    # workspace): grant editor membership so the workspace shows up in the switcher.
-    AGENCY_WS="b1a0c1e5-0000-4000-a000-000000000001"
-    if "${PGX[@]}" psql -U postgres -d postgres -tAc \
-      "SELECT 1 FROM public.osionos_workspaces WHERE id='${AGENCY_WS}'" 2>/dev/null | grep -q 1; then
-      "${PGX[@]}" psql -U postgres -d postgres -q -c \
-        "INSERT INTO public.osionos_workspace_members (workspace_id, user_id, role, permissions)
-         VALUES ('${AGENCY_WS}','${DYLAN}','editor', ARRAY['read','write'])
-         ON CONFLICT (workspace_id, user_id) DO NOTHING" &&
-        pass "${DEMO_EMAIL} is an editor of the agency org workspace (shared wiki visible)"
-    fi
-    # The app opens the most recently updated workspace (bridge RPC orders by
-    # updated_at DESC) — touch the seeded one so the fresh pages are what opens.
-    "${PGX[@]}" psql -U postgres -d postgres -q -c \
-      "UPDATE public.osionos_workspaces SET updated_at = now() WHERE id='${WS}'"
-    if "${PGX[@]}" psql -U postgres -d postgres -tAc \
-      "SELECT 1 FROM auth.users WHERE id='${DYLAN}'" 2>/dev/null | grep -q 1; then
-      pass "pages seeded in workspace ${WS}; ${DEMO_EMAIL} exists in gotrue"
-    else
-      red "[SEED] WARN: ${DEMO_EMAIL} not found in auth.users — sign the account up once via the website"
-    fi
-  else
-    red "[SEED] WARN: no osionos pages postgres found (root-compose 'postgres' or mini-baas-postgres) — skipped the workspace pages (bring the stack up, then re-run with SEED_PAGES=1)"
-  fi
-fi
 
 green "[SEED] OK — live demo ready: pg-commerce=${PG_DB_ID} mysql-ops=${MY_DB_ID} mongo-activity=${MG_DB_ID} (owner ${OWNER})"

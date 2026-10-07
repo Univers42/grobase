@@ -96,18 +96,21 @@ write_local_overrides() {
   # is set and the frontends handle a confirmation step, flip it with a fly secret:
   #   fly secrets set GOTRUE_MAILER_AUTOCONFIRM=false
   if [ -n "${SMTP_PASS:-}" ]; then
+    # No mailbox is assumed: a password without its account is a deployment
+    # mistake, refused here rather than mailed from someone else's address.
+    : "${SMTP_USER:?SMTP_PASS is set but SMTP_USER is not}"
     cat >>.env.local <<-EOF
 			SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
 			SMTP_PORT=${SMTP_PORT:-587}
 			SMTP_SECURE=${SMTP_SECURE:-false}
-			SMTP_USER=${SMTP_USER:-dev.pro.photo@gmail.com}
+			SMTP_USER=$SMTP_USER
 			SMTP_PASS=$SMTP_PASS
-			EMAIL_FROM=${EMAIL_FROM:-dev.pro.photo@gmail.com}
+			EMAIL_FROM=${EMAIL_FROM:-$SMTP_USER}
 			GOTRUE_SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
 			GOTRUE_SMTP_PORT=${SMTP_PORT:-587}
-			GOTRUE_SMTP_USER=${SMTP_USER:-dev.pro.photo@gmail.com}
+			GOTRUE_SMTP_USER=$SMTP_USER
 			GOTRUE_SMTP_PASS=$SMTP_PASS
-			GOTRUE_SMTP_ADMIN_EMAIL=${EMAIL_FROM:-dev.pro.photo@gmail.com}
+			GOTRUE_SMTP_ADMIN_EMAIL=${EMAIL_FROM:-$SMTP_USER}
 		EOF
   fi
 }
