@@ -884,7 +884,7 @@ services:
     # Pinned upstream (versioned like kong:3.8 — bump procedure in RELEASE.md).
     # The build: context below always wins locally; the pin is for pull-only
     # deployments so they never drift on `latest`.
-    image: dlesieur/realtime-agnostic:0.2.1
+    image: dlesieur/realtime-agnostic:0.2.2
     build:
       context: ./docker/services/realtime/realtime-agnostic
       dockerfile: Dockerfile
