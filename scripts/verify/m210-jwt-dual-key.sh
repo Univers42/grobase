@@ -137,9 +137,11 @@ setup() {
   # Secret-bearing compose entries are ${KEY:?...}: every render needs the whole
   # required floor present, or it fails for a reason unrelated to JWT rotation.
   # The filler differs from the m210-* markers this gate greps for.
-  required_env_floor m210-floor "${TREE}" "${TREE}/.env" >>"${TREE}/.env"
+  floor="$(required_env_floor m210-floor "${TREE}" "${TREE}/.env")"
+  [ -z "${floor}" ] || printf '%s\n' "${floor}" >>"${TREE}/.env"
   printf 'JWT_SECRET=m210-cur\nADAPTER_REGISTRY_SERVICE_TOKEN=m210-svc\n' >"${WORK}/no-prev.env"
-  required_env_floor m210-floor "${TREE}" "${WORK}/no-prev.env" >>"${WORK}/no-prev.env"
+  floor="$(required_env_floor m210-floor "${TREE}" "${WORK}/no-prev.env")"
+  [ -z "${floor}" ] || printf '%s\n' "${floor}" >>"${WORK}/no-prev.env"
   { cat "${WORK}/no-prev.env" && echo 'JWT_SECRET_PREV=m210-prev'; } >"${WORK}/with-prev.env"
 }
 
