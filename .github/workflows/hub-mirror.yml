@@ -1,0 +1,46 @@
+# Hub mirror — after CI succeeds on main, copy the images it published to GHCR
+# onto their Docker Hub names (scripts/ci/hub-mirror.sh says which, and why).
+# No DOCKER_HUB_* secret fails the job instead of skipping it: a Hub push that
+# skipped and stayed green is how hellish-shell fell four months behind.
+name: Hub mirror
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Full sha of the main commit whose GHCR images to copy"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hub-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: GHCR to Docker Hub
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - name: Log in to Docker Hub
+        env:
+          HUB_USER: ${{ secrets.DOCKER_HUB_USERNAME }}
+          HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+        run: |
+          if [ -z "$HUB_USER" ] || [ -z "$HUB_TOKEN" ]; then
+            echo "::error::DOCKER_HUB_USERNAME / DOCKER_HUB_TOKEN are not set"
+            exit 1
+          fi
+          printf '%s' "$HUB_TOKEN" | docker login docker.io -u "$HUB_USER" --password-stdin
+      - name: Copy the commit's images
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+        run: bash scripts/ci/hub-mirror.sh "$SHA"
