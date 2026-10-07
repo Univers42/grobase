@@ -38,7 +38,11 @@ trap 'docker rm -f "${C}" >/dev/null 2>&1 || true' EXIT
 step "0/2 a free port to hold"
 command -v docker >/dev/null 2>&1 || fail "docker is required"
 command -v ss >/dev/null 2>&1 || fail "ss is required (iproute2)"
-docker image inspect "${IMG}" >/dev/null 2>&1 || docker pull -q "${IMG}" >/dev/null || fail "cannot get ${IMG}"
+# Retry the pull: a Docker Hub 502/429 is "come back later", not a defect in resolve-ports.
+docker image inspect "${IMG}" >/dev/null 2>&1 ||
+  RETRY_429_BASE_S="${M193_RETRY_BASE_S:-10}" \
+    bash "$(dirname "$0")/../ci/retry-on-429.sh" docker pull -q "${IMG}" >/dev/null ||
+  fail "cannot get ${IMG} (after retries — registry unreachable)"
 P=""
 for cand in $(seq 18600 18699); do
   ss -tlnH | awk '{print $4}' | grep -qE "(:|^)${cand}$" || {

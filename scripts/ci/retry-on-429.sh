@@ -8,17 +8,23 @@
 # failure returns at once with the command's own status. The combined output is
 # tee'd to RETRY_429_LOG (default: a temp file), so a later step can explain it.
 #
-# Ponytail: "rate limited" is a grep of the output. A command that prints
-# "toomanyrequests" for another reason is retried (minutes lost, never a false
-# green); a registry that words its limit differently is not retried.
+# Ponytail: "transient" is a grep of the output. A command that prints one of these
+# phrases for another reason is retried (minutes lost, never a false green); a registry
+# that words its failure differently is not retried. It never retries a non-zero exit
+# whose output says nothing registry-shaped, so a real failure still fails at once.
 #
 # Usage: retry-on-429.sh <command> [args...]
 # Exit:  the command's last status; 2 on misuse.
 set -uo pipefail
 
-# rate_limited reports whether log file $1 shows a registry rate limit.
+# rate_limited reports whether log file $1 shows a TRANSIENT registry failure: a rate
+# limit, or a 5xx/timeout from the registry itself. Both are "come back later", and
+# neither says anything about the code under test — a gate that dies on a Docker Hub
+# 502 reports a defect that does not exist (it did, on CI run 37620225505).
+#
+# The name still says 429 because callers reference it; the predicate is broader.
 rate_limited() {
-  grep -qE '429 Too Many Requests|toomanyrequests' "$1"
+  grep -qE '429 Too Many Requests|toomanyrequests|50[0234] (Bad Gateway|Service Unavailable|Gateway Time-?out|Internal Server Error)|received unexpected HTTP status: 5[0-9][0-9]|TLS handshake timeout|connection reset by peer|i/o timeout' "$1"
 }
 
 # main runs "$@" until it succeeds, fails for another reason, or runs out of attempts.

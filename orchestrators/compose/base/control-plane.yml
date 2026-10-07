@@ -9,13 +9,15 @@
 # (internal/config/vaultcreds.go); adapter-registry-go and webhook-dispatcher, which
 # use it to encrypt, restate it. Never list a name the image sets (APP, PATH,
 # SSL_CERT_FILE): an unset pass-through UNSETS the image's ENV of that name.
-# An anchor, not a shared base service: `extends` re-adds a base's keys after an
-# overlay's `!reset` ran (docker-compose.cloud.yml), so flags.env.cloud never arrived.
+# An anchor, not a shared base service: `extends` re-adds a base's keys over an overlay,
+# so flags.env.cloud never arrived. Cloud-only flags are deliberately ABSENT from these
+# lists — a bare pass-through beats a per-service env_file and renders null, and relying
+# on `!reset` to undo that worked on compose v5.6 but not on CI's. Unset here, the flag
+# simply defaults OFF, which is the byte-parity requirement anyway.
 x-go-env: &go-env
   GROBASE_ENV:
   SECURITY_MODE:
   TENANT_OBS_COUNTER:
-  TENANT_OBS_ENABLED:
   VAULT_ADDR:
   VAULT_CREDENTIAL_SOURCE:
   VAULT_ENC_KEY:
@@ -127,8 +129,6 @@ services:
         required: false
     environment:
       <<: *go-env
-      ABUSE_AUTO_SUSPEND:
-      ABUSE_GUARD_ENABLED:
       ABUSE_REQUIRE_BASIC:
       ABUSE_REQUIRE_ENTERPRISE:
       ABUSE_REQUIRE_ESSENTIAL:
@@ -136,21 +136,11 @@ services:
       ABUSE_REQUIRE_MAX:
       ABUSE_REQUIRE_NANO:
       ABUSE_REQUIRE_PRO:
-      ABUSE_VELOCITY_MAX:
-      ABUSE_VELOCITY_WINDOW_MS:
       APPS_SELFSERVE_ENABLED:
       APP_CHANNELS_ENABLED:
       BACKUP_DATA_DIR:
       BACKUP_RETENTION:
-      BILLING_ENABLED:
-      BILLING_METER_FUNCTION_INVOCATIONS:
-      BILLING_METER_QUERY_COUNT:
-      BILLING_METER_QUERY_ROWS:
-      BILLING_METER_REALTIME_MINUTES:
-      BILLING_METER_STORAGE_BYTES:
-      BILLING_METER_WRITE_ROWS:
       BILLING_PERIOD:
-      BILLING_REPORT_INTERVAL_MS:
       BILLING_REPORT_LOOKBACK_MS:
       BILLING_SEND_WINDOW_TIMESTAMP:
       CMEK_ENABLED:
@@ -179,8 +169,6 @@ services:
       KEY_HASH_PEPPER:
       KEY_HASH_UPGRADE:
       MAIL_PRO:
-      METERING_ENABLED:
-      METERING_INGEST:
       METERING_INGEST_BATCH:
       METERING_INGEST_BLOCK_MS:
       MINIO_ENDPOINT:
@@ -198,9 +186,6 @@ services:
       PUSH_ENABLED:
       PUSH_SECRET_KEY:
       PUSH_SSRF_ALLOW_HOSTS:
-      QUOTA_ENFORCEMENT:
-      QUOTA_ENFORCEMENT_INTERVAL_MS:
-      QUOTA_ENFORCEMENT_METRIC:
       RBAC_HIERARCHY_ENABLED:
       REDIS_URL:
       SCIM_ENABLED:
@@ -217,13 +202,9 @@ services:
       SOC2_EVIDENCE_SCHEDULE:
       SSO_ENABLED:
       SSO_SECRET_KEY:
-      STRIPE_API_BASE:
-      STRIPE_API_KEY:
       TENANT_AUDIT_ENABLED:
       TENANT_BACKUP_AGE_RECIPIENTS:
       TENANT_BACKUP_ALLOW_PLAINTEXT_RESTORE:
-      TENANT_BACKUP_ENABLED:
-      TENANT_BACKUP_SELFSERVE_ENABLED:
       TENANT_EXPORT_ENABLED:
       TENANT_HEADER_IDENTITY_HMAC:
       TENANT_IP_ALLOWLIST_ENABLED:
@@ -402,15 +383,7 @@ services:
         required: false
     environment:
       <<: *go-env
-      BILLING_ENABLED:
-      BILLING_METER_FUNCTION_INVOCATIONS:
-      BILLING_METER_QUERY_COUNT:
-      BILLING_METER_QUERY_ROWS:
-      BILLING_METER_REALTIME_MINUTES:
-      BILLING_METER_STORAGE_BYTES:
-      BILLING_METER_WRITE_ROWS:
       BILLING_PERIOD:
-      BILLING_REPORT_INTERVAL_MS:
       BILLING_REPORT_LOOKBACK_MS:
       BILLING_SEND_WINDOW_TIMESTAMP:
       BUILDER_ENABLED:
@@ -418,27 +391,15 @@ services:
       CONTROL_PLANE_PPROF_ENABLED:
       LOG_SERVICE_LOKI_BATCH_SIZE:
       LOG_SERVICE_LOKI_FLUSH_MS:
-      METERING_ENABLED:
-      METERING_INGEST:
       METERING_INGEST_BATCH:
       METERING_INGEST_BLOCK_MS:
-      QUOTA_ENFORCEMENT:
-      QUOTA_ENFORCEMENT_INTERVAL_MS:
-      QUOTA_ENFORCEMENT_METRIC:
       REDIS_URL:
       SERVICE_AUTH_SKEW_SECS:
       SERVICE_TOKEN_MODE:
-      SPEND_CAPS_ALERT_PCT:
-      SPEND_CAPS_ENABLED:
-      SPEND_CAPS_INTERVAL_MS:
       SPEND_RATE_FUNCTION_INVOCATIONS:
-      SPEND_RATE_QUERY_COUNT:
       SPEND_RATE_QUERY_ROWS:
       SPEND_RATE_REALTIME_MINUTES:
       SPEND_RATE_STORAGE_BYTES:
-      SPEND_RATE_WRITE_ROWS:
-      STRIPE_API_BASE:
-      STRIPE_API_KEY:
       TENANT_HEADER_IDENTITY_HMAC:
       TENANT_TELEMETRY_EXPORT_BATCH_ROWS:
       TENANT_TELEMETRY_EXPORT_ENABLED:
