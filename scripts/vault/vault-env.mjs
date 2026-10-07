@@ -641,7 +641,7 @@ function missingRequired(config, values) {
 }
 
 function requiredFixHint() {
-  return 'Fetch current team secrets with make vault-fetch-shared, or set the listed keys in ignored env files and publish them with make vault-publish or make vault-repair-shared.';
+  return 'Fetch the team secrets with make vault-pull-env, or set the listed keys in ignored env files and publish them with make vault-push-env.';
 }
 
 function assertRequiredRecords(records, source) {

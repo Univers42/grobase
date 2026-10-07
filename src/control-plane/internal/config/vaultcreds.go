@@ -72,7 +72,7 @@ func validateEncKey(encKey string) error {
 			"SECURITY_MODE=max requires a Vault-backed %s: refusing to boot on an "+
 				"absent or publicly-known placeholder value (no silent fallback). "+
 				"Supply a real per-deployment secret from Vault (e.g. via "+
-				"`make vault-fetch-shared` / VAULT_ADDR) before enabling max mode",
+				"`make vault-pull-env` / VAULT_ADDR) before enabling max mode",
 			vaultEncKeyEnv,
 		)
 	}
