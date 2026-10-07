@@ -1,4 +1,3 @@
-# Portable demo-DB snapshots: throwaway local-stack data (demo bcrypt hashes +
-# default container connection strings). No live/production secrets; vault42
-# zero-knowledge data is deliberately NOT included. See data-snapshots/README.md.
+# data-snapshots/ (app demo dumps) was deleted on 2026-10-07. The full-history
+# scan still sees it, so this entry stays until that history is rewritten.
 data-snapshots/archives/
