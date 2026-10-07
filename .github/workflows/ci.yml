@@ -104,6 +104,12 @@ jobs:
       - name: env schema / secret separation (m214)
         run: bash scripts/verify/m214-env-schema.sh
 
+      # Compose render + source: GROBASE_ENV reaches every validating plane, all 13
+      # NestJS apps pass validate:, Go aggregates missing keys, and the Rust binary
+      # takes try_from_env rather than the unvalidated constructor.
+      - name: startup config validation (m215)
+        run: bash scripts/verify/m215-config-validation.sh
+
       # Static, no network: the vault42 env tree is shared with the team by default and
       # no seeded 42ctl profile points at a dead or foreign authority.
       - name: vault42 team path (m216)
