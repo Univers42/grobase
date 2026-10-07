@@ -219,7 +219,7 @@ Each plane auto-generates `up-/down-/restart-/logs-<plane>` verbs. Gotchas:
 ### Verify gates (the unit of "done")
 
 New BaaS work lands behind a **numbered milestone gate** — a self-contained script
-`scripts/verify/m<NN>-*.sh` (currently **193 scripts, highest m213** (`m213-query-execute-route.sh`); the m-numbers are a _range_,
+`scripts/verify/m<NN>-*.sh` (count them: `ls scripts/verify/m*.sh | wc -l`; highest is **m216**; the m-numbers are a _range_,
 not contiguous, and a few are reused — e.g. several `m23`/`m24`/`m101`/`m102`/`m146`/`m154` scripts exist). There
 are no `baas-verify-*` Makefile wrappers in this repo (those were monorepo-root targets). Run a gate
 directly:
@@ -350,7 +350,7 @@ skip `make`.
 
 | Plane                               | Whole suite (Docker wrapper)                                                                                       | One test                                                                                                                                                                                                                                                                                                                                                             |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **TS app** (NestJS · Jest)          | `make nestjs-ci` = `tsc --noEmit` + eslint + `jest --passWithNoTests`; `make nestjs-build-<app>`                   | from repo root: `docker run --rm -v "$PWD/src":/app -w /app -v mini-baas-src-node-modules:/app/node_modules node:20-alpine npx jest <spec> -t '<case>'`. There are **30** spec files (22 under `src/apps`, 8 under `src/libs/common`; `find src/apps src/libs -name '*.spec.ts'` lists them) — **not** confined to one dir |
+| **TS app** (NestJS · Jest)          | `make nestjs-ci` = `tsc --noEmit` + eslint + `jest --passWithNoTests`; `make nestjs-build-<app>`                   | from repo root: `docker run --rm -v "$PWD/src":/app -w /app -v mini-baas-src-node-modules:/app/node_modules node:20-alpine npx jest <spec> -t '<case>'`. Spec files live under both trees — `find src/apps src/libs -name '*.spec.ts' -not -path '*/node_modules/*'` lists them; **not** confined to one dir |
 | **Go control**                      | `make go-control-plane-check` (`go vet ./... && go test ./...`); `make go-control-plane-build` (compose build)     | from `src/control-plane/`: `docker run --rm -v "$PWD":/src -w /src golang:1.25-bookworm go test ./internal/<pkg> -run TestX -v` (1.25 — `go.mod` says `go 1.25.0`; `-check` pins `golang:1.25-bookworm`)                                                                                                                                                          |
 | **Rust data**                       | `make rust-data-plane-check` / `-test` / `-build` (a `-test` target **does** exist now = `cargo test --workspace`) | `make _rust-toolchain` once, then `cargo test -p data-plane-core <name>` via the data-plane CARGO wrapper; engine integration = `make conformance` / `conformance-<engine>` (the m27 gate)                                                                                                                                                                           |
 | **Rust realtime**                   | `make rust-realtime-check \| -test \| -build`                                                                      | `cargo test -p realtime-core <name>` via the realtime CARGO wrapper                                                                                                                                                                                                                                                                                                  |
@@ -407,12 +407,53 @@ old single-file monolith was split into these. Beyond that base, additive overla
 | `docker-compose.track-binocle.yml` | Carried-over monorepo-integration overlay                           |
 | `docker-compose.monolith.yml`      | Preserved pre-split single-file compose (all services inline; uses stale `./docker/services/` paths) |
 
-**Gotcha — GHCR pull-fallback.** **56** services across the `orchestrators/compose/base/*.yml` plane
-files (included by the thin root `docker-compose.yml`) carry an
+**Gotcha — GHCR pull-fallback.** Most services across the `orchestrators/compose/base/*.yml` plane
+files (`grep -c pull-fallback orchestrators/compose/base/*.yml` counts them) (included by the thin root `docker-compose.yml`) carry an
 `image: ghcr.io/univers42/grobase-<svc>:latest` line above their `build:` block (annotated
 `# pull-fallback`), so a plain `docker compose up` **pulls the prebuilt `:latest` image instead of
 building local source** — your edits to a service won't take effect until you build it (`make build`,
 or `docker compose build <svc>`). (Image org is lowercase `univers42`, unlike the repo's `Univers42`.)
+
+## Configuration, secrets & environments
+
+The authoritative map is **[`docs/infrastructure/configuration.md`](docs/infrastructure/configuration.md)**;
+the machine-readable registry is **`infra/config/env/schema.json`** (every env key gets one
+of six categories: SECRET · CONFIG · PUBLIC · ENVIRONMENT · INFRASTRUCTURE · DEPLOYMENT,
+plus its vault42 path and the services that receive it). Gates **m214** (separation),
+**m215** (startup validation) and **m216** (vault42 team path) hold the tree to it, and all
+three run per-PR.
+
+- **Three layers, one order:** `config.env` (committed, CONFIG only) < `.env.secrets`
+  (gitignored, from vault42 or minted by `make env`) < `.env.local` (gitignored, per-dev)
+  → assembled into `.env` (600) by `scripts/env/assemble-env.sh`. Only that script writes
+  `.env`. `.env.example` is **generated** — `bash scripts/env/render-example.sh --write`
+  (`make env-example-check` is the drift check).
+- **`GROBASE_ENV`** (`local|dev|staging|prod`, default `local`) is the deployment identity.
+  `preflight-production.sh` refuses anything but `staging|prod`; all three planes validate
+  required secrets per environment at startup and fail fast naming KEYS ONLY. It must reach
+  a service to do anything — it is passed through `_common.yml`'s `ts-base`.
+- **No secret carries a compose default.** Every secret-bearing entry is
+  `${KEY:?unset - run make env}`, so a stack cannot boot on a credential published in this
+  repo. Adding a `${SECRET:-literal}` back fails `m214`. A gate that renders compose with
+  its own synthetic `.env` must supply the required floor — source
+  `scripts/lib/lib-required-env.sh` and call `required_env_floor <filler> <root> <skipfile>`
+  (**pass the skip-file**, or the floor overrides your sentinel and the gate passes vacuously).
+- **vault42 is the source of truth for real secrets** (org `Univers42`/`univers-42`, project
+  `grobase`, team `transcendence`; envs `local` `dev` `staging` `prod`, team write on
+  local+dev and read on staging+prod). `make vault-pull-env` / `vault-push-env` use the
+  **team** path by default (`VAULT_ENV_PERSONAL=1` opts out) — sharing is *encryption*, not
+  RBAC, so a personal push is unreadable by teammates whatever their org role. `vendor/` is
+  sealed to the pusher. 42ctl runs from its image via **`make ctl42`** (`ctl-remote` is an
+  alias); the live hosts are `vault42-server` + `vault42-authority` on fly — `vault42.fly.dev`,
+  `grobase-nano.fly.dev` and `grobase-stack.fly.dev` are dead and partly other people's apps.
+  Identity lives in `~/.config/42ctl`, never in the worktree.
+- **Secret scanning is layered:** `.gitignore` → `.githooks/pre-commit` (`make hooks`) → CI
+  gitleaks over the git-visible tree (a missing scanner now **fails**) → CI trufflehog over
+  full history. `.gitleaks.toml` allowlists **files, never directories** — a directory-wide
+  allowlist is how live credentials sat in `vendor/` unseen (see
+  [`docs/infrastructure/incident-2026-10.md`](docs/infrastructure/incident-2026-10.md), still open).
+- **The HashiCorp Vault plane is dormant**, kept not deleted: it copies `.env` into KV and
+  nothing reads it back. vault42 is the real store.
 
 ## Cloud, enterprise & parity features are flag-gated OFF
 

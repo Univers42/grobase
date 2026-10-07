@@ -149,7 +149,11 @@ EOF
 render() {
   render_header
   printf '\n'
-  jq -r "$(jq_defs_meta; jq_defs_entry; jq_main)" "$1"
+  jq -r "$(
+    jq_defs_meta
+    jq_defs_entry
+    jq_main
+  )" "$1"
 }
 
 run_print() {
