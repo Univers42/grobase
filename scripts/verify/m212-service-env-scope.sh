@@ -8,7 +8,8 @@
 #  engine passwords, SMTP, MinIO root), so a foothold in it reads them all     #
 #  from /proc/1/environ. A scoped service lists what it reads in environment   #
 #  (interpolated from .env) and loads only its optional .env.<service>. m211   #
-#  covers the engines; this gate covers the platform services in SCOPED.       #
+#  covers the engines; this gate covers the platform services in SCOPED, the   #
+#  Go control plane, the Rust data plane, realtime, and the init/ops jobs.     #
 #                                                                              #
 #  STATIC   a copy of the compose tree whose .env holds M212_PLATFORM (a key   #
 #           only env_file can deliver) and a marker in each service's needed   #
@@ -16,7 +17,14 @@
 #           + fly's override. No scoped service may hold M212_PLATFORM; each   #
 #           must still get its needed key from .env.                           #
 #  HATCH    a .env.<service> setting reaches the service; M212_PLATFORM not.   #
-#  MUTANT   kong given env_file .env again: the check must go red.             #
+#  CLOUD    docker-compose.cloud.yml hands flags.env.cloud to orchestrator,    #
+#           tenant-control and data-plane-router-rust. Their base entries are  #
+#           bare pass-throughs, which beat an env_file value of the same name  #
+#           (unset renders null), so every flags.env.example key set to a      #
+#           marker must reach each of the three — or the value the base file   #
+#           pins with a default — never null.                                  #
+#  MUTANT   kong given env_file .env again, and the cloud overlay without its  #
+#           `!reset` merge: each check must go red.                            #
 #  LIVE     each running scoped service's PID 1 holds no .env key that its     #
 #           base render does not name. Stack down = SKIP, stated.              #
 #                                                                              #
@@ -32,7 +40,9 @@ ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # shellcheck source=../lib/lib-required-env.sh
 . "${SCRIPT_DIR}/../lib/lib-required-env.sh"
 TS_SERVICES="ai-service analytics-service email-service gdpr-service log-service mongo-api newsletter-service outbox-relay permission-engine query-router schema-service session-service storage-router"
-SCOPED="kong studio pg-meta gotrue postgrest ${TS_SERVICES}"
+GO_SERVICES="adapter-registry-go tenant-control orchestrator function-scheduler webhook-dispatcher"
+CLOUD_SERVICES="orchestrator tenant-control data-plane-router-rust"
+SCOPED="kong studio pg-meta gotrue postgrest ${TS_SERVICES} ${GO_SERVICES} data-plane-router-rust realtime db-bootstrap pg-migrate pg-backup supavisor vault-init"
 MARK="m212-marker-$$"
 WORK="$(mktemp -d)" || exit 1
 TREE="${WORK}/tree"
@@ -53,6 +63,13 @@ needed_key() {
   pg-meta) echo PG_META_DB_HOST ;;
   gotrue) echo GOTRUE_DISABLE_SIGNUP ;;
   postgrest) echo PGRST_DB_URI ;;
+  adapter-registry-go | tenant-control | orchestrator | function-scheduler | webhook-dispatcher | data-plane-router-rust) echo GROBASE_ENV ;;
+  realtime) echo REALTIME_PRESENCE_REDIS_URL ;;
+  db-bootstrap) echo WAIT_SECONDS ;;
+  pg-migrate) echo POSTGRES_DB ;;
+  pg-backup) echo PG_BACKUP_RETAIN_PRO_DAYS ;;
+  supavisor) echo REGION ;;
+  vault-init) echo SMTP_PASS ;;
   *-service | mongo-api | outbox-relay | permission-engine | query-router | storage-router) echo INTERNAL_IDENTITY_HMAC_KEYS ;;
   *) fail "no needed key declared for $1" ;;
   esac
@@ -123,6 +140,51 @@ hatch_arm() {
   check "${WORK}/hatch.json" "base + .env.<service>"
 }
 
+# cloud_render writes to $1 the base + cloud overlay render with every
+# flags.env.example key set to MARK in the tree's flags.env.cloud (emptied again after).
+cloud_render() {
+  local flags="${TREE}/infra/config/cloud/flags.env.cloud"
+  sed "s|\$|=${MARK}|" "${WORK}/flag.keys" >"${flags}"
+  render "$1" "${TREE}/orchestrators/compose/docker-compose.cloud.yml"
+  : >"${flags}"
+}
+
+# cloud_check fails when a flags.env.example key does not reach a CLOUD_SERVICES
+# service in config $1: it must hold MARK, or the value base.json pins for it.
+cloud_check() {
+  local svc missed
+  for svc in ${CLOUD_SERVICES}; do
+    missed="$(jq -r --arg s "${svc}" --arg m "${MARK}" --slurpfile base "${WORK}/base.json" \
+      --rawfile keys "${WORK}/flag.keys" '
+      .services[$s].environment as $env
+      | ($keys | split("\n") | map(select(. != "")))[] as $k
+      | (if $base[0].services[$s].environment[$k] == null then $m else $base[0].services[$s].environment[$k] end) as $want
+      | select($env[$k] != $want) | $k' "$1" | tr '\n' ' ')"
+    [ -z "${missed}" ] || fail "cloud: ${svc} does not receive from flags.env.cloud: ${missed}"
+  done
+}
+
+# cloud_arm proves the cloud overlay still delivers its flags to CLOUD_SERVICES.
+cloud_arm() {
+  grep -vE '^[[:space:]]*(#|$)' "${ROOT}/infra/config/cloud/flags.env.example" | cut -d= -f1 >"${WORK}/flag.keys"
+  [ -s "${WORK}/flag.keys" ] || fail "cloud: no keys read from flags.env.example"
+  cloud_render "${WORK}/cloud.json"
+  cloud_check "${WORK}/cloud.json"
+  ok "cloud: $(wc -l <"${WORK}/flag.keys" | tr -d ' ') flags.env.example keys reach ${CLOUD_SERVICES}, or the default the base file pins"
+}
+
+# cloud_mutant_arm drops the cloud overlay's `!reset` merge; cloud_check must catch it.
+cloud_mutant_arm() {
+  local f="${TREE}/orchestrators/compose/docker-compose.cloud.yml"
+  cp "${f}" "${WORK}/cloud.yml"
+  sed 's|^      <<: \*cloud-flags$|      M212_NOOP: "1"|' "${WORK}/cloud.yml" >"${f}"
+  cmp -s "${f}" "${WORK}/cloud.yml" && fail "mutant: could not drop the cloud-flags merge"
+  cloud_render "${WORK}/cloud-mutant.json"
+  cp "${WORK}/cloud.yml" "${f}"
+  (cloud_check "${WORK}/cloud-mutant.json") >/dev/null 2>&1 && fail "mutant: the cloud overlay without its !reset merge passed — the check is vacuous"
+  ok "mutant: the cloud overlay without its !reset merge is caught"
+}
+
 # mutant_arm gives kong env_file .env again; the check must catch it.
 mutant_arm() {
   local f="${TREE}/orchestrators/compose/base/gateway.yml"
@@ -184,8 +246,11 @@ step "static — base and every overlay, every profile, marker .env"
 static_arm
 step "escape hatch — .env.<service>"
 hatch_arm
-step "mutant — kong loads .env again"
+step "cloud — flags.env.cloud still reaches the three services that read it"
+cloud_arm
+step "mutant — kong loads .env again; cloud overlay loses its merge"
 mutant_arm
+cloud_mutant_arm
 step "live — running scoped services"
 live_arm
 printf '\033[0;32m[M212] PASS — scoped services hold only the variables they read\033[0m\n'

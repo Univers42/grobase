@@ -2,7 +2,7 @@
 # ============================================================
 # m180 — website same-origin rewrite to grobase (Vercel)
 #
-# The static website (vendor/grobase-website) talks to grobase only same-origin:
+# The static website talks to grobase only same-origin:
 # Vercel rewrites /auth, /query, /storage to https://grobase-stack.fly.dev so the
 # browser never makes a cross-origin call (Kong CORS allows only the fly origin).
 # Realtime is the ONE exception — it is a direct browser→fly wss:// connection, so
@@ -16,7 +16,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-VJ="${ROOT}/vendor/grobase-website/vercel.json"
+# The website lives in its OWN repo (Univers42/grobase-website), cloned wherever the
+# operator keeps it — point WEBSITE_DIR at it. It used to be read from a nested
+# vendor/grobase-website checkout, which was a copy of THIS repo and has been removed.
+# Absent, this SKIPS: the property is real but unverifiable without the file, and a gate
+# that passes without its input is worse than one that says it did not run.
+WEBSITE_DIR="${WEBSITE_DIR:-${HOME}/Documents/grobase-website}"
+VJ="${WEBSITE_DIR}/vercel.json"
 FLY="https://grobase-stack.fly.dev"
 PASS=0
 ok() {
@@ -30,7 +36,11 @@ fail() {
 
 printf '\033[1m── m180: website same-origin rewrite ──\033[0m\n'
 
-[ -f "${VJ}" ] || fail "vendor/grobase-website/vercel.json missing"
+[ -f "${VJ}" ] || {
+  printf '  \033[1;33mSKIP\033[0m no vercel.json at %s — set WEBSITE_DIR to the grobase-website clone\n' "${VJ}"
+  printf '\033[1;33m── m180 SKIP (website repo not present)\033[0m\n'
+  exit 0
+}
 
 # valid JSON (prefer jq; fall back to python3)
 if command -v jq >/dev/null 2>&1; then

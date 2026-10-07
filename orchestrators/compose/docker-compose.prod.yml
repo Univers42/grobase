@@ -25,13 +25,10 @@
 #   • GOTRUE_MAILER_AUTOCONFIRM=false: a signup gets no session until the user
 #     clicks the mailed link. SMTP_HOST is MANDATORY — it defaults to mailpit
 #     (auth-api.yml), which swallows the mail, so nobody could ever confirm.
-#     Breaks the public /signup-then-use flows in gates m146, m150, m151, m155,
-#     m160, m161 and scripts/seed/movieverse-tenant.sh. Users created through
+#     Breaks any public /signup-then-use flow. Users created through
 #     /auth/v1/admin/users with email_confirm:true are unaffected.
-#   • GOTRUE_PASSWORD_MIN_LENGTH=12: rejects the <12-char demo passwords in
-#     m146 (Passw0rd!23), m160/m161 (surf-1234, admin1234) and seeds
-#     nimbus-tenant (Nimbus#2026), red-tetris-tenant (Tetris#2026),
-#     osionos-collaborators (Acme#2026).
+#   • GOTRUE_PASSWORD_MIN_LENGTH=12: rejects the <12-char demo passwords some
+#     seed scripts use (e.g. osionos-collaborators, Acme#2026).
 #   • Kong Admin API + Kong Manager OFF: nothing may configure Kong at runtime
 #     (db-less renders kong.yml at start; no runtime writer exists). The Status
 #     API serves /status and /metrics on :8001 instead.

@@ -35,6 +35,8 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck source=../lib/lib-required-env.sh
+. "${SCRIPT_DIR}/../lib/lib-required-env.sh"
 OVERLAYS="${ROOT}/orchestrators/compose"
 SKIPPED="docker-compose.monolith.yml docker-compose.track-binocle.yml"
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
@@ -47,7 +49,12 @@ fail() {
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "${WORK}"' EXIT
+# The env file is deliberately bare — this gate asserts a property of the RENDER, not
+# of any value. But secret-bearing entries are ${KEY:?}, so a truly empty file now
+# fails the render for a reason that has nothing to do with no-new-privileges. Supply
+# the required floor and nothing else; the filler never appears in an assertion.
 : >"${WORK}/empty.env"
+required_env_floor m208-floor "${ROOT}" >>"${WORK}/empty.env"
 
 # render writes the merged config of compose files $2… to $1 as JSON, with every
 # profile unless PROFILES is set to empty, and CONTAINER_NO_NEW_PRIVILEGES taken

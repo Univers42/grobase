@@ -346,7 +346,7 @@ the frontend's `PUBLIC_*` config (gate `m165`).
 ```mermaid
 flowchart TB
     subgraph VERCEL["Vercel — stateless frontends only"]
-        FE["Static SPA(s)<br/>website · vault42-web · red-tetris …"]
+        FE["Static SPA(s)<br/>website · vault42-web · …"]
         RW["same-origin rewrite<br/>/auth /query /storage → fly"]
     end
 
@@ -359,7 +359,7 @@ flowchart TB
     subgraph CONTRACTS["Contract factory — infra/config/contracts/"]
         CW["website.json + .schema.sql"]
         CV["vault42.json + .schema.sql"]
-        CR["red-tetris.json + .schema.sql"]
+        CR["&lt;app&gt;.json + .schema.sql"]
     end
 
     DB1[("website DB<br/>isolated")]

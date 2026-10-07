@@ -56,11 +56,12 @@ is_verifier() {
 
 # class prints how service $1 uses the JWT secret it holds under key $2, or
 # nothing when that pairing is unclassified. single-key: Kong keeps one secret
-# per issuer, GoTrue/PostgREST read one, vault42 is an external image.
+# per issuer, GoTrue/PostgREST read one, vault42 is an external image, vault-init copies
+# one into the dormant HashiCorp Vault KV (init-vault.sh) and verifies nothing.
 class() {
   case "$1 $2" in
   "tenant-control GOTRUE_JWT_SECRET" | "realtime REALTIME_JWT_SECRET") echo verify-prev ;;
-  "gotrue GOTRUE_JWT_SECRET" | "postgrest PGRST_JWT_SECRET" | "kong JWT_SECRET" | "vault42 JWT_SECRET") echo single-key ;;
+  "gotrue GOTRUE_JWT_SECRET" | "postgrest PGRST_JWT_SECRET" | "kong JWT_SECRET" | "vault42 JWT_SECRET" | "vault-init JWT_SECRET") echo single-key ;;
   *" JWT_SECRET") case " ${TS_VERIFIERS} " in *" $1 "*) echo verify-prev ;; esac ;;
   esac
 }

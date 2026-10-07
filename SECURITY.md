@@ -79,7 +79,7 @@ storage one is flag-gated **OFF** (byte-parity) and turned **ON** by `make cloud
 | F4 | GoTrue `/recover` returns **500 for a known email, 200 for an unknown one** → user enumeration | bundled **mailpit** SMTP sink so recovery mail sends and `/recover` returns 200 uniformly | `m156` |
 
 Run them: `for g in m156 m157 m158 m159; do bash scripts/verify/$g-*.sh; done`. The
-companion app gate `m155-savanna-security.sh` exercises per-request owner-scoping
+gate `m176-contract-isolation-live.sh` exercises per-request owner-scoping
 (RLS tickets, Mongo journal, realtime PII non-broadcast) end-to-end. Note: with F3 ON,
 bucket-provisioning must use a `service_role` token (the older storage gates m55/m77/m95
 create buckets as a plain user and expect the default-OFF posture).

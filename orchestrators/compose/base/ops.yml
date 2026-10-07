@@ -8,8 +8,21 @@ services:
       dockerfile: Dockerfile
     profiles: [backups, ops]
     container_name: mini-baas-pg-backup
-    env_file: [.env]
+    # Only the variables infra/docker/services/pg-backup/scripts read in the loop, once and
+    # liveness modes, never the whole .env (loop mode writes its env to /etc/environment).
+    # Left out on purpose: BACKUP_AGE_IDENTITY_FILE (the entrypoint refuses it outside a
+    # one-off restore), RESTORE_DATABASE_URL and PITR_LOCAL_STORE/PITR_PGDATA/PITR_WAL_STAGE
+    # (restore and pitr-restore runs: pass them with `docker compose run -e`). Other
+    # settings go in the optional .env.pg-backup (gate m212).
+    env_file:
+      - path: .env.pg-backup
+        required: false
     environment:
+      PG_BACKUP_RETAIN_BASIC_DAYS:
+      PG_BACKUP_RETAIN_ESSENTIAL_DAYS:
+      PG_BACKUP_RETAIN_MAX_DAYS:
+      PG_BACKUP_RETAIN_NANO_DAYS:
+      PG_BACKUP_RETAIN_PRO_DAYS:
       DATABASE_URL: ${PG_BACKUP_DATABASE_URL:-${DATABASE_URL:?unset - run make env}}
       MINIO_ENDPOINT: ${PG_BACKUP_MINIO_ENDPOINT:-http://minio:9000}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
@@ -19,6 +32,8 @@ services:
       PG_BACKUP_PREFIX: ${PG_BACKUP_PREFIX:-postgres}
       PG_BACKUP_RETAIN_DAYS: ${PG_BACKUP_RETAIN_DAYS:-14}
       PG_BACKUP_PHYSICAL: ${PG_BACKUP_PHYSICAL:-0}
+      PG_BACKUP_PITR: ${PG_BACKUP_PITR:-0}
+      PG_BACKUP_TIER: ${PG_BACKUP_TIER:-essential}
       BACKUP_AGE_RECIPIENTS: ${BACKUP_AGE_RECIPIENTS:-}
     depends_on:
       postgres:
@@ -55,8 +70,57 @@ services:
       retries: 5
     container_name: mini-baas-supavisor
     profiles: [ops, extras]
-    env_file: [.env]
+    # Only the variables Supavisor v2.7.4 reads (config/runtime.exs, lib/supavisor/application.ex,
+    # rel/env.sh.eex — the tag the Dockerfile pins), never the whole .env. Not listed: the names
+    # the image sets (LANG, MIX_ENV, RLIMIT_NOFILE, ECTO_IPV6, ERL_AFLAGS) and RELEASE_ROOT, which
+    # the release script sets. Other settings go in the optional .env.supavisor (gate m212).
+    env_file:
+      - path: .env.supavisor
+        required: false
     environment:
+      ADDR_TYPE:
+      API_JWT_SECRET:
+      API_TOKEN_BLOCKLIST:
+      AVAILABILITY_ZONE:
+      CLUSTER_ID:
+      CLUSTER_NODES:
+      CLUSTER_POSTGRES:
+      DB_POOL_SIZE:
+      DEBUG_LOAD_RUNTIME_CONFIG:
+      DNS_POLL:
+      FLY_ALLOC_ID:
+      FLY_APP_NAME:
+      FLY_REGION:
+      GLOBAL_DOWNSTREAM_CERT_PATH:
+      GLOBAL_DOWNSTREAM_KEY_PATH:
+      GLOBAL_UPSTREAM_CA_PATH:
+      INSTANCE_ID:
+      JWT_CLAIM_VALIDATORS:
+      LOCATION_ID:
+      LOCATION_KEY:
+      LOGFLARE_API_KEY:
+      LOGFLARE_SOURCE_ID:
+      LOGS_ENGINE:
+      MAX_CONNECTIONS:
+      METRICS_JWT_SECRET:
+      METRICS_TOKEN_BLOCKLIST:
+      NODE_IP:
+      NODE_NAME:
+      NUM_ACCEPTORS:
+      PORT:
+      PROM_POLL_RATE:
+      PROXY_PORT:
+      PROXY_PORT_SESSION:
+      PROXY_PORT_TRANSACTION:
+      RECONNECT_ON_DB_CLOSE:
+      RECONNECT_RETRIES:
+      REGION:
+      SESSION_PROXY_PORTS:
+      SUPAVISOR_ACCESS_LOG_FILE_PATH:
+      SUPAVISOR_DB_IP_VERSION:
+      SUPAVISOR_LOG_FILE_PATH:
+      SUPAVISOR_LOG_FORMAT:
+      TRANSACTION_PROXY_PORTS:
       DATABASE_URL: ${DATABASE_URL:?unset - run make env}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:?unset - run make env}
       VAULT_ENC_KEY: ${VAULT_ENC_KEY:?unset - run make env}

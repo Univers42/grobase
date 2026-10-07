@@ -26,8 +26,47 @@ services:
         - ghcr.io/univers42/grobase-data-plane-router:buildcache
     profiles: [adapter-plane, rust-data-plane]
     container_name: mini-baas-data-plane-router-rust
-    env_file: [.env]
+    # Only the variables listed below, never the whole .env; other
+    # settings go in the optional .env.data-plane-router-rust (gate m212).
+    env_file:
+      - path: .env.data-plane-router-rust
+        required: false
     environment:
+      DATA_PLANE_ADAPTER_REGISTRY_TOKEN:
+      DATA_PLANE_APPLY_MASKS:
+      DATA_PLANE_AUDIT_READS:
+      DATA_PLANE_CORS_ALLOW_ORIGINS:
+      DATA_PLANE_CREDENTIAL_CACHE_TTL_MS:
+      DATA_PLANE_FEDERATION_ENABLED:
+      DATA_PLANE_HTTP_ALLOW_INTERNAL:
+      DATA_PLANE_MAX_POOLS:
+      DATA_PLANE_METERING:
+      DATA_PLANE_METERING_FLUSH_MS:
+      DATA_PLANE_METERING_REDIS_URL:
+      DATA_PLANE_OUTBOX_QUEUE:
+      DATA_PLANE_PERMISSION_BUNDLE:
+      DATA_PLANE_PG_READ_PREDICATE:
+      DATA_PLANE_POOLER_URL:
+      DATA_PLANE_QUOTA_ENFORCEMENT:
+      DATA_PLANE_QUOTA_REDIS_URL:
+      DATA_PLANE_QUOTA_REFRESH_MS:
+      DATA_PLANE_RATELIMIT_BACKEND:
+      DATA_PLANE_RATELIMIT_REDIS_URL:
+      DATA_PLANE_READ_REPLICA:
+      DATA_PLANE_ROUTER_HEALTH_HOST:
+      DATA_PLANE_SPEND_CAPS:
+      DATA_PLANE_STATEMENT_CACHE:
+      DATA_PLANE_SUSPEND_READER:
+      DATA_PLANE_TENANT_OBS:
+      DATA_PLANE_TENANT_OBS_COUNTER:
+      DATA_PLANE_VAULT_ADDR:
+      DATA_PLANE_VAULT_DSN_FIELD:
+      DATA_PLANE_VAULT_DSN_PREFIX:
+      DATA_PLANE_VAULT_TOKEN:
+      DATA_PLANE_VERIFY_CACHE_TTL_MS:
+      GROBASE_ENV:
+      METERING_ENABLED:
+      REDIS_URL:
       DATA_PLANE_ROUTER_HOST: 0.0.0.0
       DATA_PLANE_ROUTER_PORT: 4011
       DATA_PLANE_ROUTER_PRODUCT_MODE: ${DATA_PLANE_ROUTER_PRODUCT_MODE:-enabled}
@@ -91,7 +130,7 @@ services:
     ports:
       - "127.0.0.1:${DATA_PLANE_RUST_PORT:-4011}:4011"
     # host-gateway: lets external-client mounts (gourmand-tenant.sh dev
-    # fallback) dial a Postgres published on the HOST (vite-gourmand's own
+    # fallback) dial a Postgres published on the HOST (an external app's own
     # compose) via host.docker.internal — Linux needs the explicit mapping.
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -126,8 +165,23 @@ services:
     # service entirely by leaving the `realtime` profile off.
     profiles: [realtime, data-plane]
     container_name: mini-baas-realtime
-    env_file: [.env]
+    # Only the variables listed below, never the whole .env; other
+    # settings go in the optional .env.realtime (gate m212).
+    env_file:
+      - path: .env.realtime
+        required: false
     environment:
+      REALTIME_ALLOW_NOAUTH:
+      REALTIME_HEALTH_HOST:
+      REALTIME_METERING:
+      REALTIME_METERING_FLUSH_MS:
+      REALTIME_METERING_REDIS_URL:
+      REALTIME_MONGO_PREFIX:
+      REALTIME_PG_PREFIX:
+      REALTIME_PRESENCE_PREFIX:
+      REALTIME_PRESENCE_REDIS_URL:
+      REALTIME_PRESENCE_SHARED:
+      REDIS_URL:
       REALTIME_HOST: 0.0.0.0
       REALTIME_PORT: 4000
       REALTIME_JWT_SECRET: ${JWT_SECRET:?unset - run make env}

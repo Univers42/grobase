@@ -7,9 +7,11 @@
 #  refuses to boot: it serves traffic while verifying nothing. All three planes  #
 #  now validate at startup, and this gate keeps the wiring in place.            #
 #                                                                              #
-#   REACH   GROBASE_ENV reaches every service of every plane. Without it the     #
+#   REACH   GROBASE_ENV reaches every service that validates it: the 13 NestJS   #
+#           apps, the 5 Go binaries and the data plane. Without it the           #
 #           validators see `local` and enforce NOTHING — the master/sub-flag     #
-#           no-op: the check is present, wired, tested, and asleep.              #
+#           no-op: the check is present, wired, tested, and asleep. A service    #
+#           that never reads it does not hold it (m212).                         #
 #   TS      all 13 NestJS apps pass `validate:` to ConfigModule.forRoot, and     #
 #           the shared validator is the one they use (not 13 copies).            #
 #   GO      LoadConfig parses GROBASE_ENV and aggregates missing keys; its       #
@@ -68,14 +70,16 @@ reach_arm() {
   local total got missing
   total="$(jq -r '.services | length' "${WORK}/all.json")"
   got="$(jq -r '[.services | to_entries[] | select(.value.environment | has("GROBASE_ENV"))] | length' "${WORK}/all.json")"
-  [ "${got}" -ge 20 ] ||
+  [ "${got}" -ge 19 ] ||
     fail "only ${got} of ${total} services receive GROBASE_ENV — the validators would all see local"
   # The planes that VALIDATE must each be covered, by name: a count can be met
   # while the one plane that enforces is the one left out.
   missing=""
   local svc
-  for svc in query-router storage-router permission-engine tenant-control \
-    adapter-registry-go orchestrator data-plane-router-rust; do
+  for svc in ai-service analytics-service email-service gdpr-service log-service mongo-api \
+    newsletter-service outbox-relay permission-engine query-router schema-service session-service \
+    storage-router adapter-registry-go tenant-control orchestrator function-scheduler \
+    webhook-dispatcher data-plane-router-rust; do
     jq -e --arg s "${svc}" '.services[$s] // empty' "${WORK}/all.json" >/dev/null 2>&1 || continue
     jq -e --arg s "${svc}" '.services[$s].environment | has("GROBASE_ENV")' \
       "${WORK}/all.json" >/dev/null 2>&1 || missing="${missing}${svc} "
