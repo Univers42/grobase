@@ -19,6 +19,7 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::{
     routing::{get, post},
@@ -27,7 +28,7 @@ use axum::{
 use realtime_auth::NoAuthProvider;
 use realtime_bus_inprocess::InProcessBus;
 use realtime_bus_irc::{IrcBus, IrcBusConfig};
-use realtime_core::{AuthProvider, EventBus, EventBusPublisher};
+use realtime_core::{AuthProvider, DatabaseProducer, EventBus, EventBusPublisher, EventStream};
 use realtime_engine::{
     registry::SubscriptionRegistry, router::EventRouter, sequence::SequenceGenerator,
     PresenceTracker, ProducerRegistry,
@@ -331,30 +332,124 @@ pub fn default_producer_registry() -> ProducerRegistry {
     registry
 }
 
+/// First-attach retry delay: doubles on each consecutive failure, capped.
+///
+/// A database that is not accepting connections yet used to leave its producer
+/// dead for the life of the process: `start()` failed once, the task logged it
+/// and ended, and nothing ever tried again. On a cold boot dockerd starts every
+/// container at once, `depends_on` or not, so the race is routine: grobase's
+/// realtime lost it to postgres one second in and stayed detached until a
+/// person restarted it (born2root VM, 2026-10-07: unhealthy at +144 s, 0
+/// restarts). The start stays loud -- every failure is logged, and
+/// `/v1/health` reports the producer detached until it attaches -- so a bad DSN
+/// still shows; it just no longer needs a restart once the database is up.
+const START_RETRY_MIN: Duration = Duration::from_secs(1);
+const START_RETRY_MAX: Duration = Duration::from_secs(30);
+
+/// `producer.start()` until it succeeds, waiting `min`, then twice as long,
+/// up to `max`, between attempts.
+async fn start_with_retry(
+    producer: &dyn DatabaseProducer,
+    adapter_name: &str,
+    min: Duration,
+    max: Duration,
+) -> Box<dyn EventStream> {
+    let mut delay = min;
+    loop {
+        match producer.start().await {
+            Ok(stream) => return stream,
+            Err(e) => {
+                error!(
+                    adapter = %adapter_name,
+                    retry_in = ?delay,
+                    "Failed to start producer: {}", e
+                );
+                tokio::time::sleep(delay).await;
+                delay = (delay * 2).min(max);
+            }
+        }
+    }
+}
+
 fn spawn_producer_task(handle: ProducerHandle, bus_pub: Arc<dyn EventBusPublisher>) {
     tokio::spawn(async move {
         let adapter_name = &handle.name;
-        match handle.producer.start().await {
-            Ok(mut stream) => {
-                while let Some(event) = stream.next_event().await {
-                    if let Err(e) = bus_pub.publish(event.topic.as_str(), &event).await {
-                        error!(adapter = %adapter_name, "Failed to publish event: {}", e);
-                    }
-                }
-                // next_event() returning None means the producer's sender was
-                // dropped: this task is finished and no further change event
-                // will EVER be published for this database. It used to end
-                // here in total silence while the process kept serving
-                // WebSockets, so the only symptom was subscribers receiving
-                // nothing. Say so.
-                error!(
-                    adapter = %adapter_name,
-                    "producer stream ended — no further change events will be published for this database"
-                );
+        let mut stream = start_with_retry(
+            handle.producer.as_ref(),
+            adapter_name,
+            START_RETRY_MIN,
+            START_RETRY_MAX,
+        )
+        .await;
+        while let Some(event) = stream.next_event().await {
+            if let Err(e) = bus_pub.publish(event.topic.as_str(), &event).await {
+                error!(adapter = %adapter_name, "Failed to publish event: {}", e);
             }
-            Err(e) => error!(adapter = %adapter_name, "Failed to start producer: {}", e),
         }
-        // Either way nothing more will flow: /v1/health reports it detached.
+        // next_event() returning None means the producer's sender was
+        // dropped: this task is finished and no further change event
+        // will EVER be published for this database. It used to end
+        // here in total silence while the process kept serving
+        // WebSockets, so the only symptom was subscribers receiving
+        // nothing. Say so.
+        error!(
+            adapter = %adapter_name,
+            "producer stream ended — no further change events will be published for this database"
+        );
+        // Nothing more will flow: /v1/health reports it detached.
         handle.ended.store(true, Ordering::SeqCst);
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use realtime_core::{EventEnvelope, RealtimeError, Result};
+    use std::sync::atomic::AtomicUsize;
+
+    /// Refuses `failures` starts, then succeeds: a database that comes up late.
+    struct LateProducer {
+        failures: usize,
+        attempts: AtomicUsize,
+    }
+
+    #[async_trait]
+    impl DatabaseProducer for LateProducer {
+        async fn start(&self) -> Result<Box<dyn EventStream>> {
+            if self.attempts.fetch_add(1, Ordering::SeqCst) < self.failures {
+                return Err(RealtimeError::Internal("connection refused".into()));
+            }
+            Ok(Box::new(EmptyStream))
+        }
+        async fn stop(&self) -> Result<()> {
+            Ok(())
+        }
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+        fn name(&self) -> &'static str {
+            "late"
+        }
+    }
+
+    struct EmptyStream;
+
+    #[async_trait]
+    impl EventStream for EmptyStream {
+        async fn next_event(&mut self) -> Option<EventEnvelope> {
+            None
+        }
+    }
+
+    #[tokio::test]
+    async fn a_database_that_comes_up_late_is_attached_not_abandoned() {
+        let producer = LateProducer {
+            failures: 3,
+            attempts: AtomicUsize::new(0),
+        };
+        let ms = Duration::from_millis(1);
+        let _stream = start_with_retry(&producer, "late", ms, ms * 2).await;
+        assert_eq!(producer.attempts.load(Ordering::SeqCst), 4);
+    }
 }
