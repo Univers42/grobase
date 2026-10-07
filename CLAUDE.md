@@ -699,9 +699,12 @@ Migrations `068` (per-mount `shared_resources`), `069` (DynamoDB engine CHECK), 
 (per-mount `read_scoped`) and `085` (app channels) also stay: apps *motivated* them, but
 they are data-plane features. The 8th engine adapter is grobase's, not hypertube's.
 
-`scripts/seed/` keeps only platform seeders: `agency-tenant.sh` (a permanent demo
-tenant), `seed-live-demo.sh` + `live-demo-*`, `osionos-*`, `seed-mongo.sh`,
-`analytics-dashboards.py`, `extra-engines-gen.py`. Contracts keep `website`, `vault42`
+`scripts/seed/` keeps only platform seeders — `ls scripts/seed/` is the list, currently
+`agency-*` (a permanent demo tenant), `seed-live-demo.sh` + `live-demo-generate.mjs`,
+`osionos-{collaborators,extra-engines}.sh` (generic multi-engine seeders the m174 gates
+drive), `seed-mongo.sh` and `extra-engines-gen.py`. The committed app data under
+`data-snapshots/archives/` and the stale `infra/config/audit/` copy went with the apps,
+as did the osionos `/api` Kong route (an app BFF). Contracts keep `website`, `vault42`
 and the `_smoke` fixture — infrastructure, not apps.
 
 ## Appendix — historical note (pre-flatten layout)
