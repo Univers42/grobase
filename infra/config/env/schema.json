@@ -31,7 +31,7 @@
   "rules": [
     "A key absent from this file defaults to CONFIG; a SECRET must be listed.",
     "No SECRET may carry a literal default in compose (gate m214).",
-    "A derived key is rebuilt by assemble-env.sh from its parts, never stored twice.",
+    "A derived key is rebuilt from its parts by its built_by (generate-env.sh, or a compose nested default), never stored twice.",
     "No SECRET may appear in a PUBLIC_*/VITE_*/NEXT_PUBLIC_* name."
   ],
   "keys": {
@@ -804,7 +804,8 @@
         "tenant-control",
         "vault-init",
         "webhook-dispatcher"
-      ]
+      ],
+      "built_by": "scripts/env/generate-env.sh (written into .env.secrets)"
     },
     "DATABASE_URL": {
       "category": "SECRET",
@@ -843,19 +844,15 @@
         "tenant-control",
         "vault-init",
         "webhook-dispatcher"
-      ]
+      ],
+      "built_by": "scripts/env/generate-env.sh (written into .env.secrets)"
     },
     "MONGO_URI": {
-      "category": "SECRET",
-      "derived_from": "mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017",
-      "stored_in_vault42": false,
-      "required_in": [
-        "local",
-        "dev",
-        "staging",
-        "prod"
-      ],
+      "category": "CONFIG",
+      "format": "url",
+      "required_in": [],
       "compose_required": false,
+      "$comment": "Credential-free as shipped (config.env). Embedding user:password@ makes it a SECRET \u2014 gitleaks rule credentialed-dsn catches that.",
       "consumers": [
         "adapter-registry-go",
         "ai-service",
@@ -909,20 +906,17 @@
         "tenant-control",
         "vault-init",
         "webhook-dispatcher"
-      ]
+      ],
+      "built_by": "scripts/env/generate-env.sh (written into .env.secrets)"
     },
     "PG_BACKUP_DATABASE_URL": {
       "category": "SECRET",
       "derived_from": "postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}",
       "stored_in_vault42": false,
-      "required_in": [
-        "local",
-        "dev",
-        "staging",
-        "prod"
-      ],
+      "required_in": [],
       "compose_required": false,
-      "consumers": []
+      "consumers": [],
+      "built_by": "compose nested default -> DATABASE_URL (orchestrators/compose/base/ops.yml:13)"
     },
     "GROBASE_ENV": {
       "category": "ENVIRONMENT",
