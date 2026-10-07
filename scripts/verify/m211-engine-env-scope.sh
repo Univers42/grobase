@@ -57,7 +57,8 @@ setup() {
   # Secret-bearing compose entries are ${KEY:?...}; satisfy the whole required floor
   # or the render fails for an unrelated reason. FLOOR differs from SENT so a
   # legitimate consumer never matches the leak sentinel.
-  required_env_floor "${FLOOR}" "${TREE}" "${TREE}/.env" >>"${TREE}/.env"
+  floor="$(required_env_floor "${FLOOR}" "${TREE}" "${TREE}/.env")"
+  [ -z "${floor}" ] || printf '%s\n' "${floor}" >>"${TREE}/.env"
 }
 
 # render writes to $1 the every-profile config of the tree plus compose files $2…,

@@ -61,14 +61,15 @@ needed_key() {
 # setup copies the compose tree, fly's override and an empty cloud flags file,
 # and writes a .env with M212_PLATFORM plus the marker in every needed key.
 setup() {
-  local svc
+  local svc floor
   mkdir -p "${TREE}/orchestrators" "${TREE}/deploy/fly" "${TREE}/infra/config/cloud"
   cp "${ROOT}/docker-compose.yml" "${TREE}/"
   cp -r "${ROOT}/orchestrators/compose" "${TREE}/orchestrators/"
   cp "${ROOT}/deploy/fly/compose.override.yml" "${TREE}/deploy/fly/"
   : >"${TREE}/infra/config/cloud/flags.env.cloud"
   printf 'M212_PLATFORM=%s\nJWT_SECRET=m212-jwt\n' "${MARK}" >"${TREE}/.env"
-  required_env_floor "m212-floor" "${TREE}" "${TREE}/.env" >>"${TREE}/.env"
+  floor="$(required_env_floor "m212-floor" "${TREE}" "${TREE}/.env")"
+  [ -z "${floor}" ] || printf '%s\n' "${floor}" >>"${TREE}/.env"
   for svc in ${SCOPED}; do printf '%s=%s\n' "$(needed_key "${svc}")" "${MARK}" >>"${TREE}/.env"; done
 }
 
