@@ -61,6 +61,17 @@ fi
 # the bytes still travel, sealed to you. It bounds WHO can read them, not whether they
 # are stored. Removing them entirely means pushing from the app project instead.
 VENDOR_PRIVATE="vendor/*"
+# Files that must NEVER reach a teammate, even in a shared environment:
+#   secrets/*  — the vault42 ADMIN credentials (account password, register token,
+#                keystore passphrase). Sharing them hands every member of a
+#                write-granted environment the keys to the authority itself, and it
+#                is circular besides: the passphrase that opens the vault has no
+#                business living inside it.
+#   *.local    — 42ctl already forces these private, flag or not; listed so the
+#                intent is readable here rather than implied by the CLI.
+# Ponytail: these are --private, i.e. sealed to the pusher, NOT excluded. The bytes
+# still travel. Nothing in the current CLI can exclude a path the scanner finds.
+ALWAYS_PRIVATE="secrets/* *.local"
 
 [ "$#" -ge 1 ] || {
   printf 'usage: ctl-env.sh push|pull [flags]\n' >&2
@@ -251,8 +262,12 @@ if [ -n "$ORG" ] && [ -n "$ENVNAME" ]; then
   set -- env "$verb" --org "$ORG" --project "$PROJECT" --env "$ENVNAME" "$@"
   # Only a push can classify files; `env pull` has no --private.
   if [ "$verb" = push ]; then
-    printf '[vault42] vendor/ sealed to you alone (other apps credentials)\n' >&2
+    printf '[vault42] sealed to you alone: vendor/ (other apps credentials), %s\n' \
+      "$ALWAYS_PRIVATE" >&2
     set -- "$@" --private "$VENDOR_PRIVATE"
+    for _p in $ALWAYS_PRIVATE; do
+      set -- "$@" --private "$_p"
+    done
   fi
 elif [ -n "$_prune" ]; then
   printf '[vault42] mode: PERSONAL project %s — sealed to you alone\n' "$PROJECT" >&2
