@@ -142,11 +142,22 @@ hatch_arm() {
 
 # cloud_render writes to $1 the base + cloud overlay render with every
 # flags.env.example key set to MARK in the tree's flags.env.cloud (emptied again after).
+# cloud_render writes the flags fixture where EVERY compose version will look for it.
+# `env_file: infra/config/cloud/flags.env.cloud` is relative, and compose resolves a
+# relative env_file against the project directory in some versions and against the
+# compose FILE's directory in others. This gate asserts that the flags reach the three
+# services, not where compose hunts for the file, so the fixture goes to both candidate
+# paths — otherwise the arm passes on one runner and fails on another, which is what it
+# did: green locally on v5.6.0, red on CI.
 cloud_render() {
-  local flags="${TREE}/infra/config/cloud/flags.env.cloud"
-  sed "s|\$|=${MARK}|" "${WORK}/flag.keys" >"${flags}"
+  local primary="${TREE}/infra/config/cloud/flags.env.cloud"
+  local alt="${TREE}/orchestrators/compose/infra/config/cloud/flags.env.cloud"
+  mkdir -p "${alt%/*}"
+  sed "s|\$|=${MARK}|" "${WORK}/flag.keys" >"${primary}"
+  cp "${primary}" "${alt}"
   render "$1" "${TREE}/orchestrators/compose/docker-compose.cloud.yml"
-  : >"${flags}"
+  : >"${primary}"
+  rm -rf "${TREE}/orchestrators/compose/infra"
 }
 
 # cloud_check fails when a flags.env.example key does not reach a CLOUD_SERVICES
