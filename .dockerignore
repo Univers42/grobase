@@ -67,8 +67,10 @@ temp/
 
 # Environment files (except .env.example)
 .env
+.env.secrets
 .env.production
 .env.staging
+secrets/
 
 # Package locks (optional - depends on your strategy)
 # package-lock.json
