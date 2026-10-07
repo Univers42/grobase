@@ -28,8 +28,15 @@ migrate-mysql: ## Apply MySQL migrations
 
 migrate-all: migrate migrate-mongo migrate-mysql ## Apply PG + Mongo + MySQL migrations
 
+# SCHEMA-QUALIFIED on purpose: GoTrue keeps its OWN auth.schema_migrations (one
+# varchar column), and an unqualified name resolves to that one first — so this
+# printed "No migrations table yet" on a fully migrated stack, because selecting
+# name/applied_at from GoTrue's table errors and the || hid it. Errors are shown now:
+# a status command that masks its own failure is worse than one that prints nothing.
 migrate-status: ## Show applied migration versions
-	@$(DC) exec -T postgres psql -U postgres -d postgres -c "SELECT version, name, applied_at FROM schema_migrations ORDER BY version;" 2>/dev/null || echo "  No migrations table yet — run make migrate."
+	@$(DC) exec -T postgres psql -U postgres -d postgres \
+		-c "SELECT version, name, applied_at FROM public.schema_migrations ORDER BY version;" \
+		|| echo "  Could not read public.schema_migrations (is postgres up? has make migrate run?)"
 
 seed-mongo: _require-compose ## Seed MongoDB demo data
 	@bash scripts/seed/seed-mongo.sh

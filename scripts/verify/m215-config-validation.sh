@@ -33,6 +33,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 SCHEMA="${ROOT}/infra/config/env/schema.json"
+# shellcheck source=../lib/lib-required-env.sh
+. "${SCRIPT_DIR}/../lib/lib-required-env.sh"
 WORK="$(mktemp -d)" || exit 1
 trap 'rm -rf "${WORK}"' EXIT
 
@@ -56,8 +58,18 @@ command -v jq >/dev/null || {
 
 # render writes the all-profiles compose config, the only honest source for
 # "which services receive this key".
+#
+# It renders against a SYNTHETIC env file, not the repo's .env, so the gate is
+# self-contained: CI's lint job has no .env, and a gate that needs one is a gate that
+# fails for a reason unrelated to what it tests (it did exactly that on b5484f41).
+# The floor satisfies every ${KEY:?}; GROBASE_ENV must be SET for the reach arm to
+# mean anything, because an unset pass-through is omitted from the rendered service
+# rather than delivered empty.
 render() {
-  (cd "${ROOT}" && timeout 600 docker compose --profile '*' config --format json) \
+  required_env_floor m215-floor "${ROOT}" >"${WORK}/probe.env"
+  printf 'GROBASE_ENV=m215-probe\n' >>"${WORK}/probe.env"
+  (cd "${ROOT}" && timeout 600 docker compose --env-file "${WORK}/probe.env" \
+    --profile '*' config --format json) \
     >"${WORK}/all.json" 2>"${WORK}/render.err"
 }
 
