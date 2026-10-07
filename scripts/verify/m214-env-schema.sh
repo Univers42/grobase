@@ -81,13 +81,27 @@ schema_arm() {
 }
 
 # ── COMPOSE ──────────────────────────────────────────────────────────────────
-# literal_defaults prints `file:line KEY` for every schema SECRET given a literal
-# fallback in compose tree $1. `${K:-}` (empty) and `${K:-$OTHER}` are not literals.
+# literal_defaults prints `file:line KEY` for every schema SECRET whose compose
+# fallback is a PUBLISHED credential: a default that is plain text. `${K:-}` (empty)
+# and `${K:-$OTHER}` are not. Neither is a default that interpolates its credential
+# from a required variable, e.g.
+#   ${PGRST_DB_URI:-postgres://authenticator:${AUTHENTICATOR_PASSWORD:?}@pg/db}
+# which publishes a USER and a HOST but no secret — the password still has to be set.
+#
+# Ponytail: "contains ${" is the test, so a default that mixes a literal password with
+# an unrelated interpolation (…:-postgres://u:realpw@h/db?opt=${X}) is missed. It
+# under-reports in exactly that shape; a fully literal default, which is what every
+# historical offender was, is always caught.
 literal_defaults() {
   local tree="$1" keys re
   keys="$(jq -r '.keys | to_entries[] | select(.value.category=="SECRET") | .key' "${SCHEMA}" | paste -sd '|' -)"
+  [ -n "${keys}" ] || {
+    echo "SCHEMA:0 no-secret-keys-in-schema"
+    return
+  }
   re="\\\$\\{(${keys}):-[^}\$][^}]*\\}"
   grep -rnoE "${re}" "${tree}/orchestrators/compose/base/" "${tree}/orchestrators/compose/" 2>/dev/null |
+    grep -vE ':-[^}]*\$\{' |
     sed -E 's#^.*/([^/]+\.yml):([0-9]+):\$\{([A-Z_0-9]+):-.*#\1:\2 \3#' | sort -u
 }
 

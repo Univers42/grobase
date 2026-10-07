@@ -15,13 +15,21 @@ import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { TerminusModule } from '@nestjs/terminus';
 import { MongoModule } from '@mini-baas/database';
-import { ObservabilityModule, createPinoHttpOptions } from '@mini-baas/common';
+import {
+  IDENTITY_SECRETS,
+  ObservabilityModule,
+  createPinoHttpOptions,
+  validateEnv,
+} from '@mini-baas/common';
 import { EventsModule } from './events/events.module';
 import { HealthController } from './health.controller';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv({ service: 'analytics-service', secrets: IDENTITY_SECRETS }),
+    }),
     LoggerModule.forRoot({ pinoHttp: createPinoHttpOptions('analytics-service') }),
     ObservabilityModule,
     TerminusModule,

@@ -19,10 +19,13 @@ import { HealthController } from './health.controller';
 import { OutboxRelayService } from './outbox-relay.service';
 import { SagaCoordinatorService } from './saga-coordinator.service';
 
-import { ObservabilityModule, createPinoHttpOptions } from '@mini-baas/common';
+import { ObservabilityModule, createPinoHttpOptions, validateEnv } from '@mini-baas/common';
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv({ service: 'outbox-relay', secrets: ['DATABASE_URL'] }),
+    }),
     LoggerModule.forRoot({ pinoHttp: createPinoHttpOptions('outbox-relay') }),
     ObservabilityModule,
     TerminusModule,

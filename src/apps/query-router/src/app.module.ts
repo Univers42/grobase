@@ -20,14 +20,22 @@ import { HealthController } from './health.controller';
 import {
   ApiKeyMiddleware,
   AuditModule,
+  IDENTITY_SECRETS,
   IdempotencyMiddleware,
   ObservabilityModule,
   createPinoHttpOptions,
+  validateEnv,
 } from '@mini-baas/common';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv({
+        service: 'query-router',
+        secrets: [...IDENTITY_SECRETS, 'ADAPTER_REGISTRY_SERVICE_TOKEN', 'DATABASE_URL'],
+      }),
+    }),
     LoggerModule.forRoot({ pinoHttp: createPinoHttpOptions('query-router') }),
     ObservabilityModule,
     TerminusModule,

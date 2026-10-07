@@ -19,11 +19,23 @@ import { ConsentModule } from './consent/consent.module';
 import { DeletionModule } from './deletion/deletion.module';
 import { ExportModule } from './export/export.module';
 import { HealthController } from './health.controller';
-import { AuditModule, ObservabilityModule, createPinoHttpOptions } from '@mini-baas/common';
+import {
+  AuditModule,
+  IDENTITY_SECRETS,
+  ObservabilityModule,
+  createPinoHttpOptions,
+  validateEnv,
+} from '@mini-baas/common';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv({
+        service: 'gdpr-service',
+        secrets: [...IDENTITY_SECRETS, 'DATABASE_URL'],
+      }),
+    }),
     LoggerModule.forRoot({ pinoHttp: createPinoHttpOptions('gdpr-service') }),
     ObservabilityModule,
     TerminusModule,

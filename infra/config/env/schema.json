@@ -35,6 +35,33 @@
     "No SECRET may appear in a PUBLIC_*/VITE_*/NEXT_PUBLIC_* name."
   ],
   "keys": {
+    "ADAPTER_REGISTRY_DATABASE_URL": {
+      "category": "SECRET",
+      "derived_from": "postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}",
+      "stored_in_vault42": false,
+      "required_in": [
+        "local",
+        "dev",
+        "staging",
+        "prod"
+      ],
+      "compose_required": false,
+      "consumers": [
+        "adapter-registry-go",
+        "data-plane-router-rust",
+        "db-bootstrap",
+        "function-scheduler",
+        "orchestrator",
+        "pg-backup",
+        "pg-migrate",
+        "realtime",
+        "supavisor",
+        "tenant-control",
+        "vault-init",
+        "webhook-dispatcher"
+      ],
+      "built_by": "scripts/env/generate-env.sh (written into .env.secrets)"
+    },
     "ADAPTER_REGISTRY_SERVICE_TOKEN": {
       "category": "SECRET",
       "format": "hex64",
@@ -74,6 +101,54 @@
         "webhook-dispatcher"
       ]
     },
+    "ANON_KEY": {
+      "category": "PUBLIC",
+      "format": "jwt-hs256",
+      "required_in": [
+        "local",
+        "dev",
+        "staging",
+        "prod"
+      ],
+      "compose_required": true,
+      "browser_safe": true,
+      "consumers": [
+        "adapter-registry-go",
+        "data-plane-router-rust",
+        "db-bootstrap",
+        "function-scheduler",
+        "orchestrator",
+        "pg-backup",
+        "pg-migrate",
+        "realtime",
+        "supavisor",
+        "tenant-control",
+        "vault-init",
+        "webhook-dispatcher"
+      ]
+    },
+    "API_EXTERNAL_URL": {
+      "category": "PUBLIC",
+      "format": "url",
+      "required_in": [],
+      "compose_required": false,
+      "browser_safe": true,
+      "consumers": [
+        "adapter-registry-go",
+        "data-plane-router-rust",
+        "db-bootstrap",
+        "function-scheduler",
+        "gotrue",
+        "orchestrator",
+        "pg-backup",
+        "pg-migrate",
+        "realtime",
+        "supavisor",
+        "tenant-control",
+        "vault-init",
+        "webhook-dispatcher"
+      ]
+    },
     "AUTHENTICATOR_PASSWORD": {
       "category": "SECRET",
       "format": "alnum24",
@@ -85,6 +160,67 @@
       ],
       "compose_required": true,
       "vault42_path": "postgres/AUTHENTICATOR_PASSWORD",
+      "consumers": [
+        "adapter-registry-go",
+        "data-plane-router-rust",
+        "db-bootstrap",
+        "function-scheduler",
+        "orchestrator",
+        "pg-backup",
+        "pg-migrate",
+        "realtime",
+        "supavisor",
+        "tenant-control",
+        "vault-init",
+        "webhook-dispatcher"
+      ]
+    },
+    "DATABASE_URL": {
+      "category": "SECRET",
+      "derived_from": "postgres://postgres:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_DB}",
+      "stored_in_vault42": false,
+      "required_in": [
+        "local",
+        "dev",
+        "staging",
+        "prod"
+      ],
+      "compose_required": false,
+      "consumers": [
+        "adapter-registry-go",
+        "ai-service",
+        "analytics-service",
+        "data-plane-router-rust",
+        "db-bootstrap",
+        "email-service",
+        "function-scheduler",
+        "gdpr-service",
+        "log-service",
+        "mongo-api",
+        "newsletter-service",
+        "orchestrator",
+        "outbox-relay",
+        "permission-engine",
+        "pg-backup",
+        "pg-migrate",
+        "query-router",
+        "realtime",
+        "schema-service",
+        "session-service",
+        "storage-router",
+        "supavisor",
+        "tenant-control",
+        "vault-init",
+        "webhook-dispatcher"
+      ],
+      "built_by": "scripts/env/generate-env.sh (written into .env.secrets)"
+    },
+    "FORTYTWO_CLIENT_ID": {
+      "category": "PUBLIC",
+      "format": "opaque",
+      "required_in": [],
+      "compose_required": false,
+      "browser_safe": true,
       "consumers": [
         "adapter-registry-go",
         "data-plane-router-rust",
@@ -121,12 +257,75 @@
         "webhook-dispatcher"
       ]
     },
+    "FRONTEND_URL": {
+      "category": "PUBLIC",
+      "format": "url",
+      "required_in": [],
+      "compose_required": false,
+      "browser_safe": true,
+      "consumers": [
+        "adapter-registry-go",
+        "data-plane-router-rust",
+        "db-bootstrap",
+        "function-scheduler",
+        "orchestrator",
+        "pg-backup",
+        "pg-migrate",
+        "realtime",
+        "supavisor",
+        "tenant-control",
+        "vault-init",
+        "webhook-dispatcher"
+      ]
+    },
+    "GITHUB_CLIENT_ID": {
+      "category": "PUBLIC",
+      "format": "opaque",
+      "required_in": [],
+      "compose_required": false,
+      "browser_safe": true,
+      "consumers": [
+        "adapter-registry-go",
+        "data-plane-router-rust",
+        "db-bootstrap",
+        "function-scheduler",
+        "orchestrator",
+        "pg-backup",
+        "pg-migrate",
+        "realtime",
+        "supavisor",
+        "tenant-control",
+        "vault-init",
+        "webhook-dispatcher"
+      ]
+    },
     "GITHUB_CLIENT_SECRET": {
       "category": "SECRET",
       "format": "opaque",
       "required_in": [],
       "compose_required": false,
       "vault42_path": "oauth/GITHUB_CLIENT_SECRET",
+      "consumers": [
+        "adapter-registry-go",
+        "data-plane-router-rust",
+        "db-bootstrap",
+        "function-scheduler",
+        "orchestrator",
+        "pg-backup",
+        "pg-migrate",
+        "realtime",
+        "supavisor",
+        "tenant-control",
+        "vault-init",
+        "webhook-dispatcher"
+      ]
+    },
+    "GOOGLE_CLIENT_ID": {
+      "category": "PUBLIC",
+      "format": "opaque",
+      "required_in": [],
+      "compose_required": false,
+      "browser_safe": true,
       "consumers": [
         "adapter-registry-go",
         "data-plane-router-rust",
@@ -157,6 +356,73 @@
         "pg-backup",
         "pg-migrate",
         "realtime",
+        "supavisor",
+        "tenant-control",
+        "vault-init",
+        "webhook-dispatcher"
+      ]
+    },
+    "GOTRUE_SITE_URL": {
+      "category": "PUBLIC",
+      "format": "url",
+      "required_in": [],
+      "compose_required": false,
+      "browser_safe": true,
+      "consumers": [
+        "adapter-registry-go",
+        "data-plane-router-rust",
+        "db-bootstrap",
+        "function-scheduler",
+        "gotrue",
+        "orchestrator",
+        "pg-backup",
+        "pg-migrate",
+        "realtime",
+        "supavisor",
+        "tenant-control",
+        "vault-init",
+        "webhook-dispatcher"
+      ]
+    },
+    "GROBASE_ENV": {
+      "category": "ENVIRONMENT",
+      "format": "enum",
+      "allowed": [
+        "local",
+        "dev",
+        "staging",
+        "prod"
+      ],
+      "required_in": [
+        "local",
+        "dev",
+        "staging",
+        "prod"
+      ],
+      "default": "local",
+      "compose_required": false,
+      "consumers": [
+        "adapter-registry-go",
+        "ai-service",
+        "analytics-service",
+        "data-plane-router-rust",
+        "db-bootstrap",
+        "email-service",
+        "function-scheduler",
+        "gdpr-service",
+        "log-service",
+        "mongo-api",
+        "newsletter-service",
+        "orchestrator",
+        "outbox-relay",
+        "permission-engine",
+        "pg-backup",
+        "pg-migrate",
+        "query-router",
+        "realtime",
+        "schema-service",
+        "session-service",
+        "storage-router",
         "supavisor",
         "tenant-control",
         "vault-init",
@@ -239,6 +505,33 @@
         "tenant-control",
         "vault-init",
         "vault42",
+        "webhook-dispatcher"
+      ]
+    },
+    "KONG_PUBLIC_API_KEY": {
+      "category": "PUBLIC",
+      "format": "jwt-hs256",
+      "required_in": [
+        "local",
+        "dev",
+        "staging",
+        "prod"
+      ],
+      "compose_required": false,
+      "browser_safe": true,
+      "consumers": [
+        "adapter-registry-go",
+        "data-plane-router-rust",
+        "db-bootstrap",
+        "function-scheduler",
+        "kong",
+        "orchestrator",
+        "pg-backup",
+        "pg-migrate",
+        "realtime",
+        "supavisor",
+        "tenant-control",
+        "vault-init",
         "webhook-dispatcher"
       ]
     },
@@ -404,6 +697,40 @@
         "webhook-dispatcher"
       ]
     },
+    "MONGO_URI": {
+      "category": "CONFIG",
+      "format": "url",
+      "required_in": [],
+      "compose_required": false,
+      "$comment": "Credential-free as shipped (config.env). Embedding user:password@ makes it a SECRET \u2014 gitleaks rule credentialed-dsn catches that.",
+      "consumers": [
+        "adapter-registry-go",
+        "ai-service",
+        "analytics-service",
+        "data-plane-router-rust",
+        "db-bootstrap",
+        "email-service",
+        "function-scheduler",
+        "gdpr-service",
+        "log-service",
+        "mongo-api",
+        "newsletter-service",
+        "orchestrator",
+        "outbox-relay",
+        "permission-engine",
+        "pg-backup",
+        "pg-migrate",
+        "query-router",
+        "realtime",
+        "schema-service",
+        "session-service",
+        "storage-router",
+        "supavisor",
+        "tenant-control",
+        "vault-init",
+        "webhook-dispatcher"
+      ]
+    },
     "MSSQL_SA_PASSWORD": {
       "category": "SECRET",
       "format": "complex20",
@@ -450,6 +777,43 @@
         "mysql"
       ]
     },
+    "PGRST_DB_URI": {
+      "category": "SECRET",
+      "derived_from": "postgres://authenticator:${AUTHENTICATOR_PASSWORD}@postgres:5432/${POSTGRES_DB}",
+      "stored_in_vault42": false,
+      "required_in": [
+        "local",
+        "dev",
+        "staging",
+        "prod"
+      ],
+      "compose_required": false,
+      "consumers": [
+        "adapter-registry-go",
+        "data-plane-router-rust",
+        "db-bootstrap",
+        "function-scheduler",
+        "orchestrator",
+        "pg-backup",
+        "pg-migrate",
+        "postgrest",
+        "realtime",
+        "supavisor",
+        "tenant-control",
+        "vault-init",
+        "webhook-dispatcher"
+      ],
+      "built_by": "scripts/env/generate-env.sh (written into .env.secrets)"
+    },
+    "PG_BACKUP_DATABASE_URL": {
+      "category": "SECRET",
+      "derived_from": "postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}",
+      "stored_in_vault42": false,
+      "required_in": [],
+      "compose_required": false,
+      "consumers": [],
+      "built_by": "compose nested default -> DATABASE_URL (orchestrators/compose/base/ops.yml:13)"
+    },
     "POSTGRES_PASSWORD": {
       "category": "SECRET",
       "format": "alnum24",
@@ -478,6 +842,32 @@
         "trino",
         "vault-init",
         "webhook-dispatcher"
+      ]
+    },
+    "S3_ACCESS_KEY": {
+      "category": "SECRET",
+      "format": "opaque",
+      "required_in": [],
+      "compose_required": false,
+      "vault42_path": "storage/S3_ACCESS_KEY",
+      "derived_from": "${MINIO_ROOT_USER}",
+      "built_by": "compose (orchestrators/compose/base/app-services.yml:265)",
+      "$comment": "storage-router reads it directly (src/apps/storage-router/src/storage/storage.service.ts:94) and defaults to minioadmin in code.",
+      "consumers": [
+        "storage-router"
+      ]
+    },
+    "S3_SECRET_KEY": {
+      "category": "SECRET",
+      "format": "opaque",
+      "required_in": [],
+      "compose_required": false,
+      "vault42_path": "storage/S3_SECRET_KEY",
+      "derived_from": "${MINIO_ROOT_PASSWORD}",
+      "built_by": "compose (orchestrators/compose/base/app-services.yml:266)",
+      "$comment": "storage-router reads it directly (storage.service.ts:95) and defaults to minioadmin in code \u2014 the real value comes from MINIO_ROOT_PASSWORD.",
+      "consumers": [
+        "storage-router"
       ]
     },
     "SECRET_KEY_BASE": {
@@ -551,6 +941,28 @@
       "vault42_path": "stripe/STRIPE_API_KEY",
       "consumers": []
     },
+    "SUPABASE_PUBLIC_URL": {
+      "category": "PUBLIC",
+      "format": "url",
+      "required_in": [],
+      "compose_required": false,
+      "browser_safe": true,
+      "consumers": [
+        "adapter-registry-go",
+        "data-plane-router-rust",
+        "db-bootstrap",
+        "function-scheduler",
+        "orchestrator",
+        "pg-backup",
+        "pg-migrate",
+        "realtime",
+        "studio",
+        "supavisor",
+        "tenant-control",
+        "vault-init",
+        "webhook-dispatcher"
+      ]
+    },
     "VAULT_ENC_KEY": {
       "category": "SECRET",
       "format": "hex32",
@@ -576,366 +988,6 @@
         "vault-init",
         "webhook-dispatcher"
       ]
-    },
-    "ANON_KEY": {
-      "category": "PUBLIC",
-      "format": "jwt-hs256",
-      "required_in": [
-        "local",
-        "dev",
-        "staging",
-        "prod"
-      ],
-      "compose_required": true,
-      "browser_safe": true,
-      "consumers": [
-        "adapter-registry-go",
-        "data-plane-router-rust",
-        "db-bootstrap",
-        "function-scheduler",
-        "orchestrator",
-        "pg-backup",
-        "pg-migrate",
-        "realtime",
-        "supavisor",
-        "tenant-control",
-        "vault-init",
-        "webhook-dispatcher"
-      ]
-    },
-    "API_EXTERNAL_URL": {
-      "category": "PUBLIC",
-      "format": "url",
-      "required_in": [],
-      "compose_required": false,
-      "browser_safe": true,
-      "consumers": [
-        "adapter-registry-go",
-        "data-plane-router-rust",
-        "db-bootstrap",
-        "function-scheduler",
-        "gotrue",
-        "orchestrator",
-        "pg-backup",
-        "pg-migrate",
-        "realtime",
-        "supavisor",
-        "tenant-control",
-        "vault-init",
-        "webhook-dispatcher"
-      ]
-    },
-    "FORTYTWO_CLIENT_ID": {
-      "category": "PUBLIC",
-      "format": "opaque",
-      "required_in": [],
-      "compose_required": false,
-      "browser_safe": true,
-      "consumers": [
-        "adapter-registry-go",
-        "data-plane-router-rust",
-        "db-bootstrap",
-        "function-scheduler",
-        "orchestrator",
-        "pg-backup",
-        "pg-migrate",
-        "realtime",
-        "supavisor",
-        "tenant-control",
-        "vault-init",
-        "webhook-dispatcher"
-      ]
-    },
-    "FRONTEND_URL": {
-      "category": "PUBLIC",
-      "format": "url",
-      "required_in": [],
-      "compose_required": false,
-      "browser_safe": true,
-      "consumers": [
-        "adapter-registry-go",
-        "data-plane-router-rust",
-        "db-bootstrap",
-        "function-scheduler",
-        "orchestrator",
-        "pg-backup",
-        "pg-migrate",
-        "realtime",
-        "supavisor",
-        "tenant-control",
-        "vault-init",
-        "webhook-dispatcher"
-      ]
-    },
-    "GITHUB_CLIENT_ID": {
-      "category": "PUBLIC",
-      "format": "opaque",
-      "required_in": [],
-      "compose_required": false,
-      "browser_safe": true,
-      "consumers": [
-        "adapter-registry-go",
-        "data-plane-router-rust",
-        "db-bootstrap",
-        "function-scheduler",
-        "orchestrator",
-        "pg-backup",
-        "pg-migrate",
-        "realtime",
-        "supavisor",
-        "tenant-control",
-        "vault-init",
-        "webhook-dispatcher"
-      ]
-    },
-    "GOOGLE_CLIENT_ID": {
-      "category": "PUBLIC",
-      "format": "opaque",
-      "required_in": [],
-      "compose_required": false,
-      "browser_safe": true,
-      "consumers": [
-        "adapter-registry-go",
-        "data-plane-router-rust",
-        "db-bootstrap",
-        "function-scheduler",
-        "orchestrator",
-        "pg-backup",
-        "pg-migrate",
-        "realtime",
-        "supavisor",
-        "tenant-control",
-        "vault-init",
-        "webhook-dispatcher"
-      ]
-    },
-    "GOTRUE_SITE_URL": {
-      "category": "PUBLIC",
-      "format": "url",
-      "required_in": [],
-      "compose_required": false,
-      "browser_safe": true,
-      "consumers": [
-        "adapter-registry-go",
-        "data-plane-router-rust",
-        "db-bootstrap",
-        "function-scheduler",
-        "gotrue",
-        "orchestrator",
-        "pg-backup",
-        "pg-migrate",
-        "realtime",
-        "supavisor",
-        "tenant-control",
-        "vault-init",
-        "webhook-dispatcher"
-      ]
-    },
-    "KONG_PUBLIC_API_KEY": {
-      "category": "PUBLIC",
-      "format": "jwt-hs256",
-      "required_in": [
-        "local",
-        "dev",
-        "staging",
-        "prod"
-      ],
-      "compose_required": false,
-      "browser_safe": true,
-      "consumers": [
-        "adapter-registry-go",
-        "data-plane-router-rust",
-        "db-bootstrap",
-        "function-scheduler",
-        "kong",
-        "orchestrator",
-        "pg-backup",
-        "pg-migrate",
-        "realtime",
-        "supavisor",
-        "tenant-control",
-        "vault-init",
-        "webhook-dispatcher"
-      ]
-    },
-    "SUPABASE_PUBLIC_URL": {
-      "category": "PUBLIC",
-      "format": "url",
-      "required_in": [],
-      "compose_required": false,
-      "browser_safe": true,
-      "consumers": [
-        "adapter-registry-go",
-        "data-plane-router-rust",
-        "db-bootstrap",
-        "function-scheduler",
-        "orchestrator",
-        "pg-backup",
-        "pg-migrate",
-        "realtime",
-        "studio",
-        "supavisor",
-        "tenant-control",
-        "vault-init",
-        "webhook-dispatcher"
-      ]
-    },
-    "ADAPTER_REGISTRY_DATABASE_URL": {
-      "category": "SECRET",
-      "derived_from": "postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}",
-      "stored_in_vault42": false,
-      "required_in": [
-        "local",
-        "dev",
-        "staging",
-        "prod"
-      ],
-      "compose_required": false,
-      "consumers": [
-        "adapter-registry-go",
-        "data-plane-router-rust",
-        "db-bootstrap",
-        "function-scheduler",
-        "orchestrator",
-        "pg-backup",
-        "pg-migrate",
-        "realtime",
-        "supavisor",
-        "tenant-control",
-        "vault-init",
-        "webhook-dispatcher"
-      ],
-      "built_by": "scripts/env/generate-env.sh (written into .env.secrets)"
-    },
-    "DATABASE_URL": {
-      "category": "SECRET",
-      "derived_from": "postgres://postgres:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_DB}",
-      "stored_in_vault42": false,
-      "required_in": [
-        "local",
-        "dev",
-        "staging",
-        "prod"
-      ],
-      "compose_required": false,
-      "consumers": [
-        "adapter-registry-go",
-        "ai-service",
-        "analytics-service",
-        "data-plane-router-rust",
-        "db-bootstrap",
-        "email-service",
-        "function-scheduler",
-        "gdpr-service",
-        "log-service",
-        "mongo-api",
-        "newsletter-service",
-        "orchestrator",
-        "outbox-relay",
-        "permission-engine",
-        "pg-backup",
-        "pg-migrate",
-        "query-router",
-        "realtime",
-        "schema-service",
-        "session-service",
-        "storage-router",
-        "supavisor",
-        "tenant-control",
-        "vault-init",
-        "webhook-dispatcher"
-      ],
-      "built_by": "scripts/env/generate-env.sh (written into .env.secrets)"
-    },
-    "MONGO_URI": {
-      "category": "CONFIG",
-      "format": "url",
-      "required_in": [],
-      "compose_required": false,
-      "$comment": "Credential-free as shipped (config.env). Embedding user:password@ makes it a SECRET \u2014 gitleaks rule credentialed-dsn catches that.",
-      "consumers": [
-        "adapter-registry-go",
-        "ai-service",
-        "analytics-service",
-        "data-plane-router-rust",
-        "db-bootstrap",
-        "email-service",
-        "function-scheduler",
-        "gdpr-service",
-        "log-service",
-        "mongo-api",
-        "newsletter-service",
-        "orchestrator",
-        "outbox-relay",
-        "permission-engine",
-        "pg-backup",
-        "pg-migrate",
-        "query-router",
-        "realtime",
-        "schema-service",
-        "session-service",
-        "storage-router",
-        "supavisor",
-        "tenant-control",
-        "vault-init",
-        "webhook-dispatcher"
-      ]
-    },
-    "PGRST_DB_URI": {
-      "category": "SECRET",
-      "derived_from": "postgres://authenticator:${AUTHENTICATOR_PASSWORD}@postgres:5432/${POSTGRES_DB}",
-      "stored_in_vault42": false,
-      "required_in": [
-        "local",
-        "dev",
-        "staging",
-        "prod"
-      ],
-      "compose_required": false,
-      "consumers": [
-        "adapter-registry-go",
-        "data-plane-router-rust",
-        "db-bootstrap",
-        "function-scheduler",
-        "orchestrator",
-        "pg-backup",
-        "pg-migrate",
-        "postgrest",
-        "realtime",
-        "supavisor",
-        "tenant-control",
-        "vault-init",
-        "webhook-dispatcher"
-      ],
-      "built_by": "scripts/env/generate-env.sh (written into .env.secrets)"
-    },
-    "PG_BACKUP_DATABASE_URL": {
-      "category": "SECRET",
-      "derived_from": "postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}",
-      "stored_in_vault42": false,
-      "required_in": [],
-      "compose_required": false,
-      "consumers": [],
-      "built_by": "compose nested default -> DATABASE_URL (orchestrators/compose/base/ops.yml:13)"
-    },
-    "GROBASE_ENV": {
-      "category": "ENVIRONMENT",
-      "format": "enum",
-      "allowed": [
-        "local",
-        "dev",
-        "staging",
-        "prod"
-      ],
-      "required_in": [
-        "local",
-        "dev",
-        "staging",
-        "prod"
-      ],
-      "default": "local",
-      "compose_required": false,
-      "consumers": []
     }
   }
 }
