@@ -11,6 +11,9 @@
 # **************************************************************************** #
 
 ##@ Ops — backup/restore, cloud edition, project cleanup, vault42 & 42ctl
+hooks: ## Install git hooks (pre-commit gitleaks scanning)
+	@git config core.hooksPath .githooks && echo -e "$(_G)✓$(_0) git hooks installed (.githooks)"
+
 preflight: ## Run pre-deployment checks
 	@bash scripts/ci/preflight-check.sh
 
@@ -181,16 +184,16 @@ quickstart-vault42: ## One command: bring up grobase deps (EDITION=query) + vaul
 	@$(MAKE) up EDITION=query
 	@$(MAKE) vault42-up
 
-ctl: ## Run 42ctl from its image — make ctl ARGS="org create --slug x --name X" (state in ./.42ctl)
-	@mkdir -p .42ctl
+ctl: ## Run 42ctl from its image against the LOCAL stack — make ctl ARGS="org create --slug x --name X"
+	@mkdir -p $(CTL_CFG_DIR)
 	@docker run --rm -it --network mini-baas_mini-baas \
 		--user "$$(id -u):$$(id -g)" \
 		-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 \
-		-v "$(CURDIR)/.42ctl:/cfg" $(CTL_IMAGE) $(ARGS)
+		-v "$(CTL_CFG_DIR):/cfg" $(CTL_IMAGE) $(ARGS)
 
 # ── 42ctl against the REMOTE fly stack — no clone, no cargo, no local stack ───
 # Runs the published image on the DEFAULT bridge (so it reaches the fly hosts), seeds
-# the profile if absent, keeps the identity in ./.42ctl (same state `make ctl` uses, so
+# the profile if absent, keeps the identity in ~/.config/42ctl (same state `make ctl` uses, so
 # a login is shared between the two), and mounts THIS repo as the workdir so `env pull`
 # materializes the *.env tree here.
 #
@@ -205,7 +208,10 @@ ctl: ## Run 42ctl from its image — make ctl ARGS="org create --slug x --name X
 # recover` read an emailed OTP from the terminal.
 #   make ctl42 ARGS="keys escrow --email you@example.com"
 #   make ctl42 ARGS="env pull --org univers-42 --project grobase --env local --apply"
-CTL_CFG_DIR  := $(CURDIR)/.42ctl
+# The identity lives OUTSIDE the repo: a keystore inside the worktree is walked by
+# 42ctl own scanner on a push (it fails with "File exists"), and a path to a keystore
+# has no business in a git tree.
+CTL_CFG_DIR  := $(HOME)/.config/42ctl
 CTL_SERVER    ?= https://vault42-server.fly.dev
 CTL_AUTHORITY ?= https://vault42-authority.fly.dev
 CTL_SECRETS   := secrets/vault42-admin.env

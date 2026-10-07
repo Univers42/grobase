@@ -20,8 +20,27 @@ PROJECT="${VAULT_ENV_PROJECT:-grobase}"
 # ALONE and readable by nobody else). That distinction is the whole ballgame: a
 # teammate pulling a tree pushed the personal way gets "no manifest for project X"
 # no matter what org role they hold, because it is encryption, not RBAC.
-ORG="${VAULT_ENV_ORG:-}"
-ENVNAME="${VAULT_ENV_NAME:-}"
+# The TEAM path is the DEFAULT. It used to be the personal one, which meant a push
+# looked like it had shared the tree while being sealed to one person: a teammate
+# pulling it got "no manifest for project X" whatever org role they held, because it
+# is encryption, not RBAC. Defaults come from the provisioned structure
+# (infra/config/env/schema.json .vault42) and the environment identity GROBASE_ENV,
+# so `make vault-pull-env` on a teammate machine resolves the right environment with
+# no flags. Set VAULT_ENV_PERSONAL=1 for the old sealed-to-me-alone behaviour.
+ORG="${VAULT_ENV_ORG:-univers-42}"
+ENVNAME="${VAULT_ENV_NAME:-${GROBASE_ENV:-local}}"
+if [ "${VAULT_ENV_PERSONAL:-0}" = 1 ]; then
+  ORG=""
+  ENVNAME=""
+fi
+# vendor/ holds OTHER apps credentials (gourmand, canagrou, hypertube, …). Those do
+# not belong to grobase team members, so they are sealed to the pusher alone even on
+# a team push. Each app gets its own vault42 project; until a tree is moved there this
+# keeps it out of the shared environment.
+# Ponytail: --private marks files private, it does not exclude them from the upload —
+# the bytes still travel, sealed to you. It bounds WHO can read them, not whether they
+# are stored. Removing them entirely means pushing from the app project instead.
+VENDOR_PRIVATE="vendor/*"
 
 [ "$#" -ge 1 ] || {
   printf 'usage: ctl-env.sh push|pull [flags]\n' >&2
@@ -207,6 +226,11 @@ if [ -n "$ORG" ] && [ -n "$ENVNAME" ]; then
   printf '[vault42] mode: SHARED environment %s/%s/%s — sealed to the env key\n' \
     "$ORG" "$PROJECT" "$ENVNAME" >&2
   set -- env "$verb" --org "$ORG" --project "$PROJECT" --env "$ENVNAME" "$@"
+  # Only a push can classify files; `env pull` has no --private.
+  if [ "$verb" = push ]; then
+    printf '[vault42] vendor/ sealed to you alone (other apps credentials)\n' >&2
+    set -- "$@" --private "$VENDOR_PRIVATE"
+  fi
 elif [ -n "$_prune" ]; then
   printf '[vault42] mode: PERSONAL project %s — sealed to you alone\n' "$PROJECT" >&2
   set -- "$verb" --project "$PROJECT" "$_prune" "$@"
