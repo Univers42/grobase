@@ -14,10 +14,10 @@ services:
       - path: .env.engines
         required: false
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-mysqlroot}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?unset - run make env}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-mini_baas}
       MYSQL_USER: ${MYSQL_USER:-mini_baas}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-mini_baas_pw}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?unset - run make env}
     # MySQL 8.4 removed --default-authentication-plugin; caching_sha2_password
     # has been the default since 8.0.4, so no command override is needed.
     ports:
@@ -34,7 +34,7 @@ services:
           "127.0.0.1",
           "-u",
           "root",
-          "-p${MYSQL_ROOT_PASSWORD:-mysqlroot}",
+          "-p${MYSQL_ROOT_PASSWORD:?unset - run make env}",
         ]
       interval: 10s
       timeout: 5s
@@ -61,10 +61,10 @@ services:
       - path: .env.engines
         required: false
     environment:
-      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-mariaroot}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?unset - run make env}
       MARIADB_DATABASE: ${MARIADB_DATABASE:-mini_baas}
       MARIADB_USER: ${MARIADB_USER:-mini_baas}
-      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-mini_baas_pw}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?unset - run make env}
     ports:
       - "${ENGINE_BIND_ADDR:-127.0.0.1}:${MARIADB_PORT:-3307}:3306"
     volumes:
@@ -135,7 +135,7 @@ services:
     profiles: [engines-extra]
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-Mssql_Strong!Pass1}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?unset - run make env}
       MSSQL_PID: Developer
     ports:
       - "${ENGINE_BIND_ADDR:-127.0.0.1}:${MSSQL_PORT:-1433}:1433"

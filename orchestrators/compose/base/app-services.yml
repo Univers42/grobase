@@ -75,7 +75,7 @@ services:
       # Same contract + switch semantics as outbox-relay (empty URL disables).
       REALTIME_PUBLISH_URL: ${REALTIME_PUBLISH_URL:-http://realtime:4000/v1/publish}
       REALTIME_PUBLISH_TIMEOUT_MS: ${QUERY_ROUTER_REALTIME_PUBLISH_TIMEOUT_MS:-1500}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
@@ -143,8 +143,8 @@ services:
       NODE_OPTIONS: --max-old-space-size=192 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       OUTBOX_REDIS_URL: ${OUTBOX_REDIS_URL:-redis://redis:6379}
-      OUTBOX_MONGO_URL: ${OUTBOX_MONGO_URL:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017/mini_baas?authSource=admin}
-      MONGO_URI: ${OUTBOX_MONGO_URL:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017/mini_baas?authSource=admin}
+      OUTBOX_MONGO_URL: ${OUTBOX_MONGO_URL:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:?unset - run make env}@mongo:27017/mini_baas?authSource=admin}
+      MONGO_URI: ${OUTBOX_MONGO_URL:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:?unset - run make env}@mongo:27017/mini_baas?authSource=admin}
       MONGO_DB_NAME: ${OUTBOX_MONGO_DB_NAME:-mini_baas}
       # Mongo is a SOFT dependency of the relay: when no mongo container exists
       # (lean tiers), it boots degraded and skips projections with a warning.
@@ -200,7 +200,7 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@mini-baas.local}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
@@ -247,7 +247,7 @@ services:
       STORAGE_TRANSFORMS_ENABLED:
       PORT: 3040
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
@@ -263,7 +263,7 @@ services:
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-}
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?unset - run make env}
       PRESIGN_EXPIRES_SECONDS: ${PRESIGN_EXPIRES_SECONDS:-3600}
       # SECURITY (cross-tenant bucket disclosure fix). OFF = byte-parity. When ON,
       # listing all buckets / creating a bucket needs a privileged role
@@ -309,7 +309,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       ADAPTER_REGISTRY_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
@@ -365,7 +365,7 @@ services:
       ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       ADAPTER_REGISTRY_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
@@ -408,10 +408,10 @@ services:
     environment:
       PORT: 3070
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
-      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017
+      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:?unset - run make env}@mongo:27017
       MONGO_DB_NAME: ${ANALYTICS_MONGO_DB:-mini_baas_analytics}
       ANALYTICS_RETENTION_DAYS: ${ANALYTICS_RETENTION_DAYS:-90}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
@@ -455,7 +455,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       GDPR_DELETION_WEBHOOK_URL: ${GDPR_DELETION_WEBHOOK_URL:-}
       GDPR_EXPORT_WEBHOOK_URL: ${GDPR_EXPORT_WEBHOOK_URL:-}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
@@ -500,7 +500,7 @@ services:
       EMAIL_SERVICE_URL: http://email-service:3030
       NEWSLETTER_BASE_URL: ${NEWSLETTER_BASE_URL:-http://localhost:8000/newsletter/v1}
       NEWSLETTER_BATCH_SIZE: ${NEWSLETTER_BATCH_SIZE:-5}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
@@ -545,7 +545,7 @@ services:
     environment:
       PORT: 3100
       NODE_OPTIONS: --max-old-space-size=192 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
-      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017
+      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:?unset - run make env}@mongo:27017
       MONGO_DB_NAME: ${AI_MONGO_DB:-mini_baas_ai}
       LLM_API_URL: ${LLM_API_URL:-https://api.groq.com/openai/v1}
       LLM_API_KEY: ${LLM_API_KEY:-}
@@ -553,7 +553,7 @@ services:
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-2048}
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
       AI_CONVERSATION_TTL_HOURS: ${AI_CONVERSATION_TTL_HOURS:-24}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
@@ -599,7 +599,7 @@ services:
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       LOG_BUFFER_SIZE: ${LOG_BUFFER_SIZE:-1000}
       LOG_STREAM_TOKEN: ${LOG_STREAM_TOKEN:-}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this
@@ -639,7 +639,7 @@ services:
       NODE_OPTIONS: --max-old-space-size=96 # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-7}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       # The issuer a bearer user JWT must carry for the identity library to accept
       # it (H-19). Same expression as auth-api.yml's GoTrue signer, so a token this

@@ -20,7 +20,7 @@ services:
       # it). ProductMode is an informational label; this just makes status honest.
       ADAPTER_REGISTRY_PRODUCT_MODE: ${ADAPTER_REGISTRY_GO_PRODUCT_MODE:-enabled}
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
-      VAULT_ENC_KEY: ${VAULT_ENC_KEY:-0123456789abcdef0123456789abcdef}
+      VAULT_ENC_KEY: ${VAULT_ENC_KEY:?unset - run make env}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
@@ -110,7 +110,7 @@ services:
       # via permission-engine's POST /permissions/decide (service-token gated).
       # Role/policy SEEDING works without this (direct SQL); only Decide() needs it.
       PERMISSION_ENGINE_URL: ${PERMISSION_ENGINE_URL:-http://permission-engine:3050}
-      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET:?unset - run make env}
       JWT_SECRET_PREV: ${JWT_SECRET_PREV:-}
       GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -280,7 +280,7 @@ services:
       # mongoProjector activates when OUTBOX_MONGO_URL resolves + connects, else
       # degrades to the no-op (a pg write is never failed for a missing sink).
       OUTBOX_REDIS_URL: ${OUTBOX_REDIS_URL:-redis://redis:6379}
-      OUTBOX_MONGO_URL: ${OUTBOX_MONGO_URL:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:-mongo}@mongo:27017/mini_baas?authSource=admin}
+      OUTBOX_MONGO_URL: ${OUTBOX_MONGO_URL:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:?unset - run make env}@mongo:27017/mini_baas?authSource=admin}
       MONGO_DB_NAME: ${OUTBOX_MONGO_DB_NAME:-mini_baas}
       OUTBOX_RELAY_POLL_MS: ${OUTBOX_RELAY_POLL_MS:-500}
       OUTBOX_RELAY_BATCH_SIZE: ${OUTBOX_RELAY_BATCH_SIZE:-25}

@@ -31,11 +31,11 @@ services:
         required: false
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?unset - run make env}
       MYSQL_USER: ${MYSQL_USER:-mini_baas}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-mini_baas_pw}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?unset - run make env}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?unset - run make env}
     volumes:
       - ./infra/docker/services/trino/conf/config.properties:/etc/trino/config.properties:ro
       - ./infra/docker/services/trino/conf/catalog/postgresql.properties:/etc/trino/catalog/postgresql.properties:ro
@@ -82,7 +82,7 @@ services:
       CATALOG_S3_ENDPOINT: http://minio:9000
       CATALOG_S3_PATH__STYLE__ACCESS: "true"
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?unset - run make env}
       AWS_REGION: us-east-1
     ports:
       - "127.0.0.1:${ICEBERG_REST_PORT:-8181}:8181"
@@ -118,7 +118,7 @@ services:
         required: false
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?unset - run make env}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
     volumes:
       - ./infra/docker/services/debezium/application.properties:/debezium/config/application.properties:ro
@@ -146,7 +146,7 @@ services:
         required: false
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?unset - run make env}
     entrypoint: >
       sh -c "
         until mc alias set local http://minio:9000 \"$$MINIO_ROOT_USER\" \"$$MINIO_ROOT_PASSWORD\" >/dev/null 2>&1; do

@@ -76,6 +76,18 @@ ADAPTER_REGISTRY_SERVICE_TOKEN="$(openssl rand -hex 32)"
 # configured key. WITHOUT this, api-key tenant auth fails 500 identity_unavailable.
 INTERNAL_IDENTITY_HMAC_KEYS="k1:$(openssl rand -hex 32)"
 LOG_STREAM_TOKEN="$(gen_alnum 32)"
+# Secondary-engine root/app passwords. These previously existed ONLY as literal
+# compose defaults, so every stack booted them with a published credential; the
+# compose files now require them (${VAR:?}) and they are minted here instead.
+# MSSQL enforces complexity (>=8 chars, 3 of upper/lower/digit/symbol), hence the
+# explicit symbol+digit suffix rather than a bare alnum run.
+MYSQL_ROOT_PASSWORD="$(gen_alnum 24)"
+MYSQL_PASSWORD="$(gen_alnum 24)"
+MARIADB_ROOT_PASSWORD="$(gen_alnum 24)"
+MARIADB_PASSWORD="$(gen_alnum 24)"
+MSSQL_SA_PASSWORD="$(gen_alnum 20)aA1%"
+# supavisor's Phoenix cookie (pooler / scale / prod overlays). Was a literal default.
+SECRET_KEY_BASE="$(openssl rand -hex 32)"
 ANON_KEY="$(jwt_hs256 "$JWT_SECRET" "anon")"
 SERVICE_ROLE_KEY="$(jwt_hs256 "$JWT_SECRET" "service_role")"
 DATABASE_URL="postgres://${PG_USER}:${POSTGRES_PASSWORD}@postgres:5432/${PG_DB}"
@@ -109,6 +121,17 @@ MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
 VAULT_ENC_KEY=${VAULT_ENC_KEY}
 MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
 LOG_STREAM_TOKEN=${LOG_STREAM_TOKEN}
+
+# Secondary engines (mysql / mariadb / mssql) — opt-in planes, but the compose
+# files require these, so they are always minted (an unset one fails the render).
+MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+MYSQL_PASSWORD=${MYSQL_PASSWORD}
+MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
+MARIADB_PASSWORD=${MARIADB_PASSWORD}
+MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}
+
+# Connection pooler (supavisor) — pooler/scale/prod overlays require it.
+SECRET_KEY_BASE=${SECRET_KEY_BASE}
 EOF
 
 chmod 600 "$SECRETS_FILE"

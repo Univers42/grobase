@@ -31,6 +31,9 @@ SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ENGINES="postgres redis mongo mysql mariadb minio trino iceberg-rest debezium minio-iceberg-init"
 SENT="m211-sentinel-$$"
+FLOOR="m211-floor-$$"
+# shellcheck source=../lib/lib-required-env.sh
+. "${SCRIPT_DIR}/../lib/lib-required-env.sh"
 WORK="$(mktemp -d)" || exit 1
 TREE="${WORK}/tree"
 trap 'rm -rf "${WORK}"' EXIT
@@ -51,6 +54,10 @@ setup() {
   cp "${ROOT}/deploy/fly/compose.override.yml" "${TREE}/deploy/fly/"
   : >"${TREE}/infra/config/cloud/flags.env.cloud"
   printf 'JWT_SECRET=%s\nSERVICE_ROLE_KEY=%s\nM211_PLATFORM=%s\n' "${SENT}" "${SENT}" "${SENT}" >"${TREE}/.env"
+  # Secret-bearing compose entries are ${KEY:?...}; satisfy the whole required floor
+  # or the render fails for an unrelated reason. FLOOR differs from SENT so a
+  # legitimate consumer never matches the leak sentinel.
+  required_env_floor "${FLOOR}" "${TREE}" "${TREE}/.env" >>"${TREE}/.env"
 }
 
 # render writes to $1 the every-profile config of the tree plus compose files $2…,
