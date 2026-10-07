@@ -803,7 +803,11 @@ proptest! {
     }
 
     /// shared_rls mounts on the same credential collapse to ONE shared pool key
-    /// that contains neither tenant id.
+    /// that does not depend on the tenant id. Stated as equality with a tenant
+    /// the strategy cannot generate, not as "the key contains neither id": the
+    /// key's fixed text (`shared/postgresql/cred:adapter-registry/r/1`) holds
+    /// ids like "ost" or "sql", and that substring check failed on a = "0a0",
+    /// b = "ost" with the code correct.
     #[test]
     fn prop_shared_rls_collapses_distinct_tenants(
         a in "[a-z0-9]{3,12}", b in "[a-z0-9]{3,12}"
@@ -811,9 +815,10 @@ proptest! {
         prop_assume!(a != b);
         let ma = mount(&a, "postgresql", Some("shared_rls"));
         let mb = mount(&b, "postgresql", Some("shared_rls"));
+        let sentinel = mount("TENANT_SENTINEL", "postgresql", Some("shared_rls"));
         prop_assert_eq!(ma.effective_pool_key(true), mb.effective_pool_key(true));
-        prop_assert!(!ma.effective_pool_key(true).contains(a.as_str()));
-        prop_assert!(!mb.effective_pool_key(true).contains(b.as_str()));
+        prop_assert_eq!(ma.effective_pool_key(true), sentinel.effective_pool_key(true));
+        prop_assert!(!ma.effective_pool_key(true).contains("TENANT_SENTINEL"));
     }
 
     /// A configured replica variant's effective key always ends with `/ro` and
