@@ -12,9 +12,9 @@
 # detects leakage by matching its sentinel string must not have the floor share it,
 # or every legitimate consumer looks like a leak.
 #
-# Ponytail: the key list comes from a regex over the compose YAML, not a parse —
-# `${KEY:?...}` is found, a key made required only inside an `extends:` chain in a
-# file outside the two globs below is not. Direction of failure is safe: a missed
+# Ponytail: the key list comes from a regex over the compose YAML, not a parse.
+# `${KEY:?...}` and `${KEY?...}` are both found; a key made required only inside an
+# `extends:` chain in a file outside the two globs below is not. Direction of failure is safe: a missed
 # key means a gate render fails loudly with that key's name, never a silent pass.
 
 # required_env_keys prints every env key a compose render requires, one per line,
@@ -22,10 +22,10 @@
 #   $1  repo root to scan (default: the current directory)
 required_env_keys() {
   _ren_root="${1:-.}"
-  grep -rhoE '\$\{[A-Z_][A-Z0-9_]*:\?' \
+  grep -rhoE '\$\{[A-Z_][A-Z0-9_]*:?\?' \
     "${_ren_root}/orchestrators/compose/base/" \
     "${_ren_root}/orchestrators/compose/" 2>/dev/null |
-    sed -E 's/^\$\{([A-Z_0-9]+):\?$/\1/' |
+    sed -E 's/^\$\{([A-Z_0-9]+):?\?$/\1/' |
     sort -u
 }
 

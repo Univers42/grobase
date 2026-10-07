@@ -49,11 +49,26 @@ paths = [
   '''^infra/config/cloud/flags\.env\.example$''',
   # deliberately fake tokens that exercise assemble-env's GitHub-token filter
   '''^scripts/test/assemble-env-test\.sh$''',
-  # test code: deterministic fixtures by design. These are OUR test trees only —
-  # vendor/ and scripts/seed/ stay scanned.
-  '''^src/control-plane/.*_test\.go$''',
-  '''^scripts/verify/m[0-9]+-[^/]+\.sh$''',
-  '''^scripts/test/phase/phase[0-9]+-[^/]+\.sh$''',
+  # Test fixtures, listed ONE FILE AT A TIME on purpose. A pattern here
+  # (scripts/verify/m[0-9]+-*.sh) reads like a filename rule but behaves like a
+  # directory allowlist: it exempted every existing gate AND every future one, so a
+  # live DSN pasted into a new m217-repro.sh while chasing a prod bug was invisible to
+  # both the hook and CI. Gate scripts are exactly where that happens.
+  # Adding a fixture file now costs one reviewed line. That friction is the feature.
+  '''^scripts/test/phase/phase1-smoke-test\.sh$''',
+  '''^scripts/test/phase/phase12-rate-limiting-test\.sh$''',
+  '''^scripts/test/phase/phase14-mongo-mvp-test\.sh$''',
+  '''^scripts/test/phase/phase7-error-handling-test\.sh$''',
+  '''^scripts/test/phase/phase8-token-lifecycle-test\.sh$''',
+  '''^scripts/verify/m194-preflight-production\.sh$''',
+  '''^scripts/verify/m59-graphql-live\.sh$''',
+  '''^scripts/verify/m65-vault-enforce\.sh$''',
+  '''^scripts/verify/m67-adapter-hmac\.sh$''',
+  '''^scripts/verify/m68-key-rotate\.sh$''',
+  '''^src/control-plane/internal/config/environment_test\.go$''',
+  '''^src/control-plane/internal/config/vaultcreds_test\.go$''',
+  '''^src/control-plane/internal/tenants/validate_fuzz_test\.go$''',
+  '''^src/control-plane/internal/tenants/verifycache_test\.go$''',
   # CircleCI status-badge token (read-only badge, not a credential)
   '''^vendor/music-room/back/README\.md$''',
   # Kong admin-API docs: ALL_CAPS header placeholders, not key material. File-scoped

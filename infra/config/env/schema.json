@@ -185,7 +185,7 @@
         "staging",
         "prod"
       ],
-      "compose_required": false,
+      "compose_required": true,
       "consumers": [
         "adapter-registry-go",
         "ai-service",

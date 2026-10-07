@@ -61,10 +61,26 @@ team_arm() {
   step "TEAM — the shared path is the default"
   grep -qE '^ORG="\$\{VAULT_ENV_ORG:-[a-z0-9-]+\}"' "${CTL}" ||
     fail "ctl-env.sh does not default VAULT_ENV_ORG to an org"
-  grep -qE '^ENVNAME="\$\{VAULT_ENV_NAME:-\$\{GROBASE_ENV:-[a-z]+\}\}"' "${CTL}" ||
-    fail "ctl-env.sh does not resolve the environment from GROBASE_ENV"
+  grep -qE '^ENVNAME="\$\{VAULT_ENV_NAME:-\$\(resolve_grobase_env\)\}"' "${CTL}" ||
+    fail "ctl-env.sh does not resolve the environment through resolve_grobase_env"
   grep -q 'VAULT_ENV_PERSONAL' "${CTL}" ||
     fail "ctl-env.sh offers no VAULT_ENV_PERSONAL escape hatch"
+  # BEHAVIOUR, not source text: GROBASE_ENV is set in config.env and overridden in
+  # .env.local, and make passes neither in. Reading only $GROBASE_ENV made every push
+  # act on `local` — on a prod host that seals the prod tree into the environment the
+  # team can WRITE. Drive the real resolver with the value in .env.local alone.
+  local probe resolved
+  probe="$(mktemp -d)" || return
+  printf 'GROBASE_ENV=staging\n' >"${probe}/.env"
+  printf 'GROBASE_ENV=local\n' >"${probe}/config.env"
+  {
+    sed -n '/^resolve_grobase_env()/,/^}/p' "${CTL}"
+    printf 'resolve_grobase_env\n'
+  } >"${probe}/probe.sh"
+  resolved="$(REPO_DIR="${probe}" GROBASE_ENV='' sh "${probe}/probe.sh" 2>/dev/null)"
+  rm -rf "${probe}"
+  [ "${resolved}" = staging ] ||
+    fail "the environment resolver ignored the assembled .env (got '${resolved}', want staging)"
   # The personal path must be reachable ONLY through that variable: if either
   # coordinate is still blank by default, every push is silently personal again.
   awk '/^if \[ "\$\{VAULT_ENV_PERSONAL:-0\}" = 1 \]; then/,/^fi$/' "${CTL}" |

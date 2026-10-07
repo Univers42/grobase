@@ -93,7 +93,7 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:?unset - run make env}
       # Password for the non-superuser PostgREST `authenticator` role created by
       # db-bootstrap.psql (see migration 065 — safe-by-construction REST isolation).
-      AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD:-}
+      AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD:?unset - run make env}
     # Logic in scripts/db/db-bootstrap.sh. It waits on a real authenticated query rather
     # than pg_isready, which answers "is the server accepting connections" and exits 0 on a
     # password rejection — so the old inline `until pg_isready` passed instantly and the
