@@ -42,9 +42,9 @@ services:
     profiles: []
     environment:
       # The upstream Postgres Supavisor fronts.
-      DATABASE_URL: ${POOLER_UPSTREAM_DSN:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}}
-      SECRET_KEY_BASE: ${SUPAVISOR_SECRET_KEY_BASE:-${SECRET_KEY_BASE:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}}
-      VAULT_ENC_KEY: ${SUPAVISOR_VAULT_ENC_KEY:-${VAULT_ENC_KEY:-0123456789abcdef0123456789abcdef}}
+      DATABASE_URL: ${POOLER_UPSTREAM_DSN:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?unset - run make env}@postgres:5432/${POSTGRES_DB:-postgres}}
+      SECRET_KEY_BASE: ${SUPAVISOR_SECRET_KEY_BASE:-${SECRET_KEY_BASE:?unset - run make env}}
+      VAULT_ENC_KEY: ${SUPAVISOR_VAULT_ENC_KEY:-${VAULT_ENC_KEY:?unset - run make env}}
       # Single-node defaults — a multi-node Supavisor cluster needs ERL cookie +
       # libcluster config; that is the C2 capacity-sweep shape, not this seam.
       PORT: ${SUPAVISOR_API_PORT:-4000}
@@ -64,7 +64,7 @@ services:
       # C1 WIRING SEAM (inert until config.rs reads it — see header). Transaction
       # mode → port 6543. Falls back to direct Postgres when unset, which is the
       # base-stack default, preserving byte-parity.
-      DATA_PLANE_POOLER_URL: ${DATA_PLANE_POOLER_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@supavisor:6543/${POSTGRES_DB:-postgres}}
+      DATA_PLANE_POOLER_URL: ${DATA_PLANE_POOLER_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?unset - run make env}@supavisor:6543/${POSTGRES_DB:-postgres}}
       # Transaction-mode poolers do NOT preserve prepared statements across
       # checkouts; the consuming code disables client-side statement caching when
       # this is `off`. Default `on` (direct) so the unset/base path is unchanged.

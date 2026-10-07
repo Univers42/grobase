@@ -29,6 +29,8 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck source=../lib/lib-required-env.sh
+. "${SCRIPT_DIR}/../lib/lib-required-env.sh"
 TS_SERVICES="ai-service analytics-service email-service gdpr-service log-service mongo-api newsletter-service outbox-relay permission-engine query-router schema-service session-service storage-router"
 SCOPED="kong studio pg-meta gotrue postgrest ${TS_SERVICES}"
 MARK="m212-marker-$$"
@@ -66,6 +68,7 @@ setup() {
   cp "${ROOT}/deploy/fly/compose.override.yml" "${TREE}/deploy/fly/"
   : >"${TREE}/infra/config/cloud/flags.env.cloud"
   printf 'M212_PLATFORM=%s\nJWT_SECRET=m212-jwt\n' "${MARK}" >"${TREE}/.env"
+  required_env_floor "m212-floor" "${TREE}" "${TREE}/.env" >>"${TREE}/.env"
   for svc in ${SCOPED}; do printf '%s=%s\n' "$(needed_key "${svc}")" "${MARK}" >>"${TREE}/.env"; done
 }
 
