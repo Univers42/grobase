@@ -438,6 +438,17 @@
         "webhook-dispatcher"
       ]
     },
+    "GROBASE_PUBLIC_ADDRESSES": {
+      "category": "CONFIG",
+      "format": "csv",
+      "required_in": [],
+      "compose_required": false,
+      "$comment": "Hosts/IPs (no scheme/port) this stack is reached at besides localhost; derives cert SANs, Kong CORS origins and GoTrue redirect entries via scripts/ops/public-origins.sh. Empty = localhost only.",
+      "consumers": [
+        "gotrue",
+        "kong"
+      ]
+    },
     "INTERNAL_IDENTITY_HMAC_KEYS": {
       "category": "SECRET",
       "format": "kid:hex64",

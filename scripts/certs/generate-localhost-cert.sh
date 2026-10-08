@@ -26,6 +26,34 @@ OPENSSL_CONFIG="$CERT_DIR/localhost-openssl.cnf"
 SERVER_EXT="$CERT_DIR/localhost-ext.cnf"
 
 WAF_TLS_GID=${MINI_BAAS_WAF_TLS_GID:-101}
+ADDRESSES_FILE="$CERT_DIR/localhost-addresses"
+
+# env_address reads GROBASE_PUBLIC_ADDRESSES from the repo .env when the caller's
+# environment does not set it (make certs runs without .env exported).
+env_address() {
+  [ -f "$REPO_DIR/.env" ] || return 0
+  sed -n 's/^GROBASE_PUBLIC_ADDRESSES=//p' "$REPO_DIR/.env" | tail -n 1
+}
+
+PUBLIC_ADDRESSES=${GROBASE_PUBLIC_ADDRESSES-$(env_address)}
+
+# alt_names prints the SAN lines: the fixed localhost set, then one DNS or IP entry
+# per GROBASE_PUBLIC_ADDRESSES item (validated by public-origins.sh, exit 2 on junk).
+alt_names() {
+  sh "$REPO_DIR/scripts/ops/public-origins.sh" "$PUBLIC_ADDRESSES" >/dev/null || return 2
+  printf 'DNS.1 = localhost\nDNS.2 = host.docker.internal\nDNS.3 = local-https-proxy\n'
+  printf 'DNS.4 = track-binocle.test\nDNS.5 = *.track-binocle.test\nIP.1 = 127.0.0.1\nIP.2 = ::1\n'
+  dns=6 ip=3
+  set -f
+  for a in $(printf '%s' "$PUBLIC_ADDRESSES" | tr ',' ' '); do
+    case "$a" in
+    *:*) printf 'IP.%s = %s\n' "$ip" "$a" && ip=$((ip + 1)) ;;
+    *[!0-9.]*) printf 'DNS.%s = %s\n' "$dns" "$a" && dns=$((dns + 1)) ;;
+    *) printf 'IP.%s = %s\n' "$ip" "$a" && ip=$((ip + 1)) ;;
+    esac
+  done
+  set +f
+}
 
 # The waf's nginx runs as uid/gid 101 and reads the key through a compose FILE
 # secret, which bind-mounts the host inode as-is: compose (non-swarm) ignores the
@@ -49,8 +77,9 @@ grant_waf_read() {
 }
 
 mkdir -p "$CERT_DIR"
+ALT_NAMES=$(alt_names)
 
-cat >"$OPENSSL_CONFIG" <<'EOF'
+cat >"$OPENSSL_CONFIG" <<EOF
 [req]
 default_bits = 2048
 prompt = no
@@ -65,29 +94,17 @@ CN = localhost
 subjectAltName = @alt_names
 
 [alt_names]
-DNS.1 = localhost
-DNS.2 = host.docker.internal
-DNS.3 = local-https-proxy
-DNS.4 = track-binocle.test
-DNS.5 = *.track-binocle.test
-IP.1 = 127.0.0.1
-IP.2 = ::1
+$ALT_NAMES
 EOF
 
-cat >"$SERVER_EXT" <<'EOF'
+cat >"$SERVER_EXT" <<EOF
 basicConstraints = critical,CA:FALSE
 keyUsage = critical,digitalSignature,keyEncipherment
 extendedKeyUsage = serverAuth
 subjectAltName = @alt_names
 
 [alt_names]
-DNS.1 = localhost
-DNS.2 = host.docker.internal
-DNS.3 = local-https-proxy
-DNS.4 = track-binocle.test
-DNS.5 = *.track-binocle.test
-IP.1 = 127.0.0.1
-IP.2 = ::1
+$ALT_NAMES
 EOF
 
 ca_regenerated=0
@@ -116,6 +133,7 @@ if [ "$ca_regenerated" -eq 0 ] && [ -s "$SERVER_KEY" ] && [ -s "$SERVER_CERT" ];
       ;;
     esac
   fi
+  [ "$(cat "$ADDRESSES_FILE" 2>/dev/null)" = "$PUBLIC_ADDRESSES" ] || server_needs_regen=1
 fi
 
 if [ "$server_needs_regen" -eq 1 ]; then
@@ -131,6 +149,9 @@ if [ "$server_needs_regen" -eq 1 ]; then
     -days 397 \
     -sha256 \
     -extfile "$SERVER_EXT" >/dev/null 2>&1
+  printf '%s' "$PUBLIC_ADDRESSES" >"$ADDRESSES_FILE"
+  printf 'New server certificate: a running WAF keeps the old one until recreated:\n'
+  printf '  docker compose up -d --no-deps --force-recreate waf\n'
 else
   printf 'Using existing local HTTPS server certificate with required localhost SANs.\n'
 fi

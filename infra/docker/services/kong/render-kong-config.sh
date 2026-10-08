@@ -5,6 +5,8 @@
 # KONG_CORS_ORIGIN_DEV_LIST (comma-separated) becomes one CORS origin per item; empty
 # or unset adds none, so production ships only the configured KONG_CORS_ORIGIN_*
 # origins (H-15: localhost dev ports used to be hard-coded, credentials: true).
+# GROBASE_PUBLIC_ADDRESSES (comma-separated hosts/IPs) adds the origins
+# public-origins.sh derives — mounted next to this script; unset/empty adds none.
 # Exits non-zero, before Kong starts, if any __PLACEHOLDER__ survives.
 set -eu
 
@@ -15,6 +17,11 @@ trap 'rm -f "$dev"' EXIT
 
 printf '%s\n' "${KONG_CORS_ORIGIN_DEV_LIST:-}" | tr ',' '\n' |
   sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d' -e 's|^|        - |' >"$dev"
+
+if [ -n "${GROBASE_PUBLIC_ADDRESSES:-}" ]; then
+  public="$(sh "$(dirname -- "$0")/public-origins.sh" "$GROBASE_PUBLIC_ADDRESSES" "${KONG_CORS_ORIGIN_DEV_LIST:-}")"
+  printf '%s\n' "$public" | sed 's|^|        - |' >>"$dev"
+fi
 
 sed \
   -e "/__KONG_CORS_ORIGIN_DEV_LIST__/{r $dev" -e 'd;}' \

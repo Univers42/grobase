@@ -86,9 +86,13 @@ services:
       # `-` not `:-`: UNSET keeps the dev list (an .env assembled before this line
       # existed behaves as it did); SET-but-empty — prod overlay, fly — adds none (H-15).
       KONG_CORS_ORIGIN_DEV_LIST: ${KONG_CORS_ORIGIN_DEV_LIST-http://127.0.0.1:5180,http://localhost:5180,http://127.0.0.1:5173,http://localhost:3001,http://127.0.0.1:3001}
+      # Hosts/IPs this stack is reached at besides localhost (LAN, VM bridge, router,
+      # ts.net, …): each adds https://<host> + the dev list re-hosted (public-origins.sh).
+      GROBASE_PUBLIC_ADDRESSES: ${GROBASE_PUBLIC_ADDRESSES:-}
     volumes:
       - ./infra/docker/services/kong/conf/kong.yml:/etc/kong/kong.yml.tmpl:ro
       - ./infra/docker/services/kong/render-kong-config.sh:/etc/kong/render-kong-config.sh:ro
+      - ./scripts/ops/public-origins.sh:/etc/kong/public-origins.sh:ro
     # render-kong-config.sh substitutes every __PLACEHOLDER__ (dev CORS origins from
     # KONG_CORS_ORIGIN_DEV_LIST) and refuses to start Kong if one survives.
     command: >

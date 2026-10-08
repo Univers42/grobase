@@ -1168,7 +1168,7 @@ jobs:
   # built HERE from this commit (never the published :latest). A missing image or
   # too little disk is a non-zero SKIP (exit 77), never a silent pass.
   security-gates:
-    name: Security gates (m66 m195 m196 m198 m199 m205 m206 m207 m208 m210 m211 m212)
+    name: Security gates (m66 m195 m196 m198 m199 m205 m206 m207 m208 m210 m211 m212 m217)
     runs-on: ubuntu-latest
     needs: [shellcheck]
     timeout-minutes: 30
@@ -1238,6 +1238,11 @@ jobs:
       # and their optional .env.<service>, under every overlay.
       - name: Service env scope (m212)
         run: bash scripts/verify/run-gate-battery.sh m212-service-env-scope
+
+      # GROBASE_PUBLIC_ADDRESSES drives cert SANs, Kong CORS and GoTrue redirects;
+      # unset renders byte-identical, and a `*` address stops Kong from starting.
+      - name: Public addresses (m217)
+        run: bash scripts/verify/run-gate-battery.sh m217-public-addresses
 
       # begin → swap → finish on a scratch env file; compose hands the previous
       # service token to every verifier.

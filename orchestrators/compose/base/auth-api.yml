@@ -76,6 +76,23 @@ services:
       GOTRUE_JWT_KEYS:
       GOTRUE_JWT_VALID_METHODS:
       GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED:
+      # Hosts/IPs this stack is reached at besides localhost: each appends
+      # https://<host>/** + the localhost entries above re-hosted (public-origins.sh).
+      GROBASE_PUBLIC_ADDRESSES: ${GROBASE_PUBLIC_ADDRESSES:-}
+    volumes:
+      - ./scripts/ops/public-origins.sh:/etc/gotrue/public-origins.sh:ro
+    # Unset/empty GROBASE_PUBLIC_ADDRESSES leaves the allow list untouched (parity).
+    command:
+      - sh
+      - -ec
+      - |
+        set -f
+        if [ -n "$${GROBASE_PUBLIC_ADDRESSES:-}" ]; then
+          extra="$$(sh /etc/gotrue/public-origins.sh "$$GROBASE_PUBLIC_ADDRESSES" "$$GOTRUE_URI_ALLOW_LIST" '/**')"
+          for o in $$extra; do GOTRUE_URI_ALLOW_LIST="$$GOTRUE_URI_ALLOW_LIST,$$o"; done
+          export GOTRUE_URI_ALLOW_LIST
+        fi
+        exec auth
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
