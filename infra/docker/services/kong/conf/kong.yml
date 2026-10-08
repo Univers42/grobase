@@ -38,6 +38,7 @@ plugins:
         - __KONG_CORS_ORIGIN_PLAYGROUND__
         - __KONG_CORS_ORIGIN_STUDIO__
         - __KONG_CORS_ORIGIN_FRONTEND__
+        - https://dlesieur42.tail10f2ea.ts.net
         - http://localhost:5180
         - http://127.0.0.1:5180
         # Local dev servers (vite :5173/:5180, the osionos second-brain on :3001):
