@@ -71,7 +71,7 @@ PROJECT="${PROJECT:-groot}"
 EDITION="${EDITION:-devlean}"
 ENGINES="${ENGINES:-postgres mysql mongo redis minio}"
 NET="${NET:-mini-baas_mini-baas}"
-. "$SCRIPT_DIR/../lib/lib-netseg.sh"
+[ ! -f "$SCRIPT_DIR/../lib/lib-netseg.sh" ] || . "$SCRIPT_DIR/../lib/lib-netseg.sh"
 # Where pre-restore backups and failed-replay logs go. NEVER inside SEED_DIR: at the
 # superproject root SEED_DIR is ./secrets, and 42ctl takes EVERY regular file under a
 # directory named secrets/ — so a backup written there rides the next `make vault42-push-all`
