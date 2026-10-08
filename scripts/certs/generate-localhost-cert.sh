@@ -32,8 +32,10 @@ WAF_TLS_GID=${MINI_BAAS_WAF_TLS_GID:-101}
 # secret's uid/gid/mode keys, so host permissions ARE container permissions. The
 # key must therefore be readable by gid 101 on the host without becoming
 # world-readable. Three rungs, cheapest first; docker is the backstop because it
-# is already a hard prerequisite and its daemon is root.
+# is already a hard prerequisite and its daemon is root. MINI_BAAS_WAF_TLS_GID=none
+# skips the grant when no WAF reads this key on this host (the key stays 0600).
 grant_waf_read() {
+  [ "$WAF_TLS_GID" != none ] || return 0
   if chgrp "$WAF_TLS_GID" "$1" 2>/dev/null; then
     chmod 640 "$1"
     return 0
