@@ -65,7 +65,7 @@
     "mongodb": "^6.15.0",
     "mysql2": "^3.11.5",
     "nestjs-pino": "^4.2.0",
-    "nodemailer": "^10.0.6",
+    "nodemailer": "^10.0.14",
     "pg": "^8.13.1",
     "pino-http": "^10.4.0",
     "pino-pretty": "^13.0.0",
