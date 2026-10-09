@@ -133,7 +133,7 @@ scale-seed: _require-compose ## Provision SCALE= bench tenants (+keys+mounts) â†
 	mkdir -p artifacts/scale; \
 	docker run --rm --network host -v "$(CURDIR)/src/control-plane":/src -v "$(CURDIR)/artifacts":/artifacts -w /src \
 		-v mini-baas-gomod:/go/pkg/mod -v mini-baas-gobuild:/root/.cache/go-build \
-		-e SERVICE_TOKEN_MODE="$$TMODE" golang:1.25-bookworm \
+		-e SERVICE_TOKEN_MODE="$$TMODE" golang:1.26-bookworm \
 		go run ./cmd/scale-seed -n "$$SCALE" -base "http://127.0.0.1:$$TC_PORT" -token "$$TOKEN" \
 		-dsn "postgres://$${PG_USER:-postgres}:$${PG_PASS:-postgres}@postgres:5432/$${PG_DB:-postgres}" \
 		-mounts "$(if $(MOUNTS),$(MOUNTS),1)" -isolation "$(if $(ISOLATION),$(ISOLATION),shared_rls)" \
@@ -150,7 +150,7 @@ scale-teardown: _require-compose ## Soft-delete every tenant in artifacts/scale/
 	TMODE="$$(docker inspect mini-baas-tenant-control --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^SERVICE_TOKEN_MODE=//p' | head -1)"; \
 	docker run --rm --network host -v "$(CURDIR)/src/control-plane":/src -v "$(CURDIR)/artifacts":/artifacts -w /src \
 		-v mini-baas-gomod:/go/pkg/mod -v mini-baas-gobuild:/root/.cache/go-build \
-		-e SERVICE_TOKEN_MODE="$$TMODE" golang:1.25-bookworm \
+		-e SERVICE_TOKEN_MODE="$$TMODE" golang:1.26-bookworm \
 		go run ./cmd/scale-seed -teardown -base "http://127.0.0.1:$$TC_PORT" -token "$$TOKEN" \
 		-out "/artifacts/scale/tenants-$$SCALE.jsonl"
 

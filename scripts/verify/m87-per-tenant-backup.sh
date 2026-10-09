@@ -542,7 +542,7 @@ ok "(ATOM) forced mid-restore COPY failure rolled back ATOMICALLY — t_aa kept 
 #        A key mismatch refuses to boot. ────────────────────────────────────────
 step "8e/9 (E · ENCRYPTED) age keys (filippo.io/age v1.3.2 age-keygen, the version go.mod pins)"
 for k in id wrong; do
-  docker run --rm -e GOTOOLCHAIN=local -e GOFLAGS=-mod=mod golang:1.25-bookworm \
+  docker run --rm -e GOTOOLCHAIN=local -e GOFLAGS=-mod=mod golang:1.26-bookworm \
     go run filippo.io/age/cmd/age-keygen@v1.3.2 2>/dev/null >"${KEY_DIR}/${k}.key" ||
     fail "(E) age-keygen failed (line: E keygen)"
   chmod 600 "${KEY_DIR}/${k}.key"

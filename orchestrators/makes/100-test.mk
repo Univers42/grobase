@@ -61,7 +61,7 @@ test-lint-rust: _rust-toolchain ## Lint Rust — cargo clippy -D warnings, BOTH 
 
 test-lint-go: ## Lint Go — go vet + gofmt, then golangci-lint (gofumpt + default linters, src/control-plane/.golangci.yml), in Docker
 	@docker run --rm -v "$(CURDIR)/src/control-plane":/src -w /src \
-		-v mini-baas-gomod:/go/pkg/mod -v mini-baas-gobuild:/root/.cache/go-build golang:1.25-bookworm \
+		-v mini-baas-gomod:/go/pkg/mod -v mini-baas-gobuild:/root/.cache/go-build golang:1.26-bookworm \
 		sh -c 'GOFLAGS=-mod=mod go vet ./... && o=$$(gofmt -l . | grep -v "^vendor/" || true); [ -z "$$o" ] || { echo -e "$(_R)  gofmt needs: $$o$(_0)"; exit 1; }' \
 		&& echo -e "$(_G)✓ go vet+fmt$(_0)" \
 	&& docker run --rm -v "$(CURDIR)/src/control-plane":/src -w /src -e GOFLAGS=-mod=mod \

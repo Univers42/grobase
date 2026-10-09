@@ -13,7 +13,7 @@
 PRETTIER_KINDS := prettier-go prettier-rust prettier-ts prettier-shell prettier-yaml
 
 # Pinned, not @latest: gofumpt v0.12 declares `go >= 1.26`, and the toolchain
-# image is golang:1.25-bookworm with GOTOOLCHAIN=local, so @latest fails to
+# image is golang:1.26-bookworm with GOTOOLCHAIN=local, so @latest fails to
 # install. v0.8.0 is the newest that builds under Go 1.25. Bump both together.
 GOFUMPT_VERSION ?= v0.8.0
 # Pinned so a new shfmt release cannot turn CI red on an unchanged tree.
@@ -30,7 +30,7 @@ prettiers: ## Format EVERY technology in place (gofumpt · rustfmt · prettier �
 
 prettier-go: ## Format Go — gofumpt (control plane, in Docker)
 	@docker run --rm -v "$(CURDIR)/src/control-plane":/src -w /src \
-		-v mini-baas-gomod:/go/pkg/mod -v mini-baas-gobuild:/root/.cache/go-build golang:1.25-bookworm \
+		-v mini-baas-gomod:/go/pkg/mod -v mini-baas-gobuild:/root/.cache/go-build golang:1.26-bookworm \
 		sh -c 'go install mvdan.cc/gofumpt@$(GOFUMPT_VERSION) >/dev/null && /go/bin/gofumpt -w .' \
 		&& echo -e "$(_G)✓ go (gofumpt)$(_0)"
 
@@ -55,7 +55,7 @@ prettier-yaml: ## Format YAML — prettier (compose + config, in Docker)
 prettiers-check: _rust-toolchain ## Verify every technology is formatted (no writes; non-zero if not — CI gate)
 	@rc=0; \
 	echo -e "$(_B)── go ──$(_0)"; \
-	docker run --rm -v "$(CURDIR)/src/control-plane":/src -w /src -v mini-baas-gomod:/go/pkg/mod -v mini-baas-gobuild:/root/.cache/go-build golang:1.25-bookworm \
+	docker run --rm -v "$(CURDIR)/src/control-plane":/src -w /src -v mini-baas-gomod:/go/pkg/mod -v mini-baas-gobuild:/root/.cache/go-build golang:1.26-bookworm \
 		sh -c 'go install mvdan.cc/gofumpt@$(GOFUMPT_VERSION) >/dev/null || exit 1; o=$$(/go/bin/gofumpt -l .); [ -z "$$o" ] || { echo "$$o"; exit 1; }' || rc=1; \
 	echo -e "$(_B)── rust ──$(_0)"; \
 	$(CARGO_DPR) cargo fmt --all --check || rc=1; \
