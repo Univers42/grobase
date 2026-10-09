@@ -67,7 +67,7 @@ fail() {
 }
 
 PG_IMAGE="${M100_PG_IMAGE:-postgres:16-alpine}"
-GO_IMAGE="${M100_GO_IMAGE:-golang:1.24}"
+GO_IMAGE="${M100_GO_IMAGE:-golang:1.26-bookworm}"
 SINK_IMAGE="${M100_SINK_IMAGE:-python:3-alpine}"
 ORCH_IMG="m100-orch-$$:scratch"
 NET="m100net-$$"

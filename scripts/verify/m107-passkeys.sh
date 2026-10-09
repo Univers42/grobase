@@ -79,7 +79,7 @@ fail() {
 }
 
 PG_IMAGE="${M107_PG_IMAGE:-postgres:16-alpine}"
-GO_IMAGE="${M107_GO_IMAGE:-golang:1.25-bookworm}"
+GO_IMAGE="${M107_GO_IMAGE:-golang:1.26-bookworm}"
 TC_IMG="m107-tc-$$:scratch"
 AUTH_IMG="m107-auth-$$:scratch"
 NET="m107net-$$"

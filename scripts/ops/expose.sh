@@ -22,10 +22,7 @@ DRY=0
 # say prints a step line; warn and die print to stderr (die exits 1).
 say() { printf '\033[0;36m[expose]\033[0m %s\n' "$*"; }
 warn() { printf '\033[0;33m[expose] %s\033[0m\n' "$*" >&2; }
-die() {
-  printf '\033[0;31m[expose] %s\033[0m\n' "$*" >&2
-  exit 1
-}
+die() { warn "$*" && exit 1; }
 
 # run executes "$@", or only prints it under --dry-run.
 run() {
@@ -110,8 +107,8 @@ trust_system() {
 # trust_nss replaces CA $1 under NICK in every NSS database (no sudo).
 trust_nss() {
   local d
-  command -v certutil >/dev/null 2>&1 ||
-    { warn "certutil missing (apt install libnss3-tools): browsers not updated"; return 0; }
+  command -v certutil >/dev/null 2>&1 || warn "certutil missing (apt install libnss3-tools): browsers not updated"
+  command -v certutil >/dev/null 2>&1 || return 0
   while IFS= read -r d; do
     certutil -d "sql:${d}" -D -n "${NICK}" >/dev/null 2>&1 || true
     run certutil -d "sql:${d}" -A -t "C,," -n "${NICK}" -i "$1"
@@ -198,7 +195,8 @@ running_services() {
 recreate() {
   local svcs files args=() f fl
   mapfile -t svcs < <(running_services)
-  [ "${#svcs[@]}" -gt 0 ] || { say "stack not running: nothing to recreate (make up applies it)"; return 0; }
+  [ "${#svcs[@]}" -gt 0 ] || say "stack not running: nothing to recreate (make up applies it)"
+  [ "${#svcs[@]}" -gt 0 ] || return 0
   files="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project.config_files"}}' "mini-baas-${svcs[0]}")"
   IFS=, read -r -a fl <<<"${files}"
   for f in "${fl[@]}"; do args+=(-f "${f}"); done
@@ -243,7 +241,8 @@ keep_previous() {
   while IFS= read -r a; do
     case "${a}" in
     10.* | 192.168.* | 172.1[6-9].* | 172.2[0-9].* | 172.3[01].* | 100.6[4-9].* | 100.[7-9][0-9].* | 100.1[01][0-9].* | 100.12[0-7].* | 169.254.* | f[cd]*:* | fe80:*)
-      case "${here}" in *" ${a} "*) printf '%s\n' "${a}" ;; *) warn "dropped ${a}: no longer on this machine" ;; esac ;;
+      case "${here}" in *" ${a} "*) printf '%s\n' "${a}" ;; *) warn "dropped ${a}: no longer on this machine" ;; esac
+      ;;
     *) printf '%s\n' "${a}" ;;
     esac
   done
@@ -281,7 +280,8 @@ main() {
   local cmd=up
   ADD=() REPLACE=0 DETECT=1 TRUST=1 RESTART=1
   case "${1:-}" in up | detect | status | trust | untrust) cmd="$1" && shift ;; esac
-  [ "${cmd}" = trust ] && { cmd_trust "${1:-}"; return; }
+  [ "${cmd}" != trust ] || cmd_trust "${1:-}"
+  [ "${cmd}" != trust ] || return 0
   while [ "$#" -gt 0 ]; do
     case "$1" in
     --add) ADD+=("${2:?--add needs a host}") && shift ;;
