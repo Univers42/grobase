@@ -4,9 +4,25 @@ Grobase uses an **open-core** model. Different parts of this repository are unde
 different licenses. This file is the authoritative map; the per-area `LICENSE`
 files are the legal text.
 
-> **Not legal advice.** `LICENSE-ENTERPRISE.md` and `CLA.md` are templates. Have a
-> lawyer review them before you sell a commercial license, accept your first
-> external contribution, or launch the managed cloud. See `HUMAN-ATOMS.md`.
+Copyright (c) 2026 the Grobase authors (see "Copyright holders" below).
+Licensing contact: `dev.pro.photo@gmail.com`.
+
+## Copyright holders
+
+Grobase is jointly owned by its five authors, who together are the "Licensor" in
+`LICENSE-ENTERPRISE.md` and `CLA.md`:
+
+| Author        | Handle      |
+| ------------- | ----------- |
+| Dylan Lesieur | `dlesieur`  |
+| Vadim J N     | `vjan-nie`  |
+| —             | `djsurgeon` |
+| —             | `shashimi`  |
+| —             | `danfern`   |
+
+**Designated Representative:** Dylan Lesieur (`dev.pro.photo@gmail.com`) signs
+Commercial Subscription Agreements and handles licensing requests on behalf of all
+copyright holders.
 
 ## The short version
 
@@ -14,7 +30,7 @@ files are the legal text.
 | --------------------------------------------------------- | --------------- |
 | Read, fork, self-host, modify the core                    | AGPLv3 (free)   |
 | Run a **modified** Grobase as a network service           | AGPLv3 — **but you must publish your source** |
-| Run a modified Grobase **without** publishing your source | a **commercial license** (contact us) |
+| Run a modified Grobase **without** publishing your source | a **commercial license** (contact `dev.pro.photo@gmail.com`) |
 | Use the official SDKs in any app, closed or open          | MIT (free)      |
 | Use the **enterprise** features (SSO, SCIM, audit, CMEK…) | a **commercial license** (paid) |
 
@@ -33,8 +49,8 @@ competitor from taking Grobase, improving it privately, and reselling it as a
 closed hosted service — they either keep their changes open, or they buy a
 commercial license from us.
 
-We retain copyright (every contributor signs the `CLA.md`), so we — and only we —
-can **dual-license**: offer a paid commercial license that waives the AGPL
+The copyright holders retain copyright (every other contributor signs the
+`CLA.md`), so they — and only they — can **dual-license**: offer a paid commercial license that waives the AGPL
 copyleft obligation for customers who can't comply with it.
 
 ### SDKs — MIT
@@ -50,8 +66,8 @@ AGPL. The AGPL applies to the *server* you run, not to clients that call it.
 
 ### Enterprise features — Grobase Enterprise License (commercial)
 
-These packages are **NOT** under AGPL. They are source-available for evaluation
-only and require a paid commercial agreement to use in production. Each directory
+These packages are **NOT** under AGPL. They are source-available for a 30-day
+evaluation only and require a paid commercial agreement to use in production. Each directory
 carries its own `LICENSE` pointer; the full terms are in `LICENSE-ENTERPRISE.md`
 (SPDX `LicenseRef-Grobase-Enterprise`).
 
