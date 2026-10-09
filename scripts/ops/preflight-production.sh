@@ -24,7 +24,8 @@
 #                 compose builds them from DATABASE_URL, POSTGRES_PASSWORD or  #
 #                 MONGO_INITDB_ROOT_PASSWORD, which the check above requires.  #
 #    settings     GOTRUE_MAILER_AUTOCONFIRM=false, SMTP_HOST not mailpit,      #
-#                 API_EXTERNAL_URL / GOTRUE_SITE_URL not localhost,            #
+#                 API_EXTERNAL_URL / GOTRUE_SITE_URL / GOTRUE_URI_ALLOW_LIST /  #
+#                 GROBASE_PUBLIC_ADDRESSES not localhost,                      #
 #                 ENGINE_BIND_ADDR not a wildcard, SERVICE_TOKEN_MODE=hmac.    #
 #                 REALTIME_NAMESPACE_FALLBACK other than deny only WARNS: deny #
 #                 closes realtime to GoTrue-session clients until a namespace  #
@@ -231,6 +232,10 @@ function check_settings(   v) {
 	if (v != NONE && is_local(v)) flag("API_EXTERNAL_URL", "points at localhost (GoTrue issuer and OAuth callbacks)")
 	v = setting("GOTRUE_SITE_URL", "http://localhost:5173")
 	if (v != NONE && is_local(v)) flag("GOTRUE_SITE_URL", "points at localhost (confirmation and reset links)")
+	v = setting("GOTRUE_URI_ALLOW_LIST", "http://localhost:5173/**")
+	if (v != NONE && is_local(v)) flag("GOTRUE_URI_ALLOW_LIST", "lists a localhost redirect (unset = the localhost default); set the real frontend URLs")
+	v = setting("GROBASE_PUBLIC_ADDRESSES", "")
+	if (v != NONE && (is_local(v) || v ~ /(^|,)[ \t]*::1[ \t]*(,|$)/)) flag("GROBASE_PUBLIC_ADDRESSES", "lists a loopback address (it becomes a credentialed CORS origin)")
 	v = setting("ENGINE_BIND_ADDR", "127.0.0.1")
 	if (v == "0.0.0.0" || v == "::" || v == "[::]") flag("ENGINE_BIND_ADDR", "publishes every engine port on all interfaces")
 	v = setting("SERVICE_TOKEN_MODE", "hmac")

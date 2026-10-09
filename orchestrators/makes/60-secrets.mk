@@ -27,6 +27,8 @@ env-example-check: ## Verify .env.example matches infra/config/env/schema.json (
 	@bash scripts/env/render-example.sh --check
 certs: ## Generate localhost TLS cert/key into certs (idempotent; the waf reads them as Docker secrets)
 	@bash scripts/certs/generate-localhost-cert.sh
+expose: ## Serve trusted HTTPS at every address of this machine (LAN/VM/Tailscale; ARGS="--add host", "status", "trust ca.pem")
+	@bash scripts/ops/expose.sh $(ARGS)
 vault-init: _require-compose ## Run Vault init/unseal/seed
 	@$(DC) --profile control-plane run --rm vault-init
 vault-status: _require-compose ## Check Vault seal status
