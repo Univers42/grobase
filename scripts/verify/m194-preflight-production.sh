@@ -159,6 +159,7 @@ write_hardened() {
     printf 'INTERNAL_IDENTITY_HMAC_KEYS=k1:%s\n' "$(rand 32)"
     printf 'GOTRUE_MAILER_AUTOCONFIRM=false\nSMTP_HOST=smtp.example.com\n'
     printf 'API_EXTERNAL_URL=https://api.example.com/auth/v1\nGOTRUE_SITE_URL=https://app.example.com\n'
+    printf 'GOTRUE_URI_ALLOW_LIST=https://app.example.com/**\nGROBASE_PUBLIC_ADDRESSES=api.example.com\n'
     printf 'REALTIME_NAMESPACE_FALLBACK=deny\nSERVICE_TOKEN_MODE=hmac\n'
     # The deployment must state WHICH environment it is: preflight refuses local/dev,
     # because a dev env file full of strong dev secrets passes every value check.
@@ -251,6 +252,9 @@ SERVICE_ROLE_KEY|SERVICE_ROLE_KEY=CHANGEME
 ENGINE_BIND_ADDR|ENGINE_BIND_ADDR=0.0.0.0
 SERVICE_TOKEN_MODE|SERVICE_TOKEN_MODE=legacy
 GOTRUE_SITE_URL|GOTRUE_SITE_URL=http://127.0.0.1:5173
+GOTRUE_URI_ALLOW_LIST|GOTRUE_URI_ALLOW_LIST=https://app.example.com/**,http://localhost:3000
+GROBASE_PUBLIC_ADDRESSES|GROBASE_PUBLIC_ADDRESSES=api.example.com,::1
+GROBASE_PUBLIC_ADDRESSES|GROBASE_PUBLIC_ADDRESSES=localhost
 CASES
   printf 'POSTGRES_PASSWORD|POSTGRES_PASSWORD=postgres\r\n'
 }
@@ -260,7 +264,7 @@ arm_parser_fail() {
   local c i=0
   local -a cases
   mapfile -t cases < <(parser_cases)
-  [ "${#cases[@]}" -ge 19 ] || fail "parser_cases produced ${#cases[@]} cases"
+  [ "${#cases[@]}" -ge 22 ] || fail "parser_cases produced ${#cases[@]} cases"
   for c in "${cases[@]}"; do
     i=$((i + 1))
     expect_fail "$(with_line "p${i}.env" "${c#*|}")" "${c%%|*}"
