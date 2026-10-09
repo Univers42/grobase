@@ -216,8 +216,8 @@ CTL_SERVER    ?= https://vault42-server.fly.dev
 CTL_AUTHORITY ?= https://vault42-authority.fly.dev
 CTL_SECRETS   := secrets/vault42-admin.env
 # The keystore passphrase for every 42ctl wrapper: an exported FT_PASSPHRASE wins, else
-# VAULT42_KEYSTORE_PASSPHRASE from $(CTL_SECRETS); empty → ctl-env.sh prompts (hidden).
-CTL_PASSPHRASE = $${FT_PASSPHRASE:-$$(sed -n 's/^VAULT42_KEYSTORE_PASSPHRASE=//p' $(CTL_SECRETS) 2>/dev/null | head -1)}
+# VAULT42_KEYSTORE_PASSPHRASE (or FT_PASSPHRASE) from $(CTL_SECRETS); empty → ctl-env.sh prompts (hidden).
+CTL_PASSPHRASE = $${FT_PASSPHRASE:-$$(sed -n 's/^\(VAULT42_KEYSTORE_PASSPHRASE\|FT_PASSPHRASE\)=//p' $(CTL_SECRETS) 2>/dev/null | head -1)}
 
 ctl42: ## 42ctl vs the LIVE fly vault42 — make ctl42 ARGS="keys escrow --email you@…"
 	@mkdir -p $(CTL_CFG_DIR) && chmod 700 $(CTL_CFG_DIR)
