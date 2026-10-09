@@ -269,6 +269,7 @@ read_emitted_key() {
 
 # Substitute the contract's frontend_config tokens and write the config file the
 # frontend reads. Tokens: ${KONG_URL} ${ANON_KEY} ${API_KEY} ${TENANT_ID}
+# ${KONG_URL} becomes GROBASE_FRONTEND_URL when set (a public address, expose.sh).
 # ${MOUNT_ID:<name>}. The frontend owns no data — only this emitted config.
 emit_frontend_config() {
   local path out k v line
@@ -290,7 +291,7 @@ emit_frontend_config() {
 # Replace one value's tokens with live values (mount ids resolved by name).
 subst_tokens() { # $1 template value
   local v="$1" name id
-  v="${v//\$\{KONG_URL\}/${KONG_URL}}"
+  v="${v//\$\{KONG_URL\}/${GROBASE_FRONTEND_URL:-${KONG_URL}}}"
   v="${v//\$\{ANON_KEY\}/${ANON_KEY}}"
   v="${v//\$\{API_KEY\}/${API_KEY}}"
   v="${v//\$\{TENANT_ID\}/${TENANT}}"
