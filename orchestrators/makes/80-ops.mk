@@ -215,11 +215,14 @@ CTL_CFG_DIR  := $(HOME)/.config/42ctl
 CTL_SERVER    ?= https://vault42-server.fly.dev
 CTL_AUTHORITY ?= https://vault42-authority.fly.dev
 CTL_SECRETS   := secrets/vault42-admin.env
+# The keystore passphrase for every 42ctl wrapper: an exported FT_PASSPHRASE wins, else
+# VAULT42_KEYSTORE_PASSPHRASE from $(CTL_SECRETS); empty → ctl-env.sh prompts (hidden).
+CTL_PASSPHRASE = $${FT_PASSPHRASE:-$$(sed -n 's/^VAULT42_KEYSTORE_PASSPHRASE=//p' $(CTL_SECRETS) 2>/dev/null | head -1)}
 
 ctl42: ## 42ctl vs the LIVE fly vault42 — make ctl42 ARGS="keys escrow --email you@…"
 	@mkdir -p $(CTL_CFG_DIR) && chmod 700 $(CTL_CFG_DIR)
 	@[ -f $(CTL_CFG_DIR)/config.json ] || printf '%s\n' '{"current":"default","profiles":{"default":{"server":"$(CTL_SERVER)","authority":"$(CTL_AUTHORITY)","grobase":""}}}' > $(CTL_CFG_DIR)/config.json
-	@pass="$${FT_PASSPHRASE:-$$(sed -n 's/^VAULT42_KEYSTORE_PASSPHRASE=//p' $(CTL_SECRETS) 2>/dev/null | head -1)}"; \
+	@pass="$(CTL_PASSPHRASE)"; \
 	 pw="$${FT_PASSWORD:-$$(sed -n 's/^VAULT42_ADMIN_PASSWORD=//p' $(CTL_SECRETS) 2>/dev/null | head -1)}"; \
 	 docker run --rm -it --user "$$(id -u):$$(id -g)" \
 		-e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 \
@@ -237,7 +240,7 @@ ctl-remote: ctl42 ## Deprecated alias for ctl42 (the old target seeded dead/fore
 # zero-knowledge deletion cannot be undone.
 #
 vault-team-setup: ## vault42: provision org/team/project/envs/grants for grobase (idempotent)
-	@FT_PASSPHRASE="$${FT_PASSPHRASE:-$$(sed -n 's/^VAULT42_KEYSTORE_PASSPHRASE=//p' $(CTL_SECRETS) 2>/dev/null | head -1)}" \
+	@FT_PASSPHRASE="$(CTL_PASSPHRASE)" \
 	 FT_PASSWORD="$${FT_PASSWORD:-$$(sed -n 's/^VAULT42_ADMIN_PASSWORD=//p' $(CTL_SECRETS) 2>/dev/null | head -1)}" \
 	 CTL_IMAGE="$(CTL_IMAGE)" CTL_CFG_DIR="$(CTL_CFG_DIR)" REPO_DIR="$(CURDIR)" \
 	 sh scripts/vault/grobase-team-setup.sh $(ARGS)
@@ -248,9 +251,9 @@ vault-team-setup: ## vault42: provision org/team/project/envs/grants for grobase
 # `passphrase:` prompt: scripts/vault/ctl-env.sh reads it with echo OFF into the env,
 # so the 42ctl image runs non-interactively. Override the project with VAULT_ENV_PROJECT.
 vault-push-env: ## vault42: push every *.env*/*.secrets (any depth) to the REMOTE ZK vault — passphrase read hidden
-	@REPO_DIR="$(CURDIR)" CTL_IMAGE="$(CTL_IMAGE)" CTL_CFG_DIR="$(CTL_CFG_DIR)" VAULT_ENV_PROJECT="$(VAULT_ENV_PROJECT)" \
+	@FT_PASSPHRASE="$(CTL_PASSPHRASE)" REPO_DIR="$(CURDIR)" CTL_IMAGE="$(CTL_IMAGE)" CTL_CFG_DIR="$(CTL_CFG_DIR)" VAULT_ENV_PROJECT="$(VAULT_ENV_PROJECT)" \
 		sh scripts/vault/ctl-env.sh push
 
 vault-pull-env: ## vault42: restore the *.env* tree from the REMOTE ZK vault — DRY-RUN unless APPLY=1 (FORCE=1 overwrites existing files) — passphrase read hidden
-	@REPO_DIR="$(CURDIR)" CTL_IMAGE="$(CTL_IMAGE)" CTL_CFG_DIR="$(CTL_CFG_DIR)" VAULT_ENV_PROJECT="$(VAULT_ENV_PROJECT)" \
+	@FT_PASSPHRASE="$(CTL_PASSPHRASE)" REPO_DIR="$(CURDIR)" CTL_IMAGE="$(CTL_IMAGE)" CTL_CFG_DIR="$(CTL_CFG_DIR)" VAULT_ENV_PROJECT="$(VAULT_ENV_PROJECT)" \
 		sh scripts/vault/ctl-env.sh pull $(if $(filter 1,$(APPLY)),--apply,) $(if $(filter 1,$(FORCE)),--force,)
