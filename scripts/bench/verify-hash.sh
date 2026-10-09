@@ -30,7 +30,7 @@ mkdir -p "${OUT_DIR}"
 RAW="$(
   docker run --rm -v "${ROOT}/src/control-plane":/src -w /src \
     -v mini-baas-gomod:/go/pkg/mod -v mini-baas-gobuild:/root/.cache/go-build \
-    golang:1.25-bookworm \
+    golang:1.26-bookworm \
     go test ./internal/tenants -run '^$' -bench 'BenchmarkVerifyKeyHash' \
     -benchtime "${BENCHTIME}" -cpu 4
 )" || {

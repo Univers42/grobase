@@ -70,7 +70,7 @@ fail() {
 
 REDIS_IMAGE="${M89_REDIS_IMAGE:-redis:7-alpine}"
 PG_IMAGE="${M89_PG_IMAGE:-postgres:16-alpine}"
-GO_IMAGE="${M89_GO_IMAGE:-golang:1.25}"
+GO_IMAGE="${M89_GO_IMAGE:-golang:1.26-bookworm}"
 ORCH_IMG="m89-orch-$$:scratch"
 NET="m89net-$$"
 PG="m89-pg-$$"

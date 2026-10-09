@@ -107,7 +107,7 @@ docker run --rm -v "${PWD}/${ROUTER_DIR}":/work -w /work rust:1-bookworm \
   sh -c 'cargo test -p data-plane-core 2>&1 | tail -8 && echo "===POOL===" && cargo test -p data-plane-pool 2>&1 | tail -12' \
   >/tmp/m24-cargo.log 2>&1 || fail "cargo tests failed: $(grep -E 'FAILED|error' /tmp/m24-cargo.log | head -3)"
 grep -rq "test result: FAILED" /tmp/m24-cargo.log && fail "cargo test failures: $(tail -5 /tmp/m24-cargo.log)"
-docker run --rm -v "${PWD}/${GO_DIR}":/work -w /work golang:1.25-bookworm \
+docker run --rm -v "${PWD}/${GO_DIR}":/work -w /work golang:1.26-bookworm \
   sh -c 'go test ./internal/adapterregistry/ 2>&1 | tail -3' \
   >/tmp/m24-go.log 2>&1 || fail "go tests failed: $(tail -3 /tmp/m24-go.log)"
 grep -rq '^ok' /tmp/m24-go.log || fail "go test did not report ok: $(cat /tmp/m24-go.log)"
