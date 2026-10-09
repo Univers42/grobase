@@ -34,7 +34,7 @@ ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 RUST_WORKSPACES=("${ROOT}/src/data-plane-router" "${ROOT}/infra/docker/services/realtime/realtime-agnostic")
 GO_DIR="${ROOT}/src/control-plane"
 RUST_IMG="mini-baas-rust-toolchain"
-GO_IMG="golang:1.25-bookworm"
+GO_IMG="golang:1.26-bookworm"
 
 DENY_VER="0.20.2"
 DENY_SHA256="9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f"

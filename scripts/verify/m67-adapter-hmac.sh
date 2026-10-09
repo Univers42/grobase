@@ -149,7 +149,7 @@ ok "scratch image ${SCRATCH_IMG} built from $(git -C "${BAAS_DIR}" rev-parse --s
 # equality on a FIXED vector so the gate's signer is provably the real primitive.
 step "0b/8 cross-check openssl signer == Go ComputeServiceSignature (fixed vector)"
 GO_SIG="$(docker run --rm --name "${XCHK}" -e BTOKEN="${TOKEN}" -e BUSER="${USER_A}" -e BTEN="${TEN_A}" \
-  golang:1.25-bookworm sh -c 'cat > /tmp/x.go <<"EOF"
+  golang:1.26-bookworm sh -c 'cat > /tmp/x.go <<"EOF"
 package main
 import ("crypto/hmac";"crypto/sha256";"encoding/hex";"fmt";"os";"strings")
 func sig(token,method,path string,body []byte,ts int64) string {

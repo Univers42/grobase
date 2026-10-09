@@ -208,7 +208,7 @@ func main() {
 }
 GO
 cat >"${WORK}/sink/Dockerfile" <<'DOCKER'
-FROM golang:1.25-bookworm AS build
+FROM golang:1.26-bookworm AS build
 WORKDIR /src
 COPY main.go .
 RUN go env -w GOFLAGS=-mod=mod && go mod init sink >/dev/null 2>&1 || true

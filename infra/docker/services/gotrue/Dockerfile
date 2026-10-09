@@ -37,7 +37,7 @@ ARG AUTH_VERSION=2.188.1
 # ── Builder ─────────────────────────────────────────────────────────────────
 # Toolchain matches upstream's go.mod (go 1.25.8) and upstream's Dockerfile
 # base. `make git` are upstream's build deps; the build is CGO-free + static.
-FROM golang:1.25.8-alpine3.23 AS build
+FROM golang:1.26.9-alpine3.23 AS build
 ENV GO111MODULE=on \
     CGO_ENABLED=0 \
     GOOS=linux

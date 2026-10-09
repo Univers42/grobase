@@ -138,6 +138,6 @@ rust-realtime-build: _rust-toolchain ## Rust: build the realtime-server release 
 go-control-plane-check: ## Go: vet + test the control-plane module (in Docker, cached modules)
 	@docker run --rm -v "$(CURDIR)/src/control-plane":/src -w /src \
 		-v mini-baas-gomod:/go/pkg/mod -v mini-baas-gobuild:/root/.cache/go-build \
-		golang:1.25-bookworm sh -c 'GOFLAGS=-mod=mod go vet ./... && GOFLAGS=-mod=mod go test ./...'
+		golang:1.26-bookworm sh -c 'GOFLAGS=-mod=mod go vet ./... && GOFLAGS=-mod=mod go test ./...'
 go-control-plane-build: ## Go: build the control-plane images
 	@$(DC) --profile go-control-plane build

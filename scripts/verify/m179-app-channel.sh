@@ -17,7 +17,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CP="${ROOT}/src/control-plane"
-GO_IMG="${GO_IMG:-golang:1.25-bookworm}"
+GO_IMG="${GO_IMG:-golang:1.26-bookworm}"
 PASS=0
 ok() {
   printf '  \033[1;32m✓\033[0m %s\n' "$*"
