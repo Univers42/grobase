@@ -228,20 +228,43 @@ The WAF (`:8880`/`:8443`) is the one listener on every interface; Kong and the
 rest stay on `127.0.0.1`. So the stack is already *reachable* over a LAN, from a VM,
 through a router's port-forward or a Tailscale name, and an SSH tunnel
 (`ssh -L 8443:localhost:8443 host`) arrives as `localhost` and needs nothing. What a
-new address needs is to be *recognised*. One key does that:
+new address needs is to be *recognised*. One command does all of it:
+
+```sh
+make expose                                   # detect, write, cert, trust, recreate, probe
+make expose ARGS="--add home.example.net"     # + a router's public name / IP
+make expose ARGS=status                       # what is served, probed per address
+make expose ARGS=untrust                      # remove the local CA from every store
+# on another machine (VM, laptop): copy certs/track-binocle-local-ca.pem and
+# scripts/ops/expose.sh, then:  bash expose.sh trust track-binocle-local-ca.pem
+```
+
+`scripts/ops/expose.sh` detects the machine's addresses (LAN and VM-bridge IPs, the
+Tailscale name, `<hostname>.local`), keeps names and public IPs from the current list
+but drops a private IP no longer on any interface (a lease from another network),
+writes `GROBASE_PUBLIC_ADDRESSES` to `.env.local`, reassembles `.env`, reissues the
+cert, trusts the CA in the system store (sudo prompts) and in Chrome/Firefox NSS stores,
+recreates kong/gotrue/waf with the compose files the stack runs with, points already
+emitted contract frontend configs (`PUBLIC_GROBASE_URL`) at the first address, and
+probes TLS + CORS per address. `GROBASE_FRONTEND_URL=https://<addr>:8443
+scripts/provision-contract.sh <app>` emits that URL for a new contract. Node ignores
+the OS store: frontend dev servers need `NODE_EXTRA_CA_CERTS=<CA path>`.
+
+The key underneath, if you set it by hand:
 
 ```sh
 # .env.local — hosts/IPs only, no scheme or port
 GROBASE_PUBLIC_ADDRESSES=192.168.1.20,myhost.tailnet.ts.net
-make env && make certs   # then: docker compose up -d --no-deps --force-recreate kong gotrue waf
 ```
 
 Each address adds a cert SAN, the Kong CORS origin `https://<addr>` plus every
 localhost dev origin re-hosted on it (dev only: prod empties that list), and the same
 entries (`/**`) to GoTrue's redirect allow-list. Unset changes nothing. A `*`, a path
 or a scheme is refused and Kong will not start. Gate `m217`; derivation:
-`scripts/ops/public-origins.sh`. Trust `certs/track-binocle-local-ca.pem` on the
-client machine for HTTPS. `API_EXTERNAL_URL` (the JWT issuer) stays one canonical URL.
+`scripts/ops/public-origins.sh`. `API_EXTERNAL_URL` (the JWT issuer) stays one
+canonical URL. In production, `make prod-up`'s preflight (gate `m194`) refuses a
+localhost entry in `GOTRUE_URI_ALLOW_LIST` (unset means the localhost default, so set
+the real frontend URLs) and a loopback in `GROBASE_PUBLIC_ADDRESSES`.
 
 ### Layers of protection against committing a secret
 

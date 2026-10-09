@@ -18,6 +18,8 @@
 #           appends the derived entries; empty leaves the allow list as is.   #
 #  CERT     generate-localhost-cert.sh adds one IP/DNS SAN per address, keeps #
 #           the default set when empty, refuses a bad one and keeps the cert. #
+#  EXPOSE   expose.sh: misuse exits 2, stale private IPs dropped, a non-CA    #
+#           refused by trust; the provisioner honours GROBASE_FRONTEND_URL.   #
 #  MUTANT   a helper without its address check lets `*` through; caught.      #
 #  Needs docker (compose + busybox, M217_BUSYBOX_IMAGE overrides). No stack.  #
 #                                                                              #
@@ -202,6 +204,31 @@ cert_arm() {
   ok "a bad address fails the script and leaves the cert as it was"
 }
 
+# expose_fn runs function $1 of expose.sh (its main stripped) with stdin passed on.
+expose_fn() {
+  bash -c 'source <(sed "/^main \"\$@\"$/d" "$0"); "$@"' "${ROOT}/scripts/ops/expose.sh" "$@" 2>/dev/null
+}
+
+# expose_arm checks expose.sh's hermetic parts and the provisioner's frontend URL.
+expose_arm() {
+  local here
+  step "EXPOSE — scripts/ops/expose.sh + provision-contract.sh"
+  bash "${ROOT}/scripts/ops/expose.sh" --bogus >/dev/null 2>&1
+  [ "$?" -eq 2 ] || fail "expose.sh: an unknown option did not exit 2"
+  here="$(ip -4 -o addr show scope global 2>/dev/null | awk '{ split($4, a, "/"); print a[1]; exit }')"
+  expect_eq "keep_previous" "$(printf '%s\n' 10.255.254.253 203.0.113.7 box.ts.net 100.127.254.1 ${here} | expose_fn keep_previous)" \
+    "203.0.113.7${NL}box.ts.net${here:+${NL}${here}}"
+  ok "kept: names, public IPs, private IPs still on an interface; dropped: stale private/CGNAT IPs"
+  openssl req -x509 -newkey rsa:2048 -nodes -keyout "${WORK}/k" -out "${WORK}/leaf.pem" -subj /CN=m217 -days 1 \
+    -addext basicConstraints=CA:FALSE >/dev/null 2>&1
+  HOME="${WORK}" bash "${ROOT}/scripts/ops/expose.sh" trust "${WORK}/leaf.pem" </dev/null >/dev/null 2>&1 &&
+    fail "expose.sh trust accepted a non-CA certificate"
+  ok "trust refuses a certificate that is not a CA (nothing installed)"
+  grep -qF '${GROBASE_FRONTEND_URL:-${KONG_URL}}' "${ROOT}/scripts/provision-contract.sh" ||
+    fail "provision-contract.sh no longer lets GROBASE_FRONTEND_URL replace \${KONG_URL} in frontend config"
+  ok "provision-contract.sh emits GROBASE_FRONTEND_URL for \${KONG_URL} when set"
+}
+
 # mutant_arm proves the refusal check is not vacuous.
 mutant_arm() {
   step "MUTANT — a helper without its address check"
@@ -218,5 +245,6 @@ kong_arm
 compose_arm
 gotrue_arm
 cert_arm
+expose_arm
 mutant_arm
 cyan "[M217] PASS — GROBASE_PUBLIC_ADDRESSES drives cert SANs, Kong CORS and GoTrue redirects; unset changes nothing"
