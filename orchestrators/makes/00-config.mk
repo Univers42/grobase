@@ -23,7 +23,11 @@ STEPS          ?= 1
 # NETSEG=1 composes the network-segmentation overlay (engines + vault off the
 # app bridge; proof: scripts/verify/m66-netseg.sh).
 NETSEG         ?=
-DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)
+# REMOTE_ACCESS=1 (env, or a REMOTE_ACCESS= line in .env.local) publishes realtime 4000
+# and mailpit SMTP 1025 on the guest loopback for an SSH-tunnelled groot
+# (orchestrators/compose/docker-compose.remote-access.yml). Loopback only.
+REMOTE_ACCESS  ?= $(shell sed -n 's/^REMOTE_ACCESS=//p' .env.local 2>/dev/null | head -1)
+DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)
 
 # Colors
 _B := \033[0;34m
