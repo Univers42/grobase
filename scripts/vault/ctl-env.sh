@@ -12,6 +12,10 @@ set -eu
 
 CTL_IMAGE="${CTL_IMAGE:-docker.io/dlesieur/42ctl:latest}"
 CTL_CFG_DIR="${CTL_CFG_DIR:-$HOME/.config/42ctl}"
+# CTL_USER is the uid:gid the container runs as. Default: the caller, so files it writes are
+# theirs. On ROOTLESS Docker the caller's uid has no mapping inside the container ("cannot
+# setuid to unmapped uid") and the image's own user (65532) cannot read the 700 identity dir;
+# there CTL_USER=0:0 is the equivalent, since container root IS the caller outside.
 REPO_DIR="${REPO_DIR:-$PWD}"
 PROJECT="${VAULT_ENV_PROJECT:-grobase}"
 # Shared-environment coordinates. BOTH set → the TEAM path (`env push`/`env pull`,
@@ -206,7 +210,7 @@ ctl_vault_get() {
   # half of the tree. Falls back to the personal vault so a machine that has the
   # credential sealed to itself (the original pusher's) keeps working unchanged.
   if [ -n "$ORG" ] && [ -n "$ENVNAME" ]; then
-    _v=$(docker run --rm --user "$(id -u):$(id -g)" \
+    _v=$(docker run --rm --user "${CTL_USER:-$(id -u):$(id -g)}" \
       -e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 -e FT_PASSPHRASE \
       -v "$CTL_CFG_DIR:/cfg" "$CTL_IMAGE" \
       env secret get --org "$ORG" --project "$PROJECT" --env "$ENVNAME" "$1" 2>/dev/null || true)
@@ -215,7 +219,7 @@ ctl_vault_get() {
       return 0
     fi
   fi
-  docker run --rm --user "$(id -u):$(id -g)" \
+  docker run --rm --user "${CTL_USER:-$(id -u):$(id -g)}" \
     -e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 -e FT_PASSPHRASE \
     -v "$CTL_CFG_DIR:/cfg" "$CTL_IMAGE" vault get "$1" 2>/dev/null || true
 }
@@ -278,7 +282,7 @@ else
 fi
 
 set +e
-docker run --rm --user "$(id -u):$(id -g)" \
+docker run --rm --user "${CTL_USER:-$(id -u):$(id -g)}" \
   -e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 -e FT_PASSPHRASE \
   -e FT_S3_KEY -e FT_S3_SECRET \
   -e RUST_LOG="${RUST_LOG:-info}" \
