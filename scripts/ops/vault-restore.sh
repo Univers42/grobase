@@ -475,6 +475,12 @@ restore_redis() {
     rm -rf /d/appendonlydir /d/dump.rdb >/dev/null 2>&1 || true
   docker cp "$SEED_DIR/redis.rdb" mini-baas-redis:/data/dump.rdb ||
     die "could not place the rdb"
+  # docker cp writes the file as the CALLER's uid; the image runs redis-server as its own
+  # `redis` user, which then cannot open it ("can't open the RDB file dump.rdb for reading:
+  # Permission denied", measured 2026-10-10). Hand it to whoever owns the data dir.
+  docker run --rm -v mini-baas_redis-data:/d alpine:latest \
+    sh -c 'chown "$(stat -c %u:%g /d)" /d/dump.rdb && chmod 600 /d/dump.rdb' ||
+    die "could not hand the rdb to the redis user"
   docker rm -f vault-restore-redis >/dev/null 2>&1 || true
   docker run -d --name vault-restore-redis -v mini-baas_redis-data:/data \
     "$REDIS_IMAGE" redis-server --appendonly no --save '' --dir /data >/dev/null ||
