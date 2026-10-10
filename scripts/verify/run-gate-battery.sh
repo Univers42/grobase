@@ -124,13 +124,13 @@ ENTERPRISE_BATTERY=(
 # that catch the highest-blast-radius regressions cheaply: billing/quota truth
 # and the data-plane spend/suspend enforcement that protects the cloud edition.
 FAST_SUBSET=(
-  m101-quota-realtenant  # quota-truth — billing correctness; a silent break loses real money
-  m120                   # spend/suspend enforcement on the request path
-  m214-env-schema        # config/secret separation: no SECRET boots from a published default
-  m215-config-validation # every plane refuses to start on an incomplete environment
-  m216-vault-team-path   # no seeded profile points at a dead/foreign vault42 authority
+  m101-quota-realtenant           # quota-truth — billing correctness; a silent break loses real money
+  m120                            # spend/suspend enforcement on the request path
+  m214-env-schema                 # config/secret separation: no SECRET boots from a published default
+  m215-config-validation          # every plane refuses to start on an incomplete environment
+  m216-vault-team-path            # no seeded profile points at a dead/foreign vault42 authority
   m218-vault-restore-fresh-volume # the vault restore lands on a FRESH volume; 42ctl runs on a rootless host
-  m219-remote-access-overlay # REMOTE_ACCESS publishes realtime/SMTP on the loopback, only when asked
+  m219-remote-access-overlay      # REMOTE_ACCESS publishes realtime/SMTP on the loopback, only when asked
 )
 
 # ── resolve a gate token (m103 | m103-orgs-rbac | m103-orgs-rbac.sh | path) ────
