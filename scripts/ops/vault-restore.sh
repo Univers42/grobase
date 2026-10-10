@@ -447,6 +447,10 @@ restore_minio() {
   note "minio: mirroring objects back"
   stage="$(mktemp -d)"
   tar -xzf "$SEED_DIR/minio.tar.gz" -C "$stage"
+  # mktemp -d is 0700 and the tarball restores its own 0700 `./`; the mc image runs as uid
+  # 1001 and `mc mirror` then fails "open /in: permission denied" while still exiting 0
+  # (measured 2026-10-10: 54 files staged, 0 mirrored). Open the stage before mounting it.
+  chmod -R a+rX "$stage"
   MC_HOST_seed="http://$(docker exec mini-baas-minio printenv MINIO_ROOT_USER):$(docker exec mini-baas-minio printenv MINIO_ROOT_PASSWORD)@mini-baas-minio:9000"
   export MC_HOST_seed
   for bucket in "$stage"/*; do
