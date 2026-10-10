@@ -234,7 +234,11 @@ wait_for_postgres() {
 #   calls Measured. Observed for real: replaying twice without clearing first produced 1029
 #   such errors — 408 "relation already exists", 143 "multiple primary keys", 44 duplicate
 #   keys — and the old code swallowed every one of them.
-PG_BENIGN='^ERROR:  role "[^"]*" (already exists|cannot be dropped because some objects depend on it)$|^ERROR:  current user cannot be dropped$|^ERROR:  database "postgres" (already exists|is being accessed by other users)$|^ERROR:  database "template1" |is a template|must be owner of database template1'
+# A FRESH volume holds none of the application databases, and pg_dumpall --clean emits
+# DROP DATABASE without IF EXISTS: one "database ... does not exist" per absent database,
+# right before the CREATE DATABASE that succeeds. Measured 2026-10-10 on a wiped stack:
+# five such errors were the only non-globals lines and every table landed (391 pages).
+PG_BENIGN='^ERROR:  role "[^"]*" (already exists|cannot be dropped because some objects depend on it)$|^ERROR:  current user cannot be dropped$|^ERROR:  database "postgres" (already exists|is being accessed by other users)$|^ERROR:  database "template1" |is a template|must be owner of database template1|^ERROR:  database "[^"]*" does not exist$'
 
 # DROP DATABASE refuses while any session is connected; the dump carries 6 of them for real
 # application databases. Clear the connections so those DROPs can actually execute.
