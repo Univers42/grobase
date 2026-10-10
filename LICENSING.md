@@ -12,13 +12,13 @@ Licensing contact: `dev.pro.photo@gmail.com`.
 Grobase is jointly owned by its five authors, who together are the "Licensor" in
 `LICENSE-ENTERPRISE.md` and `CLA.md`:
 
-| Author        | Handle      |
-| ------------- | ----------- |
-| Dylan Lesieur | `dlesieur`  |
-| Vadim J N     | `vjan-nie`  |
-| —             | `djsurgeon` |
-| —             | `shashimi`  |
-| —             | `danfern`   |
+| Author                    | Handle      |
+| -------------             | ----------- |
+| Dylan Lesieur             | `dlesieur`  |
+| Vadim J N                 | `vjan-nie`  |
+| —                         | `djsurgeon` |
+| Seyed Mostafa Hashemian   | `shashemi`  |
+| —                         | `danfern`   |
 
 **Designated Representative:** Dylan Lesieur (`dev.pro.photo@gmail.com`) signs
 Commercial Subscription Agreements and handles licensing requests on behalf of all
@@ -70,21 +70,21 @@ These packages are **NOT** under AGPL. They are source-available for a 30-day
 evaluation only and require a paid commercial agreement to use in production. Each directory
 carries its own `LICENSE` pointer; the full terms are in `LICENSE-ENTERPRISE.md`
 (SPDX `LicenseRef-Grobase-Enterprise`).
-
-| Package (`src/control-plane/internal/…`) | Feature |
-| ---------------------------------------- | ------- |
-| `orgs`            | Organization model + RBAC (D1) |
-| `sso`             | Enterprise SSO / OIDC (D2a) |
-| `scim`            | SCIM 2.0 user provisioning (D2b) |
-| `passkeys`        | Passkeys / WebAuthn (D2c) |
-| `ipguard`         | IP allowlisting (D2e) |
-| `audit`           | Tamper-evident audit chain (D3) |
-| `compliance`      | SOC2-lite evidence + compliance posture (D4.1) |
-| `erase`           | Hard-erase / right-to-be-forgotten (D4.4) |
-| `export`          | Tenant data export (D4.3) |
-| `telemetryexport` | Tenant telemetry export |
-| `trust`           | Trust center (D4.6) |
-| `cmek`            | CMEK / BYOK envelope encryption (m123) |
+    
+| Package (`src/control-plane/internal/…`)  | Feature                       |
+| ----------------------------------------  | ---------------------------   |
+| `orgs`                                    | Organization model + RBAC (D1)|
+| `sso`                                     | Enterprise SSO / OIDC (D2a)   |
+| `scim`                                    | SCIM 2.0 user provisioning    |
+| `passkeys`                                | Passkeys / WebAuthn (D2c)     |
+| `ipguard`                                 | IP allowlisting (D2e)         |
+| `audit`                                   | Tamper-evident audit chain    |
+| `compliance`                              | SOC2-lite evidence            |
+| `erase`                                   | Hard-erase                    |
+| `export`                                  | Tenant data export (D4.3)     |
+| `telemetryexport`                         | Tenant telemetry export       |
+| `trust`                                   | Trust center (D4.6)           |
+| `cmek`                                    | CMEK / BYOK envelope          |
 
 ### What stays in the open core (AGPL)
 
