@@ -120,6 +120,11 @@ jobs:
       - name: vault restore on a fresh volume (m218)
         run: bash scripts/verify/m218-vault-restore-fresh-volume.sh
 
+      # Static, no stack: the REMOTE_ACCESS overlay publishes realtime 4000 and mailpit SMTP
+      # 1025 on the guest loopback only, and only when REMOTE_ACCESS=1.
+      - name: remote-access overlay (m219)
+        run: bash scripts/verify/m219-remote-access-overlay.sh
+
       # promtool (pinned prom image): rules and config validate, and the rule
       # unit tests fire each alert on its own synthetic series. No stack.
       - name: alert rules (m52)
