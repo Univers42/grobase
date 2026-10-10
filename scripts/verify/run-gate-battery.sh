@@ -129,6 +129,7 @@ FAST_SUBSET=(
   m214-env-schema        # config/secret separation: no SECRET boots from a published default
   m215-config-validation # every plane refuses to start on an incomplete environment
   m216-vault-team-path   # no seeded profile points at a dead/foreign vault42 authority
+  m218-vault-restore-fresh-volume # the vault restore lands on a FRESH volume; 42ctl runs on a rootless host
 )
 
 # ── resolve a gate token (m103 | m103-orgs-rbac | m103-orgs-rbac.sh | path) ────

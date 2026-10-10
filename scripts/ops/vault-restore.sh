@@ -234,7 +234,11 @@ wait_for_postgres() {
 #   calls Measured. Observed for real: replaying twice without clearing first produced 1029
 #   such errors — 408 "relation already exists", 143 "multiple primary keys", 44 duplicate
 #   keys — and the old code swallowed every one of them.
-PG_BENIGN='^ERROR:  role "[^"]*" (already exists|cannot be dropped because some objects depend on it)$|^ERROR:  current user cannot be dropped$|^ERROR:  database "postgres" (already exists|is being accessed by other users)$|^ERROR:  database "template1" |is a template|must be owner of database template1'
+# A FRESH volume holds none of the application databases, and pg_dumpall --clean emits
+# DROP DATABASE without IF EXISTS: one "database ... does not exist" per absent database,
+# right before the CREATE DATABASE that succeeds. Measured 2026-10-10 on a wiped stack:
+# five such errors were the only non-globals lines and every table landed (391 pages).
+PG_BENIGN='^ERROR:  role "[^"]*" (already exists|cannot be dropped because some objects depend on it)$|^ERROR:  current user cannot be dropped$|^ERROR:  database "postgres" (already exists|is being accessed by other users)$|^ERROR:  database "template1" |is a template|must be owner of database template1|^ERROR:  database "[^"]*" does not exist$'
 
 # DROP DATABASE refuses while any session is connected; the dump carries 6 of them for real
 # application databases. Clear the connections so those DROPs can actually execute.
@@ -443,6 +447,10 @@ restore_minio() {
   note "minio: mirroring objects back"
   stage="$(mktemp -d)"
   tar -xzf "$SEED_DIR/minio.tar.gz" -C "$stage"
+  # mktemp -d is 0700 and the tarball restores its own 0700 `./`; the mc image runs as uid
+  # 1001 and `mc mirror` then fails "open /in: permission denied" while still exiting 0
+  # (measured 2026-10-10: 54 files staged, 0 mirrored). Open the stage before mounting it.
+  chmod -R a+rX "$stage"
   MC_HOST_seed="http://$(docker exec mini-baas-minio printenv MINIO_ROOT_USER):$(docker exec mini-baas-minio printenv MINIO_ROOT_PASSWORD)@mini-baas-minio:9000"
   export MC_HOST_seed
   for bucket in "$stage"/*; do
@@ -471,6 +479,12 @@ restore_redis() {
     rm -rf /d/appendonlydir /d/dump.rdb >/dev/null 2>&1 || true
   docker cp "$SEED_DIR/redis.rdb" mini-baas-redis:/data/dump.rdb ||
     die "could not place the rdb"
+  # docker cp writes the file as the CALLER's uid; the image runs redis-server as its own
+  # `redis` user, which then cannot open it ("can't open the RDB file dump.rdb for reading:
+  # Permission denied", measured 2026-10-10). Hand it to whoever owns the data dir.
+  docker run --rm -v mini-baas_redis-data:/d alpine:latest \
+    sh -c 'chown "$(stat -c %u:%g /d)" /d/dump.rdb && chmod 600 /d/dump.rdb' ||
+    die "could not hand the rdb to the redis user"
   docker rm -f vault-restore-redis >/dev/null 2>&1 || true
   docker run -d --name vault-restore-redis -v mini-baas_redis-data:/data \
     "$REDIS_IMAGE" redis-server --appendonly no --save '' --dir /data >/dev/null ||
