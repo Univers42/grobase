@@ -598,8 +598,9 @@ Grobase is **open-core** — [`LICENSING.md`](LICENSING.md) is the authoritative
   the **Track-B** cloud components stay in the AGPL core (sold as hosting, not licensed features).
 
 Copyright is retained via [`CLA.md`](CLA.md) — the clause that enables **dual-licensing** (a paid
-commercial license waives the AGPL copyleft). `LICENSE-ENTERPRISE.md` / `CLA.md` are lawyer-review
-**templates** with `[…]` placeholders (a `HUMAN-ATOMS.md` legal atom — not yet final). To move a
+commercial license waives the AGPL copyleft). `LICENSE-ENTERPRISE.md` (v1.0, 2026-10-09) / `CLA.md` are final:
+the Licensor is the five co-owners listed in `LICENSING.md`, acting through Dylan Lesieur as
+Designated Representative; governing law is the EU Member State of his residence. To move a
 package across the open-core line, add/remove its directory `LICENSE` and update `LICENSING.md`.
 
 ## Binding rules (project policy — apply even to one-off tasks)

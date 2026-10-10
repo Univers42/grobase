@@ -1,8 +1,7 @@
 # Contributor License Agreement (CLA)
 
-> **Template — not legal advice.** Have a lawyer review this before you accept your
-> first external contribution. For a solo project today you already hold all rights;
-> this matters the moment a *second* person contributes.
+The copyright holders listed in `LICENSING.md` co-own Grobase. This agreement
+covers every other contributor.
 
 Grobase is dual-licensed (AGPLv3 core + a commercial enterprise license). For that
 model to hold, the project must own — or have a broad enough license to — every
@@ -14,7 +13,8 @@ request, patch, or any change) you agree to these terms.**
 
 ## 1. Copyright license
 
-You grant the project maintainer (`[Dylan Lesieur / Grobase]`, the "Licensor") a
+You grant the project maintainer (the copyright holders listed in `LICENSING.md`, acting through their Designated
+Representative, the "Licensor") a
 perpetual, worldwide, non-exclusive, royalty-free, irrevocable copyright license to
 reproduce, prepare derivative works of, publicly display, sublicense, and
 distribute your Contribution and such derivative works **under any license,
@@ -49,8 +49,7 @@ above, the Contribution is provided "as is" without warranties of any kind.
 
 ## 5. How to sign
 
-For a solo maintainer, recording this file in the repo is sufficient for your own
-contributions. For external contributors, accept one of:
+Contributors accept one of:
 
 - **DCO-style sign-off** (lightweight): contributors add `Signed-off-by: Name
   <email>` to commits, asserting agreement with this CLA. Enforce with a bot.
@@ -59,4 +58,4 @@ contributions. For external contributors, accept one of:
 
 ---
 
-Questions: `[legal@grobase.example]`.
+Questions: `dev.pro.photo@gmail.com`.
