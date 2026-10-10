@@ -115,6 +115,11 @@ jobs:
       - name: vault42 team path (m216)
         run: bash scripts/verify/m216-vault-team-path.sh
 
+      # Static, no stack: make vault-restore lands on a FRESH volume (pg DROP DATABASE, redis
+      # rdb owner, minio stage perms) and every 42ctl docker run honours CTL_USER.
+      - name: vault restore on a fresh volume (m218)
+        run: bash scripts/verify/m218-vault-restore-fresh-volume.sh
+
       # promtool (pinned prom image): rules and config validate, and the rule
       # unit tests fire each alert on its own synthetic series. No stack.
       - name: alert rules (m52)
