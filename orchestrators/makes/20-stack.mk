@@ -47,8 +47,13 @@ build-svc-%: _require-compose ## Build ONE service image (all profiles defined, 
 bench-build: ## Build-speed bench → artifacts/bench/build/results.tsv (MODE=noop|incr-rust|incr-ts|cold; cold wipes the builder cache, needs BENCH_COLD=1)
 	@MODE="$(if $(MODE),$(MODE),noop)" EDITION="$(EDITION)" BENCH_COLD="$(BENCH_COLD)" sh scripts/bench/build-bench.sh
 
-health: ## Stack health: every container's state, every service→service TCP edge, gateway requests (HEALTH_WAIT=<s> waits out "starting"); exits 1 on any failure
-	@HEALTH_WAIT=$(or $(HEALTH_WAIT),0) sh scripts/ops/stack-health.sh
+# HEALTH_EXPECT is the service list of the selected shape, passed only when the shape is
+# given on the command line or in the environment: the default EDITION says nothing about
+# what an already-running stack was started with.
+health: ## Whole-stack health, exits 1 on any failure: containers, service→service TCP, published ports, engine logins, Kong routes, Prometheus (PACKAGE=/EDITION= also requires that shape's services; HEALTH_WAIT=<s> waits out "starting")
+	@HEALTH_WAIT=$(or $(HEALTH_WAIT),0) \
+		HEALTH_EXPECT="$(if $(filter command environment,$(firstword $(origin PACKAGE)) $(firstword $(origin EDITION)) $(firstword $(origin PROFILES))),$$($(DCE) config --services 2>/dev/null | tr '\n' ' '))" \
+		sh scripts/ops/stack-health.sh
 
 bench-startup: _require-compose _rm-stale ## Time the stack until health checks pass (target ≤90s)
 	@t0=$$(date +%s); eval "$$(bash scripts/ops/resolve-ports.sh 2>/dev/null || true)"; $(DCE) up -d; \

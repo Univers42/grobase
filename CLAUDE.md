@@ -163,10 +163,12 @@ make up PACKAGE=pro ADDONS="analytics engines"   # tier-shaped instead of editio
 make planes                   # 15 planes: data control go rust adapter background analytics storage
                               #   realtime functions observability ops studio playground engines
 make doctor / make ps / make logs
-make health                   # the whole stack, exits 1 on any failure (scripts/ops/stack-health.sh): every
-                              #   container running+healthy, every service→service TCP edge from inside the
-                              #   client's netns, every host-published port, an authenticated login on each
-                              #   engine with .env's credentials, every Kong route (HEALTH_WAIT=<s> waits)
+make health                   # the whole stack, exits 1 on any failure (scripts/ops/stack-health.sh, 6 legs):
+                              #   containers running+healthy · every service→service TCP edge from inside the
+                              #   client's netns · every host-published port · a query on each engine with
+                              #   .env's credentials · every Kong route (anon, then service key) · Prometheus
+                              #   targets + alerts. PACKAGE=/EDITION= also requires that shape's services;
+                              #   HEALTH_WAIT=<s> waits out "starting"
 make clean | fclean | re      # PROJECT-SCOPED, data-safe: clean = this project's images/containers/
                               #   networks/build-caches (KEEPS all data volumes + other projects);
                               #   fclean = clean + WIPE this project's OWN data volumes (mini-baas_*,
@@ -333,8 +335,9 @@ posts) is served: query-router, called directly with no credential, answers an u
 middleware refuses the anon key, as on every `/query/v1` path). Static leg + live legs under
 `M213_REQUIRE=1` in CI. It answered 404 until 2026-10-03.
 `m220` proves `make health` can fail: its edge and Kong-route parsers on fixtures (static, runs in CI), and
-on a running stack a dead port, a wrong anon key, a wrong postgres password and a declared upstream on a
-dead port each turn the run red. The bands m214–m219 are not described in this file — read the script headers.
+on a running stack a dead port, a wrong anon key, a wrong postgres password, a declared upstream on a dead
+port and a shape naming a service with no container each turn the run red. The bands m214–m219 are not
+described in this file — read the script headers.
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 
