@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # **************************************************************************** #
 #                                                                              #
-#  m221-waf-app-content.sh — what a user typed reaches the app's tables; the  #
+#  m227-waf-app-content.sh — what a user typed reaches the app's tables; the  #
 #  same text anywhere else is still an attack                                #
 #                                                                              #
 #  osionos stores page blocks, chat messages and comments in osionos_* tables  #
@@ -28,11 +28,11 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 WAF_CONF="${ROOT}/infra/docker/services/waf/conf"
-EXCL="${M221_EXCLUSIONS:-${WAF_CONF}/exclusions.conf}"
-WAF_IMG="${M221_WAF_IMAGE:-ghcr.io/univers42/grobase-waf:latest}"
-NODE_IMG="${M221_NODE_IMAGE:-mirror.gcr.io/library/node:20-alpine}"
+EXCL="${M227_EXCLUSIONS:-${WAF_CONF}/exclusions.conf}"
+WAF_IMG="${M227_WAF_IMAGE:-ghcr.io/univers42/grobase-waf:latest}"
+NODE_IMG="${M227_NODE_IMAGE:-mirror.gcr.io/library/node:20-alpine}"
 CRS_EXCL=/etc/modsecurity.d/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf
-TAG="m221gate$$"
+TAG="m227gate$$"
 NET="${TAG}-net"
 WORK="$(mktemp -d)"
 FAILED=0
@@ -42,11 +42,11 @@ bad() {
   printf '\033[0;31m  ✗ %s\033[0m\n' "$*"
   FAILED=1
 }
-step() { printf '\033[0;36m[M221] %s\033[0m\n' "$*"; }
+step() { printf '\033[0;36m[M227] %s\033[0m\n' "$*"; }
 
 # skip REASON: print why nothing was proven and exit 77 (a gate that did not look has not passed).
 skip() {
-  printf '\033[0;33m[M221] SKIP — %s; nothing proven\033[0m\n' "$*"
+  printf '\033[0;33m[M227] SKIP — %s; nothing proven\033[0m\n' "$*"
   exit 77
 }
 
@@ -172,7 +172,7 @@ else
 fi
 
 [ "${FAILED}" -eq 0 ] || {
-  printf '\033[0;31m[M221] FAIL — app content is refused, or the exclusion reaches past writes to osionos_* tables\033[0m\n' >&2
+  printf '\033[0;31m[M227] FAIL — app content is refused, or the exclusion reaches past writes to osionos_* tables\033[0m\n' >&2
   exit 1
 }
-printf '\033[0;32m[M221] PASS — writes to osionos_* carry code; reads, headers, other tables and rpcs stay inspected\033[0m\n'
+printf '\033[0;32m[M227] PASS — writes to osionos_* carry code; reads, headers, other tables and rpcs stay inspected\033[0m\n'
