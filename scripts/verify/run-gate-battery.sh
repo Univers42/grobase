@@ -131,6 +131,7 @@ FAST_SUBSET=(
   m216-vault-team-path            # no seeded profile points at a dead/foreign vault42 authority
   m218-vault-restore-fresh-volume # the vault restore lands on a FRESH volume; 42ctl runs on a rootless host
   m219-remote-access-overlay      # REMOTE_ACCESS publishes realtime/SMTP on the loopback, only when asked
+  m220-stack-health               # make health fails on a dead container, edge, engine login or gateway route
 )
 
 # ── resolve a gate token (m103 | m103-orgs-rbac | m103-orgs-rbac.sh | path) ────

@@ -1,45 +1,54 @@
 #!/bin/sh
 # stack-health.sh — is the whole stack alive, and can its services reach each other?
 #
-# Three legs, each of which must pass for exit 0:
-#   1. state    every container of the compose project is running + healthy; a one-shot
-#               init job (restart policy "no") must have exited 0
-#   2. network  every service→service edge accepts a TCP connection, opened from INSIDE
-#               the client's own network namespace (so DNS, the bridge and the port are
-#               all exercised exactly as the client sees them)
-#   3. gateway  real HTTP requests through Kong with the anon key from the env file
+# Five legs, each of which must pass for exit 0:
+#   1. containers  every container of the compose project is running + healthy and was
+#                  not OOM-killed; a one-shot init job (restart policy "no") must have
+#                  exited 0; every service a container depends on has a container
+#   2. network     every service→service edge accepts a TCP connection, opened from INSIDE
+#                  the client's own network namespace (so DNS, the bridge and the port are
+#                  all exercised exactly as the client sees them)
+#   3. published   every port published on the host accepts a TCP connection from the host
+#   4. engines     each database engine accepts the credentials that are in the env file
+#   5. gateway     every Kong route answers without a gateway error, auth + rest with 200
+# Legs 4 and 5 live in stack-health-requests.sh.
 #
-# Ponytail: edges are found by scanning each container's env + command (and kong.yml's
-# upstream urls) for `<host>:<port>` where <host> is a container name, service name or
-# network alias of this project. So an edge is MISSED (under-reported) when the port is
-# implicit (`http://gotrue/`), the host is an FQDN, or the address lives only in a config
-# file or a code default. An edge is OVER-reported when a service merely carries another's
-# address without calling it — under NETSEG=1 that can show an unreachable-by-design edge.
-# A service that was never created is invisible to every leg: this checks what exists,
-# not what the selected EDITION/PACKAGE should contain (`make ps` shows that).
+# Ponytail: explicit edges are found by scanning each container's env + command (and
+# kong.yml's upstream urls) for `<host>:<port>` where <host> is a container name, service
+# name or network alias of this project; a compose `depends_on` with no explicit address
+# is probed on the dependency's exposed ports and passes when ANY of them accepts. So an
+# edge is MISSED (under-reported) when it is neither a depends_on nor an explicit
+# `host:port` — an FQDN, a config file, a code default. An edge is OVER-reported when a
+# service merely carries another's address without calling it — under NETSEG=1 that can
+# show an unreachable-by-design edge. A service nothing depends on and that was never
+# created is invisible: this checks what exists, not what the selected EDITION/PACKAGE
+# should contain (`make ps` shows that).
 #
 # Ponytail: a TCP accept proves reachability, not that the peer answers correctly — the
-# per-container healthchecks (leg 1) carry that half.
+# per-container healthchecks (leg 1) and the requests of legs 4-5 carry that half. Leg 3
+# probes from the Docker host's network namespace, which on Docker Desktop is the VM, not
+# the machine you type on.
 #
 # Usage:
-#   sh scripts/ops/stack-health.sh                 # all three legs
+#   sh scripts/ops/stack-health.sh                 # all five legs
 #   HEALTH_WAIT=180 sh scripts/ops/stack-health.sh # first wait for "starting" to settle
-#   sh scripts/ops/stack-health.sh parse-edges     # stdin: S/A/E/K lines → edges (gate use)
-#   sh scripts/ops/stack-health.sh probe <client>  # stdin: "host port" lines → ok|fail lines
+#   sh scripts/ops/stack-health.sh parse-edges     # stdin: S/A/P/D/E/K lines → edges (gate use)
+#   sh scripts/ops/stack-health.sh probe <client>  # stdin: "host port[,port]" lines → ok|fail lines
 #   sh scripts/ops/stack-health.sh --help
 # Exit: 0 every leg passed · 1 at least one leg failed or could not run.
 set -eu
 
 PROJECT="${COMPOSE_PROJECT_NAME:-mini-baas}"
-ENV_FILE="${ENV_FILE:-.env}"
 KONG_YML="${KONG_YML:-infra/docker/services/kong/conf/kong.yml}"
 PROBE_IMAGE="${HEALTH_PROBE_IMAGE:-busybox:1.36}"
 HEALTH_WAIT="${HEALTH_WAIT:-0}"
 PROBE_TIMEOUT="${HEALTH_PROBE_TIMEOUT:-3}"
 
-STATE_FMT='{{.Name}} {{index .Config.Labels "com.docker.compose.service"}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} {{.State.ExitCode}} {{.HostConfig.RestartPolicy.Name}}'
+STATE_FMT='{{.Name}} {{index .Config.Labels "com.docker.compose.service"}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} {{.State.ExitCode}} {{or .HostConfig.RestartPolicy.Name "no"}} {{.State.OOMKilled}} {{.RestartCount}} {{index .Config.Labels "com.docker.compose.depends_on"}}'
 EDGE_FMT='{{$n := .Name}}S {{.Name}} {{index .Config.Labels "com.docker.compose.service"}} {{.State.Status}}
-{{range .NetworkSettings.Networks}}{{range .Aliases}}A {{$n}} {{.}}
+D {{.Name}} {{index .Config.Labels "com.docker.compose.depends_on"}}
+{{range $p, $_ := .Config.ExposedPorts}}P {{$n}} {{$p}}
+{{end}}{{range .NetworkSettings.Networks}}{{range .Aliases}}A {{$n}} {{.}}
 {{end}}{{end}}{{range .Config.Env}}E {{$n}} {{.}}
 {{end}}{{range .Config.Cmd}}E {{$n}} {{.}}
 {{end}}'
@@ -59,39 +68,34 @@ wait_settled() {
 }
 
 # check_states prints one line per container and fails when any is not running+healthy
-# (or, for a one-shot job, not exited 0).
+# (or, for a one-shot job, not exited 0), was OOM-killed, or depends on a service that
+# has no container at all.
 check_states() {
   project_ids | xargs docker inspect --format "$STATE_FMT" | sort -k2 | awk '
-    { oneshot = ($6 != "always" && $6 != "unless-stopped" && $6 != "on-failure") }
-    $3 == "running" && ($4 == "healthy" || $4 == "none") {
-      ok++; printf "  ✓ %s%s\n", $2, ($4 == "none" ? "  (no healthcheck)" : ""); next }
+    { present[$2] = 1; deps[$2] = $9; oneshot = ($6 != "always" && $6 != "unless-stopped" && $6 != "on-failure")
+      note = ($4 == "none" ? "  (no healthcheck)" : "") ($8 > 0 ? "  (restarted " $8 "×)" : "") }
+    $7 == "true" { bad++; printf "  ✗ %s — OOM-killed\n", $2; next }
+    $3 == "running" && ($4 == "healthy" || $4 == "none") { ok++; printf "  ✓ %s%s\n", $2, note; next }
     $3 == "exited" && $5 == 0 && oneshot { done++; printf "  ✓ %s  (one-shot, completed)\n", $2; next }
     { bad++; printf "  ✗ %s — state=%s health=%s exit=%s\n", $2, $3, $4, $5 }
-    END { printf "  → %d healthy · %d completed · %d failing\n", ok, done, bad; exit (bad > 0 || NR == 0) }'
+    END {
+      for (svc in deps) {
+        count = split(deps[svc], list, ",")
+        for (i = 1; i <= count; i++) {
+          sub(/:.*/, "", list[i])
+          if (list[i] != "" && !(list[i] in present)) { bad++; printf "  ✗ %s depends on %s, which has no container\n", svc, list[i] }
+        }
+      }
+      printf "  → %d healthy · %d completed · %d failing\n", ok, done, bad; exit (bad > 0 || NR == 0)
+    }'
 }
 
-# parse_edges reads S (state), A (alias), E (env/cmd) and K (kong url) lines on stdin and
-# prints the unique "client host port" edges whose host is another running container.
+# parse_edges reads S (state), A (alias), P (exposed port), D (depends_on), E (env/cmd)
+# and K (kong url) lines on stdin and prints the unique "client host port[,port]" edges
+# whose host is another running container: every explicit host:port, then each depends_on
+# that had no explicit address, on the dependency's exposed tcp ports.
 parse_edges() {
-  awk '
-    function scan(client, text,    tok, part) {
-      while (match(text, /[A-Za-z0-9][A-Za-z0-9_.-]*:[0-9]+/)) {
-        tok = substr(text, RSTART, RLENGTH); text = substr(text, RSTART + RLENGTH)
-        split(tok, part, ":")
-        if ((part[1] in owner) && owner[part[1]] != client && up[owner[part[1]]])
-          print client, part[1], part[2]
-      }
-    }
-    $1 == "S" { name = substr($2, 2); owner[name] = name; owner[$3] = name; if ($4 == "running") up[name] = 1; next }
-    $1 == "A" { owner[$3] = substr($2, 2); next }
-    $1 == "E" || $1 == "K" { line[++count] = $0 }
-    END {
-      for (i = 1; i <= count; i++) {
-        split(line[i], field, " ")
-        client = (field[1] == "K") ? owner["kong"] : substr(field[2], 2)
-        if (up[client]) scan(client, line[i])
-      }
-    }' | sort -u
+  awk -f "${0%/*}/stack-health-edges.awk" | sort -u
 }
 
 # list_edges feeds the live project's containers and Kong's declared upstreams to parse_edges.
@@ -102,19 +106,24 @@ list_edges() {
   } | parse_edges
 }
 
-# probe_client reads "host port" lines on stdin and, from inside container $1's network
-# namespace, prints "ok host port" or "fail host port" for a TCP connect to each.
-probe_client() {
-  docker run --rm -i --network "container:$1" -e T="$PROBE_TIMEOUT" "$PROBE_IMAGE" sh -c '
-    while read -r host port; do
-      if nc -z -w "$T" "$host" "$port" 2>/dev/null; then echo "ok $host $port"; else echo "fail $host $port"; fi
+# probe_net reads "host port[,port]" lines on stdin and, from inside the network namespace
+# $1 (`container:<name>` or `host`), prints "ok host ports" when ANY listed port accepts a
+# TCP connection and "fail host ports" otherwise.
+probe_net() {
+  docker run --rm -i --network "$1" -e T="$PROBE_TIMEOUT" "$PROBE_IMAGE" sh -c '
+    while read -r host ports; do
+      hit=fail
+      for port in $(echo "$ports" | tr "," " "); do
+        nc -z -w "$T" "$host" "$port" 2>/dev/null && hit=ok && break
+      done
+      echo "$hit $host $ports"
     done' 2>/dev/null || echo "fail probe-could-not-start -"
 }
 
-# summarize_edges reads "client ok|fail host port" lines and prints one row per client;
-# fails when any edge is unreachable.
+# summarize_edges reads "client ok|fail host port" lines and prints one row per client,
+# counting them as $1 (edges, ports); fails when any is unreachable.
 summarize_edges() {
-  sort | awk '
+  sort | awk -v what="$1" '
     !($1 in total) { order[++clients] = $1 }
     { total[$1]++; if ($2 == "ok") good[$1]++; else { bad++; miss[$1] = miss[$1] " " $3 ":" $4 } }
     END {
@@ -122,7 +131,7 @@ summarize_edges() {
         c = order[i]
         printf "  %s %s → %d/%d%s\n", (miss[c] == "" ? "✓" : "✗"), c, good[c], total[c], (miss[c] == "" ? "" : "  UNREACHABLE:" miss[c])
       }
-      printf "  → %d edges probed · %d unreachable\n", NR, bad; exit (bad > 0)
+      printf "  → %d %s probed · %d unreachable\n", NR, what, bad; exit (bad > 0)
     }'
 }
 
@@ -132,43 +141,42 @@ ensure_probe_image() {
 }
 
 # check_edges probes every discovered edge, one throwaway probe container per client,
-# all clients in parallel. A probe image that cannot be obtained is a failure, not a pass.
+# all clients in parallel.
 check_edges() {
   edges="$(list_edges)"
   if [ -z "$edges" ]; then
     printf '  ✗ no service→service edge discovered\n'
     return 1
   fi
-  if ! ensure_probe_image; then
-    printf '  ✗ NOT RUN: probe image %s unavailable\n' "$PROBE_IMAGE"
-    return 1
-  fi
   for client in $(printf '%s\n' "$edges" | cut -d' ' -f1 | sort -u); do
     printf '%s\n' "$edges" | awk -v c="$client" '$1 == c { print $2, $3 }' |
-      probe_client "$client" | sed "s|^|$client |" >"$TMP/$client" &
+      probe_net "container:$client" | sed "s|^|$client |" >"$TMP/$client" &
   done
   wait
-  cat "$TMP"/* | summarize_edges
+  cat "$TMP"/* | summarize_edges edges
 }
 
-# check_gateway sends real requests through Kong with the env file's anon key.
-check_gateway() {
-  port="$(docker port "$PROJECT-kong" 8000/tcp 2>/dev/null | sed -n '1s/.*://p')"
-  key="$(sed -n 's/^ANON_KEY=//p' "$ENV_FILE" 2>/dev/null | head -n 1)"
-  failed=0
-  for path in /auth/v1/health /rest/v1/; do
-    code="$(curl -s -o /dev/null -m 10 -w '%{http_code}' -H "apikey: $key" "http://localhost:${port:-8000}$path" || true)"
-    if [ "$code" = 200 ]; then
-      printf '  ✓ %s\n' "$path"
-    else
-      failed=1
-      printf '  ✗ %s — HTTP %s%s\n' "$path" "$code" "$([ "$code" = 401 ] && printf ' (the ANON_KEY in %s is not the one the stack runs with)' "$ENV_FILE")"
-    fi
-  done
-  return "$failed"
+# check_published probes, from the host's network namespace, every host port a container
+# of the project publishes; a wildcard bind is probed on the loopback.
+check_published() {
+  published="$(docker ps --filter "label=com.docker.compose.project=$PROJECT" --format '{{.Names}} {{.Ports}}' | awk '
+    { for (i = 2; i <= NF; i++) if (match($i, /^[0-9.]+:[0-9]+->/)) {
+        split(substr($i, RSTART, RLENGTH - 2), bind, ":")
+        print $1, (bind[1] == "0.0.0.0" ? "127.0.0.1" : bind[1]), bind[2] } }' | sort -u)"
+  if [ -z "$published" ]; then
+    printf '  • no host-published port\n'
+    return 0
+  fi
+  {
+    printf '%s\n---\n' "$published"
+    printf '%s\n' "$published" | cut -d' ' -f2,3 | probe_net host
+  } | awk '
+    $0 == "---" { results = 1; next }
+    !results { name[$2 " " $3] = name[$2 " " $3] (name[$2 " " $3] == "" ? "" : "+") $1; next }
+    { print name[$2 " " $3], $1, $2, $3 }' | summarize_edges ports
 }
 
-# run_all runs the three legs and exits non-zero when any of them failed.
+# run_all runs the five legs and exits non-zero when any of them failed.
 run_all() {
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
@@ -176,10 +184,16 @@ run_all() {
   failed=0
   printf 'Containers (project %s)\n' "$PROJECT"
   check_states || failed=1
-  printf 'Network — TCP from inside each client to every service it is configured to call\n'
-  check_edges || failed=1
-  printf 'Gateway — HTTP through Kong\n'
-  check_gateway || failed=1
+  if ensure_probe_image; then
+    printf 'Network — TCP from inside each client to every service it calls or depends on\n'
+    check_edges || failed=1
+    printf 'Published — TCP from the host to every published port\n'
+    check_published || failed=1
+  else
+    failed=1
+    printf '✗ NOT RUN: network + published legs — probe image %s unavailable\n' "$PROBE_IMAGE"
+  fi
+  sh "${0%/*}/stack-health-requests.sh" || failed=1
   [ "$failed" -eq 0 ] && printf '✓ stack healthy\n' || printf '✗ stack NOT healthy\n'
   return "$failed"
 }
@@ -187,7 +201,7 @@ run_all() {
 main() {
   case "${1:-}" in
   parse-edges) parse_edges ;;
-  probe) probe_client "$2" ;;
+  probe) probe_net "container:$2" ;;
   -h | --help) sed -n '2,/^# Exit:/s/^# \{0,1\}//p' "$0" ;;
   *) run_all ;;
   esac
