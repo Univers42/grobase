@@ -1,17 +1,20 @@
 #!/bin/sh
 # stack-health.sh — is the whole stack alive, and can its services reach each other?
 #
-# Five legs, each of which must pass for exit 0:
+# Six legs, each of which must pass for exit 0:
 #   1. containers  every container of the compose project is running + healthy and was
 #                  not OOM-killed; a one-shot init job (restart policy "no") must have
-#                  exited 0; every service a container depends on has a container
+#                  exited 0; every service a container depends on has a container; and,
+#                  when HEALTH_EXPECT names the selected shape's services, each of those
+#                  has one too
 #   2. network     every service→service edge accepts a TCP connection, opened from INSIDE
 #                  the client's own network namespace (so DNS, the bridge and the port are
 #                  all exercised exactly as the client sees them)
 #   3. published   every port published on the host accepts a TCP connection from the host
-#   4. engines     each database engine accepts the credentials that are in the env file
+#   4. engines     each engine executes a query with the credentials that are in the env file
 #   5. gateway     every Kong route answers without a gateway error, auth + rest with 200
-# Legs 4 and 5 live in stack-health-requests.sh.
+#   6. monitoring  Prometheus has no scrape target down and no alert firing
+# Legs 4 to 6 live in stack-health-requests.sh.
 #
 # Ponytail: explicit edges are found by scanning each container's env + command (and
 # kong.yml's upstream urls) for `<host>:<port>` where <host> is a container name, service
@@ -20,17 +23,19 @@
 # edge is MISSED (under-reported) when it is neither a depends_on nor an explicit
 # `host:port` — an FQDN, a config file, a code default. An edge is OVER-reported when a
 # service merely carries another's address without calling it — under NETSEG=1 that can
-# show an unreachable-by-design edge. A service nothing depends on and that was never
-# created is invisible: this checks what exists, not what the selected EDITION/PACKAGE
-# should contain (`make ps` shows that).
+# show an unreachable-by-design edge. Without HEALTH_EXPECT a service nothing depends on
+# and that was never created is invisible: `make health` only sets it when the shape is
+# given explicitly (PACKAGE= / EDITION= / PROFILES=), because the shape a stack was started
+# with is not recorded anywhere it could be read back from.
 #
 # Ponytail: a TCP accept proves reachability, not that the peer answers correctly — the
-# per-container healthchecks (leg 1) and the requests of legs 4-5 carry that half. Leg 3
+# per-container healthchecks (leg 1) and the requests of legs 4-6 carry that half. Leg 3
 # probes from the Docker host's network namespace, which on Docker Desktop is the VM, not
 # the machine you type on.
 #
 # Usage:
-#   sh scripts/ops/stack-health.sh                 # all five legs
+#   sh scripts/ops/stack-health.sh                 # all six legs
+#   HEALTH_EXPECT="kong postgres …" sh scripts/ops/stack-health.sh  # also require these services
 #   HEALTH_WAIT=180 sh scripts/ops/stack-health.sh # first wait for "starting" to settle
 #   sh scripts/ops/stack-health.sh parse-edges     # stdin: S/A/P/D/E/K lines → edges (gate use)
 #   sh scripts/ops/stack-health.sh probe <client>  # stdin: "host port[,port]" lines → ok|fail lines
@@ -42,6 +47,7 @@ PROJECT="${COMPOSE_PROJECT_NAME:-mini-baas}"
 KONG_YML="${KONG_YML:-infra/docker/services/kong/conf/kong.yml}"
 PROBE_IMAGE="${HEALTH_PROBE_IMAGE:-busybox:1.36}"
 HEALTH_WAIT="${HEALTH_WAIT:-0}"
+HEALTH_EXPECT="${HEALTH_EXPECT:-}"
 PROBE_TIMEOUT="${HEALTH_PROBE_TIMEOUT:-3}"
 
 STATE_FMT='{{.Name}} {{index .Config.Labels "com.docker.compose.service"}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} {{.State.ExitCode}} {{or .HostConfig.RestartPolicy.Name "no"}} {{.State.OOMKilled}} {{.RestartCount}} {{index .Config.Labels "com.docker.compose.depends_on"}}'
@@ -68,10 +74,10 @@ wait_settled() {
 }
 
 # check_states prints one line per container and fails when any is not running+healthy
-# (or, for a one-shot job, not exited 0), was OOM-killed, or depends on a service that
-# has no container at all.
+# (or, for a one-shot job, not exited 0), was OOM-killed, depends on a service that has
+# no container at all, or when a service named in HEALTH_EXPECT has none.
 check_states() {
-  project_ids | xargs docker inspect --format "$STATE_FMT" | sort -k2 | awk '
+  project_ids | xargs docker inspect --format "$STATE_FMT" | sort -k2 | awk -v expect="$HEALTH_EXPECT" '
     { present[$2] = 1; deps[$2] = $9; oneshot = ($6 != "always" && $6 != "unless-stopped" && $6 != "on-failure")
       note = ($4 == "none" ? "  (no healthcheck)" : "") ($8 > 0 ? "  (restarted " $8 "×)" : "") }
     $7 == "true" { bad++; printf "  ✗ %s — OOM-killed\n", $2; next }
@@ -86,6 +92,9 @@ check_states() {
           if (list[i] != "" && !(list[i] in present)) { bad++; printf "  ✗ %s depends on %s, which has no container\n", svc, list[i] }
         }
       }
+      wanted = split(expect, want, " ")
+      for (i = 1; i <= wanted; i++) if (!(want[i] in present)) { bad++; printf "  ✗ %s is part of the selected shape but has no container\n", want[i] }
+      if (wanted == 0) printf "  • shape not given: a service that was never created is not detected (make health PACKAGE=… | EDITION=…)\n"
       printf "  → %d healthy · %d completed · %d failing\n", ok, done, bad; exit (bad > 0 || NR == 0)
     }'
 }
@@ -176,7 +185,7 @@ check_published() {
     { print name[$2 " " $3], $1, $2, $3 }' | summarize_edges ports
 }
 
-# run_all runs the five legs and exits non-zero when any of them failed.
+# run_all runs the six legs and exits non-zero when any of them failed.
 run_all() {
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
