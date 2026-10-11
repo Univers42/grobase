@@ -47,12 +47,8 @@ build-svc-%: _require-compose ## Build ONE service image (all profiles defined, 
 bench-build: ## Build-speed bench → artifacts/bench/build/results.tsv (MODE=noop|incr-rust|incr-ts|cold; cold wipes the builder cache, needs BENCH_COLD=1)
 	@MODE="$(if $(MODE),$(MODE),noop)" EDITION="$(EDITION)" BENCH_COLD="$(BENCH_COLD)" sh scripts/bench/build-bench.sh
 
-health: ## Quick gateway health probe
-	@echo -e "$(_B)Checking endpoints…$(_0)"
-	@p="$$(docker port mini-baas-kong 8000/tcp 2>/dev/null | head -1 | sed 's/.*://')"; p="$${p:-8000}"; \
-		k="$$(sed -n 's/^ANON_KEY=//p' .env 2>/dev/null | head -1)"; \
-		curl -fsS -H "apikey: $$k" http://localhost:$$p/auth/v1/health >/dev/null && echo "  ✓ /auth/v1/health" || echo "  ✗ /auth/v1/health"; \
-		curl -fsS -H "apikey: $$k" http://localhost:$$p/rest/v1/ >/dev/null && echo "  ✓ /rest/v1/" || echo "  ✗ /rest/v1/"
+health: ## Stack health: every container's state, every service→service TCP edge, gateway requests (HEALTH_WAIT=<s> waits out "starting"); exits 1 on any failure
+	@HEALTH_WAIT=$(or $(HEALTH_WAIT),0) sh scripts/ops/stack-health.sh
 
 bench-startup: _require-compose _rm-stale ## Time the stack until health checks pass (target ≤90s)
 	@t0=$$(date +%s); eval "$$(bash scripts/ops/resolve-ports.sh 2>/dev/null || true)"; $(DCE) up -d; \
