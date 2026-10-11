@@ -36,7 +36,8 @@
 # Usage:
 #   sh scripts/ops/stack-health.sh                 # all six legs
 #   HEALTH_EXPECT="kong postgres …" sh scripts/ops/stack-health.sh  # also require these services
-#   HEALTH_WAIT=180 sh scripts/ops/stack-health.sh # first wait for "starting" to settle
+#   HEALTH_WAIT=180 sh scripts/ops/stack-health.sh # just after `up`: wait up to 180 s for "starting"
+#                                                  # to settle and for legs 4-6 to turn green
 #   sh scripts/ops/stack-health.sh parse-edges     # stdin: S/A/P/D/E/K lines → edges (gate use)
 #   sh scripts/ops/stack-health.sh probe <client>  # stdin: "host port[,port]" lines → ok|fail lines
 #   sh scripts/ops/stack-health.sh --help
@@ -64,9 +65,8 @@ project_ids() {
   docker ps -aq --filter "label=com.docker.compose.project=$PROJECT"
 }
 
-# wait_settled blocks until no container reports health "starting", or HEALTH_WAIT elapses.
+# wait_settled blocks until no container reports health "starting", or the deadline passes.
 wait_settled() {
-  deadline=$(($(date +%s) + HEALTH_WAIT))
   while [ "$(date +%s)" -lt "$deadline" ] &&
     project_ids | xargs docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' | grep -q starting; do
     sleep 3
@@ -185,11 +185,26 @@ check_published() {
     { print name[$2 " " $3], $1, $2, $3 }' | summarize_edges ports
 }
 
+# request_legs runs legs 4-6 and, while the HEALTH_WAIT deadline has not passed, runs them
+# again on failure: a container reports healthy before its first request is warm and before
+# Prometheus has scraped it. Only the last attempt is printed.
+request_legs() {
+  until sh "${0%/*}/stack-health-requests.sh" >"$TMP/requests" 2>&1; do
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      cat "$TMP/requests"
+      return 1
+    fi
+    sleep 5
+  done
+  cat "$TMP/requests"
+}
+
 # run_all runs the six legs and exits non-zero when any of them failed.
 run_all() {
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
-  [ "$HEALTH_WAIT" -gt 0 ] && wait_settled
+  deadline=$(($(date +%s) + HEALTH_WAIT))
+  wait_settled
   failed=0
   printf 'Containers (project %s)\n' "$PROJECT"
   check_states || failed=1
@@ -202,7 +217,7 @@ run_all() {
     failed=1
     printf '✗ NOT RUN: network + published legs — probe image %s unavailable\n' "$PROBE_IMAGE"
   fi
-  sh "${0%/*}/stack-health-requests.sh" || failed=1
+  request_legs || failed=1
   [ "$failed" -eq 0 ] && printf '✓ stack healthy\n' || printf '✗ stack NOT healthy\n'
   return "$failed"
 }
