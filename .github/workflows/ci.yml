@@ -125,6 +125,11 @@ jobs:
       - name: remote-access overlay (m219)
         run: bash scripts/verify/m219-remote-access-overlay.sh
 
+      # Static legs only (no stack here): `make health` parses service edges and Kong routes
+      # correctly and is wired to stack-health.sh; its live leg states that it was skipped.
+      - name: stack health check (m220)
+        run: bash scripts/verify/m220-stack-health.sh
+
       # promtool (pinned prom image): rules and config validate, and the rule
       # unit tests fire each alert on its own synthetic series. No stack.
       - name: alert rules (m52)

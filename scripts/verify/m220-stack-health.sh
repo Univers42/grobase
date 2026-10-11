@@ -7,17 +7,20 @@
 #  `make health` used to curl two Kong routes and exit 0 whatever came back,   #
 #  so a stack with a dead service, a severed bridge or a foreign .env still    #
 #  read as fine (2026-10-11: 401 on both routes, exit 0). It now runs          #
-#  scripts/ops/stack-health.sh, which must keep these properties:              #
+#  scripts/ops/stack-health.sh (+ stack-health-requests.sh), which must keep:  #
 #                                                                              #
 #   PARSER   an edge is a `<host>:<port>` naming ANOTHER RUNNING container of   #
-#            the project; self, stopped and external hosts are not edges, and  #
-#            a password that looks like `user:9…` is not mistaken for one.     #
+#            the project; self, stopped and external hosts are not edges, a    #
+#            password that looks like `user:9…` is not mistaken for one, and a #
+#            depends_on with no explicit address becomes an edge on the        #
+#            dependency's exposed ports.                                       #
+#   ROUTES   kong.yml yields "path upstream-host" pairs; regex routes do not.  #
 #   WIRING   the make target runs the script and `quickstart` waits for        #
 #            "starting" containers instead of failing on them.                 #
 #   LIVE     (stack up) a listening port probes ok, a dead port and an unknown #
-#            host probe fail, the full run exits 0, and the same run with a    #
-#            wrong anon key exits 1 — the mutant a check that cannot fail      #
-#            would let through.                                                #
+#            host probe fail, any-of-several ports passes on one, the full run #
+#            exits 0, and three mutants exit 1: a wrong anon key, a wrong      #
+#            postgres password, and a gateway route to a dead upstream port.   #
 #                                                                              #
 #  Static legs need no stack. The live leg is skipped (stated, not passed)     #
 #  without one; M220_REQUIRE=1 turns that skip into a failure.                 #
@@ -28,6 +31,9 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 HEALTH="${ROOT}/scripts/ops/stack-health.sh"
+REQUESTS="${ROOT}/scripts/ops/stack-health-requests.sh"
+WORK="$(mktemp -d)"
+trap 'rm -rf "${WORK}"' EXIT
 PROJECT="${COMPOSE_PROJECT_NAME:-mini-baas}"
 
 _B=$'\033[0;36m' _G=$'\033[0;32m' _R=$'\033[0;31m' _0=$'\033[0m'
@@ -47,19 +53,29 @@ fixture() {
     'E /p-api DSN=postgres://user:9secret@postgres:5432/app' \
     'E /p-api SELF=http://api:3000' 'E /p-api GONE=http://dead:9/' 'E /p-api EXT=https://example.com:443' \
     'E /p-dead DSN=postgres://postgres:5432' \
-    'K http://api:3000/v1'
+    'K http://api:3000/v1' \
+    'P /p-db 5432/tcp' 'P /p-kong 8000/tcp' 'P /p-kong 8001/tcp' 'P /p-kong 53/udp' \
+    'D /p-api db:service_healthy:false,kong:service_started:false,dead:service_started:false' \
+    'D /p-kong '
 }
 
 step "PARSER — only real edges between running containers"
 got="$(fixture | sh "${HEALTH}" parse-edges)"
-want=$'p-api postgres 5432\np-kong api 3000'
+want=$'p-api kong 8000,8001\np-api postgres 5432\np-kong api 3000'
 if [ "${got}" = "${want}" ]; then
-  ok "2 edges from the fixture (alias resolved, kong upstream attributed to kong)"
+  ok "3 edges from the fixture (alias resolved, kong upstream attributed to kong, depends_on→exposed tcp ports, explicit edge not doubled)"
 else
   fail "parse-edges printed: ${got//$'\n'/ | }"
 fi
 [ -z "$(printf 'S /p-api api running\nE /p-api X=http://api:3000\n' | sh "${HEALTH}" parse-edges)" ] &&
   ok "a service naming only itself yields no edge" || fail "self-reference became an edge"
+
+step "ROUTES — kong.yml → path + upstream host"
+printf '%s\n' 'services:' '  - name: a' '    url: http://gotrue:9999' '    routes:' '      - paths: [/auth/v1, "/auth/v2"]' \
+  '  - name: b' '    url: http://tenant-control:3022/x' '    routes:' '      - paths:' '          - ~/v1/tenants/me$' '      - paths: [/tenants/v1]' >"${WORK}/kong.yml"
+routes="$(KONG_YML="${WORK}/kong.yml" sh "${REQUESTS}" routes)"
+[ "${routes}" = $'/auth/v1 gotrue\n/auth/v2 gotrue\n/tenants/v1 tenant-control' ] &&
+  ok "3 literal routes with their upstream; the regex route is left out" || fail "route_table printed: ${routes//$'\n'/ | }"
 
 step "WIRING — make health runs the script, quickstart waits"
 grep -qE '^\s+@HEALTH_WAIT=.*sh scripts/ops/stack-health\.sh' "${ROOT}/orchestrators/makes/20-stack.mk" &&
@@ -72,12 +88,20 @@ client="${PROJECT}-kong"
 if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "${client}"; then
   if [ "${M220_REQUIRE:-0}" = 1 ]; then fail "no running stack and M220_REQUIRE=1"; else printf '  • SKIPPED — no running stack (not a pass)\n'; fi
 else
-  probes="$(printf 'postgrest 3000\npostgrest 1\nno-such-host-m220 80\n' | sh "${HEALTH}" probe "${client}")"
-  [ "${probes}" = $'ok postgrest 3000\nfail postgrest 1\nfail no-such-host-m220 80' ] &&
-    ok "listening port ok · dead port fail · unknown host fail" || fail "probe printed: ${probes//$'\n'/ | }"
+  probes="$(printf 'postgrest 3000\npostgrest 1\nno-such-host-m220 80\npostgrest 1,3000\n' | sh "${HEALTH}" probe "${client}")"
+  [ "${probes}" = $'ok postgrest 3000\nfail postgrest 1\nfail no-such-host-m220 80\nok postgrest 1,3000' ] &&
+    ok "listening port ok · dead port fail · unknown host fail · any-of passes on one" || fail "probe printed: ${probes//$'\n'/ | }"
   (cd "${ROOT}" && sh "${HEALTH}" >/dev/null 2>&1) && ok "full run exits 0" || fail "full run failed on the live stack"
-  (cd "${ROOT}" && ENV_FILE=/dev/null sh "${HEALTH}" >/dev/null 2>&1) &&
+  (cd "${ROOT}" && ENV_FILE=/dev/null sh "${REQUESTS}" gateway >/dev/null 2>&1) &&
     fail "MUTANT survived: a wrong anon key still exits 0" || ok "mutant: wrong anon key exits non-zero"
+  printf 'POSTGRES_USER=postgres\nPOSTGRES_PASSWORD=m220-not-the-password\n' >"${WORK}/bad.env"
+  out="$(cd "${ROOT}" && ENV_FILE="${WORK}/bad.env" sh "${REQUESTS}" engines 2>&1)" &&
+    fail "MUTANT survived: a wrong postgres password still exits 0" || ok "mutant: wrong postgres password exits non-zero"
+  grep -q 'postgres REJECTS' <<<"${out}" || fail "the rejected engine is not named"
+  sed -E '0,/url: http:\/\/gotrue:[0-9]+/s//url: http:\/\/gotrue:1/' "${ROOT}/infra/docker/services/kong/conf/kong.yml" >"${WORK}/kong-live.yml"
+  edges="$(cd "${ROOT}" && KONG_YML="${WORK}/kong-live.yml" sh "${HEALTH}" 2>&1)" &&
+    fail "MUTANT survived: kong → gotrue on a dead port still exits 0" || ok "mutant: an unreachable declared upstream exits non-zero"
+  grep -q 'UNREACHABLE: gotrue:1' <<<"${edges}" || fail "the unreachable edge is not named"
 fi
 
 [ "${rc}" -eq 0 ] && printf '%s[M220] PASS%s\n' "${_G}" "${_0}"

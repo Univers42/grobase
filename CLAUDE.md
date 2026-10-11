@@ -162,7 +162,11 @@ make up EDITION=query         # bring up a known-good shape; planes compose into
 make up PACKAGE=pro ADDONS="analytics engines"   # tier-shaped instead of edition
 make planes                   # 15 planes: data control go rust adapter background analytics storage
                               #   realtime functions observability ops studio playground engines
-make doctor / make health / make ps / make logs
+make doctor / make ps / make logs
+make health                   # the whole stack, exits 1 on any failure (scripts/ops/stack-health.sh): every
+                              #   container running+healthy, every service→service TCP edge from inside the
+                              #   client's netns, every host-published port, an authenticated login on each
+                              #   engine with .env's credentials, every Kong route (HEALTH_WAIT=<s> waits)
 make clean | fclean | re      # PROJECT-SCOPED, data-safe: clean = this project's images/containers/
                               #   networks/build-caches (KEEPS all data volumes + other projects);
                               #   fclean = clean + WIPE this project's OWN data volumes (mini-baas_*,
@@ -328,6 +332,9 @@ posts) is served: query-router, called directly with no credential, answers an u
 404 and the route its AuthGuard's 401, and through Kong the route reaches query-router (its api-key
 middleware refuses the anon key, as on every `/query/v1` path). Static leg + live legs under
 `M213_REQUIRE=1` in CI. It answered 404 until 2026-10-03.
+`m220` proves `make health` can fail: its edge and Kong-route parsers on fixtures (static, runs in CI), and
+on a running stack a dead port, a wrong anon key, a wrong postgres password and a declared upstream on a
+dead port each turn the run red. The bands m214–m219 are not described in this file — read the script headers.
 The re-verified status of every audit finding: `wiki/security/remediation-tracker-2025-07-14.md`.
 Security scanners run in `.github/workflows/mini-baas-security.yml` (blocking `security-gate`).
 
