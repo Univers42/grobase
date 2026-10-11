@@ -46,9 +46,16 @@
 #   PROJECT      groot                  42ctl project to pull
 #   EDITION      devlean                edition to bring up at the end (= make all's default)
 #   ENGINES      postgres mysql mongo redis minio
+#   KEEP_RUNNING ""                     engine names (same spelling as ENGINES) that may keep running under
+#                                       SKIP_STACK_CYCLE=1 — widens the racer allow-list only; restores nothing, NOT coverage-checked
 #   NET          mini-baas_mini-baas    compose network for sidecar tools
 #   STATE_DIR    ~/.local/state/grobase/vault-restore
 #                                       pre-restore backups + failed-replay logs (never SEED_DIR)
+#   SKIP_STACK_CYCLE 0                  1 = the caller owns the stack (grobase-import.sh apply):
+#                                       nothing is stopped, started or `make up`-ed here, and the
+#                                       run is refused unless only the ENGINES are running
+#
+# Exit: 0 restored · 1 a step failed (see its message) · 2 refused before any change
 
 set -eu
 
@@ -70,6 +77,7 @@ PROJECT="${PROJECT:-groot}"
 # `make all` runs. Defaulting to anything else brings up a different stack than the caller's.
 EDITION="${EDITION:-devlean}"
 ENGINES="${ENGINES:-postgres mysql mongo redis minio}"
+KEEP_RUNNING="${KEEP_RUNNING:-}"
 NET="${NET:-mini-baas_mini-baas}"
 [ ! -f "$SCRIPT_DIR/../lib/lib-netseg.sh" ] || . "$SCRIPT_DIR/../lib/lib-netseg.sh"
 # Where pre-restore backups and failed-replay logs go. NEVER inside SEED_DIR: at the
@@ -81,10 +89,20 @@ STATE_DIR="${STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/grobase/vault-rest
 MONGO_IMAGE="${MONGO_IMAGE:-mongo:7}"
 MC_IMAGE="${MC_IMAGE:-ghcr.io/univers42/grobase-mc:latest}"
 REDIS_IMAGE="${REDIS_IMAGE:-ghcr.io/univers42/grobase-redis:latest}"
+# An importer applying packet by packet would otherwise stop and restart the stack once per
+# engine. Worse, the final `make up` runs _rm-stale, which deletes every Exited mini-baas-*
+# container; on a stack started with another EDITION those never come back (T0 verdict C5/C6).
+SKIP_STACK_CYCLE="${SKIP_STACK_CYCLE:-0}"
 
 die() {
   printf 'error: %s\n' "$*" >&2
   exit 1
+}
+
+# Exit 2 promises the caller that nothing was stopped, dropped or replayed.
+refuse() {
+  printf 'error: %s\n' "$*" >&2
+  exit 2
 }
 
 note() {
@@ -135,6 +153,10 @@ require_coverage() {
 }
 
 preflight() {
+  case "$SKIP_STACK_CYCLE" in
+  0 | 1) ;;
+  *) refuse "SKIP_STACK_CYCLE must be 0 or 1, got '$SKIP_STACK_CYCLE' — a typo must not fall back to the stop/make-up path" ;;
+  esac
   command -v docker >/dev/null 2>&1 || die "docker not found"
   [ -d "$SEED_DIR" ] || die "SEED_DIR not found: $SEED_DIR (run with FETCH=1?)"
   [ "$FETCH" = "1" ] || return 0
@@ -165,16 +187,7 @@ preflight() {
 # Exited mini-baas-* container, so that bookkeeping could not survive. The `make up EDITION`
 # at the end of main() is the supported way back, and it recreates them.
 stop_non_engines() {
-  # The optional engines (engines-extra profile) are engines too: stopping them here meant
-  # restore_dynamodb then found DynamoDB "not running" and skipped it, and the final
-  # `make up EDITION=devlean` never brings it back — the restore would have switched it off.
-  keep=" mini-baas-dynamodb-local mini-baas-mssql mini-baas-mariadb mini-baas-cockroach"
-  for e in $ENGINES; do keep="$keep mini-baas-$e"; done
-  victims=""
-  for c in $(docker ps --format '{{.Names}}' 2>/dev/null | grep '^mini-baas-' || true); do
-    case " $keep " in *" $c "*) continue ;; esac
-    victims="$victims $c"
-  done
+  victims=$(running_non_engines)
   if [ -z "$victims" ]; then
     note "only engines are running — nothing to stop"
     return 0
@@ -182,6 +195,49 @@ stop_non_engines() {
   note "stopping non-engine containers so the replay is not raced:$victims"
   # shellcheck disable=SC2086
   docker stop -t 30 $victims >/dev/null 2>&1 || true
+}
+
+# running_non_engines — every running mini-baas-* container that would race the replay, each
+# prefixed by a space. The optional engines (engines-extra profile) are engines too: stopping
+# them meant restore_dynamodb found DynamoDB "not running" and skipped it, and the final
+# `make up EDITION=devlean` never brings it back — the restore would have switched it off.
+# KEEP_RUNNING serves packet-by-packet callers (grobase-import.sh apply): restoring one engine
+# per call must not refuse the caller's other engines as racers, so its engines join the keep
+# list exactly like ENGINES entries — kept, never restored and never coverage-checked.
+running_non_engines() {
+  keep=" mini-baas-dynamodb-local mini-baas-mssql mini-baas-mariadb mini-baas-cockroach"
+  for e in $ENGINES; do keep="$keep mini-baas-$e"; done
+  for e in $KEEP_RUNNING; do keep="$keep mini-baas-$e"; done
+  for c in $(docker ps --format '{{.Names}}' 2>/dev/null | grep '^mini-baas-' || true); do
+    case " $keep " in *" $c "*) continue ;; esac
+    printf ' %s' "$c"
+  done
+}
+
+# require_quiesced — SKIP_STACK_CYCLE=1 checks the state engines_up would have produced
+# instead of producing it, and refuses before the first DROP when the caller left it wrong.
+require_quiesced() {
+  racers=$(running_non_engines)
+  [ -z "$racers" ] || refuse "SKIP_STACK_CYCLE=1 but these non-engine containers are running:$racers
+  The caller owns the stack: stop them first. Nothing was changed."
+  for e in $ENGINES; do
+    is_running "mini-baas-$e" ||
+      refuse "SKIP_STACK_CYCLE=1 but engine mini-baas-$e is not running: start it first. Nothing was changed."
+  done
+  wait_for_postgres
+}
+
+quiesce_stack() {
+  if [ "$SKIP_STACK_CYCLE" = 1 ]; then require_quiesced; else engines_up; fi
+}
+
+restart_stack() {
+  if [ "$SKIP_STACK_CYCLE" = 1 ]; then
+    note "SKIP_STACK_CYCLE=1: the stack stays as the caller left it; the caller restarts it"
+    return 0
+  fi
+  note "bringing up the full edition '$EDITION'"
+  make --no-print-directory up EDITION="$EDITION" >/dev/null || die "stack did not come up"
 }
 
 engines_up() {
@@ -610,7 +666,7 @@ main() {
   preflight
   require_coverage
   prefetch_helpers
-  engines_up
+  quiesce_stack
   restore_postgres
   restore_mysql
   restore_mongo
@@ -618,8 +674,7 @@ main() {
   restore_redis
   restore_dynamodb
   restore_mssql
-  note "bringing up the full edition '$EDITION'"
-  make --no-print-directory up EDITION="$EDITION" >/dev/null || die "stack did not come up"
+  restart_stack
   note "restore complete"
 }
 
