@@ -19,8 +19,9 @@
 #            "starting" containers instead of failing on them.                 #
 #   LIVE     (stack up) a listening port probes ok, a dead port and an unknown #
 #            host probe fail, any-of-several ports passes on one, the full run #
-#            exits 0, and three mutants exit 1: a wrong anon key, a wrong      #
-#            postgres password, and a gateway route to a dead upstream port.   #
+#            exits 0, and four mutants exit 1: a wrong anon key, a wrong       #
+#            postgres password, a gateway route to a dead upstream port, and a #
+#            shape naming a service that has no container.                     #
 #                                                                              #
 #  Static legs need no stack. The live leg is skipped (stated, not passed)     #
 #  without one; M220_REQUIRE=1 turns that skip into a failure.                 #
@@ -78,8 +79,9 @@ routes="$(KONG_YML="${WORK}/kong.yml" sh "${REQUESTS}" routes)"
   ok "3 literal routes with their upstream; the regex route is left out" || fail "route_table printed: ${routes//$'\n'/ | }"
 
 step "WIRING — make health runs the script, quickstart waits"
-grep -qE '^\s+@HEALTH_WAIT=.*sh scripts/ops/stack-health\.sh' "${ROOT}/orchestrators/makes/20-stack.mk" &&
-  ok "health → scripts/ops/stack-health.sh" || fail "make health no longer runs stack-health.sh"
+mk="${ROOT}/orchestrators/makes/20-stack.mk"
+grep -q 'sh scripts/ops/stack-health\.sh' "${mk}" && grep -q 'HEALTH_EXPECT="$(if $(filter command environment' "${mk}" &&
+  ok "health → scripts/ops/stack-health.sh, the shape passed only when given explicitly" || fail "make health no longer runs stack-health.sh with an explicit-shape HEALTH_EXPECT"
 grep -qE 'MAKE\) health HEALTH_WAIT=[1-9]' "${ROOT}/orchestrators/makes/90-release.mk" &&
   ok "quickstart passes a non-zero HEALTH_WAIT" || fail "quickstart runs health without waiting"
 
@@ -102,6 +104,13 @@ else
   edges="$(cd "${ROOT}" && KONG_YML="${WORK}/kong-live.yml" sh "${HEALTH}" 2>&1)" &&
     fail "MUTANT survived: kong → gotrue on a dead port still exits 0" || ok "mutant: an unreachable declared upstream exits non-zero"
   grep -q 'UNREACHABLE: gotrue:1' <<<"${edges}" || fail "the unreachable edge is not named"
+  shape="$(cd "${ROOT}" && HEALTH_EXPECT="kong no-such-service-m220" sh "${HEALTH}" 2>&1)" &&
+    fail "MUTANT survived: a shape naming a service with no container still exits 0" || ok "mutant: a missing service of the selected shape exits non-zero"
+  grep -q 'no-such-service-m220 is part of the selected shape' <<<"${shape}" || fail "the missing service is not named"
+  if docker ps --format '{{.Names}}' | grep -qx "${PROJECT}-prometheus"; then
+    (cd "${ROOT}" && sh "${REQUESTS}" monitoring 2>&1 | grep -q 'scrape targets, none down') &&
+      ok "monitoring leg reads Prometheus' targets" || fail "monitoring leg did not report the scrape targets"
+  fi
 fi
 
 [ "${rc}" -eq 0 ] && printf '%s[M220] PASS%s\n' "${_G}" "${_0}"
