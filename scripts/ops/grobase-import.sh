@@ -39,6 +39,12 @@ need() { command -v "$1" >/dev/null 2>&1 || die "$1 is required but not on PATH"
 
 # WHY: the engine -> artifact -> sha256 contract has exactly one source, so an import dir
 # can never describe a dump vault-seed.sh would not have written, or under another name.
+# shellcheck source=scripts/lib/lib-import-push.sh
+. "$(CDPATH='' cd -- "$(dirname -- "$0")/../lib" && pwd)/lib-import-push.sh"
+
+# shellcheck source=scripts/lib/lib-import-pack.sh
+. "$(CDPATH='' cd -- "$(dirname -- "$0")/../lib" && pwd)/lib-import-pack.sh"
+
 . "$(CDPATH='' cd -- "$(dirname -- "$0")/../lib" && pwd)/lib-packets.sh"
 
 # cleanup — the staging dir is a sibling of the real one, so an interrupted pack can be
@@ -113,116 +119,6 @@ packets_trusted() {
   done < <(jq -r '.packets[]? | [.id, .engine, .artifact] | @tsv' "${IMPORT_DIR}/manifest.json")
 }
 
-parse_pack_args() {
-  PACK_SEED=""
-  PACK_ID=""
-  PACK_FORCE=0
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-    --id)
-      [ "$#" -ge 2 ] || refuse "--id needs a value"
-      PACK_ID="$2"
-      shift 2
-      ;;
-    --force)
-      PACK_FORCE=1
-      shift
-      ;;
-    -h | --help)
-      usage
-      exit 0
-      ;;
-    -*) refuse "unknown option: $1" ;;
-    *)
-      [ -z "${PACK_SEED}" ] || refuse "pack takes one SEED_DIR"
-      PACK_SEED="$1"
-      shift
-      ;;
-    esac
-  done
-  [ -n "${PACK_SEED}" ] || refuse "pack needs SEED_DIR"
-}
-
-# seed_manifest — a directory without MANIFEST.json is not a seed set, and packing one
-# would produce an import dir whose coverage nobody can state.
-seed_manifest() {
-  local seed="${1%/}"
-  [ -d "$seed" ] || refuse "not a directory: $seed"
-  [ -f "${seed}/MANIFEST.json" ] || refuse "${seed}/MANIFEST.json is missing — not a seed set"
-  jq -e . "${seed}/MANIFEST.json" >/dev/null 2>&1 ||
-    refuse "${seed}/MANIFEST.json is not valid JSON"
-}
-
-# prepare_dest DEST — without --force an existing import dir is a refusal, not a
-# replacement: somebody may be mid-verify on it.
-prepare_dest() {
-  [ -e "$1" ] || return 0
-  [ "${PACK_FORCE}" -eq 1 ] || refuse "$1 already exists — pass --force to replace it"
-  note "replacing $1"
-  rm -rf "$1"
-}
-
-# link_or_copy SRC DST — a hard link keeps a multi-GB dump off the disk a second time and
-# keeps its mtime; cp -p is the fallback where linking is refused (another filesystem).
-link_or_copy() {
-  ln "$1" "$2" 2>/dev/null || cp -p "$1" "$2"
-}
-
-# stage SEED DIR PACKETS — only what the packets name. An env file, a HANDOVER note or a
-# stale dump of a skipped engine sitting in the seed dir stays behind: an import dir is
-# exactly the data it claims to be and nothing an operator would not expect to travel.
-stage() {
-  local seed="$1" dir="$2" packets="$3" artifact pid
-  while IFS= read -r artifact; do
-    link_or_copy "${seed}/${artifact}" "${dir}/${artifact}"
-  done < <(printf '%s\n' "$packets" | jq -r '.[].artifact')
-  printf '%s\n' "$packets" | jq -r '.[] | "\(.sha256)  \(.artifact)"' >"${dir}/packets.sha256"
-  mkdir -m 0700 "${dir}/state"
-  while IFS= read -r pid; do
-    printf 'staged\n' >"${dir}/state/${pid}"
-  done < <(printf '%s\n' "$packets" | jq -r '.[].id')
-}
-
-# write_manifest SEED_MANIFEST DIR ID PACKETS — the four v1 keys travel unchanged: coverage
-# was recorded at capture time, and restating it here would let the import dir lie about it.
-write_manifest() {
-  jq -n --arg import_id "$3" --argjson packets "$4" --argjson seed "$(cat "$1")" '{
-    created_utc: $seed.created_utc,
-    source: $seed.source,
-    captured: $seed.captured,
-    skipped: $seed.skipped,
-    manifest_version: 2,
-    import_id: $import_id,
-    packets: $packets
-  }' >"$2/manifest.json"
-}
-
-cmd_pack() {
-  local id dest packets
-  local -a engines=()
-  parse_pack_args "$@"
-  seed_manifest "$PACK_SEED"
-  id="${PACK_ID:-seeds-$(date -u +%Y%m%dT%H%M%SZ)}"
-  valid_id "$id" || refuse "invalid import id: ${id}"
-  dest="$(import_dir "$id")"
-  mapfile -t engines < <(jq -r 'if (.captured | type) == "array" then .captured[] else empty end' "${PACK_SEED%/}/MANIFEST.json")
-  [ "${#engines[@]}" -gt 0 ] || refuse "${PACK_SEED%/}/MANIFEST.json captured no engine — nothing to pack"
-  packets="$(packets_json "${PACK_SEED%/}" "${engines[@]}")" ||
-    refuse "cannot describe the packets of ${PACK_SEED} — a captured dump is missing"
-  prepare_dest "$dest"
-  mkdir -p "${IMPORT_ROOT%/}"
-  STAGING="${IMPORT_ROOT%/}/.${id}.tmp"
-  rm -rf "$STAGING"
-  mkdir -m 0700 "$STAGING"
-  stage "${PACK_SEED%/}" "$STAGING" "$packets"
-  write_manifest "${PACK_SEED%/}/MANIFEST.json" "$STAGING" "$id" "$packets"
-  mv "$STAGING" "$dest"
-  STAGING=""
-  note "packed ${#engines[@]} packet(s) into ${dest}"
-  printf '%s\n' "$dest"
-}
-
-# check_packet DIR ID ARTIFACT WANT — every packet gets a state file, so a bad dump can
 # never leave its neighbours looking untouched.
 check_packet() {
   local dir="$1" pid="$2" artifact="$3" want="$4" got
@@ -279,96 +175,6 @@ cmd_status() {
     return 0
   fi
   printf '%s\n' "${rows[@]}" | jq -s --arg import_id "$1" '{import_id: $import_id, packets: .}'
-}
-
-parse_push_args() {
-  PUSH_ID=""
-  PUSH_DEST=""
-  PUSH_DRY=0
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-    --dest)
-      [ "$#" -ge 2 ] || refuse "--dest needs a value"
-      PUSH_DEST="$2"
-      shift 2
-      ;;
-    --dry-run)
-      PUSH_DRY=1
-      shift
-      ;;
-    -h | --help)
-      usage
-      exit 0
-      ;;
-    -*) refuse "unknown option: $1" ;;
-    *)
-      [ -z "${PUSH_ID}" ] || refuse "push takes one import id"
-      PUSH_ID="$1"
-      shift
-      ;;
-    esac
-  done
-  [ -n "${PUSH_ID}" ] || refuse "push needs an import id"
-}
-
-# push_dest — DEST is an rsync destination ROOT, a local path or host:/path, and the
-# transport is rsync's own, so ssh (or an RSYNC_RSH override) needs no second knob here.
-# The only default is GROBASE_IMPORT_DEST: guessing a peer would drop engine dumps
-# somewhere no operator named.
-push_dest() {
-  PUSH_DEST="${1:-${GROBASE_IMPORT_DEST:-}}"
-  [ -n "${PUSH_DEST}" ] ||
-    refuse "no destination: pass --dest DEST or set GROBASE_IMPORT_DEST (e.g. b2b:/var/lib/grobase-import)"
-  PUSH_DEST="${PUSH_DEST%/}"
-  [ -n "${PUSH_DEST}" ] ||
-    refuse "/ is not a destination root — name the directory that will hold the import dir"
-}
-
-# push_files — the ONLY names rsync may carry, each prefixed with <id> because -R wants the
-# destination dir to be an implied one. Listing them read out of the manifest, instead of
-# walking the dir, is what keeps state/ and any stray file off the wire.
-push_files() {
-  printf '%s/%s\n' "${PUSH_ID}" "manifest.json"
-  printf '%s/%s\n' "${PUSH_ID}" "packets.sha256"
-  jq -r --arg id "${PUSH_ID}" '.packets[]? | "\($id)/\(.artifact)"' "${IMPORT_DIR}/manifest.json"
-}
-
-# rsync_push — one command for the dry run and the real transfer, so -n proves exactly what
-# the real run does. -R is what lets --chmod reach the destination dir's own mode: a dir
-# rsync merely creates on the way keeps the umask's bits and would land world-readable.
-rsync_push() {
-  local -a args=(-R --files-from=- --mkpath --partial "--chmod=D700,F600")
-  if [ "${PUSH_DRY}" -eq 1 ]; then
-    args+=(-n)
-  fi
-  push_files | rsync "${args[@]}" -- "${IMPORT_ROOT%/}/" "${PUSH_DEST}/"
-}
-
-# push_dry_notes — the names one per line on stderr, spelled exactly as rsync receives them,
-# so an operator can audit a dry run without parsing rsync's own itemised output.
-push_dry_notes() {
-  local name
-  while IFS= read -r name; do note "would send ${name}"; done < <(push_files)
-}
-
-# cmd_push — cmd_verify IS the pre-flight: it opens the import and re-checksums every
-# packet, so nothing this machine would not accept can leave it, and its exit 2 is the
-# push exit 2. The far side re-derives state from its own verify — sending ours would
-# hand it a verdict it never computed.
-cmd_push() {
-  parse_push_args "$@"
-  need rsync
-  push_dest "${PUSH_DEST}"
-  cmd_verify "${PUSH_ID}"
-  if [ "${PUSH_DRY}" -eq 1 ]; then
-    push_dry_notes
-    rsync_push || exit 1
-    note "dry run — nothing was sent"
-  else
-    rsync_push || exit 1
-    note "pushed ${PUSH_ID} to ${PUSH_DEST}"
-  fi
-  printf '%s\n' "${PUSH_DEST}/${PUSH_ID}"
 }
 
 main() {
