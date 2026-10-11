@@ -87,7 +87,7 @@ realtime:
 
 **Kong routes**:
 
-- `http://localhost:8000/realtime/v1/*` → REST API (health)
+- `http://localhost:8000/realtime/v1/*` → the upstream's `/ws` (so `…/realtime/v1/health` is a 404)
 - `http://localhost:8000/realtime/v1/publish[/batch]` → publish, **service_role apikey only** (no topic scoping upstream)
 - `ws://localhost:8000/realtime/ws` → WebSocket endpoint
 
@@ -104,7 +104,7 @@ realtime:
 
 Through **Kong**:
 
-- `GET http://localhost:8000/realtime/v1/health` (your API key / JWT)
+- Not `GET …/realtime/v1/health`: that path maps to the upstream's `/ws/health` and answers 404 (measured 2026-10-11); health is on the internal port only
 - `POST http://localhost:8000/realtime/v1/publish` (the service_role apikey: the handler publishes to any topic, so Kong admits `baas-admin` only; anon 403)
 - `WS ws://localhost:8000/realtime/ws`
 
