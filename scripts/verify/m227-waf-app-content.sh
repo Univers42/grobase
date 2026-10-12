@@ -14,8 +14,9 @@
 #  read `; INSERT INTO` as injection, 2026-10-12). Rule 10130 refuses Kong's   #
 #  ip-restricted routes to a request Tailscale Funnel marked: Funnel reaches   #
 #  the WAF from loopback, which Kong's allow list admits (2026-10-12). Rule    #
-#  10140 lifts them on POST /query/v1/execute's payload.sql alone: 942100      #
-#  read a raw SELECT from `grobase query run` as injection (2026-10-12). It    #
+#  10140 lifts them on the SQL runner's json.sql alone (POST                   #
+#  /query/v1/<uuid>/sql-ro): 942100 read `grobase query run`'s SELECT as       #
+#  injection (2026-10-12). It                                                  #
 #  boots the WAF image with the tree's exclusions file on a private network    #
 #  whose `kong` answers 200, then:                                             #
 #    CONTENT   POST/PATCH to osionos_pages / osionos_chat_messages carrying JS,#
@@ -23,15 +24,16 @@
 #              and a profile key on osionos_bridge_identities (930120 read     #
 #              `json.profile.headline` as the file .profile) → 200             #
 #              and a migration of DDL + INSERTs to /admin/v1/migrate → 200     #
-#              and a raw statement to /query/v1/execute → 200                  #
+#              and a raw statement to /query/v1/<uuid>/sql-ro → 200            #
 #    CONTROLS  the same path read with SQLi in its query string, written with  #
 #              <script> in a header or a method `PO`; the same body to another #
 #              table, to an rpc, and through osionos_pages%3F/../secrets       #
 #              (%3f, %253F) → 403, and the upstream never sees `secrets`;      #
 #              the migration as a PUT, to /admin/v1/migrate-x, …/migrate/,     #
 #              …/migrate%3F/../tenants or /admin/v1/tenants → 403              #
-#              the statement as a PUT or to …/execute-x, and the same SQL in   #
-#              the resource or a CRUD filter of /query/v1/execute → 403        #
+#              the statement as a PUT, to …/sql-ro-x, to a non-uuid database, #
+#              through …/sql-ro%3F/../../execute, in another argument, or as   #
+#              payload.sql of /query/v1/execute → 403                          #
 #    FUNNEL    every ip-restricted path read out of kong.yml, sent with        #
 #              Tailscale-Funnel-Request, and /%61dmin, /admin//v1, ../admin    #
 #              and a migration POST → 403; the same paths without the header,  #
@@ -163,9 +165,9 @@ probe() {
       statements: ["CREATE TABLE IF NOT EXISTS notes (id int PRIMARY KEY, body text);\n" +
         "INSERT INTO notes (id, body) VALUES (1, \u0027a\u0027), (2, \u0027b\u0027);\n" +
         "CREATE OR REPLACE FUNCTION note_count() RETURNS bigint AS $$ SELECT count(*) FROM notes $$ LANGUAGE sql;"] };
-    const statement = (sql) => ({ database_id: "028b32b2-78f2-405f-81e3-fa690c4649dc", action: "raw",
-      resource: "", payload: { sql } });
-    const raw = statement("SELECT COUNT(*) AS n FROM projects WHERE name = \u0027a\u0027 OR \u00271\u0027=\u00271\u0027 UNION SELECT 1");
+    const sqli = "SELECT COUNT(*) AS n FROM projects WHERE name = \u0027a\u0027 OR \u00271\u0027=\u00271\u0027 UNION SELECT 1";
+    const runner = "/query/v1/59939f19-7e8d-4876-a57f-61b3e7bb37be/sql-ro";
+    const raw = { sql: sqli };
     const funnel = { "Tailscale-Funnel-Request": "?1" };
     const probes = [
       ["content-post-code", "POST", "/rest/v1/osionos_pages", code],
@@ -188,12 +190,14 @@ probe() {
       ["control-migrate-slash", "POST", "/admin/v1/migrate/", migration],
       ["control-migrate-encoded", "POST", "/admin/v1/migrate%3F/../tenants", migration],
       ["control-migrate-tenants", "POST", "/admin/v1/tenants", migration],
-      ["content-query-sql", "POST", "/query/v1/execute", raw],
-      ["control-query-put", "PUT", "/query/v1/execute", raw],
-      ["control-query-suffix", "POST", "/query/v1/execute-x", raw],
-      ["control-query-resource", "POST", "/query/v1/execute", { ...raw, resource: "x\u0027 OR \u00271\u0027=\u00271\u0027 UNION SELECT password FROM users--" }],
-      ["control-query-crud-filter", "POST", "/query/v1/execute", { ...raw, action: "select", payload: { filter: { name: "a\u0027 OR \u00271\u0027=\u00271\u0027 UNION SELECT 1--" } } }],
-      ["public-funnel-query", "POST", "/query/v1/execute", raw, funnel],
+      ["content-query-sql", "POST", runner, raw],
+      ["control-query-put", "PUT", runner, raw],
+      ["control-query-suffix", "POST", runner + "-x", raw],
+      ["control-query-not-uuid", "POST", "/query/v1/projects/sql-ro", raw],
+      ["control-query-encoded", "POST", runner + "%3F/../../execute", raw],
+      ["control-query-other-arg", "POST", runner, { sql: "SELECT 1", note: sqli }],
+      ["control-query-execute", "POST", "/query/v1/execute", { database_id: "59939f19-7e8d-4876-a57f-61b3e7bb37be", action: "select", resource: "projects", payload: { sql: sqli } }],
+      ["public-funnel-query", "POST", runner, raw, funnel],
       ["funnel-encoded-a", "GET", "/%61dmin/v1/tenants", undefined, funnel],
       ["funnel-double-slash", "GET", "/admin//v1/tenants", undefined, funnel],
       ["funnel-dotdot", "GET", "/rest/v1/../../admin/v1/keys", undefined, funnel],
