@@ -89,6 +89,7 @@ STATE_DIR="${STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/grobase/vault-rest
 MONGO_IMAGE="${MONGO_IMAGE:-mongo:7}"
 MC_IMAGE="${MC_IMAGE:-ghcr.io/univers42/grobase-mc:latest}"
 REDIS_IMAGE="${REDIS_IMAGE:-ghcr.io/univers42/grobase-redis:latest}"
+AWS_IMAGE="${AWS_IMAGE:-amazon/aws-cli}"
 # An importer applying packet by packet would otherwise stop and restart the stack once per
 # engine. Worse, the final `make up` runs _rm-stale, which deletes every Exited mini-baas-*
 # container; on a stack started with another EDITION those never come back (T0 verdict C5/C6).
@@ -505,7 +506,8 @@ restore_minio() {
   tar -xzf "$SEED_DIR/minio.tar.gz" -C "$stage"
   # mktemp -d is 0700 and the tarball restores its own 0700 `./`; the mc image runs as uid
   # 1001 and `mc mirror` then fails "open /in: permission denied" while still exiting 0
-  # (measured 2026-10-10: 54 files staged, 0 mirrored). Open the stage before mounting it.
+  # (measured 2026-10-10: 54 files staged, 0 mirrored). `docker cp` keeps those modes, so open
+  # the stage before copying it in.
   chmod -R a+rX "$stage"
   MC_HOST_seed="http://$(docker exec mini-baas-minio printenv MINIO_ROOT_USER):$(docker exec mini-baas-minio printenv MINIO_ROOT_PASSWORD)@mini-baas-minio:9000"
   export MC_HOST_seed
@@ -515,9 +517,21 @@ restore_minio() {
       --tmpfs /tmp:rw,size=16m "$MC_IMAGE" mb --ignore-existing \
       "seed/$(basename "$bucket")" >/dev/null 2>&1 || true
   done
-  docker run --rm --network "$NET" -e MC_HOST_seed -e HOME=/tmp --tmpfs /tmp:rw,size=16m \
-    -v "$stage":/in:ro "$MC_IMAGE" mirror --quiet /in seed >/dev/null 2>&1 ||
+  # The stage goes IN with `docker cp`, not a bind mount: a -v path names a directory on the
+  # daemon's host, so under DOCKER_HOST=ssh://<data center> the mirror would read an empty /in
+  # over there (vault-seed.sh measured that mount coming back empty, 2026-10-12). A fixed name:
+  # the container's env holds the MinIO root credentials, so one an interrupted run left
+  # behind is removed before this one is created.
+  ctr=vault-restore-mc
+  docker rm -f "$ctr" >/dev/null 2>&1 || true
+  if ! docker create --name "$ctr" --network "$NET" -e MC_HOST_seed -e HOME=/tmp \
+    --tmpfs /tmp:rw,size=16m "$MC_IMAGE" mirror --quiet /in seed >/dev/null ||
+    ! docker cp "$stage/." "$ctr:/in" >/dev/null || ! docker start -a "$ctr" >/dev/null 2>&1; then
+    docker rm -f "$ctr" >/dev/null 2>&1 || true
+    rm -rf "$stage"
     die "minio mirror failed"
+  fi
+  docker rm -f "$ctr" >/dev/null 2>&1 || true
   rm -rf "$stage"
   note "minio: done"
 }
@@ -587,18 +601,22 @@ restore_dynamodb() {
 	        json.dump({s["TableName"]: [{"PutRequest": {"Item": it}} for it in items[i:i + 25]]},
 	                  open(os.path.join(d, "%s.batch.%05d" % (t, i // 25)), "w"))
 	PY
-  aws="docker run --rm --network $(engine_net mini-baas-dynamodb-local "$NET") -v $stage:/work:ro -e AWS_ACCESS_KEY_ID=local -e AWS_SECRET_ACCESS_KEY=local -e AWS_DEFAULT_REGION=us-east-1 amazon/aws-cli --endpoint-url http://mini-baas-dynamodb-local:8000 dynamodb"
+  # Nothing goes through a bind mount: a -v path names a directory on the daemon's host, so
+  # under DOCKER_HOST=ssh://<data center> /work would be empty there. The items go in on stdin;
+  # the table definition goes on argv, because --cli-input-json rejects file:///dev/stdin
+  # ("Invalid JSON received", aws-cli image, 2026-10-12) and a schema holds no item data.
+  aws="docker run --rm -i --network $(engine_net mini-baas-dynamodb-local "$NET") -e AWS_ACCESS_KEY_ID=local -e AWS_SECRET_ACCESS_KEY=local -e AWS_DEFAULT_REGION=us-east-1 $AWS_IMAGE --endpoint-url http://mini-baas-dynamodb-local:8000 dynamodb"
   for c in "$stage"/*.create; do
     [ -f "$c" ] || continue
     t=$(basename "$c" .create)
     # shellcheck disable=SC2086
-    $aws delete-table --table-name "$t" >/dev/null 2>&1 || true
+    $aws delete-table --table-name "$t" </dev/null >/dev/null 2>&1 || true
     # shellcheck disable=SC2086
-    $aws create-table --cli-input-json "file:///work/$t.create" >/dev/null || die "dynamodb: create-table $t failed"
+    $aws create-table --cli-input-json "$(cat "$c")" </dev/null >/dev/null || die "dynamodb: create-table $t failed"
     for b in "$stage/$t".batch.*; do
       [ -f "$b" ] || continue
       # shellcheck disable=SC2086
-      $aws batch-write-item --request-items "file:///work/$(basename "$b")" >/dev/null || die "dynamodb: batch write into $t failed"
+      $aws batch-write-item --request-items file:///dev/stdin <"$b" >/dev/null || die "dynamodb: batch write into $t failed"
     done
   done
   rm -rf "$stage"
@@ -653,7 +671,7 @@ restore_mssql() {
 prefetch_helpers() {
   images="$MONGO_IMAGE $MC_IMAGE alpine:latest $REDIS_IMAGE"
   if have dynamodb-all.tar.gz && is_running mini-baas-dynamodb-local; then
-    images="$images amazon/aws-cli"
+    images="$images $AWS_IMAGE"
   fi
   for img in $images; do
     docker image inspect "$img" >/dev/null 2>&1 && continue
