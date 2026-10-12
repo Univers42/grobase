@@ -13,7 +13,9 @@
 #  only; rule 10120 on POST /admin/v1/migrate, whose body is SQL (942350       #
 #  read `; INSERT INTO` as injection, 2026-10-12). Rule 10130 refuses Kong's   #
 #  ip-restricted routes to a request Tailscale Funnel marked: Funnel reaches   #
-#  the WAF from loopback, which Kong's allow list admits (2026-10-12). It      #
+#  the WAF from loopback, which Kong's allow list admits (2026-10-12). Rule    #
+#  10140 lifts them on POST /query/v1/execute's payload.sql alone: 942100      #
+#  read a raw SELECT from `grobase query run` as injection (2026-10-12). It    #
 #  boots the WAF image with the tree's exclusions file on a private network    #
 #  whose `kong` answers 200, then:                                             #
 #    CONTENT   POST/PATCH to osionos_pages / osionos_chat_messages carrying JS,#
@@ -21,21 +23,26 @@
 #              and a profile key on osionos_bridge_identities (930120 read     #
 #              `json.profile.headline` as the file .profile) → 200             #
 #              and a migration of DDL + INSERTs to /admin/v1/migrate → 200     #
+#              and a raw statement to /query/v1/execute → 200                  #
 #    CONTROLS  the same path read with SQLi in its query string, written with  #
 #              <script> in a header or a method `PO`; the same body to another #
 #              table, to an rpc, and through osionos_pages%3F/../secrets       #
 #              (%3f, %253F) → 403, and the upstream never sees `secrets`;      #
 #              the migration as a PUT, to /admin/v1/migrate-x, …/migrate/,     #
 #              …/migrate%3F/../tenants or /admin/v1/tenants → 403              #
+#              the statement as a PUT or to …/execute-x, and the same SQL in   #
+#              the resource or a CRUD filter of /query/v1/execute → 403        #
 #    FUNNEL    every ip-restricted path read out of kong.yml, sent with        #
 #              Tailscale-Funnel-Request, and /%61dmin, /admin//v1, ../admin    #
 #              and a migration POST → 403; the same paths without the header,  #
-#              and auth, rest, realtime and an osionos write with it → 200     #
+#              and auth, rest, realtime, an osionos write and a raw statement  #
+#              with it → 200                                                   #
 #    AUDIT     every probe carries a marker apikey and Bearer token; the       #
 #              audit entries (stdout, shipped to Loki) must not hold it        #
 #    MUTANTS   the file without rule 10110 MUST refuse the code block and the  #
-#              profile, without rule 10120 the migration, without rule 10130   #
-#              MUST pass the Funnel probes, and audit parts ABIJDEFHZ MUST     #
+#              profile, without rule 10120 the migration, without rule 10140   #
+#              the statement, without rule 10130 MUST pass the Funnel          #
+#              probes, and audit parts ABIJDEFHZ MUST                          #
 #              leak the marker; else the gate is blind and fails               #
 #  Needs docker, the WAF image and node:20-alpine already present (nothing is  #
 #  pulled); otherwise SKIP, exit 77, never 0. A throwaway TLS pair is minted   #
@@ -156,6 +163,9 @@ probe() {
       statements: ["CREATE TABLE IF NOT EXISTS notes (id int PRIMARY KEY, body text);\n" +
         "INSERT INTO notes (id, body) VALUES (1, \u0027a\u0027), (2, \u0027b\u0027);\n" +
         "CREATE OR REPLACE FUNCTION note_count() RETURNS bigint AS $$ SELECT count(*) FROM notes $$ LANGUAGE sql;"] };
+    const statement = (sql) => ({ database_id: "028b32b2-78f2-405f-81e3-fa690c4649dc", action: "raw",
+      resource: "", payload: { sql } });
+    const raw = statement("SELECT COUNT(*) AS n FROM projects WHERE name = \u0027a\u0027 OR \u00271\u0027=\u00271\u0027 UNION SELECT 1");
     const funnel = { "Tailscale-Funnel-Request": "?1" };
     const probes = [
       ["content-post-code", "POST", "/rest/v1/osionos_pages", code],
@@ -178,6 +188,12 @@ probe() {
       ["control-migrate-slash", "POST", "/admin/v1/migrate/", migration],
       ["control-migrate-encoded", "POST", "/admin/v1/migrate%3F/../tenants", migration],
       ["control-migrate-tenants", "POST", "/admin/v1/tenants", migration],
+      ["content-query-sql", "POST", "/query/v1/execute", raw],
+      ["control-query-put", "PUT", "/query/v1/execute", raw],
+      ["control-query-suffix", "POST", "/query/v1/execute-x", raw],
+      ["control-query-resource", "POST", "/query/v1/execute", { ...raw, resource: "x\u0027 OR \u00271\u0027=\u00271\u0027 UNION SELECT password FROM users--" }],
+      ["control-query-crud-filter", "POST", "/query/v1/execute", { ...raw, action: "select", payload: { filter: { name: "a\u0027 OR \u00271\u0027=\u00271\u0027 UNION SELECT 1--" } } }],
+      ["public-funnel-query", "POST", "/query/v1/execute", raw, funnel],
       ["funnel-encoded-a", "GET", "/%61dmin/v1/tenants", undefined, funnel],
       ["funnel-double-slash", "GET", "/admin//v1/tenants", undefined, funnel],
       ["funnel-dotdot", "GET", "/rest/v1/../../admin/v1/keys", undefined, funnel],
@@ -280,6 +296,7 @@ mutant() {
 step "6/6 mutants: without its rule, each content probe MUST be refused and each Funnel probe MUST pass; with headers in the audit, the marker MUST leak"
 mutant 10110 403 content-post-code content-patch-profile
 mutant 10120 403 content-migrate-sql
+mutant 10140 403 content-query-sql public-funnel-query
 mutant 10130 200 funnel-kong:/admin/v1/tenants funnel-kong:/meta/v1 funnel-kong:/realtime/v1/publish funnel-encoded-a funnel-double-slash funnel-migrate-post
 if ! start_waf "${TAG}-mutaudit" "${EXCL}" MODSEC_AUDIT_LOG_PARTS=ABIJDEFHZ; then
   bad "mutant: the WAF did not start with the old audit parts"
@@ -290,7 +307,7 @@ else
 fi
 
 [ "${FAILED}" -eq 0 ] || {
-  printf '\033[0;31m[M227] FAIL — app content or a migration is refused, an exclusion reaches past its path, Funnel reaches a private route, or the audit log holds a credential\033[0m\n' >&2
+  printf '\033[0;31m[M227] FAIL — app content, a migration or a raw statement is refused, an exclusion reaches past its path, Funnel reaches a private route, or the audit log holds a credential\033[0m\n' >&2
   exit 1
 }
-printf '\033[0;32m[M227] PASS — osionos_* writes carry code, migrations carry SQL; other paths stay inspected; Funnel reaches no private route; no credential in the audit\033[0m\n'
+printf '\033[0;32m[M227] PASS — osionos_* writes carry code, migrations and raw statements carry SQL; other paths stay inspected; Funnel reaches no private route; no credential in the audit\033[0m\n'
