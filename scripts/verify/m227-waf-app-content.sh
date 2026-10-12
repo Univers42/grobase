@@ -1,8 +1,35 @@
 #!/usr/bin/env bash
 # **************************************************************************** #
 #                                                                              #
-#  m227-waf-app-content.sh — what a user typed reaches the app's tables; the  #
-#  same text anywhere else is still an attack                                #
+#  m227-waf-app-content.sh — what a user typed reaches the app's tables; the   #
+#  same text anywhere else is still an attack                                  #
+#                                                                              #
+#  osionos stores page blocks, chat messages and comments in osionos_* tables  #
+#  through PostgREST. A code block holding `console.log(` scored 15 (CRS       #
+#  934100 + 941390) and every save of that page was refused (2026-10-11, VM    #
+#  WAF log). Rule 10110 (infra/docker/services/waf/conf/exclusions.conf)       #
+#  lifts the injection families' ARGS inspection on WRITES to those tables     #
+#  only; rule 10120 on POST /admin/v1/migrate, whose body is SQL (942350       #
+#  read `; INSERT INTO` as injection, 2026-10-12). It boots the WAF image      #
+#  with the tree's exclusions file on a private network whose `kong`           #
+#  answers 200, then:                                                          #
+#    CONTENT   POST/PATCH to osionos_pages / osionos_chat_messages carrying JS,#
+#              SQL, XSS, shell, PHP, ../, {{ }}, a metadata URL → 200          #
+#              and a profile key on osionos_bridge_identities (930120 read     #
+#              `json.profile.headline` as the file .profile) → 200             #
+#              and a migration of DDL + INSERTs to /admin/v1/migrate → 200     #
+#    CONTROLS  the same path read with SQLi in its query string, written with  #
+#              <script> in a header or a method `PO`; the same body to another #
+#              table, to an rpc, and through osionos_pages%3F/../secrets       #
+#              (%3f, %253F) → 403, and the upstream never sees `secrets`;      #
+#              the migration as a PUT, to /admin/v1/migrate-x, …/migrate/,     #
+#              …/migrate%3F/../tenants or /admin/v1/tenants → 403              #
+#    MUTANTS   the file without rule 10110 MUST refuse the code block and the  #
+#              profile, without rule 10120 the migration; else the probe is    #
+#              blind and the gate fails                                        #
+#  Needs docker, the WAF image and node:20-alpine already present (nothing is  #
+#  pulled); otherwise SKIP, exit 77, never 0. A throwaway TLS pair is minted   #
+#  in the temp dir. Containers, network and temp dir go in an EXIT trap.       #
 #                                                                              #
 #  osionos stores page blocks, chat messages and comments in osionos_* tables  #
 #  through PostgREST. A code block holding `console.log(` scored 15 (CRS       #
@@ -54,7 +81,7 @@ skip() {
 
 # cleanup: remove every container, the network and the temp dir this run made.
 cleanup() {
-  docker rm -f "${TAG}-kong" "${TAG}-waf" "${TAG}-mut" >/dev/null 2>&1 || true
+  docker rm -f "${TAG}-kong" "${TAG}-waf" "${TAG}-mut10110" "${TAG}-mut10120" >/dev/null 2>&1 || true
   docker network rm "${NET}" >/dev/null 2>&1 || true
   rm -rf "${WORK}"
 }
@@ -107,6 +134,11 @@ probe() {
     const code = { content: [{ type: "code", content: "console.log(\"hi\"); fetch(url).then((r) => r.json())" }] };
     const prose = { title: "select * from users where id = \u00271\u0027 or \u00271\u0027=\u00271\u0027",
       content: [{ content: "<script>alert(1)</script> $(rm -rf /) <?php system($_GET[\"x\"]); ?> ../../etc/passwd {{7*7}} http://169.254.169.254/latest/meta-data/" }] };
+    const migration = { identity: { tenant_id: "t1", source: "service_token", roles: ["service_role"] },
+      mount: { id: "m1", tenant_id: "t1", engine: "postgresql", name: "db" }, name: "0002_notes",
+      statements: ["CREATE TABLE IF NOT EXISTS notes (id int PRIMARY KEY, body text);\n" +
+        "INSERT INTO notes (id, body) VALUES (1, \u0027a\u0027), (2, \u0027b\u0027);\n" +
+        "CREATE OR REPLACE FUNCTION note_count() RETURNS bigint AS $$ SELECT count(*) FROM notes $$ LANGUAGE sql;"] };
     const probes = [
       ["content-post-code", "POST", "/rest/v1/osionos_pages", code],
       ["content-patch-code", "PATCH", "/rest/v1/osionos_pages?id=eq.6f1c0f5e-0000-4000-8000-000000000001", code],
@@ -122,6 +154,12 @@ probe() {
       ["control-encoded-3f", "POST", "/rest/v1/osionos_pages%3f/../secrets", code],
       ["control-encoded-253F", "POST", "/rest/v1/osionos_pages%253F/../secrets", code],
       ["control-method-PO", "PO", "/rest/v1/osionos_pages", code],
+      ["content-migrate-sql", "POST", "/admin/v1/migrate", migration],
+      ["control-migrate-put", "PUT", "/admin/v1/migrate", migration],
+      ["control-migrate-suffix", "POST", "/admin/v1/migrate-x", migration],
+      ["control-migrate-slash", "POST", "/admin/v1/migrate/", migration],
+      ["control-migrate-encoded", "POST", "/admin/v1/migrate%3F/../tenants", migration],
+      ["control-migrate-tenants", "POST", "/admin/v1/tenants", migration],
     ];
     (async () => { for (const [label, m, p, b] of probes) console.log((await send(m, p, b)) + " " + label); })();'
 }
@@ -163,23 +201,34 @@ else
   ok "the upstream never received a request for /rest/v1/secrets"
 fi
 
-step "4/4 mutant: without rule 10110 the code block MUST be refused"
-awk '/^SecRule REQUEST_FILENAME "@rx \^\/rest\/v1\/osionos_/ { skip = 1 } skip && /^$/ { skip = 0 } !skip' "${EXCL}" >"${WORK}/mutant.conf"
-if cmp -s "${EXCL}" "${WORK}/mutant.conf" || grep -q 'id:10110' "${WORK}/mutant.conf"; then
-  bad "mutant: rule 10110 was not found as one block — rebuild this leg"
-elif ! start_waf "${TAG}-mut" "${WORK}/mutant.conf"; then
-  bad "mutant: the WAF did not start without rule 10110"
-else
-  mutant="$(probe "${TAG}-mut")"
-  for label in content-post-code content-patch-profile; do
-    got="$(awk -v l="${label}" '$2 == l { print $1 }' <<<"${mutant}")"
-    [ "${got}" = 403 ] && ok "mutant refuses ${label} (403) — the probe sees the false positive" ||
-      bad "mutant answered '${got}' to ${label}, not 403 — the probe is blind"
+# mutant RULE LABEL...: the file without RULE's paragraph (its comment and its SecRule, which
+# no blank line separates) must refuse every LABEL, else that probe cannot see the false positive.
+mutant() {
+  local rule="$1" file="${WORK}/mutant-$1.conf" got label out
+  shift
+  awk -v id="id:${rule}," 'BEGIN { RS = ""; ORS = "\n\n" } index($0, id) == 0' "${EXCL}" >"${file}"
+  if cmp -s "${EXCL}" "${file}" || grep -q "id:${rule}," "${file}"; then
+    bad "mutant: rule ${rule} was not found as one paragraph — rebuild this leg"
+    return
+  fi
+  if ! start_waf "${TAG}-mut${rule}" "${file}"; then
+    bad "mutant: the WAF did not start without rule ${rule}"
+    return
+  fi
+  out="$(probe "${TAG}-mut${rule}")"
+  for label in "$@"; do
+    got="$(awk -v l="${label}" '$2 == l { print $1 }' <<<"${out}")"
+    [ "${got}" = 403 ] && ok "without ${rule}: ${label} refused (403) — the probe sees the false positive" ||
+      bad "without ${rule}: ${label} answered '${got}', not 403 — the probe is blind"
   done
-fi
+}
+
+step "4/4 mutants: without its rule, each content probe MUST be refused"
+mutant 10110 content-post-code content-patch-profile
+mutant 10120 content-migrate-sql
 
 [ "${FAILED}" -eq 0 ] || {
-  printf '\033[0;31m[M227] FAIL — app content is refused, or the exclusion reaches past writes to osionos_* tables\033[0m\n' >&2
+  printf '\033[0;31m[M227] FAIL — app content or a migration is refused, or an exclusion reaches past its path\033[0m\n' >&2
   exit 1
 }
-printf '\033[0;32m[M227] PASS — writes to osionos_* carry code; reads, headers, other tables and rpcs stay inspected\033[0m\n'
+printf '\033[0;32m[M227] PASS — osionos_* writes carry code, migrations carry SQL; reads, headers, other paths stay inspected\033[0m\n'
