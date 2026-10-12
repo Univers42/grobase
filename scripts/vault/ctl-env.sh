@@ -66,16 +66,26 @@ fi
 # are stored. Removing them entirely means pushing from the app project instead.
 VENDOR_PRIVATE="vendor/*"
 # Files that must NEVER reach a teammate, even in a shared environment:
-#   secrets/*  — the vault42 ADMIN credentials (account password, register token,
-#                keystore passphrase). Sharing them hands every member of a
-#                write-granted environment the keys to the authority itself, and it
-#                is circular besides: the passphrase that opens the vault has no
-#                business living inside it.
+#   secrets/*.env — the vault42 ADMIN credentials (account password, register token,
+#                keystore passphrase: secrets/vault42_admin.env). Sharing them hands
+#                every member of a write-granted environment the keys to the authority
+#                itself, and it is circular besides: the passphrase that opens the vault
+#                has no business living inside it.
+#   secrets/*cert*, secrets/*key* — grobase-certs.tar.gz carries the local CA's PRIVATE
+#                key (whoever holds it can mint a certificate every machine trusting that
+#                CA accepts) and mongo-rs-keyfile.tar.gz the replica-set keyfile. A
+#                teammate mints their own CA with `make certs`; no restore reads either.
 #   *.local    — 42ctl already forces these private, flag or not; listed so the
 #                intent is readable here rather than implied by the CLI.
+# Not secrets/* as a whole: the engine dumps there are the team's restore seeds, and 42ctl
+# refuses a private file above its 4 MiB chunk ceiling before anything uploads ("A private
+# file is sealed whole", 42ctl 0.1.15 `env push --help`), so sealing all of secrets/ left
+# no way to push minio.tar.gz (7.4 MB) or inception-wordpress.tar.gz (29.5 MB).
 # Ponytail: these are --private, i.e. sealed to the pusher, NOT excluded. The bytes
-# still travel. Nothing in the current CLI can exclude a path the scanner finds.
-ALWAYS_PRIVATE="secrets/* *.local"
+# still travel. Nothing in the current CLI can exclude a path the scanner finds. The
+# match is by NAME: a credential under secrets/ named neither *.env nor *cert*/*key* is
+# shared, and a dump whose name contains "key" is sealed (and refused above 4 MiB).
+ALWAYS_PRIVATE="secrets/*.env secrets/*cert* secrets/*key* *.local"
 
 [ "$#" -ge 1 ] || {
   printf 'usage: ctl-env.sh push|pull [flags]\n' >&2
@@ -134,12 +144,28 @@ read_passphrase() {
   export FT_PASSPHRASE
 }
 
+# require_session: a team transfer needs a live session for every org lookup. 42ctl keeps a
+# session that the server has already expired while `auth status` still reads "logged in"
+# (it checks the token files; 2026-10-12: status "logged in", `auth me` HTTP 401), and the
+# push then dies on a bare "HTTP 401" after the object-store lookup has blamed the vault for
+# a missing infra/S3_KEY. Asking the server first names the real cause.
+require_session() {
+  [ -n "$ORG" ] && [ -n "$ENVNAME" ] || return 0
+  _err=$(docker run --rm --user "${CTL_USER:-$(id -u):$(id -g)}" \
+    -e FT_CONFIG=/cfg/config.json -e FT_KEYSTORE=/cfg/keystore.v42 \
+    -v "$CTL_CFG_DIR:/cfg" "$CTL_IMAGE" auth me 2>&1 >/dev/null) && return 0
+  printf '[vault42] ✗ no live 42ctl session (%s) — sign in again, then re-run:\n' "$_err" >&2
+  printf '[vault42]   42ctl auth login --password --email <you>\n' >&2
+  exit 1
+}
+
 ensure_profile
 [ -f "$CTL_CFG_DIR/keystore.v42" ] || {
   printf 'no keystore at %s — run `make ctl-remote ARGS="keys recover --email <you>"` first\n' "$CTL_CFG_DIR/keystore.v42" >&2
   exit 1
 }
 read_passphrase
+require_session
 
 # Preview the *.env*/*.secrets tree about to be pushed, so the scope is visible up
 # front (42ctl prints nothing per-file during the encrypt+upload; the vault filters
@@ -269,9 +295,11 @@ if [ -n "$ORG" ] && [ -n "$ENVNAME" ]; then
     printf '[vault42] sealed to you alone: vendor/ (other apps credentials), %s\n' \
       "$ALWAYS_PRIVATE" >&2
     set -- "$@" --private "$VENDOR_PRIVATE"
+    set -f
     for _p in $ALWAYS_PRIVATE; do
       set -- "$@" --private "$_p"
     done
+    set +f
   fi
 elif [ -n "$_prune" ]; then
   printf '[vault42] mode: PERSONAL project %s — sealed to you alone\n' "$PROJECT" >&2
