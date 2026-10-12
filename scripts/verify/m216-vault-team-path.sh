@@ -10,8 +10,12 @@
 #                                                                              #
 #   TEAM      ctl-env.sh resolves org + environment by default (team path);     #
 #             only VAULT_ENV_PERSONAL=1 falls back to sealed-to-me-alone.       #
-#   SCOPE     a team push seals vendor/ to the pusher — other apps              #
-#             credentials are not grobase team material.                       #
+#   SCOPE     a team push seals vendor/, the admin credentials              #
+#             (secrets/*.env) and the CA key + mongo keyfile (secrets/*cert*,   #
+#             secrets/*key*) to the pusher, and leaves the engine dumps under   #
+#             secrets/ shared: 42ctl refuses a private file above 4 MiB.        #
+#   SESSION   a team transfer asks the server for the session first (`auth     #
+#             me`): `auth status` reads "logged in" on an expired session.      #
 #   HOSTS     no profile seeds a host we do not own. vault42.fly.dev,           #
 #             grobase-nano.fly.dev and grobase-stack.fly.dev are dead, and the  #
 #             first two are other people apps: a fresh machine seeded with      #
@@ -86,8 +90,23 @@ team_arm() {
   awk '/^if \[ "\$\{VAULT_ENV_PERSONAL:-0\}" = 1 \]; then/,/^fi$/' "${CTL}" |
     grep -q 'ORG=""' ||
     fail "VAULT_ENV_PERSONAL=1 does not clear the org (personal path unreachable)"
+  grep -qx 'require_session' "${CTL}" && grep -qF '"$CTL_IMAGE" auth me' "${CTL}" ||
+    fail "ctl-env.sh does not ask the server for the session before a team transfer"
   [ "${arm_rc}" -eq 0 ] && ok "team path default: org + environment resolved, VAULT_ENV_PERSONAL=1 opts out"
 }
+
+# ere PATTERN: PATTERN with its . and * escaped, to match literally in an ERE.
+ere() {
+  local x="${1//./\\.}"
+  printf '%s' "${x//\*/\\*}"
+}
+
+# seals FILE PATTERN: FILE's ALWAYS_PRIVATE line lists PATTERN as a whole word.
+seals() { grep -qE "^ALWAYS_PRIVATE=\"([^\"]* )?$(ere "$2")[ \"]" "$1"; }
+
+# SEALED: what a team push must keep to the pusher — the admin credentials, the local CA's
+# private key (grobase-certs.tar.gz) and the mongo replica-set keyfile.
+SEALED=('secrets/*.env' 'secrets/*cert*' 'secrets/*key*')
 
 scope_arm() {
   step "SCOPE — a team push does not share other apps credentials"
@@ -108,11 +127,18 @@ scope_arm() {
   # once already: a push that sealed only vendor/ shipped secrets/vault42-admin.env
   # to the shared environment.
   grep -q 'ALWAYS_PRIVATE=' "${CTL}" || fail "ctl-env.sh defines no ALWAYS_PRIVATE set"
-  grep -qE '^ALWAYS_PRIVATE="[^"]*secrets/\*' "${CTL}" ||
-    fail "ALWAYS_PRIVATE does not cover secrets/* (admin credentials would be team-readable)"
+  local p
+  for p in "${SEALED[@]}"; do
+    seals "${CTL}" "${p}" || fail "ALWAYS_PRIVATE does not cover ${p} (it would be team-readable)"
+  done
+  # The engine dumps under secrets/ are the team's restore seeds, and 42ctl refuses a private
+  # file above its 4 MiB chunk ceiling before anything uploads (42ctl 0.1.15 `env push --help`):
+  # sealing all of secrets/ left minio.tar.gz (7.4 MB) with no way into the vault.
+  seals "${CTL}" 'secrets/*' &&
+    fail "ALWAYS_PRIVATE seals all of secrets/ (the engine dumps above 4 MiB can no longer be pushed)"
   awk '/if \[ "\$verb" = push \]; then/,/fi/' "${CTL}" | grep -q 'ALWAYS_PRIVATE' ||
     fail "ALWAYS_PRIVATE is never passed on a push"
-  [ "${arm_rc}" -eq 0 ] && ok "vendor/ and secrets/* sealed to the pusher on a team push, limitation documented"
+  [ "${arm_rc}" -eq 0 ] && ok "vendor/, ${SEALED[*]} sealed to the pusher, the dumps stay shared, limitation documented"
 }
 
 hosts_arm() {
@@ -168,10 +194,23 @@ mutants_arm() {
     fail "mutant survived: a blank default org is not caught" ||
     ok "refused: the org default emptied (every push silently personal)"
 
-  sed 's#^ALWAYS_PRIVATE="secrets/\* \*\.local"#ALWAYS_PRIVATE="*.local"#' "${CTL}" >"${ctl}"
-  grep -qE '^ALWAYS_PRIVATE="[^"]*secrets/\*' "${ctl}" &&
-    fail "mutant survived: secrets/* dropped from ALWAYS_PRIVATE is not caught" ||
-    ok "refused: secrets/* dropped from ALWAYS_PRIVATE (admin creds would be shared)"
+  local p
+  for p in "${SEALED[@]}"; do
+    sed -E "/^ALWAYS_PRIVATE=/s#$(ere "${p}") ##" "${CTL}" >"${ctl}"
+    seals "${ctl}" "${p}" &&
+      fail "mutant survived: ${p} dropped from ALWAYS_PRIVATE is not caught" ||
+      ok "refused: ${p} dropped from ALWAYS_PRIVATE (it would be shared)"
+  done
+
+  sed 's#^ALWAYS_PRIVATE="#ALWAYS_PRIVATE="secrets/* #' "${CTL}" >"${ctl}"
+  seals "${ctl}" 'secrets/*' &&
+    ok "refused: all of secrets/ sealed again (the dumps above 4 MiB could not be pushed)" ||
+    fail "mutant survived: sealing all of secrets/ is not caught"
+
+  sed '/^require_session$/d' "${CTL}" >"${ctl}"
+  grep -qx 'require_session' "${ctl}" &&
+    fail "mutant survived: the session check dropped is not caught" ||
+    ok "refused: the session check dropped (an expired session fails on a bare HTTP 401)"
 
   sed 's#--private "\$VENDOR_PRIVATE"##' "${CTL}" >"${ctl}"
   grep -qE -- '--private "\$VENDOR_PRIVATE"' "${ctl}" &&
