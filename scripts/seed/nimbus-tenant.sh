@@ -62,7 +62,10 @@ TC_URL="http://127.0.0.1:${tc_port}"
 SERVICE_TOKEN="$(_lt_env mini-baas-tenant-control INTERNAL_SERVICE_TOKEN)"
 ANON_KEY="$(_lt_env mini-baas-kong KONG_PUBLIC_API_KEY)"
 SERVICE_KEY="$(_lt_env mini-baas-kong KONG_SERVICE_API_KEY)"
-GOTRUE_SERVICE_ROLE="$(_lt_env mini-baas-gotrue SERVICE_ROLE_KEY)"
+# Caveat: GoTrue does not always export SERVICE_ROLE_KEY; a miss makes _lt_env
+# return non-zero, which set -e would kill silently, so the miss is tolerated
+# here and the Kong service key below takes over.
+GOTRUE_SERVICE_ROLE="$(_lt_env mini-baas-gotrue SERVICE_ROLE_KEY || true)"
 [[ -n "${GOTRUE_SERVICE_ROLE}" ]] || GOTRUE_SERVICE_ROLE="${SERVICE_KEY}"
 [[ -n "${SERVICE_TOKEN}" && -n "${ANON_KEY}" && -n "${SERVICE_KEY}" ]] || fail "stack secrets not found"
 
@@ -334,7 +337,16 @@ docker run --rm --network "${STACK_NET}" \
   mongosh --quiet \
   "mongodb://$(urlenc "${MONGO_USER}"):$(urlenc "${MONGO_PASS}")@mongo:27017/${NIMBUS_DB}?authSource=admin" \
   /seed.js >/dev/null || fail "mongo business load failed"
-cyan "business seeded — $(python3 -c 'import json;c=json.load(open("'"${OUT_DIR}"'/counts.json"));print("pg",c["pg"],"mongo",c["mongo"])')"
+# Caveat: the Mongo adapter has no F2 owner-scope bypass (filter.rs stamps the
+# caller's owner_id on every read), so the admin JWT sees these collections only
+# when it owns them. The JWT principal is `user:<sub>` (owner_principal + the
+# api-key middleware), not the bare sub. Unlike Postgres, which the bypass covers,
+# a new Mongo collection needs this line too.
+docker run --rm --network "${STACK_NET}" "${MONGO_IMAGE}" mongosh --quiet \
+  "mongodb://$(urlenc "${MONGO_USER}"):$(urlenc "${MONGO_PASS}")@mongo:27017/${NIMBUS_DB}?authSource=admin" \
+  --eval "for (const c of ['messages','activity','content']) db[c].updateMany({owner_id: {\$regex: '^api-key:'}}, {\$set: {owner_id: 'user:${ADMIN_SUB}'}});" \
+  >/dev/null || fail "mongo re-own to admin failed"
+cyan "business seeded —$(python3 -c 'import json;c=json.load(open("'"${OUT_DIR}"'/counts.json"));print("pg",c["pg"],"mongo",c["mongo"])')"
 
 # ── 8) emit frontend config + state ──────────────────────────────────────────
 cyan "writing frontend config"
