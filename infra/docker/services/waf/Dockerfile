@@ -117,7 +117,16 @@ ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
   MODSEC_AUDIT_ENGINE=RelevantOnly \
   MODSEC_AUDIT_LOG=/dev/stdout \
   MODSEC_AUDIT_LOG_FORMAT=JSON \
-  MODSEC_AUDIT_LOG_PARTS=ABIJDEFHZ \
+  # The audit log goes to stdout, so promtail ships it to Loki. Parts B (request
+  # headers), I (request body), J and E put every refused request's apikey,
+  # Authorization and cookies there, and a failed login's password: the baas VM's
+  # log held the service-role key on 28 lines in 40 minutes (2026-10-12). Kept: A
+  # (who, when), F (response headers), H (the rules that matched, and why), Z.
+  # Caveat: H quotes up to a few hundred bytes of the matched data, so a secret
+  # that itself trips a rule is still logged in part. m227 proves no header reaches it.
+  # conf/modsecurity.conf's SecAuditLogParts is not this: the image's
+  # 90-copy-modsecurity-config.sh overwrites modsecurity-override.conf at start.
+  MODSEC_AUDIT_LOG_PARTS=AFHZ \
   MODSEC_AUDIT_LOG_RELEVANT_STATUS='^(?:5|4(?!04))' \
   MODSEC_AUDIT_LOG_TYPE=Serial \
   MODSEC_AUDIT_STORAGE_DIR=/var/log/modsecurity/audit/ \
