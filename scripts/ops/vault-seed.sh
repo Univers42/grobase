@@ -150,6 +150,17 @@ seed_mongo() {
 
 # minio: mirror OUT to a staging dir, then tar it. restore_minio untars and mirrors back,
 # so the tar's top-level entries must be bucket directories — mirror produces exactly that.
+# The mirror lands in the mc container's own layer (/home/mc is its uid's) and leaves through
+# `docker cp`, never a bind mount: a -v path names a directory on the DAEMON's host, so under
+# DOCKER_HOST=ssh://<data center> the mirror filled a directory over there and this side
+# tarred an empty stage (2026-10-12: "minio: SKIPPED (archive came back empty)").
+# `mc mirror` refuses a target that does not exist and the image (scratch) has no mkdir, so
+# the empty stage goes in first: docker cp gives /home/mc/out the stage's owner and 0777
+# mode, which mc's uid 1001 can write.
+# The container has a fixed name because its env holds the MinIO root credentials: an
+# interrupted run leaves it behind, and the next run removes it before creating its own.
+# Only a mirror AND a copy-out that both succeeded are tarred — a partial copy-out would
+# otherwise replace the last good minio.tar.gz.
 seed_minio() {
   have_container mini-baas-minio || {
     missed minio "container not running"
@@ -158,13 +169,24 @@ seed_minio() {
   stage="$(mktemp -d)"
   MC_HOST_seed="http://$(docker exec mini-baas-minio printenv MINIO_ROOT_USER):$(docker exec mini-baas-minio printenv MINIO_ROOT_PASSWORD)@mini-baas-minio:9000"
   export MC_HOST_seed
-  # --user: the mc image runs as its own non-root user, which cannot write into a
-  # host-owned staging dir. Without this the mirror reports "8.64 MiB transferred" and
-  # leaves the host directory EMPTY, and anything it did write would be owned by that
-  # uid and undeletable from here. Measured.
-  docker run --rm --user "$(id -u):$(id -g)" --network "$NET" -e MC_HOST_seed -e HOME=/tmp \
-    --tmpfs /tmp:rw,size=16m -v "$stage":/out "$MC_IMAGE" \
-    mirror --quiet seed /out >/dev/null 2>&1 || true
+  ctr=vault-seed-mc
+  docker rm -f "$ctr" >/dev/null 2>&1 || true
+  chmod 0777 "$stage"
+  mirrored=0
+  if docker create --name "$ctr" --network "$NET" -e MC_HOST_seed -e HOME=/tmp \
+    --tmpfs /tmp:rw,size=16m "$MC_IMAGE" mirror --quiet seed /home/mc/out >/dev/null 2>&1 &&
+    docker cp "$stage/." "$ctr:/home/mc/out" >/dev/null 2>&1 && chmod 0700 "$stage" &&
+    docker start -a "$ctr" >/dev/null 2>&1 &&
+    docker cp "$ctr:/home/mc/out/." "$stage" >/dev/null 2>&1; then
+    mirrored=1
+  fi
+  docker rm -f "$ctr" >/dev/null 2>&1 || true
+  chmod 0700 "$stage"
+  if [ "$mirrored" -ne 1 ]; then
+    rm -rf "$stage"
+    missed minio "mirror or copy-out failed"
+    return 0
+  fi
   t="$SEED_DIR/.minio.tar.gz.tmp"
   tar -czf "$t" -C "$stage" . 2>/dev/null || true
   rm -rf "$stage"
