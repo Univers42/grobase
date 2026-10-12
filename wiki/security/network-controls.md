@@ -113,6 +113,16 @@ Two complementary controls:
    (`ip-restriction` plugin on the admin/internal services). Public data/auth routes
    are reachable; control-plane routes are not exposed to the WAN at all.
 
+   The allow list sees the WAF's peer, so an edge that proxies from loopback
+   defeats it: Tailscale Funnel serves the WAF as `https+insecure://127.0.0.1:8443`,
+   and before WAF rule 10130 every internet request through it counted as local
+   (the baas VM, 2026-10-12). Rule 10130 (`waf/conf/exclusions.conf`) refuses
+   `/admin/v1`, `/meta/v1` and `/realtime/v1/publish` to any request carrying the
+   `Tailscale-Funnel-Request` header that tailscaled adds. `m227` reads every
+   ip-restricted path out of `kong.yml` and proves each one refused through Funnel
+   and served without the header. Any other edge that reaches the WAF from an
+   allowed address (cloudflared, an SSH `-R`) needs the same treatment.
+
 2. **Per-tenant IP allowlist (control-plane, opt-in).** A tenant restricts which
    source IPs/CIDRs may call *its* API. The decision is an edge auth-request check:
    Kong calls `POST /v1/ipguard/check {tenant_id, ip}` before forwarding; an
