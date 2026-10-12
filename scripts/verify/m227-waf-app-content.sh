@@ -13,6 +13,8 @@
 #  network whose `kong` answers 200, then:                                     #
 #    CONTENT   POST/PATCH to osionos_pages / osionos_chat_messages carrying JS, #
 #              SQL, XSS, shell, PHP, ../, {{ }}, a metadata URL → 200          #
+#              and a profile key on osionos_bridge_identities (930120 read     #
+#              `json.profile.headline` as the file .profile) → 200             #
 #    CONTROLS  the same path read with SQLi in its query string, written with  #
 #              <script> in a header or a method `PO`; the same body to another #
 #              table, to an rpc, and through osionos_pages%3F/../secrets       #
@@ -110,6 +112,8 @@ probe() {
       ["content-patch-code", "PATCH", "/rest/v1/osionos_pages?id=eq.6f1c0f5e-0000-4000-8000-000000000001", code],
       ["content-post-prose", "POST", "/rest/v1/osionos_pages", prose],
       ["content-chat-code", "POST", "/rest/v1/osionos_chat_messages", { body: "console.log(x)" }],
+      ["content-patch-profile", "PATCH", "/rest/v1/osionos_bridge_identities?user_id=eq.6f1c0f5e-0000-4000-8000-000000000002", { profile: { headline: "Founder" } }],
+      ["control-other-table-profile", "PATCH", "/rest/v1/secrets?id=eq.1", { profile: { headline: "Founder" } }],
       ["control-read-sqli", "GET", "/rest/v1/osionos_pages?title=eq.1%27%20or%20%271%27=%271", undefined],
       ["control-header-xss", "POST", "/rest/v1/osionos_pages", null],
       ["control-other-table", "POST", "/rest/v1/secrets", code],
@@ -166,9 +170,12 @@ if cmp -s "${EXCL}" "${WORK}/mutant.conf" || grep -q 'id:10110' "${WORK}/mutant.
 elif ! start_waf "${TAG}-mut" "${WORK}/mutant.conf"; then
   bad "mutant: the WAF did not start without rule 10110"
 else
-  got="$(probe "${TAG}-mut" | awk '$2 == "content-post-code" { print $1 }')"
-  [ "${got}" = 403 ] && ok "mutant refuses the code block (403) — the probe sees the false positive" ||
-    bad "mutant answered '${got}' to the code block, not 403 — the probe is blind"
+  mutant="$(probe "${TAG}-mut")"
+  for label in content-post-code content-patch-profile; do
+    got="$(awk -v l="${label}" '$2 == l { print $1 }' <<<"${mutant}")"
+    [ "${got}" = 403 ] && ok "mutant refuses ${label} (403) — the probe sees the false positive" ||
+      bad "mutant answered '${got}' to ${label}, not 403 — the probe is blind"
+  done
 fi
 
 [ "${FAILED}" -eq 0 ] || {
