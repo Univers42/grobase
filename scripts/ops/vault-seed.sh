@@ -41,6 +41,7 @@ set -eu
 SEED_DIR="${SEED_DIR:-./secrets}"
 NET="${NET:-mini-baas_mini-baas}"
 . "$(CDPATH='' cd -- "$(dirname -- "$0")/../lib" && pwd)/lib-netseg.sh"
+. "$(CDPATH='' cd -- "$(dirname -- "$0")/../lib" && pwd)/lib-packets.sh"
 MONGO_IMAGE="${MONGO_IMAGE:-mongo:7}"
 MC_IMAGE="${MC_IMAGE:-ghcr.io/univers42/grobase-mc:latest}"
 AWS_IMAGE="${AWS_IMAGE:-amazon/aws-cli}"
@@ -248,12 +249,20 @@ seed_dynamodb() {
 write_manifest() {
   cap=$(printf '%s' "$CAPTURED" | tr ' ' '\n' | sed '/^$/d' | sed 's/.*/"&"/' | paste -sd, -)
   skp=$(printf '%s' "$SKIPPED" | tr ' ' '\n' | sed '/^$/d' | sed 's/.*/"&"/' | paste -sd, -)
+  # The packets are built BEFORE the file is opened: a manifest that names a dump nobody
+  # wrote is the half-capture this script exists to make impossible, so fail instead.
+  set --
+  for eng in $CAPTURED; do set -- "$@" "$eng"; done
+  packets=$(packets_json "$SEED_DIR" "$@") ||
+    die "cannot describe the captured packets in $SEED_DIR: a captured dump is missing, or an engine has no artifact name"
   cat >"$SEED_DIR/MANIFEST.json" <<EOF
 {
   "created_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "source": "vault-seed.sh",
   "captured": [${cap:-}],
-  "skipped": [${skp:-}]
+  "skipped": [${skp:-}],
+  "manifest_version": 2,
+  "packets": ${packets:-[]}
 }
 EOF
   note "manifest written"

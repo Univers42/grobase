@@ -39,20 +39,30 @@ PUBLIC_ADDRESSES=${GROBASE_PUBLIC_ADDRESSES-$(env_address)}
 
 # alt_names prints the SAN lines: the fixed localhost set, then one DNS or IP entry
 # per GROBASE_PUBLIC_ADDRESSES item (validated by public-origins.sh, exit 2 on junk).
+# IPv6 SANs go last: socat 1.8 (groot's link relay) aborts verification of an IPv4
+# peer at the first IPv6 SAN, so an IPv4 address listed after ::1 never matched.
 alt_names() {
   sh "$REPO_DIR/scripts/ops/public-origins.sh" "$PUBLIC_ADDRESSES" >/dev/null || return 2
   printf 'DNS.1 = localhost\nDNS.2 = host.docker.internal\nDNS.3 = local-https-proxy\n'
-  printf 'DNS.4 = track-binocle.test\nDNS.5 = *.track-binocle.test\nIP.1 = 127.0.0.1\nIP.2 = ::1\n'
-  dns=6 ip=3
+  printf 'DNS.4 = track-binocle.test\nDNS.5 = *.track-binocle.test\nIP.1 = 127.0.0.1\n'
+  dns=6 ip=2 v6=::1
   set -f
   for a in $(printf '%s' "$PUBLIC_ADDRESSES" | tr ',' ' '); do
     case "$a" in
-    *:*) printf 'IP.%s = %s\n' "$ip" "$a" && ip=$((ip + 1)) ;;
+    *:*) v6="$v6 $a" ;;
     *[!0-9.]*) printf 'DNS.%s = %s\n' "$dns" "$a" && dns=$((dns + 1)) ;;
     *) printf 'IP.%s = %s\n' "$ip" "$a" && ip=$((ip + 1)) ;;
     esac
   done
+  for a in $v6; do printf 'IP.%s = %s\n' "$ip" "$a" && ip=$((ip + 1)); done
   set +f
+}
+
+# v6_before_v4 succeeds when the SAN text $1 lists an IPv6 address before an IPv4 one:
+# a cert minted before the reorder above, which must be re-issued.
+v6_before_v4() {
+  printf '%s\n' "$1" | tr ',' '\n' | sed -n 's/^ *IP Address://p' |
+    awk '/:/ { v6 = 1 } !/:/ && v6 { bad = 1 } END { exit !bad }'
 }
 
 # The waf's nginx runs as uid/gid 101 and reads the key through a compose FILE
@@ -134,6 +144,7 @@ if [ "$ca_regenerated" -eq 0 ] && [ -s "$SERVER_KEY" ] && [ -s "$SERVER_CERT" ];
     esac
   fi
   [ "$(cat "$ADDRESSES_FILE" 2>/dev/null)" = "$PUBLIC_ADDRESSES" ] || server_needs_regen=1
+  ! v6_before_v4 "$san" || server_needs_regen=1
 fi
 
 if [ "$server_needs_regen" -eq 1 ]; then
