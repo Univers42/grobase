@@ -32,7 +32,12 @@ services:
       - path: .env.data-plane-router-rust
         required: false
     environment:
-      DATA_PLANE_ADAPTER_REGISTRY_TOKEN:
+      # The adapter-registry credential provider is registered only when this token is
+      # set. A bare pass-through read a name no .env defines, so every mount sent
+      # without an inline DSN (POST /admin/v1/migrate by mount id) failed with 502
+      # credential_unavailable (2026-10-12, the baas VM). The registry checks the same
+      # ADAPTER_REGISTRY_SERVICE_TOKEN that tenant-control and storage are given.
+      DATA_PLANE_ADAPTER_REGISTRY_TOKEN: ${DATA_PLANE_ADAPTER_REGISTRY_TOKEN:-${ADAPTER_REGISTRY_SERVICE_TOKEN:-}}
       DATA_PLANE_APPLY_MASKS:
       DATA_PLANE_AUDIT_READS:
       DATA_PLANE_CORS_ALLOW_ORIGINS:

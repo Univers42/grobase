@@ -38,6 +38,7 @@ plugins:
         - __KONG_CORS_ORIGIN_PLAYGROUND__
         - __KONG_CORS_ORIGIN_STUDIO__
         - __KONG_CORS_ORIGIN_FRONTEND__
+        - https://dlesieur42-1.tail10f2ea.ts.net
         # Local dev servers (vite :5173/:5180, the osionos second-brain on :3001):
         # KONG_CORS_ORIGIN_DEV_LIST (gateway.yml default), one origin per comma.
         # Empty in prod and on fly, so no localhost origin gets credentialed CORS.
@@ -291,6 +292,29 @@ services:
         paths: [/realtime/v1/ws]
         strip_path: true
         protocols: [http, https]
+
+  # Realtime publish for a backend that reaches grobase only through the edge (a groot
+  # linked in direct mode): /realtime/v1/publish[/batch] -> /v1/publish[/batch]. Its own
+  # service because the realtime one ends in /ws. The handler has no auth and no topic
+  # scoping (any topic, collab:* and xapp:* included), so this is service_role only: that
+  # key is already root-equivalent. Covered by m206 like every ip-restricted route.
+  - name: realtime-publish
+    url: http://realtime:4000/v1/publish
+    routes:
+      - name: realtime-publish
+        paths: [/realtime/v1/publish]
+        strip_path: true
+        plugins:
+          - name: key-auth
+            config: { key_names: [apikey], hide_credentials: true }
+          - name: ip-restriction
+            config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
+          - name: request-size-limiting
+            config: { allowed_payload_size: 1024, size_unit: kilobytes }
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 6000, hour: 200000 }
 
   - name: storage
     url: http://minio:9000

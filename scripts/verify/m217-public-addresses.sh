@@ -16,7 +16,8 @@
 #           and mount the helper into both.                                    #
 #  GOTRUE   gotrue's rendered command, run under busybox with `auth` stubbed,  #
 #           appends the derived entries; empty leaves the allow list as is.   #
-#  CERT     generate-localhost-cert.sh adds one IP/DNS SAN per address, keeps #
+#  CERT     generate-localhost-cert.sh adds one IP/DNS SAN per address, IPv6  #
+#           last (an older cert with ::1 before an IPv4 is re-issued), keeps  #
 #           the default set when empty, refuses a bad one and keeps the cert. #
 #  EXPOSE   expose.sh: misuse exits 2, stale private IPs dropped, a non-CA    #
 #           refused by trust; the provisioner honours GROBASE_FRONTEND_URL.   #
@@ -187,17 +188,30 @@ sans() {
   openssl x509 -in "$1/localhost.pem" -noout -ext subjectAltName | tail -n 1
 }
 
+# old_order_cert re-signs the cert in $1 for 192.168.1.20 with ::1 listed first, as the
+# script minted it before IPv6 SANs went last.
+old_order_cert() {
+  openssl req -new -newkey rsa:2048 -nodes -keyout "$1/localhost-key.pem" -subj /CN=localhost \
+    -addext "subjectAltName=DNS:localhost,DNS:host.docker.internal,DNS:local-https-proxy,DNS:track-binocle.test,DNS:*.track-binocle.test,IP:127.0.0.1,IP:::1,IP:192.168.1.20" 2>/dev/null |
+    openssl x509 -req -days 90 -copy_extensions copy -CA "$1/track-binocle-local-ca.pem" \
+      -CAkey "$1/track-binocle-local-ca-key.pem" -out "$1/localhost.pem" 2>/dev/null
+}
+
 # cert_arm checks SANs follow the addresses and a bad one changes nothing.
 cert_arm() {
-  local base before
+  local base before v6=', IP Address:0:0:0:0:0:0:0:1'
   step "CERT — generate-localhost-cert.sh"
   gen_cert "${WORK}/c0" '' || fail "cert generation without addresses failed"
   base="$(sans "${WORK}/c0")"
   case "${base}" in *192.168*) fail "a public SAN appeared with no addresses" ;; esac
   gen_cert "${WORK}/c0" '192.168.1.20,box.ts.net,fd7a::1' || fail "cert generation with addresses failed"
   expect_eq "SANs" "$(sans "${WORK}/c0")" \
-    "${base}, IP Address:192.168.1.20, DNS:box.ts.net, IP Address:FD7A:0:0:0:0:0:0:1"
-  ok "each address becomes one IP or DNS SAN after the default set; changing the list re-issues"
+    "${base%"${v6}"}, IP Address:192.168.1.20, DNS:box.ts.net${v6}, IP Address:FD7A:0:0:0:0:0:0:1"
+  ok "each address becomes one IP or DNS SAN after the default set, IPv6 last; changing the list re-issues"
+  gen_cert "${WORK}/c0" '192.168.1.20' && old_order_cert "${WORK}/c0" || fail "could not mint an old-order cert"
+  gen_cert "${WORK}/c0" '192.168.1.20' || fail "cert generation over an old-order cert failed"
+  expect_eq "re-issued SANs" "$(sans "${WORK}/c0")" "${base%"${v6}"}, IP Address:192.168.1.20${v6}"
+  ok "a cert with ::1 before an IPv4 SAN is re-issued with the same addresses (socat 1.8 cannot verify it)"
   before="$(cat "${WORK}/c0/localhost.pem")"
   gen_cert "${WORK}/c0" '*.evil' && fail "a '*.evil' address was accepted"
   [ "$(cat "${WORK}/c0/localhost.pem")" = "${before}" ] || fail "a refused address changed the cert"

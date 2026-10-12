@@ -67,6 +67,8 @@ paths = [
   '''^scripts/verify/m68-key-rotate\.sh$''',
   '''^src/control-plane/internal/config/environment_test\.go$''',
   '''^src/control-plane/internal/config/vaultcreds_test\.go$''',
+  '''^src/control-plane/internal/mountrebind/dsn_test\.go$''',
+  '''^src/control-plane/internal/mountrebind/dump_test\.go$''',
   '''^src/control-plane/internal/tenants/validate_fuzz_test\.go$''',
   '''^src/control-plane/internal/tenants/verifycache_test\.go$''',
   # Kong admin-API docs: ALL_CAPS header placeholders, not key material. File-scoped

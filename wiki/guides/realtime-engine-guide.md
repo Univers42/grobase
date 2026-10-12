@@ -87,7 +87,8 @@ realtime:
 
 **Kong routes**:
 
-- `http://localhost:8000/realtime/v1/*` → REST API (health, publish)
+- `http://localhost:8000/realtime/v1/*` → the upstream's `/ws` (so `…/realtime/v1/health` is a 404)
+- `http://localhost:8000/realtime/v1/publish[/batch]` → publish, **service_role apikey only** (no topic scoping upstream)
 - `ws://localhost:8000/realtime/ws` → WebSocket endpoint
 
 ---
@@ -101,10 +102,10 @@ realtime:
 | `POST` | `/v1/publish/batch` | Publish up to 1000 events in one request        |
 | `GET`  | `/ws`               | WebSocket upgrade endpoint                      |
 
-Through **Kong** (add your API key / JWT):
+Through **Kong**:
 
-- `GET http://localhost:8000/realtime/v1/health`
-- `POST http://localhost:8000/realtime/v1/publish`
+- Not `GET …/realtime/v1/health`: that path maps to the upstream's `/ws/health` and answers 404 (measured 2026-10-11); health is on the internal port only
+- `POST http://localhost:8000/realtime/v1/publish` (the service_role apikey: the handler publishes to any topic, so Kong admits `baas-admin` only; anon 403)
 - `WS ws://localhost:8000/realtime/ws`
 
 ---
@@ -358,8 +359,7 @@ Best for business events, notifications, data mutations:
 # Single event
 curl -X POST http://localhost:8000/realtime/v1/publish \
   -H "Content-Type: application/json" \
-  -H "apikey: <API_KEY>" \
-  -H "Authorization: Bearer <JWT>" \
+  -H "apikey: <SERVICE_ROLE_KEY>" \
   -d '{
     "topic": "notifications/user-123",
     "event_type": "order.shipped",
@@ -374,8 +374,7 @@ curl -X POST http://localhost:8000/realtime/v1/publish \
 # Batch (up to 1000 events)
 curl -X POST http://localhost:8000/realtime/v1/publish/batch \
   -H "Content-Type: application/json" \
-  -H "apikey: <API_KEY>" \
-  -H "Authorization: Bearer <JWT>" \
+  -H "apikey: <SERVICE_ROLE_KEY>" \
   -d '{
     "events": [
       { "topic": "alerts/sys", "event_type": "cpu.high", "payload": { "pct": 95 } },
