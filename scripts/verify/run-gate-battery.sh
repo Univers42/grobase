@@ -110,7 +110,7 @@ ENTERPRISE_BATTERY=(
   m172-pubkeys             # member pubkey registry + grant-fulfilment seam (vault42 crypto bridge)
   # m194–m199 (security hardening) are NOT here: they need an assembled .env, certs
   # and images built from the commit, which this job does not have. CI runs them in
-  # their own jobs — m194 with shellcheck, m195/m196/m198/m199/m206/m207 in security-gates, m197
+  # their own jobs — m194 with shellcheck, m195/m196/m198/m199/m206/m207/m227 in security-gates, m197
   # in integration-tests against the live stack.
   # m144 (trust-page parity) and m145 (cost-model artifact lockstep) are intentionally
   # NOT in the CI battery: they validate the marketing site (site/ — gitignored in this
@@ -124,11 +124,14 @@ ENTERPRISE_BATTERY=(
 # that catch the highest-blast-radius regressions cheaply: billing/quota truth
 # and the data-plane spend/suspend enforcement that protects the cloud edition.
 FAST_SUBSET=(
-  m101-quota-realtenant  # quota-truth — billing correctness; a silent break loses real money
-  m120                   # spend/suspend enforcement on the request path
-  m214-env-schema        # config/secret separation: no SECRET boots from a published default
-  m215-config-validation # every plane refuses to start on an incomplete environment
-  m216-vault-team-path   # no seeded profile points at a dead/foreign vault42 authority
+  m101-quota-realtenant           # quota-truth — billing correctness; a silent break loses real money
+  m120                            # spend/suspend enforcement on the request path
+  m214-env-schema                 # config/secret separation: no SECRET boots from a published default
+  m215-config-validation          # every plane refuses to start on an incomplete environment
+  m216-vault-team-path            # no seeded profile points at a dead/foreign vault42 authority
+  m218-vault-restore-fresh-volume # the vault restore lands on a FRESH volume; 42ctl runs on a rootless host
+  m219-remote-access-overlay      # REMOTE_ACCESS publishes realtime/SMTP on the loopback, only when asked
+  m220-stack-health               # make health fails on a dead container, edge, engine login or gateway route
 )
 
 # ── resolve a gate token (m103 | m103-orgs-rbac | m103-orgs-rbac.sh | path) ────

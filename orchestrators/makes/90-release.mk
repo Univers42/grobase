@@ -20,7 +20,7 @@ _require-version:
 quickstart: ## One command to a running stack: .env → up PACKAGE (default essential) → health
 	@[ -f .env ] || $(MAKE) env
 	@$(MAKE) up PACKAGE=$(or $(PACKAGE),essential)
-	@$(MAKE) health
+	@$(MAKE) health HEALTH_WAIT=180
 	@echo ""
 	@echo -e "$(_G)$(_W)✓ Grobase BaaS is up$(_0)"
 	@p="$$(docker port mini-baas-kong 8000/tcp 2>/dev/null | head -1 | sed 's/.*://')"; p="$${p:-8000}"; \

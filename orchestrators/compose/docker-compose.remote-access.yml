@@ -1,0 +1,18 @@
+# docker-compose.remote-access.yml — publish, on the GUEST loopback only, the two planes
+# a remote groot (frontends on another machine, reached over an SSH tunnel) dials by
+# container name and that the base files keep network-internal: realtime's publish API
+# and mailpit's SMTP. Kong 8000, redis 6379, tenant-control 3022 and adapter-registry
+# 3021 already sit on 127.0.0.1. Opt-in: REMOTE_ACCESS=1 (env, or a line in .env.local)
+# adds this file to every compose call (orchestrators/makes/00-config.mk).
+#
+# 127.0.0.1 only: the way in is a LocalForward from the client's ssh session; nothing
+# here is reachable from any network interface (m217 stays true). Measured 2026-10-10:
+# without it a tunnelled groot's bridge publishes realtime events to a dead address and
+# the auth gateway's mail goes nowhere, both silently.
+services:
+  realtime:
+    ports:
+      - "127.0.0.1:${REALTIME_HOST_PORT:-4000}:4000"
+  mailpit:
+    ports:
+      - "127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025"
