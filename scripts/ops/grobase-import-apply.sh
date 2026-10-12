@@ -81,12 +81,19 @@ open_verified() {
   [ -n "$ENGINES" ] || refuse "${ID} carries no packets"
 }
 
+# engine_containers — one container name per packet engine. ENGINES stays a plain word
+# list because it is handed to vault-restore as an environment variable.
+engine_containers() {
+  local e
+  for e in $ENGINES; do printf 'mini-baas-%s\n' "$e"; done
+}
+
 # require_targets — a packet whose engine has no container would be skipped by vault-restore
 # and still be reported applied, so every target (and each migrate one-shot) must exist.
 require_targets() {
   local c
   docker info >/dev/null 2>&1 || refuse "no docker daemon reachable — nothing was changed"
-  for c in $(printf 'mini-baas-%s ' $ENGINES) $MIGRATE_CONTAINERS; do
+  for c in $(engine_containers) $MIGRATE_CONTAINERS; do
     docker inspect "$c" >/dev/null 2>&1 || refuse "container ${c} does not exist on this daemon — nothing was changed"
   done
   [ -x "$PG_COUNTS" ] || [ -f "$PG_COUNTS" ] || refuse "${PG_COUNTS} is missing — the restore could not be proven"
@@ -190,7 +197,7 @@ start_engines() {
   local e others
   for e in $ENGINES; do docker start "mini-baas-${e}" >/dev/null || die "cannot start mini-baas-${e}"; done
   for e in $ENGINES; do wait_healthy "mini-baas-${e}" || die "mini-baas-${e} not healthy after ${HEALTH_TIMEOUT}s"; done
-  others="$(project_running | cut -d' ' -f2 | grep -vxF -f <(printf 'mini-baas-%s\n' $ENGINES) || true)"
+  others="$(project_running | cut -d' ' -f2 | grep -vxF -f <(engine_containers) || true)"
   [ -z "$others" ] || die "started by someone else during apply: ${others//$'\n'/ }"
 }
 
