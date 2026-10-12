@@ -1275,9 +1275,11 @@ jobs:
       - name: WAF upgrade allowlist (m198)
         run: bash scripts/verify/run-gate-battery.sh m198-waf-upgrade-allowlist
 
-      # Writes to osionos_* tables carry code (a page's code block) past CRS; the same
-      # body read back, in a header, to another table, to an rpc or through an encoded
-      # `?` is still refused. A mutant without rule 10110 must refuse the code block.
+      # Writes to osionos_* tables carry code (a page's code block) and POST
+      # /admin/v1/migrate carries SQL past CRS; the same body read back, in a header,
+      # to another table or path, to an rpc or through an encoded `?` is still refused,
+      # and no probe's apikey or Bearer token reaches the audit log (shipped to Loki).
+      # Mutants without rule 10110 / 10120, and with audit parts ABIJDEFHZ, must fail.
       - name: WAF lets app content through, nothing else (m227)
         env:
           M227_NODE_IMAGE: ${{ env.M198_NODE_IMAGE || 'mirror.gcr.io/library/node:20-alpine' }}
