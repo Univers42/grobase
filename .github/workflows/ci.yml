@@ -1279,7 +1279,9 @@ jobs:
       # /admin/v1/migrate carries SQL past CRS; the same body read back, in a header,
       # to another table or path, to an rpc or through an encoded `?` is still refused,
       # and no probe's apikey or Bearer token reaches the audit log (shipped to Loki).
-      # Mutants without rule 10110 / 10120, and with audit parts ABIJDEFHZ, must fail.
+      # Every ip-restricted kong.yml path is refused when Tailscale Funnel marked the
+      # request (rule 10130) and served without the mark.
+      # Mutants without rule 10110 / 10120 / 10130, and with audit parts ABIJDEFHZ, must fail.
       - name: WAF lets app content through, nothing else (m227)
         env:
           M227_NODE_IMAGE: ${{ env.M198_NODE_IMAGE || 'mirror.gcr.io/library/node:20-alpine' }}
