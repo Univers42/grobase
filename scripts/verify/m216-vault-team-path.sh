@@ -11,8 +11,9 @@
 #   TEAM      ctl-env.sh resolves org + environment by default (team path);     #
 #             only VAULT_ENV_PERSONAL=1 falls back to sealed-to-me-alone.       #
 #   SCOPE     a team push seals vendor/, the admin credentials              #
-#             (secrets/*.env) and the CA key + mongo keyfile (secrets/*cert*,   #
-#             secrets/*key*) to the pusher, and leaves the engine dumps under   #
+#             (secrets/*.env), the CA key + mongo keyfile (secrets/*cert*,      #
+#             secrets/*key*) and secrets/ dotfiles to the pusher, unexpanded    #
+#             (set -f), and leaves the engine dumps under                       #
 #             secrets/ shared: 42ctl refuses a private file above 4 MiB.        #
 #   SESSION   a team transfer asks the server for the session first (`auth     #
 #             me`): `auth status` reads "logged in" on an expired session.      #
@@ -104,9 +105,13 @@ ere() {
 # seals FILE PATTERN: FILE's ALWAYS_PRIVATE line lists PATTERN as a whole word.
 seals() { grep -qE "^ALWAYS_PRIVATE=\"([^\"]* )?$(ere "$2")[ \"]" "$1"; }
 
+# unexpanded FILE: FILE's loop over ALWAYS_PRIVATE runs under set -f.
+unexpanded() { grep -B3 'for _p in \$ALWAYS_PRIVATE' "$1" | grep -qx '[[:space:]]*set -f'; }
+
 # SEALED: what a team push must keep to the pusher — the admin credentials, the local CA's
-# private key (grobase-certs.tar.gz) and the mongo replica-set keyfile.
-SEALED=('secrets/*.env' 'secrets/*cert*' 'secrets/*key*')
+# private key (grobase-certs.tar.gz), the mongo replica-set keyfile and any dotfile under
+# secrets/ (secrets/.vault42-admin.env went out team-readable when the shell expanded the set).
+SEALED=('secrets/*.env' 'secrets/*cert*' 'secrets/*key*' 'secrets/.*')
 
 scope_arm() {
   step "SCOPE — a team push does not share other apps credentials"
@@ -138,6 +143,8 @@ scope_arm() {
     fail "ALWAYS_PRIVATE seals all of secrets/ (the engine dumps above 4 MiB can no longer be pushed)"
   awk '/if \[ "\$verb" = push \]; then/,/fi/' "${CTL}" | grep -q 'ALWAYS_PRIVATE' ||
     fail "ALWAYS_PRIVATE is never passed on a push"
+  unexpanded "${CTL}" ||
+    fail "the ALWAYS_PRIVATE loop is not under set -f (the shell would expand the patterns, skipping dotfiles)"
   [ "${arm_rc}" -eq 0 ] && ok "vendor/, ${SEALED[*]} sealed to the pusher, the dumps stay shared, limitation documented"
 }
 
@@ -206,6 +213,11 @@ mutants_arm() {
   seals "${ctl}" 'secrets/*' &&
     ok "refused: all of secrets/ sealed again (the dumps above 4 MiB could not be pushed)" ||
     fail "mutant survived: sealing all of secrets/ is not caught"
+
+  sed '/^[[:space:]]*set -f$/d' "${CTL}" >"${ctl}"
+  unexpanded "${ctl}" &&
+    fail "mutant survived: the set -f around the ALWAYS_PRIVATE loop dropped is not caught" ||
+    ok "refused: set -f dropped (the shell would expand secrets/* and skip its dotfiles)"
 
   sed '/^require_session$/d' "${CTL}" >"${ctl}"
   grep -qx 'require_session' "${ctl}" &&

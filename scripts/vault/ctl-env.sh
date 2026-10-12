@@ -75,6 +75,10 @@ VENDOR_PRIVATE="vendor/*"
 #                key (whoever holds it can mint a certificate every machine trusting that
 #                CA accepts) and mongo-rs-keyfile.tar.gz the replica-set keyfile. A
 #                teammate mints their own CA with `make certs`; no restore reads either.
+#   secrets/.* — any dotfile there. The loop below once expanded secrets/* against the
+#                worktree, which skips dotfiles, and secrets/.vault42-admin.env went out
+#                team-readable (2026-10-12, the data center's /opt/grobase). Listed in case
+#                42ctl's own `*` skips a leading dot too.
 #   *.local    — 42ctl already forces these private, flag or not; listed so the
 #                intent is readable here rather than implied by the CLI.
 # Not secrets/* as a whole: the engine dumps there are the team's restore seeds, and 42ctl
@@ -83,9 +87,10 @@ VENDOR_PRIVATE="vendor/*"
 # no way to push minio.tar.gz (7.4 MB) or inception-wordpress.tar.gz (29.5 MB).
 # Ponytail: these are --private, i.e. sealed to the pusher, NOT excluded. The bytes
 # still travel. Nothing in the current CLI can exclude a path the scanner finds. The
-# match is by NAME: a credential under secrets/ named neither *.env nor *cert*/*key* is
-# shared, and a dump whose name contains "key" is sealed (and refused above 4 MiB).
-ALWAYS_PRIVATE="secrets/*.env secrets/*cert* secrets/*key* *.local"
+# match is by NAME: a credential under secrets/ that is not a dotfile and is named neither
+# *.env nor *cert*/*key* is shared, and a dump whose name contains "key" or starts with a
+# dot is sealed (and refused above 4 MiB).
+ALWAYS_PRIVATE="secrets/*.env secrets/*cert* secrets/*key* secrets/.* *.local"
 
 [ "$#" -ge 1 ] || {
   printf 'usage: ctl-env.sh push|pull [flags]\n' >&2
@@ -295,6 +300,7 @@ if [ -n "$ORG" ] && [ -n "$ENVNAME" ]; then
     printf '[vault42] sealed to you alone: vendor/ (other apps credentials), %s\n' \
       "$ALWAYS_PRIVATE" >&2
     set -- "$@" --private "$VENDOR_PRIVATE"
+    # The patterns must reach 42ctl unexpanded: a shell glob here skips dotfiles.
     set -f
     for _p in $ALWAYS_PRIVATE; do
       set -- "$@" --private "$_p"
