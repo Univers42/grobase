@@ -80,10 +80,11 @@ skip() {
   exit 77
 }
 
-# cleanup: remove every container, the network and the temp dir this run made.
+# cleanup: remove every container, the network and the temp dir this run made. Containers go by
+# name prefix, not a list: mutant 10140 was added without joining the list and leaked a container
+# (and so the network) on every run.
 cleanup() {
-  docker rm -f "${TAG}-kong" "${TAG}-waf" "${TAG}-mut10110" "${TAG}-mut10120" "${TAG}-mut10130" \
-    "${TAG}-mutaudit" >/dev/null 2>&1 || true
+  docker ps -aq --filter "name=^${TAG}-" | xargs -r docker rm -f >/dev/null 2>&1 || true
   docker network rm "${NET}" >/dev/null 2>&1 || true
   rm -rf "${WORK}"
 }
