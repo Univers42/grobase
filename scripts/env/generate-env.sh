@@ -98,6 +98,11 @@ SERVICE_ROLE_KEY="$(jwt_hs256 "$JWT_SECRET" "service_role")"
 DATABASE_URL="postgres://${PG_USER}:${POSTGRES_PASSWORD}@postgres:5432/${PG_DB}"
 PGRST_DB_URI="postgres://authenticator:${AUTHENTICATOR_PASSWORD}@postgres:5432/${PG_DB}"
 
+# The generated key set, on ONE line so scripts/env/assemble-env.sh can read it
+# with a single grep (the secrets migration lifts exactly this list — a hand-kept
+# copy there re-minted passwords an initialized database volume already has).
+GENERATED_KEYS="POSTGRES_PASSWORD AUTHENTICATOR_PASSWORD JWT_SECRET VAULT_ENC_KEY MINIO_ROOT_PASSWORD MONGO_INITDB_ROOT_PASSWORD ADAPTER_REGISTRY_SERVICE_TOKEN INTERNAL_IDENTITY_HMAC_KEYS LOG_STREAM_TOKEN ANON_KEY SERVICE_ROLE_KEY KONG_PUBLIC_API_KEY KONG_SERVICE_API_KEY DATABASE_URL PGRST_DB_URI ADAPTER_REGISTRY_DATABASE_URL MYSQL_ROOT_PASSWORD MYSQL_PASSWORD MARIADB_ROOT_PASSWORD MARIADB_PASSWORD MSSQL_SA_PASSWORD SECRET_KEY_BASE"
+
 # top_up appends only the keys ABSENT from an existing secrets file and rotates
 # nothing already there. This is the upgrade path: a checkout whose .env.secrets
 # predates a newly-required key had no way forward, because `make env` only mints
@@ -109,12 +114,7 @@ PGRST_DB_URI="postgres://authenticator:${AUTHENTICATOR_PASSWORD}@postgres:5432/$
 # indistinguishable from a freshly minted one. Only key NAMES are printed.
 top_up() {
   local added=() k v
-  for k in POSTGRES_PASSWORD AUTHENTICATOR_PASSWORD JWT_SECRET VAULT_ENC_KEY \
-    MINIO_ROOT_PASSWORD MONGO_INITDB_ROOT_PASSWORD ADAPTER_REGISTRY_SERVICE_TOKEN \
-    INTERNAL_IDENTITY_HMAC_KEYS LOG_STREAM_TOKEN ANON_KEY SERVICE_ROLE_KEY \
-    KONG_PUBLIC_API_KEY KONG_SERVICE_API_KEY DATABASE_URL PGRST_DB_URI \
-    ADAPTER_REGISTRY_DATABASE_URL MYSQL_ROOT_PASSWORD MYSQL_PASSWORD \
-    MARIADB_ROOT_PASSWORD MARIADB_PASSWORD MSSQL_SA_PASSWORD SECRET_KEY_BASE; do
+  for k in $GENERATED_KEYS; do
     grep -qE "^[[:space:]]*(export[[:space:]]+)?${k}=" "$SECRETS_FILE" && continue
     v="${!k:-}"
     [[ -n "$v" ]] || continue
