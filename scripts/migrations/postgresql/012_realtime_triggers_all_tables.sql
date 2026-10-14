@@ -130,10 +130,19 @@ BEGIN
 END;
 $fn$ LANGUAGE plpgsql;
 
-DROP EVENT TRIGGER IF EXISTS realtime_auto_trigger_on_create;
-CREATE EVENT TRIGGER realtime_auto_trigger_on_create
-  ON ddl_command_end
-  WHEN TAG IN ('CREATE TABLE')
-  EXECUTE FUNCTION public.realtime_auto_trigger();
+-- An operator who DISABLEd the event trigger must keep it disabled across a
+-- boot, so the trigger is only created when no row with its name exists.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_event_trigger
+    WHERE evtname = 'realtime_auto_trigger_on_create'
+  ) THEN
+    CREATE EVENT TRIGGER realtime_auto_trigger_on_create
+      ON ddl_command_end
+      WHEN TAG IN ('CREATE TABLE')
+      EXECUTE FUNCTION public.realtime_auto_trigger();
+  END IF;
+END $$;
 
 COMMIT;
