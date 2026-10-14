@@ -190,7 +190,11 @@ services:
         condition: service_healthy
       db-bootstrap:
         condition: service_completed_successfully
-    mem_limit: 128m
+    # 512m, not 128m: PostgREST idles at ~86 MiB and holds a whole response about 3x over (libpq buffer,
+    # result, hasql copy). A 57,902,426 B page list OOM-killed it twice at 128m (2026-10-14 07:48Z and
+    # 07:49Z); at 512m one such body peaked at 264 MiB. No memswap_limit: swap defaults to 2x (1g).
+    # Ponytail: sized for about 2 such bodies in flight; a bigger list or a retry storm still OOMs it.
+    mem_limit: 512m
     cpus: 0.25
 
   # ─── PostgreSQL Metadata (control plane / extras) ─────────────────
