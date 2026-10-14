@@ -45,7 +45,10 @@ impl FilterIndex {
     /// - Fields-per-pattern count
     ///
     /// Re-adding an existing `(conn_id, sub_id)` frees the slot it displaces, so
-    /// the index stays self-consistent for callers that bypass the registry.
+    /// sequential re-adds leave no orphan even for a caller that bypasses the
+    /// registry. Two concurrent adds of one key can still orphan a slot; the
+    /// gateway never issues them, because one reader task handles a connection's
+    /// frames in order.
     pub fn add_subscription(
         &self,
         sub: &Subscription,
@@ -238,24 +241,24 @@ impl FilterIndex {
         }
     }
 
-    /// Free a dispatch slot and drop every bitmap reference that still holds it.
+    /// Drop every bitmap reference to a dispatch slot, then free it.
     ///
     /// The pattern is read back from the slab rather than from a caller's
     /// subscription, so a replacement carrying a different topic still clears the
-    /// entry the displaced slot left in its own pattern's bitmap.
+    /// entry the displaced slot left in its own pattern's bitmap. The slot is
+    /// freed last: the free list hands it straight back to the next subscribe, so
+    /// freeing it before the bits are cleared let this removal erase the new
+    /// owner's bit.
     fn detach_slot(&self, key: &(ConnectionId, SubscriptionId), slot_id: u32) {
-        let pattern_key = self.slot_pattern(slot_id);
-        self.free_slot(slot_id);
-        self.stats.slots_freed.fetch_add(1, Ordering::Relaxed);
-
-        // Remove from unfiltered bitmap.
-        if let Some(pattern_key) = pattern_key {
+        if let Some(pattern_key) = self.slot_pattern(slot_id) {
             if let Some(mut bitmap) = self.unfiltered.get_mut(&pattern_key) {
                 bitmap.remove(slot_id);
             }
         }
-
         self.detach_index_keys(key, slot_id);
+
+        self.free_slot(slot_id);
+        self.stats.slots_freed.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Read the topic pattern a live slot is currently indexed under.
