@@ -47,6 +47,11 @@ pub enum ClientMessage {
     Auth { token: String },
 
     /// Subscribe to events matching a topic pattern.
+    ///
+    /// Re-sending a `sub_id` already open on this connection replaces that
+    /// subscription (the latest topic and filter win). If the replacement is
+    /// refused, the id is left with no subscription, and the `CAPACITY_EXCEEDED`
+    /// error frame does not name the `sub_id`.
     #[serde(rename = "SUBSCRIBE")]
     Subscribe {
         /// Client-chosen subscription identifier (scoped to this connection).

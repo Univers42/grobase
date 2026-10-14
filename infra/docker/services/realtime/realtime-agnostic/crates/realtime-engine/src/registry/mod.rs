@@ -87,6 +87,10 @@ impl SubscriptionRegistry {
 
     /// Register a new subscription, indexing it in all three maps.
     ///
+    /// A repeated `(conn_id, sub_id)` REPLACES the previous subscription: the
+    /// latest topic/filter wins and clients that re-send the same SUBSCRIBE
+    /// keep working.
+    ///
     /// # Errors
     ///
     /// Returns `RealtimeError::CapacityExceeded` if the subscription
@@ -98,6 +102,9 @@ impl SubscriptionRegistry {
         sub: Subscription,
         gateway_node: Option<realtime_core::NodeId>,
     ) -> realtime_core::Result<()> {
+        // ── Replace semantics for a re-sent sub_id ──────────────
+        self.replace_existing_sub(&sub);
+
         // ── Pre-flight guard checks ─────────────────────────────
         let limits = self.filter_index.limits();
         self.check_subscription_guards(
@@ -134,6 +141,20 @@ impl SubscriptionRegistry {
         );
 
         Ok(())
+    }
+
+    /// Drop an already-registered `(conn_id, sub_id)` before its replacement is
+    /// inserted, so a repeated SUBSCRIBE replaces instead of stacking.
+    ///
+    /// Without this the displaced dispatch slot stayed in the filter-index
+    /// bitmaps — still delivering, never freed and invisible to both caps
+    /// (`by_sub_id` counted it once) — so a client could orphan slots without
+    /// bound and still receive events after UNSUBSCRIBE.
+    fn replace_existing_sub(&self, sub: &Subscription) {
+        let key = (sub.conn_id, sub.sub_id.0.to_string());
+        if self.by_sub_id.contains_key(&key) {
+            self.unsubscribe(sub.conn_id, &sub.sub_id.0);
+        }
     }
 }
 
@@ -278,6 +299,50 @@ mod tests {
         assert!(
             err.to_string().contains("already has 200 subscriptions"),
             "Expected per-connection limit error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn test_resubscribe_replaces_previous_subscription() {
+        let registry = SubscriptionRegistry::new();
+        registry
+            .subscribe(make_sub(1, "s1", "topic/a", None), None)
+            .unwrap();
+        registry
+            .subscribe(make_sub(1, "s1", "topic/b", None), None)
+            .unwrap();
+
+        let subs = registry.get_connection_subscriptions(ConnectionId(1));
+        assert_eq!(subs.len(), 1, "a re-sent sub_id must not stack");
+        assert_eq!(subs[0].subscription.topic.as_str(), "topic/b");
+        assert_eq!(registry.subscription_count(), 1);
+
+        assert!(registry.unsubscribe(ConnectionId(1), "s1"));
+        let snap = registry.filter_index_snapshot();
+        assert_eq!(snap.slots_allocated, snap.slots_freed);
+        assert_eq!(snap.slots_active, 0);
+    }
+
+    #[test]
+    fn test_resubscribe_counts_once_against_per_connection_limit() {
+        let limits = crate::FilterIndexLimits {
+            max_subscriptions_per_connection: 1,
+            ..crate::FilterIndexLimits::default()
+        };
+        let registry = SubscriptionRegistry::with_limits(limits);
+        registry
+            .subscribe(make_sub(1, "s1", "topic/a", None), None)
+            .unwrap();
+
+        // Replacing an id must not consume a second slot of the per-connection cap.
+        let replaced = registry.subscribe(make_sub(1, "s1", "topic/b", None), None);
+        assert!(
+            replaced.is_ok(),
+            "a re-sent sub_id must replace, not be rejected: {replaced:?}"
+        );
+        assert_eq!(
+            registry.get_connection_subscriptions(ConnectionId(1)).len(),
+            1
         );
     }
 
