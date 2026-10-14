@@ -206,3 +206,95 @@ fn protected_namespace_excludes_wildcard() {
         "but only the granted space, not a sibling"
     );
 }
+
+fn scoped_claims(namespaces: &[&str]) -> AuthClaims {
+    AuthClaims {
+        sub: "u".to_string(),
+        namespaces: namespaces.iter().copied().map(String::from).collect(),
+        can_publish: true,
+        can_subscribe: true,
+        metadata: HashMap::new(),
+    }
+}
+
+#[test]
+fn wildcard_namespace_pattern_refused_under_protection() {
+    // A pattern whose first segment is a wildcard spans EVERY namespace, so the
+    // gateway cannot enforce the protected prefixes on it topic by topic: with
+    // protection configured it is refused for everyone.
+    let protected = vec!["pg".to_string(), "collab:".to_string()];
+    let star = scoped_claims(&["*"]);
+    for (pattern, allowed) in [
+        ("**", false),
+        ("*/users", false),
+        ("*/**", false),
+        ("*", false),
+        ("chat:a/**", true),
+        ("chat:a", true),
+        ("pg/**", false),
+        ("pg/users", false),
+    ] {
+        assert_eq!(
+            star.can_subscribe_to_scoped(&TopicPattern::parse(pattern), &protected),
+            allowed,
+            "{pattern} under protected {protected:?}"
+        );
+    }
+}
+
+#[test]
+fn wildcard_namespace_pattern_allowed_when_nothing_protected() {
+    // Nothing protected — an empty list, or one holding only empty entries —
+    // keeps today's behaviour for the all-access claim.
+    let star = scoped_claims(&["*"]);
+    for protected in [Vec::new(), vec![String::new()]] {
+        for pattern in ["**", "*", "*/x"] {
+            assert!(
+                star.can_subscribe_to_scoped(&TopicPattern::parse(pattern), &protected),
+                "{pattern} stays covered by the all-access claim (protected = {protected:?})"
+            );
+        }
+    }
+}
+
+#[test]
+fn wildcard_namespace_pattern_never_granted_by_exact_namespace() {
+    // An exact grant of `pg` still covers `pg/**` and `pg/users`, but never `**`:
+    // a wildcard-namespace pattern spans namespaces nobody granted.
+    let protected = vec!["pg".to_string()];
+    let pg_only = scoped_claims(&["pg"]);
+    for (pattern, allowed) in [("pg/**", true), ("pg/users", true), ("**", false)] {
+        assert_eq!(
+            pg_only.can_subscribe_to_scoped(&TopicPattern::parse(pattern), &protected),
+            allowed,
+            "{pattern} for an exact grant of `pg` under protected {protected:?}"
+        );
+    }
+
+    let chat_only = scoped_claims(&["chat:a"]);
+    assert!(
+        !chat_only.can_subscribe_to(&TopicPattern::parse("**")),
+        "without a \"*\" claim, no wildcard-namespace pattern is admitted"
+    );
+}
+
+#[test]
+fn wildcard_namespace_pattern_obeys_deny_by_default() {
+    // The deny-by-default guards run before any pattern is examined.
+    let denied = [
+        AuthClaims {
+            can_subscribe: false,
+            ..scoped_claims(&["*"])
+        },
+        scoped_claims(&[]),
+    ];
+    for claims in &denied {
+        for pattern in ["**", "orders/created"] {
+            let topic = TopicPattern::parse(pattern);
+            assert!(
+                !claims.can_subscribe_to(&topic) && !claims.can_subscribe_to_scoped(&topic, &[]),
+                "can_subscribe=false or empty namespaces must refuse {pattern}"
+            );
+        }
+    }
+}
