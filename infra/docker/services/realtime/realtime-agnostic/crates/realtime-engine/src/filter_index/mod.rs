@@ -318,6 +318,41 @@ mod tests {
         assert_eq!(index.evaluate(&event).len(), 0);
     }
 
+    #[test]
+    fn test_readd_same_key_frees_displaced_slot() {
+        let index = FilterIndex::new();
+        let first = make_sub(1, "s1", "orders/created", None);
+        let second = make_sub(1, "s1", "orders/updated", None);
+        index.add_subscription(&first, None).unwrap();
+        index.add_subscription(&second, None).unwrap();
+
+        // The displaced slot must not linger: one key, one live slot.
+        let stats = index.stats().snapshot();
+        assert_eq!(stats.slots_active, 1);
+        assert_eq!(stats.slots_allocated, 2);
+        assert_eq!(stats.slots_freed, 1);
+
+        // The free list hands the displaced slot straight back, so the counters
+        // above cannot see a stale bit; delivery can.
+        let old_topic = EventEnvelope::new(
+            TopicPath::new("orders/created"),
+            "created",
+            Bytes::from("{}"),
+        );
+        let new_topic = EventEnvelope::new(
+            TopicPath::new("orders/updated"),
+            "updated",
+            Bytes::from("{}"),
+        );
+        assert_eq!(index.evaluate(&old_topic).len(), 0);
+        assert_eq!(index.evaluate(&new_topic).len(), 1);
+
+        index.remove_subscription(&second);
+        let stats = index.stats().snapshot();
+        assert_eq!(stats.slots_active, 0);
+        assert_eq!(stats.slots_allocated, stats.slots_freed);
+    }
+
     // ── Guard / limit tests ──────────────────────────────────────
 
     #[test]
