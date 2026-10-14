@@ -86,7 +86,7 @@ From `cost-model.json.components`. `basis_kind` = **measured** (a real RSS from 
 | mongo-api (TS/Node) | app | 64.6 | measured | `footprint-pro.json` · `make bench-footprint PACKAGE=pro`; limit 128m |
 | functions-runtime (TS/Node) | app | 256 | **mem_limit** | `docker-compose.yml` limit 256m (**state=down/0 MiB** in `footprint-max.json` — on-demand; do NOT count as steady-state) |
 | kong (API gateway) | gateway | 102.4 | measured | `footprint-live-24888-today.json` · `make bench-footprint`; limit 1g (core 154.3, essential/pro 118.5 — varies) |
-| postgrest (auto-REST) | gateway | 12.04 | measured | `footprint-live-24888-today.json` · `make bench-footprint`; limit 128m |
+| postgrest (auto-REST) | gateway | 12.04 | measured | `footprint-live-24888-today.json` · `make bench-footprint`; limit 512m (128m until 2026-10-14: a 57.9 MB page list OOM-killed it) |
 | waf (edge WAF) | gateway | 61.6 | measured | `footprint-essential.json` · `make bench-footprint PACKAGE=essential`; limit 256m (core cold 20.1) |
 | gotrue (auth) | control | 7.891 | measured | `footprint-live-24888-today.json` · `make bench-footprint`; limit 128m |
 | postgres (primary DB) | db | 43.99 | measured | `footprint-live-24888-today.json` (RSS holding 24,888 tenants `shared_rls`) · `make bench-footprint`; limit 512m |
