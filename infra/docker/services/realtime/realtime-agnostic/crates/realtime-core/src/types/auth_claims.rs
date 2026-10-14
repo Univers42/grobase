@@ -72,12 +72,21 @@ impl AuthClaims {
     /// namespace whose prefix is in `protected` — those require an EXACT grant
     /// (a wildcard token must not reach a `collab:` space it was not explicitly
     /// granted). An empty `protected` slice is byte-identical to the plain check.
+    ///
+    /// A pattern whose first segment is itself a wildcard (`**`, `*/x`, `*/**`)
+    /// spans every namespace, so the gateway cannot apply the protected rule to
+    /// it topic by topic: it is admitted only for an all-access claim and only
+    /// while nothing is protected — never through the exact-grant path, because
+    /// no single namespace was granted for it to match.
     #[must_use]
     pub fn can_subscribe_to_scoped(&self, topic: &TopicPattern, protected: &[String]) -> bool {
         if !self.can_subscribe || self.namespaces.is_empty() {
             return false;
         }
-        self.namespace_allowed(extract_pattern_namespace(topic), protected)
+        let Some(topic_ns) = extract_pattern_namespace(topic) else {
+            return self.wildcard_namespace_allowed(protected);
+        };
+        self.namespace_allowed(topic_ns, protected)
     }
 
     /// Whether these claims allow publishing to `topic` (deny-by-default).
@@ -107,20 +116,29 @@ impl AuthClaims {
             .iter()
             .any(|ns| ns == topic_ns || (ns == "*" && !is_protected))
     }
+
+    /// Whether a pattern that spans every namespace (`**`, `*/x`, `*/**`) may be
+    /// subscribed to. Delivery cannot filter such a pattern topic by topic, so
+    /// only the all-access claim may use it, and only while no namespace is
+    /// protected — an exact grant of one namespace is never an exact grant here.
+    fn wildcard_namespace_allowed(&self, protected: &[String]) -> bool {
+        self.namespaces.iter().any(|ns| ns == "*")
+            && !protected.iter().any(|prefix| !prefix.is_empty())
+    }
 }
 
-// Extract namespace from a topic pattern.
-fn extract_pattern_namespace(topic: &TopicPattern) -> &str {
-    match topic {
+// Namespace a pattern is scoped to, or `None` when its first segment is a
+// wildcard (`**`, `*/x`, `*/**`): such a pattern spans every namespace, so
+// there is no single namespace to authorize it against.
+fn extract_pattern_namespace(topic: &TopicPattern) -> Option<&str> {
+    let first = match topic {
         TopicPattern::Exact(p) => p.namespace(),
-        TopicPattern::Prefix(p) => p.split('/').next().unwrap_or(""),
-        TopicPattern::Glob(p) => {
-            if p.as_str() == "**" {
-                return "*";
-            }
-            p.split('/').next().unwrap_or("")
-        }
+        TopicPattern::Prefix(p) | TopicPattern::Glob(p) => p.split('/').next().unwrap_or(""),
+    };
+    if first == "*" || first == "**" {
+        return None;
     }
+    Some(first)
 }
 
 /// Receipt returned after a successful publish.
