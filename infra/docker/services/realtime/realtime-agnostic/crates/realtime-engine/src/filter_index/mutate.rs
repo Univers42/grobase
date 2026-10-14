@@ -24,7 +24,7 @@ use std::sync::atomic::Ordering;
 
 use realtime_core::{
     filter::{FieldPath, FilterExpr},
-    NodeId, RealtimeError, Subscription,
+    ConnectionId, NodeId, RealtimeError, Subscription, SubscriptionId,
 };
 
 use super::FilterIndex;
@@ -43,6 +43,12 @@ impl FilterIndex {
     /// - Per-pattern subscription count
     /// - Composite key count
     /// - Fields-per-pattern count
+    ///
+    /// Re-adding an existing `(conn_id, sub_id)` frees the slot it displaces, so
+    /// sequential re-adds leave no orphan even for a caller that bypasses the
+    /// registry. Two concurrent adds of one key can still orphan a slot; the
+    /// gateway never issues them, because one reader task handles a connection's
+    /// frames in order.
     pub fn add_subscription(
         &self,
         sub: &Subscription,
@@ -52,6 +58,14 @@ impl FilterIndex {
 
         // ── Pre-flight limit checks (no state mutated yet) ────────
         self.check_limits(&pattern_key, sub)?;
+
+        // A re-added key must free the slot it displaces: leaving it indexed
+        // would keep delivering for a subscription the caller already replaced
+        // and would strand the slot outside the free list.
+        let key = (sub.conn_id, sub.sub_id.clone());
+        if let Some((_, displaced_slot_id)) = self.slot_by_sub.remove(&key) {
+            self.detach_slot(&key, displaced_slot_id);
+        }
 
         let bitmap_exact = sub.filter.as_ref().is_none_or(Self::is_filter_exact);
 
@@ -73,23 +87,20 @@ impl FilterIndex {
             .or_insert_with(|| sub.topic.clone());
 
         // Reverse lookup for removal.
-        self.slot_by_sub
-            .insert((sub.conn_id, sub.sub_id.clone()), slot_id);
+        self.slot_by_sub.insert(key.clone(), slot_id);
 
         // Index filter predicates.
         if let Some(ref filter) = sub.filter {
             let mut keys = Vec::new();
             self.index_filter(&pattern_key, slot_id, filter, &mut keys);
-            self.sub_keys
-                .insert((sub.conn_id, sub.sub_id.clone()), keys);
+            self.sub_keys.insert(key, keys);
         } else {
             // Unfiltered: always matches on this pattern.
             self.unfiltered
                 .entry(pattern_key)
                 .or_default()
                 .insert(slot_id);
-            self.sub_keys
-                .insert((sub.conn_id, sub.sub_id.clone()), Vec::new());
+            self.sub_keys.insert(key, Vec::new());
         }
 
         Ok(())
@@ -226,29 +237,55 @@ impl FilterIndex {
 
         // Look up and free the slot.
         if let Some((_, slot_id)) = self.slot_by_sub.remove(&key) {
-            self.free_slot(slot_id);
-            self.stats.slots_freed.fetch_add(1, Ordering::Relaxed);
+            self.detach_slot(&key, slot_id);
+        }
+    }
 
-            // Remove from unfiltered bitmap.
-            let pattern_key = sub.topic.as_str().to_string();
+    /// Drop every bitmap reference to a dispatch slot, then free it.
+    ///
+    /// The pattern is read back from the slab rather than from a caller's
+    /// subscription, so a replacement carrying a different topic still clears the
+    /// entry the displaced slot left in its own pattern's bitmap. The slot is
+    /// freed last: the free list hands it straight back to the next subscribe, so
+    /// freeing it before the bits are cleared let this removal erase the new
+    /// owner's bit.
+    fn detach_slot(&self, key: &(ConnectionId, SubscriptionId), slot_id: u32) {
+        if let Some(pattern_key) = self.slot_pattern(slot_id) {
             if let Some(mut bitmap) = self.unfiltered.get_mut(&pattern_key) {
                 bitmap.remove(slot_id);
             }
+        }
+        self.detach_index_keys(key, slot_id);
 
-            // Remove from tracked index keys — O(k).
-            if let Some((_, keys)) = self.sub_keys.remove(&key) {
-                let removed = keys.len() as u64;
-                for k in &keys {
-                    if let Some(mut bitmap) = self.index.get_mut(k) {
-                        bitmap.remove(slot_id);
-                    }
-                }
-                // Decrement composite key counter.
-                self.stats
-                    .composite_key_count
-                    .fetch_sub(removed, Ordering::Relaxed);
+        self.free_slot(slot_id);
+        self.stats.slots_freed.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Read the topic pattern a live slot is currently indexed under.
+    fn slot_pattern(&self, slot_id: u32) -> Option<String> {
+        self.slots
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(slot_id as usize)?
+            .as_ref()
+            .map(|entry| entry.topic.as_str().to_string())
+    }
+
+    /// Drop the tracked composite-index entries of a slot, O(k).
+    fn detach_index_keys(&self, key: &(ConnectionId, SubscriptionId), slot_id: u32) {
+        let Some((_, keys)) = self.sub_keys.remove(key) else {
+            return;
+        };
+        let removed = keys.len() as u64;
+        for k in &keys {
+            if let Some(mut bitmap) = self.index.get_mut(k) {
+                bitmap.remove(slot_id);
             }
         }
+        // Decrement composite key counter.
+        self.stats
+            .composite_key_count
+            .fetch_sub(removed, Ordering::Relaxed);
     }
 
     /// Allocate a slot in the dispatch slab, reusing free slots.

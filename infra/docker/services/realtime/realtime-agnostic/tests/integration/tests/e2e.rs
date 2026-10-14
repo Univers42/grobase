@@ -1432,3 +1432,114 @@ async fn test_auth_failed_frame_precedes_close() {
         }
     }
 }
+
+// ═══════════════════════════════════════════════════════════
+// Repeated sub_id replaces its subscription instead of orphaning a slot
+// ═══════════════════════════════════════════════════════════
+
+/// Send UNSUBSCRIBE and wait for its ack, so the caller knows the server has
+/// processed every frame sent before it (the reader handles one frame at a time).
+async fn ws_unsubscribe_and_wait(
+    write: &mut futures::stream::SplitSink<
+        tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+        Message,
+    >,
+    read: &mut futures::stream::SplitStream<
+        tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+    >,
+    sub_id: &str,
+) {
+    let unsub_msg = json!({ "type": "UNSUBSCRIBE", "sub_id": sub_id }).to_string();
+    write.send(Message::Text(unsub_msg)).await.unwrap();
+
+    let acked = tokio::time::timeout(Duration::from_secs(2), async {
+        while let Some(Ok(Message::Text(text))) = read.next().await {
+            let p: serde_json::Value = serde_json::from_str(&text).unwrap();
+            if p.get("type").and_then(|t| t.as_str()) == Some("UNSUBSCRIBED") {
+                return true;
+            }
+        }
+        false
+    })
+    .await;
+    assert!(acked.unwrap_or(false), "no ack for sub {sub_id}");
+}
+
+/// A repeated SUBSCRIBE used to stack a second dispatch slot that stayed in the
+/// bitmaps: it was never freed, escaped both caps, and kept delivering — so the
+/// client still received the topic it had just unsubscribed from.
+#[tokio::test]
+async fn test_duplicate_subscribe_does_not_survive_unsubscribe() {
+    let (addr, publisher, _bus) = start_test_server().await;
+
+    let ws = connect_and_auth(&addr).await;
+    let (mut write, mut read) = ws.split();
+
+    ws_subscribe(&mut write, "x", "orders/created").await;
+    ws_subscribe(&mut write, "x", "orders/created").await;
+    ws_unsubscribe_and_wait(&mut write, &mut read, "x").await;
+
+    let event = EventEnvelope::new(
+        TopicPath::new("orders/created"),
+        "created",
+        Bytes::from(r#"{"id":1}"#),
+    );
+    publisher.publish("orders/created", &event).await.unwrap();
+
+    let leaked = next_event(&mut read, None, Duration::from_millis(500)).await;
+    assert!(
+        leaked.is_none(),
+        "a replaced subscription kept delivering after UNSUBSCRIBE: {leaked:?}"
+    );
+}
+
+/// The latest SUBSCRIBE for an id wins: re-targeting it to a new topic must move
+/// the delivery path, not leave one behind on the old topic.
+#[tokio::test]
+async fn test_resubscribe_retargets_to_latest_topic() {
+    let (addr, publisher, _bus) = start_test_server().await;
+
+    let ws = connect_and_auth(&addr).await;
+    let (mut write, mut read) = ws.split();
+
+    ws_subscribe(&mut write, "y", "orders/a").await;
+    ws_subscribe(&mut write, "y", "orders/b").await;
+
+    let to_a = EventEnvelope::new(
+        TopicPath::new("orders/a"),
+        "created",
+        Bytes::from(r#"{"to":"a"}"#),
+    );
+    publisher.publish("orders/a", &to_a).await.unwrap();
+    let to_b = EventEnvelope::new(
+        TopicPath::new("orders/b"),
+        "created",
+        Bytes::from(r#"{"to":"b"}"#),
+    );
+    publisher.publish("orders/b", &to_b).await.unwrap();
+
+    let mut events = Vec::new();
+    let _ = tokio::time::timeout(Duration::from_secs(1), async {
+        while let Some(Ok(Message::Text(text))) = read.next().await {
+            let p: serde_json::Value = serde_json::from_str(&text).unwrap();
+            if p.get("type").and_then(|t| t.as_str()) == Some("EVENT") {
+                events.push(p);
+                if events.len() >= 2 {
+                    break;
+                }
+            }
+        }
+    })
+    .await;
+
+    assert_eq!(
+        events.len(),
+        1,
+        "re-targeting a sub_id must leave exactly one delivery path: {events:?}"
+    );
+    assert_eq!(events[0]["event"]["topic"], "orders/b");
+}
