@@ -290,9 +290,20 @@ EOF
   note "manifest written"
 }
 
+# SHA256SUMS lists the seed set: MANIFEST.json and the data archives beside it. The seed dir
+# is usually a checkout's ./secrets, which also holds personal credential files (*.env, a
+# password store) that a vault push seals to their owner. Listing those published their names
+# and hashes to every teammate, whose checkout never receives them and so failed the list
+# (2026-10-15: four personal files listed). Written to a temp file and moved, so a failure
+# leaves the previous list rather than a partial one.
+# Caveat: an archive is recognised by its suffix (.gz .tgz .tar .rdb .zst .bz2 .xz). One in a
+# new format with another suffix is left out, and its restore goes unverified until the suffix
+# is added here; a credential file given one of these suffixes would be listed.
 write_sums() {
-  (cd "$SEED_DIR" && find . -maxdepth 1 -type f ! -name 'SHA256SUMS' ! -name '.*' -print |
-    sed 's#^\./##' | sort | xargs sha256sum >SHA256SUMS) 2>/dev/null || true
+  (cd "$SEED_DIR" && find . -maxdepth 1 -type f ! -name '.*' \( -name MANIFEST.json -o -name '*.gz' \
+    -o -name '*.tgz' -o -name '*.tar' -o -name '*.rdb' -o -name '*.zst' -o -name '*.bz2' -o -name '*.xz' \) |
+    sed 's#^\./##' | sort | xargs sha256sum >.SHA256SUMS.tmp && mv -f .SHA256SUMS.tmp SHA256SUMS) ||
+    die "cannot checksum the seed set in $SEED_DIR — SHA256SUMS left as it was"
   note "checksums written"
 }
 
@@ -305,6 +316,11 @@ main() {
   seed_redis
   seed_mssql
   seed_dynamodb
+  # A run that captured nothing describes nothing. Writing MANIFEST.json anyway replaced the
+  # last capture's record with "captured: []", which grobase-import refuses and a restore reads
+  # as no coverage (2026-10-15: `make vault42-seed` on a host whose stack runs in a VM).
+  [ -n "$CAPTURED" ] ||
+    die "no engine container is running here, so nothing was captured; MANIFEST.json and SHA256SUMS in $SEED_DIR are unchanged — run this on the machine whose \`docker ps\` lists mini-baas-postgres"
   write_manifest
   write_sums
   note "captured:$CAPTURED"
