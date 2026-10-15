@@ -57,10 +57,15 @@ func (b *bootCtx) mountSelfServe() {
 }
 
 // mountBuilder mounts the dynamic-builder routes (BUILDER_ENABLED), nested under
-// the self-serve block so it reuses selfAuth. OFF = builder routes 404 (parity).
+// the self-serve block so it reuses selfAuth. OFF = builder routes 404 (parity),
+// but a self-serve tenant can still read its own mounts.
 func (b *bootCtx) mountBuilder(manifest *packages.Manifest) {
 	if !config.EnvBool("BUILDER_ENABLED") {
-		b.log.Info("dynamic builder disabled (BUILDER_ENABLED off) — builder routes not mounted; resolution is the named tier verbatim (byte-parity)")
+		tenants.MountMountList(b.mux, tenants.BuilderDeps{
+			Svc: b.svc, JWT: b.jwtVerifier, Adapter: b.svc.AdapterClient(),
+		})
+		b.log.Info("dynamic builder disabled (BUILDER_ENABLED off) — only the read-only GET /v1/tenants/me/mounts is mounted; resolution is the named tier verbatim (byte-parity)",
+			"adapter", b.svc.AdapterClient() != nil)
 		return
 	}
 	builderStore := entitlements.NewStore(b.db)
