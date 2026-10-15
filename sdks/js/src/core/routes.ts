@@ -69,7 +69,8 @@ export const routes = {
     keys: '/v1/tenants/me/keys',
     key: (keyId: string) => `/v1/tenants/me/keys/${encodeURIComponent(keyId)}`,
     // B7/builder — per-tenant DYNAMIC BUILDER (flag BUILDER_ENABLED on the
-    // server; routes 404 when OFF). Tenant resolved from the caller credential
+    // server; routes 404 when OFF, except GET `mounts`, which self-serve
+    // serves read-only either way). Tenant resolved from the caller credential
     // (no `{id}` → no cross-tenant by construction). `mount(id)` DELETE is
     // caller-scoped server-side (`AND tenant_id = $caller`).
     mounts: '/v1/tenants/me/mounts',
