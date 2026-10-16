@@ -172,3 +172,25 @@ func TestNameIsEmail(t *testing.T) {
 		t.Errorf("Name() must be %q", "email")
 	}
 }
+
+// TestNewImplicitTLS pins when the transport dials TLS first: SMTP_SECURE=true,
+// or port 465 (implicit TLS, RFC 8314), the rule GoTrue applies to the same keys.
+func TestNewImplicitTLS(t *testing.T) {
+	cases := []struct {
+		port, secure string
+		want         bool
+	}{
+		{"465", "", true},
+		{"465", "false", true},
+		{"587", "true", true},
+		{"587", "", false},
+		{"1025", "false", false},
+	}
+	for _, c := range cases {
+		t.Setenv("SMTP_PORT", c.port)
+		t.Setenv("SMTP_SECURE", c.secure)
+		if got := New(slog.Default()).secure; got != c.want {
+			t.Errorf("SMTP_PORT=%s SMTP_SECURE=%q: secure=%v, want %v", c.port, c.secure, got, c.want)
+		}
+	}
+}
