@@ -833,6 +833,11 @@ services:
             config:
               key_names: [apikey]
               hide_credentials: false
+          # Service-only: emailsvc sends as the platform's own mail account, so
+          # the public anon key here would be an open relay. App backends call it
+          # with the service_role key from anywhere, hence acl, not ip-restriction (m206).
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: jwt
             config:
               header_names: [authorization]

@@ -21,7 +21,9 @@
 # Auth: the public newsletter subscribe is the end-to-end proof (Kong key-auth
 # anon → orchestrator → 201 envelope). The other four are routing proofs — the
 # orchestrator MUST respond (any non-502), confirming Kong now reaches it, not a
-# dead Node container.
+# dead Node container. Email takes only the service key (acl baas-admin, m206)
+# and is probed with an empty body, so emailsvc's own 400 proves the route and
+# no mail can leave.
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -48,15 +50,18 @@ KONG_PORT="$(docker port mini-baas-kong 8000/tcp 2>/dev/null | head -1 | sed 's/
 KONG="http://127.0.0.1:${KONG_PORT}"
 ANON="$(docker inspect mini-baas-kong --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^KONG_PUBLIC_API_KEY=//p' | head -1)"
 [ -n "${ANON}" ] || skip "anon api key not found"
+SERVICE="$(docker inspect mini-baas-kong --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^KONG_SERVICE_API_KEY=//p' | head -1)"
+[ -n "${SERVICE}" ] || skip "service api key not found"
 
-# code <method> <path> [data] → HTTP status through Kong with the anon key
+# code <method> <path> [data] → HTTP status through Kong with the anon key,
+# or with ${KEY} when the caller sets it
 code() {
   local method="$1" path="$2" data="${3:-}"
   if [ -n "${data}" ]; then
     curl -s -o /tmp/m49.json -w '%{http_code}' -X "${method}" "${KONG}${path}" \
-      -H "apikey: ${ANON}" -H 'Content-Type: application/json' -d "${data}"
+      -H "apikey: ${KEY:-${ANON}}" -H 'Content-Type: application/json' -d "${data}"
   else
-    curl -s -o /tmp/m49.json -w '%{http_code}' -X "${method}" "${KONG}${path}" -H "apikey: ${ANON}"
+    curl -s -o /tmp/m49.json -w '%{http_code}' -X "${method}" "${KONG}${path}" -H "apikey: ${KEY:-${ANON}}"
   fi
 }
 
@@ -86,8 +91,11 @@ step "gdpr /gdpr/v1/consents routes to the orchestrator"
 reaches "gdpr" GET /gdpr/v1/consents
 step "log /logs/v1/ingest routes to the orchestrator"
 reaches "log" POST /logs/v1/ingest '{"level":"info","message":"m49 probe"}'
-step "email /email/v1/send routes to the orchestrator"
-reaches "email" POST /email/v1/send '{"to":"x@example.com","subject":"m49","body":"probe"}'
+step "email /email/v1/send routes to the orchestrator (service key, empty body)"
+C="$(KEY="${SERVICE}" code POST /email/v1/send '{}')"
+[ "${C}" = "400" ] && grep -q 'to must be a valid email' /tmp/m49.json ||
+  fail "email: want emailsvc's 400 for an empty body, got ${C}: $(head -c 160 /tmp/m49.json)"
+pass "email: orchestrator's emailsvc answered through Kong (400 on an empty body, nothing sent)"
 
 # ── 3) the Node services are actually stopped (the -262 MiB is realized) ──────
 step "Node orchestrators are stopped (cost win realized)"
