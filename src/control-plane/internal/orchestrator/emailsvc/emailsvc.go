@@ -48,17 +48,19 @@ type Service struct {
 }
 
 // New builds the service from env (parity with the Node/compose defaults:
-// SMTP_HOST=mailpit, SMTP_PORT=1025, SMTP_SECURE=false, no auth).
+// SMTP_HOST=mailpit, SMTP_PORT=1025, SMTP_SECURE=false, no auth). Port 465 is
+// implicit TLS whatever SMTP_SECURE says (RFC 8314), the rule GoTrue applies to
+// the same keys, so one SMTP_PORT drives both senders.
 func New(log *slog.Logger) *Service {
 	s := &Service{
-		log:    log,
-		host:   config.EnvStr("SMTP_HOST", "mailpit"),
-		port:   config.EnvInt("SMTP_PORT", 1025),
-		secure: config.EnvStr("SMTP_SECURE", "false") == "true",
-		user:   config.EnvStr("SMTP_USER", ""),
-		pass:   config.EnvStr("SMTP_PASS", ""),
-		from:   config.EnvStr("EMAIL_FROM", "noreply@mini-baas.local"),
+		log:  log,
+		host: config.EnvStr("SMTP_HOST", "mailpit"),
+		port: config.EnvInt("SMTP_PORT", 1025),
+		user: config.EnvStr("SMTP_USER", ""),
+		pass: config.EnvStr("SMTP_PASS", ""),
+		from: config.EnvStr("EMAIL_FROM", "noreply@mini-baas.local"),
 	}
+	s.secure = config.EnvStr("SMTP_SECURE", "false") == "true" || s.port == 465
 	s.send = s.smtpSend
 	return s
 }
