@@ -108,14 +108,20 @@ pass "gateway path remains present while strict upstream verification can be ena
 
 step "checking Kong strips forgeable identity headers on every public app prefix"
 KONG_CONF="${BAAS_DIR}/infra/docker/services/kong/conf/kong.yml"
-for hdr in X-User-Id X-User-Email X-User-Role \
-  X-Baas-Tenant-Id X-Baas-User-Id X-Tenant-Id X-Baas-Roles X-Baas-Scopes; do
+# The globally cleared headers are entries of one list the pre-function loops
+# over; the tenant headers keep their own clear_header lines (path-scoped).
+for hdr in X-User-Id X-User-Email X-User-Role X-Baas-Role X-Baas-Roles X-Baas-Scopes; do
+  grep -q "^ *\"${hdr}\",\$" "${KONG_CONF}" ||
+    fail "Kong pre-function must clear ${hdr} (client-supplied identity/authz input)"
+done
+for hdr in X-Baas-Tenant-Id X-Baas-User-Id X-Tenant-Id; do
   grep -q "clear_header(\"${hdr}\")" "${KONG_CONF}" ||
     fail "Kong pre-function must clear ${hdr} (client-supplied identity/authz input)"
 done
 # The prefix guard must cover every public route that reaches a service acting on
 # the tenant: /functions/ (namespace), /query/ (compat identity), /storage/v1
-# (usage-meter dimension, N-13). /admin/v1 is deliberately NOT in the list.
+# (usage-meter dimension, N-13). /admin/v1 is deliberately NOT in the list:
+# it keeps a client X-Baas-Tenant-Id/-User-Id for the mount catalog (m229 asserts it).
 for prefix in '/functions/' '/query/' '/storage/v1'; do
   grep -q "== \"${prefix}\"" "${KONG_CONF}" ||
     fail "Kong pre-function must clear the forgeable tenant headers on ${prefix}"
