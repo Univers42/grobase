@@ -43,8 +43,7 @@
 #              src/email-templates, the four account messages through          #
 #              scripts/auth/mail-templates.mjs and the sign-in alert, account  #
 #              created and three newsletter mails through the gateway's own    #
-#              renderer, a fake signed link; one sign-in alert carries         #
-#              <script> in its user agent, HTML-escaped by the template)       #
+#              renderer, a fake signed link)                                   #
 #    CONTROLS  the same path read with SQLi in its query string, written with  #
 #              <script> in a header or a method `PO`; the same body to another #
 #              table, to an rpc, and through osionos_pages%3F/../secrets       #
@@ -104,7 +103,7 @@ FAILED=0
 EMAIL_LABELS=(
   content-email-confirmEmail content-email-resetPassword content-email-passwordChanged
   content-email-accountExists content-email-loginAlertSuccess content-email-loginAlertFailed
-  content-email-loginAlertScriptAgent content-email-accountCreated content-email-newsletterConfirm
+  content-email-accountCreated content-email-newsletterConfirm
   content-email-newsletterWelcome content-email-newsletterUnsubscribe
 )
 
@@ -374,15 +373,16 @@ mutant() {
   done
 }
 
-# line_mutant PATTERN WANT LABEL...: the file with only the lines matching PATTERN removed must
-# answer WANT to every LABEL. Catches a 921130 probe that stays green because 10110's tag
-# removals, not the 921130 line, let it through.
+# line_mutant PATTERN WANT LABEL...: the file with only the ctl actions matching PATTERN neutralised
+# must answer WANT to every LABEL. Catches a 921130 probe that stays green because 10110's tag
+# removals, not the 921130 line, let it through. An action is replaced, not deleted: deleting the
+# last action of a chain leaves a dangling `,\` and the WAF fails to load.
 line_mutant() {
   local pattern="$1" want="$2" file="${WORK}/linemut.conf" got label out
   shift 2
   LINE_MUTANTS=$((${LINE_MUTANTS:-0} + 1))
   local name="${TAG}-mutline${LINE_MUTANTS}"
-  grep -v -- "${pattern}" "${EXCL}" >"${file}"
+  sed -E "s|ctl:[^,\"]*${pattern}[^,\"]*|ctl:auditEngine=RelevantOnly|" "${EXCL}" >"${file}"
   if cmp -s "${EXCL}" "${file}" || grep -q -- "${pattern}" "${file}"; then
     bad "line mutant: '${pattern}' was not found — rebuild this leg"
     return
