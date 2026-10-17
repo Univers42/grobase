@@ -128,10 +128,10 @@ docker exec -i "${PG}" psql -U postgres -d m233 -qtAX -v ON_ERROR_STOP=1 >/dev/n
 [ "$(pg -c "SELECT count(*) FROM public.schema_migrations WHERE version = 91")" = 1 ] ||
   fail "091 did not record its version exactly once"
 ok "091 applies, re-applies, and records version 91 once"
-pg -c "SELECT string_agg(a.attname, ',' ORDER BY a.attnum) FROM pg_index i
+pk_columns="$(pg -c "SELECT string_agg(a.attname, ',' ORDER BY a.attnum) FROM pg_index i
          JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY (i.indkey)
-        WHERE i.indrelid = 'authz.tuples'::regclass AND i.indisprimary" |
-  grep -qx 'app,object_type,object_id,relation,subject_type,subject_id,subject_relation,source' ||
+        WHERE i.indrelid = 'authz.tuples'::regclass AND i.indisprimary")"
+[ "${pk_columns}" = 'app,object_type,object_id,relation,subject_type,subject_id,subject_relation,source' ] ||
   fail "authz.tuples primary key does not end in source"
 ok "primary key is (app, object_type, object_id, relation, subject_type, subject_id, subject_relation, source)"
 
