@@ -28,6 +28,7 @@ import (
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/config"
 	"github.com/dlesieur/mini-baas/control-plane/internal/pg"
+	"github.com/dlesieur/mini-baas/control-plane/internal/smtpclient"
 )
 
 // loginotpErr is the package's const-error type (errors.Is works; no package var).
@@ -44,29 +45,23 @@ const (
 	ErrLocked loginotpErr = "too many attempts"
 	// ErrInvalid — the code did not match (401).
 	ErrInvalid loginotpErr = "invalid code"
+	// ErrSendFailed — the SMTP relay refused or lost the mail (502).
+	ErrSendFailed loginotpErr = "send failed"
 )
-
-// smtpConfig is the injected SMTP transport (mirrors emailsvc env parity).
-type smtpConfig struct {
-	host   string
-	port   int
-	secure bool
-	user   string
-	pass   string
-	from   string
-}
 
 // Service issues + verifies email login OTPs. Dependencies are injected (no globals);
 // `now` + `send` are seams for deterministic + offline tests.
 type Service struct {
 	db          *pg.Postgres
+	store       otpStore
+	appName     string
 	log         *slog.Logger
 	now         func() time.Time
 	pepper      []byte
 	jwtSecret   []byte
 	ttl         time.Duration
 	maxAttempts int
-	smtp        smtpConfig
+	smtp        smtpclient.Config
 	send        func(to, subject, body string) error
 }
 
@@ -81,26 +76,19 @@ func New(db *pg.Postgres, log *slog.Logger) *Service {
 		jwtSecret:   []byte(os.Getenv("GOTRUE_JWT_SECRET")),
 		ttl:         time.Duration(config.EnvInt("EMAIL_OTP_TTL_SECS", 300)) * time.Second,
 		maxAttempts: config.EnvInt("EMAIL_OTP_MAX_ATTEMPTS", 5),
-		smtp: smtpConfig{
-			host:   config.EnvStr("SMTP_HOST", "mailpit"),
-			port:   config.EnvInt("SMTP_PORT", 1025),
-			secure: config.EnvStr("SMTP_SECURE", "false") == "true",
-			user:   config.EnvStr("SMTP_USER", ""),
-			pass:   config.EnvStr("SMTP_PASS", ""),
-			from:   emailFrom(),
-		},
+		smtp:        smtpFromEnv(),
 	}
+	s.appName = config.EnvStr("EMAIL_OTP_APP_NAME", "grobase")
+	s.store = pgStore{db: db}
 	s.send = s.smtpSend
 	return s
 }
 
-// emailFrom resolves the sender address: EMAIL_FROM, then MAIL_PRO, then a default.
-func emailFrom() string {
-	if v := os.Getenv("EMAIL_FROM"); v != "" {
-		return v
+// smtpFromEnv resolves the relay: EMAIL_FROM, then MAIL_PRO, then a default sender.
+func smtpFromEnv() smtpclient.Config {
+	c := smtpclient.FromEnv("MAIL_PRO")
+	if c.From == "" {
+		c.From = "noreply@grobase.local"
 	}
-	if v := os.Getenv("MAIL_PRO"); v != "" {
-		return v
-	}
-	return "noreply@grobase.local"
+	return c
 }

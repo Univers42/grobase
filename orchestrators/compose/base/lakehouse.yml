@@ -155,6 +155,9 @@ services:
         mc mb -p local/iceberg || true;
         mc anonymous set none local/iceberg || true;
         echo 'iceberg bucket ready';
+        mc mb -p local/baas || true;
+        mc anonymous set none local/baas || true;
+        echo 'baas (tenant backup) bucket ready';
       "
     depends_on:
       minio:

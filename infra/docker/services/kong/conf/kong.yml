@@ -38,7 +38,9 @@ plugins:
         - __KONG_CORS_ORIGIN_PLAYGROUND__
         - __KONG_CORS_ORIGIN_STUDIO__
         - __KONG_CORS_ORIGIN_FRONTEND__
-        - https://dlesieur42-1.tail10f2ea.ts.net
+        - https://baas.tail10f2ea.ts.net
+        - http://127.0.0.1:5180
+        - http://localhost:5180
         # Local dev servers (vite :5173/:5180, the osionos second-brain on :3001):
         # KONG_CORS_ORIGIN_DEV_LIST (gateway.yml default), one origin per comma.
         # Empty in prod and on fly, so no localhost origin gets credentialed CORS.
@@ -94,78 +96,86 @@ plugins:
       upstream_health_metrics: true
       per_consumer: true
 
-  # ── Pre-Function: decode verified JWT and forward claims as headers ──
-  # Kong's JWT plugin already verified the signature; we just base64-decode
-  # the payload and set trusted headers so upstreams can read user identity
-  # without importing jsonwebtoken themselves.
+  # ── Identity headers: clear first, copy claims only after jwt verified ──
+  # The pre-function runs at priority 1000000, BEFORE the jwt plugin (1450), so
+  # it can only CLEAR. Measured on the grobase-kong image: with the anon key
+  # (key-auth passes) and a bearer JWT with a bad signature, the jwt plugin
+  # (anonymous set) falls through to anon, and a pre-function that decodes the
+  # claims would forward a forged X-User-Id. The claims copy therefore lives
+  # in the post-function (priority -1000, after jwt) and runs only when the jwt
+  # plugin set kong.ctx.shared.authenticated_jwt_token (G2 TM1).
   - name: pre-function
     config:
       access:
         - |
-          -- Strip any client-supplied identity headers up front; only a
-          -- verified JWT below may set them. Without this, a request on the
-          -- anonymous path (or with no/invalid bearer) could forge X-User-*
-          -- and impersonate a user at any compat-mode upstream.
-          kong.service.request.clear_header("X-User-Id")
-          kong.service.request.clear_header("X-User-Email")
-          kong.service.request.clear_header("X-User-Role")
-          -- On the PUBLIC app routes the tenant is ALWAYS server-derived (from
-          -- the verified api-key principal / JWT `sub`), never client-supplied.
-          --  * /functions/ : the runtime namespaces by the first of
-          --    X-Baas-Tenant-Id / X-Baas-User-Id / X-Tenant-Id / X-User-Id, so a
-          --    forged *-Tenant-Id would read/deploy ANOTHER tenant's functions.
-          --  * /query/ : the legacy TS query-router defaults to compat identity
-          --    mode (NODE_ENV unset), which trusts a raw X-Baas-Tenant-Id; the
-          --    api-key middleware re-derives the authoritative tenant from the
-          --    verified key once the forged header is gone.
-          -- Strip the forgeable namespace headers on both (admin/* routes are
-          -- service-role + ip-restricted and the internal dispatcher invoke
-          -- bypasses Kong, so neither legitimate path is affected).
-          -- X-Baas-Roles / X-Baas-Scopes go with them: they are authorization
-          -- inputs (roleNames -> RolesGuard + ABAC PDP, scopes -> the api-key
-          -- admin short-circuit) that only the signed envelope minted by
-          -- ApiKeyMiddleware may set. A signed internal caller cannot use these
-          -- prefixes anyway -- X-Baas-Tenant-Id is already cleared here.
-          --  * /storage/v1 : storage-router runs in compat mode and meters the
-          --    bytes written against the raw X-Baas-Tenant-Id, so a forged one
-          --    bills another tenant (and under QUOTA_ENFORCEMENT exhausts their
-          --    quota). Owner scoping there is by the JWT-derived X-User-Id and
-          --    is unaffected. /admin/v1 keeps the header on purpose: it is
-          --    service-role + ip-restricted and the in-browser mount catalog
-          --    scopes by it (see the CORS allow-list above).
-          local _p = kong.request.get_path()
-          if _p and (_p:sub(1, 11) == "/functions/" or _p:sub(1, 7) == "/query/" or _p:sub(1, 11) == "/storage/v1") then
+          -- Identity and authorization headers only Kong or a signed internal
+          -- caller may set. Cleared on EVERY route and never set here
+          -- (G2 TM2): the orchestrator sub-services trust
+          -- X-Baas-Role: service_role + X-Baas-User-Id as an admin identity (the
+          -- user id is cleared outside /admin/v1, below),
+          -- and compat-mode upstreams trust X-User-*.
+          for _, h in ipairs({
+            "X-User-Id",
+            "X-User-Email",
+            "X-User-Role",
+            "X-Baas-Role",
+            "X-Baas-Roles",
+            "X-Baas-Scopes",
+          }) do
+            kong.service.request.clear_header(h)
+          end
+          -- The tenant is server-derived (verified api-key principal / JWT
+          -- `sub`), never client-supplied: /functions/ namespaces by it, the
+          -- legacy query-router and storage-router (compat mode) meter and
+          -- scope by the raw header. X-Tenant-Id is the legacy spelling and
+          -- goes with it on those three prefixes.
+          -- ONE exception, /admin/v1: X-Baas-Tenant-Id and X-Baas-User-Id are
+          -- kept there. The in-browser mount catalog (osionos bridge
+          -- baasRegistryGet -> GET /admin/v1/databases) sends both, the
+          -- registry maps auth.uid() from the user header, and the Go control
+          -- plane tenant-self assertions (identity.TenantSelfMatch) read them.
+          -- Every /admin/v1 route is acl baas-admin (the service_role key
+          -- only, m206) and ip-restricted, so they are never anonymous-reachable.
+          -- X-Baas-Role, -Roles and -Scopes stay cleared there too.
+          local _p = kong.request.get_path() or ""
+          local _admin = _p == "/admin/v1" or _p:sub(1, 10) == "/admin/v1/"
+          if not _admin then
             kong.service.request.clear_header("X-Baas-Tenant-Id")
             kong.service.request.clear_header("X-Baas-User-Id")
-            kong.service.request.clear_header("X-Tenant-Id")
-            kong.service.request.clear_header("X-Baas-Roles")
-            kong.service.request.clear_header("X-Baas-Scopes")
           end
+          if _p:sub(1, 11) == "/functions/" or _p:sub(1, 7) == "/query/" or _p:sub(1, 11) == "/storage/v1" then
+            kong.service.request.clear_header("X-Tenant-Id")
+          end
+
+  # Runs after jwt (access phase, priority -1000). Caveat: the claims are read
+  # from the token the jwt plugin accepted, so a route without the jwt plugin
+  # (auth, rest, graphql, ...) gets no X-User-* at all; those upstreams verify
+  # the bearer themselves.
+  - name: post-function
+    config:
+      access:
+        - |
+          if not kong.ctx.shared.authenticated_jwt_token then return end
           local auth = kong.request.get_header("authorization")
-          if not auth then return end
-          local token = auth:match("^[Bb]earer%s+(.+)$")
+          local token = auth and auth:match("^[Bb]earer%s+(.+)$")
           if not token then return end
-          local parts = {}
-          for p in token:gmatch("[^%.]+") do parts[#parts + 1] = p end
-          if #parts < 2 then return end
-          -- base64url decode the payload
-          local b64 = parts[2]:gsub("-", "+"):gsub("_", "/")
+          local payload_b64 = token:match("^[^.]+%.([^.]+)")
+          if not payload_b64 then return end
+          local b64 = payload_b64:gsub("-", "+"):gsub("_", "/")
           local pad = 4 - #b64 % 4
           if pad < 4 then b64 = b64 .. ("="):rep(pad) end
           local ok, payload = pcall(ngx.decode_base64, b64)
           if not ok or not payload then return end
-          local cjson = require("cjson.safe")
-          local claims, err = cjson.decode(payload)
-          if not claims then return end
-          if claims.sub then
-            kong.service.request.set_header("X-User-Id", claims.sub)
+          local claims = require("cjson.safe").decode(payload)
+          if type(claims) ~= "table" then return end
+          local function forward(header, value)
+            if type(value) == "string" then
+              kong.service.request.set_header(header, (value:gsub("%c", "")))
+            end
           end
-          if claims.email then
-            kong.service.request.set_header("X-User-Email", claims.email)
-          end
-          if claims.role then
-            kong.service.request.set_header("X-User-Role", claims.role)
-          end
+          forward("X-User-Id", claims.sub)
+          forward("X-User-Email", claims.email)
+          forward("X-User-Role", claims.role)
 
 # ─── Services & Routes ───────────────────────────────────────────
 services:
@@ -522,6 +532,26 @@ services:
   - name: auth-otp
     url: http://tenant-control:3022
     routes:
+      # Sends a mail to any address it is given, so the anon key (public by
+      # design) must not reach it: service_role only (G2 TM4). verify and
+      # escrow stay public. The higher regex_priority wins over auth-otp's
+      # ~/v1/auth/otp/.* below.
+      - name: auth-otp-request
+        paths:
+          - ~/v1/auth/otp/request$
+        regex_priority: 10
+        strip_path: false
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
+          - name: request-size-limiting
+            config: { allowed_payload_size: 64, size_unit: kilobytes }
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 30, hour: 200 }
       - name: auth-otp
         paths:
           - ~/v1/auth/otp/.*
@@ -833,6 +863,11 @@ services:
             config:
               key_names: [apikey]
               hide_credentials: false
+          # Service-only: emailsvc sends as the platform's own mail account, so
+          # the public anon key here would be an open relay. App backends call it
+          # with the service_role key from anywhere, hence acl, not ip-restriction (m206).
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
           - name: jwt
             config:
               header_names: [authorization]
@@ -1017,12 +1052,21 @@ services:
               allowed_payload_size: 512
               size_unit: kilobytes
 
+  # The orchestrator serves every sub-service on ONE mux, so a prefix route
+  # would expose the admin and cross-service paths (/send of emailsvc, the
+  # /admin/* handlers that trust X-Baas-Role) to the public anon key. Only the
+  # public paths are routed; anything else is Kong's own 404 (G2 TM3).
+  # Callers: the newsletter mails link to {NEWSLETTER_BASE_URL}/confirm|unsubscribe/{token};
+  # smoke-test-new-services.sh probes health, consents and subscribe.
+  # gdpr user paths need a verified JWT (the service answers 401 without it).
   - name: gdpr-service
     url: http://orchestrator:3026          # A4 cutover (was gdpr-service:3080)
     routes:
       - name: gdpr-routes
-        paths: [/gdpr/v1]
-        strip_path: true
+        paths:
+          - ~/gdpr/v1/(?<p>consents(?:/[A-Za-z0-9_-]+)?|export|deletion-requests(?:/mine)?|health/(?:live|ready))$
+        methods: [GET, POST, PUT, DELETE, OPTIONS]
+        strip_path: false
         plugins:
           - name: key-auth
             config:
@@ -1041,13 +1085,21 @@ services:
               limit_by: ip
               minute: 30
               hour: 500
+          # A regex path with strip_path would strip the whole match, so the
+          # prefix is dropped here: the named capture `p` is the upstream path.
+          - name: request-transformer
+            config:
+              replace:
+                uri: "/$(uri_captures.p)"
 
   - name: newsletter-service
     url: http://orchestrator:3026          # A4 cutover (was newsletter-service:3090)
     routes:
       - name: newsletter-routes
-        paths: [/newsletter/v1]
-        strip_path: true
+        paths:
+          - ~/newsletter/v1/(?<p>subscribe|(?:confirm|unsubscribe)/[A-Za-z0-9_-]+|health/(?:live|ready))$
+        methods: [GET, POST, OPTIONS]
+        strip_path: false
         plugins:
           - name: key-auth
             config:
@@ -1066,6 +1118,12 @@ services:
               limit_by: ip
               minute: 30
               hour: 500
+          # A regex path with strip_path would strip the whole match, so the
+          # prefix is dropped here: the named capture `p` is the upstream path.
+          - name: request-transformer
+            config:
+              replace:
+                uri: "/$(uri_captures.p)"
 
   - name: ai-service
     url: http://ai-service:3100
