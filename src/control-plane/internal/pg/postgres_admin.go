@@ -47,6 +47,13 @@ func (p *Postgres) Begin(ctx context.Context) (pgx.Tx, error) {
 	return p.pool.Begin(ctx)
 }
 
+// BeginTxOpts starts a transaction with explicit isolation and access mode,
+// for readers that need one snapshot across several statements (authz checks:
+// REPEATABLE READ READ ONLY). Privileged like Begin; it sets no tenant GUCs.
+func (p *Postgres) BeginTxOpts(ctx context.Context, opts pgx.TxOptions) (pgx.Tx, error) {
+	return p.pool.BeginTx(ctx, opts)
+}
+
 // AcquireConn checks out ONE dedicated connection from the pool. The caller owns
 // it until Release(). This is the only way to get connection affinity, which a
 // session-scoped Postgres advisory lock (pg_advisory_lock / pg_advisory_unlock)
