@@ -305,6 +305,8 @@ printing a token), that compose hands the previous token to every verifier, and 
 `m206` runs a throwaway Kong on the repo `kong.yml` and requires `acl baas-admin` on every
 ip-restricted route: the anon key gets the acl's 403, the service key passes (N-24). It also fails if any
 Kong service points at the `studio` container (N-25: Studio is reached on loopback or an SSH tunnel only).
+`m229` runs a throwaway Kong on the repo `kong.yml` in front of a header-echo upstream: forged `X-Baas-Role`/`-User-Id`/`-Roles`/`-Scopes`/`-Tenant-Id` and `X-User-*` never arrive, `X-User-Id` arrives only from a JWT Kong verified
+(the claims copy is a post-function gated on `kong.ctx.shared.authenticated_jwt_token`), gdpr and newsletter expose only their public paths (anchored regex routes; `/send` and `/admin/*` are Kong's 404), and `/v1/auth/otp/request` takes only the service key. `/admin/v1` keeps a client `X-Baas-Tenant-Id` for the mount catalog. Three mutants must fail it (or m206).
 `m207` proves Kong behind the WAF sees the real client (N-23): prod/cloud set `KONG_TRUSTED_IPS`
 (base does not; `PROD_KONG_TRUSTED_IPS=` opts out), and a TEST-NET-3 client → WAF → Kong → echo run shows
 ip-restriction refusing it and no forged `X-Forwarded-*` reaching the upstream (a mutant WAF must leak).
