@@ -969,7 +969,9 @@
         "tenant-control",
         "vault-init",
         "webhook-dispatcher"
-      ]
+      ],
+      "$comment": "Derived from TITAN_PASSWORD when that alias is set and no explicit SMTP_PASS is (scripts/env/assemble-env.sh, `derived` section of .env). SMTP_USER, EMAIL_FROM, SMTP_HOST, SMTP_PORT and SMTP_SECURE derive from TITAN_EMAIL the same way. SMTP_* set on their own keep working.",
+      "built_by": "scripts/env/assemble-env.sh (optional: from TITAN_PASSWORD, written into the derived section of .env)"
     },
     "SSO_SECRET_KEY": {
       "category": "SECRET",
@@ -1009,6 +1011,23 @@
         "vault-init",
         "webhook-dispatcher"
       ]
+    },
+    "TITAN_EMAIL": {
+      "category": "CONFIG",
+      "format": "opaque",
+      "required_in": [],
+      "compose_required": false,
+      "$comment": "Operator alias, set in .env.local or .env.secrets and never written to .env. assemble-env.sh derives SMTP_USER and EMAIL_FROM from it, plus SMTP_HOST=smtp.titan.email, SMTP_PORT=465, SMTP_SECURE=true unless SMTP_HOST is set explicitly.",
+      "consumers": []
+    },
+    "TITAN_PASSWORD": {
+      "category": "SECRET",
+      "format": "opaque",
+      "required_in": [],
+      "compose_required": false,
+      "vault42_path": "smtp/TITAN_PASSWORD",
+      "$comment": "Operator alias, set in .env.local or .env.secrets and never written to .env. assemble-env.sh copies it verbatim into SMTP_PASS (the derived section of .env). Quote it as for any .env value: single quotes keep `$` literal.",
+      "consumers": []
     },
     "VAULT_ENC_KEY": {
       "category": "SECRET",

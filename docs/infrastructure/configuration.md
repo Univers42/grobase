@@ -62,11 +62,37 @@ writes `.env.secrets`. Nothing else may.
 `POSTGRES_PASSWORD` / `AUTHENTICATOR_PASSWORD` plus host and database name, and writes
 them into `.env.secrets`. `PG_BACKUP_DATABASE_URL` has no builder at all: compose nests
 the fallback `${PG_BACKUP_DATABASE_URL:-${DATABASE_URL:?…}}`, so it is optional and
-inherits. One password, one place. (`assemble-env.sh` only concatenates the three layers —
-it does not derive.)
+inherits. One password, one place. (`assemble-env.sh` concatenates the three layers; the
+only thing it derives is the Titan alias below.)
 
 It also **withholds GitHub-token-shaped values** from `.env`: every container reads that
 file, and a PAT has no business in any of them.
+
+
+### The Titan mail alias
+
+Put `TITAN_EMAIL` and `TITAN_PASSWORD` in `.env.local` (or `.env.secrets`) and `make env`
+appends a final `# ========== derived (TITAN_* aliases) ==========` section to `.env`:
+`SMTP_USER`, `SMTP_PASS` and `EMAIL_FROM` (the address and the password, as written),
+plus `SMTP_HOST=smtp.titan.email`, `SMTP_PORT=465`, `SMTP_SECURE=true`. GoTrue
+(`GOTRUE_SMTP_*`), the orchestrator email service and tenant-control login OTP all read
+those keys, so all three send through Titan.
+
+- An explicit, non-empty `SMTP_USER`, `SMTP_PASS` or `EMAIL_FROM` in `.env.secrets` /
+  `.env.local` is kept. An explicit `SMTP_HOST` (`SMTP_HOST=mailpit` included) keeps the
+  host and suppresses the port and secure lines too.
+- An explicit `SMTP_USER` / `SMTP_PASS` that **differs** from the alias fails `make env`
+  with exit 1, naming the keys and no values. Equal values pass.
+- `TITAN_*` never reaches `.env` under its own name (a comment stands in), the derived
+  section is rebuilt on each run, and it is never carried into `.env.local`. Removing the
+  alias removes the derived keys on the next `make env`.
+- The password is copied as written, quotes included, so compose decodes it exactly as
+  it would decode `SMTP_PASS=` with the same text. `$` interpolates in an unquoted or
+  double-quoted value: write `TITAN_PASSWORD='a$b#c'` (single quotes), or escape as
+  `"a\$b"`. A single quote inside the password needs the double-quoted form.
+
+It does **not** reach any sender that ignores `SMTP_*`, does not
+validate the credentials or open a connection, and does not touch `config.env`.
 
 ---
 
