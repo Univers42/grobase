@@ -530,6 +530,26 @@ services:
   - name: auth-otp
     url: http://tenant-control:3022
     routes:
+      # Sends a mail to any address it is given, so the anon key (public by
+      # design) must not reach it: service_role only (G2 TM4). verify and
+      # escrow stay public. The higher regex_priority wins over auth-otp's
+      # ~/v1/auth/otp/.* below.
+      - name: auth-otp-request
+        paths:
+          - ~/v1/auth/otp/request$
+        regex_priority: 10
+        strip_path: false
+        plugins:
+          - name: key-auth
+            config:
+              key_names: [apikey]
+              hide_credentials: false
+          - name: acl
+            config: { allow: [baas-admin], hide_groups_header: true }
+          - name: request-size-limiting
+            config: { allowed_payload_size: 64, size_unit: kilobytes }
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 30, hour: 200 }
       - name: auth-otp
         paths:
           - ~/v1/auth/otp/.*
@@ -1030,12 +1050,21 @@ services:
               allowed_payload_size: 512
               size_unit: kilobytes
 
+  # The orchestrator serves every sub-service on ONE mux, so a prefix route
+  # would expose the admin and cross-service paths (/send of emailsvc, the
+  # /admin/* handlers that trust X-Baas-Role) to the public anon key. Only the
+  # public paths are routed; anything else is Kong's own 404 (G2 TM3).
+  # Callers: the newsletter mails link to {NEWSLETTER_BASE_URL}/confirm|unsubscribe/{token};
+  # smoke-test-new-services.sh probes health, consents and subscribe.
+  # gdpr user paths need a verified JWT (the service answers 401 without it).
   - name: gdpr-service
     url: http://orchestrator:3026          # A4 cutover (was gdpr-service:3080)
     routes:
       - name: gdpr-routes
-        paths: [/gdpr/v1]
-        strip_path: true
+        paths:
+          - ~/gdpr/v1/(?<p>consents(?:/[A-Za-z0-9_-]+)?|export|deletion-requests(?:/mine)?|health/(?:live|ready))$
+        methods: [GET, POST, PUT, DELETE, OPTIONS]
+        strip_path: false
         plugins:
           - name: key-auth
             config:
@@ -1054,13 +1083,21 @@ services:
               limit_by: ip
               minute: 30
               hour: 500
+          # A regex path with strip_path would strip the whole match, so the
+          # prefix is dropped here: the named capture `p` is the upstream path.
+          - name: request-transformer
+            config:
+              replace:
+                uri: "/$(uri_captures.p)"
 
   - name: newsletter-service
     url: http://orchestrator:3026          # A4 cutover (was newsletter-service:3090)
     routes:
       - name: newsletter-routes
-        paths: [/newsletter/v1]
-        strip_path: true
+        paths:
+          - ~/newsletter/v1/(?<p>subscribe|(?:confirm|unsubscribe)/[A-Za-z0-9_-]+|health/(?:live|ready))$
+        methods: [GET, POST, OPTIONS]
+        strip_path: false
         plugins:
           - name: key-auth
             config:
@@ -1079,6 +1116,12 @@ services:
               limit_by: ip
               minute: 30
               hour: 500
+          # A regex path with strip_path would strip the whole match, so the
+          # prefix is dropped here: the named capture `p` is the upstream path.
+          - name: request-transformer
+            config:
+              replace:
+                uri: "/$(uri_captures.p)"
 
   - name: ai-service
     url: http://ai-service:3100
