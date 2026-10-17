@@ -313,3 +313,89 @@ pub fn routes() -> Router<AppState> {
         .route("/api/backups/:key", get(download).delete(remove))
         .route("/api/backups/:key/restore", post(restore))
 }
+
+// Regression guard for RUSTSEC-2026-0367..0369 (zip < 9): restore is hand-rolled
+// on enclosed_name + File::create and never calls ZipArchive::extract(), so a
+// hostile archive must not leave symlinks, setuid bits or files outside the data dir.
+#[cfg(all(test, unix))]
+mod tests {
+    use super::{create_zip, restore_zip};
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::{Path, PathBuf};
+    use zip::write::SimpleFileOptions;
+
+    fn scratch(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("backups-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn hostile_archive(path: &Path, with_escape: bool) {
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(path).unwrap());
+        let opts = SimpleFileOptions::default();
+        zip.add_symlink("link_abs", "/etc/passwd", opts).unwrap();
+        zip.add_symlink("link_rel", "../../outside", opts).unwrap();
+        zip.start_file("suid", opts.unix_permissions(0o4755))
+            .unwrap();
+        zip.write_all(b"x").unwrap();
+        zip.start_file("sgid", opts.unix_permissions(0o2755))
+            .unwrap();
+        zip.write_all(b"x").unwrap();
+        if with_escape {
+            zip.start_file("../escape", opts).unwrap();
+            zip.write_all(b"x").unwrap();
+        }
+        zip.finish().unwrap();
+    }
+
+    #[test]
+    fn restore_creates_no_symlink_and_no_setuid() {
+        let root = scratch("hostile");
+        let (archive, data) = (root.join("a.zip"), root.join("data"));
+        std::fs::create_dir_all(&data).unwrap();
+        hostile_archive(&archive, false);
+        restore_zip(&archive, &data).unwrap();
+        for name in ["link_abs", "link_rel", "suid", "sgid"] {
+            let meta = std::fs::symlink_metadata(data.join(name)).unwrap();
+            assert!(!meta.file_type().is_symlink(), "{name} is a symlink");
+            assert_eq!(
+                meta.permissions().mode() & 0o6000,
+                0,
+                "{name} has setuid/setgid"
+            );
+        }
+        assert!(!root.join("outside").exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn restore_rejects_parent_traversal_and_writes_nothing_outside() {
+        let root = scratch("escape");
+        let (archive, data) = (root.join("a.zip"), root.join("data"));
+        std::fs::create_dir_all(&data).unwrap();
+        hostile_archive(&archive, true);
+        let err = restore_zip(&archive, &data).unwrap_err();
+        assert!(err.contains("unsafe path"), "got: {err}");
+        assert!(!root.join("escape").exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn create_then_restore_round_trips_nested_bytes() {
+        let root = scratch("roundtrip");
+        let (src, dst, archive) = (root.join("src"), root.join("dst"), root.join("b.zip"));
+        std::fs::create_dir_all(src.join("pb_storage/col")).unwrap();
+        std::fs::create_dir_all(&dst).unwrap();
+        let payload: Vec<u8> = (0..=255u8).cycle().take(70_000).collect();
+        std::fs::write(src.join("pb_storage/col/blob.bin"), &payload).unwrap();
+        create_zip(&src, &archive).unwrap();
+        restore_zip(&archive, &dst).unwrap();
+        assert_eq!(
+            std::fs::read(dst.join("pb_storage/col/blob.bin")).unwrap(),
+            payload
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+}
