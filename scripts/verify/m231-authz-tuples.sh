@@ -107,8 +107,8 @@ psql_as() { psql_in -tA -c "SET ROLE $1; $2" 2>&1 || true; }
 
 build_binary() {
   docker run --rm --network host -e CGO_ENABLED=0 -e GOFLAGS=-mod=mod \
-    -v "${SRC}:/src" -v "${WORK}:/out" -v /goinfre/dlesieur/.cache/go/mod:/go/pkg/mod \
-    -v /goinfre/dlesieur/.cache/go/build:/root/.cache/go-build -w /src "${GO_IMG}" \
+    -v "${SRC}:/src" -v "${WORK}:/out" -v mini-baas-gomod:/go/pkg/mod \
+    -v mini-baas-gobuild:/root/.cache/go-build -w /src "${GO_IMG}" \
     go build -o /out/tenant-control ./cmd/tenant-control >"${WORK}/build.log" 2>&1 ||
     {
       tail -20 "${WORK}/build.log"
