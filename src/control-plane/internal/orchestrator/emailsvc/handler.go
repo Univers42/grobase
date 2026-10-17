@@ -62,12 +62,12 @@ func (s *Service) handleSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m := &message{
-		from:            s.from,
+		from:            s.smtp.From,
 		to:              req.To,
 		subject:         req.Subject,
 		html:            req.HTML,
 		text:            req.Text,
-		messageID:       newMessageID(s.from),
+		messageID:       newMessageID(s.smtp.From),
 		listUnsubscribe: req.ListUnsubscribe,
 	}
 	if err := s.send(m); err != nil {

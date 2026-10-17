@@ -29,18 +29,13 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/dlesieur/mini-baas/control-plane/internal/config"
+	"github.com/dlesieur/mini-baas/control-plane/internal/smtpclient"
 )
 
-// Service holds the SMTP transport config + the send seam (overridable in tests).
+// Service holds the SMTP relay config + the send seam (overridable in tests).
 type Service struct {
-	log    *slog.Logger
-	host   string
-	port   int
-	secure bool
-	user   string
-	pass   string
-	from   string
+	log  *slog.Logger
+	smtp smtpclient.Config
 
 	// send is the transport seam. Production uses smtpSend; tests inject a
 	// capturing func so the message shape is asserted without a live server.
@@ -49,18 +44,13 @@ type Service struct {
 
 // New builds the service from env (parity with the Node/compose defaults:
 // SMTP_HOST=mailpit, SMTP_PORT=1025, SMTP_SECURE=false, no auth). Port 465 is
-// implicit TLS whatever SMTP_SECURE says (RFC 8314), the rule GoTrue applies to
-// the same keys, so one SMTP_PORT drives both senders.
+// implicit TLS whatever SMTP_SECURE says (RFC 8314), see smtpclient.
 func New(log *slog.Logger) *Service {
-	s := &Service{
-		log:  log,
-		host: config.EnvStr("SMTP_HOST", "mailpit"),
-		port: config.EnvInt("SMTP_PORT", 1025),
-		user: config.EnvStr("SMTP_USER", ""),
-		pass: config.EnvStr("SMTP_PASS", ""),
-		from: config.EnvStr("EMAIL_FROM", "noreply@mini-baas.local"),
+	c := smtpclient.FromEnv()
+	if c.From == "" {
+		c.From = "noreply@mini-baas.local"
 	}
-	s.secure = config.EnvStr("SMTP_SECURE", "false") == "true" || s.port == 465
+	s := &Service{log: log, smtp: c}
 	s.send = s.smtpSend
 	return s
 }
