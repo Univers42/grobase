@@ -111,14 +111,14 @@ plugins:
           -- Identity and authorization headers only Kong or a signed internal
           -- caller may set. Cleared on EVERY route and never set here
           -- (G2 TM2): the orchestrator sub-services trust
-          -- X-Baas-Role: service_role + X-Baas-User-Id as an admin identity,
+          -- X-Baas-Role: service_role + X-Baas-User-Id as an admin identity (the
+          -- user id is cleared outside /admin/v1, below),
           -- and compat-mode upstreams trust X-User-*.
           for _, h in ipairs({
             "X-User-Id",
             "X-User-Email",
             "X-User-Role",
             "X-Baas-Role",
-            "X-Baas-User-Id",
             "X-Baas-Roles",
             "X-Baas-Scopes",
           }) do
@@ -129,17 +129,19 @@ plugins:
           -- legacy query-router and storage-router (compat mode) meter and
           -- scope by the raw header. X-Tenant-Id is the legacy spelling and
           -- goes with it on those three prefixes.
-          -- ONE exception, /admin/v1: the in-browser mount catalog
-          -- (osionos liveMountCatalog -> GET /admin/v1/databases) and the
-          -- tenant-self assertions of the Go control plane
-          -- (identity.TenantSelfMatch) read a client-supplied X-Baas-Tenant-Id
-          -- there. Every /admin/v1 route is acl baas-admin (the service_role
-          -- key only, m206) and ip-restricted, so the header is never
-          -- anonymous-reachable.
+          -- ONE exception, /admin/v1: X-Baas-Tenant-Id and X-Baas-User-Id are
+          -- kept there. The in-browser mount catalog (osionos bridge
+          -- baasRegistryGet -> GET /admin/v1/databases) sends both, the
+          -- registry maps auth.uid() from the user header, and the Go control
+          -- plane tenant-self assertions (identity.TenantSelfMatch) read them.
+          -- Every /admin/v1 route is acl baas-admin (the service_role key
+          -- only, m206) and ip-restricted, so they are never anonymous-reachable.
+          -- X-Baas-Role, -Roles and -Scopes stay cleared there too.
           local _p = kong.request.get_path() or ""
           local _admin = _p == "/admin/v1" or _p:sub(1, 10) == "/admin/v1/"
           if not _admin then
             kong.service.request.clear_header("X-Baas-Tenant-Id")
+            kong.service.request.clear_header("X-Baas-User-Id")
           end
           if _p:sub(1, 11) == "/functions/" or _p:sub(1, 7) == "/query/" or _p:sub(1, 11) == "/storage/v1" then
             kong.service.request.clear_header("X-Tenant-Id")
