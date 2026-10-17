@@ -77,6 +77,8 @@ func TestSendValidation(t *testing.T) {
 	}{
 		{"bad_email", map[string]string{"to": "not-an-email", "subject": "s", "text": "t"}},
 		{"empty_subject", map[string]string{"to": "u@e.com", "subject": "  ", "text": "t"}},
+		{"listUnsubscribe_crlf", map[string]string{"to": "u@e.com", "subject": "s", "text": "t", "listUnsubscribe": "https://x.test/u\r\nBcc: evil@x.test"}},
+		{"listUnsubscribe_lf", map[string]string{"to": "u@e.com", "subject": "s", "text": "t", "listUnsubscribe": "https://x.test/u\nBcc: evil@x.test"}},
 		{"no_body", map[string]string{"to": "u@e.com", "subject": "s"}},
 	}
 	for _, c := range cases {
