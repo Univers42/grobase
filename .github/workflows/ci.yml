@@ -786,6 +786,9 @@ jobs:
       - name: Every migration records itself (m203)
         run: bash scripts/verify/run-gate-battery.sh m203-migrations-recorded
 
+      - name: anon and authenticated cannot read users.password_hash or anon email (m234)
+        run: bash scripts/verify/run-gate-battery.sh m234-users-pii-grants
+
       - name: Engine backup round trip (m188)
         run: bash scripts/verify/m188-engine-backup-restore.sh
 
