@@ -17,6 +17,11 @@
 #  10140 lifts them on the SQL runner's json.sql alone (POST                   #
 #  /query/v1/<uuid>/sql-ro): 942100 read `grobase query run`'s SELECT as       #
 #  injection (2026-10-12). It                                                  #
+#  Rule 10150 lifts the XSS checks and 921130 on the html and text of POST     #
+#  /email/v1/send: the verification mail scored 20 (941100, 941160, 941260,    #
+#  921130) and every mail from outside the VM was refused (2026-10-17, b2b     #
+#  WAF log). The anon key is refused at Kong, not here: this gate's kong       #
+#  answers 200 to everyone, so that proof belongs to the Kong gates (m206).    #
 #  boots the WAF image with the tree's exclusions file on a private network    #
 #  whose `kong` answers 200, then:                                             #
 #    CONTENT   POST/PATCH to osionos_pages / osionos_chat_messages carrying JS,#
@@ -27,12 +32,20 @@
 #              `json.profile.headline` as the file .profile) → 200             #
 #              and a migration of DDL + INSERTs to /admin/v1/migrate → 200     #
 #              and a raw statement to /query/v1/<uuid>/sql-ro → 200            #
+#              and the verification and password-reset mails, as the           #
+#              gateway sends them, to /email/v1/send → 200 (the          #
+#              fixtures/m227-email-bodies.json: opposite-osiris                #
+#              src/email-templates, rendered by scripts/auth/                  #
+#              mail-templates.mjs with a fake signed link)                     #
 #    CONTROLS  the same path read with SQLi in its query string, written with  #
 #              <script> in a header or a method `PO`; the same body to another #
 #              table, to an rpc, and through osionos_pages%3F/../secrets       #
 #              (%3f, %253F), a read of ?title=eq.HTTP/2, a `<html` cookie, a  #
 #              value with `\nSet-Cookie:` (921120) or `GET /x HTTP/1.1`      #
 #              (921110, the boundary 10110 keeps) → 403, and the upstream never sees `secrets`;      #
+#              the mail with <script> in to, subject, listUnsubscribe or       #
+#              the query string, as a GET or PUT, to /email/v1/send-x,         #
+#              /send/, /send%3F/../x or /rest/v1/some_table → 403              #
 #              the migration as a PUT, to /admin/v1/migrate-x, …/migrate/,     #
 #              …/migrate%3F/../tenants or /admin/v1/tenants → 403              #
 #              the statement as a PUT, to …/sql-ro-x, to a non-uuid database, #
@@ -47,7 +60,8 @@
 #              audit entries (stdout, shipped to Loki) must not hold it        #
 #    MUTANTS   the file without rule 10110 MUST refuse the code block and the  #
 #              profile, without rule 10120 the migration, without rule 10140   #
-#              the statement, without rule 10130 MUST pass the Funnel          #
+#              the statement, without rule 10150 (or only its 921130 line on   #
+#              json.html) the mails, without rule 10130 MUST pass the Funnel   #
 #              probes, and audit parts ABIJDEFHZ MUST                          #
 #              leak the marker; else the gate is blind and fails               #
 #  Needs docker, the WAF image and node:20-alpine already present (nothing is  #
@@ -59,6 +73,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 WAF_CONF="${ROOT}/infra/docker/services/waf/conf"
+# Rendered with renderMessage() from opposite-osiris scripts/auth/mail-templates.mjs (confirmEmail, resetPassword), link https://localhost:4322/auth/confirm#token_hash=abc&type=signup&sig=def, listUnsubscribe a mailto.
+MAIL_FIXTURE="${SCRIPT_DIR}/fixtures/m227-email-bodies.json"
 EXCL="${M227_EXCLUSIONS:-${WAF_CONF}/exclusions.conf}"
 KONG_YML="${ROOT}/infra/docker/services/kong/conf/kong.yml"
 WAF_IMG="${M227_WAF_IMAGE:-ghcr.io/univers42/grobase-waf:latest}"
@@ -151,7 +167,7 @@ start_waf() {
 # "<status> <label>" line each. A null body sends `<script>` in a header instead. Each path
 # of PRIVATE (kong_private_paths) is sent twice: as Funnel delivers it and as the tailnet does.
 probe() {
-  docker exec -e WAF="$1" -e MARKER="${MARKER}" -e PRIVATE="${PRIVATE}" "${TAG}-kong" node -e '
+  docker exec -e WAF="$1" -e MAILS="$(cat "${MAIL_FIXTURE}")" -e MARKER="${MARKER}" -e PRIVATE="${PRIVATE}" "${TAG}-kong" node -e '
     const http = require("http");
     const send = (method, path, body, headers) => new Promise((done) => {
       const data = body ? JSON.stringify(body) : "";
@@ -179,6 +195,10 @@ probe() {
     const sqli = "SELECT COUNT(*) AS n FROM projects WHERE name = \u0027a\u0027 OR \u00271\u0027=\u00271\u0027 UNION SELECT 1";
     const runner = "/query/v1/59939f19-7e8d-4876-a57f-61b3e7bb37be/sql-ro";
     const raw = { sql: sqli };
+    const mails = JSON.parse(process.env.MAILS);
+    const mail = mails.verification;
+    const script = "<script>alert(1)</script>";
+    const mailPath = "/email/v1/send";
     const funnel = { "Tailscale-Funnel-Request": "?1" };
     const probes = [
       ["content-post-code", "POST", "/rest/v1/osionos_pages", code],
@@ -218,6 +238,18 @@ probe() {
       ["control-query-encoded", "POST", runner + "%3F/../../execute", raw],
       ["control-query-other-arg", "POST", runner, { sql: "SELECT 1", note: sqli }],
       ["control-query-execute", "POST", "/query/v1/execute", { database_id: "59939f19-7e8d-4876-a57f-61b3e7bb37be", action: "select", resource: "projects", payload: { sql: sqli } }],
+      ["content-email-html", "POST", mailPath, mail],
+      ["content-email-reset", "POST", mailPath, mails.reset],
+      ["control-email-to-script", "POST", mailPath, { ...mail, to: script }],
+      ["control-email-subject-script", "POST", mailPath, { ...mail, subject: script }],
+      ["control-email-unsubscribe-script", "POST", mailPath, { ...mail, listUnsubscribe: script }],
+      ["control-email-query-script", "POST", mailPath + "?x=" + script, mail],
+      ["control-email-get", "GET", mailPath, mail],
+      ["control-email-put", "PUT", mailPath, mail],
+      ["control-email-suffix", "POST", mailPath + "-x", mail],
+      ["control-email-slash", "POST", mailPath + "/", mail],
+      ["control-email-encoded", "POST", mailPath + "%3F/../x", mail],
+      ["control-email-elsewhere", "POST", "/rest/v1/some_table", mail],
       ["public-funnel-query", "POST", runner, raw, funnel],
       ["funnel-encoded-a", "GET", "/%61dmin/v1/tenants", undefined, funnel],
       ["funnel-double-slash", "GET", "/admin//v1/tenants", undefined, funnel],
@@ -324,16 +356,18 @@ mutant() {
 line_mutant() {
   local pattern="$1" want="$2" file="${WORK}/linemut.conf" got label out
   shift 2
+  LINE_MUTANTS=$((${LINE_MUTANTS:-0} + 1))
+  local name="${TAG}-mutline${LINE_MUTANTS}"
   grep -v -- "${pattern}" "${EXCL}" >"${file}"
   if cmp -s "${EXCL}" "${file}" || grep -q -- "${pattern}" "${file}"; then
     bad "line mutant: '${pattern}' was not found — rebuild this leg"
     return
   fi
-  if ! start_waf "${TAG}-mutline" "${file}"; then
+  if ! start_waf "${name}" "${file}"; then
     bad "line mutant: the WAF did not start without '${pattern}'"
     return
   fi
-  out="$(probe "${TAG}-mutline")"
+  out="$(probe "${name}")"
   for label in "$@"; do
     got="$(awk -v l="${label}" '$2 == l { print $1 }' <<<"${out}")"
     [ "${got}" = "${want}" ] && ok "without the '${pattern}' line: ${label} answered ${want} — the probe sees that line" ||
@@ -346,6 +380,8 @@ mutant 10110 403 content-post-code content-patch-profile content-odb-protocol-ti
 line_mutant 921130\;ARGS 403 content-odb-protocol-title content-odb-html-tag content-odb-meta-tag
 mutant 10120 403 content-migrate-sql
 mutant 10140 403 content-query-sql public-funnel-query
+mutant 10150 403 content-email-html content-email-reset
+line_mutant 921130\;ARGS:json.html 403 content-email-html content-email-reset
 mutant 10130 200 funnel-kong:/admin/v1/tenants funnel-kong:/meta/v1 funnel-kong:/realtime/v1/publish funnel-encoded-a funnel-double-slash funnel-migrate-post
 if ! start_waf "${TAG}-mutaudit" "${EXCL}" MODSEC_AUDIT_LOG_PARTS=ABIJDEFHZ; then
   bad "mutant: the WAF did not start with the old audit parts"
@@ -356,7 +392,7 @@ else
 fi
 
 [ "${FAILED}" -eq 0 ] || {
-  printf '\033[0;31m[M227] FAIL — app content, a migration or a raw statement is refused, an exclusion reaches past its path, Funnel reaches a private route, or the audit log holds a credential\033[0m\n' >&2
+  printf '\033[0;31m[M227] FAIL — app content, a migration, a raw statement or a mail is refused, an exclusion reaches past its path, Funnel reaches a private route, or the audit log holds a credential\033[0m\n' >&2
   exit 1
 }
-printf '\033[0;32m[M227] PASS — osionos_* writes carry code, migrations and raw statements carry SQL; other paths stay inspected; Funnel reaches no private route; no credential in the audit\033[0m\n'
+printf '\033[0;32m[M227] PASS — osionos_* writes carry code, migrations, raw statements and mails carry their SQL or HTML; other paths stay inspected; Funnel reaches no private route; no credential in the audit\033[0m\n'
