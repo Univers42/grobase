@@ -90,6 +90,7 @@ func (b *bootCtx) mountAll(ctx context.Context) {
 	b.mountPush()
 	b.mountAppChannels()
 	b.mountAppsSelfServe()
+	b.mountAuthz()
 }
 
 func envFirst(keys ...string) string {

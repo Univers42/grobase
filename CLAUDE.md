@@ -540,7 +540,9 @@ Other slices, also OFF by default: `QUOTA_STAGE` · `SPEND_CAPS_ENABLED` · `ABU
 (m89–m91); `FUNCTIONS_CRON_ENABLED` (m96); `TENANT_TELEMETRY_EXPORT_ENABLED` (m100);
 `DATA_PLANE_READ_REPLICA` (m122); `GITHUB_CONNECT_ENABLED` (m163, Track-E GitHub-App connect/sync);
 `APPS_SELFSERVE_ENABLED` (m177, self-serve `POST /v1/tenants/me/apps` → fresh per-app database + scoped
-key); `APP_CHANNELS_ENABLED` (m179, cross-app `xapp:` messaging channels, migration `085`).
+key); `APP_CHANNELS_ENABLED` (m179, cross-app `xapp:` messaging channels, migration `085`);
+`AUTHZ_ENABLED` (m231/m232, relationship authz `/v1/authz/*`: Go evaluator over `authz.tuples`, API-key
+only, `AUTHZ_MAX_CONCURRENT` bounds the checks holding a connection).
 
 ## SDKs
 
