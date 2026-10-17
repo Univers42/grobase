@@ -26,7 +26,7 @@ import (
 // surface + message building are asserted without a live SMTP server.
 func newTestService() (*Service, *message) {
 	s := New(slog.Default())
-	s.from = "noreply@grobase.test"
+	s.smtp.From = "noreply@grobase.test"
 	holder := &message{}
 	s.send = func(m *message) error { *holder = *m; return nil }
 	return s, holder
@@ -189,7 +189,7 @@ func TestNewImplicitTLS(t *testing.T) {
 	for _, c := range cases {
 		t.Setenv("SMTP_PORT", c.port)
 		t.Setenv("SMTP_SECURE", c.secure)
-		if got := New(slog.Default()).secure; got != c.want {
+		if got := New(slog.Default()).smtp.ImplicitTLS(); got != c.want {
 			t.Errorf("SMTP_PORT=%s SMTP_SECURE=%q: secure=%v, want %v", c.port, c.secure, got, c.want)
 		}
 	}
