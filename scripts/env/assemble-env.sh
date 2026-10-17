@@ -20,6 +20,9 @@
 # are assembled into SMTP_USER / SMTP_PASS / EMAIL_FROM and the Titan relay, in a
 # final `derived` section, and never reach .env under their own name. An explicit
 # SMTP_* of the operator wins; a conflicting SMTP_USER / SMTP_PASS is refused.
+# A key the old .env held and this run's derived section writes again (`derives`)
+# is no orphan: measured 2026-10-17, a hand-edited SMTP_PASS blocked `make env`
+# after TITAN_PASSWORD was added.
 # Caveat: "explicit" means a NON-EMPTY value in a layer, so a blank `SMTP_PASS=`
 # (as .env.local.example ships it) does not block the alias. The password is
 # copied as the operator wrote it, quotes included: compose decodes it exactly as
@@ -81,6 +84,20 @@ esac
 explicit_rhs() { set_rhs "$1" "$LOCAL" "$SECRETS"; }
 TITAN_EMAIL_RHS="$(set_rhs TITAN_EMAIL "$LOCAL" "$SECRETS")"
 TITAN_PASSWORD_RHS="$(set_rhs TITAN_PASSWORD "$LOCAL" "$SECRETS")"
+
+# derives KEY — will the derived section of THIS run write KEY? The one rule
+# derived_layer writes by and classify_old_key refuses by, so they cannot disagree.
+derives() {
+  case "$1" in
+  SMTP_USER | EMAIL_FROM) [ -n "$TITAN_EMAIL_RHS" ] && [ -z "$(explicit_rhs "$1")" ] ;;
+  SMTP_PASS) [ -n "$TITAN_PASSWORD_RHS" ] && [ -z "$(explicit_rhs SMTP_PASS)" ] ;;
+  SMTP_HOST | SMTP_PORT | SMTP_SECURE)
+    { [ -n "$TITAN_EMAIL_RHS" ] || [ -n "$TITAN_PASSWORD_RHS" ]; } && [ -z "$(explicit_rhs SMTP_HOST)" ]
+    ;;
+  *) return 1 ;;
+  esac
+}
+
 conflicts=()
 if [ -n "$TITAN_EMAIL_RHS" ] && [ -n "$(explicit_rhs SMTP_USER)" ] &&
   [ "$(unquote "$(explicit_rhs SMTP_USER)")" != "$(unquote "$TITAN_EMAIL_RHS")" ]; then
@@ -122,6 +139,7 @@ classify_old_key() {
   local key="$1" line="${OLD_LINE[$1]}" section="${OLD_SECTION[$1]}" value current
   value="$(unquote "${line#*=}")"
   [ -n "$value" ] || return 0
+  derives "$key" && return 0 # this run writes it again, from TITAN_*: not lost
   case "$section" in
   derived) return 0 ;; # rebuilt from TITAN_* on every run: never an orphan, never carried
   config) # config.env is authoritative: a key it dropped was dropped on purpose
@@ -288,21 +306,22 @@ secrets_layer() {
 # derived_layer — the final section: later than every layer, so it wins for the
 # keys it writes, and it writes only keys no operator-set SMTP_* claims.
 derived_layer() {
+  local key
   [ -n "$TITAN_EMAIL_RHS" ] || [ -n "$TITAN_PASSWORD_RHS" ] || return 0
   echo
   echo "$DERIVED_MARKER"
-  if [ -n "$TITAN_EMAIL_RHS" ]; then
-    [ -n "$(explicit_rhs SMTP_USER)" ] || echo "SMTP_USER=$TITAN_EMAIL_RHS"
-    [ -n "$(explicit_rhs EMAIL_FROM)" ] || echo "EMAIL_FROM=$TITAN_EMAIL_RHS"
-  else
+  [ -n "$TITAN_EMAIL_RHS" ] ||
     echo "Warning: TITAN_PASSWORD is set without TITAN_EMAIL: SMTP_USER and EMAIL_FROM are not derived." >&2
-  fi
-  [ -z "$TITAN_PASSWORD_RHS" ] || [ -n "$(explicit_rhs SMTP_PASS)" ] || echo "SMTP_PASS=$TITAN_PASSWORD_RHS"
-  if [ -z "$(explicit_rhs SMTP_HOST)" ]; then
-    echo "SMTP_HOST=$TITAN_HOST"
-    echo "SMTP_PORT=$TITAN_PORT"
-    echo "SMTP_SECURE=true"
-  fi
+  for key in SMTP_USER EMAIL_FROM SMTP_PASS SMTP_HOST SMTP_PORT SMTP_SECURE; do
+    derives "$key" || continue
+    case "$key" in
+    SMTP_USER | EMAIL_FROM) echo "$key=$TITAN_EMAIL_RHS" ;;
+    SMTP_PASS) echo "$key=$TITAN_PASSWORD_RHS" ;;
+    SMTP_HOST) echo "$key=$TITAN_HOST" ;;
+    SMTP_PORT) echo "$key=$TITAN_PORT" ;;
+    SMTP_SECURE) echo "$key=true" ;;
+    esac
+  done
 }
 
 # ── the local layer, with the two rules above applied line by line ─────────

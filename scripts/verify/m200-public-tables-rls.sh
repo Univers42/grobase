@@ -107,9 +107,9 @@ FLOOR="apps billing_reported erasure_receipts fdw_external_resources function_de
   tenant_databases tenant_entitlements tenant_exports tenant_ip_allowlist tenant_safety tenant_telemetry_targets
   tenant_usage tenants webauthn_credentials webhook_deliveries webhook_subscriptions"
 # The tables a browser may write through /rest/v1 (RLS keyed on the caller's own uid or an
-# app role): 001/007/008/010 app tables, 002 mock_orders, 066 MovieVerse. A new entry here
+# app role): 001/007/008/010 app tables, 002 mock_orders. (MovieVerse's movieverse_profiles left the list when 092 revoked it: an email leak.) A new entry here
 # is a decision that end users write that table directly.
-ALLOW="friendships likes list_items media_lists mock_orders moderation_actions movieverse_profiles reports
+ALLOW="friendships likes list_items media_lists mock_orders moderation_actions reports
   resource_policies reviews roles storage_buckets storage_objects supported_languages translations
   user_media_status user_presence user_profiles user_roles"
 sql_list() { printf "'%s'," $1 | sed 's/,$//'; }
