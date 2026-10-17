@@ -8,8 +8,11 @@ import (
 func TestPrepareTuples(t *testing.T) {
 	m := mustModel(t, pageModel)
 	ok := TuplesRequest{Source: "page_row", Object: "page:1", Tuples: []TupleIn{
-		{"owner", "user:alice"}, {"owner", "user:alice"}, {"viewer", "user:*"},
-		{"viewer", "workspace:w#member"}, {"parent", "page:0"},
+		{"owner", "user:alice"},
+		{"owner", "user:alice"},
+		{"viewer", "user:*"},
+		{"viewer", "workspace:w#member"},
+		{"parent", "page:0"},
 	}}
 	p, err := m.PrepareTuples(ok)
 	if err != nil {

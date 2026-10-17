@@ -94,8 +94,10 @@ func drive(check checker, hold *holdLog, strategy, scenario string, clients, cal
 	wg.Wait()
 	sort.Slice(lat, func(i, j int) bool { return lat[i] < lat[j] })
 	h := hold.sorted()
-	return benchResult{strategy, scenario, clients, calls, ms(pct(lat, .5)), ms(pct(lat, .95)),
-		ms(pct(h, .5)), ms(pct(h, .95)), unavailable}
+	return benchResult{
+		strategy, scenario, clients, calls, ms(pct(lat, .5)), ms(pct(lat, .95)),
+		ms(pct(h, .5)), ms(pct(h, .95)), unavailable,
+	}
 }
 
 type holdLog struct {
