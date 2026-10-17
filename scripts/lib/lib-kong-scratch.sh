@@ -6,13 +6,14 @@
 
 # kong_scratch_start runs Kong container $1 from image $2 on docker network $3
 # ("none" for no network); every further argument goes to `docker run` before
-# the image (extra -e, --network-alias). Returns docker's status.
+# the image (extra -e, --network-alias). Returns docker's status. KONG_SCRATCH_CONF
+# names another kong.yml template to load (mutation tests).
 kong_scratch_start() {
   local name="$1" image="$2" net="$3" root
   shift 3
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   docker run -d --name "${name}" --network "${net}" --memory 1g "$@" \
-    -v "${root}/infra/docker/services/kong/conf/kong.yml:/etc/kong/kong.yml.tmpl:ro" \
+    -v "${KONG_SCRATCH_CONF:-${root}/infra/docker/services/kong/conf/kong.yml}:/etc/kong/kong.yml.tmpl:ro" \
     -v "${root}/infra/docker/services/kong/render-kong-config.sh:/etc/kong/render-kong-config.sh:ro" \
     -e KONG_DATABASE=off -e KONG_DECLARATIVE_CONFIG=/tmp/kong.yml -e KONG_NGINX_WORKER_PROCESSES=1 \
     -e KONG_MEM_CACHE_SIZE=64m -e KONG_UNTRUSTED_LUA_SANDBOX_REQUIRES=cjson.safe \
@@ -37,18 +38,25 @@ kong_scratch_wait() {
   return 1
 }
 
-# kong_scratch_get prints Kong $1's raw HTTP/1.0 answer to GET $3 on port $2,
-# sent from inside the container (127.0.0.1; the image ships no curl), with
-# each further argument as one header line ("Name: value"). Prints REFUSED
-# when nothing listens.
-kong_scratch_get() {
-  local name="$1" port="$2" req h
-  printf -v req 'GET %s HTTP/1.0\r\nHost: localhost\r\n' "$3"
-  shift 3
+# kong_scratch_send prints Kong $1's raw HTTP/1.0 answer to method $3 of path
+# $4 on port $2, sent from inside the container (127.0.0.1; the image ships no
+# curl), with each further argument as one header line ("Name: value") and an
+# empty body. Prints REFUSED when nothing listens.
+kong_scratch_send() {
+  local name="$1" port="$2" method="$3" req h
+  printf -v req '%s %s HTTP/1.0\r\nHost: localhost\r\nContent-Length: 0\r\n' "${method}" "$4"
+  shift 4
   for h in "$@"; do printf -v req '%s%s\r\n' "${req}" "${h}"; done
   docker exec -e REQ="${req}"$'\r\n' "${name}" bash -c \
     'exec 3<>/dev/tcp/127.0.0.1/$0 && printf "%s" "$REQ" >&3 && cat <&3' "${port}" 2>/dev/null ||
     printf 'REFUSED\n'
+}
+
+# kong_scratch_get prints kong_scratch_send's answer to GET $3 on port $2.
+kong_scratch_get() {
+  local name="$1" port="$2" path="$3"
+  shift 3
+  kong_scratch_send "${name}" "${port}" GET "${path}" "$@"
 }
 
 # kong_scratch_status prints just the HTTP status of kong_scratch_get "$@".

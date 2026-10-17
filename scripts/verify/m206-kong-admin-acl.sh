@@ -15,7 +15,11 @@
 #    127.0.0.1:3000 or an SSH tunnel, never through the gateway (N-25).       #
 #    Service-only routes (no ip-restriction, reached by app backends from     #
 #    anywhere) get the same acl checks: /email/v1 sends as the platform's own #
-#    mail account, so the anon key there is an open relay.                    #
+#    mail account, so the anon key there is an open relay. So does            #
+#    /v1/auth/otp/request (it mails any address it is given); verify and      #
+#    escrow stay public. The orchestrator serves emailsvc on the same mux as  #
+#    gdpr and newsletter, so /gdpr/v1/send, /newsletter/v1/send and their     #
+#    admin paths must be Kong's own 404, even for the service key (G2).       #
 #  Why: ip-restriction alone is one proxy hop from useless — behind the WAF   #
 #  every client arrives from a private bridge IP (N-23).                      #
 #  No stack needed; needs the kong image locally (M206_KONG_IMAGE overrides). #
@@ -126,6 +130,32 @@ assert_service_only() {
   ok "${n} service-only route(s): acl baas-admin present, anon key 403 by the acl, service key passes"
 }
 
+# assert_otp_request_gated proves the mail-sending OTP route takes only the
+# service key while the rest of the OTP flow stays public.
+assert_otp_request_gated() {
+  local path=/v1/auth/otp/request
+  jq -e --slurpfile p "${T}/plugins.json" '.data[] | select(.name == "auth-otp-request") | . as $r
+    | [$p[0].data[] | select(.route.id == $r.id and .name == "acl" and (.config.allow | index("baas-admin")))] | length == 1' \
+    "${T}/routes.json" >/dev/null || fail "route auth-otp-request is missing or lacks acl baas-admin — anyone can trigger OTP mails"
+  assert_probe "${path}"
+  [ "$(status /v1/auth/otp/verify scratch-anon)" != 403 ] || fail "/v1/auth/otp/verify is acl-gated — the login flow would break"
+  ok "${path}: acl baas-admin, anon key 403 by the acl, service key passes; verify stays public"
+}
+
+# assert_orchestrator_cross_paths_closed proves the prefix routes of gdpr and
+# newsletter are gone: paths that reach emailsvc or an admin handler get
+# Kong's 404 even with the service key.
+assert_orchestrator_cross_paths_closed() {
+  local path n=0
+  for path in /gdpr/v1/send /newsletter/v1/send /newsletter/v1/admin/stats /newsletter/v1/admin/campaigns/send \
+    /gdpr/v1/deletion-requests/admin /gdpr/v1/email/v1/send; do
+    body_of "${path}" scratch-service | head -n1 | grep -q ' 404 ' || fail "${path}: not a 404 for the service key — an orchestrator path is exposed"
+    body_of "${path}" scratch-service | grep -q 'no Route matched' || fail "${path}: the 404 is not Kong's 'no Route matched'"
+    n=$((n + 1))
+  done
+  ok "${n} orchestrator cross/admin paths: Kong's 404 no Route matched, service key included"
+}
+
 command -v jq >/dev/null || fail "jq is required"
 printf '\033[0;36m[M206] throwaway kong: ip-restricted routes need the service_role key\033[0m\n'
 IMG="$(kong_image)"
@@ -137,4 +167,6 @@ service_only_routes >"${T}/only"
 assert_no_studio
 assert_acl
 assert_service_only
+assert_otp_request_gated
+assert_orchestrator_cross_paths_closed
 printf '\033[0;32m[M206] PASS — no internal-only Kong route is open to the public anon key\033[0m\n'

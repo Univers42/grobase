@@ -18,12 +18,16 @@
 # wrong or the orchestrator isn't serving that sub-service). The gate is the
 # green light AFTER the kong.yml flip + ORCHESTRATOR_SERVICES=all + Node stop.
 #
-# Auth: the public newsletter subscribe is the end-to-end proof (Kong key-auth
-# anon → orchestrator → 201 envelope). The other four are routing proofs — the
-# orchestrator MUST respond (any non-502), confirming Kong now reaches it, not a
-# dead Node container. Email takes only the service key (acl baas-admin, m206)
-# and is probed with an empty body, so emailsvc's own 400 proves the route and
-# no mail can leave.
+# Kong exposes only the public paths of the orchestrator's gdpr and newsletter
+# sub-services (G2 TM3, m229); the admin handlers (sessions/gdpr/newsletter
+# admin) trust X-Baas-Role, which Kong clears, so through Kong they must answer
+# CLOSED (404/401/403). Their admin coverage is m48's, directly on :3026.
+# Newsletter subscribe is probed with an invalid body (400 from the
+# orchestrator: routed, nothing sent). A real subscribe sends a confirmation
+# mail, so it is opt-in (M49_NEWSLETTER_E2E=1) and refused unless the stack's
+# SMTP_HOST is mailpit (M49_ALLOW_REAL_SMTP=1 overrides, TM10). Email takes
+# only the service key (acl baas-admin, m206) and is probed with an empty body,
+# so emailsvc's own 400 proves the route and no mail can leave.
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -65,16 +69,37 @@ code() {
   fi
 }
 
-# ── 1) newsletter — end-to-end through Kong (public subscribe) ────────────────
-step "newsletter /newsletter/v1/subscribe through Kong → orchestrator"
-C="$(code POST /newsletter/v1/subscribe "{\"email\":\"m49-$(date +%s)@example.com\"}")"
-[ "${C}" = "201" ] || fail "newsletter subscribe through Kong got ${C} (want 201): $(head -c 160 /tmp/m49.json)"
-grep -q '"subscribed":true' /tmp/m49.json || fail "newsletter response not the orchestrator's: $(head -c 160 /tmp/m49.json)"
-pass "newsletter served end-to-end by the orchestrator through Kong (201)"
+# ── 1) newsletter — routed through Kong, no mail by default ──────────────────
+# stack_smtp_host prints the SMTP_HOST the running orchestrator was started with.
+stack_smtp_host() {
+  docker inspect mini-baas-orchestrator --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^SMTP_HOST=//p' | head -1
+}
 
-# ── 2) the other four — Kong reaches the orchestrator (NOT 502) ───────────────
-# These need user/service auth for a 2xx, but the cutover question is only
-# "does Kong route to a LIVE upstream" — a 502/503 means the swap is broken.
+# refuse_real_smtp fails when a real-send leg would mail outside mailpit.
+refuse_real_smtp() {
+  local host
+  host="$(stack_smtp_host)"
+  [ "${host}" = mailpit ] || [ "${M49_ALLOW_REAL_SMTP:-}" = 1 ] ||
+    fail "refusing a real-send leg: the stack's SMTP_HOST is '${host:-unset}', not mailpit (M49_ALLOW_REAL_SMTP=1 to allow)"
+}
+
+step "newsletter /newsletter/v1/subscribe through Kong → orchestrator (invalid body, nothing sent)"
+C="$(code POST /newsletter/v1/subscribe '{"email":"not-an-email"}')"
+[ "${C}" = "400" ] && grep -q 'valid email' /tmp/m49.json ||
+  fail "newsletter subscribe with an invalid body got ${C} (want the orchestrator's 400): $(head -c 160 /tmp/m49.json)"
+pass "newsletter routed through Kong to the orchestrator (400 on an invalid body, no mail)"
+if [ "${M49_NEWSLETTER_E2E:-}" = 1 ]; then
+  step "newsletter subscribe end-to-end (M49_NEWSLETTER_E2E=1, sends the confirmation mail)"
+  refuse_real_smtp
+  C="$(code POST /newsletter/v1/subscribe "{\"email\":\"m49-$(date +%s)@example.com\"}")"
+  [ "${C}" = "201" ] && grep -q '"subscribed":true' /tmp/m49.json ||
+    fail "newsletter subscribe through Kong got ${C} (want 201): $(head -c 160 /tmp/m49.json)"
+  pass "newsletter served end-to-end by the orchestrator through Kong (201)"
+fi
+
+# ── 2) the rest — Kong reaches the orchestrator (NOT 502), admin stays closed ─
+# The cutover question is only "does Kong route to a LIVE upstream" — a
+# 502/503 means the swap is broken.
 reaches() { # $1 label  $2 method  $3 path  [$4 data]
   local label="$1" method="$2" path="$3" data="${4:-}"
   local c
@@ -85,10 +110,24 @@ reaches() { # $1 label  $2 method  $3 path  [$4 data]
   *) pass "${label}: orchestrator reached through Kong (HTTP ${c}, not a gateway error)" ;;
   esac
 }
-step "session /sessions/v1/admin/stats routes to the orchestrator"
-reaches "session" GET /sessions/v1/admin/stats
-step "gdpr /gdpr/v1/consents routes to the orchestrator"
+# closed <label> <method> <path> asserts the anon key gets 404, 401 or 403.
+closed() {
+  local c
+  c="$(code "$2" "$3")"
+  case "${c}" in
+  404 | 401 | 403) pass "$1: closed through Kong (HTTP ${c})" ;;
+  *) fail "$1: want a closed answer (404/401/403) through Kong, got ${c}: $(head -c 160 /tmp/m49.json)" ;;
+  esac
+}
+step "session /sessions/v1/admin/stats stays closed through Kong (X-Baas-Role is cleared)"
+closed "session admin" GET /sessions/v1/admin/stats
+step "gdpr /gdpr/v1/consents routes to the orchestrator (a user path: 401 without a verified JWT)"
 reaches "gdpr" GET /gdpr/v1/consents
+step "gdpr and newsletter admin paths are not routed through Kong"
+closed "gdpr admin" GET /gdpr/v1/deletion-requests/admin
+closed "newsletter admin" GET /newsletter/v1/admin/stats
+closed "newsletter campaign send" POST /newsletter/v1/admin/campaigns/send
+closed "gdpr cross-service send" POST /gdpr/v1/send
 step "log /logs/v1/ingest routes to the orchestrator"
 reaches "log" POST /logs/v1/ingest '{"level":"info","message":"m49 probe"}'
 step "email /email/v1/send routes to the orchestrator (service key, empty body)"
