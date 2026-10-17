@@ -148,8 +148,8 @@ run_bench() {
   mkdir -p "$(dirname "${ART}")"
   docker run --rm --network host -e CGO_ENABLED=0 -e GOFLAGS=-mod=mod \
     -e AUTHZ_BENCH_DSN="postgres://postgres:${PGPW}@127.0.0.1:${PG_PORT}/postgres" -e AUTHZ_BENCH_OUT=/out/bench.json \
-    -v "${CP}:/src" -v "${WORK}:/out" -v /goinfre/dlesieur/.cache/go/mod:/go/pkg/mod \
-    -v /goinfre/dlesieur/.cache/go/build:/root/.cache/go-build -w /src "${GO_IMG}" \
+    -v "${CP}:/src" -v "${WORK}:/out" -v mini-baas-gomod:/go/pkg/mod \
+    -v mini-baas-gobuild:/root/.cache/go-build -w /src "${GO_IMG}" \
     go test -tags authz_bench -run TestBenchmarkAuthz -count=1 ./internal/authz/ >"${WORK}/bench.log" 2>&1 ||
     {
       tail -20 "${WORK}/bench.log"
