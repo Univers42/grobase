@@ -20,7 +20,7 @@
 #  a negative is only proven by failing.                                       #
 #                                                                              #
 #  Needs docker, curl, jq, openssl and the images below locally; no stack.     #
-#  AUTHZ_SCHEMA_SQL=<file> applies unit A's 091 instead of the contract copy.  #
+#  AUTHZ_SCHEMA_SQL=<file> applies another schema than 091_authz_tuples.sql.   #
 #  Caveat: containers use --network host (docker0 is missing on the build      #
 #  hosts), so M231_PG_PORT / M231_TC_PORT / M231_REST_PORT must be free; the   #
 #  tenant-control image is alpine + a static binary, not the production image. #
@@ -30,8 +30,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SRC="${M231_SRC:-${ROOT}/src/control-plane}"
-SCHEMA_SQL="${AUTHZ_SCHEMA_SQL:-${SRC}/internal/authz/testdata/contract_schema.sql}"
 MIG="${ROOT}/scripts/migrations/postgresql"
+SCHEMA_SQL="${AUTHZ_SCHEMA_SQL:-${MIG}/091_authz_tuples.sql}"
 PG_IMAGE="${M231_PG_IMAGE:-postgres:16-alpine}"
 TC_IMAGE="${M231_TC_IMAGE:-alpine:latest}"
 REST_IMAGE="${M231_REST_IMAGE:-ghcr.io/univers42/grobase-postgrest:latest}"
@@ -69,9 +69,15 @@ self_test() {
   while IFS='~' read -r name file from to expect; do
     scratch="${WORK}/mut-${name}"
     mkdir -p "${scratch}" && cp -r "${SRC}/." "${scratch}/"
-    sed -i "s#${from}#${to}#" "${scratch}/${file}"
-    cmp -s "${SRC}/${file}" "${scratch}/${file}" && fail "self-test ${name}: the edit changed nothing"
-    out="$(M231_SRC="${scratch}" bash "$0" 2>&1 </dev/null)" && fail "self-test ${name}: gate PASSED with the bug planted"
+    # A mig/ path plants the bug in a copy of a migration, handed over as AUTHZ_SCHEMA_SQL.
+    local orig="${SRC}/${file}" planted="${scratch}/${file}" schema="${SCHEMA_SQL}"
+    if [ "${file#mig/}" != "${file}" ]; then
+      orig="${MIG}/${file#mig/}" planted="${scratch}/${file#mig/}" schema="${planted}"
+      cp "${orig}" "${planted}"
+    fi
+    sed -i "s#${from}#${to}#" "${planted}"
+    cmp -s "${orig}" "${planted}" && fail "self-test ${name}: the edit changed nothing"
+    out="$(M231_SRC="${scratch}" AUTHZ_SCHEMA_SQL="${schema}" bash "$0" 2>&1 </dev/null)" && fail "self-test ${name}: gate PASSED with the bug planted"
     grep -q "${expect}" <<<"${out}" || fail "self-test ${name}: failed, but not on '${expect}': $(tail -3 <<<"${out}")"
     ok "mutation ${name}: gate fails on '${expect}'"
   done <<'MUT'
@@ -79,7 +85,7 @@ jwt-accepted~internal/tenants/authenticator.go~^func (a \*SelfAuthenticator) Aut
 scope-ignored~internal/authz/handler.go~if s == want || s == "admin" {~if s == want || s == "admin" || true {~missing scope
 app-filter-dropped~internal/authz/frontier.sql~ON t.app = \$1~ON $1 <> ""~isolation
 always-mounted~cmd/tenant-control/mount_authz.go~if !config.EnvBool("AUTHZ_ENABLED") {~if false {~flag off
-anon-granted~internal/authz/testdata/contract_schema.sql~REVOKE ALL ON SCHEMA authz FROM PUBLIC, anon, authenticated;~GRANT ALL ON SCHEMA authz TO PUBLIC;#;s#REVOKE ALL ON ALL TABLES IN SCHEMA authz FROM PUBLIC, anon, authenticated;#GRANT ALL ON ALL TABLES IN SCHEMA authz TO PUBLIC;~grants:
+anon-granted~mig/091_authz_tuples.sql~REVOKE ALL ON SCHEMA authz FROM PUBLIC;~GRANT ALL ON SCHEMA authz TO PUBLIC;#;s#REVOKE ALL ON ALL TABLES IN SCHEMA authz FROM PUBLIC;#GRANT ALL ON ALL TABLES IN SCHEMA authz TO PUBLIC;~grants:
 MUT
   printf '\033[1;32mm231 self-test PASS\033[0m — 5/5 planted bugs were caught\n'
 }

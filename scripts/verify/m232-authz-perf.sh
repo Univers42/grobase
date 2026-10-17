@@ -43,7 +43,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CP="${ROOT}/src/control-plane"
 AUTHZ_DIR="${CP}/internal/authz"
-SCHEMA_SQL="${AUTHZ_SCHEMA_SQL:-${AUTHZ_DIR}/testdata/contract_schema.sql}"
+SCHEMA_SQL="${AUTHZ_SCHEMA_SQL:-${ROOT}/scripts/migrations/postgresql/091_authz_tuples.sql}"
 FRONTIER_SQL="${M232_FRONTIER_SQL:-${AUTHZ_DIR}/frontier.sql}"
 PG_IMAGE="${M232_PG_IMAGE:-postgres:16-alpine}"
 GO_IMG="${GO_IMG:-$(docker image ls --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -m1 'golang:1\.26' || echo golang:1.26-bookworm)}"
@@ -89,6 +89,15 @@ start_seeded_postgres() {
     sleep 0.5
   done
   [ "${i}" -lt 60 ] || fail "postgres never became ready"
+  # 091 expects the platform's roles and ledger; a bare postgres has neither.
+  psql_in >/dev/null <<'SQL'
+CREATE TABLE IF NOT EXISTS public.schema_migrations (version int PRIMARY KEY, name text, applied_at timestamptz DEFAULT now());
+DO $r$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role NOLOGIN; END IF;
+END $r$;
+SQL
   psql_in <"${SCHEMA_SQL}" >/dev/null
   psql_in <"${AUTHZ_DIR}/testdata/perf_seed.sql" >/dev/null
   ok "postgres up; $(psql_in -tA -c 'SELECT count(*) FROM authz.tuples') tuples seeded (${SCHEMA_SQL##*/})"

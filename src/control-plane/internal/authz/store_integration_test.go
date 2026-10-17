@@ -2,8 +2,8 @@
 
 package authz
 
-// Runs against a real postgres that already has the authz schema (testdata/contract_schema.sql,
-// or migration 091). Run:
+// Runs against a real postgres that already has migration 091 (scripts/migrations/postgresql/091_authz_tuples.sql)
+// applied. Run:
 //
 //	AUTHZ_TEST_DSN=postgres://u:p@host:5432/db go test -tags authz_integration ./internal/authz/ -run Integration
 //
