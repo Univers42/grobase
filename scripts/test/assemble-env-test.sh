@@ -33,6 +33,8 @@
 #   18. no TITAN_* line in .env, the password only on the SMTP_PASS line, never printed
 #   19. no TITAN_* set: .env is exactly config + secrets + local, no derived section
 #   20. a password with $ # quotes, a space and a backslash survives docker compose
+#   21. a key the TITAN alias re-derives is no orphan; a real orphan, an SMTP_PORT
+#       beside an explicit SMTP_HOST, and an SMTP_PASS with no alias are still refused
 # MUTANT
 #   ASSEMBLE_ENV_SH=<old script> bash scripts/test/assemble-env-test.sh
 #   runs the same scenarios against the previous script and goes red — that is
@@ -561,6 +563,56 @@ TITAN_PASSWORD=\"p\\\$a#s'x\\\\w d\"")"
   [ "$(compose_value "$t" SMTP_USER)" = "$TITAN_MAIL" ] || bad "SMTP_USER changed through compose"
   [ "$(compose_value "$t" SMTP_HOST)" = smtp.titan.email ] || bad "SMTP_HOST changed through compose"
 fi
+
+# ── 21. a key the TITAN alias re-derives is no orphan of the old .env ───────
+# Measured 2026-10-17 on the production VM: an .env hand-edited to hold
+# SMTP_PASS in no layer, then TITAN_* added to .env.local, was still refused
+# for SMTP_PASS although this very run writes it.
+# stale_tree <local-body> <old-local-body> — a tree whose old .env holds the
+# second body in its .env.local section, as a hand edit would have left it.
+stale_tree() {
+  local dir
+  dir="$(titan_tree "$1")"
+  printf '%s\n' "$2" >"$dir/old-local"
+  write_old_env "$dir" "$dir/config.env" "$dir/.env.secrets" "$dir/old-local"
+  printf '%s' "$dir"
+}
+scenario=titan-rederived-orphan
+t="$(stale_tree "TITAN_EMAIL=$TITAN_MAIL
+TITAN_PASSWORD=$TITAN_PW" "SMTP_PASS=$TITAN_PW")"
+run_env "$t"
+[ "$rc" = 0 ] || bad "a key the alias re-derives was refused (exit $rc)"
+if grep -q 'SMTP_PASS' "$t/stderr"; then bad "SMTP_PASS named although the alias re-derives it"; fi
+grep -qxF "SMTP_PASS=$TITAN_PW" <<<"$(derived_of "$t")" || bad "derived section lacks SMTP_PASS"
+if grep -qE '^[[:space:]]*(export[[:space:]]+)?TITAN_[A-Z]*=' "$t/.env"; then bad "a TITAN_* assignment reached .env"; fi
+
+scenario=titan-rederived-plus-orphan
+t="$(stale_tree "TITAN_EMAIL=$TITAN_MAIL
+TITAN_PASSWORD=$TITAN_PW" "SMTP_PASS=$TITAN_PW
+FOO_ONLY_HERE=1")"
+run_env "$t"
+[ "$rc" = 1 ] || bad "a real orphan next to a re-derived key exited $rc, expected 1"
+grep -q '^  FOO_ONLY_HERE$' "$t/stderr" || bad "the refusal does not name FOO_ONLY_HERE"
+if grep -q 'SMTP_PASS' "$t/stderr"; then bad "the refusal names SMTP_PASS, which the alias re-derives"; fi
+
+scenario=titan-explicit-host-orphan
+# config.env ships SMTP_PORT, which would make it no orphan whatever the alias
+# does; the scratch copy loses it so only the derived rule is under test.
+t="$(titan_tree "TITAN_EMAIL=$TITAN_MAIL
+TITAN_PASSWORD=$TITAN_PW
+SMTP_HOST=other.example")"
+sed -i '/^SMTP_PORT=/d' "$t/config.env"
+printf 'SMTP_PORT=2525\n' >"$t/old-local"
+write_old_env "$t" "$t/config.env" "$t/.env.secrets" "$t/old-local"
+run_env "$t"
+[ "$rc" = 1 ] || bad "SMTP_PORT with an explicit SMTP_HOST exited $rc, expected 1"
+grep -q '^  SMTP_PORT$' "$t/stderr" || bad "the refusal does not name SMTP_PORT"
+
+scenario=no-titan-orphan
+t="$(stale_tree "LLM_API_KEY=keep-me" "SMTP_PASS=$TITAN_PW")"
+run_env "$t"
+[ "$rc" = 1 ] || bad "an SMTP_PASS orphan without TITAN_* exited $rc, expected 1"
+grep -q '^  SMTP_PASS$' "$t/stderr" || bad "the refusal does not name SMTP_PASS"
 
 # ── 12. no fixture value is ever printed ────────────────────────────────────
 for tree in "$work"/*/; do
