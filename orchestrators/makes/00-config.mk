@@ -27,7 +27,11 @@ NETSEG         ?=
 # and mailpit SMTP 1025 on the guest loopback for an SSH-tunnelled groot
 # (orchestrators/compose/docker-compose.remote-access.yml). Loopback only.
 REMOTE_ACCESS  ?= $(shell sed -n 's/^REMOTE_ACCESS=//p' .env.local 2>/dev/null | head -1)
-DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)
+# CLOUD=1 (env, or a CLOUD= line in .env.local) composes the managed-cloud overlay
+# (docker-compose.cloud.yml, flags from infra/config/cloud/flags.env.cloud) and its
+# `cloud` profile (stripe-mock) into every compose call, so `make up` keeps a cloud host cloud.
+CLOUD          ?= $(shell sed -n 's/^CLOUD=//p' .env.local 2>/dev/null | head -1)
+DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)
 
 # Colors
 _B := \033[0;34m
@@ -102,7 +106,7 @@ EDITION_devlean   := $(filter-out engines analytics observability ops studio fun
 EDITION_tetris    := data go rust adapter background realtime storage functions analytics observability
 
 # Which edition `make up` / `make down` operate on by default.
-EDITION ?= query
+EDITION ?= $(or $(shell sed -n 's/^EDITION=//p' .env.local 2>/dev/null | head -1),query)
 
 # A PACKAGE is the customer-facing service tier (Phase 4 — mirrors
 # infra/config/packages/packages.json): like an EDITION but named for the product

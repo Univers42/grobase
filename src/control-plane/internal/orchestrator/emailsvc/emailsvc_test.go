@@ -26,7 +26,7 @@ import (
 // surface + message building are asserted without a live SMTP server.
 func newTestService() (*Service, *message) {
 	s := New(slog.Default())
-	s.from = "noreply@grobase.test"
+	s.smtp.From = "noreply@grobase.test"
 	holder := &message{}
 	s.send = func(m *message) error { *holder = *m; return nil }
 	return s, holder
@@ -77,6 +77,8 @@ func TestSendValidation(t *testing.T) {
 	}{
 		{"bad_email", map[string]string{"to": "not-an-email", "subject": "s", "text": "t"}},
 		{"empty_subject", map[string]string{"to": "u@e.com", "subject": "  ", "text": "t"}},
+		{"listUnsubscribe_crlf", map[string]string{"to": "u@e.com", "subject": "s", "text": "t", "listUnsubscribe": "https://x.test/u\r\nBcc: evil@x.test"}},
+		{"listUnsubscribe_lf", map[string]string{"to": "u@e.com", "subject": "s", "text": "t", "listUnsubscribe": "https://x.test/u\nBcc: evil@x.test"}},
 		{"no_body", map[string]string{"to": "u@e.com", "subject": "s"}},
 	}
 	for _, c := range cases {
@@ -170,5 +172,27 @@ func TestNewMessageIDUsesFromDomain(t *testing.T) {
 func TestNameIsEmail(t *testing.T) {
 	if New(slog.Default()).Name() != "email" {
 		t.Errorf("Name() must be %q", "email")
+	}
+}
+
+// TestNewImplicitTLS pins when the transport dials TLS first: SMTP_SECURE=true,
+// or port 465 (implicit TLS, RFC 8314), the rule GoTrue applies to the same keys.
+func TestNewImplicitTLS(t *testing.T) {
+	cases := []struct {
+		port, secure string
+		want         bool
+	}{
+		{"465", "", true},
+		{"465", "false", true},
+		{"587", "true", true},
+		{"587", "", false},
+		{"1025", "false", false},
+	}
+	for _, c := range cases {
+		t.Setenv("SMTP_PORT", c.port)
+		t.Setenv("SMTP_SECURE", c.secure)
+		if got := New(slog.Default()).smtp.ImplicitTLS(); got != c.want {
+			t.Errorf("SMTP_PORT=%s SMTP_SECURE=%q: secure=%v, want %v", c.port, c.secure, got, c.want)
+		}
 	}
 }
