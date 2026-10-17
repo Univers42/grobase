@@ -26,6 +26,13 @@
 #   11. a host-only token in the `.env.secrets` section is NOT restored there
 #   12. no fixture value is EVER printed, in any scenario
 #   13. a flat legacy .env (no markers) refuses a key no layer holds, too
+#   14. TITAN_EMAIL/TITAN_PASSWORD in .env.local derive six keys, in a final section
+#   15. an explicit SMTP_HOST (mailpit included) is kept; no Titan relay keys
+#   16. an explicit SMTP_PASS/SMTP_USER that differs is refused, by name; equal passes
+#   17. a rerun is byte-identical; the derived section is no orphan, never carried
+#   18. no TITAN_* line in .env, the password only on the SMTP_PASS line, never printed
+#   19. no TITAN_* set: .env is exactly config + secrets + local, no derived section
+#   20. a password with $ # quotes, a space and a backslash survives docker compose
 # MUTANT
 #   ASSEMBLE_ENV_SH=<old script> bash scripts/test/assemble-env-test.sh
 #   runs the same scenarios against the previous script and goes red — that is
@@ -51,7 +58,13 @@ NEEDLES=(
   'fake-vercel-1a5f-not-a-real-value'
   'fake-old-2c7e-not-a-real-value'
   'fake-new-5a19-not-a-real-value'
+  'fake-titan-pw-3e8b-not-a-real-value'
+  'fake-other-pw-6d02-not-a-real-value'
 )
+TITAN_PW='fake-titan-pw-3e8b-not-a-real-value'
+OTHER_PW='fake-other-pw-6d02-not-a-real-value'
+TITAN_MAIL='ops@titan.example.test'
+
 
 fail=0
 scenario=''
@@ -397,6 +410,157 @@ grep -q "^LEGACY_API_KEY=$SENTINEL\$" "$t/.env.local" 2>/dev/null ||
   bad "carry: LEGACY_API_KEY did not reach .env.local"
 grep -q "^MSSQL_SA_PASSWORD=$SENTINEL\$" "$t/.env.secrets" 2>/dev/null ||
   bad "carry: MSSQL_SA_PASSWORD was not restored into .env.secrets"
+
+# derived_of <tree> — the lines of .env after the derived marker.
+derived_of() { sed -n "/^# ========== derived (TITAN_\* aliases) ==========\$/,\$p" "$1/.env"; }
+# body_of <tree> — .env without its timestamped first line.
+body_of() { tail -n +2 "$1/.env"; }
+
+# titan_tree <local-body> — a fresh tree with synthetic secrets and the given .env.local.
+titan_tree() {
+  local dir
+  dir="$(new_tree)"
+  write_secrets "$dir"
+  printf '%s\n' "$1" >"$dir/.env.local"
+  chmod 600 "$dir/.env.local"
+  printf '%s' "$dir"
+}
+
+# ── 14. TITAN_* in .env.local derive six keys ───────────────────────────────
+scenario=titan-derive
+t="$(titan_tree "TITAN_EMAIL=$TITAN_MAIL
+TITAN_PASSWORD=$TITAN_PW")"
+run_env "$t"
+[ "$rc" = 0 ] || bad "assemble with TITAN_* exited $rc"
+d="$(derived_of "$t")"
+for want in "SMTP_USER=$TITAN_MAIL" "SMTP_PASS=$TITAN_PW" "EMAIL_FROM=$TITAN_MAIL" \
+  SMTP_HOST=smtp.titan.email SMTP_PORT=465 SMTP_SECURE=true; do
+  grep -qxF "$want" <<<"$d" || bad "derived section lacks ${want%%=*}"
+done
+[ "$(grep -cE "^[A-Z_]+=" <<<"$d")" = 6 ] || bad "derived section holds $(grep -cE "^[A-Z_]+=" <<<"$d") assignments, expected 6"
+
+# ── 15. an explicit SMTP_HOST wins, mailpit included ────────────────────────
+for host in mailpit smtp.other.example.test; do
+  scenario=titan-host-$host
+  t="$(titan_tree "TITAN_EMAIL=$TITAN_MAIL
+TITAN_PASSWORD=$TITAN_PW
+SMTP_HOST=$host")"
+  run_env "$t"
+  [ "$rc" = 0 ] || bad "explicit SMTP_HOST=$host: exit $rc"
+  d="$(derived_of "$t")"
+  for k in SMTP_HOST SMTP_PORT SMTP_SECURE; do
+    if grep -q "^$k=" <<<"$d"; then bad "$k derived although SMTP_HOST=$host is explicit"; fi
+  done
+  grep -qxF "SMTP_USER=$TITAN_MAIL" <<<"$d" || bad "SMTP_USER not derived next to an explicit SMTP_HOST"
+  tail -1 <(grep '^SMTP_HOST=' "$t/.env") | grep -qxF "SMTP_HOST=$host" || bad "effective SMTP_HOST is not $host"
+done
+
+# ── 16. a differing explicit SMTP_PASS / SMTP_USER is refused by name ───────
+scenario=titan-conflict
+t="$(titan_tree "TITAN_EMAIL=$TITAN_MAIL
+TITAN_PASSWORD=$TITAN_PW
+SMTP_PASS=$OTHER_PW
+SMTP_USER=other@titan.example.test")"
+run_env "$t"
+[ "$rc" = 1 ] || bad "a conflicting SMTP_PASS/SMTP_USER exited $rc, expected 1"
+grep -q 'SMTP_USER' "$t/stderr" && grep -q 'SMTP_PASS' "$t/stderr" || bad "the refusal does not name both keys"
+[ ! -f "$t/.env" ] || bad ".env written despite the refusal"
+t="$(titan_tree "TITAN_EMAIL=$TITAN_MAIL
+TITAN_PASSWORD=$TITAN_PW
+SMTP_PASS=\"$TITAN_PW\"
+SMTP_USER=$TITAN_MAIL")"
+run_env "$t"
+[ "$rc" = 0 ] || bad "an explicit SMTP_PASS/SMTP_USER equal to the alias was refused (exit $rc)"
+n="$(grep -c '^SMTP_PASS=' "$t/.env")"
+[ "$n" = 1 ] || bad "equal explicit SMTP_PASS: $n assignments in .env, expected 1 (not duplicated)"
+
+# ── 17. rerun is byte-identical and the derived section is no orphan ────────
+scenario=titan-rerun
+t="$(titan_tree "TITAN_EMAIL=$TITAN_MAIL
+TITAN_PASSWORD=$TITAN_PW")"
+run_env "$t"
+body_of "$t" >"$t/body1"
+cp "$t/.env.local" "$t/local1"
+run_env "$t"
+[ "$rc" = 0 ] || bad "second run exited $rc (orphan refusal?)"
+cmp -s <(body_of "$t") "$t/body1" || bad "second run is not byte-identical"
+run_env "$t" ENV_ORPHANS=carry
+[ "$rc" = 0 ] || bad "carry run exited $rc"
+cmp -s "$t/.env.local" "$t/local1" || bad "ENV_ORPHANS=carry changed .env.local (a derived key was carried)"
+# the alias moves to .env.secrets and .env.local is recreated: the first-run
+# carry-over reads the old .env, whose SMTP_USER/SMTP_PASS are derived
+rm "$t/.env.local"
+printf 'TITAN_EMAIL=%s\nTITAN_PASSWORD=%s\n' "$TITAN_MAIL" "$TITAN_PW" >>"$t/.env.secrets"
+run_env "$t"
+[ "$rc" = 0 ] || bad "first-run carry-over exited $rc"
+if grep -qE '^(SMTP_|EMAIL_FROM)' "$t/.env.local"; then bad "OPTIONAL_KEYS carry-over copied a derived key into .env.local"; fi
+grep -qxF "SMTP_PASS=$TITAN_PW" "$t/.env" || bad "the alias in .env.secrets did not derive SMTP_PASS"
+scenario=titan-alias-removed
+sed -i '/^TITAN_/d' "$t/.env.secrets"
+run_env "$t"
+[ "$rc" = 0 ] || bad "removing the alias left an orphan refusal (exit $rc)"
+if grep -q "$TITAN_PW" "$t/.env"; then bad "the password stayed in .env after the alias was removed"; fi
+
+# ── 18. TITAN_* never reaches .env, and no value is printed ─────────────────
+scenario=titan-no-leak
+t="$(titan_tree "TITAN_EMAIL=$TITAN_MAIL
+TITAN_PASSWORD=$TITAN_PW")"
+printf 'TITAN_PASSWORD=%s\n' "$TITAN_PW" >>"$t/.env.secrets"
+run_env "$t"
+if grep -qE '^[[:space:]]*(export[[:space:]]+)?TITAN_[A-Z]*=' "$t/.env"; then bad "a TITAN_* assignment reached .env"; fi
+grep -q '^# TITAN_PASSWORD= (alias' "$t/.env" || bad "no TITAN_PASSWORD alias comment in .env"
+[ "$(grep -cF "$TITAN_PW" "$t/.env")" = 1 ] || bad "the password appears on $(grep -cF "$TITAN_PW" "$t/.env") lines of .env, expected the SMTP_PASS line only"
+for stream in stdout stderr; do
+  if grep -qF -e "$TITAN_PW" -e "$TITAN_MAIL" "$t/$stream"; then bad "a TITAN value reached $stream"; fi
+done
+
+# ── 19. no TITAN_* set: .env is exactly the three layers ────────────────────
+scenario=titan-absent
+t="$(titan_tree 'LLM_API_KEY=keep-me
+SMTP_PASS=plain-explicit')"
+run_env "$t"
+{
+  echo "# Edit the sources then re-run 'make env':"
+  echo "#   config.env (committed) · .env.secrets (generated) · .env.local (yours)"
+  echo
+  echo "# ========== config.env =========="
+  cat "$t/config.env"
+  echo
+  echo "# ========== .env.secrets =========="
+  cat "$t/.env.secrets"
+  echo
+  echo "# ========== .env.local =========="
+  cat "$t/.env.local"
+} >"$t/expected"
+cmp -s <(tail -n +2 "$t/.env") "$t/expected" || bad "without TITAN_*, .env differs from config + secrets + local"
+if grep -q 'derived (TITAN' "$t/.env"; then bad "a derived section was written without TITAN_*"; fi
+
+# ── 20. special characters survive docker compose ───────────────────────────
+# compose_value <tree> <KEY> — what compose hands a service for ${KEY}. `config`
+# prints a literal `$` as `$$`, undone here.
+compose_value() {
+  printf 'services:\n  probe:\n    image: scratch\n    environment:\n      V: ${%s}\n' "$2" >"$1/probe.yml"
+  docker compose -f "$1/probe.yml" --env-file "$1/.env" config --format json 2>/dev/null |
+    jq -r '.services.probe.environment.V' | sed 's/\$\$/$/g'
+}
+scenario=titan-compose
+if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
+  echo "SKIP [$scenario] docker compose unavailable"
+else
+  # single-quoted (literal) and double-quoted (\$ and \\ escapes); same bytes expected.
+  want_a='p$a#s"s\w d'
+  want_b="p\$a#s'x\\w d"
+  t="$(titan_tree "TITAN_EMAIL=$TITAN_MAIL
+TITAN_PASSWORD='p\$a#s\"s\\w d'")"
+  run_env "$t"
+  [ "$(compose_value "$t" SMTP_PASS)" = "$want_a" ] || bad "single-quoted password changed through compose"
+  t="$(titan_tree "TITAN_EMAIL=$TITAN_MAIL
+TITAN_PASSWORD=\"p\\\$a#s'x\\\\w d\"")"
+  run_env "$t"
+  [ "$(compose_value "$t" SMTP_PASS)" = "$want_b" ] || bad "double-quoted password changed through compose"
+  [ "$(compose_value "$t" SMTP_USER)" = "$TITAN_MAIL" ] || bad "SMTP_USER changed through compose"
+  [ "$(compose_value "$t" SMTP_HOST)" = smtp.titan.email ] || bad "SMTP_HOST changed through compose"
+fi
 
 # ── 12. no fixture value is ever printed ────────────────────────────────────
 for tree in "$work"/*/; do

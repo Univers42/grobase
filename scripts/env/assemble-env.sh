@@ -16,6 +16,15 @@
 #                     picks ENV_ORPHANS=carry (back into .env.local) or
 #                     ENV_ORPHANS=drop (assemble without it).
 #
+# TITAN_EMAIL / TITAN_PASSWORD (in .env.secrets or .env.local) are ALIASES: they
+# are assembled into SMTP_USER / SMTP_PASS / EMAIL_FROM and the Titan relay, in a
+# final `derived` section, and never reach .env under their own name. An explicit
+# SMTP_* of the operator wins; a conflicting SMTP_USER / SMTP_PASS is refused.
+# Caveat: "explicit" means a NON-EMPTY value in a layer, so a blank `SMTP_PASS=`
+# (as .env.local.example ships it) does not block the alias. The password is
+# copied as the operator wrote it, quotes included: compose decodes it exactly as
+# it would have decoded SMTP_PASS=<same text>, so quote `$` the way any .env does.
+#
 # Credentials meant for the host (GitHub, deploy) are withheld from .env on the
 # way in; the previous .env is kept as .env.prev, so every run is undoable by hand.
 set -euo pipefail
@@ -35,6 +44,9 @@ OUT=".env"
 PREV=".env.prev"
 NOW="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 DATE_ONLY="${NOW%%T*}"
+DERIVED_MARKER="# ========== derived (TITAN_* aliases) =========="
+TITAN_HOST=smtp.titan.email
+TITAN_PORT=465
 
 # The generated key set lives in generate-env.sh next to the values it mints and
 # is READ from there (one sed, the file is never sourced): a hand-kept copy here
@@ -64,6 +76,28 @@ case "$ENV_ORPHANS" in
   ;;
 esac
 
+# ── TITAN_* aliases: resolved and checked before any file is touched ────────
+# explicit_rhs KEY — what secrets/local assign to KEY, as written; empty if neither.
+explicit_rhs() { set_rhs "$1" "$LOCAL" "$SECRETS"; }
+TITAN_EMAIL_RHS="$(set_rhs TITAN_EMAIL "$LOCAL" "$SECRETS")"
+TITAN_PASSWORD_RHS="$(set_rhs TITAN_PASSWORD "$LOCAL" "$SECRETS")"
+conflicts=()
+if [ -n "$TITAN_EMAIL_RHS" ] && [ -n "$(explicit_rhs SMTP_USER)" ] &&
+  [ "$(unquote "$(explicit_rhs SMTP_USER)")" != "$(unquote "$TITAN_EMAIL_RHS")" ]; then
+  conflicts+=(SMTP_USER)
+fi
+if [ -n "$TITAN_PASSWORD_RHS" ] && [ -n "$(explicit_rhs SMTP_PASS)" ] &&
+  [ "$(unquote "$(explicit_rhs SMTP_PASS)")" != "$(unquote "$TITAN_PASSWORD_RHS")" ]; then
+  conflicts+=(SMTP_PASS)
+fi
+if [ "${#conflicts[@]}" -gt 0 ]; then
+  {
+    echo "Error: ${conflicts[*]} in $SECRETS/$LOCAL differ from the TITAN_* alias that would derive them."
+    echo "Keep one: remove ${conflicts[*]} (TITAN_* derives it), or remove the matching TITAN_EMAIL/TITAN_PASSWORD."
+  } >&2
+  exit 1
+fi
+
 # ── read the old $OUT BEFORE anything rewrites a layer ──────────────────────
 # The sections carry the provenance: a config value that left config.env was
 # dropped on purpose, a secrets value has to go back or it gets re-minted, and a
@@ -89,6 +123,7 @@ classify_old_key() {
   value="$(unquote "${line#*=}")"
   [ -n "$value" ] || return 0
   case "$section" in
+  derived) return 0 ;; # rebuilt from TITAN_* on every run: never an orphan, never carried
   config) # config.env is authoritative: a key it dropped was dropped on purpose
     # (unless another layer took it over, which keeps it in .env — not a drop)
     assigns "$CONFIG" "$key" || assigns "$SECRETS" "$key" || assigns "$LOCAL" "$key" ||
@@ -129,6 +164,7 @@ if [ -f "$OUT" ]; then
     "# ========== $CONFIG ==========") section=config ;;
     "# ========== $SECRETS ==========") section=secrets ;;
     "# ========== $LOCAL ==========") section=local ;;
+    "$DERIVED_MARKER") section=derived ;;
     esac
     key="$(key_of "$line")"
     [ -n "$key" ] || continue # comment, blank, or a withheld `# KEY= (...)` line
@@ -203,10 +239,14 @@ if [ ! -f "$LOCAL" ]; then
     echo "# $LOCAL — optional API keys + per-developer overrides (gitignored)."
     echo "# See .env.local.example. Appended last, so it overrides config/secrets."
     if [ -f "$OUT" ]; then
+      # Derived lines are the alias's output, not the operator's: copying them
+      # here would make them explicit and freeze the alias.
+      awk -v marker="$DERIVED_MARKER" '$0 == marker { exit } 1' "$OUT" >"$OUT.base.tmp"
       for k in $OPTIONAL_KEYS; do
-        [ -n "$(env_value "$OUT" "$k")" ] || continue # carry over only non-empty
-        printf '%s\n' "$(bare_line "$(raw_value "$OUT" "$k")")"
+        [ -n "$(env_value "$OUT.base.tmp" "$k")" ] || continue # carry over only non-empty
+        printf '%s\n' "$(bare_line "$(raw_value "$OUT.base.tmp" "$k")")"
       done
+      rm -f "$OUT.base.tmp"
     fi
   } >"$LOCAL"
   chmod 600 "$LOCAL"
@@ -222,6 +262,48 @@ if [ "${#ASSEMBLED_LOCAL[@]}" -gt 0 ] && [ "$ENV_ORPHANS" = carry ]; then
   chmod 600 "$LOCAL"
   echo "Carried ${#ASSEMBLED_LOCAL[@]} key(s) into $LOCAL: $(names_of "${ASSEMBLED_LOCAL[@]}")" >&2
 fi
+
+# alias_comment KEY — TITAN_* never reaches .env; the comment keeps KEY_RE blind to it.
+alias_comment() {
+  printf '# %s= (alias, assembled into SMTP_*; read from %s or %s)\n' "$1" "$SECRETS" "$LOCAL"
+}
+is_titan_alias() {
+  case "$1" in TITAN_EMAIL | TITAN_PASSWORD) return 0 ;; esac
+  return 1
+}
+
+# secrets_layer — .env.secrets as is, unless it holds a TITAN_* alias.
+secrets_layer() {
+  local line key
+  if ! grep -qE '^[[:space:]]*(export[[:space:]]+)?TITAN_(EMAIL|PASSWORD)=' "$SECRETS"; then
+    cat "$SECRETS"
+    return
+  fi
+  while IFS= read -r line || [ -n "$line" ]; do
+    key="$(key_of "$line")"
+    if is_titan_alias "$key"; then alias_comment "$key"; else printf '%s\n' "$line"; fi
+  done <"$SECRETS"
+}
+
+# derived_layer — the final section: later than every layer, so it wins for the
+# keys it writes, and it writes only keys no operator-set SMTP_* claims.
+derived_layer() {
+  [ -n "$TITAN_EMAIL_RHS" ] || [ -n "$TITAN_PASSWORD_RHS" ] || return 0
+  echo
+  echo "$DERIVED_MARKER"
+  if [ -n "$TITAN_EMAIL_RHS" ]; then
+    [ -n "$(explicit_rhs SMTP_USER)" ] || echo "SMTP_USER=$TITAN_EMAIL_RHS"
+    [ -n "$(explicit_rhs EMAIL_FROM)" ] || echo "EMAIL_FROM=$TITAN_EMAIL_RHS"
+  else
+    echo "Warning: TITAN_PASSWORD is set without TITAN_EMAIL: SMTP_USER and EMAIL_FROM are not derived." >&2
+  fi
+  [ -z "$TITAN_PASSWORD_RHS" ] || [ -n "$(explicit_rhs SMTP_PASS)" ] || echo "SMTP_PASS=$TITAN_PASSWORD_RHS"
+  if [ -z "$(explicit_rhs SMTP_HOST)" ]; then
+    echo "SMTP_HOST=$TITAN_HOST"
+    echo "SMTP_PORT=$TITAN_PORT"
+    echo "SMTP_SECURE=true"
+  fi
+}
 
 # ── the local layer, with the two rules above applied line by line ─────────
 local_layer() {
@@ -241,6 +323,10 @@ local_layer() {
       continue
     fi
     val="${line#*=}"
+    if is_titan_alias "$key"; then
+      alias_comment "$key"
+      continue
+    fi
     if is_host_only "$key"; then
       echo "WARNING: $LOCAL: $key is host-only -- withheld from $OUT (every container reads it). Its host tool reads it from $LOCAL directly." >&2
       printf '# %s= (host-only, withheld by assemble-env.sh; read from %s by its host tool)\n' "$key" "$LOCAL"
@@ -272,10 +358,11 @@ fi
   cat "$CONFIG"
   echo
   echo "# ========== $SECRETS =========="
-  cat "$SECRETS"
+  secrets_layer
   echo
   echo "# ========== $LOCAL =========="
   local_layer
+  derived_layer
 } >"$OUT.tmp"
 chmod 600 "$OUT.tmp"
 mv "$OUT.tmp" "$OUT"
