@@ -79,8 +79,10 @@ func (rt *routes) fail(w http.ResponseWriter, err error) {
 	var dropped *DroppedError
 	switch {
 	case errors.As(err, &dropped):
-		httpx.WriteJSON(w, http.StatusConflict, map[string]any{"error": "model_drops_tuples",
-			"message": dropped.Error(), "relations": dropped.Relations, "statusCode": http.StatusConflict})
+		httpx.WriteJSON(w, http.StatusConflict, map[string]any{
+			"error":   "model_drops_tuples",
+			"message": dropped.Error(), "relations": dropped.Relations, "statusCode": http.StatusConflict,
+		})
 	case errors.Is(err, ErrNoModel):
 		httpx.WriteError(w, http.StatusConflict, "no_model", "PUT /v1/authz/model first")
 	case errors.Is(err, ErrInvalidModel), errors.Is(err, ErrInvalidTuples), errors.Is(err, ErrInvalidName):

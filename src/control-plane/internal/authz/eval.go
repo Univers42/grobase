@@ -79,8 +79,10 @@ func (e *Evaluator) Check(ctx context.Context, src Source, q Query) ([]Decision,
 		return nil, err
 	}
 	n := len(q.Objects)
-	r := &run{ev: e, q: q, idx: newTupleIndex(n), memo: make(map[nodeKey]outcome, 4*n), pending: make(map[nodeKey]outcome, 4*n),
-		path: map[nodeKey]struct{}{}, wants: make(map[Want]struct{}, 4*n)}
+	r := &run{
+		ev: e, q: q, idx: newTupleIndex(n), memo: make(map[nodeKey]outcome, 4*n), pending: make(map[nodeKey]outcome, 4*n),
+		path: map[nodeKey]struct{}{}, wants: make(map[Want]struct{}, 4*n),
+	}
 	for pass := 0; ; pass++ {
 		outs := r.evalAll()
 		if len(r.wants) == 0 || r.exhausted || pass >= e.Limits.maxPasses() {

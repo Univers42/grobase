@@ -151,7 +151,10 @@ run_bench() {
     -v "${CP}:/src" -v "${WORK}:/out" -v /goinfre/dlesieur/.cache/go/mod:/go/pkg/mod \
     -v /goinfre/dlesieur/.cache/go/build:/root/.cache/go-build -w /src "${GO_IMG}" \
     go test -tags authz_bench -run TestBenchmarkAuthz -count=1 ./internal/authz/ >"${WORK}/bench.log" 2>&1 ||
-    { tail -20 "${WORK}/bench.log"; fail "N4 bench did not run"; }
+    {
+      tail -20 "${WORK}/bench.log"
+      fail "N4 bench did not run"
+    }
   [ -s "${WORK}/bench.json" ] || fail "N4 bench wrote no result"
 }
 

@@ -110,7 +110,10 @@ build_binary() {
     -v "${SRC}:/src" -v "${WORK}:/out" -v /goinfre/dlesieur/.cache/go/mod:/go/pkg/mod \
     -v /goinfre/dlesieur/.cache/go/build:/root/.cache/go-build -w /src "${GO_IMG}" \
     go build -o /out/tenant-control ./cmd/tenant-control >"${WORK}/build.log" 2>&1 ||
-    { tail -20 "${WORK}/build.log"; fail "tenant-control build failed"; }
+    {
+      tail -20 "${WORK}/build.log"
+      fail "tenant-control build failed"
+    }
 }
 
 start_postgres() {
@@ -266,7 +269,10 @@ check_postgrest_grants() {
     [ "$(curl_in -s -o /dev/null -w '%{http_code}' "${url}/")" = 200 ] && break
     sleep 0.5
   done
-  [ "${i}" -lt 60 ] || { docker logs "${REST}" 2>&1 | tail -8; fail "PostgREST never loaded its schema cache"; }
+  [ "${i}" -lt 60 ] || {
+    docker logs "${REST}" 2>&1 | tail -8
+    fail "PostgREST never loaded its schema cache"
+  }
   for role in anon authenticated; do
     token=()
     [ "${role}" = authenticated ] && token=(-H "Authorization: Bearer $(mint_jwt "${OWNER_A}")")
