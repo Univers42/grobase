@@ -17,10 +17,11 @@
 #            reach the upstream rewritten; admin and cross-service paths     #
 #            (/send, /admin/*) get Kong's own 404                            #
 #    mutant  (a) one X-Baas-Role clear removed, (b) the claims copy put back  #
-#            in the pre-function, (c) the otp acl removed: each MUST fail    #
-#            this gate (a, b) or m206 (c), else the probes are blind          #
-#  Caveat: /admin/v1 keeps a client-supplied X-Baas-Tenant-Id on purpose (the #
-#  mount catalog); the probe asserts that exception, so removing it fails.    #
+#            in the pre-function, (d) the /admin/v1 exception dropped, (e)    #
+#            widened to /admin/, (c) the otp acl removed: each MUST fail     #
+#            this gate (a, b, d, e) or m206 (c), else the probes are blind   #
+#  Caveat: /admin/v1 keeps a client X-Baas-Tenant-Id and -User-Id on purpose  #
+#  (the mount catalog); the probe asserts that exception, so removing it fails. #
 #  Needs jq, the kong image and node:20-alpine locally (nothing pulled);     #
 #  otherwise SKIP, exit 77, never 0. M229_KONG_IMAGE / M229_NODE_IMAGE        #
 #  override the images.                                                       #
@@ -137,17 +138,23 @@ assert_identity_probes() {
     bad "valid JWT did not yield X-User-Id=verified-sub (got '$(seen "${out}" X-User-Id)', ${out:0:80})"
 }
 
-# assert_tenant_header_scope K proves X-Baas-Tenant-Id is cleared on /query and
-# survives only on /admin/v1 (the documented exception), where the identity
-# headers are still cleared.
+# assert_tenant_header_scope K proves X-Baas-Tenant-Id and X-Baas-User-Id are
+# cleared on /query and survive only on /admin/v1 (the documented exception:
+# the osionos bridge's mount catalog sends both), where X-Baas-Role, -Roles and
+# -Scopes are still cleared.
 assert_tenant_header_scope() {
-  local k="$1" out
-  out="$(probe "${k}" GET /query/v1/x "apikey: scratch-anon" "X-Baas-Tenant-Id: forged-tenant")"
-  [ -z "$(seen "${out}" X-Baas-Tenant-Id)" ] && ok "/query/v1: client X-Baas-Tenant-Id cleared" || bad "/query/v1 leaked X-Baas-Tenant-Id"
-  out="$(probe "${k}" GET /admin/v1/databases "apikey: scratch-service" "X-Baas-Tenant-Id: mount-tenant" "X-Baas-Role: service_role")"
-  [ "$(seen "${out}" X-Baas-Tenant-Id)" = mount-tenant ] && [ -z "$(seen "${out}" X-Baas-Role)" ] &&
-    ok "/admin/v1: the mount catalog's X-Baas-Tenant-Id kept, X-Baas-Role still cleared" ||
-    bad "/admin/v1 tenant exception broken: tenant='$(seen "${out}" X-Baas-Tenant-Id)' role='$(seen "${out}" X-Baas-Role)' (${out:0:80})"
+  local k="$1" out h
+  out="$(probe "${k}" GET /query/v1/x "apikey: scratch-anon" "X-Baas-Tenant-Id: forged-tenant" "X-Baas-User-Id: forged-user")"
+  [ -z "$(seen "${out}" X-Baas-Tenant-Id)" ] && [ -z "$(seen "${out}" X-Baas-User-Id)" ] &&
+    ok "/query/v1: client X-Baas-Tenant-Id and X-Baas-User-Id cleared" || bad "/query/v1 leaked X-Baas-Tenant-Id or X-Baas-User-Id"
+  out="$(probe "${k}" GET /admin/v1/databases "apikey: scratch-service" "X-Baas-Tenant-Id: mount-tenant" "X-Baas-User-Id: mount-user" \
+    "X-Baas-Role: service_role" "X-Baas-Roles: admin" "X-Baas-Scopes: *")"
+  [ "$(seen "${out}" X-Baas-Tenant-Id)" = mount-tenant ] && [ "$(seen "${out}" X-Baas-User-Id)" = mount-user ] ||
+    bad "/admin/v1 exception broken: tenant='$(seen "${out}" X-Baas-Tenant-Id)' user='$(seen "${out}" X-Baas-User-Id)' (${out:0:80})"
+  for h in X-Baas-Role X-Baas-Roles X-Baas-Scopes; do
+    [ -z "$(seen "${out}" "${h}")" ] || bad "/admin/v1: forged ${h} reached the upstream"
+  done
+  [ "${FAILED}" = 0 ] && ok "/admin/v1: the mount catalog's X-Baas-Tenant-Id and X-Baas-User-Id kept, X-Baas-Role/-Roles/-Scopes cleared"
 }
 
 # assert_route_surface K proves the public paths reach the upstream rewritten
@@ -213,6 +220,8 @@ assert_static() {
   pre="$(jq -r '[.data[] | select(.name == "pre-function" and .route == null) | .config.access[]] | join("\n")' "${WORK}/plugins.json")"
   post="$(jq -r '[.data[] | select(.name == "post-function" and .route == null) | .config.access[]] | join("\n")' "${WORK}/plugins.json")"
   ! grep -q 'set_header' <<<"${pre}" && ok "pre-function sets no header (it only clears)" || bad "pre-function calls set_header — claims copied before jwt verified"
+  grep -q '_p == "/admin/v1" or _p:sub(1, 10) == "/admin/v1/"' <<<"${pre}" && ok "the tenant-header exception is exactly /admin/v1" ||
+    bad "the /admin/v1 exception test is not exactly /admin/v1 (widened or removed)"
   grep -q 'authenticated_jwt_token' <<<"${post}" && ok "post-function copies claims only behind kong.ctx.shared.authenticated_jwt_token" ||
     bad "no post-function gated on authenticated_jwt_token"
   jq -e '[.data[] | select(.name == "gdpr-routes" or .name == "newsletter-routes") | .paths[]]
@@ -234,6 +243,8 @@ mutate() {
         print "          local _c = _b and require(\"cjson.safe\").decode(ngx.decode_base64(_b .. (\"=\"):rep((4 - #_b % 4) % 4)))"
         print "          if _c and _c.sub then kong.service.request.set_header(\"X-User-Id\", _c.sub) end"
         done = 1 } { print }' "${CONF}" >"$2" ;;
+  d) sed 's/^\( *\)if not _admin then$/\1if true then/' "${CONF}" >"$2" ;;
+  e) sed 's|_p:sub(1, 10) == "/admin/v1/"|_p:sub(1, 7) == "/admin/"|' "${CONF}" >"$2" ;;
   c) awk '/name: auth-otp-request/ { inreq = 1 } inreq && /name: acl/ { getline; inreq = 0; next } { print }' "${CONF}" >"$2" ;;
   esac
   ! cmp -s "${CONF}" "$2"
@@ -248,6 +259,7 @@ run_mutant_live() {
   start_kong "${TAG}-mut" "$2"
   report="$({
     assert_identity_probes "${TAG}-mut"
+    assert_tenant_header_scope "${TAG}-mut"
     assert_static "${TAG}-mut"
   } 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
   FAILED="${before}"
@@ -269,8 +281,9 @@ assert_route_surface "${TAG}-kong"
 step "2/3 static: Kong's parsed config"
 assert_static "${TAG}-kong"
 step "3/3 mutants: each must be noticed"
-declare -A why=([a]='forged X-Baas-Role reached' [b]='bad-signature JWT forged X-User-Id|pre-function calls set_header')
-for m in a b; do
+declare -A why=([a]='forged X-Baas-Role reached' [b]='bad-signature JWT forged X-User-Id|pre-function calls set_header'
+  [d]='/admin/v1 exception broken' [e]='exception test is not exactly /admin/v1')
+for m in a b d e; do
   mutate "${m}" "${WORK}/mutant-${m}.yml" || {
     bad "mutant ${m} changed nothing — its anchor is gone from kong.yml"
     continue
