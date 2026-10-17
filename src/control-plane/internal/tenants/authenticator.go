@@ -49,6 +49,20 @@ func (a *SelfAuthenticator) Authenticate(w http.ResponseWriter, r *http.Request)
 	return "", nil, false
 }
 
+// AuthenticateAPIKey resolves the caller's tenant from a tenant API key ONLY. A GoTrue JWT, valid
+// or not, is 401: routes that gate on key scopes (authz) must not let a user session act as the
+// tenant, because a JWT user is granted the owner scopes in Authenticate. Authenticate itself is
+// unchanged for its other callers.
+func (a *SelfAuthenticator) AuthenticateAPIKey(w http.ResponseWriter, r *http.Request) (tenantID string, scopes []string, ok bool) {
+	raw := httpx.APIKeyFromRequest(r)
+	if raw == "" {
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized",
+			"X-API-Key or Authorization: Bearer <api-key> required (a user JWT is not accepted here)")
+		return "", nil, false
+	}
+	return a.authByAPIKey(w, r, raw)
+}
+
 // AuthUser resolves only the caller's account user id from a GoTrue JWT — no tenant lookup, so
 // an account with no tenant yet can still create its first app. JWT-only (an API key has no user).
 func (a *SelfAuthenticator) AuthUser(w http.ResponseWriter, r *http.Request) (string, bool) {

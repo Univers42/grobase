@@ -564,6 +564,25 @@ services:
           - name: rate-limiting
             config: { policy: local, limit_by: ip, minute: 30, hour: 200 }
 
+  # Relationship authz (/v1/authz/*, gated by AUTHZ_ENABLED on tenant-control).
+  # Public self-auth, shaped like /v1/tenants/me*: Kong adds no key-auth because the
+  # upstream authenticates the tenant API key itself (a JWT gets 401) and derives the
+  # app from the key's tenant slug, so a Kong consumer would add nothing.
+  # Caveat: the rate limit is per client IP, not per key; one NAT'd tenant can starve
+  # its neighbours behind the same address. Flag OFF -> upstream 404 = byte-parity.
+  #   /authz/v1/check -> upstream /v1/authz/check (strip_path removes /authz/v1)
+  - name: authz
+    url: http://tenant-control:3022/v1/authz
+    routes:
+      - name: authz
+        paths: [/authz/v1]
+        strip_path: true
+        plugins:
+          - name: request-size-limiting
+            config: { allowed_payload_size: 1024, size_unit: kilobytes }
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 3000, hour: 100000 }
+
   - name: admin-keys
     url: http://tenant-control:3022/v1/keys
     routes:
