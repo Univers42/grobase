@@ -211,6 +211,10 @@ ok "(B) expired code → 410"
 step "5/6 (C) anti-enumeration — request for an arbitrary address → 200 (no oracle)"
 [[ "$(otp_req "${PORT_ON}" /v1/auth/otp/request '{"email":"nobody-'"$$"'@nowhere.test"}')" == "200" ]] || fail "(C) request for an arbitrary email did not return 200 (enumeration oracle)"
 ok "(C) request is identical (200) for any address — no email-enumeration oracle"
+docker stop "${MP}" >/dev/null
+[[ "$(otp_req "${PORT_ON}" /v1/auth/otp/request "{\"email\":\"${EMAIL}\"}")" == "502" ]] || fail "(C) request with the SMTP relay down expected 502 send_failed — $(head -c 200 "${BODY_TMP}")"
+grep -q send_failed "${BODY_TMP}" || fail "(C) 502 body lacks send_failed"
+ok "(C) SMTP relay down → 502 send_failed (a lost mail is not hidden)"
 
 # ── 6) (D) PARITY: flag OFF → routes 404 ───────────────────────────────────────
 step "6/6 (D · PARITY) EMAIL_OTP_ENABLED unset → /v1/auth/otp/* 404"
@@ -238,7 +242,7 @@ emit_gate_log() {
     # shellcheck disable=SC1091
     . "${CLAUDE_DIR}/lib/log.sh" >/dev/null 2>&1 || exit 0
     log_event GATE --gate "m164=PASS" --outcome pass \
-      --msg "email login OTP: a 6-digit code is mailed (captured via Mailpit), stored only as a peppered hash; correct code -> 200 + JWT proof; consumed=401 single-use, wrong=401, attempt-cap=429, expired=410; request is 200 for any address (no enumeration oracle); EMAIL_OTP_ENABLED unset -> /v1/auth/otp/* 404 (byte-parity)" \
+      --msg "email login OTP: a 6-digit code is mailed (captured via Mailpit), stored only as a peppered hash; correct code -> 200 + JWT proof; consumed=401 single-use, wrong=401, attempt-cap=429, expired=410; request is 200 for any address (no enumeration oracle) and 502 send_failed when the relay is down; EMAIL_OTP_ENABLED unset -> /v1/auth/otp/* 404 (byte-parity)" \
       --ref "scripts/verify/m164-email-otp.sh" >/dev/null 2>&1
     exit 0
   ) || true

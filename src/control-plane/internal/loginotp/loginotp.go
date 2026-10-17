@@ -45,12 +45,16 @@ const (
 	ErrLocked loginotpErr = "too many attempts"
 	// ErrInvalid — the code did not match (401).
 	ErrInvalid loginotpErr = "invalid code"
+	// ErrSendFailed — the SMTP relay refused or lost the mail (502).
+	ErrSendFailed loginotpErr = "send failed"
 )
 
 // Service issues + verifies email login OTPs. Dependencies are injected (no globals);
 // `now` + `send` are seams for deterministic + offline tests.
 type Service struct {
 	db          *pg.Postgres
+	store       otpStore
+	appName     string
 	log         *slog.Logger
 	now         func() time.Time
 	pepper      []byte
@@ -74,6 +78,8 @@ func New(db *pg.Postgres, log *slog.Logger) *Service {
 		maxAttempts: config.EnvInt("EMAIL_OTP_MAX_ATTEMPTS", 5),
 		smtp:        smtpFromEnv(),
 	}
+	s.appName = config.EnvStr("EMAIL_OTP_APP_NAME", "grobase")
+	s.store = pgStore{db: db}
 	s.send = s.smtpSend
 	return s
 }
