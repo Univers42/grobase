@@ -48,6 +48,9 @@ func (r sendRequest) validate() error {
 	if r.HTML == "" && r.Text == "" {
 		return fmt.Errorf("either html or text must be provided")
 	}
+	if strings.ContainsAny(r.ListUnsubscribe, "\r\n") {
+		return fmt.Errorf("listUnsubscribe must not contain line breaks")
+	}
 	return nil
 }
 
