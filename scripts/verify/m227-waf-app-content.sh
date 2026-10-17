@@ -21,6 +21,8 @@
 #  whose `kong` answers 200, then:                                             #
 #    CONTENT   POST/PATCH to osionos_pages / osionos_chat_messages carrying JS,#
 #              SQL, XSS, shell, PHP, ../, {{ }}, a metadata URL → 200          #
+#              and an object database titled `HTTP/2 vs HTTP/3`, or holding   #
+#              `<html>` / `<meta`, on osionos_object_databases (921130) → 200  #
 #              and a profile key on osionos_bridge_identities (930120 read     #
 #              `json.profile.headline` as the file .profile) → 200             #
 #              and a migration of DDL + INSERTs to /admin/v1/migrate → 200     #
@@ -28,7 +30,9 @@
 #    CONTROLS  the same path read with SQLi in its query string, written with  #
 #              <script> in a header or a method `PO`; the same body to another #
 #              table, to an rpc, and through osionos_pages%3F/../secrets       #
-#              (%3f, %253F) → 403, and the upstream never sees `secrets`;      #
+#              (%3f, %253F), a read of ?title=eq.HTTP/2, a `<html` cookie, a  #
+#              value with `\nSet-Cookie:` (921120) or `GET /x HTTP/1.1`      #
+#              (921110, the boundary 10110 keeps) → 403, and the upstream never sees `secrets`;      #
 #              the migration as a PUT, to /admin/v1/migrate-x, …/migrate/,     #
 #              …/migrate%3F/../tenants or /admin/v1/tenants → 403              #
 #              the statement as a PUT, to …/sql-ro-x, to a non-uuid database, #
@@ -122,13 +126,14 @@ kong_private_paths() {
 
 # start_waf NAME EXCLUSIONS [VAR=VALUE]: boot the WAF with the tree's nginx.conf and EXCLUSIONS
 # as CRS's REQUEST-900 file, and the optional environment override; wait for /waf-health.
+# M227_BLOCKING_PARANOIA=N runs every WAF at that paranoia level (the baas VM runs 2, the image 1).
 # nginx (uid 101) reads the throwaway key, hence 0644.
 # conf.d is a directory mount: the entrypoint rewrites default.conf with `sed -i` (see m198).
 start_waf() {
   local name="$1" dir="${WORK}/confd-$1" i
   mkdir -p "${dir}" && cp "${WAF_CONF}/nginx.conf" "${dir}/default.conf" && chmod -R a+rwX "${dir}"
   cp "$2" "${WORK}/excl-$1.conf" && chmod 0644 "${WORK}/excl-$1.conf"
-  docker run -d --name "${name}" --network "${NET}" ${3:+-e "$3"} \
+  docker run -d --name "${name}" --network "${NET}" ${M227_BLOCKING_PARANOIA:+-e "BLOCKING_PARANOIA=${M227_BLOCKING_PARANOIA}"} ${3:+-e "$3"} \
     -v "${dir}:/etc/nginx/conf.d" \
     -v "${WORK}/excl-$1.conf:${CRS_EXCL}:ro" \
     -v "${WORK}/tls.pem:/run/secrets/localhost_cert:ro" \
@@ -166,6 +171,11 @@ probe() {
       statements: ["CREATE TABLE IF NOT EXISTS notes (id int PRIMARY KEY, body text);\n" +
         "INSERT INTO notes (id, body) VALUES (1, \u0027a\u0027), (2, \u0027b\u0027);\n" +
         "CREATE OR REPLACE FUNCTION note_count() RETURNS bigint AS $$ SELECT count(*) FROM notes $$ LANGUAGE sql;"] };
+    const odb = (value) => ({ owner_id: "6f1c0f5e-0000-4000-8000-000000000003", db_key: "http-lessons",
+      state: { pages: { "http-lessons-r019": { properties: { "http-lessons-title": value } } } } });
+    const odbPath = "/rest/v1/osionos_object_databases?on_conflict=owner_id,db_key";
+    const odbPatch = "/rest/v1/osionos_object_databases?db_key=eq.http-lessons";
+    const title = odb("HTTP/2 vs HTTP/3");
     const sqli = "SELECT COUNT(*) AS n FROM projects WHERE name = \u0027a\u0027 OR \u00271\u0027=\u00271\u0027 UNION SELECT 1";
     const runner = "/query/v1/59939f19-7e8d-4876-a57f-61b3e7bb37be/sql-ro";
     const raw = { sql: sqli };
@@ -176,6 +186,16 @@ probe() {
       ["content-post-prose", "POST", "/rest/v1/osionos_pages", prose],
       ["content-chat-code", "POST", "/rest/v1/osionos_chat_messages", { body: "console.log(x)" }],
       ["content-patch-profile", "PATCH", "/rest/v1/osionos_bridge_identities?user_id=eq.6f1c0f5e-0000-4000-8000-000000000002", { profile: { headline: "Founder" } }],
+      ["content-odb-protocol-title", "POST", odbPath, title],
+      ["content-odb-html-tag", "PATCH", odbPatch, odb("<html>")],
+      ["content-odb-meta-tag", "PATCH", odbPatch, odb("<meta charset=utf-8>")],
+      ["control-odb-other-table", "POST", "/rest/v1/secrets", title],
+      ["control-odb-rpc", "POST", "/rest/v1/rpc/osionos_x", title],
+      ["control-odb-encoded", "POST", "/rest/v1/osionos_object_databases%3F/../secrets", title],
+      ["control-odb-read", "GET", "/rest/v1/osionos_pages?title=eq.HTTP/2", undefined],
+      ["control-odb-cookie", "POST", odbPath, odb("plain"), { Cookie: "note=<html" }],
+      ["control-odb-header-split", "POST", odbPath, odb("a\nSet-Cookie: x=1")],
+      ["control-odb-request-line", "POST", odbPath, odb("GET /index.html HTTP/1.1")],
       ["control-other-table-profile", "PATCH", "/rest/v1/secrets?id=eq.1", { profile: { headline: "Founder" } }],
       ["control-read-sqli", "GET", "/rest/v1/osionos_pages?title=eq.1%27%20or%20%271%27=%271", undefined],
       ["control-header-xss", "POST", "/rest/v1/osionos_pages", null],
@@ -298,8 +318,32 @@ mutant() {
   done
 }
 
+# line_mutant PATTERN WANT LABEL...: the file with only the lines matching PATTERN removed must
+# answer WANT to every LABEL. Catches a 921130 probe that stays green because 10110's tag
+# removals, not the 921130 line, let it through.
+line_mutant() {
+  local pattern="$1" want="$2" file="${WORK}/linemut.conf" got label out
+  shift 2
+  grep -v -- "${pattern}" "${EXCL}" >"${file}"
+  if cmp -s "${EXCL}" "${file}" || grep -q -- "${pattern}" "${file}"; then
+    bad "line mutant: '${pattern}' was not found — rebuild this leg"
+    return
+  fi
+  if ! start_waf "${TAG}-mutline" "${file}"; then
+    bad "line mutant: the WAF did not start without '${pattern}'"
+    return
+  fi
+  out="$(probe "${TAG}-mutline")"
+  for label in "$@"; do
+    got="$(awk -v l="${label}" '$2 == l { print $1 }' <<<"${out}")"
+    [ "${got}" = "${want}" ] && ok "without the '${pattern}' line: ${label} answered ${want} — the probe sees that line" ||
+      bad "without the '${pattern}' line: ${label} answered '${got}', not ${want} — the probe is blind"
+  done
+}
+
 step "6/6 mutants: without its rule, each content probe MUST be refused and each Funnel probe MUST pass; with headers in the audit, the marker MUST leak"
-mutant 10110 403 content-post-code content-patch-profile
+mutant 10110 403 content-post-code content-patch-profile content-odb-protocol-title content-odb-html-tag content-odb-meta-tag
+line_mutant 921130\;ARGS 403 content-odb-protocol-title content-odb-html-tag content-odb-meta-tag
 mutant 10120 403 content-migrate-sql
 mutant 10140 403 content-query-sql public-funnel-query
 mutant 10130 200 funnel-kong:/admin/v1/tenants funnel-kong:/meta/v1 funnel-kong:/realtime/v1/publish funnel-encoded-a funnel-double-slash funnel-migrate-post
