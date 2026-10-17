@@ -16,14 +16,20 @@
 #  the WAF from loopback, which Kong's allow list admits (2026-10-12). Rule    #
 #  10140 lifts them on the SQL runner's json.sql alone (POST                   #
 #  /query/v1/<uuid>/sql-ro): 942100 read `grobase query run`'s SELECT as       #
-#  injection (2026-10-12). It                                                  #
-#  Rule 10150 lifts the XSS checks and 921130 on the html and text of POST     #
-#  /email/v1/send: the verification mail scored 20 (941100, 941160, 941260,    #
-#  921130) and every mail from outside the VM was refused (2026-10-17, b2b     #
-#  WAF log). The anon key is refused at Kong, not here: this gate's kong       #
-#  answers 200 to everyone, so that proof belongs to the Kong gates (m206).    #
-#  boots the WAF image with the tree's exclusions file on a private network    #
-#  whose `kong` answers 200, then:                                             #
+#  injection (2026-10-12).                                                     #
+#                                                                              #
+#  Rule 10150 lifts the XSS checks and 921130 on the html of POST              #
+#  /email/v1/send, and on nothing else (the text part keeps full inspection):  #
+#  the verification mail scored 20 (941100, 941160, 941260, 921130, all on     #
+#  json.html) and every mail from outside the VM was refused (2026-10-17, b2b  #
+#  WAF log). Who may call the route is not decided here: this gate's kong      #
+#  answers 200 to everyone. The anon key is refused at Kong (m206's email      #
+#  leg) only on a tree carrying the email acl (grobase bbe8995f,               #
+#  feat/titan-mail); the tree of rule 10150 (on a42a8077) does NOT carry it,   #
+#  so there the route is open to the anon key and 10150 must not reach a       #
+#  deployment before that acl does.                                            #
+#  This gate boots the WAF image with the tree's exclusions file on a private  #
+#  network whose `kong` answers 200, then:                                     #
 #    CONTENT   POST/PATCH to osionos_pages / osionos_chat_messages carrying JS,#
 #              SQL, XSS, shell, PHP, ../, {{ }}, a metadata URL → 200          #
 #              and an object database titled `HTTP/2 vs HTTP/3`, or holding   #
@@ -32,19 +38,22 @@
 #              `json.profile.headline` as the file .profile) → 200             #
 #              and a migration of DDL + INSERTs to /admin/v1/migrate → 200     #
 #              and a raw statement to /query/v1/<uuid>/sql-ro → 200            #
-#              and the verification and password-reset mails, as the           #
-#              gateway sends them, to /email/v1/send → 200 (the          #
-#              fixtures/m227-email-bodies.json: opposite-osiris                #
-#              src/email-templates, rendered by scripts/auth/                  #
-#              mail-templates.mjs with a fake signed link)                     #
+#              and every mail the site gateway sends, to /email/v1/send → 200 #
+#              (fixtures/m227-email-bodies.json: opposite-osiris               #
+#              src/email-templates, the four account messages through          #
+#              scripts/auth/mail-templates.mjs and the sign-in alert, account  #
+#              created and three newsletter mails through the gateway's own    #
+#              renderer, a fake signed link; one sign-in alert carries         #
+#              <script> in its user agent, HTML-escaped by the template)       #
 #    CONTROLS  the same path read with SQLi in its query string, written with  #
 #              <script> in a header or a method `PO`; the same body to another #
 #              table, to an rpc, and through osionos_pages%3F/../secrets       #
 #              (%3f, %253F), a read of ?title=eq.HTTP/2, a `<html` cookie, a  #
 #              value with `\nSet-Cookie:` (921120) or `GET /x HTTP/1.1`      #
 #              (921110, the boundary 10110 keeps) → 403, and the upstream never sees `secrets`;      #
-#              the mail with <script> in to, subject, listUnsubscribe or       #
-#              the query string, as a GET or PUT, to /email/v1/send-x,         #
+#              the mail with <script> in to, subject, text, listUnsubscribe,   #
+#              the query string, or in `Subject` / `TO` (Go matches JSON keys      #
+#              without case, so a lifted value must not reach a header), as a GET or PUT, to /email/v1/send-x,         #
 #              /send/, /send%3F/../x or /rest/v1/some_table → 403              #
 #              the migration as a PUT, to /admin/v1/migrate-x, …/migrate/,     #
 #              …/migrate%3F/../tenants or /admin/v1/tenants → 403              #
@@ -60,8 +69,8 @@
 #              audit entries (stdout, shipped to Loki) must not hold it        #
 #    MUTANTS   the file without rule 10110 MUST refuse the code block and the  #
 #              profile, without rule 10120 the migration, without rule 10140   #
-#              the statement, without rule 10150 (or only its 921130 line on   #
-#              json.html) the mails, without rule 10130 MUST pass the Funnel   #
+#              the statement, without rule 10150 (or only its 921130 line, or  #
+#              only its XSS line, on json.html) the mails, without rule 10130 MUST pass the Funnel   #
 #              probes, and audit parts ABIJDEFHZ MUST                          #
 #              leak the marker; else the gate is blind and fails               #
 #  Needs docker, the WAF image and node:20-alpine already present (nothing is  #
@@ -73,7 +82,12 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 WAF_CONF="${ROOT}/infra/docker/services/waf/conf"
-# Rendered with renderMessage() from opposite-osiris scripts/auth/mail-templates.mjs (confirmEmail, resetPassword), link https://localhost:4322/auth/confirm#token_hash=abc&type=signup&sig=def, listUnsubscribe a mailto.
+# One entry per message opposite-osiris's gateway sends through /email/v1/send, rendered from its
+# src/email-templates (confirmEmail, resetPassword, passwordChanged, accountExists through
+# renderMessage() of scripts/auth/mail-templates.mjs; the rest through auth-gateway.mjs's
+# renderEmailTemplate substitution), link https://localhost:4322/auth/confirm#token_hash=abc&type=signup&sig=def.
+# The gateway sends no listUnsubscribe (account-mail.mjs and auth-gateway.mjs never set it), so
+# no entry carries one; the listUnsubscribe control adds it.
 MAIL_FIXTURE="${SCRIPT_DIR}/fixtures/m227-email-bodies.json"
 EXCL="${M227_EXCLUSIONS:-${WAF_CONF}/exclusions.conf}"
 KONG_YML="${ROOT}/infra/docker/services/kong/conf/kong.yml"
@@ -86,6 +100,13 @@ MARKER="m227-credential-marker-$$"
 NET="${TAG}-net"
 WORK="$(mktemp -d)"
 FAILED=0
+# One content probe per fixture message (probe() names them content-email-<key>).
+EMAIL_LABELS=(
+  content-email-confirmEmail content-email-resetPassword content-email-passwordChanged
+  content-email-accountExists content-email-loginAlertSuccess content-email-loginAlertFailed
+  content-email-loginAlertScriptAgent content-email-accountCreated content-email-newsletterConfirm
+  content-email-newsletterWelcome content-email-newsletterUnsubscribe
+)
 
 ok() { printf '\033[0;32m  ✓ %s\033[0m\n' "$*"; }
 bad() {
@@ -196,7 +217,7 @@ probe() {
     const runner = "/query/v1/59939f19-7e8d-4876-a57f-61b3e7bb37be/sql-ro";
     const raw = { sql: sqli };
     const mails = JSON.parse(process.env.MAILS);
-    const mail = mails.verification;
+    const mail = mails.confirmEmail;
     const script = "<script>alert(1)</script>";
     const mailPath = "/email/v1/send";
     const funnel = { "Tailscale-Funnel-Request": "?1" };
@@ -238,10 +259,12 @@ probe() {
       ["control-query-encoded", "POST", runner + "%3F/../../execute", raw],
       ["control-query-other-arg", "POST", runner, { sql: "SELECT 1", note: sqli }],
       ["control-query-execute", "POST", "/query/v1/execute", { database_id: "59939f19-7e8d-4876-a57f-61b3e7bb37be", action: "select", resource: "projects", payload: { sql: sqli } }],
-      ["content-email-html", "POST", mailPath, mail],
-      ["content-email-reset", "POST", mailPath, mails.reset],
+      ...Object.entries(mails).map(([name, message]) => ["content-email-" + name, "POST", mailPath, message]),
       ["control-email-to-script", "POST", mailPath, { ...mail, to: script }],
       ["control-email-subject-script", "POST", mailPath, { ...mail, subject: script }],
+      ["control-email-text-script", "POST", mailPath, { ...mail, text: script }],
+      ["control-email-Subject-script", "POST", mailPath, { ...mail, Subject: script }],
+      ["control-email-TO-script", "POST", mailPath, { ...mail, TO: script }],
       ["control-email-unsubscribe-script", "POST", mailPath, { ...mail, listUnsubscribe: script }],
       ["control-email-query-script", "POST", mailPath + "?x=" + script, mail],
       ["control-email-get", "GET", mailPath, mail],
@@ -286,6 +309,7 @@ expect_all() {
 
 step "0/6 preconditions"
 preconditions
+echo "WAF image: ${WAF_IMG} $(docker image inspect --format '{{.Id}}' "${WAF_IMG}")"
 PRIVATE="$(kong_private_paths)"
 [ -n "${PRIVATE}" ] || bad "no ip-restricted path found in ${KONG_YML#"${ROOT}"/} — the Funnel leg is blind"
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=localhost \
@@ -380,8 +404,9 @@ mutant 10110 403 content-post-code content-patch-profile content-odb-protocol-ti
 line_mutant 921130\;ARGS 403 content-odb-protocol-title content-odb-html-tag content-odb-meta-tag
 mutant 10120 403 content-migrate-sql
 mutant 10140 403 content-query-sql public-funnel-query
-mutant 10150 403 content-email-html content-email-reset
-line_mutant 921130\;ARGS:json.html 403 content-email-html content-email-reset
+mutant 10150 403 "${EMAIL_LABELS[@]}"
+line_mutant 921130\;ARGS:json.html 403 "${EMAIL_LABELS[@]}"
+line_mutant 'attack-xss;ARGS:json.html' 403 "${EMAIL_LABELS[@]}"
 mutant 10130 200 funnel-kong:/admin/v1/tenants funnel-kong:/meta/v1 funnel-kong:/realtime/v1/publish funnel-encoded-a funnel-double-slash funnel-migrate-post
 if ! start_waf "${TAG}-mutaudit" "${EXCL}" MODSEC_AUDIT_LOG_PARTS=ABIJDEFHZ; then
   bad "mutant: the WAF did not start with the old audit parts"
