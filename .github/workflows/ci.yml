@@ -1291,7 +1291,11 @@ jobs:
       # and no probe's apikey or Bearer token reaches the audit log (shipped to Loki).
       # Every ip-restricted kong.yml path is refused when Tailscale Funnel marked the
       # request (rule 10130) and served without the mark.
-      # Mutants without rule 10110 / 10120 / 10130, and with audit parts ABIJDEFHZ, must fail.
+      # Rule 10150 lifts the XSS checks and 921130 on the html of POST /email/v1/send only;
+      # every message the site gateway sends must pass, and <script> in to, subject, text,
+      # listUnsubscribe, a case-variant key or the query string must not.
+      # Mutants without rule 10110 / 10120 / 10130 / 10140 / 10150 (or one of its two lines),
+      # and with audit parts ABIJDEFHZ, must fail.
       - name: WAF lets app content through, nothing else (m227)
         env:
           M227_NODE_IMAGE: ${{ env.M198_NODE_IMAGE || 'mirror.gcr.io/library/node:20-alpine' }}
