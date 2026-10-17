@@ -1,4 +1,6 @@
-FROM public.ecr.aws/hashicorp/vault:1.16
+# mirror.gcr.io serves the same hashicorp/vault:1.16 digest (sha256:c5e04689…) as public.ecr.aws
+# without its anonymous data cap: CI gate m196 died on "toomanyrequests: Data limit exceeded".
+FROM mirror.gcr.io/hashicorp/vault:1.16
 
 # hadolint global ignore=DL3002,DL3018
 
