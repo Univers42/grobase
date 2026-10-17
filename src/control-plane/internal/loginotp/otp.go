@@ -26,27 +26,29 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// otp.go — the request/verify core. Request always succeeds to the caller (no email
-// enumeration); Verify is constant-time, attempt-capped, single-use, and on success
+// otp.go — the request/verify core. Request answers the same for any address (no email
+// enumeration) and fails only when the mail cannot be sent; Verify is constant-time, attempt-capped, single-use, and on success
 // mints a short proof the login step requires.
 
-// Request generates a 6-digit code, stores its peppered hash, and emails it. It NEVER
-// reveals whether the email is registered (always returns nil to the caller); an email
-// send failure is logged, not surfaced.
+// Request generates a 6-digit code, stores its peppered hash, and emails it. It never
+// reveals whether the email is registered. A failed send is returned as ErrSendFailed
+// (the route answers 502): the route sits behind the service key, so the caller is
+// trusted and a silent loss of the mail would only hide a broken relay.
 func (s *Service) Request(ctx context.Context, email string) error {
 	code, err := genCode()
 	if err != nil {
 		return err
 	}
-	if err := s.insertCode(ctx, email, s.hashCode(email, code)); err != nil {
+	if err := s.store.insertCode(ctx, email, s.hashCode(email, code), s.now().Add(s.ttl)); err != nil {
 		return err
 	}
-	subject := "Your grobase sign-in code"
+	subject := fmt.Sprintf("Your %s sign-in code", s.appName)
 	body := fmt.Sprintf(
-		"Your grobase verification code is %s\n\nIt expires in %d minutes. If you did not try to sign in, ignore this email.",
-		code, int(s.ttl.Minutes()))
+		"Your %s verification code is %s\n\nIt expires in %d minutes. If you did not try to sign in, ignore this email.",
+		s.appName, code, int(s.ttl.Minutes()))
 	if err := s.send(email, subject, body); err != nil {
 		s.log.Warn("login otp email send failed", "err", err)
+		return ErrSendFailed
 	}
 	return nil
 }
@@ -55,7 +57,7 @@ func (s *Service) Request(ctx context.Context, email string) error {
 // ErrLocked (429), ErrInvalid (401), or — on a constant-time match — consumes it and
 // returns a short proof token the login step requires.
 func (s *Service) Verify(ctx context.Context, email, code string) (string, error) {
-	row, err := s.latestLive(ctx, email)
+	row, err := s.store.latestLive(ctx, email)
 	if err != nil {
 		return "", err
 	}
@@ -65,11 +67,11 @@ func (s *Service) Verify(ctx context.Context, email, code string) (string, error
 	if row.attempts >= s.maxAttempts {
 		return "", ErrLocked
 	}
-	_ = s.bumpAttempt(ctx, row.id)
+	_ = s.store.bumpAttempt(ctx, row.id)
 	if subtle.ConstantTimeCompare([]byte(s.hashCode(email, code)), []byte(row.codeHash)) != 1 {
 		return "", ErrInvalid
 	}
-	if err := s.consume(ctx, row.id); err != nil {
+	if err := s.store.consume(ctx, row.id); err != nil {
 		return "", err
 	}
 	return s.mintProof(email)
