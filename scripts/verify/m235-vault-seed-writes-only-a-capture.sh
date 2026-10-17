@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # **************************************************************************** #
 #                                                                              #
-#  m229-vault-seed-writes-only-a-capture.sh — a seed run that captured       #
+#  m235-vault-seed-writes-only-a-capture.sh — a seed run that captured       #
 #  nothing leaves the seed set alone, and SHA256SUMS lists the seed set only  #
 #                                                                              #
 #  2026-10-15, `make vault42-seed` on a host whose stack runs in a VM: every  #
@@ -27,10 +27,10 @@ VS="${ROOT}/scripts/ops/vault-seed.sh"
 
 _B=$'\033[0;36m' _G=$'\033[0;32m' _R=$'\033[0;31m' _0=$'\033[0m'
 rc=0
-step() { printf '%s[M229] %s%s\n' "${_B}" "$1" "${_0}"; }
+step() { printf '%s[M235] %s%s\n' "${_B}" "$1" "${_0}"; }
 ok() { printf '%s  ✓ %s%s\n' "${_G}" "$1" "${_0}"; }
 fail() {
-  printf '%s[M229] FAIL — %s%s\n' "${_R}" "$1" "${_0}"
+  printf '%s[M235] FAIL — %s%s\n' "${_R}" "$1" "${_0}"
   rc=1
 }
 
