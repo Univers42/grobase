@@ -14,9 +14,10 @@
 # M134 — DYNAMIC BUILDER flag-OFF = BYTE-PARITY. BUILDER_ENABLED unset must make
 # the whole feature vanish:
 #
-#   (1) /v1/tenants/me/mounts, /me/entitlements, /me/builder → 404 (routes not
-#       mounted) on a tenant-control with BUILDER unset (TENANT_SELFSERVE still on,
-#       so the base /me + /me/keys routes DO exist — only the builder ones 404).
+#   (1) /v1/tenants/me/entitlements, /me/builder → 404 and POST /me/mounts → 405
+#       (routes not mounted) on a tenant-control with BUILDER unset (TENANT_SELFSERVE
+#       still on, so the base /me + /me/keys routes DO exist, and so does the
+#       read-only GET /me/mounts list — only the builder ones are absent).
 #   (2) the adapter-registry /connect STAMP is byte-identical to a tier-only run
 #       EVEN WHEN an entitlement row exists in the table: with BUILDER off the
 #       resolver is never wired, so the stamp resolves the named tier (essential
@@ -165,17 +166,20 @@ KEY="$(json_str key)"
 [[ "${KEY}" == mbk_* ]] || fail "key not minted (line: key)"
 ok "essential tenant + admin key"
 
-step "4/6 (1) builder routes 404 with BUILDER unset (base /me still 200)"
+step "4/6 (1) builder routes absent with BUILDER unset (base /me still 200)"
 # base self-serve route still works (TENANT_SELFSERVE on)
 C="$(me_req GET "${PORT_TC}" /v1/tenants/me "${KEY}")"
 [[ "${C}" == "200" ]] || fail "(1) base GET /me expected 200 (TENANT_SELFSERVE on), got ${C} (line: 1 base /me)"
-for path in /v1/tenants/me/mounts /v1/tenants/me/entitlements; do
-  C="$(me_req GET "${PORT_TC}" "${path}" "${KEY}")"
-  [[ "${C}" == "404" ]] || fail "(1) GET ${path} expected 404 (builder route not mounted), got ${C} — $(head -c 200 "${BODY_TMP}") (line: 1 ${path})"
-done
+C="$(me_req GET "${PORT_TC}" /v1/tenants/me/entitlements "${KEY}")"
+[[ "${C}" == "404" ]] || fail "(1) GET /v1/tenants/me/entitlements expected 404 (builder route not mounted), got ${C} — $(head -c 200 "${BODY_TMP}") (line: 1 entitlements)"
 C="$(me_req POST "${PORT_TC}" /v1/tenants/me/builder "${KEY}" '{"entitlement":{}}')"
 [[ "${C}" == "404" ]] || fail "(1) POST /v1/tenants/me/builder expected 404, got ${C} (line: 1 builder)"
-ok "(1) /me/mounts, /me/entitlements, /me/builder all 404 with BUILDER off; base /me still 200"
+# A tenant reads its mounts without the builder; it cannot create one.
+C="$(me_req GET "${PORT_TC}" /v1/tenants/me/mounts "${KEY}")"
+[[ "${C}" == "200" ]] || fail "(1) GET /v1/tenants/me/mounts expected 200 (read-only list), got ${C} — $(head -c 200 "${BODY_TMP}") (line: 1 mount list)"
+C="$(me_req POST "${PORT_TC}" /v1/tenants/me/mounts "${KEY}" '{}')"
+[[ "${C}" == "405" ]] || fail "(1) POST /v1/tenants/me/mounts expected 405 (builder create not mounted), got ${C} (line: 1 mount create)"
+ok "(1) /me/entitlements, /me/builder 404 and POST /me/mounts 405 with BUILDER off; base /me and the read-only GET /me/mounts still 200"
 
 step "5/6 (2) LOAD-BEARING: an over-tier entitlement row is IGNORED — /connect stamps the TIER (essential rps=200)"
 # Insert an over-tier row directly (rps=400). With BUILDER off the resolver is
@@ -196,7 +200,7 @@ RPS="$(co_num rps)"
 ok "(2) over-tier row IGNORED with BUILDER off; /connect stamps essential's tier rps=200 — byte-parity baseline"
 
 step "6/6 summary"
-green "[M134] (1) builder routes (/me/mounts,/me/entitlements,/me/builder) 404 with BUILDER off; base /me still 200"
+green "[M134] (1) builder routes (/me/entitlements,/me/builder 404, POST /me/mounts 405) absent with BUILDER off; base /me and GET /me/mounts still 200"
 green "[M134] (2) an over-tier entitlement row is UNREAD with BUILDER off — /connect stamps the named tier (essential rps=200) = byte-parity"
 emit_gate_log() { (
   set +e
@@ -205,10 +209,10 @@ emit_gate_log() { (
   export AGENT_ROLE="${AGENT_ROLE:-tester}" AGENT_TASK="${AGENT_TASK:-builder}"
   . "${CLAUDE_DIR}/lib/log.sh" >/dev/null 2>&1 || exit 0
   log_event GATE --gate "m134=PASS" --outcome pass \
-    --msg "dynamic builder flag-OFF parity: BUILDER_ENABLED unset → /v1/tenants/me/{mounts,entitlements,builder} all 404 (base /me still 200); an over-tier entitlement row (rps=400) is UNREAD → /connect stamps the named tier (essential rps=200) byte-identical to a tier-only run = the feature is dormant, baseline byte-parity" \
+    --msg "dynamic builder flag-OFF parity: BUILDER_ENABLED unset → /v1/tenants/me/{entitlements,builder} 404 and POST /me/mounts 405 (base /me and the read-only GET /me/mounts still 200); an over-tier entitlement row (rps=400) is UNREAD → /connect stamps the named tier (essential rps=200) byte-identical to a tier-only run = the feature is dormant, baseline byte-parity" \
     --ref "scripts/verify/m134-flag-off-parity.sh" >/dev/null 2>&1
   exit 0
 ) || true; }
 emit_gate_log
-green "[M134] ALL GATES GREEN — BUILDER off = byte-parity (routes 404, table unread, tier stamp)"
+green "[M134] ALL GATES GREEN — BUILDER off = byte-parity (builder routes absent, table unread, tier stamp)"
 exit 0

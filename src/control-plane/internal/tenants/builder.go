@@ -40,9 +40,10 @@ import (
 //
 // FLAG-GATED OFF = PARITY: MountBuilder is called ONLY when BUILDER_ENABLED is
 // truthy (main.go gates it, AND it requires TENANT_SELFSERVE_ENABLED for the
-// self-auth surface). When OFF the routes do not exist (404), the
-// tenant_entitlements table is empty/unread, and resolution is manifest.For
-// verbatim — byte-identical to today.
+// self-auth surface). When OFF the routes do not exist (404) — except the
+// read-only GET /me/mounts, which MountMountList serves under self-serve alone
+// — the tenant_entitlements table is empty/unread, and resolution is
+// manifest.For verbatim — byte-identical to today.
 type builderAPI struct {
 	ss       *selfServe         // reuses selfAuth / requireScope / handleLookup
 	store    *ent.Store         // writes/reads public.tenant_entitlements
@@ -77,13 +78,7 @@ type BuilderDeps struct {
 // OPERATOR admin routes carry a path id, require the service token, and hold
 // ceiling authority over a tenant's plan and entitlements.
 func MountBuilder(mux *http.ServeMux, d BuilderDeps) {
-	b := &builderAPI{
-		ss:       &selfServe{svc: d.Svc, jwt: d.JWT, manifest: d.Manifest},
-		store:    d.Store,
-		manifest: d.Manifest,
-		adapter:  d.Adapter,
-		svcToken: d.ServiceToken,
-	}
+	b := newBuilderAPI(d)
 
 	mux.HandleFunc("POST /v1/tenants/me/mounts", b.createMount)
 	mux.HandleFunc("GET /v1/tenants/me/mounts", b.listMounts)
@@ -94,6 +89,24 @@ func MountBuilder(mux *http.ServeMux, d BuilderDeps) {
 
 	mux.HandleFunc("PATCH /v1/tenants/{id}/ceiling", b.operatorSetCeiling)
 	mux.HandleFunc("PUT /v1/tenants/{id}/entitlement", b.operatorUpsertEntitlement)
+}
+
+// MountMountList registers only GET /v1/tenants/me/mounts, for self-serve with
+// the builder off: a tenant can see its mounts without gaining create, delete
+// or entitlement routes. Never pair it with MountBuilder, which already owns
+// the pattern (ServeMux panics on a duplicate).
+func MountMountList(mux *http.ServeMux, d BuilderDeps) {
+	mux.HandleFunc("GET /v1/tenants/me/mounts", newBuilderAPI(d).listMounts)
+}
+
+func newBuilderAPI(d BuilderDeps) *builderAPI {
+	return &builderAPI{
+		ss:       newSelfServe(SelfServeDeps{Svc: d.Svc, JWT: d.JWT, Manifest: d.Manifest}),
+		store:    d.Store,
+		manifest: d.Manifest,
+		adapter:  d.Adapter,
+		svcToken: d.ServiceToken,
+	}
 }
 
 // ceilingFor resolves a tenant's CEILING package: the operator ceiling_plan when

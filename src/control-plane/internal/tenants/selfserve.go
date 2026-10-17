@@ -62,10 +62,7 @@ type SelfServeDeps struct {
 }
 
 func MountSelfServe(mux *http.ServeMux, d SelfServeDeps) {
-	ss := &selfServe{
-		svc: d.Svc, jwt: d.JWT, manifest: d.Manifest, billing: d.Billing,
-		auth: NewSelfAuthenticator(d.Svc, d.JWT),
-	}
+	ss := newSelfServe(d)
 
 	mux.HandleFunc("GET /v1/tenants/me", ss.me)
 	mux.HandleFunc("GET /v1/tenants/me/usage", ss.meUsage)
@@ -73,6 +70,16 @@ func MountSelfServe(mux *http.ServeMux, d SelfServeDeps) {
 	mux.HandleFunc("POST /v1/tenants/me/keys", ss.issueKey)
 	mux.HandleFunc("DELETE /v1/tenants/me/keys/{keyId}", ss.revokeKey)
 	mux.HandleFunc("PATCH /v1/tenants/me", ss.patch)
+}
+
+// newSelfServe is the only constructor: every handler reaches selfAuth, and a
+// selfServe built without its authenticator panics on the first credential
+// (the builder built its own and did, on every builder /me request).
+func newSelfServe(d SelfServeDeps) *selfServe {
+	return &selfServe{
+		svc: d.Svc, jwt: d.JWT, manifest: d.Manifest, billing: d.Billing,
+		auth: NewSelfAuthenticator(d.Svc, d.JWT),
+	}
 }
 
 // selfAuth resolves the caller's OWN tenant from its credential by delegating to the shared
