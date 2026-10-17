@@ -52,6 +52,9 @@ TC_IMG="m164-tc-$$:scratch"
 NET="m164net-$$"
 PG="m164-pg-$$"
 MP="m164-mailpit-$$"
+# The leg mails a real OTP, so SMTP_HOST must be a sink. M164_SMTP_HOST points the
+# service elsewhere; anything but a local sink needs M164_ALLOW_REAL_SMTP=1.
+SMTP_HOST_USED="${M164_SMTP_HOST:-${MP}}"
 TC_ON="m164-tc-on-$$"
 TC_OFF="m164-tc-off-$$"
 PORT_ON="${M164_PORT_ON:-19168}"
@@ -63,6 +66,16 @@ SVC_TOKEN="m164-svc-$$"
 JWT_SECRET="m164-jwt-secret-deadbeefcafef00ddeadbeefcafef00d"
 PEPPER="m164-pepper-$$"
 EMAIL="dev@grobase.test"
+
+case "${SMTP_HOST_USED}" in
+  "${MP}" | mailpit | localhost | 127.0.0.1) ;;
+  *)
+    [ "${M164_ALLOW_REAL_SMTP:-}" = "1" ] || {
+      red "[M164] REFUSED — SMTP_HOST is not mailpit/localhost/127.0.0.1; the real-send leg would mail an OTP. Set M164_ALLOW_REAL_SMTP=1 to override."
+      exit 2
+    }
+    ;;
+esac
 BODY_TMP="$(mktemp)"
 
 cleanup() {
@@ -148,7 +161,7 @@ docker run -d --name "${TC_ON}" --network "${NET}" \
   -e DATABASE_URL="${DB_INNET}" -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" -e GOTRUE_JWT_SECRET="${JWT_SECRET}" -e JWT_ALLOW_NO_ISSUER=1 \
   -e EMAIL_OTP_ENABLED=1 -e KEY_HASH_PEPPER="${PEPPER}" \
   -e EMAIL_OTP_TTL_SECS=300 -e EMAIL_OTP_MAX_ATTEMPTS=3 \
-  -e SMTP_HOST="${MP}" -e SMTP_PORT=1025 -e SMTP_SECURE=false -e EMAIL_FROM="otp@grobase.test" \
+  -e SMTP_HOST="${SMTP_HOST_USED}" -e SMTP_PORT=1025 -e SMTP_SECURE=false -e EMAIL_FROM="otp@grobase.test" \
   -e ADAPTER_REGISTRY_URL="" -e TENANT_CONTROL_PORT=3020 -e TENANT_CONTROL_PRODUCT_MODE=enabled -e LOG_LEVEL=debug \
   -p "127.0.0.1:${PORT_ON}:3020" "${TC_IMG}" >/dev/null
 wait_ready_http "${TC_ON}" "${PORT_ON}" /health/live || fail "OTP-ON tenant-control not ready"
@@ -198,6 +211,10 @@ ok "(B) expired code → 410"
 step "5/6 (C) anti-enumeration — request for an arbitrary address → 200 (no oracle)"
 [[ "$(otp_req "${PORT_ON}" /v1/auth/otp/request '{"email":"nobody-'"$$"'@nowhere.test"}')" == "200" ]] || fail "(C) request for an arbitrary email did not return 200 (enumeration oracle)"
 ok "(C) request is identical (200) for any address — no email-enumeration oracle"
+docker stop "${MP}" >/dev/null
+[[ "$(otp_req "${PORT_ON}" /v1/auth/otp/request "{\"email\":\"${EMAIL}\"}")" == "502" ]] || fail "(C) request with the SMTP relay down expected 502 send_failed — $(head -c 200 "${BODY_TMP}")"
+grep -q send_failed "${BODY_TMP}" || fail "(C) 502 body lacks send_failed"
+ok "(C) SMTP relay down → 502 send_failed (a lost mail is not hidden)"
 
 # ── 6) (D) PARITY: flag OFF → routes 404 ───────────────────────────────────────
 step "6/6 (D · PARITY) EMAIL_OTP_ENABLED unset → /v1/auth/otp/* 404"
@@ -225,7 +242,7 @@ emit_gate_log() {
     # shellcheck disable=SC1091
     . "${CLAUDE_DIR}/lib/log.sh" >/dev/null 2>&1 || exit 0
     log_event GATE --gate "m164=PASS" --outcome pass \
-      --msg "email login OTP: a 6-digit code is mailed (captured via Mailpit), stored only as a peppered hash; correct code -> 200 + JWT proof; consumed=401 single-use, wrong=401, attempt-cap=429, expired=410; request is 200 for any address (no enumeration oracle); EMAIL_OTP_ENABLED unset -> /v1/auth/otp/* 404 (byte-parity)" \
+      --msg "email login OTP: a 6-digit code is mailed (captured via Mailpit), stored only as a peppered hash; correct code -> 200 + JWT proof; consumed=401 single-use, wrong=401, attempt-cap=429, expired=410; request is 200 for any address (no enumeration oracle) and 502 send_failed when the relay is down; EMAIL_OTP_ENABLED unset -> /v1/auth/otp/* 404 (byte-parity)" \
       --ref "scripts/verify/m164-email-otp.sh" >/dev/null 2>&1
     exit 0
   ) || true

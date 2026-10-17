@@ -62,6 +62,22 @@ raw_value() {
   grep -m1 -E "^[[:space:]]*(export[[:space:]]+)?$2=" "$1" || true
 }
 
+# set_rhs KEY FILE... — the right-hand side of KEY exactly as written (quotes and
+# all) in the first FILE whose last assignment of KEY is non-empty; nothing if no
+# file sets it. Layers are passed highest-priority first. Verbatim, because the
+# caller re-emits it: re-quoting would change what compose decodes.
+set_rhs() {
+  local key="$1" file line
+  shift
+  for file in "$@"; do
+    [ -f "$file" ] || continue
+    line="$(grep -E "^[[:space:]]*(export[[:space:]]+)?${key}=" "$file" | tail -1 || true)"
+    [ -n "$(unquote "${line#*=}")" ] || continue
+    printf '%s' "${line#*=}"
+    return 0
+  done
+}
+
 # bare_line LINE — LINE without leading blanks and without an `export ` prefix.
 # .env.secrets is a bare KEY=value layer, and the quoting of the original value
 # has to survive the round trip: rewriting `KEY="a b"` as `KEY=a b` changes it.
