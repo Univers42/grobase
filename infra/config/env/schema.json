@@ -438,6 +438,16 @@
         "webhook-dispatcher"
       ]
     },
+    "EMAIL_OTP_APP_NAME": {
+      "category": "CONFIG",
+      "format": "opaque",
+      "required_in": [],
+      "compose_required": false,
+      "$comment": "Product name in the login OTP mail (\"Your <name> sign-in code\"). Default grobase.",
+      "consumers": [
+        "tenant-control"
+      ]
+    },
     "GROBASE_PUBLIC_ADDRESSES": {
       "category": "CONFIG",
       "format": "csv",
