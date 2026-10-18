@@ -1,0 +1,26 @@
+# docker-compose.perf.yml — CPU headroom and per-request work cuts for the services on a
+# browser's request path (WAF → Kong → PostgREST / data plane / GoTrue), for a host that
+# serves real users (the b2b VM). Opt-in: PERF=1 (env, or a PERF= line in .env.local) adds
+# this file to every compose call (orchestrators/makes/00-config.mk). Base caps stay small,
+# so a laptop or CI shape is unchanged.
+#
+# Measured 2026-10-18 (artifacts/bench/perf-osionos-before.json, scripts/bench/osionos-fanout.sh):
+# at the base caps a 50-open burst throttled PostgREST (0.25 CPU) for 29.8 s and a 5-open
+# per-page replay throttled the WAF (0.5 CPU) for 24.0 s. A `cpus:` value is a ceiling, not a
+# reservation: an idle service costs the same under either cap.
+#
+# Ponytail: the caps are sized to the 8-core b2b VM and that one bench; a smaller host
+# needs them lowered, a busier one re-measured (scripts/bench/osionos-fanout.sh).
+services:
+  waf:
+    cpus: 1.0
+  postgrest:
+    cpus: 1.0
+    environment:
+      # Reuse a validated JWT instead of re-verifying it on every request; the cache
+      # entry still expires at the token's own `exp`.
+      PGRST_JWT_CACHE_MAX_LIFETIME: "3600"
+  data-plane-router-rust:
+    cpus: 1.0
+  gotrue:
+    cpus: 0.5

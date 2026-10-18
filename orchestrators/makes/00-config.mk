@@ -27,11 +27,14 @@ NETSEG         ?=
 # and mailpit SMTP 1025 on the guest loopback for an SSH-tunnelled groot
 # (orchestrators/compose/docker-compose.remote-access.yml). Loopback only.
 REMOTE_ACCESS  ?= $(shell sed -n 's/^REMOTE_ACCESS=//p' .env.local 2>/dev/null | head -1)
+# PERF=1 (env, or a PERF= line in .env.local) composes the request-path CPU headroom
+# overlay (orchestrators/compose/docker-compose.perf.yml) for a host serving real users.
+PERF           ?= $(shell sed -n 's/^PERF=//p' .env.local 2>/dev/null | head -1)
 # CLOUD=1 (env, or a CLOUD= line in .env.local) composes the managed-cloud overlay
 # (docker-compose.cloud.yml, flags from infra/config/cloud/flags.env.cloud) and its
 # `cloud` profile (stripe-mock) into every compose call, so `make up` keeps a cloud host cloud.
 CLOUD          ?= $(shell sed -n 's/^CLOUD=//p' .env.local 2>/dev/null | head -1)
-DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)
+DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)
 
 # Colors
 _B := \033[0;34m
