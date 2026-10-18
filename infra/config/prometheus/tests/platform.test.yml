@@ -178,3 +178,41 @@ tests:
             exp_annotations:
               summary: "query-router: most requests are 404s"
               description: "2/s requests missed for 10m and were most of the traffic: a caller may be enumerating other tenants' ids or scanning paths."
+
+  # A busy data route whose requests all land in the 400 ms bucket fires
+  # EdgeLatencyP95High; a fast one (all under 25 ms) and a slow but near-idle
+  # one (1 request / 5 min) do not.
+  - interval: 1m
+    input_series:
+      - series: 'kong_request_latency_ms_bucket{service="rest", le="250"}'
+        values: "0+0x30"
+      - series: 'kong_request_latency_ms_bucket{service="rest", le="400"}'
+        values: "0+60x30"
+      - series: 'kong_request_latency_ms_bucket{service="rest", le="+Inf"}'
+        values: "0+60x30"
+      - series: 'kong_request_latency_ms_count{service="rest"}'
+        values: "0+60x30"
+      - series: 'kong_request_latency_ms_bucket{service="storage", le="25"}'
+        values: "0+60x30"
+      - series: 'kong_request_latency_ms_bucket{service="storage", le="+Inf"}'
+        values: "0+60x30"
+      - series: 'kong_request_latency_ms_count{service="storage"}'
+        values: "0+60x30"
+      - series: 'kong_request_latency_ms_bucket{service="mongo-api", le="400"}'
+        values: "0+0.2x30"
+      - series: 'kong_request_latency_ms_bucket{service="mongo-api", le="+Inf"}'
+        values: "0+0.2x30"
+      - series: 'kong_request_latency_ms_count{service="mongo-api"}'
+        values: "0+0.2x30"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: EdgeLatencyP95High
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: EdgeLatencyP95High
+        exp_alerts:
+          - exp_labels:
+              { severity: warning, event_type: latency, service: rest }
+            exp_annotations:
+              summary: "rest: p95 through Kong above 250 ms"
+              description: "p95 392.5 ms for 10m. Check CPU throttling (cgroup cpu.stat) and upstream latency first."

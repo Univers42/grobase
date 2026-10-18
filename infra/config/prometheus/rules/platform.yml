@@ -188,3 +188,30 @@ groups:
         annotations:
           summary: "{{ $labels.job }}/{{ $labels.instance }} accepted the previous service token"
           description: "{{ $value }} request(s) in 15m used INTERNAL_SERVICE_TOKEN_PREV — a peer has not rolled to the new token."
+
+  # ── latency ─────────────────────────────────────────────────────────────────
+  # Kong's own histograms (prometheus plugin, latency_metrics on) are the only
+  # per-hop percentiles this stack exports; Go and Rust export a mean only.
+  # Budgets: scripts/bench/budgets.json and wiki/operations/sla-draft.md.
+  - name: platform-latency
+    rules:
+      - record: service:kong_request_latency_ms:p95_5m
+        expr: histogram_quantile(0.95, sum by (le, service) (rate(kong_request_latency_ms_bucket[5m])))
+      - record: service:kong_upstream_latency_ms:p95_5m
+        expr: histogram_quantile(0.95, sum by (le, service) (rate(kong_upstream_latency_ms_bucket[5m])))
+
+      - alert: EdgeLatencyP95High
+        # A data route's p95 through Kong over 250 ms for 10m, with enough traffic
+        # (>0.2 req/s) that one slow call cannot fire it. Ponytail: Kong's buckets
+        # jump 100 → 250 → 400 ms, so the quantile is interpolated inside a bucket:
+        # a true p95 of 260 ms can read either side of the line. It sees Kong onward
+        # only — WAF, relay and browser time are invisible here (osionos-fanout bench).
+        expr: |
+          service:kong_request_latency_ms:p95_5m{service=~"rest|query-router|data-plane-direct|storage|mongo-api"} > 250
+          and on (service)
+          sum by (service) (rate(kong_request_latency_ms_count[5m])) > 0.2
+        for: 10m
+        labels: { severity: warning, event_type: latency }
+        annotations:
+          summary: "{{ $labels.service }}: p95 through Kong above 250 ms"
+          description: "p95 {{ $value | humanize }} ms for 10m. Check CPU throttling (cgroup cpu.stat) and upstream latency first."
