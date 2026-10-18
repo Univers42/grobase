@@ -3,7 +3,7 @@
 #
 # Self-built Iceberg REST catalog fixture — we do NOT pull the ready-made
 # apache/iceberg-rest-fixture:1.8.1 image (512 MB). The only things pulled are a
-# JDK builder base + a JRE-Alpine runtime base (both allowed by the 42-Inception
+# JDK builder base + a JRE-Alpine runtime base (both allowed by the self-build
 # rule) and the OFFICIAL Apache Iceberg 1.8.1 SOURCE release from archive.apache.org.
 #
 # WHY A SOURCE BUILD: the runnable fixture jar

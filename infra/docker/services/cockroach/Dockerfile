@@ -10,7 +10,7 @@
 # (interpreter /lib64/ld-linux-x86-64.so.2 — it needs libc/libm/libresolv and
 # auto-loads lib/libgeos_c.so), so it CANNOT run on Alpine/musl. We therefore
 # use debian:bookworm-slim — a lightweight glibc *base OS* (~30 MB, allowed by
-# the 42-Inception rule, which permits a slim base / extracted upstream binary).
+# the self-build rule, which permits a slim base / extracted upstream binary).
 #
 # The `start-single-node …` command and the `cockroach sql … SELECT 1`
 # healthcheck both come from docker-compose.yml.

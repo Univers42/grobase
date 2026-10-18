@@ -2,7 +2,7 @@
 # File: docker/services/mariadb/Dockerfile
 #
 # Self-built MariaDB from Alpine's own package — we do NOT pull the ready-made
-# mariadb image. Alpine is the only base we pull (allowed by the 42-Inception
+# mariadb image. Alpine is the only base we pull (allowed by the self-build
 # rule). Alpine 3.21 ships MariaDB 11.4.x (`mariadb` + `mariadb-client`), which
 # provides the mariadbd server and the mysqld/mysqld_safe-compatible symlinks.
 #

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # File: docker/services/supavisor/Dockerfile
 #
-# 42-Inception: build supabase/supavisor FROM SOURCE on our own slim bases —
+# Build supabase/supavisor FROM SOURCE on our own slim bases —
 # we do NOT pull the ready-made supabase/supavisor application image.
 # Only a lightweight Elixir/Alpine build image and alpine:3.21 runtime are
 # pulled.  An Erlang/OTP `mix release` bundles its own ERTS, so it runs on a

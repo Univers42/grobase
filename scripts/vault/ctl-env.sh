@@ -84,7 +84,7 @@ VENDOR_PRIVATE="vendor/*"
 # Not secrets/* as a whole: the engine dumps there are the team's restore seeds, and 42ctl
 # refuses a private file above its 4 MiB chunk ceiling before anything uploads ("A private
 # file is sealed whole", 42ctl 0.1.15 `env push --help`), so sealing all of secrets/ left
-# no way to push minio.tar.gz (7.4 MB) or inception-wordpress.tar.gz (29.5 MB).
+# no way to push minio.tar.gz (7.4 MB).
 # Ponytail: these are --private, i.e. sealed to the pusher, NOT excluded. The bytes
 # still travel. Nothing in the current CLI can exclude a path the scanner finds. The
 # match is by NAME: a credential under secrets/ that is not a dotfile and is named neither

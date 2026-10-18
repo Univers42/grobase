@@ -11,7 +11,7 @@
 # Alpine/musl can't run it. We add `gcompat` (Alpine's musl→glibc shim, ~a few
 # hundred KB) — far slimmer than pulling a whole Debian base — and it's enough
 # for this Go binary's libc/libresolv needs. Alpine is the only base we pull
-# (42-Inception rule).
+# (self-build rule).
 #
 # RUNTIME / privilege note: promtail tails ROOT-owned host log files
 # (/var/lib/docker/containers, bind-mounted ro) and reads /var/run/docker.sock.

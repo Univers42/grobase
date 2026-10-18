@@ -3,7 +3,7 @@
 #
 # Self-built "mysql" service from Alpine's own package — we do NOT pull the
 # ready-made mysql:8.4 image (812 MB). Alpine is the only base we pull (allowed
-# by the 42-Inception rule). Alpine has no Oracle-MySQL package; the
+# by the self-build rule). Alpine has no Oracle-MySQL package; the
 # Alpine-native MySQL-wire-compatible server is MariaDB 11.4 (mariadbd ships the
 # mysqld/mysqld_safe symlinks and the mysqladmin client the compose healthcheck
 # uses: `mysqladmin ping -h 127.0.0.1 -u root -p…`).
