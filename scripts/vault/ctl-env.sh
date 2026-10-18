@@ -166,7 +166,7 @@ require_session() {
 
 ensure_profile
 [ -f "$CTL_CFG_DIR/keystore.v42" ] || {
-  printf 'no keystore at %s — run `make ctl-remote ARGS="keys recover --email <you>"` first\n' "$CTL_CFG_DIR/keystore.v42" >&2
+  printf 'no keystore at %s — run `make ctl42 ARGS="keys recover --email <you>"` first\n' "$CTL_CFG_DIR/keystore.v42" >&2
   exit 1
 }
 read_passphrase

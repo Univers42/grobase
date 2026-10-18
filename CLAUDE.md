@@ -445,8 +445,8 @@ three run per-PR.
   local+dev and read on staging+prod). `make vault-pull-env` / `vault-push-env` use the
   **team** path by default (`VAULT_ENV_PERSONAL=1` opts out) — sharing is *encryption*, not
   RBAC, so a personal push is unreadable by teammates whatever their org role. `vendor/` is
-  sealed to the pusher. 42ctl runs from its image via **`make ctl42`** (`ctl-remote` is an
-  alias); the live hosts are `vault42-server` + `vault42-authority` on fly — `vault42.fly.dev`,
+  sealed to the pusher. 42ctl runs from its image via **`make ctl42`**;
+  the live hosts are `vault42-server` + `vault42-authority` on fly — `vault42.fly.dev`,
   `grobase-nano.fly.dev` and `grobase-stack.fly.dev` are dead and partly other people's apps.
   Identity lives in `~/.config/42ctl`, never in the worktree.
 - **Secret scanning is layered:** `.gitignore` → `.githooks/pre-commit` (`make hooks`) → CI
