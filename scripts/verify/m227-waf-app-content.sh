@@ -64,13 +64,19 @@
 #              and a migration POST → 403; the same paths without the header,  #
 #              and auth, rest, realtime, an osionos write and a raw statement  #
 #              with it → 200                                                   #
+#    PEER      rule 10131 (ADR 0002 C2): with the image's operator-addresses   #
+#              file, the same private paths from a non-operator peer — plain,  #
+#              and with a forged X-Real-IP / X-Forwarded-For of 127.0.0.1 —    #
+#              → 403, public routes → 200; the other legs list the probe's     #
+#              own container as operator so their routes stay reachable        #
 #    AUDIT     every probe carries a marker apikey and Bearer token; the       #
 #              audit entries (stdout, shipped to Loki) must not hold it        #
 #    MUTANTS   the file without rule 10110 MUST refuse the code block and the  #
 #              profile, without rule 10120 the migration, without rule 10140   #
 #              the statement, without rule 10150 (or only its 921130 line, or  #
 #              only its XSS line, on json.html) the mails, without rule 10130 MUST pass the Funnel   #
-#              probes, and audit parts ABIJDEFHZ MUST                          #
+#              probes, without rule 10131 the non-operator probes, and audit   #
+#              parts ABIJDEFHZ MUST                                            #
 #              leak the marker; else the gate is blind and fails               #
 #  Needs docker, the WAF image and node:20-alpine already present (nothing is  #
 #  pulled); otherwise SKIP, exit 77, never 0. A throwaway TLS pair is minted   #
@@ -163,6 +169,8 @@ kong_private_paths() {
 # start_waf NAME EXCLUSIONS [VAR=VALUE]: boot the WAF with the tree's nginx.conf and EXCLUSIONS
 # as CRS's REQUEST-900 file, and the optional environment override; wait for /waf-health.
 # M227_BLOCKING_PARANOIA=N runs every WAF at that paranoia level (the baas VM runs 2, the image 1).
+# OPERATORS names the operator-addresses file rule 10131 reads (default: the probe container's own
+# address, so private routes stay reachable; the PEER leg passes the image's file).
 # nginx (uid 101) reads the throwaway key, hence 0644.
 # conf.d is a directory mount: the entrypoint rewrites default.conf with `sed -i` (see m198).
 start_waf() {
@@ -172,6 +180,7 @@ start_waf() {
   docker run -d --name "${name}" --network "${NET}" ${M227_BLOCKING_PARANOIA:+-e "BLOCKING_PARANOIA=${M227_BLOCKING_PARANOIA}"} ${3:+-e "$3"} \
     -v "${dir}:/etc/nginx/conf.d" \
     -v "${WORK}/excl-$1.conf:${CRS_EXCL}:ro" \
+    -v "${OPERATORS:-${WORK}/operators-probe.txt}:/etc/modsecurity.d/operator-addresses.txt:ro" \
     -v "${WORK}/tls.pem:/run/secrets/localhost_cert:ro" \
     -v "${WORK}/tls-key.pem:/run/secrets/localhost_key:ro" \
     "${WAF_IMG}" >/dev/null || return 1
@@ -282,7 +291,8 @@ probe() {
       ["public-funnel-write", "POST", "/rest/v1/osionos_pages", code, funnel],
       ["public-funnel-realtime", "GET", "/realtime/v1/websocket", undefined, funnel],
       ...process.env.PRIVATE.split("\n").filter(Boolean).flatMap((p) => [
-        ["funnel-kong:" + p, "GET", p, undefined, funnel], ["tailnet-kong:" + p, "GET", p, undefined, {}]]),
+        ["funnel-kong:" + p, "GET", p, undefined, funnel], ["tailnet-kong:" + p, "GET", p, undefined, {}],
+        ["xrealip-kong:" + p, "GET", p, undefined, { "X-Real-IP": "127.0.0.1", "X-Forwarded-For": "127.0.0.1" }]]),
     ];
     (async () => { for (const [label, m, p, b, h] of probes) console.log((await send(m, p, b, h)) + " " + label); })();'
 }
@@ -318,6 +328,8 @@ docker network create "${NET}" >/dev/null || skip "could not create a docker net
 docker run -d --name "${TAG}-kong" --network "${NET}" --network-alias kong "${NODE_IMG}" node -e '
   require("http").createServer((q, r) => { console.log(q.method + " " + q.url); q.resume(); q.on("end", () => r.end("upstream")); }).listen(8000);' >/dev/null ||
   skip "could not start the upstream"
+printf '127.0.0.1\n%s\n' "$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${TAG}-kong")" >"${WORK}/operators-probe.txt"
+chmod 0644 "${WORK}/operators-probe.txt"
 
 step "1/6 WAF with ${EXCL#"${ROOT}"/}"
 start_waf "${TAG}-waf" "${EXCL}" || {
@@ -339,7 +351,19 @@ fi
 step "4/6 the internet never reaches a private route; the tailnet and the public routes still do"
 expect_all "${results}" funnel- 403
 expect_all "${results}" tailnet- 200
+expect_all "${results}" xrealip- 200
 expect_all "${results}" public- 200
+
+step "4b/6 a non-operator peer never reaches a private route, forged headers or not (rule 10131)"
+if OPERATORS="${WAF_CONF}/operator-addresses.txt" start_waf "${TAG}-peer" "${EXCL}"; then
+  peer="$(probe "${TAG}-peer")"
+  expect_all "${peer}" tailnet- 403
+  expect_all "${peer}" xrealip- 403
+  expect_all "${peer}" funnel- 403
+  expect_all "${peer}" public- 200
+else
+  bad "the WAF did not start with the image's operator-addresses file"
+fi
 
 step "5/6 the audit log holds no credential"
 if ! logs_have "${TAG}-waf" '{"transaction":'; then
@@ -407,6 +431,7 @@ mutant 10140 403 content-query-sql public-funnel-query
 mutant 10150 403 "${EMAIL_LABELS[@]}"
 line_mutant 921130\;ARGS:json.html 403 "${EMAIL_LABELS[@]}"
 line_mutant 'attack-xss;ARGS:json.html' 403 "${EMAIL_LABELS[@]}"
+OPERATORS="${WAF_CONF}/operator-addresses.txt" mutant 10131 200 tailnet-kong:/admin/v1/tenants tailnet-kong:/meta/v1 tailnet-kong:/realtime/v1/publish xrealip-kong:/admin/v1/tenants
 mutant 10130 200 funnel-kong:/admin/v1/tenants funnel-kong:/meta/v1 funnel-kong:/realtime/v1/publish funnel-encoded-a funnel-double-slash funnel-migrate-post
 if ! start_waf "${TAG}-mutaudit" "${EXCL}" MODSEC_AUDIT_LOG_PARTS=ABIJDEFHZ; then
   bad "mutant: the WAF did not start with the old audit parts"
