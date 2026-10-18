@@ -1,0 +1,4 @@
+[submodule "vendor/scripts"]
+	path = vendor/scripts
+	url = https://github.com/Univers42/scripts.git
+	branch = main
