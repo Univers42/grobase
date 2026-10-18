@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # File: docker/services/kong/Dockerfile
 #
-# 42-Inception: self-built Kong. We do NOT `FROM kong:3.8` (a ready-made fat
+# Self-built Kong. We do NOT `FROM kong:3.8` (a ready-made fat
 # vendor app image). Instead we install Kong's official Debian .deb package
 # (OpenResty + nginx + LuaJIT bundled) onto a minimal base we control. A package
 # is a compliant input; a ready-made application image is not.

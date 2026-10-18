@@ -4,7 +4,7 @@
 # Self-built Debezium Server from the OFFICIAL distribution tarball on a
 # JRE-Alpine base — we do NOT pull the ready-made quay.io/debezium/server:3.0
 # image (1.06 GB). The only things pulled are the JRE base (allowed by the
-# 42-Inception rule) and the signed dist tarball from Maven Central.
+# self-build rule) and the signed dist tarball from Maven Central.
 #
 # Debezium Server 3.0 runs on Java 11+; we use the Java 21 LTS JRE on Alpine.
 # The container layout mirrors upstream so docker-compose.yml's mount keeps

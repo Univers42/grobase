@@ -7,7 +7,7 @@
 # and extract the parts we need — `bin/grafana` (197 MB, statically linked),
 # `public/` (the frontend), `conf/` (defaults), and `plugins-bundled/` — onto
 # Alpine. The grafana binary is statically linked, so Alpine (musl) runs it
-# directly. Alpine is the only base we pull (42-Inception rule). Tag matches the
+# directly. Alpine is the only base we pull (self-build rule). Tag matches the
 # compose pin 10.4.2.
 #
 # We DROP docs/, storybook/, npm-artifacts/, packaging/, tools/ (not needed at

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # File: docker/services/gotrue/Dockerfile
 #
-# 42-Inception self-build of Supabase Auth (GoTrue) v2.188.1 — built FROM Go
+# Self-build of Supabase Auth (GoTrue) v2.188.1 — built FROM Go
 # source on a base WE control, NOT `FROM supabase/gotrue:*`.
 #
 # Replicates upstream's own build at tag v2.188.1

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # File: docker/services/studio/Dockerfile
 #
-# 42-Inception: build supabase/studio FROM SOURCE on our own slim base — we do
+# Build supabase/studio FROM SOURCE on our own slim base — we do
 # NOT pull the ready-made supabase/studio application image.  Only node:22-slim
 # (the lightweight Debian base upstream itself uses; Studio's Next.js + native
 # libpg build is effectively MUSL-INCOMPATIBLE, so debian-slim is the slim

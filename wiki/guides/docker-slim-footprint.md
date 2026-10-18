@@ -1,4 +1,4 @@
-# Docker self-build & slim footprint (42-Inception)
+# Docker self-build & slim footprint
 
 **Status: shipped + parity-proven.** Every service in the active stack now builds
 from a base **we control** (alpine / debian-slim / scratch / distroless / temurin)

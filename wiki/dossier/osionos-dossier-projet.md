@@ -624,7 +624,7 @@ La logique d'évolution est palier par palier : stabiliser le produit → ouvrir
 
 ### les contraintes
 
-L'environnement s'inspire des projets **Born2beroot / Inception** de 42 : VM stricte, services isolés, **tout reproductible**. La VM de référence est elle-même versionnée dans **[`Univers42/born2root`](https://github.com/Univers42/born2root.git)** (Debian durcie + Docker + pare-feu + SSH), regénérable depuis zéro.
+L'environnement s'inspire du projet **Born2beroot** de 42 : VM stricte, services isolés, **tout reproductible**. La VM de référence est elle-même versionnée dans **[`Univers42/born2root`](https://github.com/Univers42/born2root.git)** (Debian durcie + Docker + pare-feu + SSH), regénérable depuis zéro.
 
 #### a. Contraintes d'environnement : VM stricte, Docker partout, zéro dépendance locale
 
