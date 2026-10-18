@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # File: docker/services/mongo/Dockerfile
 #
-# 42-Inception: self-built MongoDB 7.0 server on the slimmest base WE control.
+# Self-built MongoDB 7.0 server on the slimmest base WE control.
 # MongoDB is musl-incompatible (needs glibc) -> debian:bookworm-slim, NOT alpine.
 # We install the OFFICIAL MongoDB apt packages (server-only meta-pkg + mongosh),
 # which is compliant (a package is not a ready-made fat image). This drops the

@@ -27,8 +27,8 @@
 #
 # NEVER DESTRUCTIVE. Each artefact is written to a temp file and moved into place only on a
 # successful dump, so a failed engine leaves the previous good copy intact. Nothing is ever
-# deleted — including artefacts this script cannot produce (the local CA, the Inception and
-# vite-gourmand archives), which are captured elsewhere and merely checksummed here.
+# deleted — including artefacts this script cannot produce (the local CA, the vite-gourmand
+# archive), which are captured elsewhere and merely checksummed here.
 #
 # Usage:
 #   bash scripts/ops/vault-seed.sh                     # capture into ./secrets

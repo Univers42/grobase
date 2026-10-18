@@ -3,7 +3,7 @@
 #
 # Self-built Trino from the OFFICIAL server tarball on a JRE-Alpine base — we do
 # NOT pull the ready-made trinodb/trino image (1.49 GB). The only thing
-# pulled is the JRE base (allowed by the 42-Inception rule) and the signed
+# pulled is the JRE base (allowed by the self-build rule) and the signed
 # release tarball from Maven Central.
 #
 # Trino REQUIRES an exact Java generation (its own version check rejects the

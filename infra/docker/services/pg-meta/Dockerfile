@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # File: docker/services/pg-meta/Dockerfile
 #
-# 42-Inception: build supabase/postgres-meta FROM SOURCE on our own slim base —
+# Build supabase/postgres-meta FROM SOURCE on our own slim base —
 # we do NOT pull the ready-made supabase/postgres-meta application image.
 # Only node:20-slim (a lightweight Debian base we control) is pulled.
 #

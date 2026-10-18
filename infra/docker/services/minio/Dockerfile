@@ -4,7 +4,7 @@
 # Self-built MinIO: we download the upstream STATIC `minio` server binary
 # (a release artifact, NOT a ready-made image) from MinIO's official release
 # CDN and drop it onto Alpine. Alpine is the only base we pull (allowed by the
-# 42-Inception rule). The `server /data --console-address ":9001"` command and
+# self-build rule). The `server /data --console-address ":9001"` command and
 # the curl healthcheck both come from docker-compose.yml.
 #
 # Tag matches the compose pin (RELEASE.2025-09-07T16-13-09Z). The compose image
