@@ -1,6 +1,6 @@
 # Fast first build — pull prebuilt images instead of compiling
 
-Self-building every service (42-Inception) made the images small and ours, but a
+Self-building every service made the images small and ours, but a
 fresh clone then **compiles everything from source** for its edition (Rust
 data-plane, Go control-plane, gotrue, postgres+pg_net+pgvector, the JVM analytics
 images, …) — minutes of work. To get the slimming *and* a fast first start, CI

@@ -240,7 +240,7 @@ jobs:
           mv /tmp/.buildx-cache-new/${{ matrix.service }} /tmp/.buildx-cache/${{ matrix.service }} 2>/dev/null || true
 
   # ─── Job 2b: Self-built infra image builds (independent — no downstream) ──────
-  # 42-Inception parity gate: every profile-gated service we now build from our
+  # Self-build parity gate: every profile-gated service we now build from our
   # own slim Dockerfile compiles in isolation (one runner each). These images are
   # NOT consumed by integration (it runs its own `compose build`); this job exists
   # purely so a broken slim Dockerfile is a REAL, ISOLATED red — nothing depends

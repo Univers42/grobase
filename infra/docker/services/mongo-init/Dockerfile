@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # File: docker/services/mongo-init/Dockerfile
 #
-# 42-Inception: self-built replica-set initialiser on the slimmest base WE
+# Self-built replica-set initialiser on the slimmest base WE
 # control. The mongo-init container runs ONCE and only executes
 #   bash -c 'mongosh --host mongo ... rs.initiate(...)'
 # over the network — it needs NO mongod server, only `bash` + `mongosh`.

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # File: docker/services/mssql/Dockerfile
 #
-# 42-Inception: build SQL Server FROM OUR OWN Dockerfile on a base we control —
+# Build SQL Server FROM OUR OWN Dockerfile on a base we control —
 # we do NOT pull the ready-made mcr.microsoft.com/mssql/server application image.
 #
 # MUSL-INCOMPATIBLE + Microsoft-only: SQL Server requires a glibc Ubuntu/RHEL
