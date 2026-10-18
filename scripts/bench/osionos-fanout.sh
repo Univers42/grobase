@@ -11,7 +11,8 @@
 #   EDGE         edge origin (default https://127.0.0.1:8443)
 #   RTT_MS       simulated round trip for the toxic leg (default 200, the low end
 #                of the measured 200–700 ms warm Funnel cost); 0 skips that leg
-#   BURST ITER   concurrent opens and opens per VU for the batched shape
+#   MEMBER       a member of WS for the embed shape (default: the first one)
+#   BURST ITER   concurrent opens and opens per VU for the embed and batched shapes
 #                (default 50 × 3); n1 runs 5 × 1 locally and 1 × 1 under toxic
 #   TAG          artifact suffix (default before) → artifacts/bench/perf-osionos-<TAG>.json
 #
@@ -69,6 +70,12 @@ pick_workspace() {
     "select workspace_id from osionos_pages where archived_at is null group by 1 order by count(*) desc limit 1"
 }
 
+# pick_member prints one member of WS (the embed shape reads as that user).
+pick_member() {
+  docker exec mini-baas-postgres psql -U postgres -d postgres -Atc \
+    "select user_id from osionos_workspace_members where workspace_id = '${WS}' limit 1"
+}
+
 # throttled_usec prints "<container> <throttled_usec>" for each watched container.
 throttled_usec() {
   local c id f
@@ -93,7 +100,7 @@ run_shape() {
   docker run --rm --network host -u "$(id -u):$(id -g)" \
     -v "${BENCH_DIR}/k6:/scripts:ro" -v "${BENCH_OUT_DIR}:/out" \
     --env-file "${TMP}/cred.env" \
-    -e "BASE=${origin}" -e "WS=${WS}" -e "MODE=${mode}" -e "BURST=${burst}" -e "ITER=${iter}" \
+    -e "BASE=${origin}" -e "WS=${WS}" -e "USER=${MEMBER}" -e "MODE=${mode}" -e "BURST=${burst}" -e "ITER=${iter}" \
     -e "K6_OUT_FILE=/out/${out}" \
     "${K6_IMAGE}" run --quiet /scripts/fanout.js >&2
   throttled_usec >"${TMP}/t1"
@@ -118,8 +125,10 @@ start_toxiproxy() {
 # main runs every leg and assembles artifacts/bench/perf-osionos-<TAG>.json.
 main() {
   WS="${WS:-$(pick_workspace)}"
+  MEMBER="${MEMBER:-$(pick_member)}"
   write_cred_file
   local legs=()
+  legs+=("$(run_shape local-embed "${EDGE}" embed "${BURST}" "${ITER}")")
   legs+=("$(run_shape local-batched "${EDGE}" batched "${BURST}" "${ITER}")")
   legs+=("$(run_shape local-n1 "${EDGE}" n1 5 1)")
   if [ "${RTT_MS}" -gt 0 ]; then
