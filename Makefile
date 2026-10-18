@@ -15,12 +15,22 @@
 
 include $(sort $(wildcard orchestrators/makes/*.mk))
 
+# Every target carrying a `## ` summary is phony: none produces a file, and the
+# hand-kept list had drifted (82 targets missing, two names with no rule).
+# Caveat: same rule-line shape as 99-help.mk, so a target without a summary is
+# not covered (hence the explicit helper list), and a `name: ## x` line inside a
+# define block would be counted too. Pattern rules (%) never match the regex.
+PHONY_TARGETS = $(shell awk '/^[a-zA-Z0-9_.-]+:([^=]|$$).*##/ { sub(/:.*/, ""); print }' $(MAKEFILE_LIST))
+.PHONY: $(PHONY_TARGETS)
+.PHONY: _rust-toolchain _require-version _require-docker _require-compose _rm-stale \
+        _image-provenance _require-cloud-flags _cloud-preflight
+
 ##@ 42 Classics — all · clean · fclean · re  (+ the full test matrix)
-all:
+all: ## Build then start this project (EDITION=full for everything)
 	@$(MAKE) --no-print-directory build
 	@$(MAKE) --no-print-directory up
 
-all-full:
+all-full: ## all with EDITION=full
 	@$(MAKE) --no-print-directory EDITION=full all
 
 clean: clean-project ## Project clean: THIS project's images/containers/networks — KEEPS build caches (NUKE_CACHES=1 wipes), all data volumes + other projects (was a global nuke; now scoped)
@@ -54,18 +64,3 @@ tests: ## Run the FULL test matrix (Go·Rust·TS·SDK·lint·deps·scan·conform
 	if [ $$fail -eq 0 ]; then echo -e "$(_G)✓ ALL GREEN ($(words $(TEST_TARGETS))/$(words $(TEST_TARGETS)))$(_0)"; \
 	else echo -e "$(_R)✗ FAILED:$$failed$(_0)"; exit 1; fi
 
-.PHONY: tests test-go test-rust test-rust-data test-rust-realtime test-nestjs test-sdk \
-        test-lint test-deps test-scan test-sonar test-bench test-conformance \
-        test-scripts test-smoke test-postman test-waf test-gates \
-        all all-full clean fclean re up down restart ps logs pull build health \
-        bench-startup bench-load bench-capacity bench-mem bench-compare scale-seed scale-teardown observe planes editions doctor tests test-postgres test-offers test-edge \
-        verify-all parity waf-test migrate migrate-mongo migrate-mysql migrate-all \
-        migrate-status seed-mongo seed-live-demo secrets secrets-validate secrets-rotate \
-        check-secrets env certs vault-init vault-status vault-rotate nestjs-ci \
-        sonar-coverage sonar-scan \
-        rust-data-plane-check rust-data-plane-build go-control-plane-check \
-        rust-realtime-check rust-realtime-test rust-realtime-build _rust-toolchain \
-        go-control-plane-build preflight help \
-        quickstart release-binaries release-images release-check _require-version \
-        backup-now restore-verify cloud-flags-print cloud-up cloud-down \
-        _require-docker _require-compose _rm-stale
