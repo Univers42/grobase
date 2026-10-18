@@ -14,8 +14,10 @@
 # and the C18 drill (push to a throwaway env, `pull --apply` into an empty dir, `diff -r`).
 _v42_arg  = $(if $(filter command line,$(origin $(1))),$($(1)))
 _V42_SH   = vendor/scripts/vault42/vault42.sh
-_V42      = bash $(_V42_SH) --config vault42.conf --target $(or $(call _v42_arg,TARGET),dev)
-_V42_KIND = $(if $(call _v42_arg,KIND),--kind $(call _v42_arg,KIND))
+# CTL_IMAGE is not exported by 80-ops.mk, and the VM has no native 42ctl: without it the CLI
+# finds no runner there.
+_V42      = CTL_IMAGE="$(CTL_IMAGE)" CTL_CFG_DIR="$(CTL_CFG_DIR)" bash $(_V42_SH) --config vault42.conf --target $(or $(call _v42_arg,TARGET),dev)
+_V42_KIND = $(foreach k,$(call _v42_arg,KIND),--kind $(k))
 _V42_REQ  = test -f $(_V42_SH) || { echo "vault42: $(_V42_SH) missing; run: git submodule update --init vendor/scripts" >&2; exit 1; }
 
 ##@ Secrets (vault42)
@@ -29,7 +31,9 @@ vault42-diff: ## What a push or pull would change, by size (KIND=)
 	@$(_V42_REQ); $(_V42) $(_V42_KIND) diff
 vault42-pull: ## Preview the vault's files; APPLY=1 restores (ONLY="a b" KIND=; command line only)
 	@$(_V42_REQ); $(_V42) $(_V42_KIND) pull $(if $(call _v42_arg,APPLY),--apply) $(foreach f,$(call _v42_arg,ONLY),--only $(f))
-vault42-push: ## Replace the vault tree (FILE="a b" YES=1). First dev push is the operator's, after vault42-diff + the C18 drill: dev was pushed from a 15-file stage, not this checkout
+vault42-push: ## Replace the vault tree (FILE="a b" YES=1); the first dev push is the operator's
+## Run `make vault42-diff` and the C18 drill first: grobase/dev was pushed from a 15-file stage,
+## not from this checkout.
 	@$(_V42_REQ); $(_V42) $(_V42_KIND) push $(if $(call _v42_arg,YES),--yes) $(call _v42_arg,FILE)
 vault42-secret-get: ## Print one vault secret (KEY=path)
 	@$(_V42_REQ); test -n "$(call _v42_arg,KEY)" || { echo "vault42-secret-get: KEY=path required" >&2; exit 2; }; $(_V42) secret get $(call _v42_arg,KEY)
