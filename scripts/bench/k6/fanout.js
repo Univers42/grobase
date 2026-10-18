@@ -7,7 +7,7 @@
 //   ANON   apikey header value
 //   JWT    Authorization: Bearer value
 //   WS     workspace uuid
-//   MODE   'n1' or 'batched'
+//   MODE   'n1', 'batched' or 'embed' (USER = a member of WS)
 //   BURST  concurrent VUs (default 50)
 //   ITER   iterations (opens) per VU (default 3)
 //   K6_OUT_FILE  compact summary destination
@@ -27,6 +27,9 @@ export const serverErrors = new Counter('bench_server_errors');
 const BASE = __ENV.BASE;
 const WS = __ENV.WS;
 const MODE = __ENV.MODE || 'n1';
+// The bridge's shape since ADR 0005: one statement anchored on the caller's members row.
+// Ponytail: the column list is a guess at the bridge's sidebar projection (USER = the member).
+const EMBED_URL = `${BASE}/rest/v1/osionos_workspace_members?user_id=eq.${__ENV.USER}&workspace_id=eq.${WS}&select=role,workspace:osionos_workspaces!workspace_id(id,pages:osionos_pages!workspace_id(id,parent_page_id,title,icon,cover,surface,visibility,sort_order,updated_at,archived_at,is_template,database_id))&limit=2`;
 const MEMBERS_URL = `${BASE}/rest/v1/osionos_workspace_members?workspace_id=eq.${WS}&select=user_id&limit=1`;
 
 const HEADERS = {
@@ -76,6 +79,8 @@ export function openWorkspace() {
 			get(acc, MEMBERS_URL);
 			get(acc, `${BASE}/rest/v1/osionos_pages?id=eq.${page.id}&select=*`);
 		}
+	} else if (MODE === 'embed') {
+		get(acc, EMBED_URL);
 	} else {
 		get(acc, MEMBERS_URL);
 		const indexed = get(acc, `${BASE}/rest/v1/osionos_pages?workspace_id=eq.${WS}&select=id,parent_page_id,title,icon,sort_order,updated_at`);

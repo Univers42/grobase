@@ -12,6 +12,10 @@
 # Ponytail: the caps are sized to the 8-core b2b VM and that one bench; a smaller host
 # needs them lowered, a busier one re-measured (scripts/bench/osionos-fanout.sh).
 services:
+  # 2026-10-19: at 1 CPU, 5 concurrent workspace opens still throttled postgres 0.6 s
+  # (it shares the cap with realtime, outbox and debezium); that throttling is the p95 tail.
+  postgres:
+    cpus: 2.0
   waf:
     cpus: 1.0
   postgrest:
