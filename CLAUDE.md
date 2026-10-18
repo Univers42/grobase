@@ -23,8 +23,8 @@ byte-parity with the OSS edition (flag tables below).
 The **lean (flattened) layout IS the layout** — the restructure is **done and committed to
 `origin/main`**. `mini-baas-infra/` no longer exists; its contents were hoisted to the repo root
 (`src/`, `infra/`, `sdks/`, `orchestrators/`, `scripts/`) under a **thin ~71-line root `Makefile`**
-that `include`s **13** `orchestrators/makes/*.mk` fragments (`00-config` … `99-help`, incl. `85-fly.mk` and `prettier.mk`) (the old 735-line monolith survives only
-as `Makefile.bak`). A fresh clone gets this layout — **there is no dual-layout situation anymore** and
+that `include`s **13** `orchestrators/makes/*.mk` fragments (`00-config` … `99-help`, incl. `85-fly.mk` and `prettier.mk`)
+A fresh clone gets this layout — **there is no dual-layout situation anymore** and
 no `mini-baas-infra/` prefix to re-map. (Sanity check: `ls mini-baas-infra` → "No such file".) The
 SDK-codegen chain and CI (`.github/workflows/ci.yml`) were repointed to lean paths in the same
 restructure and are on `main` too.
@@ -66,7 +66,7 @@ SDK codegen + CI resolve against the lean tree too: `sdks/js/package.json`'s `op
 `../../scripts/ops/openapi-collect.sh` (output → `infra/config/openapi/`), `codegen-polyglot.sh`'s
 `SPEC` → `infra/config/openapi/grobase-public.json`, and `.github/workflows/ci.yml` builds with
 `context:` → `src` · `src/control-plane` · `src/data-plane-router` · `infra/docker/services/<svc>`.
-The `make legacy-*` target is **gone** (the monolith survives only as `Makefile.bak`).
+The `make legacy-*` target is **gone**.
 
 ## Repo layout (lean layout)
 
@@ -152,7 +152,7 @@ bare `make` prints the grouped help) — all logic lives in `orchestrators/makes
 (`00-config` first). Drive the stack **only** through it (Docker-first; no host node/cargo/go for
 lifecycle — the make wrappers build/cache the toolchain images). `make all` = `build` then `up` (the
 "42 Classics" group also has `all-full`, `re`, `fclean`, `clean`). There is **no** `make legacy-*`
-target anymore; the pre-split monolith survives only as `Makefile.bak`.
+target anymore.
 
 ```bash
 make quickstart               # one shot: generate .env → up (PACKAGE=essential) → health
@@ -445,8 +445,8 @@ three run per-PR.
   local+dev and read on staging+prod). `make vault-pull-env` / `vault-push-env` use the
   **team** path by default (`VAULT_ENV_PERSONAL=1` opts out) — sharing is *encryption*, not
   RBAC, so a personal push is unreadable by teammates whatever their org role. `vendor/` is
-  sealed to the pusher. 42ctl runs from its image via **`make ctl42`** (`ctl-remote` is an
-  alias); the live hosts are `vault42-server` + `vault42-authority` on fly — `vault42.fly.dev`,
+  sealed to the pusher. 42ctl runs from its image via **`make ctl42`**;
+  the live hosts are `vault42-server` + `vault42-authority` on fly — `vault42.fly.dev`,
   `grobase-nano.fly.dev` and `grobase-stack.fly.dev` are dead and partly other people's apps.
   Identity lives in `~/.config/42ctl`, never in the worktree.
 - **Secret scanning is layered:** `.gitignore` → `.githooks/pre-commit` (`make hooks`) → CI
