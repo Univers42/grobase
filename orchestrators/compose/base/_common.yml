@@ -74,7 +74,9 @@ services:
       MONGO_OPTIONAL:
       MONGO_URI:
       OTEL_EXPORTER_OTLP_ENDPOINT:
-      OTEL_SDK_DISABLED:
+      # No compose file runs an otel-collector, so tracing defaults off: the SDK would
+      # instrument every request and fail every export. Set false beside a collector.
+      OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}
       OTEL_SERVICE_NAME:
       REDIS_URL:
       SERVICE_TOKEN_MODE:
