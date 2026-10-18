@@ -142,7 +142,7 @@ classify_old_key() {
   derives "$key" && return 0 # this run writes it again, from TITAN_*: not lost
   case "$section" in
   derived) return 0 ;; # rebuilt from TITAN_* on every run: never an orphan, never carried
-  config) # config.env is authoritative: a key it dropped was dropped on purpose
+  config)              # config.env is authoritative: a key it dropped was dropped on purpose
     # (unless another layer took it over, which keeps it in .env — not a drop)
     assigns "$CONFIG" "$key" || assigns "$SECRETS" "$key" || assigns "$LOCAL" "$key" ||
       ASSEMBLED_DROPPED+=("$line")
