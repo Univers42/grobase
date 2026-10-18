@@ -8,13 +8,14 @@
 #  requests past the proxy's inspection, i.e. past ModSecurity. The WAF        #
 #  config (infra/docker/services/waf/conf/nginx.conf) maps the Upgrade header  #
 #  through an allowlist: `websocket` passes (realtime), anything else is       #
-#  dropped and the upstream Connection is `close`.                              #
+#  dropped and the upstream Connection is `close`; a plain request carries no #
+#  Connection header, so the pooled upstream connection is reused (m236).     #
 #                                                                              #
 #  It boots the WAF image with that config on a private network whose `kong`  #
 #  is a header-echo server, then sends three requests through port 80:        #
 #    h2c        upstream sees no Upgrade and `Connection: close`               #
 #    websocket  upstream sees `Upgrade: websocket`, `Connection: upgrade`      #
-#    none       upstream sees no Upgrade and `Connection: close`               #
+#    none       upstream sees no Upgrade and no Connection header (keep-alive) #
 #  MUTANT: the same config with the Upgrade header fed from $http_upgrade      #
 #  again (the pre-fix line) MUST relay h2c, else the probe is blind and the    #
 #  gate fails.                                                                 #
@@ -133,7 +134,7 @@ start_waf "${TAG}-waf" "${CONF}" || {
 }
 expect "h2c upgrade" "$(upstream "${TAG}-waf" h2c)" "-|close"
 expect "websocket upgrade" "$(upstream "${TAG}-waf" websocket)" "websocket|upgrade"
-expect "no upgrade" "$(upstream "${TAG}-waf" "")" "-|close"
+expect "no upgrade" "$(upstream "${TAG}-waf" "")" "-|-"
 
 step "2/3 mutant: Upgrade fed from \$http_upgrade again must relay h2c"
 sed 's/proxy_set_header   Upgrade           \$ws_upgrade;/proxy_set_header   Upgrade           $http_upgrade;/' "${CONF}" >"${WORK}/mutant.conf"
