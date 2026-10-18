@@ -1,11 +1,11 @@
 # Fresh-Start — Grobase from a clean machine (fetch + make)
 
 Clean PC → working backend + apps, with **all secrets fetched from vault42** (none in the repo).
-The contract: **`make ctl-remote ARGS="pull …"` then `make up`** — secrets from vault42, code from git.
+The contract: **`make ctl42 ARGS="pull …"` then `make up`** — secrets from vault42, code from git.
 
 ## 0. Prereqs
 **Docker + Docker Compose v2, `git`, `openssl`** — nothing else. No host Node/cargo/Go, and **no 42ctl
-install**: it runs from its published image (`dlesieur/42ctl`, 33 MB scratch+musl) through `make ctl-remote`.
+install**: it runs from its published image (`dlesieur/42ctl`, 33 MB scratch+musl) through `make ctl42`.
 ```bash
 git clone https://github.com/Univers42/grobase && cd grobase
 ```

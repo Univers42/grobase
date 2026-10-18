@@ -11,7 +11,6 @@ This file provides guidance to agents when working with code in this repository.
 - **`vendor/` apps** are plain tracked directories (no submodules); most carry a `GROBASE.md` or `GROBASE-MIGRATION.md` (not `grobase-website`, `music-room`, `red-tetris`, `saas`). `vendor/vault42` is ABSENT — vault42 runs as a published image.
 - **`sdk*/` flat dirs no longer exist** — the TS SDK is `sdks/js/` (package `@grobase/js`). References to `sdk/` are stale.
 - **`mini-baas-infra/` no longer exists** — the monorepo subtree was flattened to the repo root. References to `mini-baas-infra/src/…` are stale history.
-- **`Makefile.bak`** is the pre-split 735-line monolith; the real Makefile is a thin orchestrator that includes every `orchestrators/makes/*.mk` fragment.
 - **The polyglot SDKs' test stubs are empty `pass` bodies** — the build/compile is the real check, not `pytest`/`dart test`.
 - **`ABAC`/`PERMISSION_CONDITIONS_ENABLED`/`API_KEY_ABAC_ENABLED` gates are TS/data-plane gates**, not Go `envBool` route-mount gates — look in `src/apps/permission-engine` and `src/apps/query-router`.
 - **The `.claude/` folder** is intentionally kernel-less. It holds `rules/`, `agents/`, `skills/`, `commands/` (incl. `commands/workflow/` → `/workflow:<name>`), `workflows/`, `tools/`, `hooks/`, `doc/`, `scripts/`.

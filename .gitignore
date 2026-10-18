@@ -470,7 +470,6 @@ wiki/reports/postman-offers-report.html
 .42ctl/
 
 # Accidental gitlinks (no .gitmodules); local vendored content only.
-vendor/scripts/
 vendor/twenty/
 
 # Claude Code local state — tool digest cache, personal overrides, hook bytecode

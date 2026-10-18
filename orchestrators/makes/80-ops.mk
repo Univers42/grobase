@@ -230,8 +230,6 @@ ctl42: ## 42ctl vs the LIVE fly vault42 — make ctl42 ARGS="keys escrow --email
 		-v "$(CTL_CFG_DIR):/cfg" -v "$(CURDIR):/work" -w /work \
 		$(CTL_IMAGE) $(ARGS)
 
-ctl-remote: ctl42 ## Deprecated alias for ctl42 (the old target seeded dead/foreign hosts)
-
 # ── vault42 structure: provision it, never by hand ───────────────────────────
 # The org/team/project/environment/scope-key/grant tree grobase's secrets live in.
 # Idempotent: every step probes before it creates and an "already exists" answer is
