@@ -5,7 +5,7 @@ Status: accepted (2026-10-18). First ADR in this repo.
 ## Decision
 
 - `vendor/scripts` is a git submodule of `https://github.com/Univers42/scripts.git` (branch
-  `main`, pinned `cc0d2525`). HTTPS, because CI and the VM have no SSH key and the repo is
+  `main`, pinned `aece862c`). HTTPS, because CI and the VM have no SSH key and the repo is
   public. Only its line was removed from the `.gitignore` "Accidental gitlinks" block.
 - `vault42.conf` at the root has ONE target, `[dev]` (org `univers42`, project `grobase`).
 - `orchestrators/makes/65-vault42.mk` adds `vault42-*` targets that only call
