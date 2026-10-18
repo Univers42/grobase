@@ -68,13 +68,13 @@ PEPPER="m164-pepper-$$"
 EMAIL="dev@grobase.test"
 
 case "${SMTP_HOST_USED}" in
-  "${MP}" | mailpit | localhost | 127.0.0.1) ;;
-  *)
-    [ "${M164_ALLOW_REAL_SMTP:-}" = "1" ] || {
-      red "[M164] REFUSED — SMTP_HOST is not mailpit/localhost/127.0.0.1; the real-send leg would mail an OTP. Set M164_ALLOW_REAL_SMTP=1 to override."
-      exit 2
-    }
-    ;;
+"${MP}" | mailpit | localhost | 127.0.0.1) ;;
+*)
+  [ "${M164_ALLOW_REAL_SMTP:-}" = "1" ] || {
+    red "[M164] REFUSED — SMTP_HOST is not mailpit/localhost/127.0.0.1; the real-send leg would mail an OTP. Set M164_ALLOW_REAL_SMTP=1 to override."
+    exit 2
+  }
+  ;;
 esac
 BODY_TMP="$(mktemp)"
 

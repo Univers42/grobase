@@ -67,7 +67,6 @@ TITAN_PW='fake-titan-pw-3e8b-not-a-real-value'
 OTHER_PW='fake-other-pw-6d02-not-a-real-value'
 TITAN_MAIL='ops@titan.example.test'
 
-
 fail=0
 scenario=''
 red=0
