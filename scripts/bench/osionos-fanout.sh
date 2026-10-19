@@ -114,7 +114,10 @@ run_shape() {
 start_toxiproxy() {
   local half=$((RTT_MS / 2)) api="http://127.0.0.1:8474"
   docker run -d --rm --name "${TOXI_NAME}" --network host "${TOXI_IMAGE}" >/dev/null
-  for _ in $(seq 1 30); do curl -sf "${api}/version" >/dev/null && break; sleep 0.3; done
+  for _ in $(seq 1 30); do
+    curl -sf "${api}/version" >/dev/null && break
+    sleep 0.3
+  done
   curl -sf -XPOST "${api}/proxies" -d "{\"name\":\"edge\",\"listen\":\"127.0.0.1:${TOXI_PORT}\",\"upstream\":\"${EDGE#https://}\"}" >/dev/null
   for stream in upstream downstream; do
     curl -sf -XPOST "${api}/proxies/edge/toxics" \
