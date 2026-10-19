@@ -45,22 +45,24 @@ for f in "${OVERLAY}" "${CFG}" "${BASE_WAF}"; do
   }
 done
 
-# base_waf_publishes <base> <line>: the base compose's waf service publishes exactly <line>.
-base_waf_publishes() {
-  awk '/^  [A-Za-z0-9_-]+:/ { in_waf = ($1 == "waf:") } in_waf' "$1" | grep -qxF -- "$2"
+# publishes_by_service <compose>: `service<TAB>line` for every `- "host:guest"` publish line,
+# service being the nearest 2-space-indented key above it.
+publishes_by_service() {
+  awk '/^  [A-Za-z0-9_-]+:/ { svc = $1 } /^[[:space:]]+- "/ { print svc "\t" $0 }' "$1"
 }
 
 # loopback_ok <overlay> <base>: every `- "host:guest"` publish line binds 127.0.0.1, and there
-# is one. Sole exception: the WAF TLS line, only while the base waf service publishes that
-# very line (`ports: !override` replaces the base list, so the overlay must restate it).
+# is one. Sole exception: the WAF TLS line, only inside the waf service of BOTH files
+# (`ports: !override` replaces the base list, so the overlay must restate it).
 loopback_ok() {
-  local lines line
-  lines="$(grep -E '^\s+- "' "$1")"
-  [ -n "${lines}" ] || return 1
-  while IFS= read -r line; do
-    if [[ ${line} =~ ^[[:space:]]+-\ \"127\.0\.0\.1: ]]; then continue; fi
-    [ "${line}" = "${WAF_TLS_LINE}" ] && base_waf_publishes "$2" "${line}" || return 1
-  done <<<"${lines}"
+  local rows row
+  rows="$(publishes_by_service "$1")"
+  [ -n "${rows}" ] || return 1
+  while IFS= read -r row; do
+    if [[ ${row#*$'\t'} =~ ^[[:space:]]+-\ \"127\.0\.0\.1: ]]; then continue; fi
+    [ "${row}" = "waf:"$'\t'"${WAF_TLS_LINE}" ] &&
+      publishes_by_service "$2" | grep -qxF -- "${row}" || return 1
+  done <<<"${rows}"
 }
 
 # dc_renders <cfg> <REMOTE_ACCESS value>: the compose command make builds for that value.
@@ -122,6 +124,10 @@ mutants_arm() {
   sed 's|"\${WAF_HTTPS_PORT:-8443}:443"|"\${WAF_HTTPS_PORT:-9443}:443"|' "${BASE_WAF}" >"${work}/base.yml"
   loopback_ok "${OVERLAY}" "${work}/base.yml" && fail "mutant survived: a TLS line the base does not publish is not caught" ||
     ok "refused: the TLS exception when the base waf no longer publishes it"
+
+  sed -e '/^      - "\${WAF_HTTPS_PORT:-8443}:443"$/d' -e 's|^\(      - "127\.0\.0\.1:\${MAILPIT_SMTP_PORT:-1025}:1025"\)$|\1\n      - "\${WAF_HTTPS_PORT:-8443}:443"|' "${OVERLAY}" >"${ov}"
+  loopback_ok "${ov}" "${BASE_WAF}" && fail "mutant survived: the TLS line moved under mailpit is not caught" ||
+    ok "refused: the TLS exception outside the overlay's waf service"
 
   sed 's/\$(if \$(filter 1,\$(REMOTE_ACCESS)), -f orchestrators\/compose\/docker-compose.remote-access.yml)//' "${CFG}" >"${cfg}"
   optin_ok "${cfg}" && fail "mutant survived: the overlay dropped from DC is not caught" ||
