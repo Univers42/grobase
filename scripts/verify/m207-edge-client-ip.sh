@@ -17,7 +17,8 @@
 #    live    a client on a public-range bridge (TEST-NET-3) → the WAF image    #
 #            with the repo config → Kong on a private bridge (repo kong.yml,   #
 #            trusted IPs from the prod render) → a header-echo "postgrest":    #
-#            /admin/v1/keys (ip-restricted) refuses the service key with 403,  #
+#            /admin/v1/keys is refused by the WAF (rule 10131); a probe route  #
+#            with the same ip-restriction refuses the service key with 403,    #
 #            and the upstream sees the client's IP in X-Real-IP and first in   #
 #            X-Forwarded-For, and none of its forged X-Forwarded-* values      #
 #    mutant  the pre-fix WAF header lines MUST leak the forged values, else    #
@@ -169,15 +170,47 @@ leaks() {
   ] | unique | join(" ")' "$1"
 }
 
+# probe_conf prints on stdout the repo kong.yml plus an ip-restricted route on
+# /m207/ip-probe. Rule 10131 answers every real ip-restricted path (/admin/v1,
+# /meta/v1, /realtime/v1/publish) at the WAF for a public peer, so none of them
+# can show what Kong's ip-restriction sees; the probe uses the same plugin and
+# allow list on a path the WAF forwards. Caveat: the probe route is not in the
+# shipped kong.yml and no gate checks the real routes' allow-list values (m206
+# checks only that the plugins exist); rule 10131 (m227) is what keeps a public
+# client off all of them.
+probe_conf() {
+  cat "${ROOT}/infra/docker/services/kong/conf/kong.yml"
+  cat <<'YML'
+
+  - name: m207-ip-probe
+    url: http://postgrest:3000
+    routes:
+      - name: m207-ip-probe
+        paths: [/m207/ip-probe]
+        strip_path: false
+        plugins:
+          - name: key-auth
+            config: { key_names: [apikey], hide_credentials: false }
+          - name: ip-restriction
+            config: { allow: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1] }
+YML
+}
+
 # live_edge proves the ip-restriction answer and the upstream's header view
 # through WAF $1.
 live_edge() {
   local cip out
   cip="$(docker inspect -f "{{(index .NetworkSettings.Networks \"${TAG}-edge\").IPAddress}}" "${TAG}-cli")"
-  out="$(send "$1" /admin/v1/keys '{"apikey":"scratch-service","X-Real-IP":"10.0.0.1","X-Forwarded-For":"10.0.0.1"}')"
+  out="$(send "$1" /admin/v1/keys '{"apikey":"scratch-service"}')"
   case "${out}" in
-  "403 "*"not allowed"*) ok "/admin/v1/keys (service key) from ${cip}: 403 from ip-restriction despite a forged private X-Real-IP" ;;
-  *) bad "/admin/v1/keys (service key) from public ${cip} got '${out:0:90}' — ip-restriction saw a private address" ;;
+  "403 "*"not allowed"*) bad "/admin/v1/keys from public ${cip} reached Kong's ip-restriction — the WAF (rule 10131) no longer refuses it first" ;;
+  "403 "*) ok "/admin/v1/keys from public ${cip}: refused by the WAF (rule 10131) before Kong" ;;
+  *) bad "/admin/v1/keys from public ${cip} got '${out:0:90}' — expected the WAF's 403" ;;
+  esac
+  out="$(send "$1" /m207/ip-probe '{"apikey":"scratch-service","X-Real-IP":"10.0.0.1","X-Forwarded-For":"10.0.0.1"}')"
+  case "${out}" in
+  "403 "*"not allowed"*) ok "ip-restricted probe route from ${cip}: 403 from Kong despite a forged private X-Real-IP" ;;
+  *) bad "ip-restricted probe route from public ${cip} got '${out:0:90}' — ip-restriction saw a private address" ;;
   esac
   out="$(send "$1" /rest/v1/m207 "$(forged)")"
   [ "${out%% *}" = 200 ] || bad "/rest/v1 through the edge got '${out:0:90}'"
@@ -192,6 +225,8 @@ static_overlays
 step "2/3 live: public client → WAF (${CONF#"${ROOT}"/}) → Kong (trusted: '$(trusted "${WORK}/prod.json")') → echo"
 networks
 start_echo
+probe_conf >"${WORK}/kong-probe.yml"
+export KONG_SCRATCH_CONF="${WORK}/kong-probe.yml"
 start_kong "$(trusted "${WORK}/prod.json")"
 docker run -d --name "${TAG}-cli" --network "${TAG}-edge" "${NODE_IMG}" node -e 'setInterval(() => {}, 1e9)' >/dev/null ||
   skip "could not start the edge client"
