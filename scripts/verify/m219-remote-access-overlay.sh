@@ -11,7 +11,8 @@
 #  mail vanished, both silently (2026-10-10). The overlay fixes that and must  #
 #  never grow into a network exposure:                                         #
 #                                                                              #
-#   LOOPBACK every published port in the overlay binds 127.0.0.1.             #
+#   LOOPBACK every published port in the overlay binds 127.0.0.1, but the WAF  #
+#            TLS line: `!override` restates the base's public publish.         #
 #   OPT-IN   DC gains the overlay only for REMOTE_ACCESS=1, read from the env  #
 #            or .env.local; unset renders the plain compose command.           #
 #   MUTANTS  each check refuses the way back in.                               #
@@ -24,6 +25,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 OVERLAY="${ROOT}/orchestrators/compose/docker-compose.remote-access.yml"
+BASE_WAF="${ROOT}/orchestrators/compose/base/gateway.yml"
+WAF_TLS_LINE='      - "${WAF_HTTPS_PORT:-8443}:443"'
 CFG="${ROOT}/orchestrators/makes/00-config.mk"
 
 _B=$'\033[0;36m' _G=$'\033[0;32m' _R=$'\033[0;31m' _0=$'\033[0m'
@@ -35,18 +38,29 @@ fail() {
   rc=1
 }
 
-for f in "${OVERLAY}" "${CFG}"; do
+for f in "${OVERLAY}" "${CFG}" "${BASE_WAF}"; do
   [ -f "${f}" ] || {
     fail "missing ${f#"${ROOT}"/}"
     exit 1
   }
 done
 
-# loopback_ok <overlay>: every `- "host:guest"` publish line binds 127.0.0.1, and there is one.
+# base_waf_publishes <base> <line>: the base compose's waf service publishes exactly <line>.
+base_waf_publishes() {
+  awk '/^  [A-Za-z0-9_-]+:/ { in_waf = ($1 == "waf:") } in_waf' "$1" | grep -qxF -- "$2"
+}
+
+# loopback_ok <overlay> <base>: every `- "host:guest"` publish line binds 127.0.0.1, and there
+# is one. Sole exception: the WAF TLS line, only while the base waf service publishes that
+# very line (`ports: !override` replaces the base list, so the overlay must restate it).
 loopback_ok() {
-  local lines
+  local lines line
   lines="$(grep -E '^\s+- "' "$1")"
-  [ -n "${lines}" ] && ! printf '%s\n' "${lines}" | grep -qvE '^\s+- "127\.0\.0\.1:'
+  [ -n "${lines}" ] || return 1
+  while IFS= read -r line; do
+    if [[ ${line} =~ ^[[:space:]]+-\ \"127\.0\.0\.1: ]]; then continue; fi
+    [ "${line}" = "${WAF_TLS_LINE}" ] && base_waf_publishes "$2" "${line}" || return 1
+  done <<<"${lines}"
 }
 
 # dc_renders <cfg> <REMOTE_ACCESS value>: the compose command make builds for that value.
@@ -61,7 +75,7 @@ envlocal_ok() { grep -qE '^REMOTE_ACCESS\s+\?= \$\(shell sed -n .s/\^REMOTE_ACCE
 
 loopback_arm() {
   step "LOOPBACK — every overlay publish binds 127.0.0.1"
-  loopback_ok "${OVERLAY}" && ok "only 127.0.0.1:… publishes in the overlay" ||
+  loopback_ok "${OVERLAY}" "${BASE_WAF}" && ok "only 127.0.0.1:… publishes in the overlay" ||
     fail "the overlay publishes on a non-loopback address (or nothing at all)"
 }
 
@@ -82,12 +96,32 @@ mutants_arm() {
   cfg="${work}/00-config.mk"
 
   sed 's/"127\.0\.0\.1:\${REALTIME_HOST_PORT:-4000}:4000"/"0.0.0.0:4000:4000"/' "${OVERLAY}" >"${ov}"
-  loopback_ok "${ov}" && fail "mutant survived: a 0.0.0.0 publish is not caught" ||
+  loopback_ok "${ov}" "${BASE_WAF}" && fail "mutant survived: a 0.0.0.0 publish is not caught" ||
     ok "refused: realtime published on every interface"
 
   sed 's/"127\.0\.0\.1:\${MAILPIT_SMTP_PORT:-1025}:1025"/"1025:1025"/' "${OVERLAY}" >"${ov}"
-  loopback_ok "${ov}" && fail "mutant survived: a bare host port is not caught" ||
+  loopback_ok "${ov}" "${BASE_WAF}" && fail "mutant survived: a bare host port is not caught" ||
     ok "refused: SMTP published with no bind address"
+
+  sed 's|"127\.0\.0\.1:\${WAF_HTTP_PORT:-8880}:80"|"\${WAF_HTTP_PORT:-8880}:80"|' "${OVERLAY}" >"${ov}"
+  loopback_ok "${ov}" "${BASE_WAF}" && fail "mutant survived: a WAF :80 with no bind address is not caught" ||
+    ok "refused: WAF plaintext published with no bind address"
+
+  sed 's|"127\.0\.0\.1:\${WAF_HTTP_PORT:-8880}:80"|"0.0.0.0:\${WAF_HTTP_PORT:-8880}:80"|' "${OVERLAY}" >"${ov}"
+  loopback_ok "${ov}" "${BASE_WAF}" && fail "mutant survived: a WAF :80 on 0.0.0.0 is not caught" ||
+    ok "refused: WAF plaintext published on every interface"
+
+  sed 's|^\(  mailpit:\)$|  extra:\n    ports:\n      - "9999:9999"\n\1|' "${OVERLAY}" >"${ov}"
+  loopback_ok "${ov}" "${BASE_WAF}" && fail "mutant survived: a new public publish is not caught" ||
+    ok "refused: a new non-loopback publish on another service"
+
+  sed 's|"\${WAF_HTTPS_PORT:-8443}:443"|"\${WAF_HTTPS_PORT:-8443}:80"|' "${OVERLAY}" >"${ov}"
+  loopback_ok "${ov}" "${BASE_WAF}" && fail "mutant survived: a re-targeted TLS publish is not caught" ||
+    ok "refused: the TLS publish re-targeted to another container port"
+
+  sed 's|"\${WAF_HTTPS_PORT:-8443}:443"|"\${WAF_HTTPS_PORT:-9443}:443"|' "${BASE_WAF}" >"${work}/base.yml"
+  loopback_ok "${OVERLAY}" "${work}/base.yml" && fail "mutant survived: a TLS line the base does not publish is not caught" ||
+    ok "refused: the TLS exception when the base waf no longer publishes it"
 
   sed 's/\$(if \$(filter 1,\$(REMOTE_ACCESS)), -f orchestrators\/compose\/docker-compose.remote-access.yml)//' "${CFG}" >"${cfg}"
   optin_ok "${cfg}" && fail "mutant survived: the overlay dropped from DC is not caught" ||
