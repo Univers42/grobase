@@ -28,12 +28,18 @@
 #  feat/titan-mail); the tree of rule 10150 (on a42a8077) does NOT carry it,   #
 #  so there the route is open to the anon key and 10150 must not reach a       #
 #  deployment before that acl does.                                            #
+#  The WAF's nginx.conf raises ModSecurity's argument (10,000) and body        #
+#  (1 MiB) limits on /rest/v1/osionos_object_databases alone: a database is    #
+#  saved whole, one JSON leaf per argument, and a 36-row CRM (~1,500 leaves)   #
+#  was refused by 200007 on every save (2026-10-21, b2b WAF log).              #
+#                                                                              #
 #  This gate boots the WAF image with the tree's exclusions file on a private  #
 #  network whose `kong` answers 200, then:                                     #
 #    CONTENT   POST/PATCH to osionos_pages / osionos_chat_messages carrying JS,#
 #              SQL, XSS, shell, PHP, ../, {{ }}, a metadata URL → 200          #
 #              and an object database titled `HTTP/2 vs HTTP/3`, or holding   #
 #              `<html>` / `<meta`, on osionos_object_databases (921130) → 200  #
+#              and a 3,000-leaf, 180 KB object database, POST and PATCH → 200  #
 #              and a profile key on osionos_bridge_identities (930120 read     #
 #              `json.profile.headline` as the file .profile) → 200             #
 #              and a migration of DDL + INSERTs to /admin/v1/migrate → 200     #
@@ -59,6 +65,11 @@
 #              the statement as a PUT, to …/sql-ro-x, to a non-uuid database, #
 #              through …/sql-ro%3F/../../execute, in another argument, or as   #
 #              payload.sql of /query/v1/execute → 403                          #
+#              the large database with `\nSet-Cookie:` in its last leaf, and a #
+#              read of osionos_object_databases with SQLi in its query → 403   #
+#    LIMITS    the large database to osionos_pages, to a suffixed or %3F       #
+#              path, and a 12,000-leaf database → 400 (each other path keeps   #
+#              the image's 1,000 arguments and 128 KB)                         #
 #    FUNNEL    every ip-restricted path read out of kong.yml, sent with        #
 #              Tailscale-Funnel-Request, and /%61dmin, /admin//v1, ../admin    #
 #              and a migration POST → 403; the same paths without the header,  #
@@ -77,7 +88,9 @@
 #              only its XSS line, on json.html) the mails, without rule 10130 MUST pass the Funnel   #
 #              probes, without rule 10131 the non-operator probes, and audit   #
 #              parts ABIJDEFHZ MUST                                            #
-#              leak the marker; else the gate is blind and fails               #
+#              leak the marker, and nginx.conf without the object-database     #
+#              location MUST refuse the large database; else the gate is       #
+#              blind and fails                                                 #
 #  Needs docker, the WAF image and node:20-alpine already present (nothing is  #
 #  pulled); otherwise SKIP, exit 77, never 0. A throwaway TLS pair is minted   #
 #  in the temp dir. Containers, network and temp dir go in an EXIT trap.       #
@@ -169,13 +182,14 @@ kong_private_paths() {
 # start_waf NAME EXCLUSIONS [VAR=VALUE]: boot the WAF with the tree's nginx.conf and EXCLUSIONS
 # as CRS's REQUEST-900 file, and the optional environment override; wait for /waf-health.
 # M227_BLOCKING_PARANOIA=N runs every WAF at that paranoia level (the baas VM runs 2, the image 1).
+# NGINX_CONF replaces the tree's nginx.conf (the object-database location mutant).
 # OPERATORS names the operator-addresses file rule 10131 reads (default: the probe container's own
 # address, so private routes stay reachable; the PEER leg passes the image's file).
 # nginx (uid 101) reads the throwaway key, hence 0644.
 # conf.d is a directory mount: the entrypoint rewrites default.conf with `sed -i` (see m198).
 start_waf() {
   local name="$1" dir="${WORK}/confd-$1" i
-  mkdir -p "${dir}" && cp "${WAF_CONF}/nginx.conf" "${dir}/default.conf" && chmod -R a+rwX "${dir}"
+  mkdir -p "${dir}" && cp "${NGINX_CONF:-${WAF_CONF}/nginx.conf}" "${dir}/default.conf" && chmod -R a+rwX "${dir}"
   cp "$2" "${WORK}/excl-$1.conf" && chmod 0644 "${WORK}/excl-$1.conf"
   docker run -d --name "${name}" --network "${NET}" ${M227_BLOCKING_PARANOIA:+-e "BLOCKING_PARANOIA=${M227_BLOCKING_PARANOIA}"} ${3:+-e "$3"} \
     -v "${dir}:/etc/nginx/conf.d" \
@@ -221,6 +235,13 @@ probe() {
     const odbPath = "/rest/v1/osionos_object_databases?on_conflict=owner_id,db_key";
     const odbPatch = "/rest/v1/osionos_object_databases?db_key=eq.http-lessons";
     const title = odb("HTTP/2 vs HTTP/3");
+    // A database saved whole: ROWS records of 10 leaves each (3,000 leaves is ~180 KB).
+    const bigOdb = (rows) => { const pages = {};
+      for (let i = 0; i < rows; i++) { const properties = {};
+        for (let k = 0; k < 9; k++) properties["prop-" + k] = "value " + i + "-" + k + " " + "x".repeat(40);
+        pages["page-" + i] = { id: "page-" + i, properties }; }
+      return { owner_id: "6f1c0f5e-0000-4000-8000-000000000003", db_key: "crm-deals", state: { pages } }; };
+    const large = bigOdb(300);
     const sqli = "SELECT COUNT(*) AS n FROM projects WHERE name = \u0027a\u0027 OR \u00271\u0027=\u00271\u0027 UNION SELECT 1";
     const runner = "/query/v1/59939f19-7e8d-4876-a57f-61b3e7bb37be/sql-ro";
     const raw = { sql: sqli };
@@ -238,6 +259,14 @@ probe() {
       ["content-odb-protocol-title", "POST", odbPath, title],
       ["content-odb-html-tag", "PATCH", odbPatch, odb("<html>")],
       ["content-odb-meta-tag", "PATCH", odbPatch, odb("<meta charset=utf-8>")],
+      ["content-odb-large", "POST", odbPath, large],
+      ["content-odb-large-patch", "PATCH", odbPatch, large],
+      ["control-odb-large-split", "POST", odbPath, { ...large, tail: "a\nSet-Cookie: x=1" }],
+      ["control-odb-read-sqli", "GET", "/rest/v1/osionos_object_databases?title=eq.1%27%20or%20%271%27=%271", undefined],
+      ["limit-odb-large-pages", "POST", "/rest/v1/osionos_pages", large],
+      ["limit-odb-large-suffix", "POST", "/rest/v1/osionos_object_databases_x", large],
+      ["limit-odb-large-encoded", "POST", "/rest/v1/osionos_object_databases%3F/../osionos_pages", large],
+      ["limit-odb-over-cap", "POST", odbPath, bigOdb(1200)],
       ["control-odb-other-table", "POST", "/rest/v1/secrets", title],
       ["control-odb-rpc", "POST", "/rest/v1/rpc/osionos_x", title],
       ["control-odb-encoded", "POST", "/rest/v1/osionos_object_databases%3F/../secrets", title],
@@ -348,6 +377,9 @@ else
   ok "the upstream never received a request for /rest/v1/secrets"
 fi
 
+step "3b/6 a whole object database fits its path's limits; every other path keeps the image's"
+expect_all "${results}" limit- 400
+
 step "4/6 the internet never reaches a private route; the tailnet and the public routes still do"
 expect_all "${results}" funnel- 403
 expect_all "${results}" tailnet- 200
@@ -433,6 +465,20 @@ line_mutant 921130\;ARGS:json.html 403 "${EMAIL_LABELS[@]}"
 line_mutant 'attack-xss;ARGS:json.html' 403 "${EMAIL_LABELS[@]}"
 OPERATORS="${WAF_CONF}/operator-addresses.txt" mutant 10131 200 tailnet-kong:/admin/v1/tenants tailnet-kong:/meta/v1 tailnet-kong:/realtime/v1/publish xrealip-kong:/admin/v1/tenants
 mutant 10130 200 funnel-kong:/admin/v1/tenants funnel-kong:/meta/v1 funnel-kong:/realtime/v1/publish funnel-encoded-a funnel-double-slash funnel-migrate-post
+awk '/^    location = \/rest\/v1\/osionos_object_databases \{/ { skip = 1 } !skip { print } skip && /^    \}/ { skip = 0 }' \
+  "${WAF_CONF}/nginx.conf" >"${WORK}/nginx-no-odb.conf"
+if cmp -s "${WAF_CONF}/nginx.conf" "${WORK}/nginx-no-odb.conf" || grep -q 'osionos_object_databases {' "${WORK}/nginx-no-odb.conf"; then
+  bad "mutant: the object-database location was not found in nginx.conf — rebuild this leg"
+elif ! NGINX_CONF="${WORK}/nginx-no-odb.conf" start_waf "${TAG}-mutodb" "${EXCL}"; then
+  bad "mutant: the WAF did not start without the object-database location"
+else
+  out="$(probe "${TAG}-mutodb")"
+  for label in content-odb-large content-odb-large-patch; do
+    got="$(awk -v l="${label}" '$2 == l { print $1 }' <<<"${out}")"
+    [ "${got}" = 400 ] && ok "without the object-database location: ${label} answered 400 — the probe sees the raised limits" ||
+      bad "without the object-database location: ${label} answered '${got}', not 400 — the probe is blind"
+  done
+fi
 if ! start_waf "${TAG}-mutaudit" "${EXCL}" MODSEC_AUDIT_LOG_PARTS=ABIJDEFHZ; then
   bad "mutant: the WAF did not start with the old audit parts"
 else
