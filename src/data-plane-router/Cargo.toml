@@ -119,7 +119,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "logg
 # Phase 6 (SECURITY_MODE=max): TLS verify-ca/verify-full for external engine
 # mounts. webpki-roots = the Mozilla trust anchors (compiled in, distroless-safe);
 # rustls-pemfile parses an optional custom CA bundle (DATA_PLANE_TLS_CA_FILE).
-webpki-roots = "0.26"
+webpki-roots = "1"
 rustls-pemfile = "2"
 # Property-based edge-case testing for the data-plane refactor (filter lowering,
 # owner-scoping × isolation, value round-trips). Dev-only — never in the binary.
