@@ -17,9 +17,9 @@ ignore = [
   { id = "RUSTSEC-2026-0098", reason = "rustls-webpki 0.101 via tiberius 0.12.3 (latest); external-TLS mssql only" },
   { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.101 via tiberius 0.12.3 (latest); external-TLS mssql only" },
   { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101 via tiberius 0.12.3 (latest); external-TLS mssql only" },
-  { id = "RUSTSEC-2026-0382", reason = "rustls-webpki 0.101 via tiberius 0.12.3 (latest); external-TLS mssql only. 0.103 line fixed at 0.103.16" },
   { id = "RUSTSEC-2026-0346", reason = "rustls 0.21 via tiberius 0.12.3 (latest): only a custom ClientSessionStore that Debug-prints leaks; tiberius uses the built-in redacted cache and this tree has none. 0.23 line fixed at 0.23.46" },
   { id = "RUSTSEC-2026-0349", reason = "rustls 0.21 via tiberius 0.12.3 (latest) has no X25519MLKEM768, so there is no post-quantum exchange to downgrade. 0.23 line fixed at 0.23.46" },
+  { id = "RUSTSEC-2026-0382", reason = "rustls-webpki 0.101 via tiberius 0.12.3 (latest), no fixed 0.101; external-TLS mssql only. 0.103 line fixed at 0.103.16. Univers42/grobase#46" },
   { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile unmaintained; feature-gated external-TLS chain" },
   { id = "RUSTSEC-2026-0097", reason = "rand 0.7 unsound only with a logger calling rand::rng(); we have none" },
 ]
