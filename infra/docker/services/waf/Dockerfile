@@ -48,9 +48,9 @@ RUN apt-get update \
  && rm -f /etc/nginx/templates/conf.d/default.conf.template \
  && mkdir -p /etc/nginx/modsecurity.d
 COPY --chown=nginx:root --chmod=0444 conf/nginx.conf        /etc/nginx/conf.d/default.conf
-COPY --chown=nginx:root --chmod=0644 conf/modsecurity.conf  /etc/modsecurity.d/modsecurity-override.conf
-COPY --chown=nginx:root --chmod=0644 conf/crs-setup.conf    /etc/modsecurity.d/owasp-crs/crs-setup-override.conf
-COPY --chown=nginx:root --chmod=0644 conf/exclusions.conf   /etc/modsecurity.d/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf
+COPY --chown=root:root --chmod=0444 conf/modsecurity.conf  /etc/modsecurity.d/modsecurity-override.conf
+COPY --chown=root:root --chmod=0444 conf/crs-setup.conf    /etc/modsecurity.d/owasp-crs/crs-setup-override.conf
+COPY --chown=root:root --chmod=0444 conf/exclusions.conf   /etc/modsecurity.d/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf
 COPY --chown=nginx:root --chmod=0444 conf/operator-addresses.txt /etc/modsecurity.d/operator-addresses.txt
 RUN chown -R nginx:root /etc/nginx /etc/modsecurity.d /var/cache/nginx /var/log/nginx /var/run \
  && chmod -R g=u /etc/nginx /etc/modsecurity.d /var/cache/nginx /var/log/nginx /var/run
