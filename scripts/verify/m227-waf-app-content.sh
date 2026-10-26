@@ -39,6 +39,8 @@
 #              SQL, XSS, shell, PHP, ../, {{ }}, a metadata URL → 200          #
 #              and an object database titled `HTTP/2 vs HTTP/3`, or holding   #
 #              `<html>` / `<meta`, on osionos_object_databases (921130) → 200  #
+#              and a page holding a pasted `curl -i` answer, a title with      #
+#              `\nSet-Cookie:` (921120) → 200                                  #
 #              and a 3,000-leaf, 180 KB object database, POST and PATCH → 200  #
 #              and a profile key on osionos_bridge_identities (930120 read     #
 #              `json.profile.headline` as the file .profile) → 200             #
@@ -53,9 +55,10 @@
 #    CONTROLS  the same path read with SQLi in its query string, written with  #
 #              <script> in a header or a method `PO`; the same body to another #
 #              table, to an rpc, and through osionos_pages%3F/../secrets       #
-#              (%3f, %253F), a read of ?title=eq.HTTP/2, a `<html` cookie, a  #
-#              value with `\nSet-Cookie:` (921120) or `GET /x HTTP/1.1`      #
-#              (921110, the boundary 10110 keeps) → 403, and the upstream never sees `secrets`;      #
+#              (%3f, %253F), a read of ?title=eq.HTTP/2 or of a `\nSet-Cookie:` #
+#              title (921120), a `<html` cookie, a value with                 #
+#              `GET /x HTTP/1.1` (921110, the boundary 10110 keeps) → 403,    #
+#              and the upstream never sees `secrets`;                          #
 #              the mail with <script> in to, subject, text, listUnsubscribe,   #
 #              the query string, or in `Subject` / `TO` (Go matches JSON keys      #
 #              without case, so a lifted value must not reach a header), as a GET or PUT, to /email/v1/send-x,         #
@@ -65,7 +68,7 @@
 #              the statement as a PUT, to …/sql-ro-x, to a non-uuid database, #
 #              through …/sql-ro%3F/../../execute, in another argument, or as   #
 #              payload.sql of /query/v1/execute → 403                          #
-#              the large database with `\nSet-Cookie:` in its last leaf, and a #
+#              the large database with a request line in its last leaf, and a  #
 #              read of osionos_object_databases with SQLi in its query → 403   #
 #    LIMITS    the large database to osionos_pages, to a suffixed or %3F       #
 #              path, and a 12,000-leaf database → 400 (each other path keeps   #
@@ -259,9 +262,12 @@ probe() {
       ["content-odb-protocol-title", "POST", odbPath, title],
       ["content-odb-html-tag", "PATCH", odbPatch, odb("<html>")],
       ["content-odb-meta-tag", "PATCH", odbPatch, odb("<meta charset=utf-8>")],
+      ["content-odb-header-lines", "POST", odbPath, odb("a\nSet-Cookie: x=1")],
+      ["content-page-pasted-response", "POST", "/rest/v1/osionos_pages",
+        { content: [{ type: "code", content: "HTTP/1.1 308 Permanent Redirect\r\nLocation: https://example.com/\r\nContent-Length: 0" }] }],
       ["content-odb-large", "POST", odbPath, large],
       ["content-odb-large-patch", "PATCH", odbPatch, large],
-      ["control-odb-large-split", "POST", odbPath, { ...large, tail: "a\nSet-Cookie: x=1" }],
+      ["control-odb-large-split", "POST", odbPath, { ...large, tail: "GET /index.html HTTP/1.1" }],
       ["control-odb-read-sqli", "GET", "/rest/v1/osionos_object_databases?title=eq.1%27%20or%20%271%27=%271", undefined],
       ["limit-odb-large-pages", "POST", "/rest/v1/osionos_pages", large],
       ["limit-odb-large-suffix", "POST", "/rest/v1/osionos_object_databases_x", large],
@@ -272,7 +278,7 @@ probe() {
       ["control-odb-encoded", "POST", "/rest/v1/osionos_object_databases%3F/../secrets", title],
       ["control-odb-read", "GET", "/rest/v1/osionos_pages?title=eq.HTTP/2", undefined],
       ["control-odb-cookie", "POST", odbPath, odb("plain"), { Cookie: "note=<html" }],
-      ["control-odb-header-split", "POST", odbPath, odb("a\nSet-Cookie: x=1")],
+      ["control-read-header-split", "GET", "/rest/v1/osionos_pages?title=eq.a%0ASet-Cookie:%20x=1", undefined],
       ["control-odb-request-line", "POST", odbPath, odb("GET /index.html HTTP/1.1")],
       ["control-other-table-profile", "PATCH", "/rest/v1/secrets?id=eq.1", { profile: { headline: "Founder" } }],
       ["control-read-sqli", "GET", "/rest/v1/osionos_pages?title=eq.1%27%20or%20%271%27=%271", undefined],
@@ -458,6 +464,7 @@ line_mutant() {
 step "6/6 mutants: without its rule, each content probe MUST be refused and each Funnel probe MUST pass; with headers in the audit, the marker MUST leak"
 mutant 10110 403 content-post-code content-patch-profile content-odb-protocol-title content-odb-html-tag content-odb-meta-tag
 line_mutant 921130\;ARGS 403 content-odb-protocol-title content-odb-html-tag content-odb-meta-tag
+line_mutant 921120\;ARGS 403 content-odb-header-lines content-page-pasted-response
 mutant 10120 403 content-migrate-sql
 mutant 10140 403 content-query-sql public-funnel-query
 mutant 10150 403 "${EMAIL_LABELS[@]}"
