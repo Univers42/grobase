@@ -113,11 +113,13 @@ docker network create --internal "${TAG}-net" >/dev/null || skip "cannot create 
 step "1/3 boot: scratch Postgres → PostgREST → Kong → WAF"
 docker run -d --name "${TAG}-db" --network "${TAG}-net" -e POSTGRES_PASSWORD=scratch \
   --entrypoint docker-entrypoint.sh "${PG_IMG}" postgres >/dev/null || skip "could not start postgres"
+# Over TCP: the image's first boot runs a socket-only server for its init and then
+# restarts, so a socket probe can pass just before that restart drops the socket.
 for _ in $(seq 1 60); do
-  docker exec "${TAG}-db" psql -U postgres -qc 'select 1' >/dev/null 2>&1 && break
+  docker exec "${TAG}-db" psql -h 127.0.0.1 -U postgres -qc 'select 1' >/dev/null 2>&1 && break
   sleep 1
 done
-docker exec -i "${TAG}-db" psql -U postgres -v ON_ERROR_STOP=1 -q >/dev/null <<'SQL' || skip "could not create the probe tables"
+docker exec -i "${TAG}-db" psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 -q >/dev/null <<'SQL' || skip "could not create the probe tables"
 create role anon nologin;
 create table public.osionos_probe (token text primary key, v text);
 create table public.osionos_probe_pair (a text, b text, v text, primary key (a, b));
