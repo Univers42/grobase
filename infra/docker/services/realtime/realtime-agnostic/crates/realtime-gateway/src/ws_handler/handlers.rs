@@ -223,7 +223,7 @@ pub(super) async fn handle_publish(
     auth: &AuthState,
     state: &AppState,
 ) -> Action {
-    if !authorize_publish_topic("Publish", &topic, conn_id, auth, state).await {
+    if !authorize_publish_topic(PublishLike::Publish, &topic, conn_id, auth, state).await {
         return Action::Continue;
     }
     debug!(conn_id = %conn_id, topic = %topic, event_type = %event_type, "PUBLISH received");
@@ -256,32 +256,54 @@ pub(super) async fn handle_publish(
     Action::Continue
 }
 
+/// The publish-like client messages: each is gated on the namespace allow-list.
+#[derive(Clone, Copy)]
+enum PublishLike {
+    Publish,
+    Broadcast,
+    Track,
+}
+
+impl PublishLike {
+    /// The action label used in the denial logs.
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Publish => "Publish",
+            Self::Broadcast => "Broadcast",
+            Self::Track => "Track",
+        }
+    }
+}
+
 /// Gate a publish-like client message (PUBLISH / BROADCAST / TRACK) on the JWT
 /// namespace allow-list.
 ///
 /// Returns `true` when the caller may proceed. Mirrors the single-handler
 /// shape byte-for-byte: reject pre-auth, then (only when `claims` is present —
-/// preserving NoAuth-mode parity) deny if `authorize_publish` fails. `what` is
-/// the action label used in the denial logs (`"Publish"`, `"Broadcast"`,
-/// `"Track"`), so the emitted warnings stay identical per handler.
+/// preserving NoAuth-mode parity) deny if the provider refuses. TRACK goes
+/// through `authorize_track`, the others through `authorize_publish`; the
+/// denial warnings stay identical per handler.
 async fn authorize_publish_topic(
-    what: &str,
+    kind: PublishLike,
     topic: &str,
     conn_id: ConnectionId,
     auth: &AuthState,
     state: &AppState,
 ) -> bool {
+    let what = kind.label();
     if !auth.authenticated {
         warn!(conn_id = %conn_id, "{what} before auth");
         return false;
     }
     if let Some(ref c) = auth.claims {
-        if state
-            .auth_provider
-            .authorize_publish(c, &TopicPath::new(topic))
-            .await
-            .is_err()
-        {
+        let path = TopicPath::new(topic);
+        let verdict = match kind {
+            PublishLike::Track => state.auth_provider.authorize_track(c, &path).await,
+            PublishLike::Publish | PublishLike::Broadcast => {
+                state.auth_provider.authorize_publish(c, &path).await
+            }
+        };
+        if verdict.is_err() {
             warn!(conn_id = %conn_id, topic = %topic, "{what} denied (namespace)");
             return false;
         }
@@ -330,7 +352,7 @@ pub(super) async fn handle_broadcast(
     auth: &AuthState,
     state: &AppState,
 ) -> Action {
-    if !authorize_publish_topic("Broadcast", &topic, conn_id, auth, state).await {
+    if !authorize_publish_topic(PublishLike::Broadcast, &topic, conn_id, auth, state).await {
         return Action::Continue;
     }
     debug!(conn_id = %conn_id, topic = %topic, event = %event, "BROADCAST received");
@@ -383,9 +405,10 @@ pub(super) async fn handle_track(
     state: &AppState,
 ) -> Action {
     // Presence is publish-like: a TRACK announces this member to every
-    // subscriber of `topic`, so gate it on publish authorization — otherwise a
-    // client could inject its identity into another tenant's presence set.
-    if !authorize_publish_topic("Track", &topic, conn_id, auth, state).await {
+    // subscriber of `topic`, so gate it on track authorization (publish, or a
+    // subscribe grant the issuer opted into) — otherwise a client could inject
+    // its identity into another tenant's presence set.
+    if !authorize_publish_topic(PublishLike::Track, &topic, conn_id, auth, state).await {
         return Action::Continue;
     }
     // Bound the metadata so a single TRACK can't fan an oversized blob to every
