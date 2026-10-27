@@ -1661,6 +1661,12 @@ async fn test_opted_in_subscribe_only_token_tracks_but_cannot_publish() {
         json!({ "type": "TRACK", "topic": topic, "meta": { "name": "c" } }),
     )
     .await;
+    // A reader's meta is capped at 2 KB, not the publisher's 16 KB.
+    send(
+        &mut write_a,
+        json!({ "type": "TRACK", "topic": topic, "meta": { "pad": "x".repeat(2_100) } }),
+    )
+    .await;
     // An opted-in token is still scoped to its own topic.
     send(
         &mut write_a,

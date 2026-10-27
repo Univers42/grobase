@@ -35,6 +35,10 @@ const MAX_WS_PAYLOAD_BYTES: usize = 65_536;
 /// Max serialized presence metadata per member — keeps a single TRACK from
 /// fanning an oversized blob out to every subscriber on the topic.
 const MAX_PRESENCE_META_BYTES: usize = 16_384;
+/// The same cap for a token that tracks only through the `can_track` opt-in (a
+/// subscribe-only reader). osionos collab meta measures ~250 bytes; 16 KB would let
+/// any reader put 60 times that into every member's snapshot.
+const MAX_OPT_IN_PRESENCE_META_BYTES: usize = 2_048;
 
 pub(super) async fn handle_auth(
     token: String,
@@ -419,7 +423,12 @@ pub(super) async fn handle_track(
     }
     // Bound the metadata so a single TRACK can't fan an oversized blob to every
     // subscriber on the topic.
-    if serde_json::to_vec(&meta).map_or(usize::MAX, |b| b.len()) > MAX_PRESENCE_META_BYTES {
+    let meta_cap = if auth.claims.as_ref().is_some_and(|c| c.can_publish) {
+        MAX_PRESENCE_META_BYTES
+    } else {
+        MAX_OPT_IN_PRESENCE_META_BYTES
+    };
+    if serde_json::to_vec(&meta).map_or(usize::MAX, |b| b.len()) > meta_cap {
         warn!(conn_id = %conn_id, topic = %topic, "Track meta too large");
         return Action::Continue;
     }
