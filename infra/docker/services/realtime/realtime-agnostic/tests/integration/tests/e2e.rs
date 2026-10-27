@@ -1677,8 +1677,9 @@ async fn test_opted_in_subscribe_only_token_tracks_but_cannot_publish() {
     assert!(leaked.is_empty(), "nothing else may reach B: {leaked:?}");
 }
 
-/// C1: a TRACK loop from one connection reaches the other subscribers at most
-/// the burst (10) times, not once per frame.
+/// C1: a TRACK loop from one connection reaches each of 50 subscribers at most
+/// the burst (10) times, not once per frame: 200 TRACKs cost at most 600 frames
+/// of fan-out instead of 10 000.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_track_flood_is_bounded_per_connection() {
     use realtime_auth::{JwtAuthProvider, JwtConfig};
@@ -1688,8 +1689,11 @@ async fn test_track_flood_is_bounded_per_connection() {
     let topic = "collab:ws1";
     let (mut write_a, _read_a) =
         connect_as(&addr, &collab_token("user-a", topic, true), topic).await;
-    let (_write_b, mut read_b) =
-        connect_as(&addr, &collab_token("user-b", topic, true), topic).await;
+    let mut subscribers = Vec::new();
+    for i in 0..50 {
+        let token = collab_token(&format!("user-{i}"), topic, true);
+        subscribers.push(connect_as(&addr, &token, topic).await);
+    }
 
     for i in 0..200 {
         send(
@@ -1698,14 +1702,17 @@ async fn test_track_flood_is_bounded_per_connection() {
         )
         .await;
     }
-    let presence = event_types_within(&mut read_b, Duration::from_millis(1500))
-        .await
-        .into_iter()
-        .filter(|t| t == "presence")
-        .count();
+    let counts = futures::future::join_all(subscribers.iter_mut().map(|(_, read)| async {
+        event_types_within(read, Duration::from_millis(1500))
+            .await
+            .into_iter()
+            .filter(|t| t == "presence")
+            .count()
+    }))
+    .await;
     // 10 from the burst, plus at most one refill during the send loop and the window.
     assert!(
-        (10..=12).contains(&presence),
-        "{presence} presence frames for 200 TRACKs"
+        counts.iter().all(|n| (10..=12).contains(n)),
+        "presence frames per subscriber for 200 TRACKs: {counts:?}"
     );
 }
