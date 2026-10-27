@@ -43,4 +43,29 @@ pub trait AuthProvider: Send + Sync + 'static {
     /// # Errors
     /// Returns `AuthError` if publishing is denied.
     async fn authorize_publish(&self, claims: &AuthClaims, topic: &TopicPath) -> Result<()>;
+
+    /// Authorize a presence TRACK against claims.
+    ///
+    /// A token that may publish to `topic` may track it. A subscribe-only token
+    /// may too when its issuer opted in with `metadata.can_track: true`: an
+    /// issuer that keeps clients off PUBLISH (so its own write gate cannot be
+    /// bypassed) still needs every member to announce presence. The opt-in is
+    /// checked by this provider's own subscribe rule on the EXACT topic, so the
+    /// namespace and protected-prefix rules apply unchanged.
+    ///
+    /// # Errors
+    /// Returns `AuthError` if tracking is denied.
+    async fn authorize_track(&self, claims: &AuthClaims, topic: &TopicPath) -> Result<()> {
+        let publish = self.authorize_publish(claims, topic).await;
+        let opted_in = claims
+            .metadata
+            .get("can_track")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+        if publish.is_ok() || !opted_in {
+            return publish;
+        }
+        self.authorize_subscribe(claims, &TopicPattern::Exact(topic.clone()))
+            .await
+    }
 }

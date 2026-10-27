@@ -11,6 +11,7 @@
 /* ************************************************************************** */
 
 use std::net::SocketAddr;
+use std::time::Instant;
 
 use bytes::Bytes;
 use chrono::Utc;
@@ -34,6 +35,10 @@ const MAX_WS_PAYLOAD_BYTES: usize = 65_536;
 /// Max serialized presence metadata per member — keeps a single TRACK from
 /// fanning an oversized blob out to every subscriber on the topic.
 const MAX_PRESENCE_META_BYTES: usize = 16_384;
+/// The same cap for a token that tracks only through the `can_track` opt-in (a
+/// subscribe-only reader). osionos collab meta measures ~250 bytes; 16 KB would let
+/// any reader put 60 times that into every member's snapshot.
+const MAX_OPT_IN_PRESENCE_META_BYTES: usize = 2_048;
 
 pub(super) async fn handle_auth(
     token: String,
@@ -223,7 +228,7 @@ pub(super) async fn handle_publish(
     auth: &AuthState,
     state: &AppState,
 ) -> Action {
-    if !authorize_publish_topic("Publish", &topic, conn_id, auth, state).await {
+    if !authorize_publish_topic(PublishLike::Publish, &topic, conn_id, auth, state).await {
         return Action::Continue;
     }
     debug!(conn_id = %conn_id, topic = %topic, event_type = %event_type, "PUBLISH received");
@@ -256,32 +261,54 @@ pub(super) async fn handle_publish(
     Action::Continue
 }
 
+/// The publish-like client messages: each is gated on the namespace allow-list.
+#[derive(Clone, Copy)]
+enum PublishLike {
+    Publish,
+    Broadcast,
+    Track,
+}
+
+impl PublishLike {
+    /// The action label used in the denial logs.
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Publish => "Publish",
+            Self::Broadcast => "Broadcast",
+            Self::Track => "Track",
+        }
+    }
+}
+
 /// Gate a publish-like client message (PUBLISH / BROADCAST / TRACK) on the JWT
 /// namespace allow-list.
 ///
 /// Returns `true` when the caller may proceed. Mirrors the single-handler
 /// shape byte-for-byte: reject pre-auth, then (only when `claims` is present —
-/// preserving NoAuth-mode parity) deny if `authorize_publish` fails. `what` is
-/// the action label used in the denial logs (`"Publish"`, `"Broadcast"`,
-/// `"Track"`), so the emitted warnings stay identical per handler.
+/// preserving NoAuth-mode parity) deny if the provider refuses. TRACK goes
+/// through `authorize_track`, the others through `authorize_publish`; the
+/// denial warnings stay identical per handler.
 async fn authorize_publish_topic(
-    what: &str,
+    kind: PublishLike,
     topic: &str,
     conn_id: ConnectionId,
     auth: &AuthState,
     state: &AppState,
 ) -> bool {
+    let what = kind.label();
     if !auth.authenticated {
         warn!(conn_id = %conn_id, "{what} before auth");
         return false;
     }
     if let Some(ref c) = auth.claims {
-        if state
-            .auth_provider
-            .authorize_publish(c, &TopicPath::new(topic))
-            .await
-            .is_err()
-        {
+        let path = TopicPath::new(topic);
+        let verdict = match kind {
+            PublishLike::Track => state.auth_provider.authorize_track(c, &path).await,
+            PublishLike::Publish | PublishLike::Broadcast => {
+                state.auth_provider.authorize_publish(c, &path).await
+            }
+        };
+        if verdict.is_err() {
             warn!(conn_id = %conn_id, topic = %topic, "{what} denied (namespace)");
             return false;
         }
@@ -330,7 +357,7 @@ pub(super) async fn handle_broadcast(
     auth: &AuthState,
     state: &AppState,
 ) -> Action {
-    if !authorize_publish_topic("Broadcast", &topic, conn_id, auth, state).await {
+    if !authorize_publish_topic(PublishLike::Broadcast, &topic, conn_id, auth, state).await {
         return Action::Continue;
     }
     debug!(conn_id = %conn_id, topic = %topic, event = %event, "BROADCAST received");
@@ -379,18 +406,29 @@ pub(super) async fn handle_track(
     topic: String,
     meta: serde_json::Value,
     conn_id: ConnectionId,
-    auth: &AuthState,
+    auth: &mut AuthState,
     state: &AppState,
 ) -> Action {
+    // Spent before the auth check, so a denied-TRACK loop cannot flood the log either.
+    if !auth.track_budget.take(Instant::now()) {
+        debug!(conn_id = %conn_id, topic = %topic, "TRACK over budget, dropped");
+        return Action::Continue;
+    }
     // Presence is publish-like: a TRACK announces this member to every
-    // subscriber of `topic`, so gate it on publish authorization — otherwise a
-    // client could inject its identity into another tenant's presence set.
-    if !authorize_publish_topic("Track", &topic, conn_id, auth, state).await {
+    // subscriber of `topic`, so gate it on track authorization (publish, or a
+    // subscribe grant the issuer opted into) — otherwise a client could inject
+    // its identity into another tenant's presence set.
+    if !authorize_publish_topic(PublishLike::Track, &topic, conn_id, auth, state).await {
         return Action::Continue;
     }
     // Bound the metadata so a single TRACK can't fan an oversized blob to every
     // subscriber on the topic.
-    if serde_json::to_vec(&meta).map_or(usize::MAX, |b| b.len()) > MAX_PRESENCE_META_BYTES {
+    let meta_cap = if auth.claims.as_ref().is_some_and(|c| c.can_publish) {
+        MAX_PRESENCE_META_BYTES
+    } else {
+        MAX_OPT_IN_PRESENCE_META_BYTES
+    };
+    if serde_json::to_vec(&meta).map_or(usize::MAX, |b| b.len()) > meta_cap {
         warn!(conn_id = %conn_id, topic = %topic, "Track meta too large");
         return Action::Continue;
     }
@@ -415,9 +453,13 @@ pub(super) async fn handle_track(
 pub(super) async fn handle_untrack(
     topic: String,
     conn_id: ConnectionId,
-    auth: &AuthState,
+    auth: &mut AuthState,
     state: &AppState,
 ) -> Action {
+    if !auth.track_budget.take(Instant::now()) {
+        debug!(conn_id = %conn_id, topic = %topic, "UNTRACK over budget, dropped");
+        return Action::Continue;
+    }
     // A5: drop from the shared store too so a presence query on ANOTHER node no
     // longer lists this member. `None` at parity ⇒ skipped (byte-identical).
     if let Some(shared) = state.presence_shared.as_ref() {

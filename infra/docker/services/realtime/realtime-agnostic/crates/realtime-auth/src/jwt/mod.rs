@@ -255,4 +255,55 @@ mod tests {
             .await
             .is_err());
     }
+
+    fn subscribe_only(namespaces: &[&str], can_track: Option<bool>) -> realtime_core::AuthClaims {
+        let mut metadata = HashMap::new();
+        if let Some(flag) = can_track {
+            metadata.insert("can_track".to_string(), serde_json::Value::Bool(flag));
+        }
+        realtime_core::AuthClaims {
+            sub: "user1".to_string(),
+            namespaces: namespaces.iter().map(ToString::to_string).collect(),
+            can_publish: false,
+            can_subscribe: true,
+            metadata,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_jwt_authorize_track_needs_publish_or_the_opt_in() {
+        let provider =
+            JwtAuthProvider::new(&JwtConfig::hmac("test-secret-key-at-least-32-chars!!")).unwrap();
+        let ws1 = realtime_core::TopicPath::new("collab:ws1");
+        let ws2 = realtime_core::TopicPath::new("collab:ws2");
+        // Subscribe-only without the opt-in: today's rule, TRACK denied.
+        let plain = subscribe_only(&["collab:ws1"], None);
+        assert!(provider.authorize_track(&plain, &ws1).await.is_err());
+        assert!(provider
+            .authorize_track(&subscribe_only(&["collab:ws1"], Some(false)), &ws1)
+            .await
+            .is_err());
+        // Opted in: TRACK on the granted topic only; PUBLISH stays denied.
+        let opted = subscribe_only(&["collab:ws1"], Some(true));
+        assert!(provider.authorize_track(&opted, &ws1).await.is_ok());
+        assert!(provider.authorize_track(&opted, &ws2).await.is_err());
+        assert!(provider.authorize_publish(&opted, &ws1).await.is_err());
+        // The opt-in rides on the subscribe grant: a token that may not subscribe may not track.
+        let mut no_sub = opted.clone();
+        no_sub.can_subscribe = false;
+        assert!(provider.authorize_track(&no_sub, &ws1).await.is_err());
+        // A publisher may track without the opt-in.
+        let mut publisher = plain;
+        publisher.can_publish = true;
+        assert!(provider.authorize_track(&publisher, &ws1).await.is_ok());
+        // A wildcard token that opts in still needs an EXACT grant for a protected prefix.
+        let mut guarded = provider;
+        guarded.protected_namespaces = vec!["collab:".to_string()];
+        let wildcard = subscribe_only(&["*"], Some(true));
+        assert!(guarded.authorize_track(&wildcard, &ws1).await.is_err());
+        assert!(guarded
+            .authorize_track(&wildcard, &realtime_core::TopicPath::new("orders"))
+            .await
+            .is_ok());
+    }
 }
