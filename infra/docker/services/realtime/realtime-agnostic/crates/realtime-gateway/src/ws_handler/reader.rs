@@ -20,6 +20,7 @@ use realtime_core::{AuthClaims, ClientMessage, ConnectionId, ServerMessage};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
+use super::track_budget::TrackBudget;
 use super::util::send_ctrl;
 
 use super::handlers;
@@ -36,6 +37,7 @@ pub(super) type TenantSlot = Arc<Mutex<Option<String>>>;
 pub(super) struct AuthState {
     pub authenticated: bool,
     pub claims: Option<AuthClaims>,
+    pub track_budget: TrackBudget,
 }
 
 #[derive(PartialEq, Eq)]
