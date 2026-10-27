@@ -1064,6 +1064,28 @@
         "vault-init",
         "webhook-dispatcher"
       ]
+    },
+    "OAUTH_CALLBACK_URL": {
+      "category": "PUBLIC",
+      "format": "url",
+      "required_in": [],
+      "compose_required": false,
+      "browser_safe": true,
+      "consumers": [
+        "adapter-registry-go",
+        "data-plane-router-rust",
+        "db-bootstrap",
+        "function-scheduler",
+        "gotrue",
+        "orchestrator",
+        "pg-backup",
+        "pg-migrate",
+        "realtime",
+        "supavisor",
+        "tenant-control",
+        "vault-init",
+        "webhook-dispatcher"
+      ]
     }
   }
 }
