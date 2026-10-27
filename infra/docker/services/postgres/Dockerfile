@@ -49,9 +49,11 @@ RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
     apk add --no-cache --virtual .pgvector-build-deps build-base \
   && tar -xzf /tmp/pgvector.tar.gz -C /tmp
 WORKDIR /tmp/pgvector-${PGVECTOR_VERSION}
+# OPTFLAGS="": pgvector defaults to -march=native, so the 2026-10-26 image carried the CI
+# runner's AVX-512 and died with SIGILL on `CREATE EXTENSION vector` on AVX2-only hosts.
 RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
-    make with_llvm=no \
-  && make install with_llvm=no \
+    make with_llvm=no OPTFLAGS="" \
+  && make install with_llvm=no OPTFLAGS="" \
   && apk del .pgvector-build-deps \
   && rm -rf /tmp/pgvector* /var/cache/apk/*
 
