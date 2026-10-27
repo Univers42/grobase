@@ -28,6 +28,9 @@
 #  feat/titan-mail); the tree of rule 10150 (on a42a8077) does NOT carry it,   #
 #  so there the route is open to the anon key and 10150 must not reach a       #
 #  deployment before that acl does.                                            #
+#  Rule 10160 lifts 930120 on ARGS:scope of GET /auth/v1/callback: Google     #
+#  echoes `.../auth/userinfo.profile` there, 930120 read it as the file        #
+#  `.profile` and every Google sign-in was refused (2026-10-27, b2b WAF log).  #
 #  The WAF's nginx.conf raises ModSecurity's argument (10,000) and body        #
 #  (1 MiB) limits on /rest/v1/osionos_object_databases alone: a database is    #
 #  saved whole, one JSON leaf per argument, and a 36-row CRM (~1,500 leaves)   #
@@ -252,6 +255,11 @@ probe() {
     const mail = mails.confirmEmail;
     const script = "<script>alert(1)</script>";
     const mailPath = "/email/v1/send";
+    const oauthCallback = "/auth/v1/callback";
+    // The query Google sent on the refused sign-in (2026-10-27), with a fake code and state.
+    const googleCallback = "state=7538a86d-3cf3-45aa-a18c-eea0c3071013&iss=https%3A%2F%2Faccounts.google.com" +
+      "&code=4%2F0AUn6Hd8fake&scope=email%20profile%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile" +
+      "%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email%20openid&authuser=0&prompt=consent";
     const funnel = { "Tailscale-Funnel-Request": "?1" };
     const probes = [
       ["content-post-code", "POST", "/rest/v1/osionos_pages", code],
@@ -316,6 +324,14 @@ probe() {
       ["control-email-slash", "POST", mailPath + "/", mail],
       ["control-email-encoded", "POST", mailPath + "%3F/../x", mail],
       ["control-email-elsewhere", "POST", "/rest/v1/some_table", mail],
+      ["content-oauth-google-callback", "GET", oauthCallback + "?" + googleCallback, undefined],
+      ["control-oauth-code-profile", "GET", oauthCallback + "?state=s&code=%2Fhome%2Fu%2F.profile", undefined],
+      ["control-oauth-scope-traversal", "GET", oauthCallback + "?state=s&code=c&scope=..%2F..%2Fetc%2Fpasswd", undefined],
+      ["control-oauth-post", "POST", oauthCallback + "?" + googleCallback, { code: "c" }],
+      ["control-oauth-suffix", "GET", oauthCallback + "-x?" + googleCallback, undefined],
+      ["control-oauth-slash", "GET", oauthCallback + "/?" + googleCallback, undefined],
+      ["control-oauth-encoded", "GET", oauthCallback + "%3F/../token?" + googleCallback, undefined],
+      ["control-oauth-elsewhere", "GET", "/auth/v1/token?" + googleCallback, undefined],
       ["public-funnel-query", "POST", runner, raw, funnel],
       ["funnel-encoded-a", "GET", "/%61dmin/v1/tenants", undefined, funnel],
       ["funnel-double-slash", "GET", "/admin//v1/tenants", undefined, funnel],
@@ -470,6 +486,7 @@ mutant 10140 403 content-query-sql public-funnel-query
 mutant 10150 403 "${EMAIL_LABELS[@]}"
 line_mutant 921130\;ARGS:json.html 403 "${EMAIL_LABELS[@]}"
 line_mutant 'attack-xss;ARGS:json.html' 403 "${EMAIL_LABELS[@]}"
+mutant 10160 403 content-oauth-google-callback
 OPERATORS="${WAF_CONF}/operator-addresses.txt" mutant 10131 200 tailnet-kong:/admin/v1/tenants tailnet-kong:/meta/v1 tailnet-kong:/realtime/v1/publish xrealip-kong:/admin/v1/tenants
 mutant 10130 200 funnel-kong:/admin/v1/tenants funnel-kong:/meta/v1 funnel-kong:/realtime/v1/publish funnel-encoded-a funnel-double-slash funnel-migrate-post
 awk '/^    location = \/rest\/v1\/osionos_object_databases \{/ { skip = 1 } !skip { print } skip && /^    \}/ { skip = 0 }' \
