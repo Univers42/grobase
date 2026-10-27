@@ -199,6 +199,21 @@ services:
               limit_by: ip
               minute: 60000
               hour: 2000000
+      # The OAuth provider (Google, GitHub, 42) redirects the browser here with
+      # ?code&state and cannot carry an apikey. GoTrue validates the signed state
+      # itself, so this one path is key-less. GET only; the longer prefix wins
+      # over auth-routes, every other /auth/v1 path still needs the key.
+      - name: auth-oauth-callback
+        paths: [/auth/v1/callback]
+        methods: [GET]
+        strip_path: false
+        plugins:
+          - name: request-transformer
+            config:
+              replace:
+                uri: /callback
+          - name: rate-limiting
+            config: { policy: local, limit_by: ip, minute: 60, hour: 600 }
 
   - name: rest
     url: http://postgrest:3000

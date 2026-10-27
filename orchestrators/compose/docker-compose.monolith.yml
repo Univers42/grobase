@@ -776,21 +776,24 @@ services:
       # Rate limiting (per-IP) — raised for E2E test suite
       GOTRUE_RATE_LIMIT_HEADER: X-Real-IP
       GOTRUE_RATE_LIMIT_EMAIL_SENT: ${GOTRUE_RATE_LIMIT_EMAIL_SENT:-100}
+      # OAuth callback the providers redirect to. Defaults to API_EXTERNAL_URL, which is
+      # also the JWT issuer; OAUTH_CALLBACK_URL moves the callback to a public host
+      # without re-issuing every token under a new iss.
       # OAuth: Google
       GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_OAUTH_ENABLED:-false}
       GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}/callback
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: ${OAUTH_CALLBACK_URL:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}/callback}
       # OAuth: GitHub
       GOTRUE_EXTERNAL_GITHUB_ENABLED: ${GITHUB_OAUTH_ENABLED:-false}
       GOTRUE_EXTERNAL_GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GOTRUE_EXTERNAL_GITHUB_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}/callback
+      GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI: ${OAUTH_CALLBACK_URL:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}/callback}
       # OAuth: 42 School (custom OIDC)
       GOTRUE_EXTERNAL_FORTYTWO_ENABLED: ${FORTYTWO_OAUTH_ENABLED:-false}
       GOTRUE_EXTERNAL_FORTYTWO_CLIENT_ID: ${FORTYTWO_CLIENT_ID:-}
       GOTRUE_EXTERNAL_FORTYTWO_SECRET: ${FORTYTWO_CLIENT_SECRET:-}
-      GOTRUE_EXTERNAL_FORTYTWO_REDIRECT_URI: ${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}/callback
+      GOTRUE_EXTERNAL_FORTYTWO_REDIRECT_URI: ${OAUTH_CALLBACK_URL:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}/callback}
       GOTRUE_EXTERNAL_FORTYTWO_URL: https://api.intra.42.fr/oauth/authorize
       GOTRUE_EXTERNAL_FORTYTWO_API_URL: https://api.intra.42.fr
     extra_hosts:
