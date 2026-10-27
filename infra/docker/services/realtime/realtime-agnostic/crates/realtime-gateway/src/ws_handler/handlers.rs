@@ -11,6 +11,7 @@
 /* ************************************************************************** */
 
 use std::net::SocketAddr;
+use std::time::Instant;
 
 use bytes::Bytes;
 use chrono::Utc;
@@ -401,9 +402,14 @@ pub(super) async fn handle_track(
     topic: String,
     meta: serde_json::Value,
     conn_id: ConnectionId,
-    auth: &AuthState,
+    auth: &mut AuthState,
     state: &AppState,
 ) -> Action {
+    // Spent before the auth check, so a denied-TRACK loop cannot flood the log either.
+    if !auth.track_budget.take(Instant::now()) {
+        debug!(conn_id = %conn_id, topic = %topic, "TRACK over budget, dropped");
+        return Action::Continue;
+    }
     // Presence is publish-like: a TRACK announces this member to every
     // subscriber of `topic`, so gate it on track authorization (publish, or a
     // subscribe grant the issuer opted into) — otherwise a client could inject
@@ -438,9 +444,13 @@ pub(super) async fn handle_track(
 pub(super) async fn handle_untrack(
     topic: String,
     conn_id: ConnectionId,
-    auth: &AuthState,
+    auth: &mut AuthState,
     state: &AppState,
 ) -> Action {
+    if !auth.track_budget.take(Instant::now()) {
+        debug!(conn_id = %conn_id, topic = %topic, "UNTRACK over budget, dropped");
+        return Action::Continue;
+    }
     // A5: drop from the shared store too so a presence query on ANOTHER node no
     // longer lists this member. `None` at parity ⇒ skipped (byte-identical).
     if let Some(shared) = state.presence_shared.as_ref() {
