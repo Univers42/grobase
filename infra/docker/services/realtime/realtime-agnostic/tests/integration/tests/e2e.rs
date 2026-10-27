@@ -1543,3 +1543,176 @@ async fn test_resubscribe_retargets_to_latest_topic() {
     );
     assert_eq!(events[0]["event"]["topic"], "orders/b");
 }
+
+// ═══════════════════════════════════════════════════════════
+// Presence for subscribe-only tokens: the `can_track` opt-in
+// ═══════════════════════════════════════════════════════════
+
+type WsRead = futures::stream::SplitStream<
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+>;
+type WsWrite = futures::stream::SplitSink<
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+    Message,
+>;
+
+const TRACK_SECRET: &str = "track-secret-at-least-32-characters!!";
+
+/// A subscribe-only token on `topic`, the shape osionos collab tokens have.
+fn collab_token(sub: &str, topic: &str, can_track: bool) -> String {
+    use jsonwebtoken::{encode, EncodingKey, Header};
+    let now = chrono::Utc::now().timestamp();
+    let mut claims = json!({
+        "sub": sub, "exp": now + 3600, "iat": now,
+        "can_publish": false, "can_subscribe": true, "namespaces": [topic],
+    });
+    if can_track {
+        claims["metadata"] = json!({ "can_track": true });
+    }
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(TRACK_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
+/// Connect, AUTH with `token` and wait for `AUTH_OK`, then subscribe to `topic`.
+async fn connect_as(addr: &str, token: &str, topic: &str) -> (WsWrite, WsRead) {
+    let (ws, _) = connect_async(format!("ws://{addr}/ws")).await.unwrap();
+    let (mut write, mut read) = ws.split();
+    let auth = json!({ "type": "AUTH", "token": token }).to_string();
+    write.send(Message::Text(auth)).await.unwrap();
+    let ok = tokio::time::timeout(Duration::from_secs(3), async {
+        while let Some(Ok(Message::Text(t))) = read.next().await {
+            if t.contains("AUTH_OK") {
+                return true;
+            }
+        }
+        false
+    })
+    .await;
+    assert!(ok.unwrap_or(false), "no AUTH_OK");
+    ws_subscribe(&mut write, &format!("s-{topic}"), topic).await;
+    (write, read)
+}
+
+/// Every EVENT `read` receives within `window`, as its `event_type`.
+async fn event_types_within(read: &mut WsRead, window: Duration) -> Vec<String> {
+    let mut seen = Vec::new();
+    let _ = tokio::time::timeout(window, async {
+        while let Some(Ok(Message::Text(t))) = read.next().await {
+            let p: serde_json::Value = serde_json::from_str(&t).unwrap();
+            if p["type"] == "EVENT" {
+                seen.push(p["event"]["event_type"].as_str().unwrap_or("").to_string());
+            }
+        }
+    })
+    .await;
+    seen
+}
+
+async fn send(write: &mut WsWrite, frame: serde_json::Value) {
+    write.send(Message::Text(frame.to_string())).await.unwrap();
+}
+
+/// C4 (`presence-track-claim-verdict.md`): an opted-in subscribe-only token can
+/// TRACK its own topic and is listed under its own `sub`; the opt-in never lets
+/// it PUBLISH or BROADCAST, and a token without the claim still cannot TRACK.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn test_opted_in_subscribe_only_token_tracks_but_cannot_publish() {
+    use realtime_auth::{JwtAuthProvider, JwtConfig};
+
+    let provider = JwtAuthProvider::new(&JwtConfig::hmac(TRACK_SECRET)).unwrap();
+    let (addr, _pub, _bus) = start_test_server_with(Arc::new(provider)).await;
+    let topic = "collab:ws1";
+    let (mut write_a, _read_a) =
+        connect_as(&addr, &collab_token("user-a", topic, true), topic).await;
+    let (_write_b, mut read_b) =
+        connect_as(&addr, &collab_token("user-b", topic, true), topic).await;
+    let (mut write_c, _read_c) =
+        connect_as(&addr, &collab_token("user-c", topic, false), topic).await;
+
+    send(
+        &mut write_a,
+        json!({ "type": "TRACK", "topic": topic, "meta": { "name": "a" } }),
+    )
+    .await;
+    let join = next_event(&mut read_b, Some("presence"), Duration::from_secs(3)).await;
+    let members = join.expect("B sees A join")["event"]["payload"]["members"].clone();
+    assert_eq!(members.as_array().unwrap().len(), 1);
+    assert_eq!(
+        members[0]["user_id"], "user-a",
+        "the gateway stamps the token's sub"
+    );
+
+    send(
+        &mut write_a,
+        json!({ "type": "PUBLISH", "topic": topic, "event_type": "x", "payload": {} }),
+    )
+    .await;
+    send(
+        &mut write_a,
+        json!({ "type": "BROADCAST", "topic": topic, "event": "x", "payload": {} }),
+    )
+    .await;
+    send(
+        &mut write_c,
+        json!({ "type": "TRACK", "topic": topic, "meta": { "name": "c" } }),
+    )
+    .await;
+    // A reader's meta is capped at 2 KB, not the publisher's 16 KB.
+    send(
+        &mut write_a,
+        json!({ "type": "TRACK", "topic": topic, "meta": { "pad": "x".repeat(2_100) } }),
+    )
+    .await;
+    // An opted-in token is still scoped to its own topic.
+    send(
+        &mut write_a,
+        json!({ "type": "TRACK", "topic": "collab:ws2", "meta": {} }),
+    )
+    .await;
+    let leaked = event_types_within(&mut read_b, Duration::from_millis(800)).await;
+    assert!(leaked.is_empty(), "nothing else may reach B: {leaked:?}");
+}
+
+/// C1: a TRACK loop from one connection reaches each of 50 subscribers at most
+/// the burst (10) times, not once per frame: 200 TRACKs cost at most 600 frames
+/// of fan-out instead of 10 000.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn test_track_flood_is_bounded_per_connection() {
+    use realtime_auth::{JwtAuthProvider, JwtConfig};
+
+    let provider = JwtAuthProvider::new(&JwtConfig::hmac(TRACK_SECRET)).unwrap();
+    let (addr, _pub, _bus) = start_test_server_with(Arc::new(provider)).await;
+    let topic = "collab:ws1";
+    let (mut write_a, _read_a) =
+        connect_as(&addr, &collab_token("user-a", topic, true), topic).await;
+    let mut subscribers = Vec::new();
+    for i in 0..50 {
+        let token = collab_token(&format!("user-{i}"), topic, true);
+        subscribers.push(connect_as(&addr, &token, topic).await);
+    }
+
+    for i in 0..200 {
+        send(
+            &mut write_a,
+            json!({ "type": "TRACK", "topic": topic, "meta": { "i": i } }),
+        )
+        .await;
+    }
+    let counts = futures::future::join_all(subscribers.iter_mut().map(|(_, read)| async {
+        event_types_within(read, Duration::from_millis(1500))
+            .await
+            .into_iter()
+            .filter(|t| t == "presence")
+            .count()
+    }))
+    .await;
+    // 10 from the burst, plus at most one refill during the send loop and the window.
+    assert!(
+        counts.iter().all(|n| (10..=12).contains(n)),
+        "presence frames per subscriber for 200 TRACKs: {counts:?}"
+    );
+}
