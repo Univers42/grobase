@@ -10,6 +10,8 @@
 set -euo pipefail
 # shellcheck source=age.sh
 . "$(dirname "$0")/age.sh"
+# shellcheck source=monitor.sh
+. "$(dirname "$0")/monitor.sh"
 
 : "${DATABASE_URL:?required}"
 : "${PG_BACKUP_BUCKET:?required}"
@@ -40,6 +42,7 @@ echo "[pg-backup] dump complete ($(du -h "$LOGICAL_FILE" | cut -f1))"
 
 DEST_KEY="baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/logical/$(basename "$LOGICAL_FILE")"
 mc cp "$LOGICAL_FILE" "$DEST_KEY"
+verify_upload "$LOGICAL_FILE" "$DEST_KEY"
 echo "[pg-backup] uploaded to ${DEST_KEY}"
 
 # Optional physical base backup (PITR-ready).
@@ -61,7 +64,9 @@ if [ "${PG_BACKUP_PHYSICAL:-0}" = "1" ]; then
     for f in "$PHYS_DIR"/*; do age_seal "$f"; done
   fi
   for f in "$PHYS_DIR"/*; do
-    mc cp "$f" "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/physical/base-${STAMP}/$(basename "$f")"
+    physical_key="baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/physical/base-${STAMP}/$(basename "$f")"
+    mc cp "$f" "$physical_key"
+    verify_upload "$f" "$physical_key"
   done
   echo "[pg-backup] physical base uploaded"
 fi
@@ -91,13 +96,14 @@ fi
 
 echo "[pg-backup] pruning artifacts older than ${DAYS}d"
 mc rm --recursive --force --older-than "${DAYS}d" \
-  "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/logical/" 2>/dev/null || true
+  "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/logical/" 2>/dev/null || retention_failed
 mc rm --recursive --force --older-than "${DAYS}d" \
-  "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/physical/" 2>/dev/null || true
+  "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/physical/" 2>/dev/null || retention_failed
 # WAL is only ever produced/pruned when PITR is on; never touched in the OFF path.
 if [ "${PG_BACKUP_PITR:-0}" = "1" ]; then
   mc rm --recursive --force --older-than "${DAYS}d" \
-    "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/wal/" 2>/dev/null || true
+    "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/wal/" 2>/dev/null || retention_failed
 fi
 
+monitor_complete
 echo "[pg-backup] $(date -u +%F\ %T) done"

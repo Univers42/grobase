@@ -1,0 +1,3 @@
+[
+  {"name": "API", "url": "https://YOUR-GROBASE-HOST/YOUR-PUBLIC-READINESS-PATH", "expected_status": [200]}
+]

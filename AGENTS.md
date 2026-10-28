@@ -86,3 +86,11 @@ After any API change: update `infra/config/openapi/grobase-public.json` and rege
 - **grobase contains zero app-specific code** — apps are declarative contracts at `infra/config/contracts/<app>.json`
 - **Never co-author commits** (no `Co-Authored-By` / "Generated with" trailers)
 - **Confirm the irreversible** (pushes, deploys, deletions, npm publish, RS256 cutover) — explicit human trigger
+
+## Operational reliability boundaries
+
+- Keep the optional synthetic status service independently deployable with durable local history and no backend credentials; an outage must not take its observer down.
+- Extend the existing pg-backup scheduler rather than adding a competing backup system; verified completion and stale monitoring stay opt-in to preserve existing deployments.
+- Status measurements are observations, not SLA/RTO/RPO guarantees; production evidence requires independent probes and drills covering every authoritative store.
+- Keep reliability tests behind Makefile targets and numbered verification gates; isolated CI restores must never touch deployed data.
+- Serve status HTML from trusted constant markup with external assets and a strict CSP; require verified TLS for status listeners and isolated recovery-drill connections to avoid executable file-content responses and plaintext credentials.
