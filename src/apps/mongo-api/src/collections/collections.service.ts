@@ -12,6 +12,7 @@
 
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -24,6 +25,17 @@ import { MongoService } from '@mini-baas/database';
 import { Collection, ObjectId, Sort } from 'mongodb';
 
 const COLLECTION_REGEX = /^[\w-]{1,64}$/;
+// Refused as projection and guard fields only (filters keep accepting them): `projection[field]
+// = 1` on `__proto__` hits the setter and silently voids the projection, and a guard on a
+// prototype name can never match.
+const PROTOTYPE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+export interface PatchOptions {
+  fields?: string;
+  /** Compare-and-swap: the update applies only while `ifField` still equals `ifValue`. */
+  ifField?: string;
+  ifValue?: string;
+}
 
 @Injectable()
 export class CollectionsService implements OnModuleInit {
@@ -106,6 +118,11 @@ export class CollectionsService implements OnModuleInit {
     }
   }
 
+  private assertNamedField(field: string): void {
+    this.assertSafeFieldName(field);
+    if (PROTOTYPE_KEYS.has(field)) throw new BadRequestException('Invalid field name');
+  }
+
   private assertNoMongoOperators(value: unknown): void {
     if (Array.isArray(value)) {
       value.forEach((item) => this.assertNoMongoOperators(item));
@@ -136,6 +153,26 @@ export class CollectionsService implements OnModuleInit {
     return clean;
   }
 
+  /** A projection of the named fields; `_id` stays in, so `id` is always returned. */
+  private parseProjection(fields?: string): Record<string, 1> | undefined {
+    if (!fields) return undefined;
+    const projection: Record<string, 1> = {};
+    for (const field of fields.split(',')) {
+      this.assertNamedField(field);
+      projection[field] = 1;
+    }
+    return projection;
+  }
+
+  // A query string carries every value as text; a numeric one also matches the number it
+  // spells exactly ("3" matches 3, "03" does not), so a counter like `rev` compares by value.
+  private casCondition(field: string, value: string): Record<string, unknown> {
+    this.assertNamedField(field);
+    const numeric = Number(value);
+    const isNumber = value !== '' && String(numeric) === value;
+    return { [field]: isNumber ? { $in: [value, numeric] } : value };
+  }
+
   async create(collectionName: string, userId: string, data: Record<string, unknown>) {
     // Strip forbidden fields
     const { _id: _, owner_id: __, ...clean } = data;
@@ -157,9 +194,10 @@ export class CollectionsService implements OnModuleInit {
   async findAll(
     collectionName: string,
     userId: string,
-    opts: { limit: number; offset: number; sort?: string; filter?: string },
+    opts: { limit: number; offset: number; sort?: string; filter?: string; fields?: string },
   ) {
     const col = this.getCollection(collectionName);
+    const projection = this.parseProjection(opts.fields);
     let query: Record<string, unknown> = { owner_id: userId };
 
     // Merge optional filter (strip dangerous keys)
@@ -183,7 +221,7 @@ export class CollectionsService implements OnModuleInit {
     }
 
     const [data, total] = await Promise.all([
-      col.find(query).sort(sort).skip(opts.offset).limit(opts.limit).toArray(),
+      col.find(query, { projection }).sort(sort).skip(opts.offset).limit(opts.limit).toArray(),
       col.countDocuments(query),
     ]);
 
@@ -216,22 +254,33 @@ export class CollectionsService implements OnModuleInit {
     userId: string,
     docId: string,
     patch: Record<string, unknown>,
+    opts: PatchOptions = {},
   ) {
     if (!ObjectId.isValid(docId)) {
       throw new BadRequestException('Invalid document ID');
+    }
+    if ((opts.ifField === undefined) !== (opts.ifValue === undefined)) {
+      throw new BadRequestException('if_field and if_value go together');
     }
 
     // Strip forbidden fields
     const { _id: _, owner_id: __, ...clean } = patch;
 
     const col = this.getCollection(collectionName);
+    const projection = this.parseProjection(opts.fields);
+    const owned = { _id: new ObjectId(docId), owner_id: userId };
+    const guard =
+      opts.ifField === undefined ? {} : this.casCondition(opts.ifField, opts.ifValue ?? '');
     const result = await col.findOneAndUpdate(
-      { _id: new ObjectId(docId), owner_id: userId },
+      { ...guard, ...owned },
       { $set: { ...clean, updated_at: new Date() } },
-      { returnDocument: 'after' },
+      { returnDocument: 'after', projection },
     );
 
     if (!result) {
+      const exists =
+        opts.ifField !== undefined && (await col.findOne(owned, { projection: { _id: 1 } }));
+      if (exists) throw new ConflictException(`${opts.ifField} no longer matches if_value`);
       throw new NotFoundException('Document not found');
     }
 
