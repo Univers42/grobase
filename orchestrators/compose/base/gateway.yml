@@ -33,7 +33,7 @@ services:
       timeout: 3s
       start_period: 5s
       retries: 3
-    mem_limit: 256m
+    mem_limit: 512m
     cpus: 0.5
 
   # ─── HashiCorp Vault (control plane: boot/CI secrets) ─────────────
@@ -68,7 +68,10 @@ services:
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       KONG_ADMIN_LISTEN: "0.0.0.0:8001"
       KONG_HEADERS: "off"
-      KONG_NGINX_HTTP_CLIENT_MAX_BODY_SIZE: "1m"
+      # The WAF owns the public body limits (client_max_body_size 10m, 128 KB outside its
+      # per-path lifts); this matches it so a lifted body is not refused here a second time,
+      # as 1m did to every whiteboard save over 1 MiB. Routes keep request-size-limiting.
+      KONG_NGINX_HTTP_CLIENT_MAX_BODY_SIZE: "10m"
       KONG_NGINX_HTTP_CLIENT_BODY_TIMEOUT: "1s"
       KONG_NGINX_WORKER_PROCESSES: "1"
       KONG_MEM_CACHE_SIZE: "64m"
