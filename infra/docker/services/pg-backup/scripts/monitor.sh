@@ -3,7 +3,7 @@
 # Metadata contains only artifact names, timestamps and checksums, never credentials.
 set -euo pipefail
 
-monitor_on() { [ "${PG_BACKUP_MONITOR:-0}" = 1 ]; }
+monitor_on() { [[ "${PG_BACKUP_MONITOR:-0}" = 1 ]]; }
 
 # Monitored jobs cannot silently succeed when retention failed.
 retention_failed() {
@@ -56,5 +56,5 @@ verify_download() {
   expected="${checksum%% *}"
   [[ "$expected" =~ ^[a-f0-9]{64}$ ]] || return 1
   actual="$(sha256sum "$file")"
-  [ "${actual%% *}" = "$expected" ]
+  [[ "${actual%% *}" = "$expected" ]]
 }

@@ -11,14 +11,20 @@ credentials, public write endpoint or additional application state tables.
    readiness route instead. Do not mark 401/404 as healthy or expose a key in a
    URL. Targets measure only configured HTTP endpoints; they do not claim SQL
    readiness or WebSocket/message delivery. Add real probes separately for those.
-2. Deploy on a host independent of the backend, preserving `status-history`:
+2. Provide `deploy/status/tls/server.crt`, `server.key` and `ca.crt` from your
+   certificate manager. Include `localhost` and the proxy's upstream hostname
+   in the certificate SANs. Make the key readable only by container UID 65532;
+   never commit private keys. Missing/invalid certificates stop startup, with no
+   plaintext fallback. Deploy independently, preserving `status-history`:
 
    ```bash
    docker compose -f deploy/status/compose.yml up --build -d
    ```
 
-3. Serve `127.0.0.1:8090` through your TLS reverse proxy at a status hostname.
-   Only `/`, `/status.json` and `/health/ready` are served. `/health/ready` returns
+3. Serve `https://127.0.0.1:8090` through your TLS reverse proxy at a status hostname.
+   Verify the upstream certificate using its CA and matching hostname/SNI; never
+   disable certificate verification. The public hostname must also enforce HTTPS.
+   Only `/`, `/status.js`, `/status.css`, `/status.json` and `/health/ready` are served. `/health/ready` returns
    503 for down/unknown monitored components; the container healthcheck uses
    `/status.json` to distinguish an alive status server from a backend outage.
 4. Set interval, timeout, stale threshold and history retention through the
