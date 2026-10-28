@@ -111,7 +111,9 @@ done
 docker network create --internal "${TAG}-net" >/dev/null || skip "cannot create the network"
 
 step "1/3 boot: scratch Postgres → PostgREST → Kong → WAF"
-docker run -d --name "${TAG}-db" --network "${TAG}-net" -e POSTGRES_PASSWORD=scratch \
+# A fresh random password per run: no secret is hardcoded in the tree (SonarCloud S2068).
+PG_PASS="$(openssl rand -hex 16)"
+docker run -d --name "${TAG}-db" --network "${TAG}-net" -e POSTGRES_PASSWORD="${PG_PASS}" \
   --entrypoint docker-entrypoint.sh "${PG_IMG}" postgres >/dev/null || skip "could not start postgres"
 # Over TCP: the image's first boot runs a socket-only server for its init and then
 # restarts, so a socket probe can pass just before that restart drops the socket.
@@ -126,7 +128,7 @@ create table public.osionos_probe_pair (a text, b text, v text, primary key (a, 
 grant all on public.osionos_probe, public.osionos_probe_pair to anon;
 SQL
 docker run -d --name "${TAG}-rest" --network "${TAG}-net" --network-alias postgrest \
-  -e PGRST_DB_URI="postgres://postgres:scratch@${TAG}-db:5432/postgres" -e PGRST_DB_ANON_ROLE=anon \
+  -e PGRST_DB_URI="postgres://postgres:${PG_PASS}@${TAG}-db:5432/postgres" -e PGRST_DB_ANON_ROLE=anon \
   -e PGRST_DB_SCHEMAS=public "${REST_IMG}" >/dev/null || skip "could not start postgrest"
 kong_scratch_start "${TAG}-kong" "${KONG_IMG}" "${TAG}-net" --network-alias kong || skip "could not start kong"
 kong_scratch_wait "${TAG}-kong" || skip "kong never served :8000"
