@@ -12,22 +12,25 @@ the measured density/latency evidence is [`scale-slo.md`](./scale-slo.md).
 
 ## 1. Status page
 
-A public status page reports per-component health + incident history.
+An opt-in public status page and durable HTTP probe are implemented in
+[`deploy/status`](../../deploy/status/README.md). Run it on an independent host
+with operator-configured real public health URLs. Its read-only `/status.json`
+and page show current freshness-aware component state and failed observations.
+Missing/stale measurements are **unknown**, not invented uptime. No production
+availability measurements or contractual SLA percentages are claimed here.
 
-| Component | Health source | Status |
-|---|---|---|
-| API (Kong front door) | uptime probe of `/` on the ingress | `(TARGET)` — probe not yet wired |
-| Auth | probe `/api/auth/availability` (no `/health` on the gateway) | `(TARGET)` |
-| Data plane | `:4011/metrics` `baas_data_plane_*` + a probe | partially measurable |
-| Realtime | `--healthcheck` + a WS probe | `(TARGET)` |
-| Database | `pg_isready` + replication lag (once HA) | `(TARGET)` |
+The **C7 mechanism** is exercised by `make reliability-test`: local real HTTP
+probe → durable sample → public response, including failures, staleness and
+restart. Production C7 evidence still requires independent deployment and real
+samples; HTTP readiness alone does not prove SQL queries or WebSocket delivery.
 
-**The C7 gate is exactly this:** *the status page reads REAL uptime.* Until a
-probe writes durable availability samples, the page is a static scaffold and the
-SLA below is **not** enforceable. Implementation options (pick one at go-live):
-external synthetic probe (e.g. a 60s curl from an off-box runner writing to a
-time series) → public page (Statuspage/Upptime-style). This is on-demand
-infra, not yet stood up.
+| Component | Required operator evidence |
+|---|---|
+| API/Auth | Configure valid public readiness routes and exact successful response |
+| Data plane | Add meaningful query/readiness probe; metrics alone are not availability |
+| Realtime | Add a WebSocket/message probe; HTTP availability does not prove delivery |
+| Database | Private SQL readiness and replication monitoring, not a public credentialed URL |
+| Backups | Enable verified-completion freshness separately; see recovery runbook |
 
 `security.txt` + a vulnerability-disclosure link live alongside the status page
 (D4.6, Trust Center).
@@ -62,15 +65,16 @@ agreement (legal templates are D4.2).
 | Capability | Target | Honest status |
 |---|---|---|
 | Per-tenant logical backup/restore | available | **shipped** (B6, `TENANT_BACKUP_ENABLED`; schema-per-tenant MVP) |
-| Point-in-time recovery (restore-to-T) | RPO ≤ 5 min `(TARGET)` | **NOT shipped** — needs **C4b** WAL archiving |
+| Point-in-time recovery (restore-to-T) | RPO ≤ 5 min `(TARGET)` | Optional mechanism shipped (`PG_BACKUP_PITR`, m99); production configuration/measurement **not proven** |
 | Full-cluster DR / failover | RTO ≤ 1 h `(TARGET)` | **NOT proven** — needs **C4** failover drill |
 
 > **The binding honesty constraint (plan critic):** RTO/RPO is **only honest WITH
 > C4b PITR**. Do NOT publish an RTO/RPO number to a customer until: (a) C4b WAL
 > archiving + restore-to-timestamp gates, and (b) C4 runs an actual failover
-> drill and records the measured RTO. Until then DR is "logical per-tenant backup
-> exists; cluster-level PITR/failover is roadmap." Anything stronger is a claim
-> without an artifact.
+> drill and records the measured RTO. Logical backups and optional PITR mechanisms
+> exist; production failover and achieved RTO/RPO remain unproven. See
+> [disaster-recovery.md](./disaster-recovery.md) for coverage, monitored schedules,
+> isolated restore, cutover and evidence collection.
 
 ---
 

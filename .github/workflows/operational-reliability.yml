@@ -1,0 +1,29 @@
+name: Operational reliability
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'infra/docker/services/status-page/**'
+      - 'infra/docker/services/pg-backup/**'
+      - 'deploy/status/**'
+      - 'scripts/test/backup-monitor-test.py'
+      - 'scripts/test/recovery-drill-tls-test.py'
+      - 'scripts/verify/m241-status-backup-recovery.sh'
+      - 'scripts/verify/m242-monitored-backup-restore.sh'
+      - 'scripts/verify/recovery-drill-tls.sh'
+      - '.github/workflows/operational-reliability.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  status-backup-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Probe, persistence and isolated PostgreSQL restore
+        run: bash scripts/verify/m241-status-backup-recovery.sh --live
+      - name: Build standalone status page
+        run: docker build infra/docker/services/status-page
