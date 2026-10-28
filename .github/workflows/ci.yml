@@ -125,6 +125,10 @@ jobs:
       - name: remote-access overlay (m219)
         run: bash scripts/verify/m219-remote-access-overlay.sh
 
+      # Static, no stack: Kong's body limit stays at or above every WAF per-path lift.
+      - name: edge body limits (m240)
+        run: bash scripts/verify/m240-edge-body-limits.sh
+
       # Static legs only (no stack here): `make health` parses service edges and Kong routes
       # correctly and is wired to stack-health.sh; its live leg states that it was skipped.
       - name: stack health check (m220)
