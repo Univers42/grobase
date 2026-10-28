@@ -255,3 +255,19 @@ vault-push-env: ## vault42: push every *.env*/*.secrets (any depth) to the REMOT
 vault-pull-env: ## vault42: restore the *.env* tree from the REMOTE ZK vault — DRY-RUN unless APPLY=1 (FORCE=1 overwrites existing files) — passphrase read hidden
 	@FT_PASSPHRASE="$(CTL_PASSPHRASE)" REPO_DIR="$(CURDIR)" CTL_IMAGE="$(CTL_IMAGE)" CTL_CFG_DIR="$(CTL_CFG_DIR)" VAULT_ENV_PROJECT="$(VAULT_ENV_PROJECT)" \
 		sh scripts/vault/ctl-env.sh pull $(if $(filter 1,$(APPLY)),--apply,) $(if $(filter 1,$(FORCE)),--force,)
+
+##@ Reliability — optional backup monitoring and independent status service
+backups-start: ## Start the configured automatic PostgreSQL backup schedule (bootstrap with backup-now)
+	@docker compose --profile backups up -d pg-backup
+
+backup-status: ## Check database/storage reachability and verified backup freshness when monitoring is enabled
+	@docker compose --profile backups exec pg-backup /opt/pg-backup/entrypoint.sh liveness
+
+reliability-test: ## Test real local HTTP/status history and deterministic backup failure paths (no deployed stack)
+	@bash scripts/verify/m241-status-backup-recovery.sh
+
+recovery-drill: ## Isolated Docker PostgreSQL/MinIO monitored backup/restore drill; no production data
+	@bash scripts/verify/m241-status-backup-recovery.sh --live
+
+status-up: ## Opt-in independent status service (configure deploy/status/targets.json first)
+	@docker compose -f deploy/status/compose.yml up --build -d
