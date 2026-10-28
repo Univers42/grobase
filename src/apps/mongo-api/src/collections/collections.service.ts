@@ -25,6 +25,10 @@ import { MongoService } from '@mini-baas/database';
 import { Collection, ObjectId, Sort } from 'mongodb';
 
 const COLLECTION_REGEX = /^[\w-]{1,64}$/;
+// Refused as projection and guard fields only (filters keep accepting them): `projection[field]
+// = 1` on `__proto__` hits the setter and silently voids the projection, and a guard on a
+// prototype name can never match.
+const PROTOTYPE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 export interface PatchOptions {
   fields?: string;
@@ -114,6 +118,11 @@ export class CollectionsService implements OnModuleInit {
     }
   }
 
+  private assertNamedField(field: string): void {
+    this.assertSafeFieldName(field);
+    if (PROTOTYPE_KEYS.has(field)) throw new BadRequestException('Invalid field name');
+  }
+
   private assertNoMongoOperators(value: unknown): void {
     if (Array.isArray(value)) {
       value.forEach((item) => this.assertNoMongoOperators(item));
@@ -149,7 +158,7 @@ export class CollectionsService implements OnModuleInit {
     if (!fields) return undefined;
     const projection: Record<string, 1> = {};
     for (const field of fields.split(',')) {
-      this.assertSafeFieldName(field);
+      this.assertNamedField(field);
       projection[field] = 1;
     }
     return projection;
@@ -158,7 +167,7 @@ export class CollectionsService implements OnModuleInit {
   // A query string carries every value as text; a numeric one also matches the number it
   // spells exactly ("3" matches 3, "03" does not), so a counter like `rev` compares by value.
   private casCondition(field: string, value: string): Record<string, unknown> {
-    this.assertSafeFieldName(field);
+    this.assertNamedField(field);
     const numeric = Number(value);
     const isNumber = value !== '' && String(numeric) === value;
     return { [field]: isNumber ? { $in: [value, numeric] } : value };
@@ -263,7 +272,7 @@ export class CollectionsService implements OnModuleInit {
     const guard =
       opts.ifField === undefined ? {} : this.casCondition(opts.ifField, opts.ifValue ?? '');
     const result = await col.findOneAndUpdate(
-      { ...owned, ...guard },
+      { ...guard, ...owned },
       { $set: { ...clean, updated_at: new Date() } },
       { returnDocument: 'after', projection },
     );

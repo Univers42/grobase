@@ -23,14 +23,14 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard, CurrentUser, UserContext } from '@mini-baas/common';
 import { CollectionsService } from './collections.service';
 import {
   CreateDocumentDto,
   ListDocumentsQueryDto,
   PatchDocumentDto,
-  PatchDocumentQueryDto,
+  readPatchQuery,
 } from './dto/collection.dto';
 
 @ApiTags('collections')
@@ -86,6 +86,9 @@ export class CollectionsController {
   @Patch(':id')
   @ApiParam({ name: 'name' })
   @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'fields', required: false, example: 'title,rev' })
+  @ApiQuery({ name: 'if_field', required: false, example: 'rev' })
+  @ApiQuery({ name: 'if_value', required: false, example: '3' })
   @ApiOperation({
     summary: 'Partial update via $set (409 when if_field no longer equals if_value)',
   })
@@ -94,8 +97,9 @@ export class CollectionsController {
     @Param('name') name: string,
     @Param('id') id: string,
     @Body() dto: PatchDocumentDto,
-    @Query() query: PatchDocumentQueryDto,
+    @Query() raw: Record<string, unknown>,
   ) {
+    const query = readPatchQuery(raw);
     return this.service.patch(name, user.id, id, dto.patch, {
       fields: query.fields,
       ifField: query.if_field,

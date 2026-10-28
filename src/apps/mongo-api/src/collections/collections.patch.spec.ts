@@ -5,6 +5,7 @@ import { ObjectId } from 'mongodb';
 import type { MongoService } from '@mini-baas/database';
 import type { Counter } from 'prom-client';
 import { CollectionsService } from './collections.service';
+import { readPatchQuery } from './dto/collection.dto';
 
 // The projection and compare-and-swap surface of PATCH and list, over one in-memory
 // document. The fake evaluates the filter the service hands the driver (equality and
@@ -187,6 +188,9 @@ describe('PATCH compare-and-swap', () => {
     await expect(
       h.service.patch('hydrawn_boards', OWNER, id, {}, { ifField: 'owner_id', ifValue: OWNER }),
     ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      h.service.patch('hydrawn_boards', OWNER, id, {}, { ifField: '__proto__', ifValue: '3' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
 
@@ -218,10 +222,23 @@ describe('fields projection', () => {
 
   it('refuses owner_id, _id, operators and dotted paths as fields', async () => {
     const h = build(board());
-    for (const fields of ['owner_id', 'slug,_id', '$where', 'a.b']) {
+    for (const fields of ['owner_id', 'slug,_id', '$where', 'a.b', '__proto__', 'constructor']) {
       await expect(
         h.service.findAll('hydrawn_boards', OWNER, { limit: 10, offset: 0, fields }),
       ).rejects.toBeInstanceOf(BadRequestException);
     }
+  });
+});
+
+describe('PATCH query', () => {
+  it('ignores keys other than fields, if_field and if_value', () => {
+    const query = readPatchQuery({ cache_bust: '2', if_field: 'rev', if_value: '3' });
+    expect({ ...query }).toEqual({ fields: undefined, if_field: 'rev', if_value: '3' });
+  });
+
+  it('refuses a malformed or repeated key', () => {
+    expect(() => readPatchQuery({ if_field: 'a.b' })).toThrow(BadRequestException);
+    expect(() => readPatchQuery({ fields: ['a', 'b'] })).toThrow(BadRequestException);
+    expect(() => readPatchQuery({ if_value: 'x'.repeat(257) })).toThrow(BadRequestException);
   });
 });
