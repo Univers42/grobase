@@ -59,7 +59,10 @@ liveness)
     exit 1
   }
   if monitor_on; then
-    monitor_fresh || { echo "No recent verified successful backup"; exit 1; }
+    monitor_fresh || {
+      echo "No recent verified successful backup"
+      exit 1
+    }
   fi
   exit 0
   ;;
