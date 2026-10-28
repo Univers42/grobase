@@ -50,7 +50,10 @@ RUN apt-get update \
 COPY --chown=nginx:root --chmod=0444 conf/nginx.conf        /etc/nginx/conf.d/default.conf
 # The CRS entrypoint's 90-copy-modsecurity-config.sh touches this destination
 # before copying the rendered template over it, so it must remain writable by nginx.
-COPY --chown=nginx:root --chmod=0644 conf/modsecurity.conf  /etc/modsecurity.d/modsecurity-override.conf
+# Copied root-owned and read-only (dockerfile rule: copied resource must not be
+# modifiable by non-root); the RUN below re-grants nginx ownership and write
+# because the CRS entrypoint replaces this file at startup.
+COPY --chown=root:root --chmod=0444 conf/modsecurity.conf  /etc/modsecurity.d/modsecurity-override.conf
 # These two local overrides are not entrypoint destinations; keep them root-owned.
 COPY --chown=root:root --chmod=0444 conf/crs-setup.conf    /etc/modsecurity.d/owasp-crs/crs-setup-override.conf
 COPY --chown=root:root --chmod=0444 conf/exclusions.conf   /etc/modsecurity.d/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf
