@@ -22,8 +22,14 @@ set -euo pipefail
 : "${RESTORE_DATABASE_URL:?must point at the target DB to restore into (NOT prod)}"
 KEY="${1:?artifact key required}"
 if monitor_on; then
-  [[ "${RESTORE_CONFIRM:-}" = RESTORE ]] || { echo "Set RESTORE_CONFIRM=RESTORE for an isolated target" >&2; exit 1; }
-  [[ "$RESTORE_DATABASE_URL" != "${DATABASE_URL:-}" ]] || { echo "Source and restore target must differ" >&2; exit 1; }
+  [[ "${RESTORE_CONFIRM:-}" = RESTORE ]] || {
+    echo "Set RESTORE_CONFIRM=RESTORE for an isolated target" >&2
+    exit 1
+  }
+  [[ "$RESTORE_DATABASE_URL" != "${DATABASE_URL:-}" ]] || {
+    echo "Source and restore target must differ" >&2
+    exit 1
+  }
 fi
 
 # Normalize key into a full mc path.
@@ -37,10 +43,14 @@ if monitor_on; then
   base="baas/${PG_BACKUP_BUCKET:-backups}/${PG_BACKUP_PREFIX:-postgres}/"
   case "$FULL" in
   "${base}"logical/*.dump | "${base}"logical/*.dump.age | "${base}"physical/*) ;;
-  *) echo "Artifact must belong to the configured backup scope" >&2; exit 1 ;;
+  *)
+    echo "Artifact must belong to the configured backup scope" >&2
+    exit 1
+    ;;
   esac
   [[ "$FULL" != *'/../'* && "$FULL" != *'/./'* && "$FULL" != *'//'* ]] || {
-    echo "Invalid artifact path" >&2; exit 1;
+    echo "Invalid artifact path" >&2
+    exit 1
   }
 fi
 
@@ -49,7 +59,11 @@ LOCAL="/restore/$(basename "$KEY")"
 
 echo "[pg-restore] downloading ${FULL} -> ${LOCAL}"
 mc cp "$FULL" "$LOCAL"
-verify_download "$LOCAL" "$FULL" || { echo "Backup checksum verification failed" >&2; rm -f "$LOCAL"; exit 1; }
+verify_download "$LOCAL" "$FULL" || {
+  echo "Backup checksum verification failed" >&2
+  rm -f "$LOCAL"
+  exit 1
+}
 
 if [[ "$LOCAL" == *.age ]]; then
   echo "[pg-restore] decrypting ${LOCAL}"

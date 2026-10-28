@@ -33,7 +33,10 @@ monitor_complete() {
   monitor_on || return 0
   marker="$(mktemp)"
   date -u +%s >"$marker"
-  mc cp "$marker" "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/monitor/last-success" >/dev/null || { rm -f "$marker"; return 1; }
+  mc cp "$marker" "baas/${PG_BACKUP_BUCKET}/${PG_BACKUP_PREFIX}/monitor/last-success" >/dev/null || {
+    rm -f "$marker"
+    return 1
+  }
   rm -f "$marker"
 }
 
@@ -45,7 +48,7 @@ monitor_fresh() {
   at="$(timeout 3 mc cat "baas/${PG_BACKUP_BUCKET:-backups}/${PG_BACKUP_PREFIX:-postgres}/monitor/last-success")" || return 1
   [[ "$at" =~ ^[1-9][0-9]{0,10}$ ]] || return 1
   now="$(date -u +%s)"
-  (( at <= now && now - at <= maximum ))
+  ((at <= now && now - at <= maximum))
 }
 
 # Monitored restore verifies encrypted bytes before decrypting the archive.
