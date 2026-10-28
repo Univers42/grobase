@@ -1,5 +1,7 @@
 """Concrete synthetic availability rules, with live local HTTP and durable reads."""
 import json
+import ssl
+import subprocess
 import tempfile
 import threading
 import time
@@ -9,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from availability import database, initialize, load_targets, probe, sample, snapshot
-from server import StatusHandler
+from server import StatusHandler, secure_server
 
 
 class ProbeHandler(BaseHTTPRequestHandler):
@@ -110,6 +112,55 @@ class AvailabilityTests(unittest.TestCase):
         target["url"] = f"http://127.0.0.1:{peer.server_port}/down"
         sample(self.db, [target], 1, 86400)
         self.assertEqual(snapshot(self.db, [target], 300, 86400)["status"], "degraded")
+
+    def tls_certificate(self):
+        cert = str(Path(self.temporary.name) / "server.crt")
+        key = str(Path(self.temporary.name) / "server.key")
+        subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                        "-days", "1", "-subj", "/CN=localhost", "-addext",
+                        "subjectAltName=DNS:localhost", "-keyout", key, "-out", cert],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return cert, key
+
+    def test_tls_refuses_missing_certificate(self):
+        with self.assertRaises(FileNotFoundError):
+            secure_server(("127.0.0.1", 0), {}, "/missing/cert", "/missing/key")
+
+    def test_verified_tls_and_untrusted_clients(self):
+        from urllib.request import urlopen
+        cert, key = self.tls_certificate()
+        settings = {"db": self.db, "targets": self.targets, "stale": 300, "retention": 86400}
+        public = secure_server(("127.0.0.1", 0), settings, cert, key)
+        threading.Thread(target=public.serve_forever, daemon=True).start()
+        self.addCleanup(public.server_close)
+        self.addCleanup(public.shutdown)
+        base = f"https://localhost:{public.server_port}"
+        trusted = ssl.create_default_context(cafile=cert)
+        with urlopen(base + "/status.json", context=trusted) as response:
+            self.assertEqual(json.load(response)["status"], "unknown")
+        with self.assertRaises(Exception):
+            urlopen(base + "/", context=ssl.create_default_context(), timeout=2)
+        with self.assertRaises(Exception):
+            urlopen(f"https://127.0.0.1:{public.server_port}/", context=trusted, timeout=2)
+
+    def test_static_html_cannot_execute_file_or_component_content(self):
+        from urllib.request import urlopen
+        cert, key = self.tls_certificate()
+        settings = {"db": self.db, "targets": [{"name": "<script>alert(1)</script>", "url": "https://example.org"}], "stale": 300, "retention": 86400}
+        public = secure_server(("127.0.0.1", 0), settings, cert, key)
+        threading.Thread(target=public.serve_forever, daemon=True).start()
+        self.addCleanup(public.server_close)
+        self.addCleanup(public.shutdown)
+        base = f"https://localhost:{public.server_port}"
+        trusted = ssl.create_default_context(cafile=cert)
+        with urlopen(base + "/", context=trusted) as response:
+            policy = response.headers["Content-Security-Policy"]
+            self.assertNotIn("unsafe-inline", policy)
+            self.assertIn("default-src 'none'", policy)
+            self.assertNotIn(b"<script>alert(1)</script>", response.read())
+        with urlopen(base + "/status.json", context=trusted) as response:
+            self.assertEqual(response.headers["Content-Type"], "application/json")
+            self.assertEqual(json.load(response)["components"][0]["name"], "<script>alert(1)</script>")
 
 
 if __name__ == "__main__":

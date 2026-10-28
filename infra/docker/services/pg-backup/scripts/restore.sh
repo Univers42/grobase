@@ -22,8 +22,8 @@ set -euo pipefail
 : "${RESTORE_DATABASE_URL:?must point at the target DB to restore into (NOT prod)}"
 KEY="${1:?artifact key required}"
 if monitor_on; then
-  [ "${RESTORE_CONFIRM:-}" = RESTORE ] || { echo "Set RESTORE_CONFIRM=RESTORE for an isolated target" >&2; exit 1; }
-  [ "$RESTORE_DATABASE_URL" != "${DATABASE_URL:-}" ] || { echo "Source and restore target must differ" >&2; exit 1; }
+  [[ "${RESTORE_CONFIRM:-}" = RESTORE ]] || { echo "Set RESTORE_CONFIRM=RESTORE for an isolated target" >&2; exit 1; }
+  [[ "$RESTORE_DATABASE_URL" != "${DATABASE_URL:-}" ]] || { echo "Source and restore target must differ" >&2; exit 1; }
 fi
 
 # Normalize key into a full mc path.

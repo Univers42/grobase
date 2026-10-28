@@ -7,8 +7,10 @@ on:
       - 'infra/docker/services/pg-backup/**'
       - 'deploy/status/**'
       - 'scripts/test/backup-monitor-test.py'
+      - 'scripts/test/recovery-drill-tls-test.py'
       - 'scripts/verify/m241-status-backup-recovery.sh'
       - 'scripts/verify/m242-monitored-backup-restore.sh'
+      - 'scripts/verify/recovery-drill-tls.sh'
       - '.github/workflows/operational-reliability.yml'
   workflow_dispatch:
 permissions:
