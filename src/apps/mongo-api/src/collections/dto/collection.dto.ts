@@ -10,6 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
+import { BadRequestException } from '@nestjs/common';
 import {
   IsInt,
   IsObject,
@@ -19,9 +20,10 @@ import {
   Max,
   MaxLength,
   Min,
+  validateSync,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { plainToInstance, Type } from 'class-transformer';
 
 export class CreateDocumentDto {
   @ApiProperty({ description: 'Document data (owner_id and _id are injected server-side)' })
@@ -96,4 +98,24 @@ export class ListDocumentsQueryDto {
   @IsString()
   @Matches(FIELDS_PATTERN, { message: 'fields must be comma-separated field names' })
   fields?: string;
+}
+
+/**
+ * The PATCH query keys, validated as PatchDocumentQueryDto. Read by hand rather than bound
+ * with @Query(): the global pipe forbids unknown keys, and PATCH ignored every query key
+ * before these three existed, so a client's cache-buster must keep working.
+ */
+export function readPatchQuery(raw: Record<string, unknown>): PatchDocumentQueryDto {
+  const query = plainToInstance(PatchDocumentQueryDto, {
+    fields: raw['fields'],
+    if_field: raw['if_field'],
+    if_value: raw['if_value'],
+  });
+  const errors = validateSync(query);
+  if (errors.length > 0) {
+    throw new BadRequestException(
+      errors.flatMap((error) => Object.values(error.constraints ?? {})),
+    );
+  }
+  return query;
 }

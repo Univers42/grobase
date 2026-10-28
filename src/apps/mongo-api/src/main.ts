@@ -17,7 +17,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger as PinoLogger } from 'nestjs-pino';
 import { urlencoded } from 'express';
 import { AppModule } from './app.module';
-import { DEFAULT_BIG_JSON_LIMIT, jsonBodyParser, parseBigCollections } from './body-limits';
+import { bigJsonLimit, jsonBodyParser, parseBigCollections } from './body-limits';
 import {
   AllExceptionsFilter,
   CorrelationIdInterceptor,
@@ -35,12 +35,14 @@ async function bootstrap() {
 
   app.useLogger(app.get(PinoLogger));
   applySecurityMiddleware(app);
-  app.use(
-    jsonBodyParser(
-      parseBigCollections(config.get<string>('MONGO_API_BIG_COLLECTIONS')),
-      config.get<string>('MONGO_API_BIG_JSON_LIMIT', DEFAULT_BIG_JSON_LIMIT),
-    ),
-  );
+  const big = parseBigCollections(config.get<string>('MONGO_API_BIG_COLLECTIONS'));
+  if (big.rejected.length > 0) {
+    Logger.warn(
+      `MONGO_API_BIG_COLLECTIONS ignores invalid names: ${big.rejected.join(', ')}`,
+      'Bootstrap',
+    );
+  }
+  app.use(jsonBodyParser(big.names, bigJsonLimit(config.get<string>('MONGO_API_BIG_JSON_LIMIT'))));
   app.use(urlencoded({ extended: true }));
   app.useGlobalPipes(createValidationPipe());
   app.useGlobalFilters(new AllExceptionsFilter());

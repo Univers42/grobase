@@ -22,7 +22,7 @@ Mongo : collections au lieu de tables, ObjectId, schémas optionnels. Le
 | `POST` | `/collections/:name/documents` | Insert document |
 | `GET` | `/collections/:name/documents` | List avec filter/sort/limit, `fields=a,b` (projection, `id` toujours rendu) |
 | `GET` | `/collections/:name/documents/:id` | Get par id |
-| `PATCH` | `/collections/:name/documents/:id` | Update partial ; `fields=` ; `if_field=rev&if_value=3` → 409 si le champ a bougé |
+| `PATCH` | `/collections/:name/documents/:id` | Update partial ; `fields=` ; `if_field=rev&if_value=3` → 409 si le champ a bougé (garde : chaîne ou nombre exact seulement, voir plus bas) ; les autres clés de query sont ignorées |
 | `DELETE` | `/collections/:name/documents/:id` | Delete |
 | `GET` | `/admin/collections` | Liste les collections du DB |
 | `GET` | `/admin/schemas/:name` | Voir un JSON Schema enregistré |
@@ -30,6 +30,15 @@ Mongo : collections au lieu de tables, ObjectId, schémas optionnels. Le
 | `DELETE` | `/admin/schemas/:name` | Supprime le schema (les writes futures ne sont plus validées) |
 | `POST` | `/admin/indexes/:name` | Crée un index |
 | `GET` | `/docs` · `/docs-json` | OpenAPI |
+
+### Garde compare-and-swap (`if_field` / `if_value`)
+
+La query string porte du texte : `if_value` égale un champ chaîne, ou un champ nombre
+qu'il écrit exactement (`3` égale 3, `03`, `3.0` ou `1e3` jamais). Un booléen, une date,
+`null` ou un tableau ne se gardent pas : un booléen ou une date répond toujours 409
+(`updated_at` aussi, le PATCH le réécrit), et un tableau égale dès qu'il *contient* la
+valeur, donc la garde laisse passer une écriture concurrente. Garder un compteur
+(`rev`) que chaque écriture incrémente. Gate : `scripts/verify/m239-mongo-api-body-limits-cas.sh`.
 
 ## Sécurité
 
@@ -98,6 +107,6 @@ python3 apps/baas/mini-baas-infra/scripts/phase15-mongo-mvp-test.py
 | `PORT` | 3010 |
 | `MONGO_URL` | DSN Mongo (replica set requis) |
 | `MONGO_DB_NAME` | DB cible (default `mini_baas`) |
-| `MONGO_API_BIG_COLLECTIONS` | Collections (liste `,`) dont le corps JSON va jusqu'à `MONGO_API_BIG_JSON_LIMIT` ; les autres restent à 100 KB (default vide) |
-| `MONGO_API_BIG_JSON_LIMIT` | Limite de ces collections (default `8mb`) ; prévoir `MONGO_API_MEM_LIMIT=256m` + `MONGO_API_HEAP_MB=192` (compose) |
+| `MONGO_API_BIG_COLLECTIONS` | Collections (liste `,`) dont le corps JSON va jusqu'à `MONGO_API_BIG_JSON_LIMIT`, pour un appelant à l'identité vérifiée seulement (un anonyme reste à 100 KB) ; les autres restent à 100 KB (default vide ; un nom invalide est ignoré avec un warn au boot) |
+| `MONGO_API_BIG_JSON_LIMIT` | Limite de ces collections (default `8mb`, aussi si vide ou invalide) ; prévoir `MONGO_API_MEM_LIMIT=256m` + `MONGO_API_HEAP_MB=192` (compose) |
 | `DATABASE_URL` | Pool PG pour audit_log |

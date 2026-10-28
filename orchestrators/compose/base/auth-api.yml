@@ -259,9 +259,10 @@ services:
       MONGO_MOCK_COLLECTION:
       PORT: 3010
       # A collection named in MONGO_API_BIG_COLLECTIONS (.env.mongo-api) takes JSON bodies up
-      # to MONGO_API_BIG_JSON_LIMIT (8mb): one 8 MB scene of small objects peaked at +57 MB heap
-      # through express.json + BSON.serialize (measured 2026-10-28, node 22), more than 128m
-      # leaves beside a running service. Enable it with MONGO_API_MEM_LIMIT=256m and
+      # to MONGO_API_BIG_JSON_LIMIT (8mb) from a verified caller (anonymous stays at 100 KB,
+      # gate m239); concurrent signed-in uploads are not capped here. One 8 MB scene of small
+      # objects peaked at +57 MB heap through express.json + BSON.serialize (measured
+      # 2026-10-28, node 22), more than 128m leaves beside a running service. Enable it with MONGO_API_MEM_LIMIT=256m and
       # MONGO_API_HEAP_MB=192 in the root .env; the defaults below are the unchanged budget.
       NODE_OPTIONS: --max-old-space-size=${MONGO_API_HEAP_MB:-96} # 75% of mem_limit: V8 sizes its heap from host RAM, not the cgroup (gate m185)
       MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-mongo}:${MONGO_INITDB_ROOT_PASSWORD:?unset - run make env}@mongo:27017
