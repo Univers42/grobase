@@ -57,7 +57,8 @@ COPY --chown=root:root --chmod=0444 conf/modsecurity.conf  /etc/modsecurity.d/mo
 # These two local overrides are not entrypoint destinations; keep them root-owned.
 COPY --chown=root:root --chmod=0444 conf/crs-setup.conf    /etc/modsecurity.d/owasp-crs/crs-setup-override.conf
 COPY --chown=root:root --chmod=0444 conf/exclusions.conf   /etc/modsecurity.d/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf
-COPY --chown=nginx:root --chmod=0444 conf/operator-addresses.txt /etc/modsecurity.d/operator-addresses.txt
+# Read-only data file: root-owned so no non-root user can modify it (SonarCloud dockerfile rule).
+COPY --chown=root:root --chmod=0444 conf/operator-addresses.txt /etc/modsecurity.d/operator-addresses.txt
 # Keep the custom CRS rules directory non-writable so nginx cannot replace the
 # root-owned exclusion file; only runtime-managed paths are owned by nginx.
 RUN chown -R nginx:root /etc/nginx /var/cache/nginx /var/log/nginx /var/run \
