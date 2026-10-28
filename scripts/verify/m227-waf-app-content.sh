@@ -35,6 +35,13 @@
 #  (1 MiB) limits on /rest/v1/osionos_object_databases alone: a database is    #
 #  saved whole, one JSON leaf per argument, and a 36-row CRM (~1,500 leaves)   #
 #  was refused by 200007 on every save (2026-10-21, b2b WAF log).              #
+#  It raises the body limit to 2 MiB on the hydrawn_boards document paths and  #
+#  1 MiB on hydrawn_thumbnails: the osionos bridge stores a whiteboard as one  #
+#  mongo-api document and a 200 KB board was refused by 200002 (2026-10-28,    #
+#  live WAF probe). Rule 10170 lifts the injection families and 921130 on the  #
+#  board's scene alone; 10171-10173 refuse more than 32 arguments, or any      #
+#  other argument or name over 1 KiB, on those paths before CRS reads them (an #
+#  8.5 MiB title took 7.5 s and OOM-killed a worker, 2026-10-28).              #
 #                                                                              #
 #  This gate boots the WAF image with the tree's exclusions file on a private  #
 #  network whose `kong` answers 200, then:                                     #
@@ -261,6 +268,32 @@ probe() {
       "&code=4%2F0AUn6Hd8fake&scope=email%20profile%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile" +
       "%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email%20openid&authuser=0&prompt=consent";
     const funnel = { "Tailscale-Funnel-Request": "?1" };
+    // A hydrawn board as the osionos bridge stores it: the scene is one JSON string. Pictures are
+    // seeded bytes (a PNG signature, then a sha256 chain) so every run sends the same base64.
+    const seeded = (n) => { const out = Buffer.alloc(n); let h = Buffer.from("m227");
+      for (let o = 0; o < n; o += 32) { h = require("crypto").createHash("sha256").update(h).digest(); h.copy(out, o); }
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(out); return out; };
+    const drawn = ["console.log(\"hi\"); fetch(url).then((r) => r.json())", sqli, script, "HTTP/2 vs HTTP/3",
+      "<html><meta charset=utf-8>", "../../etc/passwd", "{{7*7}}", "http://169.254.169.254/latest/meta-data/",
+      "$(rm -rf /) <?php system($_GET[\"x\"]); ?>", "document.cookie = \"a=1\""];
+    const scene = (pictureBytes) => JSON.stringify({ type: "hydrawn", version: 1,
+      elements: drawn.map((text, i) => ({ id: "e" + i, type: "text", x: i * 10, y: 0, width: 200, height: 24, text })),
+      files: pictureBytes ? { p1: { mimeType: "image/png", dataURL: "data:image/png;base64," + seeded(pictureBytes).toString("base64") } } : {} });
+    const board = (sceneText, extra) => ({ data: { slug: "k3x9-plan", title: "Plan", scene: sceneText, element_count: drawn.length,
+      entry_count: 0, rev: 1, thumbnail_at: null, deleted_at: null, ...extra } });
+    const wbDocs = "/mongo/v1/collections/hydrawn_boards/documents";
+    const wbId = "6720a1b2c3d4e5f6a7b8c9d0";
+    const wbSave = wbDocs + "/" + wbId + "?if_field=rev&if_value=1&fields=slug,title,rev";
+    const thumbs = "/mongo/v1/collections/hydrawn_thumbnails/documents";
+    const hostile = scene(0);
+    const wbLarge = board(scene(1500000));
+    const wbOver = board(scene(1600000));
+    const png = seeded(512 * 1024).toString("base64");
+    const wbDrift = [wbDocs + "-x", wbDocs + "/", wbDocs + "%3F/../x", "/mongo/v1/collections/hydrawn_boards//documents",
+      "/mongo/v1/collections/hydrawn_boards%2Fdocuments", "/mongo/v1/collections/x/../hydrawn_boards/documents",
+      wbDocs + "/%2e%2e/" + wbId, wbDocs + ";x", wbDocs + "/" + wbId.toUpperCase(), wbDocs + "/" + wbId.slice(1),
+      wbDocs + "/" + wbId + "a", "/mongo/v1/collections/hydrawn_boards/Documents", "/mongo/v1/collections/HYDRAWN_BOARDS/documents",
+      wbDocs + "%00", wbDocs + "/" + wbId + "/x", "/mongo/v1/collections/hydrawn_boards_x/documents"];
     const probes = [
       ["content-post-code", "POST", "/rest/v1/osionos_pages", code],
       ["content-patch-code", "PATCH", "/rest/v1/osionos_pages?id=eq.6f1c0f5e-0000-4000-8000-000000000001", code],
@@ -332,6 +365,37 @@ probe() {
       ["control-oauth-slash", "GET", oauthCallback + "/?" + googleCallback, undefined],
       ["control-oauth-encoded", "GET", oauthCallback + "%3F/../token?" + googleCallback, undefined],
       ["control-oauth-elsewhere", "GET", "/auth/v1/token?" + googleCallback, undefined],
+      ["content-wb-post-scene", "POST", wbDocs, board(hostile)],
+      ["content-wb-patch-scene", "PATCH", wbSave, { patch: { scene: hostile, rev: 2, element_count: drawn.length } }],
+      ["content-wb-large", "POST", wbDocs, wbLarge],
+      ["content-wb-large-patch", "PATCH", wbSave, { patch: { scene: wbLarge.data.scene, rev: 2 } }],
+      ["content-wb-thumbnail", "POST", thumbs, { data: { slug: "k3x9-plan", png } }],
+      ["content-wb-thumbnail-patch", "PATCH", thumbs + "/" + wbId + "?fields=slug", { patch: { png } }],
+      ["control-wb-title", "POST", wbDocs, board(hostile, { title: script })],
+      ["control-wb-other-arg", "POST", wbDocs, board(hostile, { note: script })],
+      ["control-wb-query", "PATCH", wbSave + "&x=" + encodeURIComponent(script), { patch: { scene: hostile } }],
+      ["control-wb-header", "POST", wbDocs, null],
+      ["control-wb-case", "POST", wbDocs, { Data: { scene: hostile } }],
+      ["control-wb-nested", "POST", wbDocs, { data: { scene: { text: script } } }],
+      ["control-wb-get", "GET", wbDocs, board(hostile)],
+      ["control-wb-put", "PUT", wbDocs + "/" + wbId, { patch: { scene: hostile } }],
+      ["control-wb-delete", "DELETE", wbDocs + "/" + wbId, { patch: { scene: hostile } }],
+      ["control-wb-thumbnail-scene", "POST", thumbs, board(script)],
+      ["control-wb-other-collection", "POST", "/mongo/v1/collections/notes/documents", board(hostile)],
+      ...wbDrift.map((p) => ["drift-wb-scene:" + p, "POST", p, board(hostile)]),
+      ...wbDrift.map((p) => ["drift-wb-large:" + p, "POST", p, wbLarge]),
+      ["limit-wb-over-cap", "POST", wbDocs, wbOver],
+      ["limit-wb-thumbnail-over-cap", "POST", thumbs, { data: { slug: "k3x9-plan", png: seeded(800 * 1024).toString("base64") } }],
+      ["limit-wb-thumbnail-board-size", "POST", thumbs, wbLarge],
+      ["limit-wb-other-collection", "POST", "/mongo/v1/collections/notes/documents", { data: { png } }],
+      ["limit-wb-other-collection-200k", "POST", "/mongo/v1/collections/notes/documents", { data: { png: png.slice(0, 200000) } }],
+      ["limit-wb-arguments", "POST", wbDocs, { data: Object.fromEntries(Array.from({ length: 1001 }, (_, i) => ["k" + i, i])) }],
+      ["limit-wb-arguments-33", "POST", wbDocs, board(hostile, Object.fromEntries(Array.from({ length: 25 }, (_, i) => ["k" + i, i])))],
+      ["limit-wb-title-1k", "POST", wbDocs, board(hostile, { title: "a".repeat(1025) })],
+      ["limit-wb-patch-title-1k", "PATCH", wbSave, { patch: { scene: hostile, title: "a".repeat(1025) } }],
+      ["limit-wb-key-1k", "POST", wbDocs, board(hostile, { ["k".repeat(1025)]: 1 })],
+      ["limit-wb-board-png", "POST", wbDocs, board(hostile, { png: "A".repeat(2048) })],
+      ["limit-wb-thumbnail-1k", "POST", thumbs, { data: { slug: "k3x9-plan", png, note: "a".repeat(1025) } }],
       ["public-funnel-query", "POST", runner, raw, funnel],
       ["funnel-encoded-a", "GET", "/%61dmin/v1/tenants", undefined, funnel],
       ["funnel-double-slash", "GET", "/admin//v1/tenants", undefined, funnel],
@@ -346,6 +410,18 @@ probe() {
         ["xrealip-kong:" + p, "GET", p, undefined, { "X-Real-IP": "127.0.0.1", "X-Forwarded-For": "127.0.0.1" }]]),
     ];
     (async () => { for (const [label, m, p, b, h] of probes) console.log((await send(m, p, b, h)) + " " + label); })();'
+}
+
+# expect_refused RESULTS PREFIX: every probe whose label starts with PREFIX was refused, by the
+# WAF's 403 or by a 400 (nginx's raw-URI guard, or ModSecurity's body limit).
+expect_refused() {
+  local line got n=0
+  while read -r got line; do
+    case "${line}" in "$2"*) ;; *) continue ;; esac
+    n=$((n + 1))
+    case "${got}" in 400 | 403) ok "${line}: ${got}" ;; *) bad "${line}: ${got}, want 400 or 403" ;; esac
+  done <<<"$1"
+  [ "${n}" -gt 0 ] || bad "no '$2' probe ran"
 }
 
 # logs_have NAME TEXT: container NAME's log holds TEXT. Read whole first: under pipefail,
@@ -401,6 +477,9 @@ fi
 
 step "3b/6 a whole object database fits its path's limits; every other path keeps the image's"
 expect_all "${results}" limit- 400
+
+step "3c/6 a whiteboard path that only normalises to the board paths gets neither the lift nor the limit"
+expect_refused "${results}" drift-
 
 step "4/6 the internet never reaches a private route; the tailnet and the public routes still do"
 expect_all "${results}" funnel- 403
@@ -487,6 +566,12 @@ mutant 10150 403 "${EMAIL_LABELS[@]}"
 line_mutant 921130\;ARGS:json.html 403 "${EMAIL_LABELS[@]}"
 line_mutant 'attack-xss;ARGS:json.html' 403 "${EMAIL_LABELS[@]}"
 mutant 10160 403 content-oauth-google-callback
+mutant 10170 403 content-wb-post-scene content-wb-patch-scene
+line_mutant '921130;ARGS:json.data.scene' 403 content-wb-post-scene
+line_mutant '921130;ARGS:json.patch.scene' 403 content-wb-patch-scene
+mutant 10171 200 limit-wb-arguments-33
+mutant 10172 200 limit-wb-title-1k limit-wb-patch-title-1k limit-wb-key-1k limit-wb-board-png
+mutant 10173 200 limit-wb-thumbnail-1k
 OPERATORS="${WAF_CONF}/operator-addresses.txt" mutant 10131 200 tailnet-kong:/admin/v1/tenants tailnet-kong:/meta/v1 tailnet-kong:/realtime/v1/publish xrealip-kong:/admin/v1/tenants
 mutant 10130 200 funnel-kong:/admin/v1/tenants funnel-kong:/meta/v1 funnel-kong:/realtime/v1/publish funnel-encoded-a funnel-double-slash funnel-migrate-post
 awk '/^    location = \/rest\/v1\/osionos_object_databases \{/ { skip = 1 } !skip { print } skip && /^    \}/ { skip = 0 }' \
@@ -501,6 +586,20 @@ else
     got="$(awk -v l="${label}" '$2 == l { print $1 }' <<<"${out}")"
     [ "${got}" = 400 ] && ok "without the object-database location: ${label} answered 400 — the probe sees the raised limits" ||
       bad "without the object-database location: ${label} answered '${got}', not 400 — the probe is blind"
+  done
+fi
+awk '/^    location ~ "\^\/mongo\/v1\/collections\/hydrawn_/ { skip = 1 } !skip { print } skip && /^    \}/ { skip = 0 }' \
+  "${WAF_CONF}/nginx.conf" >"${WORK}/nginx-no-wb.conf"
+if cmp -s "${WAF_CONF}/nginx.conf" "${WORK}/nginx-no-wb.conf" || grep -q 'collections/hydrawn_' "${WORK}/nginx-no-wb.conf"; then
+  bad "mutant: the whiteboard locations were not found in nginx.conf — rebuild this leg"
+elif ! NGINX_CONF="${WORK}/nginx-no-wb.conf" start_waf "${TAG}-mutwb" "${EXCL}"; then
+  bad "mutant: the WAF did not start without the whiteboard locations"
+else
+  out="$(probe "${TAG}-mutwb")"
+  for label in content-wb-large content-wb-large-patch content-wb-thumbnail content-wb-thumbnail-patch; do
+    got="$(awk -v l="${label}" '$2 == l { print $1 }' <<<"${out}")"
+    [ "${got}" = 400 ] && ok "without the whiteboard locations: ${label} answered 400 — the probe sees the raised limits" ||
+      bad "without the whiteboard locations: ${label} answered '${got}', not 400 — the probe is blind"
   done
 fi
 if ! start_waf "${TAG}-mutaudit" "${EXCL}" MODSEC_AUDIT_LOG_PARTS=ABIJDEFHZ; then
