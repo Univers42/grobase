@@ -20,9 +20,9 @@ Mongo : collections au lieu de tables, ObjectId, schémas optionnels. Le
 |---|---|---|
 | `GET` | `/health/live` · `/health/ready` · `/health` | Probes |
 | `POST` | `/collections/:name/documents` | Insert document |
-| `GET` | `/collections/:name/documents` | List avec filter/sort/limit |
+| `GET` | `/collections/:name/documents` | List avec filter/sort/limit, `fields=a,b` (projection, `id` toujours rendu) |
 | `GET` | `/collections/:name/documents/:id` | Get par id |
-| `PATCH` | `/collections/:name/documents/:id` | Update partial |
+| `PATCH` | `/collections/:name/documents/:id` | Update partial ; `fields=` ; `if_field=rev&if_value=3` → 409 si le champ a bougé |
 | `DELETE` | `/collections/:name/documents/:id` | Delete |
 | `GET` | `/admin/collections` | Liste les collections du DB |
 | `GET` | `/admin/schemas/:name` | Voir un JSON Schema enregistré |
@@ -98,4 +98,6 @@ python3 apps/baas/mini-baas-infra/scripts/phase15-mongo-mvp-test.py
 | `PORT` | 3010 |
 | `MONGO_URL` | DSN Mongo (replica set requis) |
 | `MONGO_DB_NAME` | DB cible (default `mini_baas`) |
+| `MONGO_API_BIG_COLLECTIONS` | Collections (liste `,`) dont le corps JSON va jusqu'à `MONGO_API_BIG_JSON_LIMIT` ; les autres restent à 100 KB (default vide) |
+| `MONGO_API_BIG_JSON_LIMIT` | Limite de ces collections (default `8mb`) ; prévoir `MONGO_API_MEM_LIMIT=256m` + `MONGO_API_HEAP_MB=192` (compose) |
 | `DATABASE_URL` | Pool PG pour audit_log |

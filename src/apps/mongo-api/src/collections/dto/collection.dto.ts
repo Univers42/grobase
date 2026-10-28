@@ -10,7 +10,16 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-import { IsInt, IsObject, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import {
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -24,6 +33,35 @@ export class PatchDocumentDto {
   @ApiProperty({ description: 'Fields to update via $set' })
   @IsObject()
   patch!: Record<string, unknown>;
+}
+
+const FIELDS_PATTERN = /^\w+(,\w+){0,31}$/;
+const FIELDS_DOC = 'Comma-separated fields to return (id is always returned)';
+
+export class PatchDocumentQueryDto {
+  @ApiPropertyOptional({ example: 'title,rev', description: FIELDS_DOC })
+  @IsOptional()
+  @IsString()
+  @Matches(FIELDS_PATTERN, { message: 'fields must be comma-separated field names' })
+  fields?: string;
+
+  @ApiPropertyOptional({
+    example: 'rev',
+    description: 'Update only while this field equals if_value',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\w+$/, { message: 'if_field must be a field name' })
+  if_field?: string;
+
+  @ApiPropertyOptional({
+    example: '3',
+    description: 'Expected value of if_field (409 when it differs)',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  if_value?: string;
 }
 
 export class ListDocumentsQueryDto {
@@ -52,4 +90,10 @@ export class ListDocumentsQueryDto {
   @IsOptional()
   @IsString()
   filter?: string;
+
+  @ApiPropertyOptional({ example: 'title,updated_at', description: FIELDS_DOC })
+  @IsOptional()
+  @IsString()
+  @Matches(FIELDS_PATTERN, { message: 'fields must be comma-separated field names' })
+  fields?: string;
 }
