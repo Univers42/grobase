@@ -23,10 +23,15 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard, CurrentUser, UserContext } from '@mini-baas/common';
 import { CollectionsService } from './collections.service';
-import { CreateDocumentDto, ListDocumentsQueryDto, PatchDocumentDto } from './dto/collection.dto';
+import {
+  CreateDocumentDto,
+  ListDocumentsQueryDto,
+  PatchDocumentDto,
+  readPatchQuery,
+} from './dto/collection.dto';
 
 @ApiTags('collections')
 @Controller('collections/:name/documents')
@@ -62,6 +67,7 @@ export class CollectionsController {
       offset: query.offset ?? 0,
       sort: query.sort,
       filter: query.filter,
+      fields: query.fields,
     });
   }
 
@@ -80,14 +86,25 @@ export class CollectionsController {
   @Patch(':id')
   @ApiParam({ name: 'name' })
   @ApiParam({ name: 'id' })
-  @ApiOperation({ summary: 'Partial update via $set' })
+  @ApiQuery({ name: 'fields', required: false, example: 'title,rev' })
+  @ApiQuery({ name: 'if_field', required: false, example: 'rev' })
+  @ApiQuery({ name: 'if_value', required: false, example: '3' })
+  @ApiOperation({
+    summary: 'Partial update via $set (409 when if_field no longer equals if_value)',
+  })
   async patch(
     @CurrentUser() user: UserContext,
     @Param('name') name: string,
     @Param('id') id: string,
     @Body() dto: PatchDocumentDto,
+    @Query() raw: Record<string, unknown>,
   ) {
-    return this.service.patch(name, user.id, id, dto.patch);
+    const query = readPatchQuery(raw);
+    return this.service.patch(name, user.id, id, dto.patch, {
+      fields: query.fields,
+      ifField: query.if_field,
+      ifValue: query.if_value,
+    });
   }
 
   @Delete(':id')
