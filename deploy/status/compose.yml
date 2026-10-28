@@ -1,0 +1,23 @@
+# Standalone, opt-in; run on a separate host to observe a backend-host outage.
+services:
+  status-page:
+    build:
+      context: ../../infra/docker/services/status-page
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8080"
+    volumes:
+      - ./targets.json:/config/targets.json:ro
+      - status-history:/data
+    environment:
+      STATUS_INTERVAL_SECONDS: ${STATUS_INTERVAL_SECONDS:-60}
+      STATUS_TIMEOUT_SECONDS: ${STATUS_TIMEOUT_SECONDS:-5}
+      STATUS_STALE_SECONDS: ${STATUS_STALE_SECONDS:-300}
+      STATUS_RETENTION_DAYS: ${STATUS_RETENTION_DAYS:-30}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.25
+volumes:
+  status-history:
