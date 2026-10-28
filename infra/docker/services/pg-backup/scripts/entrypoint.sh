@@ -13,6 +13,8 @@
 set -euo pipefail
 
 MODE="${1:-loop}"
+# shellcheck source=monitor.sh
+. "$(dirname "$0")/monitor.sh"
 
 mc_alias() {
   local endpoint="${MINIO_ENDPOINT:-http://minio:9000}"
@@ -56,6 +58,12 @@ liveness)
     echo "MinIO does not answer at ${MINIO_ENDPOINT:-http://minio:9000} with these credentials"
     exit 1
   }
+  if monitor_on; then
+    monitor_fresh || {
+      echo "No recent verified successful backup"
+      exit 1
+    }
+  fi
   exit 0
   ;;
 
