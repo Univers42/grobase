@@ -134,6 +134,11 @@ jobs:
       - name: multidb workspace seeder plan (m257)
         run: bash scripts/verify/m257-multidb-workspace-plan.sh
 
+      # Static, no stack: every normalizer emits the G7 types and the DDL type list agrees
+      # across Rust, TS, SDK and openapi; the live round trip runs on the VM per mount.
+      - name: normalized type round trip (m249)
+        run: bash scripts/verify/m249-type-round-trip.sh
+
       # Static legs only (no stack here): `make health` parses service edges and Kong routes
       # correctly and is wired to stack-health.sh; its live leg states that it was skipped.
       - name: stack health check (m220)
