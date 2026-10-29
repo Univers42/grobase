@@ -19,6 +19,7 @@
 //! the same statements.
 
 use super::adapter::{PgDialect, PostgresPool};
+use super::cell::JsonCell;
 use super::{convert, schema, tx, BoxedParam};
 use async_trait::async_trait;
 use data_plane_core::{
@@ -27,6 +28,7 @@ use data_plane_core::{
     SchemaDescriptor, TxBeginRequest, TxHandle,
 };
 use serde_json::Value;
+use std::error::Error as _;
 use tokio::sync::Mutex;
 
 #[async_trait]
@@ -148,7 +150,7 @@ impl EnginePool for PostgresPool {
         statement: RawStatement,
         _identity: RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
-        let mut client = self.pool.get().await.map_err(|e| DataPlaneError::Backend {
+        let client = self.pool.get().await.map_err(|e| DataPlaneError::Backend {
             message: format!("pool checkout failed: {e}"),
         })?;
         let params: Vec<BoxedParam> = statement.params.iter().map(convert::json_param).collect();
@@ -160,23 +162,11 @@ impl EnginePool for PostgresPool {
                 )
                 .await
                 .map_err(|e| convert::backend(&e))?;
-            // Use `to_jsonb(row)` would require wrapping; instead serialise
-            // each cell into a JSON object keyed by column name.
-            let data: Vec<Value> = rows
+            let data = rows
                 .iter()
-                .map(|r| {
-                    let mut obj = serde_json::Map::new();
-                    for (idx, col) in r.columns().iter().enumerate() {
-                        let value: Value = r.try_get::<_, Value>(idx).unwrap_or(Value::Null);
-                        obj.insert(col.name().to_string(), value);
-                    }
-                    Value::Object(obj)
-                })
-                .collect();
+                .map(raw_row_object)
+                .collect::<DataPlaneResult<Vec<Value>>>()?;
             let affected = data.len() as u64;
-            // Re-borrow as mutable just to satisfy the type checker — no
-            // method-call needed here, but the Object is kept alive.
-            let _ = &mut client;
             Ok(DataResult::new(data, affected))
         } else {
             let affected = client
@@ -229,4 +219,24 @@ impl EnginePool for PostgresPool {
         )
         .await
     }
+}
+
+/// One raw-read row as a JSON object keyed by column name. A column whose
+/// type has no decoder fails the read with its name, rather than reading null.
+fn raw_row_object(row: &tokio_postgres::Row) -> DataPlaneResult<Value> {
+    let mut object = serde_json::Map::new();
+    for (index, column) in row.columns().iter().enumerate() {
+        let cell: JsonCell = row
+            .try_get(index)
+            .map_err(|e| DataPlaneError::InvalidRequest {
+                message: format!(
+                    "column `{}`: {}",
+                    column.name(),
+                    e.source()
+                        .map_or_else(|| e.to_string(), ToString::to_string)
+                ),
+            })?;
+        object.insert(column.name().to_string(), cell.0);
+    }
+    Ok(Value::Object(object))
 }

@@ -190,7 +190,7 @@ impl ToSql for JsonParam {
 /// ndigits, i16 weight (position of the most significant base-10000 group
 /// relative to the decimal point), u16 sign (0x0000 +, 0x4000 −), u16 dscale
 /// (decimal digits after the point), then ndigits × i16 base-10000 groups.
-fn write_pg_numeric(
+pub(super) fn write_pg_numeric(
     text: &str,
     out: &mut BytesMut,
 ) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
