@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/10/29 20:30:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/10/29 20:30:00 by dlesieur         ###   ########.fr       #
+#    Updated: 2026/10/29 21:30:00 by dlesieur         ###   ########.fr       #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -81,7 +81,7 @@ allowed = {"id","name","engine","isolation","credential_mode","location","host",
 extra = set(d) - allowed
 bad = [k for k, v in d.items() if isinstance(v, str) and ("://" in v or "@" in v or "password" in v.lower())]
 if extra or bad: sys.exit(f"keys {sorted(extra)} / DSN-shaped {bad}")
-print(f"{d[\"engine\"]:<12} {d[\"location\"]:<9} {d.get(\"host\") or d.get(\"file\") or \"-\"} tls={d[\"tls\"]}")
+print("%-12s %-9s %s tls=%s" % (d["engine"], d["location"], d.get("host") or d.get("file") or "-", d["tls"]))
 ' <<<"${out%$'\n'*}" || fail "${id}: descriptor carries more than its location"
 done
 printf '\033[32mm246 passed (static + live)\033[0m\n'
