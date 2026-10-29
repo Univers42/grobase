@@ -165,9 +165,13 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 - [x] Commit/rollback get the tenant check execute already has (`transactions.rs:130-137`).
       *(G1d: `take_for_tenant` checks and removes under one lock; the router sends
       the identity; an empty body still finalises, as before.)*
-- [ ] `applyDdl` fails closed with no identity (today falls back to `userId`,
+- [~] `applyDdl` fails closed with no identity (today falls back to `userId`,
       `schema.service.ts:159`); DDL on static mounts only for service_role; the JWT role
       vocabulary is proven before the JWT branch is coded.
+      *(G1e: `applyDdl` refuses 403 without a verified tenant, before any lookup.
+      G1g (ADR 0009): only a Kong-signed app key with `write`/`admin` may run DDL, so a
+      read-only key and a JWT user get 403; JWT DDL is declined
+      (`.out-of-scope/jwt-user-schema-ddl.md`). Static mounts: #78.)*
 - [~] Modes off / shadow / enforce. Off = today, proven by m18 + parity unchanged.
       *(G1a: modes + flag land, default off. G1b: the query-router signs its
       `/v1` calls. G1c: compose passes the flag, default off.)*
