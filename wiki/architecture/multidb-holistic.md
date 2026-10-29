@@ -238,9 +238,30 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       stored as data, not app code (zero app code in grobase).
 
 **G7 · Type fidelity + coercion contract** — gate m249
-- [ ] `NormalizedType` gains Binary, Time, Interval, BigInt, Geometry, Vector.
-- [ ] One coercion table engine→engine (lossless / lossy-with-reason / refused), tested
-      as a library in isolation; conformance round-trips one value of each type.
+- [x] Postgres raw reads decode cells by type (`postgres/cell.rs`, 25213500). Before,
+      `execute_raw` read every column as `serde_json::Value` (json/jsonb only) and
+      `unwrap_or(Null)` hid the failure: a raw `SELECT id` returned null. Undecodable
+      types now fail with the column name and a `::text` / `to_jsonb` cast hint.
+      Unit-tested without a DB (`cargo test -p data-plane-pool postgres::cell`, 6 pass).
+- [ ] **G7a — grobase, no wire change.** `NormalizedType` gains Binary, Time, Interval,
+      Bigint (spelled so serde emits `"bigint"`, not `"big_int"`), Geometry, Vector.
+      Every reverse-DDL mapper is an exhaustive match (`pg_sql_type`, `mysql_sql_type`,
+      `sqlite_sql_type`, `ddl_bson_type`), so each new variant is a compile error
+      until its arm exists. Normalizers still emit the old values. One coercion table
+      engine→engine (lossless / lossy-with-reason / refused) as a pure library with
+      an exhaustive test.
+- [ ] **osionos learns the new strings first.** `liveSchemaMapper` today renders any
+      unknown type as editable text, and `liveWriteClient`/`liveValueCodec` coerce PG
+      ids as `integer`. Binary/geometry/vector/interval are read-only; bigint keeps
+      string precision. Old readers have no `#[serde(other)]`, so emitting first breaks
+      every descriptor they decode.
+- [ ] **G7b — flip the emitters.** Normalizers map bytea/time/interval/int8/geometry/
+      vector to the new variants; the MySQL (null on non-UTF-8) and SQLite (`blob:N
+      bytes`) lossy codecs return `\x` hex; PG writes accept the new types instead of
+      409. TS `SCHEMA_DDL_COLUMN_TYPES`, the JS SDK unions and the openapi list follow.
+- [ ] Conformance round-trips one value of each type per engine (m249).
+- Open: Integer→`bigint` DDL means a create→describe round trip changes type; vector
+      and geometry carry no dimension / SRID yet.
 
 **G8 · Cross-engine data + schema migration** — gate m250
 - [ ] Job API: source mount → target mount, schema translation via G7, data copy by
