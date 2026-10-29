@@ -209,8 +209,10 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       and TS, then wired into CI.
 
 **G3 · Per-PR engine conformance, all engines** — gate m245 + CI matrix
-- [ ] CI job `engine-conformance` with a matrix over the 10 engines, each starting only
-      its own compose profile; blocking, not `continue-on-error`.
+- [x] CI job `engine-conformance` with a matrix over the 10 engines, each starting only
+      its own compose profile; blocking, not `continue-on-error`. m27 now finds the
+      network from whichever engine container runs (it read only postgres before). Local
+      run 2026-10-30, one engine per scratch compose project: all 7 stack engines green.
 - [x] Wire dynamodb and http into `tests/conformance.rs` and `m27-conformance.sh`.
       Both run on throwaway upstreams (a stdlib REST mock, dynamodb-local), so CI job
       `engine-conformance` already gates sqlite · http · dynamodb on every PR with no
