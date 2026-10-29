@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:31:53 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:31:54 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/29 21:11:50 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -78,6 +78,107 @@ pub fn verify_service_auth_at(
         ct_eq(header_value, &want_prev)
     };
     cur_ok || prev_ok
+}
+
+/// Accepted clock skew in seconds (`SERVICE_AUTH_SKEW_SECS`, default 120); a
+/// non-positive or unparseable value keeps the default. Mirrors the Go
+/// `serviceAuthSkew()`.
+#[must_use]
+pub fn service_auth_skew() -> i64 {
+    std::env::var("SERVICE_AUTH_SKEW_SECS")
+        .ok()
+        .and_then(|v| v.trim().parse::<i64>().ok())
+        .filter(|n| *n > 0)
+        .unwrap_or(120)
+}
+
+/// Why an inbound service request did not authenticate. Carries no value from
+/// the request, so logging it can never leak a token or a signature.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServiceAuthDenial {
+    /// The receiver has no token configured: nothing can verify (fail closed).
+    NoTokenConfigured,
+    /// The header the active mode reads is absent.
+    Missing,
+    /// `X-Service-Auth` is not `v1.<ts>.<hex>`.
+    Malformed,
+    /// The signature's timestamp is outside the accepted skew.
+    Stale,
+    /// Wrong token, or a signature over another method, path or body.
+    Mismatch,
+}
+
+impl ServiceAuthDenial {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::NoTokenConfigured => "no_token_configured",
+            Self::Missing => "missing",
+            Self::Malformed => "malformed",
+            Self::Stale => "stale",
+            Self::Mismatch => "mismatch",
+        }
+    }
+}
+
+/// The parts of a request the v1 signature binds.
+pub struct SignedRequest<'a> {
+    pub method: &'a str,
+    pub path: &'a str,
+    pub body: &'a [u8],
+}
+
+/// The receiver half of the scheme: the Rust mirror of Go `serviceauth.Verify`.
+/// `hmac` true reads `X-Service-Auth`, false the static `X-Service-Token`; both
+/// keys are always compared so timing does not say which one matched.
+pub struct ServiceAuthVerifier<'a> {
+    pub current: &'a str,
+    pub prev: &'a str,
+    pub hmac: bool,
+    pub skew_secs: i64,
+}
+
+impl ServiceAuthVerifier<'_> {
+    /// `header` returns the named request header's value, if present.
+    ///
+    /// # Errors
+    /// The [`ServiceAuthDenial`] that names why the request is not a service call.
+    pub fn verify<'h>(
+        &self,
+        header: impl Fn(&str) -> Option<&'h str>,
+        request: &SignedRequest<'_>,
+        now: i64,
+    ) -> Result<(), ServiceAuthDenial> {
+        if self.current.is_empty() {
+            return Err(ServiceAuthDenial::NoTokenConfigured);
+        }
+        if !self.hmac {
+            let presented = header("x-service-token").ok_or(ServiceAuthDenial::Missing)?;
+            let cur_ok = ct_eq(presented, self.current);
+            let prev_ok = !self.prev.is_empty() && ct_eq(presented, self.prev);
+            return if cur_ok || prev_ok {
+                Ok(())
+            } else {
+                Err(ServiceAuthDenial::Mismatch)
+            };
+        }
+        let presented = header("x-service-auth").ok_or(ServiceAuthDenial::Missing)?;
+        let ts = match presented.split('.').collect::<Vec<_>>().as_slice() {
+            ["v1", ts, _] => ts
+                .parse::<i64>()
+                .map_err(|_| ServiceAuthDenial::Malformed)?,
+            _ => return Err(ServiceAuthDenial::Malformed),
+        };
+        if ts < now - self.skew_secs || ts > now + self.skew_secs {
+            return Err(ServiceAuthDenial::Stale);
+        }
+        let SignedRequest { method, path, body } = *request;
+        if verify_service_auth_at(presented, self.current, self.prev, method, path, body, ts) {
+            Ok(())
+        } else {
+            Err(ServiceAuthDenial::Mismatch)
+        }
+    }
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -199,5 +300,109 @@ mod tests {
             body,
             ts
         ));
+    }
+
+    const NOW: i64 = 1_700_000_000;
+    const GOLDEN: &str =
+        "v1.1700000000.b2e684210cc7e80998388c89afe88d2fbd4fd9a7492289724f7fd3f15075189e";
+
+    fn hmac_verifier<'a>(current: &'a str, prev: &'a str) -> ServiceAuthVerifier<'a> {
+        ServiceAuthVerifier {
+            current,
+            prev,
+            hmac: true,
+            skew_secs: 120,
+        }
+    }
+
+    fn signed<'a>(path: &'a str, body: &'a [u8]) -> SignedRequest<'a> {
+        SignedRequest {
+            method: "POST",
+            path,
+            body,
+        }
+    }
+
+    fn auth_header<'a>(value: &'a str) -> impl Fn(&str) -> Option<&'a str> + 'a {
+        move |name| (name == "x-service-auth").then_some(value)
+    }
+
+    #[test]
+    fn verifier_accepts_the_golden_vector() {
+        let request = signed("/v1/keys/verify", br#"{"key":"abc"}"#);
+        let verdict = hmac_verifier("test-token", "").verify(auth_header(GOLDEN), &request, NOW);
+        assert_eq!(verdict, Ok(()));
+    }
+
+    #[test]
+    fn verifier_names_each_denial() {
+        let v = hmac_verifier("test-token", "");
+        let body = br#"{"key":"abc"}"#;
+        let ok_path = signed("/v1/keys/verify", body);
+        let deny = |header: &str, request: &SignedRequest<'_>, now| {
+            v.verify(auth_header(header), request, now).unwrap_err()
+        };
+        assert_eq!(
+            deny(GOLDEN, &signed("/v1/admin/raw", body), NOW),
+            ServiceAuthDenial::Mismatch
+        );
+        assert_eq!(
+            deny(GOLDEN, &signed("/v1/keys/verify", b"{}"), NOW),
+            ServiceAuthDenial::Mismatch
+        );
+        assert_eq!(deny(GOLDEN, &ok_path, NOW + 121), ServiceAuthDenial::Stale);
+        assert_eq!(deny(GOLDEN, &ok_path, NOW - 121), ServiceAuthDenial::Stale);
+        assert_eq!(
+            deny("v1.notanumber.ab", &ok_path, NOW),
+            ServiceAuthDenial::Malformed
+        );
+        assert_eq!(deny("v2.1.ab", &ok_path, NOW), ServiceAuthDenial::Malformed);
+        assert_eq!(
+            v.verify(|_| None, &ok_path, NOW),
+            Err(ServiceAuthDenial::Missing)
+        );
+        assert_eq!(
+            hmac_verifier("", "").verify(auth_header(GOLDEN), &ok_path, NOW),
+            Err(ServiceAuthDenial::NoTokenConfigured),
+            "an empty receiver token fails closed, even for an empty-key signature"
+        );
+    }
+
+    #[test]
+    fn verifier_honours_the_rotation_window() {
+        let request = signed("/v1/keys/verify", br#"{"key":"abc"}"#);
+        let header = auth_header(GOLDEN);
+        assert_eq!(
+            hmac_verifier("new-token", "test-token").verify(&header, &request, NOW),
+            Ok(())
+        );
+        assert_eq!(
+            hmac_verifier("new-token", "").verify(&header, &request, NOW),
+            Err(ServiceAuthDenial::Mismatch)
+        );
+    }
+
+    #[test]
+    fn static_verifier_compares_the_plain_token() {
+        let v = ServiceAuthVerifier {
+            current: "cur",
+            prev: "old",
+            hmac: false,
+            skew_secs: 120,
+        };
+        let request = signed("/v1/query", b"");
+        let token =
+            |value: &'static str| move |name: &str| (name == "x-service-token").then_some(value);
+        assert_eq!(v.verify(token("cur"), &request, NOW), Ok(()));
+        assert_eq!(v.verify(token("old"), &request, NOW), Ok(()));
+        assert_eq!(
+            v.verify(token("other"), &request, NOW),
+            Err(ServiceAuthDenial::Mismatch)
+        );
+        assert_eq!(
+            v.verify(auth_header(GOLDEN), &request, NOW),
+            Err(ServiceAuthDenial::Missing),
+            "static mode does not read X-Service-Auth"
+        );
     }
 }
