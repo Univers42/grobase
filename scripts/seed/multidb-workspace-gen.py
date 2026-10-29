@@ -14,7 +14,8 @@
 # dialect: two static reference tables and one churn table (rows tests edit),
 # fixed ids, no randomness. Pure: reads argv/env, writes stdout, no I/O else.
 # Every insert is insert-if-absent, so a re-run never reverts a test's edit.
-# Row owner = MDW_ROW_OWNER (the app key's api-key:<uuid> principal), stamped
+# Row owner = MDW_ROW_OWNER (the app key's api-key:<uuid> principal; mongo also
+# takes MDW_ROW_TENANT, the key's tenant), stamped
 # only where the seeder writes the engine directly; gateway-loaded rows are
 # stamped by the data plane itself.
 #
@@ -96,10 +97,14 @@ def mongo_js():
     for table, (cols, rows) in TABLES.items():
         for row in rows:
             doc = str_row(table, cols, row)
-            doc["owner_id"] = owner()
             key = doc.pop("id")
+            # The data plane scopes every mongo read by owner_id AND tenant_id
+            # (mongo/filter.rs); $set keeps both current on documents an
+            # earlier run wrote without them.
+            scope = {"owner_id": owner(), "tenant_id": os.environ["MDW_ROW_TENANT"]}
+            update = {"$setOnInsert": doc, "$set": scope}
             lines.append(f"d.{table}.updateOne({json.dumps({'_id': key})}, "
-                         f"{json.dumps({'$setOnInsert': doc})}, {{upsert: true}});")
+                         f"{json.dumps(update)}, {{upsert: true}});")
     return "\n".join(lines)
 
 
