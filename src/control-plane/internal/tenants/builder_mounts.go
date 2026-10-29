@@ -14,6 +14,9 @@ package tenants
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -124,4 +127,65 @@ func mountIDParam(w http.ResponseWriter, r *http.Request) (string, bool) {
 		return "", false
 	}
 	return id, true
+}
+
+// patchMount updates one of the caller's OWN mounts by id, CALLER-SCOPED (the
+// adapter-registry binds the update to the asserted tenant, so a mount UUID is
+// NEVER a bearer capability). The body is forwarded VERBATIM — a decode/re-
+// marshal round trip dropped fields in this codebase — and the registry's
+// answer is relayed by writePatchResult. [scope: write]
+func (b *builderAPI) patchMount(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := b.selfAuthScope(w, r, "write")
+	if !ok {
+		return
+	}
+	if !b.requireAdapter(w, "mount update") {
+		return
+	}
+	id, ok := mountIDParam(w, r)
+	if !ok {
+		return
+	}
+	body, ok := readMountPatchBody(w, r)
+	if !ok {
+		return
+	}
+	status, respBody, err := b.adapter.patchMount(r.Context(), tenantID, id, body)
+	if err != nil {
+		httpx.WriteError(w, http.StatusBadGateway, "adapter_error", err.Error())
+		return
+	}
+	writePatchResult(w, status, respBody)
+}
+
+// readMountPatchBody reads the raw body under a 64 KiB cap so its bytes can be
+// forwarded untouched; ok=false means a 413/400 was written.
+func readMountPatchBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
+	if err == nil {
+		return body, true
+	}
+	var tooBig *http.MaxBytesError
+	if errors.As(err, &tooBig) {
+		httpx.WriteError(w, http.StatusRequestEntityTooLarge, "payload_too_large", "body exceeds 64 KiB")
+		return nil, false
+	}
+	httpx.WriteError(w, http.StatusBadRequest, "bad_request", "unreadable body")
+	return nil, false
+}
+
+// writePatchResult relays the registry's answer: 200 and the safe 400/403/409
+// {error,message} bodies pass through untouched, a 404 is the caller-scoped
+// not_found, anything else is a 502 — an unexpected body is never relayed
+// (it is not a shape the registry vetted as safe).
+func writePatchResult(w http.ResponseWriter, status int, respBody json.RawMessage) {
+	switch status {
+	case http.StatusOK, http.StatusBadRequest, http.StatusForbidden, http.StatusConflict:
+		httpx.WriteJSON(w, status, respBody)
+	case http.StatusNotFound:
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "no such mount for this tenant")
+	default:
+		httpx.WriteError(w, http.StatusBadGateway, "adapter_error",
+			fmt.Sprintf("adapter-registry returned %d", status))
+	}
 }

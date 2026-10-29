@@ -41,6 +41,7 @@ func (s *Service) GetConnection(ctx context.Context, userID, id string) (Connect
 			Engine:        row.engine,
 			Isolation:     row.isolation,
 			CredentialRef: row.credentialRef(),
+			Revision:      row.revision,
 		}
 		return s.stampMountOverrides(ctx, userID, result, row), nil
 	}
@@ -51,7 +52,7 @@ func (s *Service) GetConnection(ctx context.Context, userID, id string) (Connect
 	if err != nil {
 		return ConnectionResult{}, err
 	}
-	result := ConnectionResult{Engine: row.engine, ConnectionString: conn, Isolation: row.isolation}
+	result := ConnectionResult{Engine: row.engine, ConnectionString: conn, Isolation: row.isolation, Revision: row.revision}
 	return s.stampMountOverrides(ctx, userID, result, row), nil
 }
 
@@ -121,6 +122,7 @@ type mountRow struct {
 	cmekKeyPtr      *string
 	sharedResources []string
 	readScoped      bool
+	revision        int
 }
 
 // loadMountRow reads the mount under EXPLICIT tenant scope (not just RLS): the
@@ -149,11 +151,11 @@ func scanMountRow(ctx context.Context, tx pgx.Tx, userID, id string) (mountRow, 
 	row := tx.QueryRow(ctx,
 		`SELECT engine, isolation, connection_enc, connection_iv, connection_tag, connection_salt,
 		        cred_provider, cred_reference, cred_version,
-		        cmek_wrapped_dek, cmek_kms_key_id, shared_resources, read_scoped
+		        cmek_wrapped_dek, cmek_kms_key_id, shared_resources, read_scoped, revision
 		   FROM public.tenant_databases WHERE id = $1 AND tenant_id = $2`, id, userID)
 	err := row.Scan(&m.engine, &m.isolation, &m.payload.Encrypted, &m.payload.IV, &m.payload.Tag, &m.payload.Salt,
 		&m.provider, &m.reference, &m.version,
-		&m.cmekWrap, &m.cmekKeyPtr, &sharedRaw, &m.readScoped)
+		&m.cmekWrap, &m.cmekKeyPtr, &sharedRaw, &m.readScoped, &m.revision)
 	if err != nil {
 		return m, mapMountLookupErr(err)
 	}

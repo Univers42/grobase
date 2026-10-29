@@ -18,6 +18,9 @@
 # /databases/{id}/descriptor, tenant-control GET /v1/tenants/me/mounts/{id}/
 # descriptor), the descriptor does not stamp last_healthy_at, and the Go tests
 # that sweep a canary password across every DSN form exist (CI runs them).
+# PATCH (ADR 0010) is routed on both hops, service-token gated, the revision
+# trigger is in the migration and EnsureSchema, and no /connect consumer sends a
+# literal pool version.
 #
 # Live (BAAS_VERIFY_LIVE=1, BAAS_KONG_URL, BAAS_TENANT_KEY): every listed mount's
 # descriptor answers 200 with only the allowed keys and no DSN-shaped value.
@@ -55,6 +58,22 @@ step "static: the canary sweep exists"
 need "${CP}/adapterregistry/descriptor_dsn_test.go" 'func TestDescriptorJSONCarriesNoCredential' "canary JSON sweep missing"
 need "${CP}/tenants/builder_mounts_descriptor_test.go" 'escaped slash splices no path' "escaped-id test missing"
 pass "go test ./... runs them in CI"
+
+step "static: PATCH rotates through a revision (ADR 0010)"
+need "${CP}/adapterregistry/handler.go" '"PATCH /databases/\{id\}", rt\.patch' "adapter-registry PATCH route missing"
+[ "$(grep -c '"PATCH /v1/tenants/me/mounts/{mountId}", b.patchMount' "${CP}/tenants/builder.go")" = 1 ] ||
+  fail "tenant-control must route PATCH once, in MountBuilder only (never the read-only MountMountList)"
+patch=$(sed -n '/^func (rt \*routes) patch(/,/^}/p' "${CP}/adapterregistry/handler_patch.go")
+grep -q 'validServiceToken' <<<"${patch}" || fail "PATCH must require the service token (it re-points live traffic)"
+for f in "${ROOT}/scripts/migrations/postgresql/094_tenant_databases_revision.sql" "${CP}/adapterregistry/schema.go"; do
+  need "$f" 'tenant_databases_bump_revision' "the revision trigger is not in ${f##*/} (migration and EnsureSchema must agree)"
+done
+QR="${ROOT}/src/apps/query-router/src/query"
+! grep -nE "credentialVersion: '[^']*'" "${QR}/query.service.ts" "${QR}/schema.service.ts" ||
+  fail "a /connect consumer still sends a literal credentialVersion; a rotated mount would keep its old pool"
+need "${QR}/query.service.ts" 'credentialVersionFor\(' "query.service.ts does not derive the pool version from the revision"
+need "${QR}/schema.service.ts" 'credentialVersionFor\(' "schema.service.ts does not derive the pool version from the revision"
+pass "both hops routed, service-token gated, revision in both DDL paths, no literal pool version"
 
 if [ "${BAAS_VERIFY_LIVE:-0}" != "1" ]; then
   printf '\n\033[33m! live descriptors skipped (set BAAS_VERIFY_LIVE=1, BAAS_KONG_URL, BAAS_TENANT_KEY)\033[0m\n'

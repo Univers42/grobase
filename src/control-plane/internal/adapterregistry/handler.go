@@ -52,6 +52,7 @@ func Mount(mux *http.ServeMux, svc *Service, serviceToken string, rotation *serv
 	mux.HandleFunc("GET /databases/{id}", rt.findOne)
 	mux.HandleFunc("GET /databases/{id}/connect", rt.connect)
 	mux.HandleFunc("GET /databases/{id}/descriptor", rt.descriptor)
+	mux.HandleFunc("PATCH /databases/{id}", rt.patch)
 	mux.HandleFunc("DELETE /databases/{id}", rt.remove)
 	mux.HandleFunc("DELETE /databases/{id}/self", rt.removeScoped)
 }

@@ -39,6 +39,7 @@ import { apiKeyScopes } from './api-key-scope';
 import { AutomationsService, type AutomationWriteEvent } from './automations.service';
 import { RealtimePublisherService, RealtimeWriteOp } from './realtime-publisher.service';
 import { RustDataPlaneProxy, RustProxyContext } from '../proxy/rust-data-plane.proxy';
+import { credentialVersionFor } from './credential-version';
 
 /** Ops that fan out as best-effort `row_changed` realtime events (mirrors the
  *  outbox's MUTATING_OPS — reads never publish). */
@@ -58,6 +59,11 @@ export interface AdapterResponse {
   // (429). Absent when tiering is disabled (parity).
   package?: string;
   capability_overrides?: Record<string, unknown>;
+  // Mount revision reported by adapter-registry's /connect: 1 = never
+  // rotated, n = the n-th rotation. The Rust data plane keys its per-mount
+  // pool on `credential_ref.version`, so this is what forks a fresh pool
+  // after a credential rotation (absent on an older registry).
+  revision?: number;
 }
 
 export interface EngineDescriptor {
@@ -414,7 +420,7 @@ export class QueryService implements OnModuleInit {
       );
     }
 
-    const { engine, connection_string, isolation, capability_overrides } =
+    const { engine, connection_string, isolation, capability_overrides, revision } =
       await this.fetchConnection(dbId, tenantId);
     // Per-instance subject for B3 conditions: the row id the caller is acting
     // on (filter.id). Inert unless PERMISSION_CONDITIONS_ENABLED is on.
@@ -467,7 +473,7 @@ export class QueryService implements OnModuleInit {
           roles: identity?.roleNames,
           scopes: identity?.scopes,
           credentialReference: dbId,
-          credentialVersion: 'live',
+          credentialVersion: credentialVersionFor(revision),
           connectionString: connection_string,
           isolation,
           capabilityOverrides: capability_overrides,
@@ -543,7 +549,7 @@ export class QueryService implements OnModuleInit {
   ): Promise<TxnResult> {
     const identity = context.identity;
     const tenantId = identity?.tenantId ?? userId;
-    const { engine, connection_string, isolation, capability_overrides } =
+    const { engine, connection_string, isolation, capability_overrides, revision } =
       await this.fetchConnection(dbId, tenantId);
 
     // Authorize every op BEFORE opening the transaction — fail the batch closed.
@@ -567,7 +573,7 @@ export class QueryService implements OnModuleInit {
       roles: identity?.roleNames,
       scopes: identity?.scopes,
       credentialReference: dbId,
-      credentialVersion: 'live',
+      credentialVersion: credentialVersionFor(revision),
       connectionString: connection_string,
       isolation,
       capabilityOverrides: capability_overrides,
@@ -870,7 +876,7 @@ export class QueryService implements OnModuleInit {
   }
 
   async listTables(dbId: string, userId: string, identity?: VerifiedRequestIdentity) {
-    const { engine, connection_string } = await this.fetchConnection(
+    const { engine, connection_string, revision } = await this.fetchConnection(
       dbId,
       identity?.tenantId ?? userId,
     );
@@ -886,7 +892,7 @@ export class QueryService implements OnModuleInit {
         roles: identity?.roleNames,
         scopes: identity?.scopes,
         credentialReference: dbId,
-        credentialVersion: 'live',
+        credentialVersion: credentialVersionFor(revision),
         connectionString: connection_string,
       });
       resources = schema.tables.map((t) => t.name);

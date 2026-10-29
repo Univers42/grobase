@@ -1,8 +1,16 @@
 // `@jest/globals` (bundled with jest) provides the typings — the monorepo does
 // not ship `@types/jest`, so the globals must be imported explicitly.
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import type { ConfigService } from '@nestjs/config';
+import type { HttpService } from '@nestjs/axios';
+import { of } from 'rxjs';
+import type { VerifiedRequestIdentity } from '@mini-baas/common';
 import { QueryService } from './query.service';
+import { ExecuteQueryDto } from './dto/query.dto';
+import type { OutboxService } from './outbox.service';
+import type { RustDataPlaneProxy, RustProxyContext } from '../proxy/rust-data-plane.proxy';
+import type { RealtimePublisherService } from './realtime-publisher.service';
+import type { AutomationsService } from './automations.service';
 
 // `resourceIdFromFilter` is a pure private helper (it reads only its argument,
 // never `this`), so exercise it through a prototype-only instance — no need for
@@ -129,5 +137,84 @@ describe('QueryService admin-scope ABAC bypass is observable (H-5)', () => {
     });
     expect(svc.decideByApiKeyScope(identity, 'delete')?.allow).toBe(false);
     expect(lines).toHaveLength(0);
+  });
+});
+
+// The Rust data plane keys its per-mount pool on `credential_ref.version`, so a
+// mount whose DSN was rotated must reach it under a NEW version — otherwise the
+// stale pool is kept forever on a busy mount. adapter-registry's /connect
+// reports the mount's revision (1 = never rotated); the query-router turns it
+// into the pool key (`r3`), with 'live' kept for an unrotated mount so no pool
+// is rebuilt at deploy time.
+describe('QueryService forwards the mount revision as the Rust pool key', () => {
+  const config = {
+    getOrThrow: () => 'http://adapter-registry:3020',
+    get: (_key: string, def?: unknown) => def,
+  } as unknown as ConfigService;
+
+  /** api-key identity → decideByApiKeyScope short-circuits ABAC (no HTTP). */
+  const identity: VerifiedRequestIdentity = {
+    tenantId: 't-1',
+    projectId: 't-1',
+    appId: 'api-key',
+    userId: 'api-key:k-1',
+    role: 'authenticated',
+    roleNames: ['authenticated'],
+    scopes: ['read', 'write'],
+    authMethod: 'kong-hmac',
+  };
+
+  function build(connectReply: Record<string, unknown>) {
+    const http = {
+      get: jest.fn(() => of({ data: connectReply })),
+    };
+    const seen: RustProxyContext[] = [];
+    const rustProxy = {
+      shouldForward: jest.fn(() => true),
+      execute: jest.fn(async (ctx: RustProxyContext) => {
+        seen.push(ctx);
+        return { rows: [], rowCount: 0 };
+      }),
+    };
+    const service = new QueryService(
+      config,
+      http as unknown as HttpService,
+      { emitForQuery: jest.fn(async () => undefined) } as unknown as OutboxService,
+      rustProxy as unknown as RustDataPlaneProxy,
+      { publishRowChanged: jest.fn(async () => undefined) } as unknown as RealtimePublisherService,
+      { runForWrite: jest.fn(async () => undefined) } as unknown as AutomationsService,
+    );
+    return { service, seen };
+  }
+
+  it('sends r3 when /connect reports revision 3', async () => {
+    const { service, seen } = build({
+      engine: 'postgresql',
+      connection_string: 'postgres://example/db',
+      revision: 3,
+    });
+    await service.executeQuery(
+      'db-1',
+      'notes',
+      'api-key:k-1',
+      Object.assign(new ExecuteQueryDto(), { op: 'list' }),
+      { identity },
+    );
+    expect(seen[0]?.credentialVersion).toBe('r3');
+  });
+
+  it('keeps live when an older registry reports no revision at all', async () => {
+    const { service, seen } = build({
+      engine: 'postgresql',
+      connection_string: 'postgres://example/db',
+    });
+    await service.executeQuery(
+      'db-1',
+      'notes',
+      'api-key:k-1',
+      Object.assign(new ExecuteQueryDto(), { op: 'list' }),
+      { identity },
+    );
+    expect(seen[0]?.credentialVersion).toBe('live');
   });
 });

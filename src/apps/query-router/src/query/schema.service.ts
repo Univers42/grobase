@@ -33,6 +33,7 @@ import {
   RustTableSchema,
 } from '../proxy/rust-data-plane.proxy';
 import { SchemaDdlColumnDto, SchemaDdlRequestDto } from './dto/schema-ddl.dto';
+import { credentialVersionFor } from './credential-version';
 
 /** Response of `GET /query/v1/:dbId/schema` — the Rust `SchemaDescriptor`
  *  enriched with the mount id and the engine's live capability descriptor so
@@ -105,7 +106,7 @@ export class SchemaService {
     const cached = this.readCache(cacheKey);
     if (cached) return cached;
 
-    const { engine, connection_string, isolation } = await this.query.resolveConnection(
+    const { engine, connection_string, isolation, revision } = await this.query.resolveConnection(
       dbId,
       tenantId,
     );
@@ -117,7 +118,7 @@ export class SchemaService {
       appId: identity?.appId,
       userId,
       credentialReference: dbId,
-      credentialVersion: 'live',
+      credentialVersion: credentialVersionFor(revision),
       connectionString: connection_string,
       isolation,
     };
@@ -170,7 +171,7 @@ export class SchemaService {
       column = await this.composeAlterTarget(dbId, userId, dto, identity);
     }
 
-    const { engine, connection_string, isolation } = await this.query.resolveConnection(
+    const { engine, connection_string, isolation, revision } = await this.query.resolveConnection(
       dbId,
       tenantId,
     );
@@ -182,7 +183,7 @@ export class SchemaService {
       appId: identity?.appId,
       userId,
       credentialReference: dbId,
-      credentialVersion: 'live',
+      credentialVersion: credentialVersionFor(revision),
       connectionString: connection_string,
       isolation,
     };
