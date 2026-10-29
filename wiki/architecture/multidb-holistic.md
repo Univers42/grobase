@@ -158,9 +158,11 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 - [ ] Cross-language test: Rust verifier accepts a TS-signed `postJson` (string body,
       explicit `Content-Type`). Refuse to start if `RUST_DATA_PLANE_URL` has a path.
 - [ ] Commit/rollback get the tenant check execute already has (`transactions.rs:130-137`).
-- [ ] `applyDdl` fails closed with no identity (today falls back to `userId`,
+- [~] `applyDdl` fails closed with no identity (today falls back to `userId`,
       `schema.service.ts:159`); DDL on static mounts only for service_role; the JWT role
       vocabulary is proven before the JWT branch is coded.
+      *(G1e: `applyDdl` refuses 403 without a verified tenant, before any lookup;
+      the static-mount role rule and the JWT vocabulary are still open.)*
 - [ ] Modes off / shadow / enforce. Off = today, proven by m18 + parity unchanged.
       Enforce on the VM: human go, ≥ 24 h shadow with zero `would_deny`, rollback =
       flag → shadow + recreate data-plane-router-rust and query-router only.

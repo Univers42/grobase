@@ -12,6 +12,7 @@
 
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -148,14 +149,19 @@ export class SchemaService {
     dbId: string,
     userId: string,
     dto: SchemaDdlRequestDto,
-    identity?: VerifiedRequestIdentity,
+    identity: VerifiedRequestIdentity,
   ): Promise<SchemaDdlResponse> {
+    // DDL changes every row's shape, so it never falls back to the user id as
+    // the tenant the way reads do: no verified tenant, no DDL.
+    const tenantId = identity?.tenantId;
+    if (!tenantId) {
+      throw new ForbiddenException('schema DDL requires a verified tenant identity');
+    }
     if (DESTRUCTIVE_DDL_OPS.has(dto.op) && dto.confirm !== true) {
       throw new BadRequestException(
         `ddl op '${dto.op}' is destructive — set "confirm": true to proceed`,
       );
     }
-    const tenantId = identity?.tenantId ?? userId;
 
     let column: RustDdlColumnDef | null = dto.column ? this.fullColumn(dto.column) : null;
     if (dto.op === 'alter_column_type') {
