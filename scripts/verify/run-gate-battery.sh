@@ -108,6 +108,8 @@ ENTERPRISE_BATTERY=(
   m168-invites             # generalized team/group invitations (single-use, expiry, flag-OFF parity)
   m170-standalone-invites  # standalone-project direct invites + org-guard (409 invite-via-a-team)
   m172-pubkeys             # member pubkey registry + grant-fulfilment seam (vault42 crypto bridge)
+  m131-selfserve-mount-create # self-serve /me/mounts: A's mount absent from B's list, caller-scoped DELETE
+  m88-dynamodb-engine      # DynamoDB engine (--features dynamodb): CRUD, TransactWriteItems rollback, owner-partition isolation, OFF-build parity
   # m194–m199 (security hardening) are NOT here: they need an assembled .env, certs
   # and images built from the commit, which this job does not have. CI runs them in
   # their own jobs — m194 with shellcheck, m195/m196/m198/m199/m206/m207/m227/m229/m235/m238/m239 in security-gates, m197

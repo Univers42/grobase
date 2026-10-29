@@ -55,13 +55,13 @@ for arg in "$@"; do [[ "${arg}" == "--live" ]] && LIVE=1; done
 # ── 1) static: the completeness arms + the two safety fixes exist ────────────
 step "static: batch/aggregate arms + safety fixes present in source"
 for engine in postgres mysql mongo redis; do
-  grep -q "fn run_batch" "${POOL_DIR}/${engine}.rs" || fail "${engine}: run_batch missing"
+  grep -rq "fn run_batch" "${POOL_DIR}/${engine}" || fail "${engine}: run_batch missing"
 done
-grep -q "fn run_aggregate" "${POOL_DIR}/mysql.rs" || fail "mysql: run_aggregate missing"
-grep -q "fn run_aggregate" "${POOL_DIR}/mongo.rs" || fail "mongo: run_aggregate missing"
-grep -q 'IF(`owner_id` = VALUES(`owner_id`)' "${POOL_DIR}/mysql.rs" ||
+grep -rq "fn run_aggregate" "${POOL_DIR}/mysql" || fail "mysql: run_aggregate missing"
+grep -rq "fn run_aggregate" "${POOL_DIR}/mongo" || fail "mongo: run_aggregate missing"
+grep -rq 'IF(`owner_id` = VALUES(`owner_id`)' "${POOL_DIR}/mysql" ||
   fail "mysql upsert owner guard missing (cross-owner hijack fix)"
-grep -q '42P10' "${POOL_DIR}/postgres.rs" ||
+grep -rq '42P10' "${POOL_DIR}/postgres" ||
   fail "pg 42P10 (ON CONFLICT arbitration) classification missing"
 grep -q "batch_items" \
   "${ROUTER_DIR}/crates/data-plane-core/src/operation.rs" ||
