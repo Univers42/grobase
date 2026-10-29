@@ -109,27 +109,33 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 
 ### Phase 0 — close the open doors (blocks everything)
 
-**G0 · Close the Kong `/sql` → Trino route** — gate m256
+**G0 · Close the Kong `/sql` → Trino route** — gate m206 (existing; m256 left unused)
 - Static evidence (VM, read-only, 2026-10-29): `trino-route` `paths: [/sql]` carries
   key-auth + jwt with `anonymous` and no `acl` (`kong.yml:851-879`); Trino has no
   authentication configured; its catalog connects as `${ENV:POSTGRES_USER}`.
 - [ ] Read-only probe through the WAF with the public anon key, status codes only —
       **needs an explicit human go**.
-- [ ] Repo: `acl allow [baas-admin]` on `trino-route` (or delete the route).
-- [ ] m256: anon key on `/sql` → 401/403; service_role → not 401.
+- [x] Repo: `acl allow [baas-admin]` on `trino-route` (ba9f9adb). No caller of `/sql`
+      exists in grobase, the SDKs, osionos or the groot apps; the service key still passes.
+- [x] m206 lists `/sql` as service-only: anon key → 403 by the acl, service key passes.
+      Against the old `kong.yml` it fails "trino-route (/sql) is service-only but not acl
+      baas-admin". Runs in CI's Security gates job (`run-gate-battery.sh m206-kong-admin-acl`).
 - [ ] VM rollout only in a confirmed window — the VM's `kong.yml` carries uncommitted
       operator edits, so the change is merged by hand, never overwritten.
 
 **G2a · DEFAULT expressions: allowlist, not blocklist** — part of m244, first PR
-- [ ] One validator in data-plane-core replaces `validate_default_expr`
-      (`schema_ddl.rs:191-203`): numeric literal, single-quoted string with `''`
-      escaping, TRUE/FALSE/NULL, `now()`, `CURRENT_TIMESTAMP`, `CURRENT_DATE`,
-      `gen_random_uuid()`. Every builder uses it (`postgres/ddl.rs:149-151`, SET DEFAULT,
-      CreateTable, `mysql/schema.rs:120-122`, `sqlite/schema.rs:73-75`).
-- [ ] RED first: `'x', DISABLE ROW LEVEL SECURITY` accepted today → 422 `invalid_request`.
-- [ ] Proptest: inputs with `,` `)` and quotes never escape the literal.
-- [ ] rg inventory: every default in seeds, contracts, tests and the osionos DDL mapper
-      still accepted; if one is not, a log-only shadow arm ships first.
+- [x] One validator, `data-plane-core::default_expr` (5594134e), replaces the blocklist:
+      numeric literal, single-quoted string with `''` as the only escape (no backslash:
+      MySQL reads `\'` as a quote), TRUE/FALSE/NULL, `now()`, `CURRENT_TIMESTAMP`,
+      `CURRENT_DATE`, `gen_random_uuid()`, `uuid_generate_v4()`, ≤ 1024 bytes. Every
+      builder already calls it (`postgres/ddl.rs`, `mysql/schema.rs`, `sqlite/schema.rs`).
+- [x] RED first: `'x', DISABLE ROW LEVEL SECURITY` and 13 more smuggling forms failed on
+      the blocklist, pass now (`tests/sec_schema_ddl.rs`).
+- [x] Proptest: an accepted input with `,` `)` `'` `\` never leaves its literal; any text
+      quoted with doubled quotes is accepted. RED seeds kept in `.proptest-regressions`.
+- [x] rg inventory: every existing default is accepted or already expected to 400/422;
+      osionos sends no defaults, so no shadow arm was needed.
+- Gate: `cargo test --workspace` + clippy `-D warnings` in CI (ci.yml Rust job) — green.
 
 **G1 · Authenticate the data plane, authorize DDL** — gate m243 · ADR 0007
 - [ ] Inbound service auth on every `/v1/*` route of data-plane-server (HMAC
