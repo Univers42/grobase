@@ -99,13 +99,17 @@ sqlite_rows() { "${GEN[@]}" rows-int | gw_rows insert; }
 seed_mssql() {
   MS_PASS=""
   ((!APPLY)) || MS_PASS="$(_lt_env mini-baas-mssql MSSQL_SA_PASSWORD)"
-  gate "mini-baas-mssql healthy, MSSQL_SA_PASSWORD set (no fallback)" mssql_ready || return 0
+  gate "mini-baas-mssql healthy, MSSQL_SA_PASSWORD set (no fallback) and free of '@'" mssql_ready || return 0
   act "create database target=${DB} if absent" ms -Q "IF DB_ID('${DB}') IS NULL CREATE DATABASE ${DB};" || return 0
   act "create tables ${TABLES_STD} if absent and load rows if absent (${COUNTS}) — IF NOT EXISTS" mssql_load || return 0
-  act "register mount target=${DB}_mssql (mssql://sa:…@mssql:1433/${DB})" register mssql "mssql://sa:$(urlenc "${MS_PASS}")@mssql:1433/${DB}" || return 0
+  # Raw password, unlike the url-crate engines: mssql_config (data-plane-pool
+  # mssql/adapter.rs) splits user:pass@host literally and never percent-decodes,
+  # so an encoded '%' logs in with the wrong password and the check times out.
+  # Caveat: a password containing '@' cannot be expressed in this DSN.
+  act "register mount target=${DB}_mssql (mssql://sa:…@mssql:1433/${DB})" register mssql "mssql://sa:${MS_PASS}@mssql:1433/${DB}" || return 0
   seed_tail "MDW · MSSQL" "${TABLES_STD}" check_schema
 }
-mssql_ready() { ma_ready mini-baas-mssql && need MS_PASS MSSQL_SA_PASSWORD; }
+mssql_ready() { ma_ready mini-baas-mssql && need MS_PASS MSSQL_SA_PASSWORD && [[ "${MS_PASS}" != *@* ]]; }
 mssql_load() { "${GEN[@]}" sql-mssql | ms -d "${DB}" >/dev/null; }
 seed_http() {
   gate "MDW_HTTP_BASE_URL is a public http(s) URL (SSRF guard refuses in-stack hosts); unset ⇒ skip" http_ready || return 0
