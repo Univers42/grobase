@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:29:45 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:29:46 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/29 18:00:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -93,13 +93,20 @@ pub(super) async fn run_insert(
     let key = format!("{prefix}:{id}");
     let exists: bool = conn.exists(&key).await.map_err(backend)?;
     if exists {
-        return Err(DataPlaneError::Backend {
-            message: format!("redis key already exists: {key}"),
-        });
+        return Err(duplicate_key(&key));
     }
     write_hash(conn, &key, &data).await?;
     data.insert("id".to_string(), Value::String(id));
     Ok(DataResult::new(vec![Value::Object(data)], 1))
+}
+
+/// An insert onto an existing key is the client's conflict (409), like a
+/// unique violation on the SQL engines, not an engine failure: as a 5xx it read
+/// as an outage and made idempotent seeders and outbox clients retry forever.
+fn duplicate_key(key: &str) -> DataPlaneError {
+    DataPlaneError::Conflict {
+        message: format!("redis key already exists: {key}"),
+    }
 }
 
 pub(super) async fn run_update(
@@ -157,4 +164,16 @@ async fn write_hash(
     // hset_multiple expects Vec<(K, V)> for the field/value pairs.
     let _: () = conn.hset_multiple(key, &pairs).await.map_err(backend)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn insert_onto_an_existing_key_is_a_conflict() {
+        let err = duplicate_key("t:color:1");
+        assert!(matches!(err, DataPlaneError::Conflict { .. }), "{err:?}");
+        assert!(err.to_string().contains("already exists"), "{err}");
+    }
 }
