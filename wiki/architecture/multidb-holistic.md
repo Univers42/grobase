@@ -243,13 +243,15 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       `unwrap_or(Null)` hid the failure: a raw `SELECT id` returned null. Undecodable
       types now fail with the column name and a `::text` / `to_jsonb` cast hint.
       Unit-tested without a DB (`cargo test -p data-plane-pool postgres::cell`, 6 pass).
-- [ ] **G7a — grobase, no wire change.** `NormalizedType` gains Binary, Time, Interval,
+- [x] **G7a — grobase, no wire change** (f1cd7819). `NormalizedType` gains Binary, Time, Interval,
       Bigint (spelled so serde emits `"bigint"`, not `"big_int"`), Geometry, Vector.
       Every reverse-DDL mapper is an exhaustive match (`pg_sql_type`, `mysql_sql_type`,
       `sqlite_sql_type`, `ddl_bson_type`), so each new variant is a compile error
       until its arm exists. Normalizers still emit the old values. One coercion table
       engine→engine (lossless / lossy-with-reason / refused) as a pure library with
       an exhaustive test.
+      Done: `data-plane-core::coercion` + the four reverse-DDL arms; geometry/vector
+      refused in DDL (no SRID/dimension yet), interval only on pg.
 - [ ] **osionos learns the new strings first.** `liveSchemaMapper` today renders any
       unknown type as editable text, and `liveWriteClient`/`liveValueCodec` coerce PG
       ids as `integer`. Binary/geometry/vector/interval are read-only; bigint keeps
