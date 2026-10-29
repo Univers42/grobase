@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:34:08 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:34:12 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 02:30:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -22,9 +22,11 @@
 use std::sync::Arc;
 
 use data_plane_core::EngineAdapter;
+#[cfg(feature = "dynamodb")]
+use data_plane_pool::DynamoEngineAdapter;
 use data_plane_pool::{
-    EnvMountResolver, MongoEngineAdapter, MountResolver, MssqlEngineAdapter, MysqlEngineAdapter,
-    PgDialect, PostgresEngineAdapter, RedisEngineAdapter, SqliteEngineAdapter,
+    EnvMountResolver, HttpEngineAdapter, MongoEngineAdapter, MountResolver, MssqlEngineAdapter,
+    MysqlEngineAdapter, PgDialect, PostgresEngineAdapter, RedisEngineAdapter, SqliteEngineAdapter,
 };
 use engine_conformance::{mount_for, run_suite};
 
@@ -57,6 +59,11 @@ async fn engine_conformance() {
         "redis" => Arc::new(RedisEngineAdapter::new(resolver)),
         "sqlite" => Arc::new(SqliteEngineAdapter::new(resolver)),
         "mssql" => Arc::new(MssqlEngineAdapter::new(resolver)),
+        "http" => Arc::new(HttpEngineAdapter::new(resolver)),
+        #[cfg(feature = "dynamodb")]
+        "dynamodb" => Arc::new(DynamoEngineAdapter::new(resolver)),
+        #[cfg(not(feature = "dynamodb"))]
+        "dynamodb" => panic!("CONFORMANCE_ENGINE=dynamodb needs `--features dynamodb`"),
         other => panic!("CONFORMANCE_ENGINE='{other}' is not wired in tests/conformance.rs"),
     };
 
