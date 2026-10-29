@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:27:44 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:27:46 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/29 23:10:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -17,6 +17,13 @@ use data_plane_core::DataPlaneError;
 
 pub(super) fn mongo_err(e: mongodb::error::Error) -> DataPlaneError {
     classify_mongo_message(format!("mongo backend: {e}"))
+}
+
+/// A `$jsonSchema` rejection (server code 121) — the one write error a type
+/// coercion can cure.
+pub(super) fn is_validation_failure(e: &mongodb::error::Error) -> bool {
+    use mongodb::error::{ErrorKind, WriteFailure};
+    matches!(&*e.kind, ErrorKind::Write(WriteFailure::WriteError(w)) if w.code == 121)
 }
 
 /// Pure classifier behind [`mongo_err`] (testable without a driver error).

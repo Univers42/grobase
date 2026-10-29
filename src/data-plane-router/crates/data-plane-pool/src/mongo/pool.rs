@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:27:52 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:27:53 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/29 23:10:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -31,10 +31,11 @@ use mongodb::{
 use crate::ident::quote_ident;
 
 use super::convert::{infer_columns_from_samples, jsonschema_to_columns};
-use super::error::{mongo_ddl_err, mongo_err};
+use super::error::{is_validation_failure, mongo_ddl_err, mongo_err};
 use super::schema::{
     columns_to_jsonschema, jsonschema_with_column_dropped, jsonschema_with_column_set, ColumnMode,
 };
+use super::typed::coerce_to_validator;
 
 /// How many documents `describe_schema` samples per collection when no
 /// `$jsonSchema` validator declares the shape.
@@ -120,6 +121,29 @@ impl MongoPool {
             .and_then(|v| v.get_document("$jsonSchema").ok())
             .cloned()
             .unwrap_or_else(|| bson::doc! { "bsonType": "object", "properties": {} }))
+    }
+
+    /// After a write was rejected: converts `doc` to the collection's declared
+    /// types so the caller can retry it once. The validator is read only on
+    /// that path, so a write that already fits costs no extra round-trip.
+    /// Hands the original error back when the rejection was not the validator's
+    /// or when no value would change.
+    pub(super) async fn coerce_after_rejection(
+        &self,
+        col: &Collection<Document>,
+        doc: &mut Document,
+        error: mongodb::error::Error,
+    ) -> DataPlaneResult<()> {
+        if !is_validation_failure(&error) {
+            return Err(mongo_err(error));
+        }
+        let db = self.client.database(&self.db_name);
+        let schema = self.collection_jsonschema(&db, col.name()).await?;
+        if coerce_to_validator(doc, &schema) {
+            Ok(())
+        } else {
+            Err(mongo_err(error))
+        }
     }
 }
 
