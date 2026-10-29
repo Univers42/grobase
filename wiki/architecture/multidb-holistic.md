@@ -167,7 +167,7 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 - [ ] Before enforce: rg sweep of osionos bridge + groot apps for direct `:4011` callers;
       unsigned verify scripts move to the `scripts/lib` signer. Audit logs carry route,
       outcome and reason — never body, signature or token.
-- [ ] ADR 0007 records the residuals: one shared token (~27 compose refs) lets any
+- [x] ADR 0007 records the residuals: one shared token (23 compose refs, measured) lets any
       platform service assert any identity (lifted by a `v2.<kid>` scheme later); replay
       inside the 120 s skew; inline DSN from any token holder.
 
