@@ -690,8 +690,11 @@ services:
           - name: rate-limiting
             config: { policy: local, limit_by: ip, minute: 60, hour: 1000 }
 
+  # Kong cannot sign the data plane's inbound auth (G1), so migrate/rotate go
+  # through tenant-control, which authenticates the apikey, builds the identity
+  # and signs (ADR 0008).
   - name: admin-migrate
-    url: http://data-plane-router-rust:4011/v1/admin/migrate
+    url: http://tenant-control:3022/v1/admin/migrate
     routes:
       - name: admin-migrate
         paths: [/admin/v1/migrate]
@@ -711,7 +714,7 @@ services:
   # G8 credential rotation: drains the stale per-mount pool + evicts the cached
   # DSN after a credential_ref.version bump. Same internal-only guard as migrate.
   - name: admin-rotate
-    url: http://data-plane-router-rust:4011/v1/admin/rotate
+    url: http://tenant-control:3022/v1/admin/rotate
     routes:
       - name: admin-rotate
         paths: [/admin/v1/rotate]

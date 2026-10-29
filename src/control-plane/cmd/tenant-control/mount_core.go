@@ -31,7 +31,8 @@ import (
 func (b *bootCtx) mountCore() {
 	tenants.Mount(b.mux, tenants.Deps{
 		Svc: b.svc, ServiceToken: b.cfg.ServiceToken, JWT: b.jwtVerifier, Reconciler: b.reconciler,
-		Rotation: serviceauth.NewRotationNotice(b.log, b.m),
+		Rotation:       serviceauth.NewRotationNotice(b.log, b.m),
+		KongServiceKey: os.Getenv("KONG_SERVICE_API_KEY"),
 	})
 	metering.Mount(b.mux, b.db, b.cfg.ServiceToken)
 }

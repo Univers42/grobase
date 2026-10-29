@@ -53,6 +53,9 @@ type Deps struct {
 	JWT          *JWTVerifier
 	Reconciler   *provision.Reconciler
 	Rotation     *serviceauth.RotationNotice
+	// KongServiceKey is KONG_SERVICE_API_KEY; empty turns off the apikey arm of
+	// the /v1/admin/{migrate,rotate} relay.
+	KongServiceKey string
 }
 
 // Mount registers the tenant control-plane routes on mux.
@@ -63,7 +66,7 @@ type Deps struct {
 // matched before the {id} parameterised one because net/http mux gives
 // precedence to the most-specific pattern.
 func Mount(mux *http.ServeMux, d Deps) {
-	rt := &routes{svc: d.Svc, serviceToken: d.ServiceToken, jwt: d.JWT, reconciler: d.Reconciler, rotation: d.Rotation}
+	rt := &routes{svc: d.Svc, serviceToken: d.ServiceToken, jwt: d.JWT, reconciler: d.Reconciler, rotation: d.Rotation, kongServiceKey: d.KongServiceKey}
 
 	mux.HandleFunc("POST /v1/tenants", rt.requireServiceToken(rt.create))
 	mux.HandleFunc("GET /v1/tenants", rt.requireServiceToken(rt.list))
@@ -82,14 +85,18 @@ func Mount(mux *http.ServeMux, d Deps) {
 	mux.HandleFunc("DELETE /v1/tenants/{id}/keys/{keyId}", rt.requireServiceToken(rt.revokeKey))
 
 	mux.HandleFunc("POST /v1/keys/verify", rt.requireServiceToken(rt.verifyKey))
+
+	mux.HandleFunc("POST /v1/admin/migrate", rt.adminRelay("/v1/admin/migrate"))
+	mux.HandleFunc("POST /v1/admin/rotate", rt.adminRelay("/v1/admin/rotate"))
 }
 
 type routes struct {
-	svc          *Service
-	serviceToken string
-	jwt          *JWTVerifier
-	reconciler   *provision.Reconciler
-	rotation     *serviceauth.RotationNotice
+	svc            *Service
+	serviceToken   string
+	jwt            *JWTVerifier
+	reconciler     *provision.Reconciler
+	rotation       *serviceauth.RotationNotice
+	kongServiceKey string
 }
 
 const msgInvalidJSON = "invalid JSON"
