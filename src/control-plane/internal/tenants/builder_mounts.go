@@ -99,7 +99,11 @@ func (b *builderAPI) deleteMount(w http.ResponseWriter, r *http.Request) {
 	if !b.requireAdapter(w, "mount deletion") {
 		return
 	}
-	deleted, err := b.adapter.deleteMount(r.Context(), tenantID, r.PathValue("mountId"))
+	id, ok := mountIDParam(w, r)
+	if !ok {
+		return
+	}
+	deleted, err := b.adapter.deleteMount(r.Context(), tenantID, id)
 	if err != nil {
 		httpx.WriteError(w, http.StatusBadGateway, "adapter_error", err.Error())
 		return
@@ -109,4 +113,15 @@ func (b *builderAPI) deleteMount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+}
+
+// mountIDParam reads {mountId} as a UUID. PathValue is the UNESCAPED segment, so without
+// this an id carrying %2F would splice extra path into the adapter-registry URL.
+func mountIDParam(w http.ResponseWriter, r *http.Request) (string, bool) {
+	id := r.PathValue("mountId")
+	if !isUUID(id) {
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "no such mount for this tenant")
+		return "", false
+	}
+	return id, true
 }

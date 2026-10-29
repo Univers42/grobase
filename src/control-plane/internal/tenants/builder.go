@@ -82,6 +82,7 @@ func MountBuilder(mux *http.ServeMux, d BuilderDeps) {
 
 	mux.HandleFunc("POST /v1/tenants/me/mounts", b.createMount)
 	mux.HandleFunc("GET /v1/tenants/me/mounts", b.listMounts)
+	mux.HandleFunc("GET /v1/tenants/me/mounts/{mountId}/descriptor", b.describeMount)
 	mux.HandleFunc("DELETE /v1/tenants/me/mounts/{mountId}", b.deleteMount)
 	mux.HandleFunc("GET /v1/tenants/me/entitlements", b.getEntitlements)
 	mux.HandleFunc("PATCH /v1/tenants/me/entitlements", b.patchEntitlements)
@@ -91,12 +92,14 @@ func MountBuilder(mux *http.ServeMux, d BuilderDeps) {
 	mux.HandleFunc("PUT /v1/tenants/{id}/entitlement", b.operatorUpsertEntitlement)
 }
 
-// MountMountList registers only GET /v1/tenants/me/mounts, for self-serve with
+// MountMountList registers only the mount reads (list + descriptor), for self-serve with
 // the builder off: a tenant can see its mounts without gaining create, delete
 // or entitlement routes. Never pair it with MountBuilder, which already owns
 // the pattern (ServeMux panics on a duplicate).
 func MountMountList(mux *http.ServeMux, d BuilderDeps) {
-	mux.HandleFunc("GET /v1/tenants/me/mounts", newBuilderAPI(d).listMounts)
+	b := newBuilderAPI(d)
+	mux.HandleFunc("GET /v1/tenants/me/mounts", b.listMounts)
+	mux.HandleFunc("GET /v1/tenants/me/mounts/{mountId}/descriptor", b.describeMount)
 }
 
 func newBuilderAPI(d BuilderDeps) *builderAPI {

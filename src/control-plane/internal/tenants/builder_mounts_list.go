@@ -46,6 +46,31 @@ func (b *builderAPI) listMounts(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
+// describeMount serves where a mount's data lives (G4: engine, host or file, database,
+// requested TLS), credential-free, for the caller's own tenant. [scope: read]
+func (b *builderAPI) describeMount(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := b.selfAuthScope(w, r, "read")
+	if !ok {
+		return
+	}
+	if !b.requireAdapter(w, "mount descriptor") {
+		return
+	}
+	id, ok := mountIDParam(w, r)
+	if !ok {
+		return
+	}
+	out, found, err := b.adapter.describeMount(r.Context(), tenantID, id)
+	switch {
+	case err != nil:
+		httpx.WriteError(w, http.StatusBadGateway, "adapter_error", err.Error())
+	case !found:
+		httpx.WriteError(w, http.StatusNotFound, "not_found", "no such mount for this tenant")
+	default:
+		httpx.WriteJSON(w, http.StatusOK, out)
+	}
+}
+
 // mountBudget computes the registered-vs-allowed mount count. Best-effort — an
 // adapter outage (or no adapter) leaves used=-1 (unknown).
 func (b *builderAPI) mountBudget(r *http.Request, tenantID string, allowed int) mountBudget {
