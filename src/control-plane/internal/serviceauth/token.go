@@ -18,8 +18,10 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
 // SecureCompare reports whether the presented token equals the expected token,
@@ -65,6 +67,23 @@ func ComputeServiceSignature(token string, req SignedRequest) string {
 	mac := hmac.New(sha256.New, []byte(token))
 	mac.Write([]byte(msg))
 	return fmt.Sprintf("v1.%d.%s", req.TS, hex.EncodeToString(mac.Sum(nil)))
+}
+
+// SignRequest sets the outbound header the receiver's Verify expects: a v1
+// X-Service-Auth signature over body in hmac mode, the plain X-Service-Token
+// otherwise. body must be the exact bytes the request sends. An empty token
+// sets nothing.
+func SignRequest(r *http.Request, token string, body []byte) {
+	if token == "" {
+		return
+	}
+	if !ServiceAuthHMAC() {
+		r.Header.Set("X-Service-Token", token)
+		return
+	}
+	r.Header.Set("X-Service-Auth", ComputeServiceSignature(token, SignedRequest{
+		Method: r.Method, Path: r.URL.Path, Body: body, TS: time.Now().Unix(),
+	}))
 }
 
 // prevServiceToken returns the optional rotation-window previous token

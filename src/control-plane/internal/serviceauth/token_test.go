@@ -175,3 +175,33 @@ func TestVerifyServiceRequestHMAC(t *testing.T) {
 		t.Fatal("hmac mode must reject an expired signature")
 	}
 }
+
+// SignRequest is the outbound half of Verify: whatever it sets, Verify accepts,
+// in both modes, and the hmac signature is bound to the body it was given.
+func TestSignRequestPassesVerify(t *testing.T) {
+	body := []byte(`{"a":1}`)
+	for _, mode := range []string{"", "hmac"} {
+		t.Setenv("SERVICE_TOKEN_MODE", mode)
+		r := httptest.NewRequest("POST", "/v1/admin/migrate", bytes.NewReader(body))
+		SignRequest(r, "secret", body)
+		if !VerifyServiceRequest(r, "secret") {
+			t.Fatalf("mode %q: a signed request must verify", mode)
+		}
+	}
+
+	t.Setenv("SERVICE_TOKEN_MODE", "hmac")
+	r := httptest.NewRequest("POST", "/v1/admin/migrate", bytes.NewReader([]byte(`{"a":2}`)))
+	SignRequest(r, "secret", body)
+	if VerifyServiceRequest(r, "secret") {
+		t.Fatal("a signature over other bytes must not verify")
+	}
+	if r.Header.Get("X-Service-Token") != "" {
+		t.Fatal("hmac mode must not put the token on the wire")
+	}
+
+	empty := httptest.NewRequest("GET", "/databases", nil)
+	SignRequest(empty, "", nil)
+	if len(empty.Header) != 0 {
+		t.Fatalf("an empty token sets no header, got %v", empty.Header)
+	}
+}

@@ -24,6 +24,7 @@ import (
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // DataPlane is a minimal client for the Rust data-plane-router's admin migrate
@@ -88,7 +89,7 @@ func (dp *DataPlane) evictVerify(ctx context.Context) error {
 }
 
 // postAdmin marshals a service-identity envelope and POSTs it to an admin
-// endpoint (Content-Type + X-Service-Token + header propagation). A non-200 is
+// endpoint (Content-Type + service auth + header propagation). A non-200 is
 // an error labelled errLabel; redact scrubs any DSN echo from the body.
 func (dp *DataPlane) postAdmin(ctx context.Context, path string, envelope map[string]any, errLabel string, redact bool) error {
 	body, err := json.Marshal(envelope)
@@ -100,9 +101,7 @@ func (dp *DataPlane) postAdmin(ctx context.Context, path string, envelope map[st
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if dp.serviceToken != "" {
-		req.Header.Set("X-Service-Token", dp.serviceToken)
-	}
+	serviceauth.SignRequest(req, dp.serviceToken, body)
 	observability.PropagateHeaders(ctx, req)
 	resp, err := dp.http.Do(req)
 	if err != nil {
