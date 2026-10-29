@@ -44,12 +44,12 @@ pub(super) fn mysql_value_to_json(v: MysqlValue) -> Value {
         MysqlValue::UInt(u) => Value::Number(u.into()),
         MysqlValue::Float(f) => json_number_from_f64(f64::from(f)),
         MysqlValue::Double(d) => json_number_from_f64(d),
+        // Caveat: the text protocol sends strings and blobs alike as bytes, so
+        // a BLOB that happens to be valid UTF-8 reads as text; only invalid
+        // UTF-8 is known to be binary and renders as `\x` hex.
         MysqlValue::Bytes(bytes) => match String::from_utf8(bytes) {
             Ok(s) => Value::String(s),
-            // Non-UTF8 BLOB: surface as a JSON null rather than panic; the
-            // adapter is JSON-shaped on purpose and binary columns should be
-            // base64-encoded by the schema-service before they ever land here.
-            Err(_) => Value::Null,
+            Err(e) => Value::String(data_plane_core::binary::hex_bytes(e.as_bytes())),
         },
         MysqlValue::Date(y, mo, d, h, mi, s, us) => Value::String(format!(
             "{y:04}-{mo:02}-{d:02}T{h:02}:{mi:02}:{s:02}.{us:06}Z"

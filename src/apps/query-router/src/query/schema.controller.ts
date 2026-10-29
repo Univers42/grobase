@@ -36,7 +36,7 @@ export class SchemaController {
     summary: 'Describe the schema of a registered database (engine-agnostic)',
     description:
       'Returns the mount’s tables/collections with normalized column types ' +
-      '(text|integer|float|decimal|boolean|date|datetime|json|uuid|enum|array|objectid|unknown), ' +
+      '(text|integer|float|decimal|boolean|date|datetime|json|uuid|enum|array|objectid|binary|time|interval|bigint|geometry|vector|unknown), ' +
       'primary/foreign keys and enum values, plus the engine’s live capability descriptor. ' +
       'Mongo collections without a $jsonSchema validator are sample-inferred (`inferred: true`). ' +
       'Engines without an introspection surface (redis/http) return 422 unsupported_capability.',

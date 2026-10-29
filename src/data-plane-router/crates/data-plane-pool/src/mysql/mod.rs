@@ -451,7 +451,7 @@ mod tests {
         for (native, expected) in [
             ("int", N::Integer),
             ("int(11)", N::Integer),
-            ("bigint(20) unsigned", N::Integer),
+            ("bigint(20) unsigned", N::Bigint),
             ("smallint", N::Integer),
             ("tinyint(4)", N::Integer),
             ("tinyint(1)", N::Boolean), // the MySQL boolean convention
@@ -466,8 +466,13 @@ mod tests {
             ("char(36)", N::Text),
             ("varchar(255)", N::Text),
             ("text", N::Text),
-            ("blob", N::Unknown),
-            ("geometry", N::Unknown),
+            ("blob", N::Binary),
+            ("varbinary(16)", N::Binary),
+            ("time", N::Time),
+            ("geometry", N::Geometry),
+            ("point", N::Geometry),
+            ("vector(3)", N::Vector),
+            ("year", N::Unknown),
         ] {
             let (ty, values) = normalize_mysql_type(native);
             assert_eq!(ty, expected, "COLUMN_TYPE {native}");
@@ -536,6 +541,9 @@ mod tests {
             (N::Json, "JSON"),
             (N::Uuid, "CHAR(36)"),
             (N::Array, "JSON"),
+            (N::Binary, "LONGBLOB"),
+            (N::Time, "TIME"),
+            (N::Bigint, "BIGINT"),
         ] {
             assert_eq!(
                 mysql_sql_type(&col("c", ty), false).unwrap(),
@@ -548,6 +556,10 @@ mod tests {
             mysql_sql_type(&col("c", N::Text), true).unwrap(),
             "VARCHAR(255)"
         );
+        assert_eq!(
+            mysql_sql_type(&col("c", N::Binary), true).unwrap(),
+            "VARBINARY(255)"
+        );
         // enum values are escaped literals (quote doubled, backslash escaped).
         let mut status = col("status", N::Enum);
         status.enum_values = Some(vec!["pending".into(), "it's".into(), "a\\b".into()]);
@@ -557,7 +569,7 @@ mod tests {
         );
         // enum without values, and describe-only types, are client errors.
         assert!(mysql_sql_type(&col("c", N::Enum), false).is_err());
-        for ty in [N::Objectid, N::Unknown] {
+        for ty in [N::Interval, N::Geometry, N::Vector, N::Objectid, N::Unknown] {
             assert!(matches!(
                 mysql_sql_type(&col("c", ty), false).unwrap_err(),
                 DataPlaneError::InvalidRequest { .. }
@@ -818,10 +830,10 @@ mod tests {
             mysql_value_to_json(MysqlValue::Bytes(Vec::new())),
             json!("")
         );
-        // Invalid UTF-8 surfaces as Null rather than panicking.
+        // Invalid UTF-8 is binary: it surfaces as \x hex, never a null.
         assert_eq!(
             mysql_value_to_json(MysqlValue::Bytes(vec![0xff, 0xfe, 0x00])),
-            Value::Null
+            json!("\\xfffe00")
         );
     }
 

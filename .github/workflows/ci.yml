@@ -129,6 +129,20 @@ jobs:
       - name: edge body limits (m240)
         run: bash scripts/verify/m240-edge-body-limits.sh
 
+      # Static, no stack: the all-engine workspace seeder plans by default, refuses the
+      # shared workspaces, touches no client without --apply, tears down only mdw_ objects.
+      - name: multidb workspace seeder plan (m257)
+        run: bash scripts/verify/m257-multidb-workspace-plan.sh
+
+      # Static, no stack: every normalizer emits the G7 types and the DDL type list agrees
+      # across Rust, TS, SDK and openapi; the live round trip runs on the VM per mount.
+      - name: normalized type round trip (m249)
+        run: bash scripts/verify/m249-type-round-trip.sh
+      # Static, no stack: the descriptor is routed on both hops, reads without stamping or
+      # calling the KMS, and its canary-password Go tests exist (go test ./... runs them).
+      - name: mount descriptor (m246)
+        run: bash scripts/verify/m246-mount-descriptor.sh
+
       # Static legs only (no stack here): `make health` parses service edges and Kong routes
       # correctly and is wired to stack-health.sh; its live leg states that it was skipped.
       - name: stack health check (m220)

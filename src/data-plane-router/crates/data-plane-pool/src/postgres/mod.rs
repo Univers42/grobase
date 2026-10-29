@@ -35,6 +35,7 @@
 //! - [`crud_build`] — the pure mutating-op SQL builders (owner-scoped, tested).
 
 mod adapter;
+mod cell;
 mod conn;
 mod convert;
 mod crud;

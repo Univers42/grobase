@@ -15,8 +15,8 @@
 //! Everything here is pure (testable without a DB). Identifiers go through
 //! `quote_ident` (allowlist + quoting); enum VALUES are SQL string literals
 //! escaped by `pg_literal`; caller-supplied DEFAULT expressions pass the shared
-//! `validate_default_expr` guard (no `;`, comments, or control chars — defense
-//! in depth on top of the driver's single-statement extended protocol).
+//! `validate_default_expr` allowlist (one literal or niladic function, so a
+//! default cannot append a second ALTER action).
 
 use crate::ident::quote_ident;
 use data_plane_core::{
@@ -30,7 +30,13 @@ use data_plane_core::{
 /// the literal `ARRAY` data_type, which callers pass through here unchanged).
 pub(super) fn normalize_pg_type(native: &str) -> NormalizedType {
     match native {
-        "int2" | "int4" | "int8" => NormalizedType::Integer,
+        "int2" | "int4" => NormalizedType::Integer,
+        "int8" => NormalizedType::Bigint,
+        "bytea" => NormalizedType::Binary,
+        "time" | "timetz" => NormalizedType::Time,
+        "interval" => NormalizedType::Interval,
+        "geometry" | "geography" => NormalizedType::Geometry,
+        "vector" => NormalizedType::Vector,
         "float4" | "float8" => NormalizedType::Float,
         "numeric" => NormalizedType::Decimal,
         "bool" => NormalizedType::Boolean,
@@ -73,7 +79,8 @@ fn pg_enum_type_name(schema: &str, table: &str, column: &str) -> DataPlaneResult
 /// Reverse type mapping (the inverse of [`normalize_pg_type`]): lowers a
 /// [`DdlColumnDef`] to the PostgreSQL column type SQL. Enum columns map to a
 /// named type `"{table}_{column}_enum"` (created/reused via the plan's
-/// `ensure_enum_types`). `objectid`/`unknown` are describe-only and rejected.
+/// `ensure_enum_types`). `objectid`/`geometry`/`vector`/`unknown` are
+/// describe-only and rejected.
 pub(super) fn pg_sql_type(
     schema: &str,
     table: &str,
@@ -92,7 +99,16 @@ pub(super) fn pg_sql_type(
         // v1: arrays are text[] — element typing is a follow-up.
         NormalizedType::Array => "text[]".to_string(),
         NormalizedType::Enum => pg_enum_type_name(schema, table, &def.name)?,
-        NormalizedType::Objectid | NormalizedType::Unknown => {
+        NormalizedType::Binary => "bytea".to_string(),
+        NormalizedType::Time => "time".to_string(),
+        NormalizedType::Interval => "interval".to_string(),
+        NormalizedType::Bigint => "bigint".to_string(),
+        // Extension types (PostGIS, pgvector) need an SRID / dimension the
+        // DDL request does not carry yet.
+        NormalizedType::Geometry
+        | NormalizedType::Vector
+        | NormalizedType::Objectid
+        | NormalizedType::Unknown => {
             return Err(DataPlaneError::InvalidRequest {
                 message: format!(
                     "column '{}': normalized_type '{:?}' cannot be created on postgresql",
@@ -299,7 +315,7 @@ mod tests {
         for (native, expected) in [
             ("int2", N::Integer),
             ("int4", N::Integer),
-            ("int8", N::Integer),
+            ("int8", N::Bigint),
             ("float4", N::Float),
             ("float8", N::Float),
             ("numeric", N::Decimal),
@@ -320,7 +336,13 @@ mod tests {
             // USER-DEFINED enums are resolved at the call site (needs pg_enum
             // rows); the bare normalizer honestly says Unknown.
             ("order_status", N::Unknown),
-            ("bytea", N::Unknown),
+            ("bytea", N::Binary),
+            ("time", N::Time),
+            ("timetz", N::Time),
+            ("interval", N::Interval),
+            ("geometry", N::Geometry),
+            ("geography", N::Geometry),
+            ("vector", N::Vector),
             ("tsvector", N::Unknown),
         ] {
             assert_eq!(normalize_pg_type(native), expected, "udt_name {native}");
@@ -364,6 +386,10 @@ mod tests {
             (N::Json, "jsonb"),
             (N::Uuid, "uuid"),
             (N::Array, "text[]"),
+            (N::Binary, "bytea"),
+            (N::Time, "time"),
+            (N::Interval, "interval"),
+            (N::Bigint, "bigint"),
         ] {
             assert_eq!(
                 pg_sql_type("public", "orders", &col("c", ty)).unwrap(),
@@ -377,7 +403,12 @@ mod tests {
             "\"public\".\"orders_status_enum\""
         );
         // describe-only types are rejected, not guessed.
-        for ty in [NormalizedType::Objectid, NormalizedType::Unknown] {
+        for ty in [
+            NormalizedType::Geometry,
+            NormalizedType::Vector,
+            NormalizedType::Objectid,
+            NormalizedType::Unknown,
+        ] {
             assert!(matches!(
                 pg_sql_type("public", "orders", &col("c", ty)).unwrap_err(),
                 DataPlaneError::InvalidRequest { .. }
