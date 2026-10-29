@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:27:57 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:27:58 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/29 23:10:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -278,8 +278,14 @@ impl MongoPool {
             .ok_or_else(|| DataPlaneError::InvalidRequest {
                 message: "insert requires operation.data".to_string(),
             })?;
-        let doc = build_owned_doc(data, identity, &identity.tenant_id)?;
-        let result = col.insert_one(doc.clone()).await.map_err(mongo_err)?;
+        let mut doc = build_owned_doc(data, identity, &identity.tenant_id)?;
+        let result = match col.insert_one(&doc).await {
+            Ok(result) => result,
+            Err(error) => {
+                self.coerce_after_rejection(col, &mut doc, error).await?;
+                col.insert_one(&doc).await.map_err(mongo_err)?
+            }
+        };
         let mut out = doc;
         out.insert("_id", result.inserted_id);
         Ok(DataResult::new(vec![normalize_doc(out)], 1))
@@ -305,9 +311,20 @@ impl MongoPool {
         // `owner_id`/`tenant_id` on its OWN (correctly owner-scoped) document and
         // re-home it into another tenant's namespace. `build_owned_doc` also runs
         // `reject_top_level_operators`, so the `$`-key rejection is preserved.
-        let set_doc = build_owned_doc(data, identity, &identity.tenant_id)?;
-        let update = bson::doc! { "$set": set_doc };
-        let result = col.update_many(filter, update).await.map_err(mongo_err)?;
+        let mut set_doc = build_owned_doc(data, identity, &identity.tenant_id)?;
+        let result = match col
+            .update_many(filter.clone(), bson::doc! { "$set": set_doc.clone() })
+            .await
+        {
+            Ok(result) => result,
+            Err(error) => {
+                self.coerce_after_rejection(col, &mut set_doc, error)
+                    .await?;
+                col.update_many(filter, bson::doc! { "$set": set_doc })
+                    .await
+                    .map_err(mongo_err)?
+            }
+        };
         Ok(DataResult::new(vec![], result.modified_count))
     }
 
@@ -357,14 +374,23 @@ impl MongoPool {
         filter.insert("owner_id", MongoPool::owner(identity));
         filter.insert("tenant_id", identity.tenant_id.clone());
 
-        let set_doc = build_owned_doc(data, identity, &identity.tenant_id)?;
-        let update = bson::doc! { "$set": set_doc };
-        let update_opts = UpdateOptions::builder().upsert(true).build();
-        let result = col
-            .update_one(filter, update)
-            .with_options(update_opts)
+        let mut set_doc = build_owned_doc(data, identity, &identity.tenant_id)?;
+        let upsert = || UpdateOptions::builder().upsert(true).build();
+        let result = match col
+            .update_one(filter.clone(), bson::doc! { "$set": set_doc.clone() })
+            .with_options(upsert())
             .await
-            .map_err(mongo_err)?;
+        {
+            Ok(result) => result,
+            Err(error) => {
+                self.coerce_after_rejection(col, &mut set_doc, error)
+                    .await?;
+                col.update_one(filter, bson::doc! { "$set": set_doc })
+                    .with_options(upsert())
+                    .await
+                    .map_err(mongo_err)?
+            }
+        };
         Ok(DataResult::new(
             vec![],
             result.modified_count + u64::from(result.upserted_id.is_some()),
