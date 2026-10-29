@@ -147,7 +147,9 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 - [ ] Query-router `POST /:dbId/schema/ddl` requires the permission engine's `ddl`
       decision (owner/admin role, or an API key with an explicit `ddl` scope). Bypass
       path (`bypass.rs:145`) stops treating `write` as DDL.
-- [ ] Flag `DATA_PLANE_INBOUND_AUTH` (default OFF one release, then ON); compose sets it.
+- [~] Flag `DATA_PLANE_INBOUND_AUTH` (default OFF one release, then ON); compose sets it.
+      *(G1c: `base/data-plane.yml` passes it, default `off`, with
+      `SERVICE_AUTH_SKEW_SECS`. Default ON waits for the enforce rollout.)*
 - [ ] m243: unauthenticated `/v1/admin/raw` → 401; forged body identity → 403;
       read-scoped key DDL → 403; owner DDL → 200; an edge function POSTing unsigned to
       `/v1/admin/raw` → 401 and cannot read `INTERNAL_SERVICE_TOKEN`.
@@ -166,7 +168,7 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       vocabulary is proven before the JWT branch is coded.
 - [~] Modes off / shadow / enforce. Off = today, proven by m18 + parity unchanged.
       *(G1a: modes + flag land, default off. G1b: the query-router signs its
-      `/v1` calls. Compose wiring is the next slice.)*
+      `/v1` calls. G1c: compose passes the flag, default off.)*
       Enforce on the VM: human go, ≥ 24 h shadow with zero `would_deny`, rollback =
       flag → shadow + recreate data-plane-router-rust and query-router only.
 - [ ] Before enforce: rg sweep of osionos bridge + groot apps for direct `:4011` callers;
