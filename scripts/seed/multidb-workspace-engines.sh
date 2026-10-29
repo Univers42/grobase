@@ -26,7 +26,8 @@ seed_tail() {
     act "associate target=${DB}_${CUR} with workspace ${WS} as '${label}' (tables ${tables})" assoc "${label}" "${tables}"
 }
 seed_postgresql() {
-  local dsn="postgres://$(urlenc "${PG_USER:-}"):$(urlenc "${PG_PASS:-}")@postgres:5432/${DB}"
+  local dsn
+  dsn="postgres://$(urlenc "${PG_USER:-}"):$(urlenc "${PG_PASS:-}")@postgres:5432/${DB}"
   gate "mini-baas-postgres healthy, POSTGRES_PASSWORD set" pg_ready || return 0
   act "create database target=${DB} if absent" pg_ensure_db || return 0
   act "create tables ${TABLES_STD} if absent and load rows if absent (${COUNTS}) — ON CONFLICT DO NOTHING" pg_load "${DB}" || return 0
@@ -121,7 +122,7 @@ http_ready() { [[ "${MDW_HTTP_BASE_URL:-}" =~ ^https?://[^\"[:space:]]+$ ]]; }
 seed_dynamodb() {
   gate "mini-baas-dynamodb-local healthy and dynamodb in the router's engines (cargo feature)" dynamo_ready || return 0
   act "register mount target=${DB}_dynamodb (4xx ⇒ DYNAMODB_ENGINE_ENABLED off: skip)" \
-    register dynamodb "dynamodb://local?endpoint=http://dynamodb-local:8000&region=us-east-1&access_key=fake&secret_key=fake" || return 0
+    register dynamodb "dynamodb://local?endpoint=${DDB_ENDPOINT}&region=us-east-1&access_key=fake&secret_key=fake" || return 0
   act "create tables ${TABLES_NS} if absent (owner_pk HASH + id RANGE) via aws-cli" ddb_create || return 0
   act "insert-if-absent items (${COUNTS}) via /query/v1 op=insert (attribute_not_exists)" gw_rows_str insert || return 0
   seed_tail "MDW · DynamoDB" "${TABLES_NS}" check_list "${TABLES_NS%%,*}"
