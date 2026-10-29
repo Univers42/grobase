@@ -289,12 +289,19 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       binds strings into INT8/NUMERIC/BYTEA/TIME; DDL accepts binary/time/interval/
       bigint, geometry/vector stay describe-only. Ships live only after the osionos
       reader above is live.
-- [ ] Conformance round-trips one value of each type per engine (m249).
+- [x] Conformance round-trips one value of each type per engine (m249).
+      Live on the VM 2026-10-30 (7 mounts: cockroachdb, mariadb, mongodb, mssql, mysql,
+      postgresql, sqlite): 51 PASS, 22 GAP, 0 FAIL. Every GAP names its reason in
+      `m249-type-round-trip.mjs` `GAPS`, and a GAP that starts passing fails the gate.
 - Open: Integer→`bigint` DDL (PG) and Integer→BSON `long` (Mongo) mean a
       create→describe round trip reads back `bigint`; vector and geometry carry no
       dimension / SRID yet; int8 reads past 2^53 still travel as JSON numbers, so JS
       rounds them (only written keys keep their digits); PG interval writes are not
-      parsed (interval is read-only in osionos).
+      parsed (interval is read-only in osionos); BSON has no date-only type, so a
+      Mongo `date` describes back as `datetime`. One ~70 s control-plane stall on the
+      VM (2026-10-30 00:14–00:15 CET: data-plane forwards 502 at 5 s, then tenant-control
+      503 at 8 s) failed two m249 runs; no container restarted, cause not found, and it
+      did not recur in the next runs.
 
 **G8 · Cross-engine data + schema migration** — gate m250
 - [ ] Job API: source mount → target mount, schema translation via G7, data copy by
