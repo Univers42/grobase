@@ -177,9 +177,18 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       `/v1` calls. G1c: compose passes the flag, default off.)*
       Enforce on the VM: human go, ≥ 24 h shadow with zero `would_deny`, rollback =
       flag → shadow + recreate data-plane-router-rust and query-router only.
-- [ ] Before enforce: rg sweep of osionos bridge + groot apps for direct `:4011` callers;
-      unsigned verify scripts move to the `scripts/lib` signer. Audit logs carry route,
-      outcome and reason — never body, signature or token.
+- [x] Before enforce: sweep of osionos bridge + groot apps for direct `:4011` callers.
+      *(2026-10-30: none in groot apps or the osionos bridge, which go through Kong; on the
+      VM only query-router and tenant-control name the data plane. Live-stack verify scripts
+      (m18 `--live`, m174) call only `/v1/capabilities`, which stays open; `/data/v1` is
+      outside the layer.)*
+- [x] Audit logs carry route, outcome and reason — never body, signature or token.
+      *(`inbound_auth.rs:143,150`: `route` is the `MatchedPath` template, `reason` one of five
+      fixed strings, `service_auth.rs:113-121`.)*
+- [ ] Before the compose default flips to ON: the 14 scratch-stack gates that boot their own
+      data plane and POST `/v1/query` or `/v1/transactions` unsigned (m72–m75, m80, m85, m88,
+      m94, m98, m101, m103, m120–m122) pass the service token. They run with the flag unset
+      (off), so VM enforce does not touch them.
 - [x] ADR 0007 records the residuals: one shared token (23 compose refs, measured) lets any
       platform service assert any identity (lifted by a `v2.<kid>` scheme later); replay
       inside the 120 s skew; inline DSN from any token holder.
