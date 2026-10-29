@@ -170,7 +170,13 @@ describe('SchemaService', () => {
   // ── M22 step 2: applyDdl (POST /:dbId/schema/ddl) ──────────────────────────
 
   describe('applyDdl', () => {
-    const identity = { tenantId: 't-1' } as never;
+    const identity = {
+      tenantId: 't-1',
+      userId: 'api-key:k1',
+      appId: 'api-key',
+      scopes: ['read', 'write'],
+      authMethod: 'kong-hmac',
+    } as never;
 
     it('refuses destructive ops without confirm: true (no proxy call)', async () => {
       const { service, proxy } = build();
@@ -349,6 +355,134 @@ describe('SchemaService', () => {
       await service.describe('db-1', 'user-1', identity);
       // still cached — nothing changed on the engine.
       expect(proxy.describeSchema).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ── G1g: only a write-scoped app key may change a schema ──────────────────
+
+  describe('applyDdl authorization', () => {
+    const key = (over: Record<string, unknown> = {}) =>
+      ({
+        tenantId: 't-1',
+        userId: 'api-key:k1',
+        appId: 'api-key',
+        scopes: ['read', 'write'],
+        authMethod: 'kong-hmac',
+        ...over,
+      }) as never;
+    const addColumn = {
+      op: 'add_column',
+      table: 'orders',
+      column: { name: 'qty', normalized_type: 'integer' },
+    } as never;
+    const alterType = {
+      op: 'alter_column_type',
+      table: 'orders',
+      column: { name: 'status', normalized_type: 'text' },
+    } as never;
+
+    async function expectRefused(identity: unknown, dto: unknown = addColumn) {
+      const { service, query, proxy } = build();
+      await expect(
+        service.applyDdl('db-1', 'user-1', dto as never, identity as never),
+      ).rejects.toMatchObject({ status: 403 });
+      // C1: a refused caller costs no round-trip and learns nothing about the schema.
+      expect(query.resolveConnection).not.toHaveBeenCalled();
+      expect(proxy.describeSchema).not.toHaveBeenCalled();
+      expect(proxy.applySchemaDdl).not.toHaveBeenCalled();
+    }
+
+    it.each([
+      ['write', ['write']],
+      ['admin', ['admin']],
+      ['read+write', ['read', 'write']],
+    ])('applies for an app key with %s scope', async (_name, scopes) => {
+      const { service, proxy } = build();
+      await service.applyDdl('db-1', 'user-1', addColumn, key({ scopes }));
+      expect(proxy.applySchemaDdl).toHaveBeenCalledTimes(1);
+    });
+
+    it('applies for a user riding a write-scoped app key', async () => {
+      const { service, proxy } = build();
+      await service.applyDdl('db-1', 'user-1', addColumn, key({ userId: 'user:u1' }));
+      expect(proxy.applySchemaDdl).toHaveBeenCalledTimes(1);
+    });
+
+    it('refuses a read-only app key, before describing the table for alter_column_type', async () => {
+      await expectRefused(key({ scopes: ['read'] }));
+      await expectRefused(key({ scopes: ['read'] }), alterType);
+    });
+
+    it('refuses a user riding a read-only app key', async () => {
+      await expectRefused(key({ userId: 'user:u1', scopes: ['read'] }));
+    });
+
+    it('matches scopes exactly: apikey:admin is not admin', async () => {
+      await expectRefused(key({ scopes: ['apikey:admin'] }));
+    });
+
+    // C2/C3: every non-kong-hmac method is refused, service-token and mtls included.
+    it.each(['jwt', 'legacy-header', 'service-token', 'mtls', undefined, 'something-new'])(
+      'refuses authMethod %s even with an admin app-key claim',
+      async (authMethod) => {
+        await expectRefused(key({ authMethod, userId: 'user:x', scopes: ['admin'] }));
+      },
+    );
+
+    it('refuses a JWT user on their own personal tenant (C5)', async () => {
+      await expectRefused({
+        tenantId: 'u1',
+        userId: 'u1',
+        appId: 'osionos',
+        scopes: [],
+        authMethod: 'jwt',
+      });
+    });
+
+    it('refuses a request with no identity', async () => {
+      await expectRefused(undefined);
+    });
+
+    // C8: the scope decides first; confirm is still required of a writer.
+    it('a read-only key sending an unconfirmed drop gets 403, a writer gets 400', async () => {
+      const drop = { op: 'drop_table', table: 'orders' } as never;
+      await expectRefused(key({ scopes: ['read'] }), drop);
+      const { service } = build();
+      await expect(service.applyDdl('db-1', 'user-1', drop, key())).rejects.toMatchObject({
+        status: 400,
+      });
+    });
+
+    // C10: one structured line, header-derived fields cannot forge a second one.
+    it('logs the refusal as one line without control characters or the body', async () => {
+      const { service } = build();
+      const warn = jest
+        .spyOn((service as unknown as { logger: { warn: () => void } }).logger, 'warn')
+        .mockImplementation(() => undefined);
+      await expect(
+        service.applyDdl(
+          'db-1',
+          'user-1',
+          {
+            op: 'add_column',
+            table: 'orders',
+            column: { name: 'qty', normalized_type: 'integer', default: 'SECRET_DEFAULT' },
+          } as never,
+          key({ authMethod: 'legacy-header', userId: 'evil\r\nFORGED', tenantId: 't\n2' }),
+        ),
+      ).rejects.toMatchObject({ status: 403 });
+      expect(warn).toHaveBeenCalledTimes(1);
+      const line = String((warn.mock.calls[0] as unknown[])[0]);
+      expect(line).not.toMatch(/[\r\n]/);
+      expect(line).not.toContain('SECRET_DEFAULT');
+      expect(JSON.parse(line)).toMatchObject({
+        event: 'schema_ddl_denied',
+        dbId: 'db-1',
+        userId: 'evilFORGED',
+        tenantId: 't2',
+        authMethod: 'legacy-header',
+        op: 'add_column',
+      });
     });
   });
 });

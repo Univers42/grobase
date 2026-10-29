@@ -35,6 +35,7 @@ import type { EngineCaps, IDatabaseAdapter, QueryResult } from '@mini-baas/datab
 import { ExecuteQueryDto } from './dto/query.dto';
 import { TxnOpDto } from './dto/txn.dto';
 import { OutboxService } from './outbox.service';
+import { apiKeyScopes } from './api-key-scope';
 import { AutomationsService, type AutomationWriteEvent } from './automations.service';
 import { RealtimePublisherService, RealtimeWriteOp } from './realtime-publisher.service';
 import { RustDataPlaneProxy, RustProxyContext } from '../proxy/rust-data-plane.proxy';
@@ -808,17 +809,11 @@ export class QueryService implements OnModuleInit {
     identity: VerifiedRequestIdentity | undefined,
     op: string,
   ): PermissionDecision | undefined {
-    if (identity?.authMethod !== 'kong-hmac') return undefined;
-    // Authorize by the app key's scopes for an app-key caller — whether the
-    // OWNER is the key itself (`api-key:<id>`) or a user riding alongside it
-    // (`user:<sub>`, appId `api-key`). The user identity drives owner-scoping in
-    // the data plane; the app key's scopes still gate the op (no ABAC roles
-    // need to be seeded for per-user app traffic).
-    const isApiKeyOwner = identity.userId?.startsWith('api-key:');
-    const isUserUnderApiKey = identity.userId?.startsWith('user:') && identity.appId === 'api-key';
-    if (!isApiKeyOwner && !isUserUnderApiKey) return undefined;
-
-    const scopes = new Set(identity.scopes ?? []);
+    // The user identity drives owner-scoping in the data plane; the app key's
+    // scopes still gate the op (no ABAC roles need to be seeded for per-user
+    // app traffic).
+    const scopes = apiKeyScopes(identity);
+    if (!identity || !scopes) return undefined;
     if (scopes.has('admin')) {
       this.announceAbacBypass(identity);
       return { allow: true, reason: 'api-key admin scope' };
