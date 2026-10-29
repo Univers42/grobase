@@ -24,6 +24,7 @@ import (
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 	"github.com/dlesieur/mini-baas/control-plane/internal/observability"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // AdapterRegistry is a minimal client for the Go adapter-registry's
@@ -46,16 +47,14 @@ func NewAdapterRegistry(baseURL, serviceToken string) *AdapterRegistry {
 }
 
 // newRequest builds an adapter-registry request with the canonical tenant-scope
-// and service-token headers + context header propagation.
-func (ar *AdapterRegistry) newRequest(ctx context.Context, method, path, tenantScope string, body io.Reader) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, method, ar.baseURL+path, body)
+// and service-auth headers + context header propagation.
+func (ar *AdapterRegistry) newRequest(ctx context.Context, method, path, tenantScope string, body []byte) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, method, ar.baseURL+path, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("X-Baas-Tenant-Id", tenantScope)
-	if ar.serviceToken != "" {
-		req.Header.Set("X-Service-Token", ar.serviceToken)
-	}
+	serviceauth.SignRequest(req, ar.serviceToken, body)
 	observability.PropagateHeaders(ctx, req)
 	return req, nil
 }
@@ -78,7 +77,7 @@ func (ar *AdapterRegistry) register(ctx context.Context, tenantScope string, m M
 	if err != nil {
 		return "", "", err
 	}
-	req, err := ar.newRequest(ctx, http.MethodPost, "/databases", tenantScope, bytes.NewReader(body))
+	req, err := ar.newRequest(ctx, http.MethodPost, "/databases", tenantScope, body)
 	if err != nil {
 		return "", "", err
 	}
