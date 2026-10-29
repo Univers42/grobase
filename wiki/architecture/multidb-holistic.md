@@ -162,7 +162,9 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       explicit `Content-Type`). Refuse to start if `RUST_DATA_PLANE_URL` has a path.
       *(G1b: `rust-data-plane.proxy.spec.ts` proves the header signs the exact bytes
       sent; the TS, Go and Rust signers share one golden vector set.)*
-- [ ] Commit/rollback get the tenant check execute already has (`transactions.rs:130-137`).
+- [x] Commit/rollback get the tenant check execute already has (`transactions.rs:130-137`).
+      *(G1d: `take_for_tenant` checks and removes under one lock; the router sends
+      the identity; an empty body still finalises, as before.)*
 - [ ] `applyDdl` fails closed with no identity (today falls back to `userId`,
       `schema.service.ts:159`); DDL on static mounts only for service_role; the JWT role
       vocabulary is proven before the JWT branch is coded.

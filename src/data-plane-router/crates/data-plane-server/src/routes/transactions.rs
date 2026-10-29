@@ -12,9 +12,10 @@
 
 //! Multi-statement transaction lifecycle: begin/execute/commit/rollback over the
 //! in-`AppState` registry, with pool pinning and cross-tenant guards.
+use axum::body::Bytes;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use data_plane_core::{DataOperation, PoolRegistry, RequestIdentity, TxBeginRequest, TxHandle};
 use serde::{Deserialize, Serialize};
@@ -26,6 +27,7 @@ use super::helpers::{
     validate_identity_mount,
 };
 use super::state::AppState;
+use super::txregistry::TakeRefusal;
 
 // Default transaction TTL — after this the registry stops handing out the
 // handle on lookup. The connection is NOT force-closed here; a follow-up
@@ -146,56 +148,115 @@ pub(super) async fn execute_in_transaction(
     json_result(handle.execute(request.operation, request.identity).await)
 }
 
+/// Commit/rollback body. `identity` is optional so a body-less caller keeps
+/// working; when sent, only the tenant that opened the tx may finalise it.
+#[derive(Debug, Default, Deserialize)]
+pub(super) struct TxFinalizeRequest {
+    #[serde(default)]
+    identity: Option<RequestIdentity>,
+}
+
+/// The tenant a finalise call claims: `Ok(None)` for an empty body or one
+/// without `identity`.
+fn claimed_tenant(body: &[u8]) -> Result<Option<String>, Response> {
+    if body.iter().all(u8::is_ascii_whitespace) {
+        return Ok(None);
+    }
+    let request: TxFinalizeRequest = serde_json::from_slice(body)
+        .map_err(|e| bad_request(format!("invalid finalize body: {e}")))?;
+    match request.identity {
+        None => Ok(None),
+        Some(identity) if identity.is_tenant_scoped() => Ok(Some(identity.tenant_id)),
+        Some(_) => Err(bad_request("identity.tenant_id is required".to_string())),
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Finalize {
+    Commit,
+    Rollback,
+}
+
+async fn finalize(state: AppState, tx_id: String, body: &[u8], how: Finalize) -> Response {
+    let tenant = match claimed_tenant(body) {
+        Ok(tenant) => tenant,
+        Err(refusal) => return refusal,
+    };
+    let (handle, pool_key) = match state
+        .transactions
+        .take_for_tenant(&tx_id, tenant.as_deref())
+        .await
+    {
+        Ok(entry) => entry,
+        Err(TakeRefusal::NotFound) => return transaction_not_found(&tx_id),
+        Err(TakeRefusal::OtherTenant) => {
+            return bad_request(
+                "identity tenant does not match the tenant that opened this transaction"
+                    .to_string(),
+            )
+        }
+    };
+    let (result, done) = match how {
+        Finalize::Commit => (handle.commit().await, "committed"),
+        Finalize::Rollback => (handle.rollback().await, "rolled_back"),
+    };
+    // The tx no longer holds the pool's connection — release the pin so the
+    // registry may evict/reap it again. Always unpin, even on a finalise error.
+    state.registry.unpin_tx(&pool_key).await;
+    match result {
+        Ok(()) => (StatusCode::OK, Json(TxFinalize { tx_id, state: done })).into_response(),
+        Err(err) => map_data_plane_error(&err),
+    }
+}
+
 pub(super) async fn commit_transaction(
     State(state): State<AppState>,
     Path(tx_id): Path<String>,
-) -> impl IntoResponse {
-    let (handle, pool_key) = match state.transactions.take(&tx_id).await {
-        Some(entry) => entry,
-        None => return transaction_not_found(&tx_id),
-    };
-    let result = handle.commit().await;
-    // The tx no longer holds the pool's connection — release the pin so the
-    // registry may evict/reap it again. Always unpin, even on commit error.
-    state.registry.unpin_tx(&pool_key).await;
-    match result {
-        Ok(()) => (
-            StatusCode::OK,
-            Json(TxFinalize {
-                tx_id,
-                state: "committed",
-            }),
-        )
-            .into_response(),
-        Err(err) => map_data_plane_error(&err),
-    }
+    body: Bytes,
+) -> Response {
+    finalize(state, tx_id, &body, Finalize::Commit).await
 }
 
 pub(super) async fn rollback_transaction(
     State(state): State<AppState>,
     Path(tx_id): Path<String>,
-) -> impl IntoResponse {
-    let (handle, pool_key) = match state.transactions.take(&tx_id).await {
-        Some(entry) => entry,
-        None => return transaction_not_found(&tx_id),
-    };
-    let result = handle.rollback().await;
-    state.registry.unpin_tx(&pool_key).await;
-    match result {
-        Ok(()) => (
-            StatusCode::OK,
-            Json(TxFinalize {
-                tx_id,
-                state: "rolled_back",
-            }),
-        )
-            .into_response(),
-        Err(err) => map_data_plane_error(&err),
-    }
+    body: Bytes,
+) -> Response {
+    finalize(state, tx_id, &body, Finalize::Rollback).await
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub(super) struct TxFinalize {
     tx_id: String,
     state: &'static str,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::claimed_tenant;
+
+    fn identity(tenant: &str) -> String {
+        format!(r#"{{"identity":{{"tenant_id":"{tenant}","source":"service_token"}}}}"#)
+    }
+
+    #[test]
+    fn a_finalize_body_without_identity_claims_no_tenant() {
+        assert_eq!(claimed_tenant(b"").ok(), Some(None));
+        assert_eq!(claimed_tenant(b" \n").ok(), Some(None));
+        assert_eq!(claimed_tenant(b"{}").ok(), Some(None));
+    }
+
+    #[test]
+    fn a_finalize_body_with_identity_claims_its_tenant() {
+        assert_eq!(
+            claimed_tenant(identity("t-1").as_bytes()).ok(),
+            Some(Some("t-1".to_string()))
+        );
+    }
+
+    #[test]
+    fn an_empty_tenant_or_a_broken_body_is_refused() {
+        assert!(claimed_tenant(identity(" ").as_bytes()).is_err());
+        assert!(claimed_tenant(b"{\"identity\":").is_err());
+    }
 }
