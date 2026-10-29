@@ -147,6 +147,19 @@ jobs:
       - name: mount descriptor (m246)
         run: bash scripts/verify/m246-mount-descriptor.sh
 
+      # Static legs, no stack (their live legs SKIP here and run against a stack):
+      # schema introspection + DDL contract, OLTP batch/aggregate arms and the
+      # upsert hijack/42P10 fixes, the DDL auto-increment PK selector, and the
+      # tenant gate behind distinct-database-per-app isolation.
+      - name: live-database schema contract (m22)
+        run: bash scripts/verify/m22-live-database.sh
+      - name: OLTP completeness (m26)
+        run: bash scripts/verify/m26-oltp-completeness.sh
+      - name: DDL auto-increment PK (m181)
+        run: bash scripts/verify/m181-ddl-autoincrement-pk.sh
+      - name: distinct DB per app (m176)
+        run: bash scripts/verify/m176-contract-isolation-live.sh
+
       # Static legs only (no stack here): `make health` parses service edges and Kong routes
       # correctly and is wired to stack-health.sh; its live leg states that it was skipped.
       - name: stack health check (m220)

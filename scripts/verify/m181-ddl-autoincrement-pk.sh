@@ -50,8 +50,10 @@ need() {
 
 step "static: engine-agnostic auto_increment_pk selector"
 need "${CORE}/schema_ddl.rs" 'pub fn auto_increment_pk' "auto_increment_pk not defined"
-need "${CORE}/schema_ddl.rs" 'normalized_type == NormalizedType::Integer && c\.default\.is_none\(\)' \
-  "auto_increment_pk must require a default-less integer column"
+# The selector is a multi-line matches!(); read the function body as one string.
+selector=$(sed -n '/^pub fn auto_increment_pk/,/^}/p' "${CORE}/schema_ddl.rs" | tr -s ' \n' ' ')
+grep -Eq 'NormalizedType::Integer \| NormalizedType::Bigint \) && c\.default\.is_none\(\)' <<<"${selector}" ||
+  fail "auto_increment_pk must require a default-less integer column"
 need "${CORE}/lib.rs" 'auto_increment_pk' "auto_increment_pk not re-exported from the crate root"
 pass "auto_increment_pk defined + exported"
 

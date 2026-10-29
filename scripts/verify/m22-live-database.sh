@@ -191,10 +191,12 @@ for symbol in \
   "pub struct SchemaDdlRequest" \
   "pub struct SchemaDdlResult" \
   "pub struct DdlColumnDef" \
-  "pub enum SchemaDdlOp" \
-  "pub fn validate_default_expr"; do
+  "pub enum SchemaDdlOp"; do
   grep -rq "${symbol}" "${DDL_RS}" || fail "${DDL_RS} missing: ${symbol}"
 done
+# The DEFAULT allowlist moved to its own module; every engine's DDL builder imports it.
+grep -q "pub fn validate_default_expr" "${ROUTER_DIR}/crates/data-plane-core/src/default_expr.rs" ||
+  fail "data-plane-core default_expr.rs missing: pub fn validate_default_expr"
 grep -rq "pub use schema_ddl::" "${ROUTER_DIR}/crates/data-plane-core/src/lib.rs" ||
   fail "data-plane-core lib.rs does not re-export the schema DDL contract"
 grep -rq "async fn apply_schema_ddl" "${ROUTER_DIR}/crates/data-plane-core/src/ports.rs" ||

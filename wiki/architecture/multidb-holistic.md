@@ -221,7 +221,7 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 - [ ] Battery gains: structured DDL round-trip, FK introspection, typed-value round-trip
       (feeds G7), honest NotImplemented for every N in the matrix.
 - [ ] Add a real Oracle MySQL 8 service (profile `mysql8`) so MySQL ≠ MariaDB is proven.
-- [ ] Wire existing unwired gates: m22, m26, m88, m131, m174, m176, m181.
+- [x] Wire existing unwired gates: m22, m26, m88, m131, m174, m176, m181. Static legs m22/m26/m181/m176 run in the CI static job (m22, m26 and m181 were stale after the engine split into directories and the multi-line PK selector; fixed with the same strictness). Scratch gates m131 and m88 joined the `--enterprise` battery (local 2026-10-30: m131 7/7, m88 8/8, rc=0). m174 stays a VM live gate: it needs the extra-engines seed on a stack and SKIPs without Kong.
 - [ ] Repo default forward list includes dynamodb when the image has the feature, or the
       opt-in is documented in `.env.example` — fresh clone reproduces the VM.
 
