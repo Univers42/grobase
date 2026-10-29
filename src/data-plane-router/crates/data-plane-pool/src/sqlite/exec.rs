@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:30:02 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:30:03 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/29 22:40:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -45,21 +45,32 @@ pub(super) fn query_rows(
     // prepare_cached reuses the compiled VDBE program for a fixed query shape
     // (the per-connection cache is sized in `tune_read_conn`), removing a SQL
     // parse + recompile from every read — what PocketBase already amortizes.
-    // Results are byte-identical to `prepare`.
+    // The names are read after the first step: a cached statement whose table
+    // changed re-prepares inside that step, so names read before it describe
+    // the old layout while the values follow the new one.
     let mut stmt = conn.prepare_cached(sql).map_err(backend)?;
-    let col_names: Vec<String> = stmt.column_names().into_iter().map(String::from).collect();
-    let mapped = stmt
-        .query_map(params_from_iter(params.iter()), move |row| {
-            let mut obj = JsonMap::with_capacity(col_names.len());
-            for (i, name) in col_names.iter().enumerate() {
-                obj.insert(name.clone(), sql_to_json(row.get::<_, SqlValue>(i)?));
-            }
-            Ok(Value::Object(obj))
-        })
+    let mut rows = stmt
+        .query(params_from_iter(params.iter()))
         .map_err(backend)?;
+    let mut col_names: Vec<String> = Vec::new();
     let mut out = Vec::new();
-    for r in mapped {
-        out.push(r.map_err(backend)?);
+    while let Some(row) = rows.next().map_err(backend)? {
+        if col_names.is_empty() {
+            col_names = row
+                .as_ref()
+                .column_names()
+                .into_iter()
+                .map(String::from)
+                .collect();
+        }
+        let mut obj = JsonMap::with_capacity(col_names.len());
+        for (i, name) in col_names.iter().enumerate() {
+            obj.insert(
+                name.clone(),
+                sql_to_json(row.get::<_, SqlValue>(i).map_err(backend)?),
+            );
+        }
+        out.push(Value::Object(obj));
     }
     Ok(out)
 }
@@ -176,5 +187,32 @@ mod tests {
         ] {
             assert_eq!(normalize_sqlite_type(native), want, "{native}");
         }
+    }
+
+    /// A cached `SELECT *` re-prepares inside its first step after a schema
+    /// change; names read before that step belong to the old layout (seen live:
+    /// an added column missing, a recreated table's values under other names).
+    #[test]
+    fn cached_select_star_follows_a_schema_change() {
+        let conn = Connection::open_in_memory().unwrap();
+        let sql = "SELECT * FROM t";
+        conn.execute_batch("CREATE TABLE t (id INTEGER, a TEXT); INSERT INTO t VALUES (1, 'x')")
+            .unwrap();
+        assert_eq!(query_rows(&conn, sql, &[]).unwrap()[0]["a"], "x");
+
+        conn.execute_batch("ALTER TABLE t ADD COLUMN b TEXT; UPDATE t SET b = 'y'")
+            .unwrap();
+        assert_eq!(query_rows(&conn, sql, &[]).unwrap()[0]["b"], "y");
+
+        conn.execute_batch(
+            "DROP TABLE t; CREATE TABLE t (id INTEGER, b TEXT, a TEXT); \
+             INSERT INTO t VALUES (2, 'B', 'A')",
+        )
+        .unwrap();
+        let row = &query_rows(&conn, sql, &[]).unwrap()[0];
+        assert_eq!(
+            (&row["a"], &row["b"]),
+            (&Value::from("A"), &Value::from("B"))
+        );
     }
 }
