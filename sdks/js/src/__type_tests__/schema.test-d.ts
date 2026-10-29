@@ -35,6 +35,11 @@ text satisfies unknown;
 const objectId: NormalizedType = 'objectid';
 objectId satisfies unknown;
 
+const bytes: NormalizedType = 'binary';
+bytes satisfies unknown;
+const point: NormalizedType = 'geometry';
+point satisfies unknown;
+
 // @ts-expect-error 'varchar' is an engine-native name, not a normalized type
 const varchar: NormalizedType = 'varchar';
 varchar satisfies unknown;
@@ -104,6 +109,13 @@ createTable satisfies unknown;
 // @ts-expect-error DDL cannot create describe-only types (objectid/unknown)
 const addObjectId: SchemaDdlInput = { op: 'add_column', table: 'todos', column: { name: 'ref', normalized_type: 'objectid' } };
 addObjectId satisfies unknown;
+
+const addBytes: SchemaDdlInput = { op: 'add_column', table: 'todos', column: { name: 'blob', normalized_type: 'binary' } };
+addBytes satisfies unknown;
+
+// @ts-expect-error DDL cannot create describe-only types (geometry needs an SRID)
+const addGeometry: SchemaDdlInput = { op: 'add_column', table: 'todos', column: { name: 'at', normalized_type: 'geometry' } };
+addGeometry satisfies unknown;
 
 // @ts-expect-error create_table requires primary_key
 const createNoPk: SchemaDdlInput = { op: 'create_table', table: 'notes', columns: [{ name: 'id', normalized_type: 'uuid' }] };

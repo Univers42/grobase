@@ -298,7 +298,7 @@ mod tests {
         use NormalizedType::*;
         let cases = [
             ("int", Integer),
-            ("bigint", Integer),
+            ("bigint", Bigint),
             ("smallint", Integer),
             ("varchar(50)", Text),
             ("nvarchar(max)", Text),
@@ -311,9 +311,14 @@ mod tests {
             ("bit", Boolean),
             ("date", Datetime),
             ("datetime2", Datetime),
-            ("time", Datetime),
+            ("time", Time),
+            ("time(7)", Time),
             ("uniqueidentifier", Uuid),
-            ("varbinary", Unknown),
+            ("varbinary", Binary),
+            ("image", Binary),
+            ("geography", Geometry),
+            ("vector(3)", Vector),
+            ("xml", Unknown),
         ];
         for (native, want) in cases {
             assert_eq!(normalize_mssql_type(native), want, "native {native}");

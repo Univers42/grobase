@@ -44,7 +44,7 @@ pub(super) fn sql_to_json(value: SqlValue) -> Value {
         SqlValue::Integer(i) => Value::Number(i.into()),
         SqlValue::Real(f) => serde_json::Number::from_f64(f).map_or(Value::Null, Value::Number),
         SqlValue::Text(s) => Value::String(s),
-        SqlValue::Blob(b) => Value::String(format!("blob:{} bytes", b.len())),
+        SqlValue::Blob(b) => Value::String(data_plane_core::binary::hex_bytes(&b)),
     }
 }
 
@@ -135,9 +135,9 @@ mod tests {
         assert_eq!(sql_to_json(SqlValue::Text("x".into())), json!("x"));
         let r = sql_to_json(SqlValue::Real(2.5));
         assert_eq!(r, json!(2.5));
-        // A blob surfaces as a descriptive string (never panics).
-        let b = sql_to_json(SqlValue::Blob(vec![1, 2, 3]));
-        assert_eq!(b, json!("blob:3 bytes"));
+        // A blob surfaces as \x hex, the bytea form.
+        let b = sql_to_json(SqlValue::Blob(vec![1, 2, 0xff]));
+        assert_eq!(b, json!("\\x0102ff"));
     }
 
     #[test]

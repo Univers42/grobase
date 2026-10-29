@@ -337,8 +337,10 @@ export interface TxnResult {
 
 /**
  * Engine-agnostic normalized column types returned by `schema.describe()`.
- * `objectid` and `unknown` are describe-only — DDL rejects them (see
- * {@link DdlColumnType}).
+ * `objectid`, `geometry`, `vector` and `unknown` are describe-only — DDL
+ * rejects them (see {@link DdlColumnType}). `binary` values travel as
+ * `\x`-prefixed lowercase hex; `bigint` values past 2^53 are written as
+ * digit strings.
  */
 export type NormalizedType =
   | 'text'
@@ -353,10 +355,19 @@ export type NormalizedType =
   | 'enum'
   | 'array'
   | 'objectid'
+  | 'binary'
+  | 'time'
+  | 'interval'
+  | 'bigint'
+  | 'geometry'
+  | 'vector'
   | 'unknown';
 
-/** Normalized types creatable via DDL (`objectid`/`unknown` are describe-only). */
-export type DdlColumnType = Exclude<NormalizedType, 'objectid' | 'unknown'>;
+/** Normalized types creatable via DDL (the describe-only ones excluded). */
+export type DdlColumnType = Exclude<
+  NormalizedType,
+  'objectid' | 'geometry' | 'vector' | 'unknown'
+>;
 
 /** One column of a described table (snake_case — the exact wire shape). */
 export interface ColumnSchema {

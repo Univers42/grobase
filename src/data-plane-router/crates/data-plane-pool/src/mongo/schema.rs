@@ -282,7 +282,9 @@ mod tests {
         let by_name = |n: &str| described.iter().find(|c| c.name == n).unwrap();
         assert_eq!(by_name("name").normalized_type, NormalizedType::Text);
         assert!(!by_name("name").nullable);
-        assert_eq!(by_name("qty").normalized_type, NormalizedType::Integer);
+        // Integer is stored as BSON long (64-bit), which describe reports as
+        // Bigint; "int" would make the validator refuse values above 2^31.
+        assert_eq!(by_name("qty").normalized_type, NormalizedType::Bigint);
         assert!(by_name("qty").nullable);
         assert!(by_name("owner_id").nullable);
         // An explicit owner_id is respected, never duplicated.
