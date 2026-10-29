@@ -76,6 +76,7 @@ const GAPS = {
   },
   mongodb: {
     c_int: INT_AS_BIGINT,
+    c_date: 'BSON has no date-only type, stored as a midnight-UTC Date and described as datetime',
     c_uuid: 'stored as a string field, described as text',
     c_time: 'BSON has no time type, stored and described as text',
   },
