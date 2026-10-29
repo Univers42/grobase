@@ -56,6 +56,8 @@ export class SchemaController {
     description:
       'Single operation per request (add_column | drop_column | alter_column_type | ' +
       'create_table | drop_table) — deliberate, MySQL DDL is non-transactional. ' +
+      'Requires a Kong-signed app key with `write` (or `admin`) scope; every other ' +
+      'caller, a read-only key or a JWT user included, gets 403 (ADR 0009). ' +
       'Destructive ops (drop_column, drop_table) require `"confirm": true`. ' +
       'For alter_column_type the FULL target definition is composed server-side: ' +
       'attributes omitted from `column` are preserved from the current column. ' +

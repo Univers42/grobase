@@ -12,6 +12,7 @@
 
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -20,6 +21,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { VerifiedRequestIdentity } from '@mini-baas/common';
 import { QueryService } from './query.service';
+import { apiKeyScopes, hasApiKeyScope } from './api-key-scope';
 import { RealtimePublisherService } from './realtime-publisher.service';
 import {
   RustDataPlaneProxy,
@@ -150,6 +152,7 @@ export class SchemaService {
     dto: SchemaDdlRequestDto,
     identity?: VerifiedRequestIdentity,
   ): Promise<SchemaDdlResponse> {
+    this.authorizeDdl(dbId, dto.op, identity);
     if (DESTRUCTIVE_DDL_OPS.has(dto.op) && dto.confirm !== true) {
       throw new BadRequestException(
         `ddl op '${dto.op}' is destructive — set "confirm": true to proceed`,
@@ -195,6 +198,39 @@ export class SchemaService {
       void this.realtime.publishSchemaChanged(dbId, dto.table, dto.op);
     }
     return { ...result, dbId };
+  }
+
+  /**
+   * Schema DDL requires a Kong-signed app key holding `write` (or `admin`) —
+   * the rule the data plane's bypass route already enforces (`bypass.rs`
+   * `require_scope`). The PDP has no `ddl` action, and every measured DDL
+   * caller is an app key, so JWT / legacy-header users are refused outright:
+   * for them `tenantId === userId` always holds behind Kong, and a forger on
+   * the docker network sets both (ADR 0009).
+   *
+   * Runs before the confirm check and before `describe` (alter_column_type),
+   * so a refused caller learns nothing about the schema.
+   */
+  private authorizeDdl(dbId: string, op: string, identity?: VerifiedRequestIdentity): void {
+    const scopes = apiKeyScopes(identity);
+    if (scopes && hasApiKeyScope(scopes, 'write')) return;
+    const reason = scopes ? "api-key lacks 'write' scope" : 'schema ddl requires an app key';
+    const clean = (v: unknown) =>
+      String(v ?? '')
+        .replace(/\p{Cc}/gu, '')
+        .slice(0, 200);
+    this.logger.warn(
+      JSON.stringify({
+        event: 'schema_ddl_denied',
+        dbId: clean(dbId),
+        tenantId: clean(identity?.tenantId),
+        userId: clean(identity?.userId),
+        authMethod: clean(identity?.authMethod),
+        op: clean(op),
+        reason,
+      }),
+    );
+    throw new ForbiddenException(`${reason} for schema ddl op '${op}'`);
   }
 
   /** Defaults an (optional-attribute) DTO column into the FULL wire def. */
