@@ -268,7 +268,8 @@ rotate_kong() {
   update_env_var "KONG_PUBLIC_API_KEY" "$new_public"
   update_env_var "KONG_SERVICE_API_KEY" "$new_service"
 
-  restart_services kong
+  # tenant-control checks the same key on the /admin/v1/{migrate,rotate} relay.
+  restart_services kong tenant-control
   log "Kong API keys rotated"
   warn "Update all API consumers with new keys!"
   return 0
