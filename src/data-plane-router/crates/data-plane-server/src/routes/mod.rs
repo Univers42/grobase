@@ -247,7 +247,7 @@ mod tests {
         }
     }
 
-    fn counting_handle(tx_id: &str, rolled_back: Arc<AtomicUsize>) -> Arc<dyn TxHandle> {
+    pub(super) fn counting_handle(tx_id: &str, rolled_back: Arc<AtomicUsize>) -> Arc<dyn TxHandle> {
         Arc::new(CountingTxHandle {
             tx_id: tx_id.to_string(),
             mount_id: "db1".to_string(),

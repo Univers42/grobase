@@ -412,11 +412,19 @@ export class RustDataPlaneProxy {
   }
 
   async commitTransaction(context: RustProxyContext, txId: string): Promise<void> {
-    await this.postJson(`/v1/transactions/${encodeURIComponent(txId)}/commit`, {}, context);
+    await this.postJson(
+      `/v1/transactions/${encodeURIComponent(txId)}/commit`,
+      { identity: this.buildIdentity(context) },
+      context,
+    );
   }
 
   async rollbackTransaction(context: RustProxyContext, txId: string): Promise<void> {
-    await this.postJson(`/v1/transactions/${encodeURIComponent(txId)}/rollback`, {}, context);
+    await this.postJson(
+      `/v1/transactions/${encodeURIComponent(txId)}/rollback`,
+      { identity: this.buildIdentity(context) },
+      context,
+    );
   }
 
   // ── Envelope builders (shared by /v1/query and the transaction calls) ───────
