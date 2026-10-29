@@ -74,7 +74,9 @@
 #              without case, so a lifted value must not reach a header), as a GET or PUT, to /email/v1/send-x,         #
 #              /send/, /send%3F/../x or /rest/v1/some_table → 403              #
 #              the migration as a PUT, to /admin/v1/migrate-x, …/migrate/,     #
-#              …/migrate%3F/../tenants or /admin/v1/tenants → 403              #
+#              …/migrate%3F/../tenants, …/migrate/../provision,              #
+#              …/migrate%2F..%2Fprovision, /admin/v1/rotate (the relay to      #
+#              tenant-control, ADR 0008) or /admin/v1/tenants → 403            #
 #              the statement as a PUT, to …/sql-ro-x, to a non-uuid database, #
 #              through …/sql-ro%3F/../../execute, in another argument, or as   #
 #              payload.sql of /query/v1/execute → 403                          #
@@ -336,6 +338,9 @@ probe() {
       ["control-migrate-slash", "POST", "/admin/v1/migrate/", migration],
       ["control-migrate-encoded", "POST", "/admin/v1/migrate%3F/../tenants", migration],
       ["control-migrate-tenants", "POST", "/admin/v1/tenants", migration],
+      ["control-migrate-dotdot", "POST", "/admin/v1/migrate/../provision", migration],
+      ["control-migrate-encoded-slash", "POST", "/admin/v1/migrate%2F..%2Fprovision", migration],
+      ["control-rotate-sql", "POST", "/admin/v1/rotate", migration],
       ["content-query-sql", "POST", runner, raw],
       ["control-query-put", "PUT", runner, raw],
       ["control-query-suffix", "POST", runner + "-x", raw],

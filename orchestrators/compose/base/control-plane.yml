@@ -235,6 +235,9 @@ services:
       # and to create the per-tenant schema for schema_per_tenant mounts.
       ADAPTER_REGISTRY_URL: ${ADAPTER_REGISTRY_URL:-http://adapter-registry-go:3021}
       RUST_DATA_PLANE_URL: ${RUST_DATA_PLANE_URL:-http://data-plane-router-rust:4011}
+      # Kong's service_role key: authenticates Kong's /admin/v1/{migrate,rotate}
+      # relay (POST /v1/admin/*, ADR 0008). Empty = only the service token works.
+      KONG_SERVICE_API_KEY: ${KONG_SERVICE_API_KEY:-}
       # ABAC seam: the provisioning reconciler self-verifies seeded roles/policies
       # via permission-engine's POST /permissions/decide (service-token gated).
       # Role/policy SEEDING works without this (direct SQL); only Decide() needs it.

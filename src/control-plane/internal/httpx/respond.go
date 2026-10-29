@@ -26,7 +26,9 @@ func RedactDSN(s string) string {
 	// perf: regex compiled per call — error-response path only (cold; runs on
 	// upstream failures, not per request), so no shared package-level var.
 	dsnRe := regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"'\\]+`)
-	return dsnRe.ReplaceAllString(s, "[redacted-dsn]")
+	// libpq keyword form (`host=db password=secret`) carries no scheme.
+	kvRe := regexp.MustCompile(`(?i)\b(password|passwd|pwd)\s*=\s*('[^']*'|[^\s"'\\;]+)`)
+	return kvRe.ReplaceAllString(dsnRe.ReplaceAllString(s, "[redacted-dsn]"), "${1}=[redacted]")
 }
 
 // WriteJSON serializes v as a JSON response with the given status code.

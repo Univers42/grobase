@@ -33,7 +33,16 @@ type DataPlane struct {
 	baseURL      string
 	serviceToken string
 	http         *http.Client
+	relayHTTP    *http.Client
 }
+
+// adminRelayTimeout covers Kong's default 60 s upstream read timeout on
+// /admin/v1/{migrate,rotate}; the 8 s provisioning client would cut off a
+// migration that works through Kong today.
+const adminRelayTimeout = 65 * time.Second
+
+// dataPlaneMaxResp bounds how much of a data-plane response is read.
+const dataPlaneMaxResp = 1 << 20
 
 // NewDataPlane builds a client. baseURL e.g. http://data-plane-router-rust:4011.
 func NewDataPlane(baseURL, serviceToken string) *DataPlane {
@@ -41,6 +50,7 @@ func NewDataPlane(baseURL, serviceToken string) *DataPlane {
 		baseURL:      strings.TrimRight(baseURL, "/"),
 		serviceToken: serviceToken,
 		http:         &http.Client{Timeout: 8 * time.Second},
+		relayHTTP:    &http.Client{Timeout: adminRelayTimeout},
 	}
 }
 
@@ -89,38 +99,52 @@ func (dp *DataPlane) evictVerify(ctx context.Context) error {
 }
 
 // postAdmin marshals a service-identity envelope and POSTs it to an admin
-// endpoint (Content-Type + service auth + header propagation). A non-200 is
-// an error labelled errLabel; redact scrubs any DSN echo from the body.
+// endpoint. A non-200 is an error labelled errLabel; redact scrubs any DSN echo
+// from the body.
 func (dp *DataPlane) postAdmin(ctx context.Context, path string, envelope map[string]any, errLabel string, redact bool) error {
 	body, err := json.Marshal(envelope)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, dp.baseURL+path, bytes.NewReader(body))
+	status, resp, err := dp.postSigned(ctx, dp.http, path, body)
 	if err != nil {
 		return err
+	}
+	return dataPlaneRespErr(status, resp, errLabel, redact)
+}
+
+// postSigned POSTs body to path with the service auth the receiver verifies and
+// returns the status and up to dataPlaneMaxResp bytes of the response. It is the
+// one signer for every data-plane call from tenant-control.
+func (dp *DataPlane) postSigned(ctx context.Context, client *http.Client, path string, body []byte) (int, []byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, dp.baseURL+path, bytes.NewReader(body))
+	if err != nil {
+		return 0, nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	serviceauth.SignRequest(req, dp.serviceToken, body)
 	observability.PropagateHeaders(ctx, req)
-	resp, err := dp.http.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return 0, nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	return dataPlaneRespErr(resp, errLabel, redact)
+	b, err := io.ReadAll(io.LimitReader(resp.Body, dataPlaneMaxResp))
+	return resp.StatusCode, b, err
 }
 
-// dataPlaneRespErr returns nil on 200, else a labelled error built from a bounded
-// body read (DSN-redacted when redact is set).
-func dataPlaneRespErr(resp *http.Response, errLabel string, redact bool) error {
-	if resp.StatusCode == http.StatusOK {
+// dataPlaneRespErr returns nil on 200, else a labelled error built from the first
+// 512 bytes of the body (DSN-redacted when redact is set).
+func dataPlaneRespErr(status int, body []byte, errLabel string, redact bool) error {
+	if status == http.StatusOK {
 		return nil
 	}
-	b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-	msg := strings.TrimSpace(string(b))
+	if len(body) > 512 {
+		body = body[:512]
+	}
+	msg := strings.TrimSpace(string(body))
 	if redact {
 		msg = httpx.RedactDSN(msg)
 	}
-	return fmt.Errorf("%s %d: %s", errLabel, resp.StatusCode, msg)
+	return fmt.Errorf("%s %d: %s", errLabel, status, msg)
 }
