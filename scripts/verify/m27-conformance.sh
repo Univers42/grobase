@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/10 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/10/30 03:20:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 03:50:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -156,11 +156,11 @@ dsn_for() {
     ;;
   http)
     start_http_upstream || return 3
-    echo "{\"baseUrl\":\"${HTTP_UPSTREAM_URL}\"}"
+    echo "{\"baseUrl\":\"${HTTP_UPSTREAM_URL}\"}" # NOSONAR(S5332) grobase#67
     ;;
   dynamodb)
     start_dynamodb || return 3
-    echo "dynamodb://local?endpoint=${DDB_ENDPOINT}&region=us-east-1&access_key=fake&secret_key=fake"
+    echo "dynamodb://local?endpoint=${DDB_ENDPOINT}&region=us-east-1&access_key=fake&secret_key=fake" # NOSONAR(S5332) grobase#67
     ;;
   *) return 2 ;;
   esac
@@ -179,6 +179,11 @@ start_http_upstream() {
   return 1
 }
 
+ddb_cli() {
+  local aws_env=(-e AWS_ACCESS_KEY_ID=fake -e AWS_SECRET_ACCESS_KEY=fake -e AWS_DEFAULT_REGION=us-east-1)
+  docker run --rm --network "${NET}" "${aws_env[@]}" "${AWS_CLI_IMAGE}" dynamodb "$@" --endpoint-url "${DDB_ENDPOINT}" # NOSONAR(S5332) grobase#67
+}
+
 # The adapter keys every item on owner_pk (HASH) + id (RANGE) and creates no
 # table itself, so the scratch table is made here. create-table retries double
 # as the readiness wait.
@@ -187,10 +192,7 @@ start_dynamodb() {
     "${DDB_IMAGE}" -jar DynamoDBLocal.jar -inMemory >/dev/null || return 1
   local _
   for _ in $(seq 1 30); do
-    docker run --rm --network "${NET}" \
-      -e AWS_ACCESS_KEY_ID=fake -e AWS_SECRET_ACCESS_KEY=fake -e AWS_DEFAULT_REGION=us-east-1 \
-      "${AWS_CLI_IMAGE}" dynamodb create-table --endpoint-url "${DDB_ENDPOINT}" \
-      --table-name conf_probe \
+    ddb_cli create-table --table-name conf_probe \
       --attribute-definitions AttributeName=owner_pk,AttributeType=S AttributeName=id,AttributeType=S \
       --key-schema AttributeName=owner_pk,KeyType=HASH AttributeName=id,KeyType=RANGE \
       --billing-mode PAY_PER_REQUEST >/dev/null 2>&1 && return 0
