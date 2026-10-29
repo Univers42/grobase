@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:27:47 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:27:48 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/29 23:10:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -202,7 +202,7 @@ pub(super) fn normalize_doc(mut doc: Document) -> Value {
             doc.insert("id", id_str);
         }
     }
-    Bson::Document(doc).into_relaxed_extjson()
+    super::typed::render_cell(Bson::Document(doc))
 }
 
 #[cfg(test)]

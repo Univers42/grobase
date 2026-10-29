@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:27:54 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:27:56 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/29 23:10:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -35,8 +35,8 @@
 //! Split into concern modules (facade pattern, mirrors `routes/`): the adapter +
 //! pool wiring (`adapter`/`pool`), the CRUD/filter builders (`query`), the
 //! JSON↔BSON conversion (`convert`), the `$jsonSchema` DDL transforms (`schema`),
-//! and the error classifiers (`error`). Cross-module symbols stay `pub(super)`;
-//! the crate-facing surface is only the facade re-exported below.
+//! a cell against its declared type (`typed`), and the error classifiers
+//! (`error`). Cross-module symbols stay `pub(super)`; the crate-facing surface is only the facade re-exported below.
 
 mod adapter;
 mod convert;
@@ -45,6 +45,7 @@ mod filter;
 mod pool;
 mod query;
 mod schema;
+mod typed;
 
 // ── crate-facing facade ──────────────────────────────────────────────────────
 // `lib.rs` re-exports `MongoEngineAdapter`; `capability_honesty.rs` reads
