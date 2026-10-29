@@ -130,26 +130,35 @@ type mountRow struct {
 // stamps last_healthy_at fire-and-forget, matching the Node service.
 func (s *Service) loadMountRow(ctx context.Context, userID, id string) (mountRow, error) {
 	var m mountRow
-	var sharedRaw []byte
 	err := s.db.TenantTx(ctx, userID, func(tx pgx.Tx) error {
-		row := tx.QueryRow(ctx,
-			`SELECT engine, isolation, connection_enc, connection_iv, connection_tag, connection_salt,
-			        cred_provider, cred_reference, cred_version,
-			        cmek_wrapped_dek, cmek_kms_key_id, shared_resources, read_scoped
-			   FROM public.tenant_databases WHERE id = $1 AND tenant_id = $2`, id, userID)
-		err := row.Scan(&m.engine, &m.isolation, &m.payload.Encrypted, &m.payload.IV, &m.payload.Tag, &m.payload.Salt,
-			&m.provider, &m.reference, &m.version,
-			&m.cmekWrap, &m.cmekKeyPtr, &sharedRaw, &m.readScoped)
-		if err != nil {
-			return mapMountLookupErr(err)
+		var err error
+		if m, err = scanMountRow(ctx, tx, userID, id); err != nil {
+			return err
 		}
 		_, _ = tx.Exec(ctx, `UPDATE public.tenant_databases SET last_healthy_at = now() WHERE id = $1 AND tenant_id = $2`, id, userID)
 		return nil
 	})
-	if err == nil {
-		m.sharedResources = decodeSharedResources(sharedRaw)
-	}
 	return m, err
+}
+
+// scanMountRow is loadMountRow's read without the last_healthy_at stamp, under the same
+// explicit tenant scope.
+func scanMountRow(ctx context.Context, tx pgx.Tx, userID, id string) (mountRow, error) {
+	var m mountRow
+	var sharedRaw []byte
+	row := tx.QueryRow(ctx,
+		`SELECT engine, isolation, connection_enc, connection_iv, connection_tag, connection_salt,
+		        cred_provider, cred_reference, cred_version,
+		        cmek_wrapped_dek, cmek_kms_key_id, shared_resources, read_scoped
+		   FROM public.tenant_databases WHERE id = $1 AND tenant_id = $2`, id, userID)
+	err := row.Scan(&m.engine, &m.isolation, &m.payload.Encrypted, &m.payload.IV, &m.payload.Tag, &m.payload.Salt,
+		&m.provider, &m.reference, &m.version,
+		&m.cmekWrap, &m.cmekKeyPtr, &sharedRaw, &m.readScoped)
+	if err != nil {
+		return m, mapMountLookupErr(err)
+	}
+	m.sharedResources = decodeSharedResources(sharedRaw)
+	return m, nil
 }
 
 // decodeSharedResources unmarshals the JSONB shared_resources column into a slice
