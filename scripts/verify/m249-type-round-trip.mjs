@@ -6,7 +6,7 @@
 //    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         //
 //                                                 +#+#+#+#+#+   +#+            //
 //    Created: 2026/10/29 19:00:00 by dlesieur          #+#    #+#              //
-//    Updated: 2026/10/29 19:00:00 by dlesieur         ###   ########.fr        //
+//    Updated: 2026/10/29 23:40:00 by dlesieur         ###   ########.fr        //
 //                                                                              //
 // **************************************************************************** //
 //
@@ -24,6 +24,8 @@
 const KONG = process.env.BAAS_KONG_URL ?? 'http://127.0.0.1:8000';
 const KEY = process.env.BAAS_API_KEY ?? '';
 const ANON = process.env.BAAS_ANON_KEY ?? '';
+// pid is 1 in a container, so it cannot tell two runs apart.
+const RUN = Date.now().toString(36);
 const MOUNTS = (process.env.M249_MOUNTS ?? '')
   .split(',')
   .filter(Boolean)
@@ -54,12 +56,57 @@ const CASES = [
 ];
 
 // engine → column → reason. Each entry is an open item in the plan (G7 "Open").
-const GAPS = {};
+const INT_AS_BIGINT = 'integer is created as a 64-bit column and described as bigint';
+const SQLITE_AFFINITY = 'SQLite stores it under a type affinity, so the described type is the affinity';
+const GAPS = {
+  cockroachdb: { c_int: INT_AS_BIGINT },
+  postgresql: { c_int: INT_AS_BIGINT },
+  mariadb: {
+    c_int: INT_AS_BIGINT,
+    c_ts: 'the datetime bind is type-blind: an RFC 3339 string is refused (ERROR 1292)',
+    c_json: 'MariaDB JSON is an alias of LONGTEXT, described as text',
+    c_uuid: 'created as CHAR(36), described as text',
+  },
+  // The VM's grobase-mysql image runs MariaDB 11.4, so it shares MariaDB's gaps.
+  mysql: {
+    c_int: INT_AS_BIGINT,
+    c_ts: 'the datetime bind is type-blind: an RFC 3339 string is refused (ERROR 1292)',
+    c_json: 'MariaDB JSON is an alias of LONGTEXT, described as text',
+    c_uuid: 'created as CHAR(36), described as text',
+  },
+  mongodb: {
+    c_int: INT_AS_BIGINT,
+    c_uuid: 'stored as a string field, described as text',
+    c_time: 'BSON has no time type, stored and described as text',
+  },
+  mssql: { '(table)': 'the mssql adapter has no schema_ddl capability' },
+  sqlite: {
+    c_big: SQLITE_AFFINITY,
+    c_bool: SQLITE_AFFINITY,
+    c_date: SQLITE_AFFINITY,
+    c_ts: SQLITE_AFFINITY,
+    c_json: SQLITE_AFFINITY,
+    c_uuid: SQLITE_AFFINITY,
+    c_time: SQLITE_AFFINITY,
+  },
+};
+
+// Caveat: a 429 is retried up to 5 times, honouring Retry-After (1 s when absent,
+// capped at 30 s); a gateway limit tighter than that still fails the cell as 429.
+async function fetchPaced(url, init) {
+  for (let attempt = 0; ; attempt += 1) {
+    const res = await fetch(url, init);
+    if (res.status !== 429 || attempt === 5) return res;
+    const wait = Math.min(Number(res.headers.get('retry-after')) || 1, 30);
+    await res.arrayBuffer();
+    await new Promise((resolve) => setTimeout(resolve, wait * 1000));
+  }
+}
 
 async function call(path, body) {
   const headers = { 'Content-Type': 'application/json', 'X-Baas-Api-Key': KEY };
   if (ANON) headers.apikey = ANON;
-  const res = await fetch(`${KONG}${path}`, { method: 'POST', headers, body: JSON.stringify(body) });
+  const res = await fetchPaced(`${KONG}${path}`, { method: 'POST', headers, body: JSON.stringify(body) });
   const text = await res.text();
   let json = null;
   try {
@@ -76,29 +123,30 @@ const rowsOf = (json) => (Array.isArray(json) ? json : (json?.rows ?? json?.data
 
 async function describeTypes(id, table) {
   const headers = { 'X-Baas-Api-Key': KEY, ...(ANON ? { apikey: ANON } : {}) };
-  const res = await fetch(`${KONG}/query/v1/${id}/schema`, { headers });
+  const res = await fetchPaced(`${KONG}/query/v1/${id}/schema`, { headers });
   const tables = (await res.json())?.tables ?? [];
   const found = tables.find((t) => t.name === table);
   return Object.fromEntries((found?.columns ?? []).map((c) => [c.name, c.normalized_type]));
 }
 
 // One column per type, added and filled alone, so one refused type cannot hide
-// the others.
+// the others. Each row carries its own id: SQL engines would generate it, but a
+// Mongo validator only requires it.
 async function probeEngine(engine, id) {
-  const table = `m249_${process.pid}_${engine.slice(0, 5)}`;
+  const table = `m249_${RUN}_${engine.slice(0, 5)}`;
   const column = (name, type) => ({ name, normalized_type: type, nullable: true, default: null, enum_values: null });
   const idColumn = { ...column('id', 'integer'), nullable: false };
   const created = await ddl(id, { op: 'create_table', table, columns: [idColumn], primary_key: ['id'] });
   if (created.status >= 300) return [['(table)', 'FAIL', `create_table ${created.status}: ${brief(created.json)}`]];
   try {
     const cells = [];
-    for (const [name, type, value, check] of CASES) {
+    for (const [row, [name, type, value, check]] of CASES.entries()) {
       const added = await ddl(id, { op: 'add_column', table, column: column(name, type) });
       if (added.status >= 300) {
         cells.push([name, 'FAIL', `add_column ${type} ${added.status}: ${brief(added.json)}`]);
         continue;
       }
-      const ins = await call(`/query/v1/${id}/tables/${table}`, { op: 'insert', data: { [name]: value } });
+      const ins = await call(`/query/v1/${id}/tables/${table}`, { op: 'insert', data: { id: row + 1, [name]: value } });
       if (ins.status >= 300) {
         cells.push([name, 'FAIL', `insert ${ins.status}: ${brief(ins.json)}`]);
         continue;
