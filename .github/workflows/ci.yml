@@ -1450,6 +1450,32 @@ jobs:
       - name: 40 cold invokes must all answer
         run: bash scripts/verify/m186-functions-cold-invoke.sh
 
+  # ─── Engine conformance, the engines that need no stack (G3) ──────
+  # sqlite is a file inside the run; http and dynamodb get throwaway upstreams
+  # that m27 starts and removes. The stack engines stay in nightly-proof until
+  # the per-engine profile matrix lands.
+  engine-conformance:
+    name: Engine conformance (${{ matrix.engine }})
+    runs-on: ubuntu-latest
+    needs: [shellcheck]
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [sqlite, http, dynamodb]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
+      # The toolchain image comes from mirror.gcr.io: a registry 429 is retried.
+      - name: m27 battery
+        env:
+          ENGINE: ${{ matrix.engine }}
+        run: bash scripts/ci/retry-on-429.sh bash scripts/verify/m27-conformance.sh "$ENGINE"
+
   # ─── Rust lint (both workspaces) ───────────────────────────────
   # clippy ran nowhere in CI, and `make test-lint-rust` covered only the data
   # plane, so the realtime workspace drifted red unnoticed (issue #19). Both

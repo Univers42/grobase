@@ -192,7 +192,11 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 **G3 · Per-PR engine conformance, all engines** — gate m245 + CI matrix
 - [ ] CI job `engine-conformance` with a matrix over the 10 engines, each starting only
       its own compose profile; blocking, not `continue-on-error`.
-- [ ] Wire dynamodb and http into `tests/conformance.rs` and `m27-conformance.sh`.
+- [x] Wire dynamodb and http into `tests/conformance.rs` and `m27-conformance.sh`.
+      Both run on throwaway upstreams (a stdlib REST mock, dynamodb-local), so CI job
+      `engine-conformance` already gates sqlite · http · dynamodb on every PR with no
+      stack; the seven stack engines are the rest of the matrix item above. The http
+      adapter now reads a Get's 404 as an empty result, like every other engine.
 - [ ] Battery gains: structured DDL round-trip, FK introspection, typed-value round-trip
       (feeds G7), honest NotImplemented for every N in the matrix.
 - [ ] Add a real Oracle MySQL 8 service (profile `mysql8`) so MySQL ≠ MariaDB is proven.
