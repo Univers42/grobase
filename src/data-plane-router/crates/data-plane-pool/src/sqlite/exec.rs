@@ -134,7 +134,9 @@ pub(super) fn describe_schema_blocking(conn: &Connection) -> DataPlaneResult<Sch
 
 fn normalize_sqlite_type(native: &str) -> NormalizedType {
     let t = native.to_ascii_lowercase();
-    if t.contains("int") {
+    if t.contains("bigint") || t.contains("int8") {
+        NormalizedType::Bigint
+    } else if t.contains("int") {
         NormalizedType::Integer
     } else if t.contains("char") || t.contains("clob") || t.contains("text") {
         NormalizedType::Text
@@ -145,10 +147,34 @@ fn normalize_sqlite_type(native: &str) -> NormalizedType {
     } else if t.contains("bool") {
         NormalizedType::Boolean
     } else if t.contains("blob") {
-        NormalizedType::Unknown
+        NormalizedType::Binary
     } else if t.contains("date") || t.contains("time") {
         NormalizedType::Datetime
     } else {
         NormalizedType::Unknown
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_sqlite_type_reads_declared_affinity() {
+        use NormalizedType as N;
+        for (native, want) in [
+            ("INTEGER", N::Integer),
+            ("BIGINT", N::Bigint),
+            ("INT8", N::Bigint),
+            ("VARCHAR(20)", N::Text),
+            ("REAL", N::Float),
+            ("NUMERIC", N::Decimal),
+            ("BOOLEAN", N::Boolean),
+            ("BLOB", N::Binary),
+            ("DATETIME", N::Datetime),
+            ("", N::Unknown),
+        ] {
+            assert_eq!(normalize_sqlite_type(native), want, "{native}");
+        }
     }
 }

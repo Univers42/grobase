@@ -10,10 +10,10 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-//! Security: DDL contract guards. `validate_default_expr` must reject statement
-//! separators, SQL comments, and control characters (a DEFAULT clause is
-//! interpolated into DDL text — it cannot bind params), while accepting
-//! legitimate literals and function defaults. The `require_*` helpers must
+//! Security: DDL contract guards. `validate_default_expr` accepts only one
+//! literal or allowlisted niladic function (a DEFAULT clause is interpolated
+//! into DDL text — it cannot bind params), so it rejects separators, comments,
+//! control characters and clause smuggling, while accepting legitimate defaults. The `require_*` helpers must
 //! reject op-shape errors (missing column / unknown PK column / empty columns)
 //! so a malformed request becomes a clean 400 instead of an engine 5xx.
 
@@ -103,11 +103,94 @@ fn default_expr_rejects_each_forbidden_token_in_isolation() {
         validate_default_expr("-5").is_ok(),
         "single dash is allowed"
     );
-    // A bare '/' (not '/*') is NOT forbidden.
-    assert!(
-        validate_default_expr("1/2").is_ok(),
-        "lone slash is allowed"
-    );
+}
+
+/// A DEFAULT is interpolated after `DEFAULT ` inside `ALTER TABLE … ADD COLUMN`,
+/// so anything that is not one literal can append a second ALTER action
+/// (`, DISABLE ROW LEVEL SECURITY`) without ever needing `;` or a comment.
+/// On MySQL `\'` is an escaped quote, so a backslash can end the literal early.
+#[test]
+fn default_expr_rejects_clause_smuggling_without_separators() {
+    let smuggled = [
+        "'x', DISABLE ROW LEVEL SECURITY",
+        "0, ADD COLUMN pwned text",
+        "'x') , owner_id text DEFAULT ('y'",
+        "'a' || current_user",
+        "(SELECT secret FROM vault LIMIT 1)",
+        "current_user",
+        "'\\'' , DISABLE ROW LEVEL SECURITY , '''",
+        "'it\\'s'",
+        "'a' 'b'",
+        "'unterminated",
+        "'",
+        "1/2",
+        "now() + interval '1 day'",
+        "E'x'",
+    ];
+    for expr in smuggled {
+        let err = validate_default_expr(expr).unwrap_err();
+        assert!(
+            matches!(err, DataPlaneError::InvalidRequest { .. }),
+            "default {expr:?} must be rejected as InvalidRequest, got {err:?}"
+        );
+    }
+}
+
+#[test]
+fn default_expr_accepts_every_allowlisted_form() {
+    let safe = [
+        "'it''s'",
+        "''''",
+        "'✨'",
+        "'a, b) c'",
+        "-3.4e38",
+        "1E+10",
+        "9223372036854775807",
+        "TRUE",
+        "null",
+        "Now()",
+        "current_timestamp",
+        "CURRENT_DATE",
+    ];
+    for expr in safe {
+        assert!(
+            validate_default_expr(expr).is_ok(),
+            "allowlisted default {expr:?} must be accepted"
+        );
+    }
+}
+
+#[test]
+fn default_expr_rejects_oversized_input() {
+    let long = format!("'{}'", "a".repeat(2048));
+    assert!(validate_default_expr(&long).is_err());
+}
+
+/// Independent oracle for an accepted expression: a quoted literal whose body,
+/// once `''` pairs are removed, holds no quote and no backslash; otherwise a
+/// bare token with no quote, comma, whitespace or backslash, whose only `)` is
+/// its last character.
+fn stays_one_literal(expr: &str) -> bool {
+    if let Some(body) = expr.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')) {
+        let unescaped = body.replace("''", "");
+        return !unescaped.contains('\'') && !unescaped.contains('\\');
+    }
+    !expr.contains(['\'', ',', '\\', ' ']) && expr.find(')').is_none_or(|i| i == expr.len() - 1)
+}
+
+proptest::proptest! {
+    #[test]
+    fn prop_accepted_default_never_leaves_its_literal(expr in "[a-zA-Z0-9_ ,()'\\\\.+-]{0,24}") {
+        if validate_default_expr(&expr).is_ok() {
+            proptest::prop_assert!(stays_one_literal(&expr), "escaped literal: {expr:?}");
+        }
+    }
+
+    #[test]
+    fn prop_any_text_quoted_with_doubled_quotes_is_accepted(text in "[^\\\\\\p{Cc}]{0,64}") {
+        let literal = format!("'{}'", text.replace('\'', "''"));
+        proptest::prop_assert!(validate_default_expr(&literal).is_ok(), "{literal:?}");
+    }
 }
 
 // ── require_* op-shape validation: malformed requests → clean 400 ───────────

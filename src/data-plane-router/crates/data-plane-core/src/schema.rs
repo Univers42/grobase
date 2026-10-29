@@ -40,6 +40,19 @@ pub enum NormalizedType {
     Enum,
     Array,
     Objectid,
+    /// Raw bytes (`bytea`, `BLOB`, `binData`).
+    Binary,
+    /// Time of day without a date.
+    Time,
+    /// A duration (`interval`); creatable only where the engine has one.
+    Interval,
+    /// 64-bit integer, apart from `Integer` so clients can keep precision
+    /// past 2^53. Spelled `Bigint` so the wire value is `"bigint"`.
+    Bigint,
+    /// Spatial value (PostGIS). Describe-only until DDL carries an SRID.
+    Geometry,
+    /// Embedding (pgvector). Describe-only until DDL carries a dimension.
+    Vector,
     Unknown,
 }
 
@@ -137,9 +150,16 @@ mod tests {
             (NormalizedType::Text, "\"text\""),
             (NormalizedType::Datetime, "\"datetime\""),
             (NormalizedType::Objectid, "\"objectid\""),
+            (NormalizedType::Binary, "\"binary\""),
+            (NormalizedType::Time, "\"time\""),
+            (NormalizedType::Interval, "\"interval\""),
+            (NormalizedType::Bigint, "\"bigint\""),
+            (NormalizedType::Geometry, "\"geometry\""),
+            (NormalizedType::Vector, "\"vector\""),
             (NormalizedType::Unknown, "\"unknown\""),
         ] {
             assert_eq!(serde_json::to_string(&ty).unwrap(), wire);
+            assert_eq!(serde_json::from_str::<NormalizedType>(wire).unwrap(), ty);
         }
     }
 }

@@ -37,9 +37,15 @@ pub(super) fn normalize_mysql_type(column_type: &str) -> (NormalizedType, Option
     }
     let base = lower.split(['(', ' ']).next().unwrap_or("");
     let ty = match base {
-        "int" | "integer" | "bigint" | "smallint" | "mediumint" | "tinyint" => {
-            NormalizedType::Integer
+        "int" | "integer" | "smallint" | "mediumint" | "tinyint" => NormalizedType::Integer,
+        "bigint" => NormalizedType::Bigint,
+        "binary" | "varbinary" | "blob" | "tinyblob" | "mediumblob" | "longblob" => {
+            NormalizedType::Binary
         }
+        "time" => NormalizedType::Time,
+        "geometry" | "point" | "linestring" | "polygon" | "multipoint" | "multilinestring"
+        | "multipolygon" | "geometrycollection" => NormalizedType::Geometry,
+        "vector" => NormalizedType::Vector,
         "float" | "double" => NormalizedType::Float,
         "decimal" | "numeric" => NormalizedType::Decimal,
         "date" => NormalizedType::Date,
@@ -61,7 +67,7 @@ pub(super) fn mysql_literal(value: &str) -> String {
 /// Reverse type mapping (the inverse of [`normalize_mysql_type`]): lowers a
 /// [`DdlColumnDef`] to its MySQL column type SQL. `in_primary_key` switches
 /// text to `VARCHAR(255)` — `TEXT` cannot be a PK without a prefix length.
-/// `objectid`/`unknown` are describe-only and rejected.
+/// `interval`/`geometry`/`vector`/`objectid`/`unknown` are rejected.
 pub(super) fn mysql_sql_type(def: &DdlColumnDef, in_primary_key: bool) -> DataPlaneResult<String> {
     Ok(match def.normalized_type {
         NormalizedType::Text => {
@@ -92,7 +98,16 @@ pub(super) fn mysql_sql_type(def: &DdlColumnDef, in_primary_key: bool) -> DataPl
             let literals: Vec<String> = values.iter().map(|v| mysql_literal(v)).collect();
             format!("ENUM({})", literals.join(", "))
         }
-        NormalizedType::Objectid | NormalizedType::Unknown => {
+        // BLOB cannot be a key without a prefix length.
+        NormalizedType::Binary if in_primary_key => "VARBINARY(255)".to_string(),
+        NormalizedType::Binary => "LONGBLOB".to_string(),
+        NormalizedType::Time => "TIME".to_string(),
+        NormalizedType::Bigint => "BIGINT".to_string(),
+        NormalizedType::Interval
+        | NormalizedType::Geometry
+        | NormalizedType::Vector
+        | NormalizedType::Objectid
+        | NormalizedType::Unknown => {
             return Err(DataPlaneError::InvalidRequest {
                 message: format!(
                     "column '{}': normalized_type '{:?}' cannot be created on mysql",

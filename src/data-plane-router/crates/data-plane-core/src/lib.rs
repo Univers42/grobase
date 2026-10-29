@@ -10,7 +10,10 @@
 /*                                                                            */
 /* ************************************************************************** */
 
+pub mod binary;
 pub mod capability;
+pub mod coercion;
+pub mod default_expr;
 pub mod error;
 pub mod filter;
 pub mod identity;
@@ -25,6 +28,8 @@ pub mod schema_ddl;
 pub mod transaction;
 
 pub use capability::{CostCapabilities, EngineCapabilities, IsolationLevel};
+pub use coercion::{coercion, Coercion};
+pub use default_expr::validate_default_expr;
 pub use error::{DataPlaneError, DataPlaneResult};
 pub use filter::{CmpOp, Filter, Folded};
 pub use identity::{IdentitySource, RequestIdentity};
@@ -42,7 +47,7 @@ pub use ports::{
 };
 pub use schema::{ColumnSchema, ForeignKeyRef, NormalizedType, SchemaDescriptor, TableSchema};
 pub use schema_ddl::{
-    auto_increment_pk, validate_default_expr, DdlColumnDef, SchemaDdlOp, SchemaDdlRequest,
-    SchemaDdlResult, SchemaDdlStatus,
+    auto_increment_pk, DdlColumnDef, SchemaDdlOp, SchemaDdlRequest, SchemaDdlResult,
+    SchemaDdlStatus,
 };
 pub use transaction::{TxBeginRequest, TxSession, TxState};

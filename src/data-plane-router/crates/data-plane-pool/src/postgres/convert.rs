@@ -151,6 +151,17 @@ impl ToSql for JsonParam {
                 _ => self.0.to_sql_checked(ty, out),
             },
             Value::String(s) => match *ty {
+                // A 64-bit key past 2^53 arrives as its digit string (a JS
+                // number would round it); numeric keeps every decimal digit.
+                Type::INT8 => s.trim().parse::<i64>()?.to_sql(ty, out),
+                Type::NUMERIC => {
+                    write_pg_numeric(s.trim(), out)?;
+                    Ok(IsNull::No)
+                }
+                Type::BYTEA => data_plane_core::binary::parse_hex_bytes(s)
+                    .ok_or("bytea expects \\x-prefixed hex")?
+                    .to_sql(ty, out),
+                Type::TIME => s.parse::<chrono::NaiveTime>()?.to_sql(ty, out),
                 Type::UUID => s.parse::<uuid::Uuid>()?.to_sql(ty, out),
                 Type::TIMESTAMPTZ => s.parse::<chrono::DateTime<chrono::Utc>>()?.to_sql(ty, out),
                 Type::TIMESTAMP => s.parse::<chrono::NaiveDateTime>()?.to_sql(ty, out),
@@ -190,7 +201,7 @@ impl ToSql for JsonParam {
 /// ndigits, i16 weight (position of the most significant base-10000 group
 /// relative to the decimal point), u16 sign (0x0000 +, 0x4000 −), u16 dscale
 /// (decimal digits after the point), then ndigits × i16 base-10000 groups.
-fn write_pg_numeric(
+pub(super) fn write_pg_numeric(
     text: &str,
     out: &mut BytesMut,
 ) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
@@ -292,6 +303,21 @@ mod tests {
         assert_eq!(encode(json!(5), &Type::INT2).unwrap().1.len(), 2);
         assert_eq!(encode(json!(5), &Type::INT4).unwrap().1.len(), 4);
         assert_eq!(encode(json!(5), &Type::INT8).unwrap().1.len(), 8);
+    }
+
+    #[test]
+    fn g7_strings_bind_into_int8_numeric_bytea_and_time() {
+        // A key past 2^53 keeps every digit as a string.
+        let (_, buf) = encode(json!("9007199254740993"), &Type::INT8).unwrap();
+        assert_eq!(&buf[..], &9_007_199_254_740_993i64.to_be_bytes());
+        assert!(encode(json!("12abc"), &Type::INT8).is_err());
+        let (_, buf) = encode(json!("5"), &Type::NUMERIC).unwrap();
+        assert_eq!(&buf[..], &[0, 1, 0, 0, 0, 0, 0, 0, 0, 5]);
+        let (_, buf) = encode(json!("\\xdead"), &Type::BYTEA).unwrap();
+        assert_eq!(&buf[..], &[0xde, 0xad]);
+        let (_, buf) = encode(json!("00:00:01.5"), &Type::TIME).unwrap();
+        assert_eq!(&buf[..], &1_500_000i64.to_be_bytes());
+        assert!(encode(json!("noon"), &Type::TIME).is_err());
     }
 
     #[test]

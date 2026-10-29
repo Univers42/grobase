@@ -51,6 +51,7 @@ func Mount(mux *http.ServeMux, svc *Service, serviceToken string, rotation *serv
 	mux.HandleFunc("GET /databases", rt.list)
 	mux.HandleFunc("GET /databases/{id}", rt.findOne)
 	mux.HandleFunc("GET /databases/{id}/connect", rt.connect)
+	mux.HandleFunc("GET /databases/{id}/descriptor", rt.descriptor)
 	mux.HandleFunc("DELETE /databases/{id}", rt.remove)
 	mux.HandleFunc("DELETE /databases/{id}/self", rt.removeScoped)
 }
@@ -100,6 +101,20 @@ func (rt *routes) findOne(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, db)
+}
+
+// descriptor serves the mount's credential-free location (G4) under the same user scope
+// as findOne.
+func (rt *routes) descriptor(w http.ResponseWriter, r *http.Request) {
+	userID, ok := rt.requireUser(w, r)
+	if !ok {
+		return
+	}
+	d, err := rt.svc.Describe(r.Context(), userID, r.PathValue("id"))
+	if rt.handleLookupError(w, err) {
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, d)
 }
 
 func (rt *routes) connect(w http.ResponseWriter, r *http.Request) {
