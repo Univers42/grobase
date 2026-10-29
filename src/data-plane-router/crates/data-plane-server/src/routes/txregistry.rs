@@ -48,6 +48,13 @@ pub(super) struct TransactionEntry {
     pub(super) expires_at: SystemTime,
 }
 
+/// Why [`TransactionRegistry::take_for_tenant`] refused.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum TakeRefusal {
+    NotFound,
+    OtherTenant,
+}
+
 impl TransactionRegistry {
     pub(super) async fn register(
         &self,
@@ -88,10 +95,22 @@ impl TransactionRegistry {
     }
 
     /// Remove the entry, returning both the handle and the `pool_key` so the
-    /// caller can unpin the pool after finalising the tx.
-    pub(super) async fn take(&self, tx_id: &str) -> Option<(Arc<dyn TxHandle>, String)> {
+    /// caller can unpin the pool after finalising the tx. With `Some(tenant)`
+    /// only the tenant that opened the tx may take it; the check and the
+    /// removal share one lock, so a refused call leaves the entry to its owner.
+    pub(super) async fn take_for_tenant(
+        &self,
+        tx_id: &str,
+        tenant_id: Option<&str>,
+    ) -> Result<(Arc<dyn TxHandle>, String), TakeRefusal> {
         let mut map = self.map.lock().await;
-        map.remove(tx_id).map(|e| (e.handle, e.pool_key))
+        let owner = &map.get(tx_id).ok_or(TakeRefusal::NotFound)?.tenant_id;
+        if tenant_id.is_some_and(|tenant| tenant != owner) {
+            return Err(TakeRefusal::OtherTenant);
+        }
+        map.remove(tx_id)
+            .map(|e| (e.handle, e.pool_key))
+            .ok_or(TakeRefusal::NotFound)
     }
 
     /// Remove every entry past its `expires_at`, returning their (handle,
@@ -112,5 +131,55 @@ impl TransactionRegistry {
             .filter_map(|id| map.remove(&id))
             .map(|e| (e.handle, e.pool_key))
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::routes::tests::counting_handle;
+    use std::sync::atomic::AtomicUsize;
+
+    async fn one_tx(reg: &TransactionRegistry) -> String {
+        let handle = counting_handle("tx-1", Arc::new(AtomicUsize::new(0)));
+        reg.register(
+            handle,
+            "t-1".into(),
+            "db1".into(),
+            "pool-1".into(),
+            Duration::from_secs(3600),
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn another_tenant_cannot_take_and_the_owner_still_can() {
+        let reg = TransactionRegistry::default();
+        let tx_id = one_tx(&reg).await;
+        assert_eq!(
+            reg.take_for_tenant(&tx_id, Some("t-2")).await.err(),
+            Some(TakeRefusal::OtherTenant)
+        );
+        let (_, pool_key) = reg
+            .take_for_tenant(&tx_id, Some("t-1"))
+            .await
+            .expect("the owner takes it");
+        assert_eq!(pool_key, "pool-1");
+        assert_eq!(
+            reg.take_for_tenant(&tx_id, Some("t-1")).await.err(),
+            Some(TakeRefusal::NotFound),
+            "taken once"
+        );
+    }
+
+    #[tokio::test]
+    async fn no_tenant_skips_the_check() {
+        let reg = TransactionRegistry::default();
+        let tx_id = one_tx(&reg).await;
+        assert!(reg.take_for_tenant(&tx_id, None).await.is_ok());
+        assert_eq!(
+            reg.take_for_tenant("missing", None).await.err(),
+            Some(TakeRefusal::NotFound)
+        );
     }
 }

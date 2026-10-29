@@ -109,6 +109,24 @@ describe('postJson signs the bytes it sends', () => {
     expect(sent[0].headers['X-Service-Auth']).toBeUndefined();
   });
 
+  it('commit and rollback carry the caller identity for the tenant check', async () => {
+    const { http, sent } = capture();
+    const proxy = make({}, http);
+    await proxy.commitTransaction(context, 'tx/1');
+    await proxy.rollbackTransaction(context, 'tx/2');
+
+    expect(sent.map((s) => s.url)).toEqual([
+      'http://data-plane-router-rust:4011/v1/transactions/tx%2F1/commit',
+      'http://data-plane-router-rust:4011/v1/transactions/tx%2F2/rollback',
+    ]);
+    for (const { body } of sent) {
+      expect(JSON.parse(body as string).identity).toMatchObject({
+        tenant_id: 't1',
+        user_id: 'u1',
+      });
+    }
+  });
+
   it('with no token configured: no auth header at all', async () => {
     process.env.SERVICE_TOKEN_MODE = 'hmac';
     const { http, sent } = capture();
