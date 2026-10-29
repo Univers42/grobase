@@ -11,6 +11,7 @@
 /* ************************************************************************** */
 
 pub mod capability;
+pub mod coercion;
 pub mod default_expr;
 pub mod error;
 pub mod filter;
@@ -26,6 +27,7 @@ pub mod schema_ddl;
 pub mod transaction;
 
 pub use capability::{CostCapabilities, EngineCapabilities, IsolationLevel};
+pub use coercion::{coercion, Coercion};
 pub use default_expr::validate_default_expr;
 pub use error::{DataPlaneError, DataPlaneResult};
 pub use filter::{CmpOp, Filter, Folded};

@@ -32,12 +32,13 @@ pub(super) enum ColumnMode {
 
 /// The `bsonType` name for a creatable DDL column. The exact inverse of
 /// [`super::convert::bson_type_to_normalized`] over the creatable set;
-/// `objectid`/`unknown` are describe-only and rejected (enums use `enum:`
+/// `interval`/`geometry`/`vector`/`objectid`/`unknown` are rejected (enums use `enum:`
 /// instead of `bsonType`).
 fn ddl_bson_type(def: &DdlColumnDef) -> DataPlaneResult<&'static str> {
     Ok(match def.normalized_type {
-        NormalizedType::Text | NormalizedType::Uuid => "string",
-        NormalizedType::Integer => "long",
+        NormalizedType::Text | NormalizedType::Uuid | NormalizedType::Time => "string",
+        NormalizedType::Integer | NormalizedType::Bigint => "long",
+        NormalizedType::Binary => "binData",
         NormalizedType::Float => "double",
         NormalizedType::Decimal => "decimal",
         NormalizedType::Boolean => "bool",
@@ -45,7 +46,11 @@ fn ddl_bson_type(def: &DdlColumnDef) -> DataPlaneResult<&'static str> {
         NormalizedType::Json => "object",
         NormalizedType::Array => "array",
         NormalizedType::Enum => "string",
-        NormalizedType::Objectid | NormalizedType::Unknown => {
+        NormalizedType::Interval
+        | NormalizedType::Geometry
+        | NormalizedType::Vector
+        | NormalizedType::Objectid
+        | NormalizedType::Unknown => {
             return Err(DataPlaneError::InvalidRequest {
                 message: format!(
                     "column '{}': normalized_type '{:?}' cannot be created on mongodb",
@@ -238,7 +243,13 @@ mod tests {
         );
         assert!(ddl_column_to_property(&col("status", NormalizedType::Enum, false)).is_err());
         // describe-only types are rejected.
-        for ty in [NormalizedType::Objectid, NormalizedType::Unknown] {
+        for ty in [
+            NormalizedType::Interval,
+            NormalizedType::Geometry,
+            NormalizedType::Vector,
+            NormalizedType::Objectid,
+            NormalizedType::Unknown,
+        ] {
             assert!(matches!(
                 ddl_column_to_property(&col("c", ty, false)).unwrap_err(),
                 DataPlaneError::InvalidRequest { .. }
@@ -384,11 +395,15 @@ mod tests {
             (Json, "object"),
             (Array, "array"),
             (Enum, "string"),
+            (Binary, "binData"),
+            (Time, "string"),
+            (Bigint, "long"),
         ] {
             assert_eq!(ddl_bson_type(&mk(ty)).unwrap(), want, "type {ty:?}");
         }
-        // objectid / unknown are describe-only → InvalidRequest.
-        assert!(ddl_bson_type(&mk(Objectid)).is_err());
-        assert!(ddl_bson_type(&mk(Unknown)).is_err());
+        // describe-only (or engine-less) types → InvalidRequest.
+        for ty in [Interval, Geometry, Vector, Objectid, Unknown] {
+            assert!(ddl_bson_type(&mk(ty)).is_err(), "type {ty:?}");
+        }
     }
 }

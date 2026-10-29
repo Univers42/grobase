@@ -536,6 +536,9 @@ mod tests {
             (N::Json, "JSON"),
             (N::Uuid, "CHAR(36)"),
             (N::Array, "JSON"),
+            (N::Binary, "LONGBLOB"),
+            (N::Time, "TIME"),
+            (N::Bigint, "BIGINT"),
         ] {
             assert_eq!(
                 mysql_sql_type(&col("c", ty), false).unwrap(),
@@ -548,6 +551,10 @@ mod tests {
             mysql_sql_type(&col("c", N::Text), true).unwrap(),
             "VARCHAR(255)"
         );
+        assert_eq!(
+            mysql_sql_type(&col("c", N::Binary), true).unwrap(),
+            "VARBINARY(255)"
+        );
         // enum values are escaped literals (quote doubled, backslash escaped).
         let mut status = col("status", N::Enum);
         status.enum_values = Some(vec!["pending".into(), "it's".into(), "a\\b".into()]);
@@ -557,7 +564,7 @@ mod tests {
         );
         // enum without values, and describe-only types, are client errors.
         assert!(mysql_sql_type(&col("c", N::Enum), false).is_err());
-        for ty in [N::Objectid, N::Unknown] {
+        for ty in [N::Interval, N::Geometry, N::Vector, N::Objectid, N::Unknown] {
             assert!(matches!(
                 mysql_sql_type(&col("c", ty), false).unwrap_err(),
                 DataPlaneError::InvalidRequest { .. }

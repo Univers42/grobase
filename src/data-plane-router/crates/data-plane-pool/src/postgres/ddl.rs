@@ -73,7 +73,8 @@ fn pg_enum_type_name(schema: &str, table: &str, column: &str) -> DataPlaneResult
 /// Reverse type mapping (the inverse of [`normalize_pg_type`]): lowers a
 /// [`DdlColumnDef`] to the PostgreSQL column type SQL. Enum columns map to a
 /// named type `"{table}_{column}_enum"` (created/reused via the plan's
-/// `ensure_enum_types`). `objectid`/`unknown` are describe-only and rejected.
+/// `ensure_enum_types`). `objectid`/`geometry`/`vector`/`unknown` are
+/// describe-only and rejected.
 pub(super) fn pg_sql_type(
     schema: &str,
     table: &str,
@@ -92,7 +93,16 @@ pub(super) fn pg_sql_type(
         // v1: arrays are text[] — element typing is a follow-up.
         NormalizedType::Array => "text[]".to_string(),
         NormalizedType::Enum => pg_enum_type_name(schema, table, &def.name)?,
-        NormalizedType::Objectid | NormalizedType::Unknown => {
+        NormalizedType::Binary => "bytea".to_string(),
+        NormalizedType::Time => "time".to_string(),
+        NormalizedType::Interval => "interval".to_string(),
+        NormalizedType::Bigint => "bigint".to_string(),
+        // Extension types (PostGIS, pgvector) need an SRID / dimension the
+        // DDL request does not carry yet.
+        NormalizedType::Geometry
+        | NormalizedType::Vector
+        | NormalizedType::Objectid
+        | NormalizedType::Unknown => {
             return Err(DataPlaneError::InvalidRequest {
                 message: format!(
                     "column '{}': normalized_type '{:?}' cannot be created on postgresql",
@@ -364,6 +374,10 @@ mod tests {
             (N::Json, "jsonb"),
             (N::Uuid, "uuid"),
             (N::Array, "text[]"),
+            (N::Binary, "bytea"),
+            (N::Time, "time"),
+            (N::Interval, "interval"),
+            (N::Bigint, "bigint"),
         ] {
             assert_eq!(
                 pg_sql_type("public", "orders", &col("c", ty)).unwrap(),
@@ -377,7 +391,12 @@ mod tests {
             "\"public\".\"orders_status_enum\""
         );
         // describe-only types are rejected, not guessed.
-        for ty in [NormalizedType::Objectid, NormalizedType::Unknown] {
+        for ty in [
+            NormalizedType::Geometry,
+            NormalizedType::Vector,
+            NormalizedType::Objectid,
+            NormalizedType::Unknown,
+        ] {
             assert!(matches!(
                 pg_sql_type("public", "orders", &col("c", ty)).unwrap_err(),
                 DataPlaneError::InvalidRequest { .. }

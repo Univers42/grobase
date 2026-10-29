@@ -34,7 +34,7 @@ fn sqlite_literal(value: &str) -> String {
 /// Lowers a [`DdlColumnDef`] to its SQLite column type. SQLite stores by type
 /// affinity, so date/datetime/json/uuid land in TEXT and decimal in NUMERIC —
 /// honest round-trip caveat: introspection reports the affinity, not the
-/// declared intent. `objectid`/`unknown` are describe-only and rejected.
+/// declared intent. `interval`/`geometry`/`vector`/`objectid`/`unknown` are rejected.
 pub(crate) fn sqlite_sql_type(def: &DdlColumnDef) -> DataPlaneResult<String> {
     Ok(match def.normalized_type {
         NormalizedType::Text
@@ -42,8 +42,12 @@ pub(crate) fn sqlite_sql_type(def: &DdlColumnDef) -> DataPlaneResult<String> {
         | NormalizedType::Datetime
         | NormalizedType::Json
         | NormalizedType::Uuid
+        | NormalizedType::Time
         | NormalizedType::Array => "TEXT".to_string(),
-        NormalizedType::Integer | NormalizedType::Boolean => "INTEGER".to_string(),
+        NormalizedType::Integer | NormalizedType::Bigint | NormalizedType::Boolean => {
+            "INTEGER".to_string()
+        }
+        NormalizedType::Binary => "BLOB".to_string(),
         NormalizedType::Float => "REAL".to_string(),
         NormalizedType::Decimal => "NUMERIC".to_string(),
         NormalizedType::Enum => {
@@ -51,7 +55,11 @@ pub(crate) fn sqlite_sql_type(def: &DdlColumnDef) -> DataPlaneResult<String> {
             // CHECK needs the quoted column name).
             "TEXT".to_string()
         }
-        NormalizedType::Objectid | NormalizedType::Unknown => {
+        NormalizedType::Interval
+        | NormalizedType::Geometry
+        | NormalizedType::Vector
+        | NormalizedType::Objectid
+        | NormalizedType::Unknown => {
             return Err(DataPlaneError::InvalidRequest {
                 message: format!(
                     "column '{}': normalized_type '{:?}' cannot be created on sqlite",
@@ -161,6 +169,26 @@ mod tests {
             nullable: true,
             default: None,
             enum_values: None,
+        }
+    }
+
+    #[test]
+    fn sqlite_sql_type_maps_to_affinities_and_rejects_the_rest() {
+        use NormalizedType as N;
+        for (ty, expected) in [
+            (N::Text, "TEXT"),
+            (N::Time, "TEXT"),
+            (N::Integer, "INTEGER"),
+            (N::Bigint, "INTEGER"),
+            (N::Boolean, "INTEGER"),
+            (N::Float, "REAL"),
+            (N::Decimal, "NUMERIC"),
+            (N::Binary, "BLOB"),
+        ] {
+            assert_eq!(sqlite_sql_type(&col("c", ty)).unwrap(), expected, "{ty:?}");
+        }
+        for ty in [N::Interval, N::Geometry, N::Vector, N::Objectid, N::Unknown] {
+            assert!(sqlite_sql_type(&col("c", ty)).is_err(), "{ty:?}");
         }
     }
 
