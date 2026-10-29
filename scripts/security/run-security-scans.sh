@@ -33,6 +33,8 @@
 #   SECURITY_SEMGREP_CONFIG p/owasp-top-ten,p/typescript,p/dockerfile,p/nodejs (default)
 #   SECURITY_ARTIFACTS_DIR  artifacts/security (default)
 #   SECURITY_TRIVY_IMAGE_PARALLELISM  concurrent image scans (default: 4)
+#   SECURITY_TRIVY_CACHE_DIR  vuln-DB cache (default: <artifacts>/trivy/cache). The DB is
+#                           ~1.5 GB, so point checkouts on a small disk at one shared dir.
 #   SKIP_BUILD              1 to skip the Trivy image leg (filesystem scan only)
 #
 # Exit code: 0 only when every enabled scanner returns no findings at or above
@@ -216,7 +218,7 @@ run_trivy() {
   step "Trivy — Container + filesystem scan"
   local severity="${SECURITY_TRIVY_SEVERITY:-HIGH,CRITICAL}"
   local out_dir="${ARTIFACTS_DIR}/trivy"
-  local cache_dir="${out_dir}/cache"
+  local cache_dir="${SECURITY_TRIVY_CACHE_DIR:-${out_dir}/cache}"
   local ignore_file="${BAAS_DIR}/.trivyignore"
   mkdir -p "${out_dir}"
   mkdir -p "${cache_dir}"
@@ -267,7 +269,10 @@ run_trivy() {
         cache_dir="$5"
         ignore_file="$6"
         safe_name=$(printf "%s" "${img}" | tr "/:" "__")
-        cache_root="${repo_root}/${cache_dir}"
+        case "${cache_dir}" in
+          /*) cache_root="${cache_dir}" ;;
+          *) cache_root="${repo_root}/${cache_dir}" ;;
+        esac
         printf "\033[0;36m[sec]     scanning %s\033[0m\n" "${img}"
         docker run --rm \
           -v /var/run/docker.sock:/var/run/docker.sock \
