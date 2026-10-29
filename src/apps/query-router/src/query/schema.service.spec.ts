@@ -172,6 +172,22 @@ describe('SchemaService', () => {
   describe('applyDdl', () => {
     const identity = { tenantId: 't-1' } as never;
 
+    it('refuses with no verified tenant instead of using the user id (no proxy call)', async () => {
+      const { service, proxy, query } = build();
+      for (const missing of [undefined, { tenantId: '' }]) {
+        await expect(
+          service.applyDdl(
+            'db-1',
+            'user-1',
+            { op: 'add_column', table: 'orders', column: { name: 'x', normalized_type: 'text' } },
+            missing as never,
+          ),
+        ).rejects.toMatchObject({ status: 403 });
+      }
+      expect(query.resolveConnection).not.toHaveBeenCalled();
+      expect(proxy.applySchemaDdl).not.toHaveBeenCalled();
+    });
+
     it('refuses destructive ops without confirm: true (no proxy call)', async () => {
       const { service, proxy } = build();
       for (const op of ['drop_column', 'drop_table'] as const) {
