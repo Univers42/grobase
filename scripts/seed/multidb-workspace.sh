@@ -209,7 +209,7 @@ prelude() {
   act "verify workspace ${WS} exists with owner_id ${OWNER} (public.osionos_workspaces)" ws_owned ||
     die "workspace ${WS} is missing or not owned by ${OWNER} — nothing written"
   if ((APPLY)); then
-    export MDW_ROW_OWNER="${MA_OWNER}"
+    export MDW_ROW_OWNER="${MA_OWNER}" MDW_ROW_TENANT="${MA_TENANT}"
     ROUTER_ENGINES="$(ma_router_engines)"
     echo "[mdw] router engines: ${ROUTER_ENGINES:-<none reported>}"
   fi
