@@ -142,6 +142,14 @@ describe('RealtimePublisherService', () => {
 // ── QueryService wiring (publisher called from the write paths) ─────────────
 
 const DB_ID = 'db-1';
+// A write-scoped app key: the only caller schema DDL admits (G1g).
+const WRITE_KEY = {
+  tenantId: 't-1',
+  userId: 'api-key:k1',
+  appId: 'api-key',
+  scopes: ['read', 'write'],
+  authMethod: 'kong-hmac',
+} as never;
 const MOUNTS_JSON = JSON.stringify({
   [DB_ID]: { engine: 'postgresql', connection_string: 'postgres://example/db' },
 });
@@ -346,7 +354,7 @@ describe('SchemaService realtime wiring', () => {
         table: 'notes',
         column: { name: 'extra', normalized_type: 'text' },
       } as never,
-      { tenantId: 't-1' } as never,
+      WRITE_KEY,
     );
     await flush();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -368,7 +376,7 @@ describe('SchemaService realtime wiring', () => {
           table: 'notes',
           column: { name: 'x', normalized_type: 'text' },
         } as never,
-        { tenantId: 't-1' } as never,
+        WRITE_KEY,
       ),
     ).rejects.toThrow('409 conflict');
     await flush();
