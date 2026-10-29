@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/02 00:00:00 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/02 00:00:00 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 04:10:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -21,6 +21,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
+import { serviceAuthHeaders } from '@mini-baas/common';
 import type { AdapterOp, QueryOpts, QueryResult } from '@mini-baas/database';
 
 /**
@@ -173,6 +174,20 @@ export interface RustSchemaDdlResult {
   status: string;
 }
 
+/**
+ * The data plane verifies the signature over the path it receives, and the
+ * signer signs `/v1/...`; a base URL with its own path would make every signed
+ * call fail, so it is refused at startup instead.
+ */
+export function assertOriginOnly(url: string): void {
+  const parsed = new URL(url);
+  if (parsed.pathname !== '/' || parsed.search || parsed.hash) {
+    throw new Error(
+      `RUST_DATA_PLANE_URL must be an origin (scheme://host:port), got a path or query: ${parsed.origin}${parsed.pathname}`,
+    );
+  }
+}
+
 @Injectable()
 export class RustDataPlaneProxy {
   private readonly logger = new Logger(RustDataPlaneProxy.name);
@@ -202,6 +217,7 @@ export class RustDataPlaneProxy {
       'RUST_DATA_PLANE_URL',
       `${dataPlaneScheme}://data-plane-router-rust:4011`,
     );
+    assertOriginOnly(this.url);
     this.forwardEnabled = ['1', 'true', 'on'].includes(
       (config.get<string>('RUST_DATA_PLANE_FORWARD', '0') ?? '0').toLowerCase(),
     );
@@ -246,7 +262,10 @@ export class RustDataPlaneProxy {
       const { data } = await firstValueFrom(
         this.http.get<RustCapabilitiesResponse>(`${this.url}/v1/capabilities`, {
           timeout: this.timeoutMs,
-          headers: this.headersFor({} as RustProxyContext),
+          headers: {
+            ...this.headersFor({} as RustProxyContext),
+            ...this.authHeaders('GET', '/v1/capabilities', ''),
+          },
         }),
       );
       return data;
@@ -490,7 +509,6 @@ export class RustDataPlaneProxy {
 
   private headersFor(context: RustProxyContext): Record<string, string> {
     const headers: Record<string, string> = {};
-    if (this.serviceToken) headers['X-Service-Token'] = this.serviceToken;
     if (context.requestId) headers['x-request-id'] = context.requestId;
     if (context.traceparent) headers['traceparent'] = context.traceparent;
     return headers;
@@ -508,6 +526,11 @@ export class RustDataPlaneProxy {
     return { rows, rowCount };
   }
 
+  /** Signed in hmac mode, the static token otherwise, nothing when unset. */
+  private authHeaders(method: string, path: string, body: string): Record<string, string> {
+    return this.serviceToken ? serviceAuthHeaders(this.serviceToken, method, path, body) : {};
+  }
+
   /** POST JSON to the data plane, surfacing its 4xx (e.g. a capability/validation
    *  rejection) as a `BadRequestException` and anything else as `BadGateway`. */
   private async postJson<T>(
@@ -516,11 +539,17 @@ export class RustDataPlaneProxy {
     context: RustProxyContext,
     label = path,
   ): Promise<T> {
+    // Serialized here, not by axios: the signature covers these exact bytes.
+    const payload = JSON.stringify(body);
     try {
       const { data } = await firstValueFrom(
-        this.http.post<T>(`${this.url}${path}`, body, {
+        this.http.post<T>(`${this.url}${path}`, payload, {
           timeout: this.timeoutMs,
-          headers: this.headersFor(context),
+          headers: {
+            ...this.headersFor(context),
+            ...this.authHeaders('POST', path, payload),
+            'Content-Type': 'application/json',
+          },
         }),
       );
       return data;
