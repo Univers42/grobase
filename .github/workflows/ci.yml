@@ -129,6 +129,11 @@ jobs:
       - name: edge body limits (m240)
         run: bash scripts/verify/m240-edge-body-limits.sh
 
+      # Static, no stack: the all-engine workspace seeder plans by default, refuses the
+      # shared workspaces, touches no client without --apply, tears down only mdw_ objects.
+      - name: multidb workspace seeder plan (m257)
+        run: bash scripts/verify/m257-multidb-workspace-plan.sh
+
       # Static legs only (no stack here): `make health` parses service edges and Kong routes
       # correctly and is wired to stack-health.sh; its live leg states that it was skipped.
       - name: stack health check (m220)
