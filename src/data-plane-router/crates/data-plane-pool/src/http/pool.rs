@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:28:22 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:28:23 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 02:30:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -166,7 +166,10 @@ impl HttpPool {
         })?;
 
         let status = resp.status();
-        if status == StatusCode::NO_CONTENT {
+        // A missing id is an empty read on every other engine; a REST upstream says 404.
+        if status == StatusCode::NO_CONTENT
+            || (status == StatusCode::NOT_FOUND && operation.op == DataOperationKind::Get)
+        {
             return Ok(DataResult::new(vec![], 0));
         }
         if status.is_server_error() {
