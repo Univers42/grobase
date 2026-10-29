@@ -156,15 +156,17 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       identity and signs via `postAdmin`; SDK `admin.ts:114-122` keeps working (test).
 - [x] `/v1/capabilities` stays open (unsigned probes in m72, m101, m74, m20).
 - [x] Body buffered with a 2 MiB cap (today's axum default) → 413 before hashing.
-- [ ] Cross-language test: Rust verifier accepts a TS-signed `postJson` (string body,
+- [x] Cross-language test: Rust verifier accepts a TS-signed `postJson` (string body,
       explicit `Content-Type`). Refuse to start if `RUST_DATA_PLANE_URL` has a path.
+      *(G1b: `rust-data-plane.proxy.spec.ts` proves the header signs the exact bytes
+      sent; the TS, Go and Rust signers share one golden vector set.)*
 - [ ] Commit/rollback get the tenant check execute already has (`transactions.rs:130-137`).
 - [ ] `applyDdl` fails closed with no identity (today falls back to `userId`,
       `schema.service.ts:159`); DDL on static mounts only for service_role; the JWT role
       vocabulary is proven before the JWT branch is coded.
 - [~] Modes off / shadow / enforce. Off = today, proven by m18 + parity unchanged.
-      *(G1a: modes + flag land, default off; compose wiring and query-router
-      signing are the next slice.)*
+      *(G1a: modes + flag land, default off. G1b: the query-router signs its
+      `/v1` calls. Compose wiring is the next slice.)*
       Enforce on the VM: human go, ≥ 24 h shadow with zero `would_deny`, rollback =
       flag → shadow + recreate data-plane-router-rust and query-router only.
 - [ ] Before enforce: rg sweep of osionos bridge + groot apps for direct `:4011` callers;
