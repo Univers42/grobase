@@ -147,7 +147,12 @@ pub fn auto_increment_pk<'a>(
     columns
         .iter()
         .find(|c| &c.name == only)
-        .filter(|c| c.normalized_type == NormalizedType::Integer && c.default.is_none())
+        .filter(|c| {
+            matches!(
+                c.normalized_type,
+                NormalizedType::Integer | NormalizedType::Bigint
+            ) && c.default.is_none()
+        })
         .map(|c| c.name.as_str())
 }
 
@@ -303,6 +308,14 @@ mod tests {
         let id = int_col("id", None);
         assert_eq!(
             auto_increment_pk(std::slice::from_ref(&id), &["id".into()]),
+            Some("id")
+        );
+        let big = DdlColumnDef {
+            normalized_type: NormalizedType::Bigint,
+            ..int_col("id", None)
+        };
+        assert_eq!(
+            auto_increment_pk(std::slice::from_ref(&big), &["id".into()]),
             Some("id")
         );
         let with_default = int_col("id", Some("0"));
