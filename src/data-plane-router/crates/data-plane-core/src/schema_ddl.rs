@@ -36,7 +36,7 @@ pub struct DdlColumnDef {
     pub nullable: bool,
     /// Raw engine default expression (`0`, `'pending'`, `now()`).
     /// Interpolated into DDL (DEFAULT cannot bind parameters), so it is
-    /// guarded by [`validate_default_expr`] before any rendering.
+    /// guarded by [`crate::validate_default_expr`] before any rendering.
     #[serde(default)]
     pub default: Option<String>,
     /// Allowed values when `normalized_type` is `enum`.
@@ -180,27 +180,6 @@ pub struct SchemaDdlResult {
     pub op: SchemaDdlOp,
     pub table: String,
     pub status: SchemaDdlStatus,
-}
-
-/// Guard for caller-supplied DEFAULT expressions, which must be interpolated
-/// into DDL text (a DEFAULT clause cannot bind parameters). The drivers
-/// already enforce single-statement execution (PG extended query protocol;
-/// mysql_async ships with multi-statements disabled), so this is defense in
-/// depth: no statement separators, no SQL comments, no control characters.
-/// Legitimate defaults (`0`, `'pending'`, `now()`, `CURRENT_TIMESTAMP`) pass.
-pub fn validate_default_expr(expr: &str) -> DataPlaneResult<()> {
-    let forbidden = expr.contains(';')
-        || expr.contains("--")
-        || expr.contains("/*")
-        || expr.chars().any(char::is_control);
-    if forbidden {
-        return Err(DataPlaneError::InvalidRequest {
-            message: format!(
-                "default expression '{expr}' contains forbidden characters (';', '--', '/*', control)"
-            ),
-        });
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -347,21 +326,5 @@ mod tests {
             auto_increment_pk(&composite, &["a".into(), "b".into()]),
             None
         );
-    }
-
-    #[test]
-    fn default_expr_guard_blocks_separators_comments_and_control() {
-        for bad in ["0; DROP TABLE x", "1 -- evil", "1 /* evil */", "a\nb"] {
-            assert!(validate_default_expr(bad).is_err(), "{bad:?}");
-        }
-        for ok in [
-            "0",
-            "'pending'",
-            "now()",
-            "CURRENT_TIMESTAMP",
-            "gen_random_uuid()",
-        ] {
-            assert!(validate_default_expr(ok).is_ok(), "{ok:?}");
-        }
     }
 }

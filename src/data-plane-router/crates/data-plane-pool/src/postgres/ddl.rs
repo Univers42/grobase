@@ -15,8 +15,8 @@
 //! Everything here is pure (testable without a DB). Identifiers go through
 //! `quote_ident` (allowlist + quoting); enum VALUES are SQL string literals
 //! escaped by `pg_literal`; caller-supplied DEFAULT expressions pass the shared
-//! `validate_default_expr` guard (no `;`, comments, or control chars — defense
-//! in depth on top of the driver's single-statement extended protocol).
+//! `validate_default_expr` allowlist (one literal or niladic function, so a
+//! default cannot append a second ALTER action).
 
 use crate::ident::quote_ident;
 use data_plane_core::{
