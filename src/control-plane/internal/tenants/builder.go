@@ -83,6 +83,7 @@ func MountBuilder(mux *http.ServeMux, d BuilderDeps) {
 	mux.HandleFunc("POST /v1/tenants/me/mounts", b.createMount)
 	mux.HandleFunc("GET /v1/tenants/me/mounts", b.listMounts)
 	mux.HandleFunc("GET /v1/tenants/me/mounts/{mountId}/descriptor", b.describeMount)
+	mux.HandleFunc("PATCH /v1/tenants/me/mounts/{mountId}", b.patchMount)
 	mux.HandleFunc("DELETE /v1/tenants/me/mounts/{mountId}", b.deleteMount)
 	mux.HandleFunc("GET /v1/tenants/me/entitlements", b.getEntitlements)
 	mux.HandleFunc("PATCH /v1/tenants/me/entitlements", b.patchEntitlements)

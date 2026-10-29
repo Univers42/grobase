@@ -546,6 +546,32 @@ mod tests {
         assert!(reg.stats().await.unwrap().is_empty());
     }
 
+    // G4b: a credential rotation reaches us as a new credential_ref.version
+    // ('live' → 'r2'), i.e. a new pool key. Traffic moves to the new pool, so
+    // the old one must reap on idle TTL instead of serving the old DSN forever.
+    #[tokio::test]
+    async fn rotated_mount_old_revision_pool_reaps_once_traffic_stops() {
+        let closed = Arc::new(AtomicUsize::new(0));
+        let reg = registry(closed.clone(), 256);
+        let rev = |version: &str| {
+            let mut m = mount_n(1, 200);
+            m.credential_ref.version = version.into();
+            m
+        };
+        assert_ne!(rev("live").pool_key(), rev("r2").pool_key());
+        reg.get_or_create(rev("live")).await.unwrap();
+        reg.get_or_create(rev("r2")).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        reg.get_or_create(rev("r2")).await.unwrap(); // traffic is on r2 only
+        reg.release_idle().await.unwrap();
+        assert_eq!(closed.load(Ordering::SeqCst), 1, "old revision pool reaped");
+        assert_eq!(
+            reg.stats().await.unwrap().len(),
+            1,
+            "new revision pool kept"
+        );
+    }
+
     #[tokio::test]
     async fn release_idle_keeps_pinned_pool() {
         let closed = Arc::new(AtomicUsize::new(0));

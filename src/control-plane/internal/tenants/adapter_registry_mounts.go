@@ -116,6 +116,29 @@ func (ar *AdapterRegistry) describeMount(ctx context.Context, tenantScope, id st
 	}
 }
 
+// patchMount PATCHes /databases/{id} with the caller's VERBATIM body bytes,
+// CALLER-SCOPED: newRequest asserts X-Baas-Tenant-Id and signs the service
+// token over method/path/body. The registry's status and raw answer are
+// relayed untouched for the handler to map — a decode/re-marshal round trip
+// dropped fields here once. The response read is capped at 64 KiB.
+func (ar *AdapterRegistry) patchMount(ctx context.Context, tenantScope, id string, body []byte) (int, json.RawMessage, error) {
+	req, err := ar.newRequest(ctx, http.MethodPatch, "/databases/"+id, tenantScope, body)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := ar.http.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	out, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	if err != nil {
+		return 0, nil, err
+	}
+	return resp.StatusCode, out, nil
+}
+
 // deleteMount DELETEs a mount by id, CALLER-SCOPED. It calls the adapter-registry's
 // caller-scoped delete (DELETE /databases/{id}/self) which binds `AND tenant_id =
 // $caller` in the SQL, so a mount UUID is NEVER a bearer capability: tenant A

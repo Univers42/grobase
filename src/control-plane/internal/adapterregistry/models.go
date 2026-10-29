@@ -225,6 +225,9 @@ type ConnectionResult struct {
 	// Isolation tells the data plane how to scope this mount (shared_rls |
 	// schema_per_tenant | db_per_tenant).
 	Isolation string `json:"isolation"`
+	// Revision is the mount's credential revision (094): an input to the
+	// data-plane pool key, so a rotated DSN gets a new pool; 1 = never rotated.
+	Revision int `json:"revision"`
 	// Package is the resolved tier name (Phase 4), e.g. "essential"/"pro"/"max".
 	// Informational for the query-router / observability.
 	Package string `json:"package,omitempty"`

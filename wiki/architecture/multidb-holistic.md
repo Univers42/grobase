@@ -100,7 +100,7 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 | G1 | PwC | no Kong signer; `/v1/capabilities` open; body cap = 2 MiB; shadow ≥ 24 h before enforce |
 | G2 | PwC | dial-time guard with IP pinning for every engine; provenance; N-22 closed |
 | G3, G7 | PwC / PROCEED | CI only; G3 green before G2's dial guard |
-| G4 | PwC | pool key includes the DSN hash, or PATCH evicts |
+| G4 | PwC | G4b re-ruled 2026-10-29: pool key carries a credential revision, not a DSN hash (ADR 0010, C1–C12) |
 | G5 | PwC | one engine per confirmed VM window, accept-TLS before require |
 | G6, G8, G9, G10 | PwC | after G1 enforce; dry-run first; parity before deleting a DDL path |
 | G11a / G11b | PwC / BLOCK | `db_id` + `mounts[]` only; `write_mount`/`run_function` wait for a tenant principal |
@@ -217,17 +217,21 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 ### Phase 1 — say what a database is bound to
 
 **G4 · Mount descriptor + PATCH** — gate m246
-- [ ] `GET /databases/{id}/descriptor`: engine, server version, host (or file for SQLite),
-      database/schema, isolation, credential mode (inline/vault/cmek), TLS state
-      (negotiated, verified, CA), last health, capability flags. Never a secret, never a
-      password, never the raw DSN.
-- [ ] `PATCH /databases/{id}`: rename, rotate credential, change TLS params — the id
-      stays, so `baas:<dbId>` bindings survive.
-- [ ] Same through the self-serve `/v1/tenants/me/mounts` surface.
-- [ ] Pool key includes the resolved DSN hash, or PATCH/rotate evict in the same
-      operation — today `pool_key` omits the DSN (`mount.rs:83-92`), so PATCH is a no-op.
-- [ ] Platform-provenance mounts show no internal host; authz from the G1 identity.
-- [ ] m246: descriptor carries no secret (regex sweep on the JSON); PATCH keeps the id.
+- [x] `GET /databases/{id}/descriptor`: engine, host (or file for SQLite), database,
+      isolation, credential mode (inline/vault/cmek), requested TLS, last health. Never a
+      secret, never a password, never the raw DSN.
+- [ ] Descriptor: server version, negotiated/verified TLS and capability flags — need a
+      live probe; the descriptor reads the row only and never dials (G5 fills TLS).
+- [x] `PATCH /databases/{id}`: rename and rotate the credential (inline DSN or vault ref;
+      TLS params travel in the DSN). The id stays, so `baas:<dbId>` bindings survive.
+- [x] Same through the self-serve `/v1/tenants/me/mounts/{id}` surface (scope `write`,
+      MountBuilder only).
+- [x] PATCH reaches the data plane: migration 094 `revision` → `credential_ref.version`
+      `r<n>` → a new pool key; the old pool reaps at `idle_ttl` (ADR 0010).
+- [x] Platform-provenance mounts show no internal host (descriptor); PATCH is
+      service-token gated. Authz from the G1 identity stays with G1.
+- [x] m246: descriptor carries no secret; PATCH routed on both hops, service-token gated,
+      revision in both DDL paths, no literal pool version in query-router.
 
 ### Phase 2 — TLS everywhere
 
