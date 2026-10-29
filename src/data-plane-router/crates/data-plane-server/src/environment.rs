@@ -60,6 +60,9 @@ pub enum ConfigError {
     /// `GROBASE_ENV` is set to a value outside the allowed set. The offending
     /// value is deliberately not carried, so it cannot be printed.
     UnknownEnvironment,
+    /// `DATA_PLANE_INBOUND_AUTH` is not `off`, `shadow` or `enforce`. Refused
+    /// rather than read as `off`, so a typo cannot silently disable the check.
+    UnknownInboundAuthMode,
     /// Required secrets are unset or empty in a strict environment. `keys` is
     /// `&'static str`, so only key names can ever appear here — never a value.
     MissingSecrets {
@@ -74,6 +77,10 @@ impl fmt::Display for ConfigError {
             Self::UnknownEnvironment => write!(
                 f,
                 "{ENVIRONMENT_KEY} is not a known environment (allowed: local, dev, staging, prod)"
+            ),
+            Self::UnknownInboundAuthMode => write!(
+                f,
+                "DATA_PLANE_INBOUND_AUTH is not a known mode (allowed: off, shadow, enforce)"
             ),
             Self::MissingSecrets { environment, keys } => write!(
                 f,

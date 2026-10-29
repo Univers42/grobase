@@ -138,9 +138,10 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 - Gate: `cargo test --workspace` + clippy `-D warnings` in CI (ci.yml Rust job) — green.
 
 **G1 · Authenticate the data plane, authorize DDL** — gate m243 · ADR 0007
-- [ ] Inbound service auth on every `/v1/*` route of data-plane-server (HMAC
+- [x] Inbound service auth on every `/v1/*` route of data-plane-server (HMAC
       service token already used for outbound `verify_key` / `resolve_mount` — reuse,
-      do not add a second scheme). Health + metrics stay open.
+      do not add a second scheme). Health + metrics stay open. *(G1a:
+      `routes/inbound_auth.rs`, `ServiceAuthVerifier` in `service_auth.rs`.)*
 - [ ] Identity comes from a verified claim, never the request body; inline DSN accepted
       only from the authenticated query-router identity.
 - [ ] Query-router `POST /:dbId/schema/ddl` requires the permission engine's `ddl`
@@ -153,15 +154,17 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 - [ ] No Kong Lua signer (sandbox allows only `cjson.safe`, and it would sign client
       bodies): `/admin/v1/{migrate,rotate}` move to a tenant-control route that builds the
       identity and signs via `postAdmin`; SDK `admin.ts:114-122` keeps working (test).
-- [ ] `/v1/capabilities` stays open (unsigned probes in m72, m101, m74, m20).
-- [ ] Body buffered with a 2 MiB cap (today's axum default) → 413 before hashing.
+- [x] `/v1/capabilities` stays open (unsigned probes in m72, m101, m74, m20).
+- [x] Body buffered with a 2 MiB cap (today's axum default) → 413 before hashing.
 - [ ] Cross-language test: Rust verifier accepts a TS-signed `postJson` (string body,
       explicit `Content-Type`). Refuse to start if `RUST_DATA_PLANE_URL` has a path.
 - [ ] Commit/rollback get the tenant check execute already has (`transactions.rs:130-137`).
 - [ ] `applyDdl` fails closed with no identity (today falls back to `userId`,
       `schema.service.ts:159`); DDL on static mounts only for service_role; the JWT role
       vocabulary is proven before the JWT branch is coded.
-- [ ] Modes off / shadow / enforce. Off = today, proven by m18 + parity unchanged.
+- [~] Modes off / shadow / enforce. Off = today, proven by m18 + parity unchanged.
+      *(G1a: modes + flag land, default off; compose wiring and query-router
+      signing are the next slice.)*
       Enforce on the VM: human go, ≥ 24 h shadow with zero `would_deny`, rollback =
       flag → shadow + recreate data-plane-router-rust and query-router only.
 - [ ] Before enforce: rg sweep of osionos bridge + groot apps for direct `:4011` callers;
