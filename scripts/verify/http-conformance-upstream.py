@@ -6,7 +6,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/10/30 02:30:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/10/30 02:30:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 03:20:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 """REST upstream the http engine's conformance run talks to (m27, G3).
@@ -56,7 +56,9 @@ class Upstream(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
-        self.wfile.write(payload)
+        # A REST upstream echoes the row it stored; the reader is the Rust http
+        # adapter, never a browser.
+        self.wfile.write(payload)  # NOSONAR(S5131) JSON to the adapter only, grobase#67
 
     def target(self):
         url = urlsplit(self.path)
@@ -112,4 +114,5 @@ class Upstream(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    HTTPServer(("0.0.0.0", 8080), Upstream).serve_forever()
+    # Plain HTTP: the http adapter trusts only system roots (TLS: grobase#67).
+    HTTPServer(("0.0.0.0", 8080), Upstream).serve_forever()  # NOSONAR(S5332)

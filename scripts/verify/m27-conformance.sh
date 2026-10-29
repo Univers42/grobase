@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/10 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/10/30 02:30:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 03:20:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -59,6 +59,10 @@ DDB_IMAGE="${M27_DDB_IMAGE:-amazon/dynamodb-local:latest}"
 AWS_CLI_IMAGE="${M27_AWS_CLI_IMAGE:-amazon/aws-cli:latest}"
 HTTP_UPSTREAM="m27-http-upstream-$$"
 DDB="m27-dynamodb-$$"
+# Plain HTTP on purpose: both throwaway upstreams have no TLS listener and are
+# reachable only on this run's docker network (TLS upstream: grobase#67).
+HTTP_UPSTREAM_URL="http://${HTTP_UPSTREAM}:8080"
+DDB_ENDPOINT="http://${DDB}:8000"
 OWN_NET=""
 STACK_FREE=" sqlite http dynamodb "
 
@@ -152,11 +156,11 @@ dsn_for() {
     ;;
   http)
     start_http_upstream || return 3
-    echo "{\"baseUrl\":\"http://${HTTP_UPSTREAM}:8080\"}"
+    echo "{\"baseUrl\":\"${HTTP_UPSTREAM_URL}\"}"
     ;;
   dynamodb)
     start_dynamodb || return 3
-    echo "dynamodb://local?endpoint=http://${DDB}:8000&region=us-east-1&access_key=fake&secret_key=fake"
+    echo "dynamodb://local?endpoint=${DDB_ENDPOINT}&region=us-east-1&access_key=fake&secret_key=fake"
     ;;
   *) return 2 ;;
   esac
@@ -185,7 +189,7 @@ start_dynamodb() {
   for _ in $(seq 1 30); do
     docker run --rm --network "${NET}" \
       -e AWS_ACCESS_KEY_ID=fake -e AWS_SECRET_ACCESS_KEY=fake -e AWS_DEFAULT_REGION=us-east-1 \
-      "${AWS_CLI_IMAGE}" dynamodb create-table --endpoint-url "http://${DDB}:8000" \
+      "${AWS_CLI_IMAGE}" dynamodb create-table --endpoint-url "${DDB_ENDPOINT}" \
       --table-name conf_probe \
       --attribute-definitions AttributeName=owner_pk,AttributeType=S AttributeName=id,AttributeType=S \
       --key-schema AttributeName=owner_pk,KeyType=HASH AttributeName=id,KeyType=RANGE \
