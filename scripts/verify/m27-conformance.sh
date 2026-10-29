@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/10 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/06/10 00:00:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 03:50:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -25,6 +25,11 @@
 # Docker-first: cargo runs INSIDE the rust toolchain image (no host rustc),
 # attached to the engine's network, with the DSN discovered from the running
 # engine container (env + in-network alias) — never the caller's shell.
+#
+# sqlite, http and dynamodb need no stack: sqlite is a file inside the run,
+# http talks to a throwaway REST upstream (http-conformance-upstream.py) and
+# dynamodb to a throwaway in-memory dynamodb-local, both on a private network
+# removed on exit — so CI gates them per PR with no stack up.
 #
 # Usage:
 #   m27-conformance.sh                 # every wired engine (the gate)
@@ -49,6 +54,23 @@ pass() { green "[M27] PASS: ${*}"; }
 skip() { yellow "[M27] SKIP: ${*}"; }
 
 TOOLCHAIN_IMG="mini-baas-rust-toolchain"
+PY_IMAGE="${M27_PY_IMAGE:-python:3.12-alpine}"
+DDB_IMAGE="${M27_DDB_IMAGE:-amazon/dynamodb-local:latest}"
+AWS_CLI_IMAGE="${M27_AWS_CLI_IMAGE:-amazon/aws-cli:latest}"
+HTTP_UPSTREAM="m27-http-upstream-$$"
+DDB="m27-dynamodb-$$"
+# Plain HTTP on purpose: both throwaway upstreams have no TLS listener and are
+# reachable only on this run's docker network (TLS upstream: grobase#67).
+HTTP_UPSTREAM_URL="http://${HTTP_UPSTREAM}:8080"
+DDB_ENDPOINT="http://${DDB}:8000"
+OWN_NET=""
+STACK_FREE=" sqlite http dynamodb "
+
+cleanup() {
+  docker rm -f "${HTTP_UPSTREAM}" "${DDB}" >/dev/null 2>&1 || true
+  [[ -z "${OWN_NET}" ]] || docker network rm "${OWN_NET}" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
 
 env_of() { # $1 container, $2 var
   docker inspect "$1" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null |
@@ -132,15 +154,77 @@ dsn_for() {
     p="${p:-Mssql_Strong!Pass1}"
     echo "mssql://sa:${p}@mssql:1433/master"
     ;;
+  http)
+    start_http_upstream || return 3
+    echo "{\"baseUrl\":\"${HTTP_UPSTREAM_URL}\"}" # NOSONAR(S5332) grobase#67
+    ;;
+  dynamodb)
+    start_dynamodb || return 3
+    echo "dynamodb://local?endpoint=${DDB_ENDPOINT}&region=us-east-1&access_key=fake&secret_key=fake" # NOSONAR(S5332) grobase#67
+    ;;
   *) return 2 ;;
   esac
 }
 
+start_http_upstream() {
+  docker run -d --rm --name "${HTTP_UPSTREAM}" --network "${NET}" \
+    -v "${SCRIPT_DIR}/http-conformance-upstream.py:/upstream.py:ro" \
+    "${PY_IMAGE}" python /upstream.py >/dev/null || return 1
+  local _
+  for _ in $(seq 1 40); do
+    docker exec "${HTTP_UPSTREAM}" python -c 'import socket; socket.create_connection(("127.0.0.1", 8080), 1)' \
+      >/dev/null 2>&1 && return 0
+    sleep 0.5
+  done
+  return 1
+}
+
+ddb_cli() {
+  local aws_env=(-e AWS_ACCESS_KEY_ID=fake -e AWS_SECRET_ACCESS_KEY=fake -e AWS_DEFAULT_REGION=us-east-1)
+  docker run --rm --network "${NET}" "${aws_env[@]}" "${AWS_CLI_IMAGE}" dynamodb "$@" --endpoint-url "${DDB_ENDPOINT}" # NOSONAR(S5332) grobase#67
+}
+
+# The adapter keys every item on owner_pk (HASH) + id (RANGE) and creates no
+# table itself, so the scratch table is made here. create-table retries double
+# as the readiness wait.
+start_dynamodb() {
+  docker run -d --rm --name "${DDB}" --network "${NET}" \
+    "${DDB_IMAGE}" -jar DynamoDBLocal.jar -inMemory >/dev/null || return 1
+  local _
+  for _ in $(seq 1 30); do
+    ddb_cli create-table --table-name conf_probe \
+      --attribute-definitions AttributeName=owner_pk,AttributeType=S AttributeName=id,AttributeType=S \
+      --key-schema AttributeName=owner_pk,KeyType=HASH AttributeName=id,KeyType=RANGE \
+      --billing-mode PAY_PER_REQUEST >/dev/null 2>&1 && return 0
+    sleep 1
+  done
+  return 1
+}
+
 # Network the engines share (discovered, not assumed). Under the netseg overlay postgres
 # is on net-data and net-meta; net-data is where every engine and its clients meet.
-NET="$(docker inspect mini-baas-postgres --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' 2>/dev/null |
-  awk 'NF && !f {f = $0} /net-data$/ {d = $0} END {print (d != "" ? d : f)}')"
-[[ -n "${NET}" ]] || fail "mini-baas network not found — is the stack up? (make up EDITION=query)"
+# M27_NET pins the network (a host whose docker address pools are exhausted).
+NET="${M27_NET:-}"
+[[ -n "${NET}" ]] || NET="$(docker inspect mini-baas-postgres --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' 2>/dev/null |
+  awk 'NF && !f {f = $0} /net-data$/ {d = $0} END {print (d != "" ? d : f)}' || true)"
+# One engine (make conformance-<engine>) or all (the gate).
+if [[ $# -ge 1 ]]; then
+  ENGINES=("$1")
+else
+  # Always-on engines + engines-extra (mariadb/cockroachdb/mssql, skipped
+  # cleanly when their profile isn't up — run_engine returns 2=skip).
+  ENGINES=(postgresql mysql mariadb cockroachdb mongodb redis sqlite mssql http dynamodb)
+fi
+
+if [[ -z "${NET}" ]]; then
+  for engine in "${ENGINES[@]}"; do
+    [[ "${STACK_FREE}" == *" ${engine} "* ]] ||
+      fail "mini-baas network not found — is the stack up? (make up EDITION=query)"
+  done
+  OWN_NET="m27net-$$"
+  NET="${OWN_NET}"
+  docker network create "${NET}" >/dev/null || fail "could not create ${NET}"
+fi
 
 ensure_toolchain() {
   docker image inspect "${TOOLCHAIN_IMG}" >/dev/null 2>&1 && return 0
@@ -151,11 +235,17 @@ ensure_toolchain() {
 
 run_engine() { # $1 engine -> 0 green, 1 fail, 2 skip (engine down)
   local engine="$1" dsn rc out
-  if ! dsn="$(dsn_for "${engine}")"; then
+  # 3 = a scratch upstream this script owns failed to start: a failure, not a skip.
+  dsn="$(dsn_for "${engine}")" || {
+    rc=$?
+    [[ ${rc} -eq 3 ]] && red "[M27] ${engine}: scratch upstream did not start" && return 1
     return 2
-  fi
+  }
   step "conformance: ${engine}"
   out="$(mktemp)"
+  local features=() extra_env=()
+  [[ "${engine}" != dynamodb ]] || features=(--features dynamodb)
+  [[ "${engine}" != http ]] || extra_env=(-e DATA_PLANE_HTTP_ALLOW_INTERNAL=1)
   # Single run: the test (tests/conformance.rs) asserts green, so cargo's
   # exit code is the source of truth; we tee the report for the operator.
   set +e
@@ -164,12 +254,13 @@ run_engine() { # $1 engine -> 0 green, 1 fail, 2 skip (engine down)
     -e CONFORMANCE_DSN="${dsn}" \
     -e CONFORMANCE_TENANT="conf-${engine}" \
     -e DATA_PLANE_TLS_INSECURE=1 \
+    "${extra_env[@]}" \
     -v "${ROUTER_DIR}":/work -w /work \
     -v mini-baas-cargo-registry:/usr/local/cargo/registry \
     -v mini-baas-cargo-git:/usr/local/cargo/git \
     -v mini-baas-dpr-target:/work/target \
     "${TOOLCHAIN_IMG}" \
-    cargo test -p engine-conformance -- --nocapture >"${out}" 2>&1
+    cargo test -p engine-conformance "${features[@]}" -- --nocapture >"${out}" 2>&1
   rc=$?
   set -e
   grep -E "conformance:|PASS |SKIP |FAIL |passed,|panicked" "${out}" || tail -5 "${out}"
@@ -178,15 +269,6 @@ run_engine() { # $1 engine -> 0 green, 1 fail, 2 skip (engine down)
 }
 
 ensure_toolchain
-
-# One engine (make conformance-<engine>) or all (the gate).
-if [[ $# -ge 1 ]]; then
-  ENGINES=("$1")
-else
-  # Always-on engines + engines-extra (mariadb/cockroachdb/mssql, skipped
-  # cleanly when their profile isn't up — run_engine returns 2=skip).
-  ENGINES=(postgresql mysql mariadb cockroachdb mongodb redis sqlite mssql)
-fi
 
 FAILED=0
 RAN=0

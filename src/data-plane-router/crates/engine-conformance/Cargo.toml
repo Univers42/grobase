@@ -11,6 +11,10 @@ rust-version = { workspace = true }
 # what its EngineCapabilities descriptor advertises — capability honesty IS the
 # conformance contract. New engines (Phase 3) only merge once green here.
 
+[features]
+# The AWS SDK compiles only for a dynamodb conformance run (m27 passes it).
+dynamodb = ["data-plane-pool/dynamodb"]
+
 [dependencies]
 data-plane-core = { path = "../data-plane-core" }
 data-plane-pool = { path = "../data-plane-pool" }
