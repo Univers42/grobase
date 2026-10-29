@@ -451,7 +451,7 @@ mod tests {
         for (native, expected) in [
             ("int", N::Integer),
             ("int(11)", N::Integer),
-            ("bigint(20) unsigned", N::Integer),
+            ("bigint(20) unsigned", N::Bigint),
             ("smallint", N::Integer),
             ("tinyint(4)", N::Integer),
             ("tinyint(1)", N::Boolean), // the MySQL boolean convention
@@ -466,8 +466,13 @@ mod tests {
             ("char(36)", N::Text),
             ("varchar(255)", N::Text),
             ("text", N::Text),
-            ("blob", N::Unknown),
-            ("geometry", N::Unknown),
+            ("blob", N::Binary),
+            ("varbinary(16)", N::Binary),
+            ("time", N::Time),
+            ("geometry", N::Geometry),
+            ("point", N::Geometry),
+            ("vector(3)", N::Vector),
+            ("year", N::Unknown),
         ] {
             let (ty, values) = normalize_mysql_type(native);
             assert_eq!(ty, expected, "COLUMN_TYPE {native}");
@@ -825,10 +830,10 @@ mod tests {
             mysql_value_to_json(MysqlValue::Bytes(Vec::new())),
             json!("")
         );
-        // Invalid UTF-8 surfaces as Null rather than panicking.
+        // Invalid UTF-8 is binary: it surfaces as \x hex, never a null.
         assert_eq!(
             mysql_value_to_json(MysqlValue::Bytes(vec![0xff, 0xfe, 0x00])),
-            Value::Null
+            json!("\\xfffe00")
         );
     }
 

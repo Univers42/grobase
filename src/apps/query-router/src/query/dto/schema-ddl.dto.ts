@@ -33,8 +33,9 @@ export const SCHEMA_DDL_OPS = [
 ] as const;
 export type SchemaDdlOp = (typeof SCHEMA_DDL_OPS)[number];
 
-/** Normalized column types creatable via DDL. `objectid`/`unknown` are
- *  describe-only (the data plane rejects them with 400). */
+/** Normalized column types creatable via DDL. `objectid`, `geometry`,
+ *  `vector` and `unknown` are describe-only; an engine without a native form
+ *  (e.g. `interval` outside Postgres) rejects the column with 400. */
 export const SCHEMA_DDL_COLUMN_TYPES = [
   'text',
   'integer',
@@ -47,6 +48,10 @@ export const SCHEMA_DDL_COLUMN_TYPES = [
   'uuid',
   'enum',
   'array',
+  'binary',
+  'time',
+  'interval',
+  'bigint',
 ] as const;
 export type SchemaDdlColumnType = (typeof SCHEMA_DDL_COLUMN_TYPES)[number];
 

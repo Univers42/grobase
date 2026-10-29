@@ -30,7 +30,9 @@ pub(super) fn bson_type_to_normalized(bson_type: &str) -> NormalizedType {
     match bson_type {
         "objectId" => NormalizedType::Objectid,
         "string" => NormalizedType::Text,
-        "int" | "long" => NormalizedType::Integer,
+        "int" => NormalizedType::Integer,
+        "long" => NormalizedType::Bigint,
+        "binData" => NormalizedType::Binary,
         "double" => NormalizedType::Float,
         "decimal" => NormalizedType::Decimal,
         "bool" => NormalizedType::Boolean,
@@ -56,6 +58,7 @@ fn bson_value_type_name(value: &Bson) -> &'static str {
         Bson::ObjectId(_) => "objectId",
         Bson::DateTime(_) => "date",
         Bson::Decimal128(_) => "decimal",
+        Bson::Binary(_) => "binData",
         _ => "unknown",
     }
 }
@@ -399,7 +402,7 @@ mod tests {
             ("owner", "objectId", N::Objectid, true),
             ("active", "bool", N::Boolean, true),
             ("ratio", "double", N::Float, true),
-            ("big", "long", N::Integer, true),
+            ("big", "long", N::Bigint, true),
         ] {
             let col = by_name(name);
             assert_eq!(col.native_type, native, "{name}");
@@ -468,7 +471,8 @@ mod tests {
             ("objectId", Objectid),
             ("string", Text),
             ("int", Integer),
-            ("long", Integer),
+            ("long", Bigint),
+            ("binData", Binary),
             ("double", Float),
             ("decimal", Decimal),
             ("bool", Boolean),

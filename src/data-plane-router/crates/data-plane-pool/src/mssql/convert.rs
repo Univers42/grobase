@@ -59,7 +59,7 @@ fn column_data_to_json(cell: ColumnData<'static>) -> Value {
         ColumnData::Guid(v) => v.map_or(Value::Null, |g| Value::String(g.to_string())),
         ColumnData::Numeric(v) => v.map_or(Value::Null, |n| Value::String(n.to_string())),
         ColumnData::Binary(v) => v.map_or(Value::Null, |b| {
-            Value::String(format!("blob:{} bytes", b.len()))
+            Value::String(data_plane_core::binary::hex_bytes(&b))
         }),
         // Date/time/xml variants aren't exercised by the safe CRUD surface; map
         // any remaining variant to a stringified form rather than failing.
@@ -73,7 +73,9 @@ pub(super) fn f64_to_json(f: f64) -> Value {
 
 pub(super) fn normalize_mssql_type(native: &str) -> NormalizedType {
     let t = native.to_ascii_lowercase();
-    if t.contains("int") {
+    if t.contains("bigint") {
+        NormalizedType::Bigint
+    } else if t.contains("int") {
         NormalizedType::Integer
     } else if t.contains("char") || t.contains("text") {
         NormalizedType::Text
@@ -83,10 +85,18 @@ pub(super) fn normalize_mssql_type(native: &str) -> NormalizedType {
         NormalizedType::Decimal
     } else if t.contains("bit") {
         NormalizedType::Boolean
+    } else if t == "time" || t.starts_with("time(") {
+        NormalizedType::Time
     } else if t.contains("date") || t.contains("time") {
         NormalizedType::Datetime
     } else if t.contains("uniqueidentifier") {
         NormalizedType::Uuid
+    } else if t.contains("binary") || t == "image" {
+        NormalizedType::Binary
+    } else if t.contains("geometry") || t.contains("geography") {
+        NormalizedType::Geometry
+    } else if t.starts_with("vector") {
+        NormalizedType::Vector
     } else {
         NormalizedType::Unknown
     }

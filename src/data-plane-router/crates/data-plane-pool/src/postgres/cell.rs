@@ -71,10 +71,7 @@ fn decode(ty: &Type, raw: &[u8]) -> Result<Value, DecodeError> {
         Type::TIMESTAMPTZ => {
             Value::String(iso(DateTime::<Utc>::from_sql(ty, raw)?.naive_utc()) + "+00:00")
         }
-        Type::BYTEA => Value::String(raw.iter().fold(String::from("\\x"), |mut hex, byte| {
-            let _ = write!(hex, "{byte:02x}");
-            hex
-        })),
+        Type::BYTEA => Value::String(data_plane_core::binary::hex_bytes(raw)),
         _ => return Err(no_decoder(ty)),
     })
 }

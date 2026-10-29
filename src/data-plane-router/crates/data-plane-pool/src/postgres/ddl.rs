@@ -30,7 +30,13 @@ use data_plane_core::{
 /// the literal `ARRAY` data_type, which callers pass through here unchanged).
 pub(super) fn normalize_pg_type(native: &str) -> NormalizedType {
     match native {
-        "int2" | "int4" | "int8" => NormalizedType::Integer,
+        "int2" | "int4" => NormalizedType::Integer,
+        "int8" => NormalizedType::Bigint,
+        "bytea" => NormalizedType::Binary,
+        "time" | "timetz" => NormalizedType::Time,
+        "interval" => NormalizedType::Interval,
+        "geometry" | "geography" => NormalizedType::Geometry,
+        "vector" => NormalizedType::Vector,
         "float4" | "float8" => NormalizedType::Float,
         "numeric" => NormalizedType::Decimal,
         "bool" => NormalizedType::Boolean,
@@ -309,7 +315,7 @@ mod tests {
         for (native, expected) in [
             ("int2", N::Integer),
             ("int4", N::Integer),
-            ("int8", N::Integer),
+            ("int8", N::Bigint),
             ("float4", N::Float),
             ("float8", N::Float),
             ("numeric", N::Decimal),
@@ -330,7 +336,13 @@ mod tests {
             // USER-DEFINED enums are resolved at the call site (needs pg_enum
             // rows); the bare normalizer honestly says Unknown.
             ("order_status", N::Unknown),
-            ("bytea", N::Unknown),
+            ("bytea", N::Binary),
+            ("time", N::Time),
+            ("timetz", N::Time),
+            ("interval", N::Interval),
+            ("geometry", N::Geometry),
+            ("geography", N::Geometry),
+            ("vector", N::Vector),
             ("tsvector", N::Unknown),
         ] {
             assert_eq!(normalize_pg_type(native), expected, "udt_name {native}");

@@ -37,9 +37,15 @@ pub(super) fn normalize_mysql_type(column_type: &str) -> (NormalizedType, Option
     }
     let base = lower.split(['(', ' ']).next().unwrap_or("");
     let ty = match base {
-        "int" | "integer" | "bigint" | "smallint" | "mediumint" | "tinyint" => {
-            NormalizedType::Integer
+        "int" | "integer" | "smallint" | "mediumint" | "tinyint" => NormalizedType::Integer,
+        "bigint" => NormalizedType::Bigint,
+        "binary" | "varbinary" | "blob" | "tinyblob" | "mediumblob" | "longblob" => {
+            NormalizedType::Binary
         }
+        "time" => NormalizedType::Time,
+        "geometry" | "point" | "linestring" | "polygon" | "multipoint" | "multilinestring"
+        | "multipolygon" | "geometrycollection" => NormalizedType::Geometry,
+        "vector" => NormalizedType::Vector,
         "float" | "double" => NormalizedType::Float,
         "decimal" | "numeric" => NormalizedType::Decimal,
         "date" => NormalizedType::Date,

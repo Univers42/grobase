@@ -252,18 +252,28 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       an exhaustive test.
       Done: `data-plane-core::coercion` + the four reverse-DDL arms; geometry/vector
       refused in DDL (no SRID/dimension yet), interval only on pg.
-- [ ] **osionos learns the new strings first.** `liveSchemaMapper` today renders any
+- [x] **osionos learns the new strings first.** `liveSchemaMapper` today renders any
       unknown type as editable text, and `liveWriteClient`/`liveValueCodec` coerce PG
       ids as `integer`. Binary/geometry/vector/interval are read-only; bigint keeps
       string precision. Old readers have no `#[serde(other)]`, so emitting first breaks
       every descriptor they decode.
-- [ ] **G7b — flip the emitters.** Normalizers map bytea/time/interval/int8/geometry/
+      Done in code (osionos f87752323, notion-database-sys 6c68e81f): binary/
+      interval/geometry/vector read-only, bigint a number column whose pk filter and
+      FK writes keep digits past 2^53 as strings, time edits as text.
+- [x] **G7b — flip the emitters.** Normalizers map bytea/time/interval/int8/geometry/
       vector to the new variants; the MySQL (null on non-UTF-8) and SQLite (`blob:N
       bytes`) lossy codecs return `\x` hex; PG writes accept the new types instead of
       409. TS `SCHEMA_DDL_COLUMN_TYPES`, the JS SDK unions and the openapi list follow.
+      Done: one `data-plane-core::binary` codec (`\x` hex, parse refuses `+1`); PG
+      binds strings into INT8/NUMERIC/BYTEA/TIME; DDL accepts binary/time/interval/
+      bigint, geometry/vector stay describe-only. Ships live only after the osionos
+      reader above is live.
 - [ ] Conformance round-trips one value of each type per engine (m249).
-- Open: Integer→`bigint` DDL means a create→describe round trip changes type; vector
-      and geometry carry no dimension / SRID yet.
+- Open: Integer→`bigint` DDL (PG) and Integer→BSON `long` (Mongo) mean a
+      create→describe round trip reads back `bigint`; vector and geometry carry no
+      dimension / SRID yet; int8 reads past 2^53 still travel as JSON numbers, so JS
+      rounds them (only written keys keep their digits); PG interval writes are not
+      parsed (interval is read-only in osionos).
 
 **G8 · Cross-engine data + schema migration** — gate m250
 - [ ] Job API: source mount → target mount, schema translation via G7, data copy by

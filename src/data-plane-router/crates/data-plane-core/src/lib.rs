@@ -10,6 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
+pub mod binary;
 pub mod capability;
 pub mod coercion;
 pub mod default_expr;
