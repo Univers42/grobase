@@ -1454,10 +1454,11 @@ jobs:
       - name: 40 cold invokes must all answer
         run: bash scripts/verify/m186-functions-cold-invoke.sh
 
-  # ─── Engine conformance, the engines that need no stack (G3) ──────
+  # ─── Engine conformance, one engine per leg (G3) ──────────────────
   # sqlite is a file inside the run; http and dynamodb get throwaway upstreams
-  # that m27 starts and removes. The stack engines stay in nightly-proof until
-  # the per-engine profile matrix lands.
+  # that m27 starts and removes. Every other leg starts only its own engine
+  # (compose service + profile) and m27 finds the network from that container.
+  # A leg whose engine never came up fails: m27 refuses to gate zero engines.
   engine-conformance:
     name: Engine conformance (${{ matrix.engine }})
     runs-on: ubuntu-latest
@@ -1466,7 +1467,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        engine: [sqlite, http, dynamodb]
+        include:
+          - engine: sqlite
+          - engine: http
+          - engine: dynamodb
+          - { engine: postgresql, services: postgres }
+          - { engine: redis, services: redis }
+          - { engine: mysql, services: mysql, profile: data-plane }
+          - { engine: mongodb, services: mongo-keyfile mongo mongo-init, profile: data-plane }
+          - { engine: mariadb, services: mariadb, profile: engines-extra }
+          - { engine: cockroachdb, services: cockroach, profile: engines-extra }
+          - { engine: mssql, services: mssql, profile: engines-extra }
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
@@ -1474,6 +1485,18 @@ jobs:
       # A gate's "[MNN] FAIL — why" line becomes a public annotation.
       - name: Annotate gate failures
         run: echo "::add-matcher::.github/gate-matcher.json"
+      # Engine images are ghcr pull-fallbacks (built from the repo when the pull fails).
+      - name: Start the engine
+        if: matrix.services
+        env:
+          SERVICES: ${{ matrix.services }}
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          bash scripts/env/assemble-env.sh
+          bash scripts/certs/generate-localhost-cert.sh
+          read -ra svc <<<"$SERVICES"
+          docker compose -f docker-compose.yml ${PROFILE:+--profile "$PROFILE"} up -d --wait "${svc[@]}"
       # The toolchain image comes from mirror.gcr.io: a registry 429 is retried.
       - name: m27 battery
         env:

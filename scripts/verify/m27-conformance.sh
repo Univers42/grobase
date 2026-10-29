@@ -204,9 +204,13 @@ start_dynamodb() {
 # Network the engines share (discovered, not assumed). Under the netseg overlay postgres
 # is on net-data and net-meta; net-data is where every engine and its clients meet.
 # M27_NET pins the network (a host whose docker address pools are exhausted).
+# Any running engine names it: CI's per-engine matrix starts only the engine it gates.
 NET="${M27_NET:-}"
-[[ -n "${NET}" ]] || NET="$(docker inspect mini-baas-postgres --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' 2>/dev/null |
-  awk 'NF && !f {f = $0} /net-data$/ {d = $0} END {print (d != "" ? d : f)}' || true)"
+for c in postgres mysql mariadb mongo redis cockroach mssql; do
+  [[ -z "${NET}" ]] || break
+  NET="$(docker inspect "mini-baas-${c}" --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' 2>/dev/null |
+    awk 'NF && !f {f = $0} /net-data$/ {d = $0} END {print (d != "" ? d : f)}' || true)"
+done
 # One engine (make conformance-<engine>) or all (the gate).
 if [[ $# -ge 1 ]]; then
   ENGINES=("$1")
