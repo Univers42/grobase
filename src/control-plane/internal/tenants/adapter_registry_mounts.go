@@ -91,6 +91,31 @@ func (ar *AdapterRegistry) listMounts(ctx context.Context, tenantScope string) (
 	return out, nil
 }
 
+// describeMount GETs the caller-scoped mount descriptor; found=false on a 404 (no such
+// mount FOR THIS CALLER). The body is relayed as JSON, never re-shaped here.
+func (ar *AdapterRegistry) describeMount(ctx context.Context, tenantScope, id string) (json.RawMessage, bool, error) {
+	req, err := ar.newRequest(ctx, http.MethodGet, "/databases/"+id+"/descriptor", tenantScope, nil)
+	if err != nil {
+		return nil, false, err
+	}
+	resp, err := ar.http.Do(req)
+	if err != nil {
+		return nil, false, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var out json.RawMessage
+		err := json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&out)
+		return out, err == nil, err
+	case http.StatusNotFound:
+		return nil, false, nil
+	default:
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return nil, false, fmt.Errorf("describe database: %d: %s", resp.StatusCode, httpx.RedactDSN(strings.TrimSpace(string(b))))
+	}
+}
+
 // deleteMount DELETEs a mount by id, CALLER-SCOPED. It calls the adapter-registry's
 // caller-scoped delete (DELETE /databases/{id}/self) which binds `AND tenant_id =
 // $caller` in the SQL, so a mount UUID is NEVER a bearer capability: tenant A
