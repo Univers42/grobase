@@ -1471,6 +1471,24 @@ jobs:
       - name: cargo clippy --workspace --all-targets -D warnings
         run: bash scripts/ci/retry-on-429.sh make test-lint-rust
 
+  # ─── Go lint (control plane) ───────────────────────────────────
+  # `make test-lint-go` ran nowhere in CI, so golangci-lint findings landed on
+  # develop unnoticed (3 in smtpclient_test.go). go vet + gofmt + golangci-lint
+  # with src/control-plane/.golangci.yml, the same target a laptop runs.
+  go-lint:
+    name: Go lint (vet, gofmt, golangci-lint)
+    runs-on: ubuntu-latest
+    needs: [shellcheck]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
+      - name: make test-lint-go
+        run: bash scripts/ci/retry-on-429.sh make test-lint-go
+
   # ─── Formatters (check only) ───────────────────────────────────
   # gofumpt · cargo fmt (both workspaces) · prettier (TS, YAML) · shfmt, each
   # pinned and in Docker, the same `make prettiers-check` a laptop runs. vendor/

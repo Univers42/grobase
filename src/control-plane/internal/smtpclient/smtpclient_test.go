@@ -121,9 +121,9 @@ func (f *fakeServer) serve() {
 }
 
 func (f *fakeServer) handle(raw net.Conn) {
-	defer raw.Close()
+	defer func() { _ = raw.Close() }()
 	tlsCfg := &tls.Config{Certificates: []tls.Certificate{f.cert}, MinVersion: tls.VersionTLS12}
-	var conn net.Conn = raw
+	conn := raw
 	if f.tlsFirst {
 		conn = tls.Server(raw, tlsCfg)
 	}
@@ -270,7 +270,7 @@ func TestSendBlackholeHonoursDeadline(t *testing.T) {
 				if err != nil {
 					return
 				}
-				defer conn.Close() // held open, never written to
+				defer func() { _ = conn.Close() }() // held open, never written to
 			}
 		}()
 		c := Config{Host: "127.0.0.1", Port: ln.Addr().(*net.TCPAddr).Port, Secure: secure, Timeout: 300 * time.Millisecond}
