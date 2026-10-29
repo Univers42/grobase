@@ -848,6 +848,9 @@ services:
               minute: 150000
               hour: 9000000
 
+  # Trino has no authentication of its own and its catalogs connect as the
+  # platform POSTGRES_USER / MYSQL_USER, so /sql is service-key only: the
+  # public anon key would otherwise read every tenant's database (G0, m206).
   - name: trino
     url: http://trino:8080
     routes:
@@ -866,6 +869,10 @@ services:
               claims_to_verify: [exp]
               run_on_preflight: false
               anonymous: __KONG_ANON_UUID__
+          - name: acl
+            config:
+              allow: [baas-admin]
+              hide_groups_header: true
           - name: request-transformer
             config:
               remove:

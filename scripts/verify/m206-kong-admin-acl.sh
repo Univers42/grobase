@@ -15,10 +15,11 @@
 #    127.0.0.1:3000 or an SSH tunnel, never through the gateway (N-25).       #
 #    Service-only routes (no ip-restriction, reached by app backends from     #
 #    anywhere) get the same acl checks: /email/v1 sends as the platform's own #
-#    mail account, so the anon key there is an open relay. So does            #
-#    /v1/auth/otp/request (it mails any address it is given); verify and      #
-#    escrow stay public. The orchestrator serves emailsvc on the same mux as  #
-#    gdpr and newsletter, so /gdpr/v1/send, /newsletter/v1/send and their     #
+#    mail account, so the anon key there is an open relay; /sql is Trino,     #
+#    which has no auth and reads every catalog as the platform DB user (G0).  #
+#    So does /v1/auth/otp/request (it mails any address it is given); verify  #
+#    and escrow stay public. The orchestrator serves emailsvc on the same mux #
+#    as gdpr and newsletter, so /gdpr/v1/send, /newsletter/v1/send and their  #
 #    admin paths must be Kong's own 404, even for the service key (G2).       #
 #  Why: ip-restriction alone is one proxy hop from useless — behind the WAF   #
 #  every client arrives from a private bridge IP (N-23).                      #
@@ -69,7 +70,7 @@ gated_routes() {
 
 # service_only_paths lists the routes with no ip-restriction that must still
 # take only the service_role key.
-service_only_paths() { printf '%s\n' /email/v1; }
+service_only_paths() { printf '%s\n' /email/v1 /sql; }
 
 # service_only_routes writes "<name> <path> <has-acl>" for every route whose
 # paths include one of service_only_paths, from Kong's own parsed config.
