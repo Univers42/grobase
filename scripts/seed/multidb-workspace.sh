@@ -53,6 +53,9 @@ ENGINES=(postgresql cockroachdb mysql mariadb mongodb redis sqlite mssql http dy
 # WS_ACME / WS_MAIN — the shared workspaces osionos-extra-engines.sh:73-74 writes.
 SHARED_WORKSPACES=(ac3e0000-0000-4000-a000-000000000001 0ea96910-277a-49d6-901c-524b147cc009)
 UUID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+# Plain HTTP on purpose: DynamoDB Local has no TLS listener and is reachable only
+# on the stack's internal network, where both the router and aws-cli talk to it.
+DDB_ENDPOINT=http://dynamodb-local:8000
 
 warn() { printf '\033[0;33m[mdw] WARN: %s\033[0m\n' "$*" >&2; }
 die() {
@@ -143,7 +146,7 @@ mongo_run() { # $1 script kind [arg] — generated js run by mongosh in a siblin
 ddb() {
   docker run --rm --network "$(engine_net mini-baas-dynamodb-local mini-baas_mini-baas)" \
     -e AWS_ACCESS_KEY_ID=fake -e AWS_SECRET_ACCESS_KEY=fake -e AWS_DEFAULT_REGION=us-east-1 \
-    amazon/aws-cli dynamodb "$@" --endpoint-url http://dynamodb-local:8000
+    amazon/aws-cli dynamodb "$@" --endpoint-url "${DDB_ENDPOINT}"
 }
 ddb_create() {
   local t
