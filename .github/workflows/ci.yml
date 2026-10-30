@@ -1491,10 +1491,13 @@ jobs:
           - { engine: postgresql, services: postgres }
           # Same engine with ENGINE_TLS=1: the pool runs verify-full and m247 boots the
           # three throwaway servers (default, overlay without cert, overlay with cert).
-          - { engine: postgresql, services: postgres, tls: 1 }
+          - { engine: postgresql, services: postgres, tls: postgres }
           - { engine: redis, services: redis }
           - { engine: mysql, services: mysql, profile: data-plane }
           - { engine: mongodb, services: mongo-keyfile mongo mongo-init, profile: data-plane }
+          # ENGINE_TLS_ENGINES=mongo (ADR 0012): the replica set initiates under the overlay,
+          # and m247 proves verified TLS, SAN refusal and the drop to uid 999.
+          - { engine: mongodb, services: mongo-keyfile mongo mongo-init, profile: data-plane, tls: mongo }
           - { engine: mariadb, services: mariadb, profile: engines-extra }
           - { engine: cockroachdb, services: cockroach, profile: engines-extra }
           - { engine: mssql, services: mssql, profile: engines-extra }
@@ -1517,9 +1520,12 @@ jobs:
           bash scripts/env/assemble-env.sh
           bash scripts/certs/generate-localhost-cert.sh
           overlay=()
-          if [[ "$TLS" == 1 ]]; then
+          if [[ "$TLS" == postgres ]]; then
             sh scripts/certs/generate-engine-cert.sh
             overlay=(-f orchestrators/compose/docker-compose.engine-tls.yml)
+          elif [[ -n "$TLS" ]]; then
+            sh scripts/certs/generate-engine-cert.sh "$TLS"
+            overlay=(-f "orchestrators/compose/docker-compose.engine-tls-$TLS.yml")
           fi
           read -ra svc <<<"$SERVICES"
           docker compose -f docker-compose.yml "${overlay[@]}" ${PROFILE:+--profile "$PROFILE"} up -d --wait "${svc[@]}"
@@ -1527,13 +1533,14 @@ jobs:
       - name: m27 battery
         env:
           ENGINE: ${{ matrix.engine }}
-          M27_PG_TLS_CA: ${{ matrix.tls && format('{0}/certs/engines/ca.pem', github.workspace) || '' }}
+          M27_PG_TLS_CA: ${{ matrix.tls == 'postgres' && format('{0}/certs/engines/ca.pem', github.workspace) || '' }}
         run: bash scripts/ci/retry-on-429.sh bash scripts/verify/m27-conformance.sh "$ENGINE"
       - name: engine TLS live boots + who negotiated TLS (m247)
         if: matrix.tls
         env:
           M247_LIVE: 1
-          M247_STACK: 1
+          M247_ENGINE: ${{ matrix.tls }}
+          M247_STACK: ${{ matrix.tls == 'postgres' && '1' || '0' }}
         run: bash scripts/verify/m247-engine-tls.sh
 
   # ─── Rust lint (both workspaces) ───────────────────────────────

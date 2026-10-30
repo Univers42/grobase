@@ -38,7 +38,12 @@ CLOUD          ?= $(shell sed -n 's/^CLOUD=//p' .env.local 2>/dev/null | head -1
 # overlay on the central Postgres (docker-compose.engine-tls.yml, ADR 0011); its cert comes
 # from scripts/certs/generate-engine-cert.sh, which nothing else runs.
 ENGINE_TLS     ?= $(shell sed -n 's/^ENGINE_TLS=//p' .env.local 2>/dev/null | head -1)
-DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)
+# ENGINE_TLS_ENGINES="mongo" (space-separated, unquoted in .env.local) composes each listed
+# engine's own overlay, docker-compose.engine-tls-<engine>.yml (ADR 0012). It is separate from
+# ENGINE_TLS so a Postgres-TLS host never recreates the other engines. Its cert:
+# scripts/certs/generate-engine-cert.sh <engine>.
+ENGINE_TLS_ENGINES ?= $(shell sed -n 's/^ENGINE_TLS_ENGINES=//p' .env.local 2>/dev/null | head -1)
+DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)$(foreach e,$(ENGINE_TLS_ENGINES), -f orchestrators/compose/docker-compose.engine-tls-$(e).yml)
 
 # Colors
 _B := \033[0;34m
