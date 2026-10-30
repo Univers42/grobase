@@ -1,0 +1,32 @@
+# docker-compose.engine-tls-mongo.yml — accept-mode TLS on mongo (G5b,
+# docs/adr/0012-g5b-engine-accept-tls.md). Opt-in: ENGINE_TLS_ENGINES lists mongo (env, or an
+# ENGINE_TLS_ENGINES= line in .env.local; orchestrators/makes/00-config.mk). ENGINE_TLS=1
+# alone never composes this file, so a Postgres-TLS host does not recreate mongo (G5b-C1).
+#
+# The cert comes from `scripts/certs/generate-engine-cert.sh mongo`, in a directory of its
+# own: mounting certs/engines (Postgres's) or certs/ would hand mongo another key (G5b-C5).
+#
+# Caveat: allowTLS accepts both, so this proves mongo CAN serve TLS, not that any client
+# uses it. mongosh, mongo-init and the pool keep dialling plaintext until each asks for tls.
+services:
+  mongo:
+    user: "0"
+    entrypoint:
+      ["/bin/sh", "/usr/local/bin/engine-tls-drop.sh", "docker-entrypoint.sh"]
+    environment:
+      ENGINE_TLS_NAME: mongo
+      ENGINE_TLS_UID: "999"
+      ENGINE_TLS_GID: "999"
+    volumes:
+      - type: bind
+        source: ${ENGINE_TLS_MONGO_CERT_DIR:-./certs/engine-tls/mongo}
+        target: /etc/engine-tls
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./infra/docker/services/engine-tls/drop-entrypoint.sh
+        target: /usr/local/bin/engine-tls-drop.sh
+        read_only: true
+    tmpfs:
+      - /run/engine-tls:mode=0700
