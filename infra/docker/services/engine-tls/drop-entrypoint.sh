@@ -47,8 +47,9 @@ redis)
   set -- "$@" --tls-port 6380 --tls-cert-file "$dst/server.crt" --tls-key-file "$dst/server.key" \
     --tls-ca-cert-file "$dst/ca.pem" --tls-auth-clients no
   ;;
-mariadb | mysql)
+mariadb | mysql | mysql8)
   # The mysql service is MariaDB 11.4 too. Replaces the self-signed cert MariaDB serves by default; require_secure_transport stays off.
+  # mysql8 is Oracle MySQL 8.4: the same three flags replace its auto-generated cert (ADR 0026).
   set -- "$@" --ssl-cert="$dst/server.crt" --ssl-key="$dst/server.key" --ssl-ca="$dst/ca.pem"
   ;;
 mssql)

@@ -1543,6 +1543,9 @@ jobs:
           - { engine: mysql, services: mysql, profile: data-plane, tls: mysql, build: mysql }
           # Oracle MySQL 8.4 (`mysql` is MariaDB): m27 also asserts mysqld is MySQL Community Server.
           - { engine: mysql8, services: mysql8, profile: mysql8 }
+          # ENGINE_TLS_ENGINES=mysql8 (ADR 0026): the CA-signed cert replaces the auto-generated one.
+          # The published image already ships util-linux setpriv, so no build.
+          - { engine: mysql8, services: mysql8, profile: mysql8, tls: mysql8 }
           - { engine: mongodb, services: mongo-keyfile mongo mongo-init, profile: data-plane }
           # ENGINE_TLS_ENGINES=mongo (ADR 0012): the replica set initiates under the overlay,
           # and m247 proves verified TLS, SAN refusal and the drop to uid 999.

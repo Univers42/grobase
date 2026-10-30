@@ -1,0 +1,42 @@
+# docker-compose.engine-tls-mysql8.yml — accept-mode TLS on the Oracle MySQL 8.4 service with the
+# CA-signed engine cert (G5, docs/adr/0026-g5-mysql8-engine-tls.md). Opt-in: ENGINE_TLS_ENGINES lists
+# mysql8 (env, or an ENGINE_TLS_ENGINES= line in .env.local; orchestrators/makes/00-config.mk).
+# ENGINE_TLS=1 alone never composes this file.
+#
+# MySQL 8.4 already serves TLS by default (auto_generate_certs), with a self-signed
+# "MySQL_Server_*_Auto_Generated" cert no client can verify. This overlay swaps in
+# `scripts/certs/generate-engine-cert.sh mysql8`, from a directory of its own (G5b-C5).
+# Plaintext stays allowed (--ssl-mode=DISABLED clients).
+#
+# The datadir keeps the pem files the image entrypoint's `mysqld --initialize-insecure`
+# writes on every boot path (ca-key.pem included). They are not this overlay's: it never
+# deletes or rotates them (private_key.pem serves the caching_sha2 RSA exchange), and
+# m247 proves the overlay key never lands beside them.
+#
+# Caveat: this proves mysql8 CAN serve a verifiable cert, not that any client checks it.
+# The pool and every consumer dial without require_ssl until each DSN asks for it.
+services:
+  mysql8:
+    user: "0"
+    # An overlay entrypoint clears the image CMD (["mysqld"]); the base service has no command.
+    entrypoint:
+      ["/bin/sh", "/usr/local/bin/engine-tls-drop.sh", "docker-entrypoint.sh"]
+    command: ["mysqld"]
+    environment:
+      ENGINE_TLS_NAME: mysql8
+      # The image's mysql user and group (measured, devil g5r/mysql8.sh): not MariaDB's 100/101.
+      ENGINE_TLS_UID: "999"
+      ENGINE_TLS_GID: "999"
+    volumes:
+      - type: bind
+        source: ${ENGINE_TLS_MYSQL8_CERT_DIR:-./certs/engine-tls/mysql8}
+        target: /etc/engine-tls
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./infra/docker/services/engine-tls/drop-entrypoint.sh
+        target: /usr/local/bin/engine-tls-drop.sh
+        read_only: true
+    tmpfs:
+      - /run/engine-tls:mode=0700

@@ -38,7 +38,7 @@
 # still connects) and PID 1 runs as uid 100. The mysql service is MariaDB too: the same legs.
 # MSSQL: leg A finds a self-signed cert a CA-trusting sqlcmd refuses; B serves the engine cert
 # (verified -N m session, a name outside the SANs refused, an unencrypted client still in)
-# and PID 1 runs as the image's mssql user.
+# and PID 1 runs as the image's mssql user. MySQL 8 (Oracle, ADR 0026): scripts/lib/lib-m247-mysql8.sh.
 #
 # Stack (M247_STACK=1, a running stack composed with ENGINE_TLS=1): which
 # clients and walsenders negotiated TLS, by application_name, and every logical
@@ -57,14 +57,15 @@ OVERLAY="orchestrators/compose/docker-compose.engine-tls.yml"
 ENGINE="${M247_ENGINE:-postgres}"
 case "${ENGINE}" in
 postgres) LIVE_OVERLAY="${OVERLAY}" ;;
-mongo | redis | mariadb | mysql | mssql) LIVE_OVERLAY="orchestrators/compose/docker-compose.engine-tls-${ENGINE}.yml" ;;
+mongo | redis | mariadb | mysql | mysql8 | mssql) LIVE_OVERLAY="orchestrators/compose/docker-compose.engine-tls-${ENGINE}.yml" ;;
 *)
-  printf 'M247_ENGINE=%s: expected postgres, mongo, redis, mariadb, mysql or mssql\n' "${ENGINE}" >&2
+  printf 'M247_ENGINE=%s: expected postgres, mongo, redis, mariadb, mysql, mysql8 or mssql\n' "${ENGINE}" >&2
   exit 2
   ;;
 esac
 case "${ENGINE}" in
 mariadb | mssql) PROFILE="engines-extra" ;;
+mysql8) PROFILE=mysql8 ;;
 *) PROFILE=data-plane ;;
 esac
 
@@ -75,6 +76,8 @@ fail() {
 }
 step() { printf '\033[1m• %s\033[0m\n' "$*"; }
 skip() { printf '  \033[33m- SKIP %s\033[0m\n' "$*"; }
+# shellcheck source=../lib/lib-m247-mysql8.sh
+. "${ROOT}/scripts/lib/lib-m247-mysql8.sh"
 
 static_checks() {
   local engines="${ROOT}/orchestrators/compose/base/data-engines.yml"
@@ -94,6 +97,7 @@ static_checks() {
   done
   pass "default unchanged, overlay opt-in, CA key never mounted, cert minted on request only"
   g5b_static_checks
+  mysql8_static_checks
 }
 
 g5b_static_checks() {
