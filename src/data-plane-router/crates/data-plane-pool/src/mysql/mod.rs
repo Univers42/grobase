@@ -71,6 +71,7 @@ mod pool;
 mod query;
 mod schema;
 mod scope;
+mod tls;
 
 /// Fields the server controls — strip from any client payload before write,
 /// re-inject from the verified identity. Same defensive posture as the Mongo

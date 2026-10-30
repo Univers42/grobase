@@ -14,7 +14,8 @@
 //!
 //! `mysql_async` and the `mongodb` driver verify the server certificate BY
 //! DEFAULT (both built on rustls); the only way to weaken that is a cert-bypass
-//! parameter smuggled into a mount DSN (mongo `tlsInsecure=true`, …). Under
+//! parameter smuggled into a mount DSN (mongo `tlsInsecure=true`, mysql
+//! `verify_ca=false`; mysql checks its parsed options, `mysql::tls`). Under
 //! `SECURITY_MODE=max` such a mount must be REFUSED, not silently downgraded —
 //! the max-mode guarantee the per-engine `open_pool` paths call. Postgres/MSSQL
 //! have their own dedicated posture (`postgres::effective_tls_mode`,
@@ -28,7 +29,10 @@
 use data_plane_core::{DataPlaneError, DataPlaneResult};
 
 /// `true` when the data plane runs under `SECURITY_MODE=max`.
-#[cfg_attr(not(any(feature = "mongodb", feature = "redis")), allow(dead_code))]
+#[cfg_attr(
+    not(any(feature = "mongodb", feature = "redis", feature = "mysql")),
+    allow(dead_code)
+)]
 pub(crate) fn max_security() -> bool {
     std::env::var("SECURITY_MODE")
         .map(|v| v.eq_ignore_ascii_case("max"))
