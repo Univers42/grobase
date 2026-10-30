@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:33:41 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:33:42 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 08:30:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -226,10 +226,7 @@ impl RedisRateLimiter {
     async fn allow(&self, tenant: &str, rps: u32, burst: u32) -> bool {
         let mgr = self
             .conn
-            .get_or_try_init(|| async {
-                let client = redis_rl::Client::open(self.url.as_str())?;
-                redis_rl::aio::ConnectionManager::new(client).await
-            })
+            .get_or_try_init(|| crate::redis_link::connect(&self.url))
             .await;
         let Ok(mgr) = mgr else {
             tracing::warn!("ratelimit redis connect failed — admitting (fail-open)");

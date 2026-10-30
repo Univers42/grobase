@@ -244,10 +244,11 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       redis held `open_pool` over 120 s (redis-rs 0.27 backoff `factor` is a multiplier on
       a 1 s base) — now ≤ 3 retries of 0.5 s, 3.2 s measured. Open: a dead mongo holds a
       request 30 s (server selection = max(`idle_ttl_ms`, 5 s), `mongo/adapter.rs:89`);
-      mssql 30 s (bb8 checkout timeout also covers the dial); data-plane-server's own
-      redis managers (`ratelimit.rs:231`, `quota.rs:168`, `usage.rs:390`) keep the default
-      backoff against the platform redis; `DatabaseMount` derives `Debug` with
-      `inline_dsn` (no `{:?}` consumer found).
+      mssql 30 s (bb8 checkout timeout also covers the dial); `DatabaseMount` derives
+      `Debug` with `inline_dsn` (no `{:?}` consumer found). Closed: data-plane-server's
+      own redis managers (limiter, quota honor-set, usage flusher) held each request
+      over 90 s on a refused platform redis; one `redis_link::connect` (1 s timeout, no
+      retry) now fails in 255 µs, test `refused_dial_fails_fast`.
 
 **G3 · Per-PR engine conformance, all engines** — gate m245 + CI matrix
 - [x] CI job `engine-conformance` with a matrix over the 10 engines, each starting only
