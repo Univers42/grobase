@@ -169,6 +169,9 @@ preflight() {
     42ctl pull --project "$PROJECT" --apply || die "42ctl pull failed"
 }
 
+# The engine-TLS overlay leaves MinIO no plaintext listener (ADR 0030); its cert sits here.
+minio_serves_tls() { docker exec mini-baas-minio test -d /run/engine-tls/certs 2>/dev/null; }
+
 # Engines only. Anything that migrates or seeds must stay down until the replay has
 # finished (see ORDER above).
 #
@@ -501,6 +504,8 @@ restore_minio() {
     note "no minio dump — skipped"
     return 0
   }
+  # engines_up may have started it with the overlay after prefetch_helpers looked.
+  ! minio_serves_tls || die "mini-baas-minio serves TLS only (ADR 0030 MH11): its objects were NOT restored"
   note "minio: mirroring objects back"
   stage="$(mktemp -d)"
   tar -xzf "$SEED_DIR/minio.tar.gz" -C "$stage"
@@ -669,6 +674,9 @@ restore_mssql() {
 # The 650 MB aws-cli image only when DynamoDB runs: restore_dynamodb skips otherwise, and
 # stop_non_engines keeps it running, so this check holds for the whole restore.
 prefetch_helpers() {
+  ! { have minio.tar.gz && minio_serves_tls; } ||
+    refuse "mini-baas-minio serves TLS only (engine-TLS overlay) and these mc helpers carry no CA (ADR 0030 MH11).
+  Recompose without minio in ENGINE_TLS_ENGINES, then rerun. Nothing was changed."
   images="$MONGO_IMAGE $MC_IMAGE alpine:latest $REDIS_IMAGE"
   if have dynamodb-all.tar.gz && is_running mini-baas-dynamodb-local; then
     images="$images $AWS_IMAGE"

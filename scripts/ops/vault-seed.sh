@@ -166,6 +166,11 @@ seed_minio() {
     missed minio "container not running"
     return 0
   }
+  # The engine-TLS overlay leaves MinIO no plaintext listener and this mc carries no CA.
+  if docker exec mini-baas-minio test -d /run/engine-tls/certs 2>/dev/null; then
+    missed minio "serves TLS only (engine-TLS overlay, ADR 0030 MH11)"
+    return 0
+  fi
   stage="$(mktemp -d)"
   MC_HOST_seed="http://$(docker exec mini-baas-minio printenv MINIO_ROOT_USER):$(docker exec mini-baas-minio printenv MINIO_ROOT_PASSWORD)@mini-baas-minio:9000"
   export MC_HOST_seed

@@ -21,6 +21,7 @@
 #   generate-engine-cert.sh mysql8     ENGINE_TLS_ENGINES="mysql8" (ADR 0026)
 #   generate-engine-cert.sh mssql      ENGINE_TLS_ENGINES="mssql" (ADR 0012)
 #   generate-engine-cert.sh cockroach  ENGINE_TLS_ENGINES="cockroach" (ADR 0029)
+#   generate-engine-cert.sh minio      ENGINE_TLS_ENGINES="minio" (ADR 0030)
 # Output, under ENGINE_TLS_CERT_DIR (default certs/engines for postgres,
 # certs/engine-tls/<engine> for the others): engine.pem, engine-key.pem (0600)
 # and ca.pem, the public CA a client verifies against. The CA key never leaves
@@ -77,8 +78,12 @@ cockroach)
   SANS="DNS:cockroach,DNS:mini-baas-cockroach,DNS:localhost,IP:127.0.0.1"
   OUT_DIR=${ENGINE_TLS_CERT_DIR:-"$CERT_DIR/engine-tls/cockroach"}
   ;;
+minio)
+  SANS="DNS:minio,DNS:mini-baas-minio,DNS:localhost,IP:127.0.0.1"
+  OUT_DIR=${ENGINE_TLS_CERT_DIR:-"$CERT_DIR/engine-tls/minio"}
+  ;;
 *)
-  printf 'Unknown engine %s: expected postgres, mongo, redis, mariadb, mysql, mysql8, mssql or cockroach.\n' "$ENGINE" >&2
+  printf 'Unknown engine %s: expected postgres, mongo, redis, mariadb, mysql, mysql8, mssql, cockroach or minio.\n' "$ENGINE" >&2
   exit 2
   ;;
 esac

@@ -1,0 +1,19 @@
+# docker-compose.cloud-minio-tls.yml — composed after docker-compose.cloud.yml only when
+# CLOUD=1 and ENGINE_TLS_ENGINES lists minio (orchestrators/makes/00-config.mk; ADR 0030 MH7).
+# The cloud overlay is what points tenant-control's backup store at MinIO, so its switch to
+# https:// lives here rather than in docker-compose.engine-tls-minio.yml, where it would turn
+# that store on for every stack.
+# Go reads SSL_CERT_DIR on top of its default bundle; SSL_CERT_FILE would replace the bundle
+# and break the control-plane's public HTTPS calls (JWKS, webhooks, CMEK).
+services:
+  tenant-control:
+    volumes:
+      - type: bind
+        source: ${ENGINE_TLS_MINIO_CERT_DIR:-./certs/engine-tls/minio}/ca.pem
+        target: /etc/minio-ca/ca.pem
+        read_only: true
+        bind:
+          create_host_path: false
+    environment:
+      MINIO_ENDPOINT: ${TENANT_BACKUP_MINIO_ENDPOINT:-https://minio:9000}
+      SSL_CERT_DIR: /etc/minio-ca:/etc/ssl/certs

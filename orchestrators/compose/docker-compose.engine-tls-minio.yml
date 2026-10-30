@@ -1,0 +1,126 @@
+# docker-compose.engine-tls-minio.yml — MinIO serves HTTPS only (G5, docs/adr/0030-g5-minio-https-hard-cutover-overlay.md).
+# Opt-in: ENGINE_TLS_ENGINES lists minio (env, or an ENGINE_TLS_ENGINES= line in .env.local;
+# orchestrators/makes/00-config.mk). Without it nothing here is composed (MH1).
+#
+# A hard cutover: --certs-dir leaves MinIO no plaintext listener, so every in-network client
+# switches here, each with its own additive trust knob and only the public ca.pem (MH5–MH7).
+# Kong's hop is rendered by infra/docker/services/kong/render-kong-config.sh (MH8); with CLOUD=1,
+# docker-compose.cloud-minio-tls.yml switches tenant-control's backup store too.
+# The cert comes from `scripts/certs/generate-engine-cert.sh minio`.
+#
+# Caveat: MinIO refuses to start with S3_PUBLIC_ENDPOINT set (browsers would not trust the
+# private CA), but a hand-composed `-f docker-compose.prod.yml` with it unset is not refused;
+# make prod-up never composes this file. A host or .env MINIO_ENDPOINT=http://minio:9000 for
+# tenant-control without CLOUD=1 is not rewritten: its boot self-check then fails loudly (400).
+# engine.pem lasts 397 days and every client verifies it: renew, then recreate minio.
+x-minio-ca: &minio-ca
+  type: bind
+  source: ${ENGINE_TLS_MINIO_CERT_DIR:-./certs/engine-tls/minio}/ca.pem
+  target: /etc/minio-ca/ca.pem
+  read_only: true
+  bind:
+    create_host_path: false
+
+# The temurin entrypoint (/__cacert_entrypoint.sh) adds /certificates/*.crt to the JVM
+# truststore when USE_SYSTEM_CA_CERTS is set (measured: wiki/architecture/minio-https-trust-matrix.md).
+x-minio-ca-jvm: &minio-ca-jvm
+  type: bind
+  source: ${ENGINE_TLS_MINIO_CERT_DIR:-./certs/engine-tls/minio}/ca.pem
+  target: /certificates/minio-ca.crt
+  read_only: true
+  bind:
+    create_host_path: false
+
+services:
+  minio:
+    user: "0"
+    # The image ENTRYPOINT is `minio`; the wrapper replaces it, so it is passed back first.
+    entrypoint: ["/bin/sh", "/usr/local/bin/engine-tls-drop.sh", "minio"]
+    environment:
+      ENGINE_TLS_NAME: minio
+      ENGINE_TLS_UID: "1001"
+      ENGINE_TLS_GID: "1001"
+      ENGINE_TLS_MINIO_S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-}
+    volumes:
+      - type: bind
+        source: ${ENGINE_TLS_MINIO_CERT_DIR:-./certs/engine-tls/minio}
+        target: /etc/engine-tls
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./infra/docker/services/engine-tls/drop-entrypoint.sh
+        target: /usr/local/bin/engine-tls-drop.sh
+        read_only: true
+    tmpfs:
+      - /run/engine-tls:mode=0700
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS --cacert /run/engine-tls/certs/CAs/ca.crt https://localhost:9000/minio/health/live",
+        ]
+
+  # render-kong-config.sh switches the storage service to https on this variable.
+  kong:
+    volumes:
+      - *minio-ca
+    environment:
+      KONG_MINIO_CA_FILE: /etc/minio-ca/ca.pem
+
+  storage-router:
+    volumes:
+      - *minio-ca
+    environment:
+      S3_ENDPOINT: https://minio:9000
+      # Added to the bundled roots, so public HTTPS keeps working; NODE_OPTIONS is untouched (m185).
+      NODE_EXTRA_CA_CERTS: /etc/minio-ca/ca.pem
+
+  iceberg-rest:
+    volumes:
+      - *minio-ca-jvm
+    environment:
+      CATALOG_S3_ENDPOINT: https://minio:9000
+      USE_SYSTEM_CA_CERTS: "1"
+
+  trino:
+    volumes:
+      - *minio-ca-jvm
+      - ./infra/docker/services/trino/conf/catalog/iceberg-minio-tls.properties:/etc/trino/catalog/iceberg.properties:ro
+    environment:
+      USE_SYSTEM_CA_CERTS: "1"
+    # A wrong CA only fails a query after 140 s of SDK retries (ADR 0030 MH9), so trino
+    # reports unhealthy at once when its mounted CA does not verify minio.
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:8080/v1/info >/dev/null && curl -fsS -o /dev/null --cacert /certificates/minio-ca.crt https://minio:9000/minio/health/live",
+        ]
+
+  # The base script with https:// (gate m262 checks the rest is unchanged). mc reads
+  # $HOME/.mc/certs/CAs; HOME is /home/mc in grobase-mc.
+  minio-iceberg-init:
+    volumes:
+      - <<: *minio-ca
+        target: /home/mc/.mc/certs/CAs/minio-ca.crt
+    entrypoint: >
+      sh -c "
+        until mc alias set local https://minio:9000 \"$$MINIO_ROOT_USER\" \"$$MINIO_ROOT_PASSWORD\" >/dev/null 2>&1; do
+          echo 'waiting for minio…'; sleep 1;
+        done;
+        mc mb -p local/iceberg || true;
+        mc anonymous set none local/iceberg || true;
+        echo 'iceberg bucket ready';
+        mc mb -p local/baas || true;
+        mc anonymous set none local/baas || true;
+        echo 'baas (tenant backup) bucket ready';
+      "
+
+  # pg-backup runs as root: mc reads /root/.mc/certs/CAs (as m242 does).
+  pg-backup:
+    volumes:
+      - <<: *minio-ca
+        target: /root/.mc/certs/CAs/minio-ca.crt
+    environment:
+      MINIO_ENDPOINT: ${PG_BACKUP_MINIO_ENDPOINT:-https://minio:9000}

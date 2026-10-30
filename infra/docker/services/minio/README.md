@@ -93,6 +93,38 @@ Returns `200 OK` when MinIO is running. For cluster readiness:
 curl -sf http://localhost:9000/minio/health/ready
 ```
 
+## HTTPS only (opt-in)
+
+`ENGINE_TLS_ENGINES=minio` (env, or a line in `.env.local`) composes
+`orchestrators/compose/docker-compose.engine-tls-minio.yml`: a hard cutover, not accept mode.
+Decision and conditions: `docs/adr/0030-g5-minio-https-hard-cutover-overlay.md`.
+
+```bash
+sh scripts/certs/generate-engine-cert.sh minio   # certs/engine-tls/minio/{engine.pem,engine-key.pem,ca.pem}
+ENGINE_TLS_ENGINES=minio make up
+```
+
+- 9000 and 9001 serve HTTPS only; plain HTTP answers `400`. The key is copied to a tmpfs,
+  mode 600, owned by uid 1001, which MinIO drops to.
+- Every in-network client switches, and each mounts `ca.pem` only: storage-router
+  (`NODE_EXTRA_CA_CERTS`), iceberg-rest and trino (`USE_SYSTEM_CA_CERTS`), mc-init and
+  pg-backup (`~/.mc/certs/CAs`), and Kong (`KONG_MINIO_CA_FILE`). With `CLOUD=1`,
+  `docker-compose.cloud-minio-tls.yml` also switches tenant-control's backup store.
+- MinIO refuses to start when `S3_PUBLIC_ENDPOINT` is set (browsers would not trust the
+  private CA) or when the cert directory is empty.
+- `make` refuses it on any `COMPOSE_FILE` other than `docker-compose.yml`. The monolith and
+  helm still dial `http://minio:9000`.
+- Host scripts: phase9 and stack-health read the CA from the container. vault-seed skips
+  minio and vault-restore refuses it.
+
+Under the overlay, the health check from inside the container is:
+
+```bash
+docker exec mini-baas-minio curl -sf --cacert /run/engine-tls/certs/CAs/ca.crt https://localhost:9000/minio/health/live
+```
+
+Gate: `M262_LIVE=1 bash scripts/verify/m262-minio-https.sh` (CI job `minio-https`).
+
 ## Docker
 
 - **Image:** `minio/minio`
