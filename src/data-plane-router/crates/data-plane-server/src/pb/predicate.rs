@@ -479,7 +479,7 @@ impl PbExpr {
         match self {
             PbExpr::And(parts) => {
                 let fs: Vec<Filter> = parts.iter().filter_map(PbExpr::to_engine_filter).collect();
-                (!fs.is_empty()).then(|| Filter::And(fs))
+                (!fs.is_empty()).then_some(Filter::And(fs))
             }
             other => other.to_engine_filter(),
         }
