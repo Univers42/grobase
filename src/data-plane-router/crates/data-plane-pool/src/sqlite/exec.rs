@@ -14,8 +14,11 @@
 //! rusqlite): run a built [`SqlPlan`], query/execute raw SQL, and the schema
 //! introspection that maps `PRAGMA table_info` back to engine-neutral columns.
 
+use std::collections::BTreeMap;
+
 use data_plane_core::{
-    ColumnSchema, DataPlaneResult, DataResult, NormalizedType, SchemaDescriptor, TableSchema,
+    ColumnSchema, DataPlaneResult, DataResult, ForeignKeyRef, NormalizedType, SchemaDescriptor,
+    TableSchema,
 };
 use rusqlite::types::Value as SqlValue;
 use rusqlite::{params_from_iter, Connection};
@@ -86,6 +89,49 @@ pub(super) fn exec_write(
     Ok(n as u64)
 }
 
+/// Column → referenced (table, column) for one table. A `REFERENCES parent`
+/// without a column list stores `to` as NULL and means the parent's primary
+/// key, so that case resolves to the parent's first PK column.
+fn foreign_keys_of(
+    conn: &Connection,
+    table: &str,
+) -> DataPlaneResult<BTreeMap<String, ForeignKeyRef>> {
+    let mut stmt = conn
+        .prepare("SELECT \"from\", \"table\", \"to\" FROM pragma_foreign_key_list(?1)")
+        .map_err(backend)?;
+    let rows = stmt
+        .query_map([table], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+            ))
+        })
+        .map_err(backend)?;
+    let mut fks = BTreeMap::new();
+    for r in rows {
+        let (from, parent, to) = r.map_err(backend)?;
+        let column = match to {
+            Some(column) => column,
+            None => conn
+                .query_row(
+                    "SELECT name FROM pragma_table_info(?1) WHERE pk = 1",
+                    [&parent],
+                    |row| row.get::<_, String>(0),
+                )
+                .map_err(backend)?,
+        };
+        fks.insert(
+            from,
+            ForeignKeyRef {
+                table: parent,
+                column,
+            },
+        );
+    }
+    Ok(fks)
+}
+
 pub(super) fn describe_schema_blocking(conn: &Connection) -> DataPlaneResult<SchemaDescriptor> {
     let mut tables: Vec<TableSchema> = Vec::new();
     let table_names: Vec<String> = {
@@ -100,6 +146,7 @@ pub(super) fn describe_schema_blocking(conn: &Connection) -> DataPlaneResult<Sch
     for table in table_names {
         let mut columns: Vec<ColumnSchema> = Vec::new();
         let mut primary_key: Vec<(i64, String)> = Vec::new();
+        let mut fks = foreign_keys_of(conn, &table)?;
         let mut stmt = conn
             .prepare(&format!("PRAGMA table_info({})", quote_ident(&table)?))
             .map_err(backend)?;
@@ -119,6 +166,7 @@ pub(super) fn describe_schema_blocking(conn: &Connection) -> DataPlaneResult<Sch
                 primary_key.push((pk, name.clone()));
             }
             let normalized = normalize_sqlite_type(&native);
+            let references = fks.remove(&name);
             columns.push(ColumnSchema {
                 name,
                 native_type: native,
@@ -126,7 +174,7 @@ pub(super) fn describe_schema_blocking(conn: &Connection) -> DataPlaneResult<Sch
                 nullable,
                 default,
                 enum_values: None,
-                references: None,
+                references,
                 inferred: false,
             });
         }
@@ -187,6 +235,42 @@ mod tests {
         ] {
             assert_eq!(normalize_sqlite_type(native), want, "{native}");
         }
+    }
+
+    #[test]
+    fn describe_reports_foreign_keys_explicit_and_implicit() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE parent (id INTEGER PRIMARY KEY, code TEXT UNIQUE); \
+             CREATE TABLE child (id INTEGER PRIMARY KEY, \
+               parent_id INTEGER REFERENCES parent(id), \
+               parent_code TEXT REFERENCES parent(code), \
+               implicit_id INTEGER REFERENCES parent, note TEXT)",
+        )
+        .unwrap();
+        let schema = describe_schema_blocking(&conn).unwrap();
+        let child = schema.tables.iter().find(|t| t.name == "child").unwrap();
+        let refs: Vec<(&str, Option<(&str, &str)>)> = child
+            .columns
+            .iter()
+            .map(|c| {
+                let r = c.references.as_ref();
+                (
+                    c.name.as_str(),
+                    r.map(|r| (r.table.as_str(), r.column.as_str())),
+                )
+            })
+            .collect();
+        assert_eq!(
+            refs,
+            vec![
+                ("id", None),
+                ("parent_id", Some(("parent", "id"))),
+                ("parent_code", Some(("parent", "code"))),
+                ("implicit_id", Some(("parent", "id"))),
+                ("note", None),
+            ]
+        );
     }
 
     /// A cached `SELECT *` re-prepares inside its first step after a schema

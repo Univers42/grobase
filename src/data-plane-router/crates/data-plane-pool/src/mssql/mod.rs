@@ -40,8 +40,9 @@ pub(super) use bb8_tiberius::ConnectionManager;
 pub(super) use data_plane_core::{
     AggFunc, Aggregate, BatchItemOutcome, BatchItemStatus, BatchSummary, ColumnSchema,
     DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, DataResult, DatabaseMount,
-    EngineAdapter, EngineCapabilities, EngineHealth, EnginePool, Filter, NormalizedType,
-    RawStatement, RequestIdentity, SchemaDescriptor, TableSchema, TxBeginRequest, TxHandle,
+    EngineAdapter, EngineCapabilities, EngineHealth, EnginePool, Filter, ForeignKeyRef,
+    NormalizedType, RawStatement, RequestIdentity, SchemaDescriptor, TableSchema, TxBeginRequest,
+    TxHandle,
 };
 pub(super) use serde_json::{Map as JsonMap, Value};
 pub(super) use std::borrow::Cow;
