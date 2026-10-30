@@ -186,7 +186,18 @@ refuses_without_cert() { # $1 the engine's cert directory, left empty
   step "live C: overlay without a cert → refuses to start"
   mkdir -p "$1"
   ! boot -f "${ROOT}/${LIVE_OVERLAY}" || fail "${ENGINE} started with TLS on and no cert"
-  docker logs "m247-${ENGINE}" 2>&1 | grep -q 'generate-engine-cert.sh' || fail "the refusal does not name the cert script"
+  # compose can report the failure before the exited container's log is readable
+  # (redis, CI run 40990129485), so the remedy line gets a few seconds to appear.
+  local _
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    docker logs "m247-${ENGINE}" 2>&1 | grep -q 'generate-engine-cert.sh' && break
+    sleep 1
+  done
+  if ! docker logs "m247-${ENGINE}" 2>&1 | grep -q 'generate-engine-cert.sh'; then
+    tail -5 "${WORK}/up.log" >&2
+    docker logs --tail 10 "m247-${ENGINE}" >&2 2>&1 || true
+    fail "the refusal does not name the cert script"
+  fi
   pass "exit with the remedy in the log"
   down
 }
