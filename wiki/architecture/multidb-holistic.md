@@ -321,7 +321,10 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       actor fix: probe 2026-10-30 11:30Z wrote 3 rows with distinct UUIDv5 ids; key-only →
       NULL actor, key + JWT → sub, self-read shows only the user's row, anon reads 0 rows
       (HTTP 200 `[]`, RLS), nested password stored `[REDACTED]`, 0 insert errors.
-- [ ] Pool max 2 drops rows under a burst (200 of the 231) — grobase#81.
+- [~] Pool max 2 drops rows under a burst (200 of the 231) — grobase#81. Batch writer
+      (ADR 0021) live on the VM query-router 2026-10-30 13:42Z (sha-7550ab1b, `:pre-audit-batch-7550ab1b`):
+      probes P1–P6 unchanged, `audit_log_dropped_total 0`. The other 6 services follow after
+      24 h with dropped 0 (A11, ≥ 2026-10-31 13:42Z).
 
 ### Phase 1 — say what a database is bound to
 
