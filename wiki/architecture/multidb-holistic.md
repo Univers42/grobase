@@ -204,6 +204,12 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       and post-connect redirects (Mongo SRV/SDAM, PG multi-host, Redis MOVED, TDS
       routing). Covers DynamoDB `endpoint=`; tenant mounts never fall back to the default
       AWS credential chain.
+- [x] HTTP redirects stay on the mount's origin (G2-H1, devil PwC H1–H4). The SSRF pin
+      covered only the base host, and reqwest followed any 3xx, so a public upstream could
+      redirect into 169.254.169.254. `http/redirect.rs` follows only same scheme, host and port
+      as the base URL, at most 10 hops, also under `ALLOW_INTERNAL=1`. A refused 3xx is an
+      error, never data. Two-listener test: the off-origin target gets 0 connections. Under
+      the old policy that test fails.
 - [ ] Mount provenance (platform / tenant): platform mounts keep internal hosts; tenant
       private and Tailscale ranges via an explicit per-tenant allowlist, no blanket block.
 - [ ] SQLite: path built server-side as `<root>/<tenant>/<mount>.db`; `file:` and `vfs=`

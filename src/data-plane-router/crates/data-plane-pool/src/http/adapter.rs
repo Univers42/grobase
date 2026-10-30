@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:28:14 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:28:15 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 12:00:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,19 +14,16 @@
 //! while opening a pinned `reqwest::Client`, and advertises capabilities.
 
 use super::pool::HttpPool;
+use super::redirect::build_client;
 use super::validate::{guard_and_resolve, parse_connection};
 use super::SUPPORTED_OPS;
 use crate::resolver::MountResolver;
 use async_trait::async_trait;
 use data_plane_core::{
-    DataOperationKind, DataPlaneError, DataPlaneResult, DatabaseMount, EngineAdapter,
-    EngineCapabilities, EngineHealth, EnginePool,
+    DataOperationKind, DataPlaneResult, DatabaseMount, EngineAdapter, EngineCapabilities,
+    EngineHealth, EnginePool,
 };
-use reqwest::Client;
 use std::sync::Arc;
-use std::time::Duration;
-
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
 pub struct HttpEngineAdapter {
     resolver: Arc<dyn MountResolver>,
@@ -61,17 +58,7 @@ impl EngineAdapter for HttpEngineAdapter {
         // validated public IP(s) so a later DNS rebind can't redirect requests
         // inward. `DATA_PLANE_HTTP_ALLOW_INTERNAL=1` skips it (trusted dev mocks).
         let pinned = guard_and_resolve(&conn.base_url).await?;
-        let mut builder = Client::builder()
-            .timeout(REQUEST_TIMEOUT)
-            .user_agent("mini-baas-data-plane-router/0.1");
-        if let Some((host, addrs)) = pinned {
-            for addr in addrs {
-                builder = builder.resolve(&host, addr);
-            }
-        }
-        let client = builder.build().map_err(|e| DataPlaneError::Backend {
-            message: format!("reqwest client init failed: {e}"),
-        })?;
+        let client = build_client(&conn.base_url, pinned)?;
         let shared_pool = crate::pools_shared(&mount);
         Ok(Box::new(HttpPool {
             mount_id: mount.id,
