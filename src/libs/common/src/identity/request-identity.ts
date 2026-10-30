@@ -326,7 +326,7 @@ function userJwtSecret(): string {
  * Throws rather than returning empty so a misconfigured deployment says which
  * variable is missing instead of 401-ing every JWT caller anonymously.
  */
-function requiredIssuers(): string[] {
+export function requiredIssuers(): string[] {
   const issuers = splitList(process.env['GOTRUE_JWT_ISSUER']);
   if (issuers.length > 0 || envFlag('JWT_ALLOW_NO_ISSUER')) return issuers;
   throw new UnauthorizedException(
