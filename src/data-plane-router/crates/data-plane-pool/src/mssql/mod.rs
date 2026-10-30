@@ -36,7 +36,6 @@
 pub(super) use crate::resolver::MountResolver;
 pub(super) use async_trait::async_trait;
 pub(super) use bb8::Pool;
-pub(super) use bb8_tiberius::ConnectionManager;
 pub(super) use data_plane_core::{
     AggFunc, Aggregate, BatchItemOutcome, BatchItemStatus, BatchSummary, ColumnSchema,
     DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, DataResult, DatabaseMount,
@@ -52,6 +51,9 @@ pub(super) use tiberius::{AuthMethod, ColumnData, Config, ToSql};
 
 mod adapter;
 mod convert;
+mod dial;
+#[cfg(test)]
+mod dial_tests;
 mod error;
 mod pool;
 mod query;

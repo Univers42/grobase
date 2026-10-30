@@ -23,15 +23,21 @@
 
 #[cfg(any(
     feature = "http",
-    feature = "postgres",
+    feature = "mssql",
     feature = "mysql",
+    feature = "postgres",
     feature = "redis"
 ))]
 pub(crate) mod classify;
 #[cfg(test)]
 #[cfg(any(feature = "http", feature = "postgres", feature = "mysql"))]
 mod classify_tests;
-#[cfg(any(feature = "postgres", feature = "mysql", feature = "redis"))]
+#[cfg(any(
+    feature = "mssql",
+    feature = "mysql",
+    feature = "postgres",
+    feature = "redis"
+))]
 pub(crate) mod scope;
 
 /// The env key holding the mode, read once at startup by the server.

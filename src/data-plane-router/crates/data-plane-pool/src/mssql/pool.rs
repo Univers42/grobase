@@ -14,6 +14,7 @@
 //! (`run_plan`) and the atomic batch (`run_batch`) — the `EnginePool` surface.
 
 use super::convert::{json_to_param, normalize_mssql_type, row_to_json};
+use super::dial::DialManager;
 use super::error::backend;
 use super::query::{build_plan, owner_of, SqlPlan, P};
 use super::*;
@@ -30,7 +31,7 @@ pub struct MssqlPool {
     /// predicate from each request's identity carries isolation). See
     /// `crate::pools_shared`.
     pub(super) shared_pool: bool,
-    pub(super) pool: Pool<ConnectionManager>,
+    pub(super) pool: Pool<DialManager>,
     /// TLS posture selected when this pool was opened.
     pub(super) tls: TlsPosture,
 }
@@ -54,7 +55,7 @@ impl MssqlPool {
         self.owner_scoped.then(|| owner_of(identity))
     }
 
-    async fn conn(&self) -> DataPlaneResult<bb8::PooledConnection<'_, ConnectionManager>> {
+    async fn conn(&self) -> DataPlaneResult<bb8::PooledConnection<'_, DialManager>> {
         self.pool.get().await.map_err(|e| DataPlaneError::Backend {
             message: format!("mssql checkout failed: {e}"),
         })
@@ -243,7 +244,7 @@ const FK_SQL: &str = "SELECT OBJECT_NAME(fkc.parent_object_id), \
 
 /// Runs a catalog query whose first `width` columns are all names.
 async fn key_columns(
-    conn: &mut bb8::PooledConnection<'_, ConnectionManager>,
+    conn: &mut bb8::PooledConnection<'_, DialManager>,
     sql: &str,
     width: usize,
 ) -> DataPlaneResult<Vec<Vec<String>>> {
@@ -307,7 +308,7 @@ impl MssqlPool {
 }
 
 async fn run_plan(
-    conn: &mut bb8::PooledConnection<'_, ConnectionManager>,
+    conn: &mut bb8::PooledConnection<'_, DialManager>,
     plan: &SqlPlan,
 ) -> DataPlaneResult<DataResult> {
     let refs: Vec<&dyn ToSql> = plan.params.iter().map(|p| p as &dyn ToSql).collect();

@@ -207,19 +207,12 @@ async fn vet(scope: &DialScope, info: &ConnectionInfo) -> Result<IpAddr, Refusal
         ConnectionAddr::TcpTls { host, port, .. } => {
             Err(Refusal::new(DenyClass::Tls, None, host, *port))
         }
-        ConnectionAddr::Tcp(host, port) => vet_tcp(scope, host, *port).await,
+        ConnectionAddr::Tcp(host, port) => scope.vet_first(host, *port).await,
     };
     if let Err(refusal) = &vetted {
         scope.report(refusal);
     }
     vetted
-}
-
-async fn vet_tcp(scope: &DialScope, host: &str, port: u16) -> Result<IpAddr, Refusal> {
-    let ips = scope.vet_host(host, port).await?;
-    ips.first()
-        .copied()
-        .ok_or_else(|| Refusal::new(DenyClass::Unresolved, None, host, port))
 }
 
 /// The parsed settings (db, username, password, protocol) with the address

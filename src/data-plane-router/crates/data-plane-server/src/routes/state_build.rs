@@ -77,8 +77,14 @@ pub(super) fn build_adapters(
     resolver: &Arc<EnvMountResolver>,
     dial_guard: DialGuardMode,
 ) -> Vec<Arc<dyn EngineAdapter>> {
-    // G2 D1/D3a guards pgwire, MySQL and Redis; a build without them has nothing to guard.
-    #[cfg(not(any(feature = "postgres", feature = "mysql", feature = "redis")))]
+    // G2 D1/D2/D3a guard pgwire, MySQL, SQL Server and Redis; a build without
+    // them has nothing to guard.
+    #[cfg(not(any(
+        feature = "mssql",
+        feature = "mysql",
+        feature = "postgres",
+        feature = "redis"
+    )))]
     let _ = dial_guard;
     #[allow(unused_mut)]
     let mut adapters: Vec<Arc<dyn EngineAdapter>> = Vec::new();
@@ -120,7 +126,9 @@ pub(super) fn build_adapters(
     #[cfg(feature = "sqlite")]
     adapters.push(Arc::new(SqliteEngineAdapter::new(resolver.clone())));
     #[cfg(feature = "mssql")]
-    adapters.push(Arc::new(MssqlEngineAdapter::new(resolver.clone())));
+    adapters.push(Arc::new(
+        MssqlEngineAdapter::new(resolver.clone()).with_dial_guard(dial_guard),
+    ));
     #[cfg(feature = "http")]
     adapters.push(Arc::new(HttpEngineAdapter::new(resolver.clone())));
     // Boot-time honesty self-check (04/S1b): fail fast if any descriptor

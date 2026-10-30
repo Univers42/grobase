@@ -28,17 +28,35 @@ pub(crate) enum DenyClass {
     Private,
     // Only the engine dials (scope.rs) refuse by name, socket or lookup;
     // http reports its own messages for those.
-    #[cfg(any(feature = "postgres", feature = "mysql", feature = "redis"))]
+    #[cfg(any(
+        feature = "mssql",
+        feature = "mysql",
+        feature = "postgres",
+        feature = "redis"
+    ))]
     InternalName,
-    #[cfg(any(feature = "postgres", feature = "mysql", feature = "redis"))]
+    #[cfg(any(feature = "mysql", feature = "postgres", feature = "redis"))]
     UnixSocket,
-    #[cfg(any(feature = "postgres", feature = "mysql", feature = "redis"))]
+    #[cfg(feature = "redis")]
     Tls,
-    #[cfg(any(feature = "postgres", feature = "mysql", feature = "redis"))]
+    #[cfg(any(
+        feature = "mssql",
+        feature = "mysql",
+        feature = "postgres",
+        feature = "redis"
+    ))]
     Unresolved,
+    // A SQL Server `host\instance` needs SQL Browser to find its port.
+    #[cfg(feature = "mssql")]
+    NamedInstance,
 }
 
-#[cfg(any(feature = "postgres", feature = "mysql", feature = "redis"))]
+#[cfg(any(
+    feature = "mssql",
+    feature = "mysql",
+    feature = "postgres",
+    feature = "redis"
+))]
 impl DenyClass {
     pub(crate) fn as_str(self) -> &'static str {
         match self {
@@ -49,9 +67,13 @@ impl DenyClass {
             Self::Reserved => "reserved",
             Self::Private => "private",
             Self::InternalName => "internal_name",
+            #[cfg(any(feature = "mysql", feature = "postgres", feature = "redis"))]
             Self::UnixSocket => "unix_socket",
+            #[cfg(feature = "redis")]
             Self::Tls => "tls",
             Self::Unresolved => "unresolved",
+            #[cfg(feature = "mssql")]
+            Self::NamedInstance => "named_instance",
         }
     }
 }

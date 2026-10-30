@@ -11,8 +11,8 @@
 #                                                                              #
 # **************************************************************************** #
 #
-# Gate (G2 slice D1, ADR 0019): the data plane dials a tenant's pgwire or
-# MySQL host only after one classifier has vetted it, behind
+# Gate (G2 slices D1/D2/D3a, ADR 0019): the data plane dials a tenant's
+# pgwire, MySQL, SQL Server or Redis host only after one classifier has vetted it, behind
 # DATA_PLANE_DIAL_GUARD=off|shadow|enforce (off by default, a typo refuses
 # startup).
 #
@@ -45,7 +45,7 @@ need() {
 
 NEW_FILES="dial_guard/mod.rs dial_guard/classify.rs dial_guard/classify_tests.rs
 dial_guard/scope.rs postgres/dial.rs postgres/dial_tests.rs mysql/dial.rs mysql/dial_tests.rs
-redis/dial.rs redis/dial_tests.rs"
+redis/dial.rs redis/dial_tests.rs mssql/dial.rs mssql/dial_tests.rs"
 
 step "static: the guard's files exist, under 300 lines, with the 42 header"
 for f in ${NEW_FILES}; do
@@ -53,7 +53,7 @@ for f in ${NEW_FILES}; do
   [ "$(wc -l <"${POOL}/${f}")" -le 300 ] || fail "${f} is over 300 lines"
   need "${POOL}/${f}" 'By: dlesieur <dlesieur@student\.42\.fr>' "${f} has no 42 header"
 done
-pass "10 files"
+pass "12 files"
 
 step "static: one classifier (http calls it, its own copy is gone)"
 need "${POOL}/http/validate.rs" 'use crate::dial_guard::classify::\{classify, denied_name\}' "http does not call the shared classifier"
@@ -72,9 +72,9 @@ need "${POOL}/dial_guard/mod.rs" 'DIAL_GUARD_KEY: &str = "DATA_PLANE_DIAL_GUARD"
 need "${POOL}/dial_guard/mod.rs" '#\[default\]' "the mode has no default"
 need "${SERVER}/environment.rs" 'UnknownDialGuardMode' "no startup refusal for an unknown mode"
 need "${SERVER}/config.rs" 'return Err\(ConfigError::UnknownDialGuardMode\)' "try_from_env does not refuse a typo"
-[ "$(grep -c '\.with_dial_guard(dial_guard)' "${SERVER}/routes/state_build.rs")" = 5 ] ||
-  fail "postgres, cockroach, mysql, mariadb and redis must all take the mode"
-pass "DATA_PLANE_DIAL_GUARD wired to the five adapters"
+[ "$(grep -c '\.with_dial_guard(dial_guard)' "${SERVER}/routes/state_build.rs")" = 6 ] ||
+  fail "postgres, cockroach, mysql, mariadb, redis and mssql must all take the mode"
+pass "DATA_PLANE_DIAL_GUARD wired to the six adapters"
 
 step "static: provenance comes from resolve, Platform only from DATA_PLANE_MOUNTS (C5)"
 [ "$(sed '/^mod tests/,$d' "${POOL}/resolver.rs" | grep -c 'provenance: Provenance::Platform')" = 1 ] ||
@@ -94,7 +94,11 @@ need "${POOL}/redis/dial.rs" 'IntoConnectionInfo' "redis does not parse the driv
 need "${POOL}/redis/dial.rs" 'ConnectionAddr::Tcp' "redis does not pin a TCP address"
 need "${POOL}/redis/dial.rs" 'ConnectionAddr::Unix' "redis does not refuse a unix socket (C11)"
 need "${POOL}/redis/adapter.rs" 'DialManager' "the redis adapter bypasses the guard"
-pass "deadpool Connect + mysql resolved_ips + redis pinned address"
+need "${POOL}/mssql/dial.rs" 'impl bb8::ManageConnection for DialManager' "mssql still dials through bb8-tiberius"
+need "${POOL}/mssql/dial.rs" 'Error::Routing' "a TDS Routing redirect is not vetted (C10)"
+need "${POOL}/mssql/dial.rs" 'DenyClass::NamedInstance' "a named instance is not refused (C10)"
+need "${POOL}/mssql/adapter.rs" 'DialManager' "the mssql adapter bypasses the guard"
+pass "deadpool Connect + mysql resolved_ips + redis pinned address + mssql own manager"
 
 step "static: the tests that prove each condition exist"
 for pair in \
@@ -121,20 +125,28 @@ for pair in \
   "redis/dial_tests.rs|fn redis_pins_the_vetted_ip_not_the_name" \
   "redis/dial_tests.rs|fn redis_revets_after_the_interval_and_rebuilds_on_change" \
   "redis/dial_tests.rs|fn redis_refusal_never_repeats_the_password" \
+  "mssql/dial_tests.rs|fn mssql_routing_hop_is_vetted_and_pinned_under_enforce" \
+  "mssql/dial_tests.rs|fn mssql_routing_to_a_denied_host_is_refused_under_enforce" \
+  "mssql/dial_tests.rs|fn mssql_routing_to_a_denied_host_is_logged_under_shadow" \
+  "mssql/dial_tests.rs|fn mssql_second_redirect_is_an_error" \
+  "mssql/dial_tests.rs|fn mssql_named_instance_is_refused_under_enforce" \
+  "mssql/dial_tests.rs|fn mssql_adapter_refuses_tenant_dsns_and_passes_platform" \
+  "mssql/dial_tests.rs|fn mssql_refusal_never_repeats_the_password" \
   "canary.rs|fn a_dial_guard_refusal_never_repeats_the_password"; do
   grep -qF -- "${pair#*|}" "${POOL}/${pair%%|*}" || fail "missing ${pair%%|*}:${pair#*|}"
 done
 need "${SERVER}/config.rs" 'Some\(ConfigError::UnknownDialGuardMode\)' "the startup refusal is untested"
-pass "24 test anchors + the config refusal"
+pass "31 test anchors + the config refusal"
 
 step "static: the approximations are named, the allowlist stays out (C13)"
-for f in dial_guard/scope.rs postgres/dial.rs mysql/dial.rs redis/dial.rs; do
+for f in dial_guard/scope.rs postgres/dial.rs mysql/dial.rs redis/dial.rs mssql/dial.rs; do
   need "${POOL}/${f}" 'Caveat:' "${f} carries no Caveat"
 done
 ! grep -rq 'DATA_PLANE_DIAL_ALLOW_CIDRS' "${CRATES}" || fail "a subnet allowlist reached the code (BLOCKED, C13)"
 need "${ROOT}/docs/adr/0019-g2-dial-guard.md" '^## D1' "ADR 0019 does not say what D1 delivered"
 need "${ROOT}/docs/adr/0019-g2-dial-guard.md" '^## D3a' "ADR 0019 does not say what D3a delivered"
+need "${ROOT}/docs/adr/0019-g2-dial-guard.md" '^## D2' "ADR 0019 does not say what D2 delivered"
 [ -f "${ROOT}/.out-of-scope/dial-guard-subnet-allowlist.md" ] || fail "the out-of-scope note for the allowlist is gone"
-pass "4 Caveats, no allowlist, ADR + out-of-scope present"
+pass "5 Caveats, no allowlist, ADR + out-of-scope present"
 
 printf '\033[32mm244 passed (static)\033[0m\n'

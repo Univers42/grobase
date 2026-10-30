@@ -100,7 +100,7 @@ pub(crate) fn fixed_lookup(
 
 /// Accepts on `listener`, reports `label` per connection, drops the socket
 /// (tests only).
-#[cfg(all(test, any(feature = "postgres", feature = "mysql")))]
+#[cfg(all(test, any(feature = "mssql", feature = "mysql", feature = "postgres")))]
 pub(crate) fn count_accepts(
     listener: tokio::net::TcpListener,
     label: &'static str,
@@ -186,6 +186,15 @@ impl DialScope {
             self.vet_ip(*ip, host, port)?;
         }
         Ok(ips)
+    }
+
+    /// The pin for a driver that dials one address: the first vetted record.
+    #[cfg(any(feature = "mssql", feature = "redis"))]
+    pub(crate) async fn vet_first(&self, host: &str, port: u16) -> Result<IpAddr, Refusal> {
+        let ips = self.vet_host(host, port).await?;
+        ips.first()
+            .copied()
+            .ok_or_else(|| Refusal::new(DenyClass::Unresolved, None, host, port))
     }
 
     /// Log one refusal: `dial_guard deny` under enforce, `would_deny` under shadow.
