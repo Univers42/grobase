@@ -282,8 +282,9 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       seeds that register `sqlite:///tmp/<name>.db` (`osionos-extra-engines.sh:197`,
       `multidb-workspace-engines.sh:92`), so 0 with `file:` or `?`. Read from the seed source,
       not decrypted: a read on both mounts right after promotion is the check.
-- [ ] N-22: adapter-registry identity HMAC on by default; Vault ref namespaced
+- [~] N-22: adapter-registry identity HMAC on by default; Vault ref namespaced
       `{prefix}/{tenant_id}/{reference}` server-side; DSN check inside `Validate`.
+      Identity HMAC on by default is devil-BLOCKED; the service gate plus the relay replace it.
 - [x] m230 extended with a canary password through register and error paths in Rust, Go
       and TS, then wired into CI (2026-10-30). Go: every adapter-registry 500 answers a
       fixed message and logs the error DSN-redacted (`internal_error_test.go`, 4 writers ×
@@ -410,7 +411,7 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
         env (`redisUrlFrom`). m261 green locally 2026-10-30: inspect 0 password/hash hits, health
         fails a wrong password, go-redis/ioredis/Debezium refuse it and hold `user=app`, CLIENT
         LIST 0 `user=default`, boots under TLS+ACL; default render byte-identical. CI job
-        `redis-acl` not yet run (unpushed). Stage 2 (`default off`) needs its own ruling.
+        `redis-acl` green on develop 6234d587 (CI 41086854436). Stage 2 (`default off`) needs its own ruling.
 - [ ] `DATA_PLANE_TLS_INSECURE` default 0; `DATA_PLANE_TLS_CA_FILE` points at the CA.
 - [x] `reject_insecure_tls` on MySQL/MariaDB/Dynamo/MSSQL; Postgres max mode turns
       "no sslmode" into `verify-full`, not plaintext (ADR 0017; no deployment runs max yet).
