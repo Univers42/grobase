@@ -17,9 +17,9 @@
 use async_trait::async_trait;
 use data_plane_core::{
     DataOperationKind, DataPlaneError, DataPlaneResult, DatabaseMount, EngineAdapter,
-    EngineCapabilities, EngineHealth, EnginePool,
+    EngineCapabilities, EngineHealth, EnginePool, TlsPosture,
 };
-use mongodb::{options::ClientOptions, Client};
+use mongodb::{options::ClientOptions, options::Tls, Client};
 use std::{sync::Arc, time::Duration};
 
 use crate::resolver::MountResolver;
@@ -91,6 +91,7 @@ impl EngineAdapter for MongoEngineAdapter {
         ));
         options.app_name = Some(format!("mini-baas/{}", mount.id));
 
+        let tls = tls_posture(options.tls.as_ref());
         let client = Client::with_options(options).map_err(|e| DataPlaneError::Backend {
             message: format!("mongo client init failed: {e}"),
         })?;
@@ -120,11 +121,26 @@ impl EngineAdapter for MongoEngineAdapter {
             client,
             db_name,
             shared_resources,
+            tls,
         }))
     }
 
     async fn health_check(&self, pool: &dyn EnginePool) -> DataPlaneResult<EngineHealth> {
         Ok(EngineHealth::unknown("mongodb", pool.mount_id()))
+    }
+}
+
+/// The probe's TLS label for the options the client was built with (devil G4 P4).
+fn tls_posture(tls: Option<&mongodb::options::Tls>) -> TlsPosture {
+    match tls {
+        None | Some(Tls::Disabled) => TlsPosture::Plaintext,
+        Some(Tls::Enabled(options)) => {
+            if options.allow_invalid_certificates == Some(true) {
+                TlsPosture::Encrypted
+            } else {
+                TlsPosture::Verified
+            }
+        }
     }
 }
 
@@ -162,6 +178,7 @@ fn parse_db_name(dsn: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mongodb::options::TlsOptions;
 
     // ── parse_db_name: DSN → database name, with default ──────────────────────
 
@@ -177,5 +194,20 @@ mod tests {
         assert_eq!(parse_db_name("mongodb://host:27017"), "test");
         assert_eq!(parse_db_name("mongodb://host/"), "test");
         assert_eq!(parse_db_name("garbage"), "test");
+    }
+
+    // ── tls_posture: client TLS options → probe label ─────────────────────────
+
+    #[test]
+    fn tls_posture_labels_the_options_the_client_was_built_with() {
+        assert_eq!(tls_posture(None), TlsPosture::Plaintext);
+        assert_eq!(tls_posture(Some(&Tls::Disabled)), TlsPosture::Plaintext);
+        let verified = Tls::Enabled(TlsOptions::default());
+        assert_eq!(tls_posture(Some(&verified)), TlsPosture::Verified);
+        let lax_options = TlsOptions::builder()
+            .allow_invalid_certificates(true)
+            .build();
+        let lax = Tls::Enabled(lax_options);
+        assert_eq!(tls_posture(Some(&lax)), TlsPosture::Encrypted);
     }
 }
