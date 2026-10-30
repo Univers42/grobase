@@ -1,6 +1,6 @@
 #!/bin/sh
 # Entrypoint for an engine selected in ENGINE_TLS_ENGINES (docs/adr/0012-g5b-engine-accept-tls.md):
-# adds accept-mode TLS, then hands over to the image's own entrypoint, passed as "$@".
+# adds TLS (accept mode; mongo may require it), then hands over to the image's own entrypoint, passed as "$@".
 #
 # These images run non-root and refuse a 0600 key they do not own, and the bind mount keeps
 # the host owner. So the overlay starts this as root only to copy the key into a tmpfs owned
@@ -14,6 +14,18 @@ dst=/run/engine-tls
 name=${ENGINE_TLS_NAME:?the overlay sets ENGINE_TLS_NAME}
 uid=${ENGINE_TLS_UID:?the overlay sets ENGINE_TLS_UID}
 gid=${ENGINE_TLS_GID:?the overlay sets ENGINE_TLS_GID}
+
+# Checked first, so a typo refuses before anything is copied (G5 Mongo clients, ADR 0025).
+if [ "$name" = mongo ]; then
+  mongo_mode=${ENGINE_TLS_MONGO_MODE:-allowTLS}
+  case "$mongo_mode" in
+  allowTLS | requireTLS) ;;
+  *)
+    echo "mongo TLS: ENGINE_TLS_MONGO_MODE must be allowTLS or requireTLS" >&2
+    exit 1
+    ;;
+  esac
+fi
 
 if [ ! -s "$src/engine.pem" ] || [ ! -s "$src/engine-key.pem" ]; then
   echo "$name TLS is on but no engine cert in $src: run scripts/certs/generate-engine-cert.sh $name" >&2
@@ -34,12 +46,13 @@ install -m 600 -o "$uid" -g "$gid" "$src/engine-key.pem" "$dst/server.key"
 install -m 644 -o "$uid" -g "$gid" "$src/engine.pem" "$dst/server.crt"
 install -m 644 -o "$uid" -g "$gid" "$src/ca.pem" "$dst/ca.pem"
 
-# Flag sets measured against each image (G5b-C6); plaintext keeps working on the usual port.
+# Flag sets measured against each image (G5b-C6); plaintext keeps working on the usual port,
+# except mongo under requireTLS.
 case "$name" in
 mongo)
   (umask 077 && cat "$dst/server.key" "$dst/server.crt" >"$dst/server.pem")
   chown "$uid:$gid" "$dst/server.pem"
-  set -- "$@" --tlsMode allowTLS --tlsCertificateKeyFile "$dst/server.pem" \
+  set -- "$@" --tlsMode "$mongo_mode" --tlsCertificateKeyFile "$dst/server.pem" \
     --tlsCAFile "$dst/ca.pem" --tlsAllowConnectionsWithoutCertificates
   ;;
 redis)
