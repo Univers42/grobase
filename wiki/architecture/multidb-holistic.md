@@ -177,6 +177,9 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       `/v1` calls. G1c: compose passes the flag, default off.)*
       Enforce on the VM: human go, ≥ 24 h shadow with zero `would_deny`, rollback =
       flag → shadow + recreate data-plane-router-rust and query-router only.
+      Shadow live on the VM since 2026-10-29 23:52Z (main 69500ecf images). Live m249
+      across 7 mounts: 305 internal POSTs signed, 0 FAIL. One deliberate unsigned probe at
+      23:54:51Z proves would_deny reaches the log. Enforce is eligible from 2026-10-30 23:52Z.
 - [x] Before enforce: sweep of osionos bridge + groot apps for direct `:4011` callers.
       *(2026-10-30: none in groot apps or the osionos bridge, which go through Kong; on the
       VM only query-router and tenant-control name the data plane. Live-stack verify scripts
@@ -218,12 +221,18 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       `engine-conformance` already gates sqlite · http · dynamodb on every PR with no
       stack; the seven stack engines are the rest of the matrix item above. The http
       adapter now reads a Get's 404 as an empty result, like every other engine.
-- [ ] Battery gains: structured DDL round-trip, FK introspection, typed-value round-trip
-      (feeds G7), honest NotImplemented for every N in the matrix.
+- [x] Battery gains: structured DDL round-trip (`ddl_round_trip`, where schema_ddl and
+      introspect), FK introspection (`fk_introspect`; sqlite and mssql describe now report
+      `references`, mssql its primary key too), and route honesty (`route_honesty`: every
+      route flag marked false refuses with a typed refusal). Local 2026-10-30: Rust gate
+      1052 passed / 0 failed; m27 rc=0 on sqlite, postgresql, mysql, mongodb, mariadb,
+      cockroachdb, mssql, redis, http.
+- [ ] Typed-value round-trip in the battery (feeds G7).
 - [ ] Add a real Oracle MySQL 8 service (profile `mysql8`) so MySQL ≠ MariaDB is proven.
 - [x] Wire existing unwired gates: m22, m26, m88, m131, m174, m176, m181. Static legs m22/m26/m181/m176 run in the CI static job (m22, m26 and m181 were stale after the engine split into directories and the multi-line PK selector; fixed with the same strictness). Scratch gates m131 and m88 joined the `--enterprise` battery (local 2026-10-30: m131 7/7, m88 8/8, rc=0). m174 stays a VM live gate: it needs the extra-engines seed on a stack and SKIPs without Kong.
-- [ ] Repo default forward list includes dynamodb when the image has the feature, or the
-      opt-in is documented in `.env.example` — fresh clone reproduces the VM.
+- [x] The dynamodb opt-in is in the env schema and `.env.example`: `DYNAMODB_ENGINE_ENABLED`,
+      `DATA_PLANE_FEATURES`, `DATA_PLANE_IMAGE_SUFFIX` (infra/config/env/schema.json says
+      why they go together). The default stays off. m214 PASS, `render-example.sh --check` rc=0.
 
 ### Phase 1 — say what a database is bound to
 
