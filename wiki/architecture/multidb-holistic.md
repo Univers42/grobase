@@ -162,11 +162,16 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       `/v1/admin/migrate` as tenant_control with any `inline_dsn`. Relay half done (devil
       PwC 2026-10-30): tenant-control reads `DATA_PLANE_CALLER_POLICY`; enforce refuses the
       relay's `service_token` arm, shadow logs `would_deny`, an unknown value refuses boot
-      (`admin_relay_policy_test.go`, m243 relay legs). Open: the `/v1/provision` door
-      (`ensureSchema`, `dataplane.go:76`) needs its own devil ruling; VM shadow window first.
+      (`admin_relay_policy_test.go`, m243 relay legs). Provision door ruled P0 (recorded,
+      not gated; `TestProvisionDoorSendsOnlyTheFixedStatement`). F1 steps 1–3 done: the
+      runtime resolves secrets with its own `FUNCTION_SECRETS_TOKEN`, shared-token fallback
+      (`secrets-token.test.ts`, `TestResolveAuthorized`, `m243-secrets-token-live.sh`).
+      Open: F1 step 4 (devil BLOCK, lift conditions in ADR 0023); VM shadow window first.
 - [ ] D1 enforce precondition 2: `IDENTITY_HEADER_MODE=strict` everywhere. Compat mode,
       the default outside `NODE_ENV=production`, trusts raw `x-baas-*` headers
-      (`request-identity.ts:41,364`).
+      (`request-identity.ts:41,364`). Ruled 2026-10-30 (devil PwC SS1–SS24): measure with an
+      additive `IDENTITY_STRICT_SHADOW` flag first, then a ≥24 h VM window with zero
+      `would_reject` before the flip.
 - [x] Query-router `POST /:dbId/schema/ddl` is authorized before any lookup.
       *Superseded design:* the PDP `ddl` decision and an explicit `ddl` key scope were
       ruled out by [ADR 0009](../../docs/adr/0009-query-router-ddl-requires-api-key-write-scope.md)
@@ -406,7 +411,9 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
   - [x] G5b cockroach — `ENGINE_TLS_ENGINES=cockroach`: secure mode with the CA-signed cert,
         plaintext still accepted (ADR 0029, 4d83e748); CI `cockroachdb over TLS` leg green on
         develop runs 41080324791, 41086854436, 41089119419.
-  - [ ] Clients verify mongo's certs (mongosh, mongo-init, mongo-api); today plaintext.
+  - [x] Clients verify mongo's certs (mongosh, mongo-init, mongo-api) under the mongo overlay
+        (ADR 0025, afb84388); CI `mongodb over TLS` leg green on develop runs 41086854436 and
+        41094750114.
   - [x] D3 — the Rust redis clients verify redis's cert: the pool engine and the server's
         limiter/quota/metering link dial `rediss://` through rustls with the system store plus
         `DATA_PLANE_TLS_CA_FILE` (ADR 0024). m260 green locally 2026-10-30 on the G5b overlay:

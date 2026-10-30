@@ -127,6 +127,19 @@
       ],
       "built_by": "scripts/env/generate-env.sh (written into .env.secrets)"
     },
+    "FUNCTION_SECRETS_TOKEN": {
+      "$comment": "ADR 0023 F1: the token functions-runtime sends on webhook-dispatcher's function-secret resolve route, independent of ADAPTER_REGISTRY_SERVICE_TOKEN. Optional: empty on either side falls back to the shared token, so a .env without it keeps working. No security gain until the cutover drops the shared token from functions-runtime.",
+      "category": "SECRET",
+      "format": "hex64",
+      "required_in": [],
+      "compose_required": false,
+      "vault42_path": "core/FUNCTION_SECRETS_TOKEN",
+      "consumers": [
+        "functions-runtime",
+        "webhook-dispatcher"
+      ],
+      "built_by": "scripts/env/generate-env.sh (written into .env.secrets)"
+    },
     "ANON_KEY": {
       "category": "PUBLIC",
       "format": "jwt-hs256",

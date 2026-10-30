@@ -883,6 +883,12 @@ jobs:
           docker compose -f docker-compose.yml up -d --build --wait webhook-dispatcher
           bash scripts/verify/m197-functions-net-jail.sh
 
+      # Both images from the step above: a function reads its secret with the
+      # scoped token, with an empty one (the shared-token fallback), and not with
+      # a wrong one, whose 401 log names the variable only (ADR 0023 F1).
+      - name: Functions secrets token (m243 live)
+        run: bash scripts/verify/m243-secrets-token-live.sh
+
       # Throwaway MongoDB + throwaway ai-service (pulled): the CONFIGURED probe
       # must fail once MongoDB stops. Statically, every Nest service that
       # implements /health/ready must probe it.

@@ -20,9 +20,10 @@ import (
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
 )
 
-// Mount registers the tenant-facing CRUD routes.
-func Mount(mux *http.ServeMux, svc *Service, serviceToken string) {
-	rt := &routes{svc: svc, serviceToken: serviceToken}
+// Mount registers the tenant-facing CRUD routes and the internal resolve route.
+// scopedToken is FUNCTION_SECRETS_TOKEN, already trimmed; "" means unset.
+func Mount(mux *http.ServeMux, svc *Service, serviceToken, scopedToken string) {
+	rt := &routes{svc: svc, serviceToken: serviceToken, scopedToken: scopedToken}
 	mux.HandleFunc("POST /v1/function-secrets", rt.set)
 	mux.HandleFunc("GET /v1/function-secrets", rt.list)
 	mux.HandleFunc("DELETE /v1/function-secrets/{key}", rt.remove)
@@ -32,6 +33,7 @@ func Mount(mux *http.ServeMux, svc *Service, serviceToken string) {
 type routes struct {
 	svc          *Service
 	serviceToken string
+	scopedToken  string
 }
 
 func (rt *routes) set(w http.ResponseWriter, r *http.Request) {
