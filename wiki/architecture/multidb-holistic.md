@@ -280,6 +280,16 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       `DATA_PLANE_FEATURES`, `DATA_PLANE_IMAGE_SUFFIX` (infra/config/env/schema.json says
       why they go together). The default stays off. m214 PASS, `render-example.sh --check` rc=0.
 
+**G0b · audit_log writes every request** — ADR 0018
+- Measured (VM, 2026-10-30): 231 of 234 POSTs failed their audit insert; `audit_log` held 0 rows.
+  Kong's `uuid#counter` X-Request-ID never fits the `UUID` column.
+- [x] `requestIdUuid` (bare UUID kept, anything else → UUIDv5 of the whole string) in
+      `AuditService.record` and all four outbox inserts; the devil's BLOCK on stripping
+      `#counter` lifted (conditions 1–7). jest 686/686; the strip mutation fails the spec.
+- [ ] VM query-router swap in a confirmed window (`:pre-` tag, VM `kong.yml` untouched); probe:
+      a POST's row `request_id` = `requestIdUuid(X-Request-ID)`, two POSTs → two ids.
+- [ ] Pool max 2 drops rows under a burst (200 of the 231) — grobase#81.
+
 ### Phase 1 — say what a database is bound to
 
 **G4 · Mount descriptor + PATCH** — gate m246
