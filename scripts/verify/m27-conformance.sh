@@ -34,6 +34,8 @@
 # Usage:
 #   m27-conformance.sh                 # every wired engine (the gate)
 #   m27-conformance.sh postgresql      # one engine (make conformance-postgresql)
+#
+# M27_TARGET (a volume or host path) holds cargo's target dir instead of mini-baas-dpr-target.
 
 set -euo pipefail
 
@@ -278,7 +280,7 @@ run_engine() { # $1 engine -> 0 green, 1 fail, 2 skip (engine down)
     -v "${ROUTER_DIR}":/work -w /work \
     -v mini-baas-cargo-registry:/usr/local/cargo/registry \
     -v mini-baas-cargo-git:/usr/local/cargo/git \
-    -v mini-baas-dpr-target:/work/target \
+    -v "${M27_TARGET:-mini-baas-dpr-target}":/work/target \
     "${TOOLCHAIN_IMG}" \
     cargo test -p engine-conformance "${features[@]}" -- --nocapture >"${out}" 2>&1
   rc=$?
