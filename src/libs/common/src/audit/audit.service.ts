@@ -27,6 +27,40 @@ export interface AuditEntry {
   userAgent?: string | null;
 }
 
+const SECRET_KEY_PARTS = ['password', 'secret', 'token', 'apikey', 'api_key'];
+const REDACT_MAX_DEPTH = 4;
+const REDACT_MAX_ENTRIES = 256;
+const TRUNCATED = '[TRUNCATED]';
+
+function isSecretKey(key: string): boolean {
+  const lower = key.toLowerCase();
+  return SECRET_KEY_PARTS.some((part) => lower.includes(part));
+}
+
+/**
+ * Copy of `value` with every secret-named key replaced by `[REDACTED]`.
+ *
+ * Caveat: matches key NAMES only — a secret under an innocuous key (`pw`,
+ * `auth`, a value inside a string) is stored as-is. Anything deeper than
+ * REDACT_MAX_DEPTH, and entries past REDACT_MAX_ENTRIES, become
+ * `[TRUNCATED]` rather than being stored unscanned.
+ */
+function redactSecrets(value: unknown, depth: number): unknown {
+  if (value === null || typeof value !== 'object') return value;
+  if (depth >= REDACT_MAX_DEPTH) return TRUNCATED;
+  if (Array.isArray(value)) {
+    const items = value.slice(0, REDACT_MAX_ENTRIES).map((item) => redactSecrets(item, depth + 1));
+    return value.length > REDACT_MAX_ENTRIES ? [...items, TRUNCATED] : items;
+  }
+  const out: Record<string, unknown> = {};
+  const entries = Object.entries(value as Record<string, unknown>);
+  for (const [key, item] of entries.slice(0, REDACT_MAX_ENTRIES)) {
+    out[key] = isSecretKey(key) ? '[REDACTED]' : redactSecrets(item, depth + 1);
+  }
+  if (entries.length > REDACT_MAX_ENTRIES) out[TRUNCATED] = entries.length - REDACT_MAX_ENTRIES;
+  return out;
+}
+
 function auditFailureCounter(): Counter<string> {
   const existing = register.getSingleMetric('mini_baas_audit_log_write_failed_total');
   if (existing instanceof Counter) return existing;
@@ -109,26 +143,13 @@ export class AuditService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Drop top-level secrets from the payload before persisting. Conservative
-   * default — applications can pass an already-sanitized payload, this is the
-   * last line of defence.
+   * Drop secret-named keys at every level before persisting: query-router
+   * bodies nest under `data` / `filter`, and `audit_log_self_read` lets the
+   * actor read the stored payload back. Last line of defence — callers may
+   * pass an already-sanitized payload.
    */
   private normalizePayload(payload: unknown): unknown {
     if (payload == null) return undefined;
-    if (typeof payload !== 'object') return payload;
-    const cloned: Record<string, unknown> = { ...(payload as Record<string, unknown>) };
-    for (const key of Object.keys(cloned)) {
-      const lower = key.toLowerCase();
-      if (
-        lower.includes('password') ||
-        lower.includes('secret') ||
-        lower.includes('token') ||
-        lower.includes('apikey') ||
-        lower.includes('api_key')
-      ) {
-        cloned[key] = '[REDACTED]';
-      }
-    }
-    return cloned;
+    return redactSecrets(payload, 0);
   }
 }
