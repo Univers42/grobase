@@ -68,13 +68,88 @@ svc_compute_signature() {
 #   svc_auth POST /v1/tenants "$body"; curl ... "${SVC_AUTH[@]}" ... -d "$body"
 SVC_AUTH=()
 svc_auth() {
-  local method="$1" path="$2" body="${3:-}" token
-  token="$(_svc_token)"
+  svc_auth_with "$(_svc_token)" "$@"
+}
+
+# svc_auth_with <token> <method> <path> [body] — svc_auth with an explicit token.
+# SVC_AUTH_TS pins the signature timestamp (the self-test uses it).
+svc_auth_with() {
+  local token="$1" method="$2" path="$3" body="${4:-}" sig
   if [ "$(_svc_mode)" = "hmac" ]; then
-    SVC_AUTH=(-H "X-Service-Auth: $(svc_compute_signature "${token}" "${method}" "${path}" "${body}")")
+    sig="$(svc_compute_signature "${token}" "${method}" "${path}" "${body}" "${SVC_AUTH_TS:-}")"
+    SVC_AUTH=(-H "X-Service-Auth: ${sig}")
   else
     SVC_AUTH=(-H "X-Service-Token: ${token}")
   fi
+}
+
+# D1 (ADR 0023): the data plane tells callers apart by the key that verifies,
+# so a script calling it signs as the class that owns the route: query_router
+# (/v1/query, schema, transactions, probe, permissions) or tenant_control
+# (/v1/admin/*). The key comes from the environment, else from the running
+# holder container (as _svc_mode does), else the shared token, which the data
+# plane accepts only while DATA_PLANE_CALLER_POLICY is off.
+svc_class_key() { # $1 = query_router | tenant_control
+  local var holder key
+  case "$1" in
+    query_router) var=DATA_PLANE_KEY_QUERY_ROUTER holder=mini-baas-query-router ;;
+    tenant_control) var=DATA_PLANE_KEY_TENANT_CONTROL holder=mini-baas-tenant-control ;;
+    *)
+      printf 'svc_class_key: unknown caller class %s\n' "$1" >&2
+      return 2
+      ;;
+  esac
+  key="${!var:-}"
+  [ -n "${key}" ] || key=$(docker inspect "${holder}" \
+    --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null |
+    sed -n "s/^${var}=//p" | head -1)
+  printf '%s' "${key:-$(_svc_token)}"
+}
+
+# svc_auth_as <class> <method> <path> [body] — svc_auth, signed with the class key.
+svc_auth_as() {
+  local token
+  token="$(svc_class_key "$1")" || return
+  shift
+  svc_auth_with "${token}" "$@"
+}
+
+# svc_curl_as <class> <curl args...> — curl with the class's auth header added.
+# The signed path is the URL path, the body the -d argument, the method -X
+# (else POST with a body, GET without).
+# Caveat: reads only `-d`/`--data`/`--data-raw`/`--data-binary <value>` and
+# `-X <method>` as separate words, and the first http(s):// word as the URL. A
+# body from `-d @file` or `--data=...` is signed as its literal text, so the
+# receiver answers 401; pass the body as its own word.
+svc_curl_as() {
+  local class="$1" url="" body="" method="" prev="" arg path
+  shift
+  for arg in "$@"; do
+    case "${prev}" in
+      -d | --data | --data-raw | --data-binary) body="${arg}" ;;
+      -X) method="${arg}" ;;
+    esac
+    case "${arg}" in http://* | https://*) [ -n "${url}" ] || url="${arg}" ;; esac
+    prev="${arg}"
+  done
+  [ -n "${method}" ] || { [ -n "${body}" ] && method=POST || method=GET; }
+  path="/${url#*://*/}"
+  svc_auth_as "${class}" "${method}" "${path%%\?*}" "${body}" || return
+  curl "$@" "${SVC_AUTH[@]}"
+}
+
+# svc_scratch_caller_keys — throwaway per-caller keys for a scratch data plane.
+# Exports both DATA_PLANE_KEY_* and DATA_PLANE_CALLER_POLICY (default off) and
+# fills SVC_CALLER_ENV with their docker `-e NAME` flags: names only, so no key
+# reaches a process argv.
+SVC_CALLER_ENV=()
+svc_scratch_caller_keys() {
+  export DATA_PLANE_CALLER_POLICY="${DATA_PLANE_CALLER_POLICY:-off}"
+  DATA_PLANE_KEY_QUERY_ROUTER="$(openssl rand -hex 32)"
+  DATA_PLANE_KEY_TENANT_CONTROL="$(openssl rand -hex 32)"
+  export DATA_PLANE_KEY_QUERY_ROUTER DATA_PLANE_KEY_TENANT_CONTROL
+  SVC_CALLER_ENV=(-e DATA_PLANE_CALLER_POLICY -e DATA_PLANE_KEY_QUERY_ROUTER
+    -e DATA_PLANE_KEY_TENANT_CONTROL)
 }
 
 # Self-test: `bash scripts/lib/service-auth.sh --selftest` proves the vector.
@@ -85,4 +160,15 @@ if [ "${1:-}" = "--selftest" ]; then
     echo "MISMATCH: got ${got} want ${want}" >&2
     exit 1
   fi
+  # svc_curl_as signs the URL path and the -d body with the class key, not the
+  # shared token; curl is stubbed to print the header it would send.
+  curl() { printf '%s\n' "${@: -1}"; }
+  SERVICE_TOKEN_MODE=hmac SVC_AUTH_TS=1700000000 SERVICE_TOKEN=shared-token \
+    DATA_PLANE_KEY_TENANT_CONTROL=test-token
+  got=$(svc_curl_as tenant_control -s -X POST "http://dp:4011/v1/keys/verify?x=1" -d '{"key":"abc"}')
+  if [ "${got}" = "X-Service-Auth: ${want}" ]; then echo "svc_curl_as class signature OK"; else
+    echo "MISMATCH: svc_curl_as got ${got}" >&2
+    exit 1
+  fi
+  unset -f curl
 fi

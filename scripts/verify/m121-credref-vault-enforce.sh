@@ -83,6 +83,12 @@ PORT_AR="${M121_PORT_AR:-18991}"
 PORT_DPR="${M121_PORT_DPR:-18992}"
 PGPW="postgres"
 SVC_TOKEN="m121-internal-service-token-$$"
+# D1 (ADR 0023): the probe signs its /v1 calls as the query-router with a
+# throwaway key the scratch data plane also gets; DATA_PLANE_CALLER_POLICY=enforce
+# runs it under the caller policy (default off).
+# shellcheck source=../lib/service-auth.sh
+. "${SCRIPT_DIR}/../lib/service-auth.sh"
+svc_scratch_caller_keys
 VAULT_TOKEN="m121-dev-root-$$"
 ENC_KEY="m121-real-master-key-not-a-placeholder-$$"
 PROBE_TABLE="m121_probe"
@@ -135,7 +141,7 @@ payload_credref_list() {
 post_q() { # $1=body
   curl -s -o "${BODY_TMP}" -w '%{http_code}' --max-time 8 \
     -X POST "http://127.0.0.1:${PORT_DPR}/v1/query" \
-    -H 'Content-Type: application/json' -H "X-Service-Token: ${SVC_TOKEN}" -d "$1"
+    -H 'Content-Type: application/json' -H "X-Service-Token: ${DATA_PLANE_KEY_QUERY_ROUTER}" -d "$1"
 }
 
 health_ar() { curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:${PORT_AR}/health/live" 2>/dev/null || echo 000; }
@@ -356,6 +362,7 @@ docker run -d --name "${DPR}" --network "${NET}" \
   -e DATA_PLANE_VAULT_DSN_FIELD="dsn" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
   -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
+  "${SVC_CALLER_ENV[@]}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_DPR}:4011" "${DPR_IMG}" >/dev/null
 wait_dpr || fail "data-plane-router not ready (line: wait_dpr)"
