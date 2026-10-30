@@ -88,6 +88,7 @@ func Mount(mux *http.ServeMux, d Deps) {
 
 	mux.HandleFunc("POST /v1/admin/migrate", rt.adminRelay("/v1/admin/migrate"))
 	mux.HandleFunc("POST /v1/admin/rotate", rt.adminRelay("/v1/admin/rotate"))
+	rt.mountRegistryRelay(mux)
 }
 
 type routes struct {
