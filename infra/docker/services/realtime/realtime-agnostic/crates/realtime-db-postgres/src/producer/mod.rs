@@ -14,6 +14,7 @@
 
 mod lifecycle;
 mod parser;
+mod tls;
 mod trigger;
 
 use std::sync::atomic::AtomicBool;

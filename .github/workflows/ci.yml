@@ -1449,6 +1449,13 @@ jobs:
           M184_TOOLCHAIN: rust:1-bookworm
         run: bash scripts/verify/m184-realtime-listen-reconnect.sh
 
+      # The producer's LISTEN rides TLS on require / verify-full + CA, and a host outside
+      # the cert is refused with no plaintext fallback (m258, ADR 0014).
+      - if: matrix.suite == 'rust-realtime'
+        env:
+          M258_TOOLCHAIN: rust:1-bookworm
+        run: bash scripts/verify/m258-realtime-pg-tls.sh
+
       # NestJS — apps + libs (jest)
       - if: matrix.suite == 'nestjs'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020

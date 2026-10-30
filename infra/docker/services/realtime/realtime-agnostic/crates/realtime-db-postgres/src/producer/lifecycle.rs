@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/05/18 21:19:15 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/05/18 21:19:15 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 07:30:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use realtime_core::{DatabaseProducer, EventEnvelope, EventStream, RealtimeError, Result};
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
@@ -24,15 +24,13 @@ use tokio_postgres::{AsyncMessage, NoTls};
 use tracing::{debug, error, info, warn};
 
 use super::parser::{parse_pg_notification, PostgresEventStream};
+use super::tls::{effective_tls_mode, max_security, rustls_connector, wire_dsn};
 use super::PostgresProducer;
 
 /// A driven connection, as a stream of protocol messages. Boxed so `attach` has
 /// ONE nameable return type shared by the first attach and every re-attach.
-type PgStream = Box<
-    dyn futures::Stream<Item = std::result::Result<AsyncMessage, tokio_postgres::Error>>
-        + Send
-        + Unpin,
->;
+type PgStream =
+    Box<dyn Stream<Item = std::result::Result<AsyncMessage, tokio_postgres::Error>> + Send + Unpin>;
 
 /// Re-attach delay: doubles on each consecutive failure, capped.
 /// No jitter on purpose — there is exactly one listener per database here, so
@@ -76,12 +74,15 @@ impl DatabaseProducer for PostgresProducer {
     }
 
     async fn health_check(&self) -> Result<()> {
-        let (client, connection) = connect_pg(&self.config.connection_string)
+        let (client, mut stream) = connect_pg(&self.config.connection_string)
             .await
             .map_err(|e| RealtimeError::Internal(format!("Health check failed: {e}")))?;
         tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                error!("Health check connection error: {}", e);
+            while let Some(m) = stream.next().await {
+                if let Err(e) = m {
+                    error!("Health check connection error: {}", e);
+                    break;
+                }
             }
         });
         client
@@ -100,15 +101,30 @@ impl DatabaseProducer for PostgresProducer {
     }
 }
 
-async fn connect_pg(
-    conn_str: &str,
-) -> Result<(
-    tokio_postgres::Client,
-    tokio_postgres::Connection<tokio_postgres::Socket, tokio_postgres::tls::NoTlsStream>,
-)> {
-    tokio_postgres::connect(conn_str, NoTls)
-        .await
-        .map_err(|e| RealtimeError::Internal(format!("PostgreSQL connect failed: {e}")))
+/// The ONE place the connector is chosen, so `attach` and `health_check` dial
+/// the same way. No `sslmode` that asks for TLS keeps today's exact `NoTls` call.
+async fn connect_pg(conn_str: &str) -> Result<(tokio_postgres::Client, PgStream)> {
+    let connected = match effective_tls_mode(conn_str, max_security()) {
+        None => tokio_postgres::connect(conn_str, NoTls)
+            .await
+            .map(|(client, connection)| (client, as_stream(connection))),
+        Some(mode) => {
+            let ca_file = std::env::var("REALTIME_PG_TLS_CA_FILE").unwrap_or_default();
+            tokio_postgres::connect(&wire_dsn(conn_str), rustls_connector(mode, &ca_file)?)
+                .await
+                .map(|(client, connection)| (client, as_stream(connection)))
+        }
+    };
+    connected.map_err(|e| RealtimeError::Internal(format!("PostgreSQL connect failed: {e}")))
+}
+
+fn as_stream<T>(mut connection: tokio_postgres::Connection<tokio_postgres::Socket, T>) -> PgStream
+where
+    T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+{
+    Box::new(futures::stream::poll_fn(move |cx| {
+        connection.poll_message(cx)
+    }))
 }
 
 /// Connect, issue the LISTEN, publish the client, and hand back the live stream.
@@ -124,10 +140,7 @@ async fn attach(
     config: &crate::config::PostgresConfig,
     client_slot: &Mutex<Option<tokio_postgres::Client>>,
 ) -> Result<PgStream> {
-    let (client, mut connection) = connect_pg(&config.connection_string).await?;
-    let mut stream: PgStream = Box::new(futures::stream::poll_fn(move |cx| {
-        connection.poll_message(cx)
-    }));
+    let (client, mut stream) = connect_pg(&config.connection_string).await?;
     listen_while_driving(&client, &config.channel, &mut stream).await?;
     store_client(client_slot, client)?;
     Ok(stream)
@@ -208,8 +221,7 @@ impl Supervisor {
 
 #[allow(clippy::cognitive_complexity)]
 async fn process_notifications(
-    stream: &mut (impl futures::Stream<Item = std::result::Result<AsyncMessage, tokio_postgres::Error>>
-              + Unpin),
+    stream: &mut (impl Stream<Item = std::result::Result<AsyncMessage, tokio_postgres::Error>> + Unpin),
     tx: &mpsc::Sender<EventEnvelope>,
     topic_prefix: &str,
     running: &Arc<std::sync::atomic::AtomicBool>,
