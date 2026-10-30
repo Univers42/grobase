@@ -204,6 +204,10 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       and post-connect redirects (Mongo SRV/SDAM, PG multi-host, Redis MOVED, TDS
       routing). Covers DynamoDB `endpoint=`; tenant mounts never fall back to the default
       AWS credential chain.
+  - [x] D1 pgwire + MySQL (devil PwC C1–C9, ADR 0019, 29d12fb6): one classifier, per-dial
+        IP pin, `DATA_PLANE_DIAL_GUARD=off|shadow|enforce` default `off`, a typo refuses
+        startup, provenance from the resolver only. Gate m244 in CI. D2 MSSQL (C10), D3a
+        Redis (C11), D4 DynamoDB (C12) open; D3b Mongo SDAM and subnet enforce BLOCKED.
 - [x] HTTP redirects stay on the mount's origin (G2-H1, devil PwC H1–H4). The SSRF pin
       covered only the base host, and reqwest followed any 3xx, so a public upstream could
       redirect into 169.254.169.254. `http/redirect.rs` follows only same scheme, host and port
