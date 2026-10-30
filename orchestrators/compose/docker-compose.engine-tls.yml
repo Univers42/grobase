@@ -1,0 +1,29 @@
+# docker-compose.engine-tls.yml — accept-mode TLS on the central Postgres (G5a,
+# docs/adr/0011-g5a-postgres-accept-tls.md). Opt-in: ENGINE_TLS=1 (env, or an ENGINE_TLS=
+# line in .env.local) adds this file to every compose call (orchestrators/makes/00-config.mk).
+# Without it the postgres service is byte-identical to before, so `make up` on a host that
+# never opted in does not recreate the database.
+#
+# The cert comes from scripts/certs/generate-engine-cert.sh. The bind refuses a missing
+# directory instead of letting docker create it root-owned. Only certs/engines is mounted,
+# never certs/ itself: that holds the CA key.
+#
+# Caveat: libpq, pgx and pgjdbc clients default to sslmode=prefer, so turning this on moves
+# PostgREST, GoTrue, Debezium and psql to TLS without a config change of theirs; a client
+# that sets nothing keeps working, a client that needs plaintext must say sslmode=disable.
+services:
+  postgres:
+    entrypoint: ["/bin/sh", "/usr/local/bin/engine-tls-entrypoint.sh"]
+    volumes:
+      - type: bind
+        source: ${ENGINE_TLS_CERT_DIR:-./certs/engines}
+        target: /etc/engine-tls
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./infra/docker/services/postgres/engine-tls-entrypoint.sh
+        target: /usr/local/bin/engine-tls-entrypoint.sh
+        read_only: true
+    tmpfs:
+      - /run/engine-tls:mode=0700

@@ -34,7 +34,11 @@ PERF           ?= $(shell sed -n 's/^PERF=//p' .env.local 2>/dev/null | head -1)
 # (docker-compose.cloud.yml, flags from infra/config/cloud/flags.env.cloud) and its
 # `cloud` profile (stripe-mock) into every compose call, so `make up` keeps a cloud host cloud.
 CLOUD          ?= $(shell sed -n 's/^CLOUD=//p' .env.local 2>/dev/null | head -1)
-DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)
+# ENGINE_TLS=1 (env, or an ENGINE_TLS= line in .env.local) composes the accept-mode TLS
+# overlay on the central Postgres (docker-compose.engine-tls.yml, ADR 0011); its cert comes
+# from scripts/certs/generate-engine-cert.sh, which nothing else runs.
+ENGINE_TLS     ?= $(shell sed -n 's/^ENGINE_TLS=//p' .env.local 2>/dev/null | head -1)
+DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)
 
 # Colors
 _B := \033[0;34m

@@ -146,6 +146,10 @@ jobs:
       # calling the KMS, and its canary-password Go tests exist (go test ./... runs them).
       - name: mount descriptor (m246)
         run: bash scripts/verify/m246-mount-descriptor.sh
+      # Static, no stack: Postgres TLS is opt-in (ENGINE_TLS=1), the overlay never mounts
+      # the CA key, and nothing that runs on every host mints the engine cert (ADR 0011).
+      - name: engine TLS opt-in (m247)
+        run: bash scripts/verify/m247-engine-tls.sh
 
       # Static legs, no stack (their live legs SKIP here and run against a stack):
       # schema introspection + DDL contract, OLTP batch/aggregate arms and the
@@ -1473,7 +1477,7 @@ jobs:
   # (compose service + profile) and m27 finds the network from that container.
   # A leg whose engine never came up fails: m27 refuses to gate zero engines.
   engine-conformance:
-    name: Engine conformance (${{ matrix.engine }})
+    name: Engine conformance (${{ matrix.engine }}${{ matrix.tls && ' over TLS' || '' }})
     runs-on: ubuntu-latest
     needs: [shellcheck]
     timeout-minutes: 40
@@ -1485,6 +1489,9 @@ jobs:
           - engine: http
           - engine: dynamodb
           - { engine: postgresql, services: postgres }
+          # Same engine with ENGINE_TLS=1: the pool runs verify-full and m247 boots the
+          # three throwaway servers (default, overlay without cert, overlay with cert).
+          - { engine: postgresql, services: postgres, tls: 1 }
           - { engine: redis, services: redis }
           - { engine: mysql, services: mysql, profile: data-plane }
           - { engine: mongodb, services: mongo-keyfile mongo mongo-init, profile: data-plane }
@@ -1504,17 +1511,30 @@ jobs:
         env:
           SERVICES: ${{ matrix.services }}
           PROFILE: ${{ matrix.profile }}
+          TLS: ${{ matrix.tls }}
         run: |
           set -euo pipefail
           bash scripts/env/assemble-env.sh
           bash scripts/certs/generate-localhost-cert.sh
+          overlay=()
+          if [[ "$TLS" == 1 ]]; then
+            sh scripts/certs/generate-engine-cert.sh
+            overlay=(-f orchestrators/compose/docker-compose.engine-tls.yml)
+          fi
           read -ra svc <<<"$SERVICES"
-          docker compose -f docker-compose.yml ${PROFILE:+--profile "$PROFILE"} up -d --wait "${svc[@]}"
+          docker compose -f docker-compose.yml "${overlay[@]}" ${PROFILE:+--profile "$PROFILE"} up -d --wait "${svc[@]}"
       # The toolchain image comes from mirror.gcr.io: a registry 429 is retried.
       - name: m27 battery
         env:
           ENGINE: ${{ matrix.engine }}
+          M27_PG_TLS_CA: ${{ matrix.tls && format('{0}/certs/engines/ca.pem', github.workspace) || '' }}
         run: bash scripts/ci/retry-on-429.sh bash scripts/verify/m27-conformance.sh "$ENGINE"
+      - name: engine TLS live boots + who negotiated TLS (m247)
+        if: matrix.tls
+        env:
+          M247_LIVE: 1
+          M247_STACK: 1
+        run: bash scripts/verify/m247-engine-tls.sh
 
   # ─── Rust lint (both workspaces) ───────────────────────────────
   # clippy ran nowhere in CI, and `make test-lint-rust` covered only the data

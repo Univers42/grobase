@@ -98,7 +98,8 @@ dsn_for() {
     p="${p:-postgres}"
     d="$(env_of mini-baas-postgres POSTGRES_DB)"
     d="${d:-postgres}"
-    echo "postgres://${u}:${p}@postgres:5432/${d}"
+    # M27_PG_TLS_CA (the engine CA, ADR 0011) runs the pool over verify-full.
+    echo "postgres://${u}:${p}@postgres:5432/${d}${M27_PG_TLS_CA:+?sslmode=verify-full}"
     ;;
   mysql)
     container_up mini-baas-mysql || return 1
@@ -250,6 +251,8 @@ run_engine() { # $1 engine -> 0 green, 1 fail, 2 skip (engine down)
   local features=() extra_env=()
   [[ "${engine}" != dynamodb ]] || features=(--features dynamodb)
   [[ "${engine}" != http ]] || extra_env=(-e DATA_PLANE_HTTP_ALLOW_INTERNAL=1)
+  [[ "${engine}" != postgresql || -z "${M27_PG_TLS_CA:-}" ]] ||
+    extra_env=(-v "${M27_PG_TLS_CA}":/run/m27-ca.pem:ro -e DATA_PLANE_TLS_CA_FILE=/run/m27-ca.pem)
   # Single run: the test (tests/conformance.rs) asserts green, so cargo's
   # exit code is the source of truth; we tee the report for the operator.
   set +e
