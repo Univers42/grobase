@@ -15,10 +15,10 @@
 # Caveat: requireTLS is a gate mode, not for a shared host. These still dial plaintext and
 # break under it: pool mounts (scripts/seed/multidb-workspace-engines.sh, seed-live-demo.sh),
 # the Trino catalog (infra/docker/services/trino/conf/catalog/mongodb.properties), the seed and
-# verify scripts, an operator-set OUTBOX_MONGO_URL, which is used as set (only the default
-# gains tls), and the nine Node services that take MONGO_URI from the host env through the
-# ts-base anchor (config.env sets a plaintext mongodb://mongo:27017; m247 lists them as a SKIP).
-# allowTLS keeps them working, unverified.
+# verify scripts, and an operator-set OUTBOX_MONGO_URL, which is used as set (only the default
+# gains tls). allowTLS keeps them working, unverified. Nine Node services also take a plaintext
+# MONGO_URI from the host env through the ts-base anchor, but none reads it: m247 proves
+# "9 pass-through, 0 readers" from their source (ADR 0025).
 # Caveat: engine.pem lasts 397 days and every client now verifies it, so an expired cert is a
 # client outage even in allowTLS (mongo-api, ai and analytics fail to boot; projections and
 # mongo CDC degrade). Renew with `sh scripts/certs/generate-engine-cert.sh mongo` (it re-issues
