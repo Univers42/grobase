@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -22,17 +23,10 @@ const adminRelayMaxBody = 256 << 10
 // data plane's status and body are relayed, DSN-redacted.
 func (rt *routes) adminRelay(path string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, adminRelayMaxBody))
-		if err != nil {
-			var tooBig *http.MaxBytesError
-			if errors.As(err, &tooBig) {
-				httpx.WriteError(w, http.StatusRequestEntityTooLarge, "payload_too_large", "body exceeds 256 KiB")
-				return
-			}
-			httpx.WriteError(w, http.StatusBadRequest, "bad_request", "unreadable body")
+		raw, ok := readBoundedBody(w, r, adminRelayMaxBody)
+		if !ok {
 			return
 		}
-		r.Body = io.NopCloser(bytes.NewReader(raw))
 		arm := rt.adminRelayCaller(r)
 		if arm == "" {
 			httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token or service API key required")
@@ -111,4 +105,22 @@ func migrationName(raw []byte) string {
 	}
 	_ = json.Unmarshal(raw, &env)
 	return env.Name
+}
+
+// readBoundedBody reads at most limit bytes of r's body, writing 413 or 400 and
+// returning ok=false on failure. It restores r.Body because a service-token check
+// in HMAC mode reads the body again.
+func readBoundedBody(w http.ResponseWriter, r *http.Request, limit int64) ([]byte, bool) {
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
+	if err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			httpx.WriteError(w, http.StatusRequestEntityTooLarge, "payload_too_large", fmt.Sprintf("body exceeds %d KiB", limit>>10))
+			return nil, false
+		}
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", "unreadable body")
+		return nil, false
+	}
+	r.Body = io.NopCloser(bytes.NewReader(raw))
+	return raw, true
 }

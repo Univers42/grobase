@@ -736,7 +736,10 @@ services:
     # was retired after parity-probe.sh. strip_path on /admin/v1 leaves
     # /databases and /databases/{id}/connect, which match the Go handler's route
     # surface exactly. See wiki/03-control-plane.md §2.3 (gap G4).
-    url: http://adapter-registry-go:3021
+    # Devil D2 N3: Kong holds no service secret, so it lands on tenant-control's
+    # registry relay, which signs register/list/findOne/descriptor for the Kong
+    # service apikey and forwards a caller's own signature untouched.
+    url: http://tenant-control:3022/v1/admin/registry
     routes:
       - name: admin-adapters
         paths: [/admin/v1]
