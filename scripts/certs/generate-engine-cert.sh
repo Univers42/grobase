@@ -79,6 +79,22 @@ CERT="$OUT_DIR/engine.pem"
 # How openssl prints these SANs, so the reuse check matches this engine's whole set.
 SANS_SHOWN=$(printf '%s' "$SANS" | sed 's/,/, /g; s/IP:/IP Address:/g')
 
+# issue_leaf KEY CERT CN EKU [SANS]: a new key and a leaf the local CA signs for 397 days.
+issue_leaf() {
+  ext=$(mktemp)
+  csr=$(mktemp)
+  trap 'rm -f "$ext" "$csr"' EXIT
+  printf '%s\n' "basicConstraints = critical,CA:FALSE" \
+    "keyUsage = critical,digitalSignature,keyEncipherment" "extendedKeyUsage = $4" >"$ext"
+  [ -z "${5:-}" ] || printf 'subjectAltName = %s\n' "$5" >>"$ext"
+  rm -f "$1" "$2"
+  (umask 077 && openssl genrsa -out "$1" 2048 >/dev/null 2>&1)
+  openssl req -new -key "$1" -subj "/CN=$3" -out "$csr" >/dev/null 2>&1
+  openssl x509 -req -in "$csr" -CA "$CA_CERT" -CAkey "$CA_KEY" -CAcreateserial \
+    -out "$2" -days 397 -sha256 -extfile "$ext" >/dev/null 2>&1
+  rm -f "$ext" "$csr"
+}
+
 if [ ! -s "$CA_KEY" ] || [ ! -s "$CA_CERT" ]; then
   printf 'No local CA in %s: run make certs (generate-localhost-cert.sh) first.\n' "$CERT_DIR" >&2
   exit 1
@@ -93,17 +109,7 @@ if [ -s "$KEY" ] && [ -s "$CERT" ] &&
   openssl x509 -in "$CERT" -noout -ext subjectAltName 2>/dev/null | grep -qxF "    $SANS_SHOWN"; then
   printf 'Using existing engine certificate %s\n' "$CERT"
 else
-  ext=$(mktemp)
-  csr=$(mktemp)
-  trap 'rm -f "$ext" "$csr"' EXIT
-  printf '%s\n' "basicConstraints = critical,CA:FALSE" \
-    "keyUsage = critical,digitalSignature,keyEncipherment" \
-    "extendedKeyUsage = serverAuth" "subjectAltName = $SANS" >"$ext"
-  rm -f "$KEY" "$CERT"
-  (umask 077 && openssl genrsa -out "$KEY" 2048 >/dev/null 2>&1)
-  openssl req -new -key "$KEY" -subj "/CN=$ENGINE" -out "$csr" >/dev/null 2>&1
-  openssl x509 -req -in "$csr" -CA "$CA_CERT" -CAkey "$CA_KEY" -CAcreateserial \
-    -out "$CERT" -days 397 -sha256 -extfile "$ext" >/dev/null 2>&1
+  issue_leaf "$KEY" "$CERT" "$ENGINE" serverAuth "$SANS"
   printf 'New engine certificate: a running %s keeps the old one until recreated.\n' "$ENGINE"
 fi
 
