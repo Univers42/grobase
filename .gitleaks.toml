@@ -99,6 +99,10 @@ regexes = [
   '''^sb_publishable_[A-Za-z0-9_-]+$''',
   # SQL upsert column reference picked up by generic-api-key
   '''(?i)^[a-z_]+=excluded\.[a-z_]+$''',
+  # sslmode parser fixtures (pool sslmode.rs, realtime tls.rs): a password that
+  # spells "?sslmode=verify-full" must never be read as the mode
+  # (gitleaks also reports the percent-decoded form)
+  '''^p(%3F|\?)sslmode(%3D|=)verify-full$''',
 ]
 
 # Line-scoped: the secret here is a bare UUID, and allowlisting UUIDs repo-wide would
