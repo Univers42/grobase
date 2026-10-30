@@ -155,7 +155,8 @@ jobs:
       - name: dial guard (m244)
         run: bash scripts/verify/m244-dial-guard.sh
       # Static, no stack: the admin routes sit behind the service-auth layer, DDL needs a
-      # write-scoped key, tenant Workers get no env (G1, ADR 0007/0009).
+      # write-scoped key, tenant Workers get no env (G1, ADR 0007/0009); each caller key
+      # reaches its one holder, the policy defaults off (D1, ADR 0023). Live: nightly.
       - name: data plane auth (m243)
         run: bash scripts/verify/m243-data-plane-auth.sh
       # Static, no stack: Postgres TLS is opt-in (ENGINE_TLS=1), the overlay never mounts
