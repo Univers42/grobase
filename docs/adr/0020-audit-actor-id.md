@@ -1,6 +1,6 @@
 # 0020 — `audit_log.actor_id` is a GoTrue user sub or NULL
 
-- Status: accepted. On 2026-10-30 the devil ruled PROCEED-WITH-CONDITIONS (A1–A10) on option A. The code is on develop; the VM probes P1–P6 have not been run yet.
+- Status: accepted. On 2026-10-30 the devil ruled PROCEED-WITH-CONDITIONS (A1–A10) on option A. Live on the VM since 2026-10-30 11:30:07Z (main 75407848, rollback `:pre-audit-75407848`); probes P1–P6 passed at 11:30Z, P4 as RLS returning `[]` rather than a 401.
 - Date: 2026-10-30
 - Deciders: devil (ruling). Owners of `audit_log_self_read` and of anything that reads `actor_id`.
 
@@ -60,7 +60,7 @@
 - Mutations caught:
   - `legacy-header` handled like `kong-hmac` → 2 tests failed.
   - Top-level-only redaction → 1 test failed.
-- VM probes (A8, not run yet), user-agent `devil-probe-2026-10-30`:
+- VM probes (A8, run 2026-10-30 11:30Z, all passed), user-agent `devil-probe-2026-10-30`:
   - P1: key only → NULL actor.
   - P2: key + user JWT → actor = sub.
   - P3: self-read shows P2 and not P1.
