@@ -14,6 +14,7 @@ package adapterregistry
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
@@ -59,7 +60,7 @@ func (rt *routes) handleLookupError(w http.ResponseWriter, err error) bool {
 	case errors.Is(err, ErrNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "not_found", msgNotFound)
 	default:
-		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		writeInternalError(w, err)
 	}
 	return true
 }
@@ -78,8 +79,15 @@ func writeRegisterError(w http.ResponseWriter, req RegisterDatabaseRequest, err 
 	case errors.Is(err, ErrMountQuotaExceeded):
 		httpx.WriteError(w, http.StatusForbidden, "mount_quota_exceeded", err.Error())
 	default:
-		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		writeInternalError(w, err)
 	}
+}
+
+// writeInternalError answers 500 with a fixed message. A driver error can quote the
+// DSN it dialled, so the client never sees it and the log sees it DSN-redacted (m230).
+func writeInternalError(w http.ResponseWriter, err error) {
+	slog.Default().Error("adapter registry internal error", "error", httpx.RedactDSN(err.Error()))
+	httpx.WriteError(w, http.StatusInternalServerError, "internal_error", "internal server error")
 }
 
 // validServiceToken reports whether the request carries a valid service token.

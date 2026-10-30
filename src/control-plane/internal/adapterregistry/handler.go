@@ -86,7 +86,7 @@ func (rt *routes) list(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := rt.svc.List(r.Context(), userID)
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		writeInternalError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, out)
