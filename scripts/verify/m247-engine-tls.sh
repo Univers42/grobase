@@ -20,7 +20,7 @@
 # only certs/engines (never the CA key) and refuses a missing directory, the
 # key goes to a tmpfs, and nothing that runs on every host mints the cert.
 #
-# Live (M247_LIVE=1, docker; M247_ENGINE=postgres|mongo|redis, default postgres): three
+# Live (M247_LIVE=1, docker; M247_ENGINE=postgres|mongo|redis|mariadb, default postgres): three
 # throwaway boots of the real service under compose project m247, each torn down
 # with its volume. Postgres:
 #   A  no overlay        → SHOW ssl = off (byte-identical default)
@@ -33,6 +33,9 @@
 # a default plaintext client), plus PID 1 running as uid 999, never root (G5b-C3).
 # Redis: the same with redis-cli on 6380 (verified --tls, a name outside the SANs, plaintext
 # refused there) while 6379 stays plaintext, and PID 1 as uid 100.
+# MariaDB: leg A finds the default already on TLS with a cert our CA does not sign; B swaps
+# in the engine cert (verified session, SAN legs via openssl -starttls mysql, --skip-ssl
+# still connects) and PID 1 runs as uid 100.
 #
 # Stack (M247_STACK=1, a running stack composed with ENGINE_TLS=1): which
 # clients and walsenders negotiated TLS, by application_name, and every logical
@@ -51,12 +54,14 @@ OVERLAY="orchestrators/compose/docker-compose.engine-tls.yml"
 ENGINE="${M247_ENGINE:-postgres}"
 case "${ENGINE}" in
 postgres) LIVE_OVERLAY="${OVERLAY}" ;;
-mongo | redis) LIVE_OVERLAY="orchestrators/compose/docker-compose.engine-tls-${ENGINE}.yml" ;;
+mongo | redis | mariadb) LIVE_OVERLAY="orchestrators/compose/docker-compose.engine-tls-${ENGINE}.yml" ;;
 *)
-  printf 'M247_ENGINE=%s: expected postgres, mongo or redis\n' "${ENGINE}" >&2
+  printf 'M247_ENGINE=%s: expected postgres, mongo, redis or mariadb\n' "${ENGINE}" >&2
   exit 2
   ;;
 esac
+PROFILE=data-plane
+[[ "${ENGINE}" != mariadb ]] || PROFILE="engines-extra"
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 fail() {
@@ -101,7 +106,8 @@ g5b_static_checks() {
     grep -q 'create_host_path: false' "${overlay}" || fail "${name}: the cert bind would be created root-owned"
     grep -q '/run/engine-tls:mode=0700' "${overlay}" || fail "${name}: the key copy is not on a 0700 tmpfs"
     grep -q "ENGINE_TLS_NAME: ${name}$" "${overlay}" || fail "${name}: the wrapper is not told which engine it runs"
-    ! grep -Eqi -- "--tls|^ *- .*tls" <(sed -n "/^  ${name}:/,/^  [a-z]/p" "${ROOT}/orchestrators/compose/base/data-engines.yml") ||
+    ! grep -Eqi -- "--tls|--ssl|^ *- .*tls" <(sed -n "/^  ${name}:/,/^  [a-z]/p" \
+      "${ROOT}/orchestrators/compose/base/data-engines.yml" "${ROOT}/orchestrators/compose/base/engines-extra.yml") ||
       fail "the default ${name} service sets a TLS flag (G5b-C2)"
   done
   grep -q 'exec setpriv --reuid="$uid" --regid="$gid" --clear-groups' \
@@ -117,7 +123,7 @@ WORK=""
 # The profile is on every call, not just `up`: `down` skips a profiled service it cannot
 # see, so mongo outlived its leg and the next boot found it.
 dc() {
-  docker compose -p m247 --project-directory "${ROOT}" -f "${ROOT}/docker-compose.yml" --profile data-plane "$@"
+  docker compose -p m247 --project-directory "${ROOT}" -f "${ROOT}/docker-compose.yml" --profile "${PROFILE}" "$@"
 }
 down() { dc -f "${ROOT}/${LIVE_OVERLAY}" -f "${WORK}/rename.yml" down -v --remove-orphans >/dev/null 2>&1 || true; }
 cleanup() {
@@ -160,10 +166,13 @@ live_setup() {
     printf 'networks:\n  mini-baas:\n    ipam:\n      config:\n        - subnet: %s\n' "${M247_SUBNET}" >>"${WORK}/rename.yml"
 }
 
-# Mints the local CA and this engine's cert into WORK, never into certs/.
-mint_cert() {
+# The local CA and this engine's cert go into WORK, never into certs/.
+mint_ca() {
   TRACK_BINOCLE_CERT_DIR="${WORK}" MINI_BAAS_WAF_TLS_GID=none GROBASE_PUBLIC_ADDRESSES='' \
     sh "${ROOT}/scripts/certs/generate-localhost-cert.sh" >/dev/null
+}
+mint_cert() {
+  mint_ca
   TRACK_BINOCLE_CERT_DIR="${WORK}" ENGINE_TLS_CERT_DIR="$1" \
     sh "${ROOT}/scripts/certs/generate-engine-cert.sh" "${ENGINE}" >/dev/null
 }
@@ -304,6 +313,61 @@ redis_live_checks() {
     fail "the key copy is not 600 uid 100"
   [[ -z "$(docker exec m247-redis find /data -name '*.pem' -o -name '*.key')" ]] || fail "a key or cert landed in /data"
   pass "PID 1 is uid 100, the key is 600 uid 100 on tmpfs, nothing in /data"
+}
+
+# The mariadb client inside the server container as root; $1 the host, rest client flags.
+# The password travels as MYSQL_PWD, never in argv.
+mariadb_in() {
+  local host="$1"
+  shift
+  docker exec -e MYSQL_PWD m247-mariadb mariadb --no-defaults -h "${host}" -u root -N -B "$@" \
+    -e "SHOW SESSION STATUS LIKE 'Ssl_version'"
+}
+
+# openssl s_client to m247-mariadb:3306 verifying the host name $1 against the minted CA.
+mariadb_tls_as() {
+  local ip
+  ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' m247-mariadb)"
+  timeout 10 openssl s_client -starttls mysql -connect "${ip}:3306" -CAfile "${WORK}/track-binocle-local-ca.pem" \
+    -verify_hostname "$1" </dev/null 2>&1 || true
+}
+
+mariadb_live_checks() {
+  live_setup
+  MYSQL_PWD="$(openssl rand -hex 16)"
+  export MYSQL_PWD MARIADB_ROOT_PASSWORD="${MYSQL_PWD}" MARIADB_PASSWORD="${MYSQL_PWD}"
+  export ENGINE_TLS_MARIADB_CERT_DIR="${WORK}/mariadb"
+  local verify=(--ssl-ca=/etc/engine-tls/ca.pem --ssl-verify-server-cert) out
+
+  step "live A: no overlay → MariaDB's own TLS, a cert nothing verifies"
+  mint_ca
+  boot_or_fail "the default mariadb did not become healthy"
+  [[ "$(mariadb_in mariadb --skip-ssl)" == Ssl_version$'\t' ]] || fail "a --skip-ssl client did not get plaintext"
+  out="$(mariadb_tls_as mariadb)"
+  [[ "${out}" == *"Verify return code:"* && "${out}" != *"Verify return code: 0 (ok)"* ]] ||
+    fail "the default cert verifies against the local CA, or no TLS was served"
+  pass "default serves TLS with a cert the local CA does not sign; --skip-ssl is plaintext"
+  down
+
+  refuses_without_cert "${ENGINE_TLS_MARIADB_CERT_DIR}"
+
+  step "live B: overlay + cert → a cert that verifies, plaintext still allowed"
+  mint_cert "${ENGINE_TLS_MARIADB_CERT_DIR}"
+  boot_or_fail "mariadb with the engine cert did not become healthy" -f "${ROOT}/${LIVE_OVERLAY}"
+  [[ "$(mariadb_in mariadb "${verify[@]}")" == Ssl_version$'\t'TLSv1.[23] ]] || fail "a verified session failed"
+  pass "verified session against the CA (--ssl-verify-server-cert)"
+  [[ "$(mariadb_tls_as mariadb)" == *"Verify return code: 0 (ok)"* ]] || fail "openssl could not verify mariadb as host mariadb"
+  out="$(mariadb_tls_as m247-mariadb)"
+  [[ "${out}" == *"hostname mismatch"* ]] || fail "a name outside the SANs was not refused by verification"
+  pass "the served cert verifies as mariadb, and a host name outside the SANs is refused"
+  [[ "$(mariadb_in mariadb --skip-ssl)" == Ssl_version$'\t' ]] || fail "a --skip-ssl client is refused (accept mode must allow it)"
+  pass "a --skip-ssl client still connects, unencrypted"
+  [[ "$(docker exec m247-mariadb awk '/^Uid:/ {print $2}' /proc/1/status)" == 100 ]] || fail "PID 1 is not uid 100 (G5b-C3)"
+  [[ "$(docker exec m247-mariadb stat -c '%a %u' /run/engine-tls/server.key)" == "600 100" ]] ||
+    fail "the key copy is not 600 uid 100"
+  [[ -z "$(docker exec m247-mariadb find /var/lib/mysql -name '*.pem' -o -name '*.key')" ]] ||
+    fail "a key or cert landed in /var/lib/mysql"
+  pass "PID 1 is uid 100, the key is 600 uid 100 on tmpfs, nothing in /var/lib/mysql"
 }
 
 # --- stack ------------------------------------------------------------------

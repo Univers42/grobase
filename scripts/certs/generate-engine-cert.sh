@@ -16,6 +16,7 @@
 #   generate-engine-cert.sh            postgres, ENGINE_TLS=1 (ADR 0011)
 #   generate-engine-cert.sh mongo      ENGINE_TLS_ENGINES="mongo" (ADR 0012)
 #   generate-engine-cert.sh redis      ENGINE_TLS_ENGINES="redis" (ADR 0012)
+#   generate-engine-cert.sh mariadb    ENGINE_TLS_ENGINES="mariadb" (ADR 0012)
 # Output, under ENGINE_TLS_CERT_DIR (default certs/engines for postgres,
 # certs/engine-tls/<engine> for the others): engine.pem, engine-key.pem (0600)
 # and ca.pem, the public CA a client verifies against. The CA key never leaves
@@ -49,8 +50,12 @@ redis)
   SANS="DNS:redis,DNS:mini-baas-redis,DNS:localhost,IP:127.0.0.1"
   OUT_DIR=${ENGINE_TLS_CERT_DIR:-"$CERT_DIR/engine-tls/redis"}
   ;;
+mariadb)
+  SANS="DNS:mariadb,DNS:mini-baas-mariadb,DNS:localhost,IP:127.0.0.1"
+  OUT_DIR=${ENGINE_TLS_CERT_DIR:-"$CERT_DIR/engine-tls/mariadb"}
+  ;;
 *)
-  printf 'Unknown engine %s: expected postgres, mongo or redis.\n' "$ENGINE" >&2
+  printf 'Unknown engine %s: expected postgres, mongo, redis or mariadb.\n' "$ENGINE" >&2
   exit 2
   ;;
 esac

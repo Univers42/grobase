@@ -275,12 +275,20 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
   - [x] G5b redis — `ENGINE_TLS_ENGINES=redis`: TLS on 6380, never published, 6379 plaintext;
         root → setpriv uid 100 (image gains util-linux setpriv); m247 redis A/B/C green
         locally 2026-10-30 (SAN legs via openssl, redis-cli skips host names); CI m247 step.
-  - [ ] G5b MariaDB / MySQL service — CA-signed cert, `command` restated (ADR 0012 C4, C7).
+  - [x] G5b mariadb — `ENGINE_TLS_ENGINES=mariadb`: the CA-signed cert replaces 11.4's
+        self-signed default, `command: ["mariadbd"]` restated, root → setpriv uid 100; m247
+        mariadb A/B/C green locally 2026-10-30, m27 under the overlay 12 passed / 0 failed; CI
+        mariadb leg twice. First boot drops install-db's passwordless root@<hostname>.
+  - [ ] G5b `mysql` service (MariaDB, `data-plane` profile) — own overlay, `command: ["mysqld"]`
+        restated (ADR 0012 C4, C12).
   - [ ] Clients verify mongo's and redis's certs (mongosh, mongo-init, mongo-api, pool, redis
         consumers); today plaintext.
 - [ ] `DATA_PLANE_TLS_INSECURE` default 0; `DATA_PLANE_TLS_CA_FILE` points at the CA.
 - [ ] `reject_insecure_tls` on MySQL/MariaDB/Dynamo/MSSQL; Postgres max mode turns
       "no sslmode" into `verify-full`, not plaintext.
+  - [x] G5b-C10 — mysql/mariadb mounts: `SECURITY_MODE=max` refuses `verify_ca=false` /
+        `verify_identity=false` (parsed options, so percent-encoded keys are caught) and trusts
+        `DATA_PLANE_TLS_CA_FILE`; 3 unit tests.
   - [x] The pool opens `sslmode=verify-full`/`verify-ca` Postgres mounts (tokio-postgres
         0.7 refused them; `conn::wire_dsn`); m27 postgres over verify-full 12 passed / 0 failed.
 - [ ] Internal pools (outbox, automations) and query-router → data plane use TLS.

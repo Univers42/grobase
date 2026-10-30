@@ -12,10 +12,12 @@
 #   * healthcheck.sh       — the `healthcheck.sh --connect --innodb_initialized`
 #                            command the compose healthcheck invokes.
 # Data lives in /var/lib/mysql (the mariadb-data named volume), pre-owned by the
-# mysql user so the volume inherits that ownership on first creation.
+# mysql user so the volume inherits that ownership on first creation. setpriv (util-linux)
+# is for the engine-TLS wrapper, which drops root with --reuid/--regid: BusyBox's setpriv
+# has neither (docs/adr/0012-g5b-engine-accept-tls.md).
 FROM alpine:3.21
 
-RUN apk add --no-cache mariadb mariadb-client \
+RUN apk add --no-cache mariadb mariadb-client setpriv \
  && install -d -m 0755 -o mysql -g mysql /var/lib/mysql /run/mysqld
 
 COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

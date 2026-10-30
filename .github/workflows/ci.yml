@@ -1517,6 +1517,9 @@ jobs:
           # and m247 proves verified TLS, SAN refusal and the drop to uid 999.
           - { engine: mongodb, services: mongo-keyfile mongo mongo-init, profile: data-plane, tls: mongo }
           - { engine: mariadb, services: mariadb, profile: engines-extra }
+          # ENGINE_TLS_ENGINES=mariadb: the CA-signed cert replaces MariaDB's self-signed one.
+          # `build` uses this commit's image: the published :latest has no util-linux setpriv.
+          - { engine: mariadb, services: mariadb, profile: engines-extra, tls: mariadb, build: mariadb }
           - { engine: cockroachdb, services: cockroach, profile: engines-extra }
           - { engine: mssql, services: mssql, profile: engines-extra }
     steps:
@@ -1533,6 +1536,7 @@ jobs:
           SERVICES: ${{ matrix.services }}
           PROFILE: ${{ matrix.profile }}
           TLS: ${{ matrix.tls }}
+          BUILD: ${{ matrix.build }}
         run: |
           set -euo pipefail
           bash scripts/env/assemble-env.sh
@@ -1546,6 +1550,7 @@ jobs:
             overlay=(-f "orchestrators/compose/docker-compose.engine-tls-$TLS.yml")
           fi
           read -ra svc <<<"$SERVICES"
+          [[ -z "$BUILD" ]] || docker compose -f docker-compose.yml ${PROFILE:+--profile "$PROFILE"} build "$BUILD"
           docker compose -f docker-compose.yml "${overlay[@]}" ${PROFILE:+--profile "$PROFILE"} up -d --wait "${svc[@]}"
       # The toolchain image comes from mirror.gcr.io: a registry 429 is retried.
       - name: m27 battery
