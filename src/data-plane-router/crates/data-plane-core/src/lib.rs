@@ -42,8 +42,9 @@ pub use operation::{
 pub use plan::{plan, OpShape, Plan, PlanDecision, WorkloadContext};
 pub use planner::{apply_capability_overrides, required_capability, tier_gate, validate_operation};
 pub use ports::{
-    EngineAdapter, EngineHealth, EnginePool, MigrationRequest, MigrationResult, MigrationStatus,
-    PoolRegistry, PoolStats, RawStatement, TxHandle,
+    normalise_tls_version, normalise_version, EngineAdapter, EngineHealth, EnginePool, EngineProbe,
+    MigrationRequest, MigrationResult, MigrationStatus, PoolRegistry, PoolStats, RawStatement,
+    TlsPosture, TxHandle,
 };
 pub use schema::{ColumnSchema, ForeignKeyRef, NormalizedType, SchemaDescriptor, TableSchema};
 pub use schema_ddl::{
