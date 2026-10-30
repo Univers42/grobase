@@ -227,7 +227,7 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       route flag marked false refuses with a typed refusal). Local 2026-10-30: Rust gate
       1052 passed / 0 failed; m27 rc=0 on sqlite, postgresql, mysql, mongodb, mariadb,
       cockroachdb, mssql, redis, http.
-- [ ] Typed-value round-trip in the battery (feeds G7).
+- [x] Typed-value round-trip in the battery (feeds G7). `type_round_trip` in engine-conformance (`src/type_checks.rs`) ports m249's 12 cases and gap ledger to the pool surface; a gap that starts passing fails, and `mysql` picks its ledger by `SELECT VERSION()` (MariaDB vs Oracle MySQL). Local 2026-10-30, all 9 engines rc=0: postgresql/cockroachdb 1 gap (c_int), mysql+mariadb 4, mongodb 4, sqlite 7; mssql/redis/http SKIP (no schema_ddl).
 - [ ] Add a real Oracle MySQL 8 service (profile `mysql8`) so MySQL ≠ MariaDB is proven.
 - [x] Wire existing unwired gates: m22, m26, m88, m131, m174, m176, m181. Static legs m22/m26/m181/m176 run in the CI static job (m22, m26 and m181 were stale after the engine split into directories and the multi-line PK selector; fixed with the same strictness). Scratch gates m131 and m88 joined the `--enterprise` battery (local 2026-10-30: m131 7/7, m88 8/8, rc=0). m174 stays a VM live gate: it needs the extra-engines seed on a stack and SKIPs without Kong.
 - [x] The dynamodb opt-in is in the env schema and `.env.example`: `DYNAMODB_ENGINE_ENABLED`,

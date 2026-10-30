@@ -33,6 +33,7 @@ use data_plane_core::{
 use serde_json::{json, Value};
 
 mod schema_checks;
+mod type_checks;
 
 const RESOURCE: &str = "conf_probe";
 
@@ -174,9 +175,23 @@ pub async fn run_suite(adapter: Arc<dyn EngineAdapter>, mount: DatabaseMount) ->
             "ddl_round_trip",
             schema_checks::check_ddl_round_trip(&*pool, &id).await,
         );
+        let types = type_checks::check_type_round_trip(&*pool, &id, &engine).await;
+        for (column, reason) in &types.gaps {
+            report.skip(&format!("type_round_trip/{column}"), reason);
+        }
+        let outcome = if types.failures.is_empty() {
+            Ok(())
+        } else {
+            Err(types.failures.join("; "))
+        };
+        report.record("type_round_trip", outcome);
     } else {
         report.skip(
             "ddl_round_trip",
+            "descriptor: schema_ddl or introspect=false",
+        );
+        report.skip(
+            "type_round_trip",
             "descriptor: schema_ddl or introspect=false",
         );
     }

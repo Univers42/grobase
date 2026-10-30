@@ -11,7 +11,7 @@ use crate::raw;
 
 const DDL_TABLE: &str = "conf_ddl";
 
-fn column(name: &str, normalized_type: NormalizedType) -> DdlColumnDef {
+pub(crate) fn column(name: &str, normalized_type: NormalizedType) -> DdlColumnDef {
     DdlColumnDef {
         name: name.to_string(),
         normalized_type,
@@ -22,9 +22,13 @@ fn column(name: &str, normalized_type: NormalizedType) -> DdlColumnDef {
 }
 
 fn ddl(op: SchemaDdlOp) -> SchemaDdlRequest {
+    ddl_on(DDL_TABLE, op)
+}
+
+pub(crate) fn ddl_on(table: &str, op: SchemaDdlOp) -> SchemaDdlRequest {
     SchemaDdlRequest {
         op,
-        table: DDL_TABLE.to_string(),
+        table: table.to_string(),
         column: None,
         column_name: None,
         columns: None,
@@ -32,7 +36,7 @@ fn ddl(op: SchemaDdlOp) -> SchemaDdlRequest {
     }
 }
 
-async fn apply(
+pub(crate) async fn apply(
     pool: &dyn EnginePool,
     id: &RequestIdentity,
     req: SchemaDdlRequest,
@@ -44,7 +48,10 @@ async fn apply(
         .map_err(|e| format!("{op}: {e}"))
 }
 
-async fn describe(pool: &dyn EnginePool, id: &RequestIdentity) -> Result<SchemaDescriptor, String> {
+pub(crate) async fn describe(
+    pool: &dyn EnginePool,
+    id: &RequestIdentity,
+) -> Result<SchemaDescriptor, String> {
     pool.describe_schema(id.clone())
         .await
         .map_err(|e| format!("describe_schema: {e}"))
