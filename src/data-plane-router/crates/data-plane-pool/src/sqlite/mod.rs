@@ -31,7 +31,8 @@
 //! Split into concern modules (facade pattern, mirrors `routes/`): the adapter +
 //! pool wiring (`adapter`/`pool`), the pure plan/SQL builders (`query`), the
 //! value conversion (`convert`), the blocking executors (`exec`), the
-//! single-writer GROUP-COMMIT machinery (`writer`), the structured-DDL builders
+//! single-writer GROUP-COMMIT machinery (`writer`), the per-connection
+//! hardening every connection gets (`harden`), the structured-DDL builders
 //! (`schema`), and the error classifiers (`error`). Cross-module symbols stay
 //! `pub(super)`/`pub(crate)`; the crate-facing surface is only the facade
 //! re-exported below.
@@ -41,6 +42,7 @@ mod columns;
 mod convert;
 mod error;
 mod exec;
+mod harden;
 mod pool;
 mod query;
 mod schema;
@@ -53,6 +55,7 @@ mod writer;
 // reached inside the module via `super::schema::…`, so no crate-level re-export
 // is needed. Nothing wider than before is exposed.
 pub use adapter::SqliteEngineAdapter;
+pub use harden::harden;
 
 use data_plane_core::DataOperationKind;
 

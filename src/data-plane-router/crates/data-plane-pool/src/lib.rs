@@ -88,7 +88,7 @@ pub use redis::RedisEngineAdapter;
 pub use registry::DefaultPoolRegistry;
 pub use resolver::{EnvMountResolver, MountResolver};
 #[cfg(feature = "sqlite")]
-pub use sqlite::SqliteEngineAdapter;
+pub use sqlite::{harden as harden_sqlite_connection, SqliteEngineAdapter};
 
 /// B4-pools: whether this mount's connection pool is SHARED across tenants.
 ///

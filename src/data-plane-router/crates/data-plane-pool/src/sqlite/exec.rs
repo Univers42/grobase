@@ -46,7 +46,7 @@ pub(super) fn query_rows(
     params: &[SqlValue],
 ) -> DataPlaneResult<Vec<Value>> {
     // prepare_cached reuses the compiled VDBE program for a fixed query shape
-    // (the per-connection cache is sized in `tune_read_conn`), removing a SQL
+    // (rusqlite's default per-connection cache, 16 statements), removing a SQL
     // parse + recompile from every read — what PocketBase already amortizes.
     // The names are read after the first step: a cached statement whose table
     // changed re-prepares inside that step, so names read before it describe

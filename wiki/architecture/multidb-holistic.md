@@ -212,8 +212,17 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       the old policy that test fails.
 - [ ] Mount provenance (platform / tenant): platform mounts keep internal hosts; tenant
       private and Tailscale ranges via an explicit per-tenant allowlist, no blanket block.
-- [ ] SQLite: path built server-side as `<root>/<tenant>/<mount>.db`; `file:` and `vfs=`
-      rejected; ATTACH and VACUUM INTO denied on tenant mounts.
+- [x] SQLite connections hardened (G2-S1a, devil PwC S1–S14, ADR 0015). Every pool
+      connection, reader and writer, gets `SQLITE_LIMIT_ATTACHED=0`, defensive mode, trusted
+      schema off and an authorizer that refuses ATTACH, DETACH, `load_extension` and writes to
+      process-wide or WAL-breaking pragmas. A `file:` URI, a `?` in the path, or the server's
+      own `nano_meta.db`/`pb_*.db` is refused before any file opens. This is hardening, NOT
+      isolation. Open: any `/v1` caller can still name `sqlite:///tmp/<other>.db` in the
+      body `inline_dsn` until G1 enforce and provenance; nano/pb raw paths are unhardened
+      (U5, one call to `harden_sqlite_connection`); plain `VACUUM` is now refused.
+- [ ] SQLite confinement (G2-S1b): opt-in `DATA_PLANE_SQLITE_ROOT`, path under
+      `<root>/<tenant>/`, writer opened with `SQLITE_OPEN_NOFOLLOW` (S10, S12). `tenant_id` is
+      spoofable from the body until G1 enforce, so the root confines a path, not a tenant.
 - [ ] N-22: adapter-registry identity HMAC on by default; Vault ref namespaced
       `{prefix}/{tenant_id}/{reference}` server-side; DSN check inside `Validate`.
 - [ ] m230 extended with a canary password through register and error paths in Rust, Go
