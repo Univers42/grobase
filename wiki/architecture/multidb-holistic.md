@@ -225,8 +225,11 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       dir created 0700, symlinked dir or file refused), the writer opens with
       `SQLITE_OPEN_NOFOLLOW`, a root that is set but not an absolute existing directory refuses
       every file mount. Unset is unchanged. `tenant_id` is spoofable from the body until G1
-      enforce, so the root confines a path, not a tenant. Open: S2 VM count before promotion;
-      the reader pool still follows a swapped symlink.
+      enforce, so the root confines a path, not a tenant. Open: the reader pool still follows
+      a swapped symlink. S2 (2026-10-30): the VM registry holds 2 sqlite mounts, both from
+      seeds that register `sqlite:///tmp/<name>.db` (`osionos-extra-engines.sh:197`,
+      `multidb-workspace-engines.sh:92`), so 0 with `file:` or `?`. Read from the seed source,
+      not decrypted: a read on both mounts right after promotion is the check.
 - [ ] N-22: adapter-registry identity HMAC on by default; Vault ref namespaced
       `{prefix}/{tenant_id}/{reference}` server-side; DSN check inside `Validate`.
 - [ ] m230 extended with a canary password through register and error paths in Rust, Go
