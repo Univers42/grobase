@@ -24,7 +24,7 @@ import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response, NextFunction } from 'express';
 import * as http from 'node:http';
-import { signIdentityEnvelope } from '../identity/request-identity';
+import { requiredIssuers, signIdentityEnvelope } from '../identity/request-identity';
 import { bearerToken, verifyUserJwt } from '../identity/user-jwt';
 import { serviceAuthHeaders } from '../security/service-auth';
 
@@ -180,9 +180,19 @@ export class ApiKeyMiddleware implements NestMiddleware {
     };
     const token = bearerToken(pickHeader(req, 'authorization'));
     if (!token) return fallback;
+    let issuers: string[];
+    try {
+      issuers = requiredIssuers();
+    } catch (err) {
+      // Same refusal as the bearer-JWT rung (grobase#82), but the app key is
+      // still valid, so the request proceeds as the key instead of 401-ing.
+      this.logger.warn(`user JWT ignored: ${(err as Error).message}`);
+      return fallback;
+    }
     const claims = verifyUserJwt(token, this.jwtSecret, {
       allowNoExp: this.allowNoExp,
       previousSecret: this.jwtSecretPrev,
+      issuers,
     });
     if (!claims?.sub) return fallback;
     return { userId: `user:${claims.sub}`, role: claims.role || 'authenticated' };
