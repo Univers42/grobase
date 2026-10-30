@@ -486,7 +486,9 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       emitted by TS and Rust in lockstep with a parity test.
 - [ ] Automation targets come only from the stored rule, never from row data
       (`outbox.service.ts:202-211` reads `target_engine` from writable columns).
-- [ ] Route for the live automations client, so osionos stops calling a dead path.
+- [x] Route for the live automations client, so osionos stops calling a dead path.
+      Done 2026-10-30: osionos 05a11cbb9 (bridge `GET|PUT /api/databases/:dbId/automations`,
+      mount ACL, client repointed); live bridge in-container → 401 unsigned vs 404 unknown path.
 
 **G11b · Cross-mount automation actions** — BLOCKED
 - [ ] `write_mount`, `run_function` (scoped data client), run history + DLQ. Lifts when
