@@ -21,7 +21,7 @@
 # key goes to a tmpfs, and nothing that runs on every host mints the cert.
 #
 # Live (M247_LIVE=1, docker; M247_ENGINE=postgres|mongo|redis|mariadb|mysql|mssql, default postgres): three
-# throwaway boots of the real service under compose project m247, each torn down
+# throwaway boots of the real service under compose project m247 (M247_PROJECT), each torn down
 # with its volume. Postgres:
 #   A  no overlay        → SHOW ssl = off (byte-identical default)
 #   B  overlay + cert    → verify-full connects with pg_stat_ssl.ssl = t for its
@@ -34,7 +34,8 @@
 #   D  requireTLS + clients → mongo-init, mongo-api, realtime, the orchestrator's driver and
 #                          engine-backup all verify the cert (engine-tls-mongo-clients-live.sh).
 # M247_MONGO_LEGS=ABC or D runs half (CI splits them); the static mongo-client checks always run.
-# M247_PROJECT (default m247) names the compose project, for a second run on the same daemon.
+# M247_PROJECT (default m247) names the compose project and the container prefix, for a second
+# run on the same daemon.
 # Redis: the same with redis-cli on 6380 (verified --tls, a name outside the SANs, plaintext
 # refused there) while 6379 stays plaintext, and PID 1 as uid 100.
 # MariaDB: leg A finds the default already on TLS with a cert our CA does not sign; B swaps
@@ -159,7 +160,7 @@ cleanup() {
 
 # psql inside the server container, so the client dials the in-network name.
 psql_in() { # $1 conninfo tail, $2 sql
-  docker exec -e PGPASSWORD m247-postgres psql -X -At \
+  docker exec -e PGPASSWORD "${M247_PROJECT}-postgres" psql -X -At \
     "host=${HOST:-postgres} user=postgres dbname=postgres connect_timeout=5 $1" -c "$2"
 }
 
@@ -172,7 +173,7 @@ boot_or_fail() { # $1 why, rest: extra -f files
   shift
   boot "$@" && return
   tail -5 "${WORK}/up.log" >&2
-  docker logs --tail 10 "m247-${ENGINE}" >&2 2>&1 || true
+  docker logs --tail 10 "${M247_PROJECT}-${ENGINE}" >&2 2>&1 || true
   fail "${why}"
 }
 
@@ -181,11 +182,11 @@ live_setup() {
   WORK="$(mktemp -d "${M247_TMP:-${TMPDIR:-/tmp}}/m247.XXXXXX")"
   trap cleanup EXIT
   # No host port and names of their own: never collides with a running stack.
-  printf 'services:\n  %s:\n    container_name: m247-%s\n    ports: !reset []\n' "${ENGINE}" "${ENGINE}" >"${WORK}/rename.yml"
+  printf 'services:\n  %s:\n    container_name: %s-%s\n    ports: !reset []\n' "${ENGINE}" "${M247_PROJECT}" "${ENGINE}" >"${WORK}/rename.yml"
   # M247_IMAGE tests a local build without retagging the image a running stack uses.
   [[ -z "${M247_IMAGE:-}" ]] || printf '    image: %s\n' "${M247_IMAGE}" >>"${WORK}/rename.yml"
   [[ "${ENGINE}" != mongo ]] ||
-    printf '  mongo-keyfile:\n    container_name: m247-mongo-keyfile\n' >>"${WORK}/rename.yml"
+    printf '  mongo-keyfile:\n    container_name: %s-mongo-keyfile\n' "${M247_PROJECT}" >>"${WORK}/rename.yml"
   # M247_SUBNET pins the throwaway network for a daemon whose default pools are spent.
   [[ -z "${M247_SUBNET:-}" ]] ||
     printf 'networks:\n  mini-baas:\n    ipam:\n      config:\n        - subnet: %s\n' "${M247_SUBNET}" >>"${WORK}/rename.yml"
@@ -212,13 +213,13 @@ refuses_without_cert() { # $1 the engine's cert directory, left empty
   # quits early, so a restarting engine's repeated refusal read as a miss (CI run 41010336246).
   local _ logs=""
   for _ in 1 2 3 4 5 6 7 8 9 10; do
-    logs="$(docker logs "m247-${ENGINE}" 2>&1)" || true
+    logs="$(docker logs "${M247_PROJECT}-${ENGINE}" 2>&1)" || true
     grep -qF 'generate-engine-cert.sh' <<<"${logs}" && break
     sleep 1
   done
   if ! grep -qF 'generate-engine-cert.sh' <<<"${logs}"; then
     tail -5 "${WORK}/up.log" >&2
-    docker logs --tail 10 "m247-${ENGINE}" >&2 2>&1 || true
+    docker logs --tail 10 "${M247_PROJECT}-${ENGINE}" >&2 2>&1 || true
     fail "the refusal does not name the cert script"
   fi
   pass "exit with the remedy in the log"
@@ -248,16 +249,16 @@ postgres_live_checks() {
   pass "verify-full against the CA, pg_stat_ssl.ssl = t for its own pid"
   # The container name resolves but is not a SAN, so only verification can refuse it.
   local refused
-  refused="$(HOST=m247-postgres psql_in "${verify}" 'SELECT 1' 2>&1 || true)"
+  refused="$(HOST=${M247_PROJECT}-postgres psql_in "${verify}" 'SELECT 1' 2>&1 || true)"
   [[ "${refused}" == *"does not match host name"* ]] ||
     fail "a name outside the SANs was not refused by verification: ${refused}"
   pass "a host name outside the SANs is refused"
   [[ "$(psql_in sslmode=disable 'SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()')" == f ]] ||
     fail "an explicit sslmode=disable client is refused (accept mode must allow it)"
   pass "explicit sslmode=disable still connects, unencrypted"
-  [[ "$(docker exec m247-postgres stat -c '%a %U' /run/engine-tls/server.key)" == "600 postgres" ]] ||
+  [[ "$(docker exec "${M247_PROJECT}-postgres" stat -c '%a %U' /run/engine-tls/server.key)" == "600 postgres" ]] ||
     fail "the key copy is not 600 postgres"
-  [[ -z "$(docker exec m247-postgres find /var/lib/postgresql/data -name '*.key' -o -name '*.pem')" ]] ||
+  [[ -z "$(docker exec "${M247_PROJECT}-postgres" find /var/lib/postgresql/data -name '*.key' -o -name '*.pem')" ]] ||
     fail "a key or cert landed in PGDATA"
   pass "key is 600 postgres on tmpfs, nothing in PGDATA"
 }
@@ -266,7 +267,7 @@ postgres_live_checks() {
 mongosh_in() {
   local host="$1"
   shift
-  docker exec -e M247_MONGO_PW m247-mongo mongosh --quiet --host "${host}" -u mongo \
+  docker exec -e M247_MONGO_PW "${M247_PROJECT}-mongo" mongosh --quiet --host "${host}" -u mongo \
     --authenticationDatabase admin --eval "${MONGO_EVAL}" "$@" --password "${M247_MONGO_PW}"
 }
 
@@ -300,16 +301,16 @@ mongo_leg_b() {
   boot_or_fail "mongo with the engine cert did not become healthy" -f "${ROOT}/${LIVE_OVERLAY}"
   [[ "$(mongosh_in mongo "${verify[@]}")" == *'"mode":"allowTLS"'* ]] || fail "a verified --tls session failed"
   pass "verified --tls session against the CA, net.tls.mode = allowTLS"
-  refused="$(mongosh_in m247-mongo "${verify[@]}" 2>&1 || true)"
+  refused="$(mongosh_in "${M247_PROJECT}-mongo" "${verify[@]}" 2>&1 || true)"
   [[ "${refused}" == *"Hostname/IP does not match"* || "${refused}" == *"does not match"* ]] ||
     fail "a name outside the SANs was not refused by verification: ${refused}"
   pass "a host name outside the SANs is refused"
   [[ "$(mongosh_in mongo)" == *'"mode":"allowTLS"'* ]] || fail "a default plaintext client is refused (accept mode must allow it)"
   pass "a default plaintext mongosh still connects"
-  [[ "$(docker exec m247-mongo awk '/^Uid:/ {print $2}' /proc/1/status)" == 999 ]] || fail "PID 1 is not uid 999 (G5b-C3)"
-  [[ "$(docker exec m247-mongo stat -c '%a %u' /run/engine-tls/server.key /run/engine-tls/server.pem | sort -u)" == "600 999" ]] ||
+  [[ "$(docker exec "${M247_PROJECT}-mongo" awk '/^Uid:/ {print $2}' /proc/1/status)" == 999 ]] || fail "PID 1 is not uid 999 (G5b-C3)"
+  [[ "$(docker exec "${M247_PROJECT}-mongo" stat -c '%a %u' /run/engine-tls/server.key /run/engine-tls/server.pem | sort -u)" == "600 999" ]] ||
     fail "the key copies are not 600 uid 999"
-  [[ -z "$(docker exec m247-mongo find /data/db -name '*.pem' -o -name '*.key')" ]] || fail "a key or cert landed in /data/db"
+  [[ -z "$(docker exec "${M247_PROJECT}-mongo" find /data/db -name '*.pem' -o -name '*.key')" ]] || fail "a key or cert landed in /data/db"
   pass "PID 1 is uid 999, keys are 600 uid 999 on tmpfs, nothing in /data/db"
 }
 
@@ -317,13 +318,13 @@ mongo_leg_b() {
 redis_in() {
   local host="$1"
   shift
-  docker exec m247-redis redis-cli -h "${host}" "$@"
+  docker exec "${M247_PROJECT}-redis" redis-cli -h "${host}" "$@"
 }
 
-# openssl s_client to m247-redis:6380 verifying the host name $1 against the minted CA.
+# openssl s_client to <M247_PROJECT>-redis:6380 verifying the host name $1 against the minted CA.
 redis_tls_as() {
   local ip
-  ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' m247-redis)"
+  ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${M247_PROJECT}-redis")"
   timeout 10 openssl s_client -connect "${ip}:6380" -CAfile "${ENGINE_TLS_REDIS_CERT_DIR}/ca.pem" \
     -verify_hostname "$1" -verify_return_error </dev/null 2>&1 || true
 }
@@ -349,17 +350,17 @@ redis_live_checks() {
   # redis-cli checks the chain but never the host name (hiredis), so the SAN legs use
   # openssl from the host against the container's address.
   [[ "$(redis_tls_as redis)" == *"Verify return code: 0 (ok)"* ]] || fail "openssl could not verify redis as host redis"
-  out="$(redis_tls_as m247-redis)"
+  out="$(redis_tls_as "${M247_PROJECT}-redis")"
   [[ "${out}" == *"hostname mismatch"* ]] || fail "a name outside the SANs was not refused by verification"
   pass "the served cert verifies as redis, and a host name outside the SANs is refused"
   [[ "$(redis_in redis PING)" == PONG ]] || fail "plaintext on 6379 is refused (accept mode must keep it)"
   out="$(redis_in redis -p 6380 PING 2>&1 || true)"
   [[ "${out}" != *PONG* ]] || fail "6380 answers plaintext"
   pass "6379 plaintext PONG, plaintext on 6380 refused"
-  [[ "$(docker exec m247-redis awk '/^Uid:/ {print $2}' /proc/1/status)" == 100 ]] || fail "PID 1 is not uid 100 (G5b-C3)"
-  [[ "$(docker exec m247-redis stat -c '%a %u' /run/engine-tls/server.key)" == "600 100" ]] ||
+  [[ "$(docker exec "${M247_PROJECT}-redis" awk '/^Uid:/ {print $2}' /proc/1/status)" == 100 ]] || fail "PID 1 is not uid 100 (G5b-C3)"
+  [[ "$(docker exec "${M247_PROJECT}-redis" stat -c '%a %u' /run/engine-tls/server.key)" == "600 100" ]] ||
     fail "the key copy is not 600 uid 100"
-  [[ -z "$(docker exec m247-redis find /data -name '*.pem' -o -name '*.key')" ]] || fail "a key or cert landed in /data"
+  [[ -z "$(docker exec "${M247_PROJECT}-redis" find /data -name '*.pem' -o -name '*.key')" ]] || fail "a key or cert landed in /data"
   pass "PID 1 is uid 100, the key is 600 uid 100 on tmpfs, nothing in /data"
 }
 
@@ -369,14 +370,14 @@ redis_live_checks() {
 mariadb_in() {
   local host="$1"
   shift
-  docker exec -e MYSQL_PWD "m247-${ENGINE}" mariadb --no-defaults -h "${host}" -u root -N -B "$@" \
+  docker exec -e MYSQL_PWD "${M247_PROJECT}-${ENGINE}" mariadb --no-defaults -h "${host}" -u root -N -B "$@" \
     -e "SHOW SESSION STATUS LIKE 'Ssl_version'"
 }
 
-# openssl s_client to m247-<engine>:3306 verifying the host name $1 against the minted CA.
+# openssl s_client to <M247_PROJECT>-<engine>:3306 verifying the host name $1 against the minted CA.
 mariadb_tls_as() {
   local ip
-  ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "m247-${ENGINE}")"
+  ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${M247_PROJECT}-${ENGINE}")"
   timeout 10 openssl s_client -starttls mysql -connect "${ip}:3306" -CAfile "${WORK}/track-binocle-local-ca.pem" \
     -verify_hostname "$1" </dev/null 2>&1 || true
 }
@@ -409,15 +410,15 @@ mariadb_live_checks() {
   [[ "$(mariadb_in "${ENGINE}" "${verify[@]}")" == Ssl_version$'\t'TLSv1.[23] ]] || fail "a verified session failed"
   pass "verified session against the CA (--ssl-verify-server-cert)"
   [[ "$(mariadb_tls_as "${ENGINE}")" == *"Verify return code: 0 (ok)"* ]] || fail "openssl could not verify ${ENGINE} as host ${ENGINE}"
-  out="$(mariadb_tls_as "m247-${ENGINE}")"
+  out="$(mariadb_tls_as "${M247_PROJECT}-${ENGINE}")"
   [[ "${out}" == *"hostname mismatch"* ]] || fail "a name outside the SANs was not refused by verification"
   pass "the served cert verifies as ${ENGINE}, and a host name outside the SANs is refused"
   [[ "$(mariadb_in "${ENGINE}" --skip-ssl)" == Ssl_version$'\t' ]] || fail "a --skip-ssl client is refused (accept mode must allow it)"
   pass "a --skip-ssl client still connects, unencrypted"
-  [[ "$(docker exec "m247-${ENGINE}" awk '/^Uid:/ {print $2}' /proc/1/status)" == 100 ]] || fail "PID 1 is not uid 100 (G5b-C3)"
-  [[ "$(docker exec "m247-${ENGINE}" stat -c '%a %u' /run/engine-tls/server.key)" == "600 100" ]] ||
+  [[ "$(docker exec "${M247_PROJECT}-${ENGINE}" awk '/^Uid:/ {print $2}' /proc/1/status)" == 100 ]] || fail "PID 1 is not uid 100 (G5b-C3)"
+  [[ "$(docker exec "${M247_PROJECT}-${ENGINE}" stat -c '%a %u' /run/engine-tls/server.key)" == "600 100" ]] ||
     fail "the key copy is not 600 uid 100"
-  [[ -z "$(docker exec "m247-${ENGINE}" find /var/lib/mysql -name '*.pem' -o -name '*.key')" ]] ||
+  [[ -z "$(docker exec "${M247_PROJECT}-${ENGINE}" find /var/lib/mysql -name '*.pem' -o -name '*.key')" ]] ||
     fail "a key or cert landed in /var/lib/mysql"
   pass "PID 1 is uid 100, the key is 600 uid 100 on tmpfs, nothing in /var/lib/mysql"
 }
@@ -430,7 +431,7 @@ mysql_live_checks() { mariadb_live_checks; }
 # $1 the host name, $2 the -N mode (m verifies, o asks for no encryption); prints encrypt_option.
 mssql_as() {
   local image
-  image="$(docker inspect -f '{{.Config.Image}}' "m247-${ENGINE}")"
+  image="$(docker inspect -f '{{.Config.Image}}' "${M247_PROJECT}-${ENGINE}")"
   docker run --rm --network "${NETWORK}" --user 0 -e SQLCMDPASSWORD="${MSSQL_SA_PASSWORD}" \
     -v "${WORK}/track-binocle-local-ca.pem:/ca.pem:ro" -e HOST="$1" -e MODE="$2" \
     --entrypoint /bin/bash "${image}" -c '
@@ -462,17 +463,17 @@ mssql_live_checks() {
   boot_or_fail "mssql with the engine cert did not become healthy" -f "${ROOT}/${LIVE_OVERLAY}"
   [[ "$(mssql_as mssql m)" == TRUE ]] || fail "a verified session (-N m, CA trusted) failed"
   pass "verified session as host mssql, encrypt_option TRUE"
-  [[ "$(mssql_as "m247-${ENGINE}" m)" != TRUE ]] || fail "a name outside the SANs was not refused"
+  [[ "$(mssql_as "${M247_PROJECT}-${ENGINE}" m)" != TRUE ]] || fail "a name outside the SANs was not refused"
   pass "a host name outside the SANs is refused"
   [[ "$(mssql_as mssql o)" == FALSE ]] || fail "a client asking for no encryption is refused (accept mode must allow it)"
   pass "a client asking for no encryption still connects, encrypt_option FALSE"
-  uid="$(docker exec "m247-${ENGINE}" id -u mssql)"
-  [[ "$(docker exec "m247-${ENGINE}" awk '/^Uid:/ {print $2}' /proc/1/status)" == "${uid}" ]] || fail "PID 1 is not the mssql user (G5b-C3)"
-  [[ "$(docker exec "m247-${ENGINE}" stat -c '%a %u' /run/engine-tls/server.key)" == "600 ${uid}" ]] ||
+  uid="$(docker exec "${M247_PROJECT}-${ENGINE}" id -u mssql)"
+  [[ "$(docker exec "${M247_PROJECT}-${ENGINE}" awk '/^Uid:/ {print $2}' /proc/1/status)" == "${uid}" ]] || fail "PID 1 is not the mssql user (G5b-C3)"
+  [[ "$(docker exec "${M247_PROJECT}-${ENGINE}" stat -c '%a %u' /run/engine-tls/server.key)" == "600 ${uid}" ]] ||
     fail "the key copy is not 600 mssql"
-  [[ -z "$(docker exec "m247-${ENGINE}" find /var/opt/mssql -name 'server.*' -o -name '*.pem')" ]] ||
+  [[ -z "$(docker exec "${M247_PROJECT}-${ENGINE}" find /var/opt/mssql -name 'server.*' -o -name '*.pem')" ]] ||
     fail "a key or cert landed in /var/opt/mssql"
-  ! docker exec "m247-${ENGINE}" grep -qi tls /var/opt/mssql/mssql.conf || fail "mssql.conf in the volume carries TLS settings"
+  ! docker exec "${M247_PROJECT}-${ENGINE}" grep -qi tls /var/opt/mssql/mssql.conf || fail "mssql.conf in the volume carries TLS settings"
   pass "PID 1 is mssql (uid ${uid}), the key is 600 on tmpfs, the volume holds no cert and no TLS setting"
   mssql_plane_render_checks
 }

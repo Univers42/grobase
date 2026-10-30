@@ -25,11 +25,11 @@ MYSQL8_PLAIN=(--ssl-mode=DISABLED --get-server-public-key)
 mysql8_in() {
   local host="$1"
   shift
-  docker exec -e MYSQL_PWD m247-mysql8 mysql --no-defaults -h "${host}" --protocol=tcp -u root -N -B "$@" \
+  docker exec -e MYSQL_PWD "${M247_PROJECT}-mysql8" mysql --no-defaults -h "${host}" --protocol=tcp -u root -N -B "$@" \
     -e "SHOW SESSION STATUS LIKE 'Ssl_version'"
 }
 
-# SHA-256 fingerprint of the cert m247-mysql8 serves to a client dialing it as mysql8.
+# SHA-256 fingerprint of the cert <M247_PROJECT>-mysql8 serves to a client dialing it as mysql8.
 mysql8_served_fingerprint() {
   mariadb_tls_as mysql8 | openssl x509 -noout -fingerprint -sha256 2>/dev/null
 }
@@ -44,7 +44,7 @@ mysql8_key_not_in_datadir() { # $1 the overlay's engine-key.pem
   local found
   M247_KEY_LINE="$(sed -n 3p "$1")"
   export M247_KEY_LINE
-  found="$(docker exec -e M247_KEY_LINE m247-mysql8 sh -c 'grep -rlF -e "$M247_KEY_LINE" /run/engine-tls /var/lib/mysql' || true)"
+  found="$(docker exec -e M247_KEY_LINE "${M247_PROJECT}-mysql8" sh -c 'grep -rlF -e "$M247_KEY_LINE" /run/engine-tls /var/lib/mysql' || true)"
   unset M247_KEY_LINE
   [[ "${found}" == /run/engine-tls/server.key ]] ||
     fail "the overlay key is in the datadir, or the search cannot find it on tmpfs: ${found:-nothing}"
@@ -72,12 +72,12 @@ mysql8_overlay_leg() { # $1 the cert directory
   pass "VERIFY_IDENTITY session against the CA"
   [[ "$(mysql8_served_fingerprint)" == "$(openssl x509 -in "$1/engine.pem" -noout -fingerprint -sha256)" ]] ||
     fail "the served cert is not the overlay's engine.pem (M3)"
-  [[ "$(mariadb_tls_as m247-mysql8)" == *"hostname mismatch"* ]] || fail "a name outside the SANs was not refused by verification"
+  [[ "$(mariadb_tls_as "${M247_PROJECT}-mysql8")" == *"hostname mismatch"* ]] || fail "a name outside the SANs was not refused by verification"
   pass "served fingerprint = overlay engine.pem, and a host name outside the SANs is refused"
   [[ "$(mysql8_in mysql8 "${MYSQL8_PLAIN[@]}")" == Ssl_version$'\t' ]] || fail "an --ssl-mode=DISABLED client is refused (accept mode must allow it)"
   pass "an --ssl-mode=DISABLED client still connects, unencrypted"
-  [[ "$(docker exec m247-mysql8 awk '/^Uid:/ {print $2}' /proc/1/status)" == 999 ]] || fail "PID 1 is not uid 999 (G5b-C3)"
-  [[ "$(docker exec m247-mysql8 stat -c '%a %u' /run/engine-tls/server.key)" == "600 999" ]] || fail "the key copy is not 600 uid 999"
+  [[ "$(docker exec "${M247_PROJECT}-mysql8" awk '/^Uid:/ {print $2}' /proc/1/status)" == 999 ]] || fail "PID 1 is not uid 999 (G5b-C3)"
+  [[ "$(docker exec "${M247_PROJECT}-mysql8" stat -c '%a %u' /run/engine-tls/server.key)" == "600 999" ]] || fail "the key copy is not 600 uid 999"
   mysql8_key_not_in_datadir "$1/engine-key.pem"
   pass "PID 1 is uid 999, the key is 600 uid 999 on tmpfs, and no datadir file holds it"
 }
