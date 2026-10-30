@@ -77,10 +77,17 @@ to parse, and the rewritten one parses as `Require` while `effective_tls_mode` s
   - Once as before, a fresh boot with no cert.
   - Once with `tls: 1`, which mints the cert, composes the overlay and runs m27 with the pool on
     `verify-full` (`M27_PG_TLS_CA`). It then runs m247 live and the stack inventory.
-- **C6:** `M247_STACK=1` lists every client backend by `application_name` with its `ssl` flag, and
-  fails if a logical slot does not advance after a WAL message. Run it on any stack composed with
-  the overlay before the VM window.
-  - Caveat: a consumer that confirms lazily can need a longer `M247_SLOT_WAIT`.
+- **C6:** `M247_STACK=1` lists every client backend and walsender by `application_name` with its
+  `ssl` flag. Every logical slot must have an active consumer on TLS whose walsender decodes past a
+  probe WAL message (`sent_lsn`). The probe never writes a captured table, so it cannot emit a
+  fake outbox event. Run it on any stack composed with the overlay before the VM window.
+  - Measured 2026-10-30 (postgres, redis, debezium, realtime; local):
+    - Debezium's two client sessions and its streaming walsender are on TLSv1.3.
+    - `mini_baas_outbox_slot` decoded past the probe in 1 s.
+    - realtime stays plaintext: `realtime-db-postgres` dials with `NoTls`
+      (`producer/lifecycle.rs:109`).
+  - Caveat: `confirmed_flush_lsn` only moves on an `outbox_events` row (Debezium has no
+    heartbeat), so the gate proves streaming, not that the consumer acted on the probe.
 - **C7:** no VM pin or rollout outside a confirmed G5 window, announced as a recreate of the central
   Postgres, with every network path probed after (`vm-is-the-cloud`).
 - **C8: renewal.** Re-run `generate-engine-cert.sh`, then recreate `postgres`:
@@ -92,5 +99,6 @@ to parse, and the rewritten one parses as `Require` while `effective_tls_mode` s
 
 Turning on this overlay moves these clients to TLS on their own: PostgREST, GoTrue, Debezium,
 realtime, the outbox and psql. They are expected to keep working, because `prefer` accepts what
-the server offers. None of them verifies the cert yet. That, and the other engines (Mongo,
+the server offers. None of them verifies the cert yet. realtime cannot negotiate TLS at all (`NoTls`), so refusing
+plaintext would cut it off: it needs a TLS connector first. That, and the other engines (Mongo,
 Cockroach, Redis, MySQL/MariaDB, MSSQL, MinIO/Trino), are the rest of G5.
