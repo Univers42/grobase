@@ -109,4 +109,28 @@ describe('AllExceptionsFilter', () => {
     expect(status).toHaveBeenCalledWith(500);
     expect(errorSpy).toHaveBeenCalled(); // unknown throwable is logged before masking
   });
+
+  // m230: a canary password in a thrown message reaches neither the body nor the log.
+  describe('DSN redaction', () => {
+    const canary = 'Canary-' + 'pw_7f3a';
+    const dsn = `postgresql://app:${canary}@db:5432/shop`;
+
+    function bodyAndLogs(exception: unknown): string {
+      const { host, json } = makeHost();
+      filter.catch(exception, host);
+      return JSON.stringify([json.mock.calls, errorSpy.mock.calls]);
+    }
+
+    it.each([
+      ['an HttpException string', new HttpException(`cannot reach ${dsn}`, 400)],
+      ['an HttpException array', new HttpException({ message: [`bad ${dsn}`] }, 400)],
+      ['a carried 4xx', Object.assign(new Error(`host=db password=${canary}`), { status: 400 })],
+      ['an unhandled Error', new Error(`connect ${dsn} refused`)],
+      ['a non-Error throwable', { reason: `connect ${dsn}` }],
+    ])('hides the canary in %s', (_, exception) => {
+      const seen = bodyAndLogs(exception);
+      expect(seen).not.toContain(canary);
+      expect(seen).toContain('[redacted');
+    });
+  });
 });

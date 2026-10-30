@@ -19,6 +19,8 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { inspect } from 'node:util';
+import { redactDsn } from '../observability/redact-dsn';
 
 /** Normalised error shape resolved from any thrown exception. */
 interface NormalizedError {
@@ -48,10 +50,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const { status, message, error } = this.normalize(exception);
 
+    // A driver error re-thrown as a 400 (sqlro) can quote the DSN it dialled (m230).
     res.status(status).json({
       statusCode: status,
       error,
-      message,
+      message: Array.isArray(message) ? message.map(redactDsn) : redactDsn(message),
       requestId: req.requestId,
       timestamp: new Date().toISOString(),
     });
@@ -60,7 +63,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
   private normalize(exception: unknown): NormalizedError {
     if (exception instanceof HttpException) return this.fromHttpException(exception);
     if (exception instanceof Error) return this.fromError(exception);
-    this.logger.error('Unknown exception', exception);
+    this.logger.error('Unknown exception', redactDsn(inspect(exception)));
     return INTERNAL;
   }
 
@@ -92,7 +95,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message: exception.message || (HttpStatus[carried] ?? 'Error'),
       };
     }
-    this.logger.error(`Unhandled: ${exception.message}`, exception.stack);
+    this.logger.error(
+      redactDsn(`Unhandled: ${exception.message}`),
+      exception.stack && redactDsn(exception.stack),
+    );
     return INTERNAL;
   }
 }
