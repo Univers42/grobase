@@ -33,8 +33,9 @@ type routes struct {
 //
 // Identity model for the shadow phase: the trust boundary (Kong / gateway)
 // injects the authenticated tenant as the `X-User-Id` header. The internal
-// `/connect` and delete routes additionally require the service token,
-// mirroring the legacy ServiceTokenGuard / RolesGuard.
+// `/connect`, patch and delete routes additionally require the service token,
+// mirroring the legacy ServiceTokenGuard / RolesGuard; the other routes go
+// through the staged requireService gate (service_gate.go).
 //
 // DELETE /databases/{id}/self is the caller-scoped delete for the self-serve
 // dynamic builder (BUILDER): unlike the admin DELETE /databases/{id} (which
@@ -58,6 +59,9 @@ func Mount(mux *http.ServeMux, svc *Service, serviceToken string, rotation *serv
 }
 
 func (rt *routes) register(w http.ResponseWriter, r *http.Request) {
+	if !rt.requireService(w, r) {
+		return
+	}
 	userID, ok := rt.requireUser(w, r)
 	if !ok {
 		return
@@ -80,6 +84,9 @@ func (rt *routes) register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *routes) list(w http.ResponseWriter, r *http.Request) {
+	if !rt.requireService(w, r) {
+		return
+	}
 	userID, ok := rt.requireUser(w, r)
 	if !ok {
 		return
@@ -93,6 +100,9 @@ func (rt *routes) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *routes) findOne(w http.ResponseWriter, r *http.Request) {
+	if !rt.requireService(w, r) {
+		return
+	}
 	userID, ok := rt.requireUser(w, r)
 	if !ok {
 		return
@@ -107,6 +117,9 @@ func (rt *routes) findOne(w http.ResponseWriter, r *http.Request) {
 // descriptor serves the mount's credential-free location (G4) under the same user scope
 // as findOne.
 func (rt *routes) descriptor(w http.ResponseWriter, r *http.Request) {
+	if !rt.requireService(w, r) {
+		return
+	}
 	userID, ok := rt.requireUser(w, r)
 	if !ok {
 		return

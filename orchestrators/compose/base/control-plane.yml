@@ -42,6 +42,7 @@ services:
     environment:
       <<: *go-env
       ADAPTER_REGISTRY_IDENTITY_HMAC:
+      ADAPTER_REGISTRY_REQUIRE_SERVICE_AUTH:
       BUILDER_ENABLED:
       CMEK_ENABLED:
       CMEK_KMS_PROVIDER:
@@ -328,6 +329,7 @@ services:
     environment:
       <<: *go-env
       ADAPTER_REGISTRY_IDENTITY_HMAC:
+      ADAPTER_REGISTRY_REQUIRE_SERVICE_AUTH:
       DYNAMODB_ENGINE_ENABLED:
       OUTBOX_REDIS_URL:
       PACKAGE_ENFORCEMENT:

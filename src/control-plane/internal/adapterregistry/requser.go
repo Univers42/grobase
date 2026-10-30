@@ -29,8 +29,9 @@ import (
 //
 // The TS service did full HMAC verification on the X-Baas-* headers; the Go
 // service TRUSTS them by default (the data plane and adapter-registry sit on a
-// private docker network, and write paths additionally require the service
-// token). Audit residual O6: set ADAPTER_REGISTRY_IDENTITY_HMAC=1 to require an
+// private docker network). /connect, PATCH and DELETE require the service token;
+// register/list/findOne/descriptor only under ADAPTER_REGISTRY_REQUIRE_SERVICE_AUTH
+// (service_gate.go). Audit residual O6: set ADAPTER_REGISTRY_IDENTITY_HMAC=1 to require an
 // X-Baas-Identity-Auth signature over the asserted identity (see identity.go)
 // so a peer on a flat bridge can no longer spoof identity.
 func (rt *routes) requireUser(w http.ResponseWriter, r *http.Request) (string, bool) {
