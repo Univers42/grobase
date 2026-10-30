@@ -32,7 +32,7 @@ Reading them is not free:
 - **The label is the pool's connect setting.** Each adapter records a `TlsPosture` from the
   options it connected with: `verified`, `encrypted` (TLS without verification), `plaintext`,
   `not_applicable` (sqlite), `unknown`. The server may only fill `tls_version`, through a closed
-  set (P4). Redis is `plaintext` by construction. DynamoDB and http send no request: their label
+  set (P4). Redis is `plaintext` by construction (since ADR 0024, `rediss://` reports `verified`: `#insecure` is refused before a dial). DynamoDB and http send no request: their label
   comes from the endpoint scheme (P5).
 - **Bounded and quiet.** A hard 3 s timeout turns into `unknown`, not an error (P2). Versions go
   through `normalise_version` (digits and dots, at most four parts, 32 chars) so no banner text
