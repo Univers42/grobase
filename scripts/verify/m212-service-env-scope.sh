@@ -64,7 +64,7 @@ needed_key() {
   gotrue) echo GOTRUE_DISABLE_SIGNUP ;;
   postgrest) echo PGRST_DB_URI ;;
   adapter-registry-go | tenant-control | orchestrator | function-scheduler | webhook-dispatcher | data-plane-router-rust) echo GROBASE_ENV ;;
-  realtime) echo REALTIME_PRESENCE_REDIS_URL ;;
+  realtime) echo REALTIME_ALLOWED_ORIGINS ;;
   db-bootstrap) echo WAIT_SECONDS ;;
   pg-migrate) echo POSTGRES_DB ;;
   pg-backup) echo PG_BACKUP_RETAIN_PRO_DAYS ;;
