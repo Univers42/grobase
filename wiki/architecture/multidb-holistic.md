@@ -382,10 +382,11 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 ### Phase 2 — TLS everywhere
 
 **G5 · TLS on every hop, enforced, gated** — gate m247
-- [ ] Internal CA (reuse the WAF's local-dev CA tooling) issues server certs for every
+- [~] Internal CA (reuse the WAF's local-dev CA tooling) issues server certs for every
       engine container; compose turns on server TLS: Postgres `ssl=on`, Mongo
       `requireTLS`, Cockroach secure mode, Redis TLS port + ACL password, MySQL/MariaDB
       `require_secure_transport`, MSSQL force encryption, MinIO/Trino HTTPS.
+      *(Every engine and MinIO done below; Trino HTTPS waits for G13, which is BLOCKED.)*
   - [x] G5a — Postgres accepts TLS behind `ENGINE_TLS=1` (overlay, own cert script, key on
         tmpfs, fail-closed without cert); default byte-identical (ADR 0011; m247 static + live
         A/B/C; CI postgres leg twice). Accept mode only — plaintext refusal is a later step.
@@ -446,7 +447,10 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
         against an `ssl=off` boot → refused, a CA-signed boot → `Verified` TLSv1.3.
   - [x] ADR 0017 Dynamo: under max the DSN endpoint is pinned on the service builder (env and
         profile endpoints can't redirect it) and a non-https endpoint is refused before load.
-- [ ] Internal pools (outbox, automations) and query-router → data plane use TLS.
+- [x] Internal pools (outbox, automations) and query-router → data plane use TLS.
+      *(Opt-in overlays on develop: data plane ADR 0031, Node pg clients ADR 0032 — the
+      automations pool shares `DATABASE_URL` and is not driven separately (W6). VM rollout
+      is the item below.)*
   - [x] G5 data plane — `ENGINE_TLS_ENGINES=data-plane` (accept mode, ADR 0031, devil PwC
         DT1–DT18): the router adds rustls :4012 (ring only, HTTP/1.1, 10 s handshake) beside
         plaintext :4011; query-router and tenant-control dial https with `ca.pem` only. m263
