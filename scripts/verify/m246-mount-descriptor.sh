@@ -86,14 +86,16 @@ need "${probe_rs}" 'get_or_create' "the probe must dial through the pool registr
 need "${probe_rs}" 'Duration::from_secs\(3\)' "the probe lost its 3 s bound (P2)"
 need "${probe_rs}" '"probe:\{\}"' "the probe lost its per-mount rate limit key (P10)"
 need "${DP}/data-plane-pool/src/registry.rs" 'self\.0\.probe\(\)' "SharedPool does not forward probe(); every probe would read unknown (P3)"
-need "${DP}/data-plane-pool/src/redis/pool.rs" 'TlsPosture::Plaintext' "redis must label itself plaintext: the crate has no TLS (P4)"
+need "${DP}/data-plane-pool/src/redis/adapter.rs" 'TcpTls \{ \.\. \}\) => TlsPosture::Verified' "redis labels rediss:// verified only from the parsed address (P4, ADR 0024)"
+need "${DP}/data-plane-pool/src/redis/adapter.rs" '_ => TlsPosture::Plaintext' "redis must label every non-TLS address plaintext (P4)"
+need "${DP}/data-plane-pool/src/redis_tls.rs" 'insecure' "redis_tls no longer refuses #insecure, so verified would be a lie (P4, ADR 0024)"
 PS="${QR}/probe.service.ts"
 need "${PS}" 'isStaticMount\(dbId\)' "the router probes static mounts, which match any tenant (P8)"
 need "${PS}" "'platform'" "the router does not mask a platform mount's version (P9)"
 need "${PS}" '\$\{revision' "the probe cache is not keyed on the credential revision"
 ! grep -n 'connection_string' <(sed -n '/ProbeResponse = {/,/};/p;/const value/,/;/p' "${PS}") ||
   fail "the probe response names the DSN"
-pass "registry dial, 3 s bound, 1/s per mount, SharedPool forward, redis plaintext, static 404, platform mask"
+pass "registry dial, 3 s bound, 1/s per mount, SharedPool forward, redis posture from the address, static 404, platform mask"
 
 if [ "${BAAS_VERIFY_LIVE:-0}" != "1" ]; then
   printf '\n\033[33m! live descriptors skipped (set BAAS_VERIFY_LIVE=1, BAAS_KONG_URL, BAAS_TENANT_KEY)\033[0m\n'
