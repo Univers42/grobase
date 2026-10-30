@@ -147,6 +147,27 @@ async fn a_refused_dial_never_repeats_the_password() {
     }
 }
 
+/// D3 (ADR 0024): the rediss:// error class. A handshake the peer hangs up on and
+/// an `#insecure` refusal both end before any AUTH, and neither quotes the URL.
+#[tokio::test]
+async fn a_tls_refusal_never_repeats_the_password() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let at = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((stream, _)) = listener.accept().await {
+            drop(stream);
+        }
+    });
+    let resolver: Arc<dyn MountResolver> = Arc::new(EnvMountResolver::from_json("{}"));
+    let adapter = crate::RedisEngineAdapter::new(resolver);
+    for dsn in [
+        format!("rediss://:{CANARY}@{at}/0"),
+        format!("rediss://:{CANARY}@{at}/0#insecure"),
+    ] {
+        dial("redis", &adapter, dsn).await;
+    }
+}
+
 #[tokio::test]
 async fn a_dial_guard_refusal_never_repeats_the_password() {
     let resolver: Arc<dyn MountResolver> = Arc::new(EnvMountResolver::from_json("{}"));

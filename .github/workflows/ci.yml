@@ -1600,6 +1600,35 @@ jobs:
           M247_STACK: ${{ matrix.tls == 'postgres' && '1' || '0' }}
         run: bash scripts/verify/m247-engine-tls.sh
 
+  # ─── Redis client TLS (D3, ADR 0024) ───────────────────────────
+  # The pool and the server's limiter/quota/metering link dial rediss:// against redis
+  # behind the G5b overlay, in a --features dynamodb build (ring + aws-lc-rs): the CA
+  # verifies, a wrong CA and a name outside the SANs are refused, an empty system store
+  # fails closed, plaintext 6379 is unchanged, and no compose default names rediss://.
+  redis-client-tls:
+    name: Redis client TLS (m260)
+    runs-on: ubuntu-latest
+    needs: [shellcheck]
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # A gate's "[MNN] FAIL — why" line becomes a public annotation.
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
+      # The published grobase-redis :latest lacks the setpriv the TLS wrapper needs until a
+      # main push republishes it (ADR 0012), so redis is built from this commit, as for m247.
+      - name: redis client TLS (m260)
+        env:
+          M260_TOOLCHAIN: rust:1-bookworm
+          M260_IMAGE: m260-local/grobase-redis:ci
+        run: |
+          bash scripts/env/assemble-env.sh
+          bash scripts/certs/generate-localhost-cert.sh
+          docker build -q -t "$M260_IMAGE" infra/docker/services/redis
+          bash scripts/verify/m260-redis-client-tls.sh
+
   # ─── Rust lint (both workspaces) ───────────────────────────────
   # clippy ran nowhere in CI, and `make test-lint-rust` covered only the data
   # plane, so the realtime workspace drifted red unnoticed (issue #19). Both
