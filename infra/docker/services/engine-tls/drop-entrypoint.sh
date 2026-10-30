@@ -51,6 +51,10 @@ mariadb | mysql)
   # The mysql service is MariaDB 11.4 too. Replaces the self-signed cert MariaDB serves by default; require_secure_transport stays off.
   set -- "$@" --ssl-cert="$dst/server.crt" --ssl-key="$dst/server.key" --ssl-ca="$dst/ca.pem"
   ;;
+mssql)
+  # sqlservr takes no TLS flags: the overlay points MSSQL_TLS_CERTIFICATE_FILE/_KEY_FILE here,
+  # and it shuts down on a cert it cannot open (measured). forceencryption stays 0.
+  ;;
 *)
   echo "engine TLS: no flag set for $name" >&2
   exit 1

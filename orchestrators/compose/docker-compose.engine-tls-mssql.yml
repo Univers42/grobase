@@ -1,0 +1,42 @@
+# docker-compose.engine-tls-mssql.yml — accept-mode TLS on mssql with the CA-signed engine cert
+# (G5b, docs/adr/0012-g5b-engine-accept-tls.md). Opt-in: ENGINE_TLS_ENGINES lists mssql (env,
+# or an ENGINE_TLS_ENGINES= line in .env.local; orchestrators/makes/00-config.mk).
+# ENGINE_TLS=1 alone never composes this file.
+#
+# SQL Server already encrypts with a self-signed cert it generates, which no client can verify.
+# sqlservr reads MSSQL_TLS_* from the environment, so nothing is written to mssql.conf in the
+# data volume: dropping this overlay restores the default. forceencryption stays 0, so a
+# client that does not ask for encryption still connects (only its login packet is encrypted).
+#
+# Caveat: this proves mssql CAN serve a verifiable cert, not that any client checks it. The
+# pool trusts any cert while DATA_PLANE_TLS_INSECURE=1 (the compose default).
+services:
+  mssql:
+    user: "0"
+    entrypoint:
+      [
+        "/bin/sh",
+        "/usr/local/bin/engine-tls-drop.sh",
+        "/opt/mssql/bin/sqlservr",
+      ]
+    environment:
+      ENGINE_TLS_NAME: mssql
+      # By name: the mssql-server package picks the uid at install (999 in the ghcr image).
+      ENGINE_TLS_UID: mssql
+      ENGINE_TLS_GID: mssql
+      MSSQL_TLS_CERTIFICATE_FILE: /run/engine-tls/server.crt
+      MSSQL_TLS_KEY_FILE: /run/engine-tls/server.key
+      MSSQL_TLS_PROTOCOLS: "1.2"
+    volumes:
+      - type: bind
+        source: ${ENGINE_TLS_MSSQL_CERT_DIR:-./certs/engine-tls/mssql}
+        target: /etc/engine-tls
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./infra/docker/services/engine-tls/drop-entrypoint.sh
+        target: /usr/local/bin/engine-tls-drop.sh
+        read_only: true
+    tmpfs:
+      - /run/engine-tls:mode=0700

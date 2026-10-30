@@ -1524,6 +1524,9 @@ jobs:
           - { engine: mariadb, services: mariadb, profile: engines-extra, tls: mariadb, build: mariadb }
           - { engine: cockroachdb, services: cockroach, profile: engines-extra }
           - { engine: mssql, services: mssql, profile: engines-extra }
+          # ENGINE_TLS_ENGINES=mssql: sqlservr serves the CA-signed cert from MSSQL_TLS_* env;
+          # the published image already ships setpriv, so no build.
+          - { engine: mssql, services: mssql, profile: engines-extra, tls: mssql }
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:

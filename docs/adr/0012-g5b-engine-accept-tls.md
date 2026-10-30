@@ -60,6 +60,9 @@ the other engines broke four of G5a's premises, all measured on 2026-10-30 again
   - 11.4 already serves TLS with a self-signed cert that no client can verify against the local
     CA; the flags replace that cert. `require_secure_transport` stays off, so `--skip-ssl`
     still connects.
+  MSSQL takes no TLS flags. sqlservr reads `MSSQL_TLS_CERTIFICATE_FILE`, `MSSQL_TLS_KEY_FILE`
+  and `MSSQL_TLS_PROTOCOLS` from the environment, so the overlay points them at the tmpfs copies
+  and writes nothing to `mssql.conf` in the volume. `forceencryption` stays 0.
 - **Fail closed (C8).** An engine selected without a cert exits, and the message names
   `generate-engine-cert.sh <engine>`.
 
@@ -99,11 +102,23 @@ the other engines broke four of G5a's premises, all measured on 2026-10-30 again
     on 2026-10-30: all green, and m27 mariadb under the overlay 12 passed / 0 failed.
   - `M247_ENGINE=mysql` runs the same legs against the `mysql` service. Measured locally on
     2026-10-30: all green, and m27 mysql under the overlay 12 passed / 0 failed.
+  `M247_ENGINE=mssql` runs the same three legs with `sqlcmd` from a throwaway root container
+  that trusts the minted CA:
+  - **A:** `-N m` fails with "certificate verify failed": the default self-signed cert does
+    not verify.
+  - **C:** the container refuses to start without a cert. sqlservr also shuts down on its own
+    when it cannot open the cert (Error 49940, measured).
+  - **B:** `-N m` as host `mssql` gets `encrypt_option` TRUE; as `m247-mssql` it is refused;
+    `-N o` still connects with `encrypt_option` FALSE; PID 1 is uid 999; the key copy is
+    600 uid 999; `/var/opt/mssql` holds no cert and `mssql.conf` no TLS setting.
+  - Measured locally on 2026-10-30: all green, and m27 mssql under the overlay 9 passed /
+    3 skipped / 0 failed.
 - **CI (C11).** The `mongodb` engine-conformance leg runs twice: as before, and with `tls: mongo`.
   The `tls: mongo` run initiates the replica set under the overlay, runs m27 and then runs m247
   live. The `mariadb` and `mysql` legs run twice the same way, with `tls: mariadb` and
   `tls: mysql`; each builds its image from the commit first, since the published one has no
-  util-linux `setpriv`. Redis has no conformance leg. A CI step builds its image from the
+  util-linux `setpriv`. The `mssql` leg runs with `tls: mssql` and no build: the published
+  image already ships `setpriv`. Redis has no conformance leg. A CI step builds its image from the
   commit and runs the m247 redis legs.
 - **Renewal.** Re-run `generate-engine-cert.sh <engine>`, then recreate that engine. The script
   says when it issued a new cert.
@@ -113,10 +128,11 @@ the other engines broke four of G5a's premises, all measured on 2026-10-30 again
 
 ## Not done here
 
-- **No client verifies mongo's, redis's, mariadb's or mysql's cert yet.** mongosh, mongo-init,
+- **No client verifies mongo's, redis's, mariadb's, mysql's or mssql's cert yet.** mongosh, mongo-init,
   mongo-api, the pool and every redis consumer still dial plaintext, which accept mode allows.
   Pool mysql mounts can trust the CA (`DATA_PLANE_TLS_CA_FILE`, C10), but no mount asks for
-  TLS yet. Moving them is the next G5 step.
+  TLS yet. Pool mssql mounts trust any cert while `DATA_PLANE_TLS_INSECURE=1`, the compose
+  default. Moving them is the next G5 step.
 - **The published redis, mariadb and mysql images lack `setpriv` until a main push republishes
   them.** Until then, `ENGINE_TLS_ENGINES=redis` (or `mariadb`, `mysql`) on a host that pulls
   `:latest` fails closed with the wrapper's message; `make build` fixes it.
