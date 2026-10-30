@@ -32,6 +32,7 @@ use data_plane_core::{
 };
 use serde_json::{json, Value};
 
+mod probe_check;
 mod schema_checks;
 mod type_checks;
 
@@ -195,6 +196,7 @@ pub async fn run_suite(adapter: Arc<dyn EngineAdapter>, mount: DatabaseMount) ->
             "descriptor: schema_ddl or introspect=false",
         );
     }
+    report.record("probe", probe_check::check_probe(&*pool, &engine).await);
     report.record("honesty", check_honesty(&*pool, &id, &caps).await);
     let begin = TxBeginRequest {
         identity: id.clone(),
