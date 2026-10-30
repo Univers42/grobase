@@ -19,9 +19,9 @@ use super::validate::validate_resource;
 use super::SUPPORTED_OPS;
 use async_trait::async_trait;
 use data_plane_core::{
-    BatchItemOutcome, BatchItemStatus, BatchSummary, DataOperation, DataOperationKind,
-    DataPlaneError, DataPlaneResult, DataResult, EnginePool, RequestIdentity, TxBeginRequest,
-    TxHandle,
+    normalise_version, BatchItemOutcome, BatchItemStatus, BatchSummary, DataOperation,
+    DataOperationKind, DataPlaneError, DataPlaneResult, DataResult, EnginePool, EngineProbe,
+    RequestIdentity, TlsPosture, TxBeginRequest, TxHandle,
 };
 use redis::aio::ConnectionManager;
 use serde_json::Value;
@@ -203,5 +203,26 @@ impl EnginePool for RedisPool {
     async fn close(&self) -> DataPlaneResult<()> {
         // ConnectionManager auto-closes on drop; no explicit handshake.
         Ok(())
+    }
+
+    /// Read-only probe: server version from `INFO server`; a failed query stays `unknown`.
+    async fn probe(&self) -> DataPlaneResult<EngineProbe> {
+        let mut conn = self.manager.clone();
+        let info = redis::cmd("INFO")
+            .arg("server")
+            .query_async::<String>(&mut conn)
+            .await
+            .unwrap_or_default();
+        let server_version = info
+            .lines()
+            .find_map(|line| line.strip_prefix("redis_version:"))
+            .map_or_else(|| "unknown".into(), normalise_version);
+        Ok(EngineProbe {
+            server_version,
+            // The workspace `redis` crate is built without a TLS feature (only
+            // `tokio-comp` + `connection-manager`), so every working pool is plaintext.
+            tls: TlsPosture::Plaintext,
+            tls_version: None,
+        })
     }
 }

@@ -18,9 +18,10 @@
 
 use async_trait::async_trait;
 use data_plane_core::{
-    BatchItemStatus, DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, DataResult,
-    EnginePool, RawStatement, RequestIdentity, SchemaDdlRequest, SchemaDdlResult, SchemaDdlStatus,
-    SchemaDescriptor, TxBeginRequest, TxHandle,
+    normalise_version, BatchItemStatus, DataOperation, DataOperationKind, DataPlaneError,
+    DataPlaneResult, DataResult, EnginePool, EngineProbe, RawStatement, RequestIdentity,
+    SchemaDdlRequest, SchemaDdlResult, SchemaDdlStatus, SchemaDescriptor, TlsPosture,
+    TxBeginRequest, TxHandle,
 };
 use deadpool_sqlite::Pool;
 use rusqlite::types::Value as SqlValue;
@@ -225,6 +226,28 @@ impl EnginePool for SqlitePool {
             .map_err(|e| DataPlaneError::Backend {
                 message: format!("sqlite introspect interact: {e}"),
             })?
+    }
+
+    /// Read-only probe: sqlite library version; a file-backed engine has no TLS. A failing
+    /// version statement is not a probe error — the probe reports `unknown` instead.
+    async fn probe(&self) -> DataPlaneResult<EngineProbe> {
+        let obj = self.checkout().await.map_err(|_| DataPlaneError::Backend {
+            message: "probe: pool checkout failed".into(),
+        })?;
+        let queried = obj
+            .interact(|conn| {
+                conn.query_row("SELECT sqlite_version()", [], |r| r.get::<_, String>(0))
+            })
+            .await;
+        let server_version = match queried {
+            Ok(Ok(version)) => normalise_version(&version),
+            _ => "unknown".into(),
+        };
+        Ok(EngineProbe {
+            server_version,
+            tls: TlsPosture::NotApplicable,
+            tls_version: None,
+        })
     }
 
     /// Structured DDL (the typed-collections contract): lowered by the pure
