@@ -11,9 +11,9 @@
 #                  and /auth/v1/health and /rest/v1/ must answer 200
 #   6. monitoring  Prometheus has no scrape target down and no alert firing
 #
-# Ponytail: in leg 4 cockroach (started --insecure), trino and a redis without
-# REDIS_PASSWORD have no credential to get wrong: for them the query proves the engine
-# executes statements, not that a password matches. DynamoDB-local accepts any credential
+# Ponytail: in leg 4 cockroach (--insecure, or the root client cert under its secure-mode
+# overlay, ADR 0029), trino and a redis without REDIS_PASSWORD have no credential to get
+# wrong: for them the query proves the engine executes statements, not that a password matches. DynamoDB-local accepts any credential
 # and is not queried at all; its healthcheck (leg 1) and TCP edges (leg 2) vouch for it.
 #
 # Ponytail: leg 5 decides "refused at the gateway" from the body — a 401/403 carrying
@@ -46,6 +46,9 @@ ENGINES="postgres mongo mysql mariadb mssql redis minio cockroach trino"
 TIMEOUT="${HEALTH_REQUEST_TIMEOUT:-5}"
 PROM="http://localhost:9090/api/v1/query?query="
 
+# shellcheck source=../lib/lib-crdb-client.sh
+. "$(dirname "$0")/../lib/lib-crdb-client.sh"
+
 # getenv prints the value of KEY from the env file. Values are used, never printed.
 getenv() {
   sed -n "s/^$1=//p" "$ENV_FILE" 2>/dev/null | head -n 1
@@ -68,7 +71,7 @@ sql_login() {
     docker exec -e SQLCMDPASSWORD="$(getenv MSSQL_SA_PASSWORD)" "$PROJECT-mssql" \
       sh -c '"$(ls /opt/mssql-tools*/bin/sqlcmd | tail -n 1)" -C -S localhost -U sa -b -Q "select 1"'
     ;;
-  cockroach) docker exec "$PROJECT-cockroach" cockroach sql --insecure -e 'select 1' ;;
+  cockroach) docker exec "$PROJECT-cockroach" cockroach sql "$(crdb_auth "$PROJECT-cockroach")" -e 'select 1' ;;
   esac
 }
 

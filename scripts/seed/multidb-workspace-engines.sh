@@ -38,14 +38,15 @@ pg_ready() { ma_ready mini-baas-postgres && need PG_PASS POSTGRES_PASSWORD; }
 pg_ensure_db() { pg -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '${DB}'" | grep -q 1 || pg -d postgres -c "CREATE DATABASE ${DB}"; }
 pg_load() { "${GEN[@]}" sql-pg | pg -d "$1" >/dev/null; }
 seed_cockroachdb() {
-  gate "mini-baas-cockroach healthy (insecure single node, root)" ma_ready mini-baas-cockroach || return 0
+  gate "mini-baas-cockroach healthy (single node, root)" ma_ready mini-baas-cockroach || return 0
   act "create database target=${DB} if absent" crdb -e "CREATE DATABASE IF NOT EXISTS ${DB}" || return 0
   act "create tables ${TABLES_STD} if absent and load rows if absent (${COUNTS}) — ON CONFLICT DO NOTHING" crdb_load || return 0
-  act "register mount target=${DB}_cockroachdb (postgres://root@cockroach:26257/${DB})" \
-    register cockroachdb "postgres://root@cockroach:26257/${DB}?sslmode=disable" || return 0
+  act "register mount target=${DB}_cockroachdb (postgres://root:…@cockroach:26257/${DB})" crdb_register || return 0
   seed_tail "MDW · CockroachDB" "${TABLES_STD}" check_schema
 }
 crdb_load() { "${GEN[@]}" sql-pg | crdb -d "${DB}" >/dev/null; }
+# A password DSN: a secure node refuses passwordless root, an insecure one ignores the password (ADR 0029).
+crdb_register() { register cockroachdb "$(crdb_dsn mini-baas-cockroach "${DB}")"; }
 # seed_mysqlish ENGINE CONTAINER CLIENT HOST ENV-PREFIX LABEL — mysql and mariadb.
 seed_mysqlish() {
   local engine="$1" c="$2" bin="$3" host="$4" pfx="$5" label="$6"
