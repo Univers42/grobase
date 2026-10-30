@@ -98,7 +98,9 @@ engine_login() {
   redis) redis_login ;;
   minio)
     printf 'user = "%s:%s"\n' "$(getenv MINIO_ROOT_USER)" "$(getenv MINIO_ROOT_PASSWORD)" |
-      docker exec -i "$PROJECT-minio" curl -fsS -o /dev/null -K - --aws-sigv4 'aws:amz:us-east-1:s3' http://localhost:9000/
+      docker exec -i "$PROJECT-minio" sh -c 'ca=/run/engine-tls/certs/CAs/ca.crt # engine-TLS overlay (ADR 0030)
+        if [ -r "$ca" ]; then set -- --cacert "$ca" https://localhost:9000/; else set -- http://localhost:9000/; fi
+        exec curl -fsS -o /dev/null -K - --aws-sigv4 aws:amz:us-east-1:s3 "$@"'
     ;;
   trino)
     docker exec "$PROJECT-trino" curl -fsS -X POST -H 'X-Trino-User: stack-health' -d 'select 1' \

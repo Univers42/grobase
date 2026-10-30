@@ -86,6 +86,19 @@ cockroach)
   install -m 600 -o "$uid" -g "$gid" "$client/client.root.key" "$dst/certs/client.root.key"
   install -m 644 -o "$uid" -g "$gid" "$client/client.root.crt" "$dst/certs/client.root.crt"
   ;;
+minio)
+  if [ -n "${ENGINE_TLS_MINIO_S3_PUBLIC_ENDPOINT:-}" ]; then
+    echo "minio TLS: S3_PUBLIC_ENDPOINT is set, and browsers would not trust the private CA its presigned URLs need (ADR 0030 MH10)" >&2
+    exit 1
+  fi
+  # MinIO reads --certs-dir by file name and then serves HTTPS only, on 9000 and 9001:
+  # there is no plaintext listener left, so every client switches with it (ADR 0030 MH7).
+  install -d -m 700 -o "$uid" -g "$gid" "$dst/certs" "$dst/certs/CAs"
+  mv "$dst/server.crt" "$dst/certs/public.crt"
+  mv "$dst/server.key" "$dst/certs/private.key"
+  cp -p "$dst/ca.pem" "$dst/certs/CAs/ca.crt"
+  set -- "$@" --certs-dir "$dst/certs"
+  ;;
 mssql)
   # sqlservr takes no TLS flags: the overlay points MSSQL_TLS_CERTIFICATE_FILE/_KEY_FILE here,
   # and it shuts down on a cert it cannot open (measured). forceencryption stays 0.

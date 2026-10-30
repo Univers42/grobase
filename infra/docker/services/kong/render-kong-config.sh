@@ -13,7 +13,7 @@ set -eu
 tmpl="$1"
 out="$2"
 dev="$(mktemp)"
-trap 'rm -f "$dev"' EXIT
+trap 'rm -f "$dev" "$out.minio"' EXIT
 
 printf '%s\n' "${KONG_CORS_ORIGIN_DEV_LIST:-}" | tr ',' '\n' |
   sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d' -e 's|^|        - |' >"$dev"
@@ -35,6 +35,30 @@ sed \
   -e "s|__GOTRUE_JWT_ISS__|${GOTRUE_JWT_ISS:-}|g" \
   -e "s|__KONG_ANON_UUID__|${KONG_ANON_UUID:-}|g" \
   "$tmpl" >"$out"
+
+# KONG_MINIO_CA_FILE (set by docker-compose.engine-tls-minio.yml) moves the storage
+# service to https://minio:9000, verified against that CA only (ADR 0030 MH8).
+if [ -n "${KONG_MINIO_CA_FILE:-}" ]; then
+  if [ ! -r "$KONG_MINIO_CA_FILE" ] || grep -q 'PRIVATE KEY' "$KONG_MINIO_CA_FILE"; then
+    printf 'render-kong-config: KONG_MINIO_CA_FILE %s is unreadable or holds a key\n' "$KONG_MINIO_CA_FILE" >&2
+    exit 1
+  fi
+  if ! awk -v id=a44a81c4-3810-45a6-b8a7-ff6b3941a994 -v ca="$KONG_MINIO_CA_FILE" '
+    $0 == "    url: http://minio:9000" {
+      print "    url: https://minio:9000"; print "    tls_verify: true"
+      print "    ca_certificates: [" id "]"; hit = 1; next
+    }
+    { print }
+    END {
+      if (!hit) exit 1
+      print "ca_certificates:"; print "  - id: " id; print "    cert: |"
+      while ((getline line < ca) > 0) print "      " line
+    }' "$out" >"$out.minio"; then
+    printf 'render-kong-config: no storage url http://minio:9000 in %s\n' "$tmpl" >&2
+    exit 1
+  fi
+  mv "$out.minio" "$out"
+fi
 
 if left="$(grep -oE '__[A-Z0-9_]+__' "$out" | sort -u | tr '\n' ' ')" && [ -n "$left" ]; then
   printf 'render-kong-config: unsubstituted placeholders in %s: %s\n' "$out" "$left" >&2

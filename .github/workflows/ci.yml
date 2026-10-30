@@ -1684,6 +1684,34 @@ jobs:
           docker build -q -t "$M261_IMAGE" infra/docker/services/redis
           bash scripts/verify/m261-redis-acl.sh
 
+  # ─── MinIO HTTPS, hard cutover overlay (G5, ADR 0030) ──────────
+  # ENGINE_TLS_ENGINES=minio leaves MinIO no plaintext listener and switches every in-network
+  # client; the default render stays byte-identical. Static legs first (opt-in, renders,
+  # trust, kong, records), then throwaway boots: refusals, the server, each client runtime
+  # (Node, Go, mc, JVM via trino, Kong) with the CA / an unrelated CA / plaintext, a
+  # presigned URL, the host scripts and a key-mount inspection.
+  minio-https:
+    name: MinIO HTTPS overlay (m262)
+    runs-on: ubuntu-latest
+    needs: [shellcheck]
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
+      # Built from this commit: the overlay's drop wrapper needs the image's setpriv.
+      - name: minio HTTPS overlay (m262)
+        env:
+          M262_LIVE: "1"
+          M262_IMAGE: m262-local/grobase-minio:ci
+        run: |
+          bash scripts/env/assemble-env.sh
+          bash scripts/certs/generate-localhost-cert.sh
+          docker build -q -t "$M262_IMAGE" infra/docker/services/minio
+          bash scripts/ci/retry-on-429.sh bash scripts/verify/m262-minio-https.sh
+
   # ─── Rust lint (both workspaces) ───────────────────────────────
   # clippy ran nowhere in CI, and `make test-lint-rust` covered only the data
   # plane, so the realtime workspace drifted red unnoticed (issue #19). Both

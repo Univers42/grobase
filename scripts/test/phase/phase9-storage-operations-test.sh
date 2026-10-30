@@ -18,7 +18,11 @@
 BASE_URL="${BASE_URL:-http://localhost:8000}"
 TIMEOUT="${TIMEOUT:-15}"
 APIKEY="${APIKEY:-public-anon-key}"
-MINIO_ENDPOINT="${MINIO_ENDPOINT:-http://127.0.0.1:9000}"
+# Under the engine-TLS overlay MinIO serves HTTPS only (ADR 0030 MH11): the suite takes its
+# public CA from the container and hands it to mc as SSL_CERT_FILE.
+MINIO_CA_PEM="$(docker exec mini-baas-minio cat /run/engine-tls/certs/CAs/ca.crt 2>/dev/null || true)"
+export MINIO_CA_PEM
+MINIO_ENDPOINT="${MINIO_ENDPOINT:-http${MINIO_CA_PEM:+s}://127.0.0.1:9000}"
 MINIO_ACCESS_KEY="${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-}}"
 MINIO_SECRET_KEY="${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-}}"
 # MinIO withdrew its public client images: Docker Hub `minio/mc` answers "pull
@@ -99,8 +103,8 @@ mc_cmd() {
   # reported "Object uploaded" as a pass while the image could not even be
   # pulled -- three green steps on a client that never ran, and the failure
   # only surfaced two tests later as "object key missing from list".
-  docker run -i --rm --network container:mini-baas-minio --entrypoint /bin/sh "$MC_IMAGE" \
-    -ec "mc alias set local '$MINIO_ENDPOINT' '$MINIO_ACCESS_KEY' '$MINIO_SECRET_KEY' >/dev/null && $cmd"
+  docker run -i --rm -e MINIO_CA_PEM --network container:mini-baas-minio --entrypoint /bin/sh "$MC_IMAGE" \
+    -ec "${MINIO_CA_PEM:+echo \"\$MINIO_CA_PEM\" >/home/mc/minio-ca.pem; export SSL_CERT_FILE=/home/mc/minio-ca.pem; }mc alias set local '$MINIO_ENDPOINT' '$MINIO_ACCESS_KEY' '$MINIO_SECRET_KEY' >/dev/null && $cmd"
 }
 
 cleanup_resources() {

@@ -41,14 +41,19 @@ ENGINE_TLS     ?= $(shell sed -n 's/^ENGINE_TLS=//p' .env.local 2>/dev/null | he
 # ENGINE_TLS_ENGINES="mongo" (space-separated, unquoted in .env.local) composes each listed
 # engine's own overlay, docker-compose.engine-tls-<engine>.yml (ADR 0012). It is separate from
 # ENGINE_TLS so a Postgres-TLS host never recreates the other engines. Its cert:
-# scripts/certs/generate-engine-cert.sh <engine>.
+# scripts/certs/generate-engine-cert.sh <engine>. With CLOUD=1, minio also composes
+# docker-compose.cloud-minio-tls.yml for tenant-control's backup store (ADR 0030).
 ENGINE_TLS_ENGINES ?= $(shell sed -n 's/^ENGINE_TLS_ENGINES=//p' .env.local 2>/dev/null | head -1)
+# The monolith and helm still dial http://minio:9000 (ADR 0030 MH15): refuse rather than half-switch.
+ifneq ($(and $(filter minio,$(ENGINE_TLS_ENGINES)),$(filter-out docker-compose.yml,$(COMPOSE_FILE))),)
+$(error ENGINE_TLS_ENGINES=minio supports only COMPOSE_FILE=docker-compose.yml, not $(COMPOSE_FILE) (ADR 0030 MH15))
+endif
 # REDIS_ACL=1 (env, or a REDIS_ACL= line in .env.local) composes the Redis ACL overlay,
 # stage 1 (docker-compose.redis-acl.yml, ADR 0028): redis gains the app user, every redis
 # consumer dials it with REDIS_PASSWORD. Separate from ENGINE_TLS_ENGINES; it composes with
 # the redis TLS overlay in either order.
 REDIS_ACL      ?= $(shell sed -n 's/^REDIS_ACL=//p' .env.local 2>/dev/null | head -1)
-DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)$(foreach e,$(ENGINE_TLS_ENGINES), -f orchestrators/compose/docker-compose.engine-tls-$(e).yml)$(if $(filter 1,$(REDIS_ACL)), -f orchestrators/compose/docker-compose.redis-acl.yml)
+DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)$(foreach e,$(ENGINE_TLS_ENGINES), -f orchestrators/compose/docker-compose.engine-tls-$(e).yml)$(if $(and $(filter 1,$(CLOUD)),$(filter minio,$(ENGINE_TLS_ENGINES))), -f orchestrators/compose/docker-compose.cloud-minio-tls.yml)$(if $(filter 1,$(REDIS_ACL)), -f orchestrators/compose/docker-compose.redis-acl.yml)
 
 # Colors
 _B := \033[0;34m

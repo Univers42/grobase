@@ -30,8 +30,10 @@ RUN apk add --no-cache wget \
  && /minio --version
 
 # ── final: Alpine + ca-certs + curl (for the compose healthcheck) ────────────
+# setpriv is util-linux's: BusyBox's cannot drop root, and the engine-TLS overlay needs
+# that to hand MinIO its key (ADR 0030 MH2; 34 KB, measured).
 FROM alpine:3.21
-RUN apk add --no-cache ca-certificates curl \
+RUN apk add --no-cache ca-certificates curl setpriv \
  && addgroup -g 1001 minio \
  && adduser -D -u 1001 -G minio minio \
  && install -d -o minio -g minio /data
