@@ -128,6 +128,9 @@ g5b_static_checks() {
   for overlay in "${ROOT}"/orchestrators/compose/docker-compose.engine-tls-*.yml; do
     name="${overlay##*/docker-compose.engine-tls-}"
     name="${name%.yml}"
+    # Listed in ENGINE_TLS_ENGINES but not engines: no server key to drop. m263 (ADR 0031)
+    # and m264 (ADR 0032) gate them.
+    [[ "${name}" == data-plane || "${name}" == pg-clients ]] && continue
     # A sibling of Postgres's certs/engines, never inside another engine's mount (G5b-C5).
     grep -q "CERT_DIR:-./certs/engine-tls/${name}}" "${overlay}" || fail "${name}: the cert is not in its own directory"
     grep -q 'create_host_path: false' "${overlay}" || fail "${name}: the cert bind would be created root-owned"
