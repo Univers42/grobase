@@ -24,8 +24,9 @@
 #
 # The ts-base anchor (_common.yml) passes MONGO_URI through from the host env, and config.env
 # sets it to a plaintext mongodb://mongo:27017 for nine Node services. M2 does not restate it,
-# so the census renders with MONGO_URI empty and mc_passthrough names those services as a SKIP.
-# Leg D lives in engine-tls-mongo-clients-live.sh.
+# so the census renders with MONGO_URI empty, and mc_passthrough proves none of those services
+# reads it (engine-tls-mongo-readers.sh, devil N1–N8). Leg D lives in
+# engine-tls-mongo-clients-live.sh.
 #
 # Caveat: the census sees compose only. A DSN built at runtime or set outside compose (pool
 # mounts, the Trino catalog, seed scripts) is invisible to it, and a pass-through key other
@@ -43,12 +44,11 @@ MC_JQ_DSNS='[.services | to_entries[] | .key as $s | (.value.environment // {}) 
 mc_redact() { sed -E 's#mongodb(\+srv)?://[^ "]*#mongodb://<redacted>#g'; }
 
 # mc_render $1 out json, $2 OUTBOX_MONGO_URL to render with (empty: unset), rest compose -f flags.
-# MC_HOST_ENV=1 keeps the host's MONGO_URI pass-through (compose reads it from .env even under
-# --env-file: 16 DSNs instead of 7, measured 2026-10-30).
+# MONGO_URI is forced (compose reads it from .env even under --env-file: 16 DSNs instead of 7,
+# measured 2026-10-30): empty by default, MC_MONGO_URI to see which services pass it through.
 mc_render() {
-  local out="$1" outbox="$2" pass_through=(MONGO_URI=)
+  local out="$1" outbox="$2" pass_through=("MONGO_URI=${MC_MONGO_URI:-}")
   shift 2
-  [[ "${MC_HOST_ENV:-0}" == 0 ]] || pass_through=()
   (cd "${ROOT}" && env -u OUTBOX_MONGO_URL -u ENGINE_TLS_MONGO_MODE -u ENGINE_TLS_MONGO_CERT_DIR "${pass_through[@]}" \
     ${outbox:+"OUTBOX_MONGO_URL=${outbox}"} timeout 120 docker compose --env-file "${MC_TMP}/floor.env" \
     -f docker-compose.yml "$@" --profile '*' config --format json) >"${out}" 2>"${MC_TMP}/render.err" ||
@@ -126,17 +126,22 @@ mc_restated_scripts() {
   pass "mongo-init (both mongosh calls) and the healthcheck = base + --tls --tlsCAFile, --host mongo kept"
 }
 
-# M10 gap, named on every run: the services a host MONGO_URI reaches, plaintext, not restated.
+# N5 N7: the services a host MONGO_URI reaches unrestated, from the render (a sentinel, so a
+# host without .env still finds them), each mapped by its build APP to src/apps, none a reader.
 mc_passthrough() {
-  local names
-  MC_HOST_ENV=1 mc_render "${MC_TMP}/host.json" "" -f "${MC_OVERLAY}"
-  names="$(jq -r --arg q "${MC_QUERY}" '[.services | to_entries[] | select((.value.environment.MONGO_URI // "")
-    | tostring | test("^mongodb") and (contains($q) | not)) | .key] | sort | join(" ")' "${MC_TMP}/host.json")"
-  [[ -n "${names}" ]] || {
-    pass "no service takes a plaintext MONGO_URI from the host env"
+  local sentinel="mongodb://mc-passthrough.invalid:27017/x" pairs names apps
+  MC_MONGO_URI="${sentinel}" mc_render "${MC_TMP}/host.json" "" -f "${MC_OVERLAY}"
+  pairs="$(jq -r --arg s "${sentinel}" '.services | to_entries[] | select(.value.environment.MONGO_URI == $s)
+    | "\(.key)=\(.value.build.args.APP // "")"' "${MC_TMP}/host.json" | sort)"
+  [[ -n "${pairs}" ]] || {
+    pass "no service takes MONGO_URI from the host env"
     return
   }
-  skip "$(wc -w <<<"${names}") services take a plaintext MONGO_URI from the host env, not restated (M10): ${names}"
+  names="$(cut -d= -f1 <<<"${pairs}" | tr '\n' ' ')"
+  mapfile -t apps < <(cut -d= -f2 <<<"${pairs}")
+  mr_self_test "${MC_TMP}/n6"
+  mongo_readers_census "${ROOT}/src" "${apps[@]}"
+  pass "${MR_COUNT} pass-through, 0 readers: a host MONGO_URI reaches ${names% }, unread (M10)"
 }
 
 # The wrapper's stderr and status for engine $1, mode $2, in an empty environment.
@@ -175,6 +180,8 @@ mongo_clients_static_checks() (
   trap 'rm -rf "${MC_TMP}"' EXIT
   # shellcheck source=../lib/lib-required-env.sh
   . "${ROOT}/scripts/lib/lib-required-env.sh"
+  # shellcheck source=engine-tls-mongo-readers.sh
+  . "${ROOT}/scripts/verify/engine-tls-mongo-readers.sh"
   required_env_floor m247-floor "${ROOT}" >"${MC_TMP}/floor.env"
   mc_render "${MC_TMP}/base.json" ""
   mc_render "${MC_TMP}/tls.json" "" -f "${MC_OVERLAY}"
