@@ -164,7 +164,7 @@ impl EngineAdapter for PostgresEngineAdapter {
             .unwrap_or(false);
         let tls_mode = conn::effective_tls_mode(&dsn, max_security);
         let mut cfg = DeadpoolConfig::new();
-        cfg.url = Some(dsn);
+        cfg.url = Some(conn::wire_dsn(&dsn));
         cfg.pool = Some(PoolConfig::new(mount.pool_policy.max.max(1) as usize));
         // Track C / C1: under a transaction-mode pooler, client-side
         // prepared-statement/session reuse across pooled checkouts is unsafe (a
