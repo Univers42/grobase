@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/10/29 20:30:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/10/29 21:30:00 by dlesieur         ###   ########.fr       #
+#    Updated: 2026/10/30 04:30:00 by dlesieur         ###   ########.fr       #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -23,7 +23,9 @@
 # literal pool version.
 #
 # Live (BAAS_VERIFY_LIVE=1, BAAS_KONG_URL, BAAS_TENANT_KEY): every listed mount's
-# descriptor answers 200 with only the allowed keys and no DSN-shaped value.
+# descriptor answers 200 with only the allowed keys and no DSN-shaped value, and
+# its probe (ADR 0013) answers 200 with a normalised version and a closed TLS
+# label, or 404 when the probe is off.
 
 set -euo pipefail
 
@@ -75,6 +77,24 @@ need "${QR}/query.service.ts" 'credentialVersionFor\(' "query.service.ts does no
 need "${QR}/schema.service.ts" 'credentialVersionFor\(' "schema.service.ts does not derive the pool version from the revision"
 pass "both hops routed, service-token gated, revision in both DDL paths, no literal pool version"
 
+step "static: the live probe dials through the registry, flagged and masked (ADR 0013)"
+DP="${ROOT}/src/data-plane-router/crates"
+routes=$(sed -n '/if probe::enabled()/,/require_service_auth/p' "${DP}/data-plane-server/src/routes/mod.rs")
+grep -q '"/v1/probe"' <<<"${routes}" || fail "/v1/probe must be registered under probe::enabled(), before require_service_auth"
+probe_rs="${DP}/data-plane-server/src/routes/probe.rs"
+need "${probe_rs}" 'get_or_create' "the probe must dial through the pool registry (devil G4 P1)"
+need "${probe_rs}" 'Duration::from_secs\(3\)' "the probe lost its 3 s bound (P2)"
+need "${probe_rs}" '"probe:\{\}"' "the probe lost its per-mount rate limit key (P10)"
+need "${DP}/data-plane-pool/src/registry.rs" 'self\.0\.probe\(\)' "SharedPool does not forward probe(); every probe would read unknown (P3)"
+need "${DP}/data-plane-pool/src/redis/pool.rs" 'TlsPosture::Plaintext' "redis must label itself plaintext: the crate has no TLS (P4)"
+PS="${QR}/probe.service.ts"
+need "${PS}" 'isStaticMount\(dbId\)' "the router probes static mounts, which match any tenant (P8)"
+need "${PS}" "'platform'" "the router does not mask a platform mount's version (P9)"
+need "${PS}" '\$\{revision' "the probe cache is not keyed on the credential revision"
+! grep -n 'connection_string' <(sed -n '/ProbeResponse = {/,/};/p;/const value/,/;/p' "${PS}") ||
+  fail "the probe response names the DSN"
+pass "registry dial, 3 s bound, 1/s per mount, SharedPool forward, redis plaintext, static 404, platform mask"
+
 if [ "${BAAS_VERIFY_LIVE:-0}" != "1" ]; then
   printf '\n\033[33m! live descriptors skipped (set BAAS_VERIFY_LIVE=1, BAAS_KONG_URL, BAAS_TENANT_KEY)\033[0m\n'
   printf '\033[32mm246 static checks passed\033[0m\n'
@@ -102,5 +122,28 @@ bad = [k for k, v in d.items() if isinstance(v, str) and ("://" in v or "@" in v
 if extra or bad: sys.exit(f"keys {sorted(extra)} / DSN-shaped {bad}")
 print("%-12s %-9s %s tls=%s" % (d["engine"], d["location"], d.get("host") or d.get("file") or "-", d["tls"]))
 ' <<<"${out%$'\n'*}" || fail "${id}: descriptor carries more than its location"
+done
+step "live: the probe names a version and a TLS label, nothing else"
+for id in ${ids}; do
+  out=$(get "/query/v1/${id}/probe")
+  code=${out##*$'\n'}
+  case "${code}" in
+  200) ;;
+  404)
+    printf '  ! %s: probe disabled or static (404)\n' "${id}"
+    continue
+    ;;
+  *) fail "${id}: probe answered ${code}" ;;
+  esac
+  python3 -c '
+import json, re, sys
+d = json.loads(sys.stdin.read())
+extra = set(d) - {"dbId","engine","server_version","tls","tls_version"}
+if extra: sys.exit(f"keys {sorted(extra)}")
+if not re.fullmatch(r"unknown|platform|[0-9]+(\.[0-9]+){0,3}", d["server_version"]): sys.exit("version not normalised")
+if d["tls"] not in {"verified","encrypted","plaintext","not_applicable","unknown"}: sys.exit("tls label outside the closed set")
+if d["engine"] == "redis" and d["tls"] != "plaintext": sys.exit("redis claims TLS it cannot have")
+print("%-12s %-10s tls=%s" % (d["engine"], d["server_version"], d["tls"]))
+' <<<"${out%$'\n'*}" || fail "${id}: probe answer breaks the contract"
 done
 printf '\033[32mm246 passed (static + live)\033[0m\n'
