@@ -177,7 +177,7 @@ impl EngineAdapter for MysqlEngineAdapter {
     }
 
     // ponytail: linear pool-construction sequence (isolation guard → DSN →
-    //   constraints → namespace) — one straight-line setup, no branch to factor.
+    //   constraints → TLS posture → namespace) — one straight-line setup, no branch to factor.
     async fn open_pool(&self, mount: DatabaseMount) -> DataPlaneResult<Box<dyn EnginePool>> {
         // tenant_owned (no per-row owner scoping) is implemented for
         // PostgreSQL only so far — fail CLOSED here rather than silently
@@ -206,8 +206,15 @@ impl EngineAdapter for MysqlEngineAdapter {
         })?;
         let pool_opts = PoolOpts::new().with_constraints(constraints);
 
+        let ca_pem = match base_opts.ssl_opts() {
+            Some(_) => super::tls::tls_ca_pem()?,
+            None => None,
+        };
+        let ssl_opts =
+            super::tls::mysql_ssl_opts(base_opts.ssl_opts(), crate::tls::max_security(), ca_pem)?;
         let opts: Opts = OptsBuilder::from_opts(base_opts)
             .pool_opts(pool_opts)
+            .ssl_opts(ssl_opts)
             .into();
         crate::tls::ensure_crypto_provider();
         let pool = Pool::new(opts);
