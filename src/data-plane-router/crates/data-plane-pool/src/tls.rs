@@ -12,13 +12,18 @@
 
 //! Shared TLS-posture guards for the engine adapters.
 //!
-//! `mysql_async`, the `mongodb` driver and the `redis` crate verify the server
-//! certificate BY DEFAULT; the only way to weaken that is a cert-bypass
-//! parameter smuggled into a mount DSN (mongo `tlsInsecure=true`, redis
-//! `rediss://…#insecure`, …). Under `SECURITY_MODE=max` such a mount must be
-//! REFUSED, not silently downgraded — the max-mode guarantee the per-engine
-//! `open_pool` paths call. Postgres/MSSQL have their own dedicated posture
-//! (`postgres::effective_tls_mode`, `mssql::apply_mssql_tls`).
+//! `mysql_async` and the `mongodb` driver verify the server certificate BY
+//! DEFAULT (both built on rustls); the only way to weaken that is a cert-bypass
+//! parameter smuggled into a mount DSN (mongo `tlsInsecure=true`, …). Under
+//! `SECURITY_MODE=max` such a mount must be REFUSED, not silently downgraded —
+//! the max-mode guarantee the per-engine `open_pool` paths call. Postgres/MSSQL
+//! have their own dedicated posture (`postgres::effective_tls_mode`,
+//! `mssql::apply_mssql_tls`).
+//!
+//! The `redis` crate is built with no TLS feature (workspace Cargo.toml), so a
+//! `rediss://` mount fails to connect at all: pool Redis speaks plaintext only.
+//! Its `#insecure` refusal guards the day a TLS feature is enabled, which needs
+//! its own ruling (ADR 0012, G5b-C9).
 
 use data_plane_core::{DataPlaneError, DataPlaneResult};
 
