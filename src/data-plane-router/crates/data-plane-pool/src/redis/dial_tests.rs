@@ -29,7 +29,7 @@ use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-fn mount(id: &str, inline: Option<String>) -> DatabaseMount {
+pub(super) fn mount(id: &str, inline: Option<String>) -> DatabaseMount {
     DatabaseMount {
         id: id.into(),
         tenant_id: "t-dial".into(),
@@ -50,17 +50,17 @@ fn mount(id: &str, inline: Option<String>) -> DatabaseMount {
     }
 }
 
-fn scope(id: &str, mode: DialGuardMode) -> DialScope {
+pub(super) fn scope(id: &str, mode: DialGuardMode) -> DialScope {
     DialScope::for_mount(mode, "redis", &mount(id, None), Provenance::Tenant)
         .expect("tenant scope")
         .with_lookup(fixed_lookup)
 }
 
-fn info(dsn: &str) -> ConnectionInfo {
+pub(super) fn info(dsn: &str) -> ConnectionInfo {
     dsn.into_connection_info().expect("redis dsn")
 }
 
-fn resolver() -> Arc<dyn MountResolver> {
+pub(super) fn resolver() -> Arc<dyn MountResolver> {
     Arc::new(EnvMountResolver::from_json("{}"))
 }
 
@@ -172,7 +172,10 @@ async fn redis_unix_socket_is_refused_under_enforce_and_logged_under_shadow() {
 async fn redis_pins_the_vetted_ip_not_the_name() {
     let scope = scope("redis-pin", DialGuardMode::Enforce);
     let parsed = info("redis://app:pw@db.example:6380/3?protocol=resp3");
-    let pinned = plan(&scope, &parsed).await.expect("vetted");
+    let pinned = plan(&scope, &parsed)
+        .await
+        .expect("vetted")
+        .expect("plain tcp pins");
     assert_eq!(
         pinned.addr,
         ConnectionAddr::Tcp("93.184.216.34".into(), 6380)

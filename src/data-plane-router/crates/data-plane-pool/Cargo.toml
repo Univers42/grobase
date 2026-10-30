@@ -22,7 +22,10 @@ postgres = [
 ]
 mongodb = ["dep:mongodb", "dep:bson"]
 mysql = ["dep:mysql_async", "dep:rustls"]
-redis = ["dep:redis"]
+redis = ["dep:redis", "redis-tls"]
+# D3 (ADR 0024): the rediss:// trust bundle + crypto provider, without the redis
+# engine itself, so the server's Redis limiter can share them.
+redis-tls = ["dep:redis", "dep:rustls", "dep:rustls-native-certs", "dep:rustls-pemfile", "dep:base64"]
 sqlite = ["dep:rusqlite", "dep:deadpool-sqlite"]
 mssql = ["dep:tiberius", "dep:bb8", "dep:bb8-tiberius", "dep:tokio-util"]
 http = ["dep:percent-encoding"]
@@ -73,6 +76,8 @@ tokio-postgres-rustls = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true }
 webpki-roots = { workspace = true, optional = true }
 rustls-pemfile = { workspace = true, optional = true }
+rustls-native-certs = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
