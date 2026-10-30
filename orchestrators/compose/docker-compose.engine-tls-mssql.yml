@@ -8,8 +8,14 @@
 # data volume: dropping this overlay restores the default. forceencryption stays 0, so a
 # client that does not ask for encryption still connects (only its login packet is encrypted).
 #
-# Caveat: this proves mssql CAN serve a verifiable cert, not that any client checks it. The
-# pool trusts any cert while DATA_PLANE_TLS_INSECURE=1 (the compose default).
+# The data plane verifies it too (docs/adr/0027-g5-mssql-verified-data-plane.md): this file, and
+# only this file, sets DATA_PLANE_TLS_INSECURE=0 and pins this engine's ca.pem. Drop the overlay
+# and the compose default (1) is back at the next data-plane recreate.
+#
+# Caveat: tiberius trusts the pinned CA INSTEAD of the native roots (trust_cert_ca builds an
+# empty root store plus this one cert), so while this overlay is on, a remote mssql mount
+# behind a public CA fails its handshake, and an operator's own DATA_PLANE_TLS_CA_FILE is
+# overridden. Postgres and MySQL mounts ADD the CA to their roots and are unaffected.
 services:
   mssql:
     user: "0"
@@ -40,3 +46,16 @@ services:
         read_only: true
     tmpfs:
       - /run/engine-tls:mode=0700
+
+  data-plane-router-rust:
+    environment:
+      DATA_PLANE_TLS_INSECURE: "0"
+      DATA_PLANE_TLS_CA_FILE: /etc/engine-tls-ca/mssql-ca.pem
+    volumes:
+      # One public cert, never the local CA's directory: tiberius reads exactly one .pem.
+      - type: bind
+        source: ${ENGINE_TLS_MSSQL_CERT_DIR:-./certs/engine-tls/mssql}/ca.pem
+        target: /etc/engine-tls-ca/mssql-ca.pem
+        read_only: true
+        bind:
+          create_host_path: false

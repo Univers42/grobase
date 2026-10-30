@@ -35,6 +35,10 @@
 #   m27-conformance.sh                 # every wired engine (the gate)
 #   m27-conformance.sh postgresql      # one engine (make conformance-postgresql)
 #
+# mssql over a verified pool (ADR 0027): M27_MSSQL_TLS_CA=<the engine's ca.pem> runs it with
+# DATA_PLANE_TLS_INSECURE=0 and that CA pinned; adding M27_MSSQL_EXPECT=refused inverts the leg,
+# so it passes only when the pinned run cannot connect while the escape run on the same server
+# is green. Unset, mssql keeps the escape (INSECURE=1), as before.
 # M27_TARGET (a volume or host path) holds cargo's target dir instead of mini-baas-dpr-target.
 
 set -euo pipefail
@@ -259,15 +263,20 @@ run_engine() { # $1 engine -> 0 green, 1 fail, 2 skip (engine down)
     [[ ${rc} -eq 3 ]] && red "[M27] ${engine}: scratch upstream did not start" && return 1
     return 2
   }
+  [[ "${engine}" != mssql || "${M27_MSSQL_EXPECT:-}" != refused ]] || mssql_escape_control || return 1
   step "conformance: ${engine}"
   out="$(mktemp)"
-  local features=() extra_env=() pool_engine="${engine}"
+  local features=() extra_env=() pool_engine="${engine}" insecure=1
   # mysql8 is Oracle MySQL behind the same `mysql` pool descriptor as the MariaDB service.
   [[ "${engine}" != mysql8 ]] || pool_engine=mysql
   [[ "${engine}" != dynamodb ]] || features=(--features dynamodb)
   [[ "${engine}" != http ]] || extra_env=(-e DATA_PLANE_HTTP_ALLOW_INTERNAL=1)
   [[ "${engine}" != postgresql || -z "${M27_PG_TLS_CA:-}" ]] ||
     extra_env=(-v "${M27_PG_TLS_CA}":/run/m27-ca.pem:ro -e DATA_PLANE_TLS_CA_FILE=/run/m27-ca.pem)
+  if [[ "${engine}" == mssql && -n "${M27_MSSQL_TLS_CA:-}" ]]; then
+    insecure=0
+    extra_env=(-v "${M27_MSSQL_TLS_CA}":/run/m27-ca.pem:ro -e DATA_PLANE_TLS_CA_FILE=/run/m27-ca.pem)
+  fi
   # Single run: the test (tests/conformance.rs) asserts green, so cargo's
   # exit code is the source of truth; we tee the report for the operator.
   set +e
@@ -275,7 +284,7 @@ run_engine() { # $1 engine -> 0 green, 1 fail, 2 skip (engine down)
     -e CONFORMANCE_ENGINE="${pool_engine}" \
     -e CONFORMANCE_DSN="${dsn}" \
     -e CONFORMANCE_TENANT="conf-${engine}" \
-    -e DATA_PLANE_TLS_INSECURE=1 \
+    -e DATA_PLANE_TLS_INSECURE="${insecure}" \
     "${extra_env[@]}" \
     -v "${ROUTER_DIR}":/work -w /work \
     -v mini-baas-cargo-registry:/usr/local/cargo/registry \
@@ -286,9 +295,32 @@ run_engine() { # $1 engine -> 0 green, 1 fail, 2 skip (engine down)
   rc=$?
   set -e
   grep -E "conformance:|PASS |SKIP |FAIL |passed,|panicked" "${out}" || tail -5 "${out}"
+  if [[ "${engine}" == mssql && "${M27_MSSQL_EXPECT:-}" == refused ]]; then
+    if mssql_refused "${rc}" "${out}"; then rc=0; else rc=1; fi
+  fi
   rm -f "${out}"
   [[ ${rc} -eq 0 && "${engine}" == mysql8 ]] && { mysql8_is_oracle || return 1; }
   return ${rc}
+}
+
+# M27_MSSQL_EXPECT=refused (ADR 0027 D5): the pinned-CA run must fail at its first checkout.
+# Caveat: bb8 reports every dial error as "Timed out in bb8" (no error sink), so the output
+# cannot name the certificate. mssql_escape_control runs first on the same server and DSN with
+# only the trust changed; a refusal after a green control is the cert. Wrong direction: a server
+# that dies between the two runs reads as a refusal (a false pass), so the leg runs them back to back.
+mssql_escape_control() {
+  step "control: the same mssql with the escape on (INSECURE=1) must be green"
+  M27_MSSQL_TLS_CA='' M27_MSSQL_EXPECT='' run_engine mssql && return 0
+  red "[M27] mssql control (INSECURE=1) failed: a refusal after it would prove nothing"
+  return 1
+}
+mssql_refused() { # $1 cargo's exit code, $2 its output
+  if [[ "$1" -ne 0 ]] && grep -q 'bootstrap: create scratch: backend error: mssql checkout failed: Timed out in bb8' "$2"; then
+    pass "mssql: the pinned CA refuses the server cert, the escape on the same server is green"
+    return 0
+  fi
+  red "[M27] mssql was not refused at checkout under the pinned CA (cargo exit $1)"
+  return 1
 }
 
 # Load-bearing: a MariaDB image under the mysql8 name would pass the battery and prove nothing.

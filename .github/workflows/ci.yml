@@ -1557,7 +1557,8 @@ jobs:
           - { engine: cockroachdb, services: cockroach, profile: engines-extra }
           - { engine: mssql, services: mssql, profile: engines-extra }
           # ENGINE_TLS_ENGINES=mssql: sqlservr serves the CA-signed cert from MSSQL_TLS_* env;
-          # the published image already ships setpriv, so no build.
+          # the published image already ships setpriv, so no build. m27 runs the pool with the
+          # escape off and that CA pinned (ADR 0027).
           - { engine: mssql, services: mssql, profile: engines-extra, tls: mssql }
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -1594,7 +1595,16 @@ jobs:
         env:
           ENGINE: ${{ matrix.engine }}
           M27_PG_TLS_CA: ${{ matrix.tls == 'postgres' && format('{0}/certs/engines/ca.pem', github.workspace) || '' }}
+          M27_MSSQL_TLS_CA: ${{ matrix.tls == 'mssql' && format('{0}/certs/engine-tls/mssql/ca.pem', github.workspace) || '' }}
         run: bash scripts/ci/retry-on-429.sh bash scripts/verify/m27-conformance.sh "$ENGINE"
+      # ADR 0027 D5: with the escape off, the pool refuses the default self-signed mssql cert.
+      # m27 runs the escape leg first on the same server, so the refusal is the cert's.
+      - name: m27 mssql refuses an unverified cert
+        if: matrix.engine == 'mssql' && !matrix.tls
+        env:
+          M27_MSSQL_TLS_CA: ${{ github.workspace }}/certs/track-binocle-local-ca.pem
+          M27_MSSQL_EXPECT: refused
+        run: bash scripts/ci/retry-on-429.sh bash scripts/verify/m27-conformance.sh mssql
       - name: engine TLS live boots + who negotiated TLS (m247)
         if: matrix.tls
         env:
