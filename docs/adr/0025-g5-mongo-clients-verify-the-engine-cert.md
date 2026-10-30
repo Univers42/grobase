@@ -1,8 +1,8 @@
 # 0025. Mongo clients verify the engine cert inside the mongo overlay, with requireTLS as an opt-in mode
 
-- Status: accepted. devil PROCEED-WITH-CONDITIONS, 2026-10-30, M1–M12
+- Status: accepted. devil PROCEED-WITH-CONDITIONS, 2026-10-30, M1–M12; re-rule N1–N8 the same day
 - Date: 2026-10-30
-- Deciders: devil (ruling); the grobase builder carries M1–M12
+- Deciders: devil (ruling); the grobase builder carries M1–M12 and N1–N8
 
 ## Context
 
@@ -58,13 +58,32 @@ server and every client together.
   has `DATA_PLANE_TLS_CA_FILE` for mysql and mssql only.
 - Conditions M1–M12 are in the devil verdict (groot `.claude/agent-memory/devil/g5-mongo-clients-verdict.md`).
 
-## Found while implementing (2026-10-30, awaits a devil re-rule)
+## Found while implementing (2026-10-30), resolved by the re-rule (option (a), N1–N8)
 
 - The `ts-base` anchor (`orchestrators/compose/base/_common.yml:75`) passes `MONGO_URI` through
   from the host env, and `config.env:37` sets it to a plaintext `mongodb://mongo:27017`. With an
-  assembled `.env` the render holds 16 mongo DSNs, not 7: email, gdpr, log, newsletter,
-  permission-engine, query-router, schema, session and storage-router dial plaintext. compose
+  assembled `.env` the render holds 16 mongo DSNs, not 7. The other nine go to email, gdpr, log,
+  newsletter, permission-engine, query-router, schema, session and storage-router. compose
   reads this from `.env` even under `--env-file` (measured, compose v2.36.0).
-- M2 names seven DSNs, so the overlay does not restate these nine. m247 renders its census with
-  `MONGO_URI` empty and lists the nine as a SKIP on every run. They are a requireTLS carve-out
-  like the pool mounts, and the overlay's Caveat names them.
+- The carve-out is now proven, not listed as a SKIP. The only reader of `MONGO_URI` is
+  `libs/database/src/mongo/mongo.service.ts:29`, and only `MongoModule` wires it.
+  `scripts/verify/engine-tls-mongo-readers.sh` takes the nine from the render, which it runs
+  with a sentinel `MONGO_URI` so a host without `.env` finds them too. It maps each one to
+  `src/apps/<build APP>/src`, and an unmappable service fails (N5). Then it fails on any of
+  these: a `MongoModule`/`MongoService` name (N1), a `MONGO_URI` token (N2), or its own mongodb
+  driver (N3). It also fails if a lib outside `libs/database/src/mongo` names the two (N4).
+  m247 reports `9 pass-through, 0 readers` (N7). Before that it runs the census on stub trees.
+  A clean tree must pass, and eight mutants plus an unmappable app must each fail for their own
+  rule (N6). Six of the nine import the `@mini-baas/database` barrel for its Postgres half, so
+  the guard matches names, not the import path.
+- Under requireTLS the nine keep working because they never dial mongo through `MONGO_URI`.
+  The census is a grep, not a module graph. It misses a dynamic `require` and a string-built
+  name such as `process.env['MONGO' + '_URI']` (its Caveat).
+- schema-service's `engines/mongo-schema.engine.ts` opens `new MongoClient` on a tenant DSN
+  that comes with the request. This is the one driver use N3 allows, and the file must not name
+  `MONGO_URI`. Verifying tenant DSNs belongs to the pool's mongo ruling (M10), not here.
+- Rejected: (b) restating `MONGO_URI` with TLS for the nine. `mongo.service.ts:36-54` swallows
+  connect errors under `MONGO_OPTIONAL`, which the same anchor passes through, so "fails closed"
+  would be false. It also adds nine DSNs nothing reads and breaks M2.
+- Follow-up, which needs its own devil ruling: (c) drop `MONGO_URI` from the ts-base anchor for
+  the non-readers. That is the right end state, but it changes the base compose (M12).
