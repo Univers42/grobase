@@ -43,7 +43,12 @@ ENGINE_TLS     ?= $(shell sed -n 's/^ENGINE_TLS=//p' .env.local 2>/dev/null | he
 # ENGINE_TLS so a Postgres-TLS host never recreates the other engines. Its cert:
 # scripts/certs/generate-engine-cert.sh <engine>.
 ENGINE_TLS_ENGINES ?= $(shell sed -n 's/^ENGINE_TLS_ENGINES=//p' .env.local 2>/dev/null | head -1)
-DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)$(foreach e,$(ENGINE_TLS_ENGINES), -f orchestrators/compose/docker-compose.engine-tls-$(e).yml)
+# REDIS_ACL=1 (env, or a REDIS_ACL= line in .env.local) composes the Redis ACL overlay,
+# stage 1 (docker-compose.redis-acl.yml, ADR 0028): redis gains the app user, every redis
+# consumer dials it with REDIS_PASSWORD. Separate from ENGINE_TLS_ENGINES; it composes with
+# the redis TLS overlay in either order.
+REDIS_ACL      ?= $(shell sed -n 's/^REDIS_ACL=//p' .env.local 2>/dev/null | head -1)
+DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)$(foreach e,$(ENGINE_TLS_ENGINES), -f orchestrators/compose/docker-compose.engine-tls-$(e).yml)$(if $(filter 1,$(REDIS_ACL)), -f orchestrators/compose/docker-compose.redis-acl.yml)
 
 # Colors
 _B := \033[0;34m

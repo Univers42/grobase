@@ -1,0 +1,114 @@
+# docker-compose.redis-acl.yml — Redis ACL password, stage 1 (G5, docs/adr/0028-g5-redis-acl-stage1.md).
+# Opt-in: REDIS_ACL=1 (env, or a REDIS_ACL= line in .env.local; orchestrators/makes/00-config.mk).
+# ENGINE_TLS never composes this file. It composes with the redis TLS overlay in either order
+# (m261): that file owns redis' entrypoint, this one its command and healthcheck.
+#
+# redis gains ONE ACL user, app, whose password is REDIS_PASSWORD (scripts/env/generate-env.sh).
+# The password reaches redis as a compose secret file, and redis-acl.sh hands redis-server its
+# sha256 only, so `docker inspect` of redis carries neither. Every *REDIS*_URL a service
+# declares in the base files, and the Debezium sink, is pointed at redis://app:…@redis:6379;
+# no service gains a name it did not already declare.
+#
+# Caveat: stage 1 leaves the default user on and nopass. A consumer with a wrong or missing
+# password is still served, as default, so it looks healthy until stage 2 turns default off
+# (its own ruling). Tenant mounts registered as redis://redis:6379 dial default the same way.
+# A REDIS_URL an operator set in .env is overridden here, not merged.
+# Consumer containers carry the password inside their URL, as DATABASE_URL does for postgres.
+
+x-redis-acl-url: &redis-acl-url redis://app:${REDIS_PASSWORD:?unset - run make env}@redis:6379
+# The three names _common.yml passes through to every NestJS service.
+x-redis-acl-common: &redis-acl-common
+  REDIS_URL: *redis-acl-url
+  IDEMPOTENCY_REDIS_URL: *redis-acl-url
+  IDENTITY_NONCE_REDIS_URL: *redis-acl-url
+
+services:
+  redis:
+    # The base command, restated behind the wrapper; m261 fails when the two drift.
+    command:
+      - sh
+      - /usr/local/bin/redis-acl.sh
+      - serve
+      - redis-server
+      - --protected-mode
+      - "no"
+      - --appendonly
+      - "yes"
+      - --auto-aof-rewrite-percentage
+      - "100"
+      - --auto-aof-rewrite-min-size
+      - 64mb
+      - --maxmemory
+      - 384mb
+      - --maxmemory-policy
+      - volatile-lru
+    # `redis-cli ping` exits 0 on NOAUTH and PONGs as default after WRONGPASS (RA5).
+    healthcheck:
+      test: ["CMD", "sh", "/usr/local/bin/redis-acl.sh", "health"]
+    secrets:
+      - redis_acl_password
+    volumes:
+      - type: bind
+        source: ./infra/docker/services/redis/redis-acl.sh
+        target: /usr/local/bin/redis-acl.sh
+        read_only: true
+
+  debezium:
+    # debezium.sink.redis.user / .password (RedisCommonConfig, debezium-storage-redis 3.0.0).
+    environment:
+      DEBEZIUM_SINK_REDIS_USER: app
+      DEBEZIUM_SINK_REDIS_PASSWORD: ${REDIS_PASSWORD:?unset - run make env}
+
+  ai-service: { environment: *redis-acl-common }
+  analytics-service: { environment: *redis-acl-common }
+  email-service: { environment: *redis-acl-common }
+  gdpr-service: { environment: *redis-acl-common }
+  log-service: { environment: *redis-acl-common }
+  mongo-api: { environment: *redis-acl-common }
+  newsletter-service: { environment: *redis-acl-common }
+  permission-engine: { environment: *redis-acl-common }
+  schema-service: { environment: *redis-acl-common }
+  session-service: { environment: *redis-acl-common }
+  outbox-relay:
+    environment:
+      <<: *redis-acl-common
+      OUTBOX_REDIS_URL: *redis-acl-url
+  query-router:
+    environment:
+      <<: *redis-acl-common
+      QUERY_ROUTER_REDIS_URL: *redis-acl-url
+  storage-router:
+    environment:
+      <<: *redis-acl-common
+      STORAGE_METERING_REDIS_URL: *redis-acl-url
+  orchestrator:
+    environment:
+      REDIS_URL: *redis-acl-url
+      OUTBOX_REDIS_URL: *redis-acl-url
+  tenant-control:
+    environment:
+      REDIS_URL: *redis-acl-url
+      OUTBOX_REDIS_URL: *redis-acl-url
+  webhook-dispatcher:
+    environment:
+      OUTBOX_REDIS_URL: *redis-acl-url
+      WEBHOOK_REDIS_URL: *redis-acl-url
+  functions-runtime:
+    environment:
+      REDIS_URL: *redis-acl-url
+      FUNCTION_METERING_REDIS_URL: *redis-acl-url
+  realtime:
+    environment:
+      REDIS_URL: *redis-acl-url
+      REALTIME_METERING_REDIS_URL: *redis-acl-url
+      REALTIME_PRESENCE_REDIS_URL: *redis-acl-url
+  data-plane-router-rust:
+    environment:
+      REDIS_URL: *redis-acl-url
+      DATA_PLANE_METERING_REDIS_URL: *redis-acl-url
+      DATA_PLANE_QUOTA_REDIS_URL: *redis-acl-url
+      DATA_PLANE_RATELIMIT_REDIS_URL: *redis-acl-url
+
+secrets:
+  redis_acl_password:
+    environment: REDIS_PASSWORD
